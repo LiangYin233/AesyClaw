@@ -1,0 +1,12 @@
+{
+  "name": "aesyclaw-md2img",
+  "version": "1.0.0",
+  "description": "将 Markdown 自动转换为图片",
+  "main": "main.js",
+  "type": "module",
+  "dependencies": {
+    "marked": "^9.0.0",
+    "marked-katex-extension": "^3.0.0",
+    "playwright": "^1.41.0"
+  }
+}

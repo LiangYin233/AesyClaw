@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown</title>
+    
+    <style>
+        @font-face {
+            font-family: 'Source Han Sans SC';
+            src: url('./SourceHanSans-VF.otf.woff2') format('woff2');
+            font-weight: 400 700;
+            font-display: swap;
+        }
+        
+        @font-face {
+            font-family: 'Source Han Serif SC';
+            src: url('./SourceHanSerif-VF.otf.woff2') format('woff2');
+            font-weight: 400 700;
+            font-display: swap;
+        }
+        
+        :root {
+            --bg-primary: #faf9f7;
+            --bg-secondary: #f3f1ed;
+            --text-primary: #1a1a1a;
+            --text-secondary: #4a4a4a;
+            --accent: #8b7355;
+            --border: #d9d5ce;
+            --code-bg: #f0ede8;
+            --radius: 8px;
+            --radius-sm: 4px;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        html, body, p, li, div, span, h1, h2, h3, h4, h5, h6, blockquote {
+            font-family: 'Source Han Serif SC', 'Noto Serif SC', serif;
+        }
+        
+        table, th, td, code, pre {
+            font-family: 'Source Han Sans SC', 'Noto Sans SC', sans-serif !important;
+        }
+        
+        .thinking {
+            background: linear-gradient(135deg, #f5f3ef 0%, #ebe8e2 100%);
+            border-left: 4px solid #b8a88a;
+            padding: 20px 24px;
+            margin: 20px 0;
+            border-radius: 0 var(--radius) var(--radius) 0;
+        }
+        
+        .thinking-label {
+            font-size: 0.7em;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #9a8a6a;
+            margin-bottom: 12px;
+            font-weight: 500;
+            font-family: 'Source Han Sans SC', sans-serif;
+        }
+        
+        .thinking p {
+            color: #6a6a6a;
+            font-size: 0.95em;
+            line-height: 1.8;
+            margin: 0.6em 0;
+        }
+        
+        .thinking code { background: rgba(0,0,0,0.05); }
+        
+        html, body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 15px;
+            line-height: 1.8;
+            padding: 40px 48px;
+            min-height: auto;
+        }
+        
+        h1, h2, h3, h4, h5, h6 {
+            font-weight: 600;
+            color: var(--text-primary);
+            line-height: 1.4;
+            margin: 1.5em 0 0.6em 0;
+        }
+        
+        h1 { font-size: 1.75em; border-bottom: 1.5px solid var(--border); padding-bottom: 0.35em; margin-top: 0; margin-bottom: 0.8em; }
+        h2 { font-size: 1.4em; }
+        h3 { font-size: 1.2em; }
+        
+        p { margin: 0.9em 0; text-align: justify; }
+        
+        code {
+            background: var(--code-bg);
+            padding: 0.2em 0.45em;
+            border-radius: var(--radius-sm);
+            font-size: 0.88em;
+            color: #5a4a3a;
+        }
+        
+        pre {
+            background: var(--code-bg);
+            padding: 20px 24px;
+            border-radius: var(--radius);
+            overflow-x: auto;
+            margin: 20px 0;
+            border: 1px solid var(--border);
+        }
+        
+        pre code { background: none; padding: 0; font-size: 0.85em; line-height: 1.7; color: #3d3d3d; }
+        
+        blockquote {
+            border-left: 3px solid var(--accent);
+            padding: 16px 24px;
+            margin: 20px 0;
+            color: var(--text-secondary);
+            background: var(--bg-secondary);
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+        }
+        
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+            font-size: 0.9em;
+        }
+        
+        th, td { border: 1px solid var(--border); padding: 14px 18px; text-align: left; }
+        th { background: var(--bg-secondary); font-weight: 600; }
+        tr:nth-child(even) { background: var(--bg-secondary); }
+        
+        ul, ol { margin: 14px 0; padding-left: 26px; }
+        li { margin: 8px 0; }
+        li::marker { color: var(--accent); }
+        
+        ul.task-list { list-style: none; padding-left: 8px; }
+        ul.task-list li { display: flex; align-items: flex-start; gap: 10px; }
+        ul.task-list li input[type="checkbox"] { margin-top: 6px; accent-color: var(--accent); }
+        
+        hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+        
+        a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; }
+    </style>
+</head>
+<body>
+{{ content }}
+</body>
+</html>

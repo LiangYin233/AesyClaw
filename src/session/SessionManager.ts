@@ -1,0 +1,250 @@
+import { join } from 'path';
+import { randomUUID } from 'crypto';
+import type { LLMMessage } from '../types.js';
+import { Database, type DBSession, type DBMessage } from '../db/index.js';
+import { logger } from '../logger/index.js';
+
+export interface SessionMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp?: string;
+}
+
+export interface Session {
+  key: string;
+  channel: string;
+  chatId: string;
+  uuid?: string;
+  messages: SessionMessage[];
+  createdAt: Date;
+  updatedAt: Date;
+  lastConsolidated: number;
+}
+
+export class SessionManager {
+  private db: Database;
+  private sessions: Map<string, Session> = new Map();
+  private maxSessions: number;
+  private sessionLocks: Map<string, Promise<Session>> = new Map();
+  private log = logger;
+
+  constructor(storageDir: string, maxSessions: number = 100) {
+    this.maxSessions = maxSessions;
+    const dbPath = join(storageDir, 'sessions.db');
+    this.db = new Database(dbPath);
+    this.log.info(`[SessionManager] Initialized with SQLite: ${dbPath}`);
+  }
+
+  async ready(): Promise<void> {
+    await this.db.ready();
+  }
+
+  createSessionKey(channel: string, chatId: string, uuid?: string): string {
+    if (uuid) {
+      return `${channel}:${chatId}:${uuid}`;
+    }
+    return `${channel}:${chatId}`;
+  }
+
+  parseSessionKey(key: string): { channel: string; chatId: string; uuid?: string } {
+    const parts = key.split(':');
+    if (parts.length >= 3) {
+      return { channel: parts[0], chatId: parts[1], uuid: parts[2] };
+    }
+    return { channel: parts[0], chatId: parts[1] };
+  }
+
+  createNewSession(channel: string, chatId: string): string {
+    const uuid = randomUUID().substring(0, 8);
+    const key = this.createSessionKey(channel, chatId, uuid);
+    this.log.debug(`Creating new session: ${key}`);
+    return key;
+  }
+
+  async getOrCreate(key: string): Promise<Session> {
+    const existing = this.sessions.get(key);
+    if (existing) {
+      return existing;
+    }
+
+    const pending = this.sessionLocks.get(key);
+    if (pending) {
+      return pending;
+    }
+
+    const lockPromise = this.doGetOrCreate(key);
+    this.sessionLocks.set(key, lockPromise);
+
+    try {
+      const session = await lockPromise;
+      return session;
+    } finally {
+      this.sessionLocks.delete(key);
+    }
+  }
+
+  private async doGetOrCreate(key: string): Promise<Session> {
+    if (this.sessions.has(key)) {
+      return this.sessions.get(key)!;
+    }
+
+    const parsed = this.parseSessionKey(key);
+    const session = await this.load(key);
+    
+    if (!session) {
+      await this.db.run(
+        `INSERT INTO sessions (key, channel, chat_id, uuid) VALUES (?, ?, ?, ?)`,
+        [key, parsed.channel, parsed.chatId, parsed.uuid || null]
+      );
+      
+      const newSession: Session = {
+        key,
+        channel: parsed.channel,
+        chatId: parsed.chatId,
+        uuid: parsed.uuid,
+        messages: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lastConsolidated: 0
+      };
+      this.sessions.set(key, newSession);
+      await this.cleanupOldSessions();
+      return newSession;
+    }
+
+    this.sessions.set(key, session);
+    await this.cleanupOldSessions();
+    return session;
+  }
+
+  private async cleanupOldSessions(): Promise<void> {
+    if (this.sessions.size > this.maxSessions) {
+      const keys = Array.from(this.sessions.keys()).sort((a, b) => {
+        const sessionA = this.sessions.get(a)!;
+        const sessionB = this.sessions.get(b)!;
+        return sessionA.updatedAt.getTime() - sessionB.updatedAt.getTime();
+      });
+
+      const toRemove = keys.slice(0, this.sessions.size - this.maxSessions);
+      for (const key of toRemove) {
+        await this.delete(key);
+        this.log.debug(`Cleanup: removed old session ${key}`);
+      }
+    }
+  }
+
+  private async load(key: string): Promise<Session | null> {
+    const rows = await this.db.all<DBSession>(
+      `SELECT * FROM sessions WHERE key = ?`,
+      [key]
+    );
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    const row = rows[0];
+    const messages = await this.db.all<DBMessage>(
+      `SELECT * FROM messages WHERE session_id = ? ORDER BY id ASC`,
+      [row.id]
+    );
+
+    return {
+      key: row.key,
+      channel: row.channel,
+      chatId: row.chat_id,
+      uuid: row.uuid || undefined,
+      messages: messages.map(m => ({
+        role: m.role as 'user' | 'assistant' | 'system',
+        content: m.content,
+        timestamp: m.timestamp
+      })),
+      createdAt: new Date(row.created_at),
+      updatedAt: new Date(row.updated_at),
+      lastConsolidated: 0
+    };
+  }
+
+  async save(session: Session): Promise<void> {
+    session.updatedAt = new Date();
+    await this.db.run(
+      `UPDATE sessions SET updated_at = ? WHERE key = ?`,
+      [session.updatedAt.toISOString(), session.key]
+    );
+  }
+
+  async addMessage(key: string, role: 'user' | 'assistant' | 'system', content: string): Promise<void> {
+    const session = await this.getOrCreate(key);
+    
+    session.messages.push({
+      role,
+      content,
+      timestamp: new Date().toISOString()
+    });
+
+    const rows = await this.db.all<DBSession>(
+      `SELECT id FROM sessions WHERE key = ?`,
+      [key]
+    );
+
+    if (rows.length > 0) {
+      await this.db.run(
+        `INSERT INTO messages (session_id, role, content) VALUES (?, ?, ?)`,
+        [rows[0].id, role, content]
+      );
+    }
+
+    await this.save(session);
+  }
+
+  list(): Session[] {
+    return Array.from(this.sessions.values());
+  }
+
+  async delete(key: string): Promise<void> {
+    this.sessions.delete(key);
+    await this.db.run(`DELETE FROM sessions WHERE key = ?`, [key]);
+  }
+
+  count(): number {
+    return this.sessions.size;
+  }
+
+  async loadAll(): Promise<void> {
+    await this.db.ready();
+    
+    const sessions = await this.db.all<DBSession>(
+      `SELECT * FROM sessions ORDER BY updated_at DESC LIMIT ?`,
+      [this.maxSessions]
+    );
+
+    for (const row of sessions) {
+      const messages = await this.db.all<DBMessage>(
+        `SELECT * FROM messages WHERE session_id = ? ORDER BY id ASC`,
+        [row.id]
+      );
+
+      const session: Session = {
+        key: row.key,
+        channel: row.channel,
+        chatId: row.chat_id,
+        uuid: row.uuid || undefined,
+        messages: messages.map(m => ({
+          role: m.role as 'user' | 'assistant' | 'system',
+          content: m.content,
+          timestamp: m.timestamp
+        })),
+        createdAt: new Date(row.created_at),
+        updatedAt: new Date(row.updated_at),
+        lastConsolidated: 0
+      };
+      this.sessions.set(row.key, session);
+    }
+
+    this.log.info(`[SessionManager] Loaded ${this.sessions.size} sessions from database`);
+  }
+
+  async close(): Promise<void> {
+    await this.db.close();
+  }
+}
