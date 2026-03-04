@@ -4,78 +4,78 @@ import { CONSTANTS } from '../constants/index.js';
 
 const MAX_QUEUE_SIZE = CONSTANTS.QUEUE_SIZE;
 
-export class EventBus extends EventEmitter {
-  private inboundQueue: InboundMessage[] = [];
-  private outboundQueue: OutboundMessage[] = [];
-  private inboundReadIndex = 0;
-  private outboundReadIndex = 0;
-  private inboundResolver: ((msg: InboundMessage) => void) | null = null;
-  private outboundResolver: ((msg: OutboundMessage) => void) | null = null;
+interface QueueItem<T> {
+  data: T;
+  timestamp: number;
+}
 
-  private popFromQueue<T>(queue: T[], readIndex: number): { item: T | undefined; newReadIndex: number } {
-    if (readIndex >= queue.length) {
-      return { item: undefined, newReadIndex: readIndex };
+export class EventBus extends EventEmitter {
+  private inboundQueue: QueueItem<InboundMessage>[] = [];
+  private outboundQueue: QueueItem<OutboundMessage>[] = [];
+  private inboundWaiter: ((msg: InboundMessage) => void) | null = null;
+  private outboundWaiter: ((msg: OutboundMessage) => void) | null = null;
+
+  private popFromQueue<T>(queue: QueueItem<T>[]): T | undefined {
+    if (queue.length === 0) {
+      return undefined;
     }
-    return { item: queue[readIndex], newReadIndex: readIndex + 1 };
+    return queue.shift()?.data;
+  }
+
+  private trimQueue<T>(queue: QueueItem<T>[]): void {
+    if (queue.length >= MAX_QUEUE_SIZE) {
+      const itemsToRemove = Math.floor(MAX_QUEUE_SIZE / 4);
+      queue.splice(0, itemsToRemove);
+    }
   }
 
   async publishInbound(msg: InboundMessage): Promise<void> {
     this.emit('inbound', msg);
 
-    if (this.inboundResolver) {
-      const resolver = this.inboundResolver;
-      this.inboundResolver = null;
-      resolver(msg);
+    if (this.inboundWaiter) {
+      const waiter = this.inboundWaiter;
+      this.inboundWaiter = null;
+      waiter(msg);
       return;
     }
 
-    if (this.inboundQueue.length - this.inboundReadIndex >= MAX_QUEUE_SIZE) {
-      const itemsToRemove = Math.floor(MAX_QUEUE_SIZE / 4);
-      this.inboundQueue.splice(0, this.inboundReadIndex + itemsToRemove);
-      this.inboundReadIndex = 0;
-    }
-    this.inboundQueue.push(msg);
+    this.trimQueue(this.inboundQueue);
+    this.inboundQueue.push({ data: msg, timestamp: Date.now() });
   }
 
   async publishOutbound(msg: OutboundMessage): Promise<void> {
     this.emit('outbound', msg);
 
-    if (this.outboundResolver) {
-      const resolver = this.outboundResolver;
-      this.outboundResolver = null;
-      resolver(msg);
+    if (this.outboundWaiter) {
+      const waiter = this.outboundWaiter;
+      this.outboundWaiter = null;
+      waiter(msg);
       return;
     }
 
-    if (this.outboundQueue.length - this.outboundReadIndex >= MAX_QUEUE_SIZE) {
-      const itemsToRemove = Math.floor(MAX_QUEUE_SIZE / 4);
-      this.outboundQueue.splice(0, this.outboundReadIndex + itemsToRemove);
-      this.outboundReadIndex = 0;
-    }
-    this.outboundQueue.push(msg);
+    this.trimQueue(this.outboundQueue);
+    this.outboundQueue.push({ data: msg, timestamp: Date.now() });
   }
 
   async consumeInbound(): Promise<InboundMessage> {
-    const result = this.popFromQueue(this.inboundQueue, this.inboundReadIndex);
-    if (result.item) {
-      this.inboundReadIndex = result.newReadIndex;
-      return result.item;
+    const item = this.popFromQueue(this.inboundQueue);
+    if (item !== undefined) {
+      return item;
     }
 
     return new Promise<InboundMessage>((resolve) => {
-      this.inboundResolver = resolve;
+      this.inboundWaiter = resolve;
     });
   }
 
   async consumeOutbound(): Promise<OutboundMessage> {
-    const result = this.popFromQueue(this.outboundQueue, this.outboundReadIndex);
-    if (result.item) {
-      this.outboundReadIndex = result.newReadIndex;
-      return result.item;
+    const item = this.popFromQueue(this.outboundQueue);
+    if (item !== undefined) {
+      return item;
     }
 
     return new Promise<OutboundMessage>((resolve) => {
-      this.outboundResolver = resolve;
+      this.outboundWaiter = resolve;
     });
   }
 

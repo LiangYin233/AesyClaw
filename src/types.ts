@@ -52,7 +52,7 @@ export interface ToolDefinition {
 }
 
 export interface LLMResponse {
-  content: string | null;
+  content: string | null | undefined;
   reasoning_content?: string;
   toolCalls: ToolCall[];
   finishReason: string;

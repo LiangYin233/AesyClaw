@@ -1,5 +1,5 @@
 import { LLMProvider } from './base.js';
-import type { LLMMessage, LLMResponse, ToolDefinition } from '../types.js';
+import type { LLMMessage, LLMResponse, ToolDefinition, ToolCall } from '../types.js';
 import { logger } from '../logger/index.js';
 
 interface OpenAITool {
@@ -7,7 +7,42 @@ interface OpenAITool {
   function: {
     name: string;
     description: string;
-    parameters: Record<string, any>;
+    parameters: Record<string, unknown>;
+  };
+}
+
+interface OpenAIMessage {
+  role: string;
+  content?: string | null;
+  tool_call_id?: string;
+  tool_calls?: OpenAIToolCall[];
+}
+
+interface OpenAIToolCall {
+  id: string;
+  type: string;
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
+interface OpenAIResponse {
+  choices?: Array<{
+    message: {
+      content: string | null;
+      reasoning_content?: string | null;
+      tool_calls?: OpenAIToolCall[];
+    };
+    finish_reason: string;
+  }>;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+  error?: {
+    message: string;
   };
 }
 
@@ -28,9 +63,9 @@ export class OpenAIProvider extends LLMProvider {
     }));
   }
 
-  private formatMessages(messages: LLMMessage[]): any[] {
+  private formatMessages(messages: LLMMessage[]): OpenAIMessage[] {
     return messages.map(msg => {
-      const formatted: any = {
+      const formatted: OpenAIMessage = {
         role: msg.role
       };
 
@@ -38,25 +73,21 @@ export class OpenAIProvider extends LLMProvider {
         formatted.tool_call_id = msg.toolCallId;
         formatted.content = msg.content;
       } else if (msg.toolCalls && msg.toolCalls.length > 0) {
-        formatted.tool_calls = msg.toolCalls.map((tc: any) => {
+        formatted.tool_calls = msg.toolCalls.map((tc: ToolCall) => {
           let args: string;
           if (typeof tc.arguments === 'string') {
             args = tc.arguments;
           } else if (tc.arguments && Object.keys(tc.arguments).length > 0) {
             args = JSON.stringify(tc.arguments);
-          } else if (tc.function?.arguments) {
-            args = typeof tc.function.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function.arguments);
           } else {
             args = '{}';
           }
           
-          const toolName = tc.name || tc.function?.name;
-          
           return {
-            id: tc.id,
+            id: tc.id || '',
             type: 'function',
             function: {
-              name: toolName,
+              name: tc.name || '',
               arguments: args
             }
           };
@@ -112,7 +143,7 @@ export class OpenAIProvider extends LLMProvider {
         Object.assign(headers, this.headers);
       }
 
-      const requestBody: Record<string, any> = {
+      const requestBody: Record<string, unknown> = {
         model: modelName,
         messages: formattedMessages,
         tools: this.formatTools(tools)
@@ -128,7 +159,7 @@ export class OpenAIProvider extends LLMProvider {
         body: JSON.stringify(requestBody)
       });
 
-      const data: any = await response.json();
+      const data = await response.json() as OpenAIResponse;
 
       if (!response.ok) {
         this.log.error(`API Error: ${response.status} ${response.statusText}`, data);
@@ -163,9 +194,21 @@ export class OpenAIProvider extends LLMProvider {
       }
 
       return {
-        content,
-        reasoning_content,
-        toolCalls,
+        content: content ?? undefined,
+        reasoning_content: reasoning_content ?? undefined,
+        toolCalls: toolCalls.map((tc: OpenAIToolCall) => {
+          let args: Record<string, unknown>;
+          try {
+            args = JSON.parse(tc.function.arguments);
+          } catch {
+            args = {};
+          }
+          return {
+            id: tc.id,
+            name: tc.function.name,
+            arguments: args
+          };
+        }),
         finishReason,
         usage
       };

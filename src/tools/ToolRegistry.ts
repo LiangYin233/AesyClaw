@@ -86,7 +86,14 @@ export class ToolRegistry {
     };
 
     try {
-      const result = await tool.execute(params, execContext);
+      const result = await Promise.race([
+        tool.execute(params, execContext),
+        new Promise<never>((_, reject) => {
+          controller.signal.addEventListener('abort', () => {
+            reject(new Error('Tool execution aborted'));
+          });
+        })
+      ]);
       clearTimeout(timeoutId);
       return result;
     } catch (error) {

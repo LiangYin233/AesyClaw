@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import type { LLMMessage } from '../types.js';
 import { Database, type DBSession, type DBMessage } from '../db/index.js';
 import { logger } from '../logger/index.js';
+import { CONSTANTS } from '../constants/index.js';
 
 export interface SessionMessage {
   role: 'user' | 'assistant' | 'system';
@@ -29,7 +30,7 @@ export class SessionManager {
   private sessionLocks: Map<string, Promise<Session>> = new Map();
   private log = logger.child({ prefix: 'SessionManager' });
 
-  constructor(storageDir: string, maxSessions: number = 100) {
+  constructor(storageDir: string, maxSessions: number = CONSTANTS.DEFAULT_MAX_SESSIONS) {
     this.maxSessions = maxSessions;
     const dbPath = join(storageDir, 'sessions.db');
     this.db = new Database(dbPath);
@@ -117,7 +118,7 @@ export class SessionManager {
       };
       this.sessions.set(key, newSession);
       
-      if (this.sessions.size >= this.maxSessions * 0.9) {
+      if (this.sessions.size >= this.maxSessions * CONSTANTS.SESSION_CLEANUP_THRESHOLD) {
         await this.cleanupOldSessions();
       }
       return newSession;
@@ -232,28 +233,32 @@ export class SessionManager {
       [this.maxSessions]
     );
 
-    for (const row of sessions) {
-      const messages = await this.db.all<DBMessage>(
-        `SELECT * FROM messages WHERE session_id = ? ORDER BY id ASC`,
-        [row.id]
-      );
+    const batchSize = CONSTANTS.SESSION_LOAD_BATCH_SIZE;
+    for (let i = 0; i < sessions.length; i += batchSize) {
+      const batch = sessions.slice(i, i + batchSize);
+      await Promise.all(batch.map(async (row) => {
+        const messages = await this.db.all<DBMessage>(
+          `SELECT * FROM messages WHERE session_id = ? ORDER BY id ASC`,
+          [row.id]
+        );
 
-      const session: Session = {
-        key: row.key,
-        id: row.id,
-        channel: row.channel,
-        chatId: row.chat_id,
-        uuid: row.uuid || undefined,
-        messages: messages.map(m => ({
-          role: m.role as 'user' | 'assistant' | 'system',
-          content: m.content,
-          timestamp: m.timestamp
-        })),
-        createdAt: new Date(row.created_at),
-        updatedAt: new Date(row.updated_at),
-        lastConsolidated: 0
-      };
-      this.sessions.set(row.key, session);
+        const session: Session = {
+          key: row.key,
+          id: row.id,
+          channel: row.channel,
+          chatId: row.chat_id,
+          uuid: row.uuid || undefined,
+          messages: messages.map(m => ({
+            role: m.role as 'user' | 'assistant' | 'system',
+            content: m.content,
+            timestamp: m.timestamp
+          })),
+          createdAt: new Date(row.created_at),
+          updatedAt: new Date(row.updated_at),
+          lastConsolidated: 0
+        };
+        this.sessions.set(row.key, session);
+      }));
     }
 
     this.log.info(`Loaded ${this.sessions.size} sessions from database`);

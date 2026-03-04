@@ -3,6 +3,7 @@ import fs from 'fs';
 import { BaseChannel } from './BaseChannel.js';
 import type { OutboundMessage } from '../types.js';
 import { logger } from '../logger/index.js';
+import { CONSTANTS } from '../constants/index.js';
 
 export interface OneBotConfig {
   wsUrl: string;
@@ -26,7 +27,7 @@ export class OneBotChannel extends BaseChannel {
   private heartbeatInterval?: NodeJS.Timeout;
   private heartbeatTimer?: NodeJS.Timeout;
   private isReconnecting = false;
-  private pendingActions: Array<{ resolve: Function; reject: Function }> = [];
+  private pendingActions: Array<{ resolve: (value: unknown) => void; reject: (reason?: unknown) => void }> = [];
   protected log = logger.child({ prefix: 'OneBot' });
 
   constructor(config: OneBotConfig, eventBus: any) {
@@ -111,6 +112,7 @@ export class OneBotChannel extends BaseChannel {
 
     if (this.maxReconnectAttempts > 0 && this.reconnectAttempts > this.maxReconnectAttempts) {
       this.log.error(`Max reconnect attempts (${this.maxReconnectAttempts}) reached, giving up`);
+      this.running = false;
       return;
     }
 
@@ -170,7 +172,7 @@ export class OneBotChannel extends BaseChannel {
       if (reject) {
         rej(new Error('WebSocket reconnected'));
       } else {
-        resolve();
+        resolve(undefined);
       }
     }
   }
@@ -223,7 +225,7 @@ export class OneBotChannel extends BaseChannel {
         if (!settled) {
           settle(reject, new Error('Action timeout'));
         }
-      }, 10000);
+      }, CONSTANTS.WEBSOCKET_ACTION_TIMEOUT);
     });
   }
 
@@ -267,35 +269,52 @@ export class OneBotChannel extends BaseChannel {
     if (typeof message === 'string') return message;
 
     if (Array.isArray(message)) {
-      return message.map((seg: any) => {
-        if (seg.type === 'text') return seg.data?.text || '';
-        if (seg.type === 'image') {
-          const file = seg.data?.file || '';
-          const url = seg.data?.url || '';
-          return url ? `[图片](${url})` : `[图片:${file}]`;
-        }
-        if (seg.type === 'at') {
-          const qq = seg.data?.qq;
-          if (qq === 'all') return '@全体成员';
-          return `@${qq}`;
-        }
-        if (seg.type === 'record') return `[语音]`;
-        if (seg.type === 'video') return `[视频]`;
-        if (seg.type === 'file') return `[文件: ${seg.data?.file || ''}]`;
-        if (seg.type === 'face') return `[表情:${seg.data?.id}]`;
-        if (seg.type === 'reply') return `[回复:${seg.data?.id}]`;
-        return `[${seg.type}]`;
-      }).join('').trim();
+      return message.map((seg: any) => this.parseMessageSegment(seg)).join('').trim();
     }
 
     return String(message);
+  }
+
+  private parseMessageSegment(seg: any): string {
+    if (!seg || typeof seg !== 'object') return String(seg);
+    
+    const type = seg.type;
+    const data = seg.data || {};
+    
+    switch (type) {
+      case 'text':
+        return data.text || '';
+      case 'image':
+        const file = data.file || '';
+        const url = data.url || '';
+        return url ? `[图片](${url})` : `[图片:${file}]`;
+      case 'at':
+        const qq = data.qq;
+        if (qq === 'all') return '@全体成员';
+        return `@${qq}`;
+      case 'record':
+        return `[语音]`;
+      case 'video':
+        return `[视频]`;
+      case 'file':
+        return `[文件: ${data.file || ''}]`;
+      case 'face':
+        return `[表情:${data.id}]`;
+      case 'reply':
+        return `[回复:${data.id}]`;
+      case 'rich':
+        return `[富文本:${data.id || ''}]`;
+      default:
+        return `[${type}]`;
+    }
   }
 
   async send(msg: OutboundMessage): Promise<void> {
     const chatId = msg.chatId;
     const isGroup = msg.messageType === 'group';
 
-    if (!/^\d+$/.test(chatId)) {
+    const numericChatId = parseInt(chatId, 10);
+    if (isNaN(numericChatId)) {
       this.log.warn(`Invalid chatId: ${chatId}, must be numeric`);
       throw new Error(`Invalid chatId: must be numeric, got ${chatId}`);
     }
@@ -304,8 +323,8 @@ export class OneBotChannel extends BaseChannel {
 
     const action = isGroup ? 'send_group_msg' : 'send_private_msg';
     const params = isGroup
-      ? { group_id: parseInt(chatId), message: segments }
-      : { user_id: parseInt(chatId), message: segments };
+      ? { group_id: numericChatId, message: segments }
+      : { user_id: numericChatId, message: segments };
 
     this.log.info(`Sending ${isGroup ? 'group' : 'private'} message to ${chatId}`);
     if (this.log.isLevelEnabled?.('debug')) {
@@ -347,7 +366,8 @@ export class OneBotChannel extends BaseChannel {
         continue;
       }
 
-      segments.push({ type: 'text', data: { text: remaining.substring(0, 500) } });
+      const maxLength = Math.min(remaining.length, CONSTANTS.MESSAGE_MAX_LENGTH);
+      segments.push({ type: 'text', data: { text: remaining.substring(0, maxLength) } });
       break;
     }
 
@@ -363,6 +383,8 @@ export class OneBotChannel extends BaseChannel {
     return segments.length > 0 ? segments : [{ type: 'text', data: { text: content } }];
   }
 
+  private readonly MAX_IMAGE_SIZE = CONSTANTS.MAX_IMAGE_SIZE;
+
   private imageToBase64(filePath: string): string | null {
     try {
       let path = filePath;
@@ -370,6 +392,11 @@ export class OneBotChannel extends BaseChannel {
         path = filePath.substring(7);
       }
       if (fs.existsSync(path)) {
+        const stats = fs.statSync(path);
+        if (stats.size > this.MAX_IMAGE_SIZE) {
+          this.log.warn(`Image too large: ${filePath} (${stats.size} bytes)`);
+          return null;
+        }
         const buffer = fs.readFileSync(path);
         return buffer.toString('base64');
       }

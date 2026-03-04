@@ -5,6 +5,7 @@ import type { ToolRegistry, ToolContext } from '../tools/ToolRegistry.js';
 import type { SessionManager } from '../session/SessionManager.js';
 import type { PluginManager } from '../plugins/index.js';
 import { logger } from '../logger/index.js';
+import { CONSTANTS } from '../constants/index.js';
 
 export type ContextMode = 'session' | 'channel' | 'global';
 
@@ -141,10 +142,10 @@ export class AgentLoop {
     sessionManager: SessionManager,
     workspace: string,
     systemPrompt?: string,
-    maxIterations: number = 40,
+    maxIterations: number = CONSTANTS.DEFAULT_MAX_ITERATIONS,
     model: string = 'gpt-4o',
     contextMode: ContextMode = 'channel',
-    memoryWindow: number = 50
+    memoryWindow: number = CONSTANTS.DEFAULT_MEMORY_WINDOW
   ) {
     this.eventBus = eventBus;
     this.provider = provider;
@@ -341,7 +342,8 @@ export class AgentLoop {
           let toolName = getToolCallName(toolCall);
           
           if (!toolName) {
-            this.log.error(`Tool name is undefined, toolCall:`, JSON.stringify(toolCall).substring(0, 200));
+            const toolCallStr = JSON.stringify(toolCall).substring(0, 200);
+            this.log.error(`Tool name is undefined, toolCall: ${toolCallStr}`);
             continue;
           }
           
@@ -355,7 +357,7 @@ export class AgentLoop {
             toolArgs = {};
           }
           
-          this.log.info(`Tool ${toolName} arguments:`, JSON.stringify(toolArgs));
+          this.log.info(`Tool ${toolName} arguments: ${JSON.stringify(toolArgs)}`);
           
           let result: string;
 
@@ -365,7 +367,8 @@ export class AgentLoop {
               execToolName = `mcp_${execToolName}`;
             }
             
-            this.log.debug(`Tool args:`, JSON.stringify(toolArgs).substring(0, 200));
+            const toolArgsStr = JSON.stringify(toolArgs).substring(0, 200);
+            this.log.debug(`Tool args: ${toolArgsStr}`);
             
             const execContext = {
               ...this.toolContext,
@@ -377,7 +380,8 @@ export class AgentLoop {
               execContext
             );
             this.log.info(`Tool ${toolName} executed successfully, result length: ${result.length}`);
-            this.log.debug(`Tool ${toolName} result preview:`, result.substring(0, 500));
+            const resultPreview = result.substring(0, CONSTANTS.MESSAGE_TRUNCATE_LENGTH);
+            this.log.debug(`Tool ${toolName} result preview: ${resultPreview}`);
 
             if (this.pluginManager) {
               result = await this.pluginManager.applyOnToolCall(toolName, toolArgs || {}, result);
@@ -470,18 +474,26 @@ export class AgentLoop {
 
   private isRetryableError(error: unknown): boolean {
     if (!error) return false;
-    const message = error instanceof Error ? error.message : String(error);
-    const retryablePatterns = [
-      'ECONNREFUSED',
-      'ETIMEDOUT',
-      'ENOTFOUND',
-      'network',
-      'timeout',
-      'ECONNRESET',
-      '503',
-      '502',
-      '429'
-    ];
-    return retryablePatterns.some(pattern => message.includes(pattern));
+    
+    const retryableStatusCodes = [408, 429, 500, 502, 503, 504];
+    
+    if (error instanceof Error) {
+      const message = error.message;
+      const networkPatterns = [
+        'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 
+        'network', 'timeout', 'ECONNRESET', 'socket'
+      ];
+      
+      if (networkPatterns.some(pattern => message.includes(pattern))) {
+        return true;
+      }
+      
+      const statusMatch = message.match(/\b(40[89]|5\d{2})\b/);
+      if (statusMatch && retryableStatusCodes.includes(parseInt(statusMatch[1], 10))) {
+        return true;
+      }
+    }
+    
+    return false;
   }
 }
