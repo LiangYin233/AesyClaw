@@ -144,6 +144,7 @@ export class CronService {
 
   private async runDueJobs(): Promise<void> {
     const now = Date.now();
+    const toRemove: string[] = [];
 
     for (const job of this.jobs.values()) {
       if (job.enabled && job.nextRunAtMs && now >= job.nextRunAtMs) {
@@ -159,8 +160,18 @@ export class CronService {
         }
 
         job.lastRunAtMs = now;
-        this.computeNextRun(job);
+
+        if (job.schedule.kind === 'once') {
+          toRemove.push(job.id);
+        } else {
+          this.computeNextRun(job);
+        }
       }
+    }
+
+    for (const id of toRemove) {
+      this.jobs.delete(id);
+      this.log.info(`One-time job ${id} completed and removed`);
     }
 
     this.save();

@@ -38,21 +38,25 @@ export class OpenAIProvider extends LLMProvider {
         formatted.tool_call_id = msg.toolCallId;
         formatted.content = msg.content;
       } else if (msg.toolCalls && msg.toolCalls.length > 0) {
-        formatted.tool_calls = msg.toolCalls.map(tc => {
+        formatted.tool_calls = msg.toolCalls.map((tc: any) => {
           let args: string;
           if (typeof tc.arguments === 'string') {
             args = tc.arguments;
           } else if (tc.arguments && Object.keys(tc.arguments).length > 0) {
             args = JSON.stringify(tc.arguments);
+          } else if (tc.function?.arguments) {
+            args = typeof tc.function.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function.arguments);
           } else {
             args = '{}';
           }
+          
+          const toolName = tc.name || tc.function?.name;
           
           return {
             id: tc.id,
             type: 'function',
             function: {
-              name: tc.name,
+              name: toolName,
               arguments: args
             }
           };
@@ -144,7 +148,15 @@ export class OpenAIProvider extends LLMProvider {
 
       this.log.debug(`Response received. Content length: ${content?.length || 0}, Reasoning length: ${reasoning_content?.length || 0}, Tool calls: ${toolCalls.length}, Finish reason: ${finishReason}`);
       if (toolCalls.length > 0) {
-        this.log.debug(`Tool calls detail:`, JSON.stringify(toolCalls).substring(0, 500));
+        const tcDebug = toolCalls.map((tc: any) => ({
+          id: tc.id,
+          name: tc.name,
+          hasFunction: !!(tc as any).function,
+          functionName: (tc as any).function?.name,
+          argumentsType: typeof tc.arguments,
+          argumentsKeys: tc.arguments ? Object.keys(tc.arguments) : null
+        }));
+        this.log.debug(`Tool calls detail:`, JSON.stringify(tcDebug).substring(0, 800));
       }
       if (usage) {
         this.log.debug(`Usage: prompt=${usage.prompt_tokens}, completion=${usage.completion_tokens}, total=${usage.total_tokens}`);

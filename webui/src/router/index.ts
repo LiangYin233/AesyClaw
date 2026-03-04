@@ -6,6 +6,7 @@ import Sessions from '../views/Sessions.vue'
 import Tools from '../views/Tools.vue'
 import Plugins from '../views/Plugins.vue'
 import Config from '../views/Config.vue'
+import Cron from '../views/Cron.vue'
 
 const router = createRouter({
     history: createWebHistory(),
@@ -20,7 +21,8 @@ const router = createRouter({
                 { path: 'sessions', name: 'sessions', component: Sessions },
                 { path: 'tools', name: 'tools', component: Tools },
                 { path: 'plugins', name: 'plugins', component: Plugins },
-                { path: 'config', name: 'config', component: Config }
+                { path: 'config', name: 'config', component: Config },
+                { path: 'cron', name: 'cron', component: Cron }
             ]
         }
     ]

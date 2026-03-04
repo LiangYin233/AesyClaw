@@ -9,6 +9,7 @@ export interface InboundMessage {
   media?: string[];
   sessionKey?: string;
   messageType?: 'private' | 'group' | 'discuss';
+  replyOnly?: boolean;
 }
 
 export interface OutboundMessage {
@@ -62,6 +63,12 @@ export interface LLMResponse {
   };
 }
 
+export interface PluginErrorContext {
+  type: 'message' | 'tool' | 'response' | 'agent';
+  plugin?: string;
+  data?: any;
+}
+
 export interface Config {
   server: ServerConfig;
   agent: AgentConfig;
@@ -90,7 +97,6 @@ export interface AgentConfig {
     model: string;
     provider: string;
     maxTokens: number;
-    temperature: number;
     maxToolIterations: number;
     memoryWindow: number;
     systemPrompt?: string;

@@ -1,11 +1,15 @@
 import type { InboundMessage, OutboundMessage } from '../types.js';
 import type { EventBus } from '../bus/EventBus.js';
+import { logger } from '../logger/index.js';
 
 export abstract class BaseChannel {
   abstract readonly name: string;
   protected config: any;
   protected eventBus: EventBus;
   protected running = false;
+  protected log = logger;
+  private processedMessages = new Set<string>();
+  private readonly DEDUP_WINDOW = 5000;
 
   constructor(config: any, eventBus: EventBus) {
     this.config = config;
@@ -16,10 +20,16 @@ export abstract class BaseChannel {
   abstract stop(): Promise<void>;
   abstract send(msg: OutboundMessage): Promise<void>;
 
-  isAllowed(senderId: string): boolean {
-    const allowFrom = this.config.allowFrom;
-    if (!allowFrom || allowFrom.length === 0) return true;
-    return allowFrom.includes(senderId);
+  isAllowed(senderId: string, messageType?: 'private' | 'group' | 'discuss'): boolean {
+    if (messageType === 'group' || messageType === 'discuss') {
+      const groupAllowFrom = this.config.groupAllowFrom;
+      if (!groupAllowFrom || groupAllowFrom.length === 0) return true;
+      return groupAllowFrom.includes(senderId);
+    } else {
+      const friendAllowFrom = this.config.friendAllowFrom;
+      if (!friendAllowFrom || friendAllowFrom.length === 0) return true;
+      return friendAllowFrom.includes(senderId);
+    }
   }
 
   protected async handleMessage(
@@ -30,6 +40,16 @@ export abstract class BaseChannel {
     messageId?: string,
     messageType?: 'private' | 'group' | 'discuss'
   ): Promise<void> {
+    const dedupKey = messageId || `${senderId}:${chatId}:${content}`;
+    
+    if (this.processedMessages.has(dedupKey)) {
+      return;
+    }
+    this.processedMessages.add(dedupKey);
+    setTimeout(() => {
+      this.processedMessages.delete(dedupKey);
+    }, this.DEDUP_WINDOW);
+
     const msg: InboundMessage = {
       channel: this.name,
       senderId,

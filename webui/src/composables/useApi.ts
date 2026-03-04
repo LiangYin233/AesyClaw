@@ -37,7 +37,6 @@ export interface Config {
             model: string
             provider: string
             maxTokens: number
-            temperature: number
             maxToolIterations: number
             memoryWindow: number
         }
@@ -45,6 +44,38 @@ export interface Config {
     channels: Record<string, any>
     providers: Record<string, any>
     mcp?: any
+}
+
+export interface CronJob {
+    id: string
+    name: string
+    enabled: boolean
+    schedule: {
+        kind: 'once' | 'interval' | 'daily' | 'cron'
+        onceAt?: string
+        intervalMs?: number
+        dailyAt?: string
+        cronExpr?: string
+    }
+    payload: {
+        description: string
+        detail: string
+        channel?: string
+        target?: string
+    }
+    nextRunAtMs?: number
+    lastRunAtMs?: number
+}
+
+export interface PluginInfo {
+    name: string
+    version: string
+    description?: string
+    author?: string
+    enabled: boolean
+    options?: Record<string, any>
+    defaultConfig?: Record<string, any>
+    toolsCount: number
 }
 
 export function useApi() {
@@ -191,6 +222,159 @@ export function useApi() {
         }
     }
 
+    async function getPlugins(): Promise<PluginInfo[]> {
+        loading.value = true
+        error.value = null
+        try {
+            const res = await fetch(`${API_BASE}/plugins`)
+            const data = await res.json()
+            return data.plugins || []
+        } catch (e: any) {
+            error.value = e.message
+            return []
+        } finally {
+            loading.value = false
+        }
+    }
+
+    async function togglePlugin(name: string, enabled: boolean): Promise<boolean> {
+        loading.value = true
+        error.value = null
+        try {
+            const res = await fetch(`${API_BASE}/plugins/${name}/toggle`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled })
+            })
+            return res.ok
+        } catch (e: any) {
+            error.value = e.message
+            return false
+        } finally {
+            loading.value = false
+        }
+    }
+
+    async function updatePluginConfig(name: string, options: Record<string, any>): Promise<boolean> {
+        loading.value = true
+        error.value = null
+        try {
+            const res = await fetch(`${API_BASE}/plugins/${name}/config`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ options })
+            })
+            return res.ok
+        } catch (e: any) {
+            error.value = e.message
+            return false
+        } finally {
+            loading.value = false
+        }
+    }
+
+    async function getCronJobs(): Promise<CronJob[]> {
+        loading.value = true
+        error.value = null
+        try {
+            const res = await fetch(`${API_BASE}/cron`)
+            const data = await res.json()
+            return data.jobs || []
+        } catch (e: any) {
+            error.value = e.message
+            return []
+        } finally {
+            loading.value = false
+        }
+    }
+
+    async function getCronJob(id: string): Promise<CronJob | null> {
+        loading.value = true
+        error.value = null
+        try {
+            const res = await fetch(`${API_BASE}/cron/${id}`)
+            const data = await res.json()
+            return data.job || null
+        } catch (e: any) {
+            error.value = e.message
+            return null
+        } finally {
+            loading.value = false
+        }
+    }
+
+    async function createCronJob(job: Partial<CronJob>): Promise<CronJob | null> {
+        loading.value = true
+        error.value = null
+        try {
+            const res = await fetch(`${API_BASE}/cron`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(job)
+            })
+            const data = await res.json()
+            if (data.success) {
+                return data.job
+            }
+            throw new Error(data.error)
+        } catch (e: any) {
+            error.value = e.message
+            return null
+        } finally {
+            loading.value = false
+        }
+    }
+
+    async function updateCronJob(id: string, job: Partial<CronJob>): Promise<boolean> {
+        loading.value = true
+        error.value = null
+        try {
+            const res = await fetch(`${API_BASE}/cron/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(job)
+            })
+            return res.ok
+        } catch (e: any) {
+            error.value = e.message
+            return false
+        } finally {
+            loading.value = false
+        }
+    }
+
+    async function deleteCronJob(id: string): Promise<boolean> {
+        loading.value = true
+        error.value = null
+        try {
+            const res = await fetch(`${API_BASE}/cron/${id}`, { method: 'DELETE' })
+            return res.ok
+        } catch (e: any) {
+            error.value = e.message
+            return false
+        } finally {
+            loading.value = false
+        }
+    }
+
+    async function toggleCronJob(id: string, enabled: boolean): Promise<boolean> {
+        loading.value = true
+        error.value = null
+        try {
+            const res = await fetch(`${API_BASE}/cron/${id}/toggle`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled })
+            })
+            return res.ok
+        } catch (e: any) {
+            error.value = e.message
+            return false
+        } finally {
+            loading.value = false
+        }
+    }
+
     return {
         loading,
         error,
@@ -202,6 +386,15 @@ export function useApi() {
         getTools,
         getConfig,
         saveConfig,
-        getChannels
+        getChannels,
+        getPlugins,
+        togglePlugin,
+        updatePluginConfig,
+        getCronJobs,
+        getCronJob,
+        createCronJob,
+        updateCronJob,
+        deleteCronJob,
+        toggleCronJob
     }
 }

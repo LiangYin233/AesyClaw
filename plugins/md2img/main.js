@@ -12,6 +12,13 @@ const plugin = {
   name: 'md2img',
   version: '1.0.0',
   description: '将 Markdown 自动转换为图片',
+  defaultConfig: {
+    options: {
+      minLength: 50,
+      verboseLog: false,
+      scale: 1.0
+    }
+  },
 
   config: {
     minLength: 50,

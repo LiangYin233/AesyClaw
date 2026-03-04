@@ -1,15 +1,20 @@
 let log = console;
+let config = {
+  apiKey: '',
+  maxResults: 5,
+  searchDepth: 'basic'
+};
 
 const plugin = {
   name: 'websearch',
   version: '1.0.0',
   description: '使用 Tavily 进行网页搜索',
-
-  config: {
-    apiKey: '',
-    maxResults: 5,
-    includeAnswer: true,
-    searchDepth: 'basic'
+  defaultConfig: {
+    options: {
+      apiKey: '',
+      maxResults: 5,
+      searchDepth: 'basic'
+    }
   },
 
   async onLoad(context) {
@@ -18,14 +23,13 @@ const plugin = {
     }
     
     const options = context.options || {};
-    this.config = {
+    config = {
       apiKey: options.apiKey || process.env.TAVILY_API_KEY || '',
       maxResults: options.maxResults || 5,
-      includeAnswer: options.includeAnswer ?? true,
       searchDepth: options.searchDepth || 'basic'
     };
     
-    if (!this.config.apiKey) {
+    if (!config.apiKey) {
       log.warn('Tavily API key not configured. Set via options.apiKey or TAVILY_API_KEY env');
     } else {
       log.info('Websearch plugin loaded');
@@ -35,7 +39,7 @@ const plugin = {
   tools: [
     {
       name: 'websearch',
-      description: '使用 Tavily 搜索网页，获取相关信息',
+      description: 'A web search tool that uses Tavily to search the web for relevant content. Ideal for gathering current information, news, and detailed web content analysis.',
       parameters: {
         type: 'object',
         properties: {
@@ -51,49 +55,39 @@ const plugin = {
             type: 'string',
             enum: ['basic', 'advanced', 'fast', 'ultra-fast'],
             description: '搜索深度：basic-平衡模式，advanced-高精度模式，fast-快速模式'
-          },
-          include_answer: {
-            type: 'boolean',
-            description: '是否包含AI生成的答案'
           }
         },
         required: ['query']
       },
       execute: async (params) => {
-        const { query, max_results, search_depth, include_answer } = params;
+        const { query, max_results, search_depth } = params;
         
-        if (!this.config.apiKey) {
-          return JSON.stringify({
-            success: false,
-            error: 'Tavily API key 未配置'
-          });
+        if (!config.apiKey) {
+          return '错误: Tavily API key 未配置';
         }
         
         try {
           const response = await fetch('https://api.tavily.com/search', {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${config.apiKey}`
             },
             body: JSON.stringify({
               query,
-              max_results: max_results || this.config.maxResults,
-              search_depth: search_depth || this.config.searchDepth,
-              include_answer: include_answer ?? this.config.includeAnswer,
+              max_results: max_results || config.maxResults,
+              search_depth: search_depth || config.searchDepth,
               include_raw_content: false
             })
           });
           
           if (!response.ok) {
-            const error = await response.json();
-            return JSON.stringify({
-              success: false,
-              error: `API error: ${error.detail?.error || response.statusText}`
-            });
+            const errorBody = await response.text();
+            log.error(`Search API error: ${response.status} ${response.statusText}, body: ${errorBody.substring(0, 500)}`);
+            return `搜索API错误: ${response.status} ${response.statusText}\n${errorBody.substring(0, 200)}`;
           }
           
           const data = await response.json();
-          
           const results = data.results?.map((r) => ({
             title: r.title,
             url: r.url,
@@ -101,17 +95,9 @@ const plugin = {
             score: r.score
           })) || [];
           
-          const answer = data.answer ? `\n\n## AI 答案\n${data.answer}` : '';
-          
-          const formatted = `## 搜索结果: ${query}${answer}
-
-${results.map((r, i) => `${i + 1}. [${r.title}](${r.url})
-${r.content}
-`).join('\n')}`;
-          
           log.info(`Search completed: ${query}, ${results.length} results`);
           
-          return formatted;
+          return JSON.stringify(results);
         } catch (error) {
           log.error('Search failed:', error.message);
           return `搜索失败: ${error.message}`;
@@ -120,7 +106,7 @@ ${r.content}
     },
     {
       name: 'web_extract',
-      description: '从指定URL提取网页内容',
+      description: 'Extract the content of a web page using Tavily.',
       parameters: {
         type: 'object',
         properties: {
@@ -151,11 +137,8 @@ ${r.content}
       execute: async (params) => {
         const { urls, query, extract_depth, format } = params;
         
-        if (!this.config.apiKey) {
-          return JSON.stringify({
-            success: false,
-            error: 'Tavily API key 未配置'
-          });
+        if (!config.apiKey) {
+          return '错误: Tavily API key 未配置';
         }
         
         try {
@@ -164,7 +147,8 @@ ${r.content}
           const response = await fetch('https://api.tavily.com/extract', {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${config.apiKey}`
             },
             body: JSON.stringify({
               urls: urlList,
@@ -184,26 +168,12 @@ ${r.content}
           
           const data = await response.json();
           
-          const results = data.results || [];
-          const failed = data.failed_results || [];
+          const results = data.results?.map((r) => ({
+            url: r.url,
+            content: r.raw_content?.substring(0, 5000) || ''
+          })) || [];
           
-          let output = '## 网页内容提取结果\n\n';
-          
-          for (const result of results) {
-            const content = result.raw_content?.substring(0, 3000) || '无内容';
-            output += `### ${result.url}\n\n${content}\n\n---\n\n`;
-          }
-          
-          if (failed.length > 0) {
-            output += '### 提取失败的URL\n\n';
-            for (const f of failed) {
-              output += `- ${f.url}: ${f.error}\n`;
-            }
-          }
-          
-          log.info(`Extract completed: ${urlList.length} URLs, ${failed.length} failed`);
-          
-          return output.trim();
+          return JSON.stringify(results);
         } catch (error) {
           log.error('Extract failed:', error.message);
           return `提取失败: ${error.message}`;

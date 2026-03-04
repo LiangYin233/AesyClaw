@@ -1,12 +1,16 @@
 import express from 'express';
 import { createServer } from 'http';
+import { randomUUID } from 'crypto';
 import type { AgentLoop } from '../agent/AgentLoop.js';
 import type { SessionManager } from '../session/SessionManager.js';
 import type { ChannelManager } from '../channels/ChannelManager.js';
 import type { Config } from '../types.js';
 import { ConfigLoader } from '../config/loader.js';
 import type { PluginManager } from '../plugins/index.js';
+import type { CronService } from '../cron/index.js';
 import { logger } from '../logger/index.js';
+
+const MAX_MESSAGE_LENGTH = 50000;
 
 export class APIServer {
   private app = express();
@@ -19,7 +23,8 @@ export class APIServer {
     private sessionManager: SessionManager,
     private channelManager: ChannelManager,
     private config: Config,
-    private pluginManager?: PluginManager
+    private pluginManager?: PluginManager,
+    private cronService?: CronService
   ) {}
 
   async start(): Promise<void> {
@@ -91,7 +96,6 @@ export class APIServer {
     });
 
     this.app.post('/api/chat', async (req, res) => {
-      const MAX_MESSAGE_LENGTH = 50000;
       const { sessionKey, message } = req.body;
       
       if (!message || typeof message !== 'string') {
@@ -122,6 +126,19 @@ export class APIServer {
 
     this.app.post('/api/channels/:name/send', async (req, res) => {
       const { chatId, content } = req.body;
+
+      if (!chatId || typeof chatId !== 'string') {
+        return res.status(400).json({ error: 'chatId is required and must be a string' });
+      }
+
+      if (!content || typeof content !== 'string') {
+        return res.status(400).json({ error: 'content is required and must be a string' });
+      }
+
+      if (content.length > MAX_MESSAGE_LENGTH) {
+        return res.status(400).json({ error: `content too long (max ${MAX_MESSAGE_LENGTH} characters)` });
+      }
+
       const channel = this.channelManager.get(req.params.name);
 
       if (!channel) {
@@ -141,19 +158,51 @@ export class APIServer {
       res.json({ tools });
     });
 
-    this.app.get('/api/plugins', (req, res) => {
+    this.app.get('/api/plugins', async (req, res) => {
       if (!this.pluginManager) {
         return res.json({ plugins: [] });
       }
-      const plugins = this.pluginManager.listPlugins();
-      res.json({ 
-        plugins: plugins.map(p => ({
-          name: p.name,
-          version: p.version,
-          description: p.description,
-          toolsCount: p.tools?.length || 0
-        }))
-      });
+      const plugins = await this.pluginManager.getAllPlugins();
+      res.json({ plugins });
+    });
+
+    this.app.post('/api/plugins/:name/toggle', async (req, res) => {
+      if (!this.pluginManager) {
+        return res.status(500).json({ success: false, error: 'Plugin manager not available' });
+      }
+      const { enabled } = req.body;
+      const { name } = req.params;
+      
+      const success = await this.pluginManager.enablePlugin(name, enabled);
+      if (success) {
+        this.config.plugins = this.config.plugins || {};
+        this.config.plugins[name] = { enabled };
+        await ConfigLoader.save(this.config);
+        res.json({ success: true });
+      } else {
+        res.status(500).json({ success: false, error: 'Failed to toggle plugin' });
+      }
+    });
+
+    this.app.put('/api/plugins/:name/config', async (req, res) => {
+      if (!this.pluginManager) {
+        return res.status(500).json({ success: false, error: 'Plugin manager not available' });
+      }
+      const { options } = req.body;
+      const { name } = req.params;
+      
+      const success = await this.pluginManager.updatePluginConfig(name, options);
+      if (success) {
+        this.config.plugins = this.config.plugins || {};
+        this.config.plugins[name] = { 
+          ...(this.config.plugins[name] as any), 
+          options 
+        };
+        await ConfigLoader.save(this.config);
+        res.json({ success: true });
+      } else {
+        res.status(500).json({ success: false, error: 'Failed to update plugin config' });
+      }
     });
 
     this.app.get('/api/config', (req, res) => {
@@ -171,18 +220,89 @@ export class APIServer {
         res.status(500).json({ success: false, error: error.message });
       }
     });
+
+    if (this.cronService) {
+      const cronService = this.cronService;
+
+      this.app.get('/api/cron', (req, res) => {
+        const jobs = cronService.listJobs();
+        res.json({ jobs });
+      });
+
+      this.app.get('/api/cron/:id', (req, res) => {
+        const job = cronService.getJob(req.params.id);
+        if (!job) {
+          return res.status(404).json({ error: 'Job not found' });
+        }
+        res.json({ job });
+      });
+
+      this.app.post('/api/cron', (req, res) => {
+        const { name, schedule, payload, enabled } = req.body;
+
+        if (!name || !schedule || !payload) {
+          return res.status(400).json({ success: false, error: 'name, schedule, and payload are required' });
+        }
+
+        if (!['once', 'interval', 'daily', 'cron'].includes(schedule.kind)) {
+          return res.status(400).json({ success: false, error: 'Invalid schedule kind' });
+        }
+
+        const job = cronService.addJob({
+          id: randomUUID().slice(0, 8),
+          name,
+          enabled: enabled !== false,
+          schedule,
+          payload
+        });
+
+        res.json({ success: true, job });
+      });
+
+      this.app.put('/api/cron/:id', (req, res) => {
+        const { name, schedule, payload, enabled } = req.body;
+        const existing = cronService.getJob(req.params.id);
+
+        if (!existing) {
+          return res.status(404).json({ success: false, error: 'Job not found' });
+        }
+
+        if (name !== undefined) existing.name = name;
+        if (schedule !== undefined) existing.schedule = schedule;
+        if (payload !== undefined) existing.payload = payload;
+        if (enabled !== undefined) existing.enabled = enabled;
+
+        cronService.computeNextRun(existing);
+        cronService.removeJob(req.params.id);
+        cronService.addJob(existing);
+
+        res.json({ success: true, job: existing });
+      });
+
+      this.app.delete('/api/cron/:id', (req, res) => {
+        const removed = cronService.removeJob(req.params.id);
+        if (!removed) {
+          return res.status(404).json({ success: false, error: 'Job not found' });
+        }
+        res.json({ success: true });
+      });
+
+      this.app.post('/api/cron/:id/toggle', (req, res) => {
+        const { enabled } = req.body;
+        const job = cronService.getJob(req.params.id);
+
+        if (!job) {
+          return res.status(404).json({ success: false, error: 'Job not found' });
+        }
+
+        cronService.enableJob(req.params.id, enabled);
+        res.json({ success: true, enabled });
+      });
+    }
   }
 
   private sanitizeConfig(config: Config): any {
-    const safe: any = { ...config };
-    if (safe.providers) {
-      for (const key of Object.keys(safe.providers)) {
-        if (safe.providers[key]?.apiKey) {
-          safe.providers[key].apiKey = '***';
-        }
-      }
-    }
-    return safe;
+    return config;
   }
 
   async stop(): Promise<void> {

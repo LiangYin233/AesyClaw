@@ -61,6 +61,11 @@ export class SessionManager {
     return key;
   }
 
+  /**
+   * Get an existing session or create a new one.
+   * @param key - The session key (format: channel:chatId or channel:chatId:uuid)
+   * @returns The existing or newly created session
+   */
   async getOrCreate(key: string): Promise<Session> {
     const existing = this.sessions.get(key);
     if (existing) {
@@ -84,8 +89,9 @@ export class SessionManager {
   }
 
   private async doGetOrCreate(key: string): Promise<Session> {
-    if (this.sessions.has(key)) {
-      return this.sessions.get(key)!;
+    const existing = this.sessions.get(key);
+    if (existing) {
+      return existing;
     }
 
     const parsed = this.parseSessionKey(key);

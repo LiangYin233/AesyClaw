@@ -2,7 +2,7 @@
     <div class="plugins-page">
         <div class="page-header">
             <h1>插件管理</h1>
-            <Button icon="pi pi-refresh" label="刷新" @click="loadPlugins" />
+            <Button icon="pi pi-refresh" label="刷新" @click="loadPlugins" :loading="loading" />
         </div>
         
         <div class="plugins-grid">
@@ -20,6 +20,25 @@
                     <p class="plugin-description">{{ plugin.description || '暂无描述' }}</p>
                     <div class="plugin-stats">
                         <Tag :value="`${plugin.toolsCount} 个工具`" severity="info" />
+                        <Tag :value="plugin.enabled ? '已启用' : '已禁用'" :severity="plugin.enabled ? 'success' : 'danger'" />
+                    </div>
+                </template>
+                <template #footer>
+                    <div class="plugin-actions">
+                        <ToggleButton 
+                            v-model="plugin.enabled" 
+                            onLabel="已启用" 
+                            offLabel="已禁用"
+                            @change="togglePluginEnabled(plugin)"
+                            :loading="toggling"
+                        />
+                        <Button 
+                            icon="pi pi-cog" 
+                            label="配置" 
+                            outlined 
+                            size="small"
+                            @click="openConfigDialog(plugin)" 
+                        />
                     </div>
                 </template>
             </Card>
@@ -30,57 +49,206 @@
             <span>暂无插件</span>
             <p class="empty-hint">请在 plugins 目录下创建插件文件</p>
         </div>
-        
-        <Divider />
-        
-        <div class="plugin-help">
-            <h3>插件开发</h3>
-            <p>查看 <a href="/PLUGIN_DEV.md" target="_blank">插件开发文档</a> 了解如何创建插件</p>
-            
-            <div class="config-example">
-                <h4>配置示例 (config.yaml)</h4>
-                <pre><code>plugins:
-  filesystem:
-    enabled: true
-  shell:
-    enabled: true
-    options:
-      allowedCommands:
-        - git
-        - npm</code></pre>
+
+        <Dialog 
+            v-model:visible="configDialogVisible" 
+            :header="`配置 ${selectedPlugin?.name}`" 
+            :modal="true" 
+            :style="{ width: '500px' }"
+        >
+            <div v-if="selectedPlugin" class="config-form">
+                <div v-for="(value, key) in configForm" :key="key" class="form-field">
+                    <label class="capitalize">{{ formatLabel(key) }}</label>
+                    
+                    <template v-if="isBoolean(value)">
+                        <ToggleButton v-model="configForm[key]" onLabel="是" offLabel="否" />
+                    </template>
+                    
+                    <template v-else-if="isNumber(value)">
+                        <InputNumber v-model="configForm[key]" :useGrouping="false" />
+                    </template>
+                    
+                    <template v-else-if="isArray(value)">
+                        <InputText v-model="configForm[key]" placeholder="逗号分隔" />
+                    </template>
+                    
+                    <template v-else-if="isObject(value)">
+                        <div class="nested-config">
+                            <div v-for="(nestedValue, nestedKey) in value" :key="nestedKey" class="nested-field">
+                                <label>{{ nestedKey }}</label>
+                                <Password 
+                                    v-if="isSensitiveKey(nestedKey)" 
+                                    v-model="configForm[key][nestedKey]" 
+                                    :feedback="false" 
+                                    toggleMask 
+                                    fluid 
+                                />
+                                <InputText v-else v-model="configForm[key][nestedKey]" />
+                            </div>
+                        </div>
+                    </template>
+                    
+                    <template v-else>
+                        <Password 
+                            v-if="isSensitiveKey(key)" 
+                            v-model="configForm[key]" 
+                            :feedback="false" 
+                            toggleMask 
+                            fluid 
+                        />
+                        <InputText v-else v-model="configForm[key]" />
+                    </template>
+                </div>
+                
+                <div v-if="Object.keys(configForm).length === 0" class="no-config">
+                    该插件暂无配置选项
+                </div>
             </div>
-        </div>
+            <template #footer>
+                <Button label="取消" severity="secondary" @click="configDialogVisible = false" />
+                <Button label="保存" @click="savePluginConfig" :loading="saving" />
+            </template>
+        </Dialog>
+        
+        <Toast />
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
+import { useApi, type PluginInfo } from '../composables/useApi'
+import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
 import Tag from 'primevue/tag'
-import Divider from 'primevue/divider'
+import ToggleButton from 'primevue/togglebutton'
+import Dialog from 'primevue/dialog'
+import InputText from 'primevue/inputtext'
+import InputNumber from 'primevue/inputnumber'
+import Password from 'primevue/password'
+import Toast from 'primevue/toast'
 
-interface Plugin {
-    name: string
-    version: string
-    description?: string
-    toolsCount: number
-}
+const { getPlugins, togglePlugin, updatePluginConfig } = useApi()
+const toast = useToast()
 
-const plugins = ref<Plugin[]>([])
+const plugins = ref<PluginInfo[]>([])
 const loading = ref(false)
+const toggling = ref(false)
+const saving = ref(false)
+
+const configDialogVisible = ref(false)
+const selectedPlugin = ref<PluginInfo | null>(null)
+const configForm = reactive<Record<string, any>>({})
 
 async function loadPlugins() {
     loading.value = true
     try {
-        const res = await fetch('/api/plugins')
-        const data = await res.json()
-        plugins.value = data.plugins || []
+        plugins.value = await getPlugins()
     } catch (e) {
         console.error('Failed to load plugins:', e)
     } finally {
         loading.value = false
     }
+}
+
+async function togglePluginEnabled(plugin: PluginInfo) {
+    toggling.value = true
+    try {
+        const success = await togglePlugin(plugin.name, plugin.enabled)
+        if (success) {
+            toast.add({ 
+                severity: 'success', 
+                summary: '成功', 
+                detail: plugin.enabled ? '插件已启用' : '插件已禁用', 
+                life: 3000 
+            })
+        } else {
+            plugin.enabled = !plugin.enabled
+            toast.add({ 
+                severity: 'error', 
+                summary: '失败', 
+                detail: '操作失败', 
+                life: 3000 
+            })
+        }
+    } catch (e) {
+        plugin.enabled = !plugin.enabled
+        console.error('Failed to toggle plugin:', e)
+    } finally {
+        toggling.value = false
+    }
+}
+
+function openConfigDialog(plugin: PluginInfo) {
+    selectedPlugin.value = plugin
+    
+    Object.keys(configForm).forEach(key => {
+        delete configForm[key]
+    })
+    
+    const savedOptions = plugin.options || {}
+    const defaultOptions = plugin.defaultConfig?.options || {}
+    const configToUse = Object.keys(savedOptions).length > 0 ? savedOptions : defaultOptions
+    
+    for (const [key, value] of Object.entries(configToUse)) {
+        configForm[key] = value
+    }
+    
+    configDialogVisible.value = true
+}
+
+async function savePluginConfig() {
+    if (!selectedPlugin.value) return
+    
+    saving.value = true
+    try {
+        const success = await updatePluginConfig(selectedPlugin.value.name, configForm)
+        if (success) {
+            toast.add({ 
+                severity: 'success', 
+                summary: '成功', 
+                detail: '配置已保存', 
+                life: 3000 
+            })
+            configDialogVisible.value = false
+        } else {
+            toast.add({ 
+                severity: 'error', 
+                summary: '失败', 
+                detail: '保存失败', 
+                life: 3000 
+            })
+        }
+    } catch (e) {
+        console.error('Failed to save config:', e)
+    } finally {
+        saving.value = false
+    }
+}
+
+function formatLabel(key: string): string {
+    return key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())
+}
+
+function isBoolean(value: any): boolean {
+    return typeof value === 'boolean'
+}
+
+function isNumber(value: any): boolean {
+    return typeof value === 'number'
+}
+
+function isArray(value: any): boolean {
+    return Array.isArray(value)
+}
+
+function isObject(value: any): boolean {
+    return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isSensitiveKey(key: string): boolean {
+    const lower = key.toLowerCase()
+    return lower.includes('key') || lower.includes('password') || lower.includes('token') || lower.includes('secret') || lower.includes('api')
 }
 
 onMounted(() => {
@@ -144,6 +312,14 @@ onMounted(() => {
 
 .plugin-stats {
     margin-top: 12px;
+    display: flex;
+    gap: 8px;
+}
+
+.plugin-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
 }
 
 .empty-state {
@@ -166,46 +342,58 @@ onMounted(() => {
     margin-top: 8px;
 }
 
-.plugin-help {
-    margin-top: 24px;
+.config-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
-.plugin-help h3 {
-    margin: 0 0 12px 0;
-    font-size: 18px;
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
-.plugin-help a {
-    color: #6366f1;
-    text-decoration: none;
-}
-
-.plugin-help a:hover {
-    text-decoration: underline;
-}
-
-.config-example {
-    margin-top: 16px;
-    padding: 16px;
-    background: #1e293b;
-    border-radius: 8px;
-    overflow-x: auto;
-}
-
-.config-example h4 {
-    margin: 0 0 12px 0;
-    color: #e2e8f0;
+.form-field label {
     font-size: 14px;
+    font-weight: 500;
+    color: #475569;
 }
 
-.config-example pre {
-    margin: 0;
+.nested-config {
+    padding-left: 16px;
+    border-left: 2px solid #e2e8f0;
 }
 
-.config-example code {
-    color: #a5b4fc;
+.nested-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.nested-field label {
     font-size: 13px;
-    font-family: 'Monaco', 'Menlo', monospace;
+    color: #64748b;
+}
+
+.no-config {
+    text-align: center;
+    color: #94a3b8;
+    padding: 24px;
+}
+
+.capitalize {
+    text-transform: capitalize;
+}
+
+@media (prefers-color-scheme: dark) {
+    .form-field label {
+        color: #94a3b8;
+    }
+    .nested-field label {
+        color: #94a3b8;
+    }
 }
 
 @media (max-width: 1024px) {

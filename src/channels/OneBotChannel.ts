@@ -7,7 +7,7 @@ import { logger } from '../logger/index.js';
 export interface OneBotConfig {
   wsUrl: string;
   token?: string;
-  allowFrom?: string[];
+  friendAllowFrom?: string[];
   groupAllowFrom?: string[];
   maxReconnectAttempts?: number;
   reconnectBaseDelay?: number;
@@ -27,7 +27,7 @@ export class OneBotChannel extends BaseChannel {
   private heartbeatTimer?: NodeJS.Timeout;
   private isReconnecting = false;
   private pendingActions: Array<{ resolve: Function; reject: Function }> = [];
-  private log = logger.child({ prefix: 'OneBot' });
+  protected log = logger.child({ prefix: 'OneBot' });
 
   constructor(config: OneBotConfig, eventBus: any) {
     super(config, eventBus);
@@ -192,15 +192,23 @@ export class OneBotChannel extends BaseChannel {
         echo: id
       });
 
+      let settled = false;
+      const settle = (fn: (value: any) => void, value: any) => {
+        if (!settled) {
+          settled = true;
+          this.ws?.off('message', handler);
+          fn(value);
+        }
+      };
+
       const handler = (data: any) => {
         try {
           const response = JSON.parse(data.toString());
           if (response.echo === id) {
-            this.ws?.off('message', handler);
             if (response.status === 'ok') {
-              resolve(response);
+              settle(resolve, response);
             } else {
-              reject(new Error(response.msg || 'Action failed'));
+              settle(reject, new Error(response.msg || 'Action failed'));
             }
           }
         } catch (error) {
@@ -212,8 +220,9 @@ export class OneBotChannel extends BaseChannel {
       this.ws.send(message);
 
       setTimeout(() => {
-        this.ws?.off('message', handler);
-        reject(new Error('Action timeout'));
+        if (!settled) {
+          settle(reject, new Error('Action timeout'));
+        }
       }, 10000);
     });
   }
@@ -243,16 +252,9 @@ export class OneBotChannel extends BaseChannel {
 
     if (!senderId || !chatId) return;
 
-    if (!this.isAllowed(senderId)) {
-      this.log.debug(`Message denied from: ${senderId}`);
+    if (!this.isAllowed(senderId, messageType)) {
+      this.log.debug(`Message denied from: ${senderId} (${messageType})`);
       return;
-    }
-
-    if (messageType === 'group' && this.config.groupAllowFrom?.length) {
-      if (!this.config.groupAllowFrom.includes(groupId.toString())) {
-        this.log.debug(`Group ${groupId} not in allow list`);
-        return;
-      }
     }
 
     const content = this.parseMessage(payload.message);

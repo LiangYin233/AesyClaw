@@ -48,6 +48,14 @@ export class ToolRegistry {
       }));
   }
 
+  /**
+   * Execute a tool by name with given parameters.
+   * @param name - The tool name to execute
+   * @param params - The parameters to pass to the tool
+   * @param context - Optional execution context
+   * @returns The tool execution result as a string
+   * @throws Error if tool not found or validation fails
+   */
   async execute(name: string, params: Record<string, any>, context?: ToolContext): Promise<string> {
     const tool = this.tools.get(name);
     if (!tool) {

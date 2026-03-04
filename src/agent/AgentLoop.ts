@@ -1,4 +1,4 @@
-import type { LLMMessage, InboundMessage, ToolDefinition, OutboundMessage } from '../types.js';
+import type { LLMMessage, InboundMessage, ToolDefinition, OutboundMessage, ToolCall, LLMResponse, PluginErrorContext } from '../types.js';
 import type { EventBus } from '../bus/EventBus.js';
 import type { LLMProvider } from '../providers/base.js';
 import type { ToolRegistry, ToolContext } from '../tools/ToolRegistry.js';
@@ -7,6 +7,36 @@ import type { PluginManager } from '../plugins/index.js';
 import { logger } from '../logger/index.js';
 
 export type ContextMode = 'session' | 'channel' | 'global';
+
+interface OpenAIToolCall {
+  id?: string;
+  type?: string;
+  function?: {
+    name?: string;
+    arguments?: string | Record<string, any>;
+  };
+}
+
+function getToolCallName(toolCall: ToolCall | OpenAIToolCall): string | undefined {
+  if ('name' in toolCall && toolCall.name) {
+    return toolCall.name;
+  }
+  if ('function' in toolCall && toolCall.function?.name) {
+    return toolCall.function.name;
+  }
+  return undefined;
+}
+
+function getToolCallArguments(toolCall: ToolCall | OpenAIToolCall): Record<string, any> | undefined {
+  if ('arguments' in toolCall && toolCall.arguments) {
+    return toolCall.arguments;
+  }
+  if ('function' in toolCall && toolCall.function?.arguments) {
+    const args = toolCall.function.arguments;
+    return typeof args === 'string' ? JSON.parse(args) : args;
+  }
+  return undefined;
+}
 
 export class ContextBuilder {
   private workspace: string;
@@ -86,6 +116,8 @@ export class AgentLoop {
   private sessionManager: SessionManager;
   private contextBuilder: ContextBuilder;
   private running = false;
+  private processingMessages = new Set<string>();
+  private readonly PROCESSING_WINDOW = 30000;
   private maxIterations: number;
   private toolContext: ToolContext;
   private model: string;
@@ -143,6 +175,47 @@ export class AgentLoop {
   }
 
   private async processMessage(msg: InboundMessage): Promise<void> {
+    if (this.pluginManager) {
+      const cmdResult = await this.pluginManager.applyOnCommand(msg);
+      if (cmdResult !== null) {
+        msg = cmdResult;
+        if (msg.replyOnly) {
+          await this.eventBus.publishOutbound({
+            channel: msg.channel,
+            chatId: msg.chatId,
+            content: msg.content,
+            messageType: msg.messageType === 'discuss' ? 'group' : msg.messageType
+          });
+          return;
+        }
+      }
+
+      const handled = await this.pluginManager.applyOnMessage(msg);
+      if (handled === null) {
+        this.log.debug('Message handled by plugin, skipping');
+        return;
+      }
+      msg = handled;
+    }
+    
+    if (msg.replyOnly) {
+      await this.eventBus.publishOutbound({
+        channel: msg.channel,
+        chatId: msg.chatId,
+        content: msg.content,
+        messageType: msg.messageType === 'discuss' ? 'group' : msg.messageType
+      });
+      return;
+    }
+    
+    const dedupKey = msg.messageId || `${msg.channel}:${msg.chatId}:${msg.content}`;
+    if (this.processingMessages.has(dedupKey)) {
+      this.log.debug(`Message already processing, skipping: ${dedupKey}`);
+      return;
+    }
+    this.processingMessages.add(dedupKey);
+    setTimeout(() => this.processingMessages.delete(dedupKey), this.PROCESSING_WINDOW);
+
     const channelChatKey = `${msg.channel}:${msg.chatId}`;
     
     if (msg.content.trim() === '/new') {
@@ -183,11 +256,26 @@ export class AgentLoop {
       msg.chatId
     );
 
+    if (this.pluginManager) {
+      await this.pluginManager.applyOnAgentBefore(msg, messages);
+    }
+
     this.log.debug(`Calling LLM with ${messages.length} messages`);
     const result = await this.runAgentLoop(messages, undefined, { 
       allowTools: true,
       source: 'user'
     });
+
+    const llmResponse: LLMResponse = {
+      content: result.content,
+      reasoning_content: result.reasoning_content,
+      toolCalls: [],
+      finishReason: result.agentMode ? 'max_iterations' : 'stop'
+    };
+
+    if (this.pluginManager) {
+      await this.pluginManager.applyOnAgentAfter(msg, llmResponse);
+    }
 
     this.log.debug(`LLM response: ${result.content.slice(0, 100)}...`);
     this.log.debug(`Tools used: ${result.toolsUsed.join(', ') || '(none)'}, agentMode: ${result.agentMode}`);
@@ -248,13 +336,10 @@ export class AgentLoop {
           role: 'assistant',
           content: response.content || '',
           toolCalls: response.toolCalls
-        } as any);
+        });
 
         for (const toolCall of response.toolCalls) {
-          let toolName = toolCall.name;
-          if (!toolName && (toolCall as any).function?.name) {
-            toolName = (toolCall as any).function.name;
-          }
+          let toolName = getToolCallName(toolCall);
           
           if (!toolName) {
             this.log.error(`Tool name is undefined, toolCall:`, JSON.stringify(toolCall).substring(0, 200));
@@ -264,6 +349,15 @@ export class AgentLoop {
           toolsUsed.push(toolName);
           this.log.info(`Executing tool: ${toolName}`);
           
+          let toolArgs = getToolCallArguments(toolCall);
+          
+          if (!toolArgs) {
+            this.log.warn(`Tool arguments is undefined for ${toolName}`);
+            toolArgs = {};
+          }
+          
+          this.log.info(`Tool ${toolName} arguments:`, JSON.stringify(toolArgs));
+          
           let result: string;
 
           try {
@@ -272,16 +366,6 @@ export class AgentLoop {
               execToolName = execToolName;
             } else if (execToolName.includes(':')) {
               execToolName = `mcp_${execToolName}`;
-            }
-            let toolArgs = toolCall.arguments;
-            if (!toolArgs && (toolCall as any).function?.arguments) {
-              const funcArgs = (toolCall as any).function.arguments;
-              try {
-                toolArgs = typeof funcArgs === 'string' ? JSON.parse(funcArgs) : funcArgs;
-              } catch {
-                this.log.warn(`Failed to parse tool arguments:`, funcArgs);
-                toolArgs = {};
-              }
             }
             
             this.log.debug(`Tool args:`, JSON.stringify(toolArgs).substring(0, 200));
@@ -295,18 +379,28 @@ export class AgentLoop {
               toolArgs || {},
               execContext
             );
-            this.log.info(`Tool ${toolCall.name} executed successfully, result length: ${result.length}`);
+            this.log.info(`Tool ${toolName} executed successfully, result length: ${result.length}`);
+            this.log.debug(`Tool ${toolName} result preview:`, result.substring(0, 500));
+
+            if (this.pluginManager) {
+              result = await this.pluginManager.applyOnToolCall(toolName, toolArgs || {}, result);
+            }
           } catch (error: any) {
-            result = `Error: ${error.message}`;
-            this.log.error(`Tool ${toolCall.name} execution failed:`, error.message);
+            const isRetryable = this.isRetryableError(error);
+            result = `Error: ${error.message}${isRetryable ? ' (retryable)' : ''}`;
+            this.log.error(`Tool ${toolName} execution failed (retryable: ${isRetryable}):`, error.message);
+
+            if (this.pluginManager) {
+              await this.pluginManager.applyOnError(error, { type: 'tool', data: { toolName, toolArgs } });
+            }
           }
 
           messages.push({
             role: 'tool',
             content: result,
-            toolCallId: toolCall.id,
-            name: toolCall.name
-          } as any);
+            toolCallId: toolCall.id || '',
+            name: toolName
+          });
         }
       } else {
         this.log.info(`LLM response complete, no tool calls, content length: ${response.content?.length || 0}`);
@@ -327,6 +421,12 @@ export class AgentLoop {
     };
   }
 
+  /**
+   * Process a direct message from API or CLI.
+   * @param content - The message content to process
+   * @param sessionKey - The session key for context
+   * @returns The agent's response as a string
+   */
   async processDirect(
     content: string,
     sessionKey: string
@@ -368,5 +468,22 @@ export class AgentLoop {
     } else {
       this.log.info('Provider updated');
     }
+  }
+
+  private isRetryableError(error: any): boolean {
+    if (!error) return false;
+    const retryablePatterns = [
+      'ECONNREFUSED',
+      'ETIMEDOUT',
+      'ENOTFOUND',
+      'network',
+      'timeout',
+      'ECONNRESET',
+      '503',
+      '502',
+      '429'
+    ];
+    const message = error.message || String(error);
+    return retryablePatterns.some(pattern => message.includes(pattern));
   }
 }

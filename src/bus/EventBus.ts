@@ -10,31 +10,35 @@ export class EventBus extends EventEmitter {
   private outboundResolver: ((msg: OutboundMessage) => void) | null = null;
 
   async publishInbound(msg: InboundMessage): Promise<void> {
-    if (this.inboundQueue.length >= MAX_QUEUE_SIZE) {
-      this.inboundQueue.shift();
-    }
-    this.inboundQueue.push(msg);
     this.emit('inbound', msg);
 
     if (this.inboundResolver) {
       const resolver = this.inboundResolver;
       this.inboundResolver = null;
       resolver(msg);
+      return;
     }
+
+    if (this.inboundQueue.length >= MAX_QUEUE_SIZE) {
+      this.inboundQueue.shift();
+    }
+    this.inboundQueue.push(msg);
   }
 
   async publishOutbound(msg: OutboundMessage): Promise<void> {
-    if (this.outboundQueue.length >= MAX_QUEUE_SIZE) {
-      this.outboundQueue.shift();
-    }
-    this.outboundQueue.push(msg);
     this.emit('outbound', msg);
 
     if (this.outboundResolver) {
       const resolver = this.outboundResolver;
       this.outboundResolver = null;
       resolver(msg);
+      return;
     }
+
+    if (this.outboundQueue.length >= MAX_QUEUE_SIZE) {
+      this.outboundQueue.shift();
+    }
+    this.outboundQueue.push(msg);
   }
 
   async consumeInbound(): Promise<InboundMessage> {

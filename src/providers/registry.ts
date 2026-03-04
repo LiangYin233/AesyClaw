@@ -9,26 +9,34 @@ export interface ProviderSpec {
   defaultApiBase: string;
 }
 
-const PROVIDERS: ProviderSpec[] = [
+const BUILTIN_PROVIDERS: ProviderSpec[] = [
   { name: 'openai', displayName: 'OpenAI', defaultApiBase: 'https://api.openai.com/v1' },
   { name: 'custom', displayName: 'Custom (OpenAI Compatible)', defaultApiBase: '' },
 ];
 
+export function getProviderSpecs(): ProviderSpec[] {
+  return BUILTIN_PROVIDERS;
+}
+
 export function createProvider(name: string, config: ProviderConfig): LLMProvider {
-  const spec = PROVIDERS.find(p => p.name === name);
+  const spec = BUILTIN_PROVIDERS.find(p => p.name === name);
   
   if (!spec) {
-    const available = PROVIDERS.map(p => p.name).join(', ');
-    logger.error(`Unknown provider: ${name}. Available: ${available}`);
-    throw new Error(`Unknown provider: ${name}. Available: ${available}`);
+    if (!config.apiBase) {
+      const available = BUILTIN_PROVIDERS.map(p => p.name).join(', ');
+      logger.error(`Unknown provider: ${name}. Available: ${available}`);
+      throw new Error(`Unknown provider: ${name}. Available: ${available}`);
+    }
+    logger.info(`Using custom provider: ${name} with apiBase: ${config.apiBase}`);
   }
 
   const apiKey = config.apiKey;
-  const apiBase = config.apiBase || spec.defaultApiBase;
+  const apiBase = config.apiBase || spec?.defaultApiBase || '';
   const headers = config.headers;
   const extraBody = config.extraBody;
 
-  logger.info(`Creating provider: ${name} (${spec.displayName})`);
+  const displayName = spec?.displayName || name;
+  logger.info(`Creating provider: ${name} (${displayName})`);
   logger.debug(`API Base: ${apiBase}`);
   logger.debug(`API Key: ${apiKey ? apiKey.substring(0, 10) + '...' : '(empty)'}`);
   if (headers) {
@@ -41,4 +49,4 @@ export function createProvider(name: string, config: ProviderConfig): LLMProvide
   return new OpenAIProvider(apiKey, apiBase, headers, extraBody);
 }
 
-export { PROVIDERS as providerSpecs };
+export { BUILTIN_PROVIDERS as providerSpecs };

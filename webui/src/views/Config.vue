@@ -13,21 +13,14 @@
                 <template #title>服务器配置</template>
                 <template #content>
                     <div class="form-grid">
-                        <div class="form-field">
-                            <label>主机</label>
-                            <InputText v-model="config.server.host" />
-                        </div>
-                        <div class="form-field">
-                            <label>端口</label>
-                            <InputNumber v-model="config.server.port" :useGrouping="false" />
-                        </div>
-                        <div class="form-field">
-                            <label>API 端口</label>
-                            <InputNumber v-model="config.server.apiPort" :useGrouping="false" />
-                        </div>
-                        <div class="form-field">
-                            <label>WebUI 端口</label>
-                            <InputNumber v-model="config.server.webuiPort" :useGrouping="false" />
+                        <div v-for="(value, key) in config.server" :key="key" class="form-field">
+                            <label class="capitalize">{{ formatLabel(key) }}</label>
+                            <InputNumber 
+                                v-if="isNumber(value)" 
+                                v-model="config.server[key]" 
+                                :useGrouping="false" 
+                            />
+                            <InputText v-else v-model="config.server[key]" />
                         </div>
                     </div>
                 </template>
@@ -37,29 +30,21 @@
                 <template #title>Agent 默认配置</template>
                 <template #content>
                     <div class="form-grid">
-                        <div class="form-field">
-                            <label>模型</label>
-                            <InputText v-model="config.agent.defaults.model" />
-                        </div>
-                        <div class="form-field">
-                            <label>提供商</label>
-                            <Select v-model="config.agent.defaults.provider" :options="providerKeys" placeholder="选择提供商" />
-                        </div>
-                        <div class="form-field">
-                            <label>最大 Tokens</label>
-                            <InputNumber v-model="config.agent.defaults.maxTokens" :useGrouping="false" />
-                        </div>
-                        <div class="form-field">
-                            <label>Temperature</label>
-                            <InputNumber v-model="config.agent.defaults.temperature" :min="0" :max="2" :step="0.1" :minFractionDigits="1" :maxFractionDigits="1" />
-                        </div>
-                        <div class="form-field">
-                            <label>最大工具迭代次数</label>
-                            <InputNumber v-model="config.agent.defaults.maxToolIterations" :useGrouping="false" />
-                        </div>
-                        <div class="form-field">
-                            <label>记忆窗口</label>
-                            <InputNumber v-model="config.agent.defaults.memoryWindow" :useGrouping="false" />
+                        <div v-for="(value, key) in config.agent.defaults" :key="key" class="form-field">
+                            <label class="capitalize">{{ formatLabel(key) }}</label>
+                            <template v-if="key === 'provider'">
+                                <Select v-model="config.agent.defaults[key]" :options="providerKeys" placeholder="选择提供商" />
+                            </template>
+                            <template v-else-if="key === 'contextMode'">
+                                <Select v-model="config.agent.defaults[key]" :options="['session', 'channel', 'global']" placeholder="选择模式" />
+                            </template>
+                            <InputNumber 
+                                v-else-if="isNumber(value)" 
+                                v-model="config.agent.defaults[key]" 
+                                :useGrouping="false" 
+                            />
+                            <Textarea v-else-if="isLongString(value)" v-model="config.agent.defaults[key]" rows="3" fluid />
+                            <InputText v-else v-model="config.agent.defaults[key]" />
                         </div>
                     </div>
                 </template>
@@ -214,6 +199,18 @@ async function saveConfig() {
     } else {
         toast.add({ severity: 'error', summary: '错误', detail: '保存失败', life: 3000 })
     }
+}
+
+function formatLabel(key: string): string {
+    return key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())
+}
+
+function isNumber(value: any): boolean {
+    return typeof value === 'number'
+}
+
+function isLongString(value: any): boolean {
+    return typeof value === 'string' && value.length > 100
 }
 
 function addProvider() {

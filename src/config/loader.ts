@@ -20,7 +20,6 @@ const DEFAULT_CONFIG: Config = {
       model: 'gpt-4o',
       provider: 'openai',
       maxTokens: 8192,
-      temperature: 0.7,
       maxToolIterations: 40,
       memoryWindow: 50,
       systemPrompt: 'You are a helpful AI assistant.',
@@ -34,7 +33,7 @@ const DEFAULT_CONFIG: Config = {
       wsUrl: 'ws://127.0.0.1:6700/ws',
       httpUrl: 'http://127.0.0.1:5700',
       token: '',
-      allowFrom: [],
+      friendAllowFrom: [],
       groupAllowFrom: []
     }
   },
@@ -59,6 +58,53 @@ export class ConfigLoader {
   private static reloadCallbacks: Array<(config: Config) => void | Promise<void>> = [];
   private static reloadDebounceTimer: NodeJS.Timeout | null = null;
   private static log = logger.child({ prefix: 'Config' });
+  private static pluginDefaultConfigs: Record<string, any> = {};
+
+  static async loadPluginDefaultConfigs(): Promise<Record<string, any>> {
+    if (Object.keys(this.pluginDefaultConfigs).length > 0) {
+      return this.pluginDefaultConfigs;
+    }
+
+    const pluginsDir = join(process.cwd(), 'plugins');
+    if (!existsSync(pluginsDir)) {
+      return {};
+    }
+
+    try {
+      const entries = await import('fs/promises');
+      const dirs = await entries.readdir(pluginsDir, { withFileTypes: true });
+      
+      for (const dir of dirs) {
+        if (!dir.isDirectory()) continue;
+        
+        const mainPath = join(pluginsDir, dir.name, 'main.js');
+        if (!existsSync(mainPath)) continue;
+
+        try {
+          const module = await import(`file://${mainPath}`);
+          const plugin = module.default || module;
+          
+          if (plugin.defaultConfig) {
+            this.pluginDefaultConfigs[dir.name] = {
+              enabled: false,
+              ...plugin.defaultConfig
+            };
+            this.log.debug(`Loaded default config for plugin: ${dir.name}`);
+          } else {
+            this.pluginDefaultConfigs[dir.name] = {
+              enabled: false
+            };
+          }
+        } catch (err) {
+          this.log.warn(`Failed to load plugin default config: ${dir.name}`, err);
+        }
+      }
+    } catch (err) {
+      this.log.warn('Failed to scan plugins directory', err);
+    }
+
+    return this.pluginDefaultConfigs;
+  }
 
   static async load(configPath?: string): Promise<Config> {
     if (this.config) {
@@ -68,26 +114,34 @@ export class ConfigLoader {
     const path = configPath || this.configPath;
     this.configPath = path;
 
-    this.config = this.loadFromPath(path);
+    this.config = await this.loadFromPath(path);
     
     this.startWatching();
     
     return this.config || DEFAULT_CONFIG;
   }
 
-  private static loadFromPath(path: string): Config {
+  private static async loadFromPath(path: string): Promise<Config> {
+    const pluginDefaults = await this.loadPluginDefaultConfigs();
+    const baseConfig = { ...DEFAULT_CONFIG, plugins: pluginDefaults };
+
     if (existsSync(path)) {
       try {
         const content = readFileSync(path, 'utf-8');
         const userConfig = YAML.parse(content);
-        return this.merge(DEFAULT_CONFIG, userConfig);
+        
+        if (userConfig?.providers) {
+          baseConfig.providers = userConfig.providers;
+        }
+        
+        return this.merge(baseConfig, userConfig);
       } catch (error) {
         this.log.error(`Failed to load config from ${path}:`, error);
-        return DEFAULT_CONFIG;
+        return baseConfig;
       }
     } else {
       this.log.info('No config file found, using defaults');
-      return DEFAULT_CONFIG;
+      return baseConfig;
     }
   }
 
@@ -115,7 +169,7 @@ export class ConfigLoader {
   }
 
   static async reload(): Promise<Config> {
-    const newConfig = this.loadFromPath(this.configPath);
+    const newConfig = await this.loadFromPath(this.configPath);
     const oldConfig = this.config;
     this.config = newConfig;
     
@@ -154,9 +208,27 @@ export class ConfigLoader {
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
-    const yaml = YAML.stringify(config);
+
+    const configToSave = this.sanitizeForSave(config);
+    const yaml = YAML.stringify(configToSave);
     writeFileSync(path, yaml, 'utf-8');
     this.config = config;
+  }
+
+  private static sanitizeForSave(config: Config): Config {
+    if (!this.config || !this.config.providers) {
+      return config;
+    }
+
+    const result = JSON.parse(JSON.stringify(config));
+    
+    for (const key of Object.keys(result.providers || {})) {
+      if (result.providers[key]?.apiKey === '***') {
+        result.providers[key].apiKey = this.config.providers[key]?.apiKey || '';
+      }
+    }
+
+    return result;
   }
 
   static stopWatching(): void {
@@ -168,16 +240,26 @@ export class ConfigLoader {
   }
 
   private static merge(base: any, override: any): any {
-    const result = { ...base };
+    if (!override || Object.keys(override).length === 0) {
+      return base;
+    }
+    
+    if (!base || typeof base !== 'object') {
+      return override;
+    }
+    
+    const result: any = { ...base };
+    
     for (const key of Object.keys(override)) {
       if (typeof override[key] === 'object' && !Array.isArray(override[key]) && override[key] !== null) {
-        result[key] = this.merge(base[key] || {}, override[key]);
+        result[key] = this.merge(base[key], override[key]);
       } else if (Array.isArray(override[key])) {
         result[key] = override[key];
       } else {
         result[key] = override[key];
       }
     }
+    
     return result;
   }
 }

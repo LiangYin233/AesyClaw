@@ -13,7 +13,7 @@ import { PluginManager } from './plugins/index.js';
 import { APIServer } from './api/index.js';
 import { CronService, type CronJob, parseTarget } from './cron/index.js';
 import { createLogger, logger } from './logger/index.js';
-import type { Config } from './types.js';
+import type { Config, OutboundMessage } from './types.js';
 
 const program = new Command();
 
@@ -73,6 +73,40 @@ program
     await sessionManager.loadAll();
     log.info(`Sessions loaded: ${sessionManager.count()}`);
     
+    const pluginManager = new PluginManager(
+      {
+        config,
+        eventBus,
+        agent: null as AgentLoop | null,
+        workspace,
+        registerTool: (tool) => toolRegistry.register(tool),
+        getToolRegistry: () => toolRegistry,
+        logger,
+        sendMessage: async (channel, chatId, content, messageType) => {
+          await eventBus.publishOutbound({ channel, chatId, content, messageType: messageType || 'private' });
+        }
+      },
+      toolRegistry
+    );
+
+    if (config.plugins) {
+      const pluginConfigs = config.plugins as Record<string, { enabled: boolean; options?: Record<string, any> }>;
+      pluginManager.setPluginConfigs(pluginConfigs);
+    }
+
+    const newPluginConfigs = await pluginManager.applyDefaultConfigs();
+    
+    if (Object.keys(newPluginConfigs).length > 0) {
+      config.plugins = newPluginConfigs;
+      await ConfigLoader.save(config);
+      log.info('Applied default plugin configs to config.yaml');
+    }
+
+    if (config.plugins) {
+      const pluginConfigs = config.plugins as Record<string, { enabled: boolean; options?: Record<string, any> }>;
+      await pluginManager.loadFromConfig(pluginConfigs as any);
+    }
+
     const cronService = new CronService(
       join(workspace, '.aesyclaw', 'cron-jobs.json'),
       async (job: CronJob) => {
@@ -107,12 +141,18 @@ program
               return;
             }
             
-            await eventBus.publishOutbound({
+            let outboundMsg: OutboundMessage = {
               channel: targetChannel,
               chatId: parsed.chatId,
               content: response,
               messageType: parsed.messageType
-            });
+            };
+            
+            if (pluginManager) {
+              outboundMsg = await pluginManager.applyOnResponse(outboundMsg) || outboundMsg;
+            }
+            
+            await eventBus.publishOutbound(outboundMsg);
             log.info(`Cron job response sent to ${target}:${parsed.messageType}`);
           }
         } catch (error: any) {
@@ -131,19 +171,6 @@ program
       const oneBotChannel = new OneBotChannel(config.channels.onebot, eventBus);
       channelManager.register(oneBotChannel);
     }
-    
-    const pluginManager = new PluginManager(
-      {
-        config,
-        eventBus,
-        agent: null as AgentLoop | null,
-        workspace,
-        registerTool: (tool) => toolRegistry.register(tool),
-        getToolRegistry: () => toolRegistry,
-        logger
-      },
-      toolRegistry
-    );
     
     const agent = new AgentLoop(
       eventBus,
@@ -375,7 +402,8 @@ program
       sessionManager,
       channelManager,
       config,
-      pluginManager
+      pluginManager,
+      cronService
     );
     await apiServer.start();
     
@@ -401,7 +429,16 @@ program
     
     log.info('Config hot reload enabled');
     
-    agent.run().catch((err) => logger.error(`Agent error: ${err.message}`));
+    const runAgent = async () => {
+      try {
+        await agent.run();
+      } catch (err: any) {
+        logger.error(`Agent error: ${err.message}`);
+        log.error(`Agent crashed: ${err.message}`);
+        process.exit(1);
+      }
+    };
+    runAgent();
     
     process.on('SIGINT', async () => {
       log.info('Shutting down...');
