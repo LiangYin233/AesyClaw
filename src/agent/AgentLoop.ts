@@ -184,7 +184,7 @@ export class AgentLoop {
             channel: msg.channel,
             chatId: msg.chatId,
             content: msg.content,
-            messageType: msg.messageType === 'discuss' ? 'group' : msg.messageType
+            messageType: msg.messageType
           });
           return;
         }
@@ -203,7 +203,7 @@ export class AgentLoop {
         channel: msg.channel,
         chatId: msg.chatId,
         content: msg.content,
-        messageType: msg.messageType === 'discuss' ? 'group' : msg.messageType
+        messageType: msg.messageType
       });
       return;
     }
@@ -227,7 +227,7 @@ export class AgentLoop {
         channel: msg.channel,
         chatId: msg.chatId,
         content: '已开启新对话',
-        messageType: msg.messageType === 'discuss' ? 'group' : msg.messageType
+        messageType: msg.messageType
       });
       return;
     }
@@ -289,7 +289,7 @@ export class AgentLoop {
       chatId: msg.chatId,
       content: result.content,
       reasoning_content: result.reasoning_content,
-      messageType: msg.messageType === 'discuss' ? 'group' : msg.messageType
+      messageType: msg.messageType
     };
 
     if (this.pluginManager) {

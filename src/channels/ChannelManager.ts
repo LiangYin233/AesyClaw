@@ -52,7 +52,7 @@ export class ChannelManager {
   getStatus(): Record<string, { running: boolean }> {
     const status: Record<string, { running: boolean }> = {};
     for (const [name, channel] of this.channels.entries()) {
-      status[name] = { running: (channel as unknown as { running: boolean }).running };
+      status[name] = { running: channel.isRunning() };
     }
     return status;
   }

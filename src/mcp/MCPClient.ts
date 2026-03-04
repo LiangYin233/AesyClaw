@@ -99,13 +99,17 @@ export class MCPClientManager {
   }
 
   async callTool(name: string, args: Record<string, any>): Promise<string> {
-    const parts = name.split(':');
-    if (parts.length < 2) {
-      throw new Error('Invalid MCP tool name format');
+    const colonIndex = name.indexOf(':');
+    if (colonIndex === -1) {
+      throw new Error('Invalid MCP tool name format, expected format: serverName:toolName');
     }
 
-    const serverName = parts[0];
-    const toolName = parts.slice(1).join(':');
+    const serverName = name.substring(0, colonIndex);
+    const toolName = name.substring(colonIndex + 1);
+
+    if (!serverName || !toolName) {
+      throw new Error('Invalid MCP tool name format, expected format: serverName:toolName');
+    }
 
     const client = this.clients.get(serverName);
     if (!client) {

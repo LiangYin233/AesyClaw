@@ -20,8 +20,12 @@ export abstract class BaseChannel {
   abstract stop(): Promise<void>;
   abstract send(msg: OutboundMessage): Promise<void>;
 
-  isAllowed(senderId: string, messageType?: 'private' | 'group' | 'discuss'): boolean {
-    if (messageType === 'group' || messageType === 'discuss') {
+  isRunning(): boolean {
+    return this.running;
+  }
+
+  isAllowed(senderId: string, messageType?: 'private' | 'group'): boolean {
+    if (messageType === 'group') {
       const groupAllowFrom = this.config.groupAllowFrom;
       if (!groupAllowFrom || groupAllowFrom.length === 0) return true;
       return groupAllowFrom.includes(senderId);
@@ -38,7 +42,7 @@ export abstract class BaseChannel {
     content: string,
     rawEvent?: any,
     messageId?: string,
-    messageType?: 'private' | 'group' | 'discuss'
+    messageType?: 'private' | 'group'
   ): Promise<void> {
     const dedupKey = messageId || `${senderId}:${chatId}:${content}`;
     

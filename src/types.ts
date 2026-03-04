@@ -8,7 +8,7 @@ export interface InboundMessage {
   messageId?: string;
   media?: string[];
   sessionKey?: string;
-  messageType?: 'private' | 'group' | 'discuss';
+  messageType?: 'private' | 'group';
   replyOnly?: boolean;
 }
 
