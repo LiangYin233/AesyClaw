@@ -124,18 +124,26 @@ export class SessionManager {
   }
 
   private async cleanupOldSessions(): Promise<void> {
-    if (this.sessions.size > this.maxSessions) {
-      const keys = Array.from(this.sessions.keys()).sort((a, b) => {
-        const sessionA = this.sessions.get(a)!;
-        const sessionB = this.sessions.get(b)!;
-        return sessionA.updatedAt.getTime() - sessionB.updatedAt.getTime();
-      });
-
-      const toRemove = keys.slice(0, this.sessions.size - this.maxSessions);
-      for (const key of toRemove) {
-        await this.delete(key);
-        this.log.debug(`Cleanup: removed old session ${key}`);
+    try {
+      const countResult = await this.db.get<{ count: number }>(
+        'SELECT COUNT(*) as count FROM sessions'
+      );
+      const totalCount = countResult?.count || 0;
+      
+      if (totalCount > this.maxSessions) {
+        const toDelete = totalCount - this.maxSessions;
+        const oldSessions = await this.db.all<DBSession>(
+          `SELECT key FROM sessions ORDER BY updated_at ASC LIMIT ?`,
+          [toDelete]
+        );
+        
+        for (const session of oldSessions) {
+          await this.delete(session.key);
+          this.log.debug(`Cleanup: removed old session ${session.key}`);
+        }
       }
+    } catch (error) {
+      this.log.warn('Failed to cleanup old sessions:', error);
     }
   }
 

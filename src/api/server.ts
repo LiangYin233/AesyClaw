@@ -206,8 +206,7 @@ export class APIServer {
     });
 
     this.app.get('/api/config', (req, res) => {
-      const safeConfig = this.sanitizeConfig(this.config);
-      res.json(safeConfig);
+      res.json(this.config);
     });
 
     this.app.put('/api/config', async (req, res) => {
@@ -299,10 +298,6 @@ export class APIServer {
         res.json({ success: true, enabled });
       });
     }
-  }
-
-  private sanitizeConfig(config: Config): any {
-    return config;
   }
 
   async stop(): Promise<void> {

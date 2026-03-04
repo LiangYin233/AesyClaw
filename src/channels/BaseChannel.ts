@@ -8,8 +8,6 @@ export abstract class BaseChannel {
   protected eventBus: EventBus;
   protected running = false;
   protected log = logger;
-  private processedMessages = new Set<string>();
-  private readonly DEDUP_WINDOW = 5000;
 
   constructor(config: any, eventBus: EventBus) {
     this.config = config;
@@ -44,16 +42,6 @@ export abstract class BaseChannel {
     messageId?: string,
     messageType?: 'private' | 'group'
   ): Promise<void> {
-    const dedupKey = messageId || `${senderId}:${chatId}:${content}`;
-    
-    if (this.processedMessages.has(dedupKey)) {
-      return;
-    }
-    this.processedMessages.add(dedupKey);
-    setTimeout(() => {
-      this.processedMessages.delete(dedupKey);
-    }, this.DEDUP_WINDOW);
-
     const msg: InboundMessage = {
       channel: this.name,
       senderId,

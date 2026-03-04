@@ -116,8 +116,6 @@ export class AgentLoop {
   private sessionManager: SessionManager;
   private contextBuilder: ContextBuilder;
   private running = false;
-  private processingMessages = new Set<string>();
-  private readonly PROCESSING_WINDOW = 30000;
   private maxIterations: number;
   private toolContext: ToolContext;
   private model: string;
@@ -208,14 +206,6 @@ export class AgentLoop {
       return;
     }
     
-    const dedupKey = msg.messageId || `${msg.channel}:${msg.chatId}:${msg.content}`;
-    if (this.processingMessages.has(dedupKey)) {
-      this.log.debug(`Message already processing, skipping: ${dedupKey}`);
-      return;
-    }
-    this.processingMessages.add(dedupKey);
-    setTimeout(() => this.processingMessages.delete(dedupKey), this.PROCESSING_WINDOW);
-
     const channelChatKey = `${msg.channel}:${msg.chatId}`;
     
     if (msg.content.trim() === '/new') {

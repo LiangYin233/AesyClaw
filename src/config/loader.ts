@@ -152,10 +152,8 @@ export class ConfigLoader {
 
     this.log.debug(`Starting file watcher: ${this.configPath}`);
     
-    let lastMtime = 0;
-    
-    this.watcher = watch(this.configPath, (eventType) => {
-      if (eventType === 'change') {
+    this.watcher = watch(this.configPath, (eventType, filename) => {
+      if (eventType === 'change' || eventType === 'rename') {
         if (this.reloadDebounceTimer) {
           clearTimeout(this.reloadDebounceTimer);
         }
