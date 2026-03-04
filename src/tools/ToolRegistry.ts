@@ -1,6 +1,7 @@
 import type { ToolDefinition } from '../types.js';
 import type { EventBus } from '../bus/EventBus.js';
 import { logger } from '../logger/index.js';
+import { CONSTANTS } from '../constants/index.js';
 
 export interface Tool {
   name: string;
@@ -16,9 +17,10 @@ export interface ToolContext {
   workspace: string;
   eventBus?: EventBus;
   source?: 'user' | 'cron';
+  signal?: AbortSignal;
 }
 
-const DEFAULT_TIMEOUT = 30000;
+const DEFAULT_TIMEOUT = CONSTANTS.TOOL_TIMEOUT;
 
 export class ToolRegistry {
   private tools: Map<string, Tool> = new Map();
@@ -70,11 +72,29 @@ export class ToolRegistry {
     }
 
     const timeout = tool.timeout || DEFAULT_TIMEOUT;
-    return Promise.race([
-      tool.execute(params, context),
-      new Promise<string>((_, reject) =>
-        setTimeout(() => reject(new Error(`Tool execution timeout: ${tool.name}`)), timeout)
-      )
-    ]);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      this.log.warn(`Tool ${name} execution timed out after ${timeout}ms`);
+    }, timeout);
+
+    const execContext: ToolContext = {
+      workspace: context?.workspace || '',
+      eventBus: context?.eventBus,
+      source: context?.source,
+      signal: controller.signal
+    };
+
+    try {
+      const result = await tool.execute(params, execContext);
+      clearTimeout(timeoutId);
+      return result;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`Tool execution timeout: ${tool.name} (${timeout}ms)`);
+      }
+      throw error;
+    }
   }
 }

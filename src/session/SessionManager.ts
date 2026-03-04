@@ -12,6 +12,7 @@ export interface SessionMessage {
 
 export interface Session {
   key: string;
+  id?: number;
   channel: string;
   chatId: string;
   uuid?: string;
@@ -26,13 +27,13 @@ export class SessionManager {
   private sessions: Map<string, Session> = new Map();
   private maxSessions: number;
   private sessionLocks: Map<string, Promise<Session>> = new Map();
-  private log = logger;
+  private log = logger.child({ prefix: 'SessionManager' });
 
   constructor(storageDir: string, maxSessions: number = 100) {
     this.maxSessions = maxSessions;
     const dbPath = join(storageDir, 'sessions.db');
     this.db = new Database(dbPath);
-    this.log.info(`[SessionManager] Initialized with SQLite: ${dbPath}`);
+    this.log.info(`Initialized with SQLite: ${dbPath}`);
   }
 
   async ready(): Promise<void> {
@@ -98,13 +99,14 @@ export class SessionManager {
     const session = await this.load(key);
     
     if (!session) {
-      await this.db.run(
+      const result = await this.db.run(
         `INSERT INTO sessions (key, channel, chat_id, uuid) VALUES (?, ?, ?, ?)`,
         [key, parsed.channel, parsed.chatId, parsed.uuid || null]
       );
       
       const newSession: Session = {
         key,
+        id: result.lastID,
         channel: parsed.channel,
         chatId: parsed.chatId,
         uuid: parsed.uuid,
@@ -114,12 +116,14 @@ export class SessionManager {
         lastConsolidated: 0
       };
       this.sessions.set(key, newSession);
-      await this.cleanupOldSessions();
+      
+      if (this.sessions.size >= this.maxSessions * 0.9) {
+        await this.cleanupOldSessions();
+      }
       return newSession;
     }
 
     this.sessions.set(key, session);
-    await this.cleanupOldSessions();
     return session;
   }
 
@@ -165,6 +169,7 @@ export class SessionManager {
 
     return {
       key: row.key,
+      id: row.id,
       channel: row.channel,
       chatId: row.chat_id,
       uuid: row.uuid || undefined,
@@ -196,15 +201,10 @@ export class SessionManager {
       timestamp: new Date().toISOString()
     });
 
-    const rows = await this.db.all<DBSession>(
-      `SELECT id FROM sessions WHERE key = ?`,
-      [key]
-    );
-
-    if (rows.length > 0) {
+    if (session.id) {
       await this.db.run(
         `INSERT INTO messages (session_id, role, content) VALUES (?, ?, ?)`,
-        [rows[0].id, role, content]
+        [session.id, role, content]
       );
     }
 
@@ -240,6 +240,7 @@ export class SessionManager {
 
       const session: Session = {
         key: row.key,
+        id: row.id,
         channel: row.channel,
         chatId: row.chat_id,
         uuid: row.uuid || undefined,
@@ -255,7 +256,7 @@ export class SessionManager {
       this.sessions.set(row.key, session);
     }
 
-    this.log.info(`[SessionManager] Loaded ${this.sessions.size} sessions from database`);
+    this.log.info(`Loaded ${this.sessions.size} sessions from database`);
   }
 
   async close(): Promise<void> {

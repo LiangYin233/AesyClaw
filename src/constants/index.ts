@@ -1,0 +1,9 @@
+export const CONSTANTS = {
+  QUEUE_SIZE: 1000,
+  TOOL_TIMEOUT: 30000,
+  MCP_TIMEOUT: 60000,
+  MESSAGE_MAX_LENGTH: 50000,
+  CHANNEL_START_TIMEOUT: 30000,
+} as const;
+
+export type Constants = typeof CONSTANTS;

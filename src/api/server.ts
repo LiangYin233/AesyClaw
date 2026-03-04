@@ -9,8 +9,9 @@ import { ConfigLoader } from '../config/loader.js';
 import type { PluginManager } from '../plugins/index.js';
 import type { CronService } from '../cron/index.js';
 import { logger } from '../logger/index.js';
+import { CONSTANTS } from '../constants/index.js';
 
-const MAX_MESSAGE_LENGTH = 50000;
+const MAX_MESSAGE_LENGTH = CONSTANTS.MESSAGE_MAX_LENGTH;
 
 export class APIServer {
   private app = express();
@@ -114,9 +115,10 @@ export class APIServer {
         const response = await this.agent.processDirect(message, key);
         this.log.debug(`Chat response: ${response.substring(0, 50)}...`);
         res.json({ success: true, response });
-      } catch (error: any) {
-        this.log.error(`Chat error: ${error.message}`);
-        res.status(500).json({ success: false, error: error.message });
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.log.error(`Chat error: ${message}`);
+        res.status(500).json({ success: false, error: message });
       }
     });
 
@@ -148,8 +150,9 @@ export class APIServer {
       try {
         await channel.send({ channel: req.params.name, chatId, content });
         res.json({ success: true });
-      } catch (error: any) {
-        res.status(500).json({ error: error.message });
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        res.status(500).json({ error: message });
       }
     });
 
@@ -215,8 +218,9 @@ export class APIServer {
         await ConfigLoader.save(newConfig);
         this.config = newConfig;
         res.json({ success: true });
-      } catch (error: any) {
-        res.status(500).json({ success: false, error: error.message });
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        res.status(500).json({ success: false, error: message });
       }
     });
 

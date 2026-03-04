@@ -63,9 +63,15 @@ export interface LLMResponse {
   };
 }
 
+/**
+ * Context information passed to plugin error handlers
+ */
 export interface PluginErrorContext {
+  /** Type of operation that caused the error */
   type: 'message' | 'tool' | 'response' | 'agent';
+  /** Name of the plugin that caused the error */
   plugin?: string;
+  /** Additional error context data */
   data?: any;
 }
 

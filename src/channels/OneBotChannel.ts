@@ -212,7 +212,7 @@ export class OneBotChannel extends BaseChannel {
             }
           }
         } catch (error) {
-          // ignore
+          this.log.debug('Failed to parse response:', error);
         }
       };
 
@@ -294,6 +294,11 @@ export class OneBotChannel extends BaseChannel {
   async send(msg: OutboundMessage): Promise<void> {
     const chatId = msg.chatId;
     const isGroup = msg.messageType === 'group';
+
+    if (!/^\d+$/.test(chatId)) {
+      this.log.warn(`Invalid chatId: ${chatId}, must be numeric`);
+      throw new Error(`Invalid chatId: must be numeric, got ${chatId}`);
+    }
 
     const segments = this.formatMessageWithBase64(msg.content, msg.media);
 

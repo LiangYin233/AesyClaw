@@ -33,7 +33,14 @@ function getToolCallArguments(toolCall: ToolCall | OpenAIToolCall): Record<strin
   }
   if ('function' in toolCall && toolCall.function?.arguments) {
     const args = toolCall.function.arguments;
-    return typeof args === 'string' ? JSON.parse(args) : args;
+    if (typeof args === 'string') {
+      try {
+        return JSON.parse(args);
+      } catch {
+        return {};
+      }
+    }
+    return args;
   }
   return undefined;
 }
@@ -61,10 +68,12 @@ export class ContextBuilder {
     });
 
     for (const msg of history) {
-      messages.push({
-        role: msg.role as any,
-        content: msg.content
-      });
+      if (msg.role === 'user' || msg.role === 'assistant' || msg.role === 'system') {
+        messages.push({
+          role: msg.role,
+          content: msg.content
+        });
+      }
     }
 
     const userContent = this.buildUserContent(currentMessage, channel, chatId);
@@ -352,9 +361,7 @@ export class AgentLoop {
 
           try {
             let execToolName = toolName;
-            if (execToolName.startsWith('mcp_')) {
-              execToolName = execToolName;
-            } else if (execToolName.includes(':')) {
+            if (execToolName.includes(':')) {
               execToolName = `mcp_${execToolName}`;
             }
             
@@ -375,10 +382,11 @@ export class AgentLoop {
             if (this.pluginManager) {
               result = await this.pluginManager.applyOnToolCall(toolName, toolArgs || {}, result);
             }
-          } catch (error: any) {
+          } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
             const isRetryable = this.isRetryableError(error);
-            result = `Error: ${error.message}${isRetryable ? ' (retryable)' : ''}`;
-            this.log.error(`Tool ${toolName} execution failed (retryable: ${isRetryable}):`, error.message);
+            result = `Error: ${message}${isRetryable ? ' (retryable)' : ''}`;
+            this.log.error(`Tool ${toolName} execution failed (retryable: ${isRetryable}):`, message);
 
             if (this.pluginManager) {
               await this.pluginManager.applyOnError(error, { type: 'tool', data: { toolName, toolArgs } });
@@ -460,8 +468,9 @@ export class AgentLoop {
     }
   }
 
-  private isRetryableError(error: any): boolean {
+  private isRetryableError(error: unknown): boolean {
     if (!error) return false;
+    const message = error instanceof Error ? error.message : String(error);
     const retryablePatterns = [
       'ECONNREFUSED',
       'ETIMEDOUT',
@@ -473,7 +482,6 @@ export class AgentLoop {
       '502',
       '429'
     ];
-    const message = error.message || String(error);
     return retryablePatterns.some(pattern => message.includes(pattern));
   }
 }

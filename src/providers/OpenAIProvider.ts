@@ -169,8 +169,9 @@ export class OpenAIProvider extends LLMProvider {
         finishReason,
         usage
       };
-    } catch (error: any) {
-      this.log.error(`Request failed: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.log.error(`Request failed: ${message}`);
       throw error;
     }
   }

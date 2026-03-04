@@ -1,13 +1,23 @@
 import { EventEmitter } from 'events';
 import type { InboundMessage, OutboundMessage, EventType } from '../types.js';
+import { CONSTANTS } from '../constants/index.js';
 
-const MAX_QUEUE_SIZE = 1000;
+const MAX_QUEUE_SIZE = CONSTANTS.QUEUE_SIZE;
 
 export class EventBus extends EventEmitter {
   private inboundQueue: InboundMessage[] = [];
   private outboundQueue: OutboundMessage[] = [];
+  private inboundReadIndex = 0;
+  private outboundReadIndex = 0;
   private inboundResolver: ((msg: InboundMessage) => void) | null = null;
   private outboundResolver: ((msg: OutboundMessage) => void) | null = null;
+
+  private popFromQueue<T>(queue: T[], readIndex: number): { item: T | undefined; newReadIndex: number } {
+    if (readIndex >= queue.length) {
+      return { item: undefined, newReadIndex: readIndex };
+    }
+    return { item: queue[readIndex], newReadIndex: readIndex + 1 };
+  }
 
   async publishInbound(msg: InboundMessage): Promise<void> {
     this.emit('inbound', msg);
@@ -19,8 +29,10 @@ export class EventBus extends EventEmitter {
       return;
     }
 
-    if (this.inboundQueue.length >= MAX_QUEUE_SIZE) {
-      this.inboundQueue.shift();
+    if (this.inboundQueue.length - this.inboundReadIndex >= MAX_QUEUE_SIZE) {
+      const itemsToRemove = Math.floor(MAX_QUEUE_SIZE / 4);
+      this.inboundQueue.splice(0, this.inboundReadIndex + itemsToRemove);
+      this.inboundReadIndex = 0;
     }
     this.inboundQueue.push(msg);
   }
@@ -35,16 +47,19 @@ export class EventBus extends EventEmitter {
       return;
     }
 
-    if (this.outboundQueue.length >= MAX_QUEUE_SIZE) {
-      this.outboundQueue.shift();
+    if (this.outboundQueue.length - this.outboundReadIndex >= MAX_QUEUE_SIZE) {
+      const itemsToRemove = Math.floor(MAX_QUEUE_SIZE / 4);
+      this.outboundQueue.splice(0, this.outboundReadIndex + itemsToRemove);
+      this.outboundReadIndex = 0;
     }
     this.outboundQueue.push(msg);
   }
 
   async consumeInbound(): Promise<InboundMessage> {
-    const msg = this.inboundQueue.shift();
-    if (msg) {
-      return msg;
+    const result = this.popFromQueue(this.inboundQueue, this.inboundReadIndex);
+    if (result.item) {
+      this.inboundReadIndex = result.newReadIndex;
+      return result.item;
     }
 
     return new Promise<InboundMessage>((resolve) => {
@@ -53,9 +68,10 @@ export class EventBus extends EventEmitter {
   }
 
   async consumeOutbound(): Promise<OutboundMessage> {
-    const msg = this.outboundQueue.shift();
-    if (msg) {
-      return msg;
+    const result = this.popFromQueue(this.outboundQueue, this.outboundReadIndex);
+    if (result.item) {
+      this.outboundReadIndex = result.newReadIndex;
+      return result.item;
     }
 
     return new Promise<OutboundMessage>((resolve) => {

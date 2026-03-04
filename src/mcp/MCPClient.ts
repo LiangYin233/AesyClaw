@@ -4,6 +4,7 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import type { ToolDefinition } from '../types.js';
 import type { MCPServersConfig } from '../types.js';
 import { logger } from '../logger/index.js';
+import { CONSTANTS } from '../constants/index.js';
 
 export interface MCPServerConfig {
   command?: string;
@@ -17,6 +18,7 @@ export class MCPClientManager {
   private clients: Map<string, Client> = new Map();
   private tools: Map<string, ToolDefinition> = new Map();
   private log = logger.child({ prefix: 'MCP' });
+  private static readonly DEFAULT_TIMEOUT = CONSTANTS.MCP_TIMEOUT;
 
   async connect(config: MCPServersConfig): Promise<void> {
     for (const [name, serverConfig] of Object.entries(config)) {
@@ -36,20 +38,18 @@ export class MCPClientManager {
       capabilities: {}
     });
 
-    let transport: any;
+    let transport: StdioClientTransport | SSEClientTransport;
 
     if (config.command) {
       const env: Record<string, string> = {};
-      for (const key of Object.keys(process.env)) {
-        const val = process.env[key];
-        if (val !== undefined) env[key] = val;
-      }
+      
       if (config.env) {
         for (const key of Object.keys(config.env)) {
           const val = config.env[key];
           if (val !== undefined) env[key] = val;
         }
       }
+      
       transport = new StdioClientTransport({
         command: config.command,
         args: config.args || [],
@@ -71,7 +71,7 @@ export class MCPClientManager {
       throw new Error('MCP server config must have either command or url');
     }
 
-    await client.connect(transport);
+    await client.connect(transport as any);
 
     await this.loadTools(client, name);
     this.clients.set(name, client);
@@ -98,7 +98,7 @@ export class MCPClientManager {
     }
   }
 
-  async callTool(name: string, args: Record<string, any>): Promise<string> {
+  async callTool(name: string, args: Record<string, any>, timeout?: number): Promise<string> {
     const colonIndex = name.indexOf(':');
     if (colonIndex === -1) {
       throw new Error('Invalid MCP tool name format, expected format: serverName:toolName');
@@ -116,12 +116,23 @@ export class MCPClientManager {
       throw new Error(`MCP server not connected: ${serverName}`);
     }
 
-    const response = await client.request(
-      { method: 'tools/call' } as any,
-      { name: toolName, arguments: args } as any
-    );
+    const requestTimeout = timeout || MCPClientManager.DEFAULT_TIMEOUT;
+    
+    try {
+      const response = await Promise.race([
+        client.request(
+          { method: 'tools/call' } as any,
+          { name: toolName, arguments: args } as any
+        ),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error(`MCP tool call timeout after ${requestTimeout}ms`)), requestTimeout)
+        )
+      ]);
 
-    return response.content?.[0]?.text || '';
+      return (response as any).content?.[0]?.text || '';
+    } catch (error) {
+      throw error;
+    }
   }
 
   getTools(): ToolDefinition[] {

@@ -11,9 +11,10 @@ import { SessionManager } from './session/index.js';
 import { MCPClientManager } from './mcp/index.js';
 import { PluginManager } from './plugins/index.js';
 import { APIServer } from './api/index.js';
-import { CronService, type CronJob, parseTarget } from './cron/index.js';
+import { CronService, type CronJob, type CronSchedule, parseTarget } from './cron/index.js';
 import { createLogger, logger } from './logger/index.js';
-import type { Config, OutboundMessage } from './types.js';
+import { CONSTANTS } from './constants/index.js';
+import type { Config, OutboundMessage, InboundMessage } from './types.js';
 
 const program = new Command();
 
@@ -102,9 +103,9 @@ program
       log.info('Applied default plugin configs to config.yaml');
     }
 
-    if (config.plugins) {
-      const pluginConfigs = config.plugins as Record<string, { enabled: boolean; options?: Record<string, any> }>;
-      await pluginManager.loadFromConfig(pluginConfigs as any);
+    if (config.plugins && Object.keys(config.plugins).length > 0) {
+      log.info('Loading plugins from config...');
+      await pluginManager.loadFromConfig(config.plugins);
     }
 
     const cronService = new CronService(
@@ -155,8 +156,9 @@ program
             await eventBus.publishOutbound(outboundMsg);
             log.info(`Cron job response sent to ${target}:${parsed.messageType}`);
           }
-        } catch (error: any) {
-          log.error(`Cron job execution failed:`, error.message);
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          log.error(`Cron job execution failed:`, message);
         }
       }
     );
@@ -243,7 +245,7 @@ program
       execute: async (params: Record<string, any>) => {
         const { type, time, description, detail, target } = params;
         
-        const schedule: any = { kind: type };
+        const schedule: CronSchedule = { kind: type };
         
         switch (type) {
           case 'once':
@@ -370,30 +372,33 @@ program
     log.info('Cron tools registered');
     
     log.info('Starting channels...');
-    await channelManager.startAll();
+    try {
+      await Promise.race([
+        channelManager.startAll(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error(`Channel start timeout after ${CONSTANTS.CHANNEL_START_TIMEOUT / 1000}s`)), CONSTANTS.CHANNEL_START_TIMEOUT)
+        )
+      ]);
+    } catch (error) {
+      log.error('Failed to start channels:', error);
+    }
     log.info('Channels started');
     
-    eventBus.on('outbound', async (msg: any) => {
+    eventBus.on('outbound', async (msg: OutboundMessage) => {
       log.debug(`Outbound message to ${msg.channel}:${msg.chatId}`);
       const channel = channelManager.get(msg.channel);
       if (channel) {
         try {
           await channel.send(msg);
           log.debug(`Message sent via ${msg.channel}`);
-        } catch (error: any) {
-          log.error(`Failed to send message: ${error.message}`);
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          log.error(`Failed to send message: ${message}`);
         }
       } else {
         log.warn(`Channel ${msg.channel} not found`);
       }
     });
-    
-    if (config.plugins && Object.keys(config.plugins).length > 0) {
-      log.info('Loading plugins from config...');
-      await pluginManager.loadFromConfig(config.plugins);
-    } else {
-      log.info('No plugins configured');
-    }
     
     log.info('Starting API server...');
     const apiServer = new APIServer(

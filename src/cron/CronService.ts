@@ -154,8 +154,9 @@ export class CronService {
           try {
             await this.onJobExecute(job);
             this.log.info(`Job ${job.id} completed successfully`);
-          } catch (error: any) {
-            this.log.error(`Job ${job.id} failed:`, error.message);
+          } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.log.error(`Job ${job.id} failed:`, message);
           }
         }
 
@@ -200,7 +201,16 @@ export class CronService {
 
       case 'daily':
         if (job.schedule.dailyAt) {
-          const [hours, minutes] = job.schedule.dailyAt.split(':').map(Number);
+          const parts = job.schedule.dailyAt.split(':');
+          const hours = parseInt(parts[0]);
+          const minutes = parseInt(parts[1]);
+          
+          if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+            this.log.warn(`Invalid dailyAt time: ${job.schedule.dailyAt}`);
+            job.nextRunAtMs = undefined;
+            break;
+          }
+          
           const today = new Date();
           today.setHours(hours, minutes, 0, 0);
 

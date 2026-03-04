@@ -6,58 +6,109 @@ import { logger } from '../logger/index.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
+/**
+ * Middleware function for processing inbound messages
+ * @param msg - The inbound message
+ * @param next - Function to call the next middleware
+ */
 export interface Middleware {
   (msg: InboundMessage, next: () => Promise<void>): Promise<void>;
 }
 
+/**
+ * Command definition for plugin command handlers
+ */
 export interface PluginCommand {
+  /** Unique command name */
   name: string;
+  /** Human-readable command description */
   description: string;
+  /** Regular expression pattern to match command */
   pattern?: RegExp;
+  /** Handler function when command is matched */
   handler: (msg: InboundMessage) => Promise<InboundMessage | null>;
 }
 
+/**
+ * Plugin interface for extending AesyClaw functionality
+ */
 export interface Plugin {
+  /** Unique plugin identifier */
   name: string;
+  /** Plugin version string */
   version: string;
+  /** Optional plugin description */
   description?: string;
+  /** Plugin author name */
   author?: string;
+  /** Runtime configuration options */
   options?: Record<string, any>;
+  /** Default configuration for the plugin */
   defaultConfig?: Record<string, any>;
 
+  /** Called when plugin is loaded */
   onLoad?(options?: Record<string, any>): Promise<void>;
+  /** Called when plugin is unloaded */
   onUnload?(): Promise<void>;
 
+  /** Called for each inbound message */
   onMessage?(msg: InboundMessage): Promise<InboundMessage | null>;
+  /** Called for each outbound message */
   onResponse?(msg: OutboundMessage): Promise<OutboundMessage | null>;
 
+  /** Called before agent processes message */
   onAgentBefore?(msg: InboundMessage, messages: LLMMessage[]): Promise<void>;
+  /** Called after agent generates response */
   onAgentAfter?(msg: InboundMessage, response: LLMResponse): Promise<void>;
+  /** Called after tool execution */
   onToolCall?(toolName: string, params: Record<string, any>, result: string): Promise<string | void>;
+  /** Called when an error occurs */
   onError?(error: Error, context: PluginErrorContext): Promise<void>;
 
+  /** Called when plugin is enabled/start */
   onStart?(): Promise<void>;
+  /** Called when plugin is disabled/stopped */
   onStop?(): Promise<void>;
 
+  /** Commands exposed by this plugin */
   commands?: PluginCommand[];
+  /** Tools exposed by this plugin */
   tools?: Tool[];
+  /** Middleware functions */
   middleware?: Middleware[];
 }
 
+/**
+ * Context object passed to plugins containing available services and utilities
+ */
 export interface PluginContext {
+  /** Application configuration */
   config: Config;
+  /** Event bus for publishing/consuming messages */
   eventBus: EventBus;
+  /** Agent loop instance */
   agent: AgentLoop | null;
+  /** Working directory path */
   workspace: string;
+  /** Register a tool to make it available to the agent */
   registerTool(tool: Tool): void;
+  /** Get the tool registry instance */
   getToolRegistry(): ToolRegistry;
+  /** Logger instance for plugin logging */
   logger: typeof logger;
+  /** Send a message to a channel */
   sendMessage(channel: string, chatId: string, content: string, messageType?: 'private' | 'group'): Promise<void>;
 }
 
+/**
+ * Configuration for loading a plugin from config
+ */
 export interface PluginLoaderConfig {
+  /** Plugin name */
   name: string;
+  /** Whether plugin is enabled */
   enabled: boolean;
+  /** Optional plugin-specific options */
   options?: Record<string, any>;
 }
 
@@ -67,6 +118,8 @@ export class PluginManager {
   private toolRegistry: ToolRegistry;
   private log = logger.child({ prefix: 'PluginManager' });
   private pluginConfigs: Record<string, { enabled: boolean; options?: Record<string, any> }> = {};
+  private inboundHandler?: (msg: InboundMessage) => Promise<void>;
+  private outboundHandler?: (msg: OutboundMessage) => Promise<void>;
 
   constructor(context: PluginContext, toolRegistry: ToolRegistry) {
     this.context = {
@@ -83,13 +136,16 @@ export class PluginManager {
     };
     this.toolRegistry = toolRegistry;
     
-    this.context.eventBus.on('inbound', async (msg: InboundMessage) => {
+    this.inboundHandler = async (msg: InboundMessage) => {
       await this.handleInbound(msg);
-    });
+    };
     
-    this.context.eventBus.on('outbound', async (msg: OutboundMessage) => {
+    this.outboundHandler = async (msg: OutboundMessage) => {
       await this.handleOutbound(msg);
-    });
+    };
+    
+    this.context.eventBus.on('inbound', this.inboundHandler);
+    this.context.eventBus.on('outbound', this.outboundHandler);
   }
 
   async applyOnCommand(msg: InboundMessage): Promise<InboundMessage | null> {
@@ -163,13 +219,10 @@ export class PluginManager {
 
   async applyOnResponse(msg: OutboundMessage): Promise<OutboundMessage | null> {
     let result = msg;
-    this.log.info(`applyOnResponse called with ${this.plugins.size} plugins, reasoning_content: ${!!msg.reasoning_content}, length: ${msg.reasoning_content?.length || 0}`);
     for (const plugin of this.plugins.values()) {
-      this.log.info(`Processing plugin: ${plugin.name}, has onResponse: ${!!plugin.onResponse}`);
       if (plugin.onResponse) {
         try {
           const newResult = await plugin.onResponse(result);
-          this.log.info(`Plugin ${plugin.name} returned, media: ${JSON.stringify(newResult?.media)}`);
           if (newResult) {
             result = newResult;
           }
@@ -222,11 +275,12 @@ export class PluginManager {
     return finalResult;
   }
 
-  async applyOnError(error: Error, context: PluginErrorContext): Promise<void> {
+  async applyOnError(error: unknown, context: PluginErrorContext): Promise<void> {
+    const err = error instanceof Error ? error : new Error(String(error));
     for (const plugin of this.plugins.values()) {
       if (plugin.onError) {
         try {
-          await plugin.onError(error, { ...context, plugin: plugin.name });
+          await plugin.onError(err, { ...context, plugin: plugin.name });
         } catch (err) {
           this.log.error(`Plugin ${plugin.name} onError handler error:`, err);
         }
@@ -322,7 +376,7 @@ export class PluginManager {
         try {
           const module = await import(`file://${mainPath}`);
           modulePlugin = module.default || module;
-        } catch (e) {
+        } catch (error) {
           continue;
         }
         
@@ -412,8 +466,8 @@ export class PluginManager {
           try {
             const module = await import(`file://${mainPath}`);
             modulePlugin = module.default || module;
-          } catch (e) {
-            this.log.warn(`Failed to load plugin module: ${dir.name}`, e);
+          } catch (error) {
+            this.log.warn(`Failed to load plugin module: ${dir.name}`, error);
             continue;
           }
         }
@@ -526,7 +580,7 @@ export class PluginManager {
             changed = true;
             this.log.info(`Applied default config for plugin: ${dir.name}`);
           }
-        } catch (e) {
+        } catch (error) {
           continue;
         }
       }
@@ -535,5 +589,17 @@ export class PluginManager {
     }
     
     return this.pluginConfigs;
+  }
+
+  async stop(): Promise<void> {
+    if (this.inboundHandler) {
+      this.context.eventBus.off('inbound', this.inboundHandler);
+      this.inboundHandler = undefined;
+    }
+    if (this.outboundHandler) {
+      this.context.eventBus.off('outbound', this.outboundHandler);
+      this.outboundHandler = undefined;
+    }
+    this.log.info('Event listeners removed');
   }
 }
