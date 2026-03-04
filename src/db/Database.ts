@@ -1,24 +1,24 @@
-import sqlite3, { Database as SQLiteDatabase } from 'sqlite3';
+import sqlite3, { Database as SQLiteDatabase } from 'sqlite3';  // SQLite3 数据库驱动
 import { join, dirname } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { logger } from '../logger/index.js';
 
 export class Database {
-  private db: SQLiteDatabase;
-  private log = logger.child({ prefix: 'Database' });
-  private initPromise: Promise<void>;
+  private db: SQLiteDatabase;  // SQLite 数据库实例
+  private log = logger.child({ prefix: 'Database' });  // 子日志记录器
+  private initPromise: Promise<void>;  // 初始化 Promise
 
-  constructor(dbPath: string) {
+  constructor(dbPath: string) {  // 构造函数
     const dir = dirname(dbPath);
-    if (!existsSync(dir)) {
+    if (!existsSync(dir)) {  // 确保目录存在
       mkdirSync(dir, { recursive: true });
     }
 
-    this.db = new sqlite3.Database(dbPath);
+    this.db = new sqlite3.Database(dbPath);  // 创建数据库连接
     this.initPromise = this.init();
   }
 
-  private async init(): Promise<void> {
+  private async init(): Promise<void> {  // 初始化数据库表结构
     return new Promise((resolve, reject) => {
       this.db.serialize(() => {
         this.db.run(`
@@ -31,7 +31,7 @@ export class Database {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
           )
-        `);
+        `);  // 创建会话表
 
         this.db.run(`
           CREATE TABLE IF NOT EXISTS messages (
@@ -42,10 +42,10 @@ export class Database {
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
           )
-        `);
+        `);  // 创建消息表
 
-        this.db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_key ON sessions(key)`);
-        this.db.run(`CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)`);
+        this.db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_key ON sessions(key)`);  // 会话键索引
+        this.db.run(`CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)`);  // 消息会话索引
 
         this.log.info('Tables initialized');
         resolve();
@@ -53,23 +53,23 @@ export class Database {
     });
   }
 
-  async ready(): Promise<void> {
+  async ready(): Promise<void> {  // 等待数据库就绪
     await this.initPromise;
   }
 
-  run(sql: string, params: any[] = []): Promise<{ lastID: number; changes: number }> {
+  run(sql: string, params: any[] = []): Promise<{ lastID: number; changes: number }> {  // 执行 INSERT/UPDATE/DELETE
     return new Promise((resolve, reject) => {
       this.db.run(sql, params, function(err: Error | null) {
         if (err) {
           reject(err);
         } else {
-          resolve({ lastID: this.lastID, changes: this.changes });
+          resolve({ lastID: this.lastID, changes: this.changes });  // 返回最后插入ID和影响行数
         }
       });
     });
   }
 
-  get<T>(sql: string, params: any[] = []): Promise<T | undefined> {
+  get<T>(sql: string, params: any[] = []): Promise<T | undefined> {  // 查询单条记录
     return new Promise((resolve, reject) => {
       this.db.get(sql, params, (err: Error | null, row: any) => {
         if (err) {
@@ -81,7 +81,7 @@ export class Database {
     });
   }
 
-  all<T>(sql: string, params: any[] = []): Promise<T[]> {
+  all<T>(sql: string, params: any[] = []): Promise<T[]> {  // 查询多条记录
     return new Promise((resolve, reject) => {
       this.db.all(sql, params, (err: Error | null, rows: any[]) => {
         if (err) {
@@ -93,7 +93,7 @@ export class Database {
     });
   }
 
-  close(): Promise<void> {
+  close(): Promise<void> {  // 关闭数据库连接
     return new Promise((resolve) => {
       this.db.close(() => {
         this.log.info('Database closed');
@@ -103,7 +103,7 @@ export class Database {
   }
 }
 
-export interface DBSession {
+export interface DBSession {  // 会话数据库记录
   id: number;
   key: string;
   channel: string;
@@ -113,7 +113,7 @@ export interface DBSession {
   updated_at: string;
 }
 
-export interface DBMessage {
+export interface DBMessage {  // 消息数据库记录
   id: number;
   session_id: number;
   role: string;

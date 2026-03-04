@@ -255,6 +255,23 @@ export function useApi() {
         }
     }
 
+    async function reloadPlugin(name: string): Promise<boolean> {
+        loading.value = true
+        error.value = null
+        try {
+            const res = await fetch(`${API_BASE}/plugins/${name}/reload`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            return res.ok
+        } catch (e: any) {
+            error.value = e.message
+            return false
+        } finally {
+            loading.value = false
+        }
+    }
+
     async function updatePluginConfig(name: string, options: Record<string, any>): Promise<boolean> {
         loading.value = true
         error.value = null
@@ -389,6 +406,7 @@ export function useApi() {
         getChannels,
         getPlugins,
         togglePlugin,
+        reloadPlugin,
         updatePluginConfig,
         getCronJobs,
         getCronJob,

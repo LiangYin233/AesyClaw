@@ -7,9 +7,9 @@ import type { PluginManager } from '../plugins/index.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS } from '../constants/index.js';
 
-export type ContextMode = 'session' | 'channel' | 'global';
+export type ContextMode = 'session' | 'channel' | 'global';  // 上下文模式类型
 
-interface OpenAIToolCall {
+interface OpenAIToolCall {  // OpenAI 格式的工具调用
   id?: string;
   type?: string;
   function?: {
@@ -18,16 +18,16 @@ interface OpenAIToolCall {
   };
 }
 
-function getToolCallName(toolCall: ToolCall | OpenAIToolCall): string | undefined {
+function getToolCallName(toolCall: ToolCall | OpenAIToolCall): string | undefined {  // 获取工具调用名称
   return (toolCall as any).name ?? (toolCall as any).function?.name;
 }
 
-function getToolCallArguments(toolCall: ToolCall | OpenAIToolCall): Record<string, any> | undefined {
+function getToolCallArguments(toolCall: ToolCall | OpenAIToolCall): Record<string, any> | undefined {  // 获取工具调用参数
   const args = (toolCall as any).arguments ?? (toolCall as any).function?.arguments;
   return typeof args === 'string' ? JSON.parse(args || '{}') : args;
 }
 
-export class ContextBuilder {
+export class ContextBuilder {  // 上下文构建器
   private workspace: string;
   private systemPrompt: string;
 
@@ -36,7 +36,7 @@ export class ContextBuilder {
     this.systemPrompt = systemPrompt || 'You are a helpful AI assistant.';
   }
 
-  build(
+  build(  // 构建消息上下文
     history: any[],
     currentMessage: string,
     channel?: string,
@@ -89,6 +89,18 @@ export class AgentLoop {
   private pluginManager?: PluginManager;
   private log = logger.child({ prefix: 'Agent' });
 
+  async callLLM(  // 供插件调用的 LLM 请求方法
+    messages: LLMMessage[],
+    options?: { allowTools?: boolean; maxIterations?: number }
+  ): Promise<{ content: string; reasoning_content?: string }> {
+    const tools = options?.allowTools !== false ? this.toolRegistry.getDefinitions() : [];
+    const response = await this.provider.chat(messages, tools, this.model);
+    return {
+      content: response.content || '',
+      reasoning_content: response.reasoning_content
+    };
+  }
+
   constructor(
     eventBus: EventBus,
     provider: LLMProvider,
@@ -137,37 +149,42 @@ export class AgentLoop {
   }
 
   private async processMessage(msg: InboundMessage): Promise<void> {
+    this.log.info(`processMessage: content="${msg.content}", media=${JSON.stringify(msg.media)}`);
     if (this.pluginManager) {
+      this.log.info('Calling applyOnCommand...');
       const cmdResult = await this.pluginManager.applyOnCommand(msg);
+      this.log.info(`applyOnCommand returned: ${cmdResult}`);
       if (cmdResult !== null) {
-        msg = cmdResult;
-        if (msg.replyOnly) {
-          await this.eventBus.publishOutbound({
-            channel: msg.channel,
-            chatId: msg.chatId,
-            content: msg.content,
-            messageType: msg.messageType
-          });
-          return;
-        }
-      }
-
-      const handled = await this.pluginManager.applyOnMessage(msg);
-      if (handled === null) {
-        this.log.debug('Message handled by plugin, skipping');
+        // 命令已处理，发送回复并跳过 LLM
+        await this.eventBus.publishOutbound({
+          channel: cmdResult.channel,
+          chatId: cmdResult.chatId,
+          content: cmdResult.content,
+          messageType: cmdResult.messageType
+        });
         return;
       }
+
+      this.log.info('Calling applyOnMessage...');
+      const handled = await this.pluginManager.applyOnMessage(msg);
+      if (handled === null) {
+        this.log.debug('Message handled by plugin (null), skipping');
+        return;
+      }
+      
+      // onMessage 返回了不同的消息（插件要发送回复）
+      if (handled.content !== msg.content) {
+        this.log.info('Plugin modified message, sending reply and skipping LLM');
+        await this.eventBus.publishOutbound({
+          channel: handled.channel,
+          chatId: handled.chatId,
+          content: handled.content,
+          messageType: handled.messageType
+        });
+        return;
+      }
+      
       msg = handled;
-    }
-    
-    if (msg.replyOnly) {
-      await this.eventBus.publishOutbound({
-        channel: msg.channel,
-        chatId: msg.chatId,
-        content: msg.content,
-        messageType: msg.messageType
-      });
-      return;
     }
     
     const channelChatKey = `${msg.channel}:${msg.chatId}`;
@@ -190,12 +207,12 @@ export class AgentLoop {
     if (msg.sessionKey) {
       sessionKey = msg.sessionKey;
     } else if (this.contextMode === 'channel') {
-      sessionKey = this.channelSessions.get(channelChatKey) || this.sessionManager.createSessionKey(msg.channel, msg.chatId);
+      sessionKey = this.channelSessions.get(channelChatKey) || this.sessionManager.createNewSession(msg.channel, msg.chatId);
       this.channelSessions.set(channelChatKey, sessionKey);
     } else if (this.contextMode === 'global') {
       sessionKey = 'global';
     } else {
-      sessionKey = this.sessionManager.createSessionKey(msg.channel, msg.chatId);
+      sessionKey = this.sessionManager.createNewSession(msg.channel, msg.chatId);
     }
 
     this.log.debug(`Processing message for session: ${sessionKey} (mode: ${this.contextMode})`);

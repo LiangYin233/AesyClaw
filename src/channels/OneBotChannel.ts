@@ -258,54 +258,74 @@ export class OneBotChannel extends BaseChannel {
       return;
     }
 
-    const content = this.parseMessage(payload.message);
+    const { content, media } = this.parseMessageWithMedia(payload.message);
+    if (this.log.isLevelEnabled?.('debug')) {
+      this.log.debug(`Parsed message: content="${content}", media=${JSON.stringify(media)}`);
+    }
     const messageId = payload.message_id?.toString();
 
-    this.handleMessage(senderId, chatId, content, payload, messageId, messageType);
+    this.handleMessage(senderId, chatId, content, payload, messageId, messageType, media);
   }
 
-  private parseMessage(message: any): string {
-    if (!message) return '';
-    if (typeof message === 'string') return message;
-
-    if (Array.isArray(message)) {
-      return message.map((seg: any) => this.parseMessageSegment(seg)).join('').trim();
+  private parseMessageWithMedia(message: any): { content: string; media?: string[] } {
+    if (!message) return { content: '' };
+    
+    let content = '';
+    const mediaSet = new Set<string>();
+    
+    if (typeof message === 'string') {
+      return { content: message };
     }
 
-    return String(message);
+    if (Array.isArray(message)) {
+      for (const seg of message) {
+        const parsed = this.parseMessageSegment(seg);
+        if (parsed.media) {
+          for (const m of parsed.media) {
+            if (m) mediaSet.add(m);
+          }
+        }
+        if (parsed.text) {
+          content += parsed.text;
+        }
+      }
+    }
+
+    const media = Array.from(mediaSet);
+    return { content: content.trim(), media: media.length > 0 ? media : undefined };
   }
 
-  private parseMessageSegment(seg: any): string {
-    if (!seg || typeof seg !== 'object') return String(seg);
+  private parseMessageSegment(seg: any): { text?: string; media?: string[] } {
+    if (!seg || typeof seg !== 'object') return { text: String(seg) };
     
     const type = seg.type;
     const data = seg.data || {};
     
     switch (type) {
       case 'text':
-        return data.text || '';
+        return { text: data.text || '' };
       case 'image':
         const file = data.file || '';
         const url = data.url || '';
-        return url ? `[图片](${url})` : `[图片:${file}]`;
+        const imageUrl = url || `file://${file}`;
+        return { text: url ? `[图片](${url})` : `[图片:${file}]`, media: [imageUrl] };
       case 'at':
         const qq = data.qq;
-        if (qq === 'all') return '@全体成员';
-        return `@${qq}`;
+        return { text: qq === 'all' ? '@全体成员' : `@${qq}` };
       case 'record':
-        return `[语音]`;
+        return { text: `[语音]` };
       case 'video':
-        return `[视频]`;
+        return { text: `[视频]`, media: [data.file || data.url || ''] };
       case 'file':
-        return `[文件: ${data.file || ''}]`;
+        return { text: `[文件: ${data.file || ''}]`, media: [data.file || data.url || ''] };
       case 'face':
-        return `[表情:${data.id}]`;
+        return { text: `[表情:${data.id}]` };
       case 'reply':
-        return `[回复:${data.id}]`;
+        return { text: `[回复:${data.id}]` };
       case 'rich':
-        return `[富文本:${data.id || ''}]`;
+        return { text: `[富文本:${data.id || ''}]` };
       default:
-        return `[${type}]`;
+        return { text: `[${type}]` };
     }
   }
 

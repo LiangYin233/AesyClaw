@@ -9,7 +9,6 @@ export interface InboundMessage {
   media?: string[];
   sessionKey?: string;
   messageType?: 'private' | 'group';
-  replyOnly?: boolean;
 }
 
 export interface OutboundMessage {
@@ -63,16 +62,10 @@ export interface LLMResponse {
   };
 }
 
-/**
- * Context information passed to plugin error handlers
- */
 export interface PluginErrorContext {
-  /** Type of operation that caused the error */
-  type: 'message' | 'tool' | 'response' | 'agent';
-  /** Name of the plugin that caused the error */
-  plugin?: string;
-  /** Additional error context data */
-  data?: any;
+  type: 'message' | 'tool' | 'response' | 'agent';  // 触发错误的操作类型
+  plugin?: string;  // 触发错误的插件名称
+  data?: any;  // 额外的错误上下文数据
 }
 
 export interface Config {

@@ -152,8 +152,15 @@ export class ConfigLoader {
 
     this.log.debug(`Starting file watcher: ${this.configPath}`);
     
+    let ignoreUntil = Date.now() + 2000;
+    
     this.watcher = watch(this.configPath, (eventType, filename) => {
       if (eventType === 'change' || eventType === 'rename') {
+        if (Date.now() < ignoreUntil) {
+          this.log.debug('Ignoring file change during startup');
+          return;
+        }
+        
         if (this.reloadDebounceTimer) {
           clearTimeout(this.reloadDebounceTimer);
         }

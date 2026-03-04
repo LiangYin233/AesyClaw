@@ -19,17 +19,17 @@ import type { Config, OutboundMessage, InboundMessage } from './types.js';
 const program = new Command();
 
 function parseInterval(str: string): number | null {
-  const match = str.match(/^(\d+)(s|m|h|d)$/);
+  const match = str.match(/^(\d+)(s|m|h|d)$/);  // 匹配格式如 10s, 5m, 2h, 1d
   if (!match) return null;
   
-  const value = parseInt(match[1]);
-  const unit = match[2];
+  const value = parseInt(match[1]);  // 解析数值
+  const unit = match[2];  // 获取单位
   
   switch (unit) {
-    case 's': return value * 1000;
-    case 'm': return value * 60 * 1000;
-    case 'h': return value * 60 * 60 * 1000;
-    case 'd': return value * 24 * 60 * 60 * 1000;
+    case 's': return value * 1000;  // 秒转毫秒
+    case 'm': return value * 60 * 1000;  // 分钟转毫秒
+    case 'h': return value * 60 * 60 * 1000;  // 小时转毫秒
+    case 'd': return value * 24 * 60 * 60 * 1000;  // 天转毫秒
     default: return null;
   }
 }
@@ -43,38 +43,38 @@ program
   .command('gateway')
   .option('-p, --port <port>', 'API Port', '18792')
   .action(async (options) => {
-    let config = await ConfigLoader.load() as Config;
-    const workspace = process.cwd();
+    let config = await ConfigLoader.load() as Config;  // 加载配置文件
+    const workspace = process.cwd();  // 获取工作目录
     
-    logger.setLevel(config.log?.level || 'info');
+    logger.setLevel(config.log?.level || 'info');  // 设置日志级别
     
-    const log = logger.child({ prefix: 'AesyClaw' });
+    const log = logger.child({ prefix: 'AesyClaw' });  // 创建子日志记录器
     
     log.info('Starting gateway...');
     log.info(`Workspace: ${workspace}`);
     log.info(`Config loaded, provider: ${config.agent.defaults.provider}, model: ${config.agent.defaults.model}`);
     
-    const eventBus = new EventBus();
+    const eventBus = new EventBus();  // 创建事件总线
     log.info('EventBus initialized');
     
-    const providerConfig = config.providers[config.agent.defaults.provider];
+    const providerConfig = config.providers[config.agent.defaults.provider];  // 获取提供商配置
     log.debug(`Provider config:`, providerConfig);
-    const provider = createProvider(config.agent.defaults.provider, providerConfig);
+    const provider = createProvider(config.agent.defaults.provider, providerConfig);  // 创建 LLM 提供商
     log.info('Provider created');
     
-    const toolRegistry = new ToolRegistry();
+    const toolRegistry = new ToolRegistry();  // 创建工具注册表
     log.info('ToolRegistry initialized (tools provided by plugins)');
     
-    const sessionManager = new SessionManager(
+    const sessionManager = new SessionManager(  // 创建会话管理器
       join(workspace, '.aesyclaw', 'sessions'),
       config.agent.defaults.maxSessions || 100
     );
     log.info('Loading sessions...');
-    await sessionManager.ready();
-    await sessionManager.loadAll();
+    await sessionManager.ready();  // 初始化数据库
+    await sessionManager.loadAll();  // 加载所有会话
     log.info(`Sessions loaded: ${sessionManager.count()}`);
     
-    const pluginManager = new PluginManager(
+    const pluginManager = new PluginManager(  // 创建插件管理器
       {
         config,
         eventBus,
@@ -108,12 +108,12 @@ program
       await pluginManager.loadFromConfig(config.plugins);
     }
 
-    const cronService = new CronService(
+    const cronService = new CronService(  // 创建定时任务服务
       join(workspace, '.aesyclaw', 'cron-jobs.json'),
       async (job: CronJob) => {
         log.info(`Cron job triggered: ${job.name}`);
         
-        const tempAgent = new AgentLoop(
+        const tempAgent = new AgentLoop(  // 创建临时 Agent 处理定时任务
           eventBus,
           provider,
           toolRegistry,
@@ -130,13 +130,13 @@ program
         log.info(`Creating temporary agent loop for cron job, session: ${sessionKey}`);
         
         try {
-          const response = await tempAgent.processDirect(job.payload.detail, sessionKey);
+          const response = await tempAgent.processDirect(job.payload.detail, sessionKey);  // 处理任务内容
           
           const targetChannel = job.payload.channel || 'onebot';
           const target = job.payload.target;
           
           if (target) {
-            const parsed = parseTarget(target);
+            const parsed = parseTarget(target);  // 解析目标地址
             if (!parsed) {
               log.error(`Invalid target format: ${target}, expected private:QQ号 或 group:群号`);
               return;
@@ -150,10 +150,10 @@ program
             };
             
             if (pluginManager) {
-              outboundMsg = await pluginManager.applyOnResponse(outboundMsg) || outboundMsg;
+              outboundMsg = await pluginManager.applyOnResponse(outboundMsg) || outboundMsg;  // 应用插件响应处理
             }
             
-            await eventBus.publishOutbound(outboundMsg);
+            await eventBus.publishOutbound(outboundMsg);  // 发送响应消息
             log.info(`Cron job response sent to ${target}:${parsed.messageType}`);
           }
         } catch (error: unknown) {
@@ -162,13 +162,13 @@ program
         }
       }
     );
-    await cronService.start();
+    await cronService.start();  // 启动定时任务服务
     log.info('CronService started');
     
-    const channelManager = new ChannelManager(eventBus);
+    const channelManager = new ChannelManager(eventBus);  // 创建渠道管理器
     log.info('ChannelManager initialized');
     
-    if (config.channels.onebot?.enabled) {
+    if (config.channels.onebot?.enabled) {  // 检查 OneBot 渠道是否启用
       log.info('OneBot channel enabled, creating...');
       const oneBotChannel = new OneBotChannel(config.channels.onebot, eventBus);
       channelManager.register(oneBotChannel);
@@ -187,18 +187,19 @@ program
       config.agent.defaults.memoryWindow
     );
     pluginManager.context.agent = agent;
+    pluginManager.updateAgent(agent);
     agent.setPluginManager(pluginManager);
     
-    if (config.mcp && Object.keys(config.mcp).length > 0) {
+    if (config.mcp && Object.keys(config.mcp).length > 0) {  // 检查是否配置了 MCP 服务器
       log.info('MCP servers configured, connecting...');
       const mcpManager = new MCPClientManager();
-      await mcpManager.connect(config.mcp);
+      await mcpManager.connect(config.mcp);  // 连接 MCP 服务器
       
-      const mcpTools = mcpManager.getTools();
+      const mcpTools = mcpManager.getTools();  // 获取 MCP 工具
       log.info(`MCP tools loaded: ${mcpTools.length}`);
       
       for (const tool of mcpTools) {
-        toolRegistry.register({
+        toolRegistry.register({  // 注册 MCP 工具到工具注册表
           name: tool.name,
           description: tool.description,
           parameters: tool.parameters,
@@ -373,7 +374,7 @@ program
     
     log.info('Starting channels...');
     try {
-      await Promise.race([
+      await Promise.race([  // 启动所有渠道，设置超时
         channelManager.startAll(),
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error(`Channel start timeout after ${CONSTANTS.CHANNEL_START_TIMEOUT / 1000}s`)), CONSTANTS.CHANNEL_START_TIMEOUT)
@@ -384,12 +385,12 @@ program
     }
     log.info('Channels started');
     
-    eventBus.on('outbound', async (msg: OutboundMessage) => {
+    eventBus.on('outbound', async (msg: OutboundMessage) => {  // 监听出站消息事件
       log.debug(`Outbound message to ${msg.channel}:${msg.chatId}`);
-      const channel = channelManager.get(msg.channel);
+      const channel = channelManager.get(msg.channel);  // 获取目标渠道
       if (channel) {
         try {
-          await channel.send(msg);
+          await channel.send(msg);  // 发送消息
           log.debug(`Message sent via ${msg.channel}`);
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : String(error);
@@ -401,7 +402,7 @@ program
     });
     
     log.info('Starting API server...');
-    const apiServer = new APIServer(
+    const apiServer = new APIServer(  // 创建 API 服务器
       parseInt(options.port),
       agent,
       sessionManager,
@@ -410,9 +411,9 @@ program
       pluginManager,
       cronService
     );
-    await apiServer.start();
+    await apiServer.start();  // 启动 API 服务器
     
-    ConfigLoader.onReload(async (newConfig) => {
+    ConfigLoader.onReload(async (newConfig) => {  // 配置文件热重载回调
       log.info('Handling config reload...');
       
       if (newConfig.agent.defaults.provider !== config.agent.defaults.provider ||
@@ -422,12 +423,12 @@ program
         log.debug(`Old: ${config.agent.defaults.provider}/${config.agent.defaults.model}`);
         log.debug(`New: ${newConfig.agent.defaults.provider}/${newConfig.agent.defaults.model}`);
         const newProviderConfig = newConfig.providers[newConfig.agent.defaults.provider];
-        const newProvider = createProvider(newConfig.agent.defaults.provider, newProviderConfig);
-        agent.updateProvider(newProvider, newConfig.agent.defaults.model);
+        const newProvider = createProvider(newConfig.agent.defaults.provider, newProviderConfig);  // 创建新的提供商
+        agent.updateProvider(newProvider, newConfig.agent.defaults.model);  // 更新 Agent 的提供商
       }
       
       config = newConfig;
-      apiServer.updateConfig(config);
+      apiServer.updateConfig(config);  // 更新 API 服务器配置
       
       log.info('Config reload completed');
     });
@@ -436,7 +437,7 @@ program
     
     const runAgent = async () => {
       try {
-        await agent.run();
+        await agent.run();  // 启动 Agent 主循环
       } catch (err: any) {
         logger.error(`Agent error: ${err.message}`);
         log.error(`Agent crashed: ${err.message}`);
@@ -445,13 +446,13 @@ program
     };
     runAgent();
     
-    process.on('SIGINT', async () => {
+    process.on('SIGINT', async () => {  // 监听 SIGINT 信号优雅关闭
       log.info('Shutting down...');
-      agent.stop();
-      await channelManager.stopAll();
-      await apiServer.stop();
-      await sessionManager.close();
-      ConfigLoader.stopWatching();
+      agent.stop();  // 停止 Agent
+      await channelManager.stopAll();  // 停止所有渠道
+      await apiServer.stop();  // 停止 API 服务器
+      await sessionManager.close();  // 关闭数据库连接
+      ConfigLoader.stopWatching();  // 停止配置文件监听
       process.exit(0);
     });
   });

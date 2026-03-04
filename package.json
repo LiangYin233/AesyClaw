@@ -10,8 +10,8 @@
     "start": "node dist/cli.js",
     "dev": "tsx watch src/cli.ts",
     "dev:webui": "cd webui && npm run dev",
-    "gateway": "tsx src/cli.ts gateway",
-    "launcher": "start \"AesyClaw Gateway\" cmd /k \"npm run gateway\" && start \"AesyClaw WebUI\" cmd /k \"npm run dev:webui\""
+    "gateway": "tsx --no-cache src/cli.ts gateway",
+    "launcher": "powershell -ExecutionPolicy Bypass -File launcher.ps1"
   },
   "author": "",
   "license": "MIT",

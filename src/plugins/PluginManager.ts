@@ -118,8 +118,6 @@ export class PluginManager {
   private toolRegistry: ToolRegistry;
   private log = logger.child({ prefix: 'PluginManager' });
   private pluginConfigs: Record<string, { enabled: boolean; options?: Record<string, any> }> = {};
-  private inboundHandler?: (msg: InboundMessage) => Promise<void>;
-  private outboundHandler?: (msg: OutboundMessage) => Promise<void>;
 
   constructor(context: PluginContext, toolRegistry: ToolRegistry) {
     this.context = {
@@ -135,17 +133,6 @@ export class PluginManager {
       }
     };
     this.toolRegistry = toolRegistry;
-    
-    this.inboundHandler = async (msg: InboundMessage) => {
-      await this.handleInbound(msg);
-    };
-    
-    this.outboundHandler = async (msg: OutboundMessage) => {
-      await this.handleOutbound(msg);
-    };
-    
-    this.context.eventBus.on('inbound', this.inboundHandler);
-    this.context.eventBus.on('outbound', this.outboundHandler);
   }
 
   async applyOnCommand(msg: InboundMessage): Promise<InboundMessage | null> {
@@ -170,15 +157,13 @@ export class PluginManager {
     return null;
   }
 
-  private async handleInbound(msg: InboundMessage): Promise<void> {
-    await this.applyOnMessage(msg);
-  }
-
   async applyOnMessage(msg: InboundMessage): Promise<InboundMessage | null> {
+    this.log.info(`applyOnMessage called with: content="${msg.content}", media=${JSON.stringify(msg.media)}`);
     let result = msg;
     for (const plugin of this.plugins.values()) {
       if (plugin.onMessage) {
         try {
+          this.log.info(`Calling onMessage for plugin ${plugin.name}`);
           const newResult = await plugin.onMessage(result);
           if (newResult) result = newResult;
         } catch (error) {
@@ -186,11 +171,8 @@ export class PluginManager {
         }
       }
     }
+    this.log.info(`applyOnMessage returning: ${JSON.stringify({ content: result.content.substring(0, 50) })}`);
     return result;
-  }
-
-  private async handleOutbound(msg: OutboundMessage): Promise<void> {
-    await this.applyOnResponse(msg);
   }
 
   async applyOnResponse(msg: OutboundMessage): Promise<OutboundMessage | null> {
@@ -274,7 +256,8 @@ export class PluginManager {
       const pluginContext = {
         options: plugin.options,
         logger: this.context.logger,
-        workspace: this.context.workspace
+        workspace: this.context.workspace,
+        agent: this.context.agent
       };
       await plugin.onLoad(pluginContext);
       this.log.debug(`Plugin ${plugin.name} onLoad completed with options:`, plugin.options);
@@ -302,6 +285,16 @@ export class PluginManager {
     this.log.info(`Loaded plugin: ${plugin.name}, has onResponse: ${!!plugin.onResponse}`);
   }
 
+  updateAgent(agent: AgentLoop): void {
+    this.context.agent = agent;
+    for (const plugin of this.plugins.values()) {
+      const p = plugin as any;
+      if (p.context) {
+        p.context.agent = agent;
+      }
+    }
+  }
+
   async unloadPlugin(name: string): Promise<void> {
     const plugin = this.plugins.get(name);
     if (!plugin) {
@@ -324,6 +317,53 @@ export class PluginManager {
 
     this.plugins.delete(name);
     this.log.info(`Unloaded plugin: ${name}`);
+  }
+
+  async reloadPlugin(name: string): Promise<boolean> {
+    const config = this.pluginConfigs[name];
+    const oldPlugin = this.plugins.get(name);
+    const wasEnabled = !!oldPlugin;
+    const options = config?.options || {};
+    
+    this.log.info(`Reloading plugin: ${name}, wasEnabled: ${wasEnabled}, options:`, options);
+    
+    const oldStates = oldPlugin ? (oldPlugin as any).waitingStates : null;
+    const oldStatesMap = oldStates instanceof Map ? Object.fromEntries(oldStates) : null;
+    
+    if (wasEnabled) {
+      await this.unloadPlugin(name);
+    }
+    
+    const plugin = await this.loadPluginModule(name, options);
+    if (!plugin) {
+      this.log.error(`Failed to reload plugin ${name}: module not found`);
+      return false;
+    }
+    
+    await this.loadPlugin(plugin);
+    
+    if (oldStatesMap) {
+      const newPlugin = this.plugins.get(name);
+      const newStates = newPlugin ? (newPlugin as any).waitingStates : null;
+      if (newStates instanceof Map) {
+        const timeoutMs = (newPlugin as any).timeoutMs || 5 * 60 * 1000;
+        for (const [key, state] of Object.entries(oldStatesMap)) {
+          const s = state as { timestamp: number; files: string[] };
+          if (Date.now() - s.timestamp < timeoutMs) {
+            newStates.set(key, s);
+          }
+        }
+        this.log.info(`Restored ${newStates.size} states for plugin ${name}`);
+      }
+    }
+    
+    if (!wasEnabled) {
+      await this.unloadPlugin(name);
+      this.pluginConfigs[name] = { enabled: false, options };
+    }
+    
+    this.log.info(`Reloaded plugin: ${name}`);
+    return true;
   }
 
   getPlugin(name: string): Plugin | undefined {
@@ -563,17 +603,5 @@ export class PluginManager {
     }
     
     return this.pluginConfigs;
-  }
-
-  async stop(): Promise<void> {
-    if (this.inboundHandler) {
-      this.context.eventBus.off('inbound', this.inboundHandler);
-      this.inboundHandler = undefined;
-    }
-    if (this.outboundHandler) {
-      this.context.eventBus.off('outbound', this.outboundHandler);
-      this.outboundHandler = undefined;
-    }
-    this.log.info('Event listeners removed');
   }
 }

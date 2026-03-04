@@ -187,6 +187,20 @@ export class APIServer {
       }
     });
 
+    this.app.post('/api/plugins/:name/reload', async (req, res) => {
+      if (!this.pluginManager) {
+        return res.status(500).json({ success: false, error: 'Plugin manager not available' });
+      }
+      const { name } = req.params;
+      
+      const success = await this.pluginManager.reloadPlugin(name);
+      if (success) {
+        res.json({ success: true });
+      } else {
+        res.status(500).json({ success: false, error: 'Failed to reload plugin' });
+      }
+    });
+
     this.app.put('/api/plugins/:name/config', async (req, res) => {
       if (!this.pluginManager) {
         return res.status(500).json({ success: false, error: 'Plugin manager not available' });

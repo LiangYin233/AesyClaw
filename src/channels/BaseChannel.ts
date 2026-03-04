@@ -40,7 +40,8 @@ export abstract class BaseChannel {
     content: string,
     rawEvent?: any,
     messageId?: string,
-    messageType?: 'private' | 'group'
+    messageType?: 'private' | 'group',
+    media?: string[]
   ): Promise<void> {
     const msg: InboundMessage = {
       channel: this.name,
@@ -50,7 +51,8 @@ export abstract class BaseChannel {
       rawEvent,
       timestamp: new Date(),
       messageId,
-      messageType
+      messageType,
+      media
     };
 
     await this.eventBus.publishInbound(msg);

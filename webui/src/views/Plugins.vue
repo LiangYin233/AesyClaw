@@ -25,6 +25,15 @@
                 </template>
                 <template #footer>
                     <div class="plugin-actions">
+                        <Button 
+                            icon="pi pi-refresh" 
+                            label="重载"
+                            outlined 
+                            size="small"
+                            :loading="reloadingPlugin === plugin.name"
+                            @click="reloadPluginHandler(plugin)"
+                            v-tooltip.top="'重新加载插件代码'"
+                        />
                         <ToggleButton 
                             v-model="plugin.enabled" 
                             onLabel="已启用" 
@@ -128,13 +137,14 @@ import InputNumber from 'primevue/inputnumber'
 import Password from 'primevue/password'
 import Toast from 'primevue/toast'
 
-const { getPlugins, togglePlugin, updatePluginConfig } = useApi()
+const { getPlugins, togglePlugin, updatePluginConfig, reloadPlugin } = useApi()
 const toast = useToast()
 
 const plugins = ref<PluginInfo[]>([])
 const loading = ref(false)
 const toggling = ref(false)
 const saving = ref(false)
+const reloadingPlugin = ref<string | null>(null)
 
 const configDialogVisible = ref(false)
 const selectedPlugin = ref<PluginInfo | null>(null)
@@ -176,6 +186,39 @@ async function togglePluginEnabled(plugin: PluginInfo) {
         console.error('Failed to toggle plugin:', e)
     } finally {
         toggling.value = false
+    }
+}
+
+async function reloadPluginHandler(plugin: PluginInfo) {
+    reloadingPlugin.value = plugin.name
+    try {
+        const success = await reloadPlugin(plugin.name)
+        if (success) {
+            toast.add({ 
+                severity: 'success', 
+                summary: '成功', 
+                detail: '插件已重载', 
+                life: 3000 
+            })
+            await loadPlugins()
+        } else {
+            toast.add({ 
+                severity: 'error', 
+                summary: '失败', 
+                detail: '重载失败', 
+                life: 3000 
+            })
+        }
+    } catch (e) {
+        console.error('Failed to reload plugin:', e)
+        toast.add({ 
+            severity: 'error', 
+            summary: '错误', 
+            detail: '重载失败', 
+            life: 3000 
+        })
+    } finally {
+        reloadingPlugin.value = null
     }
 }
 

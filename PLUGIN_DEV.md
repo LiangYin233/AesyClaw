@@ -6,48 +6,90 @@ AesyClaw 插件系统允许开发者扩展框架功能，包括：
 - 注册自定义工具 (Tools)
 - 添加消息中间件
 - 拦截和处理入站/出站消息
+- 拦截 Agent 处理前后的事件
+- 拦截工具调用结果
+- 注册命令处理器
 
 ## 插件结构
 
 ### 基本结构
 
 ```typescript
-import type { Plugin, PluginContext, Tool } from 'aesyclaw';
+import type { Plugin, PluginContext, Tool, InboundMessage, OutboundMessage, LLMMessage, LLMResponse, PluginErrorContext } from 'aesyclaw';
 
 const myPlugin: Plugin = {
   name: 'my-plugin',
   version: '1.0.0',
   description: '我的第一个插件',
-  
+  author: 'Your Name',
+  options: {},                    // 运行时配置
+  defaultConfig: {                // 默认配置
+    enabled: false,
+    options: {}
+  },
+
   // 生命周期钩子
-  async onLoad(context: PluginContext) {
-    console.log('插件加载');
+  async onLoad(options) {
+    console.log('插件加载', options);
   },
   
   async onStart() {
-    console.log('插件启动');
+    console.log('插件启动/启用');
   },
   
   async onStop() {
-    console.log('插件停止');
+    console.log('插件停止/禁用');
   },
   
   async onUnload() {
     console.log('插件卸载');
   },
-  
+
   // 消息处理
-  async onMessage(msg) {
+  async onMessage(msg: InboundMessage): Promise<InboundMessage | null> {
     return msg; // 返回处理后的消息
   },
   
-  async onResponse(msg) {
+  async onResponse(msg: OutboundMessage): Promise<OutboundMessage | null> {
     return msg;
   },
+
+  // Agent 钩子
+  async onAgentBefore(msg: InboundMessage, messages: L Promise<void> {
+LMMessage[]):    // 在 Agent 处理消息前调用，可修改 messages
+  },
   
+  async onAgentAfter(msg: InboundMessage, response: LLMResponse): Promise<void> {
+    // 在 Agent 生成响应后调用
+  },
+
+  // 工具调用钩子
+  async onToolCall(toolName: string, params: Record<string, any>, result: string): Promise<string | void> {
+    // 可以修改工具返回结果，返回 undefined 表示不修改
+    return result;
+  },
+
+  // 错误处理
+  async onError(error: Error, context: PluginErrorContext): Promise<void> {
+    console.error('Plugin error:', error, context);
+  },
+
+  // 命令处理器
+  commands: [
+    {
+      name: 'help',
+      description: '显示帮助信息',
+      pattern: /^!help/,
+      handler: async (msg) => {
+        // 处理命令，返回 null 表示不拦截消息
+        return null;
+      }
+    }
+  ],
+
   // 注册工具
   tools: [],
-  
+
   // 中间件
   middleware: []
 };
@@ -60,7 +102,7 @@ export default myPlugin;
 ### 1. 简单工具插件
 
 ```typescript
-import type { Plugin, PluginContext, Tool } from 'aesyclaw';
+import type { Plugin, Tool } from 'aesyclaw';
 
 const filesystemPlugin: Plugin = {
   name: 'filesystem',
@@ -119,13 +161,20 @@ interface MyPluginOptions {
 const myPlugin: Plugin = {
   name: 'my-plugin',
   version: '1.0.0',
+  defaultConfig: {
+    enabled: false,
+    options: {
+      apiKey: '',
+      model: 'gpt-4'
+    }
+  },
   
-  async onLoad(context: PluginContext) {
-    const options = (this as any).options as MyPluginOptions;
-    console.log('API Key:', options.apiKey);
+  async onLoad(options) {
+    const opts = this.options as MyPluginOptions;
+    console.log('API Key:', opts.apiKey);
     
     // 注册工具
-    context.registerTool({
+    this.registerTool({
       name: 'my_tool',
       description: '我的自定义工具',
       parameters: {
@@ -136,19 +185,69 @@ const myPlugin: Plugin = {
         required: ['input']
       },
       execute: async (params, context) => {
-        // 使用配置
-        const apiKey = (this as any).options.apiKey;
-        // ... 执行逻辑
+        const apiKey = this.options.apiKey;
         return '结果';
       }
     });
+  },
+
+  // 可以通过 context.sendMessage 发送消息
+  async onMessage(msg, context) {
+    await context.sendMessage('onebot', msg.chatId, '收到消息: ' + msg.content);
+    return msg;
   }
 };
 
 export default myPlugin;
 ```
 
-### 3. 消息中间件
+### 3. 命令处理器
+
+```typescript
+import type { Plugin, PluginCommand, InboundMessage } from 'aesyclaw';
+
+const helpCommand: PluginCommand = {
+  name: 'help',
+  description: '显示帮助信息',
+  pattern: /^!help/,
+  handler: async (msg: InboundMessage) => {
+    const helpText = `
+可用命令:
+- !help - 显示帮助
+- !status - 查看状态
+- !ping - 测试连接
+    `.trim();
+    
+    // 通过 eventBus 发送回复消息
+    // 返回 null 表示继续正常处理，不拦截消息
+    return null;
+  }
+};
+
+const echoCommand: PluginCommand = {
+  name: 'echo',
+  description: '回显消息',
+  pattern: /^!echo\s+(.+)/,
+  handler: async (msg: InboundMessage) => {
+    const match = msg.content.match(/^!echo\s+(.+)/);
+    if (match) {
+      // 修改消息内容
+      msg.content = match[1];
+    }
+    return msg;
+  }
+};
+
+const myPlugin: Plugin = {
+  name: 'commands',
+  version: '1.0.0',
+  commands: [helpCommand, echoCommand]
+};
+
+export default myPlugin;
+```
+
+### 4. 消息中间件
 
 ```typescript
 import type { Plugin, Middleware, InboundMessage } from 'aesyclaw';
@@ -174,7 +273,7 @@ const myPlugin: Plugin = {
 export default myPlugin;
 ```
 
-### 4. 消息拦截
+### 5. 消息拦截
 
 ```typescript
 import type { Plugin, InboundMessage, OutboundMessage } from 'aesyclaw';
@@ -206,7 +305,82 @@ const filterPlugin: Plugin = {
 export default filterPlugin;
 ```
 
-### 5. 响应处理（生成图片等）
+### 6. Agent 钩子
+
+```typescript
+import type { Plugin, InboundMessage, LLMMessage, LLMResponse } from 'aesyclaw';
+
+const agentPlugin: Plugin = {
+  name: 'agent-hook',
+  version: '1.0.0',
+  
+  async onAgentBefore(msg: InboundMessage, messages: LLMMessage[]): Promise<void> {
+    // 在消息发送给 LLM 之前修改上下文
+    // 添加系统提示
+    messages.unshift({
+      role: 'system',
+      content: '你是一个友好的助手，请用中文回答。'
+    });
+  },
+  
+  async onAgentAfter(msg: InboundMessage, response: LLMResponse): Promise<void> {
+    // 在收到 LLM 响应后处理
+    console.log('LLM 响应:', response.content);
+    console.log('推理内容:', response.reasoning_content);
+  }
+};
+
+export default agentPlugin;
+```
+
+### 7. 工具调用拦截
+
+```typescript
+import type { Plugin } from 'aesyclaw';
+
+const toolHookPlugin: Plugin = {
+  name: 'tool-hook',
+  version: '1.0.0',
+  
+  async onToolCall(toolName: string, params: Record<string, any>, result: string): Promise<string | void> {
+    console.log(`工具 ${toolName} 执行结果:`, result);
+    
+    // 可以修改返回结果
+    if (toolName === 'some_tool') {
+      // return '修改后的结果';
+    }
+    
+    // 返回 undefined 保持原结果
+    return undefined;
+  }
+};
+
+export default toolHookPlugin;
+```
+
+### 8. 错误处理
+
+```typescript
+import type { Plugin, PluginErrorContext } from 'aesyclaw';
+
+const errorHandlerPlugin: Plugin = {
+  name: 'error-handler',
+  version: '1.0.0',
+  
+  async onError(error: Error, context: PluginErrorContext): Promise<void> {
+    console.error('Plugin error:', {
+      message: error.message,
+      type: context.type,     // 'message' | 'tool' | 'response' | 'agent'
+      plugin: context.plugin, // 触发错误的插件名
+      data: context.data
+    });
+  }
+};
+
+export default errorHandlerPlugin;
+```
+
+### 9. 响应处理（生成图片等）
 
 `onResponse` 可以在 AI 响应发送前对其进行修改，例如将 Markdown 渲染为图片：
 
@@ -216,14 +390,16 @@ import type { Plugin, OutboundMessage } from 'aesyclaw';
 const md2imgPlugin: Plugin = {
   name: 'md2img',
   version: '1.0.0',
-  
-  config: {
-    minLength: 50,
-    scale: 1.0
+  defaultConfig: {
+    enabled: false,
+    options: {
+      minLength: 50,
+      scale: 1.0
+    }
   },
   
   async onLoad(options) {
-    this.config = {
+    this.options = {
       minLength: options?.minLength ?? 50,
       scale: Math.max(0.5, Math.min(3.0, options?.scale ?? 1.0))
     };
@@ -231,7 +407,7 @@ const md2imgPlugin: Plugin = {
   
   async onResponse(msg: OutboundMessage): Promise<OutboundMessage | null> {
     // 只处理足够长的消息
-    if (!msg.content || msg.content.length < this.config.minLength) {
+    if (!msg.content || msg.content.length < this.options.minLength) {
       return msg;
     }
     
@@ -256,7 +432,6 @@ const md2imgPlugin: Plugin = {
   },
   
   isMarkdown(text) {
-    // Markdown 检测逻辑
     return /^#{1,6}\s/m.test(text) || /^\*\*.*\*\*/m.test(text);
   },
   
@@ -268,75 +443,139 @@ const md2imgPlugin: Plugin = {
 export default md2imgPlugin;
 ```
 
-**OutboundMessage 接口**:
+## 接口定义
+
+### InboundMessage
+
+```typescript
+interface InboundMessage {
+  channel: string;           // 渠道名称
+  senderId: string;        // 发送者 ID
+  chatId: string;          // 聊天 ID
+  content: string;         // 消息内容
+  rawEvent?: any;          // 原始事件数据
+  timestamp: Date;         // 时间戳
+  messageId?: string;      // 消息 ID
+  media?: string[];        // 媒体文件
+  sessionKey?: string;     // 会话 key
+  messageType?: 'private' | 'group';
+}
+```
+
+### OutboundMessage
+
 ```typescript
 interface OutboundMessage {
-  channel: string;        // 渠道名称
-  chatId: string;        // 聊天 ID
-  content: string;        // 消息内容
-  replyTo?: string;      // 回复消息 ID
-  media?: string[];      // 媒体文件路径（如图片）
+  channel: string;              // 渠道名称
+  chatId: string;               // 聊天 ID
+  content: string;              // 消息内容
+  reasoning_content?: string;    // 推理内容
+  replyTo?: string;             // 回复消息 ID
+  media?: string[];             // 媒体文件路径（如图片）
   metadata?: Record<string, any>;
   messageType?: 'private' | 'group';
 }
 ```
 
-## 工具定义
+### PluginErrorContext
 
-### Tool 接口
+```typescript
+interface PluginErrorContext {
+  type: 'message' | 'tool' | 'response' | 'agent';  // 触发错误的操作类型
+  plugin?: string;                                     // 触发错误的插件名
+  data?: any;                                          // 额外上下文数据
+}
+```
+
+### LLMMessage
+
+```typescript
+interface LLMMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string;
+  toolCalls?: ToolCall[];
+  toolCallId?: string;
+  name?: string;
+}
+```
+
+### LLMResponse
+
+```typescript
+interface LLMResponse {
+  content: string | null | undefined;
+  reasoning_content?: string;
+  toolCalls: ToolCall[];
+  finishReason: string;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
+```
+
+### Tool
 
 ```typescript
 interface Tool {
   name: string;           // 工具名称 (唯一标识)
-  description: string;    // 工具描述 (供 AI 理解用途)
+  description: string;   // 工具描述 (供 AI 理解用途)
   parameters: object;    // JSON Schema 格式的参数定义
   validate?: (params: object) => string[];  // 参数验证
-  execute: (params: object, context?: ToolContext) => Promise<string>;
+  execute: (params: object, context?: any) => Promise<string>;
 }
 ```
 
-### ToolContext
+### PluginCommand
 
 ```typescript
-interface ToolContext {
-  workspace: string;      // 工作目录
-  eventBus?: EventBus;   // 事件总线
-  registerTool(tool: Tool): void;  // 注册工具
-  getToolRegistry(): any;  // 获取工具注册表
+interface PluginCommand {
+  name: string;           // 命令名称
+  description: string;    // 命令描述
+  pattern?: RegExp;       // 正则匹配模式
+  handler: (msg: InboundMessage) => Promise<InboundMessage | null>;
 }
 ```
 
-### PluginContext (在 onLoad 中获取)
+### Middleware
+
+```typescript
+type Middleware = (msg: InboundMessage, next: () => Promise<void>) => Promise<void>;
+```
+
+### PluginContext
 
 ```typescript
 interface PluginContext {
-  config: Config;           // 当前配置
-  eventBus: EventBus;       // 事件总线
-  agent: AgentLoop;        // Agent 实例
-  workspace: string;       // 工作目录
-  registerTool(tool: Tool): void;  // 注册工具
-  getToolRegistry(): any;  // 获取工具注册表
+  config: Config;              // 当前配置
+  eventBus: EventBus;         // 事件总线
+  agent: AgentLoop | null;    // Agent 实例
+  workspace: string;          // 工作目录
+  registerTool(tool: Tool): void;    // 注册工具
+  getToolRegistry(): ToolRegistry;  // 获取工具注册表
+  logger: typeof logger;       // 日志实例
+  sendMessage(channel: string, chatId: string, content: string, messageType?: 'private' | 'group'): Promise<void>;
 }
 ```
 
-### 参数 Schema 示例
+#### 使用 callLLM 调用 LLM
+
+插件可以通过 `context.agent.callLLM()` 直接调用 LLM：
 
 ```typescript
-parameters: {
-  type: 'object',
-  properties: {
-    command: {
-      type: 'string',
-      description: '要执行的命令'
-    },
-    timeout: {
-      type: 'number',
-      description: '超时时间(毫秒)',
-      default: 30000
-    }
-  },
-  required: ['command']
-}
+const response = await context.agent.callLLM([
+  { role: 'user', content: '你好' }
+], { allowTools: false });
+
+console.log(response.content);
+```
+
+`callLLM` 参数：
+- `messages`: LLMMessage[] - 消息数组
+- `options`: 
+  - `allowTools`: boolean - 是否允许工具调用，默认 true
+  - `maxIterations`: number - 最大迭代次数
 ```
 
 ## 插件配置
@@ -356,32 +595,35 @@ plugins:
       apiKey: "${MY_API_KEY}"
 ```
 
-## 注册插件
-
-### 方式 1: 通过配置文件
+## 插件目录结构
 
 将插件文件放入 `plugins/` 目录：
 
 ```
 plugins/
-├── index.js          # 入口文件 (可选)
-├── filesystem.js     # 文件系统插件
-├── weather.js        # 天气插件
-└── ...
+├── filesystem/
+│   ├── main.js          # 入口文件 (必需)
+│   └── package.json     # 依赖配置 (可选)
+├── weather/
+│   └── main.js
+└── md2img/
+    ├── main.js
+    └── package.json
 ```
 
-### 方式 2: 手动注册
+插件入口文件 `main.js` 需要导出默认 Plugin 对象：
 
-```typescript
-import { PluginManager } from 'aesyclaw';
+```javascript
+// plugins/my-plugin/main.js
+import type { Plugin } from '../../src/types.js';
 
-const pluginManager = new PluginManager(context, toolRegistry);
-
-await pluginManager.loadPlugin({
+const myPlugin: Plugin = {
   name: 'my-plugin',
   version: '1.0.0',
-  tools: [...]
-});
+  // ... 配置
+};
+
+export default myPlugin;
 ```
 
 ## 最佳实践
@@ -390,7 +632,10 @@ await pluginManager.loadPlugin({
 2. **错误处理**: 在 execute 中捕获异常并返回有意义的错误消息
 3. **参数验证**: 使用 validate 方法验证参数
 4. **异步执行**: 工具执行应该是异步的，避免阻塞
-5. **日志记录**: 使用 console.log 记录关键操作
+5. **日志记录**: 使用 `context.logger` 记录关键操作
+6. **默认配置**: 设置 `defaultConfig` 让插件可配置但默认禁用
+7. **命令优先级**: 先注册的命令先匹配，使用简单的正则模式
+8. **中间件顺序**: 先注册的中间件先执行
 
 ## 完整配置示例
 

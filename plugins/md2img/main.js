@@ -3,6 +3,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
 import { randomUUID } from 'crypto';
+import { fileURLToPath } from 'url';
 
 const MD_PATTERN = /(^```[\s\S]*?\n```$)|(^\$\$[\s\S]*?\$\$$)|(\$(?:\\.|[^\n$])+\$)|(^#{1-6}\s+\S.+$)|(^>\s+\S.+$)|(^\s{0,3}[-*+]\s+\S.+$)|(^\s{0,3}\d+\.\s+\S.+$)|(^\|[^\n]*\|[^\n]*$)|(!\[[^\]]*\]\([^)]+\)|\[[^\]]+\]\([^)]+\))|(^\s{0,3}(?:-{3,}|_{3,}|\*{3,})\s*$)/m;
 
@@ -112,9 +113,7 @@ const plugin = {
 
   runRenderScript(mdFile, outputFile) {
     return new Promise((resolve, reject) => {
-      const url = new URL(import.meta.url);
-      let pluginDir = url.pathname.replace(/^\/([A-Za-z]:)\//, '$1:/');
-      pluginDir = path.dirname(pluginDir);
+      const pluginDir = path.dirname(fileURLToPath(import.meta.url));
       const renderScript = path.join(pluginDir, 'render.js');
       
       log.debug('Plugin dir:', pluginDir, 'Render script:', renderScript);

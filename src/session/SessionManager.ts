@@ -63,30 +63,25 @@ export class SessionManager {
     return key;
   }
 
-  /**
-   * Get an existing session or create a new one.
-   * @param key - The session key (format: channel:chatId or channel:chatId:uuid)
-   * @returns The existing or newly created session
-   */
   async getOrCreate(key: string): Promise<Session> {
-    const existing = this.sessions.get(key);
+    const existing = this.sessions.get(key);  // 尝试从内存中获取现有会话
     if (existing) {
       return existing;
     }
 
-    const pending = this.sessionLocks.get(key);
+    const pending = this.sessionLocks.get(key);  // 检查是否有正在创建的会话
     if (pending) {
       return pending;
     }
 
-    const lockPromise = this.doGetOrCreate(key);
-    this.sessionLocks.set(key, lockPromise);
+    const lockPromise = this.doGetOrCreate(key);  // 创建新会话的异步操作
+    this.sessionLocks.set(key, lockPromise);  // 添加锁防止并发创建
 
     try {
       const session = await lockPromise;
       return session;
     } finally {
-      this.sessionLocks.delete(key);
+      this.sessionLocks.delete(key);  // 完成后删除锁
     }
   }
 
@@ -96,11 +91,11 @@ export class SessionManager {
       return existing;
     }
 
-    const parsed = this.parseSessionKey(key);
-    const session = await this.load(key);
+    const parsed = this.parseSessionKey(key);  // 解析会话键
+    const session = await this.load(key);  // 从数据库加载会话
     
     if (!session) {
-      const result = await this.db.run(
+      const result = await this.db.run(  // 数据库中插入新会话
         `INSERT INTO sessions (key, channel, chat_id, uuid) VALUES (?, ?, ?, ?)`,
         [key, parsed.channel, parsed.chatId, parsed.uuid || null]
       );
@@ -116,10 +111,10 @@ export class SessionManager {
         updatedAt: new Date(),
         lastConsolidated: 0
       };
-      this.sessions.set(key, newSession);
+      this.sessions.set(key, newSession);  // 添加到内存缓存
       
       if (this.sessions.size >= this.maxSessions * CONSTANTS.SESSION_CLEANUP_THRESHOLD) {
-        await this.cleanupOldSessions();
+        await this.cleanupOldSessions();  // 超过阈值时清理旧会话
       }
       return newSession;
     }
@@ -195,22 +190,22 @@ export class SessionManager {
   }
 
   async addMessage(key: string, role: 'user' | 'assistant' | 'system', content: string): Promise<void> {
-    const session = await this.getOrCreate(key);
+    const session = await this.getOrCreate(key);  // 获取或创建会话
     
-    session.messages.push({
+    session.messages.push({  // 添加消息到内存
       role,
       content,
       timestamp: new Date().toISOString()
     });
 
     if (session.id) {
-      await this.db.run(
+      await this.db.run(  // 持久化到数据库
         `INSERT INTO messages (session_id, role, content) VALUES (?, ?, ?)`,
         [session.id, role, content]
       );
     }
 
-    await this.save(session);
+    await this.save(session);  // 保存会话更新时间
   }
 
   list(): Session[] {

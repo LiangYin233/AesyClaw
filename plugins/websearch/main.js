@@ -5,6 +5,24 @@ let config = {
   searchDepth: 'basic'
 };
 
+async function fetchTavily(endpoint, body, apiKey) {
+  const response = await fetch(`https://api.tavily.com/${endpoint}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify(body)
+  });
+  
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`API error ${response.status}: ${errorBody.substring(0, 200)}`);
+  }
+  
+  return response.json();
+}
+
 const plugin = {
   name: 'websearch',
   version: '1.0.0',
@@ -35,24 +53,6 @@ const plugin = {
     } else {
       log.info('Websearch plugin loaded');
     }
-  },
-
-  async fetchTavily(endpoint, body) {
-    const response = await fetch(`https://api.tavily.com/${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiKey}`
-      },
-      body: JSON.stringify(body)
-    });
-    
-    if (!response.ok) {
-      const errorBody = await response.text();
-      throw new Error(`API error ${response.status}: ${errorBody.substring(0, 200)}`);
-    }
-    
-    return response.json();
   },
 
   tools: [
@@ -86,12 +86,12 @@ const plugin = {
         }
         
         try {
-          const data = await this.fetchTavily('search', {
+          const data = await fetchTavily('search', {
             query,
             max_results: max_results || config.maxResults,
             search_depth: search_depth || config.searchDepth,
             include_raw_content: false
-          });
+          }, config.apiKey);
           
           const results = data.results?.map((r) => ({
             title: r.title,
@@ -146,12 +146,12 @@ const plugin = {
         }
         
         try {
-          const data = await this.fetchTavily('extract', {
+          const data = await fetchTavily('extract', {
             urls: Array.isArray(urls) ? urls : [urls],
             query: query || undefined,
             extract_depth: extract_depth || 'basic',
             format: format || 'markdown'
-          });
+          }, config.apiKey);
           
           const results = data.results?.map((r) => ({
             url: r.url,
