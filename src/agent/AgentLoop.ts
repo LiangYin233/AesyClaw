@@ -19,31 +19,12 @@ interface OpenAIToolCall {
 }
 
 function getToolCallName(toolCall: ToolCall | OpenAIToolCall): string | undefined {
-  if ('name' in toolCall && toolCall.name) {
-    return toolCall.name;
-  }
-  if ('function' in toolCall && toolCall.function?.name) {
-    return toolCall.function.name;
-  }
-  return undefined;
+  return (toolCall as any).name ?? (toolCall as any).function?.name;
 }
 
 function getToolCallArguments(toolCall: ToolCall | OpenAIToolCall): Record<string, any> | undefined {
-  if ('arguments' in toolCall && toolCall.arguments) {
-    return toolCall.arguments;
-  }
-  if ('function' in toolCall && toolCall.function?.arguments) {
-    const args = toolCall.function.arguments;
-    if (typeof args === 'string') {
-      try {
-        return JSON.parse(args);
-      } catch {
-        return {};
-      }
-    }
-    return args;
-  }
-  return undefined;
+  const args = (toolCall as any).arguments ?? (toolCall as any).function?.arguments;
+  return typeof args === 'string' ? JSON.parse(args || '{}') : args;
 }
 
 export class ContextBuilder {
@@ -61,53 +42,26 @@ export class ContextBuilder {
     channel?: string,
     chatId?: string
   ): LLMMessage[] {
-    const messages: LLMMessage[] = [];
-
-    messages.push({
-      role: 'system',
-      content: this.buildSystemPrompt()
-    });
-
-    for (const msg of history) {
-      if (msg.role === 'user' || msg.role === 'assistant' || msg.role === 'system') {
-        messages.push({
-          role: msg.role,
-          content: msg.content
-        });
-      }
-    }
-
-    const userContent = this.buildUserContent(currentMessage, channel, chatId);
-    messages.push({
-      role: 'user',
-      content: userContent
-    });
-
+    const messages: LLMMessage[] = [
+      { role: 'system', content: this.buildSystemPrompt() },
+      ...history.filter(m => ['user', 'assistant', 'system'].includes(m.role)),
+      { role: 'user', content: this.buildUserContent(currentMessage, channel, chatId) }
+    ];
     return messages;
   }
 
   private buildSystemPrompt(): string {
     const now = new Date();
-    let prompt = this.systemPrompt;
+    let prompt = this.systemPrompt
+      .replace(/\{\{\s*current_time\s*\}\}/g, now.toISOString())
+      .replace(/\{\{\s*current_date\s*\}\}/g, now.toLocaleString())
+      .replace(/\{\{\s*current_hour\s*\}\}/g, now.toLocaleTimeString())
+      .replace(/\{\{\s*timezone\s*\}\}/g, Intl.DateTimeFormat().resolvedOptions().timeZone);
 
-    prompt = prompt.replace(/\{\{\s*current_time\s*\}\}/g, now.toISOString());
-    prompt = prompt.replace(/\{\{\s*current_date\s*\}\}/g, now.toLocaleString());
-    prompt = prompt.replace(/\{\{\s*current_hour\s*\}\}/g, now.toLocaleTimeString());
-    prompt = prompt.replace(/\{\{\s*timezone\s*\}\}/g, Intl.DateTimeFormat().resolvedOptions().timeZone);
-
-    return `# AesyClaw
-
-${prompt}
-
-## Workspace: ${this.workspace}
-`;
+    return `# AesyClaw\n\n${prompt}\n\n## Workspace: ${this.workspace}`;
   }
 
-  private buildUserContent(
-    message: string,
-    channel?: string,
-    chatId?: string
-  ): string {
+  private buildUserContent(message: string, channel?: string, chatId?: string): string {
     const ctx = [
       `[Runtime Context]`,
       channel && `Channel: ${channel}`,

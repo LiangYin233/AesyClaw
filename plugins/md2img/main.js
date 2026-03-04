@@ -13,6 +13,7 @@ const plugin = {
   version: '1.0.0',
   description: '将 Markdown 自动转换为图片',
   defaultConfig: {
+    enabled: false,
     options: {
       minLength: 50,
       verboseLog: false,
@@ -112,20 +113,11 @@ const plugin = {
   runRenderScript(mdFile, outputFile) {
     return new Promise((resolve, reject) => {
       const url = new URL(import.meta.url);
-      let pluginDir = url.pathname;
-      
-      if (pluginDir.startsWith('/G:/')) {
-        pluginDir = 'G:' + pluginDir.substring(3);
-      } else if (pluginDir.startsWith('/g:/')) {
-        pluginDir = 'g:' + pluginDir.substring(3);
-      }
-      
+      let pluginDir = url.pathname.replace(/^\/([A-Za-z]:)\//, '$1:/');
       pluginDir = path.dirname(pluginDir);
       const renderScript = path.join(pluginDir, 'render.js');
       
-      log.debug('URL pathname:', url.pathname);
-      log.debug('Plugin dir:', pluginDir);
-      log.debug('Render script path:', renderScript);
+      log.debug('Plugin dir:', pluginDir, 'Render script:', renderScript);
       
       const child = spawn('node', [renderScript, mdFile, outputFile, this.config.scale.toString()], {
         stdio: 'pipe'

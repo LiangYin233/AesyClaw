@@ -171,18 +171,7 @@ export class PluginManager {
   }
 
   private async handleInbound(msg: InboundMessage): Promise<void> {
-    for (const plugin of this.plugins.values()) {
-      if (plugin.onMessage) {
-        try {
-          const result = await plugin.onMessage(msg);
-          if (result) {
-            msg = result;
-          }
-        } catch (error) {
-          this.log.error(`Plugin ${plugin.name} onMessage error:`, error);
-        }
-      }
-    }
+    await this.applyOnMessage(msg);
   }
 
   async applyOnMessage(msg: InboundMessage): Promise<InboundMessage | null> {
@@ -191,9 +180,7 @@ export class PluginManager {
       if (plugin.onMessage) {
         try {
           const newResult = await plugin.onMessage(result);
-          if (newResult) {
-            result = newResult;
-          }
+          if (newResult) result = newResult;
         } catch (error) {
           this.log.error(`Plugin ${plugin.name} onMessage error:`, error);
         }
@@ -203,18 +190,7 @@ export class PluginManager {
   }
 
   private async handleOutbound(msg: OutboundMessage): Promise<void> {
-    for (const plugin of this.plugins.values()) {
-      if (plugin.onResponse) {
-        try {
-          const result = await plugin.onResponse(msg);
-          if (result) {
-            msg = result;
-          }
-        } catch (error) {
-          this.log.error(`Plugin ${plugin.name} onResponse error:`, error);
-        }
-      }
-    }
+    await this.applyOnResponse(msg);
   }
 
   async applyOnResponse(msg: OutboundMessage): Promise<OutboundMessage | null> {
@@ -223,9 +199,7 @@ export class PluginManager {
       if (plugin.onResponse) {
         try {
           const newResult = await plugin.onResponse(result);
-          if (newResult) {
-            result = newResult;
-          }
+          if (newResult) result = newResult;
         } catch (error) {
           this.log.error(`Plugin ${plugin.name} onResponse error:`, error);
         }

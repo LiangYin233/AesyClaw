@@ -152,22 +152,7 @@ export class SessionManager {
     }
   }
 
-  private async load(key: string): Promise<Session | null> {
-    const rows = await this.db.all<DBSession>(
-      `SELECT * FROM sessions WHERE key = ?`,
-      [key]
-    );
-
-    if (rows.length === 0) {
-      return null;
-    }
-
-    const row = rows[0];
-    const messages = await this.db.all<DBMessage>(
-      `SELECT * FROM messages WHERE session_id = ? ORDER BY id ASC`,
-      [row.id]
-    );
-
+  private mapRowToSession(row: DBSession, messages: DBMessage[]): Session {
     return {
       key: row.key,
       id: row.id,
@@ -183,6 +168,22 @@ export class SessionManager {
       updatedAt: new Date(row.updated_at),
       lastConsolidated: 0
     };
+  }
+
+  private async load(key: string): Promise<Session | null> {
+    const rows = await this.db.all<DBSession>(
+      `SELECT * FROM sessions WHERE key = ?`,
+      [key]
+    );
+
+    if (rows.length === 0) return null;
+
+    const messages = await this.db.all<DBMessage>(
+      `SELECT * FROM messages WHERE session_id = ? ORDER BY id ASC`,
+      [rows[0].id]
+    );
+
+    return this.mapRowToSession(rows[0], messages);
   }
 
   async save(session: Session): Promise<void> {
@@ -236,29 +237,19 @@ export class SessionManager {
     const batchSize = CONSTANTS.SESSION_LOAD_BATCH_SIZE;
     for (let i = 0; i < sessions.length; i += batchSize) {
       const batch = sessions.slice(i, i + batchSize);
-      await Promise.all(batch.map(async (row) => {
-        const messages = await this.db.all<DBMessage>(
-          `SELECT * FROM messages WHERE session_id = ? ORDER BY id ASC`,
-          [row.id]
-        );
-
-        const session: Session = {
-          key: row.key,
-          id: row.id,
-          channel: row.channel,
-          chatId: row.chat_id,
-          uuid: row.uuid || undefined,
-          messages: messages.map(m => ({
-            role: m.role as 'user' | 'assistant' | 'system',
-            content: m.content,
-            timestamp: m.timestamp
-          })),
-          createdAt: new Date(row.created_at),
-          updatedAt: new Date(row.updated_at),
-          lastConsolidated: 0
-        };
-        this.sessions.set(row.key, session);
-      }));
+      const rowsWithMessages = await Promise.all(
+        batch.map(async (row) => ({
+          row,
+          messages: await this.db.all<DBMessage>(
+            `SELECT * FROM messages WHERE session_id = ? ORDER BY id ASC`,
+            [row.id]
+          )
+        }))
+      );
+      
+      for (const { row, messages } of rowsWithMessages) {
+        this.sessions.set(row.key, this.mapRowToSession(row, messages));
+      }
     }
 
     this.log.info(`Loaded ${this.sessions.size} sessions from database`);

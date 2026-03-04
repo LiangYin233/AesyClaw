@@ -10,6 +10,7 @@ const plugin = {
   version: '1.0.0',
   description: '使用 Tavily 进行网页搜索',
   defaultConfig: {
+    enabled: false,
     options: {
       apiKey: '',
       maxResults: 5,
@@ -34,6 +35,24 @@ const plugin = {
     } else {
       log.info('Websearch plugin loaded');
     }
+  },
+
+  async fetchTavily(endpoint, body) {
+    const response = await fetch(`https://api.tavily.com/${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.apiKey}`
+      },
+      body: JSON.stringify(body)
+    });
+    
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`API error ${response.status}: ${errorBody.substring(0, 200)}`);
+    }
+    
+    return response.json();
   },
 
   tools: [
@@ -67,27 +86,13 @@ const plugin = {
         }
         
         try {
-          const response = await fetch('https://api.tavily.com/search', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${config.apiKey}`
-            },
-            body: JSON.stringify({
-              query,
-              max_results: max_results || config.maxResults,
-              search_depth: search_depth || config.searchDepth,
-              include_raw_content: false
-            })
+          const data = await this.fetchTavily('search', {
+            query,
+            max_results: max_results || config.maxResults,
+            search_depth: search_depth || config.searchDepth,
+            include_raw_content: false
           });
           
-          if (!response.ok) {
-            const errorBody = await response.text();
-            log.error(`Search API error: ${response.status} ${response.statusText}, body: ${errorBody.substring(0, 500)}`);
-            return `搜索API错误: ${response.status} ${response.statusText}\n${errorBody.substring(0, 200)}`;
-          }
-          
-          const data = await response.json();
           const results = data.results?.map((r) => ({
             title: r.title,
             url: r.url,
@@ -96,7 +101,6 @@ const plugin = {
           })) || [];
           
           log.info(`Search completed: ${query}, ${results.length} results`);
-          
           return JSON.stringify(results);
         } catch (error) {
           log.error('Search failed:', error.message);
@@ -142,31 +146,12 @@ const plugin = {
         }
         
         try {
-          const urlList = Array.isArray(urls) ? urls : [urls];
-          
-          const response = await fetch('https://api.tavily.com/extract', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${config.apiKey}`
-            },
-            body: JSON.stringify({
-              urls: urlList,
-              query: query || undefined,
-              extract_depth: extract_depth || 'basic',
-              format: format || 'markdown'
-            })
+          const data = await this.fetchTavily('extract', {
+            urls: Array.isArray(urls) ? urls : [urls],
+            query: query || undefined,
+            extract_depth: extract_depth || 'basic',
+            format: format || 'markdown'
           });
-          
-          if (!response.ok) {
-            const error = await response.json();
-            return JSON.stringify({
-              success: false,
-              error: `API error: ${error.detail?.error || response.statusText}`
-            });
-          }
-          
-          const data = await response.json();
           
           const results = data.results?.map((r) => ({
             url: r.url,

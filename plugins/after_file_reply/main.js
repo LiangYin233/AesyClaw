@@ -3,18 +3,37 @@ const plugin = {
   version: '1.0.0',
   description: '用户发送文件后等待文本描述再发送给LLM',
   defaultConfig: {
+    enabled: false,
     options: {
-      debug_log: false
+      debug_log: false,
+      timeoutMinutes: 5
     }
   },
 
   waitingStates: new Map(),
   context: null,
 
+  getKey(msg) {
+    return `${msg.channel}:${msg.chatId}:${msg.senderId}`;
+  },
+
   async onLoad(context) {
     this.context = context;
     this.options = context.options || {};
     this.debug = this.options.debug_log || false;
+    this.timeoutMs = (this.options.timeoutMinutes || 5) * 60 * 1000;
+    
+    setInterval(() => this.cleanupExpired(), 60000);
+  },
+
+  cleanupExpired() {
+    const now = Date.now();
+    for (const [key, state] of this.waitingStates) {
+      if (now - state.timestamp > this.timeoutMs) {
+        this.waitingStates.delete(key);
+        this.debug && this.context?.logger?.info(`[after_file_reply] 超时清理: ${key}`);
+      }
+    }
   },
 
   hasFile(msg) {
@@ -33,7 +52,7 @@ const plugin = {
       description: '取消当前等待，放弃已发送的文件',
       pattern: /^\/qxdd$/,
       handler: async (msg) => {
-        const key = `${msg.channel}:${msg.chatId}:${msg.senderId}`;
+        const key = this.getKey(msg);
         const state = this.waitingStates.get(key);
         
         if (!state) {
@@ -52,7 +71,7 @@ const plugin = {
       description: '直接发送已收集的文件给AI',
       pattern: /^\/zjfs$/,
       handler: async (msg) => {
-        const key = `${msg.channel}:${msg.chatId}:${msg.senderId}`;
+        const key = this.getKey(msg);
         const state = this.waitingStates.get(key);
         
         if (!state) {
@@ -74,21 +93,19 @@ const plugin = {
   ],
 
   async onMessage(msg) {
-    const key = `${msg.channel}:${msg.chatId}:${msg.senderId}`;
-
+    const key = this.getKey(msg);
     const state = this.waitingStates.get(key);
 
     if (state) {
       if (this.hasFile(msg)) {
         const newFiles = msg.media || [];
         state.files.push(...newFiles);
-        const fileCount = state.files.length;
         
-        this.log(`追加文件，当前共 ${fileCount} 个`);
+        this.log(`追加文件，当前共 ${state.files.length} 个`);
         
         return {
           ...msg,
-          content: `已添加文件，当前共${fileCount}个文件。请继续发送文件或发送文本描述`,
+          content: `已添加文件，当前共${state.files.length}个文件。请继续发送文件或发送文本描述`,
           replyOnly: true
         };
       }
@@ -118,9 +135,8 @@ const plugin = {
     
     if (fileCount > 0) {
       this.waitingStates.set(key, {
-        unified_msg_origin: key,
         files,
-        fileTypes: []
+        timestamp: Date.now()
       });
       
       this.log(`收到 ${fileCount} 个文件，进入等待状态`);
