@@ -3,6 +3,14 @@ import type { EventBus } from '../bus/EventBus.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS } from '../constants/index.js';
 
+export type ToolSource = 'built-in' | 'plugin' | 'mcp';
+
+export interface ToolSourceInfo {
+  name: string;
+  source: ToolSource;
+  registeredAt: number;
+}
+
 export interface Tool {
   name: string;
   description: string;
@@ -11,6 +19,7 @@ export interface Tool {
   validate?: (params: Record<string, any>) => string[];
   timeout?: number;
   agentOnly?: boolean;
+  source?: ToolSource;
 }
 
 export interface ToolContext {
@@ -18,26 +27,64 @@ export interface ToolContext {
   eventBus?: EventBus;
   source?: 'user' | 'cron';
   signal?: AbortSignal;
+  chatId?: string;
+  messageType?: 'private' | 'group';
+  channel?: string;
 }
 
 const DEFAULT_TIMEOUT = CONSTANTS.TOOL_TIMEOUT;
 
 export class ToolRegistry {
   private tools: Map<string, Tool> = new Map();
+  private toolSources: Map<string, ToolSourceInfo> = new Map();
   private log = logger.child({ prefix: 'ToolRegistry' });
 
-  register(tool: Tool): void {
-    this.tools.set(tool.name, tool);
-    this.log.debug(`Registered tool: ${tool.name}`);
+  register(tool: Tool, source: ToolSource = 'built-in'): void {
+    const toolWithSource = { ...tool, source };
+    this.tools.set(tool.name, toolWithSource);
+    this.toolSources.set(tool.name, {
+      name: tool.name,
+      source,
+      registeredAt: Date.now()
+    });
+    this.log.debug(`Registered tool: ${tool.name} (source: ${source})`);
   }
 
   unregister(name: string): void {
     this.tools.delete(name);
+    this.toolSources.delete(name);
     this.log.debug(`Unregistered tool: ${name}`);
   }
 
   get(name: string): Tool | undefined {
     return this.tools.get(name);
+  }
+
+  getSource(name: string): ToolSourceInfo | undefined {
+    return this.toolSources.get(name);
+  }
+
+  getBySource(source: ToolSource): Tool[] {
+    return Array.from(this.tools.values()).filter(t => t.source === source);
+  }
+
+  getAllSources(): ToolSourceInfo[] {
+    return Array.from(this.toolSources.values());
+  }
+
+  unregisterBySource(source: ToolSource): number {
+    let count = 0;
+    for (const [name, info] of this.toolSources.entries()) {
+      if (info.source === source) {
+        this.tools.delete(name);
+        this.toolSources.delete(name);
+        count++;
+      }
+    }
+    if (count > 0) {
+      this.log.debug(`Unregistered ${count} tools from source: ${source}`);
+    }
+    return count;
   }
 
   getDefinitions(agentMode: boolean = false): ToolDefinition[] {

@@ -22,13 +22,7 @@ export interface OutboundMessage {
   messageType?: 'private' | 'group';
 }
 
-export type EventType = 'message' | 'tool_call' | 'heartbeat';
 
-export interface Event {
-  type: EventType;
-  data: InboundMessage | OutboundMessage;
-  timestamp: Date;
-}
 
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
@@ -95,7 +89,7 @@ export interface AgentConfig {
   defaults: {
     model: string;
     provider: string;
-    maxTokens: number;
+
     maxToolIterations: number;
     memoryWindow: number;
     systemPrompt?: string;
@@ -112,12 +106,18 @@ export interface ProviderConfig {
   extraBody?: Record<string, any>;
 }
 
+export type MCPTransportType = 'local' | 'http';
+
+export interface MCPServerConfig {
+  type: MCPTransportType;
+  command?: string[];
+  url?: string;
+  environment?: Record<string, string>;
+  enabled?: boolean;
+  timeout?: number;
+  headers?: Record<string, string>;
+}
+
 export interface MCPServersConfig {
-  [name: string]: {
-    command?: string;
-    args?: string[];
-    url?: string;
-    headers?: Record<string, string>;
-    env?: Record<string, string>;
-  };
+  [name: string]: MCPServerConfig;
 }

@@ -1,19 +1,19 @@
 import type { InboundMessage, OutboundMessage, Config, LLMMessage, LLMResponse, PluginErrorContext } from '../types.js';
 import type { EventBus } from '../bus/EventBus.js';
 import type { AgentLoop } from '../agent/AgentLoop.js';
-import type { ToolRegistry, Tool } from '../tools/ToolRegistry.js';
+import type { ToolRegistry, Tool, ToolContext } from '../tools/ToolRegistry.js';
 import { logger } from '../logger/index.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 /**
- * Middleware function for processing inbound messages
- * @param msg - The inbound message
- * @param next - Function to call the next middleware
+ * Command matcher types
  */
-export interface Middleware {
-  (msg: InboundMessage, next: () => Promise<void>): Promise<void>;
-}
+export type CommandMatcher =
+  | { type: 'regex'; value: RegExp }
+  | { type: 'prefix'; value: string }
+  | { type: 'exact'; value: string }
+  | { type: 'contains'; value: string };
 
 /**
  * Command definition for plugin command handlers
@@ -23,10 +23,59 @@ export interface PluginCommand {
   name: string;
   /** Human-readable command description */
   description: string;
-  /** Regular expression pattern to match command */
+  /** Matcher for command - supports regex, prefix, exact, and contains */
+  matcher?: CommandMatcher;
+  /** Regular expression pattern to match command (legacy, use matcher instead) */
   pattern?: RegExp;
   /** Handler function when command is matched */
-  handler: (msg: InboundMessage) => Promise<InboundMessage | null>;
+  handler: (msg: InboundMessage, args: string[]) => Promise<InboundMessage | null>;
+}
+
+/**
+ * Helper function to test if a command matches the content
+ */
+function matchCommand(content: string, cmd: PluginCommand): { matched: boolean; args: string[] } {
+  // Support legacy pattern
+  if (cmd.pattern) {
+    const match = content.match(cmd.pattern);
+    if (match) {
+      return { matched: true, args: match.slice(1) };
+    }
+    return { matched: false, args: [] };
+  }
+
+  // Support new matcher
+  if (cmd.matcher) {
+    switch (cmd.matcher.type) {
+      case 'regex': {
+        const match = content.match(cmd.matcher.value);
+        if (match) {
+          return { matched: true, args: match.slice(1) };
+        }
+        break;
+      }
+      case 'prefix':
+        if (content.startsWith(cmd.matcher.value)) {
+          const args = content.slice(cmd.matcher.value.length).trim().split(/\s+/);
+          return { matched: true, args: args[0] ? args : [] };
+        }
+        break;
+      case 'exact':
+        if (content === cmd.matcher.value) {
+          return { matched: true, args: [] };
+        }
+        break;
+      case 'contains':
+        if (content.includes(cmd.matcher.value)) {
+          const parts = content.split(cmd.matcher.value);
+          const args = parts[1]?.trim().split(/\s+/) || [];
+          return { matched: true, args: args };
+        }
+        break;
+    }
+  }
+
+  return { matched: false, args: [] };
 }
 
 /**
@@ -60,8 +109,10 @@ export interface Plugin {
   onAgentBefore?(msg: InboundMessage, messages: LLMMessage[]): Promise<void>;
   /** Called after agent generates response */
   onAgentAfter?(msg: InboundMessage, response: LLMResponse): Promise<void>;
+  /** Called before tool execution, can mutate params */
+  onBeforeToolCall?(toolName: string, params: Record<string, any>, context?: ToolContext): Promise<Record<string, any> | void>;
   /** Called after tool execution */
-  onToolCall?(toolName: string, params: Record<string, any>, result: string): Promise<string | void>;
+  onToolCall?(toolName: string, params: Record<string, any>, result: string, context?: ToolContext): Promise<string | void>;
   /** Called when an error occurs */
   onError?(error: Error, context: PluginErrorContext): Promise<void>;
 
@@ -74,8 +125,6 @@ export interface Plugin {
   commands?: PluginCommand[];
   /** Tools exposed by this plugin */
   tools?: Tool[];
-  /** Middleware functions */
-  middleware?: Middleware[];
 }
 
 /**
@@ -137,15 +186,16 @@ export class PluginManager {
 
   async applyOnCommand(msg: InboundMessage): Promise<InboundMessage | null> {
     const content = msg.content.trim();
-    
+
     for (const plugin of this.plugins.values()) {
       if (!plugin.commands) continue;
-      
+
       for (const cmd of plugin.commands) {
-        if (cmd.pattern && cmd.pattern.test(content)) {
+        const { matched, args } = matchCommand(content, cmd);
+        if (matched) {
           this.log.debug(`Command ${cmd.name} matched by plugin ${plugin.name}`);
           try {
-            const result = await cmd.handler(msg);
+            const result = await cmd.handler(msg, args);
             return result;
           } catch (error) {
             this.log.error(`Plugin ${plugin.name} command ${cmd.name} error:`, error);
@@ -153,7 +203,7 @@ export class PluginManager {
         }
       }
     }
-    
+
     return null;
   }
 
@@ -214,12 +264,29 @@ export class PluginManager {
     }
   }
 
-  async applyOnToolCall(toolName: string, params: Record<string, any>, result: string): Promise<string> {
+  async applyOnBeforeToolCall(toolName: string, params: Record<string, any>, context?: ToolContext): Promise<Record<string, any>> {
+    let finalParams = params;
+    for (const plugin of this.plugins.values()) {
+      if (plugin.onBeforeToolCall) {
+        try {
+          const modified = await plugin.onBeforeToolCall(toolName, finalParams, context);
+          if (modified && typeof modified === 'object') {
+            finalParams = modified;
+          }
+        } catch (error) {
+          this.log.error(`Plugin ${plugin.name} onBeforeToolCall error:`, error);
+        }
+      }
+    }
+    return finalParams;
+  }
+
+  async applyOnToolCall(toolName: string, params: Record<string, any>, result: string, context?: ToolContext): Promise<string> {
     let finalResult = result;
     for (const plugin of this.plugins.values()) {
       if (plugin.onToolCall) {
         try {
-          const modified = await plugin.onToolCall(toolName, params, finalResult);
+          const modified = await plugin.onToolCall(toolName, params, finalResult, context);
           if (modified !== undefined) {
             finalResult = modified;
           }
@@ -251,7 +318,7 @@ export class PluginManager {
     }
 
     this.log.info(`Loading plugin: ${plugin.name} v${plugin.version}, has onResponse: ${!!plugin.onResponse}`);
-    
+
     if (plugin.onLoad) {
       const pluginContext = {
         options: plugin.options,
@@ -268,11 +335,12 @@ export class PluginManager {
       for (const tool of plugin.tools) {
         const wrappedTool = {
           ...tool,
+          source: 'plugin' as const,
           execute: async (params: Record<string, any>, context?: any) => {
             return tool.execute.call(plugin, params, context);
           }
         };
-        this.toolRegistry.register(wrappedTool);
+        this.toolRegistry.register(wrappedTool, 'plugin');
         this.log.debug(`Registered tool from ${plugin.name}: ${tool.name}, has config: ${!!pluginAny.config}`);
       }
     }
@@ -324,24 +392,24 @@ export class PluginManager {
     const oldPlugin = this.plugins.get(name);
     const wasEnabled = !!oldPlugin;
     const options = config?.options || {};
-    
+
     this.log.info(`Reloading plugin: ${name}, wasEnabled: ${wasEnabled}, options:`, options);
-    
+
     const oldStates = oldPlugin ? (oldPlugin as any).waitingStates : null;
     const oldStatesMap = oldStates instanceof Map ? Object.fromEntries(oldStates) : null;
-    
+
     if (wasEnabled) {
       await this.unloadPlugin(name);
     }
-    
+
     const plugin = await this.loadPluginModule(name, options);
     if (!plugin) {
       this.log.error(`Failed to reload plugin ${name}: module not found`);
       return false;
     }
-    
+
     await this.loadPlugin(plugin);
-    
+
     if (oldStatesMap) {
       const newPlugin = this.plugins.get(name);
       const newStates = newPlugin ? (newPlugin as any).waitingStates : null;
@@ -356,12 +424,12 @@ export class PluginManager {
         this.log.info(`Restored ${newStates.size} states for plugin ${name}`);
       }
     }
-    
+
     if (!wasEnabled) {
       await this.unloadPlugin(name);
       this.pluginConfigs[name] = { enabled: false, options };
     }
-    
+
     this.log.info(`Reloaded plugin: ${name}`);
     return true;
   }
@@ -376,16 +444,16 @@ export class PluginManager {
 
   async loadFromConfig(config: Record<string, any>): Promise<void> {
     const pluginsDir = join(process.cwd(), 'plugins');
-    
+
     try {
       const fs = await import('fs/promises');
       const entries = await fs.readdir(pluginsDir, { withFileTypes: true });
-      
+
       for (const dir of entries) {
         if (!dir.isDirectory()) continue;
-        
+
         const mainPath = join(pluginsDir, dir.name, 'main.js');
-        
+
         let modulePlugin: Plugin | null = null;
         try {
           const module = await import(`file://${mainPath}`);
@@ -393,13 +461,13 @@ export class PluginManager {
         } catch (error) {
           continue;
         }
-        
+
         if (!modulePlugin) continue;
-        
+
         const pluginConfig = config[dir.name];
         let enabled = false;
         let options: Record<string, any> = {};
-        
+
         if (pluginConfig?.enabled) {
           enabled = true;
           options = pluginConfig.options || {};
@@ -407,7 +475,7 @@ export class PluginManager {
           enabled = true;
           options = modulePlugin.defaultConfig?.options || {};
         }
-        
+
         if (enabled) {
           try {
             const plugin = await this.loadPluginModule(dir.name, options);
@@ -428,7 +496,7 @@ export class PluginManager {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = dirname(__filename);
     const pluginPath = join(__dirname, '..', '..', 'plugins', name, 'main.js');
-    
+
     try {
       this.log.debug(`Loading plugin from: ${pluginPath}`);
       const module = await import(`file://${pluginPath}`);
@@ -468,14 +536,14 @@ export class PluginManager {
     try {
       const fs = await import('fs/promises');
       const entries = await fs.readdir(pluginsDir, { withFileTypes: true });
-      
+
       for (const dir of entries) {
         if (!dir.isDirectory()) continue;
-        
+
         const mainPath = join(pluginsDir, dir.name, 'main.js');
         let loadedPlugin = this.plugins.get(dir.name);
         let modulePlugin: Plugin | null = null;
-        
+
         if (!loadedPlugin) {
           try {
             const module = await import(`file://${mainPath}`);
@@ -485,12 +553,12 @@ export class PluginManager {
             continue;
           }
         }
-        
+
         const plugin = loadedPlugin || modulePlugin;
         if (!plugin) continue;
-        
+
         const config = this.pluginConfigs[dir.name];
-        
+
         result.push({
           name: plugin.name || dir.name,
           version: plugin.version || '1.0.0',
@@ -511,7 +579,7 @@ export class PluginManager {
 
   async enablePlugin(name: string, enabled: boolean): Promise<boolean> {
     const isLoaded = this.plugins.has(name);
-    
+
     if (enabled && !isLoaded) {
       const config = this.pluginConfigs[name] || { enabled: false, options: {} };
       const plugin = await this.loadPluginModule(name, config.options);
@@ -535,16 +603,16 @@ export class PluginManager {
     } else if (!enabled && !isLoaded) {
       this.pluginConfigs[name] = { enabled: false, options: this.pluginConfigs[name]?.options };
     }
-    
+
     return true;
   }
 
   async updatePluginConfig(name: string, options: Record<string, any>): Promise<boolean> {
     const isLoaded = this.plugins.has(name);
     const currentConfig = this.pluginConfigs[name] || { enabled: false };
-    
+
     this.pluginConfigs[name] = { ...currentConfig, options };
-    
+
     if (isLoaded) {
       const plugin = this.plugins.get(name);
       if (plugin?.onLoad) {
@@ -557,7 +625,7 @@ export class PluginManager {
         }
       }
     }
-    
+
     return true;
   }
 
@@ -572,20 +640,20 @@ export class PluginManager {
   async applyDefaultConfigs(): Promise<Record<string, { enabled: boolean; options?: Record<string, any> }>> {
     const pluginsDir = join(process.cwd(), 'plugins');
     let changed = false;
-    
+
     try {
       const fs = await import('fs/promises');
       const entries = await fs.readdir(pluginsDir, { withFileTypes: true });
-      
+
       for (const dir of entries) {
         if (!dir.isDirectory()) continue;
-        
+
         const mainPath = join(pluginsDir, dir.name, 'main.js');
-        
+
         try {
           const module = await import(`file://${mainPath}`);
           const plugin = module.default || module;
-          
+
           if (!this.pluginConfigs[dir.name] && plugin.defaultConfig) {
             this.pluginConfigs[dir.name] = {
               enabled: plugin.defaultConfig.enabled || false,
@@ -601,7 +669,7 @@ export class PluginManager {
     } catch (error) {
       this.log.error('Failed to apply default configs', error);
     }
-    
+
     return this.pluginConfigs;
   }
 }

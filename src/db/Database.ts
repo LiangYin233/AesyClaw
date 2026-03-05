@@ -101,6 +101,34 @@ export class Database {
       });
     });
   }
+
+  async transaction<T>(fn: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      this.db.serialize(() => {
+        this.db.run('BEGIN TRANSACTION', (err: Error | null) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          Promise.resolve(fn())
+            .then((result) => {
+              this.db.run('COMMIT', (commitErr: Error | null) => {
+                if (commitErr) {
+                  reject(commitErr);
+                } else {
+                  resolve(result);
+                }
+              });
+            })
+            .catch((err) => {
+              this.db.run('ROLLBACK', () => {
+                reject(err);
+              });
+            });
+        });
+      });
+    });
+  }
 }
 
 export interface DBSession {  // 会话数据库记录

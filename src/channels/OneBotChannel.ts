@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import fs from 'fs';
 import { BaseChannel } from './BaseChannel.js';
+import { ChannelManager, type ChannelPlugin } from './ChannelManager.js';
 import type { OutboundMessage } from '../types.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS } from '../constants/index.js';
@@ -36,6 +37,15 @@ export class OneBotChannel extends BaseChannel {
     this.reconnectBaseDelay = config.reconnectBaseDelay ?? 1000;
     this.reconnectMaxDelay = config.reconnectMaxDelay ?? 30000;
   }
+
+  static register(): void {
+    const plugin: ChannelPlugin = {
+      name: 'onebot',
+      create: (config, eventBus) => new OneBotChannel(config, eventBus)
+    };
+    ChannelManager.registerPlugin(plugin);
+  }
+
 
   async start(): Promise<void> {
     this.log.info(`Starting channel, wsUrl: ${this.config.wsUrl}`);

@@ -5,7 +5,7 @@ import type { ToolRegistry, ToolContext } from '../tools/ToolRegistry.js';
 import type { SessionManager } from '../session/SessionManager.js';
 import type { PluginManager } from '../plugins/index.js';
 import { logger } from '../logger/index.js';
-import { CONSTANTS } from '../constants/index.js';
+import { CONSTANTS, CONFIG_DEFAULTS } from '../constants/index.js';
 
 export type ContextMode = 'session' | 'channel' | 'global';  // 上下文模式类型
 
@@ -108,10 +108,10 @@ export class AgentLoop {
     sessionManager: SessionManager,
     workspace: string,
     systemPrompt?: string,
-    maxIterations: number = CONSTANTS.DEFAULT_MAX_ITERATIONS,
+    maxIterations: number = CONFIG_DEFAULTS.DEFAULT_MAX_ITERATIONS,
     model: string = 'gpt-4o',
     contextMode: ContextMode = 'channel',
-    memoryWindow: number = CONSTANTS.DEFAULT_MEMORY_WINDOW
+    memoryWindow: number = CONFIG_DEFAULTS.DEFAULT_MEMORY_WINDOW
   ) {
     this.eventBus = eventBus;
     this.provider = provider;

@@ -19,7 +19,7 @@ const DEFAULT_CONFIG: Config = {
     defaults: {
       model: 'gpt-4o',
       provider: 'openai',
-      maxTokens: 8192,
+
       maxToolIterations: 40,
       memoryWindow: 50,
       systemPrompt: 'You are a helpful AI assistant.',

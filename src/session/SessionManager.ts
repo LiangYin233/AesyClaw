@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import type { LLMMessage } from '../types.js';
 import { Database, type DBSession, type DBMessage } from '../db/index.js';
 import { logger } from '../logger/index.js';
-import { CONSTANTS } from '../constants/index.js';
+import { CONSTANTS, CONFIG_DEFAULTS } from '../constants/index.js';
 
 export interface SessionMessage {
   role: 'user' | 'assistant' | 'system';
@@ -30,7 +30,7 @@ export class SessionManager {
   private sessionLocks: Map<string, Promise<Session>> = new Map();
   private log = logger.child({ prefix: 'SessionManager' });
 
-  constructor(storageDir: string, maxSessions: number = CONSTANTS.DEFAULT_MAX_SESSIONS) {
+  constructor(storageDir: string, maxSessions: number = CONFIG_DEFAULTS.DEFAULT_MAX_SESSIONS) {
     this.maxSessions = maxSessions;
     const dbPath = join(storageDir, 'sessions.db');
     this.db = new Database(dbPath);
@@ -190,22 +190,29 @@ export class SessionManager {
   }
 
   async addMessage(key: string, role: 'user' | 'assistant' | 'system', content: string): Promise<void> {
-    const session = await this.getOrCreate(key);  // 获取或创建会话
+    const session = await this.getOrCreate(key);
     
-    session.messages.push({  // 添加消息到内存
+    const message: SessionMessage = {
       role,
       content,
       timestamp: new Date().toISOString()
-    });
+    };
+
+    session.messages.push(message);
 
     if (session.id) {
-      await this.db.run(  // 持久化到数据库
-        `INSERT INTO messages (session_id, role, content) VALUES (?, ?, ?)`,
-        [session.id, role, content]
-      );
+      const timestamp = message.timestamp;
+      await this.db.transaction(async () => {
+        await this.db.run(
+          `INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)`,
+          [session.id!, role, content, timestamp]
+        );
+        await this.db.run(
+          `UPDATE sessions SET updated_at = ? WHERE key = ?`,
+          [new Date().toISOString(), key]
+        );
+      });
     }
-
-    await this.save(session);  // 保存会话更新时间
   }
 
   list(): Session[] {

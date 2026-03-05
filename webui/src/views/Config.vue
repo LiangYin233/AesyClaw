@@ -123,20 +123,29 @@
                         <div v-for="(value, key) in config.mcp" :key="key" class="mcp-section">
                             <div class="mcp-header">
                                 <span class="mcp-name">{{ key }}</span>
+                                <InputSwitch v-model="value.enabled" />
                                 <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="removeMcp(key)" />
                             </div>
                             <div class="form-stack">
                                 <div class="form-field">
-                                    <label>命令</label>
-                                    <InputText v-model="value.command" placeholder="npx" />
+                                    <label>类型</label>
+                                    <Select v-model="value.type" :options="mcpTypes" optionLabel="label" optionValue="value" placeholder="选择类型" />
                                 </div>
-                                <div class="form-field">
-                                    <label>参数 (JSON数组格式)</label>
-                                    <Textarea v-model="value.args" placeholder='["-y", "@modelcontextprotocol/server-filesystem", "/path/to/files"]' rows="2" fluid />
+                                <div class="form-field" v-if="value.type === 'local'">
+                                    <label>命令 (JSON数组)</label>
+                                    <Textarea v-model="value.command" placeholder='["npx", "-y", "@modelcontextprotocol/server-filesystem", "/path/to/files"]' rows="2" fluid />
                                 </div>
-                                <div class="form-field">
-                                    <label>或 HTTP URL</label>
+                                <div class="form-field" v-if="value.type === 'http'">
+                                    <label>URL</label>
                                     <InputText v-model="value.url" placeholder="http://localhost:3000/sse" />
+                                </div>
+                                <div class="form-field">
+                                    <label>环境变量 (JSON对象)</label>
+                                    <Textarea v-model="value.environment" placeholder='{"KEY": "value"}' rows="2" fluid />
+                                </div>
+                                <div class="form-field">
+                                    <label>超时 (毫秒)</label>
+                                    <InputNumber v-model="value.timeout" placeholder="120000" />
                                 </div>
                             </div>
                         </div>
@@ -165,7 +174,7 @@ import Card from 'primevue/card'
 import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import Select from 'primevue/select'
-import ToggleButton from 'primevue/togglebutton'
+import InputSwitch from 'primevue/inputswitch'
 import Password from 'primevue/password'
 import Textarea from 'primevue/textarea'
 import Message from 'primevue/message'
@@ -176,6 +185,11 @@ const { getConfig, saveConfig: saveApiConfig } = useApi()
 const toast = useToast()
 
 const config = ref<Config | null>(null)
+
+const mcpTypes = [
+    { label: '本地 (Stdio)', value: 'local' },
+    { label: 'HTTP (SSE)', value: 'http' }
+]
 const loading = ref(false)
 const saving = ref(false)
 
@@ -230,7 +244,13 @@ function addMcp() {
         config.value.mcp = {}
     }
     const newName = `mcp${Object.keys(config.value.mcp).length + 1}`
-    config.value.mcp[newName] = { command: 'npx', args: '[]', url: '' }
+    config.value.mcp[newName] = { 
+        type: 'local',
+        command: '["npx", "-y", "@modelcontextprotocol/server-filesystem", "/path/to/files"]',
+        environment: '{}',
+        enabled: true,
+        timeout: 120000
+    }
 }
 
 function removeMcp(key: string) {

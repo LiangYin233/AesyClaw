@@ -93,8 +93,9 @@ export function registerCronTools(
       cronService.addJob(job);
 
       return JSON.stringify({ success: true, id: job.id, message: `任务已创建: ${description}` });
-    }
-  });
+    },
+    source: 'built-in'
+  }, 'built-in');
 
   toolRegistry.register({
     name: 'delete_cron_task',
@@ -118,8 +119,9 @@ export function registerCronTools(
       } else {
         return JSON.stringify({ success: false, error: `任务 ${id} 不存在` });
       }
-    }
-  });
+    },
+    source: 'built-in'
+  }, 'built-in');
 
   toolRegistry.register({
     name: 'list_cron_task',
@@ -142,8 +144,9 @@ export function registerCronTools(
           lastRunAtMs: job.lastRunAtMs
         }))
       });
-    }
-  });
+    },
+    source: 'built-in'
+  }, 'built-in');
 
   log.debug('Cron tools registered');
 }

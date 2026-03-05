@@ -1,9 +1,10 @@
 import { join } from 'path';
 import { EventBus } from '../bus/EventBus.js';
 import { AgentLoop } from '../agent/AgentLoop.js';
-import { ChannelManager, OneBotChannel } from '../channels/index.js';
+import { ChannelManager } from '../channels/index.js';
 import { createProvider } from '../providers/index.js';
 import { ToolRegistry } from '../tools/index.js';
+import type { ToolSource } from '../tools/ToolRegistry.js';
 import { SessionManager } from '../session/index.js';
 import { MCPClientManager } from '../mcp/index.js';
 import { PluginManager } from '../plugins/index.js';
@@ -123,9 +124,15 @@ export class ServiceFactory {
     const channelManager = new ChannelManager(eventBus);
     log.debug('ChannelManager created');
 
-    if (config.channels.onebot?.enabled) {
-      const oneBotChannel = new OneBotChannel(config.channels.onebot, eventBus);
-      channelManager.register(oneBotChannel);
+    for (const [channelName, channelConfig] of Object.entries(config.channels)) {
+      if (channelConfig?.enabled) {
+        const channel = channelManager.createChannel(channelName, channelConfig);
+        if (channel) {
+          log.info(`Channel enabled: ${channelName}`);
+        } else {
+          log.warn(`Channel plugin not found: ${channelName}`);
+        }
+      }
     }
 
     const agent = new AgentLoop(
@@ -158,8 +165,9 @@ export class ServiceFactory {
           parameters: tool.parameters,
           execute: async (params) => {
             return mcpManager!.callTool(tool.name, params);
-          }
-        });
+          },
+          source: 'mcp' as ToolSource
+        }, 'mcp');
       }
       log.info(`MCP tools loaded: ${mcpTools.length}`);
     }
