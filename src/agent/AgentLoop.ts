@@ -335,7 +335,7 @@ export class AgentLoop {
           try {
             let execToolName = toolName;
             if (execToolName.includes(':')) {
-              execToolName = `mcp_${execToolName}`;
+              execToolName = execToolName.replace(':', '_mcp_');
             }
             
             const toolArgsStr = JSON.stringify(toolArgs).substring(0, 200);
@@ -351,7 +351,7 @@ export class AgentLoop {
             }
 
             result = await this.toolRegistry.execute(
-              toolName,
+              execToolName,
               toolArgs || {},
               execContext
             );

@@ -181,7 +181,8 @@ export class ServiceFactory {
       channelManager,
       config,
       pluginManager,
-      cronService
+      cronService,
+      mcpManager ?? undefined
     );
     await apiServer.start();
     log.info(`API server started on port ${port}`);

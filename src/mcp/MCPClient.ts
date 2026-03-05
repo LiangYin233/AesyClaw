@@ -111,7 +111,7 @@ export class MCPClientManager {
       const response = await client.listTools();
 
       for (const tool of response.tools || []) {
-        const toolName = `${prefix}:${tool.name}`;
+        const toolName = `mcp_${prefix}_${tool.name}`;
         this.tools.set(toolName, {
           name: toolName,
           description: tool.description || '',
@@ -124,16 +124,24 @@ export class MCPClientManager {
   }
 
   async callTool(name: string, args: Record<string, unknown>, timeout?: number): Promise<string> {
-    const colonIndex = name.indexOf(':');
-    if (colonIndex === -1) {
-      throw new Error('Invalid MCP tool name format, expected format: serverName:toolName');
+    // 工具名称格式: "mcp_{serverName}_{toolName}"
+    // 例如: "mcp_mcp1_get_gdp"
+    const mcpPrefix = 'mcp_';
+    if (!name.startsWith(mcpPrefix)) {
+      throw new Error('Invalid MCP tool name format, expected format: mcp_serverName_toolName');
     }
 
-    const serverName = name.substring(0, colonIndex);
-    const toolName = name.substring(colonIndex + 1);
+    const rest = name.substring(mcpPrefix.length);
+    const underscoreIndex = rest.indexOf('_');
+    if (underscoreIndex === -1) {
+      throw new Error('Invalid MCP tool name format, expected format: mcp_serverName_toolName');
+    }
+
+    const serverName = rest.substring(0, underscoreIndex);
+    const toolName = rest.substring(underscoreIndex + 1);
 
     if (!serverName || !toolName) {
-      throw new Error('Invalid MCP tool name format, expected format: serverName:toolName');
+      throw new Error('Invalid MCP tool name format');
     }
 
     const client = this.clients.get(serverName);
@@ -175,6 +183,10 @@ export class MCPClientManager {
 
   getTools(): ToolDefinition[] {
     return Array.from(this.tools.values());
+  }
+
+  getServerNames(): string[] {
+    return Array.from(this.clients.keys());
   }
 
   async close(): Promise<void> {

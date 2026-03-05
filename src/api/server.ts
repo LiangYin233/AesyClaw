@@ -8,6 +8,7 @@ import type { Config } from '../types.js';
 import { ConfigLoader } from '../config/loader.js';
 import type { PluginManager } from '../plugins/index.js';
 import type { CronService } from '../cron/index.js';
+import type { MCPClientManager } from '../mcp/MCPClient.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS } from '../constants/index.js';
 
@@ -25,7 +26,8 @@ export class APIServer {
     private channelManager: ChannelManager,
     private config: Config,
     private pluginManager?: PluginManager,
-    private cronService?: CronService
+    private cronService?: CronService,
+    private mcpManager?: MCPClientManager
   ) {}
 
   async start(): Promise<void> {
@@ -237,6 +239,27 @@ export class APIServer {
         res.status(500).json({ success: false, error: message });
       }
     });
+
+    
+    // MCP routes
+    if (this.mcpManager) {
+      this.app.get('/api/mcp', (req, res) => {
+        const tools = this.mcpManager!.getTools();
+        res.json({ 
+          servers: this.mcpManager!.getServerNames(),
+          tools: tools.map(t => ({
+            name: t.name,
+            description: t.description,
+            parameters: t.parameters
+          }))
+        });
+      });
+
+      this.app.get('/api/mcp/tools', (req, res) => {
+        const tools = this.mcpManager!.getTools();
+        res.json({ tools });
+      });
+    }
 
     if (this.cronService) {
       const cronService = this.cronService;
