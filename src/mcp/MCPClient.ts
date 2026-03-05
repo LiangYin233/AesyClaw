@@ -1,18 +1,9 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
-import type { ToolDefinition } from '../types.js';
-import type { MCPServersConfig } from '../types.js';
+import type { ToolDefinition, MCPServersConfig, MCPServerConfig } from '../types.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS } from '../constants/index.js';
-
-export interface MCPServerConfig {
-  command?: string;
-  args?: string[];
-  url?: string;
-  headers?: Record<string, string>;
-  env?: Record<string, string>;
-}
 
 export class MCPClientManager {
   private clients: Map<string, Client> = new Map();
@@ -22,6 +13,11 @@ export class MCPClientManager {
 
   async connect(config: MCPServersConfig): Promise<void> {
     for (const [name, serverConfig] of Object.entries(config)) {
+      if (serverConfig.enabled === false) {
+        this.log.info(`Skipping disabled MCP server: ${name}`);
+        continue;
+      }
+
       try {
         await this.connectServer(name, serverConfig);
       } catch (error) {
@@ -31,6 +27,9 @@ export class MCPClientManager {
   }
 
   private async connectServer(name: string, config: MCPServerConfig): Promise<void> {
+    const timeout = config.timeout || MCPClientManager.DEFAULT_TIMEOUT;
+    const transportType = config.type || 'local';
+    
     const client = new Client({
       name: `aesyclaw-${name}`,
       version: '0.1.0'
@@ -40,56 +39,82 @@ export class MCPClientManager {
 
     let transport: StdioClientTransport | SSEClientTransport;
 
-    if (config.command) {
-      const env: Record<string, string> = {};
-      
-      if (config.env) {
-        for (const key of Object.keys(config.env)) {
-          const val = config.env[key];
-          if (val !== undefined) env[key] = val;
+    if (transportType === 'local') {
+      let command = config.command;
+      if (typeof command === 'string') {
+        try {
+          command = JSON.parse(command);
+        } catch {
+          throw new Error(`MCP server ${name}: command must be an array or valid JSON array string`);
         }
       }
-      
+      if (!command || !Array.isArray(command) || command.length === 0) {
+        throw new Error(`MCP server ${name}: command is required for local type`);
+      }
+
+      const env: Record<string, string> = {};
+      if (config.environment) {
+        for (const [key, val] of Object.entries(config.environment)) {
+          if (val !== undefined) {
+            env[key] = val;
+          }
+        }
+      }
+
       transport = new StdioClientTransport({
-        command: config.command,
-        args: config.args || [],
+        command: command[0],
+        args: command.slice(1),
         env
       });
-      this.log.info(`Connecting to ${name} via stdio: ${config.command} ${config.args?.join(' ') || ''}`);
-    } else if (config.url) {
-      if (config.url.startsWith('http://') || config.url.startsWith('https://')) {
-        const sseOptions: any = {};
-        if (config.headers) {
-          sseOptions.headers = config.headers;
-        }
-        transport = new SSEClientTransport(new URL(config.url), sseOptions);
-        this.log.info(`Connecting to ${name} via SSE: ${config.url}`);
-      } else {
-        throw new Error(`Invalid URL format: ${config.url}. Must start with http:// or https://`);
+      const argsStr = command.slice(1).join(' ');
+      this.log.info(`Connecting to ${name} via stdio: ${command.join(' ')}`);
+    } else if (transportType === 'http') {
+      if (!config.url) {
+        throw new Error(`MCP server ${name}: url is required for http type`);
       }
+
+      if (!config.url.startsWith('http://') && !config.url.startsWith('https://')) {
+        throw new Error(`MCP server ${name}: url must start with http:// or https://`);
+      }
+
+      const sseOptions: Record<string, unknown> = {};
+      if (config.headers) {
+        sseOptions.headers = config.headers;
+      }
+
+      transport = new SSEClientTransport(new URL(config.url), sseOptions);
+      this.log.info(`Connecting to ${name} via SSE: ${config.url}`);
     } else {
-      throw new Error('MCP server config must have either command or url');
+      throw new Error(`MCP server ${name}: invalid transport type ${transportType}`);
     }
 
-    await client.connect(transport as any);
-
-    await this.loadTools(client, name);
-    this.clients.set(name, client);
-    this.log.info(`Connected server: ${name}`);
+    try {
+      await Promise.race([
+        (async () => {
+          await client.connect(transport as never);
+          await this.loadTools(client, name);
+          this.clients.set(name, client);
+          this.log.info(`Connected server: ${name}`);
+        })(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error(`MCP server ${name} connection timeout after ${timeout}ms`)), timeout)
+        )
+      ]);
+    } catch (error) {
+      await client.close();
+      throw error;
+    }
   }
 
   private async loadTools(client: Client, prefix: string): Promise<void> {
     try {
-      const response = await client.request(
-        { method: 'tools/list' } as any,
-        {} as any
-      );
+      const response = await client.listTools();
 
       for (const tool of response.tools || []) {
         const toolName = `${prefix}:${tool.name}`;
         this.tools.set(toolName, {
           name: toolName,
-          description: tool.description,
+          description: tool.description || '',
           parameters: tool.inputSchema
         });
       }
@@ -98,7 +123,7 @@ export class MCPClientManager {
     }
   }
 
-  async callTool(name: string, args: Record<string, any>, timeout?: number): Promise<string> {
+  async callTool(name: string, args: Record<string, unknown>, timeout?: number): Promise<string> {
     const colonIndex = name.indexOf(':');
     if (colonIndex === -1) {
       throw new Error('Invalid MCP tool name format, expected format: serverName:toolName');
@@ -119,17 +144,30 @@ export class MCPClientManager {
     const requestTimeout = timeout || MCPClientManager.DEFAULT_TIMEOUT;
     
     try {
-      const response = await Promise.race([
-        client.request(
-          { method: 'tools/call' } as any,
-          { name: toolName, arguments: args } as any
+      const response = await Promise.race<any>([
+        client.callTool(
+          { name: toolName, arguments: args }
         ),
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error(`MCP tool call timeout after ${requestTimeout}ms`)), requestTimeout)
         )
       ]);
 
-      return (response as any).content?.[0]?.text || '';
+      const textParts = (response?.content || [])
+        .filter((item: any) => item?.type === 'text' && typeof item?.text === 'string')
+        .map((item: any) => item.text);
+
+      if (textParts.length > 0) {
+        return textParts.join('\n');
+      }
+
+      if (response?.structuredContent !== undefined) {
+        return typeof response.structuredContent === 'string'
+          ? response.structuredContent
+          : JSON.stringify(response.structuredContent);
+      }
+
+      return response?.content?.length ? JSON.stringify(response.content) : '';
     } catch (error) {
       throw error;
     }
@@ -147,3 +185,4 @@ export class MCPClientManager {
     this.tools.clear();
   }
 }
+

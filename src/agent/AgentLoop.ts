@@ -345,6 +345,11 @@ export class AgentLoop {
               ...this.toolContext,
               source: source
             };
+
+            if (this.pluginManager) {
+              toolArgs = await this.pluginManager.applyOnBeforeToolCall(toolName, toolArgs || {}, execContext);
+            }
+
             result = await this.toolRegistry.execute(
               toolName,
               toolArgs || {},

@@ -1,0 +1,10 @@
+{
+  "name": "aesyclaw-exec",
+  "version": "1.0.0",
+  "description": "执行 Python 和 Shell 命令的插件",
+  "main": "main.js",
+  "type": "module",
+  "dependencies": {
+    "pyodide": "^0.27.0"
+  }
+}
