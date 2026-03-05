@@ -301,7 +301,7 @@ onMounted(() => {
 
 <style scoped>
 .plugins-page {
-    padding: 24px;
+    padding: 0;
 }
 
 .page-header {

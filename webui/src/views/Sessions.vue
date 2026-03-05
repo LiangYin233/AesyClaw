@@ -119,7 +119,7 @@ onMounted(() => {
 
 <style scoped>
 .sessions-page {
-    padding: 24px;
+    padding: 0;
 }
 
 .page-header {

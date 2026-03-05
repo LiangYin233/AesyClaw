@@ -59,7 +59,7 @@ onMounted(() => {
 
 <style scoped>
 .tools-page {
-    padding: 24px;
+    padding: 0;
 }
 
 .page-header {

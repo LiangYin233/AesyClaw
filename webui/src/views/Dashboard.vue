@@ -99,7 +99,7 @@ onMounted(async () => {
 
 <style scoped>
 .dashboard-page {
-    padding: 24px;
+    padding: 0;
 }
 
 .dashboard-page h1 {

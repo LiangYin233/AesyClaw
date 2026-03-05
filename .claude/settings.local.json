@@ -6,7 +6,11 @@
       "Bash(npm test:*)",
       "Bash(node:*)",
       "Bash(sed:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "WebSearch",
+      "Bash(npm run:*)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(ls:*)"
     ]
   }
 }

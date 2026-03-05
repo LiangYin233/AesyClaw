@@ -4,3 +4,5 @@ config.yaml
 package-lock.json
 opencode.jsonc
 .aesyclaw/
+.claude/
+CLAUDE.md
