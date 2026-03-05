@@ -138,75 +138,70 @@ export class ServiceFactory {
     }
 
     // Initialize SkillManager
-    let skillManager: SkillManager | null = null;
-    const skillsConfig = config.skills;
-    if (skillsConfig?.enabled) {
-      skillManager = new SkillManager(skillsConfig.directory || './skills');
-      if (skillsConfig.autoLoad !== false) {
-        await skillManager.loadFromDirectory();
-      }
-      log.info(`SkillManager initialized with ${skillManager.listSkills().length} skills`);
+    const skillManager = new SkillManager('./skills');
+    skillManager.setConfig(config);
+    await skillManager.loadFromDirectory();
+    log.info(`SkillManager initialized with ${skillManager.listSkills().length} skills`);
 
-      // 注册 read_skill 工具 - 读取 skill 文件
-      toolRegistry.register({
-        name: 'read_skill',
-        description: '读取指定 skill 目录下的文件内容。用于读取 SKILL.md 或其他文件。',
-        parameters: {
-          type: 'object',
-          properties: {
-            name: {
-              type: 'string',
-              description: 'skill 名称'
-            },
-            file: {
-              type: 'string',
-              description: '文件名（可选，默认读取 SKILL.md）'
-            }
+    // 注册 read_skill 工具 - 读取 skill 文件
+    toolRegistry.register({
+      name: 'read_skill',
+      description: '读取指定 skill 目录下的文件内容。用于读取 SKILL.md 或其他文件。',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: {
+            type: 'string',
+            description: 'skill 名称'
           },
-          required: ['name']
-        },
-        execute: async (params: any) => {
-          const skillName = params.name;
-          const fileName = params.file;
-          const content = await skillManager!.readSkillFile(skillName, fileName);
-          return content || `Skill "${skillName}" or file not found`;
-        }
-      }, 'built-in' as ToolSource);
-
-      // 注册 list_skill_files 工具 - 列出 skill 目录下的文件
-      toolRegistry.register({
-        name: 'list_skill_files',
-        description: '列出指定 skill 目录下所有文件。用于查看 skill 包含哪些文件。',
-        parameters: {
-          type: 'object',
-          properties: {
-            name: {
-              type: 'string',
-              description: 'skill 名称'
-            }
-          },
-          required: ['name']
-        },
-        execute: async (params: any) => {
-          const skillName = params.name;
-          const files = await skillManager!.listSkillFiles(skillName);
-          if (!files) {
-            return `Skill "${skillName}" not found`;
+          file: {
+            type: 'string',
+            description: '文件名（可选，默认读取 SKILL.md）'
           }
-          if (files.length === 0) {
-            return `No files found in skill "${skillName}"`;
-          }
-          const fileList = files.map(f => `${f.name}${f.isDirectory ? '/' : ''}`).join('\n');
-          return `Files in skill "${skillName}":\n${fileList}`;
-        }
-      }, 'built-in' as ToolSource);
-
-      // 列出所有可用 skills
-      const skills = skillManager.listSkills();
-      if (skills.length > 0) {
-        const skillNames = skills.map(s => s.name).join(', ');
-        log.info(`Registered read_skill, list_skill_files tools. Available skills: ${skillNames}`);
+        },
+        required: ['name']
+      },
+      execute: async (params: any) => {
+        const skillName = params.name;
+        const fileName = params.file;
+        const content = await skillManager.readSkillFile(skillName, fileName);
+        return content || `Skill "${skillName}" or file not found`;
       }
+    }, 'built-in' as ToolSource);
+
+    // 注册 list_skill_files 工具 - 列出 skill 目录下的文件
+    toolRegistry.register({
+      name: 'list_skill_files',
+      description: '列出指定 skill 目录下所有文件。用于查看 skill 包含哪些文件。',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: {
+            type: 'string',
+            description: 'skill 名称'
+          }
+        },
+        required: ['name']
+      },
+      execute: async (params: any) => {
+        const skillName = params.name;
+        const files = await skillManager.listSkillFiles(skillName);
+        if (!files) {
+          return `Skill "${skillName}" not found`;
+        }
+        if (files.length === 0) {
+          return `No files found in skill "${skillName}"`;
+        }
+        const fileList = files.map(f => `${f.name}${f.isDirectory ? '/' : ''}`).join('\n');
+        return `Files in skill "${skillName}":\n${fileList}`;
+      }
+    }, 'built-in' as ToolSource);
+
+    // 列出所有可用 skills
+    const skills = skillManager.listSkills();
+    if (skills.length > 0) {
+      const skillNames = skills.map(s => s.name).join(', ');
+      log.info(`Registered read_skill, list_skill_files tools. Available skills: ${skillNames}`);
     }
 
     const agent = new AgentLoop(
@@ -220,15 +215,13 @@ export class ServiceFactory {
       config.agent.defaults.model,
       config.agent.defaults.contextMode,
       config.agent.defaults.memoryWindow,
-      skillManager || undefined
+      skillManager
     );
 
     pluginManager.context.agent = agent;
     pluginManager.updateAgent(agent);
     agent.setPluginManager(pluginManager);
-    if (skillManager) {
-      agent.setSkillManager(skillManager);
-    }
+    agent.setSkillManager(skillManager);
 
     let mcpManager: MCPClientManager | null = null;
     if (config.mcp && Object.keys(config.mcp).length > 0) {
@@ -260,7 +253,8 @@ export class ServiceFactory {
       config,
       pluginManager,
       cronService,
-      mcpManager ?? undefined
+      mcpManager ?? undefined,
+      skillManager
     );
     await apiServer.start();
     log.info(`API server started on port ${port}`);

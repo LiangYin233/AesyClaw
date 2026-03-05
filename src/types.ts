@@ -57,9 +57,9 @@ export interface LLMResponse {
 }
 
 export interface PluginErrorContext {
-  type: 'message' | 'tool' | 'response' | 'agent';  // 触发错误的操作类型
-  plugin?: string;  // 触发错误的插件名称
-  data?: any;  // 额外的错误上下文数据
+  type: 'message' | 'tool' | 'response' | 'agent';
+  plugin?: string;
+  data?: any;
 }
 
 export interface Config {
@@ -69,14 +69,8 @@ export interface Config {
   providers: Record<string, ProviderConfig>;
   mcp?: MCPServersConfig;
   plugins?: Record<string, any>;
-  skills?: SkillsConfig;
+  skills?: Record<string, { enabled: boolean }>;
   log?: LogConfig;
-}
-
-export interface SkillsConfig {
-  enabled: boolean;
-  directory?: string;
-  autoLoad?: boolean;
 }
 
 export interface LogConfig {

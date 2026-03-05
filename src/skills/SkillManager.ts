@@ -1,6 +1,8 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { logger } from '../logger/index.js';
+import type { Config } from '../types.js';
+import { ConfigLoader } from '../config/loader.js';
 
 export interface SkillFile {
   name: string;
@@ -14,6 +16,7 @@ export interface SkillInfo {
   path: string;
   files?: SkillFile[];
   content?: string;
+  enabled: boolean;
 }
 
 export interface SkillContext {
@@ -36,11 +39,16 @@ export class SkillManager {
   private skills: Map<string, SkillInfo> = new Map();
   private skillsDir: string = './skills';
   private log = logger.child({ prefix: 'SkillManager' });
+  private config: Config | null = null;
 
   constructor(skillsDir?: string) {
     if (skillsDir) {
       this.skillsDir = skillsDir;
     }
+  }
+
+  setConfig(config: Config): void {
+    this.config = config;
   }
 
   async loadFromDirectory(dir?: string): Promise<void> {
@@ -79,15 +87,20 @@ export class SkillManager {
       const { description, metadata } = this.parseSkillFile(content);
       const files = await this.getSkillFilesList(skillPath, basePath);
 
+      // 从配置中读取 enabled 状态，默认 true
+      const skillConfig = this.config?.skills?.[name];
+      const enabled = skillConfig?.enabled ?? true;
+
       this.skills.set(name, {
         name,
         description: description || metadata.description || '',
         path: skillMdPath,
         files,
-        content
+        content,
+        enabled
       });
 
-      this.log.debug(`Loaded skill: ${name} with ${files.length} files`);
+      this.log.debug(`Loaded skill: ${name} with ${files.length} files, enabled: ${enabled}`);
     } catch (error) {
       this.log.warn(`Failed to load skill ${name}:`, error);
     }
@@ -177,6 +190,25 @@ export class SkillManager {
     return Array.from(this.skills.values());
   }
 
+  async toggleSkill(name: string, enabled: boolean): Promise<boolean> {
+    const skill = this.skills.get(name);
+    if (!skill) return false;
+
+    skill.enabled = enabled;
+
+    // 持久化到 config.yaml
+    if (this.config) {
+      if (!this.config.skills) {
+        this.config.skills = {};
+      }
+      this.config.skills[name] = { enabled };
+      await ConfigLoader.save(this.config);
+      this.log.info(`Saved skill ${name} enabled state to config`);
+    }
+
+    return true;
+  }
+
   /**
    * 读取 skill 目录下指定文件的内容
    */
@@ -225,7 +257,7 @@ export class SkillManager {
   }
 
   buildSkillsPrompt(): string {
-    const skills = this.listSkills();
+    const skills = this.listSkills().filter(s => s.enabled);
     if (skills.length === 0) {
       return '';
     }

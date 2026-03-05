@@ -9,6 +9,7 @@ import { ConfigLoader } from '../config/loader.js';
 import type { PluginManager } from '../plugins/index.js';
 import type { CronService } from '../cron/index.js';
 import type { MCPClientManager } from '../mcp/MCPClient.js';
+import type { SkillManager } from '../skills/SkillManager.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS } from '../constants/index.js';
 
@@ -27,7 +28,8 @@ export class APIServer {
     private config: Config,
     private pluginManager?: PluginManager,
     private cronService?: CronService,
-    private mcpManager?: MCPClientManager
+    private mcpManager?: MCPClientManager,
+    private skillManager?: SkillManager
   ) {}
 
   async start(): Promise<void> {
@@ -72,12 +74,12 @@ export class APIServer {
 
     this.app.get('/api/sessions', (req, res) => {
       const sessions = this.sessionManager.list();
-      res.json({ sessions: sessions.map(s => ({ 
-        key: s.key, 
+      res.json({ sessions: sessions.map(s => ({
+        key: s.key,
         channel: s.channel,
         chatId: s.chatId,
         uuid: s.uuid,
-        messageCount: s.messages.length 
+        messageCount: s.messages.length
       })) });
     });
 
@@ -100,15 +102,15 @@ export class APIServer {
 
     this.app.post('/api/chat', async (req, res) => {
       const { sessionKey, message } = req.body;
-      
+
       if (!message || typeof message !== 'string') {
         return res.status(400).json({ success: false, error: 'Message is required' });
       }
-      
+
       if (message.length > MAX_MESSAGE_LENGTH) {
         return res.status(400).json({ success: false, error: `Message too long (max ${MAX_MESSAGE_LENGTH} characters)` });
       }
-      
+
       const key = sessionKey || `api:${Date.now()}`;
 
       this.log.debug(`POST /api/chat - session: ${key}, message: ${message.substring(0, 50)}...`);
@@ -177,7 +179,7 @@ export class APIServer {
       }
       const { enabled } = req.body;
       const { name } = req.params;
-      
+
       const success = await this.pluginManager.enablePlugin(name, enabled);
       if (success) {
         this.config.plugins = this.config.plugins || {};
@@ -194,7 +196,7 @@ export class APIServer {
         return res.status(500).json({ success: false, error: 'Plugin manager not available' });
       }
       const { name } = req.params;
-      
+
       const success = await this.pluginManager.reloadPlugin(name);
       if (success) {
         res.json({ success: true });
@@ -209,13 +211,13 @@ export class APIServer {
       }
       const { options } = req.body;
       const { name } = req.params;
-      
+
       const success = await this.pluginManager.updatePluginConfig(name, options);
       if (success) {
         this.config.plugins = this.config.plugins || {};
-        this.config.plugins[name] = { 
-          ...(this.config.plugins[name] as any), 
-          options 
+        this.config.plugins[name] = {
+          ...(this.config.plugins[name] as any),
+          options
         };
         await ConfigLoader.save(this.config);
         res.json({ success: true });
@@ -240,12 +242,12 @@ export class APIServer {
       }
     });
 
-    
+
     // MCP routes
     if (this.mcpManager) {
       this.app.get('/api/mcp', (req, res) => {
         const tools = this.mcpManager!.getTools();
-        res.json({ 
+        res.json({
           servers: this.mcpManager!.getServerNames(),
           tools: tools.map(t => ({
             name: t.name,
@@ -258,6 +260,32 @@ export class APIServer {
       this.app.get('/api/mcp/tools', (req, res) => {
         const tools = this.mcpManager!.getTools();
         res.json({ tools });
+      });
+    }
+
+    // Skills routes
+    if (this.skillManager) {
+      this.app.get('/api/skills', (req, res) => {
+        const skills = this.skillManager!.listSkills();
+        res.json({ skills });
+      });
+
+      this.app.get('/api/skills/:name', (req, res) => {
+        const skill = this.skillManager!.getSkill(req.params.name);
+        if (!skill) {
+          return res.status(404).json({ error: 'Skill not found' });
+        }
+        res.json({ skill });
+      });
+
+      this.app.post('/api/skills/:name/toggle', async (req, res) => {
+        const { enabled } = req.body;
+        const { name } = req.params;
+        const success = await this.skillManager!.toggleSkill(name, enabled);
+        if (!success) {
+          return res.status(404).json({ success: false, error: 'Skill not found' });
+        }
+        res.json({ success: true });
       });
     }
 

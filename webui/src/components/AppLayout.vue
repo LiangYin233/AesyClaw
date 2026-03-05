@@ -3,21 +3,33 @@
         <aside class="sidebar">
             <div class="sidebar-header">
                 <i class="pi pi-bolt"></i>
-                <span>AesyClaw</span>
+                <span class="app-name">AesyClaw</span>
             </div>
             <nav class="sidebar-nav">
-                <router-link v-for="item in navItems" :key="item.path" :to="item.path" class="nav-item" exact-active-class="nav-item-active">
-                    <i :class="item.icon"></i>
-                    <span>{{ item.label }}</span>
+                <router-link
+                    v-for="item in navItems"
+                    :key="item.path"
+                    :to="item.path"
+                    class="nav-item"
+                    exact-active-class="nav-item-active"
+                >
+                    <i :class="item.icon" class="nav-icon"></i>
+                    <span class="nav-label">{{ item.label }}</span>
                 </router-link>
             </nav>
             <div class="sidebar-footer">
-                <Tag :value="agentRunning ? '运行中' : '已停止'" 
-                     :severity="agentRunning ? 'success' : 'danger'" />
+                <span class="status-label">Agent 状态</span>
+                <Tag
+                    :value="agentRunning ? '运行中' : '已停止'"
+                    :severity="agentRunning ? 'success' : 'danger'"
+                    rounded
+                />
             </div>
         </aside>
         <main class="main-content">
-            <router-view />
+            <div class="main-content-inner">
+                <router-view />
+            </div>
         </main>
     </div>
 </template>
@@ -37,6 +49,8 @@ const navItems = [
     { path: '/cron', label: '定时任务', icon: 'pi pi-clock' },
     { path: '/tools', label: '工具', icon: 'pi pi-box' },
     { path: '/plugins', label: '插件', icon: 'pi pi-th-large' },
+    { path: '/mcp', label: 'MCP', icon: 'pi pi-server' },
+    { path: '/skills', label: 'Skills', icon: 'pi pi-star' },
     { path: '/config', label: '配置', icon: 'pi pi-cog' }
 ]
 
@@ -64,10 +78,11 @@ onUnmounted(() => {
     display: flex;
     height: 100vh;
     overflow: hidden;
+    background: radial-gradient(circle at top left, #e0f2fe 0, #f8fafc 45%, #f1f5f9 100%);
 }
 
 .sidebar {
-    width: 200px;
+    width: 220px;
     background: #ffffff;
     border-right: 1px solid #e2e8f0;
     display: flex;
@@ -83,13 +98,21 @@ onUnmounted(() => {
     border-bottom: 1px solid #e2e8f0;
     display: flex;
     align-items: center;
-    gap: 8px;
-    color: #334155;
+    gap: 10px;
+    color: #0f172a;
+}
+
+.app-name {
+    letter-spacing: 0.03em;
 }
 
 .sidebar-nav {
     flex: 1;
-    padding: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow-y: auto;
 }
 
 .nav-item {
@@ -100,32 +123,124 @@ onUnmounted(() => {
     border-radius: 8px;
     color: #64748b;
     text-decoration: none;
-    margin-bottom: 4px;
     transition: all 0.2s;
+    position: relative;
 }
 
 .nav-item:hover {
-    background: #f1f5f9;
-    color: #475569;
+    background: #eff6ff;
+    color: #1d4ed8;
+    transform: translateX(2px);
 }
 
 .nav-item-active {
-    background: #e2e8f0;
-    color: #334155;
-    font-weight: 500;
+    background: #e0f2fe;
+    color: #1d4ed8;
+    font-weight: 600;
+}
+
+.nav-item-active::before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 10%;
+    bottom: 10%;
+    width: 3px;
+    border-radius: 999px;
+    background: linear-gradient(to bottom, #3b82f6, #22c55e);
+}
+
+.nav-icon {
+    font-size: 16px;
+}
+
+.nav-label {
+    font-size: 14px;
 }
 
 .sidebar-footer {
     padding: 16px;
     border-top: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: linear-gradient(to right, #f9fafb, #eff6ff);
+}
+
+.status-label {
+    font-size: 12px;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
 }
 
 .main-content {
     flex: 1;
     overflow-y: auto;
     min-width: 0;
-    background: #f8fafc;
+    background: transparent;
     height: 100%;
+}
+
+.main-content-inner {
+    padding: 24px 32px;
+    max-width: 1200px;
+    margin: 0 auto;
+    box-sizing: border-box;
+}
+
+@media (max-width: 1024px) {
+    .sidebar {
+        width: 200px;
+    }
+
+    .main-content-inner {
+        padding: 20px 20px;
+    }
+}
+
+@media (max-width: 768px) {
+    .layout-wrapper {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid #e2e8f0;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        padding-inline: 12px;
+        gap: 12px;
+    }
+
+    .sidebar-nav {
+        flex-direction: row;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding: 8px 0;
+    }
+
+    .nav-item {
+        padding-inline: 10px;
+    }
+
+    .nav-item-active::before {
+        display: none;
+    }
+
+    .sidebar-footer {
+        border-top: none;
+        padding-inline: 0;
+        background: transparent;
+        align-items: flex-end;
+    }
+
+    .main-content {
+        height: calc(100vh - 64px);
+    }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -154,6 +269,24 @@ onUnmounted(() => {
     }
     .main-content {
         background: #0f172a;
+    }
+
+    .nav-item:hover {
+        background: #1e293b;
+        color: #bfdbfe;
+    }
+
+    .nav-item-active {
+        background: #1d283a;
+        color: #bfdbfe;
+    }
+
+    .sidebar-footer {
+        background: linear-gradient(to right, #020617, #020617);
+    }
+
+    .status-label {
+        color: #64748b;
     }
 }
 </style>

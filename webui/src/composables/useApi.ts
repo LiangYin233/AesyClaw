@@ -78,6 +78,14 @@ export interface PluginInfo {
     toolsCount: number
 }
 
+export interface SkillInfo {
+    name: string
+    description: string
+    path: string
+    enabled: boolean
+    files?: { name: string; path: string; isDirectory: boolean }[]
+}
+
 export function useApi() {
     const loading = ref(false)
     const error = ref<string | null>(null)
@@ -392,6 +400,39 @@ export function useApi() {
         }
     }
 
+    async function getSkills(): Promise<SkillInfo[]> {
+        loading.value = true
+        error.value = null
+        try {
+            const res = await fetch(`${API_BASE}/skills`)
+            const data = await res.json()
+            return data.skills || []
+        } catch (e: any) {
+            error.value = e.message
+            return []
+        } finally {
+            loading.value = false
+        }
+    }
+
+    async function toggleSkill(name: string, enabled: boolean): Promise<boolean> {
+        loading.value = true
+        error.value = null
+        try {
+            const res = await fetch(`${API_BASE}/skills/${name}/toggle`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled })
+            })
+            return res.ok
+        } catch (e: any) {
+            error.value = e.message
+            return false
+        } finally {
+            loading.value = false
+        }
+    }
+
     return {
         loading,
         error,
@@ -413,6 +454,8 @@ export function useApi() {
         createCronJob,
         updateCronJob,
         deleteCronJob,
-        toggleCronJob
+        toggleCronJob,
+        getSkills,
+        toggleSkill
     }
 }

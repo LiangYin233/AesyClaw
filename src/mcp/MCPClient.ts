@@ -29,7 +29,7 @@ export class MCPClientManager {
   private async connectServer(name: string, config: MCPServerConfig): Promise<void> {
     const timeout = config.timeout || MCPClientManager.DEFAULT_TIMEOUT;
     const transportType = config.type || 'local';
-    
+
     const client = new Client({
       name: `aesyclaw-${name}`,
       version: '0.1.0'
@@ -52,7 +52,9 @@ export class MCPClientManager {
         throw new Error(`MCP server ${name}: command is required for local type`);
       }
 
-      const env: Record<string, string> = {};
+      // 继承系统环境变量
+      const env: Record<string, string> = { ...process.env } as Record<string, string>;
+      // 合并配置的环境变量，配置的优先级更高
       if (config.environment) {
         for (const [key, val] of Object.entries(config.environment)) {
           if (val !== undefined) {
@@ -96,7 +98,7 @@ export class MCPClientManager {
           this.clients.set(name, client);
           this.log.info(`Connected server: ${name}`);
         })(),
-        new Promise((_, reject) => 
+        new Promise((_, reject) =>
           setTimeout(() => reject(new Error(`MCP server ${name} connection timeout after ${timeout}ms`)), timeout)
         )
       ]);
@@ -150,13 +152,13 @@ export class MCPClientManager {
     }
 
     const requestTimeout = timeout || MCPClientManager.DEFAULT_TIMEOUT;
-    
+
     try {
       const response = await Promise.race<any>([
         client.callTool(
           { name: toolName, arguments: args }
         ),
-        new Promise((_, reject) => 
+        new Promise((_, reject) =>
           setTimeout(() => reject(new Error(`MCP tool call timeout after ${requestTimeout}ms`)), requestTimeout)
         )
       ]);
@@ -197,4 +199,3 @@ export class MCPClientManager {
     this.tools.clear();
   }
 }
-
