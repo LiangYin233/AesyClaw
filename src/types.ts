@@ -69,7 +69,14 @@ export interface Config {
   providers: Record<string, ProviderConfig>;
   mcp?: MCPServersConfig;
   plugins?: Record<string, any>;
+  skills?: SkillsConfig;
   log?: LogConfig;
+}
+
+export interface SkillsConfig {
+  enabled: boolean;
+  directory?: string;
+  autoLoad?: boolean;
 }
 
 export interface LogConfig {

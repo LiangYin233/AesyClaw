@@ -4,6 +4,7 @@ import type { LLMProvider } from '../providers/base.js';
 import type { ToolRegistry, ToolContext } from '../tools/ToolRegistry.js';
 import type { SessionManager } from '../session/SessionManager.js';
 import type { PluginManager } from '../plugins/index.js';
+import { SkillManager, type SkillContext, type SkillResult } from '../skills/index.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS, CONFIG_DEFAULTS } from '../constants/index.js';
 
@@ -30,10 +31,16 @@ function getToolCallArguments(toolCall: ToolCall | OpenAIToolCall): Record<strin
 export class ContextBuilder {  // 上下文构建器
   private workspace: string;
   private systemPrompt: string;
+  private skillsPrompt: string;
 
-  constructor(workspace: string, systemPrompt?: string) {
+  constructor(workspace: string, systemPrompt?: string, skillsPrompt?: string) {
     this.workspace = workspace;
     this.systemPrompt = systemPrompt || 'You are a helpful AI assistant.';
+    this.skillsPrompt = skillsPrompt || '';
+  }
+
+  setSkillsPrompt(prompt: string): void {
+    this.skillsPrompt = prompt;
   }
 
   build(  // 构建消息上下文
@@ -58,7 +65,14 @@ export class ContextBuilder {  // 上下文构建器
       .replace(/\{\{\s*current_hour\s*\}\}/g, now.toLocaleTimeString())
       .replace(/\{\{\s*timezone\s*\}\}/g, Intl.DateTimeFormat().resolvedOptions().timeZone);
 
-    return `# AesyClaw\n\n${prompt}\n\n## Workspace: ${this.workspace}`;
+    const sections = [`# AesyClaw`, prompt, `## Workspace: ${this.workspace}`];
+
+    // 添加 skills 部分（如果存在）
+    if (this.skillsPrompt) {
+      sections.push(this.skillsPrompt);
+    }
+
+    return sections.join('\n\n');
   }
 
   private buildUserContent(message: string, channel?: string, chatId?: string): string {
@@ -87,6 +101,7 @@ export class AgentLoop {
   private memoryWindow: number;
   private channelSessions: Map<string, string> = new Map();
   private pluginManager?: PluginManager;
+  private skillManager?: SkillManager;
   private log = logger.child({ prefix: 'Agent' });
 
   async callLLM(  // 供插件调用的 LLM 请求方法
@@ -111,24 +126,37 @@ export class AgentLoop {
     maxIterations: number = CONFIG_DEFAULTS.DEFAULT_MAX_ITERATIONS,
     model: string = 'gpt-4o',
     contextMode: ContextMode = 'channel',
-    memoryWindow: number = CONFIG_DEFAULTS.DEFAULT_MEMORY_WINDOW
+    memoryWindow: number = CONFIG_DEFAULTS.DEFAULT_MEMORY_WINDOW,
+    skillManager?: SkillManager
   ) {
     this.eventBus = eventBus;
     this.provider = provider;
     this.toolRegistry = toolRegistry;
     this.sessionManager = sessionManager;
-    this.contextBuilder = new ContextBuilder(workspace, systemPrompt);
+
+    // 构建 skills prompt
+    const skillsPrompt = skillManager?.buildSkillsPrompt() || '';
+
+    this.contextBuilder = new ContextBuilder(workspace, systemPrompt, skillsPrompt);
     this.maxIterations = maxIterations;
     this.toolContext = { workspace, eventBus };
     this.model = model;
     this.contextMode = contextMode;
     this.memoryWindow = memoryWindow;
+    this.skillManager = skillManager;
     this.log.info(`Initialized with model: ${this.model}, contextMode: ${this.contextMode}`);
   }
 
   setPluginManager(pm: PluginManager): void {
     this.pluginManager = pm;
     this.log.info('PluginManager attached');
+  }
+
+  setSkillManager(sm: SkillManager): void {
+    this.skillManager = sm;
+    // 更新 ContextBuilder 的 skills prompt
+    this.contextBuilder.setSkillsPrompt(sm.buildSkillsPrompt());
+    this.log.info('SkillManager attached');
   }
 
   async run(): Promise<void> {
@@ -171,7 +199,7 @@ export class AgentLoop {
         this.log.debug('Message handled by plugin (null), skipping');
         return;
       }
-      
+
       // onMessage 返回了不同的消息（插件要发送回复）
       if (handled.content !== msg.content) {
         this.log.info('Plugin modified message, sending reply and skipping LLM');
@@ -183,17 +211,17 @@ export class AgentLoop {
         });
         return;
       }
-      
+
       msg = handled;
     }
-    
+
     const channelChatKey = `${msg.channel}:${msg.chatId}`;
-    
+
     if (msg.content.trim() === '/new') {
       const newSessionKey = this.sessionManager.createNewSession(msg.channel, msg.chatId);
       this.channelSessions.set(channelChatKey, newSessionKey);
       this.log.info(`Created new session: ${newSessionKey}`);
-      
+
       await this.eventBus.publishOutbound({
         channel: msg.channel,
         chatId: msg.chatId,
@@ -232,7 +260,7 @@ export class AgentLoop {
     }
 
     this.log.debug(`Calling LLM with ${messages.length} messages`);
-    const result = await this.runAgentLoop(messages, undefined, { 
+    const result = await this.runAgentLoop(messages, undefined, {
       allowTools: true,
       source: 'user'
     });
@@ -286,11 +314,11 @@ export class AgentLoop {
 
     for (let i = 0; i < max; i++) {
       const tools = allowTools ? this.toolRegistry.getDefinitions(agentMode) : [];
-      
+
       if (i === 0 && tools.length > 0) {
         this.log.debug(`First round: ${tools.length} tools available (excluding agent-only)`);
       }
-      
+
       const response = await this.provider.chat(
         messages,
         tools,
@@ -302,7 +330,7 @@ export class AgentLoop {
           agentMode = true;
           this.log.info(`LLM requested tool(s), entering agent mode`);
         }
-        
+
         messages.push({
           role: 'assistant',
           content: response.content || '',
@@ -311,25 +339,25 @@ export class AgentLoop {
 
         for (const toolCall of response.toolCalls) {
           let toolName = getToolCallName(toolCall);
-          
+
           if (!toolName) {
             const toolCallStr = JSON.stringify(toolCall).substring(0, 200);
             this.log.error(`Tool name is undefined, toolCall: ${toolCallStr}`);
             continue;
           }
-          
+
           toolsUsed.push(toolName);
           this.log.info(`Executing tool: ${toolName}`);
-          
+
           let toolArgs = getToolCallArguments(toolCall);
-          
+
           if (!toolArgs) {
             this.log.warn(`Tool arguments is undefined for ${toolName}`);
             toolArgs = {};
           }
-          
+
           this.log.info(`Tool ${toolName} arguments: ${JSON.stringify(toolArgs)}`);
-          
+
           let result: string;
 
           try {
@@ -337,10 +365,10 @@ export class AgentLoop {
             if (execToolName.includes(':')) {
               execToolName = execToolName.replace(':', '_mcp_');
             }
-            
+
             const toolArgsStr = JSON.stringify(toolArgs).substring(0, 200);
             this.log.debug(`Tool args: ${toolArgsStr}`);
-            
+
             const execContext = {
               ...this.toolContext,
               source: source
@@ -450,26 +478,26 @@ export class AgentLoop {
 
   private isRetryableError(error: unknown): boolean {
     if (!error) return false;
-    
+
     const retryableStatusCodes = [408, 429, 500, 502, 503, 504];
-    
+
     if (error instanceof Error) {
       const message = error.message;
       const networkPatterns = [
-        'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 
+        'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND',
         'network', 'timeout', 'ECONNRESET', 'socket'
       ];
-      
+
       if (networkPatterns.some(pattern => message.includes(pattern))) {
         return true;
       }
-      
+
       const statusMatch = message.match(/\b(40[89]|5\d{2})\b/);
       if (statusMatch && retryableStatusCodes.includes(parseInt(statusMatch[1], 10))) {
         return true;
       }
     }
-    
+
     return false;
   }
 }
