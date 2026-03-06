@@ -53,28 +53,7 @@ export class Logger {
     this.level = level;
   }
 
-  /**
-   * 获取当前日志级别
-   */
-  getLevel(): LogLevel {
-    return this.level;
-  }
-
-  /**
-   * 获取当前配置
-   */
-  getConfig(): { level: LogLevel; prefix: string } {
-    return {
-      level: this.level,
-      prefix: this.prefix
-    };
-  }
-
   isLevelEnabled(level: LogLevel): boolean {  // 检查日志级别是否启用
-    return LEVELS[level] >= LEVELS[this.level];
-  }
-
-  private shouldLog(level: LogLevel): boolean {  // 判断是否应该记录该级别日志
     return LEVELS[level] >= LEVELS[this.level];
   }
 
@@ -97,22 +76,22 @@ export class Logger {
   }
 
   debug(message: string, ...args: any[]): void {  // 调试日志
-    if (!this.shouldLog('debug')) return;
+    if (!this.isLevelEnabled('debug')) return;
     console.log(this.format('debug', message), ...args);
   }
 
   info(message: string, ...args: any[]): void {  // 信息日志
-    if (!this.shouldLog('info')) return;
+    if (!this.isLevelEnabled('info')) return;
     console.log(this.format('info', message), ...args);
   }
 
   warn(message: string, ...args: any[]): void {  // 警告日志
-    if (!this.shouldLog('warn')) return;
+    if (!this.isLevelEnabled('warn')) return;
     console.warn(this.format('warn', message), ...args);
   }
 
   error(message: string, ...args: any[]): void {  // 错误日志
-    if (!this.shouldLog('error')) return;
+    if (!this.isLevelEnabled('error')) return;
     console.error(this.format('error', message), ...args);
   }
 

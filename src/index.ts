@@ -15,4 +15,4 @@ export type { Plugin, PluginContext } from './plugins/index.js';
 export { CronService } from './cron/index.js';
 export type { CronJob, CronSchedule, CronPayload } from './cron/index.js';
 export { APIServer } from './api/index.js';
-export { ConfigLoader, getConfig } from './config/index.js';
+export { ConfigLoader } from './config/index.js';

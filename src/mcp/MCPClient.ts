@@ -13,21 +13,6 @@ export class MCPClientManager {
   private log = logger.child({ prefix: 'MCP' });
   private static readonly DEFAULT_TIMEOUT = CONSTANTS.MCP_TIMEOUT;
 
-  async connect(config: MCPServersConfig): Promise<void> {
-    for (const [name, serverConfig] of Object.entries(config)) {
-      if (serverConfig.enabled === false) {
-        this.log.info(`Skipping disabled MCP server: ${name}`);
-        continue;
-      }
-
-      try {
-        await this.connectServer(name, serverConfig);
-      } catch (error) {
-        this.log.error(`Failed to connect server ${name}:`, error);
-      }
-    }
-  }
-
   /**
    * 非阻塞连接 - 后台异步连接所有服务器
    */

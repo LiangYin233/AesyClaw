@@ -19,5 +19,3 @@ export const CONFIG_DEFAULTS = Object.freeze({
   DEFAULT_MEMORY_WINDOW: 50,
   DEFAULT_MAX_ITERATIONS: 40,
 });
-
-export type Constants = typeof CONSTANTS;
