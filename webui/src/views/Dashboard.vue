@@ -1,86 +1,125 @@
 <template>
     <div class="dashboard-page">
-        <h1>仪表盘</h1>
-        
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-content">
-                    <span class="stat-label">版本</span>
-                    <span class="stat-value">{{ status?.version || '-' }}</span>
-                </div>
-                <div class="stat-icon">
-                    <i class="pi pi-info-circle"></i>
-                </div>
-            </div>
-            
-            <div class="stat-card">
-                <div class="stat-content">
-                    <span class="stat-label">运行时间</span>
-                    <span class="stat-value">{{ formatUptime(status?.uptime || 0) }}</span>
-                </div>
-                <div class="stat-icon">
-                    <i class="pi pi-clock"></i>
-                </div>
-            </div>
-            
-            <div class="stat-card">
-                <div class="stat-content">
-                    <span class="stat-label">会话数</span>
-                    <span class="stat-value">{{ status?.sessions || 0 }}</span>
-                </div>
-                <div class="stat-icon">
-                    <i class="pi pi-comments"></i>
-                </div>
-            </div>
-            
-            <div class="stat-card">
-                <div class="stat-content">
-                    <span class="stat-label">Agent 状态</span>
-                    <span class="stat-value" :class="status?.agentRunning ? 'text-success' : 'text-danger'">
-                        {{ status?.agentRunning ? '运行中' : '已停止' }}
-                    </span>
-                </div>
-                <div class="stat-icon" :class="status?.agentRunning ? 'icon-success' : 'icon-danger'">
-                    <i :class="status?.agentRunning ? 'pi pi-play' : 'pi pi-stop'"></i>
-                </div>
-            </div>
-        </div>
-        
-        <Card class="channels-card">
-            <template #title>通道状态</template>
-            <template #content>
-                <div v-if="channels" class="channels-list">
-                    <div v-for="(value, key) in channels" :key="key" class="channel-item">
-                        <div class="channel-info">
-                            <span class="channel-name">{{ key }}</span>
-                            <Tag v-if="value.enabled !== undefined" 
-                                 :value="value.enabled ? '已启用' : '已禁用'" 
-                                 :severity="value.enabled ? 'success' : 'secondary'" />
-                        </div>
-                        <Tag v-if="value.connected !== undefined" 
-                             :value="value.connected ? '已连接' : '未连接'" 
-                             :severity="value.connected ? 'success' : 'warn'" 
-                             icon="pi pi-circle-fill" />
+        <PageHeader title="仪表盘" subtitle="系统状态概览" />
+
+        <LoadingContainer
+            :loading="systemStore.loading && !systemStore.status"
+            :error="systemStore.error"
+            :on-retry="() => systemStore.refresh()"
+        >
+            <div class="stats-grid" role="region" aria-label="系统统计">
+                <div class="stat-card" role="article" aria-label="版本信息">
+                    <div class="stat-content">
+                        <span class="stat-label" id="version-label">版本</span>
+                        <span class="stat-value" aria-labelledby="version-label">
+                            {{ systemStore.version }}
+                        </span>
+                    </div>
+                    <div class="stat-icon" aria-hidden="true">
+                        <i class="pi pi-info-circle"></i>
                     </div>
                 </div>
-                <div v-else class="loading">
-                    <ProgressSpinner />
+
+                <div class="stat-card" role="article" aria-label="运行时间">
+                    <div class="stat-content">
+                        <span class="stat-label" id="uptime-label">运行时间</span>
+                        <span class="stat-value" aria-labelledby="uptime-label">
+                            {{ formatUptime(systemStore.uptime) }}
+                        </span>
+                    </div>
+                    <div class="stat-icon" aria-hidden="true">
+                        <i class="pi pi-clock"></i>
+                    </div>
                 </div>
-            </template>
-        </Card>
+
+                <div class="stat-card" role="article" aria-label="会话统计">
+                    <div class="stat-content">
+                        <span class="stat-label" id="sessions-label">会话数</span>
+                        <span class="stat-value" aria-labelledby="sessions-label">
+                            {{ systemStore.sessionCount }}
+                        </span>
+                    </div>
+                    <div class="stat-icon" aria-hidden="true">
+                        <i class="pi pi-comments"></i>
+                    </div>
+                </div>
+
+                <div class="stat-card" role="article" aria-label="Agent 状态">
+                    <div class="stat-content">
+                        <span class="stat-label" id="agent-label">Agent 状态</span>
+                        <span
+                            class="stat-value"
+                            :class="systemStore.agentRunning ? 'text-success' : 'text-danger'"
+                            aria-labelledby="agent-label"
+                            aria-live="polite"
+                        >
+                            {{ systemStore.agentRunning ? '运行中' : '已停止' }}
+                        </span>
+                    </div>
+                    <div
+                        class="stat-icon"
+                        :class="systemStore.agentRunning ? 'icon-success' : 'icon-danger'"
+                        aria-hidden="true"
+                    >
+                        <i :class="systemStore.agentRunning ? 'pi pi-play' : 'pi pi-stop'"></i>
+                    </div>
+                </div>
+            </div>
+
+            <Card class="channels-card">
+                <template #title>
+                    <h2 id="channels-title">通道状态</h2>
+                </template>
+                <template #content>
+                    <EmptyState
+                        v-if="!systemStore.channels || Object.keys(systemStore.channels).length === 0"
+                        icon="pi pi-inbox"
+                        title="暂无通道数据"
+                        description="系统中没有配置任何通道"
+                    />
+                    <div v-else class="channels-list" role="list" aria-labelledby="channels-title">
+                        <div
+                            v-for="(value, key) in systemStore.channels"
+                            :key="key"
+                            class="channel-item"
+                            role="listitem"
+                            :aria-label="`通道 ${key}，${value.enabled ? '已启用' : '已禁用'}，${value.connected ? '已连接' : '未连接'}`"
+                        >
+                            <div class="channel-info">
+                                <span class="channel-name">{{ key }}</span>
+                                <Tag
+                                    v-if="value.enabled !== undefined"
+                                    :value="value.enabled ? '已启用' : '已禁用'"
+                                    :severity="value.enabled ? 'success' : 'secondary'"
+                                    :aria-label="`状态：${value.enabled ? '已启用' : '已禁用'}`"
+                                />
+                            </div>
+                            <Tag
+                                v-if="value.connected !== undefined"
+                                :value="value.connected ? '已连接' : '未连接'"
+                                :severity="value.connected ? 'success' : 'warn'"
+                                icon="pi pi-circle-fill"
+                                :aria-label="`连接状态：${value.connected ? '已连接' : '未连接'}`"
+                            />
+                        </div>
+                    </div>
+                </template>
+            </Card>
+        </LoadingContainer>
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useApi } from '../composables/useApi'
+import { onMounted } from 'vue'
+import { useSystemStore } from '../stores/system'
+import { announceToScreenReader } from '../composables/useA11y'
+import PageHeader from '../components/common/PageHeader.vue'
+import LoadingContainer from '../components/common/LoadingContainer.vue'
+import EmptyState from '../components/common/EmptyState.vue'
 import Card from 'primevue/card'
 import Tag from 'primevue/tag'
-import ProgressSpinner from 'primevue/progressspinner'
 
-const { getStatus, getChannels } = useApi()
-const status = ref<any>(null)
-const channels = ref<any>(null)
+const systemStore = useSystemStore()
 
 function formatUptime(seconds: number): string {
     const days = Math.floor(seconds / 86400)
@@ -92,21 +131,18 @@ function formatUptime(seconds: number): string {
 }
 
 onMounted(async () => {
-    status.value = await getStatus()
-    channels.value = await getChannels()
+    const success = await systemStore.refresh()
+    if (success) {
+        announceToScreenReader('仪表盘数据已加载', 'polite')
+    } else {
+        announceToScreenReader('仪表盘数据加载失败', 'assertive')
+    }
 })
 </script>
 
 <style scoped>
 .dashboard-page {
     padding: 0;
-}
-
-.dashboard-page h1 {
-    margin: 0 0 24px 0;
-    font-size: 24px;
-    font-weight: bold;
-    color: #1e293b;
 }
 
 .stats-grid {
@@ -204,16 +240,19 @@ onMounted(async () => {
     color: #334155;
 }
 
-.loading {
-    display: flex;
-    justify-content: center;
-    padding: 24px;
+@media (max-width: 1024px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (prefers-color-scheme: dark) {
-    .dashboard-page h1 {
-        color: #f1f5f9;
-    }
     .stat-card {
         background: #1e293b;
         border-color: #334155;

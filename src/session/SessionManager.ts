@@ -128,7 +128,7 @@ export class SessionManager {
       const countResult = await this.db.get<{ count: number }>(
         'SELECT COUNT(*) as count FROM sessions'
       );
-      const totalCount = countResult?.count || 0;
+      const totalCount = countResult?.count ?? 0;
       
       if (totalCount > this.maxSessions) {
         const toDelete = totalCount - this.maxSessions;

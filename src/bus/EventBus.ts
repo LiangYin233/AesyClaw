@@ -9,29 +9,48 @@ interface QueueItem<T> {
   timestamp: number;  // 时间戳
 }
 
+/**
+ * Async Lock - Replaces busy-waiting with Promise queue
+ */
+class AsyncLock {
+  private locked = false;
+  private waiters: Array<() => void> = [];
+
+  async acquire(): Promise<void> {
+    if (!this.locked) {
+      this.locked = true;
+      return;
+    }
+
+    // Wait in queue
+    return new Promise<void>(resolve => {
+      this.waiters.push(resolve);
+    });
+  }
+
+  release(): void {
+    const next = this.waiters.shift();
+    if (next) {
+      // Wake up next waiter
+      next();
+    } else {
+      // No waiters, unlock
+      this.locked = false;
+    }
+  }
+}
+
 export class EventBus extends EventEmitter {  // 事件总线类
   private inboundQueue: QueueItem<InboundMessage>[] = [];  // 入站消息队列
   private outboundQueue: QueueItem<OutboundMessage>[] = [];  // 出站消息队列
   private inboundWaiter: ((msg: InboundMessage) => void) | null = null;  // 入站消息等待者
   private outboundWaiter: ((msg: OutboundMessage) => void) | null = null;  // 出站消息等待者
-  private inboundLock = false;
-  private outboundLock = false;
+  private inboundLock = new AsyncLock();
+  private outboundLock = new AsyncLock();
 
   constructor() {
     super();
     this.setMaxListeners(50);
-  }
-
-  private async acquireLock(lock: { value: boolean }): Promise<boolean> {
-    if (lock.value) {
-      return false;
-    }
-    lock.value = true;
-    return true;
-  }
-
-  private releaseLock(lock: { value: boolean }): void {
-    lock.value = false;
   }
 
   private popFromQueue<T>(queue: QueueItem<T>[]): T | undefined {  // 从队列取出消息
@@ -60,15 +79,12 @@ export class EventBus extends EventEmitter {  // 事件总线类
       return;
     }
 
-    while (this.inboundLock) {
-      await new Promise(resolve => setImmediate(resolve));
-    }
-    this.inboundLock = true;
+    await this.inboundLock.acquire();
     try {
       this.trimQueue(this.inboundQueue);  // 裁剪队列
       this.inboundQueue.push({ data: msg, timestamp: Date.now() });  // 加入队列
     } finally {
-      this.inboundLock = false;
+      this.inboundLock.release();
     }
   }
 
@@ -82,30 +98,24 @@ export class EventBus extends EventEmitter {  // 事件总线类
       return;
     }
 
-    while (this.outboundLock) {
-      await new Promise(resolve => setImmediate(resolve));
-    }
-    this.outboundLock = true;
+    await this.outboundLock.acquire();
     try {
       this.trimQueue(this.outboundQueue);  // 裁剪队列
       this.outboundQueue.push({ data: msg, timestamp: Date.now() });  // 加入队列
     } finally {
-      this.outboundLock = false;
+      this.outboundLock.release();
     }
   }
 
   async consumeInbound(): Promise<InboundMessage> {  // 消费入站消息
-    while (this.inboundLock) {
-      await new Promise(resolve => setImmediate(resolve));
-    }
-    this.inboundLock = true;
+    await this.inboundLock.acquire();
     let item: InboundMessage | undefined;
     try {
       item = this.popFromQueue(this.inboundQueue);
     } finally {
-      this.inboundLock = false;
+      this.inboundLock.release();
     }
-    
+
     if (item !== undefined) {
       return item;
     }
@@ -116,15 +126,12 @@ export class EventBus extends EventEmitter {  // 事件总线类
   }
 
   async consumeOutbound(): Promise<OutboundMessage> {  // 消费出站消息
-    while (this.outboundLock) {
-      await new Promise(resolve => setImmediate(resolve));
-    }
-    this.outboundLock = true;
+    await this.outboundLock.acquire();
     let item: OutboundMessage | undefined;
     try {
       item = this.popFromQueue(this.outboundQueue);
     } finally {
-      this.outboundLock = false;
+      this.outboundLock.release();
     }
 
     if (item !== undefined) {

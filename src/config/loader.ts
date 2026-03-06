@@ -39,7 +39,7 @@ const DEFAULT_CONFIG: Config = {
   },
   providers: {
     openai: {
-      apiKey: process.env.OPENAI_API_KEY || '',
+      apiKey: process.env.OPENAI_API_KEY ?? '',
       apiBase: 'https://api.openai.com/v1'
     },
     custom: {
@@ -227,9 +227,9 @@ export class ConfigLoader {
 
     const result = JSON.parse(JSON.stringify(config));
     
-    for (const key of Object.keys(result.providers || {})) {
+    for (const key of Object.keys(result.providers ?? {})) {
       if (result.providers[key]?.apiKey === '***') {
-        result.providers[key].apiKey = this.config.providers[key]?.apiKey || '';
+        result.providers[key].apiKey = this.config.providers[key]?.apiKey ?? '';
       }
     }
 
@@ -255,13 +255,11 @@ export class ConfigLoader {
     
     const result: any = { ...base };
     
-    for (const key of Object.keys(override)) {
-      if (typeof override[key] === 'object' && !Array.isArray(override[key]) && override[key] !== null) {
-        result[key] = this.merge(base[key], override[key]);
-      } else if (Array.isArray(override[key])) {
-        result[key] = override[key];
+    for (const [key, value] of Object.entries(override)) {
+      if (typeof value === 'object' && !Array.isArray(value) && value !== null) {
+        result[key] = this.merge(base[key], value);
       } else {
-        result[key] = override[key];
+        result[key] = value;
       }
     }
     

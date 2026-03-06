@@ -6,6 +6,7 @@ import type { APIServer } from '../api/server.js';
 import type { CronService } from '../cron/CronService.js';
 import type { ConfigLoader } from '../config/loader.js';
 import { logger } from '../logger/index.js';
+import { normalizeError } from '../utils/errors.js';
 import type { OutboundMessage, Config } from '../types.js';
 import type { ChannelManager as ChannelManagerType } from '../channels/index.js';
 import type { ToolRegistry } from '../tools/ToolRegistry.js';
@@ -46,7 +47,7 @@ export class LifecycleManager {
         try {
           await channel.send(msg);
         } catch (error: unknown) {
-          const errMsg = error instanceof Error ? error.message : String(error);
+          const errMsg = normalizeError(error);
           this.log.error(`Failed to send: ${errMsg}`);
         }
       } else {

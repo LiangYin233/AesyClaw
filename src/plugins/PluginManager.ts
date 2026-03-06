@@ -5,6 +5,7 @@ import type { ToolRegistry, Tool, ToolContext } from '../tools/ToolRegistry.js';
 import { logger } from '../logger/index.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { HookPipeline, VoidHookPipeline } from './HookPipeline.js';
 
 /**
  * Command matcher types
@@ -209,106 +210,78 @@ export class PluginManager {
 
   async applyOnMessage(msg: InboundMessage): Promise<InboundMessage | null> {
     this.log.info(`applyOnMessage called with: content="${msg.content}", media=${JSON.stringify(msg.media)}`);
-    let result = msg;
-    for (const plugin of this.plugins.values()) {
-      if (plugin.onMessage) {
-        try {
-          this.log.info(`Calling onMessage for plugin ${plugin.name}`);
-          const newResult = await plugin.onMessage(result);
-          if (newResult) result = newResult;
-        } catch (error) {
-          this.log.error(`Plugin ${plugin.name} onMessage error:`, error);
-        }
-      }
-    }
+
+    const pipeline = new HookPipeline<InboundMessage>(
+      Array.from(this.plugins.values()),
+      'onMessage',
+      { timeout: 5000, verbose: true }
+    );
+
+    const result = await pipeline.execute(msg);
     this.log.info(`applyOnMessage returning: ${JSON.stringify({ content: result.content.substring(0, 50) })}`);
     return result;
   }
 
   async applyOnResponse(msg: OutboundMessage): Promise<OutboundMessage | null> {
-    let result = msg;
-    for (const plugin of this.plugins.values()) {
-      if (plugin.onResponse) {
-        try {
-          const newResult = await plugin.onResponse(result);
-          if (newResult) result = newResult;
-        } catch (error) {
-          this.log.error(`Plugin ${plugin.name} onResponse error:`, error);
-        }
-      }
-    }
-    return result;
+    const pipeline = new HookPipeline<OutboundMessage>(
+      Array.from(this.plugins.values()),
+      'onResponse',
+      { timeout: 5000 }
+    );
+
+    return pipeline.execute(msg);
   }
 
   async applyOnAgentBefore(msg: InboundMessage, messages: LLMMessage[]): Promise<void> {
-    for (const plugin of this.plugins.values()) {
-      if (plugin.onAgentBefore) {
-        try {
-          await plugin.onAgentBefore(msg, messages);
-        } catch (error) {
-          this.log.error(`Plugin ${plugin.name} onAgentBefore error:`, error);
-        }
-      }
-    }
+    const pipeline = new VoidHookPipeline(
+      Array.from(this.plugins.values()),
+      'onAgentBefore',
+      { timeout: 5000 }
+    );
+
+    await pipeline.execute(msg, messages);
   }
 
   async applyOnAgentAfter(msg: InboundMessage, response: LLMResponse): Promise<void> {
-    for (const plugin of this.plugins.values()) {
-      if (plugin.onAgentAfter) {
-        try {
-          await plugin.onAgentAfter(msg, response);
-        } catch (error) {
-          this.log.error(`Plugin ${plugin.name} onAgentAfter error:`, error);
-        }
-      }
-    }
+    const pipeline = new VoidHookPipeline(
+      Array.from(this.plugins.values()),
+      'onAgentAfter',
+      { timeout: 5000 }
+    );
+
+    await pipeline.execute(msg, response);
   }
 
   async applyOnBeforeToolCall(toolName: string, params: Record<string, any>, context?: ToolContext): Promise<Record<string, any>> {
-    let finalParams = params;
-    for (const plugin of this.plugins.values()) {
-      if (plugin.onBeforeToolCall) {
-        try {
-          const modified = await plugin.onBeforeToolCall(toolName, finalParams, context);
-          if (modified && typeof modified === 'object') {
-            finalParams = modified;
-          }
-        } catch (error) {
-          this.log.error(`Plugin ${plugin.name} onBeforeToolCall error:`, error);
-        }
-      }
-    }
-    return finalParams;
+    const pipeline = new HookPipeline<Record<string, any>>(
+      Array.from(this.plugins.values()),
+      'onBeforeToolCall',
+      { timeout: 5000 }
+    );
+
+    return pipeline.execute(params, toolName, context);
   }
 
   async applyOnToolCall(toolName: string, params: Record<string, any>, result: string, context?: ToolContext): Promise<string> {
-    let finalResult = result;
-    for (const plugin of this.plugins.values()) {
-      if (plugin.onToolCall) {
-        try {
-          const modified = await plugin.onToolCall(toolName, params, finalResult, context);
-          if (modified !== undefined) {
-            finalResult = modified;
-          }
-        } catch (error) {
-          this.log.error(`Plugin ${plugin.name} onToolCall error:`, error);
-        }
-      }
-    }
-    return finalResult;
+    const pipeline = new HookPipeline<string>(
+      Array.from(this.plugins.values()),
+      'onToolCall',
+      { timeout: 5000 }
+    );
+
+    return pipeline.execute(result, toolName, params, context);
   }
 
   async applyOnError(error: unknown, context: PluginErrorContext): Promise<void> {
     const err = error instanceof Error ? error : new Error(String(error));
-    for (const plugin of this.plugins.values()) {
-      if (plugin.onError) {
-        try {
-          await plugin.onError(err, { ...context, plugin: plugin.name });
-        } catch (err) {
-          this.log.error(`Plugin ${plugin.name} onError handler error:`, err);
-        }
-      }
-    }
+
+    const pipeline = new VoidHookPipeline(
+      Array.from(this.plugins.values()),
+      'onError',
+      { timeout: 5000 }
+    );
+
+    await pipeline.execute(err, { ...context });
   }
 
   async loadPlugin(plugin: Plugin): Promise<void> {
@@ -391,7 +364,7 @@ export class PluginManager {
     const config = this.pluginConfigs[name];
     const oldPlugin = this.plugins.get(name);
     const wasEnabled = !!oldPlugin;
-    const options = config?.options || {};
+    const options = config?.options ?? {};
 
     this.log.info(`Reloading plugin: ${name}, wasEnabled: ${wasEnabled}, options:`, options);
 
@@ -470,10 +443,10 @@ export class PluginManager {
 
         if (pluginConfig?.enabled) {
           enabled = true;
-          options = pluginConfig.options || {};
+          options = pluginConfig.options ?? {};
         } else if (modulePlugin.defaultConfig?.enabled === true) {
           enabled = true;
-          options = modulePlugin.defaultConfig?.options || {};
+          options = modulePlugin.defaultConfig?.options ?? {};
         }
 
         if (enabled) {

@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname } from 'path';
 import { logger } from '../logger/index.js';
+import { normalizeError } from '../utils/errors.js';
 
 export interface CronJob {
   id: string;
@@ -155,7 +156,7 @@ export class CronService {
             await this.onJobExecute(job);
             this.log.info(`Job ${job.id} completed successfully`);
           } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message = normalizeError(error);
             this.log.error(`Job ${job.id} failed:`, message);
           }
         }

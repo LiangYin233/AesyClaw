@@ -3,6 +3,7 @@ import fs from 'fs';
 import { BaseChannel } from './BaseChannel.js';
 import { ChannelManager, type ChannelPlugin } from './ChannelManager.js';
 import type { OutboundMessage } from '../types.js';
+import type { EventBus } from '../bus/EventBus.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS } from '../constants/index.js';
 
@@ -31,7 +32,7 @@ export class OneBotChannel extends BaseChannel {
   private pendingActions: Array<{ resolve: (value: unknown) => void; reject: (reason?: unknown) => void }> = [];
   protected log = logger.child({ prefix: 'OneBot' });
 
-  constructor(config: OneBotConfig, eventBus: any) {
+  constructor(config: OneBotConfig, eventBus: EventBus) {
     super(config, eventBus);
     this.maxReconnectAttempts = config.maxReconnectAttempts ?? 0;
     this.reconnectBaseDelay = config.reconnectBaseDelay ?? 1000;
@@ -65,22 +66,22 @@ export class OneBotChannel extends BaseChannel {
       this.log.info(`Connecting to ${this.config.wsUrl}...`);
       this.ws = new WebSocket(this.config.wsUrl, { headers });
 
-      this.ws.on('open', () => {
+      this.ws.on('open', async () => {
         this.log.info('WebSocket connected');
         this.reconnectAttempts = 0;
         this.isReconnecting = false;
 
-        this.sendAction('get_login_info', {}).then(res => {
+        try {
+          const res = await this.sendAction('get_login_info', {});
           this.selfId = res.data?.data?.user_id?.toString();
           this.log.info(`Logged in as: ${this.selfId}`);
-          
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          this.log.warn(`Failed to get login info: ${message}`);
+        } finally {
           this.flushPendingActions();
           resolve();
-        }).catch(err => {
-          this.log.warn(`Failed to get login info: ${err.message}`);
-          this.flushPendingActions();
-          resolve();
-        });
+        }
       });
 
       this.ws.on('message', (data) => {

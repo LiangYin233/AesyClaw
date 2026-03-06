@@ -1,4 +1,5 @@
 import { join } from 'path';
+import { Container, TOKENS } from '../di/index.js';
 import { EventBus } from '../bus/EventBus.js';
 import { AgentLoop } from '../agent/AgentLoop.js';
 import { ChannelManager } from '../channels/index.js';
@@ -15,28 +16,22 @@ import { registerCronTools } from '../cron/CronTools.js';
 import { logger } from '../logger/index.js';
 import type { Config } from '../types.js';
 import type { LLMProvider } from '../providers/base.js';
-import type { AgentLoop as AgentLoopType } from '../agent/AgentLoop.js';
 import type { CronJob } from '../cron/index.js';
-import type { PluginManager as PluginManagerType } from '../plugins/index.js';
-import type { SessionManager as SessionManagerType } from '../session/index.js';
-import type { ChannelManager as ChannelManagerType } from '../channels/index.js';
-import type { ToolRegistry as ToolRegistryType } from '../tools/index.js';
-import type { APIServer as APIServerType } from '../api/server.js';
 
 export interface Services {
   eventBus: EventBus;
   provider: LLMProvider;
-  toolRegistry: ToolRegistryType;
-  sessionManager: SessionManagerType;
-  channelManager: ChannelManagerType;
-  pluginManager: PluginManagerType;
-  agent: AgentLoopType;
+  toolRegistry: ToolRegistry;
+  sessionManager: SessionManager;
+  channelManager: ChannelManager;
+  pluginManager: PluginManager;
+  agent: AgentLoop;
   cronService: CronService;
   mcpManager: MCPClientManager | null;
   skillManager: SkillManager | null;
   config: Config;
   workspace: string;
-  apiServer: APIServerType;
+  apiServer: APIServer;
 }
 
 export interface ServiceFactoryOptions {
@@ -55,6 +50,12 @@ export function parseTarget(to: string): { chatId: string; messageType: 'private
   };
 }
 
+/**
+ * Service Factory using Dependency Injection
+ *
+ * Creates and configures all services using a DI container.
+ * This eliminates circular dependencies and makes the initialization order explicit.
+ */
 export class ServiceFactory {
   private log = logger.child({ prefix: 'ServiceFactory' });
 
@@ -64,86 +65,210 @@ export class ServiceFactory {
     logger.setLevel(config.log?.level || 'info');
     const log = logger.child({ prefix: 'AesyClaw' });
 
-    log.info('Initializing services...');
+    log.info('Initializing services with DI container...');
 
-    const eventBus = new EventBus();
-    log.debug('EventBus created');
+    const container = new Container();
 
-    const providerConfig = config.providers[config.agent.defaults.provider];
-    const provider = createProvider(config.agent.defaults.provider, providerConfig);
-    log.debug('Provider created');
+    // Register configuration and workspace
+    container.registerInstance(TOKENS.Config, config);
+    container.registerInstance(TOKENS.Workspace, workspace);
 
-    const toolRegistry = new ToolRegistry();
-    log.debug('ToolRegistry created');
+    // Register EventBus
+    container.registerSingleton(TOKENS.EventBus, () => {
+      log.debug('Creating EventBus');
+      return new EventBus();
+    });
 
-    const sessionManager = new SessionManager(
-      join(workspace, '.aesyclaw', 'sessions'),
-      config.agent.defaults.maxSessions || 100
-    );
-    await sessionManager.ready();
-    await sessionManager.loadAll();
-    log.info(`SessionManager ready, ${sessionManager.count()} sessions loaded`);
+    // Register LLM Provider
+    container.registerSingleton(TOKENS.LLMProvider, () => {
+      log.debug('Creating LLM Provider');
+      const providerConfig = config.providers[config.agent.defaults.provider];
+      return createProvider(config.agent.defaults.provider, providerConfig);
+    });
 
-    const pluginManager = new PluginManager(
-      {
-        config,
+    // Register ToolRegistry
+    container.registerSingleton(TOKENS.ToolRegistry, () => {
+      log.debug('Creating ToolRegistry');
+      return new ToolRegistry();
+    });
+
+    // Register SessionManager
+    container.registerSingleton(TOKENS.SessionManager, async (c) => {
+      log.debug('Creating SessionManager');
+      const ws = await c.resolve<string>(TOKENS.Workspace);
+      const cfg = await c.resolve<Config>(TOKENS.Config);
+      const sessionManager = new SessionManager(
+        join(ws, '.aesyclaw', 'sessions'),
+        cfg.agent.defaults.maxSessions ?? 100
+      );
+      await sessionManager.ready();
+      await sessionManager.loadAll();
+      log.info(`SessionManager ready, ${sessionManager.count()} sessions loaded`);
+      return sessionManager;
+    });
+
+    // Register SkillManager
+    container.registerSingleton(TOKENS.SkillManager, async (c) => {
+      log.debug('Creating SkillManager');
+      const cfg = await c.resolve<Config>(TOKENS.Config);
+      const skillManager = new SkillManager('./skills');
+      skillManager.setConfig(cfg);
+      await skillManager.loadFromDirectory();
+      log.info(`SkillManager initialized with ${skillManager.listSkills().length} skills`);
+      return skillManager;
+    });
+
+    // Register AgentLoop (depends on EventBus, Provider, ToolRegistry, SessionManager, SkillManager)
+    container.registerSingleton(TOKENS.AgentLoop, async (c) => {
+      log.debug('Creating AgentLoop');
+      const eventBus = await c.resolve<EventBus>(TOKENS.EventBus);
+      const provider = await c.resolve<LLMProvider>(TOKENS.LLMProvider);
+      const toolRegistry = await c.resolve<ToolRegistry>(TOKENS.ToolRegistry);
+      const sessionManager = await c.resolve<SessionManager>(TOKENS.SessionManager);
+      const ws = await c.resolve<string>(TOKENS.Workspace);
+      const cfg = await c.resolve<Config>(TOKENS.Config);
+      const skillManager = await c.resolve<SkillManager>(TOKENS.SkillManager);
+
+      const agent = new AgentLoop(
         eventBus,
-        agent: null as AgentLoopType | null,
-        workspace,
-        registerTool: (tool) => toolRegistry.register(tool as any),
-        getToolRegistry: () => toolRegistry as any,
-        logger,
-        sendMessage: async (channel, chatId, content, messageType) => {
-          await eventBus.publishOutbound({ channel, chatId, content, messageType: messageType || 'private' });
-        }
-      },
-      toolRegistry as any
-    );
+        provider,
+        toolRegistry,
+        sessionManager,
+        ws,
+        cfg.agent.defaults.systemPrompt,
+        cfg.agent.defaults.maxToolIterations,
+        cfg.agent.defaults.model,
+        cfg.agent.defaults.contextMode,
+        cfg.agent.defaults.memoryWindow,
+        skillManager
+      );
 
-    if (config.plugins) {
-      pluginManager.setPluginConfigs(config.plugins as Record<string, { enabled: boolean; options?: Record<string, any> }>);
-    }
+      return agent;
+    });
 
-    const newPluginConfigs = await pluginManager.applyDefaultConfigs();
-    if (Object.keys(newPluginConfigs).length > 0) {
-      config.plugins = newPluginConfigs;
-      const { ConfigLoader } = await import('../config/loader.js');
-      await ConfigLoader.save(config);
-      log.info('Applied default plugin configs');
-    }
+    // Register PluginManager (depends on AgentLoop, ToolRegistry, EventBus)
+    // This is where we break the circular dependency - PluginManager gets AgentLoop from container
+    container.registerSingleton(TOKENS.PluginManager, async (c) => {
+      log.debug('Creating PluginManager');
+      const cfg = await c.resolve<Config>(TOKENS.Config);
+      const eventBus = await c.resolve<EventBus>(TOKENS.EventBus);
+      const agent = await c.resolve<AgentLoop>(TOKENS.AgentLoop);
+      const toolRegistry = await c.resolve<ToolRegistry>(TOKENS.ToolRegistry);
+      const ws = await c.resolve<string>(TOKENS.Workspace);
 
-    if (config.plugins && Object.keys(config.plugins).length > 0) {
-      await pluginManager.loadFromConfig(config.plugins);
-    }
+      const pluginManager = new PluginManager(
+        {
+          config: cfg,
+          eventBus,
+          agent: agent,  // No more null! DI container resolves the dependency
+          workspace: ws,
+          registerTool: (tool) => toolRegistry.register(tool as any),
+          getToolRegistry: () => toolRegistry as any,
+          logger,
+          sendMessage: async (channel, chatId, content, messageType) => {
+            await eventBus.publishOutbound({ channel, chatId, content, messageType: messageType || 'private' });
+          }
+        },
+        toolRegistry
+      );
 
-    const cronService = new CronService(
-      join(workspace, '.aesyclaw', 'cron-jobs.json'),
-      onCronJob || (async () => {})
-    );
-    await cronService.start();
-    log.debug('CronService started');
+      // Set plugin configs
+      if (cfg.plugins) {
+        pluginManager.setPluginConfigs(cfg.plugins as Record<string, { enabled: boolean; options?: Record<string, any> }>);
+      }
 
-    const channelManager = new ChannelManager(eventBus);
-    log.debug('ChannelManager created');
+      // Apply default configs
+      const newPluginConfigs = await pluginManager.applyDefaultConfigs();
+      if (Object.keys(newPluginConfigs).length > 0) {
+        cfg.plugins = newPluginConfigs;
+        const { ConfigLoader } = await import('../config/loader.js');
+        await ConfigLoader.save(cfg);
+        log.info('Applied default plugin configs');
+      }
 
-    for (const [channelName, channelConfig] of Object.entries(config.channels)) {
-      if (channelConfig?.enabled) {
-        const channel = channelManager.createChannel(channelName, channelConfig);
-        if (channel) {
-          log.info(`Channel enabled: ${channelName}`);
-        } else {
-          log.warn(`Channel plugin not found: ${channelName}`);
+      // Load plugins from config
+      if (cfg.plugins && Object.keys(cfg.plugins).length > 0) {
+        await pluginManager.loadFromConfig(cfg.plugins);
+      }
+
+      // Wire up the bidirectional reference
+      agent.setPluginManager(pluginManager);
+
+      return pluginManager;
+    });
+
+    // Register CronService
+    container.registerSingleton(TOKENS.CronService, async (c) => {
+      log.debug('Creating CronService');
+      const ws = await c.resolve<string>(TOKENS.Workspace);
+      const cronService = new CronService(
+        join(ws, '.aesyclaw', 'cron-jobs.json'),
+        onCronJob || (async () => {})
+      );
+      await cronService.start();
+      log.debug('CronService started');
+      return cronService;
+    });
+
+    // Register ChannelManager
+    container.registerSingleton(TOKENS.ChannelManager, async (c) => {
+      log.debug('Creating ChannelManager');
+      const eventBus = await c.resolve<EventBus>(TOKENS.EventBus);
+      const cfg = await c.resolve<Config>(TOKENS.Config);
+      const channelManager = new ChannelManager(eventBus);
+
+      // Create channels from config
+      for (const [channelName, channelConfig] of Object.entries(cfg.channels)) {
+        if (channelConfig?.enabled) {
+          const channel = channelManager.createChannel(channelName, channelConfig);
+          if (channel) {
+            log.info(`Channel enabled: ${channelName}`);
+          } else {
+            log.warn(`Channel plugin not found: ${channelName}`);
+          }
         }
       }
-    }
 
-    // Initialize SkillManager
-    const skillManager = new SkillManager('./skills');
-    skillManager.setConfig(config);
-    await skillManager.loadFromDirectory();
-    log.info(`SkillManager initialized with ${skillManager.listSkills().length} skills`);
+      return channelManager;
+    });
 
-    // 注册 read_skill 工具 - 读取 skill 文件
+    // Register MCPClientManager (optional)
+    container.registerSingleton(TOKENS.MCPClientManager, async (c) => {
+      const cfg = await c.resolve<Config>(TOKENS.Config);
+      if (!cfg.mcp || Object.keys(cfg.mcp).length === 0) {
+        return null;
+      }
+
+      log.debug('Creating MCPClientManager');
+      const mcpManager = new MCPClientManager();
+      await mcpManager.connect(cfg.mcp);
+
+      const toolRegistry = await c.resolve<ToolRegistry>(TOKENS.ToolRegistry);
+      const mcpTools = mcpManager.getTools();
+      for (const tool of mcpTools) {
+        toolRegistry.register({
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.parameters,
+          execute: async (params: any) => {
+            return mcpManager.callTool(tool.name, params);
+          },
+          source: 'mcp' as ToolSource
+        }, 'mcp');
+      }
+      log.info(`MCP tools loaded: ${mcpTools.length}`);
+
+      return mcpManager;
+    });
+
+    // Register cron tools
+    const toolRegistry = await container.resolve<ToolRegistry>(TOKENS.ToolRegistry);
+    const cronService = await container.resolve<CronService>(TOKENS.CronService);
+    const eventBus = await container.resolve<EventBus>(TOKENS.EventBus);
+    registerCronTools(toolRegistry, cronService, eventBus);
+
+    // Register skill tools
+    const skillManager = await container.resolve<SkillManager>(TOKENS.SkillManager);
     toolRegistry.register({
       name: 'read_skill',
       description: '读取指定 skill 目录下的文件内容。用于读取 SKILL.md 或其他文件。',
@@ -169,7 +294,6 @@ export class ServiceFactory {
       }
     }, 'built-in' as ToolSource);
 
-    // 注册 list_skill_files 工具 - 列出 skill 目录下的文件
     toolRegistry.register({
       name: 'list_skill_files',
       description: '列出指定 skill 目录下所有文件。用于查看 skill 包含哪些文件。',
@@ -197,82 +321,60 @@ export class ServiceFactory {
       }
     }, 'built-in' as ToolSource);
 
-    // 列出所有可用 skills
     const skills = skillManager.listSkills();
     if (skills.length > 0) {
       const skillNames = skills.map(s => s.name).join(', ');
       log.info(`Registered read_skill, list_skill_files tools. Available skills: ${skillNames}`);
     }
 
-    const agent = new AgentLoop(
-      eventBus,
-      provider,
-      toolRegistry,
-      sessionManager,
-      workspace,
-      config.agent.defaults.systemPrompt,
-      config.agent.defaults.maxToolIterations,
-      config.agent.defaults.model,
-      config.agent.defaults.contextMode,
-      config.agent.defaults.memoryWindow,
-      skillManager
-    );
+    // Register APIServer
+    container.registerSingleton(TOKENS.APIServer, async (c) => {
+      log.debug('Creating APIServer');
+      const agent = await c.resolve<AgentLoop>(TOKENS.AgentLoop);
+      const sessionManager = await c.resolve<SessionManager>(TOKENS.SessionManager);
+      const channelManager = await c.resolve<ChannelManager>(TOKENS.ChannelManager);
+      const cfg = await c.resolve<Config>(TOKENS.Config);
+      const pluginManager = await c.resolve<PluginManager>(TOKENS.PluginManager);
+      const cronService = await c.resolve<CronService>(TOKENS.CronService);
+      const mcpManager = await c.resolve<MCPClientManager | null>(TOKENS.MCPClientManager);
+      const skillManager = await c.resolve<SkillManager>(TOKENS.SkillManager);
 
-    pluginManager.context.agent = agent;
-    pluginManager.updateAgent(agent);
-    agent.setPluginManager(pluginManager);
-    agent.setSkillManager(skillManager);
+      const apiServer = new APIServer(
+        port,
+        agent,
+        sessionManager,
+        channelManager,
+        cfg,
+        pluginManager,
+        cronService,
+        mcpManager ?? undefined,
+        skillManager
+      );
+      await apiServer.start();
+      log.info(`API server started on port ${port}`);
 
-    let mcpManager: MCPClientManager | null = null;
-    if (config.mcp && Object.keys(config.mcp).length > 0) {
-      mcpManager = new MCPClientManager();
-      await mcpManager.connect(config.mcp);
+      return apiServer;
+    });
 
-      const mcpTools = mcpManager.getTools();
-      for (const tool of mcpTools) {
-        toolRegistry.register({
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.parameters,
-          execute: async (params: any) => {
-            return mcpManager!.callTool(tool.name, params);
-          },
-          source: 'mcp' as ToolSource
-        }, 'mcp');
-      }
-      log.info(`MCP tools loaded: ${mcpTools.length}`);
-    }
-
-    registerCronTools(toolRegistry, cronService, eventBus);
-
-    const apiServer = new APIServer(
-      port,
-      agent,
-      sessionManager,
-      channelManager,
-      config,
-      pluginManager,
-      cronService,
-      mcpManager ?? undefined,
-      skillManager
-    );
-    await apiServer.start();
-    log.info(`API server started on port ${port}`);
-
-    return {
-      eventBus,
-      provider,
-      toolRegistry,
-      sessionManager,
-      channelManager,
-      pluginManager,
-      agent,
-      cronService,
-      mcpManager,
-      skillManager,
+    // Resolve all services
+    const services: Services = {
+      eventBus: await container.resolve(TOKENS.EventBus),
+      provider: await container.resolve(TOKENS.LLMProvider),
+      toolRegistry: await container.resolve(TOKENS.ToolRegistry),
+      sessionManager: await container.resolve(TOKENS.SessionManager),
+      channelManager: await container.resolve(TOKENS.ChannelManager),
+      pluginManager: await container.resolve(TOKENS.PluginManager),
+      agent: await container.resolve(TOKENS.AgentLoop),
+      cronService: await container.resolve(TOKENS.CronService),
+      mcpManager: await container.resolve(TOKENS.MCPClientManager),
+      skillManager: await container.resolve(TOKENS.SkillManager),
       config,
       workspace,
-      apiServer
+      apiServer: await container.resolve(TOKENS.APIServer)
     };
+
+    log.info('All services initialized successfully');
+
+    return services;
   }
 }

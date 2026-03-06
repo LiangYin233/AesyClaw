@@ -7,6 +7,7 @@ import type { PluginManager } from '../plugins/index.js';
 import { SkillManager, type SkillContext, type SkillResult } from '../skills/index.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS, CONFIG_DEFAULTS } from '../constants/index.js';
+import { normalizeError } from '../utils/errors.js';
 
 export type ContextMode = 'session' | 'channel' | 'global';  // 上下文模式类型
 
@@ -391,7 +392,7 @@ export class AgentLoop {
               result = await this.pluginManager.applyOnToolCall(toolName, toolArgs || {}, result);
             }
           } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message = normalizeError(error);
             const isRetryable = this.isRetryableError(error);
             result = `Error: ${message}${isRetryable ? ' (retryable)' : ''}`;
             this.log.error(`Tool ${toolName} execution failed (retryable: ${isRetryable}):`, message);

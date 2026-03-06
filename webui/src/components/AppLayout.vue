@@ -1,46 +1,57 @@
 <template>
     <div class="layout-wrapper">
-        <aside class="sidebar">
+        <aside class="sidebar" role="navigation" :aria-label="ARIA_LABELS.sidebar">
             <div class="sidebar-header">
-                <i class="pi pi-bolt"></i>
+                <i class="pi pi-bolt" aria-hidden="true"></i>
                 <span class="app-name">AesyClaw</span>
             </div>
-            <nav class="sidebar-nav">
+            <nav class="sidebar-nav" :aria-label="ARIA_LABELS.mainNav">
                 <router-link
                     v-for="item in navItems"
                     :key="item.path"
                     :to="item.path"
                     class="nav-item"
                     exact-active-class="nav-item-active"
+                    :aria-label="item.label"
+                    :aria-current="isCurrentRoute(item.path) ? 'page' : undefined"
                 >
-                    <i :class="item.icon" class="nav-icon"></i>
+                    <i :class="item.icon" class="nav-icon" aria-hidden="true"></i>
                     <span class="nav-label">{{ item.label }}</span>
                 </router-link>
             </nav>
-            <div class="sidebar-footer">
+            <div class="sidebar-footer" role="status" aria-live="polite">
                 <span class="status-label">Agent 状态</span>
                 <Tag
-                    :value="agentRunning ? '运行中' : '已停止'"
-                    :severity="agentRunning ? 'success' : 'danger'"
+                    :value="systemStore.agentRunning ? '运行中' : '已停止'"
+                    :severity="systemStore.agentRunning ? 'success' : 'danger'"
                     rounded
+                    :aria-label="`Agent 当前状态：${systemStore.agentRunning ? '运行中' : '已停止'}`"
                 />
             </div>
         </aside>
-        <main class="main-content">
+        <main class="main-content" role="main" aria-label="主要内容">
             <div class="main-content-inner">
                 <router-view />
             </div>
         </main>
+
+        <!-- Global Toast Container -->
+        <Toast position="top-right" />
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import { useApi } from '../composables/useApi'
+import { onMounted, onUnmounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { useSystemStore } from '../stores/system'
+import { useNavigationShortcuts, showKeyboardHelp, useKeyboard } from '../composables/useKeyboard'
+import { injectScreenReaderStyles, announceToScreenReader } from '../composables/useA11y'
+import { ARIA_LABELS } from '../constants/a11y'
 import Tag from 'primevue/tag'
+import Toast from 'primevue/toast'
 
-const { getStatus } = useApi()
-const agentRunning = ref(false)
+const route = useRoute()
+const systemStore = useSystemStore()
 
 const navItems = [
     { path: '/', label: '仪表盘', icon: 'pi pi-home' },
@@ -54,22 +65,47 @@ const navItems = [
     { path: '/config', label: '配置', icon: 'pi pi-cog' }
 ]
 
-let interval: number
-
-async function checkStatus() {
-    const status = await getStatus()
-    if (status) {
-        agentRunning.value = status.agentRunning
-    }
+const isCurrentRoute = (path: string) => {
+    return route.path === path || (path === '/' && route.path === '/')
 }
 
+// Watch for agent status changes and announce to screen readers
+watch(() => systemStore.agentRunning, (newStatus, oldStatus) => {
+    if (oldStatus !== undefined && newStatus !== oldStatus) {
+        announceToScreenReader(
+            `Agent 状态已变更为${newStatus ? '运行中' : '已停止'}`,
+            'polite'
+        )
+    }
+})
+
+// Setup navigation shortcuts
+useNavigationShortcuts()
+
+// Setup help shortcut
+useKeyboard([
+    {
+        key: '/',
+        ctrl: true,
+        handler: (e) => {
+            e.preventDefault()
+            showKeyboardHelp()
+        },
+        description: '显示键盘快捷键帮助'
+    }
+])
+
 onMounted(() => {
-    checkStatus()
-    interval = window.setInterval(checkStatus, 5000)
+    // Inject screen reader styles
+    injectScreenReaderStyles()
+
+    // Start polling system status
+    systemStore.startPolling(5000)
 })
 
 onUnmounted(() => {
-    clearInterval(interval)
+    // Stop polling when component unmounts
+    systemStore.stopPolling()
 })
 </script>
 
@@ -131,6 +167,11 @@ onUnmounted(() => {
     background: #eff6ff;
     color: #1d4ed8;
     transform: translateX(2px);
+}
+
+.nav-item:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
 }
 
 .nav-item-active {
@@ -258,6 +299,9 @@ onUnmounted(() => {
     .nav-item:hover {
         background: #334155;
         color: #e2e8f0;
+    }
+    .nav-item:focus {
+        outline-color: #60a5fa;
     }
     .nav-item-active {
         background: #475569;

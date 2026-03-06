@@ -27,7 +27,7 @@ export class MCPClientManager {
   }
 
   private async connectServer(name: string, config: MCPServerConfig): Promise<void> {
-    const timeout = config.timeout || MCPClientManager.DEFAULT_TIMEOUT;
+    const timeout = config.timeout ?? MCPClientManager.DEFAULT_TIMEOUT;
     const transportType = config.type || 'local';
 
     const client = new Client({
@@ -151,7 +151,7 @@ export class MCPClientManager {
       throw new Error(`MCP server not connected: ${serverName}`);
     }
 
-    const requestTimeout = timeout || MCPClientManager.DEFAULT_TIMEOUT;
+    const requestTimeout = timeout ?? MCPClientManager.DEFAULT_TIMEOUT;
 
     try {
       const response = await Promise.race<any>([

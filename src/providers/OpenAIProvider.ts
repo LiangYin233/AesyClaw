@@ -1,6 +1,7 @@
 import { LLMProvider } from './base.js';
 import type { LLMMessage, LLMResponse, ToolDefinition, ToolCall } from '../types.js';
 import { logger } from '../logger/index.js';
+import { normalizeError } from '../utils/errors.js';
 
 interface OpenAITool {
   type: string;
@@ -213,7 +214,7 @@ export class OpenAIProvider extends LLMProvider {
         usage
       };
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = normalizeError(error);
       this.log.error(`Request failed: ${message}`);
       throw error;
     }

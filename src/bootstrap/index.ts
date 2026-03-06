@@ -3,6 +3,7 @@ import { ConfigLoader } from '../config/loader.js';
 import { ServiceFactory } from './ServiceFactory.js';
 import { LifecycleManager } from './LifecycleManager.js';
 import { logger } from '../logger/index.js';
+import { normalizeError } from '../utils/errors.js';
 import type { Config } from '../types.js';
 import type { CronJob, CronSchedule } from '../cron/index.js';
 import type { OutboundMessage } from '../types.js';
@@ -74,7 +75,7 @@ export async function bootstrap(port: number): Promise<void> {
           log.info(`Cron job response sent to ${target}`);
         }
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = normalizeError(error);
         log.error(`Cron job failed: ${message}`);
       }
     }

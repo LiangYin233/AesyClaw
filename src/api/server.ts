@@ -5,8 +5,9 @@ import type { AgentLoop } from '../agent/AgentLoop.js';
 import type { SessionManager } from '../session/SessionManager.js';
 import type { ChannelManager } from '../channels/ChannelManager.js';
 import type { Config } from '../types.js';
-import { ConfigLoader } from '../config/loader.js';
+import { ConfigService } from '../config/ConfigService.js';
 import type { PluginManager } from '../plugins/index.js';
+import { normalizeError, createErrorResponse, NotFoundError } from '../utils/errors.js';
 import type { CronService } from '../cron/index.js';
 import type { MCPClientManager } from '../mcp/MCPClient.js';
 import type { SkillManager } from '../skills/SkillManager.js';
@@ -19,6 +20,7 @@ export class APIServer {
   private app = express();
   private server = createServer(this.app);
   private log = logger.child({ prefix: 'API' });
+  private configService = new ConfigService();
 
   constructor(
     private port: number,
@@ -120,9 +122,9 @@ export class APIServer {
         this.log.debug(`Chat response: ${response.substring(0, 50)}...`);
         res.json({ success: true, response });
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = normalizeError(error);
         this.log.error(`Chat error: ${message}`);
-        res.status(500).json({ success: false, error: message });
+        res.status(500).json(createErrorResponse(error));
       }
     });
 
@@ -155,8 +157,7 @@ export class APIServer {
         await channel.send({ channel: req.params.name, chatId, content });
         res.json({ success: true });
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
-        res.status(500).json({ error: message });
+        res.status(500).json(createErrorResponse(error));
       }
     });
 
@@ -177,17 +178,19 @@ export class APIServer {
       if (!this.pluginManager) {
         return res.status(500).json({ success: false, error: 'Plugin manager not available' });
       }
-      const { enabled } = req.body;
-      const { name } = req.params;
+      try {
+        const { enabled } = req.body;
+        const { name } = req.params;
 
-      const success = await this.pluginManager.enablePlugin(name, enabled);
-      if (success) {
-        this.config.plugins = this.config.plugins || {};
-        this.config.plugins[name] = { enabled };
-        await ConfigLoader.save(this.config);
-        res.json({ success: true });
-      } else {
-        res.status(500).json({ success: false, error: 'Failed to toggle plugin' });
+        const success = await this.pluginManager.enablePlugin(name, enabled);
+        if (success) {
+          await this.configService.updatePluginConfig(name, enabled);
+          res.json({ success: true });
+        } else {
+          res.status(500).json({ success: false, error: 'Failed to toggle plugin' });
+        }
+      } catch (error: unknown) {
+        res.status(500).json(createErrorResponse(error));
       }
     });
 
@@ -209,20 +212,21 @@ export class APIServer {
       if (!this.pluginManager) {
         return res.status(500).json({ success: false, error: 'Plugin manager not available' });
       }
-      const { options } = req.body;
-      const { name } = req.params;
+      try {
+        const { options } = req.body;
+        const { name } = req.params;
 
-      const success = await this.pluginManager.updatePluginConfig(name, options);
-      if (success) {
-        this.config.plugins = this.config.plugins || {};
-        this.config.plugins[name] = {
-          ...(this.config.plugins[name] as any),
-          options
-        };
-        await ConfigLoader.save(this.config);
-        res.json({ success: true });
-      } else {
-        res.status(500).json({ success: false, error: 'Failed to update plugin config' });
+        const success = await this.pluginManager.updatePluginConfig(name, options);
+        if (success) {
+          const config = this.configService.get();
+          const currentEnabled = config.plugins?.[name]?.enabled ?? true;
+          await this.configService.updatePluginConfig(name, currentEnabled, options);
+          res.json({ success: true });
+        } else {
+          res.status(500).json({ success: false, error: 'Failed to update plugin config' });
+        }
+      } catch (error: unknown) {
+        res.status(500).json(createErrorResponse(error));
       }
     });
 
@@ -233,12 +237,11 @@ export class APIServer {
     this.app.put('/api/config', async (req, res) => {
       try {
         const newConfig = req.body;
-        await ConfigLoader.save(newConfig);
+        await this.configService.save(newConfig);
         this.config = newConfig;
         res.json({ success: true });
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
-        res.status(500).json({ success: false, error: message });
+        res.status(500).json(createErrorResponse(error));
       }
     });
 
