@@ -2,8 +2,7 @@
     <div class="layout-wrapper">
         <aside class="sidebar" role="navigation" :aria-label="ARIA_LABELS.sidebar">
             <div class="sidebar-header">
-                <i class="pi pi-bolt" aria-hidden="true"></i>
-                <span class="app-name">AesyClaw</span>
+                <img src="../assets/AesyClaw.svg" alt="AesyClaw" class="app-logo" />
             </div>
             <nav class="sidebar-nav" :aria-label="ARIA_LABELS.mainNav">
                 <router-link
@@ -136,12 +135,16 @@ onUnmounted(() => {
     border-bottom: 1px solid #e2e8f0;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 10px;
     color: #0f172a;
 }
 
-.app-name {
-    letter-spacing: 0.03em;
+.app-logo {
+    height: 32px;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
 }
 
 .sidebar-nav {
