@@ -127,7 +127,9 @@ function setupConfigReload(services: Services): void {
     }
 
     currentConfig = newConfig;
-    apiServer.updateConfig(currentConfig);
+    if (apiServer) {
+      apiServer.updateConfig(currentConfig);
+    }
   });
 }
 

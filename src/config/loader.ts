@@ -9,7 +9,7 @@ const DEFAULT_CONFIG: Config = {
     host: '0.0.0.0',
     port: 18791,
     apiPort: 18792,
-    webuiPort: 5173
+    apiEnabled: true
   },
   agent: {
     defaults: {
@@ -260,9 +260,6 @@ export class ConfigLoader {
     }
     if (config.server?.apiPort && (config.server.apiPort < 1 || config.server.apiPort > 65535)) {
       errors.push(`Invalid server.apiPort: ${config.server.apiPort} (must be 1-65535)`);
-    }
-    if (config.server?.webuiPort && (config.server.webuiPort < 1 || config.server.webuiPort > 65535)) {
-      errors.push(`Invalid server.webuiPort: ${config.server.webuiPort} (must be 1-65535)`);
     }
 
     const validContextModes = ['session', 'channel', 'global'];

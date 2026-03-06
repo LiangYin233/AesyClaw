@@ -97,7 +97,7 @@ export interface ServerConfig {
   host: string;
   port: number;
   apiPort: number;
-  webuiPort?: number;
+  apiEnabled?: boolean;
 }
 
 export interface AgentConfig {

@@ -32,7 +32,7 @@ export interface Services {
   skillManager: SkillManager | null;
   config: Config;
   workspace: string;
-  apiServer: APIServer;
+  apiServer?: APIServer;
 }
 
 export interface ServiceFactoryOptions {
@@ -217,21 +217,26 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     log.info(`Registered skill tools. Available skills: ${skills.map(s => s.name).join(', ')}`);
   }
 
-  // 10. APIServer
-  const apiServer = new APIServer(
-    port,
-    agent,
-    sessionManager,
-    channelManager,
-    config,
-    pluginManager,
-    cronService,
-    mcpManager ?? undefined,
-    skillManager,
-    toolRegistry
-  );
-  await apiServer.start();
-  log.info(`API server started on port ${port}`);
+  // 10. APIServer (conditional)
+  let apiServer: APIServer | undefined;
+  if (config.server.apiEnabled !== false) {
+    apiServer = new APIServer(
+      port,
+      agent,
+      sessionManager,
+      channelManager,
+      config,
+      pluginManager,
+      cronService,
+      mcpManager ?? undefined,
+      skillManager,
+      toolRegistry
+    );
+    await apiServer.start();
+    log.info(`API server started on port ${port}`);
+  } else {
+    log.info('API server disabled by configuration');
+  }
 
   log.info('All services initialized successfully');
 
