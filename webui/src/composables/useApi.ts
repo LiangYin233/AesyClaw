@@ -7,7 +7,15 @@ import type {
   Config,
   CronJob,
   PluginInfo,
-  SkillInfo
+  SkillInfo,
+  MCPServerInfo,
+  MCPServerConfig,
+  MCPTool,
+  LogConfig,
+  MetricStats,
+  MetricOverview,
+  MetricConfig,
+  MemoryUsage
 } from '../types/api'
 
 // Re-export types for backward compatibility
@@ -18,7 +26,15 @@ export type {
   Config,
   CronJob,
   PluginInfo,
-  SkillInfo
+  SkillInfo,
+  MCPServerInfo,
+  MCPServerConfig,
+  MCPTool,
+  LogConfig,
+  MetricStats,
+  MetricOverview,
+  MetricConfig,
+  MemoryUsage
 }
 
 /**
@@ -358,6 +374,246 @@ export function useApi() {
     }
   }
 
+  async function getMCPServers(): Promise<MCPServerInfo[]> {
+    loading.value = true
+    error.value = null
+    try {
+      const { data, error: err } = await apiGet<{ servers: MCPServerInfo[] }>('/mcp/servers')
+      if (err) {
+        error.value = err
+        return []
+      }
+      return data?.servers || []
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function getMCPServer(name: string): Promise<{ server: MCPServerInfo; tools: MCPTool[] } | null> {
+    loading.value = true
+    error.value = null
+    try {
+      const { data, error: err } = await apiGet<{ server: MCPServerInfo; tools: MCPTool[] }>(`/mcp/servers/${name}`)
+      if (err) {
+        error.value = err
+        return null
+      }
+      return data
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function addMCPServer(name: string, config: MCPServerConfig): Promise<boolean> {
+    loading.value = true
+    error.value = null
+    try {
+      const { error: err } = await apiPost(`/mcp/servers/${name}`, config)
+      if (err) {
+        error.value = err
+        return false
+      }
+      return true
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function deleteMCPServer(name: string): Promise<boolean> {
+    loading.value = true
+    error.value = null
+    try {
+      const { error: err } = await apiDelete(`/mcp/servers/${name}`)
+      if (err) {
+        error.value = err
+        return false
+      }
+      return true
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function reconnectMCPServer(name: string): Promise<boolean> {
+    loading.value = true
+    error.value = null
+    try {
+      const { error: err } = await apiPost(`/mcp/servers/${name}/reconnect`)
+      if (err) {
+        error.value = err
+        return false
+      }
+      return true
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function toggleMCPServer(name: string, enabled: boolean): Promise<boolean> {
+    loading.value = true
+    error.value = null
+    try {
+      const { error: err } = await apiPost(`/mcp/servers/${name}/toggle`, { enabled })
+      if (err) {
+        error.value = err
+        return false
+      }
+      return true
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function getLogConfig(): Promise<LogConfig | null> {
+    loading.value = true
+    error.value = null
+    try {
+      const { data, error: err } = await apiGet<LogConfig>('/logs/config')
+      if (err) {
+        error.value = err
+        return null
+      }
+      return data
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function setLogLevel(level: string): Promise<boolean> {
+    loading.value = true
+    error.value = null
+    try {
+      const { error: err } = await apiPost('/logs/level', { level })
+      if (err) {
+        error.value = err
+        return false
+      }
+      return true
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function getMetricNames(): Promise<string[]> {
+    loading.value = true
+    error.value = null
+    try {
+      const { data, error: err } = await apiGet<{ names: string[] }>('/metrics/names')
+      if (err) {
+        error.value = err
+        return []
+      }
+      return data?.names || []
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function getMetricStats(name: string): Promise<MetricStats | null> {
+    loading.value = true
+    error.value = null
+    try {
+      const { data, error: err } = await apiGet<{ stats: MetricStats }>(`/metrics/stats/${name}`)
+      if (err) {
+        error.value = err
+        return null
+      }
+      return data?.stats || null
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function getMetricOverview(): Promise<MetricOverview | null> {
+    loading.value = true
+    error.value = null
+    try {
+      const { data, error: err } = await apiGet<MetricOverview>('/metrics/overview')
+      if (err) {
+        error.value = err
+        return null
+      }
+      return data
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function getMemoryUsage(): Promise<MemoryUsage | null> {
+    loading.value = true
+    error.value = null
+    try {
+      const { data, error: err } = await apiGet<MemoryUsage>('/metrics/memory')
+      if (err) {
+        error.value = err
+        return null
+      }
+      return data
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function exportMetrics(): Promise<Record<string, any> | null> {
+    loading.value = true
+    error.value = null
+    try {
+      const { data, error: err } = await apiGet<Record<string, any>>('/metrics/export')
+      if (err) {
+        error.value = err
+        return null
+      }
+      return data
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function clearMetrics(): Promise<boolean> {
+    loading.value = true
+    error.value = null
+    try {
+      const { error: err } = await apiPost('/metrics/clear')
+      if (err) {
+        error.value = err
+        return false
+      }
+      return true
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function getMetricConfig(): Promise<MetricConfig | null> {
+    loading.value = true
+    error.value = null
+    try {
+      const { data, error: err } = await apiGet<MetricConfig>('/metrics/config')
+      if (err) {
+        error.value = err
+        return null
+      }
+      return data
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function updateMetricConfig(config: MetricConfig): Promise<boolean> {
+    loading.value = true
+    error.value = null
+    try {
+      const { error: err } = await apiPost('/metrics/config', config)
+      if (err) {
+        error.value = err
+        return false
+      }
+      return true
+    } finally {
+      loading.value = false
+    }
+  }
+
   return {
     loading,
     error,
@@ -381,6 +637,22 @@ export function useApi() {
     deleteCronJob,
     toggleCronJob,
     getSkills,
-    toggleSkill
+    toggleSkill,
+    getMCPServers,
+    getMCPServer,
+    addMCPServer,
+    deleteMCPServer,
+    reconnectMCPServer,
+    toggleMCPServer,
+    getLogConfig,
+    setLogLevel,
+    getMetricNames,
+    getMetricStats,
+    getMetricOverview,
+    getMemoryUsage,
+    exportMetrics,
+    clearMetrics,
+    getMetricConfig,
+    updateMetricConfig
   }
 }

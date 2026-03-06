@@ -6,6 +6,7 @@ import type { SessionManager } from '../session/SessionManager.js';
 import type { PluginManager } from '../plugins/index.js';
 import { SkillManager, type SkillContext, type SkillResult } from '../skills/index.js';
 import { logger } from '../logger/index.js';
+import { metrics } from '../logger/Metrics.js';
 import { CONSTANTS, CONFIG_DEFAULTS } from '../constants/index.js';
 import { normalizeError } from '../utils/errors.js';
 
@@ -20,12 +21,29 @@ interface OpenAIToolCall {  // OpenAI 格式的工具调用
   };
 }
 
+/**
+ * Type guard to check if a tool call is in OpenAI format
+ */
+function isOpenAIToolCall(toolCall: ToolCall | OpenAIToolCall): toolCall is OpenAIToolCall {
+  return 'function' in toolCall && typeof toolCall.function === 'object';
+}
+
 function getToolCallName(toolCall: ToolCall | OpenAIToolCall): string | undefined {  // 获取工具调用名称
-  return (toolCall as any).name ?? (toolCall as any).function?.name;
+  if (isOpenAIToolCall(toolCall)) {
+    return toolCall.function?.name;
+  }
+  return (toolCall as ToolCall).name;
 }
 
 function getToolCallArguments(toolCall: ToolCall | OpenAIToolCall): Record<string, any> | undefined {  // 获取工具调用参数
-  const args = (toolCall as any).arguments ?? (toolCall as any).function?.arguments;
+  let args: string | Record<string, any> | undefined;
+
+  if (isOpenAIToolCall(toolCall)) {
+    args = toolCall.function?.arguments;
+  } else {
+    args = (toolCall as ToolCall).arguments;
+  }
+
   return typeof args === 'string' ? JSON.parse(args || '{}') : args;
 }
 
@@ -48,12 +66,13 @@ export class ContextBuilder {  // 上下文构建器
     history: any[],
     currentMessage: string,
     channel?: string,
-    chatId?: string
+    chatId?: string,
+    media?: string[]  // 新增 media 参数
   ): LLMMessage[] {
     const messages: LLMMessage[] = [
       { role: 'system', content: this.buildSystemPrompt() },
       ...history.filter(m => ['user', 'assistant', 'system'].includes(m.role)),
-      { role: 'user', content: this.buildUserContent(currentMessage, channel, chatId) }
+      { role: 'user', content: this.buildUserContent(currentMessage, channel, chatId, media) }
     ];
     return messages;
   }
@@ -76,7 +95,12 @@ export class ContextBuilder {  // 上下文构建器
     return sections.join('\n\n');
   }
 
-  private buildUserContent(message: string, channel?: string, chatId?: string): string {
+  private buildUserContent(
+    message: string,
+    channel?: string,
+    chatId?: string,
+    media?: string[]  // 新增 media 参数
+  ): string | Array<{ type: string; text?: string; image_url?: { url: string } }> {
     const ctx = [
       `[Runtime Context]`,
       channel && `Channel: ${channel}`,
@@ -84,7 +108,27 @@ export class ContextBuilder {  // 上下文构建器
       `Time: ${new Date().toISOString()}`
     ].filter(Boolean).join('\n');
 
-    return `${ctx}\n\n${message}`;
+    const fullMessage = `${ctx}\n\n${message}`;
+
+    // 如果有图片，构建多模态消息
+    if (media && media.length > 0) {
+      const content: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
+        { type: 'text', text: fullMessage }
+      ];
+
+      // 添加图片
+      for (const imageUrl of media) {
+        content.push({
+          type: 'image_url',
+          image_url: { url: imageUrl }
+        });
+      }
+
+      return content;
+    }
+
+    // 纯文本消息
+    return fullMessage;
   }
 }
 
@@ -178,7 +222,13 @@ export class AgentLoop {
   }
 
   private async processMessage(msg: InboundMessage): Promise<void> {
-    this.log.info(`processMessage: content="${msg.content}", media=${JSON.stringify(msg.media)}`);
+    const endTimer = metrics.timer('agent.process_message', {
+      channel: msg.channel,
+      sessionKey: msg.sessionKey || 'unknown'
+    });
+
+    try {
+      this.log.info(`processMessage: content="${msg.content}", media=${JSON.stringify(msg.media)}`);
     if (this.pluginManager) {
       this.log.info('Calling applyOnCommand...');
       const cmdResult = await this.pluginManager.applyOnCommand(msg);
@@ -253,7 +303,8 @@ export class AgentLoop {
       historyMessages,
       msg.content,
       msg.channel,
-      msg.chatId
+      msg.chatId,
+      msg.media  // 传递 media 字段
     );
 
     if (this.pluginManager) {
@@ -300,7 +351,17 @@ export class AgentLoop {
 
     this.log.debug(`Publishing outbound message to ${msg.channel}:${msg.chatId}`);
     await this.eventBus.publishOutbound(outboundMsg);
+
+    // 记录消息处理成功
+    metrics.record('agent.message_count', 1, 'count', { status: 'success' });
+  } catch (error) {
+    // 记录消息处理失败
+    metrics.record('agent.message_count', 1, 'count', { status: 'error' });
+    throw error;
+  } finally {
+    endTimer();
   }
+}
 
   private async runAgentLoop(
     messages: LLMMessage[],
@@ -359,6 +420,8 @@ export class AgentLoop {
 
           this.log.info(`Tool ${toolName} arguments: ${JSON.stringify(toolArgs)}`);
 
+          const toolEndTimer = metrics.timer('agent.tool_execution', { tool: toolName });
+
           let result: string;
 
           try {
@@ -391,15 +454,23 @@ export class AgentLoop {
             if (this.pluginManager) {
               result = await this.pluginManager.applyOnToolCall(toolName, toolArgs || {}, result);
             }
+
+            // 记录工具调用成功
+            metrics.record('agent.tool_call_count', 1, 'count', { tool: toolName, status: 'success' });
           } catch (error: unknown) {
             const message = normalizeError(error);
             const isRetryable = this.isRetryableError(error);
             result = `Error: ${message}${isRetryable ? ' (retryable)' : ''}`;
             this.log.error(`Tool ${toolName} execution failed (retryable: ${isRetryable}):`, message);
 
+            // 记录工具调用失败
+            metrics.record('agent.tool_call_count', 1, 'count', { tool: toolName, status: 'error' });
+
             if (this.pluginManager) {
               await this.pluginManager.applyOnError(error, { type: 'tool', data: { toolName, toolArgs } });
             }
+          } finally {
+            toolEndTimer();
           }
 
           messages.push({

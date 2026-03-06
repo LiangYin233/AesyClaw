@@ -21,21 +21,66 @@ export interface HookPipelineOptions {
 }
 
 /**
- * Generic hook pipeline for transforming data through plugin hooks
+ * Base class for hook pipelines with common timeout and error handling logic
  */
-export class HookPipeline<TInput, TOutput = TInput> {
-  private timeout: number;
-  private verbose: boolean;
+abstract class BaseHookPipeline {
+  protected timeout: number;
+  protected verbose: boolean;
 
   constructor(
-    private plugins: Plugin[],
-    private hookName: keyof Plugin,
+    protected plugins: Plugin[],
+    protected hookName: keyof Plugin,
     options: HookPipelineOptions = {}
   ) {
     this.timeout = options.timeout ?? 5000;
     this.verbose = options.verbose ?? false;
   }
 
+  /**
+   * Execute a function with timeout protection
+   */
+  protected async executeWithTimeout<T>(
+    fn: (...args: any[]) => Promise<T> | T,
+    ...args: any[]
+  ): Promise<T> {
+    return Promise.race([
+      Promise.resolve(fn(...args)) as Promise<T>,
+      this.createTimeoutPromise<T>()
+    ]);
+  }
+
+  /**
+   * Create a timeout promise that rejects after the specified duration
+   */
+  protected createTimeoutPromise<T>(): Promise<T> {
+    return new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`Hook ${String(this.hookName)} timed out after ${this.timeout}ms`));
+      }, this.timeout);
+    });
+  }
+
+  /**
+   * Log hook execution if verbose mode is enabled
+   */
+  protected logExecution(pluginName: string): void {
+    if (this.verbose) {
+      log.debug(`Executing ${String(this.hookName)} for plugin ${pluginName}`);
+    }
+  }
+
+  /**
+   * Log hook execution error
+   */
+  protected logError(pluginName: string, error: unknown): void {
+    log.error(`Plugin ${pluginName} ${String(this.hookName)} error:`, error);
+  }
+}
+
+/**
+ * Generic hook pipeline for transforming data through plugin hooks
+ */
+export class HookPipeline<TInput, TOutput = TInput> extends BaseHookPipeline {
   /**
    * Execute the hook pipeline
    * @param initial Initial value to transform
@@ -54,9 +99,7 @@ export class HookPipeline<TInput, TOutput = TInput> {
       }
 
       try {
-        if (this.verbose) {
-          log.debug(`Executing ${String(this.hookName)} for plugin ${plugin.name}`);
-        }
+        this.logExecution(plugin.name);
 
         // Execute hook with timeout protection
         const hookResult = await this.executeWithTimeout(
@@ -71,54 +114,18 @@ export class HookPipeline<TInput, TOutput = TInput> {
         }
       } catch (error) {
         // Log error but continue with other plugins
-        log.error(`Plugin ${plugin.name} ${String(this.hookName)} error:`, error);
+        this.logError(plugin.name, error);
       }
     }
 
     return result as TOutput;
-  }
-
-  /**
-   * Execute a function with timeout protection
-   */
-  private async executeWithTimeout<T>(
-    fn: (...args: any[]) => Promise<T> | T,
-    ...args: any[]
-  ): Promise<T> {
-    return Promise.race([
-      Promise.resolve(fn(...args)) as Promise<T>,
-      this.createTimeoutPromise<T>()
-    ]);
-  }
-
-  /**
-   * Create a timeout promise that rejects after the specified duration
-   */
-  private createTimeoutPromise<T>(): Promise<T> {
-    return new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(new Error(`Hook ${String(this.hookName)} timed out after ${this.timeout}ms`));
-      }, this.timeout);
-    });
   }
 }
 
 /**
  * Void hook pipeline for hooks that don't return values
  */
-export class VoidHookPipeline {
-  private timeout: number;
-  private verbose: boolean;
-
-  constructor(
-    private plugins: Plugin[],
-    private hookName: keyof Plugin,
-    options: HookPipelineOptions = {}
-  ) {
-    this.timeout = options.timeout ?? 5000;
-    this.verbose = options.verbose ?? false;
-  }
-
+export class VoidHookPipeline extends BaseHookPipeline {
   /**
    * Execute void hooks (hooks that don't return values)
    */
@@ -131,32 +138,11 @@ export class VoidHookPipeline {
       }
 
       try {
-        if (this.verbose) {
-          log.debug(`Executing ${String(this.hookName)} for plugin ${plugin.name}`);
-        }
-
+        this.logExecution(plugin.name);
         await this.executeWithTimeout(hook.bind(plugin), ...args);
       } catch (error) {
-        log.error(`Plugin ${plugin.name} ${String(this.hookName)} error:`, error);
+        this.logError(plugin.name, error);
       }
     }
-  }
-
-  private async executeWithTimeout(
-    fn: (...args: any[]) => Promise<void> | void,
-    ...args: any[]
-  ): Promise<void> {
-    return Promise.race([
-      Promise.resolve(fn(...args)),
-      this.createTimeoutPromise()
-    ]);
-  }
-
-  private createTimeoutPromise(): Promise<void> {
-    return new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(new Error(`Hook ${String(this.hookName)} timed out after ${this.timeout}ms`));
-      }, this.timeout);
-    });
   }
 }

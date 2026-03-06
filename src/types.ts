@@ -26,7 +26,14 @@ export interface OutboundMessage {
 
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string;
+  content: string | Array<{
+    type: 'text' | 'image_url';
+    text?: string;
+    image_url?: {
+      url: string;
+      detail?: 'auto' | 'low' | 'high';
+    };
+  }>;
   toolCalls?: ToolCall[];
   toolCallId?: string;
   name?: string;
@@ -71,12 +78,19 @@ export interface Config {
   plugins?: Record<string, any>;
   skills?: Record<string, { enabled: boolean }>;
   log?: LogConfig;
+  metrics?: MetricsConfig;
 }
 
 export interface LogConfig {
   level?: 'debug' | 'info' | 'warn' | 'error';
-  showTimestamp?: boolean;
-  useColors?: boolean;
+}
+
+export interface MetricsConfig {
+  enabled?: boolean;           // 是否启用指标收集，默认 true
+  maxMetrics?: number;         // 最大指标数量，默认 10000
+  collectAgent?: boolean;      // 收集 Agent 指标，默认 true
+  collectTools?: boolean;      // 收集工具指标，默认 true
+  collectPlugins?: boolean;    // 收集插件指标，默认 true
 }
 
 export interface ServerConfig {
@@ -121,4 +135,15 @@ export interface MCPServerConfig {
 
 export interface MCPServersConfig {
   [name: string]: MCPServerConfig;
+}
+
+export type MCPServerStatus = 'connecting' | 'connected' | 'failed' | 'disconnected';
+
+export interface MCPServerInfo {
+  name: string;
+  status: MCPServerStatus;
+  config: MCPServerConfig;
+  connectedAt?: Date;
+  error?: string;
+  toolCount: number;
 }

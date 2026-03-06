@@ -14,7 +14,14 @@ interface OpenAITool {
 
 interface OpenAIMessage {
   role: string;
-  content?: string | null;
+  content?: string | null | Array<{
+    type: 'text' | 'image_url';
+    text?: string;
+    image_url?: {
+      url: string;
+      detail?: 'auto' | 'low' | 'high';
+    };
+  }>;
   tool_call_id?: string;
   tool_calls?: OpenAIToolCall[];
 }

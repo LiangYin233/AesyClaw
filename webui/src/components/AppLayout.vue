@@ -62,6 +62,8 @@ const navItems = [
     { path: '/plugins', label: '插件', icon: 'pi pi-th-large' },
     { path: '/mcp', label: 'MCP', icon: 'pi pi-server' },
     { path: '/skills', label: 'Skills', icon: 'pi pi-star' },
+    { path: '/logs', label: '日志', icon: 'pi pi-file' },
+    { path: '/metrics', label: '监控', icon: 'pi pi-chart-line' },
     { path: '/config', label: '配置', icon: 'pi pi-cog' }
 ]
 

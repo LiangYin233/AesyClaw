@@ -26,8 +26,6 @@ export interface IAgentLoop {
   processMessage(msg: InboundMessage): Promise<AgentResponse>;
   setPluginManager(pm: IPluginManager): void;
   setSkillManager(sm: ISkillManager): void;
-  start(): void;
-  stop(): void;
 }
 
 export interface AgentResponse {

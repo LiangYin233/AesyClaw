@@ -1,20 +1,34 @@
 import express from 'express';
 import { createServer } from 'http';
 import { randomUUID } from 'crypto';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import type { AgentLoop } from '../agent/AgentLoop.js';
 import type { SessionManager } from '../session/SessionManager.js';
 import type { ChannelManager } from '../channels/ChannelManager.js';
 import type { Config } from '../types.js';
 import { ConfigService } from '../config/ConfigService.js';
 import type { PluginManager } from '../plugins/index.js';
-import { normalizeError, createErrorResponse, NotFoundError } from '../utils/errors.js';
+import { normalizeError, createErrorResponse, createValidationErrorResponse, NotFoundError } from '../utils/errors.js';
 import type { CronService } from '../cron/index.js';
 import type { MCPClientManager } from '../mcp/MCPClient.js';
 import type { SkillManager } from '../skills/SkillManager.js';
-import { logger } from '../logger/index.js';
+import type { ToolRegistry } from '../tools/ToolRegistry.js';
+import { logger, type LogLevel } from '../logger/index.js';
+import { metrics } from '../logger/Metrics.js';
 import { CONSTANTS } from '../constants/index.js';
+import { ConfigLoader } from '../config/loader.js';
 
 const MAX_MESSAGE_LENGTH = CONSTANTS.MESSAGE_MAX_LENGTH;
+
+// 读取版本号
+let packageVersion = '0.1.0';
+try {
+  const packageJson = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8'));
+  packageVersion = packageJson.version || '0.1.0';
+} catch (error) {
+  // 如果读取失败,使用默认版本号
+}
 
 export class APIServer {
   private app = express();
@@ -31,8 +45,29 @@ export class APIServer {
     private pluginManager?: PluginManager,
     private cronService?: CronService,
     private mcpManager?: MCPClientManager,
-    private skillManager?: SkillManager
+    private skillManager?: SkillManager,
+    private toolRegistry?: ToolRegistry
   ) {}
+
+  /**
+   * 验证请求参数
+   */
+  private validateRequired(value: any, fieldName: string): value is string {
+    return value !== undefined && value !== null && typeof value === 'string' && value.length > 0;
+  }
+
+  /**
+   * 验证字符串类型
+   */
+  private validateString(value: any, fieldName: string, maxLength?: number): string | null {
+    if (!value || typeof value !== 'string') {
+      return `${fieldName} is required and must be a string`;
+    }
+    if (maxLength && value.length > maxLength) {
+      return `${fieldName} too long (max ${maxLength} characters)`;
+    }
+    return null;
+  }
 
   async start(): Promise<void> {
     this.setupMiddleware();
@@ -66,7 +101,7 @@ export class APIServer {
   private setupRoutes(): void {
     this.app.get('/api/status', (req, res) => {
       res.json({
-        version: '0.1.0',
+        version: packageVersion,
         uptime: process.uptime(),
         channels: this.channelManager.getStatus(),
         sessions: this.sessionManager.count(),
@@ -106,14 +141,14 @@ export class APIServer {
       const { sessionKey, message } = req.body;
 
       if (!message || typeof message !== 'string') {
-        return res.status(400).json({ success: false, error: 'Message is required' });
+        return res.status(400).json(createValidationErrorResponse('Message is required', 'message'));
       }
 
       if (message.length > MAX_MESSAGE_LENGTH) {
-        return res.status(400).json({ success: false, error: `Message too long (max ${MAX_MESSAGE_LENGTH} characters)` });
+        return res.status(400).json(createValidationErrorResponse(`Message too long (max ${MAX_MESSAGE_LENGTH} characters)`, 'message'));
       }
 
-      const key = sessionKey || `api:${Date.now()}`;
+      const key = sessionKey || `api:${randomUUID()}`;
 
       this.log.debug(`POST /api/chat - session: ${key}, message: ${message.substring(0, 50)}...`);
 
@@ -136,21 +171,21 @@ export class APIServer {
       const { chatId, content } = req.body;
 
       if (!chatId || typeof chatId !== 'string') {
-        return res.status(400).json({ error: 'chatId is required and must be a string' });
+        return res.status(400).json(createValidationErrorResponse('chatId is required and must be a string', 'chatId'));
       }
 
       if (!content || typeof content !== 'string') {
-        return res.status(400).json({ error: 'content is required and must be a string' });
+        return res.status(400).json(createValidationErrorResponse('content is required and must be a string', 'content'));
       }
 
       if (content.length > MAX_MESSAGE_LENGTH) {
-        return res.status(400).json({ error: `content too long (max ${MAX_MESSAGE_LENGTH} characters)` });
+        return res.status(400).json(createValidationErrorResponse(`content too long (max ${MAX_MESSAGE_LENGTH} characters)`, 'content'));
       }
 
       const channel = this.channelManager.get(req.params.name);
 
       if (!channel) {
-        return res.status(404).json({ error: 'Channel not found' });
+        return res.status(404).json(createErrorResponse(new NotFoundError('Channel', req.params.name)));
       }
 
       try {
@@ -244,27 +279,6 @@ export class APIServer {
         res.status(500).json(createErrorResponse(error));
       }
     });
-
-
-    // MCP routes
-    if (this.mcpManager) {
-      this.app.get('/api/mcp', (req, res) => {
-        const tools = this.mcpManager!.getTools();
-        res.json({
-          servers: this.mcpManager!.getServerNames(),
-          tools: tools.map(t => ({
-            name: t.name,
-            description: t.description,
-            parameters: t.parameters
-          }))
-        });
-      });
-
-      this.app.get('/api/mcp/tools', (req, res) => {
-        const tools = this.mcpManager!.getTools();
-        res.json({ tools });
-      });
-    }
 
     // Skills routes
     if (this.skillManager) {
@@ -370,6 +384,332 @@ export class APIServer {
         res.json({ success: true, enabled });
       });
     }
+
+    // 日志配置 API
+    this.app.get('/api/logs/config', (req, res) => {
+      res.json(logger.getConfig());
+    });
+
+    this.app.post('/api/logs/level', (req, res) => {
+      try {
+        const { level } = req.body;
+
+        // 验证日志级别
+        const validLevels: LogLevel[] = ['debug', 'info', 'warn', 'error'];
+        if (!level || !validLevels.includes(level)) {
+          return res.status(400).json({
+            error: `Invalid log level. Must be one of: ${validLevels.join(', ')}`
+          });
+        }
+
+        // 更新日志级别
+        logger.setLevel(level);
+
+        res.json({
+          success: true,
+          level: logger.getLevel()
+        });
+      } catch (error) {
+        res.status(400).json(createErrorResponse(error));
+      }
+    });
+
+    // 性能指标 API
+    this.app.get('/api/metrics/names', (req, res) => {
+      res.json({
+        names: metrics.getMetricNames()
+      });
+    });
+
+    this.app.get('/api/metrics/stats/:name', (req, res) => {
+      const { name } = req.params;
+      const { timeWindow } = req.query;
+
+      const window = timeWindow ? parseInt(timeWindow as string) : undefined;
+      const stats = metrics.getStats(name, window);
+
+      if (!stats) {
+        return res.status(404).json({
+          error: `Metric "${name}" not found or no data available`
+        });
+      }
+
+      res.json(stats);
+    });
+
+    this.app.get('/api/metrics/export', (req, res) => {
+      const { name, timeWindow } = req.query;
+
+      const window = timeWindow ? parseInt(timeWindow as string) : undefined;
+      const data = metrics.export(name as string | undefined, window);
+
+      res.json({
+        count: data.length,
+        metrics: data
+      });
+    });
+
+    this.app.post('/api/metrics/clear', (req, res) => {
+      const { name } = req.body;
+      metrics.clear(name);
+
+      res.json({
+        success: true,
+        message: name ? `Cleared metrics for "${name}"` : 'Cleared all metrics'
+      });
+    });
+
+    this.app.get('/api/metrics/memory', (req, res) => {
+      res.json(metrics.getMemoryUsage());
+    });
+
+    this.app.get('/api/metrics/overview', (req, res) => {
+      const timeWindow = 60000; // 最近 1 分钟
+
+      const overview = {
+        agent: {
+          processMessage: metrics.getStats('agent.process_message', timeWindow),
+          messageCount: metrics.getStats('agent.message_count', timeWindow),
+          toolExecution: metrics.getStats('agent.tool_execution', timeWindow)
+        },
+        tools: {
+          executionTime: metrics.getStats('tool.execution_time', timeWindow),
+          callCount: metrics.getStats('tool.call_count', timeWindow)
+        },
+        plugins: {
+          hookExecution: metrics.getStats('plugin.hook_execution', timeWindow),
+          hookCount: metrics.getStats('plugin.hook_count', timeWindow)
+        },
+        memory: metrics.getMemoryUsage()
+      };
+
+      res.json(overview);
+    });
+
+    // 获取 metrics 配置
+    this.app.get('/api/metrics/config', (req, res) => {
+      res.json(metrics.getConfig());
+    });
+
+    // 更新 metrics 配置
+    this.app.post('/api/metrics/config', (req, res) => {
+      try {
+        const { enabled } = req.body;
+
+        if (enabled !== undefined && typeof enabled === 'boolean') {
+          metrics.setEnabled(enabled);
+        }
+
+        res.json({
+          success: true,
+          config: metrics.getConfig()
+        });
+      } catch (error) {
+        res.status(400).json(createErrorResponse(error));
+      }
+    });
+
+    // ==================== MCP 管理端点 ====================
+
+    // 获取所有 MCP 服务器状态
+    this.app.get('/api/mcp/servers', (req, res) => {
+      if (!this.mcpManager) {
+        return res.json({ servers: [] });
+      }
+
+      const servers = this.mcpManager.getServerStatus();
+      res.json({ servers });
+    });
+
+    // 获取单个 MCP 服务器状态
+    this.app.get('/api/mcp/servers/:name', (req, res) => {
+      if (!this.mcpManager) {
+        return res.status(404).json({ error: 'MCP not configured' });
+      }
+
+      const { name } = req.params;
+      const server = this.mcpManager.getServerStatus(name);
+
+      if (!server || (Array.isArray(server) ? false : server.status === 'disconnected')) {
+        return res.status(404).json({ error: `MCP server not found: ${name}` });
+      }
+
+      res.json(server);
+    });
+
+    // 添加/更新 MCP 服务器
+    this.app.post('/api/mcp/servers/:name', async (req, res) => {
+      try {
+        const { name } = req.params;
+        const config = req.body;
+
+        // 验证配置
+        if (!config.type || !['local', 'http'].includes(config.type)) {
+          return res.status(400).json({
+            error: 'Invalid config: type must be "local" or "http"'
+          });
+        }
+
+        if (config.type === 'local' && !config.command) {
+          return res.status(400).json({
+            error: 'Invalid config: command is required for local type'
+          });
+        }
+
+        if (config.type === 'http' && !config.url) {
+          return res.status(400).json({
+            error: 'Invalid config: url is required for http type'
+          });
+        }
+
+        // 初始化 MCPClientManager (如果不存在)
+        if (!this.mcpManager) {
+          const { MCPClientManager } = await import('../mcp/index.js');
+          this.mcpManager = new MCPClientManager();
+        }
+
+        // 连接服务器
+        await this.mcpManager.connectOne(name, config);
+
+        // 保存到配置文件
+        this.config.mcp = this.config.mcp || {};
+        this.config.mcp[name] = config;
+        await ConfigLoader.save(this.config);
+
+        // 注册工具到 ToolRegistry
+        if (this.toolRegistry) {
+          const allTools = this.mcpManager.getTools();
+          const tools = allTools.filter(t => t.name.startsWith(`mcp_${name}_`));
+
+          for (const tool of tools) {
+            this.toolRegistry.register({
+              name: tool.name,
+              description: tool.description,
+              parameters: tool.parameters,
+              execute: async (params: any) => {
+                return this.mcpManager!.callTool(tool.name, params);
+              },
+              source: 'mcp' as any
+            }, 'mcp');
+          }
+
+          res.json({
+            success: true,
+            server: this.mcpManager.getServerStatus(name),
+            toolsRegistered: tools.length
+          });
+        } else {
+          res.json({
+            success: true,
+            server: this.mcpManager.getServerStatus(name),
+            toolsRegistered: 0
+          });
+        }
+      } catch (error) {
+        res.status(500).json(createErrorResponse(error));
+      }
+    });
+
+    // 删除 MCP 服务器
+    this.app.delete('/api/mcp/servers/:name', async (req, res) => {
+      try {
+        if (!this.mcpManager) {
+          return res.status(404).json({ error: 'MCP not configured' });
+        }
+
+        const { name } = req.params;
+
+        // 断开连接
+        await this.mcpManager.disconnectOne(name);
+
+        // 从配置文件中删除
+        if (this.config.mcp && this.config.mcp[name]) {
+          delete this.config.mcp[name];
+          await ConfigLoader.save(this.config);
+        }
+
+        // 从 ToolRegistry 中注销工具
+        let toolsRemoved = 0;
+        if (this.toolRegistry) {
+          const toolsToRemove = this.toolRegistry.list().filter((t: any) =>
+            t.name.startsWith(`mcp_${name}_`)
+          );
+
+          for (const tool of toolsToRemove) {
+            this.toolRegistry.unregister(tool.name);
+          }
+          toolsRemoved = toolsToRemove.length;
+        }
+
+        res.json({
+          success: true,
+          message: `MCP server "${name}" removed`,
+          toolsRemoved
+        });
+      } catch (error) {
+        res.status(500).json(createErrorResponse(error));
+      }
+    });
+
+    // 重新连接 MCP 服务器
+    this.app.post('/api/mcp/servers/:name/reconnect', async (req, res) => {
+      try {
+        if (!this.mcpManager) {
+          return res.status(404).json({ error: 'MCP not configured' });
+        }
+
+        const { name } = req.params;
+        await this.mcpManager.reconnect(name);
+
+        res.json({
+          success: true,
+          server: this.mcpManager.getServerStatus(name)
+        });
+      } catch (error) {
+        res.status(500).json(createErrorResponse(error));
+      }
+    });
+
+    // 启用/禁用 MCP 服务器
+    this.app.post('/api/mcp/servers/:name/toggle', async (req, res) => {
+      try {
+        const { name } = req.params;
+        const { enabled } = req.body;
+
+        if (typeof enabled !== 'boolean') {
+          return res.status(400).json({
+            error: 'Invalid request: enabled must be a boolean'
+          });
+        }
+
+        // 更新配置
+        if (!this.config.mcp || !this.config.mcp[name]) {
+          return res.status(404).json({
+            error: `MCP server not found in config: ${name}`
+          });
+        }
+
+        this.config.mcp[name].enabled = enabled;
+        await ConfigLoader.save(this.config);
+
+        // 连接或断开
+        if (this.mcpManager) {
+          if (enabled) {
+            await this.mcpManager.connectOne(name, this.config.mcp[name]);
+          } else {
+            await this.mcpManager.disconnectOne(name);
+          }
+        }
+
+        res.json({
+          success: true,
+          enabled,
+          server: this.mcpManager?.getServerStatus(name)
+        });
+      } catch (error) {
+        res.status(500).json(createErrorResponse(error));
+      }
+    });
   }
 
   async stop(): Promise<void> {

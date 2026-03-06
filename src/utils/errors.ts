@@ -28,14 +28,16 @@ export function createErrorResponse(error: unknown): { error: string } {
 }
 
 /**
- * Get error stack trace if available
+ * Create a standardized validation error response
  */
-export function getErrorStack(error: unknown): string | undefined {
-  if (error instanceof Error && error.stack) {
-    return error.stack;
-  }
-  return undefined;
+export function createValidationErrorResponse(message: string, field?: string): { success: false; error: string; field?: string } {
+  return {
+    success: false,
+    error: message,
+    ...(field && { field })
+  };
 }
+
 
 /**
  * Application Error with status code
@@ -83,69 +85,3 @@ export class NotFoundError extends AppError {
   }
 }
 
-/**
- * Configuration Error
- */
-export class ConfigError extends AppError {
-  constructor(message: string, details?: any) {
-    super(message, 'CONFIG_ERROR', 500, details);
-    this.name = 'ConfigError';
-  }
-}
-
-/**
- * Plugin Error
- */
-export class PluginError extends AppError {
-  constructor(pluginName: string, message: string, details?: any) {
-    super(`Plugin "${pluginName}": ${message}`, 'PLUGIN_ERROR', 500, details);
-    this.name = 'PluginError';
-  }
-}
-
-/**
- * Tool Execution Error
- */
-export class ToolError extends AppError {
-  constructor(toolName: string, message: string, details?: any) {
-    super(`Tool "${toolName}": ${message}`, 'TOOL_ERROR', 500, details);
-    this.name = 'ToolError';
-  }
-}
-
-/**
- * Wrap async function with error handling
- */
-export function wrapAsync<T extends (...args: any[]) => Promise<any>>(
-  fn: T,
-  errorHandler?: (error: unknown) => void
-): T {
-  return (async (...args: any[]) => {
-    try {
-      return await fn(...args);
-    } catch (error) {
-      if (errorHandler) {
-        errorHandler(error);
-      }
-      throw error;
-    }
-  }) as T;
-}
-
-/**
- * Safe JSON parse with error handling
- */
-export function safeJsonParse<T = any>(json: string, defaultValue?: T): T | undefined {
-  try {
-    return JSON.parse(json);
-  } catch (error) {
-    return defaultValue;
-  }
-}
-
-/**
- * Check if error is of specific type
- */
-export function isErrorType(error: unknown, type: new (...args: any[]) => Error): boolean {
-  return error instanceof type;
-}

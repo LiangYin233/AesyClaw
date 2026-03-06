@@ -56,6 +56,20 @@ export class ToolRegistry {
     this.log.debug(`Unregistered tool: ${name}`);
   }
 
+  /**
+   * 批量注销工具
+   */
+  unregisterMany(names: string[]): number {
+    let count = 0;
+    for (const name of names) {
+      if (this.tools.has(name)) {
+        this.unregister(name);
+        count++;
+      }
+    }
+    return count;
+  }
+
   get(name: string): Tool | undefined {
     return this.tools.get(name);
   }
@@ -95,6 +109,13 @@ export class ToolRegistry {
         description: tool.description,
         parameters: tool.parameters
       }));
+  }
+
+  /**
+   * 获取所有工具列表
+   */
+  list(): Tool[] {
+    return Array.from(this.tools.values());
   }
 
   async execute(name: string, params: Record<string, any>, context?: ToolContext): Promise<string> {

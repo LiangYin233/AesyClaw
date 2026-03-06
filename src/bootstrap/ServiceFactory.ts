@@ -14,6 +14,7 @@ import { APIServer } from '../api/index.js';
 import { CronService } from '../cron/index.js';
 import { registerCronTools } from '../cron/CronTools.js';
 import { logger } from '../logger/index.js';
+import { metrics } from '../logger/Metrics.js';
 import type { Config } from '../types.js';
 import type { LLMProvider } from '../providers/base.js';
 import type { CronJob } from '../cron/index.js';
@@ -62,8 +63,20 @@ export class ServiceFactory {
   async create(options: ServiceFactoryOptions): Promise<Services> {
     const { workspace, config, port, onCronJob } = options;
 
+    // 配置日志系统
     logger.setLevel(config.log?.level || 'info');
     const log = logger.child({ prefix: 'AesyClaw' });
+
+    // 配置指标收集系统
+    if (config.metrics) {
+      if (config.metrics.enabled !== undefined) {
+        metrics.setEnabled(config.metrics.enabled);
+      }
+      log.info(`Metrics collection: ${metrics.isEnabled() ? 'enabled' : 'disabled'}`);
+      if (metrics.isEnabled()) {
+        log.info(`Metrics max size: ${config.metrics.maxMetrics || 10000}`);
+      }
+    }
 
     log.info('Initializing services with DI container...');
 
@@ -241,22 +254,29 @@ export class ServiceFactory {
 
       log.debug('Creating MCPClientManager');
       const mcpManager = new MCPClientManager();
-      await mcpManager.connect(cfg.mcp);
 
+      // 非阻塞连接 - 立即返回,后台连接
+      mcpManager.connectAsync(cfg.mcp);
+
+      log.info('MCP servers connecting in background...');
+
+      // 注册工具加载回调
+      // 当 MCP 工具加载完成时,动态注册到 ToolRegistry
       const toolRegistry = await c.resolve<ToolRegistry>(TOKENS.ToolRegistry);
-      const mcpTools = mcpManager.getTools();
-      for (const tool of mcpTools) {
-        toolRegistry.register({
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.parameters,
-          execute: async (params: any) => {
-            return mcpManager.callTool(tool.name, params);
-          },
-          source: 'mcp' as ToolSource
-        }, 'mcp');
-      }
-      log.info(`MCP tools loaded: ${mcpTools.length}`);
+      mcpManager.onToolsLoaded((tools) => {
+        for (const tool of tools) {
+          toolRegistry.register({
+            name: tool.name,
+            description: tool.description,
+            parameters: tool.parameters,
+            execute: async (params: any) => {
+              return mcpManager.callTool(tool.name, params);
+            },
+            source: 'mcp' as ToolSource
+          }, 'mcp');
+        }
+        log.info(`MCP tools registered: ${tools.length}`);
+      });
 
       return mcpManager;
     });
@@ -338,6 +358,7 @@ export class ServiceFactory {
       const cronService = await c.resolve<CronService>(TOKENS.CronService);
       const mcpManager = await c.resolve<MCPClientManager | null>(TOKENS.MCPClientManager);
       const skillManager = await c.resolve<SkillManager>(TOKENS.SkillManager);
+      const toolRegistry = await c.resolve<ToolRegistry>(TOKENS.ToolRegistry);
 
       const apiServer = new APIServer(
         port,
@@ -348,7 +369,8 @@ export class ServiceFactory {
         pluginManager,
         cronService,
         mcpManager ?? undefined,
-        skillManager
+        skillManager,
+        toolRegistry
       );
       await apiServer.start();
       log.info(`API server started on port ${port}`);

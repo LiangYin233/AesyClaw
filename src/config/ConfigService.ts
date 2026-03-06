@@ -57,86 +57,92 @@ export class ConfigService {
   }
 
   /**
+   * Update a section of the configuration
+   * @param section Configuration section (plugins, mcp, channels, etc.)
+   * @param key Key within the section
+   * @param value Value to set
+   */
+  async updateConfigSection<T>(
+    section: keyof Config,
+    key: string,
+    value: T
+  ): Promise<void> {
+    const config = this.get();
+
+    // Initialize section if not exists
+    if (!config[section] || typeof config[section] !== 'object') {
+      (config as any)[section] = {};
+    }
+
+    // Update config
+    (config[section] as any)[key] = value;
+
+    // Save with validation
+    await this.save(config);
+    log.info(`Config ${String(section)}.${key} updated`);
+  }
+
+  /**
+   * Remove a key from a configuration section
+   * @param section Configuration section
+   * @param key Key to remove
+   */
+  async removeConfigSection(
+    section: keyof Config,
+    key: string
+  ): Promise<void> {
+    const config = this.get();
+
+    if (config[section] && typeof config[section] === 'object' && (config[section] as any)[key]) {
+      delete (config[section] as any)[key];
+      await this.save(config);
+      log.info(`Config ${String(section)}.${key} removed`);
+    }
+  }
+
+  /**
    * Update plugin configuration
+   * @deprecated Use updateConfigSection('plugins', name, config) instead
    */
   async updatePluginConfig(
     name: string,
     enabled: boolean,
     options?: Record<string, any>
   ): Promise<void> {
-    const config = this.get();
-
-    // Initialize plugins object if not exists
-    if (!config.plugins) {
-      config.plugins = {};
-    }
-
-    // Update plugin config
-    config.plugins[name] = {
+    await this.updateConfigSection('plugins', name, {
       enabled,
       ...(options && { options })
-    };
-
-    // Save with validation
-    await this.save(config);
-    log.info(`Plugin "${name}" config updated: enabled=${enabled}`);
+    });
   }
 
   /**
    * Update MCP server configuration
+   * @deprecated Use updateConfigSection('mcp', serverName, serverConfig) instead
    */
   async updateMCPConfig(
     serverName: string,
     serverConfig: any
   ): Promise<void> {
-    const config = this.get();
-
-    // Initialize mcp object if not exists
-    if (!config.mcp) {
-      config.mcp = {};
-    }
-
-    // Update MCP server config
-    config.mcp[serverName] = serverConfig;
-
-    // Save with validation
-    await this.save(config);
-    log.info(`MCP server "${serverName}" config updated`);
+    await this.updateConfigSection('mcp', serverName, serverConfig);
   }
 
   /**
    * Remove MCP server configuration
+   * @deprecated Use removeConfigSection('mcp', serverName) instead
    */
   async removeMCPConfig(serverName: string): Promise<void> {
-    const config = this.get();
-
-    if (config.mcp && config.mcp[serverName]) {
-      delete config.mcp[serverName];
-      await this.save(config);
-      log.info(`MCP server "${serverName}" config removed`);
-    }
+    await this.removeConfigSection('mcp', serverName);
   }
 
   /**
    * Update channel configuration
+   * @deprecated Use updateConfigSection('channels', channelName, channelConfig) instead
    */
   async updateChannelConfig(
     channelName: string,
     channelConfig: any
   ): Promise<void> {
-    const config = this.get();
-
-    // Initialize channels object if not exists
-    if (!config.channels) {
-      config.channels = {};
-    }
-
-    // Update channel config
-    config.channels[channelName] = channelConfig;
-
-    // Save with validation
-    await this.save(config);
-    log.info(`Channel "${channelName}" config updated`);
+    await this.updateConfigSection('channels', channelName, channelConfig);
   }
 
   /**

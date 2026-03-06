@@ -2,13 +2,21 @@
 
 ## 概述
 
-AesyClaw 插件系统允许开发者扩展框架功能，包括：
+AesyClaw 插件系统基于现代化的依赖注入架构，提供强大的扩展能力：
+
+**核心特性：**
 - 注册自定义工具 (Tools)
 - 添加消息中间件
 - 拦截和处理入站/出站消息
 - 拦截 Agent 处理前后的事件
 - 拦截工具调用结果
 - 注册命令处理器
+
+**架构优势：**
+- **Hook Pipeline**: 所有插件钩子通过统一的管道执行，提供超时保护（默认 5 秒）
+- **依赖注入**: 基于 DI 容器的模块化架构，插件可以访问所有核心服务
+- **类型安全**: 完整的 TypeScript 类型定义
+- **错误隔离**: 单个插件错误不会影响其他插件或系统运行
 
 ## 插件结构
 
@@ -47,6 +55,8 @@ const myPlugin: Plugin = {
 
   // 消息处理
   async onMessage(msg: InboundMessage): Promise<InboundMessage | null> {
+    // 注意: 此方法有 5 秒超时限制
+    // 避免长时间阻塞操作，如大文件处理或网络请求
     return msg; // 返回处理后的消息
   },
   
@@ -55,8 +65,9 @@ const myPlugin: Plugin = {
   },
 
   // Agent 钩子
-  async onAgentBefore(msg: InboundMessage, messages: L Promise<void> {
-LMMessage[]):    // 在 Agent 处理消息前调用，可修改 messages
+  async onAgentBefore(msg: InboundMessage, messages: LLMMessage[]): Promise<void> {
+    // 在 Agent 处理消息前调用，可修改 messages
+    // 超时限制: 5 秒
   },
   
   async onAgentAfter(msg: InboundMessage, response: LLMResponse): Promise<void> {
@@ -66,7 +77,15 @@ LMMessage[]):    // 在 Agent 处理消息前调用，可修改 messages
   // 工具调用钩子
   async onToolCall(toolName: string, params: Record<string, any>, result: string): Promise<string | void> {
     // 可以修改工具返回结果，返回 undefined 表示不修改
+    // 超时限制: 5 秒
     return result;
+  },
+
+  // 工具调用前钩子（新增）
+  async onBeforeToolCall(toolName: string, params: Record<string, any>): Promise<Record<string, any> | void> {
+    // 在工具调用前修改参数
+    // 返回新参数对象或 undefined 保持原参数
+    return params;
   },
 
   // 错误处理
@@ -636,6 +655,43 @@ export default myPlugin;
 6. **默认配置**: 设置 `defaultConfig` 让插件可配置但默认禁用
 7. **命令优先级**: 先注册的命令先匹配，使用简单的正则模式
 8. **中间件顺序**: 先注册的中间件先执行
+9. **Hook 超时**: 所有 hook 方法有 5 秒超时限制，避免长时间阻塞操作
+10. **错误隔离**: Hook 中的错误会被捕获并记录，不会影响其他插件
+
+## 架构说明
+
+### Hook Pipeline
+
+所有插件的 hook 方法通过 `HookPipeline` 执行，提供以下保障：
+
+- **超时保护**: 每个 hook 默认 5 秒超时，防止插件阻塞系统
+- **错误隔离**: 单个插件错误不会影响其他插件执行
+- **顺序执行**: Hook 按插件注册顺序依次执行
+- **结果传递**: 每个 hook 的返回值会传递给下一个 hook
+
+```typescript
+// Hook 执行流程示例
+onMessage: msg1 → Plugin A → msg2 → Plugin B → msg3 → 返回最终消息
+```
+
+### 依赖注入
+
+插件通过 `PluginContext` 访问核心服务：
+
+```typescript
+interface PluginContext {
+  config: Config;              // 配置服务
+  eventBus: EventBus;         // 事件总线
+  agent: AgentLoop | null;    // Agent 实例
+  workspace: string;          // 工作目录
+  registerTool(tool: Tool): void;
+  getToolRegistry(): ToolRegistry;
+  logger: typeof logger;
+  sendMessage(...): Promise<void>;
+}
+```
+
+所有服务通过 DI 容器管理，确保依赖关系清晰且可测试。
 
 ## 完整配置示例
 
@@ -662,3 +718,155 @@ plugins:
   weather:
     enabled: false
 ```
+
+## 性能与限制
+
+### Hook 超时机制
+
+所有插件 hook 方法都有超时保护：
+
+- **默认超时**: 5 秒
+- **超时行为**: Hook 执行超时会抛出错误，但不会影响其他插件
+- **适用范围**: `onMessage`, `onResponse`, `onAgentBefore`, `onAgentAfter`, `onToolCall`, `onBeforeToolCall`
+
+**最佳实践：**
+```typescript
+// ❌ 不推荐：长时间阻塞操作
+async onMessage(msg) {
+  await heavyComputation(); // 可能超过 5 秒
+  return msg;
+}
+
+// ✅ 推荐：异步处理或快速返回
+async onMessage(msg) {
+  // 快速处理
+  msg.metadata = { processed: true };
+
+  // 长时间操作放到后台
+  this.processInBackground(msg).catch(console.error);
+
+  return msg;
+}
+```
+
+### 错误处理
+
+插件错误会被自动捕获和记录：
+
+```typescript
+// 插件 A 抛出错误
+async onMessage(msg) {
+  throw new Error('Something went wrong');
+}
+
+// 系统行为：
+// 1. 记录错误日志
+// 2. 继续执行插件 B、C...
+// 3. 不影响消息处理流程
+```
+
+使用 `onError` hook 自定义错误处理：
+
+```typescript
+async onError(error: Error, context: PluginErrorContext) {
+  // 发送告警、记录到数据库等
+  await this.sendAlert(error.message);
+}
+```
+
+### 资源管理
+
+插件应该正确管理资源：
+
+```typescript
+const myPlugin: Plugin = {
+  name: 'resource-plugin',
+
+  async onLoad() {
+    // 初始化资源
+    this.connection = await createConnection();
+  },
+
+  async onUnload() {
+    // 清理资源
+    await this.connection?.close();
+  }
+};
+```
+
+### 并发控制
+
+多个消息可能同时触发插件 hook，注意并发安全：
+
+```typescript
+const myPlugin: Plugin = {
+  name: 'counter',
+  counter: 0,
+
+  async onMessage(msg) {
+    // ❌ 不安全：竞态条件
+    this.counter++;
+
+    // ✅ 安全：使用原子操作或锁
+    await this.incrementCounter();
+    return msg;
+  }
+};
+```
+
+## 调试技巧
+
+### 启用详细日志
+
+```typescript
+const myPlugin: Plugin = {
+  name: 'debug-plugin',
+
+  async onMessage(msg) {
+    this.context.logger.debug('Processing message:', {
+      content: msg.content,
+      sender: msg.senderId
+    });
+    return msg;
+  }
+};
+```
+
+### 测试插件
+
+```typescript
+// 创建测试消息
+const testMsg: InboundMessage = {
+  channel: 'test',
+  senderId: '123',
+  chatId: '456',
+  content: 'test message',
+  timestamp: new Date()
+};
+
+// 测试 hook
+const result = await myPlugin.onMessage(testMsg);
+console.log('Result:', result);
+```
+
+### 常见问题
+
+**Q: 插件 hook 没有被调用？**
+- 检查插件是否在 `config.yaml` 中启用
+- 确认 hook 方法名拼写正确
+- 查看日志是否有加载错误
+
+**Q: Hook 超时怎么办？**
+- 将长时间操作移到后台执行
+- 使用缓存减少计算时间
+- 考虑使用工具而非 hook 处理复杂逻辑
+
+**Q: 如何在插件间共享数据？**
+- 使用 `context.eventBus` 发送自定义事件
+- 通过消息的 `metadata` 字段传递数据
+- 使用外部存储（数据库、Redis 等）
+
+**Q: 插件加载顺序重要吗？**
+- Hook 按插件注册顺序执行
+- 命令匹配按注册顺序，先匹配先处理
+- 中间件按注册顺序执行

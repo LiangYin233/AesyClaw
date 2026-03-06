@@ -1,13 +1,15 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
-import type { ToolDefinition, MCPServersConfig, MCPServerConfig } from '../types.js';
+import type { ToolDefinition, MCPServersConfig, MCPServerConfig, MCPServerInfo, MCPServerStatus } from '../types.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS } from '../constants/index.js';
 
 export class MCPClientManager {
   private clients: Map<string, Client> = new Map();
   private tools: Map<string, ToolDefinition> = new Map();
+  private serverStatus: Map<string, MCPServerInfo> = new Map();
+  private toolLoadCallbacks: Array<(tools: ToolDefinition[]) => void> = [];
   private log = logger.child({ prefix: 'MCP' });
   private static readonly DEFAULT_TIMEOUT = CONSTANTS.MCP_TIMEOUT;
 
@@ -24,6 +26,58 @@ export class MCPClientManager {
         this.log.error(`Failed to connect server ${name}:`, error);
       }
     }
+  }
+
+  /**
+   * 非阻塞连接 - 后台异步连接所有服务器
+   */
+  async connectAsync(config: MCPServersConfig): Promise<void> {
+    const promises: Promise<void>[] = [];
+
+    for (const [name, serverConfig] of Object.entries(config)) {
+      if (serverConfig.enabled === false) {
+        this.log.info(`Skipping disabled MCP server: ${name}`);
+        continue;
+      }
+
+      // 初始化状态
+      this.serverStatus.set(name, {
+        name,
+        status: 'connecting',
+        config: serverConfig,
+        toolCount: 0
+      });
+
+      // 后台连接,不阻塞
+      const promise = this.connectServer(name, serverConfig)
+        .then(() => {
+          const info = this.serverStatus.get(name)!;
+          info.status = 'connected';
+          info.connectedAt = new Date();
+          info.toolCount = this.getServerToolCount(name);
+          this.log.info(`MCP server connected: ${name} (${info.toolCount} tools)`);
+
+          // 通知工具已加载
+          const tools = this.getServerTools(name);
+          if (tools.length > 0) {
+            this.notifyToolsLoaded(tools);
+          }
+        })
+        .catch((error) => {
+          const info = this.serverStatus.get(name)!;
+          info.status = 'failed';
+          info.error = error instanceof Error ? error.message : String(error);
+          this.log.error(`MCP server connection failed: ${name}`, error);
+        });
+
+      promises.push(promise);
+    }
+
+    // 不等待所有连接完成,立即返回
+    // 连接在后台继续进行
+    Promise.all(promises).then(() => {
+      this.log.info('All MCP server connections completed');
+    });
   }
 
   private async connectServer(name: string, config: MCPServerConfig): Promise<void> {
@@ -189,6 +243,154 @@ export class MCPClientManager {
 
   getServerNames(): string[] {
     return Array.from(this.clients.keys());
+  }
+
+  /**
+   * 注册工具加载回调
+   */
+  onToolsLoaded(callback: (tools: ToolDefinition[]) => void): void {
+    this.toolLoadCallbacks.push(callback);
+  }
+
+  /**
+   * 触发工具加载回调
+   */
+  private notifyToolsLoaded(tools: ToolDefinition[]): void {
+    for (const callback of this.toolLoadCallbacks) {
+      try {
+        callback(tools);
+      } catch (error) {
+        this.log.error('Tool load callback error:', error);
+      }
+    }
+  }
+
+  /**
+   * 获取服务器状态
+   */
+  getServerStatus(name?: string): MCPServerInfo | MCPServerInfo[] {
+    if (name) {
+      return this.serverStatus.get(name) || {
+        name,
+        status: 'disconnected',
+        config: {} as MCPServerConfig,
+        toolCount: 0
+      };
+    }
+    return Array.from(this.serverStatus.values());
+  }
+
+  /**
+   * 获取指定服务器的工具数量
+   */
+  private getServerToolCount(serverName: string): number {
+    let count = 0;
+    for (const toolName of this.tools.keys()) {
+      if (toolName.startsWith(`mcp_${serverName}_`)) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /**
+   * 获取指定服务器的所有工具
+   */
+  private getServerTools(serverName: string): ToolDefinition[] {
+    const tools: ToolDefinition[] = [];
+    for (const [toolName, toolDef] of this.tools.entries()) {
+      if (toolName.startsWith(`mcp_${serverName}_`)) {
+        tools.push(toolDef);
+      }
+    }
+    return tools;
+  }
+
+  /**
+   * 动态连接单个服务器
+   */
+  async connectOne(name: string, config: MCPServerConfig): Promise<void> {
+    // 如果已连接,先断开
+    if (this.clients.has(name)) {
+      await this.disconnectOne(name);
+    }
+
+    // 更新状态
+    this.serverStatus.set(name, {
+      name,
+      status: 'connecting',
+      config,
+      toolCount: 0
+    });
+
+    try {
+      await this.connectServer(name, config);
+
+      const info = this.serverStatus.get(name)!;
+      info.status = 'connected';
+      info.connectedAt = new Date();
+      info.toolCount = this.getServerToolCount(name);
+
+      // 通知工具已加载
+      const tools = this.getServerTools(name);
+      if (tools.length > 0) {
+        this.notifyToolsLoaded(tools);
+      }
+
+      this.log.info(`MCP server connected: ${name} (${info.toolCount} tools)`);
+    } catch (error) {
+      const info = this.serverStatus.get(name)!;
+      info.status = 'failed';
+      info.error = error instanceof Error ? error.message : String(error);
+      throw error;
+    }
+  }
+
+  /**
+   * 断开单个服务器
+   */
+  async disconnectOne(name: string): Promise<void> {
+    const client = this.clients.get(name);
+    if (!client) {
+      return;
+    }
+
+    // 移除工具
+    const toolsToRemove: string[] = [];
+    for (const toolName of this.tools.keys()) {
+      if (toolName.startsWith(`mcp_${name}_`)) {
+        toolsToRemove.push(toolName);
+      }
+    }
+
+    for (const toolName of toolsToRemove) {
+      this.tools.delete(toolName);
+    }
+
+    // 关闭客户端
+    await client.close();
+    this.clients.delete(name);
+
+    // 更新状态
+    const info = this.serverStatus.get(name);
+    if (info) {
+      info.status = 'disconnected';
+      info.toolCount = 0;
+    }
+
+    this.log.info(`MCP server disconnected: ${name} (removed ${toolsToRemove.length} tools)`);
+  }
+
+  /**
+   * 重新连接服务器
+   */
+  async reconnect(name: string): Promise<void> {
+    const info = this.serverStatus.get(name);
+    if (!info) {
+      throw new Error(`MCP server not found: ${name}`);
+    }
+
+    await this.connectOne(name, info.config);
   }
 
   async close(): Promise<void> {

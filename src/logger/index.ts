@@ -38,25 +38,36 @@ const PREFIX_COLORS: Record<LogLevel, string> = {  // 日志级别对应的颜�
 export interface LoggerOptions {
   level?: LogLevel;  // 日志级别
   prefix?: string;  // 日志前缀
-  showTimestamp?: boolean;  // 是否显示时间戳
-  useColors?: boolean;  // 是否使用颜色
 }
 
 export class Logger {
   private level: LogLevel;
   private prefix: string;
-  private showTimestamp: boolean;
-  private useColors: boolean;
 
   constructor(options: LoggerOptions = {}) {
     this.level = options.level || 'info';
     this.prefix = options.prefix || '';
-    this.showTimestamp = options.showTimestamp ?? true;
-    this.useColors = options.useColors ?? true;
   }
 
   setLevel(level: LogLevel): void {  // 设置日志级别
     this.level = level;
+  }
+
+  /**
+   * 获取当前日志级别
+   */
+  getLevel(): LogLevel {
+    return this.level;
+  }
+
+  /**
+   * 获取当前配置
+   */
+  getConfig(): { level: LogLevel; prefix: string } {
+    return {
+      level: this.level,
+      prefix: this.prefix
+    };
   }
 
   isLevelEnabled(level: LogLevel): boolean {  // 检查日志级别是否启用
@@ -69,20 +80,19 @@ export class Logger {
 
   private format(level: LogLevel, message: string): string {  // 格式化日志消息
     const parts: string[] = [];
-    
-    if (this.showTimestamp) {
-      const timestamp = new Date().toISOString().split('T')[1].slice(0, -1);  // 提取时间部分
-      parts.push(this.useColors ? `${COLORS.gray}${timestamp}${COLORS.reset}` : timestamp);
-    }
-    
+
+    // 始终显示时间戳
+    const timestamp = new Date().toISOString().split('T')[1].slice(0, -1);  // 提取时间部分
+    parts.push(`${COLORS.gray}${timestamp}${COLORS.reset}`);
+
     const prefixStr = this.prefix ? `[${this.prefix}]` : '';  // 格式化前缀
     const levelStr = PREFIXES[level];
-    const color = this.useColors ? PREFIX_COLORS[level] : '';  // 获取级别颜色
-    const reset = this.useColors ? COLORS.reset : '';
-    
+    const color = PREFIX_COLORS[level];  // 获取级别颜色
+    const reset = COLORS.reset;
+
     parts.push(`${color}${prefixStr}${prefixStr ? ' ' : ''}[${levelStr}]${reset}`);
     parts.push(message);
-    
+
     return parts.join(' ');
   }
 
@@ -109,9 +119,7 @@ export class Logger {
   child(options: LoggerOptions): Logger {  // 创建子日志记录器
     return new Logger({
       level: this.level,
-      prefix: options.prefix || this.prefix,
-      showTimestamp: options.showTimestamp ?? this.showTimestamp,
-      useColors: options.useColors ?? this.useColors
+      prefix: options.prefix || this.prefix
     });
   }
 }
@@ -121,3 +129,5 @@ export function createLogger(options?: LoggerOptions): Logger {  // 创建日志
 }
 
 export const logger = new Logger();  // 全局默认日志实例
+
+export { LoggerFactory } from './LoggerFactory.js';
