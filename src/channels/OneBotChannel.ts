@@ -73,7 +73,7 @@ export class OneBotChannel extends BaseChannel {
 
         try {
           const res = await this.sendAction('get_login_info', {});
-          this.selfId = res.data?.data?.user_id?.toString();
+          this.selfId = res.data?.user_id?.toString();
           this.log.info(`Logged in as: ${this.selfId}`);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
