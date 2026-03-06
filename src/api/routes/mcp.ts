@@ -28,7 +28,8 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
     if (!server || (Array.isArray(server) ? false : server.status === 'disconnected')) {
       return res.status(404).json({ error: `MCP server not found: ${name}` });
     }
-    res.json(server);
+    const tools = mgr.getToolsForServer(name);
+    res.json({ server, tools });
   });
 
   app.post('/api/mcp/servers/:name', async (req, res) => {

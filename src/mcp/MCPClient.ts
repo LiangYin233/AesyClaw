@@ -303,6 +303,13 @@ export class MCPClientManager {
   }
 
   /**
+   * 获取指定服务器的所有工具（公共方法）
+   */
+  getToolsForServer(serverName: string): ToolDefinition[] {
+    return this.getServerTools(serverName);
+  }
+
+  /**
    * 动态连接单个服务器
    */
   async connectOne(name: string, config: MCPServerConfig): Promise<void> {

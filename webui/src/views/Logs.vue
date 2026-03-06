@@ -43,16 +43,9 @@
                                     <span class="config-label">日志级别:</span>
                                     <Tag :value="config.level.toUpperCase()" :severity="getLevelSeverity(config.level)" />
                                 </div>
-                                <div class="config-item">
-                                    <span class="config-label">传输方式:</span>
-                                    <div class="transport-tags">
-                                        <Tag
-                                            v-for="transport in config.transports"
-                                            :key="transport"
-                                            :value="transport"
-                                            severity="info"
-                                        />
-                                    </div>
+                                <div v-if="config.prefix" class="config-item">
+                                    <span class="config-label">日志前缀:</span>
+                                    <Tag :value="config.prefix" severity="info" />
                                 </div>
                             </div>
                         </div>
@@ -102,8 +95,7 @@ const logLevels = [
     { label: 'ERROR', value: 'error', description: '仅记录错误信息' },
     { label: 'WARN', value: 'warn', description: '记录警告和错误信息' },
     { label: 'INFO', value: 'info', description: '记录一般信息、警告和错误' },
-    { label: 'DEBUG', value: 'debug', description: '记录调试信息和以上所有级别' },
-    { label: 'TRACE', value: 'trace', description: '记录最详细的跟踪信息' }
+    { label: 'DEBUG', value: 'debug', description: '记录调试信息和以上所有级别' }
 ]
 
 async function loadConfig() {
@@ -145,8 +137,7 @@ function getLevelSeverity(level: string): 'success' | 'info' | 'warn' | 'danger'
         error: 'danger',
         warn: 'warn',
         info: 'info',
-        debug: 'success',
-        trace: 'success'
+        debug: 'success'
     }
     return severities[level] || 'info'
 }

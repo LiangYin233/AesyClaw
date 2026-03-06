@@ -44,7 +44,18 @@ const DEFAULT_CONFIG: Config = {
     }
   },
   mcp: {},
-  plugins: {}
+  plugins: {},
+  skills: {},
+  log: {
+    level: 'info'
+  },
+  metrics: {
+    enabled: true,
+    maxMetrics: 10000,
+    collectAgent: true,
+    collectTools: true,
+    collectPlugins: true
+  }
 };
 
 export class ConfigLoader {

@@ -93,7 +93,7 @@ export class SkillManager {
 
       this.skills.set(name, {
         name,
-        description: description || metadata.description || '',
+        description: description || '',
         path: skillMdPath,
         files,
         content,
@@ -164,13 +164,16 @@ export class SkillManager {
         inDescription = true;
         continue;
       }
+      if (trimmed.startsWith('#')) {
+        continue;
+      }
       if (inDescription && trimmed) {
         description = trimmed;
         break;
       }
     }
 
-    return { description, metadata };
+    return { description: metadata.description || description, metadata };
   }
 
   private sanitizeFileName(fileName: string): string {

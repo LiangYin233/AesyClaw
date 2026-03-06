@@ -3,6 +3,11 @@
         <div class="page-header">
             <h1>性能监控</h1>
             <div class="header-actions">
+                <div class="auto-refresh-control">
+                    <InputSwitch v-model="autoRefresh" @change="toggleAutoRefresh" />
+                    <span class="auto-refresh-label">自动刷新</span>
+                    <span v-if="lastUpdateTime" class="last-update">{{ lastUpdateTime }}</span>
+                </div>
                 <Button label="刷新" icon="pi pi-refresh" outlined @click="loadData" :loading="loading" />
                 <Button label="导出" icon="pi pi-download" outlined @click="handleExport" />
                 <Button label="清空" icon="pi pi-trash" severity="danger" outlined @click="confirmClear" />
@@ -182,6 +187,7 @@ import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
 import InputText from 'primevue/inputtext'
+import InputSwitch from 'primevue/inputswitch'
 import Message from 'primevue/message'
 import Toast from 'primevue/toast'
 import ProgressSpinner from 'primevue/progressspinner'
@@ -206,6 +212,8 @@ const searchQuery = ref('')
 const showDetailsDialog = ref(false)
 const showClearDialog = ref(false)
 const selectedMetric = ref<MetricStats | null>(null)
+const autoRefresh = ref(true)
+const lastUpdateTime = ref('')
 
 let refreshInterval: number | null = null
 
@@ -214,6 +222,13 @@ const filteredMetrics = computed(() => {
     const query = searchQuery.value.toLowerCase()
     return metricNames.value.filter(name => name.toLowerCase().includes(query))
 })
+
+function formatTime(date: Date): string {
+    const hours = date.getHours().toString().padStart(2, '0')
+    const minutes = date.getMinutes().toString().padStart(2, '0')
+    const seconds = date.getSeconds().toString().padStart(2, '0')
+    return `${hours}:${minutes}:${seconds}`
+}
 
 async function loadData() {
     loading.value = true
@@ -225,7 +240,30 @@ async function loadData() {
     overview.value = overviewData
     memory.value = memoryData
     metricNames.value = names
+    lastUpdateTime.value = `最后更新: ${formatTime(new Date())}`
     loading.value = false
+}
+
+function toggleAutoRefresh() {
+    if (autoRefresh.value) {
+        startAutoRefresh()
+    } else {
+        stopAutoRefresh()
+    }
+}
+
+function startAutoRefresh() {
+    if (refreshInterval) return
+    refreshInterval = window.setInterval(() => {
+        loadData()
+    }, 5000)
+}
+
+function stopAutoRefresh() {
+    if (refreshInterval) {
+        clearInterval(refreshInterval)
+        refreshInterval = null
+    }
 }
 
 async function viewMetricDetails(name: string) {
@@ -307,13 +345,13 @@ function formatBytes(bytes: number): string {
 
 onMounted(() => {
     loadData()
-    refreshInterval = window.setInterval(loadData, 10000)
+    if (autoRefresh.value) {
+        startAutoRefresh()
+    }
 })
 
 onUnmounted(() => {
-    if (refreshInterval) {
-        clearInterval(refreshInterval)
-    }
+    stopAutoRefresh()
 })
 </script>
 
@@ -338,6 +376,29 @@ onUnmounted(() => {
 .header-actions {
     display: flex;
     gap: 8px;
+    align-items: center;
+}
+
+.auto-refresh-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #f8fafc;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
+
+.auto-refresh-label {
+    font-size: 13px;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.last-update {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-left: 4px;
 }
 
 .metrics-content {

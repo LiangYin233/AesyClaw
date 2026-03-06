@@ -50,26 +50,36 @@ export function registerMetricsRoutes(app: Express): void {
   });
 
   app.get('/api/metrics/memory', (req, res) => {
-    res.json(metrics.getMemoryUsage());
+    const mem = process.memoryUsage();
+    res.json({
+      heapUsed: mem.heapUsed,
+      heapTotal: mem.heapTotal,
+      external: mem.external,
+      rss: mem.rss
+    });
   });
 
   app.get('/api/metrics/overview', (req, res) => {
-    const timeWindow = 60000;
+    const names = metrics.getMetricNames();
+    const mem = process.memoryUsage();
+
+    let totalDataPoints = 0;
+    for (const name of names) {
+      const stats = metrics.getStats(name);
+      if (stats) {
+        totalDataPoints += stats.count;
+      }
+    }
+
     res.json({
-      agent: {
-        processMessage: metrics.getStats('agent.process_message', timeWindow),
-        messageCount: metrics.getStats('agent.message_count', timeWindow),
-        toolExecution: metrics.getStats('agent.tool_execution', timeWindow)
-      },
-      tools: {
-        executionTime: metrics.getStats('tool.execution_time', timeWindow),
-        callCount: metrics.getStats('tool.call_count', timeWindow)
-      },
-      plugins: {
-        hookExecution: metrics.getStats('plugin.hook_execution', timeWindow),
-        hookCount: metrics.getStats('plugin.hook_count', timeWindow)
-      },
-      memory: metrics.getMemoryUsage()
+      totalMetrics: names.length,
+      totalDataPoints,
+      memoryUsage: {
+        heapUsed: mem.heapUsed,
+        heapTotal: mem.heapTotal,
+        external: mem.external,
+        rss: mem.rss
+      }
     });
   });
 

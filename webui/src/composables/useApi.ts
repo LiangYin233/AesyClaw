@@ -359,6 +359,21 @@ export function useApi() {
     }
   }
 
+  async function getSkill(name: string): Promise<SkillInfo | null> {
+    loading.value = true
+    error.value = null
+    try {
+      const { data, error: err } = await apiGet<{ skill: SkillInfo }>(`/skills/${name}`)
+      if (err) {
+        error.value = err
+        return null
+      }
+      return data?.skill || null
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function toggleSkill(name: string, enabled: boolean): Promise<boolean> {
     loading.value = true
     error.value = null
@@ -637,6 +652,7 @@ export function useApi() {
     deleteCronJob,
     toggleCronJob,
     getSkills,
+    getSkill,
     toggleSkill,
     getMCPServers,
     getMCPServer,

@@ -178,9 +178,9 @@
                     </div>
                 </div>
 
-                <div class="details-section" v-if="serverTools.length > 0">
+                <div class="details-section">
                     <h3>工具列表</h3>
-                    <div class="tools-list">
+                    <div v-if="serverTools.length > 0" class="tools-list">
                         <div v-for="tool in serverTools" :key="tool.name" class="tool-item">
                             <div class="tool-header">
                                 <span class="tool-name">{{ tool.name }}</span>
@@ -188,6 +188,9 @@
                             <p class="tool-description">{{ tool.description }}</p>
                         </div>
                     </div>
+                    <Message v-else severity="info" :closable="false">
+                        该服务器暂无可用工具
+                    </Message>
                 </div>
             </div>
             <template #footer>

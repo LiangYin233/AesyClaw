@@ -107,6 +107,7 @@ export interface SkillInfo {
   description: string
   path: string
   enabled: boolean
+  content?: string
   files?: { name: string; path: string; isDirectory: boolean }[]
 }
 
@@ -123,7 +124,7 @@ export interface ApiError {
 
 export interface LogConfig {
   level: string
-  transports: string[]
+  prefix: string
 }
 
 export interface MetricStats {

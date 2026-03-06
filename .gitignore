@@ -1,9 +1,7 @@
 **/node_modules/
 **/dist/
 config.yaml
-package-lock.json
 opencode.jsonc
 .aesyclaw/
 .claude/
 skills/
-CLAUDE.md
