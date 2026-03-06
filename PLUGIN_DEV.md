@@ -696,6 +696,11 @@ interface PluginContext {
 ## 完整配置示例
 
 ```yaml
+server:
+  host: 0.0.0.0
+  apiPort: 18792      # API Server 端口
+  apiEnabled: true    # 是否启用 API Server（默认 true）
+
 agent:
   defaults:
     model: "gpt-4o"
