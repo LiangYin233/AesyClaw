@@ -67,6 +67,8 @@ onMounted(() => {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 12px;
 }
 
 .page-header h1 {
@@ -77,12 +79,14 @@ onMounted(() => {
 
 .tools-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
     gap: 16px;
 }
 
 .tool-card {
     transition: box-shadow 0.2s;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .tool-card:hover {
@@ -93,16 +97,28 @@ onMounted(() => {
     display: flex;
     align-items: center;
     gap: 8px;
+    min-width: 0;
 }
 
 .tool-title i {
     font-size: 18px;
+    flex-shrink: 0;
+}
+
+.tool-title span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
 }
 
 .tool-description {
     margin: 8px 0 0 0;
     color: #64748b;
     font-size: 14px;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    line-height: 1.5;
 }
 
 .tool-params {
@@ -136,15 +152,24 @@ onMounted(() => {
     font-size: 48px;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 768px) {
     .tools-grid {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    }
+
+    .page-header h1 {
+        font-size: 20px;
     }
 }
 
 @media (max-width: 640px) {
     .tools-grid {
         grid-template-columns: 1fr;
+    }
+
+    .page-header {
+        flex-direction: column;
+        align-items: stretch;
     }
 }
 </style>
