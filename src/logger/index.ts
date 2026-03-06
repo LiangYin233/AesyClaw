@@ -53,6 +53,17 @@ export class Logger {
     this.level = level;
   }
 
+  getLevel(): LogLevel {  // 获取当前日志级别 (用于 API)
+    return this.level;
+  }
+
+  getConfig(): { level: LogLevel; prefix: string } {  // 获取当前配置 (用于 API)
+    return {
+      level: this.level,
+      prefix: this.prefix
+    };
+  }
+
   isLevelEnabled(level: LogLevel): boolean {  // 检查日志级别是否启用
     return LEVELS[level] >= LEVELS[this.level];
   }
