@@ -1,9 +1,6 @@
 <template>
     <div class="layout-wrapper">
         <aside class="sidebar" role="navigation" :aria-label="ARIA_LABELS.sidebar">
-            <div class="sidebar-header">
-                <img src="../assets/AesyClaw.svg" alt="AesyClaw" class="app-logo" />
-            </div>
             <nav class="sidebar-nav" :aria-label="ARIA_LABELS.mainNav">
                 <router-link
                     v-for="item in navItems"
@@ -19,13 +16,18 @@
                 </router-link>
             </nav>
             <div class="sidebar-footer" role="status" aria-live="polite">
-                <span class="status-label">Agent 状态</span>
-                <Tag
-                    :value="systemStore.agentRunning ? '运行中' : '已停止'"
-                    :severity="systemStore.agentRunning ? 'success' : 'danger'"
-                    rounded
-                    :aria-label="`Agent 当前状态：${systemStore.agentRunning ? '运行中' : '已停止'}`"
-                />
+                <div class="footer-content">
+                    <div class="status-row">
+                        <span class="status-label">Agent 状态</span>
+                        <Tag
+                            :value="systemStore.agentRunning ? '运行中' : '已停止'"
+                            :severity="systemStore.agentRunning ? 'success' : 'danger'"
+                            rounded
+                            :aria-label="`Agent 当前状态：${systemStore.agentRunning ? '运行中' : '已停止'}`"
+                        />
+                    </div>
+                    <div class="app-name">AesyClaw</div>
+                </div>
             </div>
         </aside>
         <main class="main-content" role="main" aria-label="主要内容">
@@ -128,25 +130,6 @@ onUnmounted(() => {
     height: 100%;
 }
 
-.sidebar-header {
-    padding: 16px;
-    font-size: 20px;
-    font-weight: bold;
-    border-bottom: 1px solid #e2e8f0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    color: #0f172a;
-}
-
-.app-logo {
-    height: 32px;
-    width: auto;
-    max-width: 100%;
-    object-fit: contain;
-}
-
 .sidebar-nav {
     flex: 1;
     padding: 12px;
@@ -207,10 +190,19 @@ onUnmounted(() => {
 .sidebar-footer {
     padding: 16px;
     border-top: 1px solid #e2e8f0;
+    background: linear-gradient(to right, #f9fafb, #eff6ff);
+}
+
+.footer-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.status-row {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    background: linear-gradient(to right, #f9fafb, #eff6ff);
 }
 
 .status-label {
@@ -218,6 +210,16 @@ onUnmounted(() => {
     color: #94a3b8;
     text-transform: uppercase;
     letter-spacing: 0.08em;
+}
+
+.app-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1e293b;
+    text-align: center;
+    letter-spacing: 0.05em;
+    padding-top: 8px;
+    border-top: 1px solid #e2e8f0;
 }
 
 .main-content {
