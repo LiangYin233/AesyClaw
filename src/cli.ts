@@ -25,7 +25,7 @@ const colors = {
 } as const;
 
 // 服务模式类型
-type ServiceMode = 'gateway' | 'api' | 'webui' | 'all';
+type ServiceMode = 'gateway' | 'webui' | 'all';
 
 // 端口配置类型
 interface Ports {
@@ -137,7 +137,6 @@ async function startService(mode: ServiceMode, ports: Ports): Promise<void> {
 
   const commands: Record<ServiceMode, string> = {
     gateway: 'tsx --no-cache src/cli.ts gateway',
-    api: 'tsx watch src/cli.ts gateway',
     webui: 'cd webui && npm run dev',
     all: '' // 不会直接使用
   };
@@ -146,9 +145,6 @@ async function startService(mode: ServiceMode, ports: Ports): Promise<void> {
 
   if (mode === 'gateway' || mode === 'all') {
     servicesToStart.push({ mode: 'gateway', name: 'Gateway' });
-  }
-  if (mode === 'api' || mode === 'all') {
-    servicesToStart.push({ mode: 'api', name: 'API Server' });
   }
   if (mode === 'webui' || mode === 'all') {
     servicesToStart.push({ mode: 'webui', name: 'WebUI' });
@@ -179,7 +175,7 @@ Usage: tsx src/cli.ts <command> [options]
 
 Commands:
   gateway        Start gateway service directly (single process)
-  start [mode]   Start services in background (gateway|webui|api|all)
+  start [mode]   Start services in background (gateway|webui|all)
   status         Show configured ports
 
 Examples:
