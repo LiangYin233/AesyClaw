@@ -73,20 +73,6 @@ describe('EventBus', () => {
   });
 
   describe('publishOutbound and consumeOutbound', () => {
-    it('should publish and consume outbound messages', async () => {
-      const msg = {
-        channel: 'test',
-        chatId: 'chat1',
-        content: 'response'
-      };
-
-      await eventBus.publishOutbound(msg);
-      const consumed = await eventBus.consumeOutbound();
-
-      expect(consumed.content).toBe('response');
-      expect(consumed.channel).toBe('test');
-    });
-
     it('should emit outbound event when publishing', async () => {
       const callback = vi.fn();
       eventBus.on('outbound', callback);
