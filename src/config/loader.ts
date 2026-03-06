@@ -7,7 +7,6 @@ import { logger } from '../logger/index.js';
 const DEFAULT_CONFIG: Config = {
   server: {
     host: '0.0.0.0',
-    port: 18791,
     apiPort: 18792,
     apiEnabled: true
   },
@@ -255,9 +254,6 @@ export class ConfigLoader {
       }
     }
 
-    if (config.server?.port && (config.server.port < 1 || config.server.port > 65535)) {
-      errors.push(`Invalid server.port: ${config.server.port} (must be 1-65535)`);
-    }
     if (config.server?.apiPort && (config.server.apiPort < 1 || config.server.apiPort > 65535)) {
       errors.push(`Invalid server.apiPort: ${config.server.apiPort} (must be 1-65535)`);
     }

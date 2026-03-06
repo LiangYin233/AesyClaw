@@ -95,7 +95,6 @@ export interface MetricsConfig {
 
 export interface ServerConfig {
   host: string;
-  port: number;
   apiPort: number;
   apiEnabled?: boolean;
 }

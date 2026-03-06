@@ -29,7 +29,6 @@ type ServiceMode = 'gateway' | 'webui' | 'all';
 
 // 端口配置类型
 interface Ports {
-  gateway: number;
   api: number;
   webui: number;
 }
@@ -118,7 +117,6 @@ function getStatus(ports: Ports): void {
   console.log(`\n${colors.bright}AesyClaw Services Status${colors.reset}\n`);
 
   const services = [
-    { name: 'Gateway', port: ports.gateway },
     { name: 'API Server', port: ports.api },
     { name: 'WebUI', port: ports.webui }
   ];
@@ -207,7 +205,6 @@ async function main(): Promise<void> {
   // 其他命令需要加载配置
   const config = await ConfigLoader.load();
   const ports: Ports = {
-    gateway: config.server.port || 18791,
     api: config.server.apiPort || 18792,
     webui: 5173  // Hardcoded: WebUI port is controlled by webui/vite.config.ts
   };
