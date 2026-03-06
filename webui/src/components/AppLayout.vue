@@ -193,7 +193,7 @@ onUnmounted(() => {
     bottom: 10%;
     width: 3px;
     border-radius: 999px;
-    background: linear-gradient(to bottom, #3b82f6, #22c55e);
+    background: #3b82f6;
 }
 
 .nav-icon {
