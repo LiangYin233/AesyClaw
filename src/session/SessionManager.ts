@@ -20,7 +20,6 @@ export interface Session {
   messages: SessionMessage[];
   createdAt: Date;
   updatedAt: Date;
-  lastConsolidated: number;
 }
 
 export class SessionManager {
@@ -108,8 +107,7 @@ export class SessionManager {
         uuid: parsed.uuid,
         messages: [],
         createdAt: new Date(),
-        updatedAt: new Date(),
-        lastConsolidated: 0
+        updatedAt: new Date()
       };
       this.sessions.set(key, newSession);  // 添加到内存缓存
       
@@ -160,8 +158,7 @@ export class SessionManager {
         timestamp: m.timestamp
       })),
       createdAt: new Date(row.created_at),
-      updatedAt: new Date(row.updated_at),
-      lastConsolidated: 0
+      updatedAt: new Date(row.updated_at)
     };
   }
 

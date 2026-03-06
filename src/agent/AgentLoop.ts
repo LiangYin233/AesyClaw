@@ -1,4 +1,4 @@
-import type { LLMMessage, InboundMessage, ToolDefinition, OutboundMessage, ToolCall, LLMResponse, PluginErrorContext } from '../types.js';
+import type { LLMMessage, InboundMessage, OutboundMessage, ToolCall, LLMResponse, PluginErrorContext } from '../types.js';
 import type { EventBus } from '../bus/EventBus.js';
 import type { LLMProvider } from '../providers/base.js';
 import type { ToolRegistry, ToolContext } from '../tools/ToolRegistry.js';
@@ -11,41 +11,6 @@ import { CONSTANTS, CONFIG_DEFAULTS } from '../constants/index.js';
 import { normalizeError } from '../utils/errors.js';
 
 export type ContextMode = 'session' | 'channel' | 'global';  // 上下文模式类型
-
-interface OpenAIToolCall {  // OpenAI 格式的工具调用
-  id?: string;
-  type?: string;
-  function?: {
-    name?: string;
-    arguments?: string | Record<string, any>;
-  };
-}
-
-/**
- * Type guard to check if a tool call is in OpenAI format
- */
-function isOpenAIToolCall(toolCall: ToolCall | OpenAIToolCall): toolCall is OpenAIToolCall {
-  return 'function' in toolCall && typeof toolCall.function === 'object';
-}
-
-function getToolCallName(toolCall: ToolCall | OpenAIToolCall): string | undefined {  // 获取工具调用名称
-  if (isOpenAIToolCall(toolCall)) {
-    return toolCall.function?.name;
-  }
-  return (toolCall as ToolCall).name;
-}
-
-function getToolCallArguments(toolCall: ToolCall | OpenAIToolCall): Record<string, any> | undefined {  // 获取工具调用参数
-  let args: string | Record<string, any> | undefined;
-
-  if (isOpenAIToolCall(toolCall)) {
-    args = toolCall.function?.arguments;
-  } else {
-    args = (toolCall as ToolCall).arguments;
-  }
-
-  return typeof args === 'string' ? JSON.parse(args || '{}') : args;
-}
 
 export class ContextBuilder {  // 上下文构建器
   private workspace: string;
@@ -400,7 +365,7 @@ export class AgentLoop {
         });
 
         for (const toolCall of response.toolCalls) {
-          let toolName = getToolCallName(toolCall);
+          const toolName = toolCall.name;
 
           if (!toolName) {
             const toolCallStr = JSON.stringify(toolCall).substring(0, 200);
@@ -411,12 +376,8 @@ export class AgentLoop {
           toolsUsed.push(toolName);
           this.log.info(`Executing tool: ${toolName}`);
 
-          let toolArgs = getToolCallArguments(toolCall);
+          let toolArgs = toolCall.arguments || {};
 
-          if (!toolArgs) {
-            this.log.warn(`Tool arguments is undefined for ${toolName}`);
-            toolArgs = {};
-          }
 
           this.log.info(`Tool ${toolName} arguments: ${JSON.stringify(toolArgs)}`);
 
@@ -524,10 +485,6 @@ export class AgentLoop {
     await this.sessionManager.save(session);
 
     return result.content;
-  }
-
-  getToolDefinitions(): ToolDefinition[] {
-    return this.toolRegistry.getDefinitions();
   }
 
   stop(): void {

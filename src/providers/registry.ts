@@ -3,20 +3,10 @@ import { OpenAIProvider } from './OpenAIProvider.js';
 import type { ProviderConfig } from '../types.js';
 import { logger } from '../logger/index.js';
 
-export interface ProviderSpec {
-  name: string;
-  displayName: string;
-  defaultApiBase: string;
-}
-
-const BUILTIN_PROVIDERS: ProviderSpec[] = [
+const BUILTIN_PROVIDERS = [
   { name: 'openai', displayName: 'OpenAI', defaultApiBase: 'https://api.openai.com/v1' },
   { name: 'custom', displayName: 'Custom (OpenAI Compatible)', defaultApiBase: '' },
 ];
-
-export function getProviderSpecs(): ProviderSpec[] {
-  return BUILTIN_PROVIDERS;
-}
 
 export function createProvider(name: string, config: ProviderConfig): LLMProvider {
   const spec = BUILTIN_PROVIDERS.find(p => p.name === name);
@@ -48,5 +38,3 @@ export function createProvider(name: string, config: ProviderConfig): LLMProvide
 
   return new OpenAIProvider(apiKey, apiBase, headers, extraBody);
 }
-
-export { BUILTIN_PROVIDERS as providerSpecs };

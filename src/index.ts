@@ -7,7 +7,7 @@ export { ToolRegistry } from './tools/index.js';
 export type { Tool, ToolContext } from './tools/index.js';
 export { MCPClientManager } from './mcp/index.js';
 export type { MCPServerConfig, MCPServersConfig, MCPTransportType } from './types.js';
-export { AgentLoop, ContextBuilder } from './agent/index.js';
+export { AgentLoop } from './agent/index.js';
 export { SessionManager } from './session/index.js';
 export type { Session, SessionMessage } from './session/index.js';
 export { PluginManager } from './plugins/index.js';

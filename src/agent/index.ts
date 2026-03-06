@@ -1,1 +1,1 @@
-export { AgentLoop, ContextBuilder } from './AgentLoop.js';
+export { AgentLoop } from './AgentLoop.js';

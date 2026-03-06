@@ -1,12 +1,8 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, watch } from 'fs';
 import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 import YAML from 'yaml';
 import type { Config } from '../types.js';
 import { logger } from '../logger/index.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 const DEFAULT_CONFIG: Config = {
   server: {
@@ -208,6 +204,17 @@ export class ConfigLoader {
   }
 
   static async save(config: Config): Promise<void> {
+    // Validate before saving
+    const validation = this.validate(config);
+    if (!validation.valid) {
+      const errorMsg = `Configuration validation failed:\n${validation.errors.join('\n')}`;
+      this.log.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+    if (validation.warnings.length > 0) {
+      validation.warnings.forEach(warn => this.log.warn(warn));
+    }
+
     const path = this.configPath;
     const dir = dirname(path);
     if (!existsSync(dir)) {
@@ -218,6 +225,71 @@ export class ConfigLoader {
     const yaml = YAML.stringify(configToSave);
     writeFileSync(path, yaml, 'utf-8');
     this.config = config;
+  }
+
+  static validate(config: Config): { valid: boolean; errors: string[]; warnings: string[] } {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    if (!config.agent?.defaults?.provider) errors.push('agent.defaults.provider is required');
+    if (!config.agent?.defaults?.model) errors.push('agent.defaults.model is required');
+
+    const provider = config.agent?.defaults?.provider;
+    if (provider && !config.providers?.[provider]) {
+      errors.push(`LLM provider "${provider}" is not configured in providers section`);
+    }
+    if (provider && config.providers?.[provider]) {
+      if (!config.providers[provider].apiKey && !process.env[`${provider.toUpperCase()}_API_KEY`]) {
+        warnings.push(`Provider "${provider}" has no apiKey configured`);
+      }
+    }
+
+    if (config.server?.port && (config.server.port < 1 || config.server.port > 65535)) {
+      errors.push(`Invalid server.port: ${config.server.port} (must be 1-65535)`);
+    }
+    if (config.server?.apiPort && (config.server.apiPort < 1 || config.server.apiPort > 65535)) {
+      errors.push(`Invalid server.apiPort: ${config.server.apiPort} (must be 1-65535)`);
+    }
+    if (config.server?.webuiPort && (config.server.webuiPort < 1 || config.server.webuiPort > 65535)) {
+      errors.push(`Invalid server.webuiPort: ${config.server.webuiPort} (must be 1-65535)`);
+    }
+
+    const validContextModes = ['session', 'channel', 'global'];
+    if (config.agent?.defaults?.contextMode && !validContextModes.includes(config.agent.defaults.contextMode)) {
+      errors.push(`Invalid contextMode: ${config.agent.defaults.contextMode}`);
+    }
+
+    if (config.agent?.defaults?.maxToolIterations !== undefined) {
+      if (config.agent.defaults.maxToolIterations < 0) errors.push('maxToolIterations must be >= 0');
+      if (config.agent.defaults.maxToolIterations > 100) warnings.push('maxToolIterations > 100 may cause performance issues');
+    }
+
+    if (config.agent?.defaults?.memoryWindow !== undefined && config.agent.defaults.memoryWindow < 0) {
+      errors.push('memoryWindow must be >= 0');
+    }
+
+    if (config.agent?.defaults?.maxSessions !== undefined && config.agent.defaults.maxSessions < 1) {
+      errors.push('maxSessions must be >= 1');
+    }
+
+    if (config.channels) {
+      for (const [name, ch] of Object.entries(config.channels)) {
+        if (ch?.enabled && name === 'onebot' && !ch.wsUrl) {
+          warnings.push(`Channel "${name}" is enabled but wsUrl is not configured`);
+        }
+      }
+    }
+
+    return { valid: errors.length === 0, errors, warnings };
+  }
+
+  static async updatePluginConfig(name: string, enabled: boolean, options?: Record<string, any>): Promise<void> {
+    const config = this.get();
+    if (!config.plugins || typeof config.plugins !== 'object') {
+      (config as any).plugins = {};
+    }
+    (config.plugins as any)[name] = { enabled, ...(options && { options }) };
+    await this.save(config);
   }
 
   private static sanitizeForSave(config: Config): Config {

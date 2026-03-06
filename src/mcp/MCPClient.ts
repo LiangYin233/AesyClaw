@@ -207,34 +207,30 @@ export class MCPClientManager {
 
     const requestTimeout = timeout ?? MCPClientManager.DEFAULT_TIMEOUT;
 
-    try {
-      const response = await Promise.race<any>([
-        client.callTool(
-          { name: toolName, arguments: args }
-        ),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`MCP tool call timeout after ${requestTimeout}ms`)), requestTimeout)
-        )
-      ]);
+    const response = await Promise.race<any>([
+      client.callTool(
+        { name: toolName, arguments: args }
+      ),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`MCP tool call timeout after ${requestTimeout}ms`)), requestTimeout)
+      )
+    ]);
 
-      const textParts = (response?.content || [])
-        .filter((item: any) => item?.type === 'text' && typeof item?.text === 'string')
-        .map((item: any) => item.text);
+    const textParts = (response?.content || [])
+      .filter((item: any) => item?.type === 'text' && typeof item?.text === 'string')
+      .map((item: any) => item.text);
 
-      if (textParts.length > 0) {
-        return textParts.join('\n');
-      }
-
-      if (response?.structuredContent !== undefined) {
-        return typeof response.structuredContent === 'string'
-          ? response.structuredContent
-          : JSON.stringify(response.structuredContent);
-      }
-
-      return response?.content?.length ? JSON.stringify(response.content) : '';
-    } catch (error) {
-      throw error;
+    if (textParts.length > 0) {
+      return textParts.join('\n');
     }
+
+    if (response?.structuredContent !== undefined) {
+      return typeof response.structuredContent === 'string'
+        ? response.structuredContent
+        : JSON.stringify(response.structuredContent);
+    }
+
+    return response?.content?.length ? JSON.stringify(response.content) : '';
   }
 
   getTools(): ToolDefinition[] {

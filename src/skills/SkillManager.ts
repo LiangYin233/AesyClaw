@@ -160,7 +160,7 @@ export class SkillManager {
     let inDescription = false;
     for (const line of lines) {
       const trimmed = line.trim();
-      if (trimmed.startsWith('# ') && !trimmed.startsWith('# ')) {
+      if (trimmed.startsWith('# ')) {
         inDescription = true;
         continue;
       }

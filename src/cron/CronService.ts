@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname } from 'path';
+import { CronExpressionParser } from 'cron-parser';
 import { logger } from '../logger/index.js';
 import { normalizeError } from '../utils/errors.js';
 
@@ -29,15 +30,6 @@ export interface CronPayload {
   target?: string;
 }
 
-export function parseTarget(target: string): { messageType: 'private' | 'group'; chatId: string } | null {
-  const match = target.match(/^(private|group):(\d+)$/);
-  if (!match) return null;
-  
-  return {
-    messageType: match[1] as 'private' | 'group',
-    chatId: match[2]
-  };
-}
 
 export class CronService {
   private jobs: Map<string, CronJob> = new Map();
@@ -66,9 +58,7 @@ export class CronService {
   removeJob(id: string): boolean {
     const result = this.jobs.delete(id);
     this.save();
-    if (result) {
-      this.log.info(`Removed job: ${id}`);
-    }
+    if (result) this.log.info(`Removed job: ${id}`);
     return result;
   }
 
@@ -90,10 +80,7 @@ export class CronService {
   listJobs(): CronJob[] {
     return Array.from(this.jobs.values()).map(job => ({
       ...job,
-      payload: {
-        ...job.payload,
-        detail: '[隐藏]'
-      }
+      payload: { ...job.payload, detail: '[隐藏]' }
     }));
   }
 
@@ -156,8 +143,7 @@ export class CronService {
             await this.onJobExecute(job);
             this.log.info(`Job ${job.id} completed successfully`);
           } catch (error: unknown) {
-            const message = normalizeError(error);
-            this.log.error(`Job ${job.id} failed:`, message);
+            this.log.error(`Job ${job.id} failed:`, normalizeError(error));
           }
         }
 
@@ -193,11 +179,9 @@ export class CronService {
         break;
 
       case 'interval':
-        if (job.schedule.intervalMs && job.schedule.intervalMs > 0) {
-          job.nextRunAtMs = now + job.schedule.intervalMs;
-        } else {
-          job.nextRunAtMs = undefined;
-        }
+        job.nextRunAtMs = (job.schedule.intervalMs && job.schedule.intervalMs > 0)
+          ? now + job.schedule.intervalMs
+          : undefined;
         break;
 
       case 'daily':
@@ -205,16 +189,15 @@ export class CronService {
           const parts = job.schedule.dailyAt.split(':');
           const hours = parseInt(parts[0]);
           const minutes = parseInt(parts[1]);
-          
+
           if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
             this.log.warn(`Invalid dailyAt time: ${job.schedule.dailyAt}`);
             job.nextRunAtMs = undefined;
             break;
           }
-          
+
           const today = new Date();
           today.setHours(hours, minutes, 0, 0);
-
           if (today.getTime() <= now) {
             today.setDate(today.getDate() + 1);
           }
@@ -226,7 +209,16 @@ export class CronService {
 
       case 'cron':
         if (job.schedule.cronExpr) {
-          job.nextRunAtMs = this.parseCronNext(job.schedule.cronExpr, now);
+          try {
+            const interval = CronExpressionParser.parse(job.schedule.cronExpr, {
+              currentDate: new Date(now),
+              tz: job.schedule.tz
+            });
+            job.nextRunAtMs = interval.next().getTime();
+          } catch {
+            this.log.warn(`Invalid cron expression: ${job.schedule.cronExpr}`);
+            job.nextRunAtMs = undefined;
+          }
         } else {
           job.nextRunAtMs = undefined;
         }
@@ -234,121 +226,8 @@ export class CronService {
     }
   }
 
-  private parseCronNext(cronExpr: string, now: number): number {
-    const parts = cronExpr.split(' ');
-    if (parts.length < 5) {
-      this.log.warn(`Invalid cron expression: ${cronExpr}`);
-      return now + 60000;
-    }
-
-    const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
-    
-    const validatePart = (part: string, min: number, max: number, name: string): boolean => {
-      if (part === '*') return true;
-      
-      if (part.includes('/')) {
-        const [range, step] = part.split('/');
-        const stepNum = parseInt(step);
-        if (isNaN(stepNum) || stepNum <= 0) {
-          this.log.warn(`Invalid cron step in ${name}: ${step}`);
-          return false;
-        }
-        if (range !== '*') {
-          if (range.includes('-')) {
-            const [start, end] = range.split('-').map(Number);
-            if (isNaN(start) || isNaN(end) || start < min || end > max || start > end) {
-              this.log.warn(`Invalid cron range in ${name}: ${range}`);
-              return false;
-            }
-          } else {
-            const val = parseInt(range);
-            if (isNaN(val) || val < min || val > max) {
-              this.log.warn(`Invalid cron value in ${name}: ${range}`);
-              return false;
-            }
-          }
-        }
-        return true;
-      }
-
-      if (part.includes('-')) {
-        const [start, end] = part.split('-').map(Number);
-        if (isNaN(start) || isNaN(end) || start < min || end > max || start > end) {
-          this.log.warn(`Invalid cron range in ${name}: ${part}`);
-          return false;
-        }
-        return true;
-      }
-
-      if (part.includes(',')) {
-        const vals = part.split(',').map(Number);
-        for (const v of vals) {
-          if (isNaN(v) || v < min || v > max) {
-            this.log.warn(`Invalid cron list value in ${name}: ${v}`);
-            return false;
-          }
-        }
-        return true;
-      }
-
-      const val = parseInt(part);
-      if (isNaN(val) || val < min || val > max) {
-        this.log.warn(`Invalid cron value in ${name}: ${part}`);
-        return false;
-      }
-      return true;
-    };
-
-    if (!validatePart(minute, 0, 59, 'minute')) return now + 60000;
-    if (!validatePart(hour, 0, 23, 'hour')) return now + 60000;
-    if (!validatePart(dayOfMonth, 1, 31, 'dayOfMonth')) return now + 60000;
-    if (!validatePart(month, 1, 12, 'month')) return now + 60000;
-    if (!validatePart(dayOfWeek, 0, 6, 'dayOfWeek')) return now + 60000;
-
-    const date = new Date(now);
-    date.setSeconds(0, 0);
-    
-    const maxIterations = 366 * 24 * 60;
-    
-    for (let i = 0; i < maxIterations; i++) {
-      date.setMinutes(date.getMinutes() + 1);
-
-      if (this.matchCronPart(minute, date.getMinutes()) &&
-          this.matchCronPart(hour, date.getHours()) &&
-          this.matchCronPart(dayOfMonth, date.getDate()) &&
-          this.matchCronPart(month, date.getMonth() + 1) &&
-          this.matchCronPart(dayOfWeek, date.getDay())) {
-        return date.getTime();
-      }
-    }
-
-    return now + 60000;
-  }
-
-  private matchCronPart(part: string, value: number): boolean {
-    if (part === '*') return true;
-
-    if (part.includes('/')) {
-      const [, step] = part.split('/');
-      return value % parseInt(step) === 0;
-    }
-
-    if (part.includes('-')) {
-      const [start, end] = part.split('-').map(Number);
-      return value >= start && value <= end;
-    }
-
-    if (part.includes(',')) {
-      return part.split(',').map(Number).includes(value);
-    }
-
-    return parseInt(part) === value;
-  }
-
   private load(): void {
-    if (!existsSync(this.storePath)) {
-      return;
-    }
+    if (!existsSync(this.storePath)) return;
 
     try {
       const content = readFileSync(this.storePath, 'utf-8');
@@ -366,8 +245,6 @@ export class CronService {
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
-
-    const jobs = Array.from(this.jobs.values());
-    writeFileSync(this.storePath, JSON.stringify(jobs, null, 2), 'utf-8');
+    writeFileSync(this.storePath, JSON.stringify(Array.from(this.jobs.values()), null, 2), 'utf-8');
   }
 }
