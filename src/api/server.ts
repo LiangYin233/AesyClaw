@@ -190,13 +190,21 @@ export class APIServer {
       this.app.get('/api/skills', (req, res) => res.json({ skills: sm.listSkills() }));
       this.app.get('/api/skills/:name', (req, res) => {
         const skill = sm.getSkill(req.params.name);
-        if (!skill) return res.status(404).json({ error: 'Skill not found' });
+        if (!skill) return res.status(404).json(createErrorResponse(new NotFoundError('Skill', req.params.name)));
         res.json({ skill });
       });
       this.app.post('/api/skills/:name/toggle', async (req, res) => {
-        const success = await sm.toggleSkill(req.params.name, req.body.enabled);
-        if (!success) return res.status(404).json({ success: false, error: 'Skill not found' });
-        res.json({ success: true });
+        try {
+          const { enabled } = req.body;
+          if (typeof enabled !== 'boolean') {
+            return res.status(400).json(createValidationErrorResponse('enabled must be a boolean', 'enabled'));
+          }
+          const success = await sm.toggleSkill(req.params.name, enabled);
+          if (!success) return res.status(404).json(createErrorResponse(new NotFoundError('Skill', req.params.name)));
+          res.json({ success: true });
+        } catch (error: unknown) {
+          res.status(500).json(createErrorResponse(error));
+        }
       });
     }
 

@@ -1,5 +1,5 @@
 import type { Express } from 'express';
-import { logger, type LogLevel, createErrorResponse } from '../../logger/index.js';
+import { logger, type LogLevel, createErrorResponse, createValidationErrorResponse, NotFoundError } from '../../logger/index.js';
 import { metrics } from '../../logger/Metrics.js';
 import { ConfigLoader } from '../../config/loader.js';
 
@@ -8,7 +8,11 @@ const log = logger.child({ prefix: 'MetricsAPI' });
 export function registerMetricsRoutes(app: Express): void {
   // Log config
   app.get('/api/logs/config', (req, res) => {
-    res.json(logger.getConfig());
+    try {
+      res.json(logger.getConfig());
+    } catch (error) {
+      res.status(500).json(createErrorResponse(error));
+    }
   });
 
   app.post('/api/logs/level', async (req, res) => {
@@ -16,7 +20,7 @@ export function registerMetricsRoutes(app: Express): void {
       const { level } = req.body;
       const validLevels: LogLevel[] = ['debug', 'info', 'warn', 'error'];
       if (!level || !validLevels.includes(level)) {
-        return res.status(400).json({ error: `Invalid log level. Must be one of: ${validLevels.join(', ')}` });
+        return res.status(400).json(createValidationErrorResponse(`level must be one of: ${validLevels.join(', ')}`, 'level'));
       }
 
       // 设置日志等级
@@ -38,83 +42,117 @@ export function registerMetricsRoutes(app: Express): void {
 
       res.json({ success: true, level: logger.getLevel() });
     } catch (error) {
-      res.status(400).json(createErrorResponse(error));
+      res.status(500).json(createErrorResponse(error));
     }
   });
 
   // Metrics
   app.get('/api/metrics/names', (req, res) => {
-    res.json({ names: metrics.getMetricNames() });
+    try {
+      res.json({ names: metrics.getMetricNames() });
+    } catch (error) {
+      res.status(500).json(createErrorResponse(error));
+    }
   });
 
   app.get('/api/metrics/stats/:name', (req, res) => {
-    const { name } = req.params;
-    const window = req.query.timeWindow ? parseInt(req.query.timeWindow as string) : undefined;
-    const stats = metrics.getStats(name, window);
-    if (!stats) return res.status(404).json({ error: `Metric "${name}" not found or no data available` });
-    res.json(stats);
+    try {
+      const { name } = req.params;
+      const window = req.query.timeWindow ? parseInt(req.query.timeWindow as string) : undefined;
+      const stats = metrics.getStats(name, window);
+      if (!stats) {
+        return res.status(404).json(createErrorResponse(new NotFoundError('Metric', name)));
+      }
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json(createErrorResponse(error));
+    }
   });
 
   app.get('/api/metrics/export', (req, res) => {
-    const { name, timeWindow } = req.query;
-    const window = timeWindow ? parseInt(timeWindow as string) : undefined;
-    const data = metrics.export(name as string | undefined, window);
-    res.json({ count: data.length, metrics: data });
+    try {
+      const { name, timeWindow } = req.query;
+      const window = timeWindow ? parseInt(timeWindow as string) : undefined;
+      const data = metrics.export(name as string | undefined, window);
+      res.json({ count: data.length, metrics: data });
+    } catch (error) {
+      res.status(500).json(createErrorResponse(error));
+    }
   });
 
   app.post('/api/metrics/clear', (req, res) => {
-    const { name } = req.body;
-    metrics.clear(name);
-    res.json({ success: true, message: name ? `Cleared metrics for "${name}"` : 'Cleared all metrics' });
+    try {
+      const { name } = req.body;
+      metrics.clear(name);
+      res.json({ success: true, message: name ? `Cleared metrics for "${name}"` : 'Cleared all metrics' });
+    } catch (error) {
+      res.status(500).json(createErrorResponse(error));
+    }
   });
 
   app.get('/api/metrics/memory', (req, res) => {
-    const mem = process.memoryUsage();
-    res.json({
-      heapUsed: mem.heapUsed,
-      heapTotal: mem.heapTotal,
-      external: mem.external,
-      rss: mem.rss
-    });
-  });
-
-  app.get('/api/metrics/overview', (req, res) => {
-    const names = metrics.getMetricNames();
-    const mem = process.memoryUsage();
-
-    let totalDataPoints = 0;
-    for (const name of names) {
-      const stats = metrics.getStats(name);
-      if (stats) {
-        totalDataPoints += stats.count;
-      }
-    }
-
-    res.json({
-      totalMetrics: names.length,
-      totalDataPoints,
-      memoryUsage: {
+    try {
+      const mem = process.memoryUsage();
+      res.json({
         heapUsed: mem.heapUsed,
         heapTotal: mem.heapTotal,
         external: mem.external,
-        rss: mem.rss
+        rss: mem.rss,
+        arrayBuffers: mem.arrayBuffers
+      });
+    } catch (error) {
+      res.status(500).json(createErrorResponse(error));
+    }
+  });
+
+  app.get('/api/metrics/overview', (req, res) => {
+    try {
+      const names = metrics.getMetricNames();
+      const mem = process.memoryUsage();
+
+      let totalDataPoints = 0;
+      for (const name of names) {
+        const stats = metrics.getStats(name);
+        if (stats) {
+          totalDataPoints += stats.count;
+        }
       }
-    });
+
+      res.json({
+        totalMetrics: names.length,
+        totalDataPoints,
+        memoryUsage: {
+          heapUsed: mem.heapUsed,
+          heapTotal: mem.heapTotal,
+          external: mem.external,
+          rss: mem.rss
+        }
+      });
+    } catch (error) {
+      res.status(500).json(createErrorResponse(error));
+    }
   });
 
   app.get('/api/metrics/config', (req, res) => {
-    res.json(metrics.getConfig());
+    try {
+      res.json(metrics.getConfig());
+    } catch (error) {
+      res.status(500).json(createErrorResponse(error));
+    }
   });
 
   app.post('/api/metrics/config', (req, res) => {
     try {
       const { enabled } = req.body;
-      if (enabled !== undefined && typeof enabled === 'boolean') {
+      if (enabled !== undefined) {
+        if (typeof enabled !== 'boolean') {
+          return res.status(400).json(createValidationErrorResponse('enabled must be a boolean', 'enabled'));
+        }
         metrics.setEnabled(enabled);
       }
       res.json({ success: true, config: metrics.getConfig() });
     } catch (error) {
-      res.status(400).json(createErrorResponse(error));
+      res.status(500).json(createErrorResponse(error));
     }
   });
 }

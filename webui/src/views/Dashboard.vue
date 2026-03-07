@@ -6,6 +6,7 @@
                     <div class="auto-refresh-control">
                         <InputSwitch v-model="autoRefresh" @change="toggleAutoRefresh" />
                         <span class="auto-refresh-label">自动刷新</span>
+                        <span v-if="lastUpdateTime" class="last-update">{{ lastUpdateTime }}</span>
                     </div>
                     <Button
                         label="刷新"
@@ -14,6 +15,8 @@
                         @click="refreshAll"
                         :loading="refreshing"
                     />
+                    <Button label="导出" icon="pi pi-download" outlined @click="handleExport" />
+                    <Button label="清空" icon="pi pi-trash" severity="danger" outlined @click="confirmClear" />
                 </div>
             </template>
         </PageHeader>
@@ -125,10 +128,7 @@
             <!-- Performance Metrics Section -->
             <Card v-if="metricsOverview" class="metrics-card">
                 <template #title>
-                    <div class="section-header">
-                        <h2>性能指标</h2>
-                        <span v-if="lastUpdateTime" class="last-update">{{ lastUpdateTime }}</span>
-                    </div>
+                    <h2>性能指标概览</h2>
                 </template>
                 <template #content>
                     <div class="metrics-overview">
@@ -149,53 +149,194 @@
                                 / {{ formatBytes(metricsOverview.memoryUsage.heapTotal) }}
                             </span>
                         </div>
+                        <div class="metric-stat">
+                            <span class="metric-label">RSS 内存</span>
+                            <span class="metric-value">
+                                {{ formatBytes(metricsOverview.memoryUsage.rss) }}
+                            </span>
+                        </div>
                     </div>
+                </template>
+            </Card>
 
-                    <!-- Key Metrics -->
-                    <div v-if="keyMetrics.length > 0" class="key-metrics">
-                        <h3>关键指标统计</h3>
-                        <div class="metrics-grid">
-                            <div
-                                v-for="metric in keyMetrics"
-                                :key="metric.name"
-                                class="metric-card"
-                            >
-                                <div class="metric-header">
-                                    <span class="metric-name">{{ formatMetricName(metric.name) }}</span>
-                                    <Tag
-                                        :value="metric.unit"
-                                        severity="secondary"
-                                        size="small"
-                                    />
+            <!-- Memory Usage Details -->
+            <Card v-if="memory" class="memory-card">
+                <template #title>内存使用详情</template>
+                <template #content>
+                    <div class="memory-grid">
+                        <div class="memory-item">
+                            <span class="memory-label">堆内存已用:</span>
+                            <span class="memory-value">{{ formatBytes(memory.heapUsed) }}</span>
+                        </div>
+                        <div class="memory-item">
+                            <span class="memory-label">堆内存总量:</span>
+                            <span class="memory-value">{{ formatBytes(memory.heapTotal) }}</span>
+                        </div>
+                        <div class="memory-item">
+                            <span class="memory-label">外部内存:</span>
+                            <span class="memory-value">{{ formatBytes(memory.external) }}</span>
+                        </div>
+                        <div class="memory-item">
+                            <span class="memory-label">RSS:</span>
+                            <span class="memory-value">{{ formatBytes(memory.rss) }}</span>
+                        </div>
+                        <div class="memory-item" v-if="memory.arrayBuffers">
+                            <span class="memory-label">ArrayBuffers:</span>
+                            <span class="memory-value">{{ formatBytes(memory.arrayBuffers) }}</span>
+                        </div>
+                    </div>
+                    <div class="memory-bar">
+                        <div
+                            class="memory-bar-fill"
+                            :style="{ width: `${(memory.heapUsed / memory.heapTotal) * 100}%` }"
+                        ></div>
+                    </div>
+                    <div class="memory-percentage">
+                        {{ ((memory.heapUsed / memory.heapTotal) * 100).toFixed(1) }}% 已使用
+                    </div>
+                </template>
+            </Card>
+
+            <!-- Key Metrics -->
+            <Card v-if="keyMetrics.length > 0" class="key-metrics-card">
+                <template #title>关键指标统计</template>
+                <template #content>
+                    <div class="metrics-grid">
+                        <div
+                            v-for="metric in keyMetrics"
+                            :key="metric.name"
+                            class="metric-card"
+                        >
+                            <div class="metric-header">
+                                <span class="metric-name">{{ formatMetricName(metric.name) }}</span>
+                                <Tag
+                                    :value="metric.unit"
+                                    severity="secondary"
+                                    size="small"
+                                />
+                            </div>
+                            <div class="metric-stats">
+                                <div class="metric-stat-item">
+                                    <span class="stat-label">平均</span>
+                                    <span class="stat-value">{{ formatMetricValue(metric.mean, metric.unit) }}</span>
                                 </div>
-                                <div class="metric-stats">
-                                    <div class="metric-stat-item">
-                                        <span class="stat-label">平均</span>
-                                        <span class="stat-value">{{ formatMetricValue(metric.avg, metric.unit) }}</span>
-                                    </div>
-                                    <div class="metric-stat-item">
-                                        <span class="stat-label">P95</span>
-                                        <span class="stat-value">{{ formatMetricValue(metric.p95, metric.unit) }}</span>
-                                    </div>
-                                    <div class="metric-stat-item">
-                                        <span class="stat-label">计数</span>
-                                        <span class="stat-value">{{ metric.count }}</span>
-                                    </div>
+                                <div class="metric-stat-item">
+                                    <span class="stat-label">P95</span>
+                                    <span class="stat-value">{{ formatMetricValue(metric.p95, metric.unit) }}</span>
+                                </div>
+                                <div class="metric-stat-item">
+                                    <span class="stat-label">计数</span>
+                                    <span class="stat-value">{{ metric.count }}</span>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </template>
             </Card>
+
+            <!-- All Metrics List -->
+            <Card v-if="metricNames.length > 0" class="metrics-list-card">
+                <template #title>
+                    <div class="metrics-header">
+                        <span>所有指标</span>
+                        <InputText
+                            v-model="searchQuery"
+                            placeholder="搜索指标..."
+                            class="search-input"
+                        >
+                            <template #prefix>
+                                <i class="pi pi-search"></i>
+                            </template>
+                        </InputText>
+                    </div>
+                </template>
+                <template #content>
+                    <div v-if="filteredMetrics.length > 0" class="metrics-list">
+                        <div
+                            v-for="name in filteredMetrics"
+                            :key="name"
+                            class="metric-item"
+                            @click="viewMetricDetails(name)"
+                        >
+                            <div class="metric-item-name">{{ name }}</div>
+                            <i class="pi pi-chevron-right"></i>
+                        </div>
+                    </div>
+                    <Message v-else severity="info" :closable="false">
+                        {{ searchQuery ? '未找到匹配的指标' : '暂无指标数据' }}
+                    </Message>
+                </template>
+            </Card>
         </LoadingContainer>
+
+        <!-- Metric Details Dialog -->
+        <Dialog v-model:visible="showDetailsDialog" header="指标详情" :style="{ width: '600px' }" modal>
+            <div v-if="selectedMetric">
+                <div class="details-section">
+                    <h3>{{ selectedMetric.name }}</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">计数:</span>
+                            <span class="stat-value">{{ selectedMetric.count }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">总和:</span>
+                            <span class="stat-value">{{ selectedMetric.sum.toFixed(2) }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">最小值:</span>
+                            <span class="stat-value">{{ selectedMetric.min.toFixed(2) }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">最大值:</span>
+                            <span class="stat-value">{{ selectedMetric.max.toFixed(2) }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">平均值:</span>
+                            <span class="stat-value">{{ selectedMetric.mean.toFixed(2) }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">P50:</span>
+                            <span class="stat-value">{{ selectedMetric.p50.toFixed(2) }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">P95:</span>
+                            <span class="stat-value">{{ selectedMetric.p95.toFixed(2) }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">P99:</span>
+                            <span class="stat-value">{{ selectedMetric.p99.toFixed(2) }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <template #footer>
+                <Button label="关闭" @click="showDetailsDialog = false" />
+            </template>
+        </Dialog>
+
+        <!-- Clear Confirmation Dialog -->
+        <Dialog v-model:visible="showClearDialog" header="确认清空" :style="{ width: '450px' }" modal>
+            <div class="confirm-content">
+                <i class="pi pi-exclamation-triangle" style="font-size: 2rem; color: var(--red-500)"></i>
+                <span>确定要清空所有指标数据吗？此操作无法撤销。</span>
+            </div>
+            <template #footer>
+                <Button label="取消" text @click="showClearDialog = false" />
+                <Button label="清空" severity="danger" @click="clearData" :loading="clearing" />
+            </template>
+        </Dialog>
+
+        <Toast />
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useSystemStore } from '../stores/system'
-import { useApi, type MetricOverview, type MetricStats } from '../composables/useApi'
+import { useApi, type MetricOverview, type MetricStats, type MemoryUsage } from '../composables/useApi'
 import { announceToScreenReader } from '../composables/useA11y'
+import { useToast } from 'primevue/usetoast'
 import PageHeader from '../components/common/PageHeader.vue'
 import LoadingContainer from '../components/common/LoadingContainer.vue'
 import EmptyState from '../components/common/EmptyState.vue'
@@ -203,15 +344,34 @@ import Card from 'primevue/card'
 import Tag from 'primevue/tag'
 import Button from 'primevue/button'
 import InputSwitch from 'primevue/inputswitch'
+import InputText from 'primevue/inputtext'
+import Dialog from 'primevue/dialog'
+import Message from 'primevue/message'
+import Toast from 'primevue/toast'
 
 const systemStore = useSystemStore()
-const { getMetricOverview, getMetricNames, getMetricStats } = useApi()
+const {
+    getMetricOverview,
+    getMetricNames,
+    getMetricStats,
+    getMemoryUsage,
+    exportMetrics,
+    clearMetrics
+} = useApi()
+const toast = useToast()
 
 const metricsOverview = ref<MetricOverview | null>(null)
+const memory = ref<MemoryUsage | null>(null)
+const metricNames = ref<string[]>([])
 const keyMetrics = ref<Array<MetricStats & { name: string; unit: string }>>([])
 const autoRefresh = ref(true)
 const refreshing = ref(false)
+const clearing = ref(false)
 const lastUpdateTime = ref('')
+const searchQuery = ref('')
+const showDetailsDialog = ref(false)
+const showClearDialog = ref(false)
+const selectedMetric = ref<MetricStats | null>(null)
 
 let refreshInterval: number | null = null
 
@@ -224,6 +384,12 @@ const KEY_METRIC_NAMES = [
     'session.load_time',
     'mcp.call_time'
 ]
+
+const filteredMetrics = computed(() => {
+    if (!searchQuery.value) return metricNames.value
+    const query = searchQuery.value.toLowerCase()
+    return metricNames.value.filter(name => name.toLowerCase().includes(query))
+})
 
 function formatUptime(seconds: number): string {
     const days = Math.floor(seconds / 86400)
@@ -272,15 +438,25 @@ function formatTime(date: Date): string {
 
 async function loadMetrics() {
     try {
-        // 加载指标概览
-        const overview = await getMetricOverview()
+        // 加载指标概览、内存使用和指标名称
+        const [overview, memoryData, names] = await Promise.all([
+            getMetricOverview(),
+            getMemoryUsage(),
+            getMetricNames()
+        ])
+
         if (overview) {
             metricsOverview.value = overview
         }
 
-        // 加载关键指标统计
-        const names = await getMetricNames()
+        if (memoryData) {
+            memory.value = memoryData
+        }
+
         if (names) {
+            metricNames.value = names
+
+            // 加载关键指标统计
             const metrics: Array<MetricStats & { name: string; unit: string }> = []
             for (const name of KEY_METRIC_NAMES) {
                 if (names.includes(name)) {
@@ -325,6 +501,75 @@ function stopAutoRefresh() {
     if (refreshInterval) {
         clearInterval(refreshInterval)
         refreshInterval = null
+    }
+}
+
+async function viewMetricDetails(name: string) {
+    const stats = await getMetricStats(name)
+    if (stats) {
+        selectedMetric.value = stats
+        showDetailsDialog.value = true
+    } else {
+        toast.add({
+            severity: 'error',
+            summary: '错误',
+            detail: '获取指标详情失败',
+            life: 3000
+        })
+    }
+}
+
+async function handleExport() {
+    const data = await exportMetrics()
+    if (data) {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `metrics-${new Date().toISOString()}.json`
+        a.click()
+        URL.revokeObjectURL(url)
+        toast.add({
+            severity: 'success',
+            summary: '成功',
+            detail: '指标数据已导出',
+            life: 3000
+        })
+    } else {
+        toast.add({
+            severity: 'error',
+            summary: '错误',
+            detail: '导出失败',
+            life: 3000
+        })
+    }
+}
+
+function confirmClear() {
+    showClearDialog.value = true
+}
+
+async function clearData() {
+    clearing.value = true
+    const success = await clearMetrics()
+    clearing.value = false
+
+    if (success) {
+        toast.add({
+            severity: 'success',
+            summary: '成功',
+            detail: '指标数据已清空',
+            life: 3000
+        })
+        showClearDialog.value = false
+        await loadMetrics()
+    } else {
+        toast.add({
+            severity: 'error',
+            summary: '错误',
+            detail: '清空失败',
+            life: 3000
+        })
     }
 }
 
@@ -373,6 +618,12 @@ onUnmounted(() => {
     font-size: 13px;
     color: #64748b;
     font-weight: 500;
+}
+
+.last-update {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-left: 4px;
 }
 
 .stats-grid {
@@ -441,7 +692,10 @@ onUnmounted(() => {
 }
 
 .channels-card,
-.metrics-card {
+.metrics-card,
+.memory-card,
+.key-metrics-card,
+.metrics-list-card {
     box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     margin-bottom: 24px;
 }
@@ -472,27 +726,9 @@ onUnmounted(() => {
     color: #334155;
 }
 
-.section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-}
-
-.section-header h2 {
-    margin: 0;
-    font-size: 18px;
-}
-
-.last-update {
-    font-size: 12px;
-    color: #94a3b8;
-    font-weight: normal;
-}
-
 .metrics-overview {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 16px;
     margin-bottom: 24px;
 }
@@ -523,6 +759,52 @@ onUnmounted(() => {
     font-size: 12px;
     color: #94a3b8;
     margin-top: 4px;
+}
+
+.memory-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.memory-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: #f8fafc;
+    border-radius: 6px;
+}
+
+.memory-label {
+    font-size: 13px;
+    color: #64748b;
+}
+
+.memory-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.memory-bar {
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.memory-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6, #2563eb);
+    transition: width 0.3s ease;
+}
+
+.memory-percentage {
+    text-align: center;
+    font-size: 13px;
+    color: #64748b;
 }
 
 .key-metrics h3 {
@@ -583,6 +865,89 @@ onUnmounted(() => {
     color: #1e293b;
 }
 
+.metrics-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.search-input {
+    max-width: 300px;
+}
+
+.metrics-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.metric-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: #f8fafc;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.metric-item:hover {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    transform: translateX(4px);
+}
+
+.metric-item-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #1e293b;
+    font-family: 'Courier New', monospace;
+}
+
+.details-section h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: #1e293b;
+    font-family: 'Courier New', monospace;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: #f8fafc;
+    border-radius: 6px;
+}
+
+.stat-item .stat-label {
+    font-size: 13px;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.stat-item .stat-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.confirm-content {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 0;
+}
+
 @media (max-width: 1024px) {
     .stats-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -590,6 +955,10 @@ onUnmounted(() => {
 
     .metrics-overview {
         grid-template-columns: repeat(2, 1fr);
+    }
+
+    .memory-grid {
+        grid-template-columns: 1fr;
     }
 
     .metrics-grid {
@@ -609,11 +978,27 @@ onUnmounted(() => {
     .header-actions {
         flex-direction: column;
         width: 100%;
+        gap: 8px;
     }
 
     .auto-refresh-control {
         width: 100%;
         justify-content: space-between;
+    }
+
+    .metrics-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .search-input {
+        max-width: 100%;
+        width: 100%;
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -659,6 +1044,35 @@ onUnmounted(() => {
         color: #e2e8f0;
     }
     .metric-stat-item .stat-value {
+        color: #e2e8f0;
+    }
+    .memory-item {
+        background: #1e293b;
+    }
+    .memory-value {
+        color: #e2e8f0;
+    }
+    .memory-bar {
+        background: #334155;
+    }
+    .metric-item {
+        background: #1e293b;
+        border-color: #334155;
+    }
+    .metric-item:hover {
+        background: #1e3a5f;
+        border-color: #1e40af;
+    }
+    .metric-item-name {
+        color: #e2e8f0;
+    }
+    .stat-item {
+        background: #1e293b;
+    }
+    .stat-item .stat-value {
+        color: #e2e8f0;
+    }
+    .details-section h3 {
         color: #e2e8f0;
     }
 }

@@ -3,7 +3,7 @@ import type { MCPClientManager } from '../../mcp/MCPClient.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import type { Config } from '../../types.js';
 import { ConfigLoader } from '../../config/loader.js';
-import { createErrorResponse } from '../../logger/index.js';
+import { createErrorResponse, createValidationErrorResponse, NotFoundError } from '../../logger/index.js';
 
 interface MCPDeps {
   mcpManager?: MCPClientManager;
@@ -22,11 +22,11 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
 
   app.get('/api/mcp/servers/:name', (req, res) => {
     const mgr = deps.getMcpManager();
-    if (!mgr) return res.status(404).json({ error: 'MCP not configured' });
+    if (!mgr) return res.status(404).json(createErrorResponse(new NotFoundError('MCP manager', 'mcp')));
     const { name } = req.params;
     const server = mgr.getServerStatus(name);
     if (!server || (Array.isArray(server) ? false : server.status === 'disconnected')) {
-      return res.status(404).json({ error: `MCP server not found: ${name}` });
+      return res.status(404).json(createErrorResponse(new NotFoundError('MCP server', name)));
     }
     const tools = mgr.getToolsForServer(name);
     res.json({ server, tools });
@@ -38,13 +38,13 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
       const config = req.body;
 
       if (!config.type || !['local', 'http'].includes(config.type)) {
-        return res.status(400).json({ error: 'Invalid config: type must be "local" or "http"' });
+        return res.status(400).json(createValidationErrorResponse('type must be "local" or "http"', 'type'));
       }
       if (config.type === 'local' && !config.command) {
-        return res.status(400).json({ error: 'Invalid config: command is required for local type' });
+        return res.status(400).json(createValidationErrorResponse('command is required for local type', 'command'));
       }
       if (config.type === 'http' && !config.url) {
-        return res.status(400).json({ error: 'Invalid config: url is required for http type' });
+        return res.status(400).json(createValidationErrorResponse('url is required for http type', 'url'));
       }
 
       let mgr = deps.getMcpManager();
@@ -75,7 +75,7 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
         toolsRegistered = tools.length;
       }
 
-      res.json({ success: true, server: mgr.getServerStatus(name), toolsRegistered });
+      res.status(201).json({ success: true, server: mgr.getServerStatus(name), toolsRegistered });
     } catch (error) {
       res.status(500).json(createErrorResponse(error));
     }
@@ -84,7 +84,7 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
   app.delete('/api/mcp/servers/:name', async (req, res) => {
     try {
       const mgr = deps.getMcpManager();
-      if (!mgr) return res.status(404).json({ error: 'MCP not configured' });
+      if (!mgr) return res.status(404).json(createErrorResponse(new NotFoundError('MCP manager', 'mcp')));
 
       const { name } = req.params;
       await mgr.disconnectOne(name);
@@ -110,7 +110,7 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
   app.post('/api/mcp/servers/:name/reconnect', async (req, res) => {
     try {
       const mgr = deps.getMcpManager();
-      if (!mgr) return res.status(404).json({ error: 'MCP not configured' });
+      if (!mgr) return res.status(404).json(createErrorResponse(new NotFoundError('MCP manager', 'mcp')));
       const { name } = req.params;
       await mgr.reconnect(name);
       res.json({ success: true, server: mgr.getServerStatus(name) });
@@ -125,10 +125,10 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
       const { enabled } = req.body;
 
       if (typeof enabled !== 'boolean') {
-        return res.status(400).json({ error: 'Invalid request: enabled must be a boolean' });
+        return res.status(400).json(createValidationErrorResponse('enabled must be a boolean', 'enabled'));
       }
       if (!deps.config.mcp?.[name]) {
-        return res.status(404).json({ error: `MCP server not found in config: ${name}` });
+        return res.status(404).json(createErrorResponse(new NotFoundError('MCP server in config', name)));
       }
 
       deps.config.mcp[name].enabled = enabled;

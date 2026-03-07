@@ -10,7 +10,6 @@ import Mcp from '../views/Mcp.vue'
 import Skills from '../views/Skills.vue'
 import Cron from '../views/Cron.vue'
 import Logs from '../views/Logs.vue'
-import Metrics from '../views/Metrics.vue'
 
 const router = createRouter({
     history: createWebHistory(),
@@ -29,8 +28,7 @@ const router = createRouter({
                 { path: 'mcp', name: 'mcp', component: Mcp },
                 { path: 'skills', name: 'skills', component: Skills },
                 { path: 'cron', name: 'cron', component: Cron },
-                { path: 'logs', name: 'logs', component: Logs },
-                { path: 'metrics', name: 'metrics', component: Metrics }
+                { path: 'logs', name: 'logs', component: Logs }
             ]
         }
     ]
