@@ -210,23 +210,24 @@ export class PluginManager {
 
   async applyOnMessage(msg: InboundMessage): Promise<InboundMessage | null> {
     this.log.info(`applyOnMessage called with: content="${msg.content}", media=${JSON.stringify(msg.media)}`);
+    this.log.debug(`Message details: channel=${msg.channel}, chatId=${msg.chatId}, senderId=${msg.senderId}`);
 
     const pipeline = new HookPipeline<InboundMessage>(
       Array.from(this.plugins.values()),
       'onMessage',
-      { timeout: 5000, verbose: true }
+      { verbose: true }
     );
 
     const result = await pipeline.execute(msg);
     this.log.info(`applyOnMessage returning: ${JSON.stringify({ content: result.content.substring(0, 50) })}`);
+    this.log.debug(`Message modified: ${result.content !== msg.content}`);
     return result;
   }
 
   async applyOnResponse(msg: OutboundMessage): Promise<OutboundMessage | null> {
     const pipeline = new HookPipeline<OutboundMessage>(
       Array.from(this.plugins.values()),
-      'onResponse',
-      { timeout: 5000 }
+      'onResponse'
     );
 
     return pipeline.execute(msg);
@@ -235,8 +236,7 @@ export class PluginManager {
   async applyOnAgentBefore(msg: InboundMessage, messages: LLMMessage[]): Promise<void> {
     const pipeline = new VoidHookPipeline(
       Array.from(this.plugins.values()),
-      'onAgentBefore',
-      { timeout: 5000 }
+      'onAgentBefore'
     );
 
     await pipeline.execute(msg, messages);
@@ -245,28 +245,29 @@ export class PluginManager {
   async applyOnAgentAfter(msg: InboundMessage, response: LLMResponse): Promise<void> {
     const pipeline = new VoidHookPipeline(
       Array.from(this.plugins.values()),
-      'onAgentAfter',
-      { timeout: 5000 }
+      'onAgentAfter'
     );
 
     await pipeline.execute(msg, response);
   }
 
   async applyOnBeforeToolCall(toolName: string, params: Record<string, any>, context?: ToolContext): Promise<Record<string, any>> {
+    this.log.debug(`applyOnBeforeToolCall: tool=${toolName}, params keys=${Object.keys(params).join(', ')}`);
+
     const pipeline = new HookPipeline<Record<string, any>>(
       Array.from(this.plugins.values()),
-      'onBeforeToolCall',
-      { timeout: 5000 }
+      'onBeforeToolCall'
     );
 
-    return pipeline.execute(params, toolName, context);
+    const result = await pipeline.execute(params, toolName, context);
+    this.log.debug(`After onBeforeToolCall hooks, params keys=${Object.keys(result).join(', ')}`);
+    return result;
   }
 
   async applyOnToolCall(toolName: string, params: Record<string, any>, result: string, context?: ToolContext): Promise<string> {
     const pipeline = new HookPipeline<string>(
       Array.from(this.plugins.values()),
-      'onToolCall',
-      { timeout: 5000 }
+      'onToolCall'
     );
 
     return pipeline.execute(result, toolName, params, context);
@@ -277,8 +278,7 @@ export class PluginManager {
 
     const pipeline = new VoidHookPipeline(
       Array.from(this.plugins.values()),
-      'onError',
-      { timeout: 5000 }
+      'onError'
     );
 
     await pipeline.execute(err, { ...context });
@@ -306,15 +306,17 @@ export class PluginManager {
     if (plugin.tools) {
       const pluginAny = plugin as any;
       for (const tool of plugin.tools) {
+        const toolName = tool.name; // 捕获工具名称
+        const toolExecute = tool.execute; // 捕获执行函数
         const wrappedTool = {
           ...tool,
           source: 'plugin' as const,
           execute: async (params: Record<string, any>, context?: any) => {
-            return tool.execute.call(plugin, params, context);
+            return toolExecute.call(plugin, params, context);
           }
         };
         this.toolRegistry.register(wrappedTool, 'plugin');
-        this.log.debug(`Registered tool from ${plugin.name}: ${tool.name}, has config: ${!!pluginAny.config}`);
+        this.log.debug(`Registered tool from ${plugin.name}: ${toolName}, has config: ${!!pluginAny.config}`);
       }
     }
 

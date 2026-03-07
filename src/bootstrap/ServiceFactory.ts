@@ -161,12 +161,17 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     log.info('MCP servers connecting in background...');
 
     mcpManager.onToolsLoaded((tools) => {
+      log.debug(`MCP tools loaded callback triggered, tools count: ${tools.length}`);
       for (const tool of tools) {
+        const toolName = tool.name;
+        log.debug(`Registering MCP tool: ${toolName}`);
         toolRegistry.register({
-          name: tool.name,
+          name: toolName,
           description: tool.description,
           parameters: tool.parameters,
-          execute: async (params: any) => mcpManager!.callTool(tool.name, params),
+          execute: async (params: any, context?: any) => {
+            return mcpManager!.callTool(toolName, params);
+          },
           source: 'mcp' as ToolSource
         }, 'mcp');
       }

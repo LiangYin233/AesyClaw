@@ -80,26 +80,33 @@ const plugin = {
       },
       execute: async (params) => {
         const { query, max_results, search_depth } = params;
-        
+
+        log.debug(`websearch execute: query="${query}", max_results=${max_results}, search_depth=${search_depth}`);
+
+        if (!query || typeof query !== 'string') {
+          return '错误: query 参数缺失或格式错误';
+        }
+
         if (!config.apiKey) {
           return '错误: Tavily API key 未配置';
         }
-        
+
         try {
+          log.debug(`Calling Tavily API with query: ${query}`);
           const data = await fetchTavily('search', {
             query,
             max_results: max_results || config.maxResults,
             search_depth: search_depth || config.searchDepth,
             include_raw_content: false
           }, config.apiKey);
-          
+
           const results = data.results?.map((r) => ({
             title: r.title,
             url: r.url,
             content: r.content?.substring(0, 500) || '',
             score: r.score
           })) || [];
-          
+
           log.info(`Search completed: ${query}, ${results.length} results`);
           return JSON.stringify(results);
         } catch (error) {
@@ -139,15 +146,53 @@ const plugin = {
         required: ['urls']
       },
       execute: async (params) => {
-        const { urls, query, extract_depth, format } = params;
-        
+        let { urls, query, extract_depth, format } = params;
+
+        log.debug(`web_extract execute: urls=${JSON.stringify(urls)}, format=${format}`);
+
         if (!config.apiKey) {
           return '错误: Tavily API key 未配置';
         }
-        
+
+        // 参数验证和修正：处理 urls 可能是字符串化的数组的情况
+        if (!urls) {
+          return '错误: urls 参数缺失';
+        }
+
+        // 如果 urls 是字符串，尝试解析
+        if (typeof urls === 'string') {
+          log.debug(`urls is string, attempting to parse: ${urls.substring(0, 100)}`);
+          try {
+            // 尝试解析 JSON 字符串（如 "[\"url1\",\"url2\"]"）
+            const parsed = JSON.parse(urls);
+            if (Array.isArray(parsed)) {
+              urls = parsed;
+              log.debug(`Successfully parsed urls to array, length: ${urls.length}`);
+            } else {
+              // 如果解析后不是数组，就当作单个 URL
+              urls = [urls];
+            }
+          } catch {
+            // 解析失败，当作单个 URL
+            urls = [urls];
+          }
+        } else if (!Array.isArray(urls)) {
+          // 如果不是字符串也不是数组，转换为数组
+          urls = [String(urls)];
+        }
+
+        // 过滤掉无效的 URL
+        urls = urls.filter(url => url && typeof url === 'string' && url.trim());
+
+        if (urls.length === 0) {
+          return '错误: 没有有效的 URL';
+        }
+
+        log.debug(`Calling Tavily extract API with ${urls.length} URLs`);
+
         try {
           const data = await fetchTavily('extract', {
-            urls: Array.isArray(urls) ? urls : [urls],
+            urls: urls,
             query: query || undefined,
             extract_depth: extract_depth || 'basic',
             format: format || 'markdown'

@@ -59,7 +59,7 @@ const plugin = {
     log.info(`Exec plugin loaded, python packages: ${config.python.packages.join(', ')}`);
   },
 
-  async onBeforeToolCall(toolName, params, context) {
+  async onBeforeToolCall(params, toolName, context) {
     if (!config.hooks.convertPaths) {
       return;
     }

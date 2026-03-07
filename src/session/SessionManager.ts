@@ -65,14 +65,17 @@ export class SessionManager {
   async getOrCreate(key: string): Promise<Session> {
     const existing = this.sessions.get(key);  // 尝试从内存中获取现有会话
     if (existing) {
+      this.log.debug(`Session found in memory: ${key}, messages: ${existing.messages.length}`);
       return existing;
     }
 
     const pending = this.sessionLocks.get(key);  // 检查是否有正在创建的会话
     if (pending) {
+      this.log.debug(`Session creation pending: ${key}`);
       return pending;
     }
 
+    this.log.debug(`Creating new session: ${key}`);
     const lockPromise = this.doGetOrCreate(key);  // 创建新会话的异步操作
     this.sessionLocks.set(key, lockPromise);  // 添加锁防止并发创建
 
@@ -188,7 +191,7 @@ export class SessionManager {
 
   async addMessage(key: string, role: 'user' | 'assistant' | 'system', content: string): Promise<void> {
     const session = await this.getOrCreate(key);
-    
+
     const message: SessionMessage = {
       role,
       content,
@@ -196,6 +199,7 @@ export class SessionManager {
     };
 
     session.messages.push(message);
+    this.log.debug(`Added ${role} message to session ${key}, total messages: ${session.messages.length}, content length: ${content.length}`);
 
     if (session.id) {
       const timestamp = message.timestamp;

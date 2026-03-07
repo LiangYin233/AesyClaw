@@ -2,7 +2,6 @@
  * Hook Pipeline Abstraction
  *
  * Provides a reusable pattern for executing plugin hooks with:
- * - Timeout protection
  * - Error handling
  * - Sequential execution with result chaining
  * - Logging
@@ -14,17 +13,14 @@ import type { Plugin } from './PluginManager.js';
 const log = logger.child({ prefix: 'HookPipeline' });
 
 export interface HookPipelineOptions {
-  /** Timeout in milliseconds for each hook execution */
-  timeout?: number;
   /** Whether to log hook execution */
   verbose?: boolean;
 }
 
 /**
- * Base class for hook pipelines with common timeout and error handling logic
+ * Base class for hook pipelines with common error handling logic
  */
 abstract class BaseHookPipeline {
-  protected timeout: number;
   protected verbose: boolean;
 
   constructor(
@@ -32,32 +28,7 @@ abstract class BaseHookPipeline {
     protected hookName: keyof Plugin,
     options: HookPipelineOptions = {}
   ) {
-    this.timeout = options.timeout ?? 5000;
     this.verbose = options.verbose ?? false;
-  }
-
-  /**
-   * Execute a function with timeout protection
-   */
-  protected async executeWithTimeout<T>(
-    fn: (...args: any[]) => Promise<T> | T,
-    ...args: any[]
-  ): Promise<T> {
-    return Promise.race([
-      Promise.resolve(fn(...args)) as Promise<T>,
-      this.createTimeoutPromise<T>()
-    ]);
-  }
-
-  /**
-   * Create a timeout promise that rejects after the specified duration
-   */
-  protected createTimeoutPromise<T>(): Promise<T> {
-    return new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(new Error(`Hook ${String(this.hookName)} timed out after ${this.timeout}ms`));
-      }, this.timeout);
-    });
   }
 
   /**
@@ -101,12 +72,8 @@ export class HookPipeline<TInput, TOutput = TInput> extends BaseHookPipeline {
       try {
         this.logExecution(plugin.name);
 
-        // Execute hook with timeout protection
-        const hookResult = await this.executeWithTimeout(
-          hook.bind(plugin),
-          result,
-          ...args
-        );
+        // Execute hook directly
+        const hookResult = await hook.bind(plugin)(result, ...args);
 
         // Update result if hook returned a value
         if (hookResult !== undefined && hookResult !== null) {
@@ -139,7 +106,7 @@ export class VoidHookPipeline extends BaseHookPipeline {
 
       try {
         this.logExecution(plugin.name);
-        await this.executeWithTimeout(hook.bind(plugin), ...args);
+        await hook.bind(plugin)(...args);
       } catch (error) {
         this.logError(plugin.name, error);
       }

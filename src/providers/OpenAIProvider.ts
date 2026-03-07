@@ -208,7 +208,9 @@ export class OpenAIProvider extends LLMProvider {
           let args: Record<string, unknown>;
           try {
             args = JSON.parse(tc.function.arguments);
-          } catch {
+          } catch (error) {
+            this.log.error(`Failed to parse tool call arguments for ${tc.function.name}: ${tc.function.arguments.substring(0, 200)}`);
+            this.log.debug(`Parse error: ${error}`);
             args = {};
           }
           return {

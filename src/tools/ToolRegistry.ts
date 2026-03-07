@@ -124,9 +124,12 @@ export class ToolRegistry {
       throw new Error(`Tool not found: ${name}`);
     }
 
+    this.log.debug(`Executing tool: ${name}, source: ${tool.source}, params keys: ${Object.keys(params).join(', ')}`);
+
     if (tool.validate) {
       const errors = tool.validate(params);  // 验证参数
       if (errors.length > 0) {
+        this.log.debug(`Tool ${name} validation failed: ${errors.join(', ')}`);
         throw new Error(`Validation errors: ${errors.join(', ')}`);
       }
     }
@@ -155,9 +158,11 @@ export class ToolRegistry {
         })
       ]);
       clearTimeout(timeoutId);  // 清除超时计时器
+      this.log.debug(`Tool ${name} completed successfully, result length: ${result.length}`);
       return result;
     } catch (error) {
       clearTimeout(timeoutId);
+      this.log.debug(`Tool ${name} execution error: ${error instanceof Error ? error.message : String(error)}`);
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error(`Tool execution timeout: ${tool.name} (${timeout}ms)`);
       }

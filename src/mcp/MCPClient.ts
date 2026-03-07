@@ -60,14 +60,20 @@ export class MCPClientManager {
 
     // 不等待所有连接完成,立即返回
     // 连接在后台继续进行
-    Promise.all(promises).then(() => {
-      this.log.info('All MCP server connections completed');
-    });
+    Promise.all(promises)
+      .then(() => {
+        this.log.info('All MCP server connections completed');
+      })
+      .catch((error) => {
+        this.log.error('Error in MCP server connections:', error);
+      });
   }
 
   private async connectServer(name: string, config: MCPServerConfig): Promise<void> {
     const timeout = config.timeout ?? MCPClientManager.DEFAULT_TIMEOUT;
     const transportType = config.type || 'local';
+
+    this.log.debug(`Connecting to MCP server: ${name}, type: ${transportType}, timeout: ${timeout}ms`);
 
     const client = new Client({
       name: `aesyclaw-${name}`,
@@ -192,14 +198,33 @@ export class MCPClientManager {
 
     const requestTimeout = timeout ?? MCPClientManager.DEFAULT_TIMEOUT;
 
+    this.log.debug(`Calling MCP tool: server=${serverName}, tool=${toolName}, args keys=${Object.keys(args).join(', ')}`);
+
+    // 确保 args 是一个对象
+    let parsedArgs = args;
+    if (typeof args === 'string') {
+      try {
+        parsedArgs = JSON.parse(args);
+        this.log.debug(`Parsed string args to object`);
+      } catch (error) {
+        throw new Error(`Invalid arguments format: expected object, got string that cannot be parsed as JSON`);
+      }
+    }
+
+    if (!parsedArgs || typeof parsedArgs !== 'object' || Array.isArray(parsedArgs)) {
+      throw new Error(`Invalid arguments: expected object, got ${typeof parsedArgs}`);
+    }
+
     const response = await Promise.race<any>([
       client.callTool(
-        { name: toolName, arguments: args }
+        { name: toolName, arguments: parsedArgs }
       ),
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error(`MCP tool call timeout after ${requestTimeout}ms`)), requestTimeout)
       )
     ]);
+
+    this.log.debug(`MCP tool ${toolName} completed, response content items: ${response?.content?.length || 0}`);
 
     const textParts = (response?.content || [])
       .filter((item: any) => item?.type === 'text' && typeof item?.text === 'string')

@@ -380,6 +380,7 @@ export class AgentLoop {
 
 
           this.log.info(`Tool ${toolName} arguments: ${JSON.stringify(toolArgs)}`);
+          this.log.debug(`Tool call ID: ${toolCall.id}, raw arguments type: ${typeof toolCall.arguments}`);
 
           const toolEndTimer = metrics.timer('agent.tool_execution', { tool: toolName });
 
@@ -401,6 +402,7 @@ export class AgentLoop {
 
             if (this.pluginManager) {
               toolArgs = await this.pluginManager.applyOnBeforeToolCall(toolName, toolArgs || {}, execContext);
+              this.log.debug(`After plugin hooks, tool args: ${JSON.stringify(toolArgs).substring(0, 200)}`);
             }
 
             result = await this.toolRegistry.execute(
