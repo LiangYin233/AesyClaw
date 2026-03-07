@@ -422,7 +422,10 @@ function formatMetricName(name: string): string {
     return names[name] || name
 }
 
-function formatMetricValue(value: number, unit: string): string {
+function formatMetricValue(value: number | undefined, unit: string): string {
+    if (value === undefined || value === null || isNaN(value)) {
+        return '-'
+    }
     if (unit === 'ms') {
         return `${value.toFixed(2)}ms`
     } else if (unit === 'count') {
@@ -476,7 +479,11 @@ async function loadMetrics() {
                     const stats = await getMetricStats(name)
                     // 检查组件是否仍然挂载
                     if (!isMounted.value) return
-                    if (stats) {
+                    // 验证统计数据完整性
+                    if (stats &&
+                        typeof stats.mean === 'number' &&
+                        typeof stats.p95 === 'number' &&
+                        typeof stats.count === 'number') {
                         const unit = name.includes('time') ? 'ms' : 'count'
                         metrics.push({ ...stats, name, unit })
                     }
