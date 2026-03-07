@@ -14,7 +14,8 @@ export interface Metric {
 
 export interface MetricStats {
   count: number;
-  avg: number;
+  sum: number;
+  mean: number;
   min: number;
   max: number;
   p50: number;
@@ -100,7 +101,8 @@ export class MetricsCollector {
 
     return {
       count: values.length,
-      avg: sum / values.length,
+      sum,
+      mean: sum / values.length,
       min: values[0],
       max: values[values.length - 1],
       p50: this.percentile(values, 0.5),
