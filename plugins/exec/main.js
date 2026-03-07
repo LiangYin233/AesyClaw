@@ -5,19 +5,16 @@ import { loadConfig } from './config.js';
 import { PythonRunner } from './PythonRunner.js';
 import { ShellRunner } from './ShellRunner.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const PROJECT_ROOT = resolve(__dirname, '../..');
-
-let log = console;
-let config = null;
-let pythonRunner = null;
-let shellRunner = null;
-
 const plugin = {
   name: 'exec',
   version: '1.0.0',
   description: '执行 Python 和 Shell 命令的插件',
+
+  log: console,
+  config: null,
+  pythonRunner: null,
+  shellRunner: null,
+
   defaultConfig: {
     enabled: false,
     options: {
@@ -32,27 +29,27 @@ const plugin = {
 
   async onLoad(context) {
     if (context.logger) {
-      log = context.logger.child({ prefix: 'exec' });
+      this.log = context.logger.child({ prefix: 'exec' });
     }
 
     const options = context.options || {};
-    config = loadConfig(options);
+    this.config = loadConfig(options);
 
-    pythonRunner = new PythonRunner({
-      executable: config.python.executable,
-      timeout: config.python.timeout,
-      maxOutput: config.python.maxOutput
-    }, log);
+    this.pythonRunner = new PythonRunner({
+      executable: this.config.python.executable,
+      timeout: this.config.python.timeout,
+      maxOutput: this.config.python.maxOutput
+    }, this.log);
 
-    shellRunner = new ShellRunner({
-      timeout: config.shell.timeout,
-      maxOutput: config.shell.maxOutput,
-      blockedCommands: config.shell.blockedCommands,
-      blockedPaths: config.shell.blockedPaths,
-      blockedParams: config.shell.blockedParams
-    }, log);
+    this.shellRunner = new ShellRunner({
+      timeout: this.config.shell.timeout,
+      maxOutput: this.config.shell.maxOutput,
+      blockedCommands: this.config.shell.blockedCommands,
+      blockedPaths: this.config.shell.blockedPaths,
+      blockedParams: this.config.shell.blockedParams
+    }, this.log);
 
-    log.info(`Exec plugin loaded, python executable: ${config.python.executable}`);
+    this.log.info(`Exec plugin loaded, python executable: ${this.config.python.executable}`);
   },
 
   tools: [
@@ -71,8 +68,8 @@ const plugin = {
       },
       async execute(params) {
         const { code } = params;
-        log.debug('Executing python');
-        return await pythonRunner.execute(code);
+        plugin.log.debug('Executing python');
+        return await plugin.pythonRunner.execute(code);
       }
     },
     {
@@ -90,8 +87,8 @@ const plugin = {
       },
       async execute(params) {
         const { command } = params;
-        log.debug(`Executing shell: ${command}`);
-        return await shellRunner.execute(command);
+        plugin.log.debug(`Executing shell: ${command}`);
+        return await plugin.shellRunner.execute(command);
       }
     }
   ]

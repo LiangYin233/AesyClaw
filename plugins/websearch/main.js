@@ -1,32 +1,15 @@
-let log = console;
-let config = {
-  apiKey: '',
-  maxResults: 5,
-  searchDepth: 'basic'
-};
-
-async function fetchTavily(endpoint, body, apiKey) {
-  const response = await fetch(`https://api.tavily.com/${endpoint}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify(body)
-  });
-  
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`API error ${response.status}: ${errorBody.substring(0, 200)}`);
-  }
-  
-  return response.json();
-}
-
 const plugin = {
   name: 'websearch',
   version: '1.0.0',
   description: '使用 Tavily 进行网页搜索',
+
+  log: console,
+  config: {
+    apiKey: '',
+    maxResults: 5,
+    searchDepth: 'basic'
+  },
+
   defaultConfig: {
     enabled: false,
     options: {
@@ -36,22 +19,40 @@ const plugin = {
     }
   },
 
+  async fetchTavily(endpoint, body, apiKey) {
+    const response = await fetch(`https://api.tavily.com/${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`API error ${response.status}: ${errorBody.substring(0, 200)}`, { cause: response });
+    }
+
+    return response.json();
+  },
+
   async onLoad(context) {
     if (context.logger) {
-      log = context.logger.child({ prefix: 'websearch' });
+      this.log = context.logger.child({ prefix: 'websearch' });
     }
-    
+
     const options = context.options || {};
-    config = {
+    this.config = {
       apiKey: options.apiKey || process.env.TAVILY_API_KEY || '',
       maxResults: options.maxResults || 5,
       searchDepth: options.searchDepth || 'basic'
     };
-    
-    if (!config.apiKey) {
-      log.warn('Tavily API key not configured. Set via options.apiKey or TAVILY_API_KEY env');
+
+    if (!this.config.apiKey) {
+      this.log.warn('Tavily API key not configured. Set via options.apiKey or TAVILY_API_KEY env');
     } else {
-      log.info('Websearch plugin loaded');
+      this.log.info('Websearch plugin loaded');
     }
   },
 
@@ -78,27 +79,27 @@ const plugin = {
         },
         required: ['query']
       },
-      execute: async (params) => {
+      async execute(params) {
         const { query, max_results, search_depth } = params;
 
-        log.debug(`websearch execute: query="${query}", max_results=${max_results}, search_depth=${search_depth}`);
+        plugin.log.debug(`websearch execute: query="${query}", max_results=${max_results}, search_depth=${search_depth}`);
 
         if (!query || typeof query !== 'string') {
-          return '错误: query 参数缺失或格式错误';
+          throw new Error('query 参数缺失或格式错误');
         }
 
-        if (!config.apiKey) {
-          return '错误: Tavily API key 未配置';
+        if (!plugin.config.apiKey) {
+          throw new Error('Tavily API key 未配置');
         }
 
         try {
-          log.debug(`Calling Tavily API with query: ${query}`);
-          const data = await fetchTavily('search', {
+          plugin.log.debug(`Calling Tavily API with query: ${query}`);
+          const data = await plugin.fetchTavily('search', {
             query,
-            max_results: max_results || config.maxResults,
-            search_depth: search_depth || config.searchDepth,
+            max_results: max_results || plugin.config.maxResults,
+            search_depth: search_depth || plugin.config.searchDepth,
             include_raw_content: false
-          }, config.apiKey);
+          }, plugin.config.apiKey);
 
           const results = data.results?.map((r) => ({
             title: r.title,
@@ -107,11 +108,11 @@ const plugin = {
             score: r.score
           })) || [];
 
-          log.info(`Search completed: ${query}, ${results.length} results`);
+          plugin.log.info(`Search completed: ${query}, ${results.length} results`);
           return JSON.stringify(results);
         } catch (error) {
-          log.error('Search failed:', error.message);
-          return `搜索失败: ${error.message}`;
+          plugin.log.error('Search failed:', error.message);
+          throw new Error(`搜索失败: ${error.message}`, { cause: error });
         }
       }
     },
@@ -145,29 +146,29 @@ const plugin = {
         },
         required: ['urls']
       },
-      execute: async (params) => {
+      async execute(params) {
         let { urls, query, extract_depth, format } = params;
 
-        log.debug(`web_extract execute: urls=${JSON.stringify(urls)}, format=${format}`);
+        plugin.log.debug(`web_extract execute: urls=${JSON.stringify(urls)}, format=${format}`);
 
-        if (!config.apiKey) {
-          return '错误: Tavily API key 未配置';
+        if (!plugin.config.apiKey) {
+          throw new Error('Tavily API key 未配置');
         }
 
         // 参数验证和修正：处理 urls 可能是字符串化的数组的情况
         if (!urls) {
-          return '错误: urls 参数缺失';
+          throw new Error('urls 参数缺失');
         }
 
         // 如果 urls 是字符串，尝试解析
         if (typeof urls === 'string') {
-          log.debug(`urls is string, attempting to parse: ${urls.substring(0, 100)}`);
+          plugin.log.debug(`urls is string, attempting to parse: ${urls.substring(0, 100)}`);
           try {
             // 尝试解析 JSON 字符串（如 "[\"url1\",\"url2\"]"）
             const parsed = JSON.parse(urls);
             if (Array.isArray(parsed)) {
               urls = parsed;
-              log.debug(`Successfully parsed urls to array, length: ${urls.length}`);
+              plugin.log.debug(`Successfully parsed urls to array, length: ${urls.length}`);
             } else {
               // 如果解析后不是数组，就当作单个 URL
               urls = [urls];
@@ -185,28 +186,28 @@ const plugin = {
         urls = urls.filter(url => url && typeof url === 'string' && url.trim());
 
         if (urls.length === 0) {
-          return '错误: 没有有效的 URL';
+          throw new Error('没有有效的 URL');
         }
 
-        log.debug(`Calling Tavily extract API with ${urls.length} URLs`);
+        plugin.log.debug(`Calling Tavily extract API with ${urls.length} URLs`);
 
         try {
-          const data = await fetchTavily('extract', {
+          const data = await plugin.fetchTavily('extract', {
             urls: urls,
             query: query || undefined,
             extract_depth: extract_depth || 'basic',
             format: format || 'markdown'
-          }, config.apiKey);
-          
+          }, plugin.config.apiKey);
+
           const results = data.results?.map((r) => ({
             url: r.url,
             content: r.raw_content?.substring(0, 5000) || ''
           })) || [];
-          
+
           return JSON.stringify(results);
         } catch (error) {
-          log.error('Extract failed:', error.message);
-          return `提取失败: ${error.message}`;
+          plugin.log.error('Extract failed:', error.message);
+          throw new Error(`提取失败: ${error.message}`, { cause: error });
         }
       }
     }
