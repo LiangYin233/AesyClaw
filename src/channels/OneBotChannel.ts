@@ -6,6 +6,7 @@ import type { OutboundMessage } from '../types.js';
 import type { EventBus } from '../bus/EventBus.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS } from '../constants/index.js';
+import { parseMessageSegment, formatMessageWithBase64 } from '../utils/index.js';
 
 export interface OneBotConfig {
   wsUrl: string;
@@ -290,7 +291,7 @@ export class OneBotChannel extends BaseChannel {
 
     if (Array.isArray(message)) {
       for (const seg of message) {
-        const parsed = this.parseMessageSegment(seg);
+        const parsed = parseMessageSegment(seg);
         if (parsed.media) {
           for (const m of parsed.media) {
             if (m) mediaSet.add(m);
@@ -304,40 +305,6 @@ export class OneBotChannel extends BaseChannel {
 
     const media = Array.from(mediaSet);
     return { content: content.trim(), media: media.length > 0 ? media : undefined };
-  }
-
-  private parseMessageSegment(seg: any): { text?: string; media?: string[] } {
-    if (!seg || typeof seg !== 'object') return { text: String(seg) };
-    
-    const type = seg.type;
-    const data = seg.data || {};
-    
-    switch (type) {
-      case 'text':
-        return { text: data.text || '' };
-      case 'image':
-        const file = data.file || '';
-        const url = data.url || '';
-        const imageUrl = url || `file://${file}`;
-        return { text: url ? `[图片](${url})` : `[图片:${file}]`, media: [imageUrl] };
-      case 'at':
-        const qq = data.qq;
-        return { text: qq === 'all' ? '@全体成员' : `@${qq}` };
-      case 'record':
-        return { text: `[语音]` };
-      case 'video':
-        return { text: `[视频]`, media: [data.file || data.url || ''] };
-      case 'file':
-        return { text: `[文件: ${data.file || ''}]`, media: [data.file || data.url || ''] };
-      case 'face':
-        return { text: `[表情:${data.id}]` };
-      case 'reply':
-        return { text: `[回复:${data.id}]` };
-      case 'rich':
-        return { text: `[富文本:${data.id || ''}]` };
-      default:
-        return { text: `[${type}]` };
-    }
   }
 
   async send(msg: OutboundMessage): Promise<void> {
@@ -355,7 +322,12 @@ export class OneBotChannel extends BaseChannel {
       throw new Error(`Invalid chatId: must be numeric, got ${chatId}`);
     }
 
-    const segments = this.formatMessageWithBase64(msg.content, msg.media);
+    const segments = formatMessageWithBase64(
+      msg.content,
+      msg.media,
+      this.imageToBase64.bind(this),
+      CONSTANTS.MESSAGE_MAX_LENGTH
+    );
 
     if (segments.length === 0) {
       this.log.warn(`No valid segments to send (content empty and no valid media)`);
@@ -379,53 +351,6 @@ export class OneBotChannel extends BaseChannel {
     await this.sendAction(action, params);
 
     this.log.info(`Message sent to ${chatId}`);
-  }
-
-  private formatMessageWithBase64(content: string, media?: string[]): any[] {
-    const segments: any[] = [];
-    let remaining = content;
-
-    while (remaining.length > 0) {
-      const imageMatch = remaining.match(/\[图片\]\(([^)]+)\)/);
-      if (imageMatch) {
-        const before = remaining.substring(0, imageMatch.index);
-        if (before) {
-          segments.push({ type: 'text', data: { text: before } });
-        }
-        const base64 = this.imageToBase64(imageMatch[1]);
-        if (base64) {
-          segments.push({ type: 'image', data: { file: `base64://${base64}` } });
-        }
-        remaining = remaining.substring(imageMatch.index! + imageMatch[0].length);
-        continue;
-      }
-
-      const atMatch = remaining.match(/@(\d+)/);
-      if (atMatch) {
-        const before = remaining.substring(0, atMatch.index);
-        if (before) {
-          segments.push({ type: 'text', data: { text: before } });
-        }
-        segments.push({ type: 'at', data: { qq: atMatch[1] } });
-        remaining = remaining.substring(atMatch.index! + atMatch[0].length);
-        continue;
-      }
-
-      const maxLength = Math.min(remaining.length, CONSTANTS.MESSAGE_MAX_LENGTH);
-      segments.push({ type: 'text', data: { text: remaining.substring(0, maxLength) } });
-      break;
-    }
-
-    if (media && media.length > 0) {
-      for (const mediaPath of media) {
-        const base64 = this.imageToBase64(mediaPath);
-        if (base64) {
-          segments.push({ type: 'image', data: { file: `base64://${base64}` } });
-        }
-      }
-    }
-
-    return segments.length > 0 ? segments : [{ type: 'text', data: { text: content } }];
   }
 
   private readonly MAX_IMAGE_SIZE = CONSTANTS.MAX_IMAGE_SIZE;

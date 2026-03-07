@@ -1,8 +1,8 @@
 import { randomUUID } from 'crypto';
 import { ConfigLoader } from '../config/loader.js';
-import { createServices, parseTarget, type Services } from './ServiceFactory.js';
+import { createServices, type Services } from './ServiceFactory.js';
 import { logger } from '../logger/index.js';
-import { normalizeError } from '../utils/errors.js';
+import { normalizeError, parseTarget } from '../utils/index.js';
 import { createProvider } from '../providers/index.js';
 import { CONSTANTS } from '../constants/index.js';
 import type { Config, OutboundMessage } from '../types.js';

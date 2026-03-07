@@ -9,7 +9,7 @@ import { CommandRegistry } from './commands/index.js';
 import { logger } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
 import { CONSTANTS, CONFIG_DEFAULTS } from '../constants/index.js';
-import { normalizeError } from '../utils/errors.js';
+import { normalizeError, isRetryableError } from '../utils/index.js';
 
 export type ContextMode = 'session' | 'channel' | 'global';  // 上下文模式类型
 
@@ -418,7 +418,7 @@ export class AgentLoop {
             metrics.record('agent.tool_call_count', 1, 'count', { tool: toolName, status: 'success' });
           } catch (error: unknown) {
             const message = normalizeError(error);
-            const isRetryable = this.isRetryableError(error);
+            const isRetryable = isRetryableError(error);
             result = `Error: ${message}${isRetryable ? ' (retryable)' : ''}`;
             this.log.error(`Tool ${toolName} execution failed (retryable: ${isRetryable}):`, message);
 
@@ -513,31 +513,6 @@ export class AgentLoop {
     }
 
     await this.eventBus.publishOutbound(processedMsg);
-  }
-
-  private isRetryableError(error: unknown): boolean {
-    if (!error) return false;
-
-    const retryableStatusCodes = [408, 429, 500, 502, 503, 504];
-
-    if (error instanceof Error) {
-      const message = error.message;
-      const networkPatterns = [
-        'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND',
-        'network', 'timeout', 'ECONNRESET', 'socket'
-      ];
-
-      if (networkPatterns.some(pattern => message.includes(pattern))) {
-        return true;
-      }
-
-      const statusMatch = message.match(/\b(40[89]|5\d{2})\b/);
-      if (statusMatch && retryableStatusCodes.includes(parseInt(statusMatch[1], 10))) {
-        return true;
-      }
-    }
-
-    return false;
   }
 
   setCommandRegistry(registry: CommandRegistry): void {

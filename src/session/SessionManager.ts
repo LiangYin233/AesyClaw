@@ -4,6 +4,7 @@ import type { LLMMessage } from '../types.js';
 import { Database, type DBSession, type DBMessage } from '../db/index.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS, CONFIG_DEFAULTS } from '../constants/index.js';
+import { parseSessionKey } from '../utils/index.js';
 
 export interface SessionMessage {
   role: 'user' | 'assistant' | 'system';
@@ -47,14 +48,6 @@ export class SessionManager {
     return `${channel}:${chatId}`;
   }
 
-  parseSessionKey(key: string): { channel: string; chatId: string; uuid?: string } {
-    const parts = key.split(':');
-    if (parts.length >= 3) {
-      return { channel: parts[0], chatId: parts[1], uuid: parts[2] };
-    }
-    return { channel: parts[0], chatId: parts[1] };
-  }
-
   createNewSession(channel: string, chatId: string): string {
     const uuid = randomUUID().substring(0, 8);
     const key = this.createSessionKey(channel, chatId, uuid);
@@ -93,7 +86,7 @@ export class SessionManager {
       return existing;
     }
 
-    const parsed = this.parseSessionKey(key);  // 解析会话键
+    const parsed = parseSessionKey(key);  // 解析会话键
     const session = await this.load(key);  // 从数据库加载会话
     
     if (!session) {

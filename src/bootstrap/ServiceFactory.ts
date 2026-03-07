@@ -19,6 +19,7 @@ import { metrics } from '../logger/Metrics.js';
 import type { Config, OutboundMessage } from '../types.js';
 import type { LLMProvider } from '../providers/base.js';
 import type { CronJob } from '../cron/index.js';
+import { parseTarget } from '../utils/index.js';
 
 export interface Services {
   eventBus: EventBus;
@@ -41,15 +42,6 @@ export interface ServiceFactoryOptions {
   config: Config;
   port: number;
   onCronJob?: (job: CronJob) => Promise<void>;
-}
-
-export function parseTarget(to: string): { chatId: string; messageType: 'private' | 'group' } | null {
-  const match = to.match(/^(private|group):(.+)$/);
-  if (!match) return null;
-  return {
-    chatId: match[2],
-    messageType: match[1] as 'private' | 'group'
-  };
 }
 
 export async function createServices(options: ServiceFactoryOptions): Promise<Services> {

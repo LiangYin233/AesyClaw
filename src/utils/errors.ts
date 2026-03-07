@@ -85,3 +85,30 @@ export class NotFoundError extends AppError {
   }
 }
 
+/**
+ * Check if an error is retryable (network errors, timeouts, specific HTTP status codes)
+ */
+export function isRetryableError(error: unknown): boolean {
+  if (!error) return false;
+
+  const retryableStatusCodes = [408, 429, 500, 502, 503, 504];
+  const networkPatterns = [
+    'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND',
+    'network', 'timeout', 'ECONNRESET', 'socket'
+  ];
+
+  if (error instanceof Error) {
+    const message = error.message;
+
+    if (networkPatterns.some(pattern => message.includes(pattern))) {
+      return true;
+    }
+
+    const statusMatch = message.match(/\b(40[89]|5\d{2})\b/);
+    if (statusMatch && retryableStatusCodes.includes(parseInt(statusMatch[1], 10))) {
+      return true;
+    }
+  }
+
+  return false;
+}
