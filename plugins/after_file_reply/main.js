@@ -12,7 +12,6 @@ const plugin = {
   defaultConfig: {
     enabled: false,
     options: {
-      debug_log: false,
       timeoutMinutes: 5
     }
   },
@@ -61,9 +60,8 @@ const plugin = {
   async onLoad(context) {
     this.context = context;
     this.options = context.options || {};
-    this.debug = this.options.debug_log || false;
     this.timeoutMs = (this.options.timeoutMinutes || 5) * 60 * 1000;
-    
+
     await this.loadStates();
     setInterval(() => this.cleanupExpired(), 60000);
   },
@@ -83,9 +81,7 @@ const plugin = {
   },
 
   log(...args) {
-    if (this.debug) {
-      this.context?.logger?.debug('[after_file_reply]', ...args);
-    }
+    this.context?.logger?.debug('[after_file_reply]', ...args);
   },
 
   commands: [
@@ -121,6 +117,7 @@ const plugin = {
         }
 
         const files = state.files;
+        plugin.log(`/zjfs: Processing ${files.length} files`);
 
         // 构建多模态消息内容
         const content = [
@@ -135,14 +132,33 @@ const plugin = {
           });
         }
 
-        const response = await plugin.context.agent.callLLM([
-          { role: 'user', content }
-        ], { allowTools: false });
+        try {
+          const response = await plugin.context.agent.callLLM([
+            { role: 'user', content }
+          ], { allowTools: false });
 
-        plugin.waitingStates.delete(key);
-        plugin.saveStates();
+          plugin.log(`/zjfs: LLM response length: ${response.content?.length || 0}`);
 
-        return { ...msg, content: response.content };
+          if (!response.content || response.content.trim() === '') {
+            return {
+              ...msg,
+              content: '抱歉，AI 未能生成回复。请重试。'
+            };
+          }
+
+          plugin.waitingStates.delete(key);
+          plugin.saveStates();
+
+          return { ...msg, content: response.content };
+        } catch (error) {
+          plugin.log(`/zjfs ERROR: ${error.message}`);
+          plugin.context?.logger?.error('[after_file_reply] /zjfs failed:', error);
+
+          return {
+            ...msg,
+            content: `处理失败：${error.message}`
+          };
+        }
       }
     }
   ],
@@ -177,6 +193,10 @@ const plugin = {
       if (msg.content.trim()) {
         const files = state.files;
 
+        this.log(`Processing text with ${files.length} files`);
+        this.log(`Text content: ${msg.content.substring(0, 100)}`);
+        this.log(`Files: ${JSON.stringify(files)}`);
+
         // 构建多模态消息内容
         const content = [
           { type: 'text', text: msg.content }
@@ -190,14 +210,39 @@ const plugin = {
           });
         }
 
-        const response = await this.context.agent.callLLM([
-          { role: 'user', content }
-        ]);
+        this.log(`Calling LLM with multimodal content`);
 
-        this.waitingStates.delete(key);
-        await this.saveStates();
+        try {
+          const response = await this.context.agent.callLLM([
+            { role: 'user', content }
+          ], { allowTools: false });
 
-        return { ...msg, content: response.content };
+          this.log(`LLM response received, content length: ${response.content?.length || 0}`);
+
+          if (!response.content || response.content.trim() === '') {
+            this.log(`WARNING: LLM returned empty content`);
+            this.waitingStates.delete(key);
+            await this.saveStates();
+            return {
+              ...msg,
+              content: '抱歉，AI 未能生成回复。请重试或使用 /zjfs 命令。'
+            };
+          }
+
+          this.waitingStates.delete(key);
+          await this.saveStates();
+
+          return { ...msg, content: response.content };
+        } catch (error) {
+          this.log(`ERROR calling LLM: ${error.message}`);
+          this.context?.logger?.error('[after_file_reply] LLM call failed:', error);
+
+          // Keep state on error so user can retry
+          return {
+            ...msg,
+            content: `处理失败：${error.message}。请重试或使用 /qxdd 取消。`
+          };
+        }
       }
       
       return msg;

@@ -5,6 +5,7 @@ import type { ToolRegistry, ToolContext } from '../tools/ToolRegistry.js';
 import type { SessionManager } from '../session/SessionManager.js';
 import type { PluginManager } from '../plugins/index.js';
 import { SkillManager, type SkillContext, type SkillResult } from '../skills/index.js';
+import { CommandRegistry } from './commands/index.js';
 import { logger } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
 import { CONSTANTS, CONFIG_DEFAULTS } from '../constants/index.js';
@@ -100,6 +101,7 @@ export class AgentLoop {
   private memoryWindow: number;
   private channelSessions: Map<string, string> = new Map();
   private pluginManager?: PluginManager;
+  private commandRegistry?: CommandRegistry;
   private log = logger.child({ prefix: 'Agent' });
 
   async callLLM(  // 供插件调用的 LLM 请求方法
@@ -180,13 +182,32 @@ export class AgentLoop {
 
     try {
       this.log.info(`processMessage: content="${msg.content}", media=${JSON.stringify(msg.media)}`);
+
+    const channelChatKey = `${msg.channel}:${msg.chatId}`;
+
+    // 1. 检查内置命令（最高优先级）
+    if (this.commandRegistry) {
+      const cmdResult = await this.commandRegistry.execute(msg);
+      if (cmdResult !== null) {
+        this.log.info('Built-in command executed');
+        await this.sendOutbound({
+          channel: cmdResult.channel,
+          chatId: cmdResult.chatId,
+          content: cmdResult.content,
+          messageType: cmdResult.messageType
+        });
+        return;
+      }
+    }
+
+    // 2. 检查插件命令
     if (this.pluginManager) {
       this.log.info('Calling applyOnCommand...');
       const cmdResult = await this.pluginManager.applyOnCommand(msg);
       this.log.info(`applyOnCommand returned: ${cmdResult}`);
       if (cmdResult !== null) {
         // 命令已处理，发送回复并跳过 LLM
-        await this.eventBus.publishOutbound({
+        await this.sendOutbound({
           channel: cmdResult.channel,
           chatId: cmdResult.chatId,
           content: cmdResult.content,
@@ -195,6 +216,7 @@ export class AgentLoop {
         return;
       }
 
+      // 3. 应用插件消息钩子
       this.log.info('Calling applyOnMessage...');
       const handled = await this.pluginManager.applyOnMessage(msg);
       if (handled === null) {
@@ -205,7 +227,7 @@ export class AgentLoop {
       // onMessage 返回了不同的消息（插件要发送回复）
       if (handled.content !== msg.content) {
         this.log.info('Plugin modified message, sending reply and skipping LLM');
-        await this.eventBus.publishOutbound({
+        await this.sendOutbound({
           channel: handled.channel,
           chatId: handled.chatId,
           content: handled.content,
@@ -215,22 +237,6 @@ export class AgentLoop {
       }
 
       msg = handled;
-    }
-
-    const channelChatKey = `${msg.channel}:${msg.chatId}`;
-
-    if (msg.content.trim() === '/new') {
-      const newSessionKey = this.sessionManager.createNewSession(msg.channel, msg.chatId);
-      this.channelSessions.set(channelChatKey, newSessionKey);
-      this.log.info(`Created new session: ${newSessionKey}`);
-
-      await this.eventBus.publishOutbound({
-        channel: msg.channel,
-        chatId: msg.chatId,
-        content: '已开启新对话',
-        messageType: msg.messageType
-      });
-      return;
     }
 
     let sessionKey: string;
@@ -284,7 +290,7 @@ export class AgentLoop {
     await this.sessionManager.addMessage(sessionKey, 'assistant', result.content);
     await this.sessionManager.save(session);
 
-    let outboundMsg: OutboundMessage = {
+    const outboundMsg: OutboundMessage = {
       channel: msg.channel,
       chatId: msg.chatId,
       content: result.content,
@@ -292,14 +298,8 @@ export class AgentLoop {
       messageType: msg.messageType
     };
 
-    if (this.pluginManager) {
-      this.log.info(`Applying ${this.pluginManager.listPlugins().length} plugins on response...`);
-      outboundMsg = await this.pluginManager.applyOnResponse(outboundMsg) || outboundMsg;
-      this.log.info(`After plugin processing, media: ${JSON.stringify(outboundMsg.media)}`);
-    }
-
     this.log.debug(`Publishing outbound message to ${msg.channel}:${msg.chatId}`);
-    await this.eventBus.publishOutbound(outboundMsg);
+    await this.sendOutbound(outboundMsg);
 
     // 记录消息处理成功
     metrics.record('agent.message_count', 1, 'count', { status: 'success' });
@@ -489,6 +489,20 @@ export class AgentLoop {
     }
   }
 
+  /**
+   * Send an outbound message through plugin hooks and publish to EventBus
+   */
+  private async sendOutbound(msg: OutboundMessage): Promise<void> {
+    let processedMsg = msg;
+
+    if (this.pluginManager) {
+      this.log.debug(`Applying onResponse hooks before publishing`);
+      processedMsg = await this.pluginManager.applyOnResponse(msg) || msg;
+    }
+
+    await this.eventBus.publishOutbound(processedMsg);
+  }
+
   private isRetryableError(error: unknown): boolean {
     if (!error) return false;
 
@@ -512,5 +526,10 @@ export class AgentLoop {
     }
 
     return false;
+  }
+
+  setCommandRegistry(registry: CommandRegistry): void {
+    this.commandRegistry = registry;
+    this.log.info('CommandRegistry attached');
   }
 }

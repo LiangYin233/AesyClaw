@@ -174,12 +174,17 @@ export class PluginManager {
       ...context,
       logger,
       sendMessage: async (channel: string, chatId: string, content: string, messageType?: 'private' | 'group') => {
-        await context.eventBus.publishOutbound({
+        let msg: OutboundMessage = {
           channel,
           chatId,
           content,
           messageType: messageType || 'private'
-        });
+        };
+
+        // Apply onResponse hooks for consistency
+        msg = await this.applyOnResponse(msg) || msg;
+
+        await context.eventBus.publishOutbound(msg);
       }
     };
     this.toolRegistry = toolRegistry;

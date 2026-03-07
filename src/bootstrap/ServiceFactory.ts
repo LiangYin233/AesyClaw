@@ -9,13 +9,14 @@ import { SessionManager } from '../session/index.js';
 import { MCPClientManager } from '../mcp/index.js';
 import { PluginManager } from '../plugins/index.js';
 import { SkillManager } from '../skills/index.js';
+import { CommandRegistry, SessionCommands } from '../agent/commands/index.js';
 import { APIServer } from '../api/index.js';
 import { CronService } from '../cron/index.js';
 import { registerCronTools } from '../cron/CronTools.js';
 import { ConfigLoader } from '../config/loader.js';
 import { logger } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
-import type { Config } from '../types.js';
+import type { Config, OutboundMessage } from '../types.js';
 import type { LLMProvider } from '../providers/base.js';
 import type { CronJob } from '../cron/index.js';
 
@@ -99,6 +100,16 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     skillManager
   );
 
+  // 初始化命令注册表
+  const commandRegistry = new CommandRegistry();
+  const sessionCommands = new SessionCommands(
+    sessionManager,
+    (agent as any).channelSessions  // 访问私有字段
+  );
+  commandRegistry.registerHandler(sessionCommands);
+  agent.setCommandRegistry(commandRegistry);
+  log.info('Command registry initialized with session commands');
+
   // 5. PluginManager (依赖 agent, toolRegistry, eventBus)
   const pluginManager = new PluginManager(
     {
@@ -110,7 +121,15 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
       getToolRegistry: () => toolRegistry as any,
       logger,
       sendMessage: async (channel, chatId, content, messageType) => {
-        await eventBus.publishOutbound({ channel, chatId, content, messageType: messageType || 'private' });
+        let msg: OutboundMessage = {
+          channel,
+          chatId,
+          content,
+          messageType: messageType || 'private'
+        };
+        // Apply onResponse hooks for consistency
+        msg = await pluginManager.applyOnResponse(msg) || msg;
+        await eventBus.publishOutbound(msg);
       }
     },
     toolRegistry
