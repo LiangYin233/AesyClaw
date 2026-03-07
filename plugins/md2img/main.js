@@ -110,7 +110,7 @@ const plugin = {
             const secondMsg = {
               channel: msg.channel,
               chatId: msg.chatId,
-              content: ' ',  // 空格作为占位符
+              content: '',  // 空内容，让 formatter 只发送 media
               messageType: msg.messageType,
               media: originalMedia
             };

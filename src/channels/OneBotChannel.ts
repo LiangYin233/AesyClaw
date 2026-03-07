@@ -357,6 +357,15 @@ export class OneBotChannel extends BaseChannel {
 
     const segments = this.formatMessageWithBase64(msg.content, msg.media);
 
+    if (segments.length === 0) {
+      this.log.warn(`No valid segments to send (content empty and no valid media)`);
+      return;
+    }
+
+    if (msg.media && msg.media.length > 0) {
+      this.log.debug(`Processing ${msg.media.length} media files: ${msg.media.join(', ')}`);
+    }
+
     const action = isGroup ? 'send_group_msg' : 'send_private_msg';
     const params = isGroup
       ? { group_id: numericChatId, message: segments }
@@ -434,7 +443,10 @@ export class OneBotChannel extends BaseChannel {
           return null;
         }
         const buffer = fs.readFileSync(path);
+        this.log.debug(`Converted ${filePath} to base64 (${buffer.length} bytes)`);
         return buffer.toString('base64');
+      } else {
+        this.log.warn(`File not found: ${filePath}`);
       }
     } catch (error) {
       this.log.warn(`Failed to convert image to base64: ${filePath}`, error);
