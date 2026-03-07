@@ -2,9 +2,6 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import * as fs from 'fs/promises';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
 const plugin = {
   name: 'after_file_reply',
   version: '1.0.0',
@@ -19,6 +16,8 @@ const plugin = {
   waitingStates: new Map(),
   context: null,
   stateFile: null,
+  cleanupTimer: null,
+  log: console,
 
   getKey(msg) {
     return `${msg.channel}:${msg.chatId}:${msg.senderId}`;
@@ -44,7 +43,8 @@ const plugin = {
         }
         this.waitingStates.set(key, state);
       }
-    } catch (e) {
+    } catch (error) {
+      // File doesn't exist or is invalid, ignore
     }
   },
 
@@ -53,26 +53,41 @@ const plugin = {
       const filePath = this.getStateFilePath();
       const states = Object.fromEntries(this.waitingStates);
       await fs.writeFile(filePath, JSON.stringify(states), 'utf-8');
-    } catch (e) {
+    } catch (error) {
+      this.log.error('Failed to save states:', error);
     }
   },
 
   async onLoad(context) {
     this.context = context;
+    if (context.logger) {
+      this.log = context.logger.child({ prefix: 'after_file_reply' });
+    }
     this.options = context.options || {};
     this.timeoutMs = (this.options.timeoutMinutes || 5) * 60 * 1000;
 
     await this.loadStates();
-    setInterval(() => this.cleanupExpired(), 60000);
+    this.cleanupTimer = setInterval(() => this.cleanupExpired(), 60000);
+  },
+
+  async onUnload() {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
   },
 
   cleanupExpired() {
     const now = Date.now();
+    let changed = false;
     for (const [key, state] of this.waitingStates) {
       if (now - state.timestamp > this.timeoutMs) {
         this.waitingStates.delete(key);
-        this.saveStates();
+        changed = true;
       }
+    }
+    if (changed) {
+      this.saveStates();
     }
   },
 
@@ -80,34 +95,30 @@ const plugin = {
     return !!(msg.media && msg.media.length > 0);
   },
 
-  log(...args) {
-    this.context?.logger?.debug('[after_file_reply]', ...args);
-  },
-
   commands: [
     {
       name: 'qxdd',
       description: '取消当前等待，放弃已发送的文件',
-      pattern: /^\/qxdd$/,
+      matcher: { type: 'exact', value: '/qxdd' },
       async handler(msg) {
         const key = plugin.getKey(msg);
         const state = plugin.waitingStates.get(key);
-        
+
         if (!state) {
           return { ...msg, content: '当前无等待发送的文件' };
         }
-        
+
         const fileCount = state.files.length;
         plugin.waitingStates.delete(key);
         plugin.saveStates();
-        
+
         return { ...msg, content: `已取消等待，放弃了 ${fileCount} 个文件` };
       }
     },
     {
       name: 'zjfs',
       description: '直接发送已收集的文件给AI',
-      pattern: /^\/zjfs$/,
+      matcher: { type: 'exact', value: '/zjfs' },
       async handler(msg) {
         const key = plugin.getKey(msg);
         const state = plugin.waitingStates.get(key);
@@ -117,7 +128,7 @@ const plugin = {
         }
 
         const files = state.files;
-        plugin.log(`/zjfs: Processing ${files.length} files`);
+        plugin.log.debug(`/zjfs: Processing ${files.length} files`);
 
         // 构建多模态消息内容
         const content = [
@@ -137,7 +148,7 @@ const plugin = {
             { role: 'user', content }
           ], { allowTools: false });
 
-          plugin.log(`/zjfs: LLM response length: ${response.content?.length || 0}`);
+          plugin.log.debug(`/zjfs: LLM response length: ${response.content?.length || 0}`);
 
           if (!response.content || response.content.trim() === '') {
             return {
@@ -151,8 +162,7 @@ const plugin = {
 
           return { ...msg, content: response.content };
         } catch (error) {
-          plugin.log(`/zjfs ERROR: ${error.message}`);
-          plugin.context?.logger?.error('[after_file_reply] /zjfs failed:', error);
+          plugin.log.error(`/zjfs failed:`, error);
 
           return {
             ...msg,
@@ -167,7 +177,7 @@ const plugin = {
     const key = this.getKey(msg);
     const state = this.waitingStates.get(key);
 
-    this.log(`onMessage: key=${key}, hasState=${!!state}, media=${JSON.stringify(msg.media)}`);
+    this.log.debug(`onMessage: key=${key}, hasState=${!!state}, media=${JSON.stringify(msg.media)}`);
 
     // 有等待状态时
     if (state) {
@@ -180,9 +190,9 @@ const plugin = {
             state.files.push(f);
           }
         }
-        
+
         await this.saveStates();
-        
+
         return {
           ...msg,
           content: `已添加文件，当前共${state.files.length}个文件。请继续发送文件或发送文本描述`
@@ -193,9 +203,9 @@ const plugin = {
       if (msg.content.trim()) {
         const files = state.files;
 
-        this.log(`Processing text with ${files.length} files`);
-        this.log(`Text content: ${msg.content.substring(0, 100)}`);
-        this.log(`Files: ${JSON.stringify(files)}`);
+        this.log.debug(`Processing text with ${files.length} files`);
+        this.log.debug(`Text content: ${msg.content.substring(0, 100)}`);
+        this.log.debug(`Files: ${JSON.stringify(files)}`);
 
         // 构建多模态消息内容
         const content = [
@@ -210,17 +220,17 @@ const plugin = {
           });
         }
 
-        this.log(`Calling LLM with multimodal content`);
+        this.log.debug(`Calling LLM with multimodal content`);
 
         try {
           const response = await this.context.agent.callLLM([
             { role: 'user', content }
           ], { allowTools: false });
 
-          this.log(`LLM response received, content length: ${response.content?.length || 0}`);
+          this.log.debug(`LLM response received, content length: ${response.content?.length || 0}`);
 
           if (!response.content || response.content.trim() === '') {
-            this.log(`WARNING: LLM returned empty content`);
+            this.log.warn(`LLM returned empty content`);
             this.waitingStates.delete(key);
             await this.saveStates();
             return {
@@ -234,8 +244,7 @@ const plugin = {
 
           return { ...msg, content: response.content };
         } catch (error) {
-          this.log(`ERROR calling LLM: ${error.message}`);
-          this.context?.logger?.error('[after_file_reply] LLM call failed:', error);
+          this.log.error(`LLM call failed:`, error);
 
           // Keep state on error so user can retry
           return {
@@ -244,7 +253,7 @@ const plugin = {
           };
         }
       }
-      
+
       return msg;
     }
 
@@ -255,18 +264,18 @@ const plugin = {
 
     // 收到文件：进入等待状态
     const files = msg.media || [];
-    this.log(`New state: files=${JSON.stringify(files)}`);
+    this.log.debug(`New state: files=${JSON.stringify(files)}`);
     const uniqueFiles = [...new Set(files)];
     const fileCount = uniqueFiles.length;
-    this.log(`After dedup: uniqueFiles.length=${fileCount}`);
-    
+    this.log.debug(`After dedup: uniqueFiles.length=${fileCount}`);
+
     if (fileCount > 0) {
       this.waitingStates.set(key, {
         files: uniqueFiles,
         timestamp: Date.now()
       });
       await this.saveStates();
-      
+
       return {
         ...msg,
         content: `已收到${fileCount}个文件，请发送文本描述，或发送 /qxdd 取消等待，/zjfs 直接发送`
