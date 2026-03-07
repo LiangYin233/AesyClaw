@@ -3,7 +3,26 @@ import type { ToolRegistry } from '../tools/ToolRegistry.js';
 import type { CronService, CronJob, CronSchedule } from './CronService.js';
 import type { EventBus } from '../bus/EventBus.js';
 import { logger } from '../logger/index.js';
-import { parseInterval } from '../utils/index.js';
+
+/**
+ * Parse an interval string into milliseconds
+ * Supported formats: "30s", "5m", "2h", "1d"
+ */
+function parseInterval(str: string): number | null {
+  const match = str.match(/^(\d+)(s|m|h|d)$/);
+  if (!match) return null;
+
+  const value = parseInt(match[1]);
+  const unit = match[2];
+
+  switch (unit) {
+    case 's': return value * 1000;
+    case 'm': return value * 60 * 1000;
+    case 'h': return value * 60 * 60 * 1000;
+    case 'd': return value * 24 * 60 * 60 * 1000;
+    default: return null;
+  }
+}
 
 export function registerCronTools(
   toolRegistry: ToolRegistry,

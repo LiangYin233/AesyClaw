@@ -1,8 +1,9 @@
 import type { Express } from 'express';
-import { logger, type LogLevel } from '../../logger/index.js';
+import { logger, type LogLevel, createErrorResponse } from '../../logger/index.js';
 import { metrics } from '../../logger/Metrics.js';
-import { createErrorResponse } from '../../utils/errors.js';
 import { ConfigLoader } from '../../config/loader.js';
+
+const log = logger.child({ prefix: 'MetricsAPI' });
 
 export function registerMetricsRoutes(app: Express): void {
   // Log config
@@ -30,9 +31,9 @@ export function registerMetricsRoutes(app: Express): void {
           config.log.level = level;
         }
         await ConfigLoader.save(config);
-        logger.info(`Log level changed to ${level} and saved to config`);
+        log.info(`Log level changed to ${level} and saved to config`);
       } catch (saveError) {
-        logger.warn(`Log level changed to ${level} but failed to save to config:`, saveError);
+        log.warn(`Log level changed to ${level} but failed to save to config:`, saveError);
       }
 
       res.json({ success: true, level: logger.getLevel() });

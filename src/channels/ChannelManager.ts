@@ -15,6 +15,7 @@ export class ChannelManager {
   #channels = new Map<string, BaseChannel>();
   #eventBus: EventBus;
   #log = logger.child({ prefix: 'ChannelManager' });
+  static #staticLog = logger.child({ prefix: 'ChannelManager' });
 
   constructor(eventBus: EventBus) {
     this.#eventBus = eventBus;
@@ -23,10 +24,10 @@ export class ChannelManager {
   // 注册通道插件 - 静态方法，可在模块加载时调用
   static registerPlugin(plugin: ChannelPlugin): void {
     if (globalPlugins.has(plugin.name)) {
-      logger.child({ prefix: 'ChannelManager' }).warn(`Channel plugin ${plugin.name} already registered, overwriting`);
+      ChannelManager.#staticLog.warn(`Channel plugin ${plugin.name} already registered, overwriting`);
     }
     globalPlugins.set(plugin.name, plugin);
-    logger.debug(`Registered channel plugin: ${plugin.name}`);
+    ChannelManager.#staticLog.debug(`Registered channel plugin: ${plugin.name}`);
   }
 
   // 注销通道插件

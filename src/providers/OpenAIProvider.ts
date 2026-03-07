@@ -1,8 +1,6 @@
 import { LLMProvider } from './base.js';
 import type { LLMMessage, LLMResponse, ToolDefinition, ToolCall } from '../types.js';
-import { logger } from '../logger/index.js';
-import { normalizeError } from '../utils/errors.js';
-import { formatTools, formatMessages } from '../utils/index.js';
+import { logger, normalizeError } from '../logger/index.js';
 
 interface OpenAITool {
   type: string;
@@ -59,6 +57,65 @@ export class OpenAIProvider extends LLMProvider {
   private baseURL = 'https://api.openai.com/v1';
   private log = logger.child({ prefix: 'Provider' });
 
+  /**
+   * Format tools for OpenAI API
+   */
+  private formatTools(tools?: ToolDefinition[]): OpenAITool[] | undefined {
+    if (!tools?.length) return undefined;
+
+    return tools.map(tool => ({
+      type: 'function' as const,
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters
+      }
+    }));
+  }
+
+  /**
+   * Format messages for OpenAI API
+   */
+  private formatMessages(messages: LLMMessage[]): OpenAIMessage[] {
+    return messages.map(msg => {
+      const formatted: OpenAIMessage = {
+        role: msg.role
+      };
+
+      if (msg.role === 'tool') {
+        formatted.tool_call_id = msg.toolCallId;
+        formatted.content = msg.content;
+      } else if (msg.toolCalls && msg.toolCalls.length > 0) {
+        formatted.tool_calls = msg.toolCalls.map((tc: ToolCall) => {
+          let args: string;
+          if (typeof tc.arguments === 'string') {
+            args = tc.arguments;
+          } else if (tc.arguments && Object.keys(tc.arguments).length > 0) {
+            args = JSON.stringify(tc.arguments);
+          } else {
+            args = '{}';
+          }
+
+          return {
+            id: tc.id || '',
+            type: 'function',
+            function: {
+              name: tc.name || '',
+              arguments: args
+            }
+          };
+        });
+        if (msg.content) {
+          formatted.content = msg.content;
+        }
+      } else {
+        formatted.content = msg.content;
+      }
+
+      return formatted;
+    });
+  }
+
   async chat(
     messages: LLMMessage[],
     tools?: ToolDefinition[],
@@ -76,7 +133,7 @@ export class OpenAIProvider extends LLMProvider {
     }
 
     try {
-      const formattedMessages = formatMessages(messages);
+      const formattedMessages = this.formatMessages(messages);
 
       this.log.debug(`Formatted messages count: ${formattedMessages.length}`);
       for (let i = 0; i < formattedMessages.length; i++) {
@@ -102,7 +159,7 @@ export class OpenAIProvider extends LLMProvider {
       const requestBody: Record<string, unknown> = {
         model: modelName,
         messages: formattedMessages,
-        tools: formatTools(tools)
+        tools: this.formatTools(tools)
       };
 
       if (this.extraBody) {

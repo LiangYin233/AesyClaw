@@ -6,10 +6,9 @@ import type { SessionManager } from '../session/SessionManager.js';
 import type { PluginManager } from '../plugins/index.js';
 import { SkillManager, type SkillContext, type SkillResult } from '../skills/index.js';
 import { CommandRegistry } from './commands/index.js';
-import { logger } from '../logger/index.js';
+import { logger, normalizeError, isRetryableError } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
 import { CONSTANTS, CONFIG_DEFAULTS } from '../constants/index.js';
-import { normalizeError, isRetryableError } from '../utils/index.js';
 
 export type ContextMode = 'session' | 'channel' | 'global';  // 上下文模式类型
 

@@ -3,7 +3,7 @@ import type { MCPClientManager } from '../../mcp/MCPClient.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import type { Config } from '../../types.js';
 import { ConfigLoader } from '../../config/loader.js';
-import { createErrorResponse } from '../../utils/errors.js';
+import { createErrorResponse } from '../../logger/index.js';
 
 interface MCPDeps {
   mcpManager?: MCPClientManager;

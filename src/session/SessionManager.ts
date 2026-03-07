@@ -4,7 +4,18 @@ import type { LLMMessage } from '../types.js';
 import { Database, type DBSession, type DBMessage } from '../db/index.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS, CONFIG_DEFAULTS } from '../constants/index.js';
-import { parseSessionKey } from '../utils/index.js';
+
+/**
+ * Parse a session key into its components
+ * Format: "channel:chatId" or "channel:chatId:uuid"
+ */
+function parseSessionKey(key: string): { channel: string; chatId: string; uuid?: string } {
+  const parts = key.split(':');
+  if (parts.length >= 3) {
+    return { channel: parts[0], chatId: parts[1], uuid: parts[2] };
+  }
+  return { channel: parts[0], chatId: parts[1] };
+}
 
 export interface SessionMessage {
   role: 'user' | 'assistant' | 'system';

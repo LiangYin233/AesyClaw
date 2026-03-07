@@ -1,8 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { dirname } from 'path';
 import { CronExpressionParser } from 'cron-parser';
-import { logger } from '../logger/index.js';
-import { normalizeError } from '../utils/errors.js';
+import { logger, normalizeError } from '../logger/index.js';
 
 export interface CronJob {
   id: string;

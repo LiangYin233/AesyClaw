@@ -9,7 +9,7 @@ import type { ChannelManager } from '../channels/ChannelManager.js';
 import type { Config } from '../types.js';
 import { ConfigLoader } from '../config/loader.js';
 import type { PluginManager } from '../plugins/index.js';
-import { normalizeError, createErrorResponse, createValidationErrorResponse, NotFoundError } from '../utils/errors.js';
+import { normalizeError, createErrorResponse, createValidationErrorResponse, NotFoundError } from '../logger/index.js';
 import type { CronService } from '../cron/index.js';
 import type { MCPClientManager } from '../mcp/MCPClient.js';
 import type { SkillManager } from '../skills/SkillManager.js';

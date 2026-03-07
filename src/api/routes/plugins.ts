@@ -1,7 +1,7 @@
 import type { Express } from 'express';
 import type { PluginManager } from '../../plugins/index.js';
 import { ConfigLoader } from '../../config/loader.js';
-import { createErrorResponse } from '../../utils/errors.js';
+import { createErrorResponse } from '../../logger/index.js';
 
 export function registerPluginRoutes(app: Express, pluginManager?: PluginManager): void {
   app.get('/api/plugins', async (req, res) => {

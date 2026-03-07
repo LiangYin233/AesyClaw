@@ -120,4 +120,14 @@ export function createLogger(options?: LoggerOptions): Logger {  // 创建日志
 
 export const logger = new Logger();  // 全局默认日志实例
 
+// Export error handling utilities
+export {
+  normalizeError,
+  createErrorResponse,
+  createValidationErrorResponse,
+  AppError,
+  ValidationError,
+  NotFoundError,
+  isRetryableError
+} from './errors.js';
 

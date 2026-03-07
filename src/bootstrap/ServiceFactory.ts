@@ -19,7 +19,7 @@ import { metrics } from '../logger/Metrics.js';
 import type { Config, OutboundMessage } from '../types.js';
 import type { LLMProvider } from '../providers/base.js';
 import type { CronJob } from '../cron/index.js';
-import { parseTarget } from '../utils/index.js';
+import { parseTarget } from './utils.js';
 
 export interface Services {
   eventBus: EventBus;
