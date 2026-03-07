@@ -1,19 +1,20 @@
 # AesyClaw
 
-AesyClaw 是一个轻量级 AI Agent 框架，支持插件系统、会话管理和多渠道集成（OneBot 等）。
+AesyClaw 是一个轻量级 AI Agent 框架，支持插件系统、会话管理和多渠道集成。
 
 ## 特性
 
-- **插件系统**：支持自定义插件扩展功能，提供完整的生命周期钩子
+- **插件系统**：完整的生命周期钩子，支持工具注册、消息拦截、命令处理
 - **Skills 系统**：基于提示词的技能发现和管理
-- **会话管理**：基于 SQLite 的持久化会话存储，支持多种上下文模式
-- **多渠道集成**：支持 OneBot 等多种消息渠道
-- **LLM 提供商**：支持 OpenAI、MiniMax 等多种大语言模型
-- **MCP 支持**：完整的 Model Context Protocol 客户端实现
-- **定时任务**：灵活的 Cron 任务调度系统
-- **WebUI**：Vue 3 + PrimeVue 可视化控制界面，支持实时监控
-- **API Server**：RESTful API 接口，可独立启用/禁用
-- **模块化架构**：基于依赖注入的清晰架构设计
+- **会话管理**：SQLite 持久化存储，支持 session/channel/global 三种上下文模式
+- **多渠道集成**：支持 OneBot 协议（QQ、Telegram 等）
+- **LLM 提供商**：支持 OpenAI、MiniMax、Claude 等多种模型
+- **MCP 支持**：完整的 Model Context Protocol 客户端，支持本地和远程服务器
+- **定时任务**：Cron 表达式调度，支持工具调用和消息发送
+- **WebUI**：Vue 3 + PrimeVue 可视化界面，实时监控和配置管理
+- **API Server**：RESTful API，支持插件、MCP、定时任务、指标查询
+- **性能监控**：内置指标收集系统，支持实时性能分析
+- **错误追踪**：ES2022 Error.cause 支持，完整的错误链追踪
 
 ## 快速开始
 
@@ -31,15 +32,47 @@ npm install
 ```yaml
 server:
   host: 0.0.0.0
-  apiPort: 18792      # API Server 端口
-  apiEnabled: true    # 是否启用 API Server
+  apiPort: 18792
+  apiEnabled: true
 
 agent:
   defaults:
     model: gpt-4o
     provider: openai
-    contextMode: channel  # session | channel | global
+    contextMode: channel      # session | channel | global
     memoryWindow: 50
+    maxToolIterations: 40
+    maxSessions: 100
+
+channels:
+  onebot:
+    enabled: true
+    wsUrl: ws://localhost:3001/ws
+    token: your-token
+
+providers:
+  openai:
+    apiKey: sk-xxx
+    apiBase: https://api.openai.com/v1
+
+mcp:
+  playwright:
+    type: local
+    command: '["npx", "-y", "@playwright/mcp@latest"]'
+    enabled: true
+
+plugins:
+  exec:
+    enabled: true
+  websearch:
+    enabled: true
+
+log:
+  level: info
+
+metrics:
+  enabled: true
+  maxMetrics: 10000
 ```
 
 ### 运行
@@ -74,41 +107,74 @@ WebUI 通过代理访问 API Server，无需额外配置。
 
 ```
 ├── src/
-│   ├── agent/          # Agent 核心逻辑
-│   ├── api/            # REST API 服务
-│   │   └── routes/     # API 路由（plugins, cron, mcp, metrics）
-│   ├── bootstrap/      # 服务初始化和生命周期
-│   ├── bus/            # 事件总线
-│   ├── channels/       # 消息渠道（OneBot 等）
-│   ├── config/         # 配置管理
-│   ├── constants/      # 常量定义
-│   ├── cron/           # 定时任务
-│   ├── db/             # 数据库管理
-│   ├── logger/         # 日志系统
-│   ├── mcp/            # MCP 客户端
-│   ├── plugins/        # 插件管理器
-│   ├── providers/      # LLM 提供商
-│   ├── session/        # 会话管理
-│   ├── skills/         # Skills 系统
-│   ├── tools/          # 工具注册表
-│   └── utils/          # 工具函数
-├── webui/              # Vue 3 前端应用
+│   ├── agent/              # Agent 核心逻辑和命令系统
+│   ├── api/                # REST API 服务
+│   │   └── routes/         # API 路由（plugins, cron, mcp, metrics）
+│   ├── bootstrap/          # 服务初始化和依赖注入
+│   ├── bus/                # 事件总线
+│   ├── channels/           # 消息渠道（OneBot 等）
+│   ├── config/             # 配置加载和管理
+│   ├── constants/          # 常量定义
+│   ├── cron/               # 定时任务调度
+│   ├── db/                 # SQLite 数据库
+│   ├── logger/             # 日志和错误处理
+│   ├── mcp/                # MCP 客户端管理
+│   ├── plugins/            # 插件管理器和 Hook Pipeline
+│   ├── providers/          # LLM 提供商适配器
+│   ├── session/            # 会话管理
+│   ├── skills/             # Skills 系统
+│   ├── tools/              # 工具注册表
+│   └── types.ts            # TypeScript 类型定义
+├── webui/                  # Vue 3 前端应用
 │   ├── src/
-│   │   ├── components/ # Vue 组件
-│   │   ├── views/      # 页面视图
-│   │   ├── stores/     # Pinia 状态管理
-│   │   └── utils/      # 前端工具
-├── plugins/            # 用户插件目录
-├── skills/             # 用户技能目录
-├── dist/               # 编译产物
-└── config.yaml         # 配置文件
+│   │   ├── components/     # Vue 组件
+│   │   ├── views/          # 页面视图
+│   │   ├── stores/         # Pinia 状态管理
+│   │   └── router/         # Vue Router
+├── plugins/                # 用户插件目录
+├── skills/                 # 用户技能目录
+└── config.yaml             # 主配置文件
 ```
+
+## 核心功能
+
+### 插件系统
+- 完整的生命周期钩子（onLoad, onStart, onStop, onUnload）
+- 消息拦截（onMessage, onResponse）
+- Agent 钩子（onAgentBefore, onAgentAfter）
+- 工具调用拦截（onBeforeToolCall, onToolCall）
+- Hook Pipeline 超时保护（5秒）
+- 详见 [plugin_dev.md](plugin_dev.md)
+
+### 会话管理
+- 三种上下文模式：session（独立会话）、channel（渠道共享）、global（全局共享）
+- SQLite 持久化存储
+- 自动会话清理和内存管理
+- 支持会话切换命令（/new, /list, /switch）
+
+### MCP 集成
+- 支持本地进程（stdio）和远程服务器（SSE）
+- 动态连接/断开服务器
+- 工具自动注册和命名空间隔离
+- 超时和错误处理
+
+### 定时任务
+- Cron 表达式调度
+- 支持工具调用和消息发送
+- 动态添加/删除/启用/禁用任务
+- 错误恢复机制
+
+### 性能监控
+- 实时指标收集（计数器、计时器、仪表）
+- 内存使用、数据库查询、工具执行时间
+- WebUI 可视化展示
+- API 查询接口
 
 ## 技术栈
 
-- **后端**：TypeScript + Express + SQLite
+- **后端**：TypeScript 5.3 (ES2022) + Express + SQLite3
 - **前端**：Vue 3 + PrimeVue + Pinia + TailwindCSS
-- **架构**：模块化设计，依赖注入，事件驱动
+- **架构**：依赖注入 + 事件驱动 + Hook Pipeline
 
 ---
 
