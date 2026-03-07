@@ -88,9 +88,6 @@ export interface LogConfig {
 export interface MetricsConfig {
   enabled?: boolean;           // 是否启用指标收集，默认 true
   maxMetrics?: number;         // 最大指标数量，默认 10000
-  collectAgent?: boolean;      // 收集 Agent 指标，默认 true
-  collectTools?: boolean;      // 收集工具指标，默认 true
-  collectPlugins?: boolean;    // 收集插件指标，默认 true
 }
 
 export interface ServerConfig {
