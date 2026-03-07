@@ -173,7 +173,7 @@ export class OneBotChannel extends BaseChannel {
     try {
       await this.sendAction('get_status', {});
     } catch {
-      // Ignore heartbeat errors
+      // 忽略心跳错误
     }
   }
 
@@ -194,6 +194,7 @@ export class OneBotChannel extends BaseChannel {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         if (this.running && this.isReconnecting) {
           this.pendingActions.push({ resolve, reject });
+          return; // 等待重连完成
         }
         reject(new Error('WebSocket not connected'));
         return;
@@ -207,12 +208,21 @@ export class OneBotChannel extends BaseChannel {
       });
 
       let settled = false;
-      const settle = (fn: (value: any) => void, value: any) => {
+      let timeoutHandle: NodeJS.Timeout | undefined;
+
+      const cleanup = () => {
         if (!settled) {
           settled = true;
+          if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+          }
           this.ws?.off('message', handler);
-          fn(value);
         }
+      };
+
+      const settle = (fn: (value: any) => void, value: any) => {
+        cleanup();
+        fn(value);
       };
 
       const handler = (data: any) => {
@@ -231,12 +241,17 @@ export class OneBotChannel extends BaseChannel {
       };
 
       this.ws.on('message', handler);
-      this.ws.send(message);
 
-      setTimeout(() => {
-        if (!settled) {
-          settle(reject, new Error('Action timeout'));
-        }
+      try {
+        this.ws.send(message);
+      } catch (error) {
+        cleanup();
+        reject(error);
+        return;
+      }
+
+      timeoutHandle = setTimeout(() => {
+        settle(reject, new Error('Action timeout'));
       }, CONSTANTS.WEBSOCKET_ACTION_TIMEOUT);
     });
   }
@@ -335,8 +350,7 @@ export class OneBotChannel extends BaseChannel {
   }
 
   async send(msg: OutboundMessage): Promise<void> {
-    // 验证消息是否为空
-    if (!this.validateMessage(msg)) {
+    if (!this.validateMessage(msg)) { // 验证消息是否为空
       return; // 取消发送
     }
 
@@ -370,14 +384,22 @@ export class OneBotChannel extends BaseChannel {
       const logSegments = JSON.stringify(segments).replace(/"file":"base64:\/\/([A-Za-z0-9+/=]{10})[A-Za-z0-9+/=]*"/g, '"file":"base64://$1...(truncated)"');
       this.log.debug(`Message segments:`, logSegments);
     }
-    await this.sendAction(action, params);
-    metrics.record('channel.message_sent', 1, 'count', {
-      channel: this.name,
-      messageType: isGroup ? 'group' : 'private',
-      status: 'success'
-    });
-
-    this.log.info(`Message sent to ${chatId}`);
+    try {
+      await this.sendAction(action, params);
+      metrics.record('channel.message_sent', 1, 'count', {
+        channel: this.name,
+        messageType: isGroup ? 'group' : 'private',
+        status: 'success'
+      });
+      this.log.info(`Message sent to ${chatId}`);
+    } catch (error) {
+      metrics.record('channel.message_sent', 1, 'count', {
+        channel: this.name,
+        messageType: isGroup ? 'group' : 'private',
+        status: 'error'
+      });
+      throw error;
+    }
   }
 
   private formatMessageWithBase64(content: string, media?: string[]): any[] {

@@ -69,7 +69,7 @@ function matchCommand(content: string, cmd: PluginCommand): { matched: boolean; 
       case 'contains':
         if (content.includes(cmd.matcher.value)) {
           const parts = content.split(cmd.matcher.value);
-          const args = parts[1]?.trim().split(/\s+/) || [];
+          const args = parts.at(1)?.trim().split(/\s+/) || [];
           return { matched: true, args: args };
         }
         break;

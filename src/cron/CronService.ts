@@ -124,8 +124,13 @@ export class CronService {
     this.log.debug(`Next job in ${Math.round(delay / 1000)}s`);
 
     this.timer = setTimeout(async () => {
-      await this.runDueJobs();
-      this.scheduleNext();
+      try {
+        await this.runDueJobs();
+      } catch (error) {
+        this.log.error('Error running due jobs:', error);
+      } finally {
+        this.scheduleNext(); // 确保任务链不中断
+      }
     }, delay);
   }
 

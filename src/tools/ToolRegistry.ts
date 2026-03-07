@@ -163,7 +163,7 @@ export class ToolRegistry {
       clearTimeout(timeoutId);
       this.log.debug(`Tool ${name} execution error: ${error instanceof Error ? error.message : String(error)}`);
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`Tool execution timeout: ${tool.name} (${timeout}ms)`);
+        throw new Error(`Tool execution timeout: ${tool.name} (${timeout}ms)`, { cause: error });
       }
       throw error;
     }

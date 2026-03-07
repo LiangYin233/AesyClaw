@@ -26,16 +26,14 @@ export class MCPClientManager {
         continue;
       }
 
-      // 初始化状态
-      this.serverStatus.set(name, {
+      this.serverStatus.set(name, { // 初始化连接状态
         name,
         status: 'connecting',
         config: serverConfig,
         toolCount: 0
       });
 
-      // 后台连接,不阻塞
-      const promise = this.connectServer(name, serverConfig)
+      const promise = this.connectServer(name, serverConfig) // 后台异步连接
         .then(() => {
           const info = this.serverStatus.get(name)!;
           info.status = 'connected';
@@ -43,10 +41,9 @@ export class MCPClientManager {
           info.toolCount = this.getServerToolCount(name);
           this.log.info(`MCP server connected: ${name} (${info.toolCount} tools)`);
 
-          // 通知工具已加载
           const tools = this.getServerTools(name);
           if (tools.length > 0) {
-            this.notifyToolsLoaded(tools);
+            this.notifyToolsLoaded(tools); // 通知工具已加载
           }
         })
         .catch((error) => {
@@ -59,14 +56,12 @@ export class MCPClientManager {
       promises.push(promise);
     }
 
-    // 不等待所有连接完成,立即返回
-    // 连接在后台继续进行
-    Promise.all(promises)
+    Promise.all(promises) // 后台异步连接，不阻塞启动
       .then(() => {
         this.log.info('All MCP server connections completed');
       })
       .catch((error) => {
-        this.log.error('Error in MCP server connections:', error);
+        this.log.error('Error in MCP server connections:', error); // 错误已记录，避免未处理的 Promise 拒绝
       });
   }
 
@@ -98,10 +93,8 @@ export class MCPClientManager {
         throw new Error(`MCP server ${name}: command is required for local type`);
       }
 
-      // 继承系统环境变量
-      const env: Record<string, string> = { ...process.env } as Record<string, string>;
-      // 合并配置的环境变量，配置的优先级更高
-      if (config.environment) {
+      const env: Record<string, string> = { ...process.env } as Record<string, string>; // 继承系统环境变量
+      if (config.environment) { // 合并配置的环境变量
         for (const [key, val] of Object.entries(config.environment)) {
           if (val !== undefined) {
             env[key] = val;
@@ -150,7 +143,7 @@ export class MCPClientManager {
       ]);
     } catch (error) {
       await client.close();
-      throw error;
+      throw new Error(`Failed to connect to MCP server ${name}`, { cause: error });
     }
   }
 
@@ -172,9 +165,7 @@ export class MCPClientManager {
   }
 
   async callTool(name: string, args: Record<string, unknown>, timeout?: number): Promise<string> {
-    // 工具名称格式: "mcp_{serverName}_{toolName}"
-    // 例如: "mcp_mcp1_get_gdp"
-    const mcpPrefix = 'mcp_';
+    const mcpPrefix = 'mcp_'; // 工具名称格式: mcp_{serverName}_{toolName}，例如: mcp_mcp1_get_gdp
     if (!name.startsWith(mcpPrefix)) {
       throw new Error('Invalid MCP tool name format, expected format: mcp_serverName_toolName');
     }
@@ -201,14 +192,13 @@ export class MCPClientManager {
 
     this.log.debug(`Calling MCP tool: server=${serverName}, tool=${toolName}, args keys=${Object.keys(args).join(', ')}`);
 
-    // 确保 args 是一个对象
-    let parsedArgs = args;
+    let parsedArgs = args; // 确保 args 是一个对象
     if (typeof args === 'string') {
       try {
         parsedArgs = JSON.parse(args);
         this.log.debug(`Parsed string args to object`);
       } catch (error) {
-        throw new Error(`Invalid arguments format: expected object, got string that cannot be parsed as JSON`);
+        throw new Error(`Invalid arguments format: expected object, got string that cannot be parsed as JSON`, { cause: error });
       }
     }
 
@@ -330,13 +320,11 @@ export class MCPClientManager {
    * 动态连接单个服务器
    */
   async connectOne(name: string, config: MCPServerConfig): Promise<void> {
-    // 如果已连接,先断开
-    if (this.clients.has(name)) {
+    if (this.clients.has(name)) { // 如果已连接,先断开
       await this.disconnectOne(name);
     }
 
-    // 更新状态
-    this.serverStatus.set(name, {
+    this.serverStatus.set(name, { // 更新连接状态
       name,
       status: 'connecting',
       config,
@@ -351,10 +339,9 @@ export class MCPClientManager {
       info.connectedAt = new Date();
       info.toolCount = this.getServerToolCount(name);
 
-      // 通知工具已加载
       const tools = this.getServerTools(name);
       if (tools.length > 0) {
-        this.notifyToolsLoaded(tools);
+        this.notifyToolsLoaded(tools); // 通知工具已加载
       }
 
       this.log.info(`MCP server connected: ${name} (${info.toolCount} tools)`);
@@ -375,8 +362,7 @@ export class MCPClientManager {
       return;
     }
 
-    // 移除工具
-    const toolsToRemove: string[] = [];
+    const toolsToRemove: string[] = []; // 收集需要移除的工具
     for (const toolName of this.tools.keys()) {
       if (toolName.startsWith(`mcp_${name}_`)) {
         toolsToRemove.push(toolName);
@@ -387,12 +373,10 @@ export class MCPClientManager {
       this.tools.delete(toolName);
     }
 
-    // 关闭客户端
-    await client.close();
+    await client.close(); // 关闭客户端连接
     this.clients.delete(name);
 
-    // 更新状态
-    const info = this.serverStatus.get(name);
+    const info = this.serverStatus.get(name); // 更新服务器状态
     if (info) {
       info.status = 'disconnected';
       info.toolCount = 0;

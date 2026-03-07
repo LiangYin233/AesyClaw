@@ -72,7 +72,7 @@ export class Logger {
     const parts: string[] = [];
 
     // 始终显示时间戳
-    const timestamp = new Date().toISOString().split('T')[1].slice(0, -1);  // 提取时间部分
+    const timestamp = new Date().toISOString().split('T').at(1)!.slice(0, -1);  // 提取时间部分
     parts.push(`${COLORS.gray}${timestamp}${COLORS.reset}`);
 
     const prefixStr = this.prefix ? `[${this.prefix}]` : '';  // 格式化前缀
