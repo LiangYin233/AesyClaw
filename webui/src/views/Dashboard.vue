@@ -277,35 +277,35 @@
                     <div class="stats-grid">
                         <div class="stat-item">
                             <span class="stat-label">计数:</span>
-                            <span class="stat-value">{{ selectedMetric.count }}</span>
+                            <span class="stat-value">{{ selectedMetric.count ?? '-' }}</span>
                         </div>
                         <div class="stat-item">
                             <span class="stat-label">总和:</span>
-                            <span class="stat-value">{{ selectedMetric.sum.toFixed(2) }}</span>
+                            <span class="stat-value">{{ selectedMetric.sum != null ? selectedMetric.sum.toFixed(2) : '-' }}</span>
                         </div>
                         <div class="stat-item">
                             <span class="stat-label">最小值:</span>
-                            <span class="stat-value">{{ selectedMetric.min.toFixed(2) }}</span>
+                            <span class="stat-value">{{ selectedMetric.min != null ? selectedMetric.min.toFixed(2) : '-' }}</span>
                         </div>
                         <div class="stat-item">
                             <span class="stat-label">最大值:</span>
-                            <span class="stat-value">{{ selectedMetric.max.toFixed(2) }}</span>
+                            <span class="stat-value">{{ selectedMetric.max != null ? selectedMetric.max.toFixed(2) : '-' }}</span>
                         </div>
                         <div class="stat-item">
                             <span class="stat-label">平均值:</span>
-                            <span class="stat-value">{{ selectedMetric.mean.toFixed(2) }}</span>
+                            <span class="stat-value">{{ selectedMetric.mean != null ? selectedMetric.mean.toFixed(2) : '-' }}</span>
                         </div>
                         <div class="stat-item">
                             <span class="stat-label">P50:</span>
-                            <span class="stat-value">{{ selectedMetric.p50.toFixed(2) }}</span>
+                            <span class="stat-value">{{ selectedMetric.p50 != null ? selectedMetric.p50.toFixed(2) : '-' }}</span>
                         </div>
                         <div class="stat-item">
                             <span class="stat-label">P95:</span>
-                            <span class="stat-value">{{ selectedMetric.p95.toFixed(2) }}</span>
+                            <span class="stat-value">{{ selectedMetric.p95 != null ? selectedMetric.p95.toFixed(2) : '-' }}</span>
                         </div>
                         <div class="stat-item">
                             <span class="stat-label">P99:</span>
-                            <span class="stat-value">{{ selectedMetric.p99.toFixed(2) }}</span>
+                            <span class="stat-value">{{ selectedMetric.p99 != null ? selectedMetric.p99.toFixed(2) : '-' }}</span>
                         </div>
                     </div>
                 </div>
