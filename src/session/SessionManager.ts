@@ -4,6 +4,7 @@ import type { LLMMessage } from '../types.js';
 import { Database, type DBSession, type DBMessage } from '../db/index.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS, CONFIG_DEFAULTS } from '../constants/index.js';
+import { metrics } from '../logger/Metrics.js';
 
 /**
  * Parse a session key into its components
@@ -67,8 +68,11 @@ export class SessionManager {
   }
 
   async getOrCreate(key: string): Promise<Session> {
+    const endTimer = metrics.timer('session.load_time', { operation: 'getOrCreate' });
+
     const existing = this.sessions.get(key);  // 尝试从内存中获取现有会话
     if (existing) {
+      endTimer();
       this.log.debug(`Session found in memory: ${key}, messages: ${existing.messages.length}`);
       return existing;
     }
@@ -76,7 +80,9 @@ export class SessionManager {
     const pending = this.sessionLocks.get(key);  // 检查是否有正在创建的会话
     if (pending) {
       this.log.debug(`Session creation pending: ${key}`);
-      return pending;
+      const result = await pending;
+      endTimer();
+      return result;
     }
 
     this.log.debug(`Creating new session: ${key}`);
@@ -85,6 +91,7 @@ export class SessionManager {
 
     try {
       const session = await lockPromise;
+      endTimer();
       return session;
     } finally {
       this.sessionLocks.delete(key);  // 完成后删除锁

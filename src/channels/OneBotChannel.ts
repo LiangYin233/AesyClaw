@@ -6,6 +6,7 @@ import type { OutboundMessage } from '../types.js';
 import type { EventBus } from '../bus/EventBus.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS } from '../constants/index.js';
+import { metrics } from '../logger/Metrics.js';
 
 export interface OneBotConfig {
   wsUrl: string;
@@ -370,6 +371,11 @@ export class OneBotChannel extends BaseChannel {
       this.log.debug(`Message segments:`, logSegments);
     }
     await this.sendAction(action, params);
+    metrics.record('channel.message_sent', 1, 'count', {
+      channel: this.name,
+      messageType: isGroup ? 'group' : 'private',
+      status: 'success'
+    });
 
     this.log.info(`Message sent to ${chatId}`);
   }

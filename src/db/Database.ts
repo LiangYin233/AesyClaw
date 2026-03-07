@@ -2,6 +2,7 @@ import sqlite3, { Database as SQLiteDatabase } from 'sqlite3';  // SQLite3 数�
 import { join, dirname } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { logger } from '../logger/index.js';
+import { metrics } from '../logger/Metrics.js';
 
 export class Database {
   private db: SQLiteDatabase;  // SQLite 数据库实例
@@ -58,8 +59,10 @@ export class Database {
   }
 
   run(sql: string, params: any[] = []): Promise<{ lastID: number; changes: number }> {  // 执行 INSERT/UPDATE/DELETE
+    const endTimer = metrics.timer('db.query_time', { operation: 'run' });
     return new Promise((resolve, reject) => {
       this.db.run(sql, params, function(err: Error | null) {
+        endTimer();
         if (err) {
           reject(err);
         } else {
@@ -70,8 +73,10 @@ export class Database {
   }
 
   get<T>(sql: string, params: any[] = []): Promise<T | undefined> {  // 查询单条记录
+    const endTimer = metrics.timer('db.query_time', { operation: 'get' });
     return new Promise((resolve, reject) => {
       this.db.get(sql, params, (err: Error | null, row: any) => {
+        endTimer();
         if (err) {
           reject(err);
         } else {
@@ -82,8 +87,10 @@ export class Database {
   }
 
   all<T>(sql: string, params: any[] = []): Promise<T[]> {  // 查询多条记录
+    const endTimer = metrics.timer('db.query_time', { operation: 'all' });
     return new Promise((resolve, reject) => {
       this.db.all(sql, params, (err: Error | null, rows: any[]) => {
+        endTimer();
         if (err) {
           reject(err);
         } else {

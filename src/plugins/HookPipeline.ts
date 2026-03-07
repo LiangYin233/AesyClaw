@@ -8,6 +8,7 @@
  */
 
 import { logger } from '../logger/index.js';
+import { metrics } from '../logger/Metrics.js';
 import type { Plugin } from './PluginManager.js';
 
 const log = logger.child({ prefix: 'HookPipeline' });
@@ -73,7 +74,12 @@ export class HookPipeline<TInput, TOutput = TInput> extends BaseHookPipeline {
         this.logExecution(plugin.name);
 
         // Execute hook directly
+        const endTimer = metrics.timer('plugin.hook_execution', {
+          plugin: plugin.name,
+          hook: String(this.hookName)
+        });
         const hookResult = await hook.bind(plugin)(result, ...args);
+        endTimer();
 
         // Update result if hook returned a value
         if (hookResult !== undefined && hookResult !== null) {
@@ -106,7 +112,12 @@ export class VoidHookPipeline extends BaseHookPipeline {
 
       try {
         this.logExecution(plugin.name);
+        const endTimer = metrics.timer('plugin.hook_execution', {
+          plugin: plugin.name,
+          hook: String(this.hookName)
+        });
         await hook.bind(plugin)(...args);
+        endTimer();
       } catch (error) {
         this.logError(plugin.name, error);
       }

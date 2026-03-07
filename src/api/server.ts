@@ -15,6 +15,7 @@ import type { MCPClientManager } from '../mcp/MCPClient.js';
 import type { SkillManager } from '../skills/SkillManager.js';
 import type { ToolRegistry } from '../tools/ToolRegistry.js';
 import { logger } from '../logger/index.js';
+import { metrics } from '../logger/Metrics.js';
 import { CONSTANTS } from '../constants/index.js';
 import { registerPluginRoutes } from './routes/plugins.js';
 import { registerCronRoutes } from './routes/cron.js';
@@ -69,6 +70,18 @@ export class APIServer {
       res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
       res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
       if (req.method === 'OPTIONS') return res.sendStatus(200);
+      next();
+    });
+
+    // Request timing middleware
+    this.app.use((req, res, next) => {
+      const endTimer = metrics.timer('api.request_time', {
+        method: req.method,
+        path: req.path
+      });
+      res.on('finish', () => {
+        endTimer();
+      });
       next();
     });
   }
