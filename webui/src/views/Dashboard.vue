@@ -22,6 +22,7 @@
         </PageHeader>
 
         <LoadingContainer
+            :key="`loading-${systemStore.loading}`"
             :loading="systemStore.loading && !systemStore.status"
             :error="systemStore.error"
             :on-retry="() => systemStore.refresh()"
@@ -332,7 +333,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useSystemStore } from '../stores/system'
 import { useApi, type MetricOverview, type MetricStats, type MemoryUsage } from '../composables/useApi'
 import { announceToScreenReader } from '../composables/useA11y'
@@ -452,6 +453,11 @@ async function loadMetrics() {
         // 再次检查组件是否已卸载
         if (!isMounted.value) return
 
+        // 等待 DOM 更新完成
+        await nextTick()
+
+        if (!isMounted.value) return
+
         if (overview) {
             metricsOverview.value = overview
         }
@@ -479,6 +485,10 @@ async function loadMetrics() {
 
             // 最后一次检查
             if (!isMounted.value) return
+
+            await nextTick()
+            if (!isMounted.value) return
+
             keyMetrics.value = metrics
         }
 
@@ -490,13 +500,21 @@ async function loadMetrics() {
 
 async function refreshAll() {
     // 防止并发刷新
-    if (refreshing.value) return
+    if (refreshing.value || !isMounted.value) return
 
     refreshing.value = true
     try {
-        await Promise.all([systemStore.refresh(), loadMetrics()])
+        // 顺序执行避免状态冲突
+        await systemStore.refresh()
+        if (isMounted.value) {
+            await loadMetrics()
+        }
+    } catch (error) {
+        console.error('Refresh failed:', error)
     } finally {
-        refreshing.value = false
+        if (isMounted.value) {
+            refreshing.value = false
+        }
     }
 }
 
@@ -523,17 +541,33 @@ function stopAutoRefresh() {
 }
 
 async function viewMetricDetails(name: string) {
-    const stats = await getMetricStats(name)
-    if (stats) {
-        selectedMetric.value = stats
-        showDetailsDialog.value = true
-    } else {
-        toast.add({
-            severity: 'error',
-            summary: '错误',
-            detail: '获取指标详情失败',
-            life: 3000
-        })
+    if (!isMounted.value) return
+
+    try {
+        const stats = await getMetricStats(name)
+        if (!isMounted.value) return
+
+        if (stats) {
+            selectedMetric.value = stats
+            showDetailsDialog.value = true
+        } else {
+            toast.add({
+                severity: 'error',
+                summary: '错误',
+                detail: '获取指标详情失败',
+                life: 3000
+            })
+        }
+    } catch (error) {
+        console.error('Failed to get metric details:', error)
+        if (isMounted.value) {
+            toast.add({
+                severity: 'error',
+                summary: '错误',
+                detail: '获取指标详情失败',
+                life: 3000
+            })
+        }
     }
 }
 
