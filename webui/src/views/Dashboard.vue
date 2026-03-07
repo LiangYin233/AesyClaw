@@ -22,10 +22,9 @@
         </PageHeader>
 
         <LoadingContainer
-            :key="`loading-${systemStore.loading}`"
-            :loading="systemStore.loading && !systemStore.status"
+            :loading="initialLoading"
             :error="systemStore.error"
-            :on-retry="() => systemStore.refresh()"
+            :on-retry="handleRetry"
         >
             <div class="stats-grid" role="region" aria-label="系统统计">
                 <div class="stat-card" role="article" aria-label="版本信息">
@@ -333,7 +332,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useSystemStore } from '../stores/system'
 import { useApi, type MetricOverview, type MetricStats, type MemoryUsage } from '../composables/useApi'
 import { announceToScreenReader } from '../composables/useA11y'
@@ -374,6 +373,7 @@ const showDetailsDialog = ref(false)
 const showClearDialog = ref(false)
 const selectedMetric = ref<MetricStats | null>(null)
 const isMounted = ref(false)
+const initialLoading = ref(true)
 
 let refreshInterval: number | null = null
 
@@ -442,22 +442,14 @@ function formatTime(date: Date): string {
 }
 
 async function loadMetrics() {
-    // 防止组件卸载后更新
     if (!isMounted.value) return
 
     try {
-        // 加载指标概览、内存使用和指标名称
         const [overview, memoryData, names] = await Promise.all([
             getMetricOverview(),
             getMemoryUsage(),
             getMetricNames()
         ])
-
-        // 再次检查组件是否已卸载
-        if (!isMounted.value) return
-
-        // 等待 DOM 更新完成
-        await nextTick()
 
         if (!isMounted.value) return
 
@@ -472,14 +464,11 @@ async function loadMetrics() {
         if (names) {
             metricNames.value = names
 
-            // 加载关键指标统计
             const metrics: Array<MetricStats & { name: string; unit: string }> = []
             for (const name of KEY_METRIC_NAMES) {
                 if (names.includes(name)) {
                     const stats = await getMetricStats(name)
-                    // 检查组件是否仍然挂载
                     if (!isMounted.value) return
-                    // 验证统计数据完整性
                     if (stats &&
                         typeof stats.mean === 'number' &&
                         typeof stats.p95 === 'number' &&
@@ -490,12 +479,7 @@ async function loadMetrics() {
                 }
             }
 
-            // 最后一次检查
             if (!isMounted.value) return
-
-            await nextTick()
-            if (!isMounted.value) return
-
             keyMetrics.value = metrics
         }
 
@@ -506,12 +490,10 @@ async function loadMetrics() {
 }
 
 async function refreshAll() {
-    // 防止并发刷新
     if (refreshing.value || !isMounted.value) return
 
     refreshing.value = true
     try {
-        // 顺序执行避免状态冲突
         await systemStore.refresh()
         if (isMounted.value) {
             await loadMetrics()
@@ -523,6 +505,13 @@ async function refreshAll() {
             refreshing.value = false
         }
     }
+}
+
+async function handleRetry() {
+    initialLoading.value = true
+    await systemStore.refresh()
+    await loadMetrics()
+    initialLoading.value = false
 }
 
 function toggleAutoRefresh() {
@@ -634,8 +623,12 @@ async function clearData() {
 
 onMounted(async () => {
     isMounted.value = true
+    initialLoading.value = true
+
     const success = await systemStore.refresh()
     await loadMetrics()
+
+    initialLoading.value = false
 
     if (success) {
         announceToScreenReader('仪表盘数据已加载', 'polite')
