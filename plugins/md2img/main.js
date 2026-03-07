@@ -28,29 +28,43 @@ const plugin = {
     scale: 1.0
   },
 
+  context: null,  // 保存插件上下文
+
   async onLoad(context) {
+    this.context = context;  // 保存上下文以便在 onResponse 中使用
+
     if (context.logger) {
       log = context.logger.child({ prefix: 'md2img' });
     }
-    
+
     const options = context.options || {};
     this.config = {
       minLength: options?.minLength ?? 50,
       verboseLog: options?.verboseLog ?? false,
       scale: Math.max(0.5, Math.min(3.0, options?.scale ?? 1.0))
     };
-    
+
     if (this.config.verboseLog) {
       log.info('Plugin loaded with config:', this.config);
     }
   },
 
   async onResponse(msg) {
+    if (this.config.verboseLog) {
+      log.info(`onResponse called: content length=${msg.content?.length || 0}, has media=${!!(msg.media && msg.media.length > 0)}`);
+    }
+
     if (!msg.content || msg.content.length < this.config.minLength) {
+      if (this.config.verboseLog) {
+        log.info(`Skipped: content too short (${msg.content?.length || 0} < ${this.config.minLength})`);
+      }
       return msg;
     }
 
     if (!this.isMarkdown(msg.content)) {
+      if (this.config.verboseLog) {
+        log.info(`Skipped: not markdown. Content preview: ${msg.content.substring(0, 100)}`);
+      }
       return msg;
     }
 
@@ -70,14 +84,50 @@ const plugin = {
       }
 
       const imagePath = await this.renderToImage(markdownContent);
-      
-      msg.media = msg.media || [];
-      msg.media.push(imagePath);
-      
+
+      // 检查是否有原始 media
+      const hasOriginalMedia = msg.media && msg.media.length > 0;
+      const originalMedia = hasOriginalMedia ? [...msg.media] : null;
+
+      // 设置 md2img 生成的图片
+      msg.media = [imagePath];
       msg.content = '';
 
       if (this.config.verboseLog) {
         log.info('Markdown converted successfully:', imagePath);
+      }
+
+      // 如果有原始 media，需要分开发送
+      if (hasOriginalMedia && originalMedia) {
+        if (this.config.verboseLog) {
+          log.info(`Original media detected (${originalMedia.length} files), will send separately`);
+        }
+
+        // 使用 setImmediate 确保在当前消息发送后再发送原始 media
+        setImmediate(async () => {
+          try {
+            // 构建第二条消息（只包含原始 media）
+            const secondMsg = {
+              channel: msg.channel,
+              chatId: msg.chatId,
+              content: ' ',  // 空格作为占位符
+              messageType: msg.messageType,
+              media: originalMedia
+            };
+
+            // 通过 agent 的 eventBus 发送
+            if (this.context?.agent?.eventBus) {
+              await this.context.agent.eventBus.publishOutbound(secondMsg);
+              if (this.config.verboseLog) {
+                log.info(`Sent original media separately (${originalMedia.length} files)`);
+              }
+            } else {
+              log.warn('Cannot send original media: eventBus not available');
+            }
+          } catch (error) {
+            log.error('Failed to send original media:', error);
+          }
+        });
       }
     } catch (error) {
       log.error('Conversion failed:', error);

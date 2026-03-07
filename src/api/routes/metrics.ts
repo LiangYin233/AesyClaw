@@ -2,6 +2,7 @@ import type { Express } from 'express';
 import { logger, type LogLevel } from '../../logger/index.js';
 import { metrics } from '../../logger/Metrics.js';
 import { createErrorResponse } from '../../utils/errors.js';
+import { ConfigLoader } from '../../config/loader.js';
 
 export function registerMetricsRoutes(app: Express): void {
   // Log config
@@ -9,14 +10,31 @@ export function registerMetricsRoutes(app: Express): void {
     res.json(logger.getConfig());
   });
 
-  app.post('/api/logs/level', (req, res) => {
+  app.post('/api/logs/level', async (req, res) => {
     try {
       const { level } = req.body;
       const validLevels: LogLevel[] = ['debug', 'info', 'warn', 'error'];
       if (!level || !validLevels.includes(level)) {
         return res.status(400).json({ error: `Invalid log level. Must be one of: ${validLevels.join(', ')}` });
       }
+
+      // 设置日志等级
       logger.setLevel(level);
+
+      // 保存到配置文件
+      try {
+        const config = await ConfigLoader.load();
+        if (!config.log) {
+          config.log = { level };
+        } else {
+          config.log.level = level;
+        }
+        await ConfigLoader.save(config);
+        logger.info(`Log level changed to ${level} and saved to config`);
+      } catch (saveError) {
+        logger.warn(`Log level changed to ${level} but failed to save to config:`, saveError);
+      }
+
       res.json({ success: true, level: logger.getLevel() });
     } catch (error) {
       res.status(400).json(createErrorResponse(error));

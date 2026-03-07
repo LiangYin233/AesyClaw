@@ -341,6 +341,11 @@ export class OneBotChannel extends BaseChannel {
   }
 
   async send(msg: OutboundMessage): Promise<void> {
+    // 验证消息是否为空
+    if (!this.validateMessage(msg)) {
+      return; // 取消发送
+    }
+
     const chatId = msg.chatId;
     const isGroup = msg.messageType === 'group';
 

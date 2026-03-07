@@ -3,7 +3,7 @@ import { EventBus } from '../bus/EventBus.js';
 import { AgentLoop } from '../agent/AgentLoop.js';
 import { ChannelManager } from '../channels/index.js';
 import { createProvider } from '../providers/index.js';
-import { ToolRegistry } from '../tools/index.js';
+import { ToolRegistry, type ToolContext } from '../tools/index.js';
 import type { ToolSource } from '../tools/ToolRegistry.js';
 import { SessionManager } from '../session/index.js';
 import { MCPClientManager } from '../mcp/index.js';
@@ -233,6 +233,87 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
       if (!files) return `Skill "${params.name}" not found`;
       if (files.length === 0) return `No files found in skill "${params.name}"`;
       return `Files in skill "${params.name}":\n${files.map(f => `${f.name}${f.isDirectory ? '/' : ''}`).join('\n')}`;
+    }
+  }, 'built-in' as ToolSource);
+
+  // 注册 send_msg_to_user 工具
+  toolRegistry.register({
+    name: 'send_msg_to_user',
+    description: `主动向用户发送消息和文件。**强烈推荐使用**，特别是生成图表、图片、文档等文件后立即发送给用户查看。
+
+**典型用法**：使用 python_exec 生成图表后，立即调用此工具发送图表文件，而不是仅在最终回复中描述。用户更希望看到实际的图表。
+
+参数：content（文本内容，支持 Markdown）、media（文件路径数组，如 python_exec 生成的图表）`,
+    parameters: {
+      type: 'object',
+      properties: {
+        content: {
+          type: 'string',
+          description: '要发送的文本内容。可以是简短说明、详细分析报告等。支持 Markdown 格式。'
+        },
+        media: {
+          type: 'array',
+          items: { type: 'string' },
+          description: '图片或文件的完整路径数组。例如：["/path/to/chart.png", "data.csv"]。通常是 python_exec 等工具生成的文件路径。'
+        }
+      },
+      required: ['content']
+    },
+    execute: async (params: any, context?: ToolContext) => {
+      const { content, media } = params;
+
+      // 详细调试日志
+      log.info(`[send_msg_to_user] Called with content length=${content?.length}, media count=${media?.length || 0}`);
+      if (media && media.length > 0) {
+        log.info(`[send_msg_to_user] Media files: ${JSON.stringify(media)}`);
+      }
+
+      // 从上下文获取会话信息
+      log.info(`[send_msg_to_user] Context check: context=${!!context}, chatId=${context?.chatId}, channel=${context?.channel}`);
+
+      if (!context?.chatId || !context?.channel) {
+        log.error(`[send_msg_to_user] No context available. Full context: ${JSON.stringify(context)}`);
+        return '错误：无法获取当前会话信息。此工具只能在用户会话中使用。';
+      }
+
+      log.debug(`[send_msg_to_user] Context: channel=${context.channel}, chatId=${context.chatId}, messageType=${context.messageType}`);
+
+      // 构建消息
+      let outboundMsg: OutboundMessage = {
+        channel: context.channel,
+        chatId: context.chatId,
+        content,
+        messageType: context.messageType || 'private'
+      };
+
+      // 添加媒体文件（如果有）
+      if (media && Array.isArray(media) && media.length > 0) {
+        outboundMsg.media = media;
+        log.info(`[send_msg_to_user] Added ${media.length} media files to message`);
+      }
+
+      log.debug(`[send_msg_to_user] Message before applyOnResponse: content=${!!outboundMsg.content}, media=${outboundMsg.media?.length || 0}`);
+
+      try {
+        // 应用插件钩子
+        if (pluginManager) {
+          const originalMediaCount = outboundMsg.media?.length || 0;
+          outboundMsg = await pluginManager.applyOnResponse(outboundMsg) || outboundMsg;
+          const newMediaCount = outboundMsg.media?.length || 0;
+          log.debug(`[send_msg_to_user] After applyOnResponse: content=${!!outboundMsg.content}, media=${newMediaCount} (was ${originalMediaCount})`);
+        }
+
+        // 发送消息
+        await eventBus.publishOutbound(outboundMsg);
+
+        const mediaInfo = media && media.length > 0 ? ` (包含 ${media.length} 个文件)` : '';
+        const result = `消息已发送${mediaInfo}`;
+        log.info(`[send_msg_to_user] ${result}`);
+        return result;
+      } catch (error) {
+        log.error('[send_msg_to_user] Failed:', error);
+        return `发送失败：${error instanceof Error ? error.message : String(error)}`;
+      }
     }
   }, 'built-in' as ToolSource);
 

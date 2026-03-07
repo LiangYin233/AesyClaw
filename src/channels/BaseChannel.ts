@@ -18,6 +18,22 @@ export abstract class BaseChannel {
   abstract stop(): Promise<void>;
   abstract send(msg: OutboundMessage): Promise<void>;
 
+  /**
+   * 验证消息是否为空
+   * @returns true 如果消息有效，false 如果消息为空
+   */
+  protected validateMessage(msg: OutboundMessage): boolean {
+    const hasContent = msg.content && msg.content.trim().length > 0;
+    const hasMedia = msg.media && msg.media.length > 0;
+
+    if (!hasContent && !hasMedia) {
+      this.log.error(`[${this.name}] Attempted to send empty message (no content and no media) to ${msg.messageType || 'private'}:${msg.chatId}`);
+      return false;
+    }
+
+    return true;
+  }
+
   isRunning(): boolean {
     return this.running;
   }

@@ -183,6 +183,16 @@ export class AgentLoop {
     try {
       this.log.info(`processMessage: content="${msg.content}", media=${JSON.stringify(msg.media)}`);
 
+    // 更新 toolContext 以包含当前会话信息
+    this.toolContext = {
+      ...this.toolContext,
+      channel: msg.channel,
+      chatId: msg.chatId,
+      messageType: msg.messageType
+    };
+
+    this.log.info(`[AgentLoop] toolContext updated: channel=${this.toolContext.channel}, chatId=${this.toolContext.chatId}, messageType=${this.toolContext.messageType}`);
+
     const channelChatKey = `${msg.channel}:${msg.chatId}`;
 
     // 1. 检查内置命令（最高优先级）
@@ -383,6 +393,8 @@ export class AgentLoop {
               ...this.toolContext,
               source: source
             };
+
+            this.log.info(`[AgentLoop] execContext for ${toolName}: channel=${execContext.channel}, chatId=${execContext.chatId}, messageType=${execContext.messageType}, keys=${Object.keys(execContext).join(',')}`);
 
             if (this.pluginManager) {
               toolArgs = await this.pluginManager.applyOnBeforeToolCall(toolName, toolArgs || {}, execContext);

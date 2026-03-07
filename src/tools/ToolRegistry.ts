@@ -142,9 +142,8 @@ export class ToolRegistry {
     }, timeout);
 
     const execContext: ToolContext = {
-      workspace: context?.workspace || '',
-      eventBus: context?.eventBus,
-      source: context?.source,
+      workspace: '',
+      ...context,
       signal: controller.signal
     };
 

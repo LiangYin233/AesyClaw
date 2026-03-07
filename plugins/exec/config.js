@@ -1,4 +1,4 @@
-const DEFAULT_PYTHON_PACKAGES = ['pandas', 'requests', 'simplejson', 'matplotlib'];
+import { platform } from 'os';
 
 const DEFAULT_BLOCKED_COMMANDS = [
   'rm', 'rmdir', 'unlink', 'del', 'erase', 'Remove-Item',
@@ -27,7 +27,7 @@ const DEFAULT_BLOCKED_PARAMS = [
 
 const DEFAULT_CONFIG = {
   python: {
-    packages: DEFAULT_PYTHON_PACKAGES,
+    executable: platform() === 'win32' ? 'python' : 'python3',
     timeout: 30000,
     maxOutput: 10000
   },
@@ -37,14 +37,10 @@ const DEFAULT_CONFIG = {
     blockedCommands: DEFAULT_BLOCKED_COMMANDS,
     blockedPaths: DEFAULT_BLOCKED_PATHS,
     blockedParams: DEFAULT_BLOCKED_PARAMS
-  },
-  hooks: {
-    convertPaths: true
   }
 };
 
 export const CONFIG = {
-  DEFAULT_PYTHON_PACKAGES,
   DEFAULT_BLOCKED_COMMANDS,
   DEFAULT_BLOCKED_PATHS,
   DEFAULT_BLOCKED_PARAMS,
@@ -59,8 +55,8 @@ export function loadConfig(options) {
   }
 
   if (options.python) {
-    if (Array.isArray(options.python.packages)) {
-      config.python.packages = options.python.packages;
+    if (typeof options.python.executable === 'string') {
+      config.python.executable = options.python.executable;
     }
     if (typeof options.python.timeout === 'number') {
       config.python.timeout = options.python.timeout;
@@ -85,12 +81,6 @@ export function loadConfig(options) {
     }
     if (Array.isArray(options.shell.blockedParams)) {
       config.shell.blockedParams = options.shell.blockedParams;
-    }
-  }
-
-  if (options.hooks) {
-    if (typeof options.hooks.convertPaths === 'boolean') {
-      config.hooks.convertPaths = options.hooks.convertPaths;
     }
   }
 
