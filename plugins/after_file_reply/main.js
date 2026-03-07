@@ -115,21 +115,33 @@ const plugin = {
       async handler(msg) {
         const key = plugin.getKey(msg);
         const state = plugin.waitingStates.get(key);
-        
+
         if (!state) {
           return { ...msg, content: '当前无等待发送的文件' };
         }
-        
+
         const files = state.files;
-        const fileList = files.map((f, i) => `[文件${i + 1}: ${f}]`).join('\n');
-        
+
+        // 构建多模态消息内容
+        const content = [
+          { type: 'text', text: '请描述这些图片的内容' }
+        ];
+
+        // 添加图片
+        for (const fileUrl of files) {
+          content.push({
+            type: 'image_url',
+            image_url: { url: fileUrl }
+          });
+        }
+
         const response = await plugin.context.agent.callLLM([
-          { role: 'user', content: `${fileList}\n\n请描述这些图片的内容` }
+          { role: 'user', content }
         ], { allowTools: false });
-        
+
         plugin.waitingStates.delete(key);
         plugin.saveStates();
-        
+
         return { ...msg, content: response.content };
       }
     }
@@ -164,15 +176,27 @@ const plugin = {
       // 收到文本：发送文件+文本给 LLM
       if (msg.content.trim()) {
         const files = state.files;
-        const fileList = files.map((f, i) => `[文件${i + 1}: ${f}]`).join('\n');
-        
+
+        // 构建多模态消息内容
+        const content = [
+          { type: 'text', text: msg.content }
+        ];
+
+        // 添加图片
+        for (const fileUrl of files) {
+          content.push({
+            type: 'image_url',
+            image_url: { url: fileUrl }
+          });
+        }
+
         const response = await this.context.agent.callLLM([
-          { role: 'user', content: `${fileList}\n\n${msg.content}` }
+          { role: 'user', content }
         ]);
-        
+
         this.waitingStates.delete(key);
         await this.saveStates();
-        
+
         return { ...msg, content: response.content };
       }
       

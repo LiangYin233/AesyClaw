@@ -30,14 +30,12 @@ export class ContextBuilder {  // 上下文构建器
   build(  // 构建消息上下文
     history: any[],
     currentMessage: string,
-    channel?: string,
-    chatId?: string,
     media?: string[]  // 新增 media 参数
   ): LLMMessage[] {
     const messages: LLMMessage[] = [
       { role: 'system', content: this.buildSystemPrompt() },
       ...history.filter(m => ['user', 'assistant', 'system'].includes(m.role)),
-      { role: 'user', content: this.buildUserContent(currentMessage, channel, chatId, media) }
+      { role: 'user', content: this.buildUserContent(currentMessage, media) }
     ];
     return messages;
   }
@@ -48,7 +46,9 @@ export class ContextBuilder {  // 上下文构建器
       .replace(/\{\{\s*current_time\s*\}\}/g, now.toISOString())
       .replace(/\{\{\s*current_date\s*\}\}/g, now.toLocaleString())
       .replace(/\{\{\s*current_hour\s*\}\}/g, now.toLocaleTimeString())
-      .replace(/\{\{\s*timezone\s*\}\}/g, Intl.DateTimeFormat().resolvedOptions().timeZone);
+      .replace(/\{\{\s*timezone\s*\}\}/g, Intl.DateTimeFormat().resolvedOptions().timeZone)
+      .replace(/\{\{\s*cwd\s*\}\}/g, this.workspace)
+      .replace(/\{\{\s*os\s*\}\}/g, process.platform);
 
     const sections = [`# AesyClaw`, prompt, `## Workspace: ${this.workspace}`];
 
@@ -62,23 +62,12 @@ export class ContextBuilder {  // 上下文构建器
 
   private buildUserContent(
     message: string,
-    channel?: string,
-    chatId?: string,
     media?: string[]  // 新增 media 参数
   ): string | Array<{ type: string; text?: string; image_url?: { url: string } }> {
-    const ctx = [
-      `[Runtime Context]`,
-      channel && `Channel: ${channel}`,
-      chatId && `Chat ID: ${chatId}`,
-      `Time: ${new Date().toISOString()}`
-    ].filter(Boolean).join('\n');
-
-    const fullMessage = `${ctx}\n\n${message}`;
-
     // 如果有图片，构建多模态消息
     if (media && media.length > 0) {
       const content: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
-        { type: 'text', text: fullMessage }
+        { type: 'text', text: message }
       ];
 
       // 添加图片
@@ -93,7 +82,7 @@ export class ContextBuilder {  // 上下文构建器
     }
 
     // 纯文本消息
-    return fullMessage;
+    return message;
   }
 }
 
@@ -111,7 +100,6 @@ export class AgentLoop {
   private memoryWindow: number;
   private channelSessions: Map<string, string> = new Map();
   private pluginManager?: PluginManager;
-  private skillManager?: SkillManager;
   private log = logger.child({ prefix: 'Agent' });
 
   async callLLM(  // 供插件调用的 LLM 请求方法
@@ -153,7 +141,6 @@ export class AgentLoop {
     this.model = model;
     this.contextMode = contextMode;
     this.memoryWindow = memoryWindow;
-    this.skillManager = skillManager;
     this.log.info(`Initialized with model: ${this.model}, contextMode: ${this.contextMode}`);
   }
 
@@ -163,7 +150,6 @@ export class AgentLoop {
   }
 
   setSkillManager(sm: SkillManager): void {
-    this.skillManager = sm;
     // 更新 ContextBuilder 的 skills prompt
     this.contextBuilder.setSkillsPrompt(sm.buildSkillsPrompt());
     this.log.info('SkillManager attached');
@@ -267,8 +253,6 @@ export class AgentLoop {
     const messages = this.contextBuilder.build(
       historyMessages,
       msg.content,
-      msg.channel,
-      msg.chatId,
       msg.media  // 传递 media 字段
     );
 
@@ -475,9 +459,7 @@ export class AgentLoop {
     const session = await this.sessionManager.getOrCreate(sessionKey);
     const messages = this.contextBuilder.build(
       session.messages,
-      content,
-      'cli',
-      'direct'
+      content
     );
 
     const result = await this.runAgentLoop(messages);
