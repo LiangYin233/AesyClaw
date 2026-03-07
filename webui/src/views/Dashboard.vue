@@ -372,6 +372,7 @@ const searchQuery = ref('')
 const showDetailsDialog = ref(false)
 const showClearDialog = ref(false)
 const selectedMetric = ref<MetricStats | null>(null)
+const isMounted = ref(false)
 
 let refreshInterval: number | null = null
 
@@ -437,6 +438,9 @@ function formatTime(date: Date): string {
 }
 
 async function loadMetrics() {
+    // 防止组件卸载后更新
+    if (!isMounted.value) return
+
     try {
         // 加载指标概览、内存使用和指标名称
         const [overview, memoryData, names] = await Promise.all([
@@ -444,6 +448,9 @@ async function loadMetrics() {
             getMemoryUsage(),
             getMetricNames()
         ])
+
+        // 再次检查组件是否已卸载
+        if (!isMounted.value) return
 
         if (overview) {
             metricsOverview.value = overview
@@ -461,12 +468,17 @@ async function loadMetrics() {
             for (const name of KEY_METRIC_NAMES) {
                 if (names.includes(name)) {
                     const stats = await getMetricStats(name)
+                    // 检查组件是否仍然挂载
+                    if (!isMounted.value) return
                     if (stats) {
                         const unit = name.includes('time') ? 'ms' : 'count'
                         metrics.push({ ...stats, name, unit })
                     }
                 }
             }
+
+            // 最后一次检查
+            if (!isMounted.value) return
             keyMetrics.value = metrics
         }
 
@@ -477,9 +489,15 @@ async function loadMetrics() {
 }
 
 async function refreshAll() {
+    // 防止并发刷新
+    if (refreshing.value) return
+
     refreshing.value = true
-    await Promise.all([systemStore.refresh(), loadMetrics()])
-    refreshing.value = false
+    try {
+        await Promise.all([systemStore.refresh(), loadMetrics()])
+    } finally {
+        refreshing.value = false
+    }
 }
 
 function toggleAutoRefresh() {
@@ -574,6 +592,7 @@ async function clearData() {
 }
 
 onMounted(async () => {
+    isMounted.value = true
     const success = await systemStore.refresh()
     await loadMetrics()
 
@@ -589,6 +608,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+    isMounted.value = false
     stopAutoRefresh()
 })
 </script>
