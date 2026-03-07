@@ -528,12 +528,12 @@ export function useApi() {
     loading.value = true
     error.value = null
     try {
-      const { data, error: err } = await apiGet<{ stats: MetricStats }>(`/metrics/stats/${name}`)
+      const { data, error: err } = await apiGet<MetricStats>(`/metrics/stats/${name}`)
       if (err) {
         error.value = err
         return null
       }
-      return data?.stats || null
+      return data
     } finally {
       loading.value = false
     }
