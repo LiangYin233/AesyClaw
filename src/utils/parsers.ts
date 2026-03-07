@@ -48,33 +48,3 @@ export function parseSessionKey(key: string): { channel: string; chatId: string;
   }
   return { channel: parts[0], chatId: parts[1] };
 }
-
-/**
- * Parse a OneBot message segment into text and media
- */
-export function parseMessageSegment(seg: any): { text?: string; media?: string[] } {
-  if (!seg || typeof seg !== 'object') return { text: String(seg) };
-
-  const type = seg.type;
-  const data = seg.data || {};
-
-  const handlers: Record<string, () => { text?: string; media?: string[] }> = {
-    text: () => ({ text: data.text || '' }),
-    image: () => {
-      const file = data.file || '';
-      const url = data.url || '';
-      const imageUrl = url || `file://${file}`;
-      return { text: url ? `[图片](${url})` : `[图片:${file}]`, media: [imageUrl] };
-    },
-    at: () => ({ text: data.qq === 'all' ? '@全体成员' : `@${data.qq}` }),
-    record: () => ({ text: '[语音]' }),
-    video: () => ({ text: '[视频]', media: [data.file || data.url || ''] }),
-    file: () => ({ text: `[文件: ${data.file || ''}]`, media: [data.file || data.url || ''] }),
-    face: () => ({ text: `[表情:${data.id}]` }),
-    reply: () => ({ text: `[回复:${data.id}]` }),
-    rich: () => ({ text: `[富文本:${data.id || ''}]` })
-  };
-
-  const handler = handlers[type];
-  return handler ? handler() : { text: `[${type}]` };
-}

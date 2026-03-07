@@ -17,12 +17,10 @@ export {
 export {
   parseTarget,
   parseInterval,
-  parseSessionKey,
-  parseMessageSegment
+  parseSessionKey
 } from './parsers.js';
 
 export {
   formatTools,
-  formatMessages,
-  formatMessageWithBase64
+  formatMessages
 } from './formatters.js';
