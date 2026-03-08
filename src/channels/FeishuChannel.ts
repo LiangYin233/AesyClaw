@@ -531,31 +531,81 @@ export class FeishuChannel extends BaseChannel {
     const FormData = (await import('form-data')).default;
     const form = new FormData();
     form.append('image_type', 'message');
-    form.append('image', buffer, { filename: basename(imagePath) });
+    form.append('image', buffer, {
+      filename: basename(imagePath),
+      contentType: this.getImageContentType(imagePath)
+    });
 
-    const response = await fetch(
-      `${this.apiBase}/open-apis/im/v1/images`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          ...form.getHeaders()
+    // 使用 form-data 的 submit 方法而不是 fetch
+    return new Promise((resolve, reject) => {
+      form.submit(
+        {
+          protocol: this.apiBase.startsWith('https') ? 'https:' : 'http:',
+          host: new URL(this.apiBase).host,
+          path: '/open-apis/im/v1/images',
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
         },
-        body: form as any
-      }
-    );
+        (err, res) => {
+          if (err) {
+            reject(new Error(`Failed to upload image: ${err.message}`));
+            return;
+          }
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Failed to upload image: HTTP ${response.status} - ${text}`);
+          let data = '';
+          res.on('data', chunk => {
+            data += chunk;
+          });
+
+          res.on('end', () => {
+            try {
+              if (res.statusCode !== 200) {
+                reject(new Error(`Failed to upload image: HTTP ${res.statusCode} - ${data}`));
+                return;
+              }
+
+              const result = JSON.parse(data);
+              if (result.code !== 0) {
+                reject(new Error(`Failed to upload image: ${result.msg || result.message || 'Unknown error'}`));
+                return;
+              }
+
+              resolve(result.data.image_key);
+            } catch (parseErr: any) {
+              reject(new Error(`Failed to parse response: ${parseErr.message}`));
+            }
+          });
+
+          res.on('error', (resErr) => {
+            reject(new Error(`Response error: ${resErr.message}`));
+          });
+        }
+      );
+    });
+  }
+
+  /**
+   * Get content type for image file based on extension
+   */
+  private getImageContentType(imagePath: string): string {
+    const ext = imagePath.toLowerCase().split('.').pop();
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'bmp':
+        return 'image/bmp';
+      case 'webp':
+        return 'image/webp';
+      default:
+        return 'application/octet-stream';
     }
-
-    const result: any = await response.json();
-    if (result.code !== 0) {
-      throw new Error(`Failed to upload image: ${result.msg || result.message || 'Unknown error'}`);
-    }
-
-    return result.data.image_key;
   }
 
   /**
