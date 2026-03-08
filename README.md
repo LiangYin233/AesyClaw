@@ -7,7 +7,7 @@
 - **插件系统**：完整的生命周期钩子，支持工具注册、消息拦截、命令处理
 - **Skills 系统**：基于提示词的技能发现和管理
 - **会话管理**：SQLite 持久化存储，支持 session/channel/global 三种上下文模式
-- **多渠道集成**：支持 OneBot、飞书，可自行通过 Channel 扩展
+- **多渠道集成**：支持 OneBot、飞书（实验性），可自行通过 Channel 扩展
 - **LLM 提供商**：支持 OpenAI Completion 协议，可自行通过 Provider 扩展
 - **MCP 支持**：完整的 Model Context Protocol 客户端，支持本地和远程服务器
 - **定时任务**：Cron 表达式调度，支持工具调用和消息发送
@@ -26,73 +26,6 @@
 
 ```bash
 npm install
-```
-
-### 配置
-
-复制并编辑配置文件：
-
-```bash
-cp config.example.yaml config.yaml
-```
-
-**核心配置：**
-```yaml
-server:
-  host: 0.0.0.0
-  apiPort: 18792
-  apiEnabled: true
-
-agent:
-  defaults:
-    model: gpt-4o
-    provider: openai
-    contextMode: channel      # session | channel | global
-    memoryWindow: 50
-    maxToolIterations: 40
-    maxSessions: 100
-
-channels:
-  onebot:
-    enabled: true
-    wsUrl: ws://localhost:3001/ws
-    token: your-token
-  feishu:
-    enabled: false
-    appId: cli_xxxxx
-    appSecret: xxxxx
-    verificationToken: xxxxx
-    webhookPort: 8080
-    webhookPath: /feishu/webhook
-
-providers:
-  openai:
-    apiKey: sk-xxx
-    apiBase: https://api.openai.com/v1
-
-mcp:
-  playwright:
-    type: local
-    command: '["npx", "-y", "@playwright/mcp@latest"]'
-    enabled: true
-
-plugins:
-  exec:
-    enabled: true
-  websearch:
-    enabled: true
-  md2img:
-    enabled: false
-    options:
-      minLength: 50
-      scale: 1.0
-
-log:
-  level: info
-
-metrics:
-  enabled: true
-  maxMetrics: 10000
 ```
 
 ### 运行
