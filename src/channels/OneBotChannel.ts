@@ -1,6 +1,5 @@
 import WebSocket from 'ws';
 import fs from 'fs';
-import { mkdir, writeFile } from 'fs/promises';
 import { join, basename } from 'path';
 import { BaseChannel } from './BaseChannel.js';
 import { ChannelManager, type ChannelPlugin } from './ChannelManager.js';
@@ -283,51 +282,20 @@ export class OneBotChannel extends BaseChannel {
 
     if (!senderId || !chatId) return;
 
-    if (!this.isAllowed(senderId, messageType)) {
-      this.log.debug(`Message denied from: ${senderId} (${messageType})`);
-      return;
-    }
-
-    const { content, media, files } = this.parseMessageWithMedia(payload.message);
-    if (this.log.isLevelEnabled?.('debug')) {
-      this.log.debug(`Parsed message: content="${content}", media=${JSON.stringify(media)}, files=${JSON.stringify(files)}`);
-    }
-
-    // 下载文件到本地
-    let downloadedFiles: InboundFile[] | undefined;
-    if (files && files.length > 0) {
-      const downloadDir = join(this.workspace, 'downloads');
-      await mkdir(downloadDir, { recursive: true });
-      downloadedFiles = [];
-      for (const file of files) {
-        if (!file.url) {
-          downloadedFiles.push(file);
-          continue;
-        }
-        try {
-          const res = await fetch(file.url);
-          if (!res.ok) {
-            this.log.warn(`Failed to download ${file.name}: HTTP ${res.status}`);
-            downloadedFiles.push(file);
-            continue;
-          }
-          const buf = Buffer.from(await res.arrayBuffer());
-          const localPath = join(downloadDir, basename(file.name));
-          await writeFile(localPath, buf);
-          downloadedFiles.push({ ...file, localPath });
-          this.log.info(`File downloaded: ${file.name} -> ${localPath}`);
-        } catch (err) {
-          this.log.warn(`Failed to download file ${file.name}:`, err);
-          downloadedFiles.push(file);
-        }
-      }
-    }
-
     const messageId = payload.message_id?.toString();
-    this.handleMessage(senderId, chatId, content, payload, messageId, messageType, media, downloadedFiles);
+
+    // Use standardized middleware pipeline
+    await this.processInboundMessage(senderId, chatId, messageType, payload, messageId);
   }
 
-  private parseMessageWithMedia(message: any): { content: string; media?: string[]; files?: InboundFile[] } {
+  /**
+   * Parse OneBot message format to standardized format
+   */
+  protected async parseMessage(rawEvent: any): Promise<import('./BaseChannel.js').ParsedMessage> {
+    return this.parseMessageWithMedia(rawEvent.message);
+  }
+
+  private parseMessageWithMedia(message: any): import('./BaseChannel.js').ParsedMessage {
     if (!message) return { content: '' };
 
     let content = '';

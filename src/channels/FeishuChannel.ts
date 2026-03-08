@@ -1,7 +1,6 @@
 import express from 'express';
 import http from 'http';
 import fs from 'fs';
-import { mkdir, writeFile } from 'fs/promises';
 import { join, basename } from 'path';
 import { BaseChannel } from './BaseChannel.js';
 import { ChannelManager, type ChannelPlugin } from './ChannelManager.js';
@@ -215,13 +214,6 @@ export class FeishuChannel extends BaseChannel {
 
   /**
    * Handle incoming message event from Feishu
-   *
-   * Process flow:
-   * 1. Extract sender and chat information
-   * 2. Check permissions (whitelist)
-   * 3. Parse message content based on message type
-   * 4. Download files if present
-   * 5. Publish to EventBus for further processing
    */
   private async handleMessageEvent(event: any): Promise<void> {
     const sender = event.sender?.sender_id?.open_id;
@@ -236,35 +228,43 @@ export class FeishuChannel extends BaseChannel {
       return;
     }
 
-    // 权限检查
-    if (!this.isAllowed(sender, messageType)) {
-      this.log.debug(`Message from ${sender} not allowed`);
-      return;
+    const messageId = message.message_id;
+
+    // Store message info for parseMessage to access
+    this.currentMessage = {
+      type: message.message_type,
+      content: message.content
+    };
+
+    // Use standardized middleware pipeline
+    await this.processInboundMessage(sender, chatId, messageType, event, messageId);
+
+    // Clean up
+    this.currentMessage = undefined;
+  }
+
+  // Temporary storage for current message being processed
+  private currentMessage?: { type: string; content: string };
+
+  /**
+   * Parse Feishu message format to standardized format
+   */
+  protected async parseMessage(rawEvent: any): Promise<import('./BaseChannel.js').ParsedMessage> {
+    if (!this.currentMessage) {
+      return { content: '' };
     }
 
-    // 解析消息内容
-    const { content, media, files } = await this.parseMessageContent(
-      message.message_type,
-      message.content
-    );
+    return await this.parseMessageContent(this.currentMessage.type, this.currentMessage.content);
+  }
 
-    // 下载文件
-    let downloadedFiles: InboundFile[] | undefined;
-    if (files && files.length > 0) {
-      downloadedFiles = await this.downloadFiles(files);
-    }
-
-    // 发布到 EventBus
-    this.handleMessage(
-      sender,
-      chatId,
-      content,
-      event,
-      message.message_id,
-      messageType,
-      media,
-      downloadedFiles
-    );
+  /**
+   * Override downloadFiles to add Feishu authentication
+   */
+  protected async downloadFiles(files: InboundFile[]): Promise<InboundFile[]> {
+    const token = await this.getValidToken();
+    return super.downloadFiles(files, {
+      'Authorization': `Bearer ${token}`
+    });
   }
 
   /**
@@ -283,7 +283,7 @@ export class FeishuChannel extends BaseChannel {
   private async parseMessageContent(
     messageType: string,
     content: string
-  ): Promise<{ content: string; media?: string[]; files?: InboundFile[] }> {
+  ): Promise<import('./BaseChannel.js').ParsedMessage> {
     try {
       const parsed = JSON.parse(content);
 
@@ -373,40 +373,6 @@ export class FeishuChannel extends BaseChannel {
       : `/open-apis/im/v1/files/${fileKey}`;
 
     return `${this.apiBase}${endpoint}?access_token=${token}`;
-  }
-
-  private async downloadFiles(files: InboundFile[]): Promise<InboundFile[]> {
-    const downloadDir = join(this.workspace, 'downloads');
-    await mkdir(downloadDir, { recursive: true });
-
-    const downloaded: InboundFile[] = [];
-
-    for (const file of files) {
-      try {
-        const token = await this.getValidToken();
-        const response = await fetch(file.url, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        if (!response.ok) {
-          this.log.warn(`Failed to download ${file.name}: HTTP ${response.status}`);
-          downloaded.push(file);
-          continue;
-        }
-
-        const buffer = Buffer.from(await response.arrayBuffer());
-        const localPath = join(downloadDir, basename(file.name));
-        await writeFile(localPath, buffer);
-
-        downloaded.push({ ...file, localPath });
-        this.log.info(`File downloaded: ${file.name} -> ${localPath}`);
-      } catch (err) {
-        this.log.warn(`Failed to download ${file.name}:`, err);
-        downloaded.push(file);
-      }
-    }
-
-    return downloaded;
   }
 
   /**
