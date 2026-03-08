@@ -112,8 +112,17 @@ export class Database {
   async transaction<T>(fn: () => Promise<T>): Promise<T> {
     return new Promise((resolve, reject) => {
       this.db.serialize(() => {
-        this.db.run('BEGIN TRANSACTION', (err: Error | null) => {
+        this.db.run('BEGIN IMMEDIATE', (err: Error | null) => {
           if (err) {
+            // If we get "cannot start a transaction within a transaction" error,
+            // just execute the function without a new transaction
+            if (err.message && err.message.includes('cannot start a transaction')) {
+              this.log.debug('Already in transaction, executing without new transaction');
+              Promise.resolve(fn())
+                .then(resolve)
+                .catch(reject);
+              return;
+            }
             reject(err);
             return;
           }
