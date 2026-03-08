@@ -343,14 +343,13 @@ export class FeishuChannel extends BaseChannel {
 
       const requestBody = {
         receive_id: msg.chatId,
-        receive_id_type: receiveIdType,
         msg_type: msgType,
         content: JSON.stringify(content)  // Feishu expects content as a JSON string
       };
 
       this.log.debug(`Sending message: ${JSON.stringify(requestBody)}`);
 
-      const url = `${this.apiBase}/open-apis/im/v1/messages`;
+      const url = `${this.apiBase}/open-apis/im/v1/messages?receive_id_type=${receiveIdType}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: {
