@@ -341,6 +341,15 @@ export class FeishuChannel extends BaseChannel {
       // 格式化消息
       const { msgType, content } = await this.formatOutboundMessage(msg);
 
+      const requestBody = {
+        receive_id: msg.chatId,
+        receive_id_type: receiveIdType,
+        msg_type: msgType,
+        content: JSON.stringify(content)  // Feishu expects content as a JSON string
+      };
+
+      this.log.debug(`Sending message: ${JSON.stringify(requestBody)}`);
+
       const url = `${this.apiBase}/open-apis/im/v1/messages`;
       const response = await fetch(url, {
         method: 'POST',
@@ -348,16 +357,12 @@ export class FeishuChannel extends BaseChannel {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          receive_id: msg.chatId,
-          receive_id_type: receiveIdType,
-          msg_type: msgType,
-          content: content
-        })
+        body: JSON.stringify(requestBody)
       });
 
       const result: any = await response.json();
       if (result.code !== 0) {
+        this.log.error(`Feishu API error response: ${JSON.stringify(result)}`);
         throw new Error(`Feishu API error: ${result.msg}`);
       }
 
@@ -378,14 +383,14 @@ export class FeishuChannel extends BaseChannel {
     }
   }
 
-  private async formatOutboundMessage(msg: OutboundMessage): Promise<{ msgType: string; content: string }> {
+  private async formatOutboundMessage(msg: OutboundMessage): Promise<{ msgType: string; content: any }> {
     // 处理媒体文件
     if (msg.media && msg.media.length > 0) {
       try {
         const imageKey = await this.uploadImage(msg.media[0]);
         return {
           msgType: 'image',
-          content: JSON.stringify({ image_key: imageKey })
+          content: { image_key: imageKey }
         };
       } catch (error) {
         this.log.warn('Failed to upload image, falling back to text:', error);
@@ -395,7 +400,7 @@ export class FeishuChannel extends BaseChannel {
     // 默认发送文本
     return {
       msgType: 'text',
-      content: JSON.stringify({ text: msg.content })
+      content: { text: msg.content }
     };
   }
 
