@@ -343,13 +343,16 @@ export class FeishuChannel extends BaseChannel {
       // 格式化消息
       const { msgType, content } = await this.formatOutboundMessage(msg);
 
+      this.log.info(`Formatting message - msgType: ${msgType}, content object:`, content);
+      this.log.info(`Original message content: "${msg.content}"`);
+
       const requestBody = {
         receive_id: msg.chatId,
         msg_type: msgType,
         content: JSON.stringify(content)  // Feishu expects content as a JSON string
       };
 
-      this.log.debug(`Sending message: ${JSON.stringify(requestBody)}`);
+      this.log.info(`Sending message: ${JSON.stringify(requestBody)}`);
 
       const url = `${this.apiBase}/open-apis/im/v1/messages?receive_id_type=${receiveIdType}`;
       const response = await fetch(url, {
@@ -395,13 +398,21 @@ export class FeishuChannel extends BaseChannel {
         };
       } catch (error) {
         this.log.warn('Failed to upload image, falling back to text:', error);
+        // If image upload fails and there's no text content, use a placeholder
+        if (!msg.content || msg.content.trim() === '') {
+          return {
+            msgType: 'text',
+            content: { text: '[图片上传失败]' }
+          };
+        }
       }
     }
 
-    // 默认发送文本
+    // 默认发送文本，但确保内容不为空
+    const textContent = msg.content && msg.content.trim() !== '' ? msg.content : '[空消息]';
     return {
       msgType: 'text',
-      content: { text: msg.content }
+      content: { text: textContent }
     };
   }
 
@@ -429,9 +440,14 @@ export class FeishuChannel extends BaseChannel {
       }
     );
 
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Failed to upload image: HTTP ${response.status} - ${text}`);
+    }
+
     const result: any = await response.json();
     if (result.code !== 0) {
-      throw new Error(`Failed to upload image: ${result.msg}`);
+      throw new Error(`Failed to upload image: ${result.msg || result.message || 'Unknown error'}`);
     }
 
     return result.data.image_key;
