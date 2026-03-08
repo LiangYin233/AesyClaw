@@ -279,6 +279,21 @@ export class PluginManager {
     await pipeline.execute(err, { ...context });
   }
 
+  private buildPluginContext(options: Record<string, any>): PluginContext {
+    return {
+      options,
+      config: this.context.config,
+      eventBus: this.context.eventBus,
+      tempDir: this.context.tempDir,
+      logger: this.context.logger,
+      workspace: this.context.workspace,
+      agent: this.context.agent,
+      registerTool: this.context.registerTool,
+      getToolRegistry: this.context.getToolRegistry,
+      sendMessage: this.context.sendMessage
+    };
+  }
+
   async loadPlugin(plugin: Plugin): Promise<void> {
     if (this.plugins.has(plugin.name)) {
       this.log.warn(`Plugin ${plugin.name} already loaded`);
@@ -288,19 +303,7 @@ export class PluginManager {
     this.log.info(`Loading plugin: ${plugin.name} v${plugin.version}, has onResponse: ${!!plugin.onResponse}`);
 
     if (plugin.onLoad) {
-      const pluginContext: PluginContext = {
-        options: plugin.options,
-        config: this.context.config,
-        eventBus: this.context.eventBus,
-        tempDir: this.context.tempDir,
-        logger: this.context.logger,
-        workspace: this.context.workspace,
-        agent: this.context.agent,
-        registerTool: this.context.registerTool,
-        getToolRegistry: this.context.getToolRegistry,
-        sendMessage: this.context.sendMessage
-      };
-      await plugin.onLoad(pluginContext);
+      await plugin.onLoad(this.buildPluginContext(plugin.options));
       this.log.debug(`Plugin ${plugin.name} onLoad completed with options:`, plugin.options);
     }
 
@@ -593,7 +596,7 @@ export class PluginManager {
       const plugin = this.plugins.get(name);
       if (plugin?.onLoad) {
         try {
-          await plugin.onLoad({ ...plugin, options });
+          await plugin.onLoad(this.buildPluginContext(options));
           this.log.info(`Plugin ${name} config updated (runtime)`);
         } catch (error) {
           this.log.error(`Failed to reload plugin config: ${name}`, error);
