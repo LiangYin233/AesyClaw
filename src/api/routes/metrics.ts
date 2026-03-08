@@ -1,6 +1,7 @@
 import type { Express } from 'express';
 import { logger, type LogLevel, createErrorResponse, createValidationErrorResponse, NotFoundError } from '../../logger/index.js';
 import { metrics } from '../../logger/Metrics.js';
+import { tokenStats } from '../../logger/TokenStats.js';
 import { ConfigLoader } from '../../config/loader.js';
 
 const log = logger.child({ prefix: 'MetricsAPI' });
@@ -151,6 +152,24 @@ export function registerMetricsRoutes(app: Express): void {
         metrics.setEnabled(enabled);
       }
       res.json({ success: true, config: metrics.getConfig() });
+    } catch (error) {
+      res.status(500).json(createErrorResponse(error));
+    }
+  });
+
+  // Token stats
+  app.get('/api/tokens/stats', (req, res) => {
+    try {
+      res.json(tokenStats.getStats());
+    } catch (error) {
+      res.status(500).json(createErrorResponse(error));
+    }
+  });
+
+  app.post('/api/tokens/reset', (req, res) => {
+    try {
+      tokenStats.reset();
+      res.json({ success: true, message: 'Token stats reset' });
     } catch (error) {
       res.status(500).json(createErrorResponse(error));
     }

@@ -5,6 +5,7 @@ import type { PluginManager } from '../plugins/index.js';
 import { ContextBuilder } from './ContextBuilder.js';
 import { logger, normalizeError, isRetryableError } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
+import { tokenStats } from '../logger/TokenStats.js';
 import { CONSTANTS } from '../constants/index.js';
 
 export interface ExecuteOptions {
@@ -73,6 +74,15 @@ export class AgentExecutor {
       }
 
       const response = await this.provider.chat(messages, tools, this.model);
+
+      // Record token usage metrics and stats
+      if (response.usage) {
+        const { prompt_tokens, completion_tokens, total_tokens } = response.usage;
+        metrics.record('llm.tokens.prompt', prompt_tokens, 'count', { source });
+        metrics.record('llm.tokens.completion', completion_tokens, 'count', { source });
+        metrics.record('llm.tokens.total', total_tokens, 'count', { source });
+        tokenStats.record(prompt_tokens, completion_tokens, total_tokens);
+      }
 
       if (response.toolCalls.length > 0) {
         if (!agentMode) {

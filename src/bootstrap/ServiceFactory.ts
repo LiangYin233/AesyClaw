@@ -16,6 +16,7 @@ import { registerCronTools } from '../cron/CronTools.js';
 import { ConfigLoader } from '../config/loader.js';
 import { logger } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
+import { tokenStats } from '../logger/TokenStats.js';
 import type { Config, OutboundMessage } from '../types.js';
 import type { LLMProvider } from '../providers/base.js';
 import type { CronJob } from '../cron/index.js';
@@ -54,6 +55,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   if (config.metrics?.enabled !== undefined) {
     metrics.setEnabled(config.metrics.enabled);
   }
+  tokenStats.setDataDir(join(process.cwd(), '.aesyclaw'));
 
   log.info('Initializing services...');
 

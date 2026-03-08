@@ -203,7 +203,7 @@ export class OpenAIProvider extends LLMProvider {
         this.log.debug(`Tool calls detail:`, JSON.stringify(tcDebug).substring(0, 800));
       }
       if (usage) {
-        this.log.debug(`Usage: prompt=${usage.prompt_tokens}, completion=${usage.completion_tokens}, total=${usage.total_tokens}`);
+        this.log.info(`Token usage: prompt=${usage.prompt_tokens}, completion=${usage.completion_tokens}, total=${usage.total_tokens}`);
       }
 
       return {
