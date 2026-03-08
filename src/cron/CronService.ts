@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { dirname } from 'path';
+import { existsSync, readFileSync } from 'fs';
+import { dirname, join } from 'path';
 import { CronExpressionParser } from 'cron-parser';
 import { logger, normalizeError } from '../logger/index.js';
+import { CronStore } from './CronStore.js';
 
 export interface CronJob {
   id: string;
@@ -33,22 +34,26 @@ export interface CronPayload {
 export class CronService {
   private jobs: Map<string, CronJob> = new Map();
   private timer?: NodeJS.Timeout;
-  private storePath: string;
+  private store: CronStore;
+  private legacyJsonPath?: string;
   private onJobExecute?: (job: CronJob) => Promise<void>;
   private log = logger.child({ prefix: 'Cron' });
 
   constructor(
-    storePath: string,
+    dbPath: string,
     onJobExecute?: (job: CronJob) => Promise<void>
   ) {
-    this.storePath = storePath;
+    // 数据库路径：将 .json 替换为 .db
+    const actualDbPath = dbPath.replace(/\.json$/, '.db');
+    this.store = new CronStore(actualDbPath);
+    this.legacyJsonPath = dbPath.endsWith('.json') ? dbPath : undefined;
     this.onJobExecute = onJobExecute;
   }
 
   addJob(job: CronJob): CronJob {
     this.computeNextRun(job);
     this.jobs.set(job.id, job);
-    this.save();
+    this.store.upsert(job).catch(err => this.log.error('Failed to save job:', err));
     this.log.info(`Added job: ${job.name} (${job.id}), next run: ${job.nextRunAtMs ? new Date(job.nextRunAtMs).toISOString() : 'N/A'}`);
     this.wakeUp();
     return job;
@@ -56,7 +61,7 @@ export class CronService {
 
   removeJob(id: string): boolean {
     const result = this.jobs.delete(id);
-    this.save();
+    this.store.delete(id).catch(err => this.log.error('Failed to delete job:', err));
     if (result) this.log.info(`Removed job: ${id}`);
     return result;
   }
@@ -66,7 +71,7 @@ export class CronService {
     if (job) {
       job.enabled = enabled;
       this.computeNextRun(job);
-      this.save();
+      this.store.updateStatus(id, enabled, job.nextRunAtMs).catch(err => this.log.error('Failed to update job status:', err));
       this.log.info(`Job ${id} ${enabled ? 'enabled' : 'disabled'}, next run: ${job.nextRunAtMs ? new Date(job.nextRunAtMs).toISOString() : 'N/A'}`);
       this.wakeUp();
     }
@@ -84,7 +89,9 @@ export class CronService {
   }
 
   async start(): Promise<void> {
-    this.load();
+    await this.store.initialize();
+    await this.migrateFromJson();
+    await this.load();
     this.scheduleNext();
     this.log.info(`Service started, ${this.jobs.size} jobs loaded`);
   }
@@ -94,6 +101,7 @@ export class CronService {
       clearTimeout(this.timer);
       this.timer = undefined;
     }
+    this.store.close().catch(err => this.log.error('Failed to close store:', err));
     this.log.info('Service stopped');
   }
 
@@ -137,6 +145,7 @@ export class CronService {
   private async runDueJobs(): Promise<void> {
     const now = Date.now();
     const toRemove: string[] = [];
+    const toUpdate: CronJob[] = [];
 
     for (const job of this.jobs.values()) {
       if (job.enabled && job.nextRunAtMs && now >= job.nextRunAtMs) {
@@ -157,16 +166,20 @@ export class CronService {
           toRemove.push(job.id);
         } else {
           this.computeNextRun(job);
+          toUpdate.push(job);
         }
       }
     }
 
     for (const id of toRemove) {
       this.jobs.delete(id);
+      this.store.delete(id).catch(err => this.log.error('Failed to delete job:', err));
       this.log.info(`One-time job ${id} completed and removed`);
     }
 
-    this.save();
+    if (toUpdate.length > 0) {
+      this.store.batchUpdate(toUpdate).catch(err => this.log.error('Failed to update jobs:', err));
+    }
   }
 
   computeNextRun(job: CronJob): void {
@@ -230,12 +243,12 @@ export class CronService {
     }
   }
 
-  private load(): void {
-    if (!existsSync(this.storePath)) return;
-
+  /**
+   * 从数据库加载任务
+   */
+  private async load(): Promise<void> {
     try {
-      const content = readFileSync(this.storePath, 'utf-8');
-      const jobs: CronJob[] = JSON.parse(content);
+      const jobs = await this.store.getAll();
       for (const job of jobs) {
         this.jobs.set(job.id, job);
       }
@@ -244,11 +257,31 @@ export class CronService {
     }
   }
 
-  private save(): void {
-    const dir = dirname(this.storePath);
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
+  /**
+   * 从旧的 JSON 文件迁移数据
+   */
+  private async migrateFromJson(): Promise<void> {
+    if (!this.legacyJsonPath || !existsSync(this.legacyJsonPath)) {
+      return;
     }
-    writeFileSync(this.storePath, JSON.stringify(Array.from(this.jobs.values()), null, 2), 'utf-8');
+
+    try {
+      this.log.info(`Migrating jobs from ${this.legacyJsonPath}...`);
+      const content = readFileSync(this.legacyJsonPath, 'utf-8');
+      const jobs: CronJob[] = JSON.parse(content);
+
+      for (const job of jobs) {
+        await this.store.upsert(job);
+      }
+
+      this.log.info(`Migrated ${jobs.length} jobs from JSON to database`);
+
+      // 重命名旧文件为备份
+      const fs = await import('fs');
+      fs.renameSync(this.legacyJsonPath, `${this.legacyJsonPath}.backup`);
+      this.log.info(`Renamed ${this.legacyJsonPath} to ${this.legacyJsonPath}.backup`);
+    } catch (error) {
+      this.log.error('Failed to migrate from JSON:', error);
+    }
   }
 }
