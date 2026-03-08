@@ -1,4 +1,6 @@
 import { randomUUID } from 'crypto';
+import { join } from 'path';
+import { mkdirSync, existsSync } from 'fs';
 import { ConfigLoader } from '../config/loader.js';
 import { createServices, type Services } from './ServiceFactory.js';
 import { logger, normalizeError } from '../logger/index.js';
@@ -12,7 +14,12 @@ const log = logger.child({ prefix: 'Bootstrap' });
 
 export async function bootstrap(port: number): Promise<void> {
   const config = await ConfigLoader.load() as Config;
-  const workspace = process.cwd();
+  const workspace = join(process.cwd(), 'workspace');
+
+  // Ensure workspace directory exists
+  if (!existsSync(workspace)) {
+    mkdirSync(workspace, { recursive: true });
+  }
 
   log.info('Starting AesyClaw...');
   log.info(`Workspace: ${workspace}`);

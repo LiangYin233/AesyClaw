@@ -162,6 +162,9 @@ export class AgentLoop {
       const session = await this.sessionManager.getOrCreate(sessionKey);
       this.log.debug(`Session messages count: ${session.messages.length}`);
 
+      // Set current context for system prompt
+      this.executor.getContextBuilder().setCurrentContext(msg.channel, msg.chatId, msg.messageType);
+
       // 将已下载的文件路径追加到消息内容
       if (msg.files && msg.files.length > 0) {
         const savedPaths = msg.files.filter(f => f.localPath).map(f => f.localPath!);

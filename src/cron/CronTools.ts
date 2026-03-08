@@ -56,7 +56,7 @@ export function registerCronTools(
         },
         target: {
           type: 'string',
-          description: '发送目标，格式：channel:private:QQ号 或 channel:group:群号，如 onebot:private:163213819 或 onebot:group:381297421。**必填**，否则任务执行后无法发送消息。'
+          description: '发送目标，格式：频道名:消息类型:用户ID。直接使用 system prompt 中的 Current Context 值即可。**必填**。'
         }
       },
       required: ['type', 'time', 'description', 'detail', 'target']

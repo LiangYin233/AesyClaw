@@ -4,6 +4,9 @@ export class ContextBuilder {
   private workspace: string;
   private systemPrompt: string;
   private skillsPrompt: string;
+  private currentChannel?: string;
+  private currentChatId?: string;
+  private currentMessageType?: 'private' | 'group';
 
   constructor(workspace: string, systemPrompt?: string, skillsPrompt?: string) {
     this.workspace = workspace;
@@ -21,6 +24,12 @@ export class ContextBuilder {
 
   getWorkspace(): string {
     return this.workspace;
+  }
+
+  setCurrentContext(channel?: string, chatId?: string, messageType?: 'private' | 'group'): void {
+    this.currentChannel = channel;
+    this.currentChatId = chatId;
+    this.currentMessageType = messageType;
   }
 
   build(
@@ -47,6 +56,10 @@ export class ContextBuilder {
       .replace(/\{\{\s*os\s*\}\}/g, process.platform);
 
     const sections = [`# AesyClaw`, prompt, `## Workspace: ${this.workspace}`];
+
+    if (this.currentChannel && this.currentChatId && this.currentMessageType) {
+      sections.push(`## Current Context: ${this.currentChannel}:${this.currentMessageType}:${this.currentChatId}`);
+    }
 
     if (this.skillsPrompt) {
       sections.push(this.skillsPrompt);
