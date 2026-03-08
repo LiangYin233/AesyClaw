@@ -121,7 +121,9 @@ export async function bootstrap(port: number): Promise<void> {
 
 function wireOutbound(services: Services): void {
   const { eventBus, channelManager } = services;
+  log.info(`[OUTBOUND_WIRE] Registering outbound event listener, current listener count: ${eventBus.listenerCount('outbound')}`);
   eventBus.on('outbound', async (msg: OutboundMessage) => {
+    log.info(`[OUTBOUND_WIRE] Received outbound event for channel=${msg.channel}, chatId=${msg.chatId}, content length=${msg.content.length}`);
     const channel = channelManager.get(msg.channel);
     if (channel) {
       try {
@@ -133,6 +135,7 @@ function wireOutbound(services: Services): void {
       log.warn(`Channel ${msg.channel} not found`);
     }
   });
+  log.info(`[OUTBOUND_WIRE] Outbound event listener registered, new listener count: ${eventBus.listenerCount('outbound')}`);
 }
 
 function setupConfigReload(services: Services): void {

@@ -272,12 +272,15 @@ export class AgentLoop {
   }
 
   private async sendOutbound(msg: OutboundMessage): Promise<void> {
+    this.log.info(`[SEND_OUTBOUND] Preparing to send message to ${msg.channel}:${msg.chatId}, content length=${msg.content.length}`);
     let processedMsg = msg;
     if (this.pluginManager) {
       this.log.debug(`Applying onResponse hooks before publishing`);
       processedMsg = await this.pluginManager.applyOnResponse(msg) || msg;
     }
+    this.log.info(`[SEND_OUTBOUND] Publishing outbound event to EventBus`);
     await this.eventBus.publishOutbound(processedMsg);
+    this.log.info(`[SEND_OUTBOUND] Outbound event published`);
   }
 
   setCommandRegistry(registry: CommandRegistry): void {
