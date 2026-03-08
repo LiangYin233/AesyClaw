@@ -59,6 +59,7 @@ export class AgentExecutor {
     toolContext: ToolContext,
     options?: ExecuteOptions
   ): Promise<AgentResult> {
+    this.log.info(`[LLM_CALL] AgentExecutor.execute() started with ${messages.length} messages, source=${options?.source || 'user'}`);
     const toolsUsed: string[] = [];
     const max = options?.maxIterations ?? this.maxIterations;
     const allowTools = options?.allowTools ?? true;
@@ -72,7 +73,9 @@ export class AgentExecutor {
         this.log.debug(`First round: ${tools.length} tools available (excluding agent-only)`);
       }
 
+      this.log.info(`[LLM_CALL] AgentExecutor.execute() iteration ${i + 1}/${max}, calling provider.chat()`);
       const response = await this.provider.chat(messages, tools, this.model);
+      this.log.info(`[LLM_CALL] AgentExecutor.execute() iteration ${i + 1}/${max}, provider.chat() returned, toolCalls=${response.toolCalls.length}`);
 
       if (response.toolCalls.length > 0) {
         if (!agentMode) {
@@ -153,10 +156,12 @@ export class AgentExecutor {
       } else {
         this.log.info(`LLM response complete, no tool calls, content length: ${response.content?.length || 0}`);
         messages.push({ role: 'assistant', content: response.content || '' });
+        this.log.info(`[LLM_CALL] AgentExecutor.execute() completed successfully, returning result`);
         return { content: response.content || '', reasoning_content: response.reasoning_content, toolsUsed, agentMode };
       }
     }
 
+    this.log.info(`[LLM_CALL] AgentExecutor.execute() reached max iterations, returning`);
     return { content: '已达到最大迭代次数', reasoning_content: undefined, toolsUsed, agentMode };
   }
 
@@ -167,8 +172,10 @@ export class AgentExecutor {
     messages: LLMMessage[],
     options?: { allowTools?: boolean; maxIterations?: number }
   ): Promise<{ content: string; reasoning_content?: string }> {
+    this.log.info(`[LLM_CALL] AgentExecutor.callLLM() called with ${messages.length} messages, allowTools=${options?.allowTools ?? true}`);
     const tools = options?.allowTools !== false ? this.toolRegistry.getDefinitions() : [];
     const response = await this.provider.chat(messages, tools, this.model);
+    this.log.info(`[LLM_CALL] AgentExecutor.callLLM() returned, content length=${response.content?.length || 0}`);
     return { content: response.content || '', reasoning_content: response.reasoning_content };
   }
 

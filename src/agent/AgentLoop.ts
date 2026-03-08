@@ -70,7 +70,10 @@ export class AgentLoop {
     messages: LLMMessage[],
     options?: { allowTools?: boolean; maxIterations?: number }
   ): Promise<{ content: string; reasoning_content?: string }> {
-    return this.executor.callLLM(messages, options);
+    this.log.info(`[LLM_CALL] AgentLoop.callLLM() called with ${messages.length} messages, allowTools=${options?.allowTools ?? true}`);
+    const result = await this.executor.callLLM(messages, options);
+    this.log.info(`[LLM_CALL] AgentLoop.callLLM() returned, content length=${result.content.length}`);
+    return result;
   }
 
   async run(): Promise<void> {
@@ -187,11 +190,12 @@ export class AgentLoop {
         await this.pluginManager.applyOnAgentBefore(msg, messages);
       }
 
-      this.log.debug(`Calling LLM with ${messages.length} messages`);
+      this.log.info(`[LLM_CALL] AgentLoop.processMessage() calling executor.execute() with ${messages.length} messages`);
       const result = await this.executor.execute(messages, this.toolContext, {
         allowTools: true,
         source: 'user'
       });
+      this.log.info(`[LLM_CALL] AgentLoop.processMessage() executor.execute() returned, content length=${result.content.length}`);
 
       const llmResponse: LLMResponse = {
         content: result.content,
