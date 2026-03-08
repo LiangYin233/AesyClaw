@@ -18,7 +18,6 @@ export interface Tool {
   execute: (params: Record<string, any>, context?: ToolContext) => Promise<string>;
   validate?: (params: Record<string, any>) => string[];
   timeout?: number;
-  agentOnly?: boolean;
   source?: ToolSource;
 }
 
@@ -101,9 +100,8 @@ export class ToolRegistry {
     return count;
   }
 
-  getDefinitions(agentMode: boolean = false): ToolDefinition[] {
+  getDefinitions(): ToolDefinition[] {
     return Array.from(this.tools.values())
-      .filter(tool => !tool.agentOnly || agentMode)
       .map(tool => ({
         name: tool.name,
         description: tool.description,

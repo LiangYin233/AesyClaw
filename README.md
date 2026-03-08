@@ -73,6 +73,12 @@ npm run start:all
 ├── webui/                  # Vue 3 前端
 ├── plugins/                # 用户插件
 ├── skills/                 # 用户技能
+├── workspace/              # 工作目录
+├── .aesyclaw/              # 数据存储目录
+│   ├── sessions/           # 会话数据库
+│   ├── cron-jobs.db        # 定时任务数据库
+│   ├── token-stats.json    # Token 统计
+│   └── temp/               # 临时文件
 └── docs/                   # 文档
 ```
 

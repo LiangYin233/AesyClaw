@@ -67,10 +67,10 @@ export class AgentExecutor {
     let agentMode = false;
 
     for (let i = 0; i < max; i++) {
-      const tools = allowTools ? this.toolRegistry.getDefinitions(agentMode) : [];
+      const tools = allowTools ? this.toolRegistry.getDefinitions() : [];
 
       if (i === 0 && tools.length > 0) {
-        this.log.debug(`First round: ${tools.length} tools available (excluding agent-only)`);
+        this.log.debug(`First round: ${tools.length} tools available`);
       }
 
       const response = await this.provider.chat(messages, tools, this.model);

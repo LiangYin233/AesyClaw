@@ -67,7 +67,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
 
   // 2. SessionManager (依赖 workspace)
   const sessionManager = new SessionManager(
-    join(workspace, '.aesyclaw', 'sessions'),
+    join(process.cwd(), '.aesyclaw', 'sessions'),
     config.agent.defaults.maxSessions ?? 100
   );
   await sessionManager.ready();
@@ -150,7 +150,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
 
   // 6. CronService
   const cronService = new CronService(
-    join(workspace, '.aesyclaw', 'cron-jobs.json'),
+    join(process.cwd(), '.aesyclaw', 'cron-jobs.json'),
     onCronJob || (async () => {})
   );
   await cronService.start();
@@ -239,7 +239,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
 
 **典型用法**：使用 python_exec 生成图表后，立即调用此工具发送图表文件，而不是仅在最终回复中描述。用户更希望看到实际的图表。
 
-参数：content（文本内容，支持 Markdown）、media（文件路径数组，如 python_exec 生成的图表）`,
+参数：content（文本内容，支持 Markdown）、media（文件路径数组）`,
     parameters: {
       type: 'object',
       properties: {
