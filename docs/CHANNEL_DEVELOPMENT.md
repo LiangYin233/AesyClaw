@@ -5,9 +5,10 @@
 ## 核心原则
 
 1. **标准化消息格式**：所有 Channel 必须将平台特定的消息格式转换为统一的 `InboundMessage` 格式
-2. **类型标记**：特殊文件类型（音频、视频）必须在 `files` 数组中标记 `type` 字段
-3. **保留原始数据**：将原始事件保存在 `rawEvent` 字段中，供高级插件使用
-4. **插件优先**：Channel 只负责解析和转换，具体处理逻辑由插件完成
+2. **使用工具函数**：使用 `MessageParser` 提供的工具函数处理常见消息类型
+3. **类型标记**：特殊文件类型（音频、视频）必须在 `files` 数组中标记 `type` 字段
+4. **保留原始数据**：将原始事件保存在 `rawEvent` 字段中，供高级插件使用
+5. **插件优先**：Channel 只负责解析和转换，具体处理逻辑由插件完成
 
 ## InboundMessage 结构
 
@@ -36,7 +37,98 @@ export interface InboundFile {
 }
 ```
 
-## 消息类型处理规范
+## MessageParser 工具函数
+
+`MessageParser` 模块提供了标准化的消息处理工具，确保所有 Channel 以一致的方式处理消息。
+
+### 导入
+
+```typescript
+import { MessageHandlers, createFile, detectFileType } from './MessageParser.js';
+```
+
+### MessageHandlers
+
+预定义的消息类型处理器：
+
+```typescript
+// 文本消息
+MessageHandlers.text(text: string)
+// 返回: { text: string }
+
+// 图片消息
+MessageHandlers.image(url: string, placeholder?: string)
+// 返回: { text: string, media: string[] }
+
+// 语音消息
+MessageHandlers.audio(url: string, name?: string)
+// 返回: { text: '[语音]', files: InboundFile[] }
+
+// 视频消息
+MessageHandlers.video(url: string, name?: string)
+// 返回: { text: '[视频: name]', files: InboundFile[] }
+
+// 文件消息
+MessageHandlers.file(url: string, name: string)
+// 返回: { text: '[文件: name]', files: InboundFile[] }
+
+// @提及消息
+MessageHandlers.at(userId: string, isAll?: boolean)
+// 返回: { text: '@用户' 或 '@全体成员' }
+
+// 未知类型
+MessageHandlers.unknown(type: string)
+// 返回: { text: '[type]' }
+```
+
+### 工具函数
+
+```typescript
+// 检测文件类型
+detectFileType(fileName: string): 'audio' | 'video' | 'image' | 'file'
+
+// 创建标准化文件对象
+createFile(name: string, url: string, type?: 'audio' | 'video' | 'image' | 'file'): InboundFile
+```
+
+### 使用示例
+
+```typescript
+// OneBot Channel 示例
+private parseMessageSegment(seg: any): ParsedSegment {
+  const type = seg.type;
+  const data = seg.data || {};
+
+  const handlers: Record<string, () => ParsedSegment> = {
+    text: () => MessageHandlers.text(data.text || ''),
+    image: () => {
+      const url = data.url || '';
+      return MessageHandlers.image(url, `[图片](${url})`);
+    },
+    record: () => {
+      const url = data.url || data.file || '';
+      return url ? MessageHandlers.audio(url) : { text: '[语音]' };
+    },
+    video: () => {
+      const name = data.file || 'video';
+      const url = data.url || '';
+      return url ? MessageHandlers.video(url, name) : { text: `[视频: ${name}]` };
+    },
+    file: () => {
+      const name = data.file || 'file';
+      const url = data.url || '';
+      return url ? MessageHandlers.file(url, name) : { text: `[文件: ${name}]` };
+    }
+  };
+
+  const handler = handlers[type];
+  return handler ? handler() : MessageHandlers.unknown(type);
+}
+```
+
+## 消息类型处理规范（已废弃）
+
+**注意**：以下手动处理方式已被 `MessageHandlers` 取代，新代码应使用上述工具函数。
 
 ### 1. 文本消息
 ```typescript

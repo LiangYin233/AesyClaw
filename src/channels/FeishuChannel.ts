@@ -9,6 +9,7 @@ import type { OutboundMessage, InboundFile } from '../types.js';
 import type { EventBus } from '../bus/EventBus.js';
 import { logger } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
+import { MessageHandlers, createFile } from './MessageParser.js';
 
 /**
  * Feishu Channel Configuration
@@ -272,6 +273,8 @@ export class FeishuChannel extends BaseChannel {
    * Supported types:
    * - text: Plain text
    * - image: Image with image_key
+   * - audio: Audio with file_key
+   * - media: Video with file_key
    * - file: File with file_key and file_name
    * - post: Rich text (extracts plain text)
    *
@@ -286,7 +289,7 @@ export class FeishuChannel extends BaseChannel {
 
       switch (messageType) {
         case 'text':
-          return { content: parsed.text || '' };
+          return MessageHandlers.text(parsed.text || '');
 
         case 'image': {
           const imageKey = parsed.image_key;
@@ -294,10 +297,27 @@ export class FeishuChannel extends BaseChannel {
             return { content: '[图片]' };
           }
           const imageUrl = await this.getResourceUrl(imageKey, 'image');
-          return {
-            content: '[图片]',
-            media: [imageUrl]
-          };
+          return MessageHandlers.image(imageUrl);
+        }
+
+        case 'audio': {
+          const fileKey = parsed.file_key;
+          const fileName = parsed.file_name || 'voice';
+          if (!fileKey) {
+            return { content: '[语音]' };
+          }
+          const fileUrl = await this.getResourceUrl(fileKey, 'file');
+          return MessageHandlers.audio(fileUrl, fileName);
+        }
+
+        case 'media': {
+          const fileKey = parsed.file_key;
+          const fileName = parsed.file_name || 'video';
+          if (!fileKey) {
+            return { content: `[视频: ${fileName}]` };
+          }
+          const fileUrl = await this.getResourceUrl(fileKey, 'file');
+          return MessageHandlers.video(fileUrl, fileName);
         }
 
         case 'file': {
@@ -307,10 +327,7 @@ export class FeishuChannel extends BaseChannel {
             return { content: `[文件: ${fileName}]` };
           }
           const fileUrl = await this.getResourceUrl(fileKey, 'file');
-          return {
-            content: `[文件: ${fileName}]`,
-            files: [{ name: fileName, url: fileUrl }]
-          };
+          return MessageHandlers.file(fileUrl, fileName);
         }
 
         case 'post':
@@ -318,7 +335,7 @@ export class FeishuChannel extends BaseChannel {
           return { content: this.extractPostText(parsed) };
 
         default:
-          return { content: `[不支持的消息类型: ${messageType}]` };
+          return MessageHandlers.unknown(messageType);
       }
     } catch (error) {
       this.log.warn(`Failed to parse message content:`, error);

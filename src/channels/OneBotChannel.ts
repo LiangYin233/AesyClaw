@@ -9,6 +9,7 @@ import type { EventBus } from '../bus/EventBus.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS } from '../constants/index.js';
 import { metrics } from '../logger/Metrics.js';
+import { MessageHandlers, createFile } from './MessageParser.js';
 
 export interface OneBotConfig {
   wsUrl: string;
@@ -348,8 +349,8 @@ export class OneBotChannel extends BaseChannel {
         if (parsed.files) {
           fileList.push(...parsed.files);
         }
-        if (parsed.text) {
-          content += parsed.text;
+        if (parsed.content) {
+          content += parsed.content;
         }
       }
     }
@@ -362,45 +363,42 @@ export class OneBotChannel extends BaseChannel {
     };
   }
 
-  private parseMessageSegment(seg: any): { text?: string; media?: string[]; files?: InboundFile[] } {
-    if (!seg || typeof seg !== 'object') return { text: String(seg) };
+  private parseMessageSegment(seg: any): { content?: string; media?: string[]; files?: InboundFile[] } {
+    if (!seg || typeof seg !== 'object') return { content: String(seg) };
 
     const type = seg.type;
     const data = seg.data || {};
 
-    const handlers: Record<string, () => { text?: string; media?: string[]; files?: InboundFile[] }> = {
-      text: () => ({ text: data.text || '' }),
+    const handlers: Record<string, () => { content?: string; media?: string[]; files?: InboundFile[] }> = {
+      text: () => MessageHandlers.text(data.text || ''),
       image: () => {
         const file = data.file || '';
         const url = data.url || '';
         const imageUrl = url || `file://${file}`;
-        return { text: url ? `[图片](${url})` : `[图片:${file}]`, media: [imageUrl] };
+        return MessageHandlers.image(imageUrl, url ? `[图片](${url})` : `[图片:${file}]`);
       },
-      at: () => ({ text: data.qq === 'all' ? '@全体成员' : `@${data.qq}` }),
+      at: () => MessageHandlers.at(data.qq, data.qq === 'all'),
       record: () => {
         const url = data.url || data.file || '';
-        return {
-          text: '[语音]',
-          files: url ? [{ name: 'voice.amr', url, type: 'audio' as const }] : []
-        };
+        return url ? MessageHandlers.audio(url) : { content: '[语音]' };
       },
       video: () => {
         const name = data.file || 'video';
         const url = data.url || '';
-        return { text: `[视频: ${name}]`, files: url ? [{ name, url, type: 'video' as const }] : [] };
+        return url ? MessageHandlers.video(url, name) : { content: `[视频: ${name}]` };
       },
       file: () => {
         const name = data.file || 'file';
         const url = data.url || '';
-        return { text: `[文件: ${name}]`, files: url ? [{ name, url, type: 'file' as const }] : [] };
+        return url ? MessageHandlers.file(url, name) : { content: `[文件: ${name}]` };
       },
-      face: () => ({ text: `[表情:${data.id}]` }),
-      reply: () => ({ text: `[回复:${data.id}]` }),
-      rich: () => ({ text: `[富文本:${data.id || ''}]` })
+      face: () => ({ content: `[表情:${data.id}]` }),
+      reply: () => ({ content: `[回复:${data.id}]` }),
+      rich: () => ({ content: `[富文本:${data.id || ''}]` })
     };
 
     const handler = handlers[type];
-    return handler ? handler() : { text: `[${type}]` };
+    return handler ? handler() : { content: `[${type}]` };
   }
 
   async send(msg: OutboundMessage): Promise<void> {
