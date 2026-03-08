@@ -132,7 +132,7 @@ const plugin = {
         const formData = new FormData();
         formData.append('file', audioBlob, 'audio.mp3');
         formData.append('model', this.config.model);
-        formData.append('response_format', 'text');
+        formData.append('response_format', 'json');  // Use json format for better compatibility
 
         const response = await fetch(url, {
           method: 'POST',
@@ -160,8 +160,19 @@ const plugin = {
           throw new Error(`API error ${statusCode}: ${errorBody.substring(0, 200)}`);
         }
 
-        const text = await response.text();
-        this.log.debug(`Transcription successful: ${text.substring(0, 100)}...`);
+        const responseText = await response.text();
+        this.log.debug(`Transcription successful: ${responseText.substring(0, 100)}...`);
+
+        // Parse response - handle both JSON and plain text
+        let text;
+        try {
+          const parsed = JSON.parse(responseText);
+          text = parsed.text || responseText;
+        } catch {
+          // If not JSON, use as-is
+          text = responseText;
+        }
+
         return text.trim();
       } catch (error) {
         clearTimeout(timeoutId);
