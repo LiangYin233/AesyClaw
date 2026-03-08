@@ -1,24 +1,28 @@
 # AesyClaw
 
-AesyClaw 是一个轻量级 AI Agent 框架，支持插件系统、会话管理和多渠道集成。
+轻量级 AI Agent 框架，支持插件系统、会话管理和多渠道集成。
 
 ## 特性
 
 - **插件系统**：完整的生命周期钩子，支持工具注册、消息拦截、命令处理
 - **Skills 系统**：基于提示词的技能发现和管理
 - **会话管理**：SQLite 持久化存储，支持 session/channel/global 三种上下文模式
-- **多渠道集成**：支持 OneBot 协议，可自行通过 Channel 扩展
+- **多渠道集成**：支持 OneBot、飞书，可自行通过 Channel 扩展
 - **LLM 提供商**：支持 OpenAI Completion 协议，可自行通过 Provider 扩展
 - **MCP 支持**：完整的 Model Context Protocol 客户端，支持本地和远程服务器
 - **定时任务**：Cron 表达式调度，支持工具调用和消息发送
 - **WebUI**：Vue 3 + PrimeVue 可视化界面，实时监控和配置管理
 - **API Server**：RESTful API，支持插件、MCP、定时任务、指标查询
 - **性能监控**：内置指标收集系统，支持实时性能分析
-- **错误追踪**：ES2022 Error.cause 支持，完整的错误链追踪
 
 ## 快速开始
 
-### 安装依赖
+### 环境要求
+
+- Node.js 18+
+- npm 或 pnpm
+
+### 安装
 
 ```bash
 npm install
@@ -26,9 +30,13 @@ npm install
 
 ### 配置
 
-编辑 `config.yaml` 配置您的 API 密钥、渠道参数等。
+复制并编辑配置文件：
 
-**主要配置项：**
+```bash
+cp config.example.yaml config.yaml
+```
+
+**核心配置：**
 ```yaml
 server:
   host: 0.0.0.0
@@ -49,6 +57,13 @@ channels:
     enabled: true
     wsUrl: ws://localhost:3001/ws
     token: your-token
+  feishu:
+    enabled: false
+    appId: cli_xxxxx
+    appSecret: xxxxx
+    verificationToken: xxxxx
+    webhookPort: 8080
+    webhookPath: /feishu/webhook
 
 providers:
   openai:
@@ -66,6 +81,11 @@ plugins:
     enabled: true
   websearch:
     enabled: true
+  md2img:
+    enabled: false
+    options:
+      minLength: 50
+      scale: 1.0
 
 log:
   level: info
@@ -78,30 +98,18 @@ metrics:
 ### 运行
 
 ```bash
-# 开发模式（带热重载）
+# 开发模式
 npm run dev
 
 # 生产模式
 npm run build
-npm run start:gateway
+npm start
 
-# 启动所有服务（Gateway + WebUI）
-npm run start:all
-
-# 单独启动服务
-npm run start:gateway  # 启动 Gateway（包含 API Server）
-npm run start:webui    # 仅启动 WebUI
-
-# 查看服务状态
-npm run status
+# 启动 WebUI（开发模式）
+cd webui && npm run dev
 ```
 
-### 服务端口
-
-- **API Server**: 18792（Gateway 集成）
-- **WebUI**: 5173（开发模式）
-
-WebUI 通过代理访问 API Server，无需额外配置。
+访问 WebUI：http://localhost:5173
 
 ## 项目结构
 
@@ -139,42 +147,86 @@ WebUI 通过代理访问 API Server，无需额外配置。
 ## 核心功能
 
 ### 插件系统
-- 完整的生命周期钩子（onLoad, onStart, onStop, onUnload）
-- 消息拦截（onMessage, onResponse）
-- Agent 钩子（onAgentBefore, onAgentAfter）
-- 工具调用拦截（onBeforeToolCall, onToolCall）
-- Hook Pipeline 超时保护（5秒）
+- 生命周期钩子：onLoad, onStart, onStop, onUnload
+- 消息拦截：onMessage, onResponse
+- Agent 钩子：onAgentBefore, onAgentAfter
+- 工具调用拦截：onBeforeToolCall, onToolCall
 - 详见 [plugin_dev.md](plugin_dev.md)
 
 ### 会话管理
-- 三种上下文模式：session（独立会话）、channel（渠道共享）、global（全局共享）
+- 三种上下文模式：session（独立）、channel（渠道共享）、global（全局共享）
 - SQLite 持久化存储
-- 自动会话清理和内存管理
-- 支持会话切换命令（/new, /list, /switch）
+- 会话命令：/new, /list, /switch
+
+### 渠道支持
+- **OneBot**：QQ、Telegram 等（通过 OneBot 协议）
+- **飞书**：企业消息机器人，支持文本、图片、文件
 
 ### MCP 集成
-- 支持本地进程（stdio）和远程服务器（SSE）
-- 动态连接/断开服务器
+- 本地进程（stdio）和远程服务器（SSE）
+- 动态连接/断开
 - 工具自动注册和命名空间隔离
-- 超时和错误处理
 
 ### 定时任务
 - Cron 表达式调度
 - 支持工具调用和消息发送
-- 动态添加/删除/启用/禁用任务
-- 错误恢复机制
+- 动态管理（添加/删除/启用/禁用）
 
-### 性能监控
-- 实时指标收集（计数器、计时器、仪表）
-- 内存使用、数据库查询、工具执行时间
-- WebUI 可视化展示
-- API 查询接口
+### 内置插件
+- **exec**：执行 Shell 命令
+- **websearch**：网络搜索（需配置 API）
+- **md2img**：Markdown 转图片（使用思源字体）
 
 ## 技术栈
 
-- **后端**：TypeScript 5.3 (ES2022) + Express + SQLite3
+- **后端**：TypeScript 5.3 + Node.js 18+ + Express + SQLite3
 - **前端**：Vue 3 + PrimeVue + Pinia + TailwindCSS
 - **架构**：依赖注入 + 事件驱动 + Hook Pipeline
+
+## 开发
+
+### 插件开发
+
+在 `plugins/` 目录创建插件：
+
+```javascript
+export default {
+  name: 'my-plugin',
+  version: '1.0.0',
+  async onLoad(context) {
+    // 初始化
+  },
+  async onMessage(msg) {
+    // 拦截消息
+    return msg;
+  }
+};
+```
+
+详见 [plugin_dev.md](plugin_dev.md)
+
+### 渠道扩展
+
+继承 `BaseChannel` 类实现自定义渠道：
+
+```typescript
+export class MyChannel extends BaseChannel {
+  async start() { /* 启动逻辑 */ }
+  async stop() { /* 停止逻辑 */ }
+  async send(msg: OutboundMessage) { /* 发送消息 */ }
+}
+```
+
+### API 接口
+
+- `GET /api/plugins` - 插件列表
+- `GET /api/mcp/servers` - MCP 服务器列表
+- `GET /api/cron/jobs` - 定时任务列表
+- `GET /api/metrics` - 性能指标
+
+## 许可证
+
+MIT
 
 ---
 
