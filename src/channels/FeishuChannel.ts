@@ -173,8 +173,10 @@ export class FeishuChannel extends BaseChannel {
   private async handleMessageEvent(event: any): Promise<void> {
     const sender = event.sender?.sender_id?.open_id;
     const message = event.message;
-    const chatId = message.chat_id;
     const messageType = message.chat_type === 'p2p' ? 'private' : 'group';
+
+    // For private messages, use sender's open_id; for group messages, use chat_id
+    const chatId = messageType === 'private' ? sender : message.chat_id;
 
     if (!sender || !chatId) {
       this.log.debug('Missing sender or chatId');
