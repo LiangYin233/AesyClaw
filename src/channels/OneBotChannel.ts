@@ -1,8 +1,10 @@
 import WebSocket from 'ws';
 import fs from 'fs';
+import { mkdir, writeFile } from 'fs/promises';
+import { join, basename } from 'path';
 import { BaseChannel } from './BaseChannel.js';
 import { ChannelManager, type ChannelPlugin } from './ChannelManager.js';
-import type { OutboundMessage } from '../types.js';
+import type { OutboundMessage, InboundFile } from '../types.js';
 import type { EventBus } from '../bus/EventBus.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS } from '../constants/index.js';
@@ -33,8 +35,8 @@ export class OneBotChannel extends BaseChannel {
   private pendingActions: Array<{ resolve: (value: unknown) => void; reject: (reason?: unknown) => void }> = [];
   protected log = logger.child({ prefix: 'OneBot' });
 
-  constructor(config: OneBotConfig, eventBus: EventBus) {
-    super(config, eventBus);
+  constructor(config: OneBotConfig, eventBus: EventBus, workspace?: string) {
+    super(config, eventBus, workspace);
     this.maxReconnectAttempts = config.maxReconnectAttempts ?? 0;
     this.reconnectBaseDelay = config.reconnectBaseDelay ?? 1000;
     this.reconnectMaxDelay = config.reconnectMaxDelay ?? 30000;
@@ -43,7 +45,7 @@ export class OneBotChannel extends BaseChannel {
   static register(): void {
     const plugin: ChannelPlugin = {
       name: 'onebot',
-      create: (config, eventBus) => new OneBotChannel(config, eventBus)
+      create: (config, eventBus, workspace) => new OneBotChannel(config, eventBus, workspace)
     };
     ChannelManager.registerPlugin(plugin);
   }
@@ -268,7 +270,7 @@ export class OneBotChannel extends BaseChannel {
     }
   }
 
-  private handleMessageEvent(payload: any): void {
+  private async handleMessageEvent(payload: any): Promise<void> {
     const messageType = payload.message_type;
     const userId = payload.user_id;
     const groupId = payload.group_id;
@@ -285,20 +287,51 @@ export class OneBotChannel extends BaseChannel {
       return;
     }
 
-    const { content, media } = this.parseMessageWithMedia(payload.message);
+    const { content, media, files } = this.parseMessageWithMedia(payload.message);
     if (this.log.isLevelEnabled?.('debug')) {
-      this.log.debug(`Parsed message: content="${content}", media=${JSON.stringify(media)}`);
+      this.log.debug(`Parsed message: content="${content}", media=${JSON.stringify(media)}, files=${JSON.stringify(files)}`);
     }
-    const messageId = payload.message_id?.toString();
 
-    this.handleMessage(senderId, chatId, content, payload, messageId, messageType, media);
+    // 下载文件到本地
+    let downloadedFiles: InboundFile[] | undefined;
+    if (files && files.length > 0) {
+      const downloadDir = join(this.workspace, 'downloads');
+      await mkdir(downloadDir, { recursive: true });
+      downloadedFiles = [];
+      for (const file of files) {
+        if (!file.url) {
+          downloadedFiles.push(file);
+          continue;
+        }
+        try {
+          const res = await fetch(file.url);
+          if (!res.ok) {
+            this.log.warn(`Failed to download ${file.name}: HTTP ${res.status}`);
+            downloadedFiles.push(file);
+            continue;
+          }
+          const buf = Buffer.from(await res.arrayBuffer());
+          const localPath = join(downloadDir, basename(file.name));
+          await writeFile(localPath, buf);
+          downloadedFiles.push({ ...file, localPath });
+          this.log.info(`File downloaded: ${file.name} -> ${localPath}`);
+        } catch (err) {
+          this.log.warn(`Failed to download file ${file.name}:`, err);
+          downloadedFiles.push(file);
+        }
+      }
+    }
+
+    const messageId = payload.message_id?.toString();
+    this.handleMessage(senderId, chatId, content, payload, messageId, messageType, media, downloadedFiles);
   }
 
-  private parseMessageWithMedia(message: any): { content: string; media?: string[] } {
+  private parseMessageWithMedia(message: any): { content: string; media?: string[]; files?: InboundFile[] } {
     if (!message) return { content: '' };
 
     let content = '';
     const mediaSet = new Set<string>();
+    const fileList: InboundFile[] = [];
 
     if (typeof message === 'string') {
       return { content: message };
@@ -312,6 +345,9 @@ export class OneBotChannel extends BaseChannel {
             if (m) mediaSet.add(m);
           }
         }
+        if (parsed.files) {
+          fileList.push(...parsed.files);
+        }
         if (parsed.text) {
           content += parsed.text;
         }
@@ -319,16 +355,20 @@ export class OneBotChannel extends BaseChannel {
     }
 
     const media = Array.from(mediaSet);
-    return { content: content.trim(), media: media.length > 0 ? media : undefined };
+    return {
+      content: content.trim(),
+      media: media.length > 0 ? media : undefined,
+      files: fileList.length > 0 ? fileList : undefined
+    };
   }
 
-  private parseMessageSegment(seg: any): { text?: string; media?: string[] } {
+  private parseMessageSegment(seg: any): { text?: string; media?: string[]; files?: InboundFile[] } {
     if (!seg || typeof seg !== 'object') return { text: String(seg) };
 
     const type = seg.type;
     const data = seg.data || {};
 
-    const handlers: Record<string, () => { text?: string; media?: string[] }> = {
+    const handlers: Record<string, () => { text?: string; media?: string[]; files?: InboundFile[] }> = {
       text: () => ({ text: data.text || '' }),
       image: () => {
         const file = data.file || '';
@@ -338,8 +378,16 @@ export class OneBotChannel extends BaseChannel {
       },
       at: () => ({ text: data.qq === 'all' ? '@全体成员' : `@${data.qq}` }),
       record: () => ({ text: '[语音]' }),
-      video: () => ({ text: '[视频]', media: [data.file || data.url || ''] }),
-      file: () => ({ text: `[文件: ${data.file || ''}]`, media: [data.file || data.url || ''] }),
+      video: () => {
+        const name = data.file || 'video';
+        const url = data.url || '';
+        return { text: `[视频: ${name}]`, files: url ? [{ name, url }] : [] };
+      },
+      file: () => {
+        const name = data.file || 'file';
+        const url = data.url || '';
+        return { text: `[文件: ${name}]`, files: url ? [{ name, url }] : [] };
+      },
       face: () => ({ text: `[表情:${data.id}]` }),
       reply: () => ({ text: `[回复:${data.id}]` }),
       rich: () => ({ text: `[富文本:${data.id || ''}]` })

@@ -1,4 +1,4 @@
-import type { InboundMessage, OutboundMessage } from '../types.js';
+import type { InboundMessage, InboundFile, OutboundMessage } from '../types.js';
 import type { EventBus } from '../bus/EventBus.js';
 import { logger } from '../logger/index.js';
 
@@ -6,12 +6,14 @@ export abstract class BaseChannel {
   abstract readonly name: string;
   protected config: any;
   protected eventBus: EventBus;
+  protected workspace: string;
   protected running = false;
   protected log = logger;
 
-  constructor(config: any, eventBus: EventBus) {
+  constructor(config: any, eventBus: EventBus, workspace?: string) {
     this.config = config;
     this.eventBus = eventBus;
+    this.workspace = workspace || process.cwd();
   }
 
   abstract start(): Promise<void>;
@@ -57,7 +59,8 @@ export abstract class BaseChannel {
     rawEvent?: any,
     messageId?: string,
     messageType?: 'private' | 'group',
-    media?: string[]
+    media?: string[],
+    files?: InboundFile[]
   ): Promise<void> {
     const msg: InboundMessage = {
       channel: this.name,
@@ -68,7 +71,8 @@ export abstract class BaseChannel {
       timestamp: new Date(),
       messageId,
       messageType,
-      media
+      media,
+      files
     };
 
     await this.eventBus.publishInbound(msg);

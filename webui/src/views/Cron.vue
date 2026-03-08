@@ -100,7 +100,7 @@
                 </div>
                 <div class="form-field">
                     <label>发送目标</label>
-                    <InputText v-model="form.target" placeholder="private:QQ号 或 group:群号" fluid />
+                    <InputText v-model="form.target" placeholder="onebot:private:QQ号 或 onebot:group:群号" fluid />
                 </div>
                 <div class="form-field">
                     <label>启用状态</label>
@@ -142,7 +142,7 @@ import Toast from 'primevue/toast'
 import ProgressSpinner from 'primevue/progressspinner'
 import DatePicker from 'primevue/datepicker'
 
-const { getCronJobs, createCronJob, updateCronJob, deleteCronJob, toggleCronJob } = useApi()
+const { getCronJobs, getCronJob, createCronJob, updateCronJob, deleteCronJob, toggleCronJob } = useApi()
 const toast = useToast()
 
 const jobs = ref<CronJob[]>([])
@@ -198,19 +198,35 @@ function openCreateDialog() {
     dialogVisible.value = true
 }
 
-function openEditDialog(job: CronJob) {
+async function openEditDialog(job: CronJob) {
     isEditing.value = true
     editingJobId.value = job.id
-    form.name = job.name
-    form.scheduleKind = job.schedule.kind
-    form.onceAt = job.schedule.onceAt ? new Date(job.schedule.onceAt) : null
-    form.intervalStr = job.schedule.intervalMs ? formatIntervalMs(job.schedule.intervalMs) : ''
-    form.dailyAt = job.schedule.dailyAt || ''
-    form.cronExpr = job.schedule.cronExpr || ''
-    form.description = job.payload?.description || ''
-    form.detail = job.payload?.detail || ''
-    form.target = job.payload?.target || ''
-    form.enabled = job.enabled
+
+    // Fetch full job details if detail is masked
+    let fullJob = job
+    if (job.payload?.detail === '[隐藏]') {
+        try {
+            const fetched = await getCronJob(job.id)
+            if (fetched) {
+                fullJob = fetched
+            }
+        } catch (error) {
+            console.error('Failed to fetch full job details:', error)
+            // Continue with masked data if fetch fails
+        }
+    }
+
+    // Populate form with full job data
+    form.name = fullJob.name
+    form.scheduleKind = fullJob.schedule.kind
+    form.onceAt = fullJob.schedule.onceAt ? new Date(fullJob.schedule.onceAt) : null
+    form.intervalStr = fullJob.schedule.intervalMs ? formatIntervalMs(fullJob.schedule.intervalMs) : ''
+    form.dailyAt = fullJob.schedule.dailyAt || ''
+    form.cronExpr = fullJob.schedule.cronExpr || ''
+    form.description = fullJob.payload?.description || ''
+    form.detail = fullJob.payload?.detail || ''
+    form.target = fullJob.payload?.target || ''
+    form.enabled = fullJob.enabled
     dialogVisible.value = true
 }
 

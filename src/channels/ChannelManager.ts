@@ -4,7 +4,7 @@ import { logger } from '../logger/index.js';
 
 export interface ChannelPlugin {
   name: string;
-  create: (config: any, eventBus: EventBus) => BaseChannel;
+  create: (config: any, eventBus: EventBus, workspace?: string) => BaseChannel;
 }
 
 // 静态插件注册表 - 在实例之间共享
@@ -14,11 +14,13 @@ export class ChannelManager {
   // 使用 ES2024 私有字段
   #channels = new Map<string, BaseChannel>();
   #eventBus: EventBus;
+  #workspace: string;
   #log = logger.child({ prefix: 'ChannelManager' });
   static #staticLog = logger.child({ prefix: 'ChannelManager' });
 
-  constructor(eventBus: EventBus) {
+  constructor(eventBus: EventBus, workspace?: string) {
     this.#eventBus = eventBus;
+    this.#workspace = workspace || process.cwd();
   }
 
   // 注册通道插件 - 静态方法，可在模块加载时调用
@@ -54,7 +56,7 @@ export class ChannelManager {
       return null;
     }
 
-    const channel = plugin.create(config, this.#eventBus);
+    const channel = plugin.create(config, this.#eventBus, this.#workspace);
     this.#channels.set(name, channel);
     this.#log.info(`Created and registered channel: ${name}`);
     return channel;

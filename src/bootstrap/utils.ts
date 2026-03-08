@@ -5,14 +5,16 @@
  */
 
 /**
- * Parse a target string into chat ID and message type
- * Format: "private:123456" or "group:789012"
+ * Parse a target string into channel, chat ID and message type
+ * Format: "channel:private:123456" or "channel:group:789012"
  */
-export function parseTarget(to: string): { chatId: string; messageType: 'private' | 'group' } | null {
-  const match = to.match(/^(private|group):(.+)$/);
+export function parseTarget(to: string): { channel: string; chatId: string; messageType: 'private' | 'group' } | null {
+  const match = to.match(/^([^:]+):(private|group):(.+)$/);
   if (!match) return null;
+
   return {
-    chatId: match[2],
-    messageType: match[1] as 'private' | 'group'
+    channel: match[1],
+    chatId: match[3],
+    messageType: match[2] as 'private' | 'group'
   };
 }

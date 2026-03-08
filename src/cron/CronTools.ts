@@ -44,7 +44,7 @@ export function registerCronTools(
         },
         time: {
           type: 'string',
-          description: '运行时间 (once: ISO时间如 "2024-01-01T10:00:00Z", interval: 间隔如 "10m"/"1h", daily: 每日时间如 "09:00")'
+          description: '运行时间 (once: 本地时间如 "2024-01-01T10:00:00" 或带时区 "2024-01-01T10:00:00+08:00"，不要加Z后缀; interval: 间隔如 "10m"/"1h"; daily: 每日时间如 "09:00")'
         },
         description: {
           type: 'string',
@@ -56,10 +56,10 @@ export function registerCronTools(
         },
         target: {
           type: 'string',
-          description: '发送目标，格式：private:QQ号 或 group:群号，如 private:163213819 或 group:381297421'
+          description: '发送目标，格式：channel:private:QQ号 或 channel:group:群号，如 onebot:private:163213819 或 onebot:group:381297421。**必填**，否则任务执行后无法发送消息。'
         }
       },
-      required: ['type', 'time', 'description', 'detail']
+      required: ['type', 'time', 'description', 'detail', 'target']
     },
     execute: async (params: Record<string, any>) => {
       const { type, time, description, detail, target } = params;
@@ -67,9 +67,21 @@ export function registerCronTools(
       const schedule: CronSchedule = { kind: type };
 
       switch (type) {
-        case 'once':
-          schedule.onceAt = time;
+        case 'once': {
+          // If no timezone offset is present, treat as local time
+          const hasOffset = /[Z]$|[+-]\d{2}:\d{2}$/.test(time.trim());
+          if (!hasOffset) {
+            const offsetMin = new Date().getTimezoneOffset();
+            const sign = offsetMin <= 0 ? '+' : '-';
+            const abs = Math.abs(offsetMin);
+            const hh = String(Math.floor(abs / 60)).padStart(2, '0');
+            const mm = String(abs % 60).padStart(2, '0');
+            schedule.onceAt = `${time}${sign}${hh}:${mm}`;
+          } else {
+            schedule.onceAt = time;
+          }
           break;
+        }
         case 'interval':
           const intervalMs = parseInterval(time);
           if (!intervalMs) {

@@ -1,3 +1,9 @@
+export interface InboundFile {
+  name: string;
+  url: string;
+  localPath?: string;  // Channel 下载后的本地路径
+}
+
 export interface InboundMessage {
   channel: string;
   senderId: string;
@@ -6,7 +12,8 @@ export interface InboundMessage {
   rawEvent?: any;
   timestamp: Date;
   messageId?: string;
-  media?: string[];
+  media?: string[];       // 图片 URL，发送给 LLM
+  files?: InboundFile[];  // 非图片文件，保存到本地
   sessionKey?: string;
   messageType?: 'private' | 'group';
 }

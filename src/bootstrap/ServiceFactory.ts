@@ -152,7 +152,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   await cronService.start();
 
   // 7. ChannelManager
-  const channelManager = new ChannelManager(eventBus);
+  const channelManager = new ChannelManager(eventBus, workspace);
   for (const [channelName, channelConfig] of Object.entries(config.channels)) {
     if (channelConfig?.enabled) {
       const channel = channelManager.createChannel(channelName, channelConfig);

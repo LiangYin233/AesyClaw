@@ -26,34 +26,51 @@ export async function bootstrap(port: number): Promise<void> {
       log.info(`Cron job triggered: ${job.name}`);
 
       const { provider, toolRegistry, sessionManager, config: cronConfig, pluginManager, eventBus } = services;
-      const { AgentLoop } = await import('../agent/AgentLoop.js');
+      const { AgentExecutor } = await import('../agent/AgentExecutor.js');
 
-      const tempAgent = new AgentLoop(
-        eventBus, provider, toolRegistry, sessionManager,
-        workspace, cronConfig.agent.defaults.systemPrompt,
+      const executor = new AgentExecutor(
+        provider, toolRegistry, workspace,
+        cronConfig.agent.defaults.systemPrompt,
+        undefined,
+        cronConfig.agent.defaults.model,
         cronConfig.agent.defaults.maxToolIterations,
-        cronConfig.agent.defaults.model, 'global', 0
+        pluginManager
       );
 
       const sessionKey = `cron:${job.id}:${randomUUID().slice(0, 8)}`;
+      const target = job.payload.target;
 
       try {
-        const response = await tempAgent.processDirect(job.payload.detail, sessionKey);
-        const targetChannel = job.payload.channel || 'onebot';
-        const target = job.payload.target;
+        let toolContext: import('../tools/ToolRegistry.js').ToolContext = { workspace, eventBus };
 
         if (target) {
           const parsed = parseTarget(target);
-          if (!parsed) {
+          if (parsed) {
+            toolContext = {
+              ...toolContext,
+              channel: parsed.channel,
+              chatId: parsed.chatId,
+              messageType: parsed.messageType,
+              source: 'cron' as const
+            };
+          } else {
             log.error(`Invalid target format: ${target}`);
-            return;
           }
+        }
 
+        const session = await sessionManager.getOrCreate(sessionKey);
+        const messages = executor.buildContext(session.messages, job.payload.detail);
+        const result = await executor.execute(messages, toolContext, { allowTools: true, source: 'cron' });
+
+        await sessionManager.addMessage(sessionKey, 'user', job.payload.detail);
+        await sessionManager.addMessage(sessionKey, 'assistant', result.content);
+
+        if (target && toolContext.chatId) {
           let outboundMsg: OutboundMessage = {
-            channel: targetChannel,
-            chatId: parsed.chatId,
-            content: response,
-            messageType: parsed.messageType
+            channel: toolContext.channel!,
+            chatId: toolContext.chatId,
+            content: result.content,
+            messageType: toolContext.messageType!
           };
 
           if (pluginManager) {
