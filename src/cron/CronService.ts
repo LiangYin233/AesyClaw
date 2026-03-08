@@ -1,5 +1,3 @@
-import { existsSync, readFileSync } from 'fs';
-import { dirname, join } from 'path';
 import { CronExpressionParser } from 'cron-parser';
 import { logger, normalizeError } from '../logger/index.js';
 import { CronStore } from './CronStore.js';
@@ -35,7 +33,6 @@ export class CronService {
   private jobs: Map<string, CronJob> = new Map();
   private timer?: NodeJS.Timeout;
   private store: CronStore;
-  private legacyJsonPath?: string;
   private onJobExecute?: (job: CronJob) => Promise<void>;
   private log = logger.child({ prefix: 'Cron' });
 
@@ -46,7 +43,6 @@ export class CronService {
     // 数据库路径：将 .json 替换为 .db
     const actualDbPath = dbPath.replace(/\.json$/, '.db');
     this.store = new CronStore(actualDbPath);
-    this.legacyJsonPath = dbPath.endsWith('.json') ? dbPath : undefined;
     this.onJobExecute = onJobExecute;
   }
 
@@ -90,7 +86,6 @@ export class CronService {
 
   async start(): Promise<void> {
     await this.store.initialize();
-    await this.migrateFromJson();
     await this.load();
     this.scheduleNext();
     this.log.info(`Service started, ${this.jobs.size} jobs loaded`);
@@ -254,34 +249,6 @@ export class CronService {
       }
     } catch (error) {
       this.log.error('Failed to load jobs:', error);
-    }
-  }
-
-  /**
-   * 从旧的 JSON 文件迁移数据
-   */
-  private async migrateFromJson(): Promise<void> {
-    if (!this.legacyJsonPath || !existsSync(this.legacyJsonPath)) {
-      return;
-    }
-
-    try {
-      this.log.info(`Migrating jobs from ${this.legacyJsonPath}...`);
-      const content = readFileSync(this.legacyJsonPath, 'utf-8');
-      const jobs: CronJob[] = JSON.parse(content);
-
-      for (const job of jobs) {
-        await this.store.upsert(job);
-      }
-
-      this.log.info(`Migrated ${jobs.length} jobs from JSON to database`);
-
-      // 重命名旧文件为备份
-      const fs = await import('fs');
-      fs.renameSync(this.legacyJsonPath, `${this.legacyJsonPath}.backup`);
-      this.log.info(`Renamed ${this.legacyJsonPath} to ${this.legacyJsonPath}.backup`);
-    } catch (error) {
-      this.log.error('Failed to migrate from JSON:', error);
     }
   }
 }
