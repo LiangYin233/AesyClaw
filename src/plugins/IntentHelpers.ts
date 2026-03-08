@@ -23,30 +23,17 @@ export const Intent = {
 
 /**
  * 判断消息是否应该跳过 LLM 处理
- * 兼容新旧两种方式（intent 和 skipLLM）
  */
 export function shouldSkipLLM(msg: InboundMessage): boolean {
-  // 优先检查新的 intent 字段
-  if (msg.intent) {
-    return msg.intent.type !== 'continue';
-  }
-
-  // 向后兼容：检查旧的 skipLLM 字段
-  return msg.skipLLM === true;
+  return msg.intent ? msg.intent.type !== 'continue' : false;
 }
 
 /**
  * 获取跳过 LLM 的原因（用于日志）
- * 返回格式化的原因字符串
  */
 export function getSkipReason(msg: InboundMessage): string {
   if (msg.intent && msg.intent.type !== 'continue') {
     return `${msg.intent.type}: ${msg.intent.reason}`;
   }
-
-  if (msg.skipLLM === true) {
-    return 'skipLLM=true (legacy)';
-  }
-
   return 'unknown';
 }

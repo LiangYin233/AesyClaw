@@ -28,12 +28,8 @@ export interface InboundMessage {
   sessionKey?: string;
   messageType?: 'private' | 'group';
 
-  // 新字段：处理意图（优先级高于 skipLLM）
+  // 处理意图：描述插件如何处理消息以及 Agent 应该如何响应
   intent?: ProcessingIntent;
-
-  // 保留用于向后兼容（标记为 deprecated）
-  /** @deprecated 使用 intent 替代 */
-  skipLLM?: boolean;      // 插件设置此字段为 true 时，直接发送回复，跳过 LLM 处理
 
   metadata?: Record<string, any>;
 }

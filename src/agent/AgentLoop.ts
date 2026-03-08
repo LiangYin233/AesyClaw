@@ -106,8 +106,6 @@ export class AgentLoop {
         messageType: msg.messageType
       };
 
-      this.log.info(`[AgentLoop] toolContext updated: channel=${this.toolContext.channel}, chatId=${this.toolContext.chatId}, messageType=${this.toolContext.messageType}`);
-
       const channelChatKey = `${msg.channel}:${msg.chatId}`;
 
       // 1. 内置命令
@@ -122,16 +120,13 @@ export class AgentLoop {
 
       // 2. 插件命令
       if (this.pluginManager) {
-        this.log.info('Calling applyOnCommand...');
         const cmdResult = await this.pluginManager.applyOnCommand(msg);
-        this.log.info(`applyOnCommand returned: ${cmdResult}`);
         if (cmdResult !== null) {
           await this.sendOutbound({ channel: cmdResult.channel, chatId: cmdResult.chatId, content: cmdResult.content, messageType: cmdResult.messageType });
           return;
         }
 
         // 3. 插件消息钩子
-        this.log.info('Calling applyOnMessage...');
         const handled = await this.pluginManager.applyOnMessage(msg);
         if (handled === null) {
           this.log.debug('Message handled by plugin (null), skipping');
