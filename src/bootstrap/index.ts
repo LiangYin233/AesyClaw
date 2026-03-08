@@ -15,10 +15,14 @@ const log = logger.child({ prefix: 'Bootstrap' });
 export async function bootstrap(port: number): Promise<void> {
   const config = await ConfigLoader.load() as Config;
   const workspace = join(process.cwd(), 'workspace');
+  const tempDir = join(process.cwd(), '.aesyclaw', 'temp');
 
-  // Ensure workspace directory exists
+  // Ensure workspace and temp directories exist
   if (!existsSync(workspace)) {
     mkdirSync(workspace, { recursive: true });
+  }
+  if (!existsSync(tempDir)) {
+    mkdirSync(tempDir, { recursive: true });
   }
 
   log.info('Starting AesyClaw...');
@@ -27,6 +31,7 @@ export async function bootstrap(port: number): Promise<void> {
 
   const services = await createServices({
     workspace,
+    tempDir,
     config,
     port,
     onCronJob: async (job: CronJob) => {

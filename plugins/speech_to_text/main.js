@@ -1,5 +1,4 @@
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { join } from 'path';
 import * as fs from 'fs/promises';
 import { createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
@@ -14,7 +13,6 @@ const plugin = {
   config: {
     provider: 'openai',
     model: 'whisper-1',
-    language: 'zh',
     downloadTimeout: 30000,
     transcriptionTimeout: 60000
   },
@@ -25,7 +23,6 @@ const plugin = {
     options: {
       provider: 'openai',
       model: 'whisper-1',
-      language: 'zh',
       downloadTimeout: 30000,
       transcriptionTimeout: 60000
     }
@@ -40,6 +37,10 @@ const plugin = {
     const providerName = options.provider || 'openai';
     const providerConfig = context.config?.providers?.[providerName];
 
+    this.log.debug(`Loading plugin with provider: ${providerName}`);
+    this.log.debug(`Provider config exists: ${!!providerConfig}`);
+    this.log.debug(`Provider has apiKey: ${!!providerConfig?.apiKey}`);
+
     if (!providerConfig || !providerConfig.apiKey) {
       this.log.warn(`Provider ${providerName} not configured or missing API key`);
     }
@@ -49,14 +50,12 @@ const plugin = {
       apiKey: providerConfig?.apiKey || '',
       apiBase: providerConfig?.apiBase || 'https://api.openai.com/v1',
       model: options.model || 'whisper-1',
-      language: options.language || 'zh',
       downloadTimeout: options.downloadTimeout || 30000,
       transcriptionTimeout: options.transcriptionTimeout || 60000
     };
 
-    // Setup download directory
-    const pluginDir = dirname(fileURLToPath(import.meta.url));
-    this.downloadDir = join(pluginDir, 'downloads');
+    // Setup download directory in temp
+    this.downloadDir = join(context.tempDir, 'speech_to_text');
     try {
       await fs.mkdir(this.downloadDir, { recursive: true });
     } catch (error) {
@@ -137,9 +136,6 @@ const plugin = {
         const formData = new FormData();
         formData.append('file', audioBlob, 'audio.mp3');
         formData.append('model', this.config.model);
-        if (this.config.language) {
-          formData.append('language', this.config.language);
-        }
         formData.append('response_format', 'text');
 
         const response = await fetch(url, {

@@ -1,7 +1,6 @@
 import { spawn } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import * as os from 'os';
 import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 
@@ -27,9 +26,11 @@ const plugin = {
   },
 
   context: null,  // 保存插件上下文
+  tempDir: null,
 
   async onLoad(context) {
     this.context = context;  // 保存上下文以便在 onResponse 中使用
+    this.tempDir = context.tempDir;
 
     if (context.logger) {
       log = context.logger.child({ prefix: 'md2img' });
@@ -120,17 +121,19 @@ const plugin = {
   },
 
   async renderToImage(text) {
-    const tmpdir = os.tmpdir();
+    const tmpdir = path.join(this.tempDir, 'md2img');
+    await fs.mkdir(tmpdir, { recursive: true });
+
     const mdFile = path.join(tmpdir, `md2img_${randomUUID()}.md`);
     const outputFile = path.join(tmpdir, `md2img_${randomUUID()}.png`);
-    
+
     try {
       await fs.writeFile(mdFile, text, 'utf-8');
-      
+
       await this.runRenderScript(mdFile, outputFile);
-      
+
       await fs.unlink(mdFile);
-      
+
       return outputFile;
     } catch (error) {
       try {

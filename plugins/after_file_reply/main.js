@@ -1,5 +1,4 @@
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { join } from 'path';
 import * as fs from 'fs/promises';
 
 const plugin = {
@@ -18,15 +17,15 @@ const plugin = {
   stateFile: null,
   cleanupTimer: null,
   log: console,
+  tempDir: null,
 
   getKey(msg) {
     return `${msg.channel}:${msg.chatId}:${msg.senderId}`;
   },
 
   getStateFilePath() {
-    if (!this.stateFile) {
-      const pluginDir = dirname(fileURLToPath(import.meta.url));
-      this.stateFile = join(pluginDir, 'states.json');
+    if (!this.stateFile && this.tempDir) {
+      this.stateFile = join(this.tempDir, 'after_file_reply_states.json');
     }
     return this.stateFile;
   },
@@ -60,6 +59,7 @@ const plugin = {
 
   async onLoad(context) {
     this.context = context;
+    this.tempDir = context.tempDir;
     if (context.logger) {
       this.log = context.logger.child({ prefix: 'after_file_reply' });
     }

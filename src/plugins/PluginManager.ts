@@ -128,6 +128,8 @@ export interface PluginContext {
   agent: AgentLoop | null;
   /** Working directory path */
   workspace: string;
+  /** Temporary directory path for plugin temporary files */
+  tempDir: string;
   /** Register a tool to make it available to the agent */
   registerTool(tool: Tool): void;
   /** Get the tool registry instance */
@@ -286,11 +288,17 @@ export class PluginManager {
     this.log.info(`Loading plugin: ${plugin.name} v${plugin.version}, has onResponse: ${!!plugin.onResponse}`);
 
     if (plugin.onLoad) {
-      const pluginContext = {
+      const pluginContext: PluginContext = {
         options: plugin.options,
+        config: this.context.config,
+        eventBus: this.context.eventBus,
+        tempDir: this.context.tempDir,
         logger: this.context.logger,
         workspace: this.context.workspace,
-        agent: this.context.agent
+        agent: this.context.agent,
+        registerTool: this.context.registerTool,
+        getToolRegistry: this.context.getToolRegistry,
+        sendMessage: this.context.sendMessage
       };
       await plugin.onLoad(pluginContext);
       this.log.debug(`Plugin ${plugin.name} onLoad completed with options:`, plugin.options);

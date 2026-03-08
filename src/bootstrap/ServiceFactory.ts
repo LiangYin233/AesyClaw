@@ -39,13 +39,14 @@ export interface Services {
 
 export interface ServiceFactoryOptions {
   workspace: string;
+  tempDir: string;
   config: Config;
   port: number;
   onCronJob?: (job: CronJob) => Promise<void>;
 }
 
 export async function createServices(options: ServiceFactoryOptions): Promise<Services> {
-  const { workspace, config, port, onCronJob } = options;
+  const { workspace, tempDir, config, port, onCronJob } = options;
   const log = logger.child({ prefix: 'AesyClaw' });
 
   // 配置日志和指标
@@ -109,6 +110,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
       eventBus,
       agent,
       workspace,
+      tempDir,
       registerTool: (tool) => toolRegistry.register(tool as any),
       getToolRegistry: () => toolRegistry as any,
       logger,
