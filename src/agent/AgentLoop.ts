@@ -13,9 +13,6 @@ import { CONFIG_DEFAULTS } from '../constants/index.js';
 
 export type ContextMode = 'session' | 'channel' | 'global';
 
-// Re-export ContextBuilder for backward compatibility
-export { ContextBuilder } from './ContextBuilder.js';
-
 export class AgentLoop {
   private eventBus: EventBus;
   private sessionManager: SessionManager;

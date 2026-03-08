@@ -26,8 +26,6 @@ export interface PluginCommand {
   description: string;
   /** Matcher for command - supports regex, prefix, exact, and contains */
   matcher?: CommandMatcher;
-  /** Regular expression pattern to match command (legacy, use matcher instead) */
-  pattern?: RegExp;
   /** Handler function when command is matched */
   handler: (msg: InboundMessage, args: string[]) => Promise<InboundMessage | null>;
 }
@@ -36,16 +34,6 @@ export interface PluginCommand {
  * Helper function to test if a command matches the content
  */
 function matchCommand(content: string, cmd: PluginCommand): { matched: boolean; args: string[] } {
-  // Support legacy pattern
-  if (cmd.pattern) {
-    const match = content.match(cmd.pattern);
-    if (match) {
-      return { matched: true, args: match.slice(1) };
-    }
-    return { matched: false, args: [] };
-  }
-
-  // Support new matcher
   if (cmd.matcher) {
     switch (cmd.matcher.type) {
       case 'regex': {
