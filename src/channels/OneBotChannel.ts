@@ -377,16 +377,22 @@ export class OneBotChannel extends BaseChannel {
         return { text: url ? `[图片](${url})` : `[图片:${file}]`, media: [imageUrl] };
       },
       at: () => ({ text: data.qq === 'all' ? '@全体成员' : `@${data.qq}` }),
-      record: () => ({ text: '[语音]' }),
+      record: () => {
+        const url = data.url || data.file || '';
+        return {
+          text: '[语音]',
+          files: url ? [{ name: 'voice.amr', url, type: 'audio' as const }] : []
+        };
+      },
       video: () => {
         const name = data.file || 'video';
         const url = data.url || '';
-        return { text: `[视频: ${name}]`, files: url ? [{ name, url }] : [] };
+        return { text: `[视频: ${name}]`, files: url ? [{ name, url, type: 'video' as const }] : [] };
       },
       file: () => {
         const name = data.file || 'file';
         const url = data.url || '';
-        return { text: `[文件: ${name}]`, files: url ? [{ name, url }] : [] };
+        return { text: `[文件: ${name}]`, files: url ? [{ name, url, type: 'file' as const }] : [] };
       },
       face: () => ({ text: `[表情:${data.id}]` }),
       reply: () => ({ text: `[回复:${data.id}]` }),

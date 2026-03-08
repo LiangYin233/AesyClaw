@@ -2,6 +2,7 @@ export interface InboundFile {
   name: string;
   url: string;
   localPath?: string;  // Channel 下载后的本地路径
+  type?: 'audio' | 'video' | 'file' | 'image';  // 文件类型，用于插件识别
 }
 
 export interface InboundMessage {

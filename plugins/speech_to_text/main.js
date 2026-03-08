@@ -188,24 +188,21 @@ const plugin = {
       // Check if message contains voice/audio
       let audioUrl = null;
 
-      // OneBot: check for record type in rawEvent.message
-      if (msg.rawEvent?.message && Array.isArray(msg.rawEvent.message)) {
-        const voiceSegment = msg.rawEvent.message.find(seg => seg.type === 'record');
-        if (voiceSegment) {
-          audioUrl = voiceSegment.data?.url || voiceSegment.data?.file;
-          this.log.debug(`Detected OneBot voice message: ${audioUrl}`);
+      // Standard approach: check files array for audio type
+      if (msg.files && Array.isArray(msg.files)) {
+        const audioFile = msg.files.find(f => f.type === 'audio');
+        if (audioFile) {
+          audioUrl = audioFile.url;
+          this.log.debug(`Detected audio file: ${audioUrl}`);
         }
       }
 
-      // Feishu: check for audio files
-      if (!audioUrl && msg.files && Array.isArray(msg.files)) {
-        const audioFile = msg.files.find(f =>
-          f.name?.match(/\.(mp3|wav|m4a|ogg|opus|flac)$/i) ||
-          f.url?.match(/\.(mp3|wav|m4a|ogg|opus|flac)$/i)
-        );
-        if (audioFile) {
-          audioUrl = audioFile.url;
-          this.log.debug(`Detected Feishu audio file: ${audioUrl}`);
+      // Fallback: OneBot legacy - check for record type in rawEvent.message
+      if (!audioUrl && msg.rawEvent?.message && Array.isArray(msg.rawEvent.message)) {
+        const voiceSegment = msg.rawEvent.message.find(seg => seg.type === 'record');
+        if (voiceSegment) {
+          audioUrl = voiceSegment.data?.url || voiceSegment.data?.file;
+          this.log.debug(`Detected OneBot voice message (legacy): ${audioUrl}`);
         }
       }
 
