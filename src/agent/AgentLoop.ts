@@ -137,8 +137,9 @@ export class AgentLoop {
           return;
         }
 
-        if (handled.content !== msg.content) {
-          this.log.info('Plugin modified message, sending reply and skipping LLM');
+        // 如果插件设置了 skipLLM，直接发送回复
+        if (handled.skipLLM) {
+          this.log.info('Plugin set skipLLM=true, sending reply and skipping LLM');
           await this.sendOutbound({ channel: handled.channel, chatId: handled.chatId, content: handled.content, messageType: handled.messageType });
           return;
         }

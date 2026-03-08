@@ -138,6 +138,8 @@ export interface PluginContext {
   logger: typeof logger;
   /** Send a message to a channel */
   sendMessage(channel: string, chatId: string, content: string, messageType?: 'private' | 'group'): Promise<void>;
+  /** Plugin-specific options from config */
+  options?: Record<string, any>;
 }
 
 /**
@@ -279,7 +281,7 @@ export class PluginManager {
     await pipeline.execute(err, { ...context });
   }
 
-  private buildPluginContext(options: Record<string, any>): PluginContext {
+  private buildPluginContext(options?: Record<string, any>): PluginContext {
     return {
       options,
       config: this.context.config,

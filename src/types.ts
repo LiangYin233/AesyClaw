@@ -16,6 +16,8 @@ export interface InboundMessage {
   files?: InboundFile[];  // 非图片文件，保存到本地
   sessionKey?: string;
   messageType?: 'private' | 'group';
+  skipLLM?: boolean;      // 插件设置此字段为 true 时，直接发送回复，跳过 LLM 处理
+  metadata?: Record<string, any>;
 }
 
 export interface OutboundMessage {

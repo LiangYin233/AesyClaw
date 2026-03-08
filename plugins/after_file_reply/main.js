@@ -195,7 +195,8 @@ const plugin = {
 
         return {
           ...msg,
-          content: `已添加文件，当前共${state.files.length}个文件。请继续发送文件或发送文本描述`
+          content: `已添加文件，当前共${state.files.length}个文件。请继续发送文件或发送文本描述`,
+          skipLLM: true
         };
       }
 
@@ -235,21 +236,23 @@ const plugin = {
             await this.saveStates();
             return {
               ...msg,
-              content: '抱歉，AI 未能生成回复。请重试或使用 /zjfs 命令。'
+              content: '抱歉，AI 未能生成回复。请重试或使用 /zjfs 命令。',
+              skipLLM: true
             };
           }
 
           this.waitingStates.delete(key);
           await this.saveStates();
 
-          return { ...msg, content: response.content };
+          return { ...msg, content: response.content, skipLLM: true };
         } catch (error) {
           this.log.error(`LLM call failed:`, error);
 
           // Keep state on error so user can retry
           return {
             ...msg,
-            content: `处理失败：${error.message}。请重试或使用 /qxdd 取消。`
+            content: `处理失败：${error.message}。请重试或使用 /qxdd 取消。`,
+            skipLLM: true
           };
         }
       }
@@ -278,7 +281,8 @@ const plugin = {
 
       return {
         ...msg,
-        content: `已收到${fileCount}个文件，请发送文本描述，或发送 /qxdd 取消等待，/zjfs 直接发送`
+        content: `已收到${fileCount}个文件，请发送文本描述，或发送 /qxdd 取消等待，/zjfs 直接发送`,
+        skipLLM: true
       };
     }
 
