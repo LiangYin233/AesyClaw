@@ -17,59 +17,83 @@ async function renderMarkdownToImage(markdownText, outputPath, scale = 1.0) {
         viewport: { width: 900, height: 10000 },
         deviceScaleFactor: parseFloat(scale)
     });
-    
+
     const templatePath = path.join(__dirname, 'template.html');
     let htmlTemplate = fs.readFileSync(templatePath, 'utf-8');
-    
+
     const thinkingMatch = markdownText.match(/<thinking>([\s\S]*?)<\/thinking>/i);
     let thinkingContent = '';
     if (thinkingMatch) {
         thinkingContent = thinkingMatch[1].trim();
         markdownText = markdownText.replace(thinkingMatch[0], '');
     }
-    
+
     let htmlContent = await marked.parse(markdownText);
-    
+
     if (thinkingContent) {
         const thinkingHtml = await marked.parse(thinkingContent);
         htmlContent = `<div class="thinking">\n<div class="thinking-label">思考过程</div>\n${thinkingHtml}\n</div>\n${htmlContent}`;
     }
-    
+
     htmlTemplate = htmlTemplate.replace('{{ content }}', htmlContent);
-    
-    await page.setContent(htmlTemplate, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(1000);
-    
-    const contentHeight = await page.evaluate(() => {
-        const body = document.body;
-        const children = Array.from(body.children);
-        if (children.length === 0) return 0;
-        
-        let minTop = Infinity, maxBottom = 0;
-        children.forEach(child => {
-            const rect = child.getBoundingClientRect();
-            if (rect.height > 0) {
-                minTop = Math.min(minTop, rect.top);
-                maxBottom = Math.max(maxBottom, rect.bottom);
-            }
+
+    // Write temporary HTML file to ensure fonts load correctly with file:// protocol
+    const tmpHtmlPath = path.join(__dirname, `temp_${Date.now()}.html`);
+    fs.writeFileSync(tmpHtmlPath, htmlTemplate, 'utf-8');
+
+    try {
+        // Use file:// protocol to load HTML, which allows relative font paths to work
+        await page.goto(`file://${tmpHtmlPath}`, { waitUntil: 'domcontentloaded' });
+        await page.waitForTimeout(1000);
+
+        const contentHeight = await page.evaluate(() => {
+            const body = document.body;
+            const children = Array.from(body.children);
+            if (children.length === 0) return 0;
+
+            let minTop = Infinity, maxBottom = 0;
+            children.forEach(child => {
+                const rect = child.getBoundingClientRect();
+                if (rect.height > 0) {
+                    minTop = Math.min(minTop, rect.top);
+                    maxBottom = Math.max(maxBottom, rect.bottom);
+                }
+            });
+            return Math.max(maxBottom - minTop + 80, body.scrollHeight);
         });
-        return Math.max(maxBottom - minTop + 80, body.scrollHeight);
-    });
-    
-    await page.setViewportSize({ 
-        width: 900, 
-        height: Math.min(Math.max(contentHeight + 50, 200), 10000) 
-    });
-    
-    await page.screenshot({
-        path: outputPath,
-        type: 'png',
-        fullPage: true,
-        animations: 'disabled'
-    });
-    
-    await browser.close();
-    return outputPath;
+
+        await page.setViewportSize({
+            width: 900,
+            height: Math.min(Math.max(contentHeight + 50, 200), 10000)
+        });
+
+        await page.screenshot({
+            path: outputPath,
+            type: 'png',
+            fullPage: true,
+            animations: 'disabled'
+        });
+
+        await browser.close();
+
+        // Clean up temporary HTML file
+        try {
+            fs.unlinkSync(tmpHtmlPath);
+        } catch (err) {
+            // Ignore cleanup errors
+        }
+
+        return outputPath;
+    } catch (error) {
+        await browser.close();
+        // Clean up temporary HTML file on error
+        try {
+            fs.unlinkSync(tmpHtmlPath);
+        } catch (err) {
+            // Ignore cleanup errors
+        }
+        throw error;
+    }
 }
 
 const args = process.argv.slice(2);
