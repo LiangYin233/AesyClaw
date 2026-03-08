@@ -10,6 +10,7 @@ import { AgentExecutor } from './AgentExecutor.js';
 import { logger } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
 import { CONFIG_DEFAULTS } from '../constants/index.js';
+import { shouldSkipLLM, getSkipReason } from '../plugins/IntentHelpers.js';
 
 export type ContextMode = 'session' | 'channel' | 'global';
 
@@ -137,10 +138,16 @@ export class AgentLoop {
           return;
         }
 
-        // 如果插件设置了 skipLLM，直接发送回复
-        if (handled.skipLLM) {
-          this.log.info('Plugin set skipLLM=true, sending reply and skipping LLM');
-          await this.sendOutbound({ channel: handled.channel, chatId: handled.chatId, content: handled.content, messageType: handled.messageType });
+        // 如果插件设置了跳过 LLM 的意图，直接发送回复
+        if (shouldSkipLLM(handled)) {
+          const reason = getSkipReason(handled);
+          this.log.info(`Skipping LLM processing: ${reason}`);
+          await this.sendOutbound({
+            channel: handled.channel,
+            chatId: handled.chatId,
+            content: handled.content,
+            messageType: handled.messageType
+          });
           return;
         }
 

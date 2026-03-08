@@ -5,6 +5,16 @@ export interface InboundFile {
   type?: 'audio' | 'video' | 'file' | 'image';  // 文件类型，用于插件识别
 }
 
+/**
+ * 插件处理意图 - 描述插件如何处理消息以及 Agent 应该如何响应
+ */
+export type ProcessingIntent =
+  | { type: 'continue' }                    // 继续 LLM 处理（默认）
+  | { type: 'reply', reason: string }       // 直接回复，跳过 LLM
+  | { type: 'handled', reason: string }     // 插件已完全处理（已调用 LLM）
+  | { type: 'status', reason: string }      // 状态提示消息
+  | { type: 'error', reason: string };      // 错误消息
+
 export interface InboundMessage {
   channel: string;
   senderId: string;
@@ -17,7 +27,14 @@ export interface InboundMessage {
   files?: InboundFile[];  // 非图片文件，保存到本地
   sessionKey?: string;
   messageType?: 'private' | 'group';
+
+  // 新字段：处理意图（优先级高于 skipLLM）
+  intent?: ProcessingIntent;
+
+  // 保留用于向后兼容（标记为 deprecated）
+  /** @deprecated 使用 intent 替代 */
   skipLLM?: boolean;      // 插件设置此字段为 true 时，直接发送回复，跳过 LLM 处理
+
   metadata?: Record<string, any>;
 }
 

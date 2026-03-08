@@ -1,6 +1,13 @@
 import { join } from 'path';
 import * as fs from 'fs/promises';
 
+// Intent 辅助对象，用于创建语义化的处理意图
+const Intent = {
+  status: (reason) => ({ type: 'status', reason }),
+  handled: (reason) => ({ type: 'handled', reason }),
+  error: (reason) => ({ type: 'error', reason })
+};
+
 const plugin = {
   name: 'after_file_reply',
   version: '1.0.0',
@@ -196,7 +203,7 @@ const plugin = {
         return {
           ...msg,
           content: `已添加文件，当前共${state.files.length}个文件。请继续发送文件或发送文本描述`,
-          skipLLM: true
+          intent: Intent.status('等待用户发送更多文件或文本描述')
         };
       }
 
@@ -237,14 +244,14 @@ const plugin = {
             return {
               ...msg,
               content: '抱歉，AI 未能生成回复。请重试或使用 /zjfs 命令。',
-              skipLLM: true
+              intent: Intent.error('LLM 返回空内容')
             };
           }
 
           this.waitingStates.delete(key);
           await this.saveStates();
 
-          return { ...msg, content: response.content, skipLLM: true };
+          return { ...msg, content: response.content, intent: Intent.handled('插件已调用 LLM 并获得回复') };
         } catch (error) {
           this.log.error(`LLM call failed:`, error);
 
@@ -252,7 +259,7 @@ const plugin = {
           return {
             ...msg,
             content: `处理失败：${error.message}。请重试或使用 /qxdd 取消。`,
-            skipLLM: true
+            intent: Intent.error(`LLM 调用失败: ${error.message}`)
           };
         }
       }
@@ -282,7 +289,7 @@ const plugin = {
       return {
         ...msg,
         content: `已收到${fileCount}个文件，请发送文本描述，或发送 /qxdd 取消等待，/zjfs 直接发送`,
-        skipLLM: true
+        intent: Intent.status('等待用户发送文本描述')
       };
     }
 

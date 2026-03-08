@@ -4,18 +4,18 @@ import { createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import { createHash } from 'crypto';
 
+// Intent 辅助对象，用于创建语义化的处理意图
+const Intent = {
+  error: (reason) => ({ type: 'error', reason })
+};
+
 const plugin = {
   name: 'speech_to_text',
   version: '1.0.0',
   description: '使用 OpenAI 兼容的 STT API 转录语音消息',
 
   log: console,
-  config: {
-    provider: 'openai',
-    model: 'whisper-1',
-    downloadTimeout: 30000,
-    transcriptionTimeout: 60000
-  },
+  config: {},
   downloadDir: null,
 
   defaultConfig: {
@@ -29,20 +29,17 @@ const plugin = {
   },
 
   async onLoad(context) {
-    if (context.logger) {
-      this.log = context.logger.child({ prefix: 'speech_to_text' });
-    }
+    this.log = context.logger?.child({ prefix: 'speech_to_text' }) || console;
 
     const options = context.options || {};
     const providerName = options.provider || 'openai';
     const providerConfig = context.config?.providers?.[providerName];
 
-    if (!providerConfig || !providerConfig.apiKey) {
+    if (!providerConfig?.apiKey) {
       this.log.warn(`Provider ${providerName} not configured or missing API key`);
     }
 
     this.config = {
-      provider: providerName,
       apiKey: providerConfig?.apiKey || '',
       apiBase: providerConfig?.apiBase || 'https://api.openai.com/v1',
       model: options.model || 'whisper-1',
@@ -50,13 +47,8 @@ const plugin = {
       transcriptionTimeout: options.transcriptionTimeout || 60000
     };
 
-    // Setup download directory in temp
     this.downloadDir = join(context.tempDir, 'speech_to_text');
-    try {
-      await fs.mkdir(this.downloadDir, { recursive: true });
-    } catch (error) {
-      this.log.error('Failed to create download directory:', error);
-    }
+    await fs.mkdir(this.downloadDir, { recursive: true }).catch(() => {});
 
     if (this.config.apiKey) {
       this.log.info('Speech-to-text plugin loaded');
@@ -64,17 +56,11 @@ const plugin = {
   },
 
   async onUnload() {
-    // Cleanup download directory
-    if (this.downloadDir) {
-      try {
-        const files = await fs.readdir(this.downloadDir);
-        for (const file of files) {
-          await fs.unlink(join(this.downloadDir, file)).catch(() => {});
-        }
-      } catch (error) {
-        // Ignore cleanup errors
-      }
-    }
+    if (!this.downloadDir) return;
+    try {
+      const files = await fs.readdir(this.downloadDir);
+      await Promise.all(files.map(f => fs.unlink(join(this.downloadDir, f)).catch(() => {})));
+    } catch {}
   },
 
   async downloadAudio(url, timeout) {
@@ -82,219 +68,114 @@ const plugin = {
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
-      this.log.debug(`Downloading audio from: ${url}`);
       const response = await fetch(url, { signal: controller.signal });
+      if (!response.ok) throw new Error(`Download failed: ${response.status}`);
 
-      if (!response.ok) {
-        throw new Error(`Download failed: ${response.status} ${response.statusText}`);
-      }
-
-      // Generate unique filename
       const hash = createHash('md5').update(url + Date.now()).digest('hex').substring(0, 8);
-      const filename = `audio_${Date.now()}_${hash}.mp3`;
-      const filepath = join(this.downloadDir, filename);
+      const filepath = join(this.downloadDir, `audio_${Date.now()}_${hash}.mp3`);
 
-      // Save to file
-      const fileStream = createWriteStream(filepath);
-      await pipeline(response.body, fileStream);
-
-      this.log.debug(`Audio downloaded to: ${filepath}`);
+      await pipeline(response.body, createWriteStream(filepath));
       return filepath;
     } catch (error) {
-      if (error.name === 'AbortError') {
-        throw new Error('Download timeout');
-      }
-      throw error;
+      throw error.name === 'AbortError' ? new Error('Download timeout') : error;
     } finally {
       clearTimeout(timeoutId);
     }
   },
 
-  async transcribe(audioPath, retries = 3) {
-    if (!this.config.apiKey) {
-      throw new Error('API key not configured');
-    }
+  async transcribe(audioPath) {
+    if (!this.config.apiKey) throw new Error('API key not configured');
 
     const url = `${this.config.apiBase}/audio/transcriptions`;
+    const audioBuffer = await fs.readFile(audioPath);
+    const formData = new FormData();
+    formData.append('file', new Blob([audioBuffer], { type: 'audio/mpeg' }), 'audio.mp3');
+    formData.append('model', this.config.model);
+    formData.append('response_format', 'json');
 
-    for (let attempt = 1; attempt <= retries; attempt++) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.config.transcriptionTimeout);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.config.transcriptionTimeout);
 
-      try {
-        this.log.debug(`Transcription attempt ${attempt}/${retries}`);
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${this.config.apiKey}` },
+        body: formData,
+        signal: controller.signal
+      });
 
-        // Read audio file
-        const audioBuffer = await fs.readFile(audioPath);
-        const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
-
-        // Build form data
-        const formData = new FormData();
-        formData.append('file', audioBlob, 'audio.mp3');
-        formData.append('model', this.config.model);
-        formData.append('response_format', 'json');  // Use json format for better compatibility
-
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${this.config.apiKey}`
-          },
-          body: formData,
-          signal: controller.signal
-        });
-
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          const errorBody = await response.text();
-          const statusCode = response.status;
-
-          // Retry on specific errors
-          if ([408, 429, 500, 502, 503, 504].includes(statusCode) && attempt < retries) {
-            const delay = Math.pow(2, attempt - 1) * 1000; // Exponential backoff
-            this.log.warn(`Transcription failed with ${statusCode}, retrying in ${delay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            continue;
-          }
-
-          throw new Error(`API error ${statusCode}: ${errorBody.substring(0, 200)}`);
-        }
-
-        const responseText = await response.text();
-        this.log.debug(`Transcription successful: ${responseText.substring(0, 100)}...`);
-
-        // Parse response - handle both JSON and plain text
-        let text;
-        try {
-          const parsed = JSON.parse(responseText);
-          text = parsed.text || responseText;
-        } catch {
-          // If not JSON, use as-is
-          text = responseText;
-        }
-
-        return text.trim();
-      } catch (error) {
-        clearTimeout(timeoutId);
-
-        if (error.name === 'AbortError') {
-          if (attempt < retries) {
-            this.log.warn('Transcription timeout, retrying...');
-            continue;
-          }
-          throw new Error('Transcription timeout');
-        }
-
-        if (attempt === retries) {
-          throw error;
-        }
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`API error ${response.status}: ${error.substring(0, 100)}`);
       }
-    }
 
-    throw new Error('Transcription failed after all retries');
+      const text = await response.text();
+      try {
+        return JSON.parse(text).text?.trim() || text.trim();
+      } catch {
+        return text.trim();
+      }
+    } catch (error) {
+      throw error.name === 'AbortError' ? new Error('Transcription timeout') : error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   },
 
   async onMessage(msg) {
     try {
-      // Check if message contains voice/audio
-      let audioUrl = null;
+      this.log.info(`[STT] onMessage called, content="${msg.content}", files=${JSON.stringify(msg.files?.map(f => ({ type: f.type, url: f.url?.substring(0, 50) })))}`);
 
-      // Standard approach: check files array for audio type
-      if (msg.files && Array.isArray(msg.files)) {
-        const audioFile = msg.files.find(f => f.type === 'audio');
-        if (audioFile) {
-          audioUrl = audioFile.url;
-          this.log.debug(`Detected audio file: ${audioUrl}`);
-        }
-      }
+      // Detect audio URL from files or rawEvent
+      let audioUrl = msg.files?.find(f => f.type === 'audio')?.url;
 
-      // Fallback: OneBot legacy - check for record type in rawEvent.message
-      if (!audioUrl && msg.rawEvent?.message && Array.isArray(msg.rawEvent.message)) {
+      if (!audioUrl && msg.rawEvent?.message) {
         const voiceSegment = msg.rawEvent.message.find(seg => seg.type === 'record');
-        if (voiceSegment) {
-          audioUrl = voiceSegment.data?.url || voiceSegment.data?.file;
-          this.log.debug(`Detected OneBot voice message (legacy): ${audioUrl}`);
-        }
+        audioUrl = voiceSegment?.data?.url || voiceSegment?.data?.file;
+        this.log.debug(`[STT] Found audio URL from rawEvent: ${audioUrl?.substring(0, 50)}`);
       }
 
-      // No voice message detected in rawEvent, but check if content is [语音]
+      // Handle [语音] placeholder without URL
       if (!audioUrl) {
-        // If content is [语音], it means this is a voice message but we can't process it
         if (msg.content === '[语音]') {
-          this.log.warn('Voice message detected in content but no audio URL found');
-          return {
-            ...msg,
-            content: '[语音消息 - 无法获取音频链接]',
-            skipLLM: true
-          };
+          this.log.warn(`[STT] Voice message detected but no URL found`);
+          return { ...msg, content: '[语音消息 - 无法获取音频链接]', intent: Intent.error('音频 URL 不存在') };
         }
-        // Not a voice message, pass through
+        this.log.debug(`[STT] Not a voice message, passing through`);
         return msg;
       }
 
-      // Check if API is configured
+      // Check API configuration
       if (!this.config.apiKey) {
         this.log.warn('Voice message detected but API key not configured');
-        return {
-          ...msg,
-          content: '[语音消息 - 转写服务未配置]',
-          skipLLM: true
-        };
+        return { ...msg, content: '[语音消息 - 转写服务未配置]', intent: Intent.error('API key 未配置') };
       }
 
       this.log.info(`Processing voice message from ${msg.senderId}`);
 
-      // Download audio
+      // Download and transcribe
       let audioPath;
       try {
         audioPath = await this.downloadAudio(audioUrl, this.config.downloadTimeout);
-      } catch (error) {
-        this.log.error('Failed to download audio:', error.message);
-        return {
-          ...msg,
-          content: `[语音消息 - 下载失败: ${error.message}]`,
-          skipLLM: true
-        };
-      }
+        const transcription = await this.transcribe(audioPath);
 
-      // Transcribe
-      let transcription;
-      try {
-        transcription = await this.transcribe(audioPath);
-      } catch (error) {
-        this.log.error('Failed to transcribe audio:', error.message);
+        this.log.info(`Transcription successful: ${transcription.substring(0, 50)}...`);
         return {
           ...msg,
-          content: `[语音消息 - 转写失败: ${error.message}]`,
-          skipLLM: true
+          content: transcription,
+          files: undefined,  // 清除文件信息
+          media: undefined,  // 清除媒体信息
+          metadata: { ...msg.metadata, transcribed: true, originalType: 'voice' }
         };
+      } catch (error) {
+        this.log.error('Transcription failed:', error.message);
+        return { ...msg, content: `[语音消息 - ${error.message}]`, intent: Intent.error(`转写失败: ${error.message}`) };
       } finally {
-        // Cleanup downloaded file
-        try {
-          await fs.unlink(audioPath);
-        } catch (error) {
-          // Ignore cleanup errors
-        }
+        if (audioPath) await fs.unlink(audioPath).catch(() => {});
       }
-
-      // Replace message content with transcription
-      this.log.info(`Transcription successful: ${transcription.substring(0, 50)}...`);
-      return {
-        ...msg,
-        content: transcription,
-        metadata: {
-          ...msg.metadata,
-          transcribed: true,
-          originalType: 'voice'
-        }
-      };
     } catch (error) {
-      this.log.error('Unexpected error in onMessage:', error);
-      return {
-        ...msg,
-        content: '[语音消息 - 处理失败]',
-        skipLLM: true
-      };
+      this.log.error('Unexpected error:', error);
+      return { ...msg, content: '[语音消息 - 处理失败]', intent: Intent.error(`处理失败: ${error.message}`) };
     }
   }
 };
