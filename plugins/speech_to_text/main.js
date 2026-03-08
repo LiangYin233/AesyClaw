@@ -209,8 +209,18 @@ const plugin = {
         }
       }
 
-      // No voice message, pass through
+      // No voice message detected in rawEvent, but check if content is [语音]
       if (!audioUrl) {
+        // If content is [语音], it means this is a voice message but we can't process it
+        if (msg.content === '[语音]') {
+          this.log.warn('Voice message detected in content but no audio URL found');
+          return {
+            ...msg,
+            content: '[语音消息 - 无法获取音频链接]',
+            skipLLM: true
+          };
+        }
+        // Not a voice message, pass through
         return msg;
       }
 
