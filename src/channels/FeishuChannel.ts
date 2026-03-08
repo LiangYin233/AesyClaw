@@ -22,8 +22,6 @@ export interface FeishuConfig {
   appSecret: string;
   /** Verification Token for webhook event validation */
   verificationToken: string;
-  /** Optional encryption key for encrypted events */
-  encryptKey?: string;
   /** Port for webhook server to listen on */
   webhookPort: number;
   /** Path for webhook endpoint (e.g., "/feishu/webhook") */
@@ -246,8 +244,7 @@ export class FeishuChannel extends BaseChannel {
     // 解析消息内容
     const { content, media, files } = await this.parseMessageContent(
       message.message_type,
-      message.content,
-      message.message_id
+      message.content
     );
 
     // 下载文件
@@ -282,8 +279,7 @@ export class FeishuChannel extends BaseChannel {
    */
   private async parseMessageContent(
     messageType: string,
-    content: string,
-    messageId: string
+    content: string
   ): Promise<{ content: string; media?: string[]; files?: InboundFile[] }> {
     try {
       const parsed = JSON.parse(content);
