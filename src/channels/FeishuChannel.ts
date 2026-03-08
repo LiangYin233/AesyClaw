@@ -402,9 +402,6 @@ export class FeishuChannel extends BaseChannel {
       // 格式化消息
       const { msgType, content } = await this.formatOutboundMessage(msg);
 
-      this.log.debug(`Formatting message - msgType: ${msgType}, content object:`, content);
-      this.log.debug(`Original message content: "${msg.content}"`);
-
       // Generate UUID for request deduplication (optional but recommended)
       const uuid = this.generateUUID();
 
@@ -414,8 +411,6 @@ export class FeishuChannel extends BaseChannel {
         content: JSON.stringify(content),  // Feishu expects content as a JSON string
         uuid: uuid  // For request deduplication within 1 hour
       };
-
-      this.log.debug(`Sending message: ${JSON.stringify(requestBody)}`);
 
       const url = `${this.apiBase}/open-apis/im/v1/messages?receive_id_type=${receiveIdType}`;
       const response = await fetch(url, {

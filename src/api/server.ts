@@ -130,6 +130,7 @@ export class APIServer {
 
       const key = sessionKey || `api:${randomUUID()}`;
       try {
+        this.log.info(`Processing API chat request, session: ${key}`);
         const response = await this.agent.processDirect(message, key);
         res.json({ success: true, response });
       } catch (error: unknown) {
@@ -158,9 +159,11 @@ export class APIServer {
       if (!channel) return res.status(404).json(createErrorResponse(new NotFoundError('Channel', req.params.name)));
 
       try {
+        this.log.info(`Sending message via API to ${req.params.name}:${chatId}`);
         await channel.send({ channel: req.params.name, chatId, content });
         res.json({ success: true });
       } catch (error: unknown) {
+        this.log.error(`Failed to send message via API to ${req.params.name}:${chatId}:`, error);
         res.status(500).json(createErrorResponse(error));
       }
     });
@@ -176,10 +179,12 @@ export class APIServer {
     this.app.put('/api/config', async (req, res) => {
       try {
         const newConfig = req.body;
+        this.log.info('Updating config via API');
         await ConfigLoader.save(newConfig);
         this.config = newConfig;
         res.json({ success: true });
       } catch (error: unknown) {
+        this.log.error('Failed to update config via API:', error);
         res.status(500).json(createErrorResponse(error));
       }
     });

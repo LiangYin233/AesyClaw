@@ -159,6 +159,8 @@ export class MCPClientManager {
           parameters: tool.inputSchema
         });
       }
+
+      this.log.info(`Loaded ${response.tools?.length || 0} tools from MCP server: ${prefix}`);
     } catch (error) {
       this.log.error(`Failed to load tools from ${prefix}:`, error);
     }

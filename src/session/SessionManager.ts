@@ -148,10 +148,13 @@ export class SessionManager {
           `SELECT key FROM sessions ORDER BY updated_at ASC LIMIT ?`,
           [toDelete]
         );
-        
+
         for (const session of oldSessions) {
           await this.delete(session.key);
-          this.log.debug(`Cleanup: removed old session ${session.key}`);
+        }
+
+        if (oldSessions.length > 0) {
+          this.log.info(`Cleaned up ${oldSessions.length} old sessions (max: ${this.maxSessions})`);
         }
       }
     } catch (error) {

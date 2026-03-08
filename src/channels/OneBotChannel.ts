@@ -390,20 +390,12 @@ export class OneBotChannel extends BaseChannel {
       return;
     }
 
-    if (msg.media && msg.media.length > 0) {
-      this.log.debug(`Processing ${msg.media.length} media files: ${msg.media.join(', ')}`);
-    }
-
     const action = isGroup ? 'send_group_msg' : 'send_private_msg';
     const params = isGroup
       ? { group_id: numericChatId, message: segments }
       : { user_id: numericChatId, message: segments };
 
     this.log.info(`Sending ${isGroup ? 'group' : 'private'} message to ${chatId}`);
-    if (this.log.isLevelEnabled?.('debug')) {
-      const logSegments = JSON.stringify(segments).replace(/"file":"base64:\/\/([A-Za-z0-9+/=]{10})[A-Za-z0-9+/=]*"/g, '"file":"base64://$1...(truncated)"');
-      this.log.debug(`Message segments:`, logSegments);
-    }
     try {
       await this.sendAction(action, params);
       metrics.record('channel.message_sent', 1, 'count', {
@@ -484,7 +476,6 @@ export class OneBotChannel extends BaseChannel {
           return null;
         }
         const buffer = fs.readFileSync(path);
-        this.log.debug(`Converted ${filePath} to base64 (${buffer.length} bytes)`);
         return buffer.toString('base64');
       } else {
         this.log.warn(`File not found: ${filePath}`);

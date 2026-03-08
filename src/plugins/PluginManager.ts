@@ -206,9 +206,6 @@ export class PluginManager {
   }
 
   async applyOnMessage(msg: InboundMessage): Promise<InboundMessage | null> {
-    this.log.info(`applyOnMessage called with: content="${msg.content}", media=${JSON.stringify(msg.media)}`);
-    this.log.debug(`Message details: channel=${msg.channel}, chatId=${msg.chatId}, senderId=${msg.senderId}`);
-
     const pipeline = new HookPipeline<InboundMessage>(
       Array.from(this.plugins.values()),
       'onMessage',
@@ -216,8 +213,6 @@ export class PluginManager {
     );
 
     const result = await pipeline.execute(msg);
-    this.log.info(`applyOnMessage returning: ${JSON.stringify({ content: result.content.substring(0, 50) })}`);
-    this.log.debug(`Message modified: ${result.content !== msg.content}`);
     return result;
   }
 

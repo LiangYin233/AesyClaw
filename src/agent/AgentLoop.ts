@@ -70,9 +70,7 @@ export class AgentLoop {
     messages: LLMMessage[],
     options?: { allowTools?: boolean; maxIterations?: number }
   ): Promise<{ content: string; reasoning_content?: string }> {
-    this.log.info(`[LLM_CALL] AgentLoop.callLLM() called with ${messages.length} messages, allowTools=${options?.allowTools ?? true}`);
     const result = await this.executor.callLLM(messages, options);
-    this.log.info(`[LLM_CALL] AgentLoop.callLLM() returned, content length=${result.content.length}`);
     return result;
   }
 
@@ -100,7 +98,7 @@ export class AgentLoop {
     });
 
     try {
-      this.log.info(`processMessage: content="${msg.content}", media=${JSON.stringify(msg.media)}`);
+      this.log.debug(`processMessage: content="${msg.content}", media=${JSON.stringify(msg.media)}`);
 
       this.toolContext = {
         ...this.toolContext,
@@ -175,6 +173,7 @@ export class AgentLoop {
       if (msg.files && msg.files.length > 0) {
         const savedPaths = msg.files.filter(f => f.localPath).map(f => f.localPath!);
         if (savedPaths.length > 0) {
+          this.log.info(`Received ${savedPaths.length} file(s): ${savedPaths.join(', ')}`);
           const note = savedPaths.map(p => `[文件已保存至: ${p}]`).join('\n');
           msg = { ...msg, content: msg.content ? `${msg.content}\n${note}` : note };
         }
@@ -190,12 +189,10 @@ export class AgentLoop {
         await this.pluginManager.applyOnAgentBefore(msg, messages);
       }
 
-      this.log.info(`[LLM_CALL] AgentLoop.processMessage() calling executor.execute() with ${messages.length} messages`);
       const result = await this.executor.execute(messages, this.toolContext, {
         allowTools: true,
         source: 'user'
       });
-      this.log.info(`[LLM_CALL] AgentLoop.processMessage() executor.execute() returned, content length=${result.content.length}`);
 
       const llmResponse: LLMResponse = {
         content: result.content,
@@ -225,6 +222,7 @@ export class AgentLoop {
 
       metrics.record('agent.message_count', 1, 'count', { status: 'success' });
     } catch (error) {
+      this.log.error(`Failed to process message from ${msg.channel}:${msg.chatId}:`, error);
       metrics.record('agent.message_count', 1, 'count', { status: 'error' });
       throw error;
     } finally {
@@ -272,15 +270,11 @@ export class AgentLoop {
   }
 
   private async sendOutbound(msg: OutboundMessage): Promise<void> {
-    this.log.info(`[SEND_OUTBOUND] Preparing to send message to ${msg.channel}:${msg.chatId}, content length=${msg.content.length}`);
     let processedMsg = msg;
     if (this.pluginManager) {
-      this.log.debug(`Applying onResponse hooks before publishing`);
       processedMsg = await this.pluginManager.applyOnResponse(msg) || msg;
     }
-    this.log.info(`[SEND_OUTBOUND] Publishing outbound event to EventBus`);
     await this.eventBus.publishOutbound(processedMsg);
-    this.log.info(`[SEND_OUTBOUND] Outbound event published`);
   }
 
   setCommandRegistry(registry: CommandRegistry): void {
