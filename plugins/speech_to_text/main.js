@@ -217,7 +217,11 @@ const plugin = {
       // Check if API is configured
       if (!this.config.apiKey) {
         this.log.warn('Voice message detected but API key not configured');
-        return msg;
+        return {
+          ...msg,
+          content: '[语音消息 - 转写服务未配置]',
+          skipLLM: true
+        };
       }
 
       this.log.info(`Processing voice message from ${msg.senderId}`);
@@ -230,7 +234,8 @@ const plugin = {
         this.log.error('Failed to download audio:', error.message);
         return {
           ...msg,
-          content: `[语音 - 下载失败: ${error.message}]`
+          content: `[语音消息 - 下载失败: ${error.message}]`,
+          skipLLM: true
         };
       }
 
@@ -242,7 +247,8 @@ const plugin = {
         this.log.error('Failed to transcribe audio:', error.message);
         return {
           ...msg,
-          content: `[语音 - 转写失败: ${error.message}]`
+          content: `[语音消息 - 转写失败: ${error.message}]`,
+          skipLLM: true
         };
       } finally {
         // Cleanup downloaded file
@@ -266,7 +272,11 @@ const plugin = {
       };
     } catch (error) {
       this.log.error('Unexpected error in onMessage:', error);
-      return msg;
+      return {
+        ...msg,
+        content: '[语音消息 - 处理失败]',
+        skipLLM: true
+      };
     }
   }
 };
