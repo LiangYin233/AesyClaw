@@ -1,6 +1,6 @@
 {
   "name": "aesyclaw",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A lightweight AI Agent framework",
   "main": "dist/index.js",
   "type": "module",
@@ -20,8 +20,10 @@
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
+    "@types/form-data": "^2.2.1",
     "cron-parser": "^5.5.0",
     "express": "^5.2.1",
+    "form-data": "^4.0.5",
     "sqlite3": "^5.1.7",
     "ws": "^8.16.0",
     "yaml": "^2.3.4"
