@@ -10,15 +10,29 @@ import type { EventBus } from '../bus/EventBus.js';
 import { logger } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
 
+/**
+ * Feishu Channel Configuration
+ *
+ * @see https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/create
+ */
 export interface FeishuConfig {
+  /** Application ID from Feishu Open Platform */
   appId: string;
+  /** Application Secret from Feishu Open Platform */
   appSecret: string;
+  /** Verification Token for webhook event validation */
   verificationToken: string;
+  /** Optional encryption key for encrypted events */
   encryptKey?: string;
+  /** Port for webhook server to listen on */
   webhookPort: number;
+  /** Path for webhook endpoint (e.g., "/feishu/webhook") */
   webhookPath: string;
+  /** Whitelist of user open_ids allowed to send private messages (empty = allow all) */
   friendAllowFrom?: string[];
+  /** Whitelist of chat_ids allowed to send group messages (empty = allow all) */
   groupAllowFrom?: string[];
+  /** API base URL (default: https://open.feishu.cn for China, https://open.larksuite.com for international) */
   apiBase?: string;
 }
 
@@ -27,6 +41,29 @@ interface TokenCache {
   expiresAt: number;
 }
 
+/**
+ * Feishu Channel Adapter
+ *
+ * Implements message sending and receiving for Feishu (Lark) platform.
+ *
+ * Features:
+ * - Webhook server for receiving events
+ * - Automatic token refresh (tenant_access_token)
+ * - Message type support: text, image, file, post (rich text)
+ * - File download and upload
+ * - Permission whitelist control
+ *
+ * Rate Limits:
+ * - 5 QPS per user for private messages
+ * - 5 QPS per group (shared among all bots in the group)
+ * - 1000 requests/minute, 50 requests/second (API level)
+ *
+ * Message Size Limits:
+ * - Text messages: max 150 KB
+ * - Card/Rich text messages: max 30 KB
+ *
+ * @see https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/create
+ */
 export class FeishuChannel extends BaseChannel {
   readonly name = 'feishu';
   private webhookServer?: http.Server;
@@ -113,13 +150,20 @@ export class FeishuChannel extends BaseChannel {
     });
   }
 
+  /**
+   * Refresh tenant_access_token
+   *
+   * Token expires in 2 hours. We refresh it 5 minutes before expiration.
+   *
+   * @see https://open.feishu.cn/document/ukTMukTMukTM/ukDNz4SO0MjL5QzM/auth-v3/auth/tenant_access_token_internal
+   */
   private async refreshToken(): Promise<void> {
     const url = `${this.apiBase}/open-apis/auth/v3/tenant_access_token/internal`;
 
     try {
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
         body: JSON.stringify({
           app_id: this.config.appId,
           app_secret: this.config.appSecret
@@ -170,6 +214,16 @@ export class FeishuChannel extends BaseChannel {
     }
   }
 
+  /**
+   * Handle incoming message event from Feishu
+   *
+   * Process flow:
+   * 1. Extract sender and chat information
+   * 2. Check permissions (whitelist)
+   * 3. Parse message content based on message type
+   * 4. Download files if present
+   * 5. Publish to EventBus for further processing
+   */
   private async handleMessageEvent(event: any): Promise<void> {
     const sender = event.sender?.sender_id?.open_id;
     const message = event.message;
@@ -215,6 +269,17 @@ export class FeishuChannel extends BaseChannel {
     );
   }
 
+  /**
+   * Parse message content based on message type
+   *
+   * Supported types:
+   * - text: Plain text
+   * - image: Image with image_key
+   * - file: File with file_key and file_name
+   * - post: Rich text (extracts plain text)
+   *
+   * @returns Parsed content with optional media URLs and file information
+   */
   private async parseMessageContent(
     messageType: string,
     content: string,
@@ -331,6 +396,21 @@ export class FeishuChannel extends BaseChannel {
     return downloaded;
   }
 
+  /**
+   * Send a message to Feishu
+   *
+   * Supported message types:
+   * - text: Plain text messages
+   * - image: Image messages (requires upload first)
+   * - file: File messages (requires upload first)
+   * - post: Rich text messages
+   *
+   * Rate limits:
+   * - 5 QPS per user (private messages)
+   * - 5 QPS per group (shared among all bots)
+   *
+   * @see https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/create
+   */
   async send(msg: OutboundMessage): Promise<void> {
     if (!this.validateMessage(msg)) {
       return;
@@ -343,23 +423,27 @@ export class FeishuChannel extends BaseChannel {
       // 格式化消息
       const { msgType, content } = await this.formatOutboundMessage(msg);
 
-      this.log.info(`Formatting message - msgType: ${msgType}, content object:`, content);
-      this.log.info(`Original message content: "${msg.content}"`);
+      this.log.debug(`Formatting message - msgType: ${msgType}, content object:`, content);
+      this.log.debug(`Original message content: "${msg.content}"`);
+
+      // Generate UUID for request deduplication (optional but recommended)
+      const uuid = this.generateUUID();
 
       const requestBody = {
         receive_id: msg.chatId,
         msg_type: msgType,
-        content: JSON.stringify(content)  // Feishu expects content as a JSON string
+        content: JSON.stringify(content),  // Feishu expects content as a JSON string
+        uuid: uuid  // For request deduplication within 1 hour
       };
 
-      this.log.info(`Sending message: ${JSON.stringify(requestBody)}`);
+      this.log.debug(`Sending message: ${JSON.stringify(requestBody)}`);
 
       const url = `${this.apiBase}/open-apis/im/v1/messages?receive_id_type=${receiveIdType}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json; charset=utf-8'
         },
         body: JSON.stringify(requestBody)
       });
@@ -367,7 +451,7 @@ export class FeishuChannel extends BaseChannel {
       const result: any = await response.json();
       if (result.code !== 0) {
         this.log.error(`Feishu API error response: ${JSON.stringify(result)}`);
-        throw new Error(`Feishu API error: ${result.msg}`);
+        throw new Error(`Feishu API error (${result.code}): ${result.msg}`);
       }
 
       metrics.record('channel.message_sent', 1, 'count', {
@@ -387,6 +471,15 @@ export class FeishuChannel extends BaseChannel {
     }
   }
 
+  /**
+   * Format outbound message for Feishu API
+   *
+   * Handles different message types:
+   * - Media (images): Upload first, then send with image_key
+   * - Text: Send directly with text content
+   *
+   * Note: If image upload fails, falls back to text message
+   */
   private async formatOutboundMessage(msg: OutboundMessage): Promise<{ msgType: string; content: any }> {
     // 处理媒体文件
     if (msg.media && msg.media.length > 0) {
@@ -416,6 +509,18 @@ export class FeishuChannel extends BaseChannel {
     };
   }
 
+  /**
+   * Upload image to Feishu
+   *
+   * @param imagePath Local path to the image file
+   * @returns image_key for sending image messages
+   *
+   * Common errors:
+   * - 230017: Bot is not the owner of the resource
+   * - 230025: File size exceeds limit
+   *
+   * @see https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/image/create
+   */
   private async uploadImage(imagePath: string): Promise<string> {
     const token = await this.getValidToken();
 
@@ -451,5 +556,15 @@ export class FeishuChannel extends BaseChannel {
     }
 
     return result.data.image_key;
+  }
+
+  /**
+   * Generate a UUID for request deduplication
+   *
+   * Feishu uses UUID to deduplicate requests within 1 hour.
+   * Same UUID will only send one message successfully within 1 hour.
+   */
+  private generateUUID(): string {
+    return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
   }
 }
