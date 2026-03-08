@@ -37,10 +37,6 @@ const plugin = {
     const providerName = options.provider || 'openai';
     const providerConfig = context.config?.providers?.[providerName];
 
-    this.log.debug(`Loading plugin with provider: ${providerName}`);
-    this.log.debug(`Provider config exists: ${!!providerConfig}`);
-    this.log.debug(`Provider has apiKey: ${!!providerConfig?.apiKey}`);
-
     if (!providerConfig || !providerConfig.apiKey) {
       this.log.warn(`Provider ${providerName} not configured or missing API key`);
     }
