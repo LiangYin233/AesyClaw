@@ -5,8 +5,40 @@ import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 
 const MD_PATTERN = /(^```[\s\S]*?\n```$)|(^\$\$[\s\S]*?\$\$$)|(\$(?:\\.|[^\n$])+\$)|(^#{1-6}\s+\S.+$)|(^>\s+\S.+$)|(^\s{0,3}[-*+]\s+\S.+$)|(^\s{0,3}\d+\.\s+\S.+$)|(^\|[^\n]*\|[^\n]*$)|(!\[[^\]]*\]\([^)]+\)|\[[^\]]+\]\([^)]+\))|(^\s{0,3}(?:-{3,}|_{3,}|\*{3,})\s*$)/m;
+const THINK_TAG_PATTERN = /<think>([\s\S]*?)<\/think>|<thinking>([\s\S]*?)<\/thinking>/gi;
 
 let log = console;
+
+function normalizeThinkingText(text) {
+  if (!text) return '';
+
+  return text
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .join('\n')
+    .trim();
+}
+
+function extractThinkingTags(content) {
+  if (!content) {
+    return { content: '', reasoning: '' };
+  }
+
+  const reasoningParts = [];
+  const cleanedContent = content.replace(THINK_TAG_PATTERN, (_, thinkContent, thinkingContent) => {
+    const extracted = normalizeThinkingText(thinkContent || thinkingContent || '');
+    if (extracted) {
+      reasoningParts.push(extracted);
+    }
+    return '';
+  });
+
+  return {
+    content: cleanedContent.replace(/\n{3,}/g, '\n\n').trim(),
+    reasoning: reasoningParts.join('\n\n').trim()
+  };
+}
 
 const plugin = {
   name: 'md2img',
@@ -48,6 +80,18 @@ const plugin = {
   async onResponse(msg) {
     log.debug(`onResponse called: content length=${msg.content?.length || 0}, has media=${!!(msg.media && msg.media.length > 0)}`);
 
+    const extracted = extractThinkingTags(msg.content || '');
+    const mergedReasoning = [msg.reasoning_content, extracted.reasoning]
+      .filter((part) => typeof part === 'string' && part.trim().length > 0)
+      .join('\n\n')
+      .trim();
+
+    if (extracted.reasoning) {
+      msg.content = extracted.content;
+      msg.reasoning_content = mergedReasoning;
+      log.debug(`Extracted thinking tags: ${extracted.reasoning.length} chars`);
+    }
+
     if (!msg.content || msg.content.length < this.config.minLength) {
       log.debug(`Skipped: content too short (${msg.content?.length || 0} < ${this.config.minLength})`);
       return msg;
@@ -61,10 +105,10 @@ const plugin = {
     try {
       let markdownContent = msg.content;
 
-      if (msg.reasoning_content) {
-        const thinkingBlock = `\n\n> ${msg.reasoning_content.replace(/\n/g, '\n> ')}\n`;
+      if (mergedReasoning) {
+        const thinkingBlock = `\n\n> ${mergedReasoning.replace(/\n/g, '\n> ')}\n`;
         markdownContent = thinkingBlock + markdownContent;
-        log.debug(`Added thinking block: ${msg.reasoning_content.length} chars`);
+        log.debug(`Added thinking block: ${mergedReasoning.length} chars`);
       }
 
       log.debug(`Converting markdown: ${markdownContent.length} chars`);
