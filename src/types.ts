@@ -1,4 +1,4 @@
-export interface InboundFile {
+﻿export interface InboundFile {
   name: string;
   url: string;
   localPath?: string;  // Channel 下载后的本地路径
@@ -107,6 +107,7 @@ export interface Config {
 
 export interface ToolsConfig {
   blacklist?: string[];  // 工具黑名单
+  timeoutMs?: number;
 }
 
 export interface LogConfig {

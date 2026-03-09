@@ -1,4 +1,4 @@
-import type { ToolDefinition } from '../types.js';
+﻿import type { ToolDefinition } from '../types.js';
 import type { EventBus } from '../bus/EventBus.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS } from '../constants/index.js';
@@ -30,8 +30,6 @@ export interface ToolContext {
   messageType?: 'private' | 'group';
   channel?: string;
 }
-
-const DEFAULT_TIMEOUT = CONSTANTS.TOOL_TIMEOUT;
 
 function createTimeoutError(toolName: string, timeout: number): Error {
   return new Error(`Tool execution timeout: ${toolName} (${timeout}ms)`);
@@ -91,6 +89,11 @@ export class ToolRegistry {
   private toolSources: Map<string, ToolSourceInfo> = new Map();
   private blacklist: Set<string> = new Set();
   private log = logger.child({ prefix: 'ToolRegistry' });
+  private defaultTimeout: number;
+
+  constructor(options?: { defaultTimeout?: number }) {
+    this.defaultTimeout = options?.defaultTimeout ?? CONSTANTS.TOOL_TIMEOUT;
+  }
 
   register(tool: Tool, source: ToolSource = 'built-in'): void {
     const toolWithSource = { ...tool, source };
@@ -209,7 +212,7 @@ export class ToolRegistry {
       }
     }
 
-    const timeout = tool.timeout || DEFAULT_TIMEOUT;  // 获取超时时间
+    const timeout = tool.timeout || this.defaultTimeout;  // 获取超时时间
     const timeoutController = new AbortController();
     const timeoutId = setTimeout(() => {
       timeoutController.abort(createTimeoutError(tool.name, timeout));

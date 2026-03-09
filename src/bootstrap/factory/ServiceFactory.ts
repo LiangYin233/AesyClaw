@@ -1,4 +1,4 @@
-import { join } from 'path';
+﻿import { join } from 'path';
 import { EventBus } from '../../bus/EventBus.js';
 import { AgentLoop, SessionRoutingService } from '../../agent/index.js';
 import { ChannelManager } from '../../channels/index.js';
@@ -59,7 +59,9 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   log.info('Initializing services...');
 
   const eventBus = new EventBus();
-  const toolRegistry = new ToolRegistry();
+  const toolRegistry = new ToolRegistry({
+    defaultTimeout: config.tools?.timeoutMs
+  });
   const providerConfig = config.providers[config.agent.defaults.provider];
   const provider = createProvider(config.agent.defaults.provider, providerConfig);
 

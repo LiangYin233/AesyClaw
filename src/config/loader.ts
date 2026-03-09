@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync, watch } from 'fs';
+﻿import { existsSync, readFileSync, writeFileSync, mkdirSync, watch } from 'fs';
 import { join, dirname } from 'path';
 import YAML from 'yaml';
 import type { Config } from '../types.js';
@@ -59,7 +59,8 @@ const DEFAULT_CONFIG: Config = {
     maxMetrics: 10000
   },
   tools: {
-    blacklist: []
+    blacklist: [],
+    timeoutMs: 30000
   }
 };
 
@@ -280,6 +281,10 @@ export class ConfigLoader {
 
     if (config.agent?.defaults?.maxSessions !== undefined && config.agent.defaults.maxSessions < 1) {
       errors.push('maxSessions must be >= 1');
+    }
+
+    if (config.tools?.timeoutMs !== undefined && config.tools.timeoutMs < 1) {
+      errors.push('tools.timeoutMs must be >= 1');
     }
 
     if (config.channels) {
