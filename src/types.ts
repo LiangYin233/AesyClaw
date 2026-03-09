@@ -102,6 +102,11 @@ export interface Config {
   skills?: Record<string, { enabled: boolean }>;
   log?: LogConfig;
   metrics?: MetricsConfig;
+  tools?: ToolsConfig;
+}
+
+export interface ToolsConfig {
+  blacklist?: string[];  // 工具黑名单
 }
 
 export interface LogConfig {

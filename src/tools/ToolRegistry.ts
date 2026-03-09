@@ -36,6 +36,7 @@ const DEFAULT_TIMEOUT = CONSTANTS.TOOL_TIMEOUT;
 export class ToolRegistry {
   private tools: Map<string, Tool> = new Map();
   private toolSources: Map<string, ToolSourceInfo> = new Map();
+  private blacklist: Set<string> = new Set();
   private log = logger.child({ prefix: 'ToolRegistry' });
 
   register(tool: Tool, source: ToolSource = 'built-in'): void {
@@ -100,8 +101,31 @@ export class ToolRegistry {
     return count;
   }
 
+  /**
+   * 设置工具黑名单
+   */
+  setBlacklist(names: string[]): void {
+    this.blacklist = new Set(names);
+    this.log.debug(`Tool blacklist set: ${names.join(', ')}`);
+  }
+
+  /**
+   * 获取当前黑名单
+   */
+  getBlacklist(): string[] {
+    return Array.from(this.blacklist);
+  }
+
+  /**
+   * 检查工具是否在黑名单中
+   */
+  isBlacklisted(name: string): boolean {
+    return this.blacklist.has(name);
+  }
+
   getDefinitions(): ToolDefinition[] {
     return Array.from(this.tools.values())
+      .filter(tool => !this.blacklist.has(tool.name))
       .map(tool => ({
         name: tool.name,
         description: tool.description,

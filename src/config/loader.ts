@@ -57,6 +57,9 @@ const DEFAULT_CONFIG: Config = {
   metrics: {
     enabled: true,
     maxMetrics: 10000
+  },
+  tools: {
+    blacklist: []
   }
 };
 

@@ -363,6 +363,12 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     log.info('API server disabled by configuration');
   }
 
+  // 11. 应用工具黑名单
+  if (config.tools?.blacklist && config.tools.blacklist.length > 0) {
+    toolRegistry.setBlacklist(config.tools.blacklist);
+    log.info(`Tool blacklist applied: ${config.tools.blacklist.join(', ')}`);
+  }
+
   log.info('All services initialized successfully');
 
   return {
