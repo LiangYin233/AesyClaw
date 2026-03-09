@@ -7,6 +7,7 @@ import type { PluginManager } from '../plugins/index.js';
 import { SkillManager } from '../skills/index.js';
 import { CommandRegistry } from './commands/index.js';
 import { AgentExecutor } from './AgentExecutor.js';
+import { BackgroundTaskManager } from './BackgroundTaskManager.js';
 import { logger } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
 import { CONFIG_DEFAULTS } from '../constants/index.js';
@@ -18,6 +19,7 @@ export class AgentLoop {
   private eventBus: EventBus;
   private sessionManager: SessionManager;
   private executor: AgentExecutor;
+  private backgroundTasks: BackgroundTaskManager;
   private running = false;
   private toolContext: ToolContext;
   private contextMode: ContextMode;
@@ -59,6 +61,9 @@ export class AgentLoop {
       systemPrompt, skillsPrompt, model, maxIterations,
       undefined, visionSettings, visionProvider
     );
+
+    // 初始化后台任务管理器
+    this.backgroundTasks = new BackgroundTaskManager(eventBus);
 
     this.log.info(`Initialized with model: ${model}, contextMode: ${contextMode}, vision: ${visionSettings?.enabled || false}`);
   }
@@ -213,6 +218,7 @@ export class AgentLoop {
         await this.pluginManager.applyOnAgentBefore(msg, messages);
       }
 
+      // 使用 executeWithBackground：只要 LLM 返回 toolCalls 就后台执行
       let result;
       if (useVisionProvider) {
         this.log.info('Using vision provider for this request');
@@ -222,12 +228,102 @@ export class AgentLoop {
           sessionKey
         }, msg.media, msg.files);
       } else {
-        result = await this.executor.execute(messages, this.toolContext, {
+        result = await this.executor.executeWithBackground(messages, this.toolContext, {
           allowTools: true,
           source: 'user',
-          sessionKey
+          sessionKey,
+          // 回调：检测到需要工具执行时
+          onNeedsBackground: async (response, bgMessages, bgContext) => {
+            // 1. 立即发送"正在处理"响应
+            await this.sendOutbound({
+              channel: msg.channel,
+              chatId: msg.chatId,
+              content: '收到，正在处理...',
+              messageType: msg.messageType
+            });
+
+            // 2. 保存用户消息
+            await this.sessionManager.addMessage(sessionKey, 'user', msg.content);
+
+            // 3. 启动后台任务执行完整的工具循环，传入回调处理插件钩子和会话保存
+            await this.backgroundTasks.startTask(
+              this.executor,
+              sessionKey,
+              msg.channel,
+              msg.chatId,
+              msg.messageType,
+              bgMessages,
+              bgContext,
+              response,
+              {
+                // 后台任务完成回调
+                onComplete: async (bgResult, finalMessages) => {
+                  // 获取完整的会话消息（包括 assistant 响应）
+                  const session = await this.sessionManager.getOrCreate(sessionKey);
+
+                  // 添加 assistant 消息（从后台任务的最后一条 assistant 消息）
+                  const assistantMessages = finalMessages.filter(m => m.role === 'assistant');
+                  for (const assistantMsg of assistantMessages) {
+                    if (assistantMsg.content) {
+                      const content = typeof assistantMsg.content === 'string'
+                        ? assistantMsg.content
+                        : assistantMsg.content.find(c => c.type === 'text')?.text || '';
+                      if (content) {
+                        await this.sessionManager.addMessage(sessionKey, 'assistant', content);
+                      }
+                    }
+                  }
+
+                  await this.sessionManager.save(session);
+
+                  // 调用插件 after 钩子
+                  const llmResponse: LLMResponse = {
+                    content: bgResult.content,
+                    reasoning_content: bgResult.reasoning_content,
+                    toolCalls: [],
+                    finishReason: bgResult.agentMode ? 'tool_use' : 'stop'
+                  };
+                  if (this.pluginManager) {
+                    await this.pluginManager.applyOnAgentAfter(msg, llmResponse);
+                  }
+
+                  // 发送最终回复
+                  await this.sendOutbound({
+                    channel: msg.channel,
+                    chatId: msg.chatId,
+                    content: bgResult.content,
+                    reasoning_content: bgResult.reasoning_content,
+                    messageType: msg.messageType
+                  });
+
+                  this.log.info(`Background task completed for session ${sessionKey}`);
+                },
+                // 后台任务错误回调
+                onError: async (error) => {
+                  this.log.error(`Background task error for session ${sessionKey}:`, error);
+                  // 调用插件错误钩子
+                  if (this.pluginManager) {
+                    await this.pluginManager.applyOnError(error, { type: 'agent', data: { sessionKey } });
+                  }
+                }
+              }
+            );
+          }
         });
       }
+
+      // 如果不需要后台执行（无 toolCalls），同步处理
+      if (result.needsBackground) {
+        // 需要后台执行，立即返回（不保存 assistant 消息，由后台任务保存）
+        this.log.info(`Session ${sessionKey} delegated to background, returning immediately`);
+        metrics.record('agent.message_count', 1, 'count', { status: 'background' });
+        return;
+      }
+
+      // 保存会话消息（同步执行路径）
+      await this.sessionManager.addMessage(sessionKey, 'user', msg.content);
+      await this.sessionManager.addMessage(sessionKey, 'assistant', result.content);
+      await this.sessionManager.save(session);
 
       const llmResponse: LLMResponse = {
         content: result.content,
@@ -348,8 +444,26 @@ export class AgentLoop {
     const sessionKey = this.channelSessions.get(key);
     if (sessionKey) {
       this.executor.abort(sessionKey);
+      // 同时中止后台任务
+      this.backgroundTasks.abortTask(sessionKey);
       this.log.info(`Aborted session: ${sessionKey} (channel: ${channel}, chatId: ${chatId})`);
       return true;
+    }
+    return false;
+  }
+
+  /**
+   * 中止指定 channel:chatId 的后台任务
+   */
+  abortBackgroundSession(channel: string, chatId: string): boolean {
+    const key = `${channel}:${chatId}`;
+    const sessionKey = this.channelSessions.get(key);
+    if (sessionKey) {
+      const aborted = this.backgroundTasks.abortTask(sessionKey);
+      if (aborted) {
+        this.log.info(`Aborted background tasks for session: ${sessionKey} (channel: ${channel}, chatId: ${chatId})`);
+      }
+      return aborted;
     }
     return false;
   }

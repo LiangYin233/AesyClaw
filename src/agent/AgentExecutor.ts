@@ -15,11 +15,27 @@ export interface ExecuteOptions {
   sessionKey?: string;
 }
 
+export interface BackgroundResultState {
+  messages: LLMMessage[];
+  toolContext: ToolContext;
+  startIndex: number;
+}
+
+export interface ExecuteBackgroundOptions extends ExecuteOptions {
+  onNeedsBackground?: (
+    response: LLMResponse,
+    messages: LLMMessage[],
+    toolContext: ToolContext
+  ) => Promise<void>;
+}
+
 export interface AgentResult {
   content: string;
   reasoning_content?: string;
   toolsUsed: string[];
   agentMode: boolean;
+  needsBackground?: boolean;
+  backgroundState?: BackgroundResultState;
 }
 
 /**
@@ -482,6 +498,218 @@ export class AgentExecutor {
 
     this.log.warn(`Reached max iterations (${max}), tools used: ${toolsUsed.join(', ') || 'none'}`);
     return { content: '已达到最大迭代次数', reasoning_content: undefined, toolsUsed, agentMode };
+  }
+
+  /**
+   * 执行一轮 LLM，如果需要工具执行则触发后台回调
+   * 返回包含 needsBackground 标记的结果，告知调用者需要后台执行
+   */
+  async executeWithBackground(
+    messages: LLMMessage[],
+    toolContext: ToolContext,
+    options?: ExecuteBackgroundOptions
+  ): Promise<AgentResult & { needsBackground?: boolean; backgroundState?: BackgroundResultState }> {
+    const tools = options?.allowTools !== false ? this.toolRegistry.getDefinitions() : [];
+    const sessionKey = options?.sessionKey;
+
+    // 创建中止控制器
+    let abortController: AbortController | undefined;
+    if (sessionKey) {
+      abortController = this.createAbortController(sessionKey);
+    }
+
+    // 检查是否已被中止
+    const checkAbort = () => {
+      if (abortController?.signal.aborted) {
+        throw new Error('Execution aborted');
+      }
+    };
+    checkAbort();
+
+    const reasoning = this.visionSettings?.reasoning || false;
+    const response = await this.provider.chat(messages, tools, this.model, { reasoning, signal: abortController?.signal });
+
+    // 没有 toolCalls，同步返回
+    if (response.toolCalls.length === 0) {
+      messages.push({ role: 'assistant', content: response.content || '' });
+      return {
+        content: response.content || '',
+        reasoning_content: response.reasoning_content,
+        toolsUsed: [],
+        agentMode: false,
+        needsBackground: false
+      };
+    }
+
+    // 有 toolCalls，将 assistant 消息添加到 messages 中
+    messages.push({
+      role: 'assistant',
+      content: response.content || '',
+      toolCalls: response.toolCalls
+    });
+
+    // 触发后台回调并立即返回
+    if (options?.onNeedsBackground) {
+      await options.onNeedsBackground(response, messages, toolContext);
+    }
+
+    // 返回标记，告知需要后台执行完整的工具循环
+    return {
+      content: response.content || '',
+      reasoning_content: response.reasoning_content,
+      toolsUsed: [],
+      agentMode: true,
+      needsBackground: true,
+      backgroundState: {
+        messages,
+        toolContext,
+        startIndex: messages.length - response.toolCalls.length
+      }
+    };
+  }
+
+  /**
+   * 在后台执行完整的工具循环（供 BackgroundTaskManager 调用）
+   * 从第一次 toolCalls 开始执行，不需要再次调用 LLM
+   */
+  async executeToolLoop(
+    messages: LLMMessage[],
+    toolContext: ToolContext,
+    options?: ExecuteOptions & { initialToolCalls?: any[] }
+  ): Promise<AgentResult> {
+    const toolsUsed: string[] = [];
+    const max = options?.maxIterations ?? this.maxIterations;
+    const allowTools = options?.allowTools ?? true;
+    const source = options?.source ?? 'user';
+    const sessionKey = options?.sessionKey;
+    const initialToolCalls = options?.initialToolCalls;
+    let agentMode = true; // 已经有 toolCalls，所以是 agent 模式
+
+    // 创建中止控制器
+    let abortController: AbortController | undefined;
+    if (sessionKey) {
+      abortController = this.createAbortController(sessionKey);
+    }
+
+    // 检查是否已被中止
+    const checkAbort = () => {
+      if (abortController?.signal.aborted) {
+        throw new Error('Execution aborted');
+      }
+    };
+
+    // 如果有初始 toolCalls，先执行它们
+    let toolCallQueue = [...(initialToolCalls || [])];
+    let iteration = 0;
+
+    while (toolCallQueue.length > 0 && iteration < max) {
+      iteration++;
+      checkAbort();
+
+      // 执行当前队列中的所有 toolCalls
+      for (const toolCall of toolCallQueue) {
+        checkAbort();
+
+        const toolName = toolCall.name;
+
+        if (!toolName) {
+          this.log.error(`Tool name is undefined, toolCall: ${JSON.stringify(toolCall).substring(0, 200)}`);
+          continue;
+        }
+
+        toolsUsed.push(toolName);
+        this.log.info(`[Background] Executing tool: ${toolName}`);
+
+        let toolArgs = toolCall.arguments || {};
+        const toolEndTimer = metrics.timer('agent.tool_execution', { tool: toolName });
+        let result: string;
+
+        try {
+          let execToolName = toolName;
+          if (execToolName.includes(':')) {
+            execToolName = execToolName.replace(':', '_mcp_');
+          }
+
+          const execContext = { ...toolContext, source, signal: abortController?.signal };
+
+          if (this.pluginManager) {
+            toolArgs = await this.pluginManager.applyOnBeforeToolCall(toolName, toolArgs, execContext);
+          }
+
+          result = await this.toolRegistry.execute(execToolName, toolArgs, execContext);
+          this.log.info(`[Background] Tool ${toolName} executed successfully, result length: ${result.length}`);
+
+          if (this.pluginManager) {
+            result = await this.pluginManager.applyOnToolCall(toolName, toolArgs, result);
+          }
+
+          metrics.record('agent.tool_call_count', 1, 'count', { tool: toolName, status: 'success' });
+        } catch (error: unknown) {
+          const { normalizeError, isRetryableError } = await import('../logger/index.js');
+          const message = normalizeError(error);
+          const isRetryable = isRetryableError(error);
+          result = `Error: ${message}${isRetryable ? ' (retryable)' : ''}`;
+          this.log.error(`[Background] Tool ${toolName} execution failed:`, message);
+
+          metrics.record('agent.tool_call_count', 1, 'count', { tool: toolName, status: 'error' });
+
+          if (this.pluginManager) {
+            await this.pluginManager.applyOnError(error, { type: 'tool', data: { toolName, toolArgs } });
+          }
+        } finally {
+          toolEndTimer();
+        }
+
+        messages.push({
+          role: 'tool',
+          content: result,
+          toolCallId: toolCall.id || '',
+          name: toolName
+        });
+      }
+
+      // 执行完所有 toolCalls 后，继续调用 LLM 获取下一轮响应
+      checkAbort();
+
+      const tools = allowTools ? this.toolRegistry.getDefinitions() : [];
+      const reasoning = this.visionSettings?.reasoning || false;
+      const response = await this.provider.chat(messages, tools, this.model, { reasoning, signal: abortController?.signal });
+
+      if (response.usage) {
+        const { prompt_tokens, completion_tokens, total_tokens } = response.usage;
+        metrics.record('llm.tokens.prompt', prompt_tokens, 'count', { source });
+        metrics.record('llm.tokens.completion', completion_tokens, 'count', { source });
+        metrics.record('llm.tokens.total', total_tokens, 'count', { source });
+        tokenStats.record(prompt_tokens, completion_tokens, total_tokens);
+      }
+
+      if (response.toolCalls.length > 0) {
+        // 继续循环，执行下一轮 toolCalls
+        messages.push({
+          role: 'assistant',
+          content: response.content || '',
+          toolCalls: response.toolCalls
+        });
+        toolCallQueue = response.toolCalls;
+      } else {
+        // 没有更多 toolCalls，任务完成
+        this.log.info(`[Background] LLM response complete, no more tool calls`);
+        messages.push({ role: 'assistant', content: response.content || '' });
+        return { content: response.content || '', reasoning_content: response.reasoning_content, toolsUsed, agentMode };
+      }
+    }
+
+    if (toolCallQueue.length > 0) {
+      this.log.warn(`[Background] Reached max iterations (${max})`);
+      return { content: '已达到最大迭代次数', reasoning_content: undefined, toolsUsed, agentMode };
+    }
+
+    // 正常结束 - 提取文本内容
+    const lastMessage = messages[messages.length - 1];
+    const lastContent = typeof lastMessage?.content === 'string'
+      ? lastMessage.content
+      : lastMessage?.content?.find(c => c.type === 'text')?.text || '';
+    return { content: lastContent, reasoning_content: undefined, toolsUsed, agentMode };
   }
 
   /**
