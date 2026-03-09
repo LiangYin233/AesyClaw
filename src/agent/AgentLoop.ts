@@ -6,7 +6,7 @@ import type { SessionManager } from '../session/SessionManager.js';
 import type { PluginManager } from '../plugins/index.js';
 import { SkillManager } from '../skills/index.js';
 import { CommandRegistry } from './commands/index.js';
-import { AgentExecutor } from './AgentExecutor.js';
+import { AgentExecutor } from './executor/AgentExecutor.js';
 import { logger } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
 import { CONFIG_DEFAULTS } from '../constants/index.js';
