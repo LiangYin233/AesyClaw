@@ -120,7 +120,7 @@ export class OpenAIProvider extends LLMProvider {
     messages: LLMMessage[],
     tools?: ToolDefinition[],
     model?: string,
-    options?: { maxTokens?: number; temperature?: number; reasoning?: boolean }
+    options?: { maxTokens?: number; temperature?: number; reasoning?: boolean; signal?: AbortSignal }
   ): Promise<LLMResponse> {
     const url = `${this.apiBase || this.baseURL}/chat/completions`;
     const modelName = model || this.getDefaultModel();
@@ -178,7 +178,8 @@ export class OpenAIProvider extends LLMProvider {
       const response = await fetch(url, {
         method: 'POST',
         headers,
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        signal: options?.signal
       });
 
       const data = await response.json() as OpenAIResponse;

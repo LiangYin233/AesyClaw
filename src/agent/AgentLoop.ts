@@ -23,6 +23,7 @@ export class AgentLoop {
   private contextMode: ContextMode;
   private memoryWindow: number;
   private channelSessions: Map<string, string> = new Map();
+  private currentSessionKey?: string;
   private pluginManager?: PluginManager;
   private commandRegistry?: CommandRegistry;
   private visionSettings?: VisionSettings;
@@ -116,6 +117,18 @@ export class AgentLoop {
 
       const channelChatKey = `${msg.channel}:${msg.chatId}`;
 
+      // 预先计算 sessionKey（供命令使用）
+      if (!msg.sessionKey) {
+        if (this.contextMode === 'channel') {
+          msg.sessionKey = this.channelSessions.get(channelChatKey) || this.sessionManager.createNewSession(msg.channel, msg.chatId);
+          this.channelSessions.set(channelChatKey, msg.sessionKey);
+        } else if (this.contextMode === 'global') {
+          msg.sessionKey = 'global';
+        } else {
+          msg.sessionKey = this.sessionManager.createNewSession(msg.channel, msg.chatId);
+        }
+      }
+
       // 1. 内置命令
       if (this.commandRegistry) {
         const cmdResult = await this.commandRegistry.execute(msg);
@@ -205,12 +218,14 @@ export class AgentLoop {
         this.log.info('Using vision provider for this request');
         result = await this.executor.executeWithVision(messages, this.toolContext, {
           allowTools: true,
-          source: 'user'
+          source: 'user',
+          sessionKey
         }, msg.media, msg.files);
       } else {
         result = await this.executor.execute(messages, this.toolContext, {
           allowTools: true,
-          source: 'user'
+          source: 'user',
+          sessionKey
         });
       }
 
@@ -250,6 +265,14 @@ export class AgentLoop {
     }
   }
 
+  /**
+   * 中止指定会话的执行
+   */
+  abortExecution(sessionKey: string): void {
+    this.executor.abort(sessionKey);
+    this.log.info(`Aborted execution for session: ${sessionKey}`);
+  }
+
   async processDirect(
     content: string,
     sessionKey: string,
@@ -264,7 +287,7 @@ export class AgentLoop {
 
     try {
       const messages = this.executor.buildContext(session.messages, content);
-      const result = await this.executor.execute(messages, this.toolContext);
+      const result = await this.executor.execute(messages, this.toolContext, { sessionKey });
 
       await this.sessionManager.addMessage(sessionKey, 'user', content);
       await this.sessionManager.addMessage(sessionKey, 'assistant', result.content);
@@ -300,5 +323,34 @@ export class AgentLoop {
   setCommandRegistry(registry: CommandRegistry): void {
     this.commandRegistry = registry;
     this.log.info('CommandRegistry attached');
+  }
+
+  /**
+   * 获取当前正在执行的会话 key
+   */
+  getCurrentSessionKey(): string | undefined {
+    return this.currentSessionKey;
+  }
+
+  /**
+   * 根据 channel:chatId 获取当前会话 key
+   */
+  getSessionKey(channel: string, chatId: string): string | undefined {
+    const key = `${channel}:${chatId}`;
+    return this.channelSessions.get(key);
+  }
+
+  /**
+   * 直接中止指定会话的执行（供 channel 直接调用）
+   */
+  abortSession(channel: string, chatId: string): boolean {
+    const key = `${channel}:${chatId}`;
+    const sessionKey = this.channelSessions.get(key);
+    if (sessionKey) {
+      this.executor.abort(sessionKey);
+      this.log.info(`Aborted session: ${sessionKey} (channel: ${channel}, chatId: ${chatId})`);
+      return true;
+    }
+    return false;
   }
 }

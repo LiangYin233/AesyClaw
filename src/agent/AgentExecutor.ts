@@ -12,6 +12,7 @@ export interface ExecuteOptions {
   allowTools?: boolean;
   maxIterations?: number;
   source?: 'user' | 'cron';
+  sessionKey?: string;
 }
 
 export interface AgentResult {
@@ -35,6 +36,7 @@ export class AgentExecutor {
   private visionSettings?: VisionSettings;
   private visionProvider?: LLMProvider;
   private log = logger.child({ prefix: 'AgentExecutor' });
+  private abortControllers: Map<string, AbortController> = new Map();
 
   constructor(
     provider: LLMProvider,
@@ -56,6 +58,36 @@ export class AgentExecutor {
     this.pluginManager = pluginManager;
     this.visionSettings = visionSettings;
     this.visionProvider = visionProvider;
+  }
+
+  /**
+   * 创建指定会话的中止控制器
+   */
+  private createAbortController(sessionKey: string): AbortController {
+    const controller = new AbortController();
+    this.abortControllers.set(sessionKey, controller);
+    controller.signal.addEventListener('abort', () => {
+      this.abortControllers.delete(sessionKey);
+    });
+    return controller;
+  }
+
+  /**
+   * 获取指定会话的中止信号
+   */
+  getAbortSignal(sessionKey: string): AbortSignal | undefined {
+    return this.abortControllers.get(sessionKey)?.signal;
+  }
+
+  /**
+   * 中止指定会话的执行
+   */
+  abort(sessionKey: string): void {
+    const controller = this.abortControllers.get(sessionKey);
+    if (controller) {
+      controller.abort();
+      this.log.info(`Aborted session: ${sessionKey}`);
+    }
   }
 
   /**
@@ -121,12 +153,28 @@ export class AgentExecutor {
     const max = options?.maxIterations ?? this.maxIterations;
     const allowTools = options?.allowTools ?? true;
     const source = options?.source ?? 'user';
+    const sessionKey = options?.sessionKey;
     let agentMode = false;
 
+    // 创建中止控制器（如果提供了 sessionKey）
+    let abortController: AbortController | undefined;
+    if (sessionKey) {
+      abortController = this.createAbortController(sessionKey);
+    }
+
+    // 检查是否已被中止
+    const checkAbort = () => {
+      if (abortController?.signal.aborted) {
+        throw new Error('Execution aborted');
+      }
+    };
+
     for (let i = 0; i < max; i++) {
+      checkAbort();
+
       const tools = allowTools ? this.toolRegistry.getDefinitions() : [];
 
-      const response = await provider.chat(messages, tools, model);
+      const response = await provider.chat(messages, tools, model, { signal: abortController?.signal });
 
       if (response.usage) {
         const { prompt_tokens, completion_tokens, total_tokens } = response.usage;
@@ -149,6 +197,9 @@ export class AgentExecutor {
         });
 
         for (const toolCall of response.toolCalls) {
+          // 检查是否已被中止
+          checkAbort();
+
           const toolName = toolCall.name;
 
           if (!toolName) {
@@ -169,7 +220,7 @@ export class AgentExecutor {
               execToolName = execToolName.replace(':', '_mcp_');
             }
 
-            const execContext = { ...toolContext, source };
+            const execContext = { ...toolContext, source, signal: abortController?.signal };
 
             if (this.pluginManager) {
               toolArgs = await this.pluginManager.applyOnBeforeToolCall(toolName, toolArgs, execContext);
@@ -307,9 +358,25 @@ export class AgentExecutor {
     const max = options?.maxIterations ?? this.maxIterations;
     const allowTools = options?.allowTools ?? true;
     const source = options?.source ?? 'user';
+    const sessionKey = options?.sessionKey;
     let agentMode = false;
 
+    // 创建中止控制器（如果提供了 sessionKey）
+    let abortController: AbortController | undefined;
+    if (sessionKey) {
+      abortController = this.createAbortController(sessionKey);
+    }
+
+    // 检查是否已被中止
+    const checkAbort = () => {
+      if (abortController?.signal.aborted) {
+        throw new Error('Execution aborted');
+      }
+    };
+
     for (let i = 0; i < max; i++) {
+      checkAbort();
+
       const tools = allowTools ? this.toolRegistry.getDefinitions() : [];
 
       if (i === 0 && tools.length > 0) {
@@ -319,7 +386,7 @@ export class AgentExecutor {
       // 获取 reasoning 配置
       const reasoning = this.visionSettings?.reasoning || false;
 
-      const response = await this.provider.chat(messages, tools, this.model, { reasoning });
+      const response = await this.provider.chat(messages, tools, this.model, { reasoning, signal: abortController?.signal });
 
       // Record token usage metrics and stats
       if (response.usage) {
@@ -343,6 +410,9 @@ export class AgentExecutor {
         });
 
         for (const toolCall of response.toolCalls) {
+          // 检查是否已被中止
+          checkAbort();
+
           const toolName = toolCall.name;
 
           if (!toolName) {
@@ -365,7 +435,7 @@ export class AgentExecutor {
               execToolName = execToolName.replace(':', '_mcp_');
             }
 
-            const execContext = { ...toolContext, source };
+            const execContext = { ...toolContext, source, signal: abortController?.signal };
 
             if (this.pluginManager) {
               toolArgs = await this.pluginManager.applyOnBeforeToolCall(toolName, toolArgs, execContext);

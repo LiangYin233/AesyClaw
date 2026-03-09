@@ -126,8 +126,12 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     (agent as any).channelSessions  // 访问私有字段
   );
   commandRegistry.registerHandler(sessionCommands);
+
+  // 设置 EventBus 的 stop 命令处理器（用于立即中断）
+  eventBus.setStopHandler((channel, chatId) => agent.abortSession(channel, chatId));
+
   agent.setCommandRegistry(commandRegistry);
-  log.info('Command registry initialized with session commands');
+  log.info('Command registry initialized');
 
   // 5. PluginManager (依赖 agent, toolRegistry, eventBus)
   const pluginManager = new PluginManager(

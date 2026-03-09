@@ -4,16 +4,35 @@ import { CONSTANTS } from '../constants/index.js';
 
 const MAX_QUEUE_SIZE = CONSTANTS.QUEUE_SIZE;
 
+export type StopHandler = (channel: string, chatId: string) => boolean;
+
 export class EventBus extends EventEmitter {
   private inboundQueue: InboundMessage[] = [];
   private inboundWaiter: ((msg: InboundMessage) => void) | null = null;
+  private stopHandler: StopHandler | null = null;
 
   constructor() {
     super();
     this.setMaxListeners(50);
   }
 
+  /**
+   * 设置停止命令处理器
+   */
+  setStopHandler(handler: StopHandler): void {
+    this.stopHandler = handler;
+  }
+
   publishInbound(msg: InboundMessage): void {
+    // 检查是否是 stop 命令
+    if (this.stopHandler && msg.content === '/stop') {
+      const handled = this.stopHandler(msg.channel, msg.chatId);
+      if (handled) {
+        this.emit('stop', msg);
+        return;
+      }
+    }
+
     this.emit('inbound', msg);
 
     if (this.inboundWaiter) {
