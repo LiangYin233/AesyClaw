@@ -6,7 +6,7 @@ import type { SessionManager } from '../session/SessionManager.js';
 import type { PluginManager } from '../plugins/index.js';
 import { SkillManager } from '../skills/index.js';
 import { CommandRegistry } from './commands/index.js';
-import { AgentExecutor } from './AgentExecutor.js';
+import { AgentExecutor } from './executor/AgentExecutor.js';
 import { BackgroundTaskManager } from './BackgroundTaskManager.js';
 import { logger } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
@@ -226,7 +226,7 @@ export class AgentLoop {
           allowTools: true,
           source: 'user',
           sessionKey
-        }, msg.media, msg.files);
+        });
       } else {
         result = await this.executor.executeWithBackground(messages, this.toolContext, {
           allowTools: true,
@@ -254,7 +254,7 @@ export class AgentLoop {
               msg.messageType,
               bgMessages,
               bgContext,
-              response,
+              response as any,
               {
                 // 后台任务完成回调
                 onComplete: async (bgResult, finalMessages) => {
@@ -313,7 +313,8 @@ export class AgentLoop {
       }
 
       // 如果不需要后台执行（无 toolCalls），同步处理
-      if (result.needsBackground) {
+      const bgResult = result as any;
+      if (bgResult.needsBackground) {
         // 需要后台执行，立即返回（不保存 assistant 消息，由后台任务保存）
         this.log.info(`Session ${sessionKey} delegated to background, returning immediately`);
         metrics.record('agent.message_count', 1, 'count', { status: 'background' });

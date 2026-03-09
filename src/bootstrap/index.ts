@@ -38,7 +38,7 @@ export async function bootstrap(port: number): Promise<void> {
       log.info(`Cron job triggered: ${job.name}`);
 
       const { provider, toolRegistry, sessionManager, config: cronConfig, pluginManager, eventBus } = services;
-      const { AgentExecutor } = await import('../agent/AgentExecutor.js');
+      const { AgentExecutor } = await import('../agent/executor/AgentExecutor.js');
 
       const executor = new AgentExecutor(
         provider, toolRegistry, workspace,
