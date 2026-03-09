@@ -14,6 +14,39 @@ const plugin = {
   version: '1.0.0',
   description: '使用 OpenAI 兼容的 STT API 转录语音消息',
 
+  tools: [
+    {
+      name: 'transcribe_audio',
+      description: '将音频文件转写为文字。支持 MP3、WAV、M4A、OGG 等格式。',
+      parameters: {
+        type: 'object',
+        properties: {
+          file_path: {
+            type: 'string',
+            description: '音频文件的完整路径，如 /path/to/audio.mp3'
+          }
+        },
+        required: ['file_path']
+      },
+      execute: async (params) => {
+        const { file_path } = params;
+        // 验证文件存在
+        try {
+          await fs.access(file_path);
+        } catch {
+          return `错误：文件不存在或路径无效: ${file_path}`;
+        }
+        // 调用已有的 transcribe 方法
+        try {
+          const result = await plugin.transcribe(file_path);
+          return result;
+        } catch (error) {
+          return `转写失败: ${error.message}`;
+        }
+      }
+    }
+  ],
+
   log: console,
   config: {},
   downloadDir: null,
