@@ -1,17 +1,18 @@
 import type { InboundMessage } from '../../types.js';
 import type { SessionManager } from '../../session/SessionManager.js';
+import type { SessionRoutingService } from '../SessionRoutingService.js';
 import { CommandHandler, type CommandDefinition } from './CommandHandler.js';
 import { logger } from '../../logger/index.js';
 
 export class SessionCommands extends CommandHandler {
   private sessionManager: SessionManager;
-  private channelSessions: Map<string, string>;
+  private sessionRouting: SessionRoutingService;
   private log = logger.child({ prefix: 'SessionCommands' });
 
-  constructor(sessionManager: SessionManager, channelSessions: Map<string, string>) {
+  constructor(sessionManager: SessionManager, sessionRouting: SessionRoutingService) {
     super();
     this.sessionManager = sessionManager;
-    this.channelSessions = channelSessions;
+    this.sessionRouting = sessionRouting;
   }
 
   getCommands(): CommandDefinition[] {
@@ -38,9 +39,7 @@ export class SessionCommands extends CommandHandler {
   }
 
   private async handleNew(msg: InboundMessage, args: string[]): Promise<InboundMessage | null> {
-    const channelChatKey = `${msg.channel}:${msg.chatId}`;
-    const newSessionKey = this.sessionManager.createNewSession(msg.channel, msg.chatId);
-    this.channelSessions.set(channelChatKey, newSessionKey);
+    const newSessionKey = this.sessionRouting.createNewSession(msg.channel, msg.chatId);
 
     const uuid = newSessionKey.split(':')[2] || 'default';
     this.log.info(`Created new session: ${newSessionKey}`);
@@ -52,8 +51,7 @@ export class SessionCommands extends CommandHandler {
   }
 
   private async handleList(msg: InboundMessage, args: string[]): Promise<InboundMessage | null> {
-    const channelChatKey = `${msg.channel}:${msg.chatId}`;
-    const currentSessionKey = this.channelSessions.get(channelChatKey);
+    const currentSessionKey = this.sessionRouting.getActiveSession(msg.channel, msg.chatId);
 
     const allSessions = this.sessionManager.list();
     const channelSessions = allSessions
@@ -83,7 +81,6 @@ export class SessionCommands extends CommandHandler {
 
   private async handleSwitch(msg: InboundMessage, args: string[]): Promise<InboundMessage | null> {
     const targetIndex = parseInt(args[0], 10);
-    const channelChatKey = `${msg.channel}:${msg.chatId}`;
 
     const allSessions = this.sessionManager.list();
     const channelSessions = allSessions
@@ -98,7 +95,7 @@ export class SessionCommands extends CommandHandler {
     }
 
     const targetSession = channelSessions[targetIndex - 1];
-    this.channelSessions.set(channelChatKey, targetSession.key);
+    this.sessionRouting.switchSession(msg.channel, msg.chatId, targetSession.key);
 
     const uuid = targetSession.uuid || 'default';
     this.log.info(`Switched to session: ${targetSession.key}`);

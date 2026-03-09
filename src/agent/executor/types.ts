@@ -24,6 +24,7 @@ export interface ExecutionOptions {
   sessionKey?: string;
   source?: 'user' | 'cron';
   initialToolCalls?: ToolCall[];
+  signal?: AbortSignal;
 }
 
 // 后台执行结果
@@ -40,6 +41,8 @@ export interface BackgroundExecutionResult extends ExecutionResult {
 export interface LLMCallOptions {
   allowTools?: boolean;
   maxIterations?: number;
+  reasoning?: boolean;
+  signal?: AbortSignal;
 }
 
 // 策略接口

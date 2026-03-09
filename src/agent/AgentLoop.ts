@@ -1,4 +1,4 @@
-import type { LLMMessage, InboundMessage, OutboundMessage, LLMResponse, VisionSettings } from '../types.js';
+import type { LLMMessage, InboundMessage, OutboundMessage, VisionSettings } from '../types.js';
 import type { EventBus } from '../bus/EventBus.js';
 import type { LLMProvider } from '../providers/base.js';
 import type { ToolRegistry, ToolContext } from '../tools/ToolRegistry.js';
@@ -8,10 +8,16 @@ import { SkillManager } from '../skills/index.js';
 import { CommandRegistry } from './commands/index.js';
 import { AgentExecutor } from './executor/AgentExecutor.js';
 import { BackgroundTaskManager } from './BackgroundTaskManager.js';
+import { SessionRoutingService } from './SessionRoutingService.js';
+import { ExecutionRegistry } from './ExecutionRegistry.js';
+import { ExecutionCompletionService } from './ExecutionCompletionService.js';
+import { ExecutionControlService, type ExecutionStatus } from './ExecutionControlService.js';
+import { ExecutionCoordinator } from './ExecutionCoordinator.js';
+import { MessageApplicationService } from './MessageApplicationService.js';
+import { MessagePreprocessingService } from './MessagePreprocessingService.js';
 import { logger } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
 import { CONFIG_DEFAULTS } from '../constants/index.js';
-import { shouldSkipLLM, getSkipReason } from '../plugins/IntentHelpers.js';
 
 export type ContextMode = 'session' | 'channel' | 'global';
 
@@ -20,11 +26,17 @@ export class AgentLoop {
   private sessionManager: SessionManager;
   private executor: AgentExecutor;
   private backgroundTasks: BackgroundTaskManager;
+  private sessionRouting: SessionRoutingService;
+  private executionRegistry: ExecutionRegistry;
+  private completionService: ExecutionCompletionService;
+  private executionControl: ExecutionControlService;
+  private executionCoordinator: ExecutionCoordinator;
+  private messageApplication: MessageApplicationService;
+  private preprocessingService: MessagePreprocessingService;
   private running = false;
   private toolContext: ToolContext;
   private contextMode: ContextMode;
   private memoryWindow: number;
-  private channelSessions: Map<string, string> = new Map();
   private currentSessionKey?: string;
   private pluginManager?: PluginManager;
   private commandRegistry?: CommandRegistry;
@@ -45,12 +57,16 @@ export class AgentLoop {
     memoryWindow: number = CONFIG_DEFAULTS.DEFAULT_MEMORY_WINDOW,
     skillManager?: SkillManager,
     visionSettings?: VisionSettings,
-    visionProvider?: LLMProvider
+    visionProvider?: LLMProvider,
+    sessionRouting?: SessionRoutingService
   ) {
     this.eventBus = eventBus;
     this.sessionManager = sessionManager;
     this.contextMode = contextMode;
     this.memoryWindow = memoryWindow;
+    this.executionRegistry = new ExecutionRegistry();
+    this.sessionRouting = sessionRouting ?? new SessionRoutingService(sessionManager, contextMode);
+    this.completionService = new ExecutionCompletionService(sessionManager);
     this.toolContext = { workspace, eventBus };
     this.visionSettings = visionSettings;
     this.visionProvider = visionProvider;
@@ -59,11 +75,26 @@ export class AgentLoop {
     this.executor = new AgentExecutor(
       provider, toolRegistry, workspace,
       systemPrompt, skillsPrompt, model, maxIterations,
-      undefined, visionSettings, visionProvider
+      undefined, visionSettings, visionProvider, this.executionRegistry
     );
 
     // 初始化后台任务管理器
     this.backgroundTasks = new BackgroundTaskManager(eventBus);
+    this.executionControl = new ExecutionControlService(
+      this.sessionRouting,
+      this.executionRegistry,
+      this.backgroundTasks
+    );
+    this.executionCoordinator = new ExecutionCoordinator(
+      this.executor,
+      this.backgroundTasks,
+      this.completionService
+    );
+    this.messageApplication = new MessageApplicationService(
+      this.executor,
+      this.executionCoordinator
+    );
+    this.preprocessingService = new MessagePreprocessingService();
 
     this.log.info(`Initialized with model: ${model}, contextMode: ${contextMode}, vision: ${visionSettings?.enabled || false}`);
   }
@@ -71,6 +102,21 @@ export class AgentLoop {
   setPluginManager(pm: PluginManager): void {
     this.pluginManager = pm;
     this.executor.setPluginManager(pm);
+    this.completionService = new ExecutionCompletionService(this.sessionManager, pm);
+    this.executionCoordinator = new ExecutionCoordinator(
+      this.executor,
+      this.backgroundTasks,
+      this.completionService
+    );
+    this.messageApplication = new MessageApplicationService(
+      this.executor,
+      this.executionCoordinator,
+      pm
+    );
+    this.preprocessingService = new MessagePreprocessingService(
+      this.commandRegistry,
+      pm
+    );
     this.log.info('PluginManager attached');
   }
 
@@ -104,7 +150,7 @@ export class AgentLoop {
     }
   }
 
-  private async processMessage(msg: InboundMessage): Promise<void> {
+  private async processMessage(msg: InboundMessage, suppressOutbound = false): Promise<string | undefined> {
     const endTimer = metrics.timer('agent.process_message', {
       channel: msg.channel,
       sessionKey: msg.sessionKey || 'unknown'
@@ -120,244 +166,62 @@ export class AgentLoop {
         messageType: msg.messageType
       };
 
-      const channelChatKey = `${msg.channel}:${msg.chatId}`;
+      const { sessionKey: initialSessionKey } = this.sessionRouting.resolve(msg);
+      msg.sessionKey = initialSessionKey;
 
-      // 预先计算 sessionKey（供命令使用）
-      if (!msg.sessionKey) {
-        if (this.contextMode === 'channel') {
-          msg.sessionKey = this.channelSessions.get(channelChatKey) || this.sessionManager.createNewSession(msg.channel, msg.chatId);
-          this.channelSessions.set(channelChatKey, msg.sessionKey);
-        } else if (this.contextMode === 'global') {
-          msg.sessionKey = 'global';
-        } else {
-          msg.sessionKey = this.sessionManager.createNewSession(msg.channel, msg.chatId);
-        }
+      const preprocessResult = await this.preprocessingService.process(msg, {
+        suppressOutbound,
+        sendOutbound: (outbound) => this.sendOutbound(outbound)
+      });
+
+      if (preprocessResult.type === 'handled') {
+        return undefined;
       }
 
-      // 1. 内置命令
-      if (this.commandRegistry) {
-        const cmdResult = await this.commandRegistry.execute(msg);
-        if (cmdResult !== null) {
-          this.log.info('Built-in command executed');
-          await this.sendOutbound({ channel: cmdResult.channel, chatId: cmdResult.chatId, content: cmdResult.content, messageType: cmdResult.messageType });
-          return;
-        }
+      if (preprocessResult.type === 'reply') {
+        return preprocessResult.content;
       }
 
-      // 2. 插件命令
-      if (this.pluginManager) {
-        const cmdResult = await this.pluginManager.applyOnCommand(msg);
-        if (cmdResult !== null) {
-          await this.sendOutbound({ channel: cmdResult.channel, chatId: cmdResult.chatId, content: cmdResult.content, messageType: cmdResult.messageType });
-          return;
-        }
+      msg = preprocessResult.message;
 
-        // 3. 插件消息钩子
-        const handled = await this.pluginManager.applyOnMessage(msg);
-        if (handled === null) {
-          this.log.debug('Message handled by plugin (null), skipping');
-          return;
-        }
-
-        // 如果插件设置了跳过 LLM 的意图，直接发送回复
-        if (shouldSkipLLM(handled)) {
-          const reason = getSkipReason(handled);
-          this.log.info(`Skipping LLM processing: ${reason}`);
-          await this.sendOutbound({
-            channel: handled.channel,
-            chatId: handled.chatId,
-            content: handled.content,
-            messageType: handled.messageType
-          });
-          return;
-        }
-
-        msg = handled;
+      // sessionKey 已在预处理阶段计算，直接使用
+      // 如果插件处理后丢失，从 channelSessions 恢复
+      let sessionKey = msg.sessionKey;
+      if (!sessionKey && this.contextMode === 'channel') {
+        sessionKey = this.sessionRouting.getActiveSession(msg.channel, msg.chatId);
+      }
+      if (!sessionKey) {
+        sessionKey = this.sessionRouting.createNewSession(msg.channel, msg.chatId);
       }
 
-      let sessionKey: string;
-      if (msg.sessionKey) {
-        sessionKey = msg.sessionKey;
-      } else if (this.contextMode === 'channel') {
-        sessionKey = this.channelSessions.get(channelChatKey) || this.sessionManager.createNewSession(msg.channel, msg.chatId);
-        this.channelSessions.set(channelChatKey, sessionKey);
-      } else if (this.contextMode === 'global') {
-        sessionKey = 'global';
-      } else {
-        sessionKey = this.sessionManager.createNewSession(msg.channel, msg.chatId);
-      }
-
+      this.currentSessionKey = sessionKey;
       this.log.debug(`Processing message for session: ${sessionKey} (mode: ${this.contextMode})`);
       const session = await this.sessionManager.getOrCreate(sessionKey);
       this.log.debug(`Session messages count: ${session.messages.length}`);
 
-      // Set current context for system prompt
-      this.executor.getContextBuilder().setCurrentContext(msg.channel, msg.chatId, msg.messageType);
-
-      // 将已下载的文件路径追加到消息内容
-      if (msg.files && msg.files.length > 0) {
-        const savedPaths = msg.files.filter(f => f.localPath).map(f => f.localPath!);
-        if (savedPaths.length > 0) {
-          this.log.info(`Received ${savedPaths.length} file(s): ${savedPaths.join(', ')}`);
-          const note = savedPaths.map(p => `[文件已保存至: ${p}]`).join('\n');
-          msg = { ...msg, content: msg.content ? `${msg.content}\n${note}` : note };
-        }
-      }
-
-      // 检查是否需要使用视觉模型
-      const useVisionProvider = this.executor.needsVisionProvider(msg.media, msg.files);
-
-      const messages = this.executor.buildContext(
-        session.messages.slice(-this.memoryWindow),
-        msg.content,
-        msg.media,
-        msg.files
-      );
-
-      if (this.pluginManager) {
-        await this.pluginManager.applyOnAgentBefore(msg, messages);
-      }
-
-      // 使用 executeWithBackground：只要 LLM 返回 toolCalls 就后台执行
-      let result;
-      if (useVisionProvider) {
-        this.log.info('Using vision provider for this request');
-        result = await this.executor.executeWithVision(messages, this.toolContext, {
-          allowTools: true,
-          source: 'user',
-          sessionKey
-        });
-      } else {
-        result = await this.executor.executeWithBackground(messages, this.toolContext, {
-          allowTools: true,
-          source: 'user',
-          sessionKey,
-          // 回调：检测到需要工具执行时
-          onNeedsBackground: async (response, bgMessages, bgContext) => {
-            // 1. 立即发送"正在处理"响应
-            await this.sendOutbound({
-              channel: msg.channel,
-              chatId: msg.chatId,
-              content: '收到，正在处理...',
-              messageType: msg.messageType
-            });
-
-            // 2. 保存用户消息
-            await this.sessionManager.addMessage(sessionKey, 'user', msg.content);
-
-            // 3. 启动后台任务执行完整的工具循环，传入回调处理插件钩子和会话保存
-            await this.backgroundTasks.startTask(
-              this.executor,
-              sessionKey,
-              msg.channel,
-              msg.chatId,
-              msg.messageType,
-              bgMessages,
-              bgContext,
-              response as any,
-              {
-                // 后台任务完成回调
-                onComplete: async (bgResult, finalMessages) => {
-                  // 获取完整的会话消息（包括 assistant 响应）
-                  const session = await this.sessionManager.getOrCreate(sessionKey);
-
-                  // 添加 assistant 消息（从后台任务的最后一条 assistant 消息）
-                  const assistantMessages = finalMessages.filter(m => m.role === 'assistant');
-                  for (const assistantMsg of assistantMessages) {
-                    if (assistantMsg.content) {
-                      const content = typeof assistantMsg.content === 'string'
-                        ? assistantMsg.content
-                        : assistantMsg.content.find(c => c.type === 'text')?.text || '';
-                      if (content) {
-                        await this.sessionManager.addMessage(sessionKey, 'assistant', content);
-                      }
-                    }
-                  }
-
-                  await this.sessionManager.save(session);
-
-                  // 调用插件 after 钩子
-                  const llmResponse: LLMResponse = {
-                    content: bgResult.content,
-                    reasoning_content: bgResult.reasoning_content,
-                    toolCalls: [],
-                    finishReason: bgResult.agentMode ? 'tool_use' : 'stop'
-                  };
-                  if (this.pluginManager) {
-                    await this.pluginManager.applyOnAgentAfter(msg, llmResponse);
-                  }
-
-                  // 发送最终回复
-                  await this.sendOutbound({
-                    channel: msg.channel,
-                    chatId: msg.chatId,
-                    content: bgResult.content,
-                    reasoning_content: bgResult.reasoning_content,
-                    messageType: msg.messageType
-                  });
-
-                  this.log.info(`Background task completed for session ${sessionKey}`);
-                },
-                // 后台任务错误回调
-                onError: async (error) => {
-                  this.log.error(`Background task error for session ${sessionKey}:`, error);
-                  // 调用插件错误钩子
-                  if (this.pluginManager) {
-                    await this.pluginManager.applyOnError(error, { type: 'agent', data: { sessionKey } });
-                  }
-                }
-              }
-            );
-          }
-        });
-      }
-
-      // 如果不需要后台执行（无 toolCalls），同步处理
-      const bgResult = result as any;
-      if (bgResult.needsBackground) {
-        // 需要后台执行，立即返回（不保存 assistant 消息，由后台任务保存）
-        this.log.info(`Session ${sessionKey} delegated to background, returning immediately`);
-        metrics.record('agent.message_count', 1, 'count', { status: 'background' });
-        return;
-      }
-
-      // 保存会话消息（同步执行路径）
-      await this.sessionManager.addMessage(sessionKey, 'user', msg.content);
-      await this.sessionManager.addMessage(sessionKey, 'assistant', result.content);
-      await this.sessionManager.save(session);
-
-      const llmResponse: LLMResponse = {
-        content: result.content,
-        reasoning_content: result.reasoning_content,
-        toolCalls: [],
-        finishReason: result.agentMode ? 'max_iterations' : 'stop'
-      };
-
-      if (this.pluginManager) {
-        await this.pluginManager.applyOnAgentAfter(msg, llmResponse);
-      }
-
-      this.log.debug(`LLM response: ${result.content.slice(0, 100)}...`);
-      this.log.debug(`Tools used: ${result.toolsUsed.join(', ') || '(none)'}, agentMode: ${result.agentMode}`);
-
-      await this.sessionManager.addMessage(sessionKey, 'user', msg.content);
-      await this.sessionManager.addMessage(sessionKey, 'assistant', result.content);
-      await this.sessionManager.save(session);
-
-      await this.sendOutbound({
-        channel: msg.channel,
-        chatId: msg.chatId,
-        content: result.content,
-        reasoning_content: result.reasoning_content,
-        messageType: msg.messageType
+      const executionResult = await this.messageApplication.execute({
+        sessionKey,
+        request: msg,
+        history: session.messages.slice(-this.memoryWindow),
+        toolContext: this.toolContext,
+        suppressOutbound,
+        sendOutbound: (outbound) => this.sendOutbound(outbound)
       });
 
+      if (executionResult.needsBackground) {
+        this.log.info(`Session ${sessionKey} delegated to background, returning immediately`);
+        metrics.record('agent.message_count', 1, 'count', { status: 'background' });
+        return executionResult.content;
+      }
+
       metrics.record('agent.message_count', 1, 'count', { status: 'success' });
+      return executionResult.content;
     } catch (error) {
       this.log.error(`Failed to process message from ${msg.channel}:${msg.chatId}:`, error);
       metrics.record('agent.message_count', 1, 'count', { status: 'error' });
       throw error;
     } finally {
+      this.currentSessionKey = undefined;
       endTimer();
     }
   }
@@ -366,8 +230,14 @@ export class AgentLoop {
    * 中止指定会话的执行
    */
   abortExecution(sessionKey: string): void {
-    this.executor.abort(sessionKey);
-    this.log.info(`Aborted execution for session: ${sessionKey}`);
+    const aborted = this.executionControl.abortExecution(sessionKey);
+    this.log.info(aborted
+      ? `Aborted execution for session: ${sessionKey}`
+      : `Abort requested for inactive session: ${sessionKey}`);
+  }
+
+  async processInbound(msg: InboundMessage): Promise<string | undefined> {
+    return this.processMessage(msg, true);
   }
 
   async processDirect(
@@ -375,25 +245,21 @@ export class AgentLoop {
     sessionKey: string,
     contextOverride?: Partial<ToolContext>
   ): Promise<string> {
-    const session = await this.sessionManager.getOrCreate(sessionKey);
-    const originalContext = { ...this.toolContext };
+    const response = await this.processInbound({
+      channel: contextOverride?.channel || 'api',
+      senderId: contextOverride?.chatId || 'api',
+      chatId: contextOverride?.chatId || 'api',
+      content,
+      timestamp: new Date(),
+      sessionKey,
+      messageType: contextOverride?.messageType,
+      metadata: {
+        suppressOutbound: true,
+        directResponse: true
+      }
+    });
 
-    if (contextOverride) {
-      this.toolContext = { ...this.toolContext, ...contextOverride };
-    }
-
-    try {
-      const messages = this.executor.buildContext(session.messages, content);
-      const result = await this.executor.execute(messages, this.toolContext, { sessionKey });
-
-      await this.sessionManager.addMessage(sessionKey, 'user', content);
-      await this.sessionManager.addMessage(sessionKey, 'assistant', result.content);
-      await this.sessionManager.save(session);
-
-      return result.content;
-    } finally {
-      this.toolContext = originalContext;
-    }
+    return response || '';
   }
 
   stop(): void {
@@ -419,6 +285,10 @@ export class AgentLoop {
 
   setCommandRegistry(registry: CommandRegistry): void {
     this.commandRegistry = registry;
+    this.preprocessingService = new MessagePreprocessingService(
+      registry,
+      this.pluginManager
+    );
     this.log.info('CommandRegistry attached');
   }
 
@@ -433,39 +303,34 @@ export class AgentLoop {
    * 根据 channel:chatId 获取当前会话 key
    */
   getSessionKey(channel: string, chatId: string): string | undefined {
-    const key = `${channel}:${chatId}`;
-    return this.channelSessions.get(key);
+    return this.sessionRouting.resolveByChannel(channel, chatId);
+  }
+
+  getExecutionStatus(sessionKey: string): ExecutionStatus {
+    return this.executionControl.getExecutionStatus(sessionKey);
   }
 
   /**
    * 直接中止指定会话的执行（供 channel 直接调用）
    */
   abortSession(channel: string, chatId: string): boolean {
-    const key = `${channel}:${chatId}`;
-    const sessionKey = this.channelSessions.get(key);
-    if (sessionKey) {
-      this.executor.abort(sessionKey);
-      // 同时中止后台任务
-      this.backgroundTasks.abortTask(sessionKey);
+    const aborted = this.executionControl.abortSession(channel, chatId);
+    if (aborted) {
+      const sessionKey = this.sessionRouting.resolveByChannel(channel, chatId);
       this.log.info(`Aborted session: ${sessionKey} (channel: ${channel}, chatId: ${chatId})`);
-      return true;
     }
-    return false;
+    return aborted;
   }
 
   /**
    * 中止指定 channel:chatId 的后台任务
    */
   abortBackgroundSession(channel: string, chatId: string): boolean {
-    const key = `${channel}:${chatId}`;
-    const sessionKey = this.channelSessions.get(key);
-    if (sessionKey) {
-      const aborted = this.backgroundTasks.abortTask(sessionKey);
-      if (aborted) {
-        this.log.info(`Aborted background tasks for session: ${sessionKey} (channel: ${channel}, chatId: ${chatId})`);
-      }
-      return aborted;
+    const aborted = this.executionControl.abortBackgroundSession(channel, chatId);
+    if (aborted) {
+      const sessionKey = this.sessionRouting.resolveByChannel(channel, chatId);
+      this.log.info(`Aborted background tasks for session: ${sessionKey} (channel: ${channel}, chatId: ${chatId})`);
     }
-    return false;
+    return aborted;
   }
 }

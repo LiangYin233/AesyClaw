@@ -166,9 +166,12 @@ export class OpenAIProvider extends LLMProvider {
       };
 
       // 添加推理参数（用于推理模型如 o1, o3）- 兼容两种格式
-      if (options?.reasoning) {
+      if (options?.reasoning === true) {
         requestBody.enable_thinking = true;
         requestBody.thinking = { type: 'enabled' };
+      } else if (options?.reasoning === false) {
+        requestBody.enable_thinking = false;
+        requestBody.thinking = { type: 'disabled' };
       }
 
       if (this.extraBody) {

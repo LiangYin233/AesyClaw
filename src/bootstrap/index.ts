@@ -37,59 +37,33 @@ export async function bootstrap(port: number): Promise<void> {
     onCronJob: async (job: CronJob) => {
       log.info(`Cron job triggered: ${job.name}`);
 
-      const { provider, toolRegistry, sessionManager, config: cronConfig, pluginManager, eventBus } = services;
-      const { AgentExecutor } = await import('../agent/executor/AgentExecutor.js');
-
-      const executor = new AgentExecutor(
-        provider, toolRegistry, workspace,
-        cronConfig.agent.defaults.systemPrompt,
-        undefined,
-        cronConfig.agent.defaults.model,
-        cronConfig.agent.defaults.maxToolIterations,
-        pluginManager
-      );
-
+      const { eventBus } = services;
       const sessionKey = `cron:${job.id}:${randomUUID().slice(0, 8)}`;
       const target = job.payload.target;
 
       try {
-        let toolContext: import('../tools/ToolRegistry.js').ToolContext = { workspace, eventBus };
+        const { agent } = services;
+        let contextOverride: import('../tools/ToolRegistry.js').ToolContext | undefined;
 
         if (target) {
           const parsed = parseTarget(target);
           if (parsed) {
-            toolContext = {
-              ...toolContext,
+            contextOverride = {
+              workspace,
+              eventBus,
               channel: parsed.channel,
               chatId: parsed.chatId,
               messageType: parsed.messageType,
-              source: 'cron' as const
+              source: 'cron'
             };
           } else {
             log.error(`Invalid target format: ${target}`);
           }
         }
 
-        const session = await sessionManager.getOrCreate(sessionKey);
-        const messages = executor.buildContext(session.messages, job.payload.detail);
-        const result = await executor.execute(messages, toolContext, { allowTools: true, source: 'cron' });
+        await agent.processDirect(job.payload.detail, sessionKey, contextOverride);
 
-        await sessionManager.addMessage(sessionKey, 'user', job.payload.detail);
-        await sessionManager.addMessage(sessionKey, 'assistant', result.content);
-
-        if (target && toolContext.chatId) {
-          let outboundMsg: OutboundMessage = {
-            channel: toolContext.channel!,
-            chatId: toolContext.chatId,
-            content: result.content,
-            messageType: toolContext.messageType!
-          };
-
-          if (pluginManager) {
-            outboundMsg = await pluginManager.applyOnResponse(outboundMsg) || outboundMsg;
-          }
-
-          await eventBus.publishOutbound(outboundMsg);
+        if (target && contextOverride?.chatId) {
           log.info(`Cron job response sent to ${target}`);
         }
       } catch (error: unknown) {

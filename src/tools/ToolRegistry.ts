@@ -33,6 +33,59 @@ export interface ToolContext {
 
 const DEFAULT_TIMEOUT = CONSTANTS.TOOL_TIMEOUT;
 
+function createTimeoutError(toolName: string, timeout: number): Error {
+  return new Error(`Tool execution timeout: ${toolName} (${timeout}ms)`);
+}
+
+function createAbortError(message: string): Error {
+  const error = new Error(message);
+  error.name = 'AbortError';
+  return error;
+}
+
+function mergeAbortSignals(signals: Array<AbortSignal | undefined>): {
+  signal?: AbortSignal;
+  cleanup: () => void;
+} {
+  const activeSignals = signals.filter((signal): signal is AbortSignal => !!signal);
+  if (activeSignals.length === 0) {
+    return {
+      signal: undefined,
+      cleanup: () => {}
+    };
+  }
+
+  const controller = new AbortController();
+  const listeners: Array<{ signal: AbortSignal; listener: () => void }> = [];
+  const abort = (signal: AbortSignal) => {
+    if (!controller.signal.aborted) {
+      const reason = signal.reason instanceof Error
+        ? signal.reason
+        : createAbortError(typeof signal.reason === 'string' ? signal.reason : 'Tool execution aborted');
+      controller.abort(reason);
+    }
+  };
+
+  for (const signal of activeSignals) {
+    if (signal.aborted) {
+      abort(signal);
+      break;
+    }
+    const listener = () => abort(signal);
+    listeners.push({ signal, listener });
+    signal.addEventListener('abort', listener, { once: true });
+  }
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      for (const { signal, listener } of listeners) {
+        signal.removeEventListener('abort', listener);
+      }
+    }
+  };
+}
+
 export class ToolRegistry {
   private tools: Map<string, Tool> = new Map();
   private toolSources: Map<string, ToolSourceInfo> = new Map();
@@ -157,35 +210,54 @@ export class ToolRegistry {
     }
 
     const timeout = tool.timeout || DEFAULT_TIMEOUT;  // 获取超时时间
-    const controller = new AbortController();
+    const timeoutController = new AbortController();
     const timeoutId = setTimeout(() => {
-      controller.abort();  // 超时后中止执行
+      timeoutController.abort(createTimeoutError(tool.name, timeout));
       this.log.warn(`Tool ${name} execution timed out after ${timeout}ms`);
     }, timeout);
 
+    const { signal: mergedSignal, cleanup: cleanupMergedSignal } = mergeAbortSignals([context?.signal, timeoutController.signal]);
     const execContext: ToolContext = {
       workspace: '',
       ...context,
-      signal: controller.signal
+      signal: mergedSignal
     };
 
     try {
       const result = await Promise.race([
         tool.execute(params, execContext),  // 执行工具
         new Promise<never>((_, reject) => {
-          controller.signal.addEventListener('abort', () => {
-            reject(new Error('Tool execution aborted'));
-          });
+          if (!mergedSignal) {
+            return;
+          }
+
+          const onAbort = () => {
+            const reason = mergedSignal.reason;
+            if (reason instanceof Error) {
+              reject(reason);
+              return;
+            }
+            reject(createAbortError(typeof reason === 'string' ? reason : 'Tool execution aborted'));
+          };
+
+          if (mergedSignal.aborted) {
+            onAbort();
+            return;
+          }
+
+          mergedSignal.addEventListener('abort', onAbort, { once: true });
         })
       ]);
       clearTimeout(timeoutId);  // 清除超时计时器
+      cleanupMergedSignal();
       this.log.debug(`Tool ${name} completed successfully, result length: ${result.length}`);
       return result;
     } catch (error) {
       clearTimeout(timeoutId);
+      cleanupMergedSignal();
       this.log.debug(`Tool ${name} execution error: ${error instanceof Error ? error.message : String(error)}`);
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`Tool execution timeout: ${tool.name} (${timeout}ms)`, { cause: error });
+        throw error;
       }
       throw error;
     }

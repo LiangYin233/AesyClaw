@@ -28,20 +28,19 @@ export class ToolLoopRunner {
     const source = options.source ?? 'user';
     const sessionKey = options.sessionKey;
     const initialToolCalls = options.initialToolCalls;
+    const executionSignal = options.signal;
 
     let agentMode = !!initialToolCalls;
     let toolCallQueue = [...(initialToolCalls || [])];
     let iteration = 0;
 
-    // 创建中止控制器
-    let abortController: AbortController | undefined;
-    if (sessionKey) {
-      abortController = new AbortController();
-    }
-
     const checkAbort = () => {
-      if (abortController?.signal.aborted) {
-        throw new Error('Execution aborted');
+      if (executionSignal?.aborted) {
+        const reason = executionSignal.reason;
+        if (reason instanceof Error) {
+          throw reason;
+        }
+        throw new Error(typeof reason === 'string' ? reason : 'Execution aborted');
       }
     };
 
@@ -72,7 +71,7 @@ export class ToolLoopRunner {
             execToolName = execToolName.replace(':', '_mcp_');
           }
 
-          const execContext = { ...toolContext, source, signal: abortController?.signal };
+          const execContext = { ...toolContext, source, signal: executionSignal };
 
           if (this.pluginManager) {
             toolArgs = await this.pluginManager.applyOnBeforeToolCall(toolName, toolArgs, execContext);
@@ -113,7 +112,10 @@ export class ToolLoopRunner {
       checkAbort();
 
       const tools = allowTools ? this.toolRegistry.getDefinitions() : [];
-      const response = await this.provider.chat(messages, tools, options.model);
+      const response = await this.provider.chat(messages, tools, options.model, {
+        signal: executionSignal,
+        reasoning: this.visionSettings?.reasoning
+      });
 
       if (response.usage) {
         const { prompt_tokens, completion_tokens, total_tokens } = response.usage;
@@ -160,10 +162,13 @@ export class ToolLoopRunner {
   async callLLM(
     messages: LLMMessage[],
     model: string,
-    options?: { allowTools?: boolean }
+    options?: { allowTools?: boolean; reasoning?: boolean; signal?: AbortSignal }
   ): Promise<{ content: string; reasoning_content?: string; usage?: any; toolCalls: ToolCall[] }> {
     const tools = options?.allowTools !== false ? this.toolRegistry.getDefinitions() : [];
-    const response = await this.provider.chat(messages, tools, model);
+    const response = await this.provider.chat(messages, tools, model, {
+      reasoning: options?.reasoning,
+      signal: options?.signal
+    });
     return {
       content: response.content || '',
       reasoning_content: response.reasoning_content,

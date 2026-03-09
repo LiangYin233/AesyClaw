@@ -1,19 +1,28 @@
-import type { LLMMessage, OutboundMessage, LLMResponse } from '../types.js';
+import type { LLMMessage, LLMResponse } from '../types.js';
 import type { ToolContext } from '../tools/ToolRegistry.js';
 import type { EventBus } from '../bus/EventBus.js';
 import { logger } from '../logger/index.js';
 
+export interface BackgroundTaskResult {
+  content: string;
+  reasoning_content?: string;
+  toolsUsed: string[];
+  agentMode: boolean;
+}
+
 export interface BackgroundTaskCallbacks {
   onComplete?: (
-    result: {
-      content: string;
-      reasoning_content?: string;
-      toolsUsed: string[];
-      agentMode: boolean;
-    },
+    result: BackgroundTaskResult,
     messages: LLMMessage[]
   ) => Promise<void>;
   onError?: (error: Error) => Promise<void>;
+}
+
+export interface BackgroundTaskHandle {
+  id: string;
+  sessionKey: string;
+  status: 'pending' | 'running' | 'completed' | 'aborted' | 'failed';
+  createdAt: Date;
 }
 
 interface BackgroundTask {
@@ -25,10 +34,12 @@ interface BackgroundTask {
   messages: LLMMessage[];
   toolContext: ToolContext;
   initialResponse: LLMResponse;
-  status: 'pending' | 'running' | 'completed' | 'aborted';
+  status: 'pending' | 'running' | 'completed' | 'aborted' | 'failed';
   createdAt: Date;
   abortController: AbortController;
   callbacks?: BackgroundTaskCallbacks;
+  result?: BackgroundTaskResult;
+  error?: Error;
 }
 
 export interface BackgroundTaskExecutor {
@@ -40,6 +51,7 @@ export interface BackgroundTaskExecutor {
       allowTools?: boolean;
       source?: 'user' | 'cron';
       initialToolCalls?: any[];
+      signal?: AbortSignal;
     }
   ): Promise<{
     content: string;
@@ -84,7 +96,7 @@ export class BackgroundTaskManager {
     toolContext: ToolContext,
     initialResponse: LLMResponse,
     callbacks?: BackgroundTaskCallbacks
-  ): Promise<string> {
+  ): Promise<BackgroundTaskHandle> {
     const sessionTasks = this.getTasksBySession(sessionKey);
     if (sessionTasks.length >= this.maxConcurrentPerSession) {
       await this.sendBusyMessage(channel, chatId, messageType);
@@ -117,7 +129,7 @@ export class BackgroundTaskManager {
       this.log.error(`Background task ${taskId} failed:`, err);
     });
 
-    return taskId;
+    return this.toHandle(task);
   }
 
   /**
@@ -139,19 +151,27 @@ export class BackgroundTaskManager {
           sessionKey: task.sessionKey,
           allowTools: true,
           source: 'user',
-          initialToolCalls
+          initialToolCalls,
+          signal: task.abortController.signal
         }
       );
+
+      task.result = result;
+      task.status = 'completed';
 
       // 调用完成回调
       await task.callbacks?.onComplete?.(result, task.messages);
     } catch (error: any) {
-      if (error.message === 'Execution aborted') {
+      const normalizedError = error instanceof Error ? error : new Error(String(error));
+      task.error = normalizedError;
+      if (normalizedError.message === 'Execution aborted' || normalizedError.name === 'AbortError') {
         task.status = 'aborted';
         this.log.info(`Background task ${task.id} aborted`);
+      } else {
+        task.status = 'failed';
       }
       // 调用错误回调
-      await task.callbacks?.onError?.(error);
+      await task.callbacks?.onError?.(normalizedError);
     } finally {
       this.tasks.delete(task.id);
       this.log.info(`Background task ${task.id} completed, remaining tasks: ${this.tasks.size}`);
@@ -215,6 +235,21 @@ export class BackgroundTaskManager {
   }
 
   /**
+   * 获取指定会话的任务句柄
+   */
+  getTasksBySessionHandle(sessionKey: string): BackgroundTaskHandle[] {
+    return this.getTasksBySession(sessionKey).map(task => this.toHandle(task));
+  }
+
+  /**
+   * 获取后台任务句柄
+   */
+  getTask(taskId: string): BackgroundTaskHandle | undefined {
+    const task = this.tasks.get(taskId);
+    return task ? this.toHandle(task) : undefined;
+  }
+
+  /**
    * 获取当前任务数量
    */
   getTaskCount(): number {
@@ -226,5 +261,14 @@ export class BackgroundTaskManager {
    */
   getTaskCountBySession(sessionKey: string): number {
     return this.getTasksBySession(sessionKey).length;
+  }
+
+  private toHandle(task: BackgroundTask): BackgroundTaskHandle {
+    return {
+      id: task.id,
+      sessionKey: task.sessionKey,
+      status: task.status,
+      createdAt: task.createdAt
+    };
   }
 }

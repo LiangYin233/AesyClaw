@@ -6,6 +6,8 @@ import { ContextBuilder } from '../ContextBuilder.js';
 import { logger } from '../../logger/index.js';
 import { ToolLoopRunner } from './ToolLoopRunner.js';
 import { SyncStrategy, BackgroundStrategy, VisionStrategy } from './strategies.js';
+import { ExecutionRegistry } from '../ExecutionRegistry.js';
+import { isVisionableFile } from '../visionFileUtils.js';
 import type { ExecutionResult, BackgroundExecutionResult, ExecutionOptions, LLMCallOptions, VisionSettings } from './types.js';
 
 export class AgentExecutor {
@@ -14,6 +16,7 @@ export class AgentExecutor {
   private syncStrategy: SyncStrategy;
   private backgroundStrategy: BackgroundStrategy;
   private visionStrategy?: VisionStrategy;
+  private executionRegistry: ExecutionRegistry;
   private log = logger.child({ prefix: 'AgentExecutor' });
 
   constructor(
@@ -26,8 +29,10 @@ export class AgentExecutor {
     private maxIterations: number = 40,
     private pluginManager?: PluginManager,
     visionSettings?: VisionSettings,
-    visionProvider?: LLMProvider
+    visionProvider?: LLMProvider,
+    executionRegistry?: ExecutionRegistry
   ) {
+    this.executionRegistry = executionRegistry ?? new ExecutionRegistry();
     this.contextBuilder = new ContextBuilder(workspace, systemPrompt, skillsPrompt);
     this.toolLoopRunner = new ToolLoopRunner(provider, toolRegistry, pluginManager, visionSettings);
 
@@ -56,11 +61,13 @@ export class AgentExecutor {
     toolContext: ToolContext,
     options?: ExecutionOptions
   ): Promise<ExecutionResult> {
-    return this.syncStrategy.execute(messages, toolContext, {
-      allowTools: true,
-      maxIterations: this.maxIterations,
-      ...options
-    });
+    return this.runWithExecutionControl(options, (executionOptions) =>
+      this.syncStrategy.execute(messages, toolContext, {
+        allowTools: true,
+        maxIterations: this.maxIterations,
+        ...executionOptions
+      })
+    );
   }
 
   /**
@@ -82,11 +89,14 @@ export class AgentExecutor {
       this.model,
       options?.onNeedsBackground
     );
-    return strategy.execute(messages, toolContext, {
-      allowTools: true,
-      maxIterations: this.maxIterations,
-      ...options
-    });
+
+    return this.runWithExecutionControl(options, (executionOptions) =>
+      strategy.execute(messages, toolContext, {
+        allowTools: true,
+        maxIterations: this.maxIterations,
+        ...executionOptions
+      })
+    );
   }
 
   /**
@@ -100,11 +110,13 @@ export class AgentExecutor {
     if (!this.visionStrategy) {
       throw new Error('Vision provider not configured');
     }
-    return this.visionStrategy.execute(messages, toolContext, {
-      allowTools: true,
-      maxIterations: this.maxIterations,
-      ...options
-    });
+    return this.runWithExecutionControl(options, (executionOptions) =>
+      this.visionStrategy!.execute(messages, toolContext, {
+        allowTools: true,
+        maxIterations: this.maxIterations,
+        ...executionOptions
+      })
+    );
   }
 
   /**
@@ -117,7 +129,7 @@ export class AgentExecutor {
     const result = await this.toolLoopRunner.callLLM(
       messages,
       this.model,
-      { allowTools: options?.allowTools }
+      { allowTools: options?.allowTools, reasoning: options?.reasoning, signal: options?.signal }
     );
 
     return { content: result.content || '', reasoning_content: result.reasoning_content };
@@ -155,22 +167,17 @@ export class AgentExecutor {
   needsVisionProvider(media?: string[], files?: InboundFile[]): boolean {
     if (!this.visionStrategy) return false;
     const hasMedia = media && media.length > 0;
-    const hasVisionableFiles = files?.some(f =>
-      f.type === 'image' || this.isVisionableFile(f)
-    ) ?? false;
+    const hasVisionableFiles = files?.some(isVisionableFile) ?? false;
     return hasMedia || hasVisionableFiles;
-  }
-
-  private isVisionableFile(file: InboundFile): boolean {
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
-    return imageExtensions.some(ext => file.name?.toLowerCase().endsWith(ext));
   }
 
   // === BackgroundTaskExecutor 接口方法 ===
 
   abort(sessionKey: string): void {
-    // TODO: 实现中止功能
-    this.log.info(`Abort requested for session: ${sessionKey}`);
+    const aborted = this.executionRegistry.abort(sessionKey);
+    this.log.info(aborted
+      ? `Abort requested for session: ${sessionKey}`
+      : `Abort requested for inactive session: ${sessionKey}`);
   }
 
   async executeToolLoop(
@@ -181,6 +188,7 @@ export class AgentExecutor {
       allowTools?: boolean;
       source?: 'user' | 'cron';
       initialToolCalls?: any[];
+      signal?: AbortSignal;
     }
   ): Promise<{
     content: string;
@@ -188,12 +196,36 @@ export class AgentExecutor {
     toolsUsed: string[];
     agentMode: boolean;
   }> {
-    return this.toolLoopRunner.run(messages, toolContext, {
-      ...options,
-      model: this.model,
-      allowTools: options?.allowTools ?? true,
-      maxIterations: this.maxIterations
-    });
+    return this.runWithExecutionControl(options, (executionOptions) =>
+      this.toolLoopRunner.run(messages, toolContext, {
+        ...executionOptions,
+        model: this.model,
+        allowTools: executionOptions.allowTools ?? true,
+        maxIterations: executionOptions.maxIterations ?? this.maxIterations
+      })
+    );
+  }
+
+  private async runWithExecutionControl<T>(
+    options: { sessionKey?: string; signal?: AbortSignal } | undefined,
+    execute: (executionOptions: ExecutionOptions) => Promise<T>
+  ): Promise<T> {
+    if (!options?.sessionKey) {
+      return execute({ ...(options || {}) });
+    }
+
+    const controller = options.signal
+      ? undefined
+      : this.executionRegistry.begin(options.sessionKey);
+    const signal = options.signal ?? controller?.signal;
+
+    try {
+      return await execute({ ...(options || {}), signal });
+    } finally {
+      if (controller) {
+        this.executionRegistry.end(options.sessionKey, controller);
+      }
+    }
   }
 }
 

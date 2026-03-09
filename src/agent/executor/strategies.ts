@@ -47,7 +47,10 @@ export class BackgroundStrategy implements ExecutionStrategy {
     const llmResult = await this.runner.callLLM(
       messages,
       this.model,
-      { allowTools: options.allowTools !== false }
+      {
+        allowTools: options.allowTools !== false,
+        signal: options.signal
+      }
     );
 
     if (llmResult.toolCalls.length === 0) {

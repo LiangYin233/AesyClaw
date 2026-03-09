@@ -1,4 +1,5 @@
 import type { LLMMessage, InboundFile } from '../types.js';
+import { isVisionableFile } from './visionFileUtils.js';
 
 export class ContextBuilder {
   private workspace: string;
@@ -75,9 +76,7 @@ export class ContextBuilder {
     files?: InboundFile[]
   ): string | Array<{ type: string; text?: string; image_url?: { url: string } }> {
     const hasMedia = media && media.length > 0;
-    const hasVisionableFiles = files && files.some(f =>
-      f.type === 'image' || this.isVisionableFile(f)
-    );
+    const hasVisionableFiles = files && files.some(isVisionableFile);
 
     if (hasMedia || hasVisionableFiles) {
       const content: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
@@ -94,7 +93,7 @@ export class ContextBuilder {
       // 添加图片文件
       if (files) {
         for (const file of files) {
-          if (file.localPath && this.isVisionableFile(file)) {
+          if (file.localPath && isVisionableFile(file)) {
             content.push({ type: 'image_url', image_url: { url: `file://${file.localPath}` } });
           }
         }
@@ -103,13 +102,5 @@ export class ContextBuilder {
       return content;
     }
     return message;
-  }
-
-  /**
-   * 判断文件是否为图片类型
-   */
-  private isVisionableFile(file: InboundFile): boolean {
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
-    return imageExtensions.some(ext => file.name?.toLowerCase().endsWith(ext));
   }
 }
