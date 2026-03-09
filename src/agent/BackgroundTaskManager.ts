@@ -143,29 +143,15 @@ export class BackgroundTaskManager {
         }
       );
 
-      // 调用完成回调（用于保存会话和执行插件钩子）
-      if (task.callbacks?.onComplete) {
-        await task.callbacks.onComplete(result, task.messages);
-      } else {
-        // 默认发送最终回复
-        await this.sendFinalMessage(task, result);
-      }
+      // 调用完成回调
+      await task.callbacks?.onComplete?.(result, task.messages);
     } catch (error: any) {
       if (error.message === 'Execution aborted') {
         task.status = 'aborted';
         this.log.info(`Background task ${task.id} aborted`);
-        // 调用错误回调
-        if (task.callbacks?.onError) {
-          await task.callbacks.onError(error);
-        }
-      } else {
-        // 调用错误回调
-        if (task.callbacks?.onError) {
-          await task.callbacks.onError(error);
-        } else {
-          await this.sendErrorMessage(task, error);
-        }
       }
+      // 调用错误回调
+      await task.callbacks?.onError?.(error);
     } finally {
       this.tasks.delete(task.id);
       this.log.info(`Background task ${task.id} completed, remaining tasks: ${this.tasks.size}`);
@@ -225,40 +211,6 @@ export class BackgroundTaskManager {
       chatId,
       content: '当前会话任务过多，请稍后再试',
       messageType
-    });
-  }
-
-  /**
-   * 发送最终回复
-   */
-  private async sendFinalMessage(
-    task: BackgroundTask,
-    result: {
-      content: string;
-      reasoning_content?: string;
-      toolsUsed: string[];
-      agentMode: boolean;
-    }
-  ): Promise<void> {
-    this.eventBus.publishOutbound({
-      channel: task.channel,
-      chatId: task.chatId,
-      content: result.content,
-      reasoning_content: result.reasoning_content,
-      messageType: task.messageType
-    });
-  }
-
-  /**
-   * 发送错误消息
-   */
-  private async sendErrorMessage(task: BackgroundTask, error: any): Promise<void> {
-    const errorMessage = error?.message || String(error) || '未知错误';
-    this.eventBus.publishOutbound({
-      channel: task.channel,
-      chatId: task.chatId,
-      content: `执行出错: ${errorMessage}`,
-      messageType: task.messageType
     });
   }
 
