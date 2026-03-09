@@ -2,12 +2,12 @@ import type { LLMMessage, InboundFile } from '../../types.js';
 import type { LLMProvider } from '../../providers/base.js';
 import type { ToolRegistry, ToolContext } from '../../tools/ToolRegistry.js';
 import type { PluginManager } from '../../plugins/index.js';
-import { ContextBuilder } from '../ContextBuilder.js';
+import { ContextBuilder } from '../core/ContextBuilder.js';
 import { logger } from '../../logger/index.js';
 import { ToolLoopRunner } from './ToolLoopRunner.js';
 import { SyncStrategy, BackgroundStrategy, VisionStrategy } from './strategies.js';
-import { ExecutionRegistry } from '../ExecutionRegistry.js';
-import { isVisionableFile } from '../visionFileUtils.js';
+import { ExecutionRegistry } from '../execution/registry/ExecutionRegistry.js';
+import { isVisionableFile } from '../vision.js';
 import type { ExecutionResult, BackgroundExecutionResult, ExecutionOptions, LLMCallOptions, VisionSettings } from './types.js';
 
 export class AgentExecutor {

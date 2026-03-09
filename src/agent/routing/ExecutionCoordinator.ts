@@ -1,9 +1,9 @@
-import type { InboundMessage, LLMMessage } from '../types.js';
-import type { ToolContext } from '../tools/ToolRegistry.js';
-import type { AgentExecutor } from './executor/AgentExecutor.js';
-import type { BackgroundTaskManager } from './BackgroundTaskManager.js';
-import type { ExecutionCompletionService } from './ExecutionCompletionService.js';
-import { logger } from '../logger/index.js';
+import type { InboundMessage, LLMMessage } from '../../types.js';
+import type { ToolContext } from '../../tools/ToolRegistry.js';
+import type { AgentExecutor } from '../executor/AgentExecutor.js';
+import type { BackgroundTaskManager } from '../state/BackgroundTaskManager.js';
+import type { ExecutionCompletionService } from '../execution/registry/ExecutionCompletionService.js';
+import { logger } from '../../logger/index.js';
 
 export interface CoordinateExecutionRequest {
   sessionKey: string;

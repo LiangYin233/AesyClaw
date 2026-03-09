@@ -1,0 +1,22 @@
+import { ConfigLoader } from '../../config/loader.js';
+import { logger } from '../../logger/index.js';
+import type { Services } from '../factory/ServiceFactory.js';
+
+const log = logger.child({ prefix: 'Bootstrap' });
+
+export function setupSignalHandlers(services: Services): void {
+  const shutdown = async () => {
+    log.info('Shutting down...');
+    const { agent, channelManager, sessionManager, cronService } = services;
+    agent.stop();
+    await channelManager.stopAll();
+    await (cronService as any).stop?.();
+    await sessionManager.close();
+    ConfigLoader.stopWatching();
+    log.info('All services stopped');
+    process.exit(0);
+  };
+
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+}

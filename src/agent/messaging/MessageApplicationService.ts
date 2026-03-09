@@ -1,9 +1,9 @@
-import type { InboundMessage, LLMMessage, OutboundMessage } from '../types.js';
-import type { ToolContext } from '../tools/ToolRegistry.js';
-import type { PluginManager } from '../plugins/index.js';
-import type { AgentExecutor } from './executor/AgentExecutor.js';
-import type { ExecutionCoordinator } from './ExecutionCoordinator.js';
-import { logger } from '../logger/index.js';
+import type { InboundMessage, LLMMessage, OutboundMessage } from '../../types.js';
+import type { ToolContext } from '../../tools/ToolRegistry.js';
+import type { PluginManager } from '../../plugins/index.js';
+import type { AgentExecutor } from '../executor/AgentExecutor.js';
+import type { ExecutionCoordinator } from '../routing/ExecutionCoordinator.js';
+import { logger } from '../../logger/index.js';
 
 export interface ExecuteMessageRequest {
   sessionKey: string;

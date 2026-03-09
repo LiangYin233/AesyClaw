@@ -1,6 +1,6 @@
-import type { ContextMode } from './AgentLoop.js';
-import type { InboundMessage } from '../types.js';
-import type { SessionManager } from '../session/SessionManager.js';
+import type { ContextMode } from '../core/AgentLoop.js';
+import type { InboundMessage } from '../../types.js';
+import type { SessionManager } from '../../session/SessionManager.js';
 
 export interface SessionRoute {
   sessionKey: string;

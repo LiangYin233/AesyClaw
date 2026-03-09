@@ -1,6 +1,6 @@
 import type { SessionRoutingService } from './SessionRoutingService.js';
-import type { ExecutionRegistry, ForegroundExecutionHandle } from './ExecutionRegistry.js';
-import type { BackgroundTaskHandle, BackgroundTaskManager } from './BackgroundTaskManager.js';
+import type { ExecutionRegistry, ForegroundExecutionHandle } from '../execution/registry/ExecutionRegistry.js';
+import type { BackgroundTaskHandle, BackgroundTaskManager } from '../state/BackgroundTaskManager.js';
 
 export interface ExecutionStatus {
   sessionKey: string;

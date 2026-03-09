@@ -1,6 +1,6 @@
 import type { InboundMessage } from '../../types.js';
 import type { SessionManager } from '../../session/SessionManager.js';
-import type { SessionRoutingService } from '../SessionRoutingService.js';
+import type { SessionRoutingService } from '../routing/SessionRoutingService.js';
 import { CommandHandler, type CommandDefinition } from './CommandHandler.js';
 import { logger } from '../../logger/index.js';
 

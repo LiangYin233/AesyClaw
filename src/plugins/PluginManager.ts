@@ -1,6 +1,6 @@
 import type { InboundMessage, OutboundMessage, Config, LLMMessage, LLMResponse, PluginErrorContext } from '../types.js';
 import type { EventBus } from '../bus/EventBus.js';
-import type { AgentLoop } from '../agent/AgentLoop.js';
+import type { AgentLoop } from '../agent/index.js';
 import type { ToolRegistry, Tool, ToolContext } from '../tools/ToolRegistry.js';
 import { logger } from '../logger/index.js';
 import { fileURLToPath } from 'url';

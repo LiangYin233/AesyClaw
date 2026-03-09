@@ -1,5 +1,5 @@
-import type { LLMMessage, InboundFile } from '../types.js';
-import { isVisionableFile } from './visionFileUtils.js';
+import type { LLMMessage, InboundFile } from '../../types.js';
+import { isVisionableFile } from '../vision.js';
 
 export class ContextBuilder {
   private workspace: string;

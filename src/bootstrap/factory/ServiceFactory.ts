@@ -1,24 +1,25 @@
 import { join } from 'path';
-import { EventBus } from '../bus/EventBus.js';
-import { AgentLoop, SessionRoutingService } from '../agent/index.js';
-import { ChannelManager } from '../channels/index.js';
-import { createProvider, createProviderFromConfig } from '../providers/index.js';
-import { ToolRegistry } from '../tools/index.js';
-import type { ToolSource } from '../tools/ToolRegistry.js';
-import { SessionManager } from '../session/index.js';
-import { MCPClientManager } from '../mcp/index.js';
-import { PluginManager } from '../plugins/index.js';
-import { SkillManager } from '../skills/index.js';
-import { CommandRegistry, SessionCommands } from '../agent/commands/index.js';
-import { APIServer } from '../api/index.js';
-import { CronService } from '../cron/index.js';
-import { ConfigLoader } from '../config/loader.js';
-import { logger } from '../logger/index.js';
-import { metrics } from '../logger/Metrics.js';
-import { tokenStats } from '../logger/TokenStats.js';
-import type { Config, OutboundMessage, VisionSettings } from '../types.js';
-import type { LLMProvider } from '../providers/base.js';
-import type { CronJob } from '../cron/index.js';
+import { EventBus } from '../../bus/EventBus.js';
+import { AgentLoop, SessionRoutingService } from '../../agent/index.js';
+import { ChannelManager } from '../../channels/index.js';
+import { createProvider, createProviderFromConfig } from '../../providers/index.js';
+import { ToolRegistry } from '../../tools/index.js';
+import type { Tool } from '../../tools/ToolRegistry.js';
+import { SessionManager } from '../../session/index.js';
+import { MCPClientManager } from '../../mcp/index.js';
+import { PluginManager } from '../../plugins/index.js';
+import type { PluginContext } from '../../plugins/PluginManager.js';
+import { SkillManager } from '../../skills/index.js';
+import { CommandRegistry, SessionCommands } from '../../agent/commands/index.js';
+import { APIServer } from '../../api/index.js';
+import { CronService } from '../../cron/index.js';
+import { ConfigLoader } from '../../config/loader.js';
+import { logger } from '../../logger/index.js';
+import { metrics } from '../../logger/Metrics.js';
+import { tokenStats } from '../../logger/TokenStats.js';
+import type { Config, OutboundMessage, VisionSettings } from '../../types.js';
+import type { LLMProvider } from '../../providers/base.js';
+import type { CronJob } from '../../cron/index.js';
 import { registerBuiltInTools, registerMcpTools } from './ToolIntegrationService.js';
 
 export interface Services {
@@ -49,7 +50,6 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   const { workspace, tempDir, config, port, onCronJob } = options;
   const log = logger.child({ prefix: 'AesyClaw' });
 
-  // 配置日志和指标
   logger.setLevel(config.log?.level || 'info');
   if (config.metrics?.enabled !== undefined) {
     metrics.setEnabled(config.metrics.enabled);
@@ -58,13 +58,11 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
 
   log.info('Initializing services...');
 
-  // 1. 无依赖的基础服务
   const eventBus = new EventBus();
   const toolRegistry = new ToolRegistry();
   const providerConfig = config.providers[config.agent.defaults.provider];
   const provider = createProvider(config.agent.defaults.provider, providerConfig);
 
-  // 读取视觉配置
   const agentDefaults = config.agent.defaults;
   const visionSettings: VisionSettings = {
     enabled: agentDefaults.vision || false,
@@ -73,8 +71,6 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     visionModelName: agentDefaults.visionModel
   };
 
-  // 创建视觉模型提供商（如果配置了 visionProvider）
-  // vision: false 表示当前模型无视觉能力，需要转发给视觉模型
   let visionProvider: LLMProvider | undefined;
   if (visionSettings.visionProviderName) {
     const visionProviderConfig = config.providers[visionSettings.visionProviderName];
@@ -86,7 +82,6 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     }
   }
 
-  // 2. SessionManager (依赖 workspace)
   const sessionManager = new SessionManager(
     join(process.cwd(), '.aesyclaw', 'sessions'),
     config.agent.defaults.maxSessions ?? 100
@@ -95,7 +90,6 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   await sessionManager.loadAll();
   log.info(`SessionManager ready, ${sessionManager.count()} sessions loaded`);
 
-  // 3. SkillManager
   const skillManager = new SkillManager('./skills');
   skillManager.setConfig(config);
   await skillManager.loadFromDirectory();
@@ -103,7 +97,6 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
 
   const sessionRouting = new SessionRoutingService(sessionManager, config.agent.defaults.contextMode);
 
-  // 4. AgentLoop (依赖 eventBus, provider, toolRegistry, sessionManager, skillManager)
   const agent = new AgentLoop(
     eventBus,
     provider,
@@ -121,45 +114,41 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     sessionRouting
   );
 
-  // 初始化命令注册表
   const commandRegistry = new CommandRegistry();
-  const sessionCommands = new SessionCommands(
-    sessionManager,
-    sessionRouting
-  );
+  const sessionCommands = new SessionCommands(sessionManager, sessionRouting);
   commandRegistry.registerHandler(sessionCommands);
-
-  // 设置 EventBus 的 stop 命令处理器（用于立即中断）
-  eventBus.setStopHandler((channel, chatId) => agent.abortSession(channel, chatId));
-
+  eventBus.setStopHandler((channel: string, chatId: string) => agent.abortSession(channel, chatId));
   agent.setCommandRegistry(commandRegistry);
   log.info('Command registry initialized');
 
-  // 5. PluginManager (依赖 agent, toolRegistry, eventBus)
-  const pluginManager = new PluginManager(
-    {
-      config,
-      eventBus,
-      agent,
-      workspace,
-      tempDir,
-      registerTool: (tool) => toolRegistry.register(tool as any),
-      getToolRegistry: () => toolRegistry as any,
-      logger,
-      sendMessage: async (channel, chatId, content, messageType) => {
-        let msg: OutboundMessage = {
-          channel,
-          chatId,
-          content,
-          messageType: messageType || 'private'
-        };
-        // Apply onResponse hooks for consistency
-        msg = await pluginManager.applyOnResponse(msg) || msg;
-        await eventBus.publishOutbound(msg);
-      }
-    },
-    toolRegistry
-  );
+  let pluginManager!: PluginManager;
+  const pluginContext: PluginContext = {
+    config,
+    eventBus,
+    agent,
+    workspace,
+    tempDir,
+    registerTool: (tool: Tool) => toolRegistry.register(tool),
+    getToolRegistry: () => toolRegistry,
+    logger,
+    sendMessage: async (
+      channel: string,
+      chatId: string,
+      content: string,
+      messageType?: 'private' | 'group'
+    ) => {
+      let message: OutboundMessage = {
+        channel,
+        chatId,
+        content,
+        messageType: messageType || 'private'
+      };
+
+      message = await pluginManager.applyOnResponse(message) || message;
+      await eventBus.publishOutbound(message);
+    }
+  };
+  pluginManager = new PluginManager(pluginContext, toolRegistry);
 
   if (config.plugins) {
     pluginManager.setPluginConfigs(config.plugins as Record<string, { enabled: boolean; options?: Record<string, any> }>);
@@ -178,27 +167,26 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
 
   agent.setPluginManager(pluginManager);
 
-  // 6. CronService
   const cronService = new CronService(
     join(process.cwd(), '.aesyclaw', 'cron-jobs.json'),
     onCronJob || (async () => {})
   );
   await cronService.start();
 
-  // 7. ChannelManager
   const channelManager = new ChannelManager(eventBus, workspace);
-  for (const [channelName, channelConfig] of Object.entries(config.channels)) {
-    if (channelConfig?.enabled) {
-      const channel = channelManager.createChannel(channelName, channelConfig);
-      if (channel) {
-        log.info(`Channel enabled: ${channelName}`);
-      } else {
-        log.warn(`Channel plugin not found: ${channelName}`);
-      }
+  for (const [channelName, channelConfig] of Object.entries(config.channels as Record<string, { enabled?: boolean }>)) {
+    if (!channelConfig?.enabled) {
+      continue;
+    }
+
+    const channel = channelManager.createChannel(channelName, channelConfig);
+    if (channel) {
+      log.info(`Channel enabled: ${channelName}`);
+    } else {
+      log.warn(`Channel plugin not found: ${channelName}`);
     }
   }
 
-  // 8. MCP (可选，非阻塞)
   let mcpManager: MCPClientManager | null = null;
   if (config.mcp && Object.keys(config.mcp).length > 0) {
     mcpManager = new MCPClientManager();
@@ -207,7 +195,6 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     log.info('MCP servers connecting in background...');
   }
 
-  // 9. 注册内置工具
   registerBuiltInTools({
     toolRegistry,
     skillManager,
@@ -217,7 +204,6 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     mcpManager
   });
 
-  // 10. APIServer (conditional)
   let apiServer: APIServer | undefined;
   if (config.server.apiEnabled !== false) {
     apiServer = new APIServer(
@@ -238,7 +224,6 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     log.info('API server disabled by configuration');
   }
 
-  // 11. 应用工具黑名单
   if (config.tools?.blacklist && config.tools.blacklist.length > 0) {
     toolRegistry.setBlacklist(config.tools.blacklist);
     log.info(`Tool blacklist applied: ${config.tools.blacklist.join(', ')}`);
@@ -247,8 +232,18 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   log.info('All services initialized successfully');
 
   return {
-    eventBus, provider, toolRegistry, sessionManager, channelManager,
-    pluginManager, agent, cronService, mcpManager, skillManager,
-    config, workspace, apiServer
+    eventBus,
+    provider,
+    toolRegistry,
+    sessionManager,
+    channelManager,
+    pluginManager,
+    agent,
+    cronService,
+    mcpManager,
+    skillManager,
+    config,
+    workspace,
+    apiServer
   };
 }

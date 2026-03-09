@@ -3,7 +3,7 @@ import { createServer } from 'http';
 import { randomUUID } from 'crypto';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import type { AgentLoop } from '../agent/AgentLoop.js';
+import type { AgentLoop } from '../agent/index.js';
 import type { SessionManager } from '../session/SessionManager.js';
 import type { ChannelManager } from '../channels/ChannelManager.js';
 import type { Config } from '../types.js';

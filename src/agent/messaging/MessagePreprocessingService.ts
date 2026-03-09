@@ -1,8 +1,8 @@
-import type { InboundMessage, OutboundMessage } from '../types.js';
-import type { PluginManager } from '../plugins/index.js';
-import type { CommandRegistry } from './commands/index.js';
-import { shouldSkipLLM, getSkipReason } from '../plugins/IntentHelpers.js';
-import { logger } from '../logger/index.js';
+import type { InboundMessage, OutboundMessage } from '../../types.js';
+import type { PluginManager } from '../../plugins/index.js';
+import type { CommandRegistry } from '../commands/index.js';
+import { shouldSkipLLM, getSkipReason } from '../../plugins/IntentHelpers.js';
+import { logger } from '../../logger/index.js';
 
 export type PreprocessResult =
   | { type: 'continue'; message: InboundMessage }

@@ -1,7 +1,7 @@
-import type { LLMMessage, LLMResponse } from '../types.js';
-import type { ToolContext } from '../tools/ToolRegistry.js';
-import type { EventBus } from '../bus/EventBus.js';
-import { logger } from '../logger/index.js';
+import type { LLMMessage, LLMResponse } from '../../types.js';
+import type { ToolContext } from '../../tools/ToolRegistry.js';
+import type { EventBus } from '../../bus/EventBus.js';
+import { logger } from '../../logger/index.js';
 
 export interface BackgroundTaskResult {
   content: string;

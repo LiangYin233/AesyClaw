@@ -1,13 +1,38 @@
-export { AgentLoop } from './AgentLoop.js';
+export { AgentLoop } from './core/AgentLoop.js';
+export { ContextBuilder } from './core/ContextBuilder.js';
+export type { ContextMode } from './core/AgentLoop.js';
+
 export { AgentExecutor } from './executor/AgentExecutor.js';
-export { ContextBuilder } from './ContextBuilder.js';
-export { BackgroundTaskManager } from './BackgroundTaskManager.js';
-export { SessionRoutingService } from './SessionRoutingService.js';
-export { ExecutionRegistry } from './ExecutionRegistry.js';
-export { ExecutionCompletionService } from './ExecutionCompletionService.js';
-export { ExecutionControlService } from './ExecutionControlService.js';
-export { ExecutionCoordinator } from './ExecutionCoordinator.js';
-export { MessageApplicationService } from './MessageApplicationService.js';
-export { MessagePreprocessingService } from './MessagePreprocessingService.js';
+export { ToolLoopRunner } from './executor/ToolLoopRunner.js';
+export { SyncStrategy, BackgroundStrategy, VisionStrategy } from './executor/strategies.js';
 export type { ExecuteOptions, AgentResult } from './executor/AgentExecutor.js';
-export type { ContextMode } from './AgentLoop.js';
+export type {
+  ExecutionStrategy,
+  ExecutionResult,
+  ExecutionOptions,
+  BackgroundExecutionResult,
+  LLMCallOptions,
+  VisionSettings
+} from './executor/types.js';
+
+export { ExecutionRegistry } from './execution/registry/ExecutionRegistry.js';
+export type { ForegroundExecutionHandle } from './execution/registry/ExecutionRegistry.js';
+export { ExecutionCompletionService } from './execution/registry/ExecutionCompletionService.js';
+
+export { MessageApplicationService } from './messaging/MessageApplicationService.js';
+export { MessagePreprocessingService } from './messaging/MessagePreprocessingService.js';
+
+export { SessionRoutingService } from './routing/SessionRoutingService.js';
+export { ExecutionControlService } from './routing/ExecutionControlService.js';
+export type { ExecutionStatus } from './routing/ExecutionControlService.js';
+export { ExecutionCoordinator } from './routing/ExecutionCoordinator.js';
+
+export { BackgroundTaskManager } from './state/BackgroundTaskManager.js';
+export type {
+  BackgroundTaskExecutor,
+  BackgroundTaskCallbacks,
+  BackgroundTaskHandle,
+  BackgroundTaskResult
+} from './state/BackgroundTaskManager.js';
+
+export { isVisionableFile } from './vision.js';
