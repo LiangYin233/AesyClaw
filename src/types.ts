@@ -124,6 +124,12 @@ export interface AgentConfig {
     model: string;
     provider: string;
 
+    // 视觉和推理配置
+    vision?: boolean;           // 是否启用视觉能力
+    reasoning?: boolean;        // 是否启用推理模式
+    visionProvider?: string;    // 视觉模型提供商名称
+    visionModel?: string;       // 视觉模型名称
+
     maxToolIterations: number;
     memoryWindow: number;
     systemPrompt?: string;
@@ -165,4 +171,14 @@ export interface MCPServerInfo {
   connectedAt?: Date;
   error?: string;
   toolCount: number;
+}
+
+/**
+ * 视觉配置 - 用于 Agent 执行时的视觉模型路由
+ */
+export interface VisionSettings {
+  enabled: boolean;
+  reasoning: boolean;
+  visionProviderName?: string;
+  visionModelName?: string;
 }

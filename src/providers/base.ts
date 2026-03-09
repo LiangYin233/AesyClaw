@@ -33,6 +33,7 @@ export abstract class LLMProvider {
     options?: {
       maxTokens?: number;
       temperature?: number;
+      reasoning?: boolean;
     }
   ): Promise<LLMResponse>;
 

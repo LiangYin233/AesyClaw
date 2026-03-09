@@ -120,13 +120,16 @@ export class OpenAIProvider extends LLMProvider {
     messages: LLMMessage[],
     tools?: ToolDefinition[],
     model?: string,
-    options?: { maxTokens?: number; temperature?: number }
+    options?: { maxTokens?: number; temperature?: number; reasoning?: boolean }
   ): Promise<LLMResponse> {
     const url = `${this.apiBase || this.baseURL}/chat/completions`;
     const modelName = model || this.getDefaultModel();
 
     this.log.debug(`Calling OpenAI API: ${url}`);
     this.log.debug(`Model: ${modelName}`);
+    if (options?.reasoning) {
+      this.log.debug(`Reasoning enabled`);
+    }
     this.log.debug(`Messages: ${messages.length}`);
     if (tools && tools.length > 0) {
       this.log.debug(`Tools: ${tools.map(t => t.name).join(', ')}`);
@@ -161,6 +164,12 @@ export class OpenAIProvider extends LLMProvider {
         messages: formattedMessages,
         tools: this.formatTools(tools)
       };
+
+      // 添加推理参数（用于推理模型如 o1, o3）- 兼容两种格式
+      if (options?.reasoning) {
+        requestBody.enable_thinking = true;
+        requestBody.thinking = { type: 'enabled' };
+      }
 
       if (this.extraBody) {
         Object.assign(requestBody, this.extraBody);

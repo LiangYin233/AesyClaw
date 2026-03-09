@@ -1,4 +1,4 @@
-import type { LLMMessage } from '../types.js';
+import type { LLMMessage, InboundFile } from '../types.js';
 
 export class ContextBuilder {
   private workspace: string;
@@ -35,12 +35,13 @@ export class ContextBuilder {
   build(
     history: any[],
     currentMessage: string,
-    media?: string[]
+    media?: string[],
+    files?: InboundFile[]
   ): LLMMessage[] {
     const messages: LLMMessage[] = [
       { role: 'system', content: this.buildSystemPrompt() },
       ...history.filter(m => ['user', 'assistant', 'system'].includes(m.role)),
-      { role: 'user', content: this.buildUserContent(currentMessage, media) }
+      { role: 'user', content: this.buildUserContent(currentMessage, media, files) }
     ];
     return messages;
   }
@@ -70,17 +71,45 @@ export class ContextBuilder {
 
   private buildUserContent(
     message: string,
-    media?: string[]
+    media?: string[],
+    files?: InboundFile[]
   ): string | Array<{ type: string; text?: string; image_url?: { url: string } }> {
-    if (media && media.length > 0) {
+    const hasMedia = media && media.length > 0;
+    const hasVisionableFiles = files && files.some(f =>
+      f.type === 'image' || this.isVisionableFile(f)
+    );
+
+    if (hasMedia || hasVisionableFiles) {
       const content: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
         { type: 'text', text: message }
       ];
-      for (const imageUrl of media) {
-        content.push({ type: 'image_url', image_url: { url: imageUrl } });
+
+      // 添加图片 URL
+      if (media) {
+        for (const imageUrl of media) {
+          content.push({ type: 'image_url', image_url: { url: imageUrl } });
+        }
       }
+
+      // 添加图片文件
+      if (files) {
+        for (const file of files) {
+          if (file.localPath && this.isVisionableFile(file)) {
+            content.push({ type: 'image_url', image_url: { url: `file://${file.localPath}` } });
+          }
+        }
+      }
+
       return content;
     }
     return message;
+  }
+
+  /**
+   * 判断文件是否为图片类型
+   */
+  private isVisionableFile(file: InboundFile): boolean {
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
+    return imageExtensions.some(ext => file.name?.toLowerCase().endsWith(ext));
   }
 }

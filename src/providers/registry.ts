@@ -40,3 +40,15 @@ export function createProvider(name: string, config: ProviderConfig): LLMProvide
 
   return new OpenAIProvider(apiKey, apiBase, headers, extraBody);
 }
+
+/**
+ * 从配置创建 LLM 提供商实例（用于视觉模型等备用场景）
+ */
+export function createProviderFromConfig(config: ProviderConfig): LLMProvider {
+  const apiKey = config.apiKey;
+  const apiBase = config.apiBase || '';
+  const headers = config.headers;
+  const extraBody = config.extraBody;
+
+  return new OpenAIProvider(apiKey, apiBase, headers, extraBody);
+}

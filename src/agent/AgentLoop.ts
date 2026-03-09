@@ -1,4 +1,4 @@
-import type { LLMMessage, InboundMessage, OutboundMessage, LLMResponse } from '../types.js';
+import type { LLMMessage, InboundMessage, OutboundMessage, LLMResponse, VisionSettings } from '../types.js';
 import type { EventBus } from '../bus/EventBus.js';
 import type { LLMProvider } from '../providers/base.js';
 import type { ToolRegistry, ToolContext } from '../tools/ToolRegistry.js';
@@ -25,6 +25,8 @@ export class AgentLoop {
   private channelSessions: Map<string, string> = new Map();
   private pluginManager?: PluginManager;
   private commandRegistry?: CommandRegistry;
+  private visionSettings?: VisionSettings;
+  private visionProvider?: LLMProvider;
   private log = logger.child({ prefix: 'Agent' });
 
   constructor(
@@ -38,21 +40,26 @@ export class AgentLoop {
     model: string = 'gpt-4o',
     contextMode: ContextMode = 'channel',
     memoryWindow: number = CONFIG_DEFAULTS.DEFAULT_MEMORY_WINDOW,
-    skillManager?: SkillManager
+    skillManager?: SkillManager,
+    visionSettings?: VisionSettings,
+    visionProvider?: LLMProvider
   ) {
     this.eventBus = eventBus;
     this.sessionManager = sessionManager;
     this.contextMode = contextMode;
     this.memoryWindow = memoryWindow;
     this.toolContext = { workspace, eventBus };
+    this.visionSettings = visionSettings;
+    this.visionProvider = visionProvider;
 
     const skillsPrompt = skillManager?.buildSkillsPrompt() || '';
     this.executor = new AgentExecutor(
       provider, toolRegistry, workspace,
-      systemPrompt, skillsPrompt, model, maxIterations
+      systemPrompt, skillsPrompt, model, maxIterations,
+      undefined, visionSettings, visionProvider
     );
 
-    this.log.info(`Initialized with model: ${model}, contextMode: ${contextMode}`);
+    this.log.info(`Initialized with model: ${model}, contextMode: ${contextMode}, vision: ${visionSettings?.enabled || false}`);
   }
 
   setPluginManager(pm: PluginManager): void {
@@ -179,20 +186,33 @@ export class AgentLoop {
         }
       }
 
+      // 检查是否需要使用视觉模型
+      const useVisionProvider = this.executor.needsVisionProvider(msg.media, msg.files);
+
       const messages = this.executor.buildContext(
         session.messages.slice(-this.memoryWindow),
         msg.content,
-        msg.media
+        msg.media,
+        msg.files
       );
 
       if (this.pluginManager) {
         await this.pluginManager.applyOnAgentBefore(msg, messages);
       }
 
-      const result = await this.executor.execute(messages, this.toolContext, {
-        allowTools: true,
-        source: 'user'
-      });
+      let result;
+      if (useVisionProvider) {
+        this.log.info('Using vision provider for this request');
+        result = await this.executor.executeWithVision(messages, this.toolContext, {
+          allowTools: true,
+          source: 'user'
+        }, msg.media, msg.files);
+      } else {
+        result = await this.executor.execute(messages, this.toolContext, {
+          allowTools: true,
+          source: 'user'
+        });
+      }
 
       const llmResponse: LLMResponse = {
         content: result.content,

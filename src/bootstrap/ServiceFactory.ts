@@ -2,7 +2,7 @@ import { join } from 'path';
 import { EventBus } from '../bus/EventBus.js';
 import { AgentLoop } from '../agent/AgentLoop.js';
 import { ChannelManager } from '../channels/index.js';
-import { createProvider } from '../providers/index.js';
+import { createProvider, createProviderFromConfig } from '../providers/index.js';
 import { ToolRegistry, type ToolContext } from '../tools/index.js';
 import type { ToolSource } from '../tools/ToolRegistry.js';
 import { SessionManager } from '../session/index.js';
@@ -17,7 +17,7 @@ import { ConfigLoader } from '../config/loader.js';
 import { logger } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
 import { tokenStats } from '../logger/TokenStats.js';
-import type { Config, OutboundMessage } from '../types.js';
+import type { Config, OutboundMessage, VisionSettings } from '../types.js';
 import type { LLMProvider } from '../providers/base.js';
 import type { CronJob } from '../cron/index.js';
 import { parseTarget } from './utils.js';
@@ -65,6 +65,28 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   const providerConfig = config.providers[config.agent.defaults.provider];
   const provider = createProvider(config.agent.defaults.provider, providerConfig);
 
+  // 读取视觉配置
+  const agentDefaults = config.agent.defaults;
+  const visionSettings: VisionSettings = {
+    enabled: agentDefaults.vision || false,
+    reasoning: agentDefaults.reasoning || false,
+    visionProviderName: agentDefaults.visionProvider,
+    visionModelName: agentDefaults.visionModel
+  };
+
+  // 创建视觉模型提供商（如果配置了 visionProvider）
+  // vision: false 表示当前模型无视觉能力，需要转发给视觉模型
+  let visionProvider: LLMProvider | undefined;
+  if (visionSettings.visionProviderName) {
+    const visionProviderConfig = config.providers[visionSettings.visionProviderName];
+    if (visionProviderConfig) {
+      visionProvider = createProviderFromConfig(visionProviderConfig);
+      log.info(`Vision provider created: ${visionSettings.visionProviderName}, model: ${visionSettings.visionModelName || 'default'}`);
+    } else {
+      log.warn(`Vision provider "${visionSettings.visionProviderName}" not found in config`);
+    }
+  }
+
   // 2. SessionManager (依赖 workspace)
   const sessionManager = new SessionManager(
     join(process.cwd(), '.aesyclaw', 'sessions'),
@@ -92,7 +114,9 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     config.agent.defaults.model,
     config.agent.defaults.contextMode,
     config.agent.defaults.memoryWindow,
-    skillManager
+    skillManager,
+    visionSettings,
+    visionProvider
   );
 
   // 初始化命令注册表

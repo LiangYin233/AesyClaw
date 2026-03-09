@@ -15,6 +15,12 @@ const DEFAULT_CONFIG: Config = {
       model: 'gpt-4o',
       provider: 'openai',
 
+      // 视觉和推理配置
+      vision: false,
+      reasoning: false,
+      visionProvider: '',
+      visionModel: '',
+
       maxToolIterations: 40,
       memoryWindow: 50,
       systemPrompt: 'You are a helpful AI assistant.',
@@ -278,6 +284,22 @@ export class ConfigLoader {
         if (ch?.enabled && name === 'onebot' && !ch.wsUrl) {
           warnings.push(`Channel "${name}" is enabled but wsUrl is not configured`);
         }
+      }
+    }
+
+    // Validate vision provider if specified
+    if (config.agent?.defaults?.visionProvider) {
+      const vp = config.agent.defaults.visionProvider;
+      if (!config.providers?.[vp]) {
+        errors.push(`Vision provider "${vp}" is not configured in providers section`);
+      }
+    }
+
+    // Warn if reasoning is enabled but model may not support it
+    if (config.agent?.defaults?.reasoning === true) {
+      const model = config.agent.defaults.model;
+      if (!model.startsWith('o') && !model.includes('reasoning')) {
+        warnings.push(`Reasoning enabled but model "${model}" may not support reasoning mode`);
       }
     }
 
