@@ -1,11 +1,11 @@
-﻿import { join } from 'path';
+import { join } from 'path';
 import { EventBus } from '../../bus/EventBus.js';
 import { AgentLoop, SessionRoutingService } from '../../agent/index.js';
 import { ChannelManager } from '../../channels/index.js';
 import { createProvider, createProviderFromConfig } from '../../providers/index.js';
 import { ToolRegistry } from '../../tools/index.js';
 import type { Tool } from '../../tools/ToolRegistry.js';
-import { SessionManager } from '../../session/index.js';
+import { MemoryFactStore, SessionManager } from '../../session/index.js';
 import { MCPClientManager } from '../../mcp/index.js';
 import { PluginManager } from '../../plugins/index.js';
 import type { PluginContext } from '../../plugins/PluginManager.js';
@@ -22,6 +22,8 @@ import type { Config, OutboundMessage, VisionSettings } from '../../types.js';
 import type { LLMProvider } from '../../providers/base.js';
 import type { CronJob } from '../../cron/index.js';
 import { registerBuiltInTools, registerMcpTools } from './ToolIntegrationService.js';
+
+const appLog = logger.child({ prefix: 'AesyClaw' });
 
 export interface Services {
   eventBus: EventBus;
@@ -47,6 +49,55 @@ export interface ServiceFactoryOptions {
   onCronJob?: (job: CronJob) => Promise<void>;
 }
 
+type ResolvedProviderConfig = {
+  name: string;
+  model: string;
+  providerConfig?: Config['providers'][string];
+};
+
+function resolveProviderConfig(config: Config, providerName?: string, modelName?: string): ResolvedProviderConfig {
+  const name = providerName || config.agent.defaults.provider;
+  const providerConfig = config.providers[name];
+
+  return {
+    name,
+    model: modelName || providerConfig?.model || config.agent.defaults.model,
+    providerConfig
+  };
+}
+
+function createOptionalProvider(resolved: ResolvedProviderConfig, label: string): LLMProvider | undefined {
+  if (!resolved.providerConfig) {
+    appLog.warn(`${label} provider "${resolved.name}" not found in config`);
+    return undefined;
+  }
+
+  return createProvider(resolved.name, resolved.providerConfig);
+}
+
+function createRequiredProvider(resolved: ResolvedProviderConfig, label: string): LLMProvider {
+  if (!resolved.providerConfig) {
+    throw new Error(`${label} provider "${resolved.name}" not found in config`);
+  }
+
+  return createProvider(resolved.name, resolved.providerConfig);
+}
+
+function createVisionProvider(config: Config, visionSettings: VisionSettings): LLMProvider | undefined {
+  if (!visionSettings.visionProviderName) {
+    return undefined;
+  }
+
+  const providerConfig = config.providers[visionSettings.visionProviderName];
+  if (!providerConfig) {
+    appLog.warn(`Vision provider "${visionSettings.visionProviderName}" not found in config`);
+    return undefined;
+  }
+
+  appLog.info(`Vision provider created: ${visionSettings.visionProviderName}, model: ${visionSettings.visionModelName || 'default'}`);
+  return createProviderFromConfig(providerConfig);
+}
+
 export function createMemorySummaryService(config: Config, sessionManager: SessionManager): SessionMemoryService | undefined {
   const summaryConfig = config.agent.defaults.memorySummary;
   const factsConfig = config.agent.defaults.memoryFacts;
@@ -55,50 +106,34 @@ export function createMemorySummaryService(config: Config, sessionManager: Sessi
     return undefined;
   }
 
-  const summaryProviderName = summaryConfig?.provider || config.agent.defaults.provider;
-  const summaryProviderConfig = config.providers[summaryProviderName];
-  const summaryModel = summaryConfig?.model || summaryProviderConfig?.model || config.agent.defaults.model;
-  const summaryRuntimeConfig = SessionMemoryService.createRuntimeConfig(
-    summaryConfig,
-    config.agent.defaults.memoryWindow,
-    summaryModel
-  );
+  const summaryProviderConfig = resolveProviderConfig(config, summaryConfig?.provider, summaryConfig?.model);
+  const factsProviderConfig = resolveProviderConfig(config, factsConfig?.provider, factsConfig?.model);
 
-  const factsProviderName = factsConfig?.provider || config.agent.defaults.provider;
-  const factsProviderConfig = config.providers[factsProviderName];
-  const factsModel = factsConfig?.model || factsProviderConfig?.model || config.agent.defaults.model;
-  const factsRuntimeConfig = SessionMemoryService.createFactsRuntimeConfig(factsConfig, factsModel);
-
-  let summaryProvider: LLMProvider | undefined;
-  if (summaryConfig?.enabled) {
-    if (!summaryProviderConfig) {
-      logger.child({ prefix: 'AesyClaw' }).warn(`Memory summary provider "${summaryProviderName}" not found in config`);
-    } else {
-      summaryProvider = createProvider(summaryProviderName, summaryProviderConfig);
-    }
-  }
-
-  let factsProvider: LLMProvider | undefined;
-  if (factsConfig?.enabled) {
-    if (!factsProviderConfig) {
-      logger.child({ prefix: 'AesyClaw' }).warn(`Memory facts provider "${factsProviderName}" not found in config`);
-    } else {
-      factsProvider = createProvider(factsProviderName, factsProviderConfig);
-    }
-  }
+  const summaryRuntimeConfig = {
+    enabled: summaryConfig?.enabled === true,
+    model: summaryProviderConfig.model,
+    triggerMessages: summaryConfig?.triggerMessages ?? 20,
+    memoryWindow: config.agent.defaults.memoryWindow
+  };
+  const factsRuntimeConfig = {
+    enabled: factsConfig?.enabled === true,
+    model: factsProviderConfig.model,
+    maxFacts: factsConfig?.maxFacts ?? 20
+  };
 
   return new SessionMemoryService(
     sessionManager,
-    summaryProvider,
+    new MemoryFactStore(sessionManager.getDatabase()),
+    summaryConfig?.enabled ? createOptionalProvider(summaryProviderConfig, 'Memory summary') : undefined,
     summaryRuntimeConfig,
-    factsProvider,
+    factsConfig?.enabled ? createOptionalProvider(factsProviderConfig, 'Memory facts') : undefined,
     factsRuntimeConfig
   );
 }
 
 export async function createServices(options: ServiceFactoryOptions): Promise<Services> {
   const { workspace, tempDir, config, port, onCronJob } = options;
-  const log = logger.child({ prefix: 'AesyClaw' });
+  const log = appLog;
 
   logger.setLevel(config.log?.level || 'info');
   if (config.metrics?.enabled !== undefined) {
@@ -112,8 +147,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   const toolRegistry = new ToolRegistry({
     defaultTimeout: config.tools?.timeoutMs
   });
-  const providerConfig = config.providers[config.agent.defaults.provider];
-  const provider = createProvider(config.agent.defaults.provider, providerConfig);
+  const provider = createRequiredProvider(resolveProviderConfig(config), 'Default');
 
   const agentDefaults = config.agent.defaults;
   const visionSettings: VisionSettings = {
@@ -122,23 +156,12 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     visionProviderName: agentDefaults.visionProvider,
     visionModelName: agentDefaults.visionModel
   };
-
-  let visionProvider: LLMProvider | undefined;
-  if (visionSettings.visionProviderName) {
-    const visionProviderConfig = config.providers[visionSettings.visionProviderName];
-    if (visionProviderConfig) {
-      visionProvider = createProviderFromConfig(visionProviderConfig);
-      log.info(`Vision provider created: ${visionSettings.visionProviderName}, model: ${visionSettings.visionModelName || 'default'}`);
-    } else {
-      log.warn(`Vision provider "${visionSettings.visionProviderName}" not found in config`);
-    }
-  }
+  const visionProvider = createVisionProvider(config, visionSettings);
 
   const sessionManager = new SessionManager(
     join(process.cwd(), '.aesyclaw', 'sessions'),
     config.agent.defaults.maxSessions ?? 100
   );
-  await sessionManager.ready();
   await sessionManager.loadAll();
   log.info(`SessionManager ready, ${sessionManager.count()} sessions loaded`);
 

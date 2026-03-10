@@ -1,14 +1,10 @@
 import { join } from 'path';
 import { randomUUID } from 'crypto';
-import { Database, type DBSession, type DBMessage, type DBSessionMemory, type DBMemoryFact } from '../db/index.js';
+import { Database, type DBSession, type DBMessage, type DBSessionMemory } from '../db/index.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS, CONFIG_DEFAULTS } from '../constants/index.js';
 import { metrics } from '../logger/Metrics.js';
 
-/**
- * Parse a session key into its components
- * Format: "channel:chatId" or "channel:chatId:uuid"
- */
 function parseSessionKey(key: string): { channel: string; chatId: string; uuid?: string } {
   const parts = key.split(':');
   if (parts.length >= 3) {
@@ -21,11 +17,6 @@ export interface SessionMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp?: string;
-}
-
-export interface MemoryFact {
-  content: string;
-  updatedAt?: string;
 }
 
 export interface Session {
@@ -44,7 +35,6 @@ export interface Session {
 export class SessionManager {
   private db: Database;
   private sessions: Map<string, Session> = new Map();
-  private facts: Map<string, MemoryFact[]> = new Map();
   private maxSessions: number;
   private sessionLocks: Map<string, Promise<Session>> = new Map();
   private log = logger.child({ prefix: 'SessionManager' });
@@ -58,6 +48,10 @@ export class SessionManager {
 
   async ready(): Promise<void> {
     await this.db.ready();
+  }
+
+  getDatabase(): Database {
+    return this.db;
   }
 
   createSessionKey(channel: string, chatId: string, uuid?: string): string {
@@ -75,27 +69,26 @@ export class SessionManager {
   }
 
   async getOrCreate(key: string): Promise<Session> {
-    const existing = this.sessions.get(key);  // 尝试从内存中获取现有会话
+    const existing = this.sessions.get(key);
     if (existing) {
       this.log.debug(`Session found in memory: ${key}, messages: ${existing.messages.length}`);
       return existing;
     }
 
-    const pending = this.sessionLocks.get(key);  // 检查是否有正在创建的会话
+    const pending = this.sessionLocks.get(key);
     if (pending) {
       this.log.debug(`Session creation pending: ${key}`);
       return await pending;
     }
 
     this.log.debug(`Creating new session: ${key}`);
-    const lockPromise = this.doGetOrCreate(key);  // 创建新会话的异步操作
-    this.sessionLocks.set(key, lockPromise);  // 添加锁防止并发创建
+    const lockPromise = this.doGetOrCreate(key);
+    this.sessionLocks.set(key, lockPromise);
 
     try {
-      const session = await lockPromise;
-      return session;
+      return await lockPromise;
     } finally {
-      this.sessionLocks.delete(key);  // 完成后删除锁
+      this.sessionLocks.delete(key);
     }
   }
 
@@ -108,11 +101,11 @@ export class SessionManager {
         return existing;
       }
 
-      const parsed = parseSessionKey(key);  // 解析会话键
-      const session = await this.load(key);  // 从数据库加载会话
+      const parsed = parseSessionKey(key);
+      const session = await this.load(key);
 
       if (!session) {
-        const result = await this.db.run(  // 数据库中插入新会话
+        const result = await this.db.run(
           `INSERT INTO sessions (key, channel, chat_id, uuid) VALUES (?, ?, ?, ?)`,
           [key, parsed.channel, parsed.chatId, parsed.uuid || null]
         );
@@ -129,10 +122,10 @@ export class SessionManager {
           createdAt: new Date(),
           updatedAt: new Date()
         };
-        this.sessions.set(key, newSession);  // 添加到内存缓存
+        this.sessions.set(key, newSession);
 
         if (this.sessions.size >= this.maxSessions * CONSTANTS.SESSION_CLEANUP_THRESHOLD) {
-          await this.cleanupOldSessions();  // 超过阈值时清理旧会话
+          await this.cleanupOldSessions();
         }
         return newSession;
       }
@@ -150,7 +143,7 @@ export class SessionManager {
         'SELECT COUNT(*) as count FROM sessions'
       );
       const totalCount = countResult?.count ?? 0;
-      
+
       if (totalCount > this.maxSessions) {
         const toDelete = totalCount - this.maxSessions;
         const oldSessions = await this.db.all<DBSession>(
@@ -180,14 +173,29 @@ export class SessionManager {
       uuid: row.uuid || undefined,
       summary: memory?.summary || '',
       summarizedMessageCount: memory?.summarized_message_count || 0,
-      messages: messages.map(m => ({
-        role: m.role as 'user' | 'assistant' | 'system',
-        content: m.content,
-        timestamp: m.timestamp
+      messages: messages.map((message) => ({
+        role: message.role as 'user' | 'assistant' | 'system',
+        content: message.content,
+        timestamp: message.timestamp
       })),
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at)
     };
+  }
+
+  private async loadSessionData(row: DBSession): Promise<Session> {
+    const [messages, memory] = await Promise.all([
+      this.db.all<DBMessage>(
+        `SELECT * FROM messages WHERE session_id = ? ORDER BY id ASC`,
+        [row.id]
+      ),
+      this.db.get<DBSessionMemory>(
+        `SELECT * FROM session_memory WHERE session_id = ?`,
+        [row.id]
+      )
+    ]);
+
+    return this.mapRowToSession(row, messages, memory);
   }
 
   private async load(key: string): Promise<Session | null> {
@@ -196,98 +204,40 @@ export class SessionManager {
       [key]
     );
 
-    if (rows.length === 0) return null;
+    if (rows.length === 0) {
+      return null;
+    }
 
-    const messages = await this.db.all<DBMessage>(
-      `SELECT * FROM messages WHERE session_id = ? ORDER BY id ASC`,
-      [rows[0].id]
-    );
-
-    const memory = await this.db.get<DBSessionMemory>(
-      `SELECT * FROM session_memory WHERE session_id = ?`,
-      [rows[0].id]
-    );
-
-    return this.mapRowToSession(rows[0], messages, memory);
-  }
-
-  async save(session: Session): Promise<void> {
-    session.updatedAt = new Date();
-    await this.db.run(
-      `UPDATE sessions SET updated_at = ? WHERE key = ?`,
-      [session.updatedAt.toISOString(), session.key]
-    );
+    return this.loadSessionData(rows[0]);
   }
 
   async addMessage(key: string, role: 'user' | 'assistant' | 'system', content: string): Promise<void> {
     const session = await this.getOrCreate(key);
+    const updatedAt = new Date();
+    const timestamp = updatedAt.toISOString();
 
     const message: SessionMessage = {
       role,
       content,
-      timestamp: new Date().toISOString()
+      timestamp
     };
 
     session.messages.push(message);
+    session.updatedAt = updatedAt;
     this.log.debug(`Added ${role} message to session ${key}, total messages: ${session.messages.length}, content length: ${content.length}`);
 
     if (session.id) {
-      const timestamp = message.timestamp;
       await this.db.transaction(async () => {
         await this.db.run(
           `INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)`,
-          [session.id!, role, content, timestamp]
+          [session.id, role, content, timestamp]
         );
         await this.db.run(
           `UPDATE sessions SET updated_at = ? WHERE key = ?`,
-          [new Date().toISOString(), key]
+          [timestamp, key]
         );
       });
     }
-  }
-
-  async getFacts(channel: string, chatId: string): Promise<MemoryFact[]> {
-    const conversationKey = this.createSessionKey(channel, chatId);
-    const cached = this.facts.get(conversationKey);
-    if (cached) {
-      return cached;
-    }
-
-    const rows = await this.db.all<DBMemoryFact>(
-      `SELECT * FROM memory_facts WHERE channel = ? AND chat_id = ? ORDER BY updated_at DESC, id DESC`,
-      [channel, chatId]
-    );
-
-    const facts = rows.map((row) => ({ content: row.fact, updatedAt: row.updated_at }));
-    this.facts.set(conversationKey, facts);
-    return facts;
-  }
-
-  async setFacts(channel: string, chatId: string, facts: string[]): Promise<void> {
-    const conversationKey = this.createSessionKey(channel, chatId);
-    const normalizedFacts = Array.from(new Set(
-      facts.map((fact) => fact.trim()).filter(Boolean)
-    ));
-
-    await this.db.transaction(async () => {
-      await this.db.run(
-        `DELETE FROM memory_facts WHERE channel = ? AND chat_id = ?`,
-        [channel, chatId]
-      );
-
-      const updatedAt = new Date().toISOString();
-      for (const fact of normalizedFacts) {
-        await this.db.run(
-          `INSERT INTO memory_facts (channel, chat_id, fact, updated_at) VALUES (?, ?, ?, ?)`,
-          [channel, chatId, fact, updatedAt]
-        );
-      }
-    });
-
-    this.facts.set(
-      conversationKey,
-      normalizedFacts.map((content) => ({ content, updatedAt: new Date().toISOString() }))
-    );
   }
 
   async updateSummary(key: string, summary: string, summarizedMessageCount: number): Promise<void> {
@@ -320,11 +270,7 @@ export class SessionManager {
   }
 
   async delete(key: string): Promise<void> {
-    const session = this.sessions.get(key);
     this.sessions.delete(key);
-    if (session) {
-      this.facts.delete(this.createSessionKey(session.channel, session.chatId));
-    }
     await this.db.run(`DELETE FROM sessions WHERE key = ?`, [key]);
   }
 
@@ -334,7 +280,7 @@ export class SessionManager {
 
   async loadAll(): Promise<void> {
     await this.db.ready();
-    
+
     const sessions = await this.db.all<DBSession>(
       `SELECT * FROM sessions ORDER BY updated_at DESC LIMIT ?`,
       [this.maxSessions]
@@ -343,22 +289,12 @@ export class SessionManager {
     const batchSize = CONSTANTS.SESSION_LOAD_BATCH_SIZE;
     for (let i = 0; i < sessions.length; i += batchSize) {
       const batch = sessions.slice(i, i + batchSize);
-      const rowsWithMessages = await Promise.all(
-        batch.map(async (row) => ({
-          row,
-          messages: await this.db.all<DBMessage>(
-            `SELECT * FROM messages WHERE session_id = ? ORDER BY id ASC`,
-            [row.id]
-          ),
-          memory: await this.db.get<DBSessionMemory>(
-            `SELECT * FROM session_memory WHERE session_id = ?`,
-            [row.id]
-          )
-        }))
+      const loadedSessions = await Promise.all(
+        batch.map(async (row) => [row.key, await this.loadSessionData(row)] as const)
       );
-      
-      for (const { row, messages, memory } of rowsWithMessages) {
-        this.sessions.set(row.key, this.mapRowToSession(row, messages, memory));
+
+      for (const [loadedKey, session] of loadedSessions) {
+        this.sessions.set(loadedKey, session);
       }
     }
 

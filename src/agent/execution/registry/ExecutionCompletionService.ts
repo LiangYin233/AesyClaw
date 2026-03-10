@@ -36,14 +36,11 @@ export class ExecutionCompletionService {
       sendOutbound
     } = params;
 
-    const session = await this.sessionManager.getOrCreate(sessionKey);
     await this.sessionManager.addMessage(sessionKey, 'user', request.content);
 
     if (content) {
       await this.sessionManager.addMessage(sessionKey, 'assistant', content);
     }
-
-    await this.sessionManager.save(session);
 
     const llmResponse: LLMResponse = {
       content,

@@ -3,9 +3,9 @@ import type { EventBus } from '../bus/EventBus.js';
 import type { AgentLoop } from '../agent/index.js';
 import type { ToolRegistry, Tool, ToolContext } from '../tools/ToolRegistry.js';
 import { logger } from '../logger/index.js';
+import { metrics } from '../logger/Metrics.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { HookPipeline, VoidHookPipeline } from './HookPipeline.js';
 
 /**
  * Command matcher types
@@ -205,75 +205,97 @@ export class PluginManager {
     return null;
   }
 
-  async applyOnMessage(msg: InboundMessage): Promise<InboundMessage | null> {
-    const pipeline = new HookPipeline<InboundMessage>(
-      Array.from(this.plugins.values()),
-      'onMessage',
-      { verbose: true }
-    );
+  private async runTransformHooks<T>(
+    hookName: keyof Plugin,
+    initial: T,
+    options: { verbose?: boolean } = {},
+    ...args: any[]
+  ): Promise<T> {
+    let result = initial;
 
-    const result = await pipeline.execute(msg);
+    for (const plugin of this.plugins.values()) {
+      const hook = plugin[hookName];
+      if (typeof hook !== 'function') {
+        continue;
+      }
+
+      try {
+        if (options.verbose) {
+          this.log.debug(`Executing ${String(hookName)} for plugin ${plugin.name}`);
+        }
+
+        const endTimer = metrics.timer('plugin.hook_execution', {
+          plugin: plugin.name,
+          hook: String(hookName)
+        });
+        const hookResult = await (hook as (...hookArgs: any[]) => Promise<T | null | undefined>).call(plugin, result, ...args);
+        endTimer();
+
+        if (hookResult !== undefined && hookResult !== null) {
+          result = hookResult;
+        }
+      } catch (error) {
+        this.log.error(`Plugin ${plugin.name} ${String(hookName)} error:`, error);
+      }
+    }
+
     return result;
   }
 
-  async applyOnResponse(msg: OutboundMessage): Promise<OutboundMessage | null> {
-    const pipeline = new HookPipeline<OutboundMessage>(
-      Array.from(this.plugins.values()),
-      'onResponse'
-    );
+  private async runObserverHooks(
+    hookName: keyof Plugin,
+    ...args: any[]
+  ): Promise<void> {
+    for (const plugin of this.plugins.values()) {
+      const hook = plugin[hookName];
+      if (typeof hook !== 'function') {
+        continue;
+      }
 
-    return pipeline.execute(msg);
+      try {
+        const endTimer = metrics.timer('plugin.hook_execution', {
+          plugin: plugin.name,
+          hook: String(hookName)
+        });
+        await (hook as (...hookArgs: any[]) => Promise<void>).call(plugin, ...args);
+        endTimer();
+      } catch (error) {
+        this.log.error(`Plugin ${plugin.name} ${String(hookName)} error:`, error);
+      }
+    }
+  }
+
+  async applyOnMessage(msg: InboundMessage): Promise<InboundMessage | null> {
+    return this.runTransformHooks('onMessage', msg, { verbose: true });
+  }
+
+  async applyOnResponse(msg: OutboundMessage): Promise<OutboundMessage | null> {
+    return this.runTransformHooks('onResponse', msg);
   }
 
   async applyOnAgentBefore(msg: InboundMessage, messages: LLMMessage[]): Promise<void> {
-    const pipeline = new VoidHookPipeline(
-      Array.from(this.plugins.values()),
-      'onAgentBefore'
-    );
-
-    await pipeline.execute(msg, messages);
+    await this.runObserverHooks('onAgentBefore', msg, messages);
   }
 
   async applyOnAgentAfter(msg: InboundMessage, response: LLMResponse): Promise<void> {
-    const pipeline = new VoidHookPipeline(
-      Array.from(this.plugins.values()),
-      'onAgentAfter'
-    );
-
-    await pipeline.execute(msg, response);
+    await this.runObserverHooks('onAgentAfter', msg, response);
   }
 
   async applyOnBeforeToolCall(toolName: string, params: Record<string, any>, context?: ToolContext): Promise<Record<string, any>> {
     this.log.debug(`applyOnBeforeToolCall: tool=${toolName}, params keys=${Object.keys(params).join(', ')}`);
 
-    const pipeline = new HookPipeline<Record<string, any>>(
-      Array.from(this.plugins.values()),
-      'onBeforeToolCall'
-    );
-
-    const result = await pipeline.execute(params, toolName, context);
+    const result = await this.runTransformHooks('onBeforeToolCall', params, {}, toolName, context);
     this.log.debug(`After onBeforeToolCall hooks, params keys=${Object.keys(result).join(', ')}`);
     return result;
   }
 
   async applyOnToolCall(toolName: string, params: Record<string, any>, result: string, context?: ToolContext): Promise<string> {
-    const pipeline = new HookPipeline<string>(
-      Array.from(this.plugins.values()),
-      'onToolCall'
-    );
-
-    return pipeline.execute(result, toolName, params, context);
+    return this.runTransformHooks('onToolCall', result, {}, toolName, params, context);
   }
 
   async applyOnError(error: unknown, context: PluginErrorContext): Promise<void> {
     const err = error instanceof Error ? error : new Error(String(error));
-
-    const pipeline = new VoidHookPipeline(
-      Array.from(this.plugins.values()),
-      'onError'
-    );
-
-    await pipeline.execute(err, { ...context });
+    await this.runObserverHooks('onError', err, { ...context });
   }
 
   private buildPluginContext(options?: Record<string, any>): PluginContext {

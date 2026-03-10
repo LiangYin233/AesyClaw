@@ -7,13 +7,11 @@ import type { PluginManager } from '../../plugins/index.js';
 import { SkillManager } from '../../skills/index.js';
 import { CommandRegistry } from '../commands/index.js';
 import { AgentExecutor } from '../executor/AgentExecutor.js';
-import { BackgroundTaskManager } from '../state/BackgroundTaskManager.js';
+import { BackgroundTaskManager, type BackgroundTaskHandle } from '../state/BackgroundTaskManager.js';
 import { SessionRoutingService } from '../routing/SessionRoutingService.js';
-import { ExecutionRegistry } from '../execution/registry/ExecutionRegistry.js';
+import { ExecutionRegistry, type ForegroundExecutionHandle } from '../execution/registry/ExecutionRegistry.js';
 import { ExecutionCompletionService } from '../execution/registry/ExecutionCompletionService.js';
-import { ExecutionControlService, type ExecutionStatus } from '../routing/ExecutionControlService.js';
 import { ExecutionCoordinator } from '../routing/ExecutionCoordinator.js';
-import { MessageApplicationService } from '../messaging/MessageApplicationService.js';
 import { MessagePreprocessingService } from '../messaging/MessagePreprocessingService.js';
 import { SessionMemoryService } from '../memory/SessionMemoryService.js';
 import { logger } from '../../logger/index.js';
@@ -22,6 +20,13 @@ import { CONFIG_DEFAULTS } from '../../constants/index.js';
 
 export type ContextMode = 'session' | 'channel' | 'global';
 
+export interface ExecutionStatus {
+  sessionKey: string;
+  foreground?: ForegroundExecutionHandle;
+  background: BackgroundTaskHandle[];
+  active: boolean;
+}
+
 export class AgentLoop {
   private eventBus: EventBus;
   private sessionManager: SessionManager;
@@ -29,10 +34,8 @@ export class AgentLoop {
   private backgroundTasks: BackgroundTaskManager;
   private sessionRouting: SessionRoutingService;
   private executionRegistry: ExecutionRegistry;
-  private completionService: ExecutionCompletionService;
-  private executionControl: ExecutionControlService;
+  private completionService!: ExecutionCompletionService;
   private executionCoordinator!: ExecutionCoordinator;
-  private messageApplication!: MessageApplicationService;
   private preprocessingService: MessagePreprocessingService;
   private running = false;
   private toolContext: ToolContext;
@@ -41,8 +44,6 @@ export class AgentLoop {
   private currentSessionKey?: string;
   private pluginManager?: PluginManager;
   private commandRegistry?: CommandRegistry;
-  private visionSettings?: VisionSettings;
-  private visionProvider?: LLMProvider;
   private memoryService?: SessionMemoryService;
   private log = logger.child({ prefix: 'Agent' });
 
@@ -69,26 +70,25 @@ export class AgentLoop {
     this.memoryWindow = memoryWindow;
     this.executionRegistry = new ExecutionRegistry();
     this.sessionRouting = sessionRouting ?? new SessionRoutingService(sessionManager, contextMode);
-    this.completionService = new ExecutionCompletionService(sessionManager);
     this.toolContext = { workspace, eventBus };
-    this.visionSettings = visionSettings;
-    this.visionProvider = visionProvider;
     this.memoryService = memoryService;
 
     const skillsPrompt = skillManager?.buildSkillsPrompt() || '';
     this.executor = new AgentExecutor(
-      provider, toolRegistry, workspace,
-      systemPrompt, skillsPrompt, model, maxIterations,
-      undefined, visionSettings, visionProvider, this.executionRegistry
+      provider,
+      toolRegistry,
+      workspace,
+      systemPrompt,
+      skillsPrompt,
+      model,
+      maxIterations,
+      undefined,
+      visionSettings,
+      visionProvider,
+      this.executionRegistry
     );
 
-    // 初始化后台任务管理器
     this.backgroundTasks = new BackgroundTaskManager(eventBus);
-    this.executionControl = new ExecutionControlService(
-      this.sessionRouting,
-      this.executionRegistry,
-      this.backgroundTasks
-    );
     this.rebuildExecutionServices();
     this.preprocessingService = new MessagePreprocessingService();
 
@@ -170,8 +170,6 @@ export class AgentLoop {
 
       msg = preprocessResult.message;
 
-      // sessionKey 已在预处理阶段计算，直接使用
-      // 如果插件处理后丢失，从 channelSessions 恢复
       let sessionKey = msg.sessionKey;
       if (!sessionKey && this.contextMode === 'channel') {
         sessionKey = this.sessionRouting.getActiveSession(msg.channel, msg.chatId);
@@ -188,10 +186,17 @@ export class AgentLoop {
         ? await this.memoryService.buildHistory(session)
         : session.messages.slice(-this.memoryWindow);
 
-      const executionResult = await this.messageApplication.execute({
+      this.executor.getContextBuilder().setCurrentContext(msg.channel, msg.chatId, msg.messageType);
+      const messages = this.executor.buildContext(history, msg.content, msg.media, msg.files);
+
+      if (this.pluginManager) {
+        await this.pluginManager.applyOnAgentBefore(msg, messages);
+      }
+
+      const executionResult = await this.executionCoordinator.execute({
         sessionKey,
         request: msg,
-        history,
+        messages,
         toolContext: this.toolContext,
         suppressOutbound,
         sendOutbound: (outbound) => this.sendOutbound(outbound)
@@ -215,11 +220,11 @@ export class AgentLoop {
     }
   }
 
-  /**
-   * 中止指定会话的执行
-   */
   abortExecution(sessionKey: string): void {
-    const aborted = this.executionControl.abortExecution(sessionKey);
+    const abortedForeground = this.executionRegistry.abort(sessionKey);
+    const abortedBackground = this.backgroundTasks.abortTask(sessionKey);
+    const aborted = abortedForeground || abortedBackground;
+
     this.log.info(aborted
       ? `Aborted execution for session: ${sessionKey}`
       : `Abort requested for inactive session: ${sessionKey}`);
@@ -299,50 +304,49 @@ export class AgentLoop {
       this.backgroundTasks,
       this.completionService
     );
-    this.messageApplication = new MessageApplicationService(
-      this.executor,
-      this.executionCoordinator,
-      this.pluginManager
-    );
   }
 
-  /**
-   * 获取当前正在执行的会话 key
-   */
   getCurrentSessionKey(): string | undefined {
     return this.currentSessionKey;
   }
 
-  /**
-   * 根据 channel:chatId 获取当前会话 key
-   */
   getSessionKey(channel: string, chatId: string): string | undefined {
     return this.sessionRouting.resolveByChannel(channel, chatId);
   }
 
   getExecutionStatus(sessionKey: string): ExecutionStatus {
-    return this.executionControl.getExecutionStatus(sessionKey);
+    const foreground = this.executionRegistry.getHandle(sessionKey);
+    const background = this.backgroundTasks.getTasksBySessionHandle(sessionKey);
+
+    return {
+      sessionKey,
+      foreground,
+      background,
+      active: !!foreground || background.length > 0
+    };
   }
 
-  /**
-   * 直接中止指定会话的执行（供 channel 直接调用）
-   */
   abortSession(channel: string, chatId: string): boolean {
-    const aborted = this.executionControl.abortSession(channel, chatId);
+    const sessionKey = this.sessionRouting.resolveByChannel(channel, chatId);
+    if (!sessionKey) {
+      return false;
+    }
+
+    const aborted = this.executionRegistry.abort(sessionKey) || this.backgroundTasks.abortTask(sessionKey);
     if (aborted) {
-      const sessionKey = this.sessionRouting.resolveByChannel(channel, chatId);
       this.log.info(`Aborted session: ${sessionKey} (channel: ${channel}, chatId: ${chatId})`);
     }
     return aborted;
   }
 
-  /**
-   * 中止指定 channel:chatId 的后台任务
-   */
   abortBackgroundSession(channel: string, chatId: string): boolean {
-    const aborted = this.executionControl.abortBackgroundSession(channel, chatId);
+    const sessionKey = this.sessionRouting.resolveByChannel(channel, chatId);
+    if (!sessionKey) {
+      return false;
+    }
+
+    const aborted = this.backgroundTasks.abortTask(sessionKey);
     if (aborted) {
-      const sessionKey = this.sessionRouting.resolveByChannel(channel, chatId);
       this.log.info(`Aborted background tasks for session: ${sessionKey} (channel: ${channel}, chatId: ${chatId})`);
     }
     return aborted;

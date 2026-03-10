@@ -1,6 +1,6 @@
 import type { LLMProvider } from '../../providers/base.js';
-import type { MemoryFactsConfig, MemorySummaryConfig } from '../../types.js';
-import type { Session, SessionManager, SessionMessage, MemoryFact } from '../../session/SessionManager.js';
+import type { Session, SessionManager, SessionMessage } from '../../session/SessionManager.js';
+import { MemoryFactStore, type MemoryFact } from '../../session/MemoryFactStore.js';
 import { logger } from '../../logger/index.js';
 import {
   MEMORY_FACTS_PREFIX,
@@ -29,31 +29,15 @@ export class SessionMemoryService {
 
   constructor(
     private sessionManager: SessionManager,
+    private factsStore: MemoryFactStore,
     private summaryProvider: LLMProvider | undefined,
     private summaryConfig: MemorySummaryRuntimeConfig,
     private factsProvider?: LLMProvider,
     private factsConfig?: MemoryFactsRuntimeConfig
   ) {}
 
-  static createRuntimeConfig(config: MemorySummaryConfig | undefined, memoryWindow: number, model?: string): MemorySummaryRuntimeConfig {
-    return {
-      enabled: config?.enabled === true,
-      model,
-      triggerMessages: config?.triggerMessages ?? 20,
-      memoryWindow
-    };
-  }
-
-  static createFactsRuntimeConfig(config: MemoryFactsConfig | undefined, model?: string): MemoryFactsRuntimeConfig {
-    return {
-      enabled: config?.enabled === true,
-      model,
-      maxFacts: config?.maxFacts ?? 20
-    };
-  }
-
   async buildHistory(session: Session): Promise<SessionMessage[]> {
-    const facts = await this.sessionManager.getFacts(session.channel, session.chatId);
+    const facts = await this.factsStore.getFacts(session.channel, session.chatId);
     const factMessage = this.buildFactsMessage(facts);
     const summaryMessage = session.summary.trim()
       ? [{
@@ -97,16 +81,6 @@ export class SessionMemoryService {
       this.log.warn(`Failed to summarize session ${sessionKey}:`, error);
       return false;
     }
-  }
-
-  updateConfig(summaryProvider: LLMProvider | undefined, config: MemorySummaryRuntimeConfig): void {
-    this.summaryProvider = summaryProvider;
-    this.summaryConfig = config;
-  }
-
-  updateFactsConfig(factsProvider: LLMProvider | undefined, config: MemoryFactsRuntimeConfig): void {
-    this.factsProvider = factsProvider;
-    this.factsConfig = config;
   }
 
   async maybePersistMemory(sessionKey: string, userContent: string, assistantContent: string): Promise<void> {
@@ -153,7 +127,7 @@ export class SessionMemoryService {
     }
 
     const session = await this.sessionManager.getOrCreate(sessionKey);
-    const existingFacts = await this.sessionManager.getFacts(session.channel, session.chatId);
+    const existingFacts = await this.factsStore.getFacts(session.channel, session.chatId);
     const extractedFacts = await this.extractFacts(existingFacts, userContent, assistantContent);
 
     if (extractedFacts.length === 0) {
@@ -165,7 +139,7 @@ export class SessionMemoryService {
       ...existingFacts.map((fact) => fact.content)
     ])).slice(0, this.factsConfig.maxFacts);
 
-    await this.sessionManager.setFacts(session.channel, session.chatId, mergedFacts);
+    await this.factsStore.setFacts(session.channel, session.chatId, mergedFacts);
     this.log.info(`Updated facts for ${session.channel}:${session.chatId}, total facts: ${mergedFacts.length}`);
   }
 

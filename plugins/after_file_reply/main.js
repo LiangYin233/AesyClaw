@@ -17,7 +17,6 @@ const AFTER_FILE_REPLY_PROMPTS = {
   ].join('\n')
 };
 
-// Intent 辅助对象，用于创建语义化的处理意图
 const Intent = {
   status: (reason) => ({ type: 'status', reason }),
   handled: (reason) => ({ type: 'handled', reason }),
@@ -118,6 +117,47 @@ const plugin = {
     return !!(msg.media && msg.media.length > 0);
   },
 
+  appendUniqueFiles(targetFiles, newFiles = []) {
+    const existing = new Set(targetFiles);
+    for (const file of newFiles) {
+      if (!existing.has(file)) {
+        targetFiles.push(file);
+        existing.add(file);
+      }
+    }
+  },
+
+  buildMultimodalContent(text, files) {
+    return [
+      { type: 'text', text },
+      ...files.map((fileUrl) => ({
+        type: 'image_url',
+        image_url: { url: fileUrl }
+      }))
+    ];
+  },
+
+  async callMultimodalLLM(systemPrompt, userText, files, logLabel) {
+    const content = this.buildMultimodalContent(userText, files);
+    const response = await this.context.agent.callLLM([
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content }
+    ], { allowTools: false });
+    const reply = response.content?.trim() || '';
+
+    this.log.debug(`${logLabel}: LLM response length: ${reply.length}`);
+    return reply;
+  },
+
+  async clearWaitingState(key) {
+    this.waitingStates.delete(key);
+    await this.saveStates();
+  },
+
+  getErrorMessage(error) {
+    return error instanceof Error ? error.message : String(error);
+  },
+
   commands: [
     {
       name: 'qxdd',
@@ -132,8 +172,7 @@ const plugin = {
         }
 
         const fileCount = state.files.length;
-        plugin.waitingStates.delete(key);
-        plugin.saveStates();
+        await plugin.clearWaitingState(key);
 
         return { ...msg, content: `已取消等待，放弃了 ${fileCount} 个文件` };
       }
@@ -153,44 +192,29 @@ const plugin = {
         const files = state.files;
         plugin.log.debug(`/zjfs: Processing ${files.length} files`);
 
-        // 构建多模态消息内容
-        const content = [
-          { type: 'text', text: AFTER_FILE_REPLY_PROMPTS.describeImagesUser }
-        ];
-
-        // 添加图片
-        for (const fileUrl of files) {
-          content.push({
-            type: 'image_url',
-            image_url: { url: fileUrl }
-          });
-        }
-
         try {
-          const response = await plugin.context.agent.callLLM([
-            { role: 'system', content: AFTER_FILE_REPLY_PROMPTS.describeImagesSystem },
-            { role: 'user', content }
-          ], { allowTools: false });
+          const reply = await plugin.callMultimodalLLM(
+            AFTER_FILE_REPLY_PROMPTS.describeImagesSystem,
+            AFTER_FILE_REPLY_PROMPTS.describeImagesUser,
+            files,
+            '/zjfs'
+          );
 
-          plugin.log.debug(`/zjfs: LLM response length: ${response.content?.length || 0}`);
-
-          if (!response.content || response.content.trim() === '') {
+          if (!reply) {
             return {
               ...msg,
               content: '抱歉，AI 未能生成回复。请重试。'
             };
           }
 
-          plugin.waitingStates.delete(key);
-          plugin.saveStates();
-
-          return { ...msg, content: response.content };
+          await plugin.clearWaitingState(key);
+          return { ...msg, content: reply };
         } catch (error) {
-          plugin.log.error(`/zjfs failed:`, error);
+          plugin.log.error('/zjfs failed:', error);
 
           return {
             ...msg,
-            content: `处理失败：${error.message}`
+            content: `处理失败：${plugin.getErrorMessage(error)}`
           };
         }
       }
@@ -203,18 +227,9 @@ const plugin = {
 
     this.log.debug(`onMessage: key=${key}, hasState=${!!state}, media=${JSON.stringify(msg.media)}`);
 
-    // 有等待状态时
     if (state) {
-      // 收到新文件：追加
       if (this.hasFile(msg)) {
-        const newFiles = msg.media || [];
-        const existingSet = new Set(state.files);
-        for (const f of newFiles) {
-          if (!existingSet.has(f)) {
-            state.files.push(f);
-          }
-        }
-
+        this.appendUniqueFiles(state.files, msg.media || []);
         await this.saveStates();
 
         return {
@@ -224,7 +239,6 @@ const plugin = {
         };
       }
 
-      // 收到文本：发送文件+文本给 LLM
       if (msg.content.trim()) {
         const files = state.files;
 
@@ -232,33 +246,17 @@ const plugin = {
         this.log.debug(`Text content: ${msg.content.substring(0, 100)}`);
         this.log.debug(`Files: ${JSON.stringify(files)}`);
 
-        // 构建多模态消息内容
-        const content = [
-          { type: 'text', text: msg.content }
-        ];
-
-        // 添加图片
-        for (const fileUrl of files) {
-          content.push({
-            type: 'image_url',
-            image_url: { url: fileUrl }
-          });
-        }
-
-        this.log.debug(`Calling LLM with multimodal content`);
-
         try {
-          const response = await this.context.agent.callLLM([
-            { role: 'system', content: AFTER_FILE_REPLY_PROMPTS.multimodalReplySystem },
-            { role: 'user', content }
-          ], { allowTools: false });
+          const reply = await this.callMultimodalLLM(
+            AFTER_FILE_REPLY_PROMPTS.multimodalReplySystem,
+            msg.content,
+            files,
+            'after_file_reply'
+          );
 
-          this.log.debug(`LLM response received, content length: ${response.content?.length || 0}`);
-
-          if (!response.content || response.content.trim() === '') {
-            this.log.warn(`LLM returned empty content`);
-            this.waitingStates.delete(key);
-            await this.saveStates();
+          if (!reply) {
+            this.log.warn('LLM returned empty content');
+            await this.clearWaitingState(key);
             return {
               ...msg,
               content: '抱歉，AI 未能生成回复。请重试或使用 /zjfs 命令。',
@@ -266,18 +264,16 @@ const plugin = {
             };
           }
 
-          this.waitingStates.delete(key);
-          await this.saveStates();
-
-          return { ...msg, content: response.content, intent: Intent.handled('插件已调用 LLM 并获得回复') };
+          await this.clearWaitingState(key);
+          return { ...msg, content: reply, intent: Intent.handled('插件已调用 LLM 并获得回复') };
         } catch (error) {
-          this.log.error(`LLM call failed:`, error);
+          const message = this.getErrorMessage(error);
+          this.log.error('LLM call failed:', error);
 
-          // Keep state on error so user can retry
           return {
             ...msg,
-            content: `处理失败：${error.message}。请重试或使用 /qxdd 取消。`,
-            intent: Intent.error(`LLM 调用失败: ${error.message}`)
+            content: `处理失败：${message}。请重试或使用 /qxdd 取消。`,
+            intent: Intent.error(`LLM 调用失败: ${message}`)
           };
         }
       }
@@ -285,12 +281,10 @@ const plugin = {
       return msg;
     }
 
-    // 无等待状态时
     if (!this.hasFile(msg)) {
       return msg;
     }
 
-    // 收到文件：进入等待状态
     const files = msg.media || [];
     this.log.debug(`New state: files=${JSON.stringify(files)}`);
     const uniqueFiles = [...new Set(files)];
