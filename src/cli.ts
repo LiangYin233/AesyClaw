@@ -191,8 +191,7 @@ async function main(): Promise<void> {
 
   // gateway 命令直接启动服务
   if (command === 'gateway') {
-    const config = await ConfigLoader.load();
-    await bootstrap(config.server.apiPort);
+    await bootstrap();
     return;
   }
 

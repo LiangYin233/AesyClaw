@@ -23,8 +23,9 @@ function ensureRuntimeDirectories(workspace: string, tempDir: string): void {
   }
 }
 
-export async function bootstrap(port: number): Promise<void> {
+export async function bootstrap(): Promise<void> {
   const config = await ConfigLoader.load() as Config;
+  const port = config.server.apiPort ?? 18792;
   const workspace = join(process.cwd(), 'workspace');
   const tempDir = join(process.cwd(), '.aesyclaw', 'temp');
 
