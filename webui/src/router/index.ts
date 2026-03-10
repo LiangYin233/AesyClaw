@@ -3,6 +3,7 @@ import AppLayout from '../components/AppLayout.vue'
 import Dashboard from '../views/Dashboard.vue'
 import Chat from '../views/Chat.vue'
 import Sessions from '../views/Sessions.vue'
+import Memory from '../views/Memory.vue'
 import Tools from '../views/Tools.vue'
 import Plugins from '../views/Plugins.vue'
 import Config from '../views/Config.vue'
@@ -22,6 +23,7 @@ const router = createRouter({
                 { path: 'chat', name: 'chat', component: Chat },
                 { path: 'chat/:sessionKey', name: 'chat-session', component: Chat },
                 { path: 'sessions', name: 'sessions', component: Sessions },
+                { path: 'memory', name: 'memory', component: Memory },
                 { path: 'tools', name: 'tools', component: Tools },
                 { path: 'plugins', name: 'plugins', component: Plugins },
                 { path: 'config', name: 'config', component: Config },

@@ -57,4 +57,18 @@ export class MemoryFactStore {
       normalizedFacts.map((content) => ({ content, updatedAt }))
     );
   }
+
+  async clearFacts(channel: string, chatId: string): Promise<void> {
+    const conversationKey = this.createConversationKey(channel, chatId);
+    await this.db.run(
+      `DELETE FROM memory_facts WHERE channel = ? AND chat_id = ?`,
+      [channel, chatId]
+    );
+    this.facts.delete(conversationKey);
+  }
+
+  async clearAllFacts(): Promise<void> {
+    await this.db.run(`DELETE FROM memory_facts`);
+    this.facts.clear();
+  }
 }

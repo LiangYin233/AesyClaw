@@ -40,9 +40,17 @@ export class ContextBuilder {
     media?: string[],
     files?: InboundFile[]
   ): LLMMessage[] {
+    const systemSections = [this.buildSystemPrompt()];
+
+    for (const message of history) {
+      if (message.role === 'system' && typeof message.content === 'string' && message.content.trim()) {
+        systemSections.push(message.content.trim());
+      }
+    }
+
     const messages: LLMMessage[] = [
-      { role: 'system', content: this.buildSystemPrompt() },
-      ...history.filter(m => ['user', 'assistant', 'system'].includes(m.role)),
+      { role: 'system', content: systemSections.join('\n\n') },
+      ...history.filter(m => ['user', 'assistant'].includes(m.role)),
       { role: 'user', content: this.buildUserContent(currentMessage, media, files) }
     ];
     return messages;

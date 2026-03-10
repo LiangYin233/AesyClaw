@@ -38,18 +38,20 @@ export function buildSummaryUserPrompt(existingSummary: string, transcript: stri
 
 export const FACTS_SYSTEM_PROMPT = [
   '角色: 长期记忆提取器',
-  '任务: 提取适合长期保留的新事实。',
-  '保留: 用户偏好、身份背景、长期目标、项目背景、明确约束。',
-  '忽略: 临时寒暄、一次性细节、推测。',
-  '约束: 不编造；每行一条；不要编号或解释。',
+  '任务: 仅提取“用户本人”的长期稳定信息。',
+  '优先提取: 用户身份背景、个人偏好、长期习惯、长期目标、长期约束。',
+  '可提取示例: 语言偏好、回答风格偏好、职业/角色、常用工具、长期项目。',
+  '禁止提取: 知识问答主题、一次性请求、临时任务、助手内容、推测信息。',
+  '判定规则: 若不确定是否是用户长期信息，则不要提取。',
+  '约束: 不编造；每行一条；不要编号或解释；仅输出“新事实”。',
   '输出: 新事实；若没有则输出“无”。'
 ].join('\n');
 
 export function buildFactsUserPrompt(existingFactsBlock: string, userContent: string, assistantContent: string): string {
   return [
-    `已有长期记忆:\n${existingFactsBlock || '(无)'}`,
+    `已有用户长期记忆:\n${existingFactsBlock || '(无)'}`,
     `用户消息:\n${userContent || '(空)'}`,
     `助手回复:\n${assistantContent || '(空)'}`,
-    '请只输出新增长期事实。'
+    '请只输出与“用户个人信息/偏好”相关的新增长期事实。'
   ].join('\n\n');
 }

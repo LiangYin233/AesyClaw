@@ -111,6 +111,24 @@ export interface SkillInfo {
   files?: { name: string; path: string; isDirectory: boolean }[]
 }
 
+export interface MemoryEntry {
+  key: string
+  channel: string
+  chatId: string
+  facts: string[]
+  factCount: number
+  sessionCount: number
+  summaryCount: number
+  sessions: {
+    sessionKey: string
+    uuid?: string
+    summary: string
+    summarizedMessageCount: number
+    updatedAt?: string
+  }[]
+  updatedAt?: string
+}
+
 export interface ApiResponse<T> {
   data: T | null
   error: string | null

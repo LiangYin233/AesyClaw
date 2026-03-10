@@ -15,7 +15,8 @@ import type {
   MetricStats,
   MetricOverview,
   MetricConfig,
-  MemoryUsage
+  MemoryUsage,
+  MemoryEntry
 } from '../types/api'
 
 // Re-export types for backward compatibility
@@ -34,7 +35,8 @@ export type {
   MetricStats,
   MetricOverview,
   MetricConfig,
-  MemoryUsage
+  MemoryUsage,
+  MemoryEntry
 }
 
 /**
@@ -539,6 +541,51 @@ export function useApi() {
     }
   }
 
+  async function getMemoryEntries(): Promise<MemoryEntry[]> {
+    loading.value = true
+    error.value = null
+    try {
+      const { data, error: err } = await apiGet<{ items: MemoryEntry[] }>('/memory')
+      if (err) {
+        error.value = err
+        return []
+      }
+      return data?.items || []
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function deleteMemoryEntry(key: string): Promise<boolean> {
+    loading.value = true
+    error.value = null
+    try {
+      const { error: err } = await apiDelete(`/memory/${encodeURIComponent(key)}`)
+      if (err) {
+        error.value = err
+        return false
+      }
+      return true
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function clearAllMemory(): Promise<boolean> {
+    loading.value = true
+    error.value = null
+    try {
+      const { error: err } = await apiDelete('/memory')
+      if (err) {
+        error.value = err
+        return false
+      }
+      return true
+    } finally {
+      loading.value = false
+    }
+  }
+
   async function getMetricOverview(): Promise<MetricOverview | null> {
     loading.value = true
     error.value = null
@@ -664,6 +711,9 @@ export function useApi() {
     setLogLevel,
     getMetricNames,
     getMetricStats,
+    getMemoryEntries,
+    deleteMemoryEntry,
+    clearAllMemory,
     getMetricOverview,
     getMemoryUsage,
     exportMetrics,

@@ -58,6 +58,7 @@ const navItems = [
     { path: '/', label: '仪表盘', icon: 'pi pi-home' },
     { path: '/chat', label: '聊天', icon: 'pi pi-comments' },
     { path: '/sessions', label: '会话', icon: 'pi pi-list' },
+    { path: '/memory', label: '记忆', icon: 'pi pi-bookmark' },
     { path: '/cron', label: '定时任务', icon: 'pi pi-clock' },
     { path: '/tools', label: '工具', icon: 'pi pi-box' },
     { path: '/plugins', label: '插件', icon: 'pi pi-th-large' },

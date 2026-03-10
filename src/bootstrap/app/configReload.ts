@@ -7,7 +7,7 @@ import { createMemorySummaryService } from '../factory/ServiceFactory.js';
 const log = logger.child({ prefix: 'Bootstrap' });
 
 export function setupConfigReload(services: Services): void {
-  const { agent, apiServer, sessionManager } = services;
+  const { agent, apiServer, sessionManager, memoryFactStore } = services;
   let currentConfig = services.config;
 
   ConfigLoader.onReload(async (newConfig) => {
@@ -26,7 +26,7 @@ export function setupConfigReload(services: Services): void {
       agent.updateProvider(newProviderInstance, newModel);
     }
 
-    const memoryService = createMemorySummaryService(newConfig, sessionManager);
+    const memoryService = createMemorySummaryService(newConfig, sessionManager, memoryFactStore);
     agent.updateMemorySettings(newConfig.agent.defaults.memoryWindow, memoryService);
 
     currentConfig = newConfig;

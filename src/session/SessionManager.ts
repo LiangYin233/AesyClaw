@@ -265,6 +265,42 @@ export class SessionManager {
     }
   }
 
+  async clearSummary(key: string): Promise<void> {
+    const session = await this.getOrCreate(key);
+    session.summary = '';
+    session.summarizedMessageCount = 0;
+
+    if (session.id) {
+      await this.db.run(`DELETE FROM session_memory WHERE session_id = ?`, [session.id]);
+    }
+  }
+
+  async clearAllSummaries(): Promise<void> {
+    for (const session of this.sessions.values()) {
+      session.summary = '';
+      session.summarizedMessageCount = 0;
+    }
+
+    await this.db.run(`DELETE FROM session_memory`);
+  }
+
+  async clearConversationSummaries(channel: string, chatId: string): Promise<void> {
+    for (const session of this.sessions.values()) {
+      if (session.channel === channel && session.chatId === chatId) {
+        session.summary = '';
+        session.summarizedMessageCount = 0;
+      }
+    }
+
+    await this.db.run(
+      `DELETE FROM session_memory
+       WHERE session_id IN (
+         SELECT id FROM sessions WHERE channel = ? AND chat_id = ?
+       )`,
+      [channel, chatId]
+    );
+  }
+
   list(): Session[] {
     return Array.from(this.sessions.values());
   }

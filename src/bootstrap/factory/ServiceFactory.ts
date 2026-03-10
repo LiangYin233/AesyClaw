@@ -30,6 +30,7 @@ export interface Services {
   provider: LLMProvider;
   toolRegistry: ToolRegistry;
   sessionManager: SessionManager;
+  memoryFactStore: MemoryFactStore;
   channelManager: ChannelManager;
   pluginManager: PluginManager;
   agent: AgentLoop;
@@ -98,7 +99,11 @@ function createVisionProvider(config: Config, visionSettings: VisionSettings): L
   return createProviderFromConfig(providerConfig);
 }
 
-export function createMemorySummaryService(config: Config, sessionManager: SessionManager): SessionMemoryService | undefined {
+export function createMemorySummaryService(
+  config: Config,
+  sessionManager: SessionManager,
+  factsStore: MemoryFactStore
+): SessionMemoryService | undefined {
   const summaryConfig = config.agent.defaults.memorySummary;
   const factsConfig = config.agent.defaults.memoryFacts;
 
@@ -123,7 +128,7 @@ export function createMemorySummaryService(config: Config, sessionManager: Sessi
 
   return new SessionMemoryService(
     sessionManager,
-    new MemoryFactStore(sessionManager.getDatabase()),
+    factsStore,
     summaryConfig?.enabled ? createOptionalProvider(summaryProviderConfig, 'Memory summary') : undefined,
     summaryRuntimeConfig,
     factsConfig?.enabled ? createOptionalProvider(factsProviderConfig, 'Memory facts') : undefined,
@@ -165,7 +170,8 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   await sessionManager.loadAll();
   log.info(`SessionManager ready, ${sessionManager.count()} sessions loaded`);
 
-  const memoryService = createMemorySummaryService(config, sessionManager);
+  const memoryFactStore = new MemoryFactStore(sessionManager.getDatabase());
+  const memoryService = createMemorySummaryService(config, sessionManager, memoryFactStore);
   if (memoryService) {
     log.info('Memory summary service enabled');
   }
@@ -297,7 +303,8 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
       cronService,
       mcpManager ?? undefined,
       skillManager,
-      toolRegistry
+      toolRegistry,
+      memoryFactStore
     );
     await apiServer.start();
     log.info(`API server started on port ${port}`);
@@ -317,6 +324,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     provider,
     toolRegistry,
     sessionManager,
+    memoryFactStore,
     channelManager,
     pluginManager,
     agent,

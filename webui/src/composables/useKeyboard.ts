@@ -109,6 +109,12 @@ export function useNavigationShortcuts() {
       alt: true,
       handler: () => router.push('/config'),
       description: '跳转到配置'
+    },
+    {
+      key: '0',
+      alt: true,
+      handler: () => router.push('/memory'),
+      description: '跳转到记忆'
     }
   ]
 
@@ -130,6 +136,7 @@ export function showKeyboardHelp() {
   ${KEYBOARD_SHORTCUTS.dashboard} - 仪表盘
   ${KEYBOARD_SHORTCUTS.chat} - 聊天
   ${KEYBOARD_SHORTCUTS.sessions} - 会话
+  ${KEYBOARD_SHORTCUTS.memory} - 记忆
   ${KEYBOARD_SHORTCUTS.cron} - 定时任务
   ${KEYBOARD_SHORTCUTS.tools} - 工具
   ${KEYBOARD_SHORTCUTS.plugins} - 插件

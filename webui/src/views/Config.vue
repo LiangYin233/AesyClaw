@@ -20,6 +20,12 @@
                                 v-model="config.server[key]" 
                                 :useGrouping="false" 
                             />
+                            <ToggleButton
+                                v-else-if="isBoolean(value)"
+                                v-model="config.server[key]"
+                                onLabel="已启用"
+                                offLabel="已禁用"
+                            />
                             <InputText v-else v-model="config.server[key]" />
                         </div>
                     </div>
@@ -43,6 +49,12 @@
                                 v-model="config.agent.defaults[key]" 
                                 :useGrouping="false" 
                             />
+                            <ToggleButton
+                                v-else-if="isBoolean(value)"
+                                v-model="config.agent.defaults[key]"
+                                onLabel="已启用"
+                                offLabel="已禁用"
+                            />
                             <Textarea v-else-if="isLongString(value)" v-model="config.agent.defaults[key]" rows="3" fluid />
                             <InputText v-else v-model="config.agent.defaults[key]" />
                         </div>
@@ -60,6 +72,9 @@
                                 <div v-if="k !== 'httpUrl'" class="form-field">
                                     <label class="capitalize">{{ k }}</label>
                                 <template v-if="k === 'enabled'">
+                                    <ToggleButton v-model="value[k]" onLabel="已启用" offLabel="已禁用" />
+                                </template>
+                                <template v-else-if="isBoolean(v)">
                                     <ToggleButton v-model="value[k]" onLabel="已启用" offLabel="已禁用" />
                                 </template>
                                 <template v-else-if="Array.isArray(v)">
@@ -173,6 +188,10 @@ function formatLabel(key: string): string {
 
 function isNumber(value: any): boolean {
     return typeof value === 'number'
+}
+
+function isBoolean(value: any): boolean {
+    return typeof value === 'boolean'
 }
 
 function isLongString(value: any): boolean {
