@@ -255,23 +255,21 @@ export class ConfigLoader {
     const configToSave = this.sanitizeForSave(config);
     const yaml = YAML.stringify(configToSave);
     writeFileSync(path, yaml, 'utf-8');
-    this.config = config;
-    this.stripDeprecatedFeishuApiBase(this.config);
+    this.config = configToSave;
   }
 
   static validate(config: Config): { valid: boolean; errors: string[]; warnings: string[] } {
     const errors: string[] = [];
     const warnings: string[] = [];
+    const providers = config.providers;
 
     if (!config.agent?.defaults?.provider) errors.push('agent.defaults.provider is required');
     if (!config.agent?.defaults?.model) errors.push('agent.defaults.model is required');
 
     const provider = config.agent?.defaults?.provider;
-    if (provider && !config.providers?.[provider]) {
-      errors.push(`LLM provider "${provider}" is not configured in providers section`);
-    }
-    if (provider && config.providers?.[provider]) {
-      if (!config.providers[provider].apiKey && !process.env[`${provider.toUpperCase()}_API_KEY`]) {
+    this.validateReferencedProvider(providers, provider, 'LLM provider', errors);
+    if (provider && providers?.[provider]) {
+      if (!providers[provider].apiKey && !process.env[`${provider.toUpperCase()}_API_KEY`]) {
         warnings.push(`Provider "${provider}" has no apiKey configured`);
       }
     }
@@ -323,23 +321,17 @@ export class ConfigLoader {
     // Validate vision provider if specified
     if (config.agent?.defaults?.visionProvider) {
       const vp = config.agent.defaults.visionProvider;
-      if (!config.providers?.[vp]) {
-        errors.push(`Vision provider "${vp}" is not configured in providers section`);
-      }
+      this.validateReferencedProvider(providers, vp, 'Vision provider', errors);
     }
 
     if (config.agent?.defaults?.memorySummary?.enabled) {
       const summaryProvider = config.agent.defaults.memorySummary.provider || config.agent.defaults.provider;
-      if (!config.providers?.[summaryProvider]) {
-        errors.push(`Memory summary provider "${summaryProvider}" is not configured in providers section`);
-      }
+      this.validateReferencedProvider(providers, summaryProvider, 'Memory summary provider', errors);
     }
 
     if (config.agent?.defaults?.memoryFacts?.enabled) {
       const factsProvider = config.agent.defaults.memoryFacts.provider || config.agent.defaults.provider;
-      if (!config.providers?.[factsProvider]) {
-        errors.push(`Memory facts provider "${factsProvider}" is not configured in providers section`);
-      }
+      this.validateReferencedProvider(providers, factsProvider, 'Memory facts provider', errors);
     }
 
     // Warn if reasoning is enabled but model may not support it
@@ -384,6 +376,17 @@ export class ConfigLoader {
   private static stripDeprecatedFeishuApiBase(config: any): void {
     if (config?.channels?.feishu && Object.prototype.hasOwnProperty.call(config.channels.feishu, 'apiBase')) {
       delete config.channels.feishu.apiBase;
+    }
+  }
+
+  private static validateReferencedProvider(
+    providers: Config['providers'] | undefined,
+    providerName: string | undefined,
+    label: string,
+    errors: string[]
+  ): void {
+    if (providerName && !providers?.[providerName]) {
+      errors.push(`${label} "${providerName}" is not configured in providers section`);
     }
   }
 

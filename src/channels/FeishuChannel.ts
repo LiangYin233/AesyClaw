@@ -68,12 +68,10 @@ export class FeishuChannel extends BaseChannel {
   private tokenCache?: TokenCache;
   private tokenRefreshTimer?: NodeJS.Timeout;
   protected log = logger.child({ prefix: 'Feishu' });
-  private apiBase: string;
 
   constructor(config: FeishuConfig, eventBus: EventBus, workspace?: string) {
     super(config, eventBus, workspace);
     this.app = express();
-    this.apiBase = FeishuChannel.FEISHU_API_BASE;
   }
 
   static register(): void {
@@ -155,7 +153,7 @@ export class FeishuChannel extends BaseChannel {
    * @see https://open.feishu.cn/document/ukTMukTMukTM/ukDNz4SO0MjL5QzM/auth-v3/auth/tenant_access_token_internal
    */
   private async refreshToken(): Promise<void> {
-    const url = `${this.apiBase}/open-apis/auth/v3/tenant_access_token/internal`;
+    const url = `${FeishuChannel.FEISHU_API_BASE}/open-apis/auth/v3/tenant_access_token/internal`;
 
     try {
       const response = await fetch(url, {
@@ -371,7 +369,7 @@ export class FeishuChannel extends BaseChannel {
       ? `/open-apis/im/v1/images/${fileKey}`
       : `/open-apis/im/v1/files/${fileKey}`;
 
-    return `${this.apiBase}${endpoint}?access_token=${token}`;
+    return `${FeishuChannel.FEISHU_API_BASE}${endpoint}?access_token=${token}`;
   }
 
   /**
@@ -411,7 +409,7 @@ export class FeishuChannel extends BaseChannel {
         uuid: uuid  // For request deduplication within 1 hour
       };
 
-      const url = `${this.apiBase}/open-apis/im/v1/messages?receive_id_type=${receiveIdType}`;
+      const url = `${FeishuChannel.FEISHU_API_BASE}/open-apis/im/v1/messages?receive_id_type=${receiveIdType}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -513,8 +511,8 @@ export class FeishuChannel extends BaseChannel {
     return new Promise((resolve, reject) => {
       form.submit(
         {
-          protocol: this.apiBase.startsWith('https') ? 'https:' : 'http:',
-          host: new URL(this.apiBase).host,
+          protocol: FeishuChannel.FEISHU_API_BASE.startsWith('https') ? 'https:' : 'http:',
+          host: new URL(FeishuChannel.FEISHU_API_BASE).host,
           path: '/open-apis/im/v1/images',
           method: 'POST',
           headers: {
