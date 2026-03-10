@@ -30,8 +30,6 @@ export interface FeishuConfig {
   friendAllowFrom?: string[];
   /** Whitelist of chat_ids allowed to send group messages (empty = allow all) */
   groupAllowFrom?: string[];
-  /** API base URL (default: https://open.feishu.cn for China, https://open.larksuite.com for international) */
-  apiBase?: string;
 }
 
 interface TokenCache {
@@ -63,6 +61,7 @@ interface TokenCache {
  * @see https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/create
  */
 export class FeishuChannel extends BaseChannel {
+  private static readonly FEISHU_API_BASE = 'https://open.feishu.cn';
   readonly name = 'feishu';
   private webhookServer?: http.Server;
   private app: express.Application;
@@ -74,7 +73,7 @@ export class FeishuChannel extends BaseChannel {
   constructor(config: FeishuConfig, eventBus: EventBus, workspace?: string) {
     super(config, eventBus, workspace);
     this.app = express();
-    this.apiBase = config.apiBase || 'https://open.feishu.cn';
+    this.apiBase = FeishuChannel.FEISHU_API_BASE;
   }
 
   static register(): void {

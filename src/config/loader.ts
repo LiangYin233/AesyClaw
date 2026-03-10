@@ -159,7 +159,9 @@ export class ConfigLoader {
           baseConfig.providers = userConfig.providers;
         }
         
-        return this.merge(baseConfig, userConfig);
+        const mergedConfig = this.merge(baseConfig, userConfig);
+        this.stripDeprecatedFeishuApiBase(mergedConfig);
+        return mergedConfig;
       } catch (error) {
         this.log.error(`Failed to load config from ${path}:`, error);
         return baseConfig;
@@ -254,6 +256,7 @@ export class ConfigLoader {
     const yaml = YAML.stringify(configToSave);
     writeFileSync(path, yaml, 'utf-8');
     this.config = config;
+    this.stripDeprecatedFeishuApiBase(this.config);
   }
 
   static validate(config: Config): { valid: boolean; errors: string[]; warnings: string[] } {
@@ -360,11 +363,12 @@ export class ConfigLoader {
   }
 
   private static sanitizeForSave(config: Config): Config {
-    if (!this.config || !this.config.providers) {
-      return config;
-    }
-
     const result = JSON.parse(JSON.stringify(config));
+
+    if (!this.config || !this.config.providers) {
+      this.stripDeprecatedFeishuApiBase(result);
+      return result;
+    }
     
     for (const key of Object.keys(result.providers ?? {})) {
       if (result.providers[key]?.apiKey === '***') {
@@ -372,7 +376,15 @@ export class ConfigLoader {
       }
     }
 
+    this.stripDeprecatedFeishuApiBase(result);
+
     return result;
+  }
+
+  private static stripDeprecatedFeishuApiBase(config: any): void {
+    if (config?.channels?.feishu && Object.prototype.hasOwnProperty.call(config.channels.feishu, 'apiBase')) {
+      delete config.channels.feishu.apiBase;
+    }
   }
 
   static stopWatching(): void {

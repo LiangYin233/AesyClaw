@@ -404,7 +404,6 @@ channels:
     verificationToken: xxx
     webhookPort: 18793
     webhookPath: /feishu/webhook
-    apiBase: https://open.feishu.cn
     friendAllowFrom: []
     groupAllowFrom: []
 ```
@@ -423,9 +422,6 @@ channels:
   - 接收飞书事件的本地端口
 - `webhookPath`
   - 接收飞书事件的路径
-- `apiBase`
-  - 飞书 API 根地址
-  - 中国大陆通常用 `https://open.feishu.cn`
 - `friendAllowFrom`
   - 私聊白名单
 - `groupAllowFrom`
@@ -433,6 +429,7 @@ channels:
 
 说明：
 
+- 飞书渠道的 API 地址已内置为 `https://open.feishu.cn`，不再通过 `config.yaml` 配置。
 - `channels` 下可同时配置多个渠道
 - 只有 `enabled: true` 的渠道才会启动
 
