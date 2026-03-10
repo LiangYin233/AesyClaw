@@ -12,18 +12,18 @@ const Intent = {
 const plugin = {
   name: 'speech_to_text',
   version: '1.0.0',
-  description: '使用 OpenAI 兼容的 STT API 转录语音消息',
+  description: '转写语音为文本。',
 
   tools: [
     {
       name: 'transcribe_audio',
-      description: '将音频文件转写为文字。支持 MP3、WAV、M4A、OGG 等格式。',
+      description: '转写音频文件为文本。',
       parameters: {
         type: 'object',
         properties: {
           file_path: {
             type: 'string',
-            description: '音频文件的完整路径，如 /path/to/audio.mp3'
+            description: '音频文件路径。'
           }
         },
         required: ['file_path']

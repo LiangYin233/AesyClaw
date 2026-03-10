@@ -265,26 +265,15 @@ export class SkillManager {
       return '';
     }
 
-    const skillsList = skills.map(s => {
-      const desc = s.description || 'No description';
-      const filesInfo = s.files?.map(f => `  - ${f.name}${f.isDirectory ? '/' : ''}`).join('\n') || '';
-      return `- **${s.name}**: ${desc}\n${filesInfo}`;
-    }).join('\n\n');
+    const skillsList = skills
+      .map((skill) => `- ${skill.name}: ${skill.description || '无描述'}`)
+      .join('\n');
 
-    const skillNames = skills.map(s => s.name).join(', ');
-
-    return (
-      '## Skills\n\n' +
-      '你可以使用 specialized skills 来完成特定任务。每个 skill 目录下可能包含多个文件。\n\n' +
-      '### 可用 skills\n\n' +
-      skillsList + '\n\n' +
-      '### 使用方法\n\n' +
-      '1. 使用 `read_skill` 工具读取 skill 文件。例如：\n' +
-      '   - 读取 SKILL.md: `{"name": "greeting"}`\n' +
-      '   - 读取其他文件: `{"name": "greeting", "file": "script.py"}`\n' +
-      '2. 使用 `list_skill_files` 工具列出 skill 目录下的所有文件。\n\n' +
-      `可用 skill: ${skillNames}`
-    );
+    return [
+      '可用 skills：',
+      skillsList,
+      '需要 skill 时：先用 read_skill 读 SKILL.md；需要更多文件时再用 list_skill_files。'
+    ].join('\n');
   }
 
   registerSkill(skill: SkillInfo): void {

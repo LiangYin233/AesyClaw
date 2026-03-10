@@ -37,12 +37,12 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
 
   toolRegistry.register({
     name: 'read_skill',
-    description: '读取指定 skill 目录下的文件内容，用于查看 SKILL.md 或其他文件。',
+    description: '读取 skill 文件；优先读 SKILL.md。',
     parameters: {
       type: 'object',
       properties: {
         name: { type: 'string', description: 'skill 名称' },
-        file: { type: 'string', description: '文件名，可选，默认读取 SKILL.md' }
+        file: { type: 'string', description: '文件名；默认 SKILL.md' }
       },
       required: ['name']
     },
@@ -56,7 +56,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
 
   toolRegistry.register({
     name: 'list_skill_files',
-    description: '列出指定 skill 目录下的文件列表。',
+    description: '列出 skill 内文件。',
     parameters: {
       type: 'object',
       properties: {
@@ -75,18 +75,18 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
 
   toolRegistry.register({
     name: 'send_msg_to_user',
-    description: '主动向当前会话发送文本和附件，适合在生成图片、图表或文档后立即回传给用户。',
+    description: '向当前会话发送文本或附件。',
     parameters: {
       type: 'object',
       properties: {
         content: {
           type: 'string',
-          description: '要发送的文本内容，支持 Markdown。'
+          description: '发送文本。'
         },
         media: {
           type: 'array',
           items: { type: 'string' },
-          description: '要附带发送的文件路径数组。'
+          description: '附件路径数组。'
         }
       },
       required: ['content']

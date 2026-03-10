@@ -33,30 +33,30 @@ export function registerCronTools(
 
   toolRegistry.register({
     name: 'create_cron_task',
-    description: '创建一个定时任务',
+    description: '创建定时任务。',
     parameters: {
       type: 'object',
       properties: {
         type: {
           type: 'string',
           enum: ['once', 'interval', 'daily'],
-          description: '运行类型：once-指定时间执行一次, interval-间隔执行, daily-每日指定时间执行'
+          description: '任务类型：once / interval / daily。'
         },
         time: {
           type: 'string',
-          description: '运行时间 (once: 本地时间如 "2024-01-01T10:00:00" 或带时区 "2024-01-01T10:00:00+08:00"，不要加Z后缀; interval: 间隔如 "10m"/"1h"; daily: 每日时间如 "09:00")'
+          description: '时间；once 用日期时间，interval 用 10m/1h，daily 用 HH:MM。'
         },
         description: {
           type: 'string',
-          description: '任务简介'
+          description: '任务名。'
         },
         detail: {
           type: 'string',
-          description: '任务详细描述，触发时将发送给LLM处理'
+          description: '触发时发送给 AI 的内容。'
         },
         target: {
           type: 'string',
-          description: '发送目标，格式：频道名:消息类型:用户ID。直接使用 system prompt 中的 Current Context 值即可。**必填**。'
+          description: '目标上下文；格式 频道:消息类型:用户ID。'
         }
       },
       required: ['type', 'time', 'description', 'detail', 'target']
@@ -116,15 +116,15 @@ export function registerCronTools(
 
   toolRegistry.register({
     name: 'delete_cron_task',
-    description: '删除定时任务',
+    description: '删除定时任务。',
     parameters: {
       type: 'object',
       properties: {
-        id: {
-          type: 'string',
-          description: '任务ID'
-        }
-      },
+          id: {
+            type: 'string',
+            description: '任务 ID。'
+          }
+        },
       required: ['id']
     },
     execute: async (params: Record<string, any>) => {
@@ -142,7 +142,7 @@ export function registerCronTools(
 
   toolRegistry.register({
     name: 'list_cron_task',
-    description: '列出所有定时任务',
+    description: '列出定时任务。',
     parameters: {
       type: 'object',
       properties: {}

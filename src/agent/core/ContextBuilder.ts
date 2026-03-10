@@ -1,5 +1,6 @@
 import type { LLMMessage, InboundFile } from '../../types.js';
 import { isVisionableFile } from '../vision.js';
+import { buildAgentSystemPrompt } from '../prompts.js';
 
 export class ContextBuilder {
   private workspace: string;
@@ -49,7 +50,7 @@ export class ContextBuilder {
 
   private buildSystemPrompt(): string {
     const now = new Date();
-    let prompt = this.systemPrompt
+    const prompt = this.systemPrompt
       .replace(/\{\{\s*current_time\s*\}\}/g, now.toISOString())
       .replace(/\{\{\s*current_date\s*\}\}/g, now.toLocaleString())
       .replace(/\{\{\s*current_hour\s*\}\}/g, now.toLocaleTimeString())
@@ -57,17 +58,16 @@ export class ContextBuilder {
       .replace(/\{\{\s*cwd\s*\}\}/g, this.workspace)
       .replace(/\{\{\s*os\s*\}\}/g, process.platform);
 
-    const sections = [`# AesyClaw`, prompt, `## Workspace: ${this.workspace}`];
+    const context = this.currentChannel && this.currentChatId && this.currentMessageType
+      ? `${this.currentChannel}:${this.currentMessageType}:${this.currentChatId}`
+      : undefined;
 
-    if (this.currentChannel && this.currentChatId && this.currentMessageType) {
-      sections.push(`## Current Context: ${this.currentChannel}:${this.currentMessageType}:${this.currentChatId}`);
-    }
-
-    if (this.skillsPrompt) {
-      sections.push(this.skillsPrompt);
-    }
-
-    return sections.join('\n\n');
+    return buildAgentSystemPrompt({
+      basePrompt: prompt,
+      workspace: this.workspace,
+      context,
+      skillsPrompt: this.skillsPrompt
+    });
   }
 
   private buildUserContent(

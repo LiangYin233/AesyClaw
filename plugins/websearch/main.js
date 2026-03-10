@@ -59,22 +59,22 @@ const plugin = {
   tools: [
     {
       name: 'websearch',
-      description: 'A web search tool that uses Tavily to search the web for relevant content. Ideal for gathering current information, news, and detailed web content analysis.',
+      description: '搜索网页信息；适合时效性问题。',
       parameters: {
         type: 'object',
         properties: {
           query: {
             type: 'string',
-            description: '搜索查询语句'
+            description: '搜索词。'
           },
           max_results: {
             type: 'number',
-            description: '最大返回结果数，默认5'
+            description: '结果数；默认 5。'
           },
           search_depth: {
             type: 'string',
             enum: ['basic', 'advanced', 'fast', 'ultra-fast'],
-            description: '搜索深度：basic-平衡模式，advanced-高精度模式，fast-快速模式'
+            description: '搜索深度。'
           }
         },
         required: ['query']
@@ -118,7 +118,7 @@ const plugin = {
     },
     {
       name: 'web_extract',
-      description: 'Extract the content of a web page using Tavily.',
+      description: '提取网页正文。',
       parameters: {
         type: 'object',
         properties: {
@@ -127,21 +127,21 @@ const plugin = {
               { type: 'string' },
               { type: 'array', items: { type: 'string' } }
             ],
-            description: '要提取内容的URL，可以是单个URL或URL数组'
+            description: 'URL 或 URL 数组。'
           },
           query: {
             type: 'string',
-            description: '可选，用于重排序提取的内容'
+            description: '可选；用于重排结果。'
           },
           extract_depth: {
             type: 'string',
             enum: ['basic', 'advanced'],
-            description: '提取深度：basic-基本提取，advanced-深度提取（包含表格等）'
+            description: '提取深度。'
           },
           format: {
             type: 'string',
             enum: ['markdown', 'text'],
-            description: '返回格式：markdown或text'
+            description: '返回格式。'
           }
         },
         required: ['urls']

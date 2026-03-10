@@ -2,6 +2,14 @@ import type { LLMProvider } from '../../providers/base.js';
 import type { MemoryFactsConfig, MemorySummaryConfig } from '../../types.js';
 import type { Session, SessionManager, SessionMessage, MemoryFact } from '../../session/SessionManager.js';
 import { logger } from '../../logger/index.js';
+import {
+  MEMORY_FACTS_PREFIX,
+  MEMORY_SUMMARY_PREFIX,
+  SUMMARY_SYSTEM_PROMPT,
+  FACTS_SYSTEM_PROMPT,
+  buildSummaryUserPrompt,
+  buildFactsUserPrompt
+} from '../prompts.js';
 
 interface MemorySummaryRuntimeConfig {
   enabled: boolean;
@@ -50,7 +58,7 @@ export class SessionMemoryService {
     const summaryMessage = session.summary.trim()
       ? [{
           role: 'system' as const,
-          content: `以下是当前会话的历史摘要，请把它当作长期上下文参考，而不是用户当前最新输入：\n${session.summary.trim()}`
+          content: `${MEMORY_SUMMARY_PREFIX}\n${session.summary.trim()}`
         }]
       : [];
 
@@ -114,22 +122,11 @@ export class SessionMemoryService {
     const response = await this.summaryProvider!.chat([
       {
         role: 'system',
-        content: [
-          '你是一个对话记忆压缩器。',
-          '请把会话中值得长期保留的信息整理成紧凑摘要。',
-          '重点保留：用户偏好、身份背景、长期目标、当前任务、已确认事实、未完成事项。',
-          '忽略寒暄、重复表达、低价值废话。',
-          '输出纯文本，不要使用代码块，不要编造信息。'
-        ].join('')
+        content: SUMMARY_SYSTEM_PROMPT
       },
       {
         role: 'user',
-        content: [
-          existingSummary ? `已有摘要：\n${existingSummary}\n` : '已有摘要：\n(无)\n',
-          '请基于已有摘要和下面新增对话，生成新的完整摘要。\n',
-          '新增对话：\n',
-          transcript
-        ].join('\n')
+        content: buildSummaryUserPrompt(existingSummary, transcript)
       }
     ], undefined, this.summaryConfig.model, { reasoning: false });
 
@@ -144,7 +141,7 @@ export class SessionMemoryService {
     return [{
       role: 'system',
       content: [
-        '以下是从历史对话中提炼出的长期记忆事实，只在相关时参考，不要当作本轮用户新输入：',
+        MEMORY_FACTS_PREFIX,
         ...facts.map((fact, index) => `${index + 1}. ${fact.content}`)
       ].join('\n')
     }];
@@ -180,23 +177,11 @@ export class SessionMemoryService {
     const response = await this.factsProvider!.chat([
       {
         role: 'system',
-        content: [
-          '你是一个长期记忆提取器。',
-          '请只提取适合长期保留的稳定事实。',
-          '只保留：用户偏好、身份背景、长期目标、项目背景、明确约束。',
-          '不要提取临时寒暄、单次闲聊、推测内容。',
-          '如果没有值得记住的内容，输出“无”。',
-          '输出格式：每行一条事实，不要编号，不要解释。'
-        ].join('')
+        content: FACTS_SYSTEM_PROMPT
       },
       {
         role: 'user',
-        content: [
-          `已有长期记忆：\n${existingFactsBlock}`,
-          `用户刚刚说：\n${userContent || '(空)'}`,
-          `助手刚刚回复：\n${assistantContent || '(空)'}`,
-          '请提取新增的长期记忆事实。'
-        ].join('\n\n')
+        content: buildFactsUserPrompt(existingFactsBlock, userContent, assistantContent)
       }
     ], undefined, this.factsConfig?.model, { reasoning: false });
 

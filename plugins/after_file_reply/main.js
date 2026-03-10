@@ -1,6 +1,22 @@
 import { join } from 'path';
 import * as fs from 'fs/promises';
 
+const AFTER_FILE_REPLY_PROMPTS = {
+  describeImagesSystem: [
+    '角色: 视觉助手',
+    '任务: 概括图片内容。',
+    '约束: 按图片顺序描述主体、场景、文字和关键信息；看不清就直说；不要编造。',
+    '输出: 直接给用户可读回复。'
+  ].join('\n'),
+  describeImagesUser: '概括这些图片。',
+  multimodalReplySystem: [
+    '角色: 多模态助手',
+    '任务: 基于用户文本和附件回答。',
+    '约束: 优先回答用户要求；只依据文本和可见内容；不确定就直说；简洁。',
+    '输出: 直接给用户回复。'
+  ].join('\n')
+};
+
 // Intent 辅助对象，用于创建语义化的处理意图
 const Intent = {
   status: (reason) => ({ type: 'status', reason }),
@@ -139,7 +155,7 @@ const plugin = {
 
         // 构建多模态消息内容
         const content = [
-          { type: 'text', text: '请描述这些图片的内容' }
+          { type: 'text', text: AFTER_FILE_REPLY_PROMPTS.describeImagesUser }
         ];
 
         // 添加图片
@@ -152,6 +168,7 @@ const plugin = {
 
         try {
           const response = await plugin.context.agent.callLLM([
+            { role: 'system', content: AFTER_FILE_REPLY_PROMPTS.describeImagesSystem },
             { role: 'user', content }
           ], { allowTools: false });
 
@@ -232,6 +249,7 @@ const plugin = {
 
         try {
           const response = await this.context.agent.callLLM([
+            { role: 'system', content: AFTER_FILE_REPLY_PROMPTS.multimodalReplySystem },
             { role: 'user', content }
           ], { allowTools: false });
 

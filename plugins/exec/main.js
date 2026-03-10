@@ -8,7 +8,7 @@ import { ShellRunner } from './ShellRunner.js';
 const plugin = {
   name: 'exec',
   version: '1.0.0',
-  description: '执行 Python 和 Shell 命令的插件',
+  description: '执行 Python 或 Shell。',
 
   log: console,
   config: null,
@@ -55,13 +55,13 @@ const plugin = {
   tools: [
     {
       name: 'python_exec',
-      description: '使用系统 Python 执行代码。需要用户自行安装所需的 Python 包。超时 30 秒。',
+      description: '用系统 Python 执行代码。',
       parameters: {
         type: 'object',
         properties: {
           code: {
             type: 'string',
-            description: '要执行的 Python 代码'
+            description: 'Python 代码。'
           }
         },
         required: ['code']
@@ -74,13 +74,13 @@ const plugin = {
     },
     {
       name: 'shell_exec',
-      description: '执行 Shell 命令。危险命令（删除、格式化、关机等）会被拦截。',
+      description: '执行 Shell 命令；危险命令会被拦截。',
       parameters: {
         type: 'object',
         properties: {
           command: {
             type: 'string',
-            description: '要执行的 Shell 命令'
+            description: 'Shell 命令。'
           }
         },
         required: ['command']
