@@ -38,7 +38,7 @@ export class SessionCommands extends CommandHandler {
     ];
   }
 
-  private async handleNew(msg: InboundMessage, args: string[]): Promise<InboundMessage | null> {
+  private async handleNew(msg: InboundMessage, _args: string[]): Promise<InboundMessage | null> {
     const newSessionKey = this.sessionRouting.createNewSession(msg.channel, msg.chatId);
 
     const uuid = newSessionKey.split(':')[2] || 'default';
@@ -50,7 +50,7 @@ export class SessionCommands extends CommandHandler {
     };
   }
 
-  private async handleList(msg: InboundMessage, args: string[]): Promise<InboundMessage | null> {
+  private async handleList(msg: InboundMessage, _args: string[]): Promise<InboundMessage | null> {
     const currentSessionKey = this.sessionRouting.getActiveSession(msg.channel, msg.chatId);
 
     const allSessions = this.sessionManager.list();

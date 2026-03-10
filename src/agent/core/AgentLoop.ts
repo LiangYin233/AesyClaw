@@ -15,6 +15,7 @@ import { ExecutionControlService, type ExecutionStatus } from '../routing/Execut
 import { ExecutionCoordinator } from '../routing/ExecutionCoordinator.js';
 import { MessageApplicationService } from '../messaging/MessageApplicationService.js';
 import { MessagePreprocessingService } from '../messaging/MessagePreprocessingService.js';
+import { SessionMemoryService } from '../memory/SessionMemoryService.js';
 import { logger } from '../../logger/index.js';
 import { metrics } from '../../logger/Metrics.js';
 import { CONFIG_DEFAULTS } from '../../constants/index.js';
@@ -30,8 +31,8 @@ export class AgentLoop {
   private executionRegistry: ExecutionRegistry;
   private completionService: ExecutionCompletionService;
   private executionControl: ExecutionControlService;
-  private executionCoordinator: ExecutionCoordinator;
-  private messageApplication: MessageApplicationService;
+  private executionCoordinator!: ExecutionCoordinator;
+  private messageApplication!: MessageApplicationService;
   private preprocessingService: MessagePreprocessingService;
   private running = false;
   private toolContext: ToolContext;
@@ -42,6 +43,7 @@ export class AgentLoop {
   private commandRegistry?: CommandRegistry;
   private visionSettings?: VisionSettings;
   private visionProvider?: LLMProvider;
+  private memoryService?: SessionMemoryService;
   private log = logger.child({ prefix: 'Agent' });
 
   constructor(
@@ -58,7 +60,8 @@ export class AgentLoop {
     skillManager?: SkillManager,
     visionSettings?: VisionSettings,
     visionProvider?: LLMProvider,
-    sessionRouting?: SessionRoutingService
+    sessionRouting?: SessionRoutingService,
+    memoryService?: SessionMemoryService
   ) {
     this.eventBus = eventBus;
     this.sessionManager = sessionManager;
@@ -70,6 +73,7 @@ export class AgentLoop {
     this.toolContext = { workspace, eventBus };
     this.visionSettings = visionSettings;
     this.visionProvider = visionProvider;
+    this.memoryService = memoryService;
 
     const skillsPrompt = skillManager?.buildSkillsPrompt() || '';
     this.executor = new AgentExecutor(
@@ -85,15 +89,7 @@ export class AgentLoop {
       this.executionRegistry,
       this.backgroundTasks
     );
-    this.executionCoordinator = new ExecutionCoordinator(
-      this.executor,
-      this.backgroundTasks,
-      this.completionService
-    );
-    this.messageApplication = new MessageApplicationService(
-      this.executor,
-      this.executionCoordinator
-    );
+    this.rebuildExecutionServices();
     this.preprocessingService = new MessagePreprocessingService();
 
     this.log.info(`Initialized with model: ${model}, contextMode: ${contextMode}, vision: ${visionSettings?.enabled || false}`);
@@ -102,17 +98,7 @@ export class AgentLoop {
   setPluginManager(pm: PluginManager): void {
     this.pluginManager = pm;
     this.executor.setPluginManager(pm);
-    this.completionService = new ExecutionCompletionService(this.sessionManager, pm);
-    this.executionCoordinator = new ExecutionCoordinator(
-      this.executor,
-      this.backgroundTasks,
-      this.completionService
-    );
-    this.messageApplication = new MessageApplicationService(
-      this.executor,
-      this.executionCoordinator,
-      pm
-    );
+    this.rebuildExecutionServices();
     this.preprocessingService = new MessagePreprocessingService(
       this.commandRegistry,
       pm
@@ -198,11 +184,14 @@ export class AgentLoop {
       this.log.debug(`Processing message for session: ${sessionKey} (mode: ${this.contextMode})`);
       const session = await this.sessionManager.getOrCreate(sessionKey);
       this.log.debug(`Session messages count: ${session.messages.length}`);
+      const history = this.memoryService
+        ? await this.memoryService.buildHistory(session)
+        : session.messages.slice(-this.memoryWindow);
 
       const executionResult = await this.messageApplication.execute({
         sessionKey,
         request: msg,
-        history: session.messages.slice(-this.memoryWindow),
+        history,
         toolContext: this.toolContext,
         suppressOutbound,
         sendOutbound: (outbound) => this.sendOutbound(outbound)
@@ -275,6 +264,13 @@ export class AgentLoop {
     this.log.info(model ? `Provider and model updated: ${model}` : 'Provider updated');
   }
 
+  updateMemorySettings(memoryWindow: number, memoryService?: SessionMemoryService): void {
+    this.memoryWindow = memoryWindow;
+    this.memoryService = memoryService;
+    this.rebuildExecutionServices();
+    this.log.info(`Memory settings updated: window=${memoryWindow}, summary=${memoryService ? 'enabled' : 'disabled'}`);
+  }
+
   private async sendOutbound(msg: OutboundMessage): Promise<void> {
     let processedMsg = msg;
     if (this.pluginManager) {
@@ -290,6 +286,24 @@ export class AgentLoop {
       this.pluginManager
     );
     this.log.info('CommandRegistry attached');
+  }
+
+  private rebuildExecutionServices(): void {
+    this.completionService = new ExecutionCompletionService(
+      this.sessionManager,
+      this.pluginManager,
+      this.memoryService
+    );
+    this.executionCoordinator = new ExecutionCoordinator(
+      this.executor,
+      this.backgroundTasks,
+      this.completionService
+    );
+    this.messageApplication = new MessageApplicationService(
+      this.executor,
+      this.executionCoordinator,
+      this.pluginManager
+    );
   }
 
   /**

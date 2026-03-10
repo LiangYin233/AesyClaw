@@ -1,5 +1,5 @@
 import sqlite3, { Database as SQLiteDatabase } from 'sqlite3';  // SQLite3 数据库驱动
-import { join, dirname } from 'path';
+import { dirname } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { logger } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
@@ -20,7 +20,7 @@ export class Database {
   }
 
   private async init(): Promise<void> {  // 初始化数据库表结构
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       this.db.serialize(() => {
         this.db.run(`
           CREATE TABLE IF NOT EXISTS sessions (
@@ -45,8 +45,30 @@ export class Database {
           )
         `);  // 创建消息表
 
+        this.db.run(`
+          CREATE TABLE IF NOT EXISTS session_memory (
+            session_id INTEGER PRIMARY KEY,
+            summary TEXT NOT NULL DEFAULT '',
+            summarized_message_count INTEGER NOT NULL DEFAULT 0,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+          )
+        `);
+
+        this.db.run(`
+          CREATE TABLE IF NOT EXISTS memory_facts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            channel TEXT NOT NULL,
+            chat_id TEXT NOT NULL,
+            fact TEXT NOT NULL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
         this.db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_key ON sessions(key)`);  // 会话键索引
         this.db.run(`CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)`);  // 消息会话索引
+        this.db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_facts_unique ON memory_facts(channel, chat_id, fact)`);
+        this.db.run(`CREATE INDEX IF NOT EXISTS idx_memory_facts_chat ON memory_facts(channel, chat_id)`);
 
         this.log.info('Tables initialized');
         resolve();
@@ -163,4 +185,19 @@ export interface DBMessage {  // 消息数据库记录
   role: string;
   content: string;
   timestamp: string;
+}
+
+export interface DBSessionMemory {
+  session_id: number;
+  summary: string;
+  summarized_message_count: number;
+  updated_at: string;
+}
+
+export interface DBMemoryFact {
+  id: number;
+  channel: string;
+  chat_id: string;
+  fact: string;
+  updated_at: string;
 }

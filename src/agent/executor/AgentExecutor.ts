@@ -144,7 +144,7 @@ export class AgentExecutor {
   // === 兼容原有接口 ===
 
   buildContext(history: any[], currentMessage: string, media?: string[], files?: InboundFile[]): LLMMessage[] {
-    return this.contextBuilder.build(history, currentMessage, media);
+    return this.contextBuilder.build(history, currentMessage, media, files);
   }
 
   setPluginManager(pm: PluginManager): void {

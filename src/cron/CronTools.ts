@@ -27,7 +27,7 @@ function parseInterval(str: string): number | null {
 export function registerCronTools(
   toolRegistry: ToolRegistry,
   cronService: CronService,
-  eventBus: EventBus
+  _eventBus: EventBus
 ): void {
   const log = logger.child({ prefix: 'CronTools' });
 
@@ -82,13 +82,14 @@ export function registerCronTools(
           }
           break;
         }
-        case 'interval':
+        case 'interval': {
           const intervalMs = parseInterval(time);
           if (!intervalMs) {
             return JSON.stringify({ success: false, error: '无效的间隔格式，请使用如 "10m", "1h", "30s"' });
           }
           schedule.intervalMs = intervalMs;
           break;
+        }
         case 'daily':
           schedule.dailyAt = time;
           break;

@@ -84,7 +84,7 @@ export class SkillManager {
         return;
       }
 
-      const { description, metadata } = this.parseSkillFile(content);
+      const { description } = this.parseSkillFile(content);
       const files = await this.getSkillFilesList(skillPath, basePath);
 
       // 从配置中读取 enabled 状态，默认 true
@@ -106,7 +106,7 @@ export class SkillManager {
     }
   }
 
-  private async getSkillFilesList(skillPath: string, basePath: string): Promise<SkillFile[]> {
+  private async getSkillFilesList(skillPath: string, _basePath: string): Promise<SkillFile[]> {
     const files: SkillFile[] = [];
 
     try {

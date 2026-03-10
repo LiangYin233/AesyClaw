@@ -23,6 +23,18 @@ const DEFAULT_CONFIG: Config = {
 
       maxToolIterations: 40,
       memoryWindow: 50,
+      memorySummary: {
+        enabled: false,
+        provider: '',
+        model: '',
+        triggerMessages: 20
+      },
+      memoryFacts: {
+        enabled: false,
+        provider: '',
+        model: '',
+        maxFacts: 20
+      },
       systemPrompt: 'You are a helpful AI assistant.',
       contextMode: 'channel',
       maxSessions: 100
@@ -167,7 +179,7 @@ export class ConfigLoader {
     
     let ignoreUntil = Date.now() + 2000;
     
-    this.watcher = watch(this.configPath, (eventType, filename) => {
+    this.watcher = watch(this.configPath, (eventType, _filename) => {
       if (eventType === 'change' || eventType === 'rename') {
         if (Date.now() < ignoreUntil) {
           this.log.debug('Ignoring file change during startup');
@@ -279,6 +291,16 @@ export class ConfigLoader {
       errors.push('memoryWindow must be >= 0');
     }
 
+    if (config.agent?.defaults?.memorySummary?.triggerMessages !== undefined &&
+        config.agent.defaults.memorySummary.triggerMessages < 1) {
+      errors.push('memorySummary.triggerMessages must be >= 1');
+    }
+
+    if (config.agent?.defaults?.memoryFacts?.maxFacts !== undefined &&
+        config.agent.defaults.memoryFacts.maxFacts < 1) {
+      errors.push('memoryFacts.maxFacts must be >= 1');
+    }
+
     if (config.agent?.defaults?.maxSessions !== undefined && config.agent.defaults.maxSessions < 1) {
       errors.push('maxSessions must be >= 1');
     }
@@ -300,6 +322,20 @@ export class ConfigLoader {
       const vp = config.agent.defaults.visionProvider;
       if (!config.providers?.[vp]) {
         errors.push(`Vision provider "${vp}" is not configured in providers section`);
+      }
+    }
+
+    if (config.agent?.defaults?.memorySummary?.enabled) {
+      const summaryProvider = config.agent.defaults.memorySummary.provider || config.agent.defaults.provider;
+      if (!config.providers?.[summaryProvider]) {
+        errors.push(`Memory summary provider "${summaryProvider}" is not configured in providers section`);
+      }
+    }
+
+    if (config.agent?.defaults?.memoryFacts?.enabled) {
+      const factsProvider = config.agent.defaults.memoryFacts.provider || config.agent.defaults.provider;
+      if (!config.providers?.[factsProvider]) {
+        errors.push(`Memory facts provider "${factsProvider}" is not configured in providers section`);
       }
     }
 

@@ -17,6 +17,7 @@ import { ConfigLoader } from '../../config/loader.js';
 import { logger } from '../../logger/index.js';
 import { metrics } from '../../logger/Metrics.js';
 import { tokenStats } from '../../logger/TokenStats.js';
+import { SessionMemoryService } from '../../agent/memory/SessionMemoryService.js';
 import type { Config, OutboundMessage, VisionSettings } from '../../types.js';
 import type { LLMProvider } from '../../providers/base.js';
 import type { CronJob } from '../../cron/index.js';
@@ -44,6 +45,55 @@ export interface ServiceFactoryOptions {
   config: Config;
   port: number;
   onCronJob?: (job: CronJob) => Promise<void>;
+}
+
+export function createMemorySummaryService(config: Config, sessionManager: SessionManager): SessionMemoryService | undefined {
+  const summaryConfig = config.agent.defaults.memorySummary;
+  const factsConfig = config.agent.defaults.memoryFacts;
+
+  if (!summaryConfig?.enabled && !factsConfig?.enabled) {
+    return undefined;
+  }
+
+  const summaryProviderName = summaryConfig?.provider || config.agent.defaults.provider;
+  const summaryProviderConfig = config.providers[summaryProviderName];
+  const summaryModel = summaryConfig?.model || summaryProviderConfig?.model || config.agent.defaults.model;
+  const summaryRuntimeConfig = SessionMemoryService.createRuntimeConfig(
+    summaryConfig,
+    config.agent.defaults.memoryWindow,
+    summaryModel
+  );
+
+  const factsProviderName = factsConfig?.provider || config.agent.defaults.provider;
+  const factsProviderConfig = config.providers[factsProviderName];
+  const factsModel = factsConfig?.model || factsProviderConfig?.model || config.agent.defaults.model;
+  const factsRuntimeConfig = SessionMemoryService.createFactsRuntimeConfig(factsConfig, factsModel);
+
+  let summaryProvider: LLMProvider | undefined;
+  if (summaryConfig?.enabled) {
+    if (!summaryProviderConfig) {
+      logger.child({ prefix: 'AesyClaw' }).warn(`Memory summary provider "${summaryProviderName}" not found in config`);
+    } else {
+      summaryProvider = createProvider(summaryProviderName, summaryProviderConfig);
+    }
+  }
+
+  let factsProvider: LLMProvider | undefined;
+  if (factsConfig?.enabled) {
+    if (!factsProviderConfig) {
+      logger.child({ prefix: 'AesyClaw' }).warn(`Memory facts provider "${factsProviderName}" not found in config`);
+    } else {
+      factsProvider = createProvider(factsProviderName, factsProviderConfig);
+    }
+  }
+
+  return new SessionMemoryService(
+    sessionManager,
+    summaryProvider,
+    summaryRuntimeConfig,
+    factsProvider,
+    factsRuntimeConfig
+  );
 }
 
 export async function createServices(options: ServiceFactoryOptions): Promise<Services> {
@@ -92,6 +142,11 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   await sessionManager.loadAll();
   log.info(`SessionManager ready, ${sessionManager.count()} sessions loaded`);
 
+  const memoryService = createMemorySummaryService(config, sessionManager);
+  if (memoryService) {
+    log.info('Memory summary service enabled');
+  }
+
   const skillManager = new SkillManager('./skills');
   skillManager.setConfig(config);
   await skillManager.loadFromDirectory();
@@ -113,7 +168,8 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     skillManager,
     visionSettings,
     visionProvider,
-    sessionRouting
+    sessionRouting,
+    memoryService
   );
 
   const commandRegistry = new CommandRegistry();

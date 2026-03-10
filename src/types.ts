@@ -138,10 +138,26 @@ export interface AgentConfig {
 
     maxToolIterations: number;
     memoryWindow: number;
+    memorySummary?: MemorySummaryConfig;
+    memoryFacts?: MemoryFactsConfig;
     systemPrompt?: string;
     contextMode: 'session' | 'channel' | 'global';
     maxSessions?: number;
   };
+}
+
+export interface MemorySummaryConfig {
+  enabled?: boolean;
+  provider?: string;
+  model?: string;
+  triggerMessages?: number;
+}
+
+export interface MemoryFactsConfig {
+  enabled?: boolean;
+  provider?: string;
+  model?: string;
+  maxFacts?: number;
 }
 
 export interface ProviderConfig {

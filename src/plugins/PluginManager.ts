@@ -434,7 +434,7 @@ export class PluginManager {
         try {
           const module = await import(`file://${mainPath}`);
           modulePlugin = module.default || module;
-        } catch (error) {
+        } catch {
           continue;
         }
 
@@ -615,8 +615,6 @@ export class PluginManager {
 
   async applyDefaultConfigs(): Promise<Record<string, { enabled: boolean; options?: Record<string, any> }>> {
     const pluginsDir = join(process.cwd(), 'plugins');
-    let changed = false;
-
     try {
       const fs = await import('fs/promises');
       const entries = await fs.readdir(pluginsDir, { withFileTypes: true });
@@ -635,10 +633,9 @@ export class PluginManager {
               enabled: plugin.defaultConfig.enabled || false,
               options: plugin.defaultConfig.options || {}
             };
-            changed = true;
             this.log.info(`Applied default config for plugin: ${dir.name}`);
           }
-        } catch (error) {
+        } catch {
           continue;
         }
       }

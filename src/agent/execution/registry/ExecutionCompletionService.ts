@@ -1,6 +1,7 @@
 import type { InboundMessage, LLMMessage, LLMResponse, OutboundMessage } from '../../../types.js';
 import type { SessionManager } from '../../../session/SessionManager.js';
 import type { PluginManager } from '../../../plugins/index.js';
+import type { SessionMemoryService } from '../../memory/SessionMemoryService.js';
 import { logger } from '../../../logger/index.js';
 
 export interface FinalizeExecutionParams {
@@ -19,7 +20,8 @@ export class ExecutionCompletionService {
 
   constructor(
     private sessionManager: SessionManager,
-    private pluginManager?: PluginManager
+    private pluginManager?: PluginManager,
+    private memoryService?: SessionMemoryService
   ) {}
 
   async finalize(params: FinalizeExecutionParams): Promise<void> {
@@ -29,7 +31,7 @@ export class ExecutionCompletionService {
       content,
       reasoning_content,
       agentMode,
-      sessionMessages,
+      sessionMessages: _sessionMessages,
       suppressOutbound = false,
       sendOutbound
     } = params;
@@ -37,12 +39,7 @@ export class ExecutionCompletionService {
     const session = await this.sessionManager.getOrCreate(sessionKey);
     await this.sessionManager.addMessage(sessionKey, 'user', request.content);
 
-    const assistantMessages = this.extractAssistantContents(sessionMessages);
-    if (assistantMessages.length > 0) {
-      for (const assistantContent of assistantMessages) {
-        await this.sessionManager.addMessage(sessionKey, 'assistant', assistantContent);
-      }
-    } else if (content) {
+    if (content) {
       await this.sessionManager.addMessage(sessionKey, 'assistant', content);
     }
 
@@ -69,6 +66,10 @@ export class ExecutionCompletionService {
       });
     }
 
+    if (this.memoryService) {
+      await this.memoryService.maybePersistMemory(sessionKey, request.content, content);
+    }
+
     this.log.info(`Finalized execution for session ${sessionKey}`);
   }
 
@@ -76,23 +77,5 @@ export class ExecutionCompletionService {
     if (this.pluginManager) {
       await this.pluginManager.applyOnError(error, { type: 'agent', data: { sessionKey } });
     }
-  }
-
-  private extractAssistantContents(messages: LLMMessage[]): string[] {
-    return messages
-      .filter(message => message.role === 'assistant' && !!message.content)
-      .map(message => this.normalizeContent(message.content))
-      .filter((content): content is string => content.length > 0);
-  }
-
-  private normalizeContent(content: LLMMessage['content']): string {
-    if (typeof content === 'string') {
-      return content;
-    }
-
-    return content
-      .filter(part => part.type === 'text' && !!part.text)
-      .map(part => part.text!)
-      .join('');
   }
 }

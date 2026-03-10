@@ -1,1 +1,1 @@
-export { Database, type DBSession, type DBMessage } from './Database.js';
+export { Database, type DBSession, type DBMessage, type DBSessionMemory, type DBMemoryFact } from './Database.js';

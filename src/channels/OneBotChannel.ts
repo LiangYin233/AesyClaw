@@ -1,6 +1,5 @@
 import WebSocket from 'ws';
 import fs from 'fs';
-import { join, basename } from 'path';
 import { BaseChannel } from './BaseChannel.js';
 import { ChannelManager, type ChannelPlugin } from './ChannelManager.js';
 import type { OutboundMessage, InboundFile } from '../types.js';
@@ -8,7 +7,7 @@ import type { EventBus } from '../bus/EventBus.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS } from '../constants/index.js';
 import { metrics } from '../logger/Metrics.js';
-import { MessageHandlers, createFile } from './MessageParser.js';
+import { MessageHandlers } from './MessageParser.js';
 
 export interface OneBotConfig {
   wsUrl: string;

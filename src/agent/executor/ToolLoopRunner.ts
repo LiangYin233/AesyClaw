@@ -26,7 +26,6 @@ export class ToolLoopRunner {
     const max = options.maxIterations ?? 40;
     const allowTools = options.allowTools ?? true;
     const source = options.source ?? 'user';
-    const sessionKey = options.sessionKey;
     const initialToolCalls = options.initialToolCalls;
     const executionSignal = options.signal;
 

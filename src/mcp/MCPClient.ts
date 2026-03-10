@@ -1,7 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
-import type { ToolDefinition, MCPServersConfig, MCPServerConfig, MCPServerInfo, MCPServerStatus } from '../types.js';
+import type { ToolDefinition, MCPServersConfig, MCPServerConfig, MCPServerInfo } from '../types.js';
 import { logger } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
 import { CONSTANTS } from '../constants/index.js';
@@ -107,7 +107,6 @@ export class MCPClientManager {
         args: command.slice(1),
         env
       });
-      const argsStr = command.slice(1).join(' ');
       this.log.info(`Connecting to ${name} via stdio: ${command.join(' ')}`);
     } else if (transportType === 'http') {
       if (!config.url) {

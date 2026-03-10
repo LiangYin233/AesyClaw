@@ -1,14 +1,14 @@
 import express from 'express';
 import http from 'http';
 import fs from 'fs';
-import { join, basename } from 'path';
+import { basename } from 'path';
 import { BaseChannel } from './BaseChannel.js';
 import { ChannelManager, type ChannelPlugin } from './ChannelManager.js';
 import type { OutboundMessage, InboundFile } from '../types.js';
 import type { EventBus } from '../bus/EventBus.js';
 import { logger } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
-import { MessageHandlers, createFile } from './MessageParser.js';
+import { MessageHandlers } from './MessageParser.js';
 
 /**
  * Feishu Channel Configuration
@@ -249,7 +249,7 @@ export class FeishuChannel extends BaseChannel {
   /**
    * Parse Feishu message format to standardized format
    */
-  protected async parseMessage(rawEvent: any): Promise<import('./BaseChannel.js').ParsedMessage> {
+  protected async parseMessage(_rawEvent: any): Promise<import('./BaseChannel.js').ParsedMessage> {
     if (!this.currentMessage) {
       return { content: '' };
     }

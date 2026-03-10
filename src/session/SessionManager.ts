@@ -1,7 +1,6 @@
 import { join } from 'path';
 import { randomUUID } from 'crypto';
-import type { LLMMessage } from '../types.js';
-import { Database, type DBSession, type DBMessage } from '../db/index.js';
+import { Database, type DBSession, type DBMessage, type DBSessionMemory, type DBMemoryFact } from '../db/index.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS, CONFIG_DEFAULTS } from '../constants/index.js';
 import { metrics } from '../logger/Metrics.js';
@@ -24,12 +23,19 @@ export interface SessionMessage {
   timestamp?: string;
 }
 
+export interface MemoryFact {
+  content: string;
+  updatedAt?: string;
+}
+
 export interface Session {
   key: string;
   id?: number;
   channel: string;
   chatId: string;
   uuid?: string;
+  summary: string;
+  summarizedMessageCount: number;
   messages: SessionMessage[];
   createdAt: Date;
   updatedAt: Date;
@@ -38,6 +44,7 @@ export interface Session {
 export class SessionManager {
   private db: Database;
   private sessions: Map<string, Session> = new Map();
+  private facts: Map<string, MemoryFact[]> = new Map();
   private maxSessions: number;
   private sessionLocks: Map<string, Promise<Session>> = new Map();
   private log = logger.child({ prefix: 'SessionManager' });
@@ -116,6 +123,8 @@ export class SessionManager {
           channel: parsed.channel,
           chatId: parsed.chatId,
           uuid: parsed.uuid,
+          summary: '',
+          summarizedMessageCount: 0,
           messages: [],
           createdAt: new Date(),
           updatedAt: new Date()
@@ -162,13 +171,15 @@ export class SessionManager {
     }
   }
 
-  private mapRowToSession(row: DBSession, messages: DBMessage[]): Session {
+  private mapRowToSession(row: DBSession, messages: DBMessage[], memory?: DBSessionMemory): Session {
     return {
       key: row.key,
       id: row.id,
       channel: row.channel,
       chatId: row.chat_id,
       uuid: row.uuid || undefined,
+      summary: memory?.summary || '',
+      summarizedMessageCount: memory?.summarized_message_count || 0,
       messages: messages.map(m => ({
         role: m.role as 'user' | 'assistant' | 'system',
         content: m.content,
@@ -192,7 +203,12 @@ export class SessionManager {
       [rows[0].id]
     );
 
-    return this.mapRowToSession(rows[0], messages);
+    const memory = await this.db.get<DBSessionMemory>(
+      `SELECT * FROM session_memory WHERE session_id = ?`,
+      [rows[0].id]
+    );
+
+    return this.mapRowToSession(rows[0], messages, memory);
   }
 
   async save(session: Session): Promise<void> {
@@ -230,12 +246,85 @@ export class SessionManager {
     }
   }
 
+  async getFacts(channel: string, chatId: string): Promise<MemoryFact[]> {
+    const conversationKey = this.createSessionKey(channel, chatId);
+    const cached = this.facts.get(conversationKey);
+    if (cached) {
+      return cached;
+    }
+
+    const rows = await this.db.all<DBMemoryFact>(
+      `SELECT * FROM memory_facts WHERE channel = ? AND chat_id = ? ORDER BY updated_at DESC, id DESC`,
+      [channel, chatId]
+    );
+
+    const facts = rows.map((row) => ({ content: row.fact, updatedAt: row.updated_at }));
+    this.facts.set(conversationKey, facts);
+    return facts;
+  }
+
+  async setFacts(channel: string, chatId: string, facts: string[]): Promise<void> {
+    const conversationKey = this.createSessionKey(channel, chatId);
+    const normalizedFacts = Array.from(new Set(
+      facts.map((fact) => fact.trim()).filter(Boolean)
+    ));
+
+    await this.db.transaction(async () => {
+      await this.db.run(
+        `DELETE FROM memory_facts WHERE channel = ? AND chat_id = ?`,
+        [channel, chatId]
+      );
+
+      const updatedAt = new Date().toISOString();
+      for (const fact of normalizedFacts) {
+        await this.db.run(
+          `INSERT INTO memory_facts (channel, chat_id, fact, updated_at) VALUES (?, ?, ?, ?)`,
+          [channel, chatId, fact, updatedAt]
+        );
+      }
+    });
+
+    this.facts.set(
+      conversationKey,
+      normalizedFacts.map((content) => ({ content, updatedAt: new Date().toISOString() }))
+    );
+  }
+
+  async updateSummary(key: string, summary: string, summarizedMessageCount: number): Promise<void> {
+    const session = await this.getOrCreate(key);
+    session.summary = summary;
+    session.summarizedMessageCount = summarizedMessageCount;
+    session.updatedAt = new Date();
+
+    if (session.id) {
+      await this.db.transaction(async () => {
+        await this.db.run(
+          `INSERT INTO session_memory (session_id, summary, summarized_message_count, updated_at)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(session_id) DO UPDATE SET
+             summary = excluded.summary,
+             summarized_message_count = excluded.summarized_message_count,
+             updated_at = excluded.updated_at`,
+          [session.id, summary, summarizedMessageCount, session.updatedAt.toISOString()]
+        );
+        await this.db.run(
+          `UPDATE sessions SET updated_at = ? WHERE key = ?`,
+          [session.updatedAt.toISOString(), key]
+        );
+      });
+    }
+  }
+
   list(): Session[] {
     return Array.from(this.sessions.values());
   }
 
   async delete(key: string): Promise<void> {
+    const session = this.sessions.get(key);
     this.sessions.delete(key);
+    if (session) {
+      this.facts.delete(this.createSessionKey(session.channel, session.chatId));
+    }
     await this.db.run(`DELETE FROM sessions WHERE key = ?`, [key]);
   }
 
@@ -260,12 +349,16 @@ export class SessionManager {
           messages: await this.db.all<DBMessage>(
             `SELECT * FROM messages WHERE session_id = ? ORDER BY id ASC`,
             [row.id]
+          ),
+          memory: await this.db.get<DBSessionMemory>(
+            `SELECT * FROM session_memory WHERE session_id = ?`,
+            [row.id]
           )
         }))
       );
       
-      for (const { row, messages } of rowsWithMessages) {
-        this.sessions.set(row.key, this.mapRowToSession(row, messages));
+      for (const { row, messages, memory } of rowsWithMessages) {
+        this.sessions.set(row.key, this.mapRowToSession(row, messages, memory));
       }
     }
 

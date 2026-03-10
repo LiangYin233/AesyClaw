@@ -7,6 +7,8 @@
   "scripts": {
     "build": "tsc",
     "build:webui": "cd webui && npm run build",
+    "lint": "eslint \"src/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "start": "tsx src/cli.ts start",
     "start:gateway": "tsx src/cli.ts gateway",
     "start:webui": "tsx src/cli.ts start webui",
@@ -29,10 +31,15 @@
     "yaml": "^2.3.4"
   },
   "devDependencies": {
+    "@eslint/js": "^9.22.0",
+    "@typescript-eslint/eslint-plugin": "^8.26.1",
+    "@typescript-eslint/parser": "^8.26.1",
     "@types/express": "^5.0.6",
     "@types/node": "^25.3.3",
     "@types/sqlite3": "^3.1.11",
     "@types/ws": "^8.5.10",
+    "eslint": "^9.22.0",
+    "globals": "^15.15.0",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   }

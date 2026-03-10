@@ -2,11 +2,12 @@ import { ConfigLoader } from '../../config/loader.js';
 import { createProvider } from '../../providers/index.js';
 import { logger } from '../../logger/index.js';
 import type { Services } from '../factory/ServiceFactory.js';
+import { createMemorySummaryService } from '../factory/ServiceFactory.js';
 
 const log = logger.child({ prefix: 'Bootstrap' });
 
 export function setupConfigReload(services: Services): void {
-  const { agent, apiServer } = services;
+  const { agent, apiServer, sessionManager } = services;
   let currentConfig = services.config;
 
   ConfigLoader.onReload(async (newConfig) => {
@@ -24,6 +25,9 @@ export function setupConfigReload(services: Services): void {
       const newProviderInstance = createProvider(newProvider, newConfig.providers[newProvider]);
       agent.updateProvider(newProviderInstance, newModel);
     }
+
+    const memoryService = createMemorySummaryService(newConfig, sessionManager);
+    agent.updateMemorySettings(newConfig.agent.defaults.memoryWindow, memoryService);
 
     currentConfig = newConfig;
     if (apiServer) {
