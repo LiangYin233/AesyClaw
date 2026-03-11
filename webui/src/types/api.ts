@@ -55,6 +55,7 @@ export interface Config {
     port: number
     apiPort: number
     webuiPort?: number
+    token?: string
   }
   agent: {
     defaults: {

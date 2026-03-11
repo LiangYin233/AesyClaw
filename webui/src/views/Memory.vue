@@ -96,7 +96,7 @@
                                             icon="pi pi-comments"
                                             label="继续聊天"
                                             text
-                                            @click="router.push(`/chat/${session.sessionKey}`)"
+                                            @click="navigateWithToken(router, `/chat/${session.sessionKey}`, routeToken)"
                                             aria-label="继续该会话聊天"
                                         />
                                     </div>
@@ -148,7 +148,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import type { MemoryEntry } from '../types/api'
 import { useMemoryStore } from '../stores'
@@ -161,8 +161,11 @@ import Button from 'primevue/button'
 import Card from 'primevue/card'
 import Dialog from 'primevue/dialog'
 import Tag from 'primevue/tag'
+import { getRouteToken, navigateWithToken } from '../utils/auth'
 
 const router = useRouter()
+const route = useRoute()
+const routeToken = getRouteToken(route)
 const toast = useToast()
 const memoryStore = useMemoryStore()
 const { entries, loading, error } = storeToRefs(memoryStore)

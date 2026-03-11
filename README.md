@@ -21,7 +21,7 @@ cd webui && npm install
 npm run start:all
 ```
 
-访问 http://localhost:5173
+访问 `http://localhost:5173/?token=你的server.token`
 
 ## 配置
 
@@ -30,6 +30,7 @@ npm run start:all
 ```toml
 [server]
 apiPort = 18792
+token = "auto-generated-token"
 
 [agent.defaults]
 provider = "openai"

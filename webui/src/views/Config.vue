@@ -26,6 +26,7 @@
                                 onLabel="已启用"
                                 offLabel="已禁用"
                             />
+                            <Password v-else-if="key === 'token'" v-model="config.server[key]" :feedback="false" toggleMask fluid />
                             <InputText v-else v-model="config.server[key]" />
                         </div>
                     </div>

@@ -11,7 +11,7 @@ import type { CronService } from '../cron/index.js';
 import type { MCPClientManager } from '../mcp/MCPClient.js';
 import type { SkillManager } from '../skills/SkillManager.js';
 import type { ToolRegistry } from '../tools/ToolRegistry.js';
-import { logger } from '../logger/index.js';
+import { logger, createErrorResponse } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
 import { CONSTANTS } from '../constants/index.js';
 import { registerCoreRoutes } from './routes/core.js';
@@ -25,11 +25,8 @@ import type { MemoryFactStore } from '../session/MemoryFactStore.js';
 
 const MAX_MESSAGE_LENGTH = CONSTANTS.MESSAGE_MAX_LENGTH;
 
-let packageVersion = '0.1.0';
-try {
-  const packageJson = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8'));
-  packageVersion = packageJson.version || '0.1.0';
-} catch {}
+const packageJson = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8'));
+const packageVersion = packageJson.version;
 
 export class APIServer {
   private app = express();
@@ -73,6 +70,21 @@ export class APIServer {
       res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
       if (req.method === 'OPTIONS') return res.sendStatus(200);
       next();
+    });
+
+    this.app.use((req, res, next) => {
+      if (!req.path.startsWith('/api')) {
+        return next();
+      }
+
+      const requestToken = Array.isArray(req.query.token) ? req.query.token[0] : req.query.token;
+      const expectedToken = this.config.server.token;
+
+      if (typeof requestToken === 'string' && expectedToken && requestToken === expectedToken) {
+        return next();
+      }
+
+      return res.status(401).json(createErrorResponse(new Error('Unauthorized: invalid or missing token')));
     });
 
     // Request timing middleware

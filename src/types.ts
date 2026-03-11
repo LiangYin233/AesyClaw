@@ -123,6 +123,7 @@ export interface ServerConfig {
   host: string;
   apiPort: number;
   apiEnabled?: boolean;
+  token?: string;
 }
 
 export interface AgentConfig {

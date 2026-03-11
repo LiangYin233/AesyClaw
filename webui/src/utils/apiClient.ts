@@ -1,6 +1,8 @@
 // Low-level API client with unified error handling
 
-import type { ApiResponse, ApiError } from '../types/api'
+import type { ApiResponse } from '../types/api'
+import router from '../router'
+import { normalizeToken } from './auth'
 
 const API_BASE = '/api'
 
@@ -16,6 +18,38 @@ export class ApiClientError extends Error {
   }
 }
 
+function getCurrentToken(): string | null {
+  const routeToken = normalizeToken(router.currentRoute.value.query.token)
+  if (routeToken) {
+    return routeToken
+  }
+
+  const url = new URL(window.location.href)
+  return normalizeToken(url.searchParams.get('token'))
+}
+
+function buildApiUrl(url: string): string {
+  const requestUrl = new URL(`${API_BASE}${url}`, window.location.origin)
+  const token = getCurrentToken()
+
+  if (token) {
+    requestUrl.searchParams.set('token', token)
+  }
+
+  return `${requestUrl.pathname}${requestUrl.search}${requestUrl.hash}`
+}
+
+function redirectToUnauthorized(reason: 'missing' | 'invalid') {
+  if (router.currentRoute.value.name === 'unauthorized') {
+    return
+  }
+
+  void router.replace({
+    name: 'unauthorized',
+    query: { reason }
+  })
+}
+
 /**
  * Make an API request with proper error handling
  */
@@ -24,7 +58,7 @@ export async function apiRequest<T>(
   options?: RequestInit
 ): Promise<ApiResponse<T>> {
   try {
-    const res = await fetch(`${API_BASE}${url}`, {
+    const res = await fetch(buildApiUrl(url), {
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -44,6 +78,10 @@ export async function apiRequest<T>(
       } catch {
         // If response is not JSON, use status text
         errorMessage = res.statusText || errorMessage
+      }
+
+      if (res.status === 401) {
+        redirectToUnauthorized(getCurrentToken() ? 'invalid' : 'missing')
       }
 
       throw new ApiClientError(errorMessage, res.status, errorDetails)

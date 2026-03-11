@@ -29,7 +29,7 @@
                             <Button
                                 label="开始聊天"
                                 icon="pi pi-plus"
-                                @click="router.push('/chat')"
+                                @click="navigateWithToken(router, '/chat', routeToken)"
                                 aria-label="开始新的聊天"
                             />
                         </template>
@@ -168,7 +168,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useSessionsStore } from '../stores/sessions'
 import { useToast } from '../composables/useToast'
 import { announceToScreenReader } from '../composables/useA11y'
@@ -181,8 +181,11 @@ import Button from 'primevue/button'
 import Card from 'primevue/card'
 import Tag from 'primevue/tag'
 import Dialog from 'primevue/dialog'
+import { getRouteToken, navigateWithToken } from '../utils/auth'
 
 const router = useRouter()
+const route = useRoute()
+const routeToken = getRouteToken(route)
 const sessionsStore = useSessionsStore()
 const toast = useToast()
 
@@ -211,7 +214,7 @@ async function loadSessions() {
 }
 
 function continueChat(key: string) {
-    router.push(`/chat/${key}`)
+    navigateWithToken(router, `/chat/${key}`, routeToken)
 }
 
 async function viewSession(session: Session) {

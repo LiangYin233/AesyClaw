@@ -1,8 +1,9 @@
 // Keyboard navigation and shortcuts
 
 import { onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { KEYBOARD_SHORTCUTS } from '../constants/a11y'
+import { getRouteToken, navigateWithToken } from '../utils/auth'
 
 export interface KeyboardShortcut {
   key: string
@@ -54,66 +55,67 @@ export function useKeyboard(shortcuts: KeyboardShortcut[]) {
  */
 export function useNavigationShortcuts() {
   const router = useRouter()
+  const route = useRoute()
 
   const shortcuts: KeyboardShortcut[] = [
     {
       key: '1',
       alt: true,
-      handler: () => router.push('/'),
+      handler: () => navigateWithToken(router, '/', getRouteToken(route)),
       description: '跳转到仪表盘'
     },
     {
       key: '2',
       alt: true,
-      handler: () => router.push('/chat'),
+      handler: () => navigateWithToken(router, '/chat', getRouteToken(route)),
       description: '跳转到聊天'
     },
     {
       key: '3',
       alt: true,
-      handler: () => router.push('/sessions'),
+      handler: () => navigateWithToken(router, '/sessions', getRouteToken(route)),
       description: '跳转到会话'
     },
     {
       key: '4',
       alt: true,
-      handler: () => router.push('/cron'),
+      handler: () => navigateWithToken(router, '/cron', getRouteToken(route)),
       description: '跳转到定时任务'
     },
     {
       key: '5',
       alt: true,
-      handler: () => router.push('/tools'),
+      handler: () => navigateWithToken(router, '/tools', getRouteToken(route)),
       description: '跳转到工具'
     },
     {
       key: '6',
       alt: true,
-      handler: () => router.push('/plugins'),
+      handler: () => navigateWithToken(router, '/plugins', getRouteToken(route)),
       description: '跳转到插件'
     },
     {
       key: '7',
       alt: true,
-      handler: () => router.push('/mcp'),
+      handler: () => navigateWithToken(router, '/mcp', getRouteToken(route)),
       description: '跳转到 MCP'
     },
     {
       key: '8',
       alt: true,
-      handler: () => router.push('/skills'),
+      handler: () => navigateWithToken(router, '/skills', getRouteToken(route)),
       description: '跳转到 Skills'
     },
     {
       key: '9',
       alt: true,
-      handler: () => router.push('/config'),
+      handler: () => navigateWithToken(router, '/config', getRouteToken(route)),
       description: '跳转到配置'
     },
     {
       key: '0',
       alt: true,
-      handler: () => router.push('/memory'),
+      handler: () => navigateWithToken(router, '/memory', getRouteToken(route)),
       description: '跳转到记忆'
     }
   ]

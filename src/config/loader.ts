@@ -1,5 +1,6 @@
-﻿import { existsSync, readFileSync, writeFileSync, mkdirSync, watch } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, watch } from 'fs';
 import { join, dirname, basename } from 'path';
+import { randomBytes } from 'crypto';
 import type { Config } from '../types.js';
 import { logger } from '../logger/index.js';
 import { parse, stringify } from 'smol-toml';
@@ -8,7 +9,8 @@ const DEFAULT_CONFIG: Config = {
   server: {
     host: '0.0.0.0',
     apiPort: 18792,
-    apiEnabled: true
+    apiEnabled: true,
+    token: ''
   },
   agent: {
     defaults: {
@@ -82,6 +84,7 @@ export class ConfigLoader {
   private static watcher: fsWatcher | null = null;
   private static reloadCallbacks: Array<(config: Config) => void | Promise<void>> = [];
   private static reloadDebounceTimer: NodeJS.Timeout | null = null;
+  private static ignoreWatchUntil = 0;
   private static log = logger.child({ prefix: 'Config' });
   private static pluginDefaultConfigs: Record<string, any> = {};
 
@@ -98,17 +101,17 @@ export class ConfigLoader {
     try {
       const entries = await import('fs/promises');
       const dirs = await entries.readdir(pluginsDir, { withFileTypes: true });
-      
+
       for (const dir of dirs) {
         if (!dir.isDirectory()) continue;
-        
+
         const mainPath = join(pluginsDir, dir.name, 'main.js');
         if (!existsSync(mainPath)) continue;
 
         try {
           const module = await import(`file://${mainPath}`);
           const plugin = module.default || module;
-          
+
           if (plugin.defaultConfig) {
             this.pluginDefaultConfigs[dir.name] = {
               enabled: false,
@@ -140,25 +143,27 @@ export class ConfigLoader {
     this.configPath = path;
 
     this.config = await this.loadFromPath(path);
-    
+    await this.ensureServerTokenPersisted(this.config);
+
     this.startWatching();
-    
+
     return this.config || DEFAULT_CONFIG;
   }
 
   private static async loadFromPath(path: string): Promise<Config> {
     const pluginDefaults = await this.loadPluginDefaultConfigs();
-    const baseConfig = { ...DEFAULT_CONFIG, plugins: pluginDefaults };
+    const baseConfig = JSON.parse(JSON.stringify(DEFAULT_CONFIG)) as Config;
+    baseConfig.plugins = pluginDefaults;
 
     if (existsSync(path)) {
       try {
         const content = readFileSync(path, 'utf-8');
-        const userConfig = parse(content);
-        
+        const userConfig = parse(content) as Partial<Config>;
+
         if (userConfig?.providers) {
           baseConfig.providers = userConfig.providers;
         }
-        
+
         const mergedConfig = this.merge(baseConfig, userConfig);
         this.stripDeprecatedFeishuApiBase(mergedConfig);
         return mergedConfig;
@@ -181,24 +186,24 @@ export class ConfigLoader {
     const watchedFile = basename(this.configPath);
 
     this.log.debug(`Starting file watcher: ${this.configPath}`);
-    
+
     let ignoreUntil = Date.now() + 2000;
-    
+
     this.watcher = watch(watchedDir, (eventType, filename) => {
       if (filename && String(filename) !== watchedFile) {
         return;
       }
 
       if (eventType === 'change' || eventType === 'rename') {
-        if (Date.now() < ignoreUntil) {
+        if (Date.now() < ignoreUntil || Date.now() < this.ignoreWatchUntil) {
           this.log.debug('Ignoring file change during startup');
           return;
         }
-        
+
         if (this.reloadDebounceTimer) {
           clearTimeout(this.reloadDebounceTimer);
         }
-        
+
         this.reloadDebounceTimer = setTimeout(async () => {
           this.log.info('Config file changed, reloading...');
           await this.reload();
@@ -209,15 +214,16 @@ export class ConfigLoader {
 
   static async reload(): Promise<Config> {
     const newConfig = await this.loadFromPath(this.configPath);
+    await this.ensureServerTokenPersisted(newConfig);
     const oldConfig = this.config;
     this.config = newConfig;
-    
+
     this.log.info('Config reloaded');
     if (oldConfig) {
       this.log.debug(`Provider changed: ${oldConfig.agent.defaults.provider} -> ${newConfig.agent.defaults.provider}`);
       this.log.debug(`Model changed: ${oldConfig.agent.defaults.model} -> ${newConfig.agent.defaults.model}`);
     }
-    
+
     for (const callback of this.reloadCallbacks) {
       try {
         await callback(newConfig);
@@ -225,7 +231,7 @@ export class ConfigLoader {
         this.log.error('Reload callback error:', error);
       }
     }
-    
+
     return newConfig;
   }
 
@@ -242,10 +248,13 @@ export class ConfigLoader {
   }
 
   static async save(config: Config): Promise<void> {
+    this.ensureServerToken(config);
+
     // Validate before saving
     const validation = this.validate(config);
     if (!validation.valid) {
-      const errorMsg = `Configuration validation failed:\n${validation.errors.join('\n')}`;
+      const errorMsg = `Configuration validation failed:
+${validation.errors.join('\n')}`;
       this.log.error(errorMsg);
       throw new Error(errorMsg);
     }
@@ -253,6 +262,30 @@ export class ConfigLoader {
       validation.warnings.forEach(warn => this.log.warn(warn));
     }
 
+    this.writeConfigFile(config);
+  }
+
+  private static async ensureServerTokenPersisted(config: Config): Promise<void> {
+    if (!this.ensureServerToken(config)) {
+      return;
+    }
+
+    this.log.info('Generated server access token');
+    this.writeConfigFile(config);
+  }
+
+  private static ensureServerToken(config: Config): boolean {
+    const currentToken = config.server?.token?.trim();
+    if (currentToken) {
+      config.server.token = currentToken;
+      return false;
+    }
+
+    config.server.token = randomBytes(24).toString('hex');
+    return true;
+  }
+
+  private static writeConfigFile(config: Config): void {
     const path = this.configPath;
     const dir = dirname(path);
     if (!existsSync(dir)) {
@@ -261,6 +294,7 @@ export class ConfigLoader {
 
     const configToSave = this.sanitizeForSave(config);
     const toml = stringify(configToSave);
+    this.ignoreWatchUntil = Date.now() + 1500;
     writeFileSync(path, toml, 'utf-8');
     this.config = configToSave;
   }
@@ -368,7 +402,7 @@ export class ConfigLoader {
       this.stripDeprecatedFeishuApiBase(result);
       return result;
     }
-    
+
     for (const key of Object.keys(result.providers ?? {})) {
       if (result.providers[key]?.apiKey === '***') {
         result.providers[key].apiKey = this.config.providers[key]?.apiKey ?? '';
@@ -409,13 +443,13 @@ export class ConfigLoader {
     if (!override || Object.keys(override).length === 0) {
       return base;
     }
-    
+
     if (!base || typeof base !== 'object') {
       return override;
     }
-    
+
     const result: any = { ...base };
-    
+
     for (const [key, value] of Object.entries(override)) {
       if (typeof value === 'object' && !Array.isArray(value) && value !== null) {
         result[key] = this.merge(base[key], value);
@@ -423,7 +457,7 @@ export class ConfigLoader {
         result[key] = value;
       }
     }
-    
+
     return result;
   }
 }

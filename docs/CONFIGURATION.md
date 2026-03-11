@@ -11,7 +11,10 @@
 host = "0.0.0.0"
 apiPort = 18792
 apiEnabled = true
+token = "auto-generated-token"
 ```
+
+访问 WebUI 时请带上 `?token=`，例如：`http://localhost:5173/?token=你的server.token`。WebUI 内部路由切换会自动保留该参数。
 
 ### agent.defaults
 

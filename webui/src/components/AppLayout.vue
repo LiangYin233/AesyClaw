@@ -5,7 +5,7 @@
                 <router-link
                     v-for="item in navItems"
                     :key="item.path"
-                    :to="item.path"
+                    :to="{ path: item.path, query: tokenQuery }"
                     class="nav-item"
                     exact-active-class="nav-item-active"
                     :aria-label="item.label"
@@ -42,8 +42,9 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { getRouteToken } from '../utils/auth'
 import { useSystemStore } from '../stores/system'
 import { useNavigationShortcuts, showKeyboardHelp, useKeyboard } from '../composables/useKeyboard'
 import { injectScreenReaderStyles, announceToScreenReader } from '../composables/useA11y'
@@ -53,6 +54,11 @@ import Toast from 'primevue/toast'
 
 const route = useRoute()
 const systemStore = useSystemStore()
+
+const tokenQuery = computed(() => {
+    const token = getRouteToken(route)
+    return token ? { token } : {}
+})
 
 const navItems = [
     { path: '/', label: '仪表盘', icon: 'pi pi-home' },
