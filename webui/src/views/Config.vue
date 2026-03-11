@@ -36,9 +36,13 @@
             <Card class="config-card">
                 <template #title>Agent 默认配置</template>
                 <template #content>
+                    <Message severity="info" :closable="false" class="config-hint">
+                        主 Agent 的描述、Provider、Model 与 System Prompt 已独立到 Agent 页面管理。
+                        <Button label="前往 Agent 页面" link size="small" @click="goToAgents" />
+                    </Message>
                     <div class="form-grid">
                         <template v-for="(value, key) in config.agent.defaults" :key="key">
-                            <div v-if="!isAgentNestedConfig(String(key))" class="form-field">
+                            <div v-if="!isAgentConfigHidden(String(key))" class="form-field">
                                 <label class="capitalize">{{ formatLabel(key) }}</label>
                                 <template v-if="key === 'provider'">
                                     <Select v-model="config.agent.defaults[key]" :options="providerKeys" placeholder="选择提供商" />
@@ -136,32 +140,10 @@
             <Card class="config-card">
                 <template #title>通道配置</template>
                 <template #content>
-                    <div v-for="(value, key) in config.channels" :key="key" class="channel-section">
-                        <h3 class="channel-title">{{ String(key).charAt(0).toUpperCase() + String(key).slice(1) }}</h3>
-                        <div class="form-grid">
-                            <template v-for="(v, k) in value" :key="k">
-                                <div v-if="k !== 'httpUrl'" class="form-field">
-                                    <label class="capitalize">{{ k }}</label>
-                                <template v-if="k === 'enabled'">
-                                    <ToggleButton v-model="value[k]" onLabel="已启用" offLabel="已禁用" />
-                                </template>
-                                <template v-else-if="isBoolean(v)">
-                                    <ToggleButton v-model="value[k]" onLabel="已启用" offLabel="已禁用" />
-                                </template>
-                                <template v-else-if="Array.isArray(v)">
-                                    <InputText v-model="value[k]" placeholder="逗号分隔" />
-                                </template>
-                                <template v-else-if="typeof v === 'string'">
-                                    <InputText v-model="value[k]" type="password" v-if="k === 'token' || k === 'apiKey'" />
-                                    <InputText v-model="value[k]" v-else />
-                                </template>
-                                <template v-else>
-                                    <InputText v-model="value[k]" />
-                                </template>
-                                </div>
-                            </template>
-                        </div>
-                    </div>
+                    <Message severity="info" :closable="false" class="config-hint">
+                        通道配置已迁移到插件页面，与其他插件使用统一的管理方式。
+                        <Button label="前往插件页面" link size="small" @click="goToPlugins" />
+                    </Message>
                 </template>
             </Card>
             
@@ -211,6 +193,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useConfigStore } from '../stores'
+import { useRoute, useRouter } from 'vue-router'
+import { getRouteToken, navigateWithToken } from '../utils/auth'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
@@ -226,6 +210,8 @@ import ProgressSpinner from 'primevue/progressspinner'
 
 const configStore = useConfigStore()
 const { config, loading } = storeToRefs(configStore)
+const route = useRoute()
+const router = useRouter()
 const toast = useToast()
 const saving = ref(false)
 
@@ -284,8 +270,16 @@ function isLongString(value: any): boolean {
     return typeof value === 'string' && value.length > 100
 }
 
-function isAgentNestedConfig(key: string): boolean {
-    return key === 'memorySummary' || key === 'memoryFacts'
+function isAgentConfigHidden(key: string): boolean {
+    return ['memorySummary', 'memoryFacts', 'provider', 'model', 'systemPrompt', 'description'].includes(key)
+}
+
+function goToAgents() {
+    navigateWithToken(router, '/agents', getRouteToken(route))
+}
+
+function goToPlugins() {
+    navigateWithToken(router, '/plugins', getRouteToken(route))
 }
 
 function addProvider() {

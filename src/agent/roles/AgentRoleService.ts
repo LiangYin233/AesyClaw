@@ -81,7 +81,27 @@ export class AgentRoleService {
 
   async updateRole(name: string, input: Partial<AgentRoleConfig>): Promise<ResolvedAgentRole> {
     if (name === MAIN_AGENT_NAME) {
-      throw new Error('Cannot update built-in role "main"');
+      const config = this.getConfig();
+      const merged: AgentRoleConfig = {
+        ...this.buildMainRole(config),
+        ...input,
+        name: MAIN_AGENT_NAME
+      };
+      const normalized = this.normalizeRoleConfig(merged, true);
+
+      config.agents ||= { roles: {} };
+      config.agents.main = {
+        description: normalized.description,
+        systemPrompt: normalized.systemPrompt,
+        provider: normalized.provider,
+        model: normalized.model,
+        allowedSkills: [...normalized.allowedSkills],
+        allowedTools: [...normalized.allowedTools]
+      };
+
+      await ConfigLoader.save(config);
+      this.setConfig(config);
+      return this.buildMainRole(config);
     }
 
     const config = this.getConfig();
@@ -191,17 +211,18 @@ export class AgentRoleService {
   }
 
   private buildMainRole(config: Config): ResolvedAgentRole {
+    const mainConfig = config.agents?.main;
     const allSkills = this.getAvailableSkillNames();
     const allTools = this.getAvailableToolNames();
 
     return this.resolveRole({
       name: MAIN_AGENT_NAME,
-      description: config.agent.defaults.description || '内建主 Agent',
-      systemPrompt: config.agent.defaults.systemPrompt || 'You are a helpful AI assistant.',
-      provider: config.agent.defaults.provider,
-      model: config.agent.defaults.model,
-      allowedSkills: allSkills,
-      allowedTools: allTools
+      description: mainConfig?.description || config.agent.defaults.description || '内建主 Agent',
+      systemPrompt: mainConfig?.systemPrompt || config.agent.defaults.systemPrompt || 'You are a helpful AI assistant.',
+      provider: mainConfig?.provider || config.agent.defaults.provider,
+      model: mainConfig?.model || config.agent.defaults.model,
+      allowedSkills: Array.isArray(mainConfig?.allowedSkills) ? mainConfig.allowedSkills : allSkills,
+      allowedTools: Array.isArray(mainConfig?.allowedTools) ? mainConfig.allowedTools : allTools
     }, true);
   }
 

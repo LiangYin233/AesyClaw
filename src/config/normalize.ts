@@ -87,6 +87,12 @@ export function normalizeConfig(config: Config): Config {
     normalized.providers = config.providers;
   }
   normalized.agents ||= { roles: {} };
+  normalized.agents.main ||= {
+    description: normalized.agent.defaults.description || '内建主 Agent',
+    systemPrompt: normalized.agent.defaults.systemPrompt || 'You are a helpful AI assistant.',
+    provider: normalized.agent.defaults.provider,
+    model: normalized.agent.defaults.model
+  };
   normalized.agents.roles ||= {};
   normalized.agent.defaults.memorySummary ||= {
     enabled: false,

@@ -6,39 +6,41 @@
         </div>
         
         <div class="plugins-grid">
-            <Card v-for="plugin in plugins" :key="plugin.name" class="plugin-card">
+            <Card v-for="item in items" :key="`${item.kind}:${item.name}`" class="plugin-card">
                 <template #title>
                     <div class="plugin-title">
-                        <i class="pi pi-th-large"></i>
-                        <span>{{ plugin.name }}</span>
+                        <i :class="item.kind === 'channel' ? 'pi pi-send' : 'pi pi-th-large'"></i>
+                        <span>{{ item.name }}</span>
                     </div>
                 </template>
                 <template #subtitle>
-                    <span class="version">v{{ plugin.version }}</span>
+                    <span class="version">{{ item.kind === 'channel' ? 'Channel' : `v${item.version}` }}</span>
                 </template>
                 <template #content>
-                    <p class="plugin-description">{{ plugin.description || '暂无描述' }}</p>
+                    <p class="plugin-description">{{ item.description || '暂无描述' }}</p>
                     <div class="plugin-stats">
-                        <Tag :value="`${plugin.toolsCount} 个工具`" severity="info" />
-                        <Tag :value="plugin.enabled ? '已启用' : '已禁用'" :severity="plugin.enabled ? 'success' : 'danger'" />
+                        <Tag v-if="item.kind === 'plugin'" :value="`${item.toolsCount} 个工具`" severity="info" />
+                        <Tag v-else value="通道适配器" severity="contrast" />
+                        <Tag :value="item.enabled ? '已启用' : '已禁用'" :severity="item.enabled ? 'success' : 'danger'" />
                     </div>
                 </template>
                 <template #footer>
                     <div class="plugin-actions">
                         <Button 
+                            v-if="item.kind === 'plugin'"
                             icon="pi pi-refresh" 
                             label="重载"
                             outlined 
                             size="small"
-                            :loading="reloadingPlugin === plugin.name"
-                            @click="reloadPluginHandler(plugin)"
+                            :loading="reloadingPlugin === item.name"
+                            @click="reloadPluginHandler(item)"
                             v-tooltip.top="'重新加载插件代码'"
                         />
                         <ToggleButton 
-                            v-model="plugin.enabled" 
+                            v-model="item.enabled" 
                             onLabel="已启用" 
                             offLabel="已禁用"
-                            @change="togglePluginEnabled(plugin)"
+                            @change="toggleItemEnabled(item)"
                             :loading="toggling"
                         />
                         <Button 
@@ -46,26 +48,26 @@
                             label="配置" 
                             outlined 
                             size="small"
-                            @click="openConfigDialog(plugin)" 
+                            @click="openConfigDialog(item)" 
                         />
                     </div>
                 </template>
             </Card>
         </div>
         
-        <div v-if="!loading && plugins.length === 0" class="empty-state">
+        <div v-if="!loading && items.length === 0" class="empty-state">
             <i class="pi pi-th-large"></i>
-            <span>暂无插件</span>
-            <p class="empty-hint">请在 plugins 目录下创建插件文件</p>
+            <span>暂无插件或通道</span>
+            <p class="empty-hint">请在 plugins 目录下创建插件文件，或在配置中启用通道</p>
         </div>
 
         <Dialog 
             v-model:visible="configDialogVisible" 
-            :header="`配置 ${selectedPlugin?.name}`" 
+            :header="`配置 ${selectedItem?.name}`" 
             :modal="true" 
             :style="{ width: '500px' }"
         >
-            <div v-if="selectedPlugin" class="config-form">
+            <div v-if="selectedItem" class="config-form">
                 <div v-for="(value, key) in configForm" :key="key" class="form-field">
                     <label class="capitalize">{{ formatLabel(key) }}</label>
                     
@@ -110,7 +112,7 @@
                 </div>
                 
                 <div v-if="Object.keys(configForm).length === 0" class="no-config">
-                    该插件暂无配置选项
+                    该项暂无可编辑配置
                 </div>
             </div>
             <template #footer>
@@ -124,10 +126,10 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
+import { computed, reactive, ref, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
-import type { PluginInfo } from '../types/api'
-import { usePluginsStore } from '../stores'
+import type { Config, PluginInfo } from '../types/api'
+import { useConfigStore, usePluginsStore } from '../stores'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
@@ -140,6 +142,7 @@ import Password from 'primevue/password'
 import Toast from 'primevue/toast'
 
 const pluginsStore = usePluginsStore()
+const configStore = useConfigStore()
 const { plugins, loading } = storeToRefs(pluginsStore)
 const toast = useToast()
 
@@ -148,36 +151,76 @@ const saving = ref(false)
 const reloadingPlugin = ref<string | null>(null)
 
 const configDialogVisible = ref(false)
-const selectedPlugin = ref<PluginInfo | null>(null)
+type ChannelItem = {
+    kind: 'channel'
+    name: string
+    description: string
+    enabled: boolean
+    config: Record<string, any>
+}
+
+type PluginItem = PluginInfo & { kind: 'plugin' }
+type ManageableItem = PluginItem | ChannelItem
+
+const selectedItem = ref<ManageableItem | null>(null)
 const configForm = reactive<Record<string, any>>({})
+
+const items = computed<ManageableItem[]>(() => {
+    const pluginItems: PluginItem[] = plugins.value.map(plugin => ({ ...plugin, kind: 'plugin' }))
+    const channels = configStore.config?.channels || {}
+    const channelItems: ChannelItem[] = Object.entries(channels).map(([name, config]) => ({
+        kind: 'channel',
+        name,
+        description: `Channel 适配器：${name}`,
+        enabled: Boolean((config as Record<string, any>)?.enabled),
+        config: { ...(config as Record<string, any>) }
+    }))
+    return [...pluginItems, ...channelItems]
+})
 
 async function loadPlugins() {
     try {
-        await pluginsStore.fetchPlugins()
+        await Promise.all([pluginsStore.fetchPlugins(), configStore.fetchConfig()])
     } catch (e) {
         console.error('Failed to load plugins:', e)
     }
 }
 
-async function togglePluginEnabled(plugin: PluginInfo) {
+async function toggleItemEnabled(item: ManageableItem) {
     toggling.value = true
     try {
-        const success = await pluginsStore.togglePlugin(plugin.name, plugin.enabled)
+        if (item.kind === 'channel') {
+            if (!configStore.config?.channels?.[item.name]) {
+                toast.add({ severity: 'error', summary: '失败', detail: '通道配置不存在', life: 3000 })
+                return
+            }
+            configStore.config.channels[item.name].enabled = item.enabled
+            const success = await configStore.saveConfig()
+            if (success) {
+                toast.add({ severity: 'success', summary: '成功', detail: item.enabled ? '通道已启用' : '通道已禁用', life: 3000 })
+            } else {
+                item.enabled = !item.enabled
+                toast.add({ severity: 'error', summary: '失败', detail: '操作失败', life: 3000 })
+            }
+            return
+        }
+
+        const success = await pluginsStore.togglePlugin(item.name, item.enabled)
         if (success) {
-            toast.add({ severity: 'success', summary: '成功', detail: plugin.enabled ? '插件已启用' : '插件已禁用', life: 3000 })
+            toast.add({ severity: 'success', summary: '成功', detail: item.enabled ? '插件已启用' : '插件已禁用', life: 3000 })
         } else {
-            plugin.enabled = !plugin.enabled
+            item.enabled = !item.enabled
             toast.add({ severity: 'error', summary: '失败', detail: '操作失败', life: 3000 })
         }
     } catch (e) {
-        plugin.enabled = !plugin.enabled
-        console.error('Failed to toggle plugin:', e)
+        item.enabled = !item.enabled
+        console.error('Failed to toggle item:', e)
     } finally {
         toggling.value = false
     }
 }
 
-async function reloadPluginHandler(plugin: PluginInfo) {
+async function reloadPluginHandler(plugin: PluginItem) {
     reloadingPlugin.value = plugin.name
     try {
         const success = await pluginsStore.reloadPlugin(plugin.name)
@@ -195,12 +238,12 @@ async function reloadPluginHandler(plugin: PluginInfo) {
     }
 }
 
-function openConfigDialog(plugin: PluginInfo) {
-    selectedPlugin.value = plugin
+function openConfigDialog(item: ManageableItem) {
+    selectedItem.value = item
     Object.keys(configForm).forEach(key => { delete configForm[key] })
-    const savedOptions = plugin.options || {}
-    const defaultOptions = plugin.defaultConfig?.options || {}
-    const configToUse = Object.keys(savedOptions).length > 0 ? savedOptions : defaultOptions
+    const configToUse = item.kind === 'channel'
+        ? item.config
+        : (Object.keys(item.options || {}).length > 0 ? item.options || {} : item.defaultConfig?.options || {})
     for (const [key, value] of Object.entries(configToUse)) {
         configForm[key] = value
     }
@@ -208,10 +251,27 @@ function openConfigDialog(plugin: PluginInfo) {
 }
 
 async function savePluginConfig() {
-    if (!selectedPlugin.value) return
+    if (!selectedItem.value) return
     saving.value = true
     try {
-        const success = await pluginsStore.updatePluginConfig(selectedPlugin.value.name, configForm)
+        if (selectedItem.value.kind === 'channel') {
+            if (!configStore.config) {
+                toast.add({ severity: 'error', summary: '失败', detail: '配置未加载', life: 3000 })
+                return
+            }
+            configStore.config.channels[selectedItem.value.name] = { ...configForm }
+            const success = await configStore.saveConfig()
+            if (success) {
+                toast.add({ severity: 'success', summary: '成功', detail: '通道配置已保存', life: 3000 })
+                configDialogVisible.value = false
+                await loadPlugins()
+            } else {
+                toast.add({ severity: 'error', summary: '失败', detail: '保存失败', life: 3000 })
+            }
+            return
+        }
+
+        const success = await pluginsStore.updatePluginConfig(selectedItem.value.name, configForm)
         if (success) {
             toast.add({ severity: 'success', summary: '成功', detail: '配置已保存', life: 3000 })
             configDialogVisible.value = false

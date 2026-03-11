@@ -100,7 +100,10 @@ export interface AgentRoleConfig {
   allowedTools: string[];
 }
 
+export type StoredAgentRoleConfig = Omit<AgentRoleConfig, 'name'>;
+
 export interface AgentsConfig {
+  main?: Partial<StoredAgentRoleConfig>;
   roles: Record<string, AgentRoleConfig>;
 }
 

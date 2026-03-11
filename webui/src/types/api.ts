@@ -125,6 +125,7 @@ export interface Config {
     }
   }
   agents?: {
+    main?: Omit<AgentRoleConfig, 'name'>
     roles: Record<string, AgentRoleConfig>
   }
   channels: Record<string, any>

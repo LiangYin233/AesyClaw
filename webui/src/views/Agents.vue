@@ -37,9 +37,8 @@
                     </Message>
                     <pre class="prompt-preview">{{ agent.systemPrompt }}</pre>
                     <div class="agent-actions">
-                        <Button v-if="agent.builtin" label="去全局配置" icon="pi pi-cog" text @click="goToConfig" />
-                        <template v-else>
-                            <Button label="编辑" icon="pi pi-pencil" text @click="openEditDialog(agent)" />
+                        <Button label="编辑" icon="pi pi-pencil" text @click="openEditDialog(agent)" />
+                        <template v-if="!agent.builtin">
                             <Button label="删除" icon="pi pi-trash" severity="danger" text @click="confirmDelete(agent)" />
                         </template>
                     </div>
@@ -58,7 +57,12 @@
             </template>
         </EmptyState>
 
-        <Dialog v-model:visible="dialogVisible" :header="editingName ? `编辑 Agent：${editingName}` : '新建 Agent'" modal class="agent-dialog">
+        <Dialog
+            v-model:visible="dialogVisible"
+            :header="editingName ? `编辑 Agent：${editingName}` : '新建 Agent'"
+            modal
+            class="agent-dialog"
+        >
             <div class="form-stack">
                 <div class="form-field">
                     <label>名称</label>
@@ -84,11 +88,27 @@
                 </div>
                 <div class="form-field">
                     <label>允许使用的 Skills</label>
-                    <MultiSelect v-model="form.allowedSkills" :options="skillOptions" option-label="label" option-value="value" display="chip" />
+                    <MultiSelect
+                        v-model="form.allowedSkills"
+                        :options="skillOptions"
+                        option-label="label"
+                        option-value="value"
+                        display="chip"
+                        filter
+                        :maxSelectedLabels="6"
+                    />
                 </div>
                 <div class="form-field">
                     <label>允许使用的 Tools</label>
-                    <MultiSelect v-model="form.allowedTools" :options="toolOptions" option-label="label" option-value="value" display="chip" />
+                    <MultiSelect
+                        v-model="form.allowedTools"
+                        :options="toolOptions"
+                        option-label="label"
+                        option-value="value"
+                        display="chip"
+                        filter
+                        :maxSelectedLabels="6"
+                    />
                 </div>
             </div>
             <template #footer>
@@ -109,12 +129,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { useAgentsStore, useConfigStore, useSkillsStore, useToolsStore } from '../stores'
 import type { AgentRole, AgentRoleConfig } from '../types/api'
 import { useToast } from '../composables/useToast'
-import { getRouteToken, navigateWithToken } from '../utils/auth'
-import { useRoute } from 'vue-router'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
 import Tag from 'primevue/tag'
@@ -126,8 +143,6 @@ import MultiSelect from 'primevue/multiselect'
 import Message from 'primevue/message'
 import EmptyState from '../components/common/EmptyState.vue'
 
-const route = useRoute()
-const router = useRouter()
 const agentsStore = useAgentsStore()
 const configStore = useConfigStore()
 const skillsStore = useSkillsStore()
@@ -247,10 +262,6 @@ async function doDelete() {
     deletingAgent.value = null
 }
 
-function goToConfig() {
-    navigateWithToken(router, '/config', getRouteToken(route))
-}
-
 onMounted(() => {
     loadAll()
 })
@@ -335,6 +346,11 @@ onMounted(() => {
 .agent-dialog {
     width: 760px;
     max-width: 92vw;
+}
+
+.agent-dialog :deep(.p-dialog-content) {
+    max-height: 75vh;
+    overflow-y: auto;
 }
 
 .form-stack {

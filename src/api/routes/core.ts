@@ -29,14 +29,37 @@ interface CoreRouteDeps {
 }
 
 export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
-  const getChannelStatus = () => ({
-    ...deps.channelManager.getStatus(),
-    [INTERNAL_CHANNELS.WEBUI]: {
+  const getChannelStatus = () => {
+    const runtimeStatus = deps.channelManager.getStatus();
+    const configuredChannels = deps.getConfig().channels || {};
+    const merged: Record<string, { running?: boolean; enabled?: boolean; connected?: boolean }> = {};
+
+    for (const [name, config] of Object.entries(configuredChannels)) {
+      const status = runtimeStatus[name];
+      const running = status?.running ?? false;
+      merged[name] = {
+        running,
+        enabled: Boolean((config as Record<string, unknown>)?.enabled),
+        connected: running
+      };
+    }
+
+    for (const [name, status] of Object.entries(runtimeStatus)) {
+      merged[name] = {
+        enabled: merged[name]?.enabled ?? true,
+        running: status.running,
+        connected: status.running
+      };
+    }
+
+    merged[INTERNAL_CHANNELS.WEBUI] = {
       running: true,
       enabled: true,
       connected: true
-    }
-  });
+    };
+
+    return merged;
+  };
 
   app.get('/api/status', (req, res) => {
     res.json({
