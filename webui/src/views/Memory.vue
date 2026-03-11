@@ -149,7 +149,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useApi, type MemoryEntry } from '../composables/useApi'
+import { storeToRefs } from 'pinia'
+import type { MemoryEntry } from '../types/api'
+import { useMemoryStore } from '../stores'
 import { useToast } from '../composables/useToast'
 import { announceToScreenReader } from '../composables/useA11y'
 import PageHeader from '../components/common/PageHeader.vue'
@@ -162,17 +164,16 @@ import Tag from 'primevue/tag'
 
 const router = useRouter()
 const toast = useToast()
-const { getMemoryEntries, deleteMemoryEntry, clearAllMemory, loading, error } = useApi()
+const memoryStore = useMemoryStore()
+const { entries, loading, error } = storeToRefs(memoryStore)
 
-const entries = ref<MemoryEntry[]>([])
 const selectedEntry = ref<MemoryEntry | null>(null)
 const clearEntryVisible = ref(false)
 const clearAllVisible = ref(false)
 const clearing = ref(false)
 
 async function loadMemory() {
-    const items = await getMemoryEntries()
-    entries.value = items
+    const items = await memoryStore.fetchEntries()
 
     if (error.value) {
         toast.error('加载失败', error.value)
@@ -202,7 +203,7 @@ async function clearEntry() {
     }
 
     clearing.value = true
-    const success = await deleteMemoryEntry(selectedEntry.value.key)
+    const success = await memoryStore.deleteEntry(selectedEntry.value.key)
 
     if (success) {
         toast.success('清空成功', '该聊天对象的记忆已清空')
@@ -218,7 +219,7 @@ async function clearEntry() {
 
 async function clearAll() {
     clearing.value = true
-    const success = await clearAllMemory()
+    const success = await memoryStore.clearAll()
 
     if (success) {
         toast.success('清空成功', '全部记忆已清空')

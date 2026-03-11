@@ -35,21 +35,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useApi, type Tool } from '../composables/useApi'
+import { onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useToolsStore } from '../stores'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
 import Tag from 'primevue/tag'
 
-const { getTools } = useApi()
-
-const tools = ref<Tool[]>([])
-const loading = ref(false)
+const toolsStore = useToolsStore()
+const { tools, loading } = storeToRefs(toolsStore)
 
 async function loadTools() {
-    loading.value = true
-    tools.value = await getTools()
-    loading.value = false
+    await toolsStore.fetchTools()
 }
 
 onMounted(() => {

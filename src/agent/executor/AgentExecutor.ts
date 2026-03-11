@@ -14,20 +14,19 @@ export class AgentExecutor {
   private contextBuilder: ContextBuilder;
   private toolLoopRunner: ToolLoopRunner;
   private syncStrategy: SyncStrategy;
-  private backgroundStrategy: BackgroundStrategy;
   private visionStrategy?: VisionStrategy;
   private executionRegistry: ExecutionRegistry;
   private log = logger.child({ prefix: 'AgentExecutor' });
 
   constructor(
-    private provider: LLMProvider,
-    private toolRegistry: ToolRegistry,
-    private workspace: string,
+    provider: LLMProvider,
+    toolRegistry: ToolRegistry,
+    workspace: string,
     systemPrompt?: string,
     skillsPrompt?: string,
     private model: string = 'gpt-4o',
     private maxIterations: number = 40,
-    private pluginManager?: PluginManager,
+    pluginManager?: PluginManager,
     visionSettings?: VisionSettings,
     visionProvider?: LLMProvider,
     executionRegistry?: ExecutionRegistry
@@ -37,12 +36,6 @@ export class AgentExecutor {
     this.toolLoopRunner = new ToolLoopRunner(provider, toolRegistry, pluginManager, visionSettings);
 
     this.syncStrategy = new SyncStrategy(this.toolLoopRunner, model);
-    this.backgroundStrategy = new BackgroundStrategy(
-      this.toolLoopRunner,
-      model,
-      undefined // onNeedsBackground 由外部设置
-    );
-
     if (visionProvider && visionSettings?.visionModelName) {
       this.visionStrategy = new VisionStrategy(
         this.toolLoopRunner,
@@ -135,20 +128,16 @@ export class AgentExecutor {
     return { content: result.content || '', reasoning_content: result.reasoning_content };
   }
 
-  private hasVisionContent(messages: LLMMessage[]): boolean {
-    return messages.some(msg =>
-      Array.isArray(msg.content) && msg.content.some((c: any) => c.type === 'image_url')
-    );
-  }
-
-  // === 兼容原有接口 ===
-
-  buildContext(history: any[], currentMessage: string, media?: string[], files?: InboundFile[]): LLMMessage[] {
+  buildMessages(history: any[], currentMessage: string, media?: string[], files?: InboundFile[]): LLMMessage[] {
     return this.contextBuilder.build(history, currentMessage, media, files);
   }
 
+  setCurrentContext(channel?: string, chatId?: string, messageType?: 'private' | 'group'): void {
+    this.contextBuilder.setCurrentContext(channel, chatId, messageType);
+  }
+
   setPluginManager(pm: PluginManager): void {
-    this.pluginManager = pm;
+    this.toolLoopRunner.setPluginManager(pm);
   }
 
   setSkillsPrompt(prompt: string): void {
@@ -156,12 +145,8 @@ export class AgentExecutor {
   }
 
   updateProvider(provider: LLMProvider, model?: string): void {
-    this.provider = provider;
+    this.toolLoopRunner.setProvider(provider);
     if (model) this.model = model;
-  }
-
-  getContextBuilder(): ContextBuilder {
-    return this.contextBuilder;
   }
 
   needsVisionProvider(media?: string[], files?: InboundFile[]): boolean {
@@ -228,7 +213,3 @@ export class AgentExecutor {
     }
   }
 }
-
-// 向后兼容的类型别名
-export type ExecuteOptions = ExecutionOptions;
-export type AgentResult = ExecutionResult;

@@ -2,7 +2,7 @@ import { ConfigLoader } from '../../config/loader.js';
 import { createProvider } from '../../providers/index.js';
 import { logger } from '../../logger/index.js';
 import type { Services } from '../factory/ServiceFactory.js';
-import { createMemorySummaryService } from '../factory/ServiceFactory.js';
+import { createMemoryService } from '../factory/ServiceFactory.js';
 
 const log = logger.child({ prefix: 'Bootstrap' });
 
@@ -26,7 +26,7 @@ export function setupConfigReload(services: Services): void {
       agent.updateProvider(newProviderInstance, newModel);
     }
 
-    const memoryService = createMemorySummaryService(newConfig, sessionManager, memoryFactStore);
+    const memoryService = createMemoryService(newConfig, sessionManager, memoryFactStore);
     agent.updateMemorySettings(newConfig.agent.defaults.memoryWindow, memoryService);
 
     currentConfig = newConfig;

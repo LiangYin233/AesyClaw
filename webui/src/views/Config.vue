@@ -137,8 +137,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useApi, type Config } from '../composables/useApi'
+import { computed, onMounted, ref } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useConfigStore } from '../stores'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
@@ -152,12 +153,9 @@ import Message from 'primevue/message'
 import Toast from 'primevue/toast'
 import ProgressSpinner from 'primevue/progressspinner'
 
-const { getConfig, saveConfig: saveApiConfig } = useApi()
+const configStore = useConfigStore()
+const { config, loading } = storeToRefs(configStore)
 const toast = useToast()
-
-const config = ref<Config | null>(null)
-
-const loading = ref(false)
 const saving = ref(false)
 
 const providerKeys = computed(() => {
@@ -165,15 +163,13 @@ const providerKeys = computed(() => {
 })
 
 async function loadConfig() {
-    loading.value = true
-    config.value = await getConfig()
-    loading.value = false
+    await configStore.fetchConfig()
 }
 
 async function saveConfig() {
     if (!config.value) return
     saving.value = true
-    const success = await saveApiConfig(config.value)
+    const success = await configStore.saveConfig()
     saving.value = false
     if (success) {
         toast.add({ severity: 'success', summary: '成功', detail: '配置已保存', life: 3000 })

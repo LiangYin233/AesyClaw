@@ -1,15 +1,12 @@
 import express from 'express';
 import { createServer } from 'http';
-import { randomUUID } from 'crypto';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import type { AgentLoop } from '../agent/index.js';
 import type { SessionManager } from '../session/SessionManager.js';
 import type { ChannelManager } from '../channels/ChannelManager.js';
 import type { Config } from '../types.js';
-import { ConfigLoader } from '../config/loader.js';
 import type { PluginManager } from '../plugins/index.js';
-import { normalizeError, createErrorResponse, createValidationErrorResponse, NotFoundError } from '../logger/index.js';
 import type { CronService } from '../cron/index.js';
 import type { MCPClientManager } from '../mcp/MCPClient.js';
 import type { SkillManager } from '../skills/SkillManager.js';
@@ -17,10 +14,13 @@ import type { ToolRegistry } from '../tools/ToolRegistry.js';
 import { logger } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
 import { CONSTANTS } from '../constants/index.js';
+import { registerCoreRoutes } from './routes/core.js';
+import { registerMemoryRoutes } from './routes/memory.js';
 import { registerPluginRoutes } from './routes/plugins.js';
 import { registerCronRoutes } from './routes/cron.js';
 import { registerMCPRoutes } from './routes/mcp.js';
 import { registerMetricsRoutes } from './routes/metrics.js';
+import { registerSkillRoutes } from './routes/skills.js';
 import type { MemoryFactStore } from '../session/MemoryFactStore.js';
 
 const MAX_MESSAGE_LENGTH = CONSTANTS.MESSAGE_MAX_LENGTH;
@@ -89,365 +89,30 @@ export class APIServer {
   }
 
   private setupRoutes(): void {
-    // Core routes
-    this.app.get('/api/status', (req, res) => {
-      res.json({
-        version: packageVersion,
-        uptime: process.uptime(),
-        channels: this.channelManager.getStatus(),
-        sessions: this.sessionManager.count(),
-        agentRunning: this.agent.isRunning()
-      });
+    registerCoreRoutes(this.app, {
+      agent: this.agent,
+      sessionManager: this.sessionManager,
+      channelManager: this.channelManager,
+      getConfig: () => this.config,
+      setConfig: (config) => {
+        this.config = config;
+      },
+      toolRegistry: this.toolRegistry,
+      packageVersion,
+      maxMessageLength: MAX_MESSAGE_LENGTH,
+      log: this.log
     });
-
-    this.app.get('/api/sessions', (req, res) => {
-      const sessions = this.sessionManager.list();
-      res.json({ sessions: sessions.map(s => ({
-        key: s.key, channel: s.channel, chatId: s.chatId,
-        uuid: s.uuid, messageCount: s.messages.length
-      })) });
+    registerMemoryRoutes(this.app, {
+      sessionManager: this.sessionManager,
+      memoryFactStore: this.memoryFactStore,
+      log: this.log
     });
-
-    this.app.get('/api/sessions/:key', async (req, res) => {
-      const session = await this.sessionManager.getOrCreate(req.params.key);
-      res.json({
-        key: session.key, channel: session.channel, chatId: session.chatId,
-        uuid: session.uuid, messageCount: session.messages.length, messages: session.messages
-      });
-    });
-
-    this.app.delete('/api/sessions/:key', async (req, res) => {
-      await this.sessionManager.delete(req.params.key);
-      res.json({ success: true });
-    });
-
-    this.app.get('/api/memory', async (req, res) => {
-      try {
-        const db = this.sessionManager.getDatabase();
-        await db.ready();
-
-        const [sessionRows, factRows] = await Promise.all([
-          db.all<{
-            key: string;
-            channel: string;
-            chat_id: string;
-            uuid: string | null;
-            summary: string;
-            summarized_message_count: number;
-            session_updated_at: string;
-            summary_updated_at: string | null;
-          }>(
-            `SELECT
-              s.key,
-              s.channel,
-              s.chat_id,
-              s.uuid,
-              s.updated_at as session_updated_at,
-              COALESCE(sm.summary, '') as summary,
-              COALESCE(sm.summarized_message_count, 0) as summarized_message_count,
-              sm.updated_at as summary_updated_at
-            FROM sessions s
-            LEFT JOIN session_memory sm ON sm.session_id = s.id
-            ORDER BY s.updated_at DESC`
-          ),
-          db.all<{
-            channel: string;
-            chat_id: string;
-            fact: string;
-            updated_at: string;
-          }>(
-            `SELECT channel, chat_id, fact, updated_at
-             FROM memory_facts
-             ORDER BY updated_at DESC, id DESC`
-          )
-        ]);
-
-        const factsByConversation = new Map<string, { facts: string[]; updatedAt?: string }>();
-
-        for (const row of factRows) {
-          const conversationKey = `${row.channel}:${row.chat_id}`;
-          const current = factsByConversation.get(conversationKey) || { facts: [], updatedAt: row.updated_at };
-          current.facts.push(row.fact);
-          current.updatedAt = [current.updatedAt, row.updated_at]
-            .filter((value): value is string => Boolean(value))
-            .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0];
-          factsByConversation.set(conversationKey, current);
-        }
-
-        const getLatestTimestamp = (...values: Array<string | null | undefined>): string | undefined => {
-          const timestamps = values.filter((value): value is string => Boolean(value));
-
-          if (timestamps.length === 0) {
-            return undefined;
-          }
-
-          return timestamps.sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0];
-        };
-
-        const conversationMap = new Map<string, {
-          key: string;
-          channel: string;
-          chatId: string;
-          facts: string[];
-          factCount: number;
-          sessionCount: number;
-          summaryCount: number;
-          sessions: Array<{
-            sessionKey: string;
-            uuid?: string;
-            summary: string;
-            summarizedMessageCount: number;
-            updatedAt?: string;
-          }>;
-          updatedAt?: string;
-        }>();
-
-        for (const row of sessionRows) {
-          const conversationKey = `${row.channel}:${row.chat_id}`;
-          const existing = conversationMap.get(conversationKey) || {
-            key: `memory:${conversationKey}`,
-            channel: row.channel,
-            chatId: row.chat_id,
-            facts: factsByConversation.get(conversationKey)?.facts || [],
-            factCount: factsByConversation.get(conversationKey)?.facts.length || 0,
-            sessionCount: 0,
-            summaryCount: 0,
-            sessions: [],
-            updatedAt: factsByConversation.get(conversationKey)?.updatedAt
-          };
-
-          existing.sessionCount += 1;
-          if (row.summary.trim()) {
-            existing.summaryCount += 1;
-          }
-          existing.sessions.push({
-            sessionKey: row.key,
-            uuid: row.uuid || undefined,
-            summary: row.summary,
-            summarizedMessageCount: row.summarized_message_count,
-            updatedAt: getLatestTimestamp(row.summary_updated_at, row.session_updated_at)
-          });
-          existing.updatedAt = getLatestTimestamp(existing.updatedAt, row.summary_updated_at, row.session_updated_at);
-
-          conversationMap.set(conversationKey, existing);
-        }
-
-        for (const [conversationKey, factData] of factsByConversation.entries()) {
-          if (conversationMap.has(conversationKey)) {
-            continue;
-          }
-
-          const separatorIndex = conversationKey.indexOf(':');
-          const channel = conversationKey.slice(0, separatorIndex);
-          const chatId = conversationKey.slice(separatorIndex + 1);
-          conversationMap.set(conversationKey, {
-            key: `memory:${conversationKey}`,
-            channel,
-            chatId,
-            facts: factData.facts,
-            factCount: factData.facts.length,
-            sessionCount: 0,
-            summaryCount: 0,
-            sessions: [],
-            updatedAt: factData.updatedAt
-          });
-        }
-
-        const items = Array.from(conversationMap.values())
-          .filter((item) => item.factCount > 0 || item.summaryCount > 0)
-          .map((item) => ({
-            ...item,
-            sessions: item.sessions.sort((left, right) => {
-              const leftTime = left.updatedAt ? new Date(left.updatedAt).getTime() : 0;
-              const rightTime = right.updatedAt ? new Date(right.updatedAt).getTime() : 0;
-              return rightTime - leftTime;
-            })
-          }));
-
-        items.sort((left, right) => {
-          const leftTime = left.updatedAt ? new Date(left.updatedAt).getTime() : 0;
-          const rightTime = right.updatedAt ? new Date(right.updatedAt).getTime() : 0;
-          return rightTime - leftTime;
-        });
-
-        res.json({ items });
-      } catch (error: unknown) {
-        this.log.error(`Memory list error: ${normalizeError(error)}`);
-        res.status(500).json(createErrorResponse(error));
-      }
-    });
-
-    this.app.delete('/api/memory/:key', async (req, res) => {
-      try {
-        const db = this.sessionManager.getDatabase();
-        await db.ready();
-
-        const rawKey = decodeURIComponent(req.params.key);
-        let channel: string | undefined;
-        let chatId: string | undefined;
-
-        const sessionRow = await db.get<{
-          key: string;
-          channel: string;
-          chat_id: string;
-        }>(`SELECT key, channel, chat_id FROM sessions WHERE key = ?`, [rawKey]);
-
-        if (sessionRow) {
-          channel = sessionRow.channel;
-          chatId = sessionRow.chat_id;
-          await this.sessionManager.clearSummary(sessionRow.key);
-        } else if (rawKey.startsWith('memory:')) {
-          const conversationKey = rawKey.slice('memory:'.length);
-          const separatorIndex = conversationKey.indexOf(':');
-
-          if (separatorIndex > 0) {
-            channel = conversationKey.slice(0, separatorIndex);
-            chatId = conversationKey.slice(separatorIndex + 1);
-            await this.sessionManager.clearConversationSummaries(channel, chatId);
-          }
-        }
-
-        if (!channel || !chatId) {
-          throw new NotFoundError(`Memory entry not found: ${rawKey}`);
-        }
-
-        if (this.memoryFactStore) {
-          await this.memoryFactStore.clearFacts(channel, chatId);
-        } else {
-          await db.run(`DELETE FROM memory_facts WHERE channel = ? AND chat_id = ?`, [channel, chatId]);
-        }
-
-        res.json({ success: true });
-      } catch (error: unknown) {
-        this.log.error(`Memory delete error: ${normalizeError(error)}`);
-
-        if (error instanceof NotFoundError) {
-          return res.status(404).json(createErrorResponse(error));
-        }
-
-        res.status(500).json(createErrorResponse(error));
-      }
-    });
-
-    this.app.delete('/api/memory', async (req, res) => {
-      try {
-        await this.sessionManager.clearAllSummaries();
-
-        if (this.memoryFactStore) {
-          await this.memoryFactStore.clearAllFacts();
-        } else {
-          const db = this.sessionManager.getDatabase();
-          await db.ready();
-          await db.run(`DELETE FROM memory_facts`);
-        }
-
-        res.json({ success: true });
-      } catch (error: unknown) {
-        this.log.error(`Memory clear-all error: ${normalizeError(error)}`);
-        res.status(500).json(createErrorResponse(error));
-      }
-    });
-
-    this.app.post('/api/chat', async (req, res) => {
-      const { sessionKey, message } = req.body;
-      if (!message || typeof message !== 'string') {
-        return res.status(400).json(createValidationErrorResponse('Message is required', 'message'));
-      }
-      if (message.length > MAX_MESSAGE_LENGTH) {
-        return res.status(400).json(createValidationErrorResponse(`Message too long (max ${MAX_MESSAGE_LENGTH} characters)`, 'message'));
-      }
-
-      const key = sessionKey || `api:${randomUUID()}`;
-      try {
-        this.log.info(`Processing API chat request, session: ${key}`);
-        const response = await this.agent.processDirect(message, key);
-        res.json({ success: true, response });
-      } catch (error: unknown) {
-        this.log.error(`Chat error: ${normalizeError(error)}`);
-        res.status(500).json(createErrorResponse(error));
-      }
-    });
-
-    this.app.get('/api/channels', (req, res) => {
-      res.json(this.channelManager.getStatus());
-    });
-
-    this.app.post('/api/channels/:name/send', async (req, res) => {
-      const { chatId, content } = req.body;
-      if (!chatId || typeof chatId !== 'string') {
-        return res.status(400).json(createValidationErrorResponse('chatId is required and must be a string', 'chatId'));
-      }
-      if (!content || typeof content !== 'string') {
-        return res.status(400).json(createValidationErrorResponse('content is required and must be a string', 'content'));
-      }
-      if (content.length > MAX_MESSAGE_LENGTH) {
-        return res.status(400).json(createValidationErrorResponse(`content too long (max ${MAX_MESSAGE_LENGTH} characters)`, 'content'));
-      }
-
-      const channel = this.channelManager.get(req.params.name);
-      if (!channel) return res.status(404).json(createErrorResponse(new NotFoundError('Channel', req.params.name)));
-
-      try {
-        this.log.info(`Sending message via API to ${req.params.name}:${chatId}`);
-        await channel.send({ channel: req.params.name, chatId, content });
-        res.json({ success: true });
-      } catch (error: unknown) {
-        this.log.error(`Failed to send message via API to ${req.params.name}:${chatId}:`, error);
-        res.status(500).json(createErrorResponse(error));
-      }
-    });
-
-    this.app.get('/api/tools', (req, res) => {
-      res.json({ tools: this.toolRegistry?.getDefinitions() ?? [] });
-    });
-
-    this.app.get('/api/config', (req, res) => {
-      res.json(this.config);
-    });
-
-    this.app.put('/api/config', async (req, res) => {
-      try {
-        const newConfig = req.body;
-        this.log.info('Updating config via API');
-        await ConfigLoader.save(newConfig);
-        this.config = newConfig;
-        res.json({ success: true });
-      } catch (error: unknown) {
-        this.log.error('Failed to update config via API:', error);
-        res.status(500).json(createErrorResponse(error));
-      }
-    });
-
-    // Skills
-    if (this.skillManager) {
-      const sm = this.skillManager;
-      this.app.get('/api/skills', (req, res) => res.json({ skills: sm.listSkills() }));
-      this.app.get('/api/skills/:name', (req, res) => {
-        const skill = sm.getSkill(req.params.name);
-        if (!skill) return res.status(404).json(createErrorResponse(new NotFoundError('Skill', req.params.name)));
-        res.json({ skill });
-      });
-      this.app.post('/api/skills/:name/toggle', async (req, res) => {
-        try {
-          const { enabled } = req.body;
-          if (typeof enabled !== 'boolean') {
-            return res.status(400).json(createValidationErrorResponse('enabled must be a boolean', 'enabled'));
-          }
-          const success = await sm.toggleSkill(req.params.name, enabled);
-          if (!success) return res.status(404).json(createErrorResponse(new NotFoundError('Skill', req.params.name)));
-          res.json({ success: true });
-        } catch (error: unknown) {
-          res.status(500).json(createErrorResponse(error));
-        }
-      });
-    }
-
-    // Delegated route modules
+    registerSkillRoutes(this.app, this.skillManager);
     registerPluginRoutes(this.app, this.pluginManager);
     registerCronRoutes(this.app, this.cronService);
     registerMCPRoutes(this.app, {
       toolRegistry: this.toolRegistry,
-      config: this.config,
+      getConfig: () => this.config,
       getMcpManager: () => this.mcpManager,
       setMcpManager: (m) => { this.mcpManager = m; }
     });

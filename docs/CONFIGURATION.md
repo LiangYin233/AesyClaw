@@ -39,7 +39,7 @@ agent:
       enabled: true
       provider: openai
       model: gpt-4o-mini
-      triggerMessages: 20
+      triggerMessages: 20   # 当 (当前会话消息数 - 已摘要消息数 - memoryWindow) >= 20 时触发摘要
 ```
 
 长期事实：

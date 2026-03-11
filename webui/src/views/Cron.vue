@@ -126,8 +126,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useApi, type CronJob } from '../composables/useApi'
+import { reactive, ref, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
+import type { CronJob } from '../types/api'
+import { useCronStore } from '../stores'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
@@ -142,11 +144,9 @@ import Toast from 'primevue/toast'
 import ProgressSpinner from 'primevue/progressspinner'
 import DatePicker from 'primevue/datepicker'
 
-const { getCronJobs, getCronJob, createCronJob, updateCronJob, deleteCronJob, toggleCronJob } = useApi()
+const cronStore = useCronStore()
+const { jobs, loading } = storeToRefs(cronStore)
 const toast = useToast()
-
-const jobs = ref<CronJob[]>([])
-const loading = ref(false)
 const saving = ref(false)
 const deleting = ref(false)
 
@@ -177,9 +177,7 @@ const form = reactive({
 })
 
 async function loadJobs() {
-    loading.value = true
-    jobs.value = await getCronJobs()
-    loading.value = false
+    await cronStore.fetchJobs()
 }
 
 function openCreateDialog() {
@@ -202,21 +200,18 @@ async function openEditDialog(job: CronJob) {
     isEditing.value = true
     editingJobId.value = job.id
 
-    // Fetch full job details if detail is masked
     let fullJob = job
     if (job.payload?.detail === '[隐藏]') {
         try {
-            const fetched = await getCronJob(job.id)
+            const fetched = await cronStore.fetchJob(job.id)
             if (fetched) {
                 fullJob = fetched
             }
         } catch (error) {
             console.error('Failed to fetch full job details:', error)
-            // Continue with masked data if fetch fails
         }
     }
 
-    // Populate form with full job data
     form.name = fullJob.name
     form.scheduleKind = fullJob.schedule.kind
     form.onceAt = fullJob.schedule.onceAt ? new Date(fullJob.schedule.onceAt) : null
@@ -244,12 +239,10 @@ async function saveJob() {
     }
 
     const schedule: any = { kind: form.scheduleKind }
-    
+
     switch (form.scheduleKind) {
         case 'once':
-            if (form.onceAt) {
-                schedule.onceAt = form.onceAt.toISOString()
-            }
+            if (form.onceAt) schedule.onceAt = form.onceAt.toISOString()
             break
         case 'interval':
             if (form.intervalStr) {
@@ -282,16 +275,16 @@ async function saveJob() {
 
     saving.value = true
     let success = false
-    
+
     if (isEditing.value) {
-        success = await updateCronJob(editingJobId.value, jobData)
+        success = await cronStore.updateJob(editingJobId.value, jobData)
     } else {
-        const result = await createCronJob(jobData)
+        const result = await cronStore.createJob(jobData)
         success = result !== null
     }
-    
+
     saving.value = false
-    
+
     if (success) {
         dialogVisible.value = false
         toast.add({ severity: 'success', summary: '成功', detail: isEditing.value ? '任务已更新' : '任务已创建', life: 3000 })
@@ -308,11 +301,11 @@ function confirmDelete(job: CronJob) {
 
 async function deleteJob() {
     if (!jobToDelete.value) return
-    
+
     deleting.value = true
-    const success = await deleteCronJob(jobToDelete.value.id)
+    const success = await cronStore.deleteJob(jobToDelete.value.id)
     deleting.value = false
-    
+
     if (success) {
         deleteDialogVisible.value = false
         toast.add({ severity: 'success', summary: '成功', detail: '任务已删除', life: 3000 })
@@ -323,9 +316,10 @@ async function deleteJob() {
 }
 
 async function toggleJob(job: CronJob) {
-    const success = await toggleCronJob(job.id, !job.enabled)
+    const enabled = !job.enabled
+    const success = await cronStore.toggleJob(job.id, enabled)
     if (success) {
-        toast.add({ severity: 'success', summary: '成功', detail: job.enabled ? '任务已禁用' : '任务已启用', life: 3000 })
+        toast.add({ severity: 'success', summary: '成功', detail: enabled ? '任务已启用' : '任务已禁用', life: 3000 })
         loadJobs()
     } else {
         toast.add({ severity: 'error', summary: '错误', detail: '操作失败', life: 3000 })
@@ -358,26 +352,32 @@ function formatTime(ms?: number): string {
 }
 
 function formatIntervalMs(ms: number): string {
-    if (ms >= 86400000) return `${ms / 86400000}d`
-    if (ms >= 3600000) return `${ms / 3600000}h`
-    if (ms >= 60000) return `${ms / 60000}m`
-    return `${ms / 1000}s`
+    const units = [
+        ['d', 24 * 60 * 60 * 1000],
+        ['h', 60 * 60 * 1000],
+        ['m', 60 * 1000],
+        ['s', 1000]
+    ] as const
+
+    let remaining = ms
+    let result = ''
+    for (const [unit, value] of units) {
+        const count = Math.floor(remaining / value)
+        if (count > 0) {
+            result += `${count}${unit}`
+            remaining %= value
+        }
+    }
+    return result || '0s'
 }
 
 function parseIntervalStr(str: string): number | null {
-    const match = str.match(/^(\d+)(s|m|h|d)$/)
+    const regex = /^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/
+    const match = str.match(regex)
     if (!match) return null
-    
-    const value = parseInt(match[1])
-    const unit = match[2]
-    
-    switch (unit) {
-        case 's': return value * 1000
-        case 'm': return value * 60 * 1000
-        case 'h': return value * 60 * 60 * 1000
-        case 'd': return value * 24 * 60 * 60 * 1000
-        default: return null
-    }
+
+    const [, d, h, m, s] = match
+    return (parseInt(d || '0') * 24 * 60 * 60 + parseInt(h || '0') * 60 * 60 + parseInt(m || '0') * 60 + parseInt(s || '0')) * 1000
 }
 
 onMounted(() => {

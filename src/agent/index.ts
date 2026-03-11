@@ -5,7 +5,6 @@ export type { ContextMode, ExecutionStatus } from './core/AgentLoop.js';
 export { AgentExecutor } from './executor/AgentExecutor.js';
 export { ToolLoopRunner } from './executor/ToolLoopRunner.js';
 export { SyncStrategy, BackgroundStrategy, VisionStrategy } from './executor/strategies.js';
-export type { ExecuteOptions, AgentResult } from './executor/AgentExecutor.js';
 export type {
   ExecutionStrategy,
   ExecutionResult,

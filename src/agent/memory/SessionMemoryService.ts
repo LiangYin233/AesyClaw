@@ -2,6 +2,7 @@ import type { LLMProvider } from '../../providers/base.js';
 import type { Session, SessionManager, SessionMessage } from '../../session/SessionManager.js';
 import { MemoryFactStore, type MemoryFact } from '../../session/MemoryFactStore.js';
 import { logger } from '../../logger/index.js';
+import { CRON_SESSION_KEY_PREFIX, INTERNAL_CHANNELS } from '../../constants/index.js';
 import {
   MEMORY_FACTS_PREFIX,
   MEMORY_SUMMARY_PREFIX,
@@ -36,7 +37,15 @@ export class SessionMemoryService {
     private factsConfig?: MemoryFactsRuntimeConfig
   ) {}
 
+  private shouldSkipMemory(sessionKey?: string, session?: Pick<Session, 'channel'>): boolean {
+    return sessionKey?.startsWith(CRON_SESSION_KEY_PREFIX) === true || session?.channel === INTERNAL_CHANNELS.CRON;
+  }
+
   async buildHistory(session: Session): Promise<SessionMessage[]> {
+    if (this.shouldSkipMemory(session.key, session)) {
+      return session.messages.slice(-this.summaryConfig.memoryWindow);
+    }
+
     const facts = await this.factsStore.getFacts(session.channel, session.chatId);
     const factMessage = this.buildFactsMessage(facts);
     const summaryMessage = session.summary.trim()
@@ -61,12 +70,19 @@ export class SessionMemoryService {
     }
 
     const session = await this.sessionManager.getOrCreate(sessionKey);
-    const summaryCutoff = Math.max(0, session.messages.length - this.summaryConfig.memoryWindow);
-    const pendingMessages = session.messages.slice(session.summarizedMessageCount, summaryCutoff);
-
-    if (pendingMessages.length < this.summaryConfig.triggerMessages) {
+    if (this.shouldSkipMemory(sessionKey, session)) {
       return false;
     }
+
+    const unsummarizedMessageCount = Math.max(0, session.messages.length - session.summarizedMessageCount);
+    const overflowMessageCount = Math.max(0, unsummarizedMessageCount - this.summaryConfig.memoryWindow);
+
+    if (overflowMessageCount < this.summaryConfig.triggerMessages) {
+      return false;
+    }
+
+    const summaryCutoff = session.summarizedMessageCount + overflowMessageCount;
+    const pendingMessages = session.messages.slice(session.summarizedMessageCount, summaryCutoff);
 
     try {
       const summary = await this.generateSummary(session.summary, pendingMessages);
@@ -83,8 +99,12 @@ export class SessionMemoryService {
     }
   }
 
-  async maybePersistMemory(sessionKey: string, userContent: string, assistantContent: string): Promise<void> {
-    await this.maybeExtractFacts(sessionKey, userContent, assistantContent);
+  async maybePersistMemory(sessionKey: string, userContent: string, _assistantContent: string): Promise<void> {
+    if (this.shouldSkipMemory(sessionKey)) {
+      return;
+    }
+
+    await this.maybeExtractFacts(sessionKey, userContent);
     await this.maybeSummarizeSession(sessionKey);
   }
 
@@ -121,29 +141,29 @@ export class SessionMemoryService {
     }];
   }
 
-  private async maybeExtractFacts(sessionKey: string, userContent: string, assistantContent: string): Promise<void> {
+  private async maybeExtractFacts(sessionKey: string, userContent: string): Promise<void> {
     if (!this.factsConfig?.enabled || !this.factsProvider) {
       return;
     }
 
     const session = await this.sessionManager.getOrCreate(sessionKey);
+    if (this.shouldSkipMemory(sessionKey, session)) {
+      return;
+    }
+
     const existingFacts = await this.factsStore.getFacts(session.channel, session.chatId);
-    const extractedFacts = await this.extractFacts(existingFacts, userContent, assistantContent);
+    const extractedFacts = await this.extractFacts(existingFacts, userContent);
 
     if (extractedFacts.length === 0) {
       return;
     }
 
-    const mergedFacts = Array.from(new Set([
-      ...extractedFacts,
-      ...existingFacts.map((fact) => fact.content)
-    ])).slice(0, this.factsConfig.maxFacts);
-
-    await this.factsStore.setFacts(session.channel, session.chatId, mergedFacts);
-    this.log.info(`Updated facts for ${session.channel}:${session.chatId}, total facts: ${mergedFacts.length}`);
+    await this.factsStore.upsertFacts(session.channel, session.chatId, extractedFacts, this.factsConfig.maxFacts);
+    const persistedFacts = await this.factsStore.getFacts(session.channel, session.chatId);
+    this.log.info(`Updated facts for ${session.channel}:${session.chatId}, total facts: ${persistedFacts.length}`);
   }
 
-  private async extractFacts(existingFacts: MemoryFact[], userContent: string, assistantContent: string): Promise<string[]> {
+  private async extractFacts(existingFacts: MemoryFact[], userContent: string): Promise<string[]> {
     const existingFactsBlock = existingFacts.length > 0
       ? existingFacts.map((fact, index) => `${index + 1}. ${fact.content}`).join('\n')
       : '(无)';
@@ -155,7 +175,7 @@ export class SessionMemoryService {
       },
       {
         role: 'user',
-        content: buildFactsUserPrompt(existingFactsBlock, userContent, assistantContent)
+        content: buildFactsUserPrompt(existingFactsBlock, userContent)
       }
     ], undefined, this.factsConfig?.model, { reasoning: false });
 

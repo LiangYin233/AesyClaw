@@ -71,8 +71,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useApi, type SkillInfo } from '../composables/useApi'
+import { onMounted, ref } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useSkillsStore } from '../stores'
 import { useToast } from 'primevue/usetoast'
 import Card from 'primevue/card'
 import Message from 'primevue/message'
@@ -83,51 +84,30 @@ import Dialog from 'primevue/dialog'
 import Tag from 'primevue/tag'
 import Toast from 'primevue/toast'
 
-const { getSkills, getSkill, toggleSkill } = useApi()
+const skillsStore = useSkillsStore()
+const { skills, selectedSkill, loading } = storeToRefs(skillsStore)
 const toast = useToast()
-const skills = ref<SkillInfo[]>([])
-const loading = ref(false)
 const showDetailsDialog = ref(false)
-const selectedSkill = ref<SkillInfo | null>(null)
 
 async function loadSkills() {
-    loading.value = true
-    skills.value = await getSkills()
-    loading.value = false
+    await skillsStore.fetchSkills()
 }
 
 async function viewSkillDetails(name: string) {
-    const skill = await getSkill(name)
+    const skill = await skillsStore.fetchSkill(name)
     if (skill) {
-        selectedSkill.value = skill
         showDetailsDialog.value = true
     } else {
-        toast.add({
-            severity: 'error',
-            summary: '错误',
-            detail: '获取 Skill 详情失败',
-            life: 3000
-        })
+        toast.add({ severity: 'error', summary: '错误', detail: '获取 Skill 详情失败', life: 3000 })
     }
 }
 
 async function toggleSkillHandler(name: string, enabled: boolean) {
-    const success = await toggleSkill(name, enabled)
+    const success = await skillsStore.toggleSkill(name, enabled)
     if (success) {
-        toast.add({
-            severity: 'success',
-            summary: '成功',
-            detail: `Skill ${name} 已${enabled ? '启用' : '禁用'}`,
-            life: 3000
-        })
+        toast.add({ severity: 'success', summary: '成功', detail: `Skill ${name} 已${enabled ? '启用' : '禁用'}`, life: 3000 })
     } else {
-        toast.add({
-            severity: 'error',
-            summary: '错误',
-            detail: `切换 Skill 状态失败`,
-            life: 3000
-        })
-        // 恢复原状态
+        toast.add({ severity: 'error', summary: '错误', detail: '切换 Skill 状态失败', life: 3000 })
         const skill = skills.value.find(s => s.name === name)
         if (skill) skill.enabled = !enabled
     }

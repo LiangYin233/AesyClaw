@@ -2,16 +2,39 @@ import { type Database, type DBMemoryFact } from '../db/index.js';
 
 export interface MemoryFact {
   content: string;
+  createdAt?: string;
   updatedAt?: string;
+  lastSeenAt?: string;
+  confidence?: number;
+  confirmations?: number;
 }
 
 export class MemoryFactStore {
   private facts: Map<string, MemoryFact[]> = new Map();
+  private static readonly MAX_CONFIDENCE = 10;
 
   constructor(private db: Database) {}
 
   private createConversationKey(channel: string, chatId: string): string {
     return `${channel}:${chatId}`;
+  }
+
+  private async loadFacts(channel: string, chatId: string): Promise<MemoryFact[]> {
+    const rows = await this.db.all<DBMemoryFact>(
+      `SELECT * FROM memory_facts
+       WHERE channel = ? AND chat_id = ?
+       ORDER BY confidence DESC, last_seen_at DESC, updated_at DESC, id DESC`,
+      [channel, chatId]
+    );
+
+    return rows.map((row) => ({
+      content: row.fact,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      lastSeenAt: row.last_seen_at,
+      confidence: row.confidence,
+      confirmations: row.confirmations
+    }));
   }
 
   async getFacts(channel: string, chatId: string): Promise<MemoryFact[]> {
@@ -21,41 +44,60 @@ export class MemoryFactStore {
       return cached;
     }
 
-    const rows = await this.db.all<DBMemoryFact>(
-      `SELECT * FROM memory_facts WHERE channel = ? AND chat_id = ? ORDER BY updated_at DESC, id DESC`,
-      [channel, chatId]
-    );
-
-    const facts = rows.map((row) => ({ content: row.fact, updatedAt: row.updated_at }));
+    const facts = await this.loadFacts(channel, chatId);
     this.facts.set(conversationKey, facts);
     return facts;
   }
 
-  async setFacts(channel: string, chatId: string, facts: string[]): Promise<void> {
+  async upsertFacts(channel: string, chatId: string, facts: string[], maxFacts: number): Promise<void> {
     const conversationKey = this.createConversationKey(channel, chatId);
     const normalizedFacts = Array.from(new Set(
       facts.map((fact) => fact.trim()).filter(Boolean)
     ));
+
+    if (normalizedFacts.length === 0) {
+      return;
+    }
+
     const updatedAt = new Date().toISOString();
 
     await this.db.transaction(async () => {
-      await this.db.run(
-        `DELETE FROM memory_facts WHERE channel = ? AND chat_id = ?`,
+      for (const fact of normalizedFacts) {
+        const result = await this.db.run(
+          `UPDATE memory_facts
+           SET updated_at = ?,
+               last_seen_at = ?,
+               confidence = MIN(confidence + 1, ?),
+               confirmations = confirmations + 1
+           WHERE channel = ? AND chat_id = ? AND fact = ?`,
+          [updatedAt, updatedAt, MemoryFactStore.MAX_CONFIDENCE, channel, chatId, fact]
+        );
+
+        if (result.changes === 0) {
+          await this.db.run(
+            `INSERT INTO memory_facts (
+              channel, chat_id, fact, created_at, updated_at, last_seen_at, confidence, confirmations
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [channel, chatId, fact, updatedAt, updatedAt, updatedAt, 1, 1]
+          );
+        }
+      }
+
+      const rows = await this.db.all<Pick<DBMemoryFact, 'id'>>(
+        `SELECT id FROM memory_facts
+         WHERE channel = ? AND chat_id = ?
+         ORDER BY confidence DESC, last_seen_at DESC, updated_at DESC, id DESC`,
         [channel, chatId]
       );
 
-      for (const fact of normalizedFacts) {
-        await this.db.run(
-          `INSERT INTO memory_facts (channel, chat_id, fact, updated_at) VALUES (?, ?, ?, ?)`,
-          [channel, chatId, fact, updatedAt]
-        );
+      const removableIds = rows.slice(maxFacts).map((row) => row.id);
+      for (const factId of removableIds) {
+        await this.db.run(`DELETE FROM memory_facts WHERE id = ?`, [factId]);
       }
     });
 
-    this.facts.set(
-      conversationKey,
-      normalizedFacts.map((content) => ({ content, updatedAt }))
-    );
+    const refreshedFacts = await this.loadFacts(channel, chatId);
+    this.facts.set(conversationKey, refreshedFacts);
   }
 
   async clearFacts(channel: string, chatId: string): Promise<void> {

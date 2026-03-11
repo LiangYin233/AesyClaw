@@ -19,3 +19,9 @@ export const CONFIG_DEFAULTS = Object.freeze({
   DEFAULT_MEMORY_WINDOW: 50,
   DEFAULT_MAX_ITERATIONS: 40,
 });
+
+export const INTERNAL_CHANNELS = Object.freeze({
+  CRON: 'cron',
+});
+
+export const CRON_SESSION_KEY_PREFIX = `${INTERNAL_CHANNELS.CRON}:`;

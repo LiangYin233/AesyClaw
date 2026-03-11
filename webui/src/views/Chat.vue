@@ -94,7 +94,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
-import { useApi } from '../composables/useApi'
+import { useSessionsStore } from '../stores'
 import { useKeyboard } from '../composables/useKeyboard'
 import { announceToScreenReader } from '../composables/useA11y'
 import InputText from 'primevue/inputtext'
@@ -103,7 +103,7 @@ import Card from 'primevue/card'
 import ProgressSpinner from 'primevue/progressspinner'
 
 const route = useRoute()
-const { sendMessage: sendApiMessage, getSession } = useApi()
+const sessionsStore = useSessionsStore()
 
 const sessionKey = ref(`chat:${Date.now()}`)
 const inputMessage = ref('')
@@ -116,7 +116,7 @@ async function loadSession() {
 
     announceToScreenReader('正在加载会话', 'polite')
 
-    const session = await getSession(sessionKey.value)
+    const session = await sessionsStore.fetchSession(sessionKey.value)
     if (session?.messages) {
         messages.value = session.messages
         scrollToBottom()
@@ -138,7 +138,7 @@ async function sendMessage() {
 
     announceToScreenReader('消息已发送，等待回复', 'polite')
 
-    const response = await sendApiMessage(sessionKey.value, userMessage)
+    const response = await sessionsStore.sendMessage(sessionKey.value, userMessage)
 
     if (response) {
         messages.value.push({ role: 'assistant', content: response })
@@ -166,7 +166,6 @@ function scrollToBottom() {
     })
 }
 
-// Keyboard shortcuts for chat page
 useKeyboard([
     {
         key: 'Enter',

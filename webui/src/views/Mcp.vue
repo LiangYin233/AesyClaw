@@ -216,7 +216,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useApi, type MCPServerInfo, type MCPServerConfig, type MCPTool } from '../composables/useApi'
+import { storeToRefs } from 'pinia'
+import type { MCPServerInfo, MCPServerConfig } from '../types/api'
+import { useMcpStore } from '../stores'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
@@ -230,26 +232,16 @@ import ProgressSpinner from 'primevue/progressspinner'
 import Dialog from 'primevue/dialog'
 import Tag from 'primevue/tag'
 
-const {
-    getMCPServers,
-    getMCPServer,
-    addMCPServer,
-    deleteMCPServer,
-    reconnectMCPServer,
-    toggleMCPServer
-} = useApi()
+const mcpStore = useMcpStore()
+const { servers, loading, selectedServer, serverTools } = storeToRefs(mcpStore)
 const toast = useToast()
 
-const servers = ref<MCPServerInfo[]>([])
-const loading = ref(false)
 const adding = ref(false)
 const deleting = ref(false)
 const showAddDialog = ref(false)
 const showDetailsDialog = ref(false)
 const showDeleteDialog = ref(false)
-const selectedServer = ref<MCPServerInfo | null>(null)
 const serverToDelete = ref<MCPServerInfo | null>(null)
-const serverTools = ref<MCPTool[]>([])
 
 const mcpTypes = [
     { label: '本地 (Stdio)', value: 'local' },
@@ -268,9 +260,7 @@ const newServer = ref({
 let refreshInterval: number | null = null
 
 async function loadServers() {
-    loading.value = true
-    servers.value = await getMCPServers()
-    loading.value = false
+    await mcpStore.fetchServers()
 }
 
 async function addServer() {
@@ -290,7 +280,7 @@ async function addServer() {
         if (newServer.value.type === 'local') {
             try {
                 config.command = JSON.parse(newServer.value.command)
-            } catch (e) {
+            } catch {
                 toast.add({ severity: 'error', summary: '错误', detail: '命令格式错误，请使用 JSON 数组格式', life: 3000 })
                 adding.value = false
                 return
@@ -302,12 +292,12 @@ async function addServer() {
         if (newServer.value.environment) {
             try {
                 config.environment = JSON.parse(newServer.value.environment)
-            } catch (e) {
+            } catch {
                 toast.add({ severity: 'warn', summary: '警告', detail: '环境变量格式错误，已忽略', life: 3000 })
             }
         }
 
-        const success = await addMCPServer(newServer.value.name, config)
+        const success = await mcpStore.addServer(newServer.value.name, config)
         if (success) {
             toast.add({ severity: 'success', summary: '成功', detail: '服务器已添加并开始连接', life: 3000 })
             showAddDialog.value = false
@@ -341,7 +331,7 @@ async function deleteServer() {
     if (!serverToDelete.value) return
 
     deleting.value = true
-    const success = await deleteMCPServer(serverToDelete.value.name)
+    const success = await mcpStore.deleteServer(serverToDelete.value.name)
     deleting.value = false
 
     if (success) {
@@ -355,7 +345,7 @@ async function deleteServer() {
 }
 
 async function reconnectServer(name: string) {
-    const success = await reconnectMCPServer(name)
+    const success = await mcpStore.reconnectServer(name)
     if (success) {
         toast.add({ severity: 'success', summary: '成功', detail: '正在重新连接...', life: 3000 })
         setTimeout(loadServers, 1000)
@@ -365,14 +355,9 @@ async function reconnectServer(name: string) {
 }
 
 async function toggleServer(name: string, enabled: boolean) {
-    const success = await toggleMCPServer(name, enabled)
+    const success = await mcpStore.toggleServer(name, enabled)
     if (success) {
-        toast.add({
-            severity: 'success',
-            summary: '成功',
-            detail: enabled ? '服务器已启用' : '服务器已禁用',
-            life: 3000
-        })
+        toast.add({ severity: 'success', summary: '成功', detail: enabled ? '服务器已启用' : '服务器已禁用', life: 3000 })
         await loadServers()
     } else {
         toast.add({ severity: 'error', summary: '错误', detail: '操作失败', life: 3000 })
@@ -384,7 +369,7 @@ async function viewServerDetails(server: MCPServerInfo) {
     serverTools.value = []
     showDetailsDialog.value = true
 
-    const result = await getMCPServer(server.name)
+    const result = await mcpStore.fetchServer(server.name)
     if (result) {
         selectedServer.value = result.server
         serverTools.value = result.tools

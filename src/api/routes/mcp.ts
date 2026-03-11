@@ -8,7 +8,7 @@ import { createErrorResponse, createValidationErrorResponse, NotFoundError } fro
 interface MCPDeps {
   mcpManager?: MCPClientManager;
   toolRegistry?: ToolRegistry;
-  config: Config;
+  getConfig: () => Config;
   getMcpManager: () => MCPClientManager | undefined;
   setMcpManager: (m: MCPClientManager) => void;
 }
@@ -56,9 +56,10 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
 
       await mgr.connectOne(name, config);
 
-      deps.config.mcp = deps.config.mcp || {};
-      deps.config.mcp[name] = config;
-      await ConfigLoader.save(deps.config);
+      const currentConfig = deps.getConfig();
+      currentConfig.mcp = currentConfig.mcp || {};
+      currentConfig.mcp[name] = config;
+      await ConfigLoader.save(currentConfig);
 
       let toolsRegistered = 0;
       if (deps.toolRegistry) {
@@ -89,9 +90,10 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
       const { name } = req.params;
       await mgr.disconnectOne(name);
 
-      if (deps.config.mcp?.[name]) {
-        delete deps.config.mcp[name];
-        await ConfigLoader.save(deps.config);
+      const currentConfig = deps.getConfig();
+      if (currentConfig.mcp?.[name]) {
+        delete currentConfig.mcp[name];
+        await ConfigLoader.save(currentConfig);
       }
 
       let toolsRemoved = 0;
@@ -127,17 +129,18 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
       if (typeof enabled !== 'boolean') {
         return res.status(400).json(createValidationErrorResponse('enabled must be a boolean', 'enabled'));
       }
-      if (!deps.config.mcp?.[name]) {
+      const currentConfig = deps.getConfig();
+      if (!currentConfig.mcp?.[name]) {
         return res.status(404).json(createErrorResponse(new NotFoundError('MCP server in config', name)));
       }
 
-      deps.config.mcp[name].enabled = enabled;
-      await ConfigLoader.save(deps.config);
+      currentConfig.mcp[name].enabled = enabled;
+      await ConfigLoader.save(currentConfig);
 
       const mgr = deps.getMcpManager();
       if (mgr) {
         if (enabled) {
-          await mgr.connectOne(name, deps.config.mcp[name]);
+          await mgr.connectOne(name, currentConfig.mcp[name]);
         } else {
           await mgr.disconnectOne(name);
         }

@@ -20,7 +20,7 @@ export class Database {
   }
 
   private async init(): Promise<void> {  // 初始化数据库表结构
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       this.db.serialize(() => {
         this.db.run(`
           CREATE TABLE IF NOT EXISTS sessions (
@@ -61,6 +61,7 @@ export class Database {
             channel TEXT NOT NULL,
             chat_id TEXT NOT NULL,
             fact TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
           )
         `);
@@ -70,8 +71,58 @@ export class Database {
         this.db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_facts_unique ON memory_facts(channel, chat_id, fact)`);
         this.db.run(`CREATE INDEX IF NOT EXISTS idx_memory_facts_chat ON memory_facts(channel, chat_id)`);
 
-        this.log.info('Tables initialized');
-        resolve();
+        this.db.all<{ name: string }>(`PRAGMA table_info(memory_facts)`, (err, columns) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+
+          const columnNames = new Set(columns.map((column) => column.name));
+          const statements: string[] = [];
+
+          if (!columnNames.has('created_at')) {
+            statements.push(`ALTER TABLE memory_facts ADD COLUMN created_at DATETIME`);
+          }
+          if (!columnNames.has('last_seen_at')) {
+            statements.push(`ALTER TABLE memory_facts ADD COLUMN last_seen_at DATETIME`);
+          }
+          if (!columnNames.has('confidence')) {
+            statements.push(`ALTER TABLE memory_facts ADD COLUMN confidence REAL NOT NULL DEFAULT 1`);
+          }
+          if (!columnNames.has('confirmations')) {
+            statements.push(`ALTER TABLE memory_facts ADD COLUMN confirmations INTEGER NOT NULL DEFAULT 1`);
+          }
+
+          statements.push(
+            `UPDATE memory_facts
+             SET created_at = COALESCE(created_at, updated_at, CURRENT_TIMESTAMP)`,
+            `UPDATE memory_facts
+             SET last_seen_at = COALESCE(last_seen_at, updated_at, created_at, CURRENT_TIMESTAMP)`,
+            `UPDATE memory_facts
+             SET confidence = COALESCE(confidence, 1)`,
+            `UPDATE memory_facts
+             SET confirmations = COALESCE(confirmations, 1)`
+          );
+
+          const runNext = (index: number) => {
+            if (index >= statements.length) {
+              this.log.info('Tables initialized');
+              resolve();
+              return;
+            }
+
+            this.db.run(statements[index], (statementErr: Error | null) => {
+              if (statementErr) {
+                reject(statementErr);
+                return;
+              }
+
+              runNext(index + 1);
+            });
+          };
+
+          runNext(0);
+        });
       });
     });
   }
@@ -199,5 +250,9 @@ export interface DBMemoryFact {
   channel: string;
   chat_id: string;
   fact: string;
+  created_at: string;
   updated_at: string;
+  last_seen_at: string;
+  confidence: number;
+  confirmations: number;
 }

@@ -124,8 +124,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useApi, type PluginInfo } from '../composables/useApi'
+import { reactive, ref, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
+import type { PluginInfo } from '../types/api'
+import { usePluginsStore } from '../stores'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
@@ -137,11 +139,10 @@ import InputNumber from 'primevue/inputnumber'
 import Password from 'primevue/password'
 import Toast from 'primevue/toast'
 
-const { getPlugins, togglePlugin, updatePluginConfig, reloadPlugin } = useApi()
+const pluginsStore = usePluginsStore()
+const { plugins, loading } = storeToRefs(pluginsStore)
 const toast = useToast()
 
-const plugins = ref<PluginInfo[]>([])
-const loading = ref(false)
 const toggling = ref(false)
 const saving = ref(false)
 const reloadingPlugin = ref<string | null>(null)
@@ -151,35 +152,22 @@ const selectedPlugin = ref<PluginInfo | null>(null)
 const configForm = reactive<Record<string, any>>({})
 
 async function loadPlugins() {
-    loading.value = true
     try {
-        plugins.value = await getPlugins()
+        await pluginsStore.fetchPlugins()
     } catch (e) {
         console.error('Failed to load plugins:', e)
-    } finally {
-        loading.value = false
     }
 }
 
 async function togglePluginEnabled(plugin: PluginInfo) {
     toggling.value = true
     try {
-        const success = await togglePlugin(plugin.name, plugin.enabled)
+        const success = await pluginsStore.togglePlugin(plugin.name, plugin.enabled)
         if (success) {
-            toast.add({ 
-                severity: 'success', 
-                summary: '成功', 
-                detail: plugin.enabled ? '插件已启用' : '插件已禁用', 
-                life: 3000 
-            })
+            toast.add({ severity: 'success', summary: '成功', detail: plugin.enabled ? '插件已启用' : '插件已禁用', life: 3000 })
         } else {
             plugin.enabled = !plugin.enabled
-            toast.add({ 
-                severity: 'error', 
-                summary: '失败', 
-                detail: '操作失败', 
-                life: 3000 
-            })
+            toast.add({ severity: 'error', summary: '失败', detail: '操作失败', life: 3000 })
         }
     } catch (e) {
         plugin.enabled = !plugin.enabled
@@ -192,31 +180,16 @@ async function togglePluginEnabled(plugin: PluginInfo) {
 async function reloadPluginHandler(plugin: PluginInfo) {
     reloadingPlugin.value = plugin.name
     try {
-        const success = await reloadPlugin(plugin.name)
+        const success = await pluginsStore.reloadPlugin(plugin.name)
         if (success) {
-            toast.add({ 
-                severity: 'success', 
-                summary: '成功', 
-                detail: '插件已重载', 
-                life: 3000 
-            })
+            toast.add({ severity: 'success', summary: '成功', detail: '插件已重载', life: 3000 })
             await loadPlugins()
         } else {
-            toast.add({ 
-                severity: 'error', 
-                summary: '失败', 
-                detail: '重载失败', 
-                life: 3000 
-            })
+            toast.add({ severity: 'error', summary: '失败', detail: '重载失败', life: 3000 })
         }
     } catch (e) {
         console.error('Failed to reload plugin:', e)
-        toast.add({ 
-            severity: 'error', 
-            summary: '错误', 
-            detail: '重载失败', 
-            life: 3000 
-        })
+        toast.add({ severity: 'error', summary: '错误', detail: '重载失败', life: 3000 })
     } finally {
         reloadingPlugin.value = null
     }
@@ -224,43 +197,26 @@ async function reloadPluginHandler(plugin: PluginInfo) {
 
 function openConfigDialog(plugin: PluginInfo) {
     selectedPlugin.value = plugin
-    
-    Object.keys(configForm).forEach(key => {
-        delete configForm[key]
-    })
-    
+    Object.keys(configForm).forEach(key => { delete configForm[key] })
     const savedOptions = plugin.options || {}
     const defaultOptions = plugin.defaultConfig?.options || {}
     const configToUse = Object.keys(savedOptions).length > 0 ? savedOptions : defaultOptions
-    
     for (const [key, value] of Object.entries(configToUse)) {
         configForm[key] = value
     }
-    
     configDialogVisible.value = true
 }
 
 async function savePluginConfig() {
     if (!selectedPlugin.value) return
-    
     saving.value = true
     try {
-        const success = await updatePluginConfig(selectedPlugin.value.name, configForm)
+        const success = await pluginsStore.updatePluginConfig(selectedPlugin.value.name, configForm)
         if (success) {
-            toast.add({ 
-                severity: 'success', 
-                summary: '成功', 
-                detail: '配置已保存', 
-                life: 3000 
-            })
+            toast.add({ severity: 'success', summary: '成功', detail: '配置已保存', life: 3000 })
             configDialogVisible.value = false
         } else {
-            toast.add({ 
-                severity: 'error', 
-                summary: '失败', 
-                detail: '保存失败', 
-                life: 3000 
-            })
+            toast.add({ severity: 'error', summary: '失败', detail: '保存失败', life: 3000 })
         }
     } catch (e) {
         console.error('Failed to save config:', e)

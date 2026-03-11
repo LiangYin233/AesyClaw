@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { logger, normalizeError } from '../../logger/index.js';
+import { CRON_SESSION_KEY_PREFIX } from '../../constants/index.js';
 import { parseTarget } from '../shared/utils.js';
 import type { Services } from '../factory/ServiceFactory.js';
 import type { CronJob } from '../../cron/index.js';
@@ -11,7 +12,7 @@ export async function dispatchCronJob(services: Services, workspace: string, job
   log.info(`Cron job triggered: ${job.name}`);
 
   const { eventBus, agent } = services;
-  const sessionKey = `cron:${job.id}:${randomUUID().slice(0, 8)}`;
+  const sessionKey = `${CRON_SESSION_KEY_PREFIX}${job.id}:${randomUUID().slice(0, 8)}`;
   const target = job.payload.target;
 
   try {

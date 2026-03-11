@@ -24,7 +24,7 @@ export const SUMMARY_SYSTEM_PROMPT = [
   '任务: 压缩新增对话并合并到已有摘要。',
   '保留: 用户偏好、身份背景、长期目标、当前任务、已确认事实、未完成事项。',
   '忽略: 寒暄、重复表述、低价值细节。',
-  '约束: 不编造；纯文本；简洁。',
+  '约束: 不编造；纯文本；仅保留关键信息；尽量简短，不要过长。',
   '输出: 新的完整摘要。'
 ].join('\n');
 
@@ -43,15 +43,14 @@ export const FACTS_SYSTEM_PROMPT = [
   '可提取示例: 语言偏好、回答风格偏好、职业/角色、常用工具、长期项目。',
   '禁止提取: 知识问答主题、一次性请求、临时任务、助手内容、推测信息。',
   '判定规则: 若不确定是否是用户长期信息，则不要提取。',
-  '约束: 不编造；每行一条；不要编号或解释；仅输出“新事实”。',
-  '输出: 新事实；若没有则输出“无”。'
+  '约束: 只能依据用户原话；不编造；每行一条；不要编号或解释。',
+  '输出: 从本条用户消息中能确认的长期事实；可重复输出已存在事实用于再次确认；若没有则输出“无”。'
 ].join('\n');
 
-export function buildFactsUserPrompt(existingFactsBlock: string, userContent: string, assistantContent: string): string {
+export function buildFactsUserPrompt(existingFactsBlock: string, userContent: string): string {
   return [
     `已有用户长期记忆:\n${existingFactsBlock || '(无)'}`,
     `用户消息:\n${userContent || '(空)'}`,
-    `助手回复:\n${assistantContent || '(空)'}`,
-    '请只输出与“用户个人信息/偏好”相关的新增长期事实。'
+    '请只依据用户消息，输出其中能确认的长期稳定事实。'
   ].join('\n\n');
 }

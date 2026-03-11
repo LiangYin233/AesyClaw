@@ -74,7 +74,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useApi, type LogConfig } from '../composables/useApi'
+import { storeToRefs } from 'pinia'
+import { useLogsStore } from '../stores'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
@@ -83,11 +84,10 @@ import Tag from 'primevue/tag'
 import Toast from 'primevue/toast'
 import ProgressSpinner from 'primevue/progressspinner'
 
-const { getLogConfig, setLogLevel } = useApi()
+const logsStore = useLogsStore()
+const { config, loading } = storeToRefs(logsStore)
 const toast = useToast()
 
-const config = ref<LogConfig | null>(null)
-const loading = ref(false)
 const applying = ref(false)
 const selectedLevel = ref('')
 
@@ -99,36 +99,24 @@ const logLevels = [
 ]
 
 async function loadConfig() {
-    loading.value = true
-    config.value = await getLogConfig()
-    if (config.value) {
-        selectedLevel.value = config.value.level
+    const loadedConfig = await logsStore.fetchConfig()
+    if (loadedConfig) {
+        selectedLevel.value = loadedConfig.level
     }
-    loading.value = false
 }
 
 async function applyLogLevel() {
     if (!selectedLevel.value) return
 
     applying.value = true
-    const success = await setLogLevel(selectedLevel.value)
+    const success = await logsStore.setLogLevel(selectedLevel.value)
     applying.value = false
 
     if (success) {
-        toast.add({
-            severity: 'success',
-            summary: '成功',
-            detail: `日志级别已更新为 ${selectedLevel.value.toUpperCase()}`,
-            life: 3000
-        })
+        toast.add({ severity: 'success', summary: '成功', detail: `日志级别已更新为 ${selectedLevel.value.toUpperCase()}`, life: 3000 })
         await loadConfig()
     } else {
-        toast.add({
-            severity: 'error',
-            summary: '错误',
-            detail: '更新日志级别失败',
-            life: 3000
-        })
+        toast.add({ severity: 'error', summary: '错误', detail: '更新日志级别失败', life: 3000 })
     }
 }
 

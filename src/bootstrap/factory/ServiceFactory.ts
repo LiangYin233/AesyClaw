@@ -99,7 +99,184 @@ function createVisionProvider(config: Config, visionSettings: VisionSettings): L
   return createProviderFromConfig(providerConfig);
 }
 
-export function createMemorySummaryService(
+function configureRuntime(config: Config): void {
+  logger.setLevel(config.log?.level || 'info');
+  if (config.metrics?.enabled !== undefined) {
+    metrics.setEnabled(config.metrics.enabled);
+  }
+  tokenStats.setDataDir(join(process.cwd(), '.aesyclaw'));
+}
+
+async function createSessionServices(config: Config): Promise<{
+  sessionManager: SessionManager;
+  memoryFactStore: MemoryFactStore;
+  memoryService?: SessionMemoryService;
+  sessionRouting: SessionRoutingService;
+}> {
+  const sessionManager = new SessionManager(
+    join(process.cwd(), '.aesyclaw', 'sessions'),
+    config.agent.defaults.maxSessions ?? 100
+  );
+  await sessionManager.loadAll();
+  appLog.info(`SessionManager ready, ${sessionManager.count()} sessions loaded`);
+
+  const memoryFactStore = new MemoryFactStore(sessionManager.getDatabase());
+  const memoryService = createMemoryService(config, sessionManager, memoryFactStore);
+  if (memoryService) {
+    appLog.info('Memory service enabled');
+  }
+
+  return {
+    sessionManager,
+    memoryFactStore,
+    memoryService,
+    sessionRouting: new SessionRoutingService(sessionManager, config.agent.defaults.contextMode)
+  };
+}
+
+async function createSkillManager(config: Config): Promise<SkillManager> {
+  const skillManager = new SkillManager('./skills');
+  skillManager.setConfig(config);
+  await skillManager.loadFromDirectory();
+  appLog.info(`SkillManager initialized with ${skillManager.listSkills().length} skills`);
+  return skillManager;
+}
+
+async function createPluginManager(args: {
+  config: Config;
+  eventBus: EventBus;
+  agent: AgentLoop;
+  workspace: string;
+  tempDir: string;
+  toolRegistry: ToolRegistry;
+}): Promise<PluginManager> {
+  const { config, eventBus, agent, workspace, tempDir, toolRegistry } = args;
+  let pluginManager!: PluginManager;
+
+  const pluginContext: PluginContext = {
+    config,
+    eventBus,
+    agent,
+    workspace,
+    tempDir,
+    registerTool: (tool: Tool) => toolRegistry.register(tool),
+    getToolRegistry: () => toolRegistry,
+    logger,
+    sendMessage: async (
+      channel: string,
+      chatId: string,
+      content: string,
+      messageType?: 'private' | 'group'
+    ) => {
+      let message: OutboundMessage = {
+        channel,
+        chatId,
+        content,
+        messageType: messageType || 'private'
+      };
+
+      message = await pluginManager.applyOnResponse(message) || message;
+      await eventBus.publishOutbound(message);
+    }
+  };
+
+  pluginManager = new PluginManager(pluginContext, toolRegistry);
+
+  if (config.plugins) {
+    pluginManager.setPluginConfigs(config.plugins as Record<string, { enabled: boolean; options?: Record<string, any> }>);
+  }
+
+  const newPluginConfigs = await pluginManager.applyDefaultConfigs();
+  if (Object.keys(newPluginConfigs).length > 0) {
+    config.plugins = newPluginConfigs;
+    await ConfigLoader.save(config);
+    appLog.info('Applied default plugin configs');
+  }
+
+  if (config.plugins && Object.keys(config.plugins).length > 0) {
+    await pluginManager.loadFromConfig(config.plugins);
+  }
+
+  return pluginManager;
+}
+
+function createChannelManager(config: Config, eventBus: EventBus, workspace: string): ChannelManager {
+  const channelManager = new ChannelManager(eventBus, workspace);
+
+  for (const [channelName, channelConfig] of Object.entries(config.channels as Record<string, { enabled?: boolean }>)) {
+    if (!channelConfig?.enabled) {
+      continue;
+    }
+
+    const channel = channelManager.createChannel(channelName, channelConfig);
+    if (channel) {
+      appLog.info(`Channel enabled: ${channelName}`);
+    } else {
+      appLog.warn(`Channel plugin not found: ${channelName}`);
+    }
+  }
+
+  return channelManager;
+}
+
+function createMcpManager(config: Config, toolRegistry: ToolRegistry): MCPClientManager | null {
+  if (!config.mcp || Object.keys(config.mcp).length === 0) {
+    return null;
+  }
+
+  const mcpManager = new MCPClientManager();
+  registerMcpTools(toolRegistry, mcpManager);
+  mcpManager.connectAsync(config.mcp);
+  appLog.info('MCP servers connecting in background...');
+  return mcpManager;
+}
+
+async function createOptionalApiServer(args: {
+  config: Config;
+  port: number;
+  agent: AgentLoop;
+  sessionManager: SessionManager;
+  channelManager: ChannelManager;
+  pluginManager: PluginManager;
+  cronService: CronService;
+  mcpManager: MCPClientManager | null;
+  skillManager: SkillManager | null;
+  toolRegistry: ToolRegistry;
+  memoryFactStore: MemoryFactStore;
+}): Promise<APIServer | undefined> {
+  const { config, port, agent, sessionManager, channelManager, pluginManager, cronService, mcpManager, skillManager, toolRegistry, memoryFactStore } = args;
+
+  if (config.server.apiEnabled === false) {
+    appLog.info('API server disabled by configuration');
+    return undefined;
+  }
+
+  const apiServer = new APIServer(
+    port,
+    agent,
+    sessionManager,
+    channelManager,
+    config,
+    pluginManager,
+    cronService,
+    mcpManager ?? undefined,
+    skillManager ?? undefined,
+    toolRegistry,
+    memoryFactStore
+  );
+  await apiServer.start();
+  appLog.info(`API server started on port ${port}`);
+  return apiServer;
+}
+
+function applyToolBlacklist(config: Config, toolRegistry: ToolRegistry): void {
+  if (config.tools?.blacklist && config.tools.blacklist.length > 0) {
+    toolRegistry.setBlacklist(config.tools.blacklist);
+    appLog.info(`Tool blacklist applied: ${config.tools.blacklist.join(', ')}`);
+  }
+}
+
+export function createMemoryService(
   config: Config,
   sessionManager: SessionManager,
   factsStore: MemoryFactStore
@@ -140,11 +317,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   const { workspace, tempDir, config, port, onCronJob } = options;
   const log = appLog;
 
-  logger.setLevel(config.log?.level || 'info');
-  if (config.metrics?.enabled !== undefined) {
-    metrics.setEnabled(config.metrics.enabled);
-  }
-  tokenStats.setDataDir(join(process.cwd(), '.aesyclaw'));
+  configureRuntime(config);
 
   log.info('Initializing services...');
 
@@ -162,26 +335,13 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     visionModelName: agentDefaults.visionModel
   };
   const visionProvider = createVisionProvider(config, visionSettings);
-
-  const sessionManager = new SessionManager(
-    join(process.cwd(), '.aesyclaw', 'sessions'),
-    config.agent.defaults.maxSessions ?? 100
-  );
-  await sessionManager.loadAll();
-  log.info(`SessionManager ready, ${sessionManager.count()} sessions loaded`);
-
-  const memoryFactStore = new MemoryFactStore(sessionManager.getDatabase());
-  const memoryService = createMemorySummaryService(config, sessionManager, memoryFactStore);
-  if (memoryService) {
-    log.info('Memory summary service enabled');
-  }
-
-  const skillManager = new SkillManager('./skills');
-  skillManager.setConfig(config);
-  await skillManager.loadFromDirectory();
-  log.info(`SkillManager initialized with ${skillManager.listSkills().length} skills`);
-
-  const sessionRouting = new SessionRoutingService(sessionManager, config.agent.defaults.contextMode);
+  const {
+    sessionManager,
+    memoryFactStore,
+    memoryService,
+    sessionRouting
+  } = await createSessionServices(config);
+  const skillManager = await createSkillManager(config);
 
   const agent = new AgentLoop(
     eventBus,
@@ -207,50 +367,14 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   eventBus.setStopHandler((channel: string, chatId: string) => agent.abortSession(channel, chatId));
   agent.setCommandRegistry(commandRegistry);
   log.info('Command registry initialized');
-
-  let pluginManager!: PluginManager;
-  const pluginContext: PluginContext = {
+  const pluginManager = await createPluginManager({
     config,
     eventBus,
     agent,
     workspace,
     tempDir,
-    registerTool: (tool: Tool) => toolRegistry.register(tool),
-    getToolRegistry: () => toolRegistry,
-    logger,
-    sendMessage: async (
-      channel: string,
-      chatId: string,
-      content: string,
-      messageType?: 'private' | 'group'
-    ) => {
-      let message: OutboundMessage = {
-        channel,
-        chatId,
-        content,
-        messageType: messageType || 'private'
-      };
-
-      message = await pluginManager.applyOnResponse(message) || message;
-      await eventBus.publishOutbound(message);
-    }
-  };
-  pluginManager = new PluginManager(pluginContext, toolRegistry);
-
-  if (config.plugins) {
-    pluginManager.setPluginConfigs(config.plugins as Record<string, { enabled: boolean; options?: Record<string, any> }>);
-  }
-
-  const newPluginConfigs = await pluginManager.applyDefaultConfigs();
-  if (Object.keys(newPluginConfigs).length > 0) {
-    config.plugins = newPluginConfigs;
-    await ConfigLoader.save(config);
-    log.info('Applied default plugin configs');
-  }
-
-  if (config.plugins && Object.keys(config.plugins).length > 0) {
-    await pluginManager.loadFromConfig(config.plugins);
-  }
+    toolRegistry
+  });
 
   agent.setPluginManager(pluginManager);
 
@@ -259,28 +383,8 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     onCronJob || (async () => {})
   );
   await cronService.start();
-
-  const channelManager = new ChannelManager(eventBus, workspace);
-  for (const [channelName, channelConfig] of Object.entries(config.channels as Record<string, { enabled?: boolean }>)) {
-    if (!channelConfig?.enabled) {
-      continue;
-    }
-
-    const channel = channelManager.createChannel(channelName, channelConfig);
-    if (channel) {
-      log.info(`Channel enabled: ${channelName}`);
-    } else {
-      log.warn(`Channel plugin not found: ${channelName}`);
-    }
-  }
-
-  let mcpManager: MCPClientManager | null = null;
-  if (config.mcp && Object.keys(config.mcp).length > 0) {
-    mcpManager = new MCPClientManager();
-    registerMcpTools(toolRegistry, mcpManager);
-    mcpManager.connectAsync(config.mcp);
-    log.info('MCP servers connecting in background...');
-  }
+  const channelManager = createChannelManager(config, eventBus, workspace);
+  const mcpManager = createMcpManager(config, toolRegistry);
 
   registerBuiltInTools({
     toolRegistry,
@@ -290,32 +394,21 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     pluginManager,
     mcpManager
   });
+  const apiServer = await createOptionalApiServer({
+    config,
+    port,
+    agent,
+    sessionManager,
+    channelManager,
+    pluginManager,
+    cronService,
+    mcpManager,
+    skillManager,
+    toolRegistry,
+    memoryFactStore
+  });
 
-  let apiServer: APIServer | undefined;
-  if (config.server.apiEnabled !== false) {
-    apiServer = new APIServer(
-      port,
-      agent,
-      sessionManager,
-      channelManager,
-      config,
-      pluginManager,
-      cronService,
-      mcpManager ?? undefined,
-      skillManager,
-      toolRegistry,
-      memoryFactStore
-    );
-    await apiServer.start();
-    log.info(`API server started on port ${port}`);
-  } else {
-    log.info('API server disabled by configuration');
-  }
-
-  if (config.tools?.blacklist && config.tools.blacklist.length > 0) {
-    toolRegistry.setBlacklist(config.tools.blacklist);
-    log.info(`Tool blacklist applied: ${config.tools.blacklist.join(', ')}`);
-  }
+  applyToolBlacklist(config, toolRegistry);
 
   log.info('All services initialized successfully');
 

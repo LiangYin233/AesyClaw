@@ -186,8 +186,8 @@ export class AgentLoop {
         ? await this.memoryService.buildHistory(session)
         : session.messages.slice(-this.memoryWindow);
 
-      this.executor.getContextBuilder().setCurrentContext(msg.channel, msg.chatId, msg.messageType);
-      const messages = this.executor.buildContext(history, msg.content, msg.media, msg.files);
+      this.executor.setCurrentContext(msg.channel, msg.chatId, msg.messageType);
+      const messages = this.executor.buildMessages(history, msg.content, msg.media, msg.files);
 
       if (this.pluginManager) {
         await this.pluginManager.applyOnAgentBefore(msg, messages);

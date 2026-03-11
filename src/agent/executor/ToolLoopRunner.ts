@@ -17,6 +17,14 @@ export class ToolLoopRunner {
     private visionSettings?: VisionSettings
   ) {}
 
+  setProvider(provider: LLMProvider): void {
+    this.provider = provider;
+  }
+
+  setPluginManager(pluginManager?: PluginManager): void {
+    this.pluginManager = pluginManager;
+  }
+
   async run(
     messages: LLMMessage[],
     toolContext: ToolContext,
