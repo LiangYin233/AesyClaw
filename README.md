@@ -25,25 +25,22 @@ npm run start:all
 
 ## 配置
 
-编辑 `config.yaml`：
+编辑 `config.toml`：
 
-```yaml
-server:
-  apiPort: 18792
+```toml
+[server]
+apiPort = 18792
 
-agent:
-  defaults:
-    provider: openai
-    model: gpt-4o
+[agent.defaults]
+provider = "openai"
+model = "gpt-4o"
 
-providers:
-  openai:
-    apiKey: sk-xxx
+[providers.openai]
+apiKey = "sk-xxx"
 
-channels:
-  onebot:
-    enabled: true
-    wsUrl: ws://127.0.0.1:6700/ws
+[channels.onebot]
+enabled = true
+wsUrl = "ws://127.0.0.1:6700/ws"
 ```
 
 ## 技术栈

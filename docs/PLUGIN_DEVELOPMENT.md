@@ -222,14 +222,14 @@ const response = await context.agent.callLLM(
 
 ## 配置
 
-`config.yaml`：
+`config.toml`：
 
-```yaml
-plugins:
-  my-plugin:
-    enabled: true
-    options:
-      apiKey: "${MY_API_KEY}"
+```toml
+[plugins."my-plugin"]
+enabled = true
+
+[plugins."my-plugin".options]
+apiKey = "${MY_API_KEY}"
 ```
 
 ## 目录结构

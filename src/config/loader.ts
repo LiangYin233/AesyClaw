@@ -1,8 +1,8 @@
 ﻿import { existsSync, readFileSync, writeFileSync, mkdirSync, watch } from 'fs';
-import { join, dirname } from 'path';
-import YAML from 'yaml';
+import { join, dirname, basename } from 'path';
 import type { Config } from '../types.js';
 import { logger } from '../logger/index.js';
+import { parse, stringify } from 'smol-toml';
 
 const DEFAULT_CONFIG: Config = {
   server: {
@@ -77,7 +77,7 @@ const DEFAULT_CONFIG: Config = {
 };
 
 export class ConfigLoader {
-  private static configPath = join(process.cwd(), 'config.yaml');
+  private static configPath = join(process.cwd(), 'config.toml');
   private static config: Config | null = null;
   private static watcher: fsWatcher | null = null;
   private static reloadCallbacks: Array<(config: Config) => void | Promise<void>> = [];
@@ -153,7 +153,7 @@ export class ConfigLoader {
     if (existsSync(path)) {
       try {
         const content = readFileSync(path, 'utf-8');
-        const userConfig = YAML.parse(content);
+        const userConfig = parse(content);
         
         if (userConfig?.providers) {
           baseConfig.providers = userConfig.providers;
@@ -177,11 +177,18 @@ export class ConfigLoader {
       return;
     }
 
+    const watchedDir = dirname(this.configPath);
+    const watchedFile = basename(this.configPath);
+
     this.log.debug(`Starting file watcher: ${this.configPath}`);
     
     let ignoreUntil = Date.now() + 2000;
     
-    this.watcher = watch(this.configPath, (eventType, _filename) => {
+    this.watcher = watch(watchedDir, (eventType, filename) => {
+      if (filename && String(filename) !== watchedFile) {
+        return;
+      }
+
       if (eventType === 'change' || eventType === 'rename') {
         if (Date.now() < ignoreUntil) {
           this.log.debug('Ignoring file change during startup');
@@ -253,8 +260,8 @@ export class ConfigLoader {
     }
 
     const configToSave = this.sanitizeForSave(config);
-    const yaml = YAML.stringify(configToSave);
-    writeFileSync(path, yaml, 'utf-8');
+    const toml = stringify(configToSave);
+    writeFileSync(path, toml, 'utf-8');
     this.config = configToSave;
   }
 
