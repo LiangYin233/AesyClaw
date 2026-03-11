@@ -144,6 +144,28 @@ export class AgentRoleService {
     ].join('\n');
   }
 
+  buildRoleDescriptionsPrompt(roleName?: string | null): string {
+    const targetName = roleName || MAIN_AGENT_NAME;
+    if (targetName !== MAIN_AGENT_NAME) {
+      return '';
+    }
+
+    const roles = this.listResolvedRoles().filter((role) => role.name !== MAIN_AGENT_NAME);
+    if (roles.length === 0) {
+      return '';
+    }
+
+    const roleList = roles
+      .map((role) => `- ${role.name}: ${(role.description || '无描述').trim() || '无描述'}`)
+      .join('\n');
+
+    return [
+      '可调用的 Agent 角色：',
+      '当任务适合专门角色时，可使用 call_agent(agentName, task) 将任务委派给对应角色。',
+      roleList
+    ].join('\n');
+  }
+
   getAllowedToolNames(roleName?: string | null, options?: { excludeTools?: string[] }): string[] {
     const role = this.getResolvedRole(roleName);
     if (!role) {

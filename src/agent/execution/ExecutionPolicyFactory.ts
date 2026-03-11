@@ -65,12 +65,17 @@ export class ExecutionPolicyFactory {
       excludeTools: extra?.excludeTools
     });
 
+    const auxiliaryPrompt = [
+      this.agentRoleService.buildSkillsPrompt(resolvedRole.name),
+      this.agentRoleService.buildRoleDescriptionsPrompt(resolvedRole.name)
+    ].filter((section) => typeof section === 'string' && section.trim().length > 0).join('\n\n');
+
     return {
       roleName: resolvedRole.name,
       provider: this.agentRoleService.createProviderForRole(resolvedRole.name),
       model: resolvedRole.model,
       systemPrompt: resolvedRole.systemPrompt,
-      skillsPrompt: this.agentRoleService.buildSkillsPrompt(resolvedRole.name),
+      skillsPrompt: auxiliaryPrompt,
       allowedToolNames,
       toolRegistryView: new ScopedToolRegistry(this.options.toolRegistry, allowedToolNames) as unknown as ToolRegistry,
       visionSettings: this.options.visionSettings,

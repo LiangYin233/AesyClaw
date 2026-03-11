@@ -17,7 +17,9 @@ export default [
         sourceType: 'module'
       },
       globals: {
-        ...globals.node
+        ...globals.node,
+        ...globals.browser,
+        NodeJS: 'readonly'
       }
     },
     plugins: {
@@ -26,7 +28,7 @@ export default [
     rules: {
       'no-case-declarations': 'off',
       'no-empty': 'off',
-      'no-undef': 'off',
+      'no-undef': 'error',
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'off'

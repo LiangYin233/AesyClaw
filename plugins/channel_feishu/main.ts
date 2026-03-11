@@ -132,6 +132,11 @@ class FeishuChannel extends BaseChannel {
     if (!this.tokenCache || Date.now() >= this.tokenCache.expiresAt) {
       await this.refreshToken();
     }
+
+    if (!this.tokenCache) {
+      throw new Error('Feishu token unavailable after refresh');
+    }
+
     return this.tokenCache.token;
   }
 

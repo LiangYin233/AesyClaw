@@ -83,6 +83,9 @@ function merge(base: any, override: any): any {
 
 export function normalizeConfig(config: Config): Config {
   const normalized = merge(DEFAULT_CONFIG, config);
+  if (config.providers && Object.keys(config.providers).length > 0) {
+    normalized.providers = config.providers;
+  }
   normalized.agents ||= { roles: {} };
   normalized.agents.roles ||= {};
   normalized.agent.defaults.memorySummary ||= {
