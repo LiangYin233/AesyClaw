@@ -10,7 +10,7 @@ import {
   FACTS_SYSTEM_PROMPT,
   buildSummaryUserPrompt,
   buildFactsUserPrompt
-} from '../prompts.js';
+} from '../execution/engine/prompts.js';
 
 interface MemorySummaryRuntimeConfig {
   enabled: boolean;

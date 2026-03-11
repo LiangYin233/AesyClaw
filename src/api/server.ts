@@ -22,7 +22,10 @@ import { registerMCPRoutes } from './routes/mcp.js';
 import { registerMetricsRoutes } from './routes/metrics.js';
 import { registerSkillRoutes } from './routes/skills.js';
 import type { MemoryFactStore } from '../session/MemoryFactStore.js';
-import type { AgentRoleService } from '../agent/roles/AgentRoleService.js';
+import type { AgentRoleService as RuntimeAgentRoleService } from '../agent/roles/AgentRoleService.js';
+import { ChatService } from './services/ChatService.js';
+import { SessionService } from './services/SessionService.js';
+import { AgentRoleService } from './services/AgentRoleService.js';
 
 const MAX_MESSAGE_LENGTH = CONSTANTS.MESSAGE_MAX_LENGTH;
 
@@ -46,7 +49,7 @@ export class APIServer {
     private skillManager?: SkillManager,
     private toolRegistry?: ToolRegistry,
     private memoryFactStore?: MemoryFactStore,
-    private agentRoleService?: AgentRoleService
+    private agentRoleService?: RuntimeAgentRoleService
   ) {}
 
   async start(): Promise<void> {
@@ -89,7 +92,6 @@ export class APIServer {
       return res.status(401).json(createErrorResponse(new Error('Unauthorized: invalid or missing token')));
     });
 
-    // Request timing middleware
     this.app.use((req, res, next) => {
       const endTimer = metrics.timer('api.request_time', {
         method: req.method,
@@ -103,18 +105,26 @@ export class APIServer {
   }
 
   private setupRoutes(): void {
+    const chatService = new ChatService(this.agent);
+    const sessionService = new SessionService(this.sessionManager, this.agentRoleService);
+    const agentRoleAppService = this.agentRoleService
+      ? new AgentRoleService(this.agentRoleService, this.sessionManager)
+      : undefined;
+
     registerCoreRoutes(this.app, {
-      agent: this.agent,
-      sessionManager: this.sessionManager,
+      chatService,
+      sessionService,
+      agentRoleService: agentRoleAppService,
       channelManager: this.channelManager,
       getConfig: () => this.config,
       setConfig: (config) => {
         this.config = config;
       },
       toolRegistry: this.toolRegistry,
-      agentRoleService: this.agentRoleService,
       packageVersion,
       maxMessageLength: MAX_MESSAGE_LENGTH,
+      sessionCount: () => this.sessionManager.count(),
+      agentRunning: () => this.agent.isRunning(),
       log: this.log
     });
     registerMemoryRoutes(this.app, {

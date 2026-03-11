@@ -1,6 +1,6 @@
-import type { LLMMessage, InboundFile } from '../../types.js';
-import { isVisionableFile } from '../vision.js';
-import { buildAgentSystemPrompt } from '../prompts.js';
+import type { LLMMessage, InboundFile } from '../../../types.js';
+import { isVisionableFile } from './vision.js';
+import { buildAgentSystemPrompt } from './prompts.js';
 
 export class ContextBuilder {
   private workspace: string;

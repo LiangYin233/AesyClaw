@@ -4,65 +4,7 @@ import { randomBytes } from 'crypto';
 import type { Config } from '../types.js';
 import { logger } from '../logger/index.js';
 import { parse, stringify } from 'smol-toml';
-
-const DEFAULT_CONFIG: Config = {
-  server: {
-    host: '0.0.0.0',
-    apiPort: 18792,
-    apiEnabled: true,
-    token: ''
-  },
-  agent: {
-    defaults: {
-      model: 'gpt-4o',
-      provider: 'openai',
-      vision: false,
-      reasoning: false,
-      visionProvider: '',
-      visionModel: '',
-      maxToolIterations: 40,
-      memoryWindow: 50,
-      memorySummary: {
-        enabled: false,
-        provider: '',
-        model: '',
-        triggerMessages: 50
-      },
-      memoryFacts: {
-        enabled: false,
-        provider: '',
-        model: '',
-        maxFacts: 100
-      },
-      systemPrompt: 'You are a helpful AI assistant.',
-      contextMode: 'channel',
-      maxSessions: 100
-    }
-  },
-  agents: {
-    roles: {}
-  },
-  channels: {},
-  providers: {
-    openai: {
-      apiKey: '',
-      apiBase: 'https://api.openai.com/v1',
-      model: 'gpt-4o'
-    }
-  },
-  skills: {},
-  tools: {
-    blacklist: [],
-    timeoutMs: 30000
-  },
-  log: {
-    level: 'info'
-  },
-  metrics: {
-    enabled: true,
-    maxMetrics: 10000
-  }
-};
+import { DEFAULT_CONFIG, normalizeConfig } from './normalize.js';
 
 export class ConfigLoader {
   private static config: Config | null = null;
@@ -80,7 +22,7 @@ export class ConfigLoader {
   }
 
   static ensureDefaults(config: Config): Config {
-    return this.merge(DEFAULT_CONFIG, config);
+    return normalizeConfig(config);
   }
 
   static async save(config: Config): Promise<void> {
@@ -189,28 +131,6 @@ export class ConfigLoader {
       this.log.debug('Stopped file watcher');
     }
   }
-
-  private static merge(base: any, override: any): any {
-    if (!override || Object.keys(override).length === 0) {
-      return base;
-    }
-
-    if (!base || typeof base !== 'object') {
-      return override;
-    }
-
-    const result: any = { ...base };
-
-    for (const [key, value] of Object.entries(override)) {
-      if (typeof value === 'object' && !Array.isArray(value) && value !== null) {
-        result[key] = this.merge(base[key], value);
-      } else {
-        result[key] = value;
-      }
-    }
-
-    return result;
-  }
 }
 
 type fsWatcher = ReturnType<typeof watch>;
@@ -218,3 +138,5 @@ type fsWatcher = ReturnType<typeof watch>;
 export function getConfig(): Config {
   return ConfigLoader.get();
 }
+
+export { DEFAULT_CONFIG, normalizeConfig } from './normalize.js';

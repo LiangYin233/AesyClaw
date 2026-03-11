@@ -1,4 +1,4 @@
-import type { InboundFile } from '../types.js';
+import type { InboundFile } from '../../../types.js';
 
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
 

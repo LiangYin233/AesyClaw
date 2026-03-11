@@ -1,8 +1,8 @@
-import type { InboundMessage, LLMMessage, LLMResponse, OutboundMessage } from '../../../types.js';
-import type { SessionManager } from '../../../session/SessionManager.js';
-import type { PluginManager } from '../../../plugins/index.js';
-import type { SessionMemoryService } from '../../memory/SessionMemoryService.js';
-import { logger } from '../../../logger/index.js';
+import type { InboundMessage, LLMMessage, LLMResponse, OutboundMessage } from '../../types.js';
+import type { SessionManager } from '../../session/SessionManager.js';
+import type { PluginManager } from '../../plugins/index.js';
+import type { SessionMemoryService } from '../memory/SessionMemoryService.js';
+import { logger } from '../../logger/index.js';
 
 export interface FinalizeExecutionParams {
   sessionKey: string;
@@ -15,8 +15,8 @@ export interface FinalizeExecutionParams {
   sendOutbound: (message: OutboundMessage) => Promise<void>;
 }
 
-export class ExecutionCompletionService {
-  private log = logger.child({ prefix: 'ExecutionCompletion' });
+export class ExecutionFinalizeService {
+  private log = logger.child({ prefix: 'ExecutionFinalize' });
 
   constructor(
     private sessionManager: SessionManager,

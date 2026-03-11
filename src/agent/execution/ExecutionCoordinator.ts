@@ -1,8 +1,8 @@
 import type { InboundMessage, LLMMessage } from '../../types.js';
 import type { ToolContext } from '../../tools/ToolRegistry.js';
-import type { AgentExecutor } from '../executor/AgentExecutor.js';
-import type { BackgroundTaskManager } from '../state/BackgroundTaskManager.js';
-import type { ExecutionCompletionService } from '../execution/registry/ExecutionCompletionService.js';
+import type { AgentExecutor } from './engine/AgentExecutor.js';
+import type { BackgroundTaskManager } from './BackgroundTaskManager.js';
+import type { ExecutionFinalizeService } from './ExecutionFinalizeService.js';
 import { logger } from '../../logger/index.js';
 
 export interface CoordinateExecutionRequest {
@@ -31,7 +31,7 @@ export class ExecutionCoordinator {
   constructor(
     private executor: AgentExecutor,
     private backgroundTasks: BackgroundTaskManager,
-    private completionService: ExecutionCompletionService
+    private completionService: ExecutionFinalizeService
   ) {}
 
   async execute(request: CoordinateExecutionRequest): Promise<CoordinateExecutionResult> {
