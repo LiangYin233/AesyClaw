@@ -3,7 +3,6 @@ import type { EventBus } from '../bus/EventBus.js';
 import type { AgentLoop } from '../agent/index.js';
 import type { ToolRegistry, Tool, ToolContext } from '../tools/ToolRegistry.js';
 import { logger } from '../logger/index.js';
-import { metrics } from '../logger/Metrics.js';
 import { join } from 'path';
 import { stat } from 'fs/promises';
 import { importExternalModule } from '../utils/importExternalModule.js';
@@ -230,12 +229,7 @@ export class PluginManager {
           this.log.debug(`Executing ${String(hookName)} for plugin ${plugin.name}`);
         }
 
-        const endTimer = metrics.timer('plugin.hook_execution', {
-          plugin: plugin.name,
-          hook: String(hookName)
-        });
         const hookResult = await (hook as (...hookArgs: any[]) => Promise<T | null | undefined>).call(plugin, result, ...args);
-        endTimer();
 
         if (hookResult !== undefined && hookResult !== null) {
           result = hookResult;
@@ -259,12 +253,7 @@ export class PluginManager {
       }
 
       try {
-        const endTimer = metrics.timer('plugin.hook_execution', {
-          plugin: plugin.name,
-          hook: String(hookName)
-        });
         await (hook as (...hookArgs: any[]) => Promise<void>).call(plugin, ...args);
-        endTimer();
       } catch (error) {
         this.log.error(`Plugin ${plugin.name} ${String(hookName)} error:`, error);
       }

@@ -66,14 +66,11 @@ export class MessageExecutionService {
 
       if (executionResult.needsBackground) {
         this.log.info(`Session ${context.sessionKey} delegated to background, returning immediately`);
-        metrics.record('agent.message_count', 1, 'count', { status: 'background' });
         return executionResult.content;
       }
 
-      metrics.record('agent.message_count', 1, 'count', { status: 'success' });
       return executionResult.content;
     } catch (error) {
-      metrics.record('agent.message_count', 1, 'count', { status: 'error' });
       this.log.error(`Failed to execute message for session ${context.sessionKey}:`, error);
       throw error;
     } finally {

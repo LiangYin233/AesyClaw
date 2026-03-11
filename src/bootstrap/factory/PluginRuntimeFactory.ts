@@ -53,16 +53,26 @@ export async function createPluginManager(args: {
     pluginManager.setPluginConfigs(config.plugins as Record<string, { enabled: boolean; options?: Record<string, any> }>);
   }
 
-  const newPluginConfigs = await pluginManager.applyDefaultConfigs();
-  if (Object.keys(newPluginConfigs).length > 0) {
-    config.plugins = newPluginConfigs;
-    await ConfigLoader.save(config);
-    log.info('Applied default plugin configs');
-  }
+  void (async () => {
+    try {
+      const newPluginConfigs = await pluginManager.applyDefaultConfigs();
+      if (Object.keys(newPluginConfigs).length > 0) {
+        config.plugins = newPluginConfigs;
+        await ConfigLoader.save(config);
+        log.info('Applied default plugin configs');
+      }
 
-  if (config.plugins && Object.keys(config.plugins).length > 0) {
-    await pluginManager.loadFromConfig(config.plugins);
-  }
+      if (config.plugins && Object.keys(config.plugins).length > 0) {
+        await pluginManager.loadFromConfig(config.plugins);
+      }
+
+      log.info('Plugins loaded in background');
+    } catch (error) {
+      log.error('Failed to load plugins in background', error);
+    }
+  })();
+
+  log.info('Plugins loading in background...');
 
   return pluginManager;
 }

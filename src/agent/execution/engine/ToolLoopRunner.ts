@@ -71,7 +71,6 @@ export class ToolLoopRunner {
         this.log.info(`[agent:${agentLabel}] Executing tool: ${toolName}`);
 
         let toolArgs = toolCall.arguments || {};
-        const toolEndTimer = metrics.timer('agent.tool_execution', { tool: toolName });
         let result: string;
 
         try {
@@ -92,21 +91,15 @@ export class ToolLoopRunner {
           if (this.pluginManager) {
             result = await this.pluginManager.applyOnToolCall(toolName, toolArgs, result);
           }
-
-          metrics.record('agent.tool_call_count', 1, 'count', { tool: toolName, status: 'success' });
         } catch (error: unknown) {
           const message = normalizeError(error);
           const isRetryable = isRetryableError(error);
           result = `Error: ${message}${isRetryable ? ' (retryable)' : ''}`;
           this.log.error(`[agent:${agentLabel}] Tool ${toolName} failed:`, message);
 
-          metrics.record('agent.tool_call_count', 1, 'count', { tool: toolName, status: 'error' });
-
           if (this.pluginManager) {
             await this.pluginManager.applyOnError(error, { type: 'tool', data: { toolName, toolArgs } });
           }
-        } finally {
-          toolEndTimer();
         }
 
         messages.push({

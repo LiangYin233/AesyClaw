@@ -155,8 +155,6 @@ let refreshInterval: number | null = null
 const KEY_METRIC_NAMES = [
     'db.query_time',
     'api.request_time',
-    'channel.message_sent',
-    'plugin.hook_execution',
     'session.load_time',
     'mcp.call_time'
 ]
@@ -188,8 +186,6 @@ function formatMetricName(name: string): string {
     const names: Record<string, string> = {
         'db.query_time': '数据库查询',
         'api.request_time': 'API 请求',
-        'channel.message_sent': '消息发送',
-        'plugin.hook_execution': '插件钩子',
         'session.load_time': 'Session 加载',
         'mcp.call_time': 'MCP 调用'
     }
