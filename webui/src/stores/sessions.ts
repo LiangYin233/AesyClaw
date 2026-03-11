@@ -2,7 +2,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { apiGet, apiDelete, apiPost } from '../utils/apiClient'
-import type { Session } from '../types/api'
+import type { BatchDeleteResult, Session } from '../types/api'
 
 export const useSessionsStore = defineStore('sessions', () => {
   // State
@@ -53,6 +53,8 @@ export const useSessionsStore = defineStore('sessions', () => {
   }
 
   async function deleteSession(key: string) {
+    error.value = null
+
     const { error: err } = await apiDelete(`/sessions/${key}`)
 
     if (err) {
@@ -67,7 +69,35 @@ export const useSessionsStore = defineStore('sessions', () => {
       currentSession.value = null
     }
 
+    error.value = null
     return true
+  }
+
+  async function deleteSessions(keys: string[]): Promise<BatchDeleteResult> {
+    error.value = null
+
+    const uniqueKeys = [...new Set(keys)]
+    const result: BatchDeleteResult = {
+      successKeys: [],
+      failed: []
+    }
+
+    for (const key of uniqueKeys) {
+      const success = await deleteSession(key)
+
+      if (success) {
+        result.successKeys.push(key)
+        continue
+      }
+
+      result.failed.push({
+        key,
+        error: error.value || '无法删除会话'
+      })
+    }
+
+    error.value = result.failed.length > 0 ? result.failed[0].error : null
+    return result
   }
 
   async function sendMessage(sessionKey: string, message: string) {
@@ -108,6 +138,7 @@ export const useSessionsStore = defineStore('sessions', () => {
     fetchSessions,
     fetchSession,
     deleteSession,
+    deleteSessions,
     sendMessage,
     clearError
   }

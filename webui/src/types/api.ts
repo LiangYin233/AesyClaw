@@ -17,6 +17,14 @@ export interface Session {
   messages?: any[]
 }
 
+export interface BatchDeleteResult {
+  successKeys: string[]
+  failed: Array<{
+    key: string
+    error: string
+  }>
+}
+
 export interface Tool {
   name: string
   description: string

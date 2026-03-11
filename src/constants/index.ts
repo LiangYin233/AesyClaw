@@ -22,6 +22,7 @@ export const CONFIG_DEFAULTS = Object.freeze({
 
 export const INTERNAL_CHANNELS = Object.freeze({
   CRON: 'cron',
+  WEBUI: 'webui',
 });
 
 export const CRON_SESSION_KEY_PREFIX = `${INTERNAL_CHANNELS.CRON}:`;

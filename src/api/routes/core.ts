@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import type { Express } from 'express';
 import type { AgentLoop } from '../../agent/index.js';
 import { ConfigLoader } from '../../config/loader.js';
+import { INTERNAL_CHANNELS } from '../../constants/index.js';
 import { createErrorResponse, createValidationErrorResponse, normalizeError, NotFoundError } from '../../logger/index.js';
 import type { ChannelManager } from '../../channels/ChannelManager.js';
 import type { SessionManager } from '../../session/SessionManager.js';
@@ -24,11 +25,20 @@ interface CoreRouteDeps {
 }
 
 export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
+  const getChannelStatus = () => ({
+    ...deps.channelManager.getStatus(),
+    [INTERNAL_CHANNELS.WEBUI]: {
+      running: true,
+      enabled: true,
+      connected: true
+    }
+  });
+
   app.get('/api/status', (req, res) => {
     res.json({
       version: deps.packageVersion,
       uptime: process.uptime(),
-      channels: deps.channelManager.getStatus(),
+      channels: getChannelStatus(),
       sessions: deps.sessionManager.count(),
       agentRunning: deps.agent.isRunning()
     });
@@ -75,10 +85,25 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
       );
     }
 
-    const key = sessionKey || `api:${randomUUID()}`;
+    const key = sessionKey || `${INTERNAL_CHANNELS.WEBUI}:${randomUUID()}`;
+    const chatId = sessionKey || key;
+
     try {
+      if (message.trim() === '/stop') {
+        const aborted = deps.agent.abortSession(INTERNAL_CHANNELS.WEBUI, chatId);
+
+        return res.json({
+          success: true,
+          response: aborted ? '已停止当前聊天中的运行任务。' : '当前聊天没有正在运行的任务。'
+        });
+      }
+
       deps.log.info(`Processing API chat request, session: ${key}`);
-      const response = await deps.agent.processDirect(message, key);
+      const response = await deps.agent.processDirect(message, key, {
+        channel: INTERNAL_CHANNELS.WEBUI,
+        chatId,
+        messageType: 'private'
+      });
       res.json({ success: true, response });
     } catch (error: unknown) {
       deps.log.error(`Chat error: ${normalizeError(error)}`);
@@ -87,7 +112,7 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
   });
 
   app.get('/api/channels', (req, res) => {
-    res.json(deps.channelManager.getStatus());
+    res.json(getChannelStatus());
   });
 
   app.post('/api/channels/:name/send', async (req, res) => {

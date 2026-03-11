@@ -220,7 +220,7 @@ export class AgentLoop {
     }
   }
 
-  abortExecution(sessionKey: string): void {
+  abortExecution(sessionKey: string): boolean {
     const abortedForeground = this.executionRegistry.abort(sessionKey);
     const abortedBackground = this.backgroundTasks.abortTask(sessionKey);
     const aborted = abortedForeground || abortedBackground;
@@ -228,6 +228,8 @@ export class AgentLoop {
     this.log.info(aborted
       ? `Aborted execution for session: ${sessionKey}`
       : `Abort requested for inactive session: ${sessionKey}`);
+
+    return aborted;
   }
 
   async processInbound(msg: InboundMessage): Promise<string | undefined> {
