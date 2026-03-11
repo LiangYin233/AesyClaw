@@ -1,5 +1,7 @@
-import { join } from 'path';
 import * as fs from 'fs/promises';
+import { join } from 'path';
+import type { InboundMessage, LLMMessage, ProcessingIntent } from '../../src/types.ts';
+import type { PluginCommand, PluginContext } from '../../src/plugins/PluginManager.ts';
 
 const AFTER_FILE_REPLY_PROMPTS = {
   describeImagesSystem: [
@@ -17,13 +19,66 @@ const AFTER_FILE_REPLY_PROMPTS = {
   ].join('\n')
 };
 
+type IntentType = Extract<ProcessingIntent, { type: 'status' | 'handled' | 'error' }>;
+
 const Intent = {
-  status: (reason) => ({ type: 'status', reason }),
-  handled: (reason) => ({ type: 'handled', reason }),
-  error: (reason) => ({ type: 'error', reason })
+  status: (reason: string): IntentType => ({ type: 'status', reason }),
+  handled: (reason: string): IntentType => ({ type: 'handled', reason }),
+  error: (reason: string): IntentType => ({ type: 'error', reason })
 };
 
-const plugin = {
+interface WaitingState {
+  timestamp: number;
+  files: string[];
+}
+
+interface AfterFileReplyOptions {
+  timeoutMinutes?: number;
+}
+
+interface LoggerLike {
+  debug: (message: string, ...args: any[]) => void;
+  info: (message: string, ...args: any[]) => void;
+  warn: (message: string, ...args: any[]) => void;
+  error: (message: string, ...args: any[]) => void;
+}
+
+interface AfterFileReplyPlugin {
+  name: string;
+  version: string;
+  description: string;
+  defaultConfig: {
+    enabled: boolean;
+    options: {
+      timeoutMinutes: number;
+    };
+  };
+  waitingStates: Map<string, WaitingState>;
+  context: PluginContext | null;
+  stateFile: string | null;
+  cleanupTimer: NodeJS.Timeout | null;
+  log: LoggerLike;
+  tempDir: string | null;
+  options: AfterFileReplyOptions;
+  timeoutMs: number;
+  commands: PluginCommand[];
+  getKey(msg: InboundMessage): string;
+  getStateFilePath(): string | null;
+  loadStates(): Promise<void>;
+  saveStates(): Promise<void>;
+  onLoad(context: PluginContext): Promise<void>;
+  onUnload(): Promise<void>;
+  cleanupExpired(): void;
+  hasFile(msg: InboundMessage): boolean;
+  appendUniqueFiles(targetFiles: string[], newFiles?: string[]): void;
+  buildMultimodalContent(text: string, files: string[]): LLMMessage['content'];
+  callMultimodalLLM(systemPrompt: string, userText: string, files: string[], logLabel: string): Promise<string>;
+  clearWaitingState(key: string): Promise<void>;
+  getErrorMessage(error: unknown): string;
+  onMessage(msg: InboundMessage): Promise<InboundMessage | null>;
+}
+
+const plugin: AfterFileReplyPlugin = {
   name: 'plugin_after_file_reply',
   version: '1.0.0',
   description: '用户发送文件后等待文本描述再发送给LLM',
@@ -34,30 +89,37 @@ const plugin = {
     }
   },
 
-  waitingStates: new Map(),
+  waitingStates: new Map<string, WaitingState>(),
   context: null,
   stateFile: null,
   cleanupTimer: null,
   log: console,
   tempDir: null,
+  options: {},
+  timeoutMs: 5 * 60 * 1000,
 
-  getKey(msg) {
+  getKey(msg: InboundMessage): string {
     return `${msg.channel}:${msg.chatId}:${msg.senderId}`;
   },
 
-  getStateFilePath() {
+  getStateFilePath(): string | null {
     if (!this.stateFile && this.tempDir) {
       this.stateFile = join(this.tempDir, 'after_file_reply_states.json');
     }
     return this.stateFile;
   },
 
-  async loadStates() {
+  async loadStates(): Promise<void> {
     try {
       const filePath = this.getStateFilePath();
+      if (!filePath) {
+        return;
+      }
+
       const data = await fs.readFile(filePath, 'utf-8');
-      const states = JSON.parse(data) as Record<string, { timestamp: number; files: string[] }>;
+      const states = JSON.parse(data) as Record<string, WaitingState>;
       const now = Date.now();
+
       for (const [key, state] of Object.entries(states)) {
         if (now - state.timestamp > this.timeoutMs) {
           continue;
@@ -69,9 +131,13 @@ const plugin = {
     }
   },
 
-  async saveStates() {
+  async saveStates(): Promise<void> {
     try {
       const filePath = this.getStateFilePath();
+      if (!filePath) {
+        return;
+      }
+
       const states = Object.fromEntries(this.waitingStates);
       await fs.writeFile(filePath, JSON.stringify(states), 'utf-8');
     } catch (error) {
@@ -79,12 +145,14 @@ const plugin = {
     }
   },
 
-  async onLoad(context) {
+  async onLoad(context: PluginContext): Promise<void> {
     this.context = context;
     this.tempDir = context.tempDir;
+
     if (context.logger) {
       this.log = context.logger.child({ prefix: 'after_file_reply' });
     }
+
     this.options = context.options || {};
     this.timeoutMs = (this.options.timeoutMinutes || 5) * 60 * 1000;
 
@@ -92,32 +160,34 @@ const plugin = {
     this.cleanupTimer = setInterval(() => this.cleanupExpired(), 60000);
   },
 
-  async onUnload() {
+  async onUnload(): Promise<void> {
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer);
       this.cleanupTimer = null;
     }
   },
 
-  cleanupExpired() {
+  cleanupExpired(): void {
     const now = Date.now();
     let changed = false;
+
     for (const [key, state] of this.waitingStates) {
       if (now - state.timestamp > this.timeoutMs) {
         this.waitingStates.delete(key);
         changed = true;
       }
     }
+
     if (changed) {
-      this.saveStates();
+      void this.saveStates();
     }
   },
 
-  hasFile(msg) {
+  hasFile(msg: InboundMessage): boolean {
     return !!(msg.media && msg.media.length > 0);
   },
 
-  appendUniqueFiles(targetFiles, newFiles = []) {
+  appendUniqueFiles(targetFiles: string[], newFiles: string[] = []): void {
     const existing = new Set(targetFiles);
     for (const file of newFiles) {
       if (!existing.has(file)) {
@@ -127,19 +197,24 @@ const plugin = {
     }
   },
 
-  buildMultimodalContent(text, files) {
+  buildMultimodalContent(text: string, files: string[]): LLMMessage['content'] {
     return [
       { type: 'text', text },
       ...files.map((fileUrl) => ({
-        type: 'image_url',
+        type: 'image_url' as const,
         image_url: { url: fileUrl }
       }))
     ];
   },
 
-  async callMultimodalLLM(systemPrompt, userText, files, logLabel) {
+  async callMultimodalLLM(systemPrompt: string, userText: string, files: string[], logLabel: string): Promise<string> {
+    const agent = this.context?.agent;
+    if (!agent) {
+      throw new Error('Agent not available');
+    }
+
     const content = this.buildMultimodalContent(userText, files);
-    const response = await this.context.agent.callLLM([
+    const response = await agent.callLLM([
       { role: 'system', content: systemPrompt },
       { role: 'user', content }
     ], { allowTools: false });
@@ -149,12 +224,12 @@ const plugin = {
     return reply;
   },
 
-  async clearWaitingState(key) {
+  async clearWaitingState(key: string): Promise<void> {
     this.waitingStates.delete(key);
     await this.saveStates();
   },
 
-  getErrorMessage(error) {
+  getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
   },
 
@@ -163,7 +238,7 @@ const plugin = {
       name: 'qxdd',
       description: '取消当前等待，放弃已发送的文件',
       matcher: { type: 'exact', value: '/qxdd' },
-      async handler(msg) {
+      async handler(msg: InboundMessage, _args: string[]): Promise<InboundMessage> {
         const key = plugin.getKey(msg);
         const state = plugin.waitingStates.get(key);
 
@@ -181,7 +256,7 @@ const plugin = {
       name: 'zjfs',
       description: '直接发送已收集的文件给AI',
       matcher: { type: 'exact', value: '/zjfs' },
-      async handler(msg) {
+      async handler(msg: InboundMessage, _args: string[]): Promise<InboundMessage> {
         const key = plugin.getKey(msg);
         const state = plugin.waitingStates.get(key);
 
@@ -221,7 +296,7 @@ const plugin = {
     }
   ],
 
-  async onMessage(msg) {
+  async onMessage(msg: InboundMessage): Promise<InboundMessage> {
     const key = this.getKey(msg);
     const state = this.waitingStates.get(key);
 

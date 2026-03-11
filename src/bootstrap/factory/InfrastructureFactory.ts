@@ -13,7 +13,7 @@ const log = logger.child({ prefix: 'InfrastructureFactory' });
 
 async function createChannelManager(config: Config, eventBus: EventBus, workspace: string): Promise<ChannelManager> {
   const channelManager = new ChannelManager(eventBus, workspace);
-  await loadExternalChannelPlugins(channelManager, workspace);
+  await loadExternalChannelPlugins(channelManager, process.cwd());
 
   for (const [channelName, channelConfig] of Object.entries(config.channels as Record<string, { enabled?: boolean }>)) {
     if (!channelConfig?.enabled) {

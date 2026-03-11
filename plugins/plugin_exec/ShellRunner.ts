@@ -1,18 +1,25 @@
 import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
+import type { ShellExecOptions } from './config.ts';
 
 const execAsync = promisify(execCallback);
 
-export class ShellRunner {
-  options;
-  log;
-  blockedCommands;
-  blockedPaths;
-  blockedParams;
-  timeout;
-  maxOutput;
+interface LoggerLike {
+  debug: (message: string, ...args: any[]) => void;
+  warn: (message: string, ...args: any[]) => void;
+  error: (message: string, ...args: any[]) => void;
+}
 
-  constructor(options, logger) {
+export class ShellRunner {
+  options: ShellExecOptions;
+  log: LoggerLike;
+  blockedCommands: string[];
+  blockedPaths: string[];
+  blockedParams: string[];
+  timeout: number;
+  maxOutput: number;
+
+  constructor(options: ShellExecOptions, logger: LoggerLike) {
     this.options = options;
     this.log = logger;
     this.blockedCommands = options.blockedCommands || [];
@@ -22,7 +29,7 @@ export class ShellRunner {
     this.maxOutput = options.maxOutput || 10000;
   }
 
-  checkBlacklist(command) {
+  checkBlacklist(command: string): { blocked: boolean; reason?: string } {
     const cmdLower = command.toLowerCase().trim();
 
     for (const blocked of this.blockedCommands) {
@@ -47,13 +54,13 @@ export class ShellRunner {
     return { blocked: false };
   }
 
-  truncateOutput(output) {
+  truncateOutput(output: string) {
     if (!output) return '';
     if (output.length <= this.maxOutput) return output;
     return output.substring(0, this.maxOutput) + `\n[输出已截断，原始长度: ${output.length} 字符]`;
   }
 
-  async execute(command) {
+  async execute(command: string): Promise<string> {
     const blacklistCheck = this.checkBlacklist(command);
     if (blacklistCheck.blocked) {
       return `错误: ${blacklistCheck.reason}`;
@@ -66,8 +73,9 @@ export class ShellRunner {
       });
 
       return this.truncateOutput(stderr ? `[stderr]\n${stderr}\n[stdout]\n${stdout}` : stdout);
-    } catch (error) {
-      return `命令执行错误: ${error.message}`;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      return `命令执行错误: ${message}`;
     }
   }
 }

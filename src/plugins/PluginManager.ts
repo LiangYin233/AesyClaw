@@ -4,9 +4,9 @@ import type { AgentLoop } from '../agent/index.js';
 import type { ToolRegistry, Tool, ToolContext } from '../tools/ToolRegistry.js';
 import { logger } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
-import { pathToFileURL } from 'url';
 import { join } from 'path';
 import { stat } from 'fs/promises';
+import { importExternalModule } from '../utils/importExternalModule.js';
 
 interface PluginModuleEntry {
   name: string;
@@ -518,8 +518,8 @@ export class PluginManager {
 
   private async importPluginModule(mainPath: string): Promise<Plugin | null> {
     try {
-      const module = await import(pathToFileURL(mainPath).href);
-      return module.default || module;
+      const module = await importExternalModule<Record<string, unknown>>(mainPath) as Record<string, any>;
+      return (module.default || module) as Plugin;
     } catch {
       return null;
     }
@@ -568,8 +568,8 @@ export class PluginManager {
 
     try {
       this.log.debug(`Loading plugin from: ${pluginPath}`);
-      const module = await import(pathToFileURL(pluginPath).href);
-      const plugin = module.default || module;
+      const module = await importExternalModule<Record<string, unknown>>(pluginPath) as Record<string, any>;
+      const plugin = (module.default || module) as Plugin & { options?: Record<string, any> };
       if (options) {
         plugin.options = options;
       }

@@ -1,31 +1,40 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
-import { renderMarkdownToImage } from './render.js';
+import type { PluginContext } from '../../src/plugins/PluginManager.ts';
+import type { OutboundMessage } from '../../src/types.ts';
+import { renderMarkdownToImage } from './render.ts';
 
 const MD_PATTERN = /(^```[\s\S]*?\n```$)|(^\$\$[\s\S]*?\$\$$)|(\$(?:\\.|[^\n$])+\$)|(^#{1-6}\s+\S.+$)|(^>\s+\S.+$)|(^\s{0,3}[-*+]\s+\S.+$)|(^\s{0,3}\d+\.\s+\S.+$)|(^\|[^\n]*\|[^\n]*$)|(!\[[^\]]*\]\([^)]+\)|\[[^\]]+\]\([^)]+\))|(^\s{0,3}(?:-{3,}|_{3,}|\*{3,})\s*$)/m;
 const THINK_TAG_PATTERN = /<think>([\s\S]*?)<\/think>|<thinking>([\s\S]*?)<\/thinking>/gi;
 
-let log = console;
+interface LoggerLike {
+  debug: (message: string, ...args: any[]) => void;
+  info: (message: string, ...args: any[]) => void;
+  warn: (message: string, ...args: any[]) => void;
+  error: (message: string, ...args: any[]) => void;
+}
 
-function normalizeThinkingText(text) {
+let log: LoggerLike = console;
+
+function normalizeThinkingText(text: string): string {
   if (!text) return '';
 
   return text
     .replace(/\r\n/g, '\n')
     .split('\n')
-    .map((line) => line.trimEnd())
+    .map((line: string) => line.trimEnd())
     .join('\n')
     .trim();
 }
 
-function extractThinkingTags(content) {
+function extractThinkingTags(content: string): { content: string; reasoning: string } {
   if (!content) {
     return { content: '', reasoning: '' };
   }
 
-  const reasoningParts = [];
-  const cleanedContent = content.replace(THINK_TAG_PATTERN, (_, thinkContent, thinkingContent) => {
+  const reasoningParts: string[] = [];
+  const cleanedContent = content.replace(THINK_TAG_PATTERN, (_: string, thinkContent: string, thinkingContent: string) => {
     const extracted = normalizeThinkingText(thinkContent || thinkingContent || '');
     if (extracted) {
       reasoningParts.push(extracted);
@@ -59,7 +68,7 @@ const plugin: any = {
   context: null,  // 保存插件上下文
   tempDir: null,
 
-  async onLoad(context) {
+  async onLoad(context: PluginContext) {
     this.context = context;  // 保存上下文以便在 onResponse 中使用
     this.tempDir = context.tempDir;
 
@@ -76,7 +85,7 @@ const plugin: any = {
     log.info('Plugin loaded with config:', this.config);
   },
 
-  async onResponse(msg) {
+  async onResponse(msg: OutboundMessage) {
     log.debug(`onResponse called: content length=${msg.content?.length || 0}, has media=${!!(msg.media && msg.media.length > 0)}`);
 
     const extracted = extractThinkingTags(msg.content || '');
@@ -159,11 +168,11 @@ const plugin: any = {
     return msg;
   },
 
-  isMarkdown(text) {
+  isMarkdown(text: string) {
     return MD_PATTERN.test(text);
   },
 
-  async renderToImage(text) {
+  async renderToImage(text: string): Promise<string> {
     const tmpdir = path.join(this.tempDir, 'md2img');
     await fs.mkdir(tmpdir, { recursive: true });
 
@@ -186,7 +195,7 @@ const plugin: any = {
     }
   },
 
-  async runRenderScript(mdFile, outputFile) {
+  async runRenderScript(mdFile: string, outputFile: string): Promise<void> {
     await renderMarkdownToImage(await fs.readFile(mdFile, 'utf-8'), outputFile, this.config.scale.toString());
   }
 };

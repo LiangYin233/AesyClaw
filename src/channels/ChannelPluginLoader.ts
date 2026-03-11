@@ -1,8 +1,8 @@
 import { readdir, stat } from 'fs/promises';
 import { join } from 'path';
-import { pathToFileURL } from 'url';
 import { logger } from '../logger/index.js';
 import type { ChannelManager, ChannelPluginDefinition } from './ChannelManager.js';
+import { importExternalModule } from '../utils/importExternalModule.js';
 
 const log = logger.child({ prefix: 'ChannelPluginLoader' });
 
@@ -46,7 +46,7 @@ async function discoverChannelPluginEntries(workspace: string): Promise<string[]
 
 async function importChannelPlugin(mainPath: string): Promise<ChannelPluginDefinition | null> {
   try {
-    const module = await import(pathToFileURL(mainPath).href);
+    const module = await importExternalModule<Record<string, unknown>>(mainPath);
     const plugin = module.default ?? module;
 
     if (!isChannelPluginDefinition(plugin)) {

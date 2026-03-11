@@ -2,13 +2,13 @@ import express from 'express';
 import http from 'http';
 import fs from 'fs';
 import { basename } from 'path';
-import type { EventBus } from '../../src/bus/EventBus.js';
-import { BaseChannel } from '../../src/channels/BaseChannel.js';
-import { MessageHandlers } from '../../src/channels/MessageParser.js';
-import type { ChannelPluginDefinition } from '../../src/channels/ChannelManager.js';
-import { logger } from '../../src/logger/index.js';
-import { metrics } from '../../src/logger/Metrics.js';
-import type { InboundFile, OutboundMessage } from '../../src/types.js';
+import type { EventBus } from '../../src/bus/EventBus.ts';
+import { BaseChannel } from '../../src/channels/BaseChannel.ts';
+import { MessageHandlers } from '../../src/channels/MessageParser.ts';
+import type { ChannelPluginDefinition } from '../../src/channels/ChannelManager.ts';
+import { logger } from '../../src/logger/index.ts';
+import { metrics } from '../../src/logger/Metrics.ts';
+import type { InboundFile, OutboundMessage } from '../../src/types.ts';
 
 interface FeishuConfig {
   appId: string;
@@ -175,7 +175,7 @@ class FeishuChannel extends BaseChannel {
     this.currentMessage = undefined;
   }
 
-  protected async parseMessage(_rawEvent: any): Promise<import('../../src/channels/BaseChannel.js').ParsedMessage> {
+  protected async parseMessage(_rawEvent: any): Promise<import('../../src/channels/BaseChannel.ts').ParsedMessage> {
     if (!this.currentMessage) {
       return { content: '' };
     }
@@ -191,7 +191,7 @@ class FeishuChannel extends BaseChannel {
   private async parseMessageContent(
     messageType: string,
     content: string
-  ): Promise<import('../../src/channels/BaseChannel.js').ParsedMessage> {
+  ): Promise<import('../../src/channels/BaseChannel.ts').ParsedMessage> {
     try {
       const parsed = JSON.parse(content);
 

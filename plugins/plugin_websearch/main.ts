@@ -1,4 +1,55 @@
-const plugin: any = {
+import type { PluginContext } from '../../src/plugins/PluginManager.ts';
+
+interface LoggerLike {
+  debug: (message: string, ...args: any[]) => void;
+  info: (message: string, ...args: any[]) => void;
+  warn: (message: string, ...args: any[]) => void;
+  error: (message: string, ...args: any[]) => void;
+}
+
+type TavilySearchDepth = 'basic' | 'advanced' | 'fast' | 'ultra-fast';
+
+interface TavilySearchResult {
+  title?: string;
+  url?: string;
+  content?: string;
+  score?: number;
+}
+
+interface TavilyExtractResult {
+  url?: string;
+  raw_content?: string;
+}
+
+interface TavilyResponse {
+  results?: Array<TavilySearchResult | TavilyExtractResult>;
+}
+
+interface WebsearchConfig {
+  apiKey: string;
+  maxResults: number;
+  searchDepth: TavilySearchDepth;
+}
+
+const plugin: {
+  name: string;
+  version: string;
+  description: string;
+  log: LoggerLike;
+  config: WebsearchConfig;
+  defaultConfig: {
+    enabled: boolean;
+    options: WebsearchConfig;
+  };
+  fetchTavily(endpoint: string, body: Record<string, any>, apiKey: string): Promise<TavilyResponse>;
+  onLoad(context: PluginContext): Promise<void>;
+  tools: Array<{
+    name: string;
+    description: string;
+    parameters: Record<string, any>;
+    execute(params: Record<string, any>): Promise<string>;
+  }>;
+} = {
   name: 'plugin_websearch',
   version: '1.0.0',
   description: '使用 Tavily 进行网页搜索',
@@ -19,7 +70,7 @@ const plugin: any = {
     }
   },
 
-  async fetchTavily(endpoint, body, apiKey) {
+  async fetchTavily(endpoint: string, body: Record<string, any>, apiKey: string): Promise<TavilyResponse> {
     const response = await fetch(`https://api.tavily.com/${endpoint}`, {
       method: 'POST',
       headers: {
@@ -37,7 +88,7 @@ const plugin: any = {
     return response.json();
   },
 
-  async onLoad(context) {
+  async onLoad(context: PluginContext) {
     if (context.logger) {
       this.log = context.logger.child({ prefix: 'websearch' });
     }
@@ -79,7 +130,7 @@ const plugin: any = {
         },
         required: ['query']
       },
-      async execute(params) {
+      async execute(params: Record<string, any>) {
         const { query, max_results, search_depth } = params;
 
         plugin.log.debug(`websearch execute: query="${query}", max_results=${max_results}, search_depth=${search_depth}`);
@@ -101,18 +152,19 @@ const plugin: any = {
             include_raw_content: false
           }, plugin.config.apiKey);
 
-          const results = data.results?.map((r) => ({
-            title: r.title,
+          const results = data.results?.map((r: TavilySearchResult | TavilyExtractResult) => ({
+            title: 'title' in r ? r.title : undefined,
             url: r.url,
-            content: r.content?.substring(0, 500) || '',
-            score: r.score
+            content: 'content' in r ? r.content?.substring(0, 500) || '' : '',
+            score: 'score' in r ? r.score : undefined
           })) || [];
 
           plugin.log.info(`Search completed: ${query}, ${results.length} results`);
           return JSON.stringify(results);
-        } catch (error) {
-          plugin.log.error('Search failed:', error.message);
-          throw new Error(`搜索失败: ${error.message}`, { cause: error });
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          plugin.log.error('Search failed:', message);
+          throw new Error(`搜索失败: ${message}`, { cause: error });
         }
       }
     },
@@ -146,7 +198,7 @@ const plugin: any = {
         },
         required: ['urls']
       },
-      async execute(params) {
+      async execute(params: Record<string, any>) {
         let { urls, query, extract_depth, format } = params;
 
         plugin.log.debug(`web_extract execute: urls=${JSON.stringify(urls)}, format=${format}`);
@@ -183,7 +235,7 @@ const plugin: any = {
         }
 
         // 过滤掉无效的 URL
-        urls = urls.filter(url => url && typeof url === 'string' && url.trim());
+        urls = urls.filter((url: unknown): url is string => typeof url === 'string' && !!url.trim());
 
         if (urls.length === 0) {
           throw new Error('没有有效的 URL');
@@ -199,15 +251,16 @@ const plugin: any = {
             format: format || 'markdown'
           }, plugin.config.apiKey);
 
-          const results = data.results?.map((r) => ({
+          const results = data.results?.map((r: TavilySearchResult | TavilyExtractResult) => ({
             url: r.url,
-            content: r.raw_content?.substring(0, 5000) || ''
+            content: 'raw_content' in r ? r.raw_content?.substring(0, 5000) || '' : ''
           })) || [];
 
           return JSON.stringify(results);
-        } catch (error) {
-          plugin.log.error('Extract failed:', error.message);
-          throw new Error(`提取失败: ${error.message}`, { cause: error });
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          plugin.log.error('Extract failed:', message);
+          throw new Error(`提取失败: ${message}`, { cause: error });
         }
       }
     }

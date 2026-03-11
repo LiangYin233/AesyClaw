@@ -4,10 +4,12 @@ import { createWriteStream } from 'fs';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import { createHash } from 'crypto';
+import type { PluginContext } from '../../src/plugins/PluginManager.ts';
+import type { InboundFile, InboundMessage, ProcessingIntent } from '../../src/types.ts';
 
 // Intent 辅助对象，用于创建语义化的处理意图
 const Intent = {
-  error: (reason) => ({ type: 'error', reason })
+  error: (reason: string): Extract<ProcessingIntent, { type: 'error' }> => ({ type: 'error', reason })
 };
 
 const plugin: any = {
@@ -29,7 +31,7 @@ const plugin: any = {
         },
         required: ['file_path']
       },
-      execute: async (params) => {
+      execute: async (params: Record<string, any>) => {
         const { file_path } = params;
         // 验证文件存在
         try {
@@ -41,8 +43,9 @@ const plugin: any = {
         try {
           const result = await plugin.transcribe(file_path);
           return result;
-        } catch (error) {
-          return `转写失败: ${error.message}`;
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : String(error);
+          return `转写失败: ${message}`;
         }
       }
     }
@@ -62,7 +65,7 @@ const plugin: any = {
     }
   },
 
-  async onLoad(context) {
+  async onLoad(context: PluginContext) {
     this.log = context.logger?.child({ prefix: 'speech_to_text' }) || console;
 
     const options = context.options || {};
@@ -97,7 +100,7 @@ const plugin: any = {
     } catch {}
   },
 
-  async downloadAudio(url, timeout) {
+  async downloadAudio(url: string, timeout: number): Promise<string> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
@@ -114,14 +117,17 @@ const plugin: any = {
 
       await pipeline(Readable.fromWeb(response.body as any), createWriteStream(filepath));
       return filepath;
-    } catch (error) {
-      throw error.name === 'AbortError' ? new Error('Download timeout') : error;
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Download timeout');
+      }
+      throw error;
     } finally {
       clearTimeout(timeoutId);
     }
   },
 
-  async transcribe(audioPath) {
+  async transcribe(audioPath: string): Promise<string> {
     if (!this.config.apiKey) throw new Error('API key not configured');
 
     const url = `${this.config.apiBase}/audio/transcriptions`;
@@ -153,22 +159,25 @@ const plugin: any = {
       } catch {
         return text.trim();
       }
-    } catch (error) {
-      throw error.name === 'AbortError' ? new Error('Transcription timeout') : error;
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Transcription timeout');
+      }
+      throw error;
     } finally {
       clearTimeout(timeoutId);
     }
   },
 
-  async onMessage(msg) {
+  async onMessage(msg: InboundMessage) {
     try {
-      this.log.info(`[STT] onMessage called, content="${msg.content}", files=${JSON.stringify(msg.files?.map(f => ({ type: f.type, url: f.url?.substring(0, 50) })))}`);
+      this.log.info(`[STT] onMessage called, content="${msg.content}", files=${JSON.stringify(msg.files?.map((f: InboundFile) => ({ type: f.type, url: f.url?.substring(0, 50) })))}`);
 
       // Detect audio URL from files or rawEvent
-      let audioUrl = msg.files?.find(f => f.type === 'audio')?.url;
+      let audioUrl = msg.files?.find((f: InboundFile) => f.type === 'audio')?.url;
 
       if (!audioUrl && msg.rawEvent?.message) {
-        const voiceSegment = msg.rawEvent.message.find(seg => seg.type === 'record');
+        const voiceSegment = msg.rawEvent.message.find((seg: any) => seg.type === 'record');
         audioUrl = voiceSegment?.data?.url || voiceSegment?.data?.file;
         this.log.debug(`[STT] Found audio URL from rawEvent: ${audioUrl?.substring(0, 50)}`);
       }
@@ -192,7 +201,7 @@ const plugin: any = {
       this.log.info(`Processing voice message from ${msg.senderId}`);
 
       // Download and transcribe
-      let audioPath;
+      let audioPath: string | undefined;
       try {
         audioPath = await this.downloadAudio(audioUrl, this.config.downloadTimeout);
         const transcription = await this.transcribe(audioPath);
@@ -205,15 +214,17 @@ const plugin: any = {
           media: undefined,  // 清除媒体信息
           metadata: { ...msg.metadata, transcribed: true, originalType: 'voice' }
         };
-      } catch (error) {
-        this.log.error('Transcription failed:', error.message);
-        return { ...msg, content: `[语音消息 - ${error.message}]`, intent: Intent.error(`转写失败: ${error.message}`) };
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.log.error('Transcription failed:', message);
+        return { ...msg, content: `[语音消息 - ${message}]`, intent: Intent.error(`转写失败: ${message}`) };
       } finally {
         if (audioPath) await fs.unlink(audioPath).catch(() => {});
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       this.log.error('Unexpected error:', error);
-      return { ...msg, content: '[语音消息 - 处理失败]', intent: Intent.error(`处理失败: ${error.message}`) };
+      return { ...msg, content: '[语音消息 - 处理失败]', intent: Intent.error(`处理失败: ${message}`) };
     }
   }
 };

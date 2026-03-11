@@ -1,14 +1,21 @@
 import { spawn } from 'child_process';
 import { platform } from 'os';
+import type { PythonExecOptions } from './config.ts';
+
+interface LoggerLike {
+  debug: (message: string, ...args: any[]) => void;
+  warn: (message: string, ...args: any[]) => void;
+  error: (message: string, ...args: any[]) => void;
+}
 
 export class PythonRunner {
-  options;
-  log;
-  timeout;
-  maxOutput;
-  executable;
+  options: PythonExecOptions;
+  log: LoggerLike;
+  timeout: number;
+  maxOutput: number;
+  executable: string;
 
-  constructor(options, logger) {
+  constructor(options: PythonExecOptions, logger: LoggerLike) {
     this.options = options;
     this.log = logger;
     this.timeout = options.timeout || 30000;
@@ -19,13 +26,13 @@ export class PythonRunner {
     this.executable = options.executable || defaultExecutable;
   }
 
-  truncateOutput(output) {
+  truncateOutput(output: string) {
     if (!output) return '';
     if (output.length <= this.maxOutput) return output;
     return output.substring(0, this.maxOutput) + `\n[输出已截断，原始长度: ${output.length} 字符]`;
   }
 
-  async execute(code) {
+  async execute(code: string): Promise<string> {
     if (typeof code !== 'string') {
       return 'Python 执行错误: code 参数必须是字符串';
     }
@@ -50,26 +57,26 @@ export class PythonRunner {
         }, 1000);
       }, this.timeout);
 
-      pythonProcess.stdout.on('data', (data) => {
+      pythonProcess.stdout.on('data', (data: Buffer | string) => {
         stdout += data.toString();
       });
 
-      pythonProcess.stderr.on('data', (data) => {
+      pythonProcess.stderr.on('data', (data: Buffer | string) => {
         stderr += data.toString();
       });
 
-      pythonProcess.on('error', (error) => {
+      pythonProcess.on('error', (error: Error & NodeJS.ErrnoException) => {
         clearTimeout(timeoutId);
         this.log.error('Python process error:', error.message);
 
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        if (error.code === 'ENOENT') {
           resolve('Python 未安装或不在 PATH 中。请确保已安装 Python 并添加到系统 PATH。');
         } else {
           resolve(`Python 执行错误: ${error.message}`);
         }
       });
 
-      pythonProcess.on('close', (code) => {
+      pythonProcess.on('close', (code: number | null) => {
         clearTimeout(timeoutId);
 
         if (timedOut) {

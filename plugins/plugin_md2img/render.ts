@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 marked.use(markedKatex({ throwOnError: false }));
 marked.setOptions({ gfm: true, breaks: true });
 
-export async function renderMarkdownToImage(markdownText, outputPath, scale: string | number = 1.0) {
+export async function renderMarkdownToImage(markdownText: string, outputPath: string, scale: string | number = 1.0): Promise<string> {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({
         viewport: { width: 900, height: 10000 },
@@ -111,7 +111,7 @@ if (process.argv[1] && process.argv[1].endsWith('render.ts')) {
     const markdownText = fs.readFileSync(markdownFile, 'utf-8');
     renderMarkdownToImage(markdownText, outputFile, scale)
         .then(() => console.log('Done:', outputFile))
-        .catch(err => {
+        .catch((err: unknown) => {
             console.error('Error:', err);
             process.exit(1);
         });

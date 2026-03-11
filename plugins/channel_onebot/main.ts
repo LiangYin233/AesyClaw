@@ -1,13 +1,13 @@
 import WebSocket from 'ws';
 import fs from 'fs';
-import type { EventBus } from '../../src/bus/EventBus.js';
-import { BaseChannel } from '../../src/channels/BaseChannel.js';
-import { MessageHandlers } from '../../src/channels/MessageParser.js';
-import { CONSTANTS } from '../../src/constants/index.js';
-import { logger } from '../../src/logger/index.js';
-import { metrics } from '../../src/logger/Metrics.js';
-import type { InboundFile, OutboundMessage } from '../../src/types.js';
-import type { ChannelPluginDefinition } from '../../src/channels/ChannelManager.js';
+import type { EventBus } from '../../src/bus/EventBus.ts';
+import { BaseChannel } from '../../src/channels/BaseChannel.ts';
+import { MessageHandlers } from '../../src/channels/MessageParser.ts';
+import { CONSTANTS } from '../../src/constants/index.ts';
+import { logger } from '../../src/logger/index.ts';
+import { metrics } from '../../src/logger/Metrics.ts';
+import type { InboundFile, OutboundMessage } from '../../src/types.ts';
+import type { ChannelPluginDefinition } from '../../src/channels/ChannelManager.ts';
 
 interface OneBotConfig {
   wsUrl: string;
@@ -266,11 +266,11 @@ class OneBotChannel extends BaseChannel {
     await this.processInboundMessage(senderId, chatId, messageType, payload, messageId);
   }
 
-  protected async parseMessage(rawEvent: any): Promise<import('../../src/channels/BaseChannel.js').ParsedMessage> {
+  protected async parseMessage(rawEvent: any): Promise<import('../../src/channels/BaseChannel.ts').ParsedMessage> {
     return this.parseMessageWithMedia(rawEvent.message);
   }
 
-  private parseMessageWithMedia(message: any): import('../../src/channels/BaseChannel.js').ParsedMessage {
+  private parseMessageWithMedia(message: any): import('../../src/channels/BaseChannel.ts').ParsedMessage {
     if (!message) return { content: '' };
 
     let content = '';

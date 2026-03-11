@@ -1,5 +1,29 @@
 import { platform } from 'os';
 
+export interface PythonExecOptions {
+  executable: string;
+  timeout: number;
+  maxOutput: number;
+}
+
+export interface ShellExecOptions {
+  timeout: number;
+  maxOutput: number;
+  blockedCommands: string[];
+  blockedPaths: string[];
+  blockedParams: string[];
+}
+
+export interface ExecPluginConfig {
+  python: PythonExecOptions;
+  shell: ShellExecOptions;
+}
+
+export interface ExecPluginOptions {
+  python?: Partial<PythonExecOptions>;
+  shell?: Partial<ShellExecOptions>;
+}
+
 const DEFAULT_BLOCKED_COMMANDS = [
   'rm', 'rmdir', 'unlink', 'del', 'erase', 'Remove-Item',
   'format', 'mkfs', 'diskpart',
@@ -25,7 +49,7 @@ const DEFAULT_BLOCKED_PARAMS = [
   '-rf', '-r -f', '-fr', '/s /q', '/f /s', '-Force', '--force', '-y', '-rf /*'
 ];
 
-const DEFAULT_CONFIG = {
+const DEFAULT_CONFIG: ExecPluginConfig = {
   python: {
     executable: platform() === 'win32' ? 'python' : 'python3',
     timeout: 30000,
@@ -47,8 +71,8 @@ export const CONFIG = {
   DEFAULT_CONFIG
 };
 
-export function loadConfig(options) {
-  const config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+export function loadConfig(options?: ExecPluginOptions): ExecPluginConfig {
+  const config: ExecPluginConfig = JSON.parse(JSON.stringify(DEFAULT_CONFIG)) as ExecPluginConfig;
 
   if (!options) {
     return config;
