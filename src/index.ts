@@ -1,7 +1,6 @@
 export * from './types.js';
 export { EventBus } from './bus/EventBus.js';
-export { ChannelManager, BaseChannel, OneBotChannel } from './channels/index.js';
-export type { OneBotConfig } from './channels/index.js';
+export { ChannelManager, BaseChannel } from './channels/index.js';
 export { LLMProvider, createProvider } from './providers/index.js';
 export { ToolRegistry } from './tools/index.js';
 export type { Tool, ToolContext } from './tools/index.js';

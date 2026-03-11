@@ -1,8 +1,8 @@
 {
-  "name": "aesyclaw-exec",
+  "name": "aesyclaw-plugin-exec",
   "version": "1.0.0",
   "description": "执行 Python 和 Shell 命令的插件",
-  "main": "main.js",
+  "main": "main.ts",
   "type": "module",
   "dependencies": {}
 }

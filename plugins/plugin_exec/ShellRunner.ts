@@ -4,6 +4,14 @@ import { promisify } from 'util';
 const execAsync = promisify(execCallback);
 
 export class ShellRunner {
+  options;
+  log;
+  blockedCommands;
+  blockedPaths;
+  blockedParams;
+  timeout;
+  maxOutput;
+
   constructor(options, logger) {
     this.options = options;
     this.log = logger;
@@ -54,8 +62,7 @@ export class ShellRunner {
     try {
       const { stdout, stderr } = await execAsync(command, {
         timeout: this.timeout,
-        maxBuffer: 10 * 1024 * 1024,
-        shell: true
+        maxBuffer: 10 * 1024 * 1024
       });
 
       return this.truncateOutput(stderr ? `[stderr]\n${stderr}\n[stdout]\n${stdout}` : stdout);

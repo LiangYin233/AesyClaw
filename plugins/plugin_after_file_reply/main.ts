@@ -24,7 +24,7 @@ const Intent = {
 };
 
 const plugin = {
-  name: 'after_file_reply',
+  name: 'plugin_after_file_reply',
   version: '1.0.0',
   description: '用户发送文件后等待文本描述再发送给LLM',
   defaultConfig: {
@@ -56,7 +56,7 @@ const plugin = {
     try {
       const filePath = this.getStateFilePath();
       const data = await fs.readFile(filePath, 'utf-8');
-      const states = JSON.parse(data);
+      const states = JSON.parse(data) as Record<string, { timestamp: number; files: string[] }>;
       const now = Date.now();
       for (const [key, state] of Object.entries(states)) {
         if (now - state.timestamp > this.timeoutMs) {
@@ -64,7 +64,7 @@ const plugin = {
         }
         this.waitingStates.set(key, state);
       }
-    } catch (error) {
+    } catch {
       // File doesn't exist or is invalid, ignore
     }
   },

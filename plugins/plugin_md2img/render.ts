@@ -11,11 +11,11 @@ const __dirname = path.dirname(__filename);
 marked.use(markedKatex({ throwOnError: false }));
 marked.setOptions({ gfm: true, breaks: true });
 
-async function renderMarkdownToImage(markdownText, outputPath, scale = 1.0) {
+export async function renderMarkdownToImage(markdownText, outputPath, scale: string | number = 1.0) {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({
         viewport: { width: 900, height: 10000 },
-        deviceScaleFactor: parseFloat(scale)
+        deviceScaleFactor: Number(scale)
     });
 
     const templatePath = path.join(__dirname, 'template.html');
@@ -48,7 +48,7 @@ async function renderMarkdownToImage(markdownText, outputPath, scale = 1.0) {
 
         const contentHeight = await page.evaluate(() => {
             const body = document.body;
-            const children = Array.from(body.children);
+            const children = Array.from(body.children) as HTMLElement[];
             if (children.length === 0) return 0;
 
             let minTop = Infinity, maxBottom = 0;
@@ -79,7 +79,7 @@ async function renderMarkdownToImage(markdownText, outputPath, scale = 1.0) {
         // Clean up temporary HTML file
         try {
             fs.unlinkSync(tmpHtmlPath);
-        } catch (err) {
+        } catch {
             // Ignore cleanup errors
         }
 
@@ -89,7 +89,7 @@ async function renderMarkdownToImage(markdownText, outputPath, scale = 1.0) {
         // Clean up temporary HTML file on error
         try {
             fs.unlinkSync(tmpHtmlPath);
-        } catch (err) {
+        } catch {
             // Ignore cleanup errors
         }
         throw error;
@@ -97,19 +97,22 @@ async function renderMarkdownToImage(markdownText, outputPath, scale = 1.0) {
 }
 
 const args = process.argv.slice(2);
-const markdownFile = args[0];
-const outputFile = args[1];
-const scale = args[2] || '1.0';
 
-if (!markdownFile || !outputFile) {
-    console.error('Usage: node render.js <markdown-file> <output-file> [scale]');
-    process.exit(1);
-}
+if (process.argv[1] && process.argv[1].endsWith('render.ts')) {
+    const markdownFile = args[0];
+    const outputFile = args[1];
+    const scale = args[2] || '1.0';
 
-const markdownText = fs.readFileSync(markdownFile, 'utf-8');
-renderMarkdownToImage(markdownText, outputFile, scale)
-    .then(() => console.log('Done:', outputFile))
-    .catch(err => {
-        console.error('Error:', err);
+    if (!markdownFile || !outputFile) {
+        console.error('Usage: tsx render.ts <markdown-file> <output-file> [scale]');
         process.exit(1);
-    });
+    }
+
+    const markdownText = fs.readFileSync(markdownFile, 'utf-8');
+    renderMarkdownToImage(markdownText, outputFile, scale)
+        .then(() => console.log('Done:', outputFile))
+        .catch(err => {
+            console.error('Error:', err);
+            process.exit(1);
+        });
+}

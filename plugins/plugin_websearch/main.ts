@@ -1,5 +1,5 @@
-const plugin = {
-  name: 'websearch',
+const plugin: any = {
+  name: 'plugin_websearch',
   version: '1.0.0',
   description: '使用 Tavily 进行网页搜索',
 

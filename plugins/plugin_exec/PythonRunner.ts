@@ -2,6 +2,12 @@ import { spawn } from 'child_process';
 import { platform } from 'os';
 
 export class PythonRunner {
+  options;
+  log;
+  timeout;
+  maxOutput;
+  executable;
+
   constructor(options, logger) {
     this.options = options;
     this.log = logger;
@@ -56,7 +62,7 @@ export class PythonRunner {
         clearTimeout(timeoutId);
         this.log.error('Python process error:', error.message);
 
-        if (error.code === 'ENOENT') {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
           resolve('Python 未安装或不在 PATH 中。请确保已安装 Python 并添加到系统 PATH。');
         } else {
           resolve(`Python 执行错误: ${error.message}`);

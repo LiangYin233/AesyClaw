@@ -1,7 +1,6 @@
-import { join } from 'path';
 import type { Config } from '../../types.js';
 import type { EventBus } from '../../bus/EventBus.js';
-import { ChannelManager } from '../../channels/index.js';
+import { ChannelManager, loadExternalChannelPlugins } from '../../channels/index.js';
 import type { AgentLoop } from '../../agent/index.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import type { CronJob, CronService } from '../../cron/index.js';
@@ -12,8 +11,9 @@ import { logger } from '../../logger/index.js';
 
 const log = logger.child({ prefix: 'InfrastructureFactory' });
 
-function createChannelManager(config: Config, eventBus: EventBus, workspace: string): ChannelManager {
+async function createChannelManager(config: Config, eventBus: EventBus, workspace: string): Promise<ChannelManager> {
   const channelManager = new ChannelManager(eventBus, workspace);
+  await loadExternalChannelPlugins(channelManager, workspace);
 
   for (const [channelName, channelConfig] of Object.entries(config.channels as Record<string, { enabled?: boolean }>)) {
     if (!channelConfig?.enabled) {
@@ -66,7 +66,7 @@ export async function createInfrastructure(args: {
     tempDir,
     toolRegistry
   });
-  const channelManager = createChannelManager(config, eventBus, workspace);
+  const channelManager = await createChannelManager(config, eventBus, workspace);
   const mcpManager = createMcpManager(config, toolRegistry);
 
   return {

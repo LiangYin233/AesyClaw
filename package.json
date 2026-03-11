@@ -5,10 +5,10 @@
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc -p tsconfig.plugins.json",
     "build:webui": "cd webui && npm run build",
-    "lint": "eslint \"src/**/*.ts\"",
-    "lint:fix": "eslint \"src/**/*.ts\" --fix",
+    "lint": "eslint \"src/**/*.ts\" \"plugins/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" \"plugins/**/*.ts\" --fix",
     "start": "tsx src/cli.ts start",
     "start:gateway": "tsx src/cli.ts gateway",
     "start:webui": "tsx src/cli.ts start webui",

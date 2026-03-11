@@ -1,8 +1,8 @@
 {
-  "name": "aesyclaw-md2img",
+  "name": "aesyclaw-plugin-md2img",
   "version": "1.0.0",
   "description": "将 Markdown 自动转换为图片",
-  "main": "main.js",
+  "main": "main.ts",
   "type": "module",
   "dependencies": {
     "marked": "^9.0.0",

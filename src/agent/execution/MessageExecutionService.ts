@@ -5,7 +5,7 @@ import type { BackgroundTaskManager } from './BackgroundTaskManager.js';
 import { ExecutionCoordinator } from './ExecutionCoordinator.js';
 import { logger } from '../../logger/index.js';
 import { metrics } from '../../logger/Metrics.js';
-import type { ExecutionContext, ExecutionPolicy } from './contracts.js';
+import type { ExecutionContext } from './contracts.js';
 import type { ExecutionPolicyFactory } from './ExecutionPolicyFactory.js';
 
 export class MessageExecutionService {

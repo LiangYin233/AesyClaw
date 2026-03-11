@@ -1,8 +1,7 @@
-import { spawn } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
-import { fileURLToPath } from 'url';
+import { renderMarkdownToImage } from './render.js';
 
 const MD_PATTERN = /(^```[\s\S]*?\n```$)|(^\$\$[\s\S]*?\$\$$)|(\$(?:\\.|[^\n$])+\$)|(^#{1-6}\s+\S.+$)|(^>\s+\S.+$)|(^\s{0,3}[-*+]\s+\S.+$)|(^\s{0,3}\d+\.\s+\S.+$)|(^\|[^\n]*\|[^\n]*$)|(!\[[^\]]*\]\([^)]+\)|\[[^\]]+\]\([^)]+\))|(^\s{0,3}(?:-{3,}|_{3,}|\*{3,})\s*$)/m;
 const THINK_TAG_PATTERN = /<think>([\s\S]*?)<\/think>|<thinking>([\s\S]*?)<\/thinking>/gi;
@@ -40,8 +39,8 @@ function extractThinkingTags(content) {
   };
 }
 
-const plugin = {
-  name: 'md2img',
+const plugin: any = {
+  name: 'plugin_md2img',
   version: '1.0.0',
   description: '将 Markdown 自动转换为图片',
   defaultConfig: {
@@ -187,32 +186,8 @@ const plugin = {
     }
   },
 
-  runRenderScript(mdFile, outputFile) {
-    return new Promise((resolve, reject) => {
-      const pluginDir = path.dirname(fileURLToPath(import.meta.url));
-      const renderScript = path.join(pluginDir, 'render.js');
-      
-      log.debug('Plugin dir:', pluginDir, 'Render script:', renderScript);
-      
-      const child = spawn('node', [renderScript, mdFile, outputFile, this.config.scale.toString()], {
-        stdio: 'pipe'
-      });
-
-      let stderr = '';
-      child.stderr?.on('data', (data) => {
-        stderr += data.toString();
-      });
-
-      child.on('close', (code) => {
-        if (code !== 0) {
-          reject(new Error(stderr || `Render script failed with code ${code}`));
-        } else {
-          resolve();
-        }
-      });
-
-      child.on('error', reject);
-    });
+  async runRenderScript(mdFile, outputFile) {
+    await renderMarkdownToImage(await fs.readFile(mdFile, 'utf-8'), outputFile, this.config.scale.toString());
   }
 };
 

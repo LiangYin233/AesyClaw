@@ -1,15 +1,15 @@
 import WebSocket from 'ws';
 import fs from 'fs';
-import { BaseChannel } from './BaseChannel.js';
-import { ChannelManager, type ChannelPlugin } from './ChannelManager.js';
-import type { OutboundMessage, InboundFile } from '../types.js';
-import type { EventBus } from '../bus/EventBus.js';
-import { logger } from '../logger/index.js';
-import { CONSTANTS } from '../constants/index.js';
-import { metrics } from '../logger/Metrics.js';
-import { MessageHandlers } from './MessageParser.js';
+import type { EventBus } from '../../src/bus/EventBus.js';
+import { BaseChannel } from '../../src/channels/BaseChannel.js';
+import { MessageHandlers } from '../../src/channels/MessageParser.js';
+import { CONSTANTS } from '../../src/constants/index.js';
+import { logger } from '../../src/logger/index.js';
+import { metrics } from '../../src/logger/Metrics.js';
+import type { InboundFile, OutboundMessage } from '../../src/types.js';
+import type { ChannelPluginDefinition } from '../../src/channels/ChannelManager.js';
 
-export interface OneBotConfig {
+interface OneBotConfig {
   wsUrl: string;
   token?: string;
   friendAllowFrom?: string[];
@@ -20,7 +20,7 @@ export interface OneBotConfig {
   heartbeatInterval?: number;
 }
 
-export class OneBotChannel extends BaseChannel {
+class OneBotChannel extends BaseChannel {
   readonly name = 'onebot';
   private ws?: WebSocket;
   private selfId?: string;
@@ -41,15 +41,6 @@ export class OneBotChannel extends BaseChannel {
     this.reconnectMaxDelay = config.reconnectMaxDelay ?? 30000;
   }
 
-  static register(): void {
-    const plugin: ChannelPlugin = {
-      name: 'onebot',
-      create: (config, eventBus, workspace) => new OneBotChannel(config, eventBus, workspace)
-    };
-    ChannelManager.registerPlugin(plugin);
-  }
-
-
   async start(): Promise<void> {
     this.log.info(`Starting channel, wsUrl: ${this.config.wsUrl}`);
     await this.connectWebSocket();
@@ -62,7 +53,7 @@ export class OneBotChannel extends BaseChannel {
     return new Promise((resolve, reject) => {
       const headers: Record<string, string> = {};
       if (this.config.token) {
-        headers['Authorization'] = `Bearer ${this.config.token}`;
+        headers.Authorization = `Bearer ${this.config.token}`;
       }
 
       this.log.info(`Connecting to ${this.config.wsUrl}...`);
@@ -115,7 +106,6 @@ export class OneBotChannel extends BaseChannel {
 
     this.isReconnecting = true;
     this.reconnectAttempts++;
-
     this.flushPendingActions(true);
 
     const delay = Math.min(
@@ -129,16 +119,15 @@ export class OneBotChannel extends BaseChannel {
       return;
     }
 
-    const attemptMsg = this.maxReconnectAttempts > 0 
+    const attemptMsg = this.maxReconnectAttempts > 0
       ? ` (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`
-      : this.reconnectAttempts > 1 ? ` (attempt ${this.reconnectAttempts})`
-      : '';
+      : this.reconnectAttempts > 1 ? ` (attempt ${this.reconnectAttempts})` : '';
     this.log.info(`Reconnecting in ${delay}ms${attemptMsg}`);
 
     setTimeout(() => {
       this.connectWebSocket().then(() => {
         this.log.info('Reconnected successfully');
-      }).catch((err) => {
+      }).catch((err: Error) => {
         this.log.error(`Reconnect failed: ${err.message}`);
       });
     }, delay);
@@ -146,7 +135,7 @@ export class OneBotChannel extends BaseChannel {
 
   private startHeartbeat(): void {
     const interval = this.config.heartbeatInterval ?? 30000;
-    
+
     this.heartbeatTimer = setTimeout(() => {
       this.sendHeartbeat();
       this.heartbeatInterval = setInterval(() => {
@@ -174,16 +163,15 @@ export class OneBotChannel extends BaseChannel {
     try {
       await this.sendAction('get_status', {});
     } catch {
-      // 忽略心跳错误
     }
   }
 
   private flushPendingActions(reject = false): void {
     const pending = [...this.pendingActions];
     this.pendingActions = [];
-    for (const { resolve, reject: rej } of pending) {
+    for (const { resolve, reject: rejectPending } of pending) {
       if (reject) {
-        rej(new Error('WebSocket reconnected'));
+        rejectPending(new Error('WebSocket reconnected'));
       } else {
         resolve(undefined);
       }
@@ -195,19 +183,14 @@ export class OneBotChannel extends BaseChannel {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
         if (this.running && this.isReconnecting) {
           this.pendingActions.push({ resolve, reject });
-          return; // 等待重连完成
+          return;
         }
         reject(new Error('WebSocket not connected'));
         return;
       }
 
       const id = Date.now();
-      const message = JSON.stringify({
-        action,
-        params,
-        echo: id
-      });
-
+      const message = JSON.stringify({ action, params, echo: id });
       let settled = false;
       let timeoutHandle: NodeJS.Timeout | undefined;
 
@@ -226,7 +209,7 @@ export class OneBotChannel extends BaseChannel {
         fn(value);
       };
 
-      const handler = (data: any) => {
+      const handler = (data: WebSocket.RawData) => {
         try {
           const response = JSON.parse(data.toString());
           if (response.echo === id) {
@@ -261,7 +244,7 @@ export class OneBotChannel extends BaseChannel {
     const postType = payload.post_type;
 
     if (postType === 'message') {
-      this.handleMessageEvent(payload);
+      void this.handleMessageEvent(payload);
     } else if (postType === 'notice') {
       this.log.debug(`Notice: ${payload.notice_type}`);
     } else if (postType === 'request') {
@@ -275,26 +258,19 @@ export class OneBotChannel extends BaseChannel {
     const groupId = payload.group_id;
 
     const senderId = userId?.toString();
-    const chatId = messageType === 'private'
-      ? userId?.toString()
-      : groupId?.toString();
+    const chatId = messageType === 'private' ? userId?.toString() : groupId?.toString();
 
     if (!senderId || !chatId) return;
 
     const messageId = payload.message_id?.toString();
-
-    // Use standardized middleware pipeline
     await this.processInboundMessage(senderId, chatId, messageType, payload, messageId);
   }
 
-  /**
-   * Parse OneBot message format to standardized format
-   */
-  protected async parseMessage(rawEvent: any): Promise<import('./BaseChannel.js').ParsedMessage> {
+  protected async parseMessage(rawEvent: any): Promise<import('../../src/channels/BaseChannel.js').ParsedMessage> {
     return this.parseMessageWithMedia(rawEvent.message);
   }
 
-  private parseMessageWithMedia(message: any): import('./BaseChannel.js').ParsedMessage {
+  private parseMessageWithMedia(message: any): import('../../src/channels/BaseChannel.js').ParsedMessage {
     if (!message) return { content: '' };
 
     let content = '';
@@ -309,8 +285,8 @@ export class OneBotChannel extends BaseChannel {
       for (const seg of message) {
         const parsed = this.parseMessageSegment(seg);
         if (parsed.media) {
-          for (const m of parsed.media) {
-            if (m) mediaSet.add(m);
+          for (const media of parsed.media) {
+            if (media) mediaSet.add(media);
           }
         }
         if (parsed.files) {
@@ -335,7 +311,6 @@ export class OneBotChannel extends BaseChannel {
 
     const type = seg.type;
     const data = seg.data || {};
-
     const handlers: Record<string, () => { content?: string; media?: string[]; files?: InboundFile[] }> = {
       text: () => MessageHandlers.text(data.text || ''),
       image: () => {
@@ -369,23 +344,20 @@ export class OneBotChannel extends BaseChannel {
   }
 
   async send(msg: OutboundMessage): Promise<void> {
-    if (!this.validateMessage(msg)) { // 验证消息是否为空
-      return; // 取消发送
+    if (!this.validateMessage(msg)) {
+      return;
     }
 
-    const chatId = msg.chatId;
     const isGroup = msg.messageType === 'group';
-
-    const numericChatId = parseInt(chatId, 10);
-    if (isNaN(numericChatId)) {
-      this.log.warn(`Invalid chatId: ${chatId}, must be numeric`);
-      throw new Error(`Invalid chatId: must be numeric, got ${chatId}`);
+    const numericChatId = parseInt(msg.chatId, 10);
+    if (Number.isNaN(numericChatId)) {
+      this.log.warn(`Invalid chatId: ${msg.chatId}, must be numeric`);
+      throw new Error(`Invalid chatId: must be numeric, got ${msg.chatId}`);
     }
 
     const segments = this.formatMessageWithBase64(msg.content, msg.media);
-
     if (segments.length === 0) {
-      this.log.warn(`No valid segments to send (content empty and no valid media)`);
+      this.log.warn('No valid segments to send (content empty and no valid media)');
       return;
     }
 
@@ -394,7 +366,7 @@ export class OneBotChannel extends BaseChannel {
       ? { group_id: numericChatId, message: segments }
       : { user_id: numericChatId, message: segments };
 
-    this.log.info(`Sending ${isGroup ? 'group' : 'private'} message to ${chatId}`);
+    this.log.info(`Sending ${isGroup ? 'group' : 'private'} message to ${msg.chatId}`);
     try {
       await this.sendAction(action, params);
       metrics.record('channel.message_sent', 1, 'count', {
@@ -402,7 +374,7 @@ export class OneBotChannel extends BaseChannel {
         messageType: isGroup ? 'group' : 'private',
         status: 'success'
       });
-      this.log.info(`Message sent to ${chatId}`);
+      this.log.info(`Message sent to ${msg.chatId}`);
     } catch (error) {
       metrics.record('channel.message_sent', 1, 'count', {
         channel: this.name,
@@ -428,7 +400,7 @@ export class OneBotChannel extends BaseChannel {
         if (base64) {
           segments.push({ type: 'image', data: { file: `base64://${base64}` } });
         }
-        remaining = remaining.substring(imageMatch.index! + imageMatch[0].length);
+        remaining = remaining.substring((imageMatch.index ?? 0) + imageMatch[0].length);
         continue;
       }
 
@@ -439,7 +411,7 @@ export class OneBotChannel extends BaseChannel {
           segments.push({ type: 'text', data: { text: before } });
         }
         segments.push({ type: 'at', data: { qq: atMatch[1] } });
-        remaining = remaining.substring(atMatch.index! + atMatch[0].length);
+        remaining = remaining.substring((atMatch.index ?? 0) + atMatch[0].length);
         continue;
       }
 
@@ -476,9 +448,8 @@ export class OneBotChannel extends BaseChannel {
         }
         const buffer = fs.readFileSync(path);
         return buffer.toString('base64');
-      } else {
-        this.log.warn(`File not found: ${filePath}`);
       }
+      this.log.warn(`File not found: ${filePath}`);
     } catch (error) {
       this.log.warn(`Failed to convert image to base64: ${filePath}`, error);
     }
@@ -492,3 +463,11 @@ export class OneBotChannel extends BaseChannel {
     this.log.info('Channel stopped');
   }
 }
+
+const plugin: ChannelPluginDefinition = {
+  pluginName: 'channel_onebot',
+  channelName: 'onebot',
+  create: (config, eventBus, workspace) => new OneBotChannel(config, eventBus, workspace)
+};
+
+export default plugin;

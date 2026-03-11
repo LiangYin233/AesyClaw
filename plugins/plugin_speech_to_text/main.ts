@@ -1,6 +1,7 @@
 import { join } from 'path';
 import * as fs from 'fs/promises';
 import { createWriteStream } from 'fs';
+import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import { createHash } from 'crypto';
 
@@ -9,8 +10,8 @@ const Intent = {
   error: (reason) => ({ type: 'error', reason })
 };
 
-const plugin = {
-  name: 'speech_to_text',
+const plugin: any = {
+  name: 'plugin_speech_to_text',
   version: '1.0.0',
   description: '转写语音为文本。',
 
@@ -107,7 +108,11 @@ const plugin = {
       const hash = createHash('md5').update(url + Date.now()).digest('hex').substring(0, 8);
       const filepath = join(this.downloadDir, `audio_${Date.now()}_${hash}.mp3`);
 
-      await pipeline(response.body, createWriteStream(filepath));
+      if (!response.body) {
+        throw new Error('Download response body is empty');
+      }
+
+      await pipeline(Readable.fromWeb(response.body as any), createWriteStream(filepath));
       return filepath;
     } catch (error) {
       throw error.name === 'AbortError' ? new Error('Download timeout') : error;

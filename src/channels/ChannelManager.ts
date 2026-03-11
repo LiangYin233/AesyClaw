@@ -2,79 +2,70 @@ import type { BaseChannel } from './BaseChannel.js';
 import type { EventBus } from '../bus/EventBus.js';
 import { logger } from '../logger/index.js';
 
-export interface ChannelPlugin {
-  name: string;
+export interface ChannelPluginDefinition {
+  pluginName: string;
+  channelName: string;
   create: (config: any, eventBus: EventBus, workspace?: string) => BaseChannel;
 }
 
-// 静态插件注册表 - 在实例之间共享
-const globalPlugins = new Map<string, ChannelPlugin>();
-
 export class ChannelManager {
-  // 使用 ES2024 私有字段
+  #plugins = new Map<string, ChannelPluginDefinition>();
   #channels = new Map<string, BaseChannel>();
   #eventBus: EventBus;
   #workspace: string;
   #log = logger.child({ prefix: 'ChannelManager' });
-  static #staticLog = logger.child({ prefix: 'ChannelManager' });
 
   constructor(eventBus: EventBus, workspace?: string) {
     this.#eventBus = eventBus;
     this.#workspace = workspace || process.cwd();
   }
 
-  // 注册通道插件 - 静态方法，可在模块加载时调用
-  static registerPlugin(plugin: ChannelPlugin): void {
-    if (globalPlugins.has(plugin.name)) {
-      ChannelManager.#staticLog.warn(`Channel plugin ${plugin.name} already registered, overwriting`);
+  registerPlugin(plugin: ChannelPluginDefinition): void {
+    if (this.#plugins.has(plugin.pluginName)) {
+      this.#log.warn(`Channel plugin ${plugin.pluginName} already registered, overwriting`);
     }
-    globalPlugins.set(plugin.name, plugin);
-    ChannelManager.#staticLog.debug(`Registered channel plugin: ${plugin.name}`);
+    this.#plugins.set(plugin.pluginName, plugin);
+    this.#log.debug(`Registered channel plugin: ${plugin.pluginName}`);
   }
 
-  // 注销通道插件
-  unregisterPlugin(name: string): void {
-    globalPlugins.delete(name);
-    this.#log.debug(`Unregistered channel plugin: ${name}`);
+  unregisterPlugin(pluginName: string): void {
+    this.#plugins.delete(pluginName);
+    this.#log.debug(`Unregistered channel plugin: ${pluginName}`);
   }
 
-  // 获取插件
-  getPlugin(name: string): ChannelPlugin | undefined {
-    return globalPlugins.get(name);
+  getPlugin(pluginName: string): ChannelPluginDefinition | undefined {
+    return this.#plugins.get(pluginName);
   }
 
-  // 列出所有已注册的插件名称
   listPlugins(): string[] {
-    return Array.from(globalPlugins.keys());
+    return Array.from(this.#plugins.keys());
   }
 
-  // 创建并注册通道 - 合并了原来的 Registry.createChannel + Manager.register
   createChannel(name: string, config: any): BaseChannel | null {
-    const plugin = globalPlugins.get(name);
+    const pluginName = `channel_${name}`;
+    const plugin = this.#plugins.get(pluginName);
+
     if (!plugin) {
-      this.#log.warn(`Channel plugin ${name} not found`);
+      this.#log.warn(`Channel plugin ${pluginName} not found`);
       return null;
     }
 
     const channel = plugin.create(config, this.#eventBus, this.#workspace);
-    this.#channels.set(name, channel);
-    this.#log.info(`Created and registered channel: ${name}`);
+    this.#channels.set(plugin.channelName, channel);
+    this.#log.info(`Created and registered channel: ${plugin.channelName} via ${pluginName}`);
     return channel;
   }
 
-  // 注册已存在的通道实例
   register(channel: BaseChannel): void {
     this.#channels.set(channel.name, channel);
     this.#log.info(`Registered channel: ${channel.name}`);
   }
 
-  // 注销通道
   unregister(name: string): void {
     this.#channels.delete(name);
     this.#log.info(`Unregistered channel: ${name}`);
   }
 
-  // 获取通道
   get(name: string): BaseChannel | undefined {
     return this.#channels.get(name);
   }

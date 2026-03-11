@@ -1,12 +1,10 @@
-import { fileURLToPath } from 'url';
-import { dirname, resolve } from 'path';
 import { platform } from 'os';
 import { loadConfig } from './config.js';
 import { PythonRunner } from './PythonRunner.js';
 import { ShellRunner } from './ShellRunner.js';
 
-const plugin = {
-  name: 'exec',
+const plugin: any = {
+  name: 'plugin_exec',
   version: '1.0.0',
   description: '执行 Python 或 Shell。',
 

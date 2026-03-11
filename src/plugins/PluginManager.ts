@@ -4,8 +4,14 @@ import type { AgentLoop } from '../agent/index.js';
 import type { ToolRegistry, Tool, ToolContext } from '../tools/ToolRegistry.js';
 import { logger } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { pathToFileURL } from 'url';
+import { join } from 'path';
+import { stat } from 'fs/promises';
+
+interface PluginModuleEntry {
+  name: string;
+  sourcePath: string;
+}
 
 /**
  * Command matcher types
@@ -440,29 +446,96 @@ export class PluginManager {
     return Array.from(this.plugins.values());
   }
 
-  async loadFromConfig(config: Record<string, any>): Promise<void> {
-    const pluginsDir = join(process.cwd(), 'plugins');
+  private getPluginsDir(): string {
+    return join(process.cwd(), 'plugins');
+  }
+
+  private getPluginAliases(name: string): string[] {
+    if (name.startsWith('plugin_')) {
+      return [name.slice('plugin_'.length)];
+    }
+
+    return [];
+  }
+
+  private getConfiguredPlugin(
+    configs: Record<string, { enabled: boolean; options?: Record<string, any> }>,
+    name: string
+  ): { key: string; config: { enabled: boolean; options?: Record<string, any> } } | null {
+    if (configs[name]) {
+      return { key: name, config: configs[name] };
+    }
+
+    for (const alias of this.getPluginAliases(name)) {
+      if (configs[alias]) {
+        return { key: alias, config: configs[alias] };
+      }
+    }
+
+    return null;
+  }
+
+  private async hasSourceEntry(dirName: string): Promise<boolean> {
+    const mainPath = join(this.getPluginsDir(), dirName, 'main.ts');
 
     try {
-      const fs = await import('fs/promises');
-      const entries = await fs.readdir(pluginsDir, { withFileTypes: true });
+      const mainStat = await stat(mainPath);
+      return mainStat.isFile();
+    } catch {
+      return false;
+    }
+  }
 
-      for (const dir of entries) {
-        if (!dir.isDirectory()) continue;
+  private async resolvePluginModulePath(name: string): Promise<string> {
+    const sourcePath = join(this.getPluginsDir(), name, 'main.ts');
+    return sourcePath;
+  }
 
-        const mainPath = join(pluginsDir, dir.name, 'main.js');
+  private async discoverPluginEntries(): Promise<PluginModuleEntry[]> {
+    const pluginsDir = this.getPluginsDir();
+    const fs = await import('fs/promises');
+    const entries = await fs.readdir(pluginsDir, { withFileTypes: true });
+    const pluginEntries: PluginModuleEntry[] = [];
 
-        let modulePlugin: Plugin | null = null;
-        try {
-          const module = await import(`file://${mainPath}`);
-          modulePlugin = module.default || module;
-        } catch {
-          continue;
-        }
+    for (const dir of entries) {
+      if (!dir.isDirectory() || !dir.name.startsWith('plugin_')) {
+        continue;
+      }
+
+      const hasEntry = await this.hasSourceEntry(dir.name);
+      if (!hasEntry) {
+        continue;
+      }
+
+      pluginEntries.push({
+        name: dir.name,
+        sourcePath: join(pluginsDir, dir.name, 'main.ts')
+      });
+    }
+
+    return pluginEntries;
+  }
+
+  private async importPluginModule(mainPath: string): Promise<Plugin | null> {
+    try {
+      const module = await import(pathToFileURL(mainPath).href);
+      return module.default || module;
+    } catch {
+      return null;
+    }
+  }
+
+  async loadFromConfig(config: Record<string, any>): Promise<void> {
+    try {
+      const pluginEntries = await this.discoverPluginEntries();
+
+      for (const entry of pluginEntries) {
+        const modulePlugin = await this.importPluginModule(entry.sourcePath);
 
         if (!modulePlugin) continue;
 
-        const pluginConfig = config[dir.name];
+        const configuredPlugin = this.getConfiguredPlugin(config, entry.name);
+        const pluginConfig = configuredPlugin?.config;
         let enabled = false;
         let options: Record<string, any> = {};
 
@@ -476,12 +549,12 @@ export class PluginManager {
 
         if (enabled) {
           try {
-            const plugin = await this.loadPluginModule(dir.name, options);
+            const plugin = await this.loadPluginModule(entry.name, options);
             if (plugin) {
               await this.loadPlugin(plugin);
             }
           } catch (error) {
-            this.log.error(`Failed to load plugin ${dir.name}:`, error);
+            this.log.error(`Failed to load plugin ${entry.name}:`, error);
           }
         }
       }
@@ -491,13 +564,11 @@ export class PluginManager {
   }
 
   private async loadPluginModule(name: string, options?: Record<string, any>): Promise<Plugin | null> {
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
-    const pluginPath = join(__dirname, '..', '..', 'plugins', name, 'main.js');
+    const pluginPath = await this.resolvePluginModulePath(name);
 
     try {
       this.log.debug(`Loading plugin from: ${pluginPath}`);
-      const module = await import(`file://${pluginPath}`);
+      const module = await import(pathToFileURL(pluginPath).href);
       const plugin = module.default || module;
       if (options) {
         plugin.options = options;
@@ -519,7 +590,6 @@ export class PluginManager {
     defaultConfig?: Record<string, any>;
     toolsCount: number;
   }>> {
-    const pluginsDir = join(process.cwd(), 'plugins');
     const result: Array<{
       name: string;
       version: string;
@@ -532,22 +602,16 @@ export class PluginManager {
     }> = [];
 
     try {
-      const fs = await import('fs/promises');
-      const entries = await fs.readdir(pluginsDir, { withFileTypes: true });
+      const pluginEntries = await this.discoverPluginEntries();
 
-      for (const dir of entries) {
-        if (!dir.isDirectory()) continue;
-
-        const mainPath = join(pluginsDir, dir.name, 'main.js');
-        let loadedPlugin = this.plugins.get(dir.name);
+      for (const entry of pluginEntries) {
+        let loadedPlugin = this.plugins.get(entry.name);
         let modulePlugin: Plugin | null = null;
 
         if (!loadedPlugin) {
-          try {
-            const module = await import(`file://${mainPath}`);
-            modulePlugin = module.default || module;
-          } catch (error) {
-            this.log.warn(`Failed to load plugin module: ${dir.name}`, error);
+          modulePlugin = await this.importPluginModule(entry.sourcePath);
+          if (!modulePlugin) {
+            this.log.warn(`Failed to load plugin module: ${entry.name}`);
             continue;
           }
         }
@@ -555,14 +619,14 @@ export class PluginManager {
         const plugin = loadedPlugin || modulePlugin;
         if (!plugin) continue;
 
-        const config = this.pluginConfigs[dir.name];
+        const config = this.getConfiguredPlugin(this.pluginConfigs, entry.name)?.config;
 
         result.push({
-          name: plugin.name || dir.name,
+          name: plugin.name || entry.name,
           version: plugin.version || '1.0.0',
           description: plugin.description,
           author: plugin.author,
-          enabled: this.plugins.has(dir.name),
+          enabled: this.plugins.has(entry.name),
           options: config?.options || plugin.defaultConfig?.options,
           defaultConfig: plugin.defaultConfig,
           toolsCount: plugin.tools?.length || 0
@@ -636,29 +700,21 @@ export class PluginManager {
   }
 
   async applyDefaultConfigs(): Promise<Record<string, { enabled: boolean; options?: Record<string, any> }>> {
-    const pluginsDir = join(process.cwd(), 'plugins');
     try {
-      const fs = await import('fs/promises');
-      const entries = await fs.readdir(pluginsDir, { withFileTypes: true });
+      const pluginEntries = await this.discoverPluginEntries();
 
-      for (const dir of entries) {
-        if (!dir.isDirectory()) continue;
+      for (const entry of pluginEntries) {
+        const plugin = await this.importPluginModule(entry.sourcePath);
+        if (!plugin) {
+          continue;
+        }
 
-        const mainPath = join(pluginsDir, dir.name, 'main.js');
-
-        try {
-          const module = await import(`file://${mainPath}`);
-          const plugin = module.default || module;
-
-          if (!this.pluginConfigs[dir.name] && plugin.defaultConfig) {
-            this.pluginConfigs[dir.name] = {
+        if (!this.getConfiguredPlugin(this.pluginConfigs, entry.name) && plugin.defaultConfig) {
+          this.pluginConfigs[entry.name] = {
               enabled: plugin.defaultConfig.enabled || false,
               options: plugin.defaultConfig.options || {}
-            };
-            this.log.info(`Applied default config for plugin: ${dir.name}`);
-          }
-        } catch {
-          continue;
+          };
+          this.log.info(`Applied default config for plugin: ${entry.name}`);
         }
       }
     } catch (error) {

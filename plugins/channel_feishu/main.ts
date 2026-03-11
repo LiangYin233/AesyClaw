@@ -2,33 +2,21 @@ import express from 'express';
 import http from 'http';
 import fs from 'fs';
 import { basename } from 'path';
-import { BaseChannel } from './BaseChannel.js';
-import { ChannelManager, type ChannelPlugin } from './ChannelManager.js';
-import type { OutboundMessage, InboundFile } from '../types.js';
-import type { EventBus } from '../bus/EventBus.js';
-import { logger } from '../logger/index.js';
-import { metrics } from '../logger/Metrics.js';
-import { MessageHandlers } from './MessageParser.js';
+import type { EventBus } from '../../src/bus/EventBus.js';
+import { BaseChannel } from '../../src/channels/BaseChannel.js';
+import { MessageHandlers } from '../../src/channels/MessageParser.js';
+import type { ChannelPluginDefinition } from '../../src/channels/ChannelManager.js';
+import { logger } from '../../src/logger/index.js';
+import { metrics } from '../../src/logger/Metrics.js';
+import type { InboundFile, OutboundMessage } from '../../src/types.js';
 
-/**
- * Feishu Channel Configuration
- *
- * @see https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/create
- */
-export interface FeishuConfig {
-  /** Application ID from Feishu Open Platform */
+interface FeishuConfig {
   appId: string;
-  /** Application Secret from Feishu Open Platform */
   appSecret: string;
-  /** Verification Token for webhook event validation */
   verificationToken: string;
-  /** Port for webhook server to listen on */
   webhookPort: number;
-  /** Path for webhook endpoint (e.g., "/feishu/webhook") */
   webhookPath: string;
-  /** Whitelist of user open_ids allowed to send private messages (empty = allow all) */
   friendAllowFrom?: string[];
-  /** Whitelist of chat_ids allowed to send group messages (empty = allow all) */
   groupAllowFrom?: string[];
 }
 
@@ -37,50 +25,19 @@ interface TokenCache {
   expiresAt: number;
 }
 
-/**
- * Feishu Channel Adapter
- *
- * Implements message sending and receiving for Feishu (Lark) platform.
- *
- * Features:
- * - Webhook server for receiving events
- * - Automatic token refresh (tenant_access_token)
- * - Message type support: text, image, file, post (rich text)
- * - File download and upload
- * - Permission whitelist control
- *
- * Rate Limits:
- * - 5 QPS per user for private messages
- * - 5 QPS per group (shared among all bots in the group)
- * - 1000 requests/minute, 50 requests/second (API level)
- *
- * Message Size Limits:
- * - Text messages: max 150 KB
- * - Card/Rich text messages: max 30 KB
- *
- * @see https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/create
- */
-export class FeishuChannel extends BaseChannel {
+class FeishuChannel extends BaseChannel {
   private static readonly FEISHU_API_BASE = 'https://open.feishu.cn';
   readonly name = 'feishu';
   private webhookServer?: http.Server;
   private app: express.Application;
   private tokenCache?: TokenCache;
   private tokenRefreshTimer?: NodeJS.Timeout;
+  private currentMessage?: { type: string; content: string };
   protected log = logger.child({ prefix: 'Feishu' });
 
   constructor(config: FeishuConfig, eventBus: EventBus, workspace?: string) {
     super(config, eventBus, workspace);
     this.app = express();
-  }
-
-  static register(): void {
-    const plugin: ChannelPlugin = {
-      name: 'feishu',
-      create: (config, eventBus, workspace) =>
-        new FeishuChannel(config, eventBus, workspace)
-    };
-    ChannelManager.registerPlugin(plugin);
   }
 
   async start(): Promise<void> {
@@ -99,8 +56,8 @@ export class FeishuChannel extends BaseChannel {
       this.tokenRefreshTimer = undefined;
     }
     if (this.webhookServer) {
-      await new Promise<void>(resolve => {
-        this.webhookServer!.close(() => resolve());
+      await new Promise<void>((resolve) => {
+        this.webhookServer?.close(() => resolve());
       });
       this.webhookServer = undefined;
     }
@@ -113,25 +70,21 @@ export class FeishuChannel extends BaseChannel {
     this.app.post(this.config.webhookPath, (req, res) => {
       const event = req.body;
 
-      // URL 验证（飞书首次配置时）
       if (event.type === 'url_verification') {
         this.log.info('Received URL verification challenge');
         return res.json({ challenge: event.challenge });
       }
 
-      // Token 验证
       if (event.header?.token !== this.config.verificationToken) {
         this.log.warn('Invalid verification token');
         return res.status(401).json({ error: 'Invalid token' });
       }
 
-      // 异步处理事件
-      this.handleFeishuEvent(event).catch(err => {
+      void this.handleFeishuEvent(event).catch((err) => {
         this.log.error('Event handling failed:', err);
       });
 
-      // 立即返回成功
-      res.json({ success: true });
+      return res.json({ success: true });
     });
   }
 
@@ -145,13 +98,6 @@ export class FeishuChannel extends BaseChannel {
     });
   }
 
-  /**
-   * Refresh tenant_access_token
-   *
-   * Token expires in 2 hours. We refresh it 5 minutes before expiration.
-   *
-   * @see https://open.feishu.cn/document/ukTMukTMukTM/ukDNz4SO0MjL5QzM/auth-v3/auth/tenant_access_token_internal
-   */
   private async refreshToken(): Promise<void> {
     const url = `${FeishuChannel.FEISHU_API_BASE}/open-apis/auth/v3/tenant_access_token/internal`;
 
@@ -170,7 +116,6 @@ export class FeishuChannel extends BaseChannel {
         throw new Error(`Failed to get token: ${result.msg}`);
       }
 
-      // 提前 5 分钟刷新
       this.tokenCache = {
         token: result.tenant_access_token,
         expiresAt: Date.now() + (result.expire - 300) * 1000
@@ -187,13 +132,12 @@ export class FeishuChannel extends BaseChannel {
     if (!this.tokenCache || Date.now() >= this.tokenCache.expiresAt) {
       await this.refreshToken();
     }
-    return this.tokenCache!.token;
+    return this.tokenCache.token;
   }
 
   private startTokenRefreshTimer(): void {
-    // 每 1.5 小时刷新一次
     this.tokenRefreshTimer = setInterval(() => {
-      this.refreshToken().catch(err => {
+      void this.refreshToken().catch((err) => {
         this.log.error('Scheduled token refresh failed:', err);
       });
     }, 90 * 60 * 1000);
@@ -209,15 +153,10 @@ export class FeishuChannel extends BaseChannel {
     }
   }
 
-  /**
-   * Handle incoming message event from Feishu
-   */
   private async handleMessageEvent(event: any): Promise<void> {
     const sender = event.sender?.sender_id?.open_id;
     const message = event.message;
     const messageType = message.chat_type === 'p2p' ? 'private' : 'group';
-
-    // For private messages, use sender's open_id; for group messages, use chat_id
     const chatId = messageType === 'private' ? sender : message.chat_id;
 
     if (!sender || !chatId) {
@@ -226,68 +165,34 @@ export class FeishuChannel extends BaseChannel {
     }
 
     const messageId = message.message_id;
-
-    // Store message info for parseMessage to access
-    this.currentMessage = {
-      type: message.message_type,
-      content: message.content
-    };
-
-    // Use standardized middleware pipeline
+    this.currentMessage = { type: message.message_type, content: message.content };
     await this.processInboundMessage(sender, chatId, messageType, event, messageId);
-
-    // Clean up
     this.currentMessage = undefined;
   }
 
-  // Temporary storage for current message being processed
-  private currentMessage?: { type: string; content: string };
-
-  /**
-   * Parse Feishu message format to standardized format
-   */
-  protected async parseMessage(_rawEvent: any): Promise<import('./BaseChannel.js').ParsedMessage> {
+  protected async parseMessage(_rawEvent: any): Promise<import('../../src/channels/BaseChannel.js').ParsedMessage> {
     if (!this.currentMessage) {
       return { content: '' };
     }
 
-    return await this.parseMessageContent(this.currentMessage.type, this.currentMessage.content);
+    return this.parseMessageContent(this.currentMessage.type, this.currentMessage.content);
   }
 
-  /**
-   * Override downloadFiles to add Feishu authentication
-   */
   protected async downloadFiles(files: InboundFile[]): Promise<InboundFile[]> {
     const token = await this.getValidToken();
-    return super.downloadFiles(files, {
-      'Authorization': `Bearer ${token}`
-    });
+    return super.downloadFiles(files, { Authorization: `Bearer ${token}` });
   }
 
-  /**
-   * Parse message content based on message type
-   *
-   * Supported types:
-   * - text: Plain text
-   * - image: Image with image_key
-   * - audio: Audio with file_key
-   * - media: Video with file_key
-   * - file: File with file_key and file_name
-   * - post: Rich text (extracts plain text)
-   *
-   * @returns Parsed content with optional media URLs and file information
-   */
   private async parseMessageContent(
     messageType: string,
     content: string
-  ): Promise<import('./BaseChannel.js').ParsedMessage> {
+  ): Promise<import('../../src/channels/BaseChannel.js').ParsedMessage> {
     try {
       const parsed = JSON.parse(content);
 
       switch (messageType) {
         case 'text':
           return MessageHandlers.text(parsed.text || '');
-
         case 'image': {
           const imageKey = parsed.image_key;
           if (!imageKey) {
@@ -296,7 +201,6 @@ export class FeishuChannel extends BaseChannel {
           const imageUrl = await this.getResourceUrl(imageKey, 'image');
           return MessageHandlers.image(imageUrl);
         }
-
         case 'audio': {
           const fileKey = parsed.file_key;
           const fileName = parsed.file_name || 'voice';
@@ -306,7 +210,6 @@ export class FeishuChannel extends BaseChannel {
           const fileUrl = await this.getResourceUrl(fileKey, 'file');
           return MessageHandlers.audio(fileUrl, fileName);
         }
-
         case 'media': {
           const fileKey = parsed.file_key;
           const fileName = parsed.file_name || 'video';
@@ -316,7 +219,6 @@ export class FeishuChannel extends BaseChannel {
           const fileUrl = await this.getResourceUrl(fileKey, 'file');
           return MessageHandlers.video(fileUrl, fileName);
         }
-
         case 'file': {
           const fileKey = parsed.file_key;
           const fileName = parsed.file_name || 'file';
@@ -326,17 +228,14 @@ export class FeishuChannel extends BaseChannel {
           const fileUrl = await this.getResourceUrl(fileKey, 'file');
           return MessageHandlers.file(fileUrl, fileName);
         }
-
         case 'post':
-          // 富文本，提取纯文本内容
           return { content: this.extractPostText(parsed) };
-
         default:
           return MessageHandlers.unknown(messageType);
       }
     } catch (error) {
-      this.log.warn(`Failed to parse message content:`, error);
-      return { content: content };
+      this.log.warn('Failed to parse message content:', error);
+      return { content };
     }
   }
 
@@ -372,21 +271,6 @@ export class FeishuChannel extends BaseChannel {
     return `${FeishuChannel.FEISHU_API_BASE}${endpoint}?access_token=${token}`;
   }
 
-  /**
-   * Send a message to Feishu
-   *
-   * Supported message types:
-   * - text: Plain text messages
-   * - image: Image messages (requires upload first)
-   * - file: File messages (requires upload first)
-   * - post: Rich text messages
-   *
-   * Rate limits:
-   * - 5 QPS per user (private messages)
-   * - 5 QPS per group (shared among all bots)
-   *
-   * @see https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/message/create
-   */
   async send(msg: OutboundMessage): Promise<void> {
     if (!this.validateMessage(msg)) {
       return;
@@ -395,25 +279,21 @@ export class FeishuChannel extends BaseChannel {
     try {
       const token = await this.getValidToken();
       const receiveIdType = msg.messageType === 'group' ? 'chat_id' : 'open_id';
-
-      // 格式化消息
       const { msgType, content } = await this.formatOutboundMessage(msg);
-
-      // Generate UUID for request deduplication (optional but recommended)
       const uuid = this.generateUUID();
 
       const requestBody = {
         receive_id: msg.chatId,
         msg_type: msgType,
-        content: JSON.stringify(content),  // Feishu expects content as a JSON string
-        uuid: uuid  // For request deduplication within 1 hour
+        content: JSON.stringify(content),
+        uuid
       };
 
       const url = `${FeishuChannel.FEISHU_API_BASE}/open-apis/im/v1/messages?receive_id_type=${receiveIdType}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json; charset=utf-8'
         },
         body: JSON.stringify(requestBody)
@@ -442,63 +322,26 @@ export class FeishuChannel extends BaseChannel {
     }
   }
 
-  /**
-   * Format outbound message for Feishu API
-   *
-   * Handles different message types:
-   * - Media (images): Upload first, then send with image_key
-   * - Text: Send directly with text content
-   *
-   * Note: If image upload fails, falls back to text message
-   */
   private async formatOutboundMessage(msg: OutboundMessage): Promise<{ msgType: string; content: any }> {
-    // 处理媒体文件
     if (msg.media && msg.media.length > 0) {
       try {
         const imageKey = await this.uploadImage(msg.media[0]);
-        return {
-          msgType: 'image',
-          content: { image_key: imageKey }
-        };
+        return { msgType: 'image', content: { image_key: imageKey } };
       } catch (error) {
         this.log.warn('Failed to upload image, falling back to text:', error);
-        // If image upload fails and there's no text content, use a placeholder
         if (!msg.content || msg.content.trim() === '') {
-          return {
-            msgType: 'text',
-            content: { text: '[图片上传失败]' }
-          };
+          return { msgType: 'text', content: { text: '[图片上传失败]' } };
         }
       }
     }
 
-    // 默认发送文本，但确保内容不为空
     const textContent = msg.content && msg.content.trim() !== '' ? msg.content : '[空消息]';
-    return {
-      msgType: 'text',
-      content: { text: textContent }
-    };
+    return { msgType: 'text', content: { text: textContent } };
   }
 
-  /**
-   * Upload image to Feishu
-   *
-   * @param imagePath Local path to the image file
-   * @returns image_key for sending image messages
-   *
-   * Common errors:
-   * - 230017: Bot is not the owner of the resource
-   * - 230025: File size exceeds limit
-   *
-   * @see https://open.feishu.cn/document/uAjLw4CM/ukTMukTMukTM/reference/im-v1/image/create
-   */
   private async uploadImage(imagePath: string): Promise<string> {
     const token = await this.getValidToken();
-
-    // 读取文件
     const buffer = fs.readFileSync(imagePath);
-
-    // 创建 FormData
     const FormData = (await import('form-data')).default;
     const form = new FormData();
     form.append('image_type', 'message');
@@ -507,7 +350,6 @@ export class FeishuChannel extends BaseChannel {
       contentType: this.getImageContentType(imagePath)
     });
 
-    // 使用 form-data 的 submit 方法而不是 fetch
     return new Promise((resolve, reject) => {
       form.submit(
         {
@@ -515,9 +357,7 @@ export class FeishuChannel extends BaseChannel {
           host: new URL(FeishuChannel.FEISHU_API_BASE).host,
           path: '/open-apis/im/v1/images',
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+          headers: { Authorization: `Bearer ${token}` }
         },
         (err, res) => {
           if (err) {
@@ -526,7 +366,7 @@ export class FeishuChannel extends BaseChannel {
           }
 
           let data = '';
-          res.on('data', chunk => {
+          res.on('data', (chunk) => {
             data += chunk;
           });
 
@@ -544,22 +384,19 @@ export class FeishuChannel extends BaseChannel {
               }
 
               resolve(result.data.image_key);
-            } catch (parseErr: any) {
-              reject(new Error(`Failed to parse response: ${parseErr.message}`));
+            } catch (parseError: any) {
+              reject(new Error(`Failed to parse response: ${parseError.message}`));
             }
           });
 
-          res.on('error', (resErr) => {
-            reject(new Error(`Response error: ${resErr.message}`));
+          res.on('error', (responseError) => {
+            reject(new Error(`Response error: ${responseError.message}`));
           });
         }
       );
     });
   }
 
-  /**
-   * Get content type for image file based on extension
-   */
   private getImageContentType(imagePath: string): string {
     const ext = imagePath.toLowerCase().split('.').pop();
     switch (ext) {
@@ -579,13 +416,15 @@ export class FeishuChannel extends BaseChannel {
     }
   }
 
-  /**
-   * Generate a UUID for request deduplication
-   *
-   * Feishu uses UUID to deduplicate requests within 1 hour.
-   * Same UUID will only send one message successfully within 1 hour.
-   */
   private generateUUID(): string {
     return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
   }
 }
+
+const plugin: ChannelPluginDefinition = {
+  pluginName: 'channel_feishu',
+  channelName: 'feishu',
+  create: (config, eventBus, workspace) => new FeishuChannel(config, eventBus, workspace)
+};
+
+export default plugin;
