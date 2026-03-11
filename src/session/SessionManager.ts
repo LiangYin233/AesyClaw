@@ -1,6 +1,6 @@
 import { join } from 'path';
 import { randomUUID } from 'crypto';
-import { Database, type DBSession, type DBMessage, type DBSessionMemory } from '../db/index.js';
+import { Database, type DBSession, type DBMessage, type DBSessionMemory, type DBSessionAgentState } from '../db/index.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS, CONFIG_DEFAULTS } from '../constants/index.js';
 import { metrics } from '../logger/Metrics.js';
@@ -8,7 +8,7 @@ import { metrics } from '../logger/Metrics.js';
 function parseSessionKey(key: string): { channel: string; chatId: string; uuid?: string } {
   const parts = key.split(':');
   if (parts.length >= 3) {
-    return { channel: parts[0], chatId: parts[1], uuid: parts[2] };
+    return { channel: parts[0], chatId: parts[1], uuid: parts.slice(2).join(':') };
   }
   return { channel: parts[0], chatId: parts[1] };
 }
@@ -25,6 +25,7 @@ export interface Session {
   channel: string;
   chatId: string;
   uuid?: string;
+  agentName?: string;
   summary: string;
   summarizedMessageCount: number;
   messages: SessionMessage[];
@@ -116,6 +117,7 @@ export class SessionManager {
           channel: parsed.channel,
           chatId: parsed.chatId,
           uuid: parsed.uuid,
+          agentName: undefined,
           summary: '',
           summarizedMessageCount: 0,
           messages: [],
@@ -139,9 +141,7 @@ export class SessionManager {
 
   private async cleanupOldSessions(): Promise<void> {
     try {
-      const countResult = await this.db.get<{ count: number }>(
-        'SELECT COUNT(*) as count FROM sessions'
-      );
+      const countResult = await this.db.get<{ count: number }>('SELECT COUNT(*) as count FROM sessions');
       const totalCount = countResult?.count ?? 0;
 
       if (totalCount > this.maxSessions) {
@@ -164,13 +164,19 @@ export class SessionManager {
     }
   }
 
-  private mapRowToSession(row: DBSession, messages: DBMessage[], memory?: DBSessionMemory): Session {
+  private mapRowToSession(
+    row: DBSession,
+    messages: DBMessage[],
+    memory?: DBSessionMemory,
+    agentState?: DBSessionAgentState
+  ): Session {
     return {
       key: row.key,
       id: row.id,
       channel: row.channel,
       chatId: row.chat_id,
       uuid: row.uuid || undefined,
+      agentName: agentState?.agent_name || undefined,
       summary: memory?.summary || '',
       summarizedMessageCount: memory?.summarized_message_count || 0,
       messages: messages.map((message) => ({
@@ -184,25 +190,17 @@ export class SessionManager {
   }
 
   private async loadSessionData(row: DBSession): Promise<Session> {
-    const [messages, memory] = await Promise.all([
-      this.db.all<DBMessage>(
-        `SELECT * FROM messages WHERE session_id = ? ORDER BY id ASC`,
-        [row.id]
-      ),
-      this.db.get<DBSessionMemory>(
-        `SELECT * FROM session_memory WHERE session_id = ?`,
-        [row.id]
-      )
+    const [messages, memory, agentState] = await Promise.all([
+      this.db.all<DBMessage>(`SELECT * FROM messages WHERE session_id = ? ORDER BY id ASC`, [row.id]),
+      this.db.get<DBSessionMemory>(`SELECT * FROM session_memory WHERE session_id = ?`, [row.id]),
+      this.db.get<DBSessionAgentState>(`SELECT * FROM session_agent_state WHERE session_id = ?`, [row.id])
     ]);
 
-    return this.mapRowToSession(row, messages, memory);
+    return this.mapRowToSession(row, messages, memory, agentState);
   }
 
   private async load(key: string): Promise<Session | null> {
-    const rows = await this.db.all<DBSession>(
-      `SELECT * FROM sessions WHERE key = ?`,
-      [key]
-    );
+    const rows = await this.db.all<DBSession>(`SELECT * FROM sessions WHERE key = ?`, [key]);
 
     if (rows.length === 0) {
       return null;
@@ -232,10 +230,7 @@ export class SessionManager {
           `INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)`,
           [session.id, role, content, timestamp]
         );
-        await this.db.run(
-          `UPDATE sessions SET updated_at = ? WHERE key = ?`,
-          [timestamp, key]
-        );
+        await this.db.run(`UPDATE sessions SET updated_at = ? WHERE key = ?`, [timestamp, key]);
       });
     }
   }
@@ -263,6 +258,59 @@ export class SessionManager {
         );
       });
     }
+  }
+
+  async getSessionAgent(key: string): Promise<string | null> {
+    const session = await this.getOrCreate(key);
+    if (!session.id) {
+      return session.agentName || null;
+    }
+
+    const row = await this.db.get<DBSessionAgentState>(
+      `SELECT * FROM session_agent_state WHERE session_id = ?`,
+      [session.id]
+    );
+
+    session.agentName = row?.agent_name || undefined;
+    return session.agentName || null;
+  }
+
+  async setSessionAgent(key: string, agentName: string): Promise<void> {
+    const session = await this.getOrCreate(key);
+    if (!session.id) {
+      return;
+    }
+
+    session.agentName = agentName;
+    await this.db.run(
+      `INSERT INTO session_agent_state (session_id, agent_name, updated_at)
+       VALUES (?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(session_id) DO UPDATE SET
+         agent_name = excluded.agent_name,
+         updated_at = excluded.updated_at`,
+      [session.id, agentName]
+    );
+  }
+
+  async clearSessionAgent(key: string): Promise<void> {
+    const session = await this.getOrCreate(key);
+    if (!session.id) {
+      return;
+    }
+
+    session.agentName = undefined;
+    await this.db.run(`DELETE FROM session_agent_state WHERE session_id = ?`, [session.id]);
+  }
+
+  async deleteAgentBindings(agentName: string): Promise<number> {
+    for (const session of this.sessions.values()) {
+      if (session.agentName === agentName) {
+        session.agentName = undefined;
+      }
+    }
+
+    const result = await this.db.run(`DELETE FROM session_agent_state WHERE agent_name = ?`, [agentName]);
+    return result.changes;
   }
 
   async clearSummary(key: string): Promise<void> {

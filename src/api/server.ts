@@ -22,6 +22,7 @@ import { registerMCPRoutes } from './routes/mcp.js';
 import { registerMetricsRoutes } from './routes/metrics.js';
 import { registerSkillRoutes } from './routes/skills.js';
 import type { MemoryFactStore } from '../session/MemoryFactStore.js';
+import type { AgentRoleService } from '../agent/roles/AgentRoleService.js';
 
 const MAX_MESSAGE_LENGTH = CONSTANTS.MESSAGE_MAX_LENGTH;
 
@@ -44,7 +45,8 @@ export class APIServer {
     private mcpManager?: MCPClientManager,
     private skillManager?: SkillManager,
     private toolRegistry?: ToolRegistry,
-    private memoryFactStore?: MemoryFactStore
+    private memoryFactStore?: MemoryFactStore,
+    private agentRoleService?: AgentRoleService
   ) {}
 
   async start(): Promise<void> {
@@ -110,6 +112,7 @@ export class APIServer {
         this.config = config;
       },
       toolRegistry: this.toolRegistry,
+      agentRoleService: this.agentRoleService,
       packageVersion,
       maxMessageLength: MAX_MESSAGE_LENGTH,
       log: this.log

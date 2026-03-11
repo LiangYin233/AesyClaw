@@ -13,6 +13,7 @@ export interface Session {
   channel?: string
   chatId?: string
   uuid?: string
+  agentName?: string
   messageCount: number
   messages?: any[]
 }
@@ -23,6 +24,28 @@ export interface BatchDeleteResult {
     key: string
     error: string
   }>
+}
+
+export interface AgentRoleConfig {
+  name: string
+  description?: string
+  systemPrompt: string
+  provider: string
+  model: string
+  allowedSkills: string[]
+  allowedTools: string[]
+}
+
+export interface AgentRole extends AgentRoleConfig {
+  builtin: boolean
+  availableSkills: string[]
+  availableTools: string[]
+  missingSkills: string[]
+  missingTools: string[]
+}
+
+export interface SetSessionAgentPayload {
+  agentName: string | null
 }
 
 export interface Tool {
@@ -60,19 +83,42 @@ export interface MCPTool {
 export interface Config {
   server: {
     host: string
-    port: number
+    port?: number
     apiPort: number
     webuiPort?: number
     token?: string
+    apiEnabled?: boolean
   }
   agent: {
     defaults: {
       model: string
       provider: string
-      maxTokens: number
+      vision?: boolean
+      reasoning?: boolean
+      visionProvider?: string
+      visionModel?: string
+      maxTokens?: number
       maxToolIterations: number
       memoryWindow: number
+      systemPrompt?: string
+      contextMode?: 'session' | 'channel' | 'global'
+      maxSessions?: number
+      memorySummary?: {
+        enabled?: boolean
+        provider?: string
+        model?: string
+        triggerMessages?: number
+      }
+      memoryFacts?: {
+        enabled?: boolean
+        provider?: string
+        model?: string
+        maxFacts?: number
+      }
     }
+  }
+  agents?: {
+    roles: Record<string, AgentRoleConfig>
   }
   channels: Record<string, any>
   providers: Record<string, any>

@@ -6,6 +6,8 @@ import type { EventBus } from '../../bus/EventBus.js';
 import type { MCPClientManager } from '../../mcp/index.js';
 import type { PluginManager } from '../../plugins/index.js';
 import type { OutboundMessage, ToolDefinition } from '../../types.js';
+import type { AgentLoop } from '../../agent/core/AgentLoop.js';
+import type { AgentRoleService } from '../../agent/roles/AgentRoleService.js';
 import { registerCronTools } from '../../cron/CronTools.js';
 import { logger } from '../../logger/index.js';
 
@@ -16,6 +18,8 @@ export interface ToolIntegrationOptions {
   eventBus: EventBus;
   pluginManager: PluginManager;
   mcpManager: MCPClientManager | null;
+  agent: AgentLoop;
+  agentRoleService: AgentRoleService;
 }
 
 export function registerBuiltInTools(options: ToolIntegrationOptions): void {
@@ -24,7 +28,9 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
     skillManager,
     cronService,
     eventBus,
-    pluginManager
+    pluginManager,
+    agent,
+    agentRoleService
   } = options;
   const log = logger.child({ prefix: 'ToolIntegration' });
 
@@ -119,6 +125,43 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
       } catch (error) {
         log.error('[send_msg_to_user] Failed:', error);
         return `发送失败：${error instanceof Error ? error.message : String(error)}`;
+      }
+    }
+  }, 'built-in' as ToolSource);
+
+  toolRegistry.register({
+    name: 'call_agent',
+    description: '调用指定 Agent 角色执行一个独立任务，并返回文本结果。',
+    parameters: {
+      type: 'object',
+      properties: {
+        agentName: { type: 'string', description: '目标 Agent 角色名称' },
+        task: { type: 'string', description: '交给子 Agent 的任务描述' }
+      },
+      required: ['agentName', 'task']
+    },
+    execute: async (params: Record<string, any>, context?: ToolContext) => {
+      const agentName = String(params.agentName || '');
+      const task = String(params.task || '');
+
+      if (!agentName || !task) {
+        return 'Error: agentName and task are required';
+      }
+
+      const role = agentRoleService.getResolvedRole(agentName);
+      if (!role) {
+        return `Error: Agent role not found: ${agentName}`;
+      }
+
+      try {
+        return await agent.runSubAgentTask(agentName, task, {
+          channel: context?.channel,
+          chatId: context?.chatId,
+          messageType: context?.messageType,
+          signal: context?.signal
+        });
+      } catch (error) {
+        return `Error: ${error instanceof Error ? error.message : String(error)}`;
       }
     }
   }, 'built-in' as ToolSource);

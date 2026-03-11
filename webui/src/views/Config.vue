@@ -37,27 +37,97 @@
                 <template #title>Agent 默认配置</template>
                 <template #content>
                     <div class="form-grid">
-                        <div v-for="(value, key) in config.agent.defaults" :key="key" class="form-field">
-                            <label class="capitalize">{{ formatLabel(key) }}</label>
-                            <template v-if="key === 'provider'">
-                                <Select v-model="config.agent.defaults[key]" :options="providerKeys" placeholder="选择提供商" />
-                            </template>
-                            <template v-else-if="key === 'contextMode'">
-                                <Select v-model="config.agent.defaults[key]" :options="['session', 'channel', 'global']" placeholder="选择模式" />
-                            </template>
-                            <InputNumber 
-                                v-else-if="isNumber(value)" 
-                                v-model="config.agent.defaults[key]" 
-                                :useGrouping="false" 
-                            />
-                            <ToggleButton
-                                v-else-if="isBoolean(value)"
-                                v-model="config.agent.defaults[key]"
-                                onLabel="已启用"
-                                offLabel="已禁用"
-                            />
-                            <Textarea v-else-if="isLongString(value)" v-model="config.agent.defaults[key]" rows="3" fluid />
-                            <InputText v-else v-model="config.agent.defaults[key]" />
+                        <template v-for="(value, key) in config.agent.defaults" :key="key">
+                            <div v-if="!isAgentNestedConfig(String(key))" class="form-field">
+                                <label class="capitalize">{{ formatLabel(key) }}</label>
+                                <template v-if="key === 'provider'">
+                                    <Select v-model="config.agent.defaults[key]" :options="providerKeys" placeholder="选择提供商" />
+                                </template>
+                                <template v-else-if="key === 'contextMode'">
+                                    <Select v-model="config.agent.defaults[key]" :options="['session', 'channel', 'global']" placeholder="选择模式" />
+                                </template>
+                                <InputNumber 
+                                    v-else-if="isNumber(value)" 
+                                    v-model="config.agent.defaults[key]" 
+                                    :useGrouping="false" 
+                                />
+                                <ToggleButton
+                                    v-else-if="isBoolean(value)"
+                                    v-model="config.agent.defaults[key]"
+                                    onLabel="已启用"
+                                    offLabel="已禁用"
+                                />
+                                <Textarea v-else-if="isLongString(value)" v-model="config.agent.defaults[key]" rows="3" fluid />
+                                <InputText v-else v-model="config.agent.defaults[key]" />
+                            </div>
+                        </template>
+                    </div>
+                    <div class="nested-configs">
+                        <div class="nested-config-section">
+                            <h3 class="nested-config-title">Memory Summary</h3>
+                            <div class="form-grid">
+                                <div class="form-field">
+                                    <label>Enabled</label>
+                                    <ToggleButton
+                                        v-model="config.agent.defaults.memorySummary.enabled"
+                                        onLabel="已启用"
+                                        offLabel="已禁用"
+                                    />
+                                </div>
+                                <div class="form-field">
+                                    <label>Provider</label>
+                                    <Select
+                                        v-model="config.agent.defaults.memorySummary.provider"
+                                        :options="providerKeys"
+                                        placeholder="选择提供商"
+                                    />
+                                </div>
+                                <div class="form-field">
+                                    <label>Model</label>
+                                    <InputText v-model="config.agent.defaults.memorySummary.model" />
+                                </div>
+                                <div class="form-field">
+                                    <label>Trigger Messages</label>
+                                    <InputNumber
+                                        v-model="config.agent.defaults.memorySummary.triggerMessages"
+                                        :useGrouping="false"
+                                        :min="1"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="nested-config-section">
+                            <h3 class="nested-config-title">Memory Facts</h3>
+                            <div class="form-grid">
+                                <div class="form-field">
+                                    <label>Enabled</label>
+                                    <ToggleButton
+                                        v-model="config.agent.defaults.memoryFacts.enabled"
+                                        onLabel="已启用"
+                                        offLabel="已禁用"
+                                    />
+                                </div>
+                                <div class="form-field">
+                                    <label>Provider</label>
+                                    <Select
+                                        v-model="config.agent.defaults.memoryFacts.provider"
+                                        :options="providerKeys"
+                                        placeholder="选择提供商"
+                                    />
+                                </div>
+                                <div class="form-field">
+                                    <label>Model</label>
+                                    <InputText v-model="config.agent.defaults.memoryFacts.model" />
+                                </div>
+                                <div class="form-field">
+                                    <label>Max Facts</label>
+                                    <InputNumber
+                                        v-model="config.agent.defaults.memoryFacts.maxFacts"
+                                        :useGrouping="false"
+                                        :min="1"
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </template>
@@ -163,12 +233,31 @@ const providerKeys = computed(() => {
     return config.value ? Object.keys(config.value.providers) : []
 })
 
+function ensureAgentNestedDefaults() {
+    if (!config.value) return
+
+    config.value.agent.defaults.memorySummary ??= {
+        enabled: false,
+        provider: '',
+        model: '',
+        triggerMessages: 20,
+    }
+    config.value.agent.defaults.memoryFacts ??= {
+        enabled: false,
+        provider: '',
+        model: '',
+        maxFacts: 50,
+    }
+}
+
 async function loadConfig() {
     await configStore.fetchConfig()
+    ensureAgentNestedDefaults()
 }
 
 async function saveConfig() {
     if (!config.value) return
+    ensureAgentNestedDefaults()
     saving.value = true
     const success = await configStore.saveConfig()
     saving.value = false
@@ -193,6 +282,10 @@ function isBoolean(value: any): boolean {
 
 function isLongString(value: any): boolean {
     return typeof value === 'string' && value.length > 100
+}
+
+function isAgentNestedConfig(key: string): boolean {
+    return key === 'memorySummary' || key === 'memoryFacts'
 }
 
 function addProvider() {
@@ -242,6 +335,25 @@ onMounted(() => {
 
 .config-card {
     margin-bottom: 0;
+}
+
+.nested-configs {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.nested-config-section {
+    padding: 16px;
+    background: #f8fafc;
+    border-radius: 8px;
+}
+
+.nested-config-title {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    font-weight: 600;
 }
 
 .form-grid {
@@ -332,6 +444,7 @@ onMounted(() => {
     .form-field label {
         color: #94a3b8;
     }
+    .nested-config-section,
     .provider-section,
     .mcp-section {
         background: #1e293b;

@@ -9,6 +9,7 @@ import Plugins from '../views/Plugins.vue'
 import Config from '../views/Config.vue'
 import Mcp from '../views/Mcp.vue'
 import Skills from '../views/Skills.vue'
+import Agents from '../views/Agents.vue'
 import Cron from '../views/Cron.vue'
 import Logs from '../views/Logs.vue'
 import Unauthorized from '../views/Unauthorized.vue'
@@ -31,6 +32,7 @@ const router = createRouter({
         { path: 'chat/:sessionKey', name: 'chat-session', component: Chat },
         { path: 'sessions', name: 'sessions', component: Sessions },
         { path: 'memory', name: 'memory', component: Memory },
+        { path: 'agents', name: 'agents', component: Agents },
         { path: 'tools', name: 'tools', component: Tools },
         { path: 'plugins', name: 'plugins', component: Plugins },
         { path: 'config', name: 'config', component: Config },

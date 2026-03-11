@@ -1,7 +1,7 @@
 <template>
     <div class="layout-wrapper">
-        <aside class="sidebar" role="navigation" :aria-label="ARIA_LABELS.sidebar">
-            <nav class="sidebar-nav" :aria-label="ARIA_LABELS.mainNav">
+        <aside class="sidebar" role="navigation" :aria-label="ARIA_LABELS.mainNavigation">
+            <nav class="sidebar-nav">
                 <router-link
                     v-for="item in navItems"
                     :key="item.path"
@@ -36,7 +36,6 @@
             </div>
         </main>
 
-        <!-- Global Toast Container -->
         <Toast position="top-right" />
     </div>
 </template>
@@ -65,6 +64,7 @@ const navItems = [
     { path: '/chat', label: '聊天', icon: 'pi pi-comments' },
     { path: '/sessions', label: '会话', icon: 'pi pi-list' },
     { path: '/memory', label: '记忆', icon: 'pi pi-bookmark' },
+    { path: '/agents', label: 'Agent', icon: 'pi pi-users' },
     { path: '/cron', label: '定时任务', icon: 'pi pi-clock' },
     { path: '/tools', label: '工具', icon: 'pi pi-box' },
     { path: '/plugins', label: '插件', icon: 'pi pi-th-large' },
@@ -78,7 +78,6 @@ const isCurrentRoute = (path: string) => {
     return route.path === path || (path === '/' && route.path === '/')
 }
 
-// Watch for agent status changes and announce to screen readers
 watch(() => systemStore.agentRunning, (newStatus, oldStatus) => {
     if (oldStatus !== undefined && newStatus !== oldStatus) {
         announceToScreenReader(
@@ -88,10 +87,8 @@ watch(() => systemStore.agentRunning, (newStatus, oldStatus) => {
     }
 })
 
-// Setup navigation shortcuts
 useNavigationShortcuts()
 
-// Setup help shortcut
 useKeyboard([
     {
         key: '/',
@@ -105,15 +102,11 @@ useKeyboard([
 ])
 
 onMounted(() => {
-    // Inject screen reader styles
     injectScreenReaderStyles()
-
-    // Start polling system status
     systemStore.startPolling(5000)
 })
 
 onUnmounted(() => {
-    // Stop polling when component unmounts
     systemStore.stopPolling()
 })
 </script>
@@ -238,112 +231,5 @@ onUnmounted(() => {
 
 .main-content-inner {
     padding: 24px 32px;
-    max-width: 1200px;
-    margin: 0 auto;
-    box-sizing: border-box;
-}
-
-@media (max-width: 1024px) {
-    .sidebar {
-        width: 200px;
-    }
-
-    .main-content-inner {
-        padding: 20px 20px;
-    }
-}
-
-@media (max-width: 768px) {
-    .layout-wrapper {
-        flex-direction: column;
-    }
-
-    .sidebar {
-        width: 100%;
-        height: auto;
-        border-right: none;
-        border-bottom: 1px solid #e2e8f0;
-        flex-direction: row;
-        align-items: center;
-        justify-content: space-between;
-        padding-inline: 12px;
-        gap: 12px;
-    }
-
-    .sidebar-nav {
-        flex-direction: row;
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        padding: 8px 0;
-    }
-
-    .nav-item {
-        padding-inline: 10px;
-    }
-
-    .nav-item-active::before {
-        display: none;
-    }
-
-    .sidebar-footer {
-        border-top: none;
-        padding-inline: 0;
-        background: transparent;
-        align-items: flex-end;
-    }
-
-    .main-content {
-        height: calc(100vh - 64px);
-    }
-}
-
-@media (prefers-color-scheme: dark) {
-    .sidebar {
-        background: #1e293b;
-        border-color: #334155;
-    }
-    .sidebar-header {
-        border-color: #334155;
-        color: #f1f5f9;
-    }
-    .nav-item {
-        color: #94a3b8;
-    }
-    .nav-item:hover {
-        background: #334155;
-        color: #e2e8f0;
-    }
-    .nav-item:focus {
-        outline-color: #60a5fa;
-    }
-    .nav-item-active {
-        background: #475569;
-        color: #f8fafc;
-        font-weight: 500;
-    }
-    .sidebar-footer {
-        border-color: #334155;
-    }
-    .main-content {
-        background: #0f172a;
-    }
-
-    .nav-item:hover {
-        background: #1e293b;
-        color: #bfdbfe;
-    }
-
-    .nav-item-active {
-        background: #1d283a;
-        color: #bfdbfe;
-    }
-
-    .sidebar-footer {
-        background: linear-gradient(to right, #020617, #020617);
-    }
-
-    .status-label {
-        color: #64748b;
-    }
 }
 </style>

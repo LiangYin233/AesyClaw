@@ -1,23 +1,20 @@
 // Sessions store - manages chat sessions
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { apiGet, apiDelete, apiPost } from '../utils/apiClient'
+import { apiGet, apiDelete, apiPost, apiPut } from '../utils/apiClient'
 import type { BatchDeleteResult, Session } from '../types/api'
 
 export const useSessionsStore = defineStore('sessions', () => {
-  // State
   const sessions = ref<Session[]>([])
   const currentSession = ref<Session | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  // Getters
   const sessionCount = computed(() => sessions.value.length)
   const sortedSessions = computed(() =>
     [...sessions.value].sort((a, b) => b.messageCount - a.messageCount)
   )
 
-  // Actions
   async function fetchSessions() {
     loading.value = true
     error.value = null
@@ -52,6 +49,27 @@ export const useSessionsStore = defineStore('sessions', () => {
     return data
   }
 
+  async function setSessionAgent(key: string, agentName: string | null) {
+    error.value = null
+
+    const { data, error: err } = await apiPut<{ success: boolean; agentName: string }>(`/sessions/${key}/agent`, { agentName })
+    if (err) {
+      error.value = err
+      return null
+    }
+
+    const nextAgentName = data?.agentName || 'main'
+    sessions.value = sessions.value.map(session => session.key === key ? { ...session, agentName: nextAgentName } : session)
+    if (currentSession.value?.key === key) {
+      currentSession.value = {
+        ...currentSession.value,
+        agentName: nextAgentName
+      }
+    }
+
+    return nextAgentName
+  }
+
   async function deleteSession(key: string) {
     error.value = null
 
@@ -62,7 +80,6 @@ export const useSessionsStore = defineStore('sessions', () => {
       return false
     }
 
-    // Remove from local state
     sessions.value = sessions.value.filter(s => s.key !== key)
 
     if (currentSession.value?.key === key) {
@@ -124,19 +141,15 @@ export const useSessionsStore = defineStore('sessions', () => {
   }
 
   return {
-    // State
     sessions,
     currentSession,
     loading,
     error,
-
-    // Getters
     sessionCount,
     sortedSessions,
-
-    // Actions
     fetchSessions,
     fetchSession,
+    setSessionAgent,
     deleteSession,
     deleteSessions,
     sendMessage,

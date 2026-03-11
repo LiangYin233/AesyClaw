@@ -11,20 +11,17 @@
                     class="session-input"
                     aria-label="会话ID"
                 />
-                <Button
-                    icon="pi pi-refresh"
-                    text
-                    @click="loadSession"
-                    aria-label="刷新并加载会话"
-                    title="加载会话"
+                <Select
+                    v-model="currentAgentName"
+                    :options="agentOptions"
+                    option-label="label"
+                    option-value="value"
+                    class="agent-select"
+                    placeholder="选择 Agent"
+                    @change="handleAgentChange"
                 />
-                <Button
-                    icon="pi pi-plus"
-                    label="新建会话"
-                    severity="secondary"
-                    @click="createNewSession"
-                    aria-label="创建新会话"
-                />
+                <Button icon="pi pi-refresh" text @click="loadSession" aria-label="刷新并加载会话" title="加载会话" />
+                <Button icon="pi pi-plus" label="新建会话" severity="secondary" @click="createNewSession" aria-label="创建新会话" />
             </div>
         </header>
 
@@ -92,38 +89,83 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { computed, ref, onMounted, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
-import { useSessionsStore } from '../stores'
+import { useAgentsStore, useSessionsStore } from '../stores'
 import { useKeyboard } from '../composables/useKeyboard'
 import { announceToScreenReader } from '../composables/useA11y'
+import { useToast } from '../composables/useToast'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
 import ProgressSpinner from 'primevue/progressspinner'
+import Select from 'primevue/select'
 
 const route = useRoute()
 const sessionsStore = useSessionsStore()
+const agentsStore = useAgentsStore()
+const toast = useToast()
 
 const sessionKey = ref(`chat:${Date.now()}`)
 const inputMessage = ref('')
 const loading = ref(false)
 const messages = ref<{ role: string; content: string }[]>([])
 const messagesContainer = ref<HTMLElement | null>(null)
+const currentAgentName = ref('main')
+const applyingAgent = ref(false)
+
+const agentOptions = computed(() => {
+    return agentsStore.agents.map(agent => ({
+        label: agent.builtin ? `${agent.name}（内建）` : agent.name,
+        value: agent.name
+    }))
+})
+
+async function ensureAgentsLoaded() {
+    if (agentsStore.agents.length === 0) {
+        await agentsStore.fetchAgents()
+    }
+}
 
 async function loadSession() {
     if (!sessionKey.value) return
 
+    await ensureAgentsLoaded()
     announceToScreenReader('正在加载会话', 'polite')
 
     const session = await sessionsStore.fetchSession(sessionKey.value)
     if (session?.messages) {
         messages.value = session.messages
+        currentAgentName.value = session.agentName || 'main'
         scrollToBottom()
         announceToScreenReader(`已加载 ${session.messages.length} 条消息`, 'polite')
     } else {
+        messages.value = []
+        currentAgentName.value = 'main'
         announceToScreenReader('会话加载失败或为空', 'polite')
     }
+}
+
+async function handleAgentChange() {
+    if (!sessionKey.value || applyingAgent.value) {
+        return
+    }
+
+    applyingAgent.value = true
+    const nextAgent = await sessionsStore.setSessionAgent(
+        sessionKey.value,
+        currentAgentName.value === 'main' ? null : currentAgentName.value
+    )
+    applyingAgent.value = false
+
+    if (!nextAgent) {
+        currentAgentName.value = sessionsStore.currentSession?.agentName || 'main'
+        toast.error('切换失败', sessionsStore.error || '无法切换当前会话 Agent')
+        return
+    }
+
+    currentAgentName.value = nextAgent
+    toast.success('切换成功', `当前会话 Agent 已切换为 ${nextAgent}`)
 }
 
 async function sendMessage() {
@@ -155,6 +197,7 @@ async function sendMessage() {
 function createNewSession() {
     sessionKey.value = `chat:${Date.now()}`
     messages.value = []
+    currentAgentName.value = 'main'
     announceToScreenReader('已创建新会话', 'polite')
 }
 
@@ -194,7 +237,8 @@ watch(() => route.params.sessionKey, (newKey) => {
     }
 }, { immediate: true })
 
-onMounted(() => {
+onMounted(async () => {
+    await ensureAgentsLoaded()
     if (route.params.sessionKey) {
         sessionKey.value = route.params.sessionKey as string
         loadSession()
@@ -217,6 +261,7 @@ onMounted(() => {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
 }
 
 .chat-header h1 {
@@ -229,9 +274,14 @@ onMounted(() => {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
 }
 
 .session-input {
+    width: 180px;
+}
+
+.agent-select {
     width: 180px;
 }
 
@@ -277,23 +327,17 @@ onMounted(() => {
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-}
-
-.message-wrapper.user .message-avatar {
-    background: #e2e8f0;
-}
-
-.message-wrapper.assistant .message-avatar {
     background: #dbeafe;
+    color: #1d4ed8;
 }
 
 .message-card {
-    max-width: 70%;
-    margin: 0;
+    max-width: min(80%, 900px);
 }
 
 .message-content {
     margin: 0;
+    line-height: 1.6;
     white-space: pre-wrap;
 }
 
@@ -312,55 +356,10 @@ onMounted(() => {
 
 .input-form {
     display: flex;
-    gap: 8px;
+    gap: 12px;
 }
 
 .message-input {
     flex: 1;
-}
-
-@media (max-width: 768px) {
-    .chat-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
-    }
-
-    .chat-actions {
-        width: 100%;
-        flex-wrap: wrap;
-    }
-
-    .session-input {
-        flex: 1;
-        min-width: 120px;
-    }
-
-    .message-card {
-        max-width: 85%;
-    }
-}
-
-@media (prefers-color-scheme: dark) {
-    .chat-header {
-        background: #1e293b;
-        border-color: #334155;
-    }
-    .chat-header h1 {
-        color: #f1f5f9;
-    }
-    .chat-messages {
-        background: #0f172a;
-    }
-    .message-wrapper.user .message-avatar {
-        background: #334155;
-    }
-    .message-wrapper.assistant .message-avatar {
-        background: #1e3a5f;
-    }
-    .chat-input {
-        background: #1e293b;
-        border-color: #334155;
-    }
 }
 </style>

@@ -1,25 +1,25 @@
-import sqlite3, { Database as SQLiteDatabase } from 'sqlite3';  // SQLite3 数据库驱动
+import sqlite3, { Database as SQLiteDatabase } from 'sqlite3';
 import { dirname } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { logger } from '../logger/index.js';
 import { metrics } from '../logger/Metrics.js';
 
 export class Database {
-  private db: SQLiteDatabase;  // SQLite 数据库实例
-  private log = logger.child({ prefix: 'Database' });  // 子日志记录器
-  private initPromise: Promise<void>;  // 初始化 Promise
+  private db: SQLiteDatabase;
+  private log = logger.child({ prefix: 'Database' });
+  private initPromise: Promise<void>;
 
-  constructor(dbPath: string) {  // 构造函数
+  constructor(dbPath: string) {
     const dir = dirname(dbPath);
-    if (!existsSync(dir)) {  // 确保目录存在
+    if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
 
-    this.db = new sqlite3.Database(dbPath);  // 创建数据库连接
+    this.db = new sqlite3.Database(dbPath);
     this.initPromise = this.init();
   }
 
-  private async init(): Promise<void> {  // 初始化数据库表结构
+  private async init(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.db.serialize(() => {
         this.db.run(`
@@ -32,7 +32,7 @@ export class Database {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
           )
-        `);  // 创建会话表
+        `);
 
         this.db.run(`
           CREATE TABLE IF NOT EXISTS messages (
@@ -43,13 +43,22 @@ export class Database {
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
           )
-        `);  // 创建消息表
+        `);
 
         this.db.run(`
           CREATE TABLE IF NOT EXISTS session_memory (
             session_id INTEGER PRIMARY KEY,
             summary TEXT NOT NULL DEFAULT '',
             summarized_message_count INTEGER NOT NULL DEFAULT 0,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+          )
+        `);
+
+        this.db.run(`
+          CREATE TABLE IF NOT EXISTS session_agent_state (
+            session_id INTEGER PRIMARY KEY,
+            agent_name TEXT NOT NULL,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
           )
@@ -66,8 +75,8 @@ export class Database {
           )
         `);
 
-        this.db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_key ON sessions(key)`);  // 会话键索引
-        this.db.run(`CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)`);  // 消息会话索引
+        this.db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_key ON sessions(key)`);
+        this.db.run(`CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)`);
         this.db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_facts_unique ON memory_facts(channel, chat_id, fact)`);
         this.db.run(`CREATE INDEX IF NOT EXISTS idx_memory_facts_chat ON memory_facts(channel, chat_id)`);
 
@@ -127,11 +136,11 @@ export class Database {
     });
   }
 
-  async ready(): Promise<void> {  // 等待数据库就绪
+  async ready(): Promise<void> {
     await this.initPromise;
   }
 
-  run(sql: string, params: any[] = []): Promise<{ lastID: number; changes: number }> {  // 执行 INSERT/UPDATE/DELETE
+  run(sql: string, params: any[] = []): Promise<{ lastID: number; changes: number }> {
     const endTimer = metrics.timer('db.query_time', { operation: 'run' });
     return new Promise((resolve, reject) => {
       this.db.run(sql, params, function(err: Error | null) {
@@ -139,13 +148,13 @@ export class Database {
         if (err) {
           reject(err);
         } else {
-          resolve({ lastID: this.lastID, changes: this.changes });  // 返回最后插入ID和影响行数
+          resolve({ lastID: this.lastID, changes: this.changes });
         }
       });
     });
   }
 
-  get<T>(sql: string, params: any[] = []): Promise<T | undefined> {  // 查询单条记录
+  get<T>(sql: string, params: any[] = []): Promise<T | undefined> {
     const endTimer = metrics.timer('db.query_time', { operation: 'get' });
     return new Promise((resolve, reject) => {
       this.db.get(sql, params, (err: Error | null, row: any) => {
@@ -159,7 +168,7 @@ export class Database {
     });
   }
 
-  all<T>(sql: string, params: any[] = []): Promise<T[]> {  // 查询多条记录
+  all<T>(sql: string, params: any[] = []): Promise<T[]> {
     const endTimer = metrics.timer('db.query_time', { operation: 'all' });
     return new Promise((resolve, reject) => {
       this.db.all(sql, params, (err: Error | null, rows: any[]) => {
@@ -173,7 +182,7 @@ export class Database {
     });
   }
 
-  close(): Promise<void> {  // 关闭数据库连接
+  close(): Promise<void> {
     return new Promise((resolve) => {
       this.db.close(() => {
         this.log.info('Database closed');
@@ -187,13 +196,9 @@ export class Database {
       this.db.serialize(() => {
         this.db.run('BEGIN IMMEDIATE', (err: Error | null) => {
           if (err) {
-            // If we get "cannot start a transaction within a transaction" error,
-            // just execute the function without a new transaction
             if (err.message && err.message.includes('cannot start a transaction')) {
               this.log.debug('Already in transaction, executing without new transaction');
-              Promise.resolve(fn())
-                .then(resolve)
-                .catch(reject);
+              Promise.resolve(fn()).then(resolve).catch(reject);
               return;
             }
             reject(err);
@@ -220,7 +225,7 @@ export class Database {
   }
 }
 
-export interface DBSession {  // 会话数据库记录
+export interface DBSession {
   id: number;
   key: string;
   channel: string;
@@ -230,7 +235,7 @@ export interface DBSession {  // 会话数据库记录
   updated_at: string;
 }
 
-export interface DBMessage {  // 消息数据库记录
+export interface DBMessage {
   id: number;
   session_id: number;
   role: string;
@@ -242,6 +247,12 @@ export interface DBSessionMemory {
   session_id: number;
   summary: string;
   summarized_message_count: number;
+  updated_at: string;
+}
+
+export interface DBSessionAgentState {
+  session_id: number;
+  agent_name: string;
   updated_at: string;
 }
 

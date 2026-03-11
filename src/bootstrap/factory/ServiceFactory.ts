@@ -10,7 +10,7 @@ import { MCPClientManager } from '../../mcp/index.js';
 import { PluginManager } from '../../plugins/index.js';
 import type { PluginContext } from '../../plugins/PluginManager.js';
 import { SkillManager } from '../../skills/index.js';
-import { CommandRegistry, SessionCommands } from '../../agent/commands/index.js';
+import { CommandRegistry, SessionCommands, AgentCommands } from '../../agent/commands/index.js';
 import { APIServer } from '../../api/index.js';
 import { CronService } from '../../cron/index.js';
 import { ConfigLoader } from '../../config/loader.js';
@@ -18,6 +18,7 @@ import { logger } from '../../logger/index.js';
 import { metrics } from '../../logger/Metrics.js';
 import { tokenStats } from '../../logger/TokenStats.js';
 import { SessionMemoryService } from '../../agent/memory/SessionMemoryService.js';
+import { AgentRoleService } from '../../agent/roles/AgentRoleService.js';
 import type { Config, OutboundMessage, VisionSettings } from '../../types.js';
 import type { LLMProvider } from '../../providers/base.js';
 import type { CronJob } from '../../cron/index.js';
@@ -243,8 +244,9 @@ async function createOptionalApiServer(args: {
   skillManager: SkillManager | null;
   toolRegistry: ToolRegistry;
   memoryFactStore: MemoryFactStore;
+  agentRoleService: AgentRoleService;
 }): Promise<APIServer | undefined> {
-  const { config, port, agent, sessionManager, channelManager, pluginManager, cronService, mcpManager, skillManager, toolRegistry, memoryFactStore } = args;
+  const { config, port, agent, sessionManager, channelManager, pluginManager, cronService, mcpManager, skillManager, toolRegistry, memoryFactStore, agentRoleService } = args;
 
   if (config.server.apiEnabled === false) {
     appLog.info('API server disabled by configuration');
@@ -262,7 +264,8 @@ async function createOptionalApiServer(args: {
     mcpManager ?? undefined,
     skillManager ?? undefined,
     toolRegistry,
-    memoryFactStore
+    memoryFactStore,
+    agentRoleService
   );
   await apiServer.start();
   appLog.info(`API server started on port ${port}`);
@@ -314,7 +317,8 @@ export function createMemoryService(
 }
 
 export async function createServices(options: ServiceFactoryOptions): Promise<Services> {
-  const { workspace, tempDir, config, port, onCronJob } = options;
+  const { workspace, tempDir, port, onCronJob } = options;
+  let { config } = options;
   const log = appLog;
 
   configureRuntime(config);
@@ -342,6 +346,12 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     sessionRouting
   } = await createSessionServices(config);
   const skillManager = await createSkillManager(config);
+  const agentRoleService = new AgentRoleService(
+    () => config,
+    (nextConfig) => { config = nextConfig; },
+    toolRegistry,
+    skillManager
+  );
 
   const agent = new AgentLoop(
     eventBus,
@@ -358,12 +368,15 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     visionSettings,
     visionProvider,
     sessionRouting,
-    memoryService
+    memoryService,
+    agentRoleService
   );
 
   const commandRegistry = new CommandRegistry();
   const sessionCommands = new SessionCommands(sessionManager, sessionRouting);
+  const agentCommands = new AgentCommands(sessionManager, agentRoleService);
   commandRegistry.registerHandler(sessionCommands);
+  commandRegistry.registerHandler(agentCommands);
   eventBus.setStopHandler((channel: string, chatId: string) => agent.abortSession(channel, chatId));
   agent.setCommandRegistry(commandRegistry);
   log.info('Command registry initialized');
@@ -392,7 +405,9 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     cronService,
     eventBus,
     pluginManager,
-    mcpManager
+    mcpManager,
+    agent,
+    agentRoleService
   });
   const apiServer = await createOptionalApiServer({
     config,
@@ -405,7 +420,8 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     mcpManager,
     skillManager,
     toolRegistry,
-    memoryFactStore
+    memoryFactStore,
+    agentRoleService
   });
 
   applyToolBlacklist(config, toolRegistry);

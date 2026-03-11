@@ -88,12 +88,12 @@
                                 />
                             </template>
 
+                            <template #cell-agentName="{ value }">
+                                <Tag :value="value || 'main'" severity="contrast" />
+                            </template>
+
                             <template #cell-channel="{ value }">
-                                <Tag
-                                    :value="value || '-'"
-                                    severity="primary"
-                                    :aria-label="`渠道：${value || '未知'}`"
-                                />
+                                <Tag :value="value || '-'" severity="primary" :aria-label="`渠道：${value || '未知'}`" />
                             </template>
 
                             <template #cell-chatId="{ data }">
@@ -101,53 +101,19 @@
                             </template>
 
                             <template #cell-uuid="{ value }">
-                                <Tag
-                                    v-if="value"
-                                    :value="value"
-                                    severity="secondary"
-                                    :aria-label="`UUID：${value}`"
-                                />
+                                <Tag v-if="value" :value="value" severity="secondary" :aria-label="`UUID：${value}`" />
                                 <span v-else class="text-muted">-</span>
                             </template>
 
                             <template #cell-messageCount="{ value }">
-                                <Tag
-                                    :value="value.toString()"
-                                    severity="info"
-                                    :aria-label="`消息数：${value}`"
-                                />
+                                <Tag :value="value.toString()" severity="info" :aria-label="`消息数：${value}`" />
                             </template>
 
                             <template #cell-actions="{ data }">
                                 <div class="action-buttons">
-                                    <Button
-                                        icon="pi pi-comments"
-                                        text
-                                        rounded
-                                        title="继续聊天"
-                                        @click="continueChat(data.key)"
-                                        :disabled="bulkDeleting"
-                                        aria-label="继续聊天"
-                                    />
-                                    <Button
-                                        icon="pi pi-eye"
-                                        text
-                                        rounded
-                                        title="查看详情"
-                                        @click="viewSession(data)"
-                                        :disabled="bulkDeleting"
-                                        aria-label="查看会话详情"
-                                    />
-                                    <Button
-                                        icon="pi pi-trash"
-                                        text
-                                        rounded
-                                        severity="danger"
-                                        title="删除"
-                                        @click="confirmDelete(data)"
-                                        :disabled="bulkDeleting || deleting"
-                                        aria-label="删除会话"
-                                    />
+                                    <Button icon="pi pi-comments" text rounded title="继续聊天" @click="continueChat(data.key)" :disabled="bulkDeleting" aria-label="继续聊天" />
+                                    <Button icon="pi pi-eye" text rounded title="查看详情" @click="viewSession(data)" :disabled="bulkDeleting" aria-label="查看会话详情" />
+                                    <Button icon="pi pi-trash" text rounded severity="danger" title="删除" @click="confirmDelete(data)" :disabled="bulkDeleting || deleting" aria-label="删除会话" />
                                 </div>
                             </template>
                         </DataTable>
@@ -156,26 +122,10 @@
             </template>
         </Card>
 
-        <Dialog
-            v-model:visible="detailVisible"
-            :header="`会话详情: ${selectedSession?.key}`"
-            modal
-            class="detail-dialog"
-            role="dialog"
-            aria-labelledby="detail-dialog-title"
-        >
-            <LoadingContainer
-                :loading="loadingDetails"
-                loading-text="正在加载会话详情..."
-            >
+        <Dialog v-model:visible="detailVisible" :header="`会话详情: ${selectedSession?.key}`" modal class="detail-dialog" role="dialog" aria-labelledby="detail-dialog-title">
+            <LoadingContainer :loading="loadingDetails" loading-text="正在加载会话详情...">
                 <div v-if="selectedSessionDetails" class="detail-messages" role="log">
-                    <div
-                        v-for="(msg, index) in selectedSessionDetails.messages"
-                        :key="index"
-                        class="detail-message"
-                        :class="msg.role"
-                        role="article"
-                    >
+                    <div v-for="(msg, index) in selectedSessionDetails.messages" :key="index" class="detail-message" :class="msg.role" role="article">
                         <div class="message-role">{{ msg.role === 'user' ? '用户' : 'AI 助手' }}</div>
                         <div class="message-content">{{ msg.content }}</div>
                     </div>
@@ -183,65 +133,27 @@
             </LoadingContainer>
         </Dialog>
 
-        <Dialog
-            v-model:visible="deleteVisible"
-            header="确认删除"
-            modal
-            role="alertdialog"
-            aria-labelledby="delete-dialog-title"
-        >
+        <Dialog v-model:visible="deleteVisible" header="确认删除" modal role="alertdialog" aria-labelledby="delete-dialog-title">
             <p>
                 确定要删除会话
                 <span class="session-key">{{ selectedSession?.key }}</span>
                 吗？此操作无法撤销。
             </p>
             <template #footer>
-                <Button
-                    label="取消"
-                    text
-                    @click="deleteVisible = false"
-                    :disabled="deleting"
-                    aria-label="取消删除"
-                />
-                <Button
-                    label="删除"
-                    severity="danger"
-                    @click="doDelete"
-                    :loading="deleting"
-                    :disabled="bulkDeleting"
-                    aria-label="确认删除会话"
-                />
+                <Button label="取消" text @click="deleteVisible = false" :disabled="deleting" aria-label="取消删除" />
+                <Button label="删除" severity="danger" @click="doDelete" :loading="deleting" :disabled="bulkDeleting" aria-label="确认删除会话" />
             </template>
         </Dialog>
 
-        <Dialog
-            v-model:visible="bulkDeleteVisible"
-            header="确认批量删除"
-            modal
-            role="alertdialog"
-            aria-labelledby="bulk-delete-dialog-title"
-        >
+        <Dialog v-model:visible="bulkDeleteVisible" header="确认批量删除" modal role="alertdialog" aria-labelledby="bulk-delete-dialog-title">
             <p>
                 确定要批量删除已选择的
                 <span class="bulk-toolbar__count">{{ selectedCount }}</span>
                 个会话吗？此操作无法撤销。
             </p>
             <template #footer>
-                <Button
-                    label="取消"
-                    text
-                    @click="bulkDeleteVisible = false"
-                    :disabled="bulkDeleting"
-                    aria-label="取消批量删除"
-                />
-                <Button
-                    label="批量删除"
-                    severity="danger"
-                    @click="doBulkDelete"
-                    :loading="bulkDeleting"
-                    :disabled="!hasSelectedSessions || deleting"
-                    aria-label="确认批量删除会话"
-                />
+                <Button label="取消" text @click="bulkDeleteVisible = false" :disabled="bulkDeleting" aria-label="取消批量删除" />
+                <Button label="批量删除" severity="danger" @click="doBulkDelete" :loading="bulkDeleting" :disabled="!hasSelectedSessions || deleting" aria-label="确认批量删除会话" />
             </template>
         </Dialog>
     </div>
@@ -273,6 +185,7 @@ const toast = useToast()
 
 const columns = [
     { field: 'select', header: '选择', bodyClass: 'selection-cell' },
+    { field: 'agentName', header: 'Agent' },
     { field: 'channel', header: '渠道' },
     { field: 'chatId', header: '聊天ID' },
     { field: 'uuid', header: 'UUID' },

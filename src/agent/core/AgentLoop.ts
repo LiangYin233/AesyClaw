@@ -14,6 +14,8 @@ import { ExecutionCompletionService } from '../execution/registry/ExecutionCompl
 import { ExecutionCoordinator } from '../routing/ExecutionCoordinator.js';
 import { MessagePreprocessingService } from '../messaging/MessagePreprocessingService.js';
 import { SessionMemoryService } from '../memory/SessionMemoryService.js';
+import { AgentRoleService } from '../roles/AgentRoleService.js';
+import { ScopedToolRegistry } from '../../tools/ScopedToolRegistry.js';
 import { logger } from '../../logger/index.js';
 import { metrics } from '../../logger/Metrics.js';
 import { CONFIG_DEFAULTS } from '../../constants/index.js';
@@ -35,7 +37,6 @@ export class AgentLoop {
   private sessionRouting: SessionRoutingService;
   private executionRegistry: ExecutionRegistry;
   private completionService!: ExecutionCompletionService;
-  private executionCoordinator!: ExecutionCoordinator;
   private preprocessingService: MessagePreprocessingService;
   private running = false;
   private toolContext: ToolContext;
@@ -46,6 +47,17 @@ export class AgentLoop {
   private commandRegistry?: CommandRegistry;
   private memoryService?: SessionMemoryService;
   private log = logger.child({ prefix: 'Agent' });
+
+  private defaultProvider: LLMProvider;
+  private toolRegistry: ToolRegistry;
+  private workspace: string;
+  private systemPrompt: string;
+  private maxIterations: number;
+  private defaultModel: string;
+  private skillManager?: SkillManager;
+  private visionSettings?: VisionSettings;
+  private visionProvider?: LLMProvider;
+  private agentRoleService?: AgentRoleService;
 
   constructor(
     eventBus: EventBus,
@@ -62,7 +74,8 @@ export class AgentLoop {
     visionSettings?: VisionSettings,
     visionProvider?: LLMProvider,
     sessionRouting?: SessionRoutingService,
-    memoryService?: SessionMemoryService
+    memoryService?: SessionMemoryService,
+    agentRoleService?: AgentRoleService
   ) {
     this.eventBus = eventBus;
     this.sessionManager = sessionManager;
@@ -72,13 +85,23 @@ export class AgentLoop {
     this.sessionRouting = sessionRouting ?? new SessionRoutingService(sessionManager, contextMode);
     this.toolContext = { workspace, eventBus };
     this.memoryService = memoryService;
+    this.defaultProvider = provider;
+    this.toolRegistry = toolRegistry;
+    this.workspace = workspace;
+    this.systemPrompt = systemPrompt || 'You are a helpful AI assistant.';
+    this.maxIterations = maxIterations;
+    this.defaultModel = model;
+    this.skillManager = skillManager;
+    this.visionSettings = visionSettings;
+    this.visionProvider = visionProvider;
+    this.agentRoleService = agentRoleService;
 
     const skillsPrompt = skillManager?.buildSkillsPrompt() || '';
     this.executor = new AgentExecutor(
       provider,
       toolRegistry,
       workspace,
-      systemPrompt,
+      this.systemPrompt,
       skillsPrompt,
       model,
       maxIterations,
@@ -107,16 +130,21 @@ export class AgentLoop {
   }
 
   setSkillManager(sm: SkillManager): void {
+    this.skillManager = sm;
     this.executor.setSkillsPrompt(sm.buildSkillsPrompt());
     this.log.info('SkillManager attached');
+  }
+
+  setAgentRoleService(service: AgentRoleService): void {
+    this.agentRoleService = service;
   }
 
   async callLLM(
     messages: LLMMessage[],
     options?: { allowTools?: boolean; maxIterations?: number }
   ): Promise<{ content: string; reasoning_content?: string }> {
-    const result = await this.executor.callLLM(messages, options);
-    return result;
+    const executor = this.createExecutorForRole(this.agentRoleService?.getDefaultRoleName());
+    return executor.callLLM(messages, options);
   }
 
   async run(): Promise<void> {
@@ -181,19 +209,23 @@ export class AgentLoop {
       this.currentSessionKey = sessionKey;
       this.log.debug(`Processing message for session: ${sessionKey} (mode: ${this.contextMode})`);
       const session = await this.sessionManager.getOrCreate(sessionKey);
-      this.log.debug(`Session messages count: ${session.messages.length}`);
+      const currentRoleName = await this.sessionManager.getSessionAgent(sessionKey) || this.agentRoleService?.getDefaultRoleName();
+      this.log.debug(`Session messages count: ${session.messages.length}, role=${currentRoleName || 'main'}`);
+
       const history = this.memoryService
         ? await this.memoryService.buildHistory(session)
         : session.messages.slice(-this.memoryWindow);
 
-      this.executor.setCurrentContext(msg.channel, msg.chatId, msg.messageType);
-      const messages = this.executor.buildMessages(history, msg.content, msg.media, msg.files);
+      const executor = this.createExecutorForRole(currentRoleName);
+      executor.setCurrentContext(msg.channel, msg.chatId, msg.messageType);
+      const messages = executor.buildMessages(history, msg.content, msg.media, msg.files);
 
       if (this.pluginManager) {
         await this.pluginManager.applyOnAgentBefore(msg, messages);
       }
 
-      const executionResult = await this.executionCoordinator.execute({
+      const coordinator = new ExecutionCoordinator(executor, this.backgroundTasks, this.completionService);
+      const executionResult = await coordinator.execute({
         sessionKey,
         request: msg,
         messages,
@@ -218,6 +250,69 @@ export class AgentLoop {
       this.currentSessionKey = undefined;
       endTimer();
     }
+  }
+
+  private createExecutorForRole(roleName?: string | null, options?: { excludeTools?: string[] }): AgentExecutor {
+    if (!this.agentRoleService) {
+      return this.executor;
+    }
+
+    const resolvedRole = this.agentRoleService.getResolvedRole(roleName) || this.agentRoleService.getResolvedRole(this.agentRoleService.getDefaultRoleName());
+    if (!resolvedRole) {
+      throw new Error(`Agent role not found: ${roleName}`);
+    }
+
+    const scopedToolRegistry = new ScopedToolRegistry(
+      this.toolRegistry,
+      this.agentRoleService.getAllowedToolNames(resolvedRole.name, { excludeTools: options?.excludeTools })
+    );
+    const provider = this.agentRoleService.createProviderForRole(resolvedRole.name);
+    const executor = new AgentExecutor(
+      provider,
+      scopedToolRegistry as unknown as ToolRegistry,
+      this.workspace,
+      resolvedRole.systemPrompt,
+      this.agentRoleService.buildSkillsPrompt(resolvedRole.name),
+      resolvedRole.model,
+      this.maxIterations,
+      this.pluginManager,
+      this.visionSettings,
+      this.visionProvider,
+      this.executionRegistry
+    );
+
+    return executor;
+  }
+
+  async runSubAgentTask(
+    agentName: string,
+    task: string,
+    context?: {
+      channel?: string;
+      chatId?: string;
+      messageType?: 'private' | 'group';
+      signal?: AbortSignal;
+    }
+  ): Promise<string> {
+    const executor = this.createExecutorForRole(agentName, {
+      excludeTools: ['send_msg_to_user', 'call_agent']
+    });
+
+    executor.setCurrentContext(context?.channel, context?.chatId, context?.messageType);
+    const messages = executor.buildMessages([], task);
+    const result = await executor.executeToolLoop(messages, {
+      ...this.toolContext,
+      channel: context?.channel,
+      chatId: context?.chatId,
+      messageType: context?.messageType,
+      signal: context?.signal
+    }, {
+      allowTools: true,
+      source: 'user',
+      signal: context?.signal
+    });
+
+    return result.content;
   }
 
   abortExecution(sessionKey: string): boolean {
@@ -267,7 +362,11 @@ export class AgentLoop {
   }
 
   updateProvider(provider: LLMProvider, model?: string): void {
+    this.defaultProvider = provider;
     this.executor.updateProvider(provider, model);
+    if (model) {
+      this.defaultModel = model;
+    }
     this.log.info(model ? `Provider and model updated: ${model}` : 'Provider updated');
   }
 
@@ -300,11 +399,6 @@ export class AgentLoop {
       this.sessionManager,
       this.pluginManager,
       this.memoryService
-    );
-    this.executionCoordinator = new ExecutionCoordinator(
-      this.executor,
-      this.backgroundTasks,
-      this.completionService
     );
   }
 

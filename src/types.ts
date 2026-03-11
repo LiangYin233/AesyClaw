@@ -45,8 +45,6 @@ export interface OutboundMessage {
   messageType?: 'private' | 'group';
 }
 
-
-
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string | Array<{
@@ -92,9 +90,24 @@ export interface PluginErrorContext {
   data?: any;
 }
 
+export interface AgentRoleConfig {
+  name: string;
+  description?: string;
+  systemPrompt: string;
+  provider: string;
+  model: string;
+  allowedSkills: string[];
+  allowedTools: string[];
+}
+
+export interface AgentsConfig {
+  roles: Record<string, AgentRoleConfig>;
+}
+
 export interface Config {
   server: ServerConfig;
   agent: AgentConfig;
+  agents?: AgentsConfig;
   channels: Record<string, any>;
   providers: Record<string, ProviderConfig>;
   mcp?: MCPServersConfig;
