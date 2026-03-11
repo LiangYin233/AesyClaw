@@ -36,6 +36,7 @@ export class ToolLoopRunner {
     const source = options.source ?? 'user';
     const initialToolCalls = options.initialToolCalls;
     const executionSignal = options.signal;
+    const agentLabel = options.agentName || 'main';
 
     let agentMode = !!initialToolCalls;
     let toolCallQueue = [...(initialToolCalls || [])];
@@ -54,6 +55,7 @@ export class ToolLoopRunner {
     while (toolCallQueue.length > 0 && iteration < max) {
       iteration++;
       checkAbort();
+      const currentToolNames = toolCallQueue.map((toolCall) => toolCall.name).filter(Boolean);
 
       // 执行当前队列中的所有 toolCalls
       for (const toolCall of toolCallQueue) {
@@ -66,7 +68,7 @@ export class ToolLoopRunner {
         }
 
         toolsUsed.push(toolName);
-        this.log.info(`Executing tool: ${toolName}`);
+        this.log.info(`[agent:${agentLabel}] Executing tool: ${toolName}`);
 
         let toolArgs = toolCall.arguments || {};
         const toolEndTimer = metrics.timer('agent.tool_execution', { tool: toolName });
@@ -85,7 +87,7 @@ export class ToolLoopRunner {
           }
 
           result = await this.toolRegistry.execute(execToolName, toolArgs, execContext);
-          this.log.info(`Tool ${toolName} executed, result length: ${result.length}`);
+          this.log.info(`[agent:${agentLabel}] Tool ${toolName} executed, result length: ${result.length}`);
 
           if (this.pluginManager) {
             result = await this.pluginManager.applyOnToolCall(toolName, toolArgs, result);
@@ -96,7 +98,7 @@ export class ToolLoopRunner {
           const message = normalizeError(error);
           const isRetryable = isRetryableError(error);
           result = `Error: ${message}${isRetryable ? ' (retryable)' : ''}`;
-          this.log.error(`Tool ${toolName} failed:`, message);
+          this.log.error(`[agent:${agentLabel}] Tool ${toolName} failed:`, message);
 
           metrics.record('agent.tool_call_count', 1, 'count', { tool: toolName, status: 'error' });
 
@@ -113,10 +115,27 @@ export class ToolLoopRunner {
           toolCallId: toolCall.id || '',
           name: toolName
         });
+
+        if (toolName === 'call_agent') {
+          const preview = result.replace(/\s+/g, ' ').slice(0, 320);
+          this.log.info(`[agent:${agentLabel}] call_agent result preview: ${preview || '(empty)'}`);
+        }
       }
 
       // 执行完所有 toolCalls 后，继续调用 LLM
       checkAbort();
+
+      const lastMessages = messages.slice(-Math.min(messages.length, 3)).map((message) => {
+        const role = message.role;
+        const name = message.name ? `:${message.name}` : '';
+        const content = typeof message.content === 'string'
+          ? message.content.replace(/\s+/g, ' ').slice(0, 160)
+          : '[non-text-content]';
+        return `${role}${name}=${content || '(empty)'}`;
+      });
+      this.log.debug(
+        `[agent:${agentLabel}] Next LLM call after tools [${currentToolNames.join(', ')}], recent messages: ${lastMessages.join(' | ')}`
+      );
 
       const tools = allowTools ? this.toolRegistry.getDefinitions() : [];
       const response = await this.provider.chat(messages, tools, options.model, {

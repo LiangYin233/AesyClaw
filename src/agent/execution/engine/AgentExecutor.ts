@@ -118,14 +118,18 @@ export class AgentExecutor {
   async callLLM(
     messages: LLMMessage[],
     options?: LLMCallOptions
-  ): Promise<{ content: string; reasoning_content?: string }> {
+  ): Promise<{ content: string; reasoning_content?: string; toolCalls: any[] }> {
     const result = await this.toolLoopRunner.callLLM(
       messages,
       this.model,
       { allowTools: options?.allowTools, reasoning: options?.reasoning, signal: options?.signal }
     );
 
-    return { content: result.content || '', reasoning_content: result.reasoning_content };
+    return {
+      content: result.content || '',
+      reasoning_content: result.reasoning_content,
+      toolCalls: result.toolCalls
+    };
   }
 
   buildMessages(history: any[], currentMessage: string, media?: string[], files?: InboundFile[]): LLMMessage[] {

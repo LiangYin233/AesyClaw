@@ -3,9 +3,15 @@
 export interface Status {
   version: string
   uptime: number
-  channels: any
+  channels: Record<string, ChannelStatus>
   sessions: number
   agentRunning: boolean
+}
+
+export interface ChannelStatus {
+  enabled?: boolean
+  connected?: boolean
+  running?: boolean
 }
 
 export interface Session {
@@ -93,6 +99,7 @@ export interface Config {
     defaults: {
       model: string
       provider: string
+      description?: string
       vision?: boolean
       reasoning?: boolean
       visionProvider?: string

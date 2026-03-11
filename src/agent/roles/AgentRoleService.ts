@@ -21,7 +21,7 @@ export class AgentRoleService {
   constructor(
     private getConfig: () => Config,
     private setConfig: (config: Config) => void,
-    private toolRegistry: Pick<ToolRegistry, 'getDefinitions' | 'getBlacklist'>,
+    private toolRegistry: Pick<ToolRegistry, 'getDefinitions'>,
     private skillManager?: SkillManager
   ) {}
 
@@ -161,7 +161,7 @@ export class AgentRoleService {
 
     return [
       '可调用的 Agent 角色：',
-      '当任务适合专门角色时，可使用 call_agent(agentName, task) 将任务委派给对应角色。',
+      '当用户任务需要同时进行，或可以拆分为多个可独立编排的子任务时，可使用 call_agent({ items: [{ agentName, task }, ...] }) 一次并发委派多个 Agent，并等待全部完成后统一返回。',
       roleList
     ].join('\n');
   }
@@ -191,12 +191,12 @@ export class AgentRoleService {
   }
 
   private buildMainRole(config: Config): ResolvedAgentRole {
-    const allSkills = (this.skillManager?.listSkills() || []).filter((skill) => skill.enabled).map((skill) => skill.name);
-    const allTools = this.toolRegistry.getDefinitions().map((tool) => tool.name);
+    const allSkills = this.getAvailableSkillNames();
+    const allTools = this.getAvailableToolNames();
 
     return this.resolveRole({
       name: MAIN_AGENT_NAME,
-      description: '内建主 Agent',
+      description: config.agent.defaults.description || '内建主 Agent',
       systemPrompt: config.agent.defaults.systemPrompt || 'You are a helpful AI assistant.',
       provider: config.agent.defaults.provider,
       model: config.agent.defaults.model,
@@ -206,12 +206,8 @@ export class AgentRoleService {
   }
 
   private resolveRole(role: AgentRoleConfig, builtin: boolean): ResolvedAgentRole {
-    const availableSkillSet = new Set(
-      (this.skillManager?.listSkills() || [])
-        .filter((skill) => skill.enabled)
-        .map((skill) => skill.name)
-    );
-    const availableToolSet = new Set(this.toolRegistry.getDefinitions().map((tool) => tool.name));
+    const availableSkillSet = new Set(this.getAvailableSkillNames());
+    const availableToolSet = new Set(this.getAvailableToolNames());
 
     const availableSkills = role.allowedSkills.filter((name) => availableSkillSet.has(name));
     const missingSkills = role.allowedSkills.filter((name) => !availableSkillSet.has(name));
@@ -226,6 +222,16 @@ export class AgentRoleService {
       missingSkills,
       missingTools
     };
+  }
+
+  private getAvailableSkillNames(): string[] {
+    return (this.skillManager?.listSkills() || [])
+      .filter((skill) => skill.enabled)
+      .map((skill) => skill.name);
+  }
+
+  private getAvailableToolNames(): string[] {
+    return this.toolRegistry.getDefinitions().map((tool) => tool.name);
   }
 
   private normalizeRoleConfig(input: AgentRoleConfig, builtin: boolean): AgentRoleConfig {

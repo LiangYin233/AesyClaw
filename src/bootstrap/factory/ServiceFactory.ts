@@ -48,13 +48,6 @@ export interface ServiceFactoryOptions {
   onCronJob?: (job: CronJob) => Promise<void>;
 }
 
-function applyToolBlacklist(config: Config, toolRegistry: ToolRegistry): void {
-  if (config.tools?.blacklist && config.tools.blacklist.length > 0) {
-    toolRegistry.setBlacklist(config.tools.blacklist);
-    appLog.info(`Tool blacklist applied: ${config.tools.blacklist.join(', ')}`);
-  }
-}
-
 export { createMemoryService };
 
 export async function createServices(options: ServiceFactoryOptions): Promise<Services> {
@@ -123,9 +116,6 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     agent,
     agentRoleService
   });
-
-  applyToolBlacklist(config, toolRegistry);
-
   const apiServer = await createApiServer({
     config,
     port,

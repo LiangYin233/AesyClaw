@@ -213,6 +213,26 @@ export class AgentLoop {
     });
   }
 
+  async runSubAgentTasks(
+    tasks: Array<{ agentName: string; task: string }>,
+    context?: {
+      channel?: string;
+      chatId?: string;
+      messageType?: 'private' | 'group';
+      signal?: AbortSignal;
+    }
+  ): Promise<Array<{ agentName: string; task: string; success: boolean; result?: string; error?: string }>> {
+    return this.executionService.runSubAgentTasks(tasks, {
+      ...this.toolContext,
+      channel: context?.channel,
+      chatId: context?.chatId,
+      messageType: context?.messageType,
+      signal: context?.signal
+    }, {
+      signal: context?.signal
+    });
+  }
+
   abortExecution(sessionKey: string): boolean {
     const aborted = this.abortService.abortBySessionKey(sessionKey);
 

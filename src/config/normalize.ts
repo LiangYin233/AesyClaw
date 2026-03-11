@@ -11,6 +11,7 @@ export const DEFAULT_CONFIG: Config = {
     defaults: {
       model: 'gpt-4o',
       provider: 'openai',
+      description: '内建主 Agent',
       vision: false,
       reasoning: false,
       visionProvider: '',
@@ -47,7 +48,6 @@ export const DEFAULT_CONFIG: Config = {
   },
   skills: {},
   tools: {
-    blacklist: [],
     timeoutMs: 30000
   },
   log: {
@@ -101,10 +101,12 @@ export function normalizeConfig(config: Config): Config {
     maxFacts: 100
   };
   normalized.tools ||= {
-    blacklist: [],
     timeoutMs: 30000
   };
-  normalized.tools.blacklist ||= [];
+  normalized.agent.defaults.description ||= '内建主 Agent';
+  if ('blacklist' in normalized.tools) {
+    delete (normalized.tools as Record<string, unknown>).blacklist;
+  }
 
   return normalized;
 }

@@ -131,35 +131,79 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
 
   toolRegistry.register({
     name: 'call_agent',
-    description: '调用指定 Agent 角色执行一个独立任务，并返回文本结果。',
+    description: '当用户任务需要同时进行，或可以拆分为多个可独立编排的子任务时，调用多个 Agent 角色并发执行。参数必须是 { items: [{ agentName, task }, ...] }，等待全部完成后统一返回结果。',
     parameters: {
       type: 'object',
       properties: {
-        agentName: { type: 'string', description: '目标 Agent 角色名称' },
-        task: { type: 'string', description: '交给子 Agent 的任务描述' }
+        items: {
+          type: 'array',
+          description: '并发子 Agent 任务列表。',
+          items: {
+            type: 'object',
+            properties: {
+              agentName: { type: 'string', description: '目标 Agent 角色名称' },
+              task: { type: 'string', description: '交给子 Agent 的任务描述' }
+            },
+            required: ['agentName', 'task']
+          }
+        },
       },
-      required: ['agentName', 'task']
+      required: ['items']
     },
     execute: async (params: Record<string, any>, context?: ToolContext) => {
-      const agentName = String(params.agentName || '');
-      const task = String(params.task || '');
-
-      if (!agentName || !task) {
-        return 'Error: agentName and task are required';
+      if (!Array.isArray(params.items) || params.items.length === 0) {
+        return 'Error: call_agent requires { items: [{ agentName, task }, ...] }';
       }
 
-      const role = agentRoleService.getResolvedRole(agentName);
-      if (!role) {
-        return `Error: Agent role not found: ${agentName}`;
+      const rawTasks = params.items.map((item: any) => ({
+            agentName: String(item?.agentName || ''),
+            task: String(item?.task || '')
+          }));
+
+      log.info(
+        `[call_agent] Received ${rawTasks.length} task(s): ${rawTasks
+          .map((item) => `${item.agentName}(${item.task.length})`)
+          .join(', ')}`
+      );
+
+      const invalidTask = rawTasks.find((item) => !item.agentName || !item.task);
+      if (invalidTask) {
+        return 'Error: each items entry requires agentName and task';
+      }
+
+      const missingRole = rawTasks.find((item) => !agentRoleService.getResolvedRole(item.agentName));
+      if (missingRole) {
+        return `Error: Agent role not found: ${missingRole.agentName}`;
       }
 
       try {
-        return await agent.runSubAgentTask(agentName, task, {
+        const results = await agent.runSubAgentTasks(rawTasks, {
           channel: context?.channel,
           chatId: context?.chatId,
           messageType: context?.messageType,
           signal: context?.signal
         });
+
+        log.info(
+          `[call_agent] Completed ${results.length} task(s): ${results
+            .map((item) => `${item.agentName}=${item.success ? 'ok' : 'fail'}`)
+            .join(', ')}`
+        );
+
+        for (const item of results) {
+          const previewSource = item.success ? item.result : item.error;
+          const preview = (previewSource || '').replace(/\s+/g, ' ').slice(0, 240);
+          log.debug(
+            `[call_agent] Result preview for ${item.agentName}: ${preview || '(empty)'}`
+          );
+        }
+
+        return JSON.stringify({
+          total: results.length,
+          success: results.filter((item) => item.success).length,
+          failed: results.filter((item) => !item.success).length,
+          results
+        }, null, 2);
       } catch (error) {
         return `Error: ${error instanceof Error ? error.message : String(error)}`;
       }

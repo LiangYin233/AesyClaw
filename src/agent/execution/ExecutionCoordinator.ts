@@ -7,6 +7,7 @@ import { logger } from '../../logger/index.js';
 
 export interface CoordinateExecutionRequest {
   sessionKey: string;
+  agentName: string;
   request: InboundMessage;
   messages: LLMMessage[];
   toolContext: ToolContext;
@@ -37,6 +38,7 @@ export class ExecutionCoordinator {
   async execute(request: CoordinateExecutionRequest): Promise<CoordinateExecutionResult> {
     const {
       sessionKey,
+      agentName,
       request: inbound,
       messages,
       toolContext,
@@ -51,12 +53,14 @@ export class ExecutionCoordinator {
       this.log.info(`Using vision provider for session ${sessionKey}`);
       result = await this.executor.executeWithVision(messages, toolContext, {
         allowTools: true,
+        agentName,
         source: 'user',
         sessionKey
       });
     } else {
       result = await this.executor.executeWithBackground(messages, toolContext, {
         allowTools: true,
+        agentName,
         source: 'user',
         sessionKey,
         onNeedsBackground: async (response, bgMessages, bgContext) => {

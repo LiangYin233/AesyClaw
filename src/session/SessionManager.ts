@@ -65,7 +65,7 @@ export class SessionManager {
   createNewSession(channel: string, chatId: string): string {
     const uuid = randomUUID().substring(0, 8);
     const key = this.createSessionKey(channel, chatId, uuid);
-    this.log.debug(`Creating new session: ${key}`);
+    this.log.debug(`Generated new session key: ${key}`);
     return key;
   }
 
@@ -82,7 +82,7 @@ export class SessionManager {
       return await pending;
     }
 
-    this.log.debug(`Creating new session: ${key}`);
+    this.log.debug(`Creating session record: ${key}`);
     const lockPromise = this.doGetOrCreate(key);
     this.sessionLocks.set(key, lockPromise);
 

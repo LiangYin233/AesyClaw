@@ -14,7 +14,7 @@
           :key="key"
           class="channel-item"
           role="listitem"
-          :aria-label="`通道 ${key}，${value.enabled ? '已启用' : '已禁用'}，${value.connected ? '已连接' : '未连接'}`"
+          :aria-label="buildAriaLabel(key, value)"
         >
           <div class="channel-info">
             <span class="channel-name">{{ key }}</span>
@@ -25,9 +25,9 @@
             />
           </div>
           <Tag
-            v-if="value.connected !== undefined"
-            :value="value.connected ? '已连接' : '未连接'"
-            :severity="value.connected ? 'success' : 'warn'"
+            v-if="getConnectedState(value) !== undefined"
+            :value="getConnectedState(value) ? '已连接' : '未连接'"
+            :severity="getConnectedState(value) ? 'success' : 'warn'"
             icon="pi pi-circle-fill"
           />
         </div>
@@ -37,11 +37,23 @@
 </template>
 
 <script setup lang="ts">
+import type { ChannelStatus } from '../../types/api'
 import Card from 'primevue/card'
 import Tag from 'primevue/tag'
 import EmptyState from '../common/EmptyState.vue'
 
-defineProps<{ channels: Record<string, any> | null }>()
+defineProps<{ channels: Record<string, ChannelStatus> | null }>()
+
+function getConnectedState(value: ChannelStatus): boolean | undefined {
+  return value.connected ?? value.running
+}
+
+function buildAriaLabel(key: string, value: ChannelStatus): string {
+  const enabledLabel = value.enabled === undefined ? '启用状态未知' : value.enabled ? '已启用' : '已禁用'
+  const connected = getConnectedState(value)
+  const connectedLabel = connected === undefined ? '连接状态未知' : connected ? '已连接' : '未连接'
+  return `通道 ${key}，${enabledLabel}，${connectedLabel}`
+}
 </script>
 
 <style scoped>

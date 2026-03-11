@@ -10,6 +10,7 @@ import type { ExecutionPolicyFactory } from './ExecutionPolicyFactory.js';
 
 export class MessageExecutionService {
   private log = logger.child({ prefix: 'MessageExecutionService' });
+  private readonly subAgentExcludedTools = ['send_msg_to_user', 'call_agent'];
 
   constructor(
     private policyFactory: ExecutionPolicyFactory,
@@ -55,6 +56,7 @@ export class MessageExecutionService {
       const coordinator = new ExecutionCoordinator(executor, this.backgroundTasks, this.completionService);
       const executionResult = await coordinator.execute({
         sessionKey: context.sessionKey,
+        agentName: policy.roleName,
         request: context.request,
         messages,
         toolContext: context.toolContext,
@@ -86,21 +88,61 @@ export class MessageExecutionService {
     extra?: { signal?: AbortSignal }
   ): Promise<string> {
     const policy = this.policyFactory.createPolicy(agentName, {
-      excludeTools: ['send_msg_to_user', 'call_agent']
+      excludeTools: this.subAgentExcludedTools
     });
     const executor = this.policyFactory.createExecutor(policy);
     executor.setCurrentContext(toolContext.channel, toolContext.chatId, toolContext.messageType);
     const messages = executor.buildMessages([], task);
+    const signal = extra?.signal ?? toolContext.signal;
+
+    const initial = await executor.callLLM(messages, {
+      allowTools: true,
+      reasoning: policy.visionSettings?.reasoning,
+      signal
+    });
+
+    if (initial.toolCalls.length === 0) {
+      return initial.content;
+    }
+
+    messages.push({
+      role: 'assistant',
+      content: initial.content || '',
+      toolCalls: initial.toolCalls
+    });
+
     const result = await executor.executeToolLoop(messages, {
       ...toolContext,
-      signal: extra?.signal ?? toolContext.signal
+      signal
     }, {
+      agentName: policy.roleName,
       allowTools: true,
       source: 'user',
-      signal: extra?.signal ?? toolContext.signal
+      initialToolCalls: initial.toolCalls,
+      signal
     });
 
     return result.content;
+  }
+
+  async runSubAgentTasks(
+    tasks: Array<{ agentName: string; task: string }>,
+    toolContext: ExecutionContext['toolContext'],
+    extra?: { signal?: AbortSignal }
+  ): Promise<Array<{ agentName: string; task: string; success: boolean; result?: string; error?: string }>> {
+    return Promise.all(tasks.map(async ({ agentName, task }) => {
+      try {
+        const result = await this.runSubAgentTask(agentName, task, toolContext, extra);
+        return { agentName, task, success: true, result };
+      } catch (error) {
+        return {
+          agentName,
+          task,
+          success: false,
+          error: error instanceof Error ? error.message : String(error)
+        };
+      }
+    }));
   }
 
   private async sendOutbound(message: OutboundMessage): Promise<void> {

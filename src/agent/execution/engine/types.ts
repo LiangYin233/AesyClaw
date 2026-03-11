@@ -20,6 +20,7 @@ export interface ExecutionOptions {
   allowTools?: boolean;
   maxIterations?: number;
   sessionKey?: string;
+  agentName?: string;
   source?: 'user' | 'cron';
   initialToolCalls?: ToolCall[];
   signal?: AbortSignal;

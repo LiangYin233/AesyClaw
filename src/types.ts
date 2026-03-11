@@ -119,7 +119,6 @@ export interface Config {
 }
 
 export interface ToolsConfig {
-  blacklist?: string[];  // 工具黑名单
   timeoutMs?: number;
 }
 
@@ -143,6 +142,7 @@ export interface AgentConfig {
   defaults: {
     model: string;
     provider: string;
+    description?: string;
 
     // 视觉和推理配置
     vision?: boolean;           // 是否启用视觉能力

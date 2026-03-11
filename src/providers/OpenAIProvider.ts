@@ -139,16 +139,6 @@ export class OpenAIProvider extends LLMProvider {
       const formattedMessages = this.formatMessages(messages);
 
       this.log.debug(`Formatted messages count: ${formattedMessages.length}`);
-      for (let i = 0; i < formattedMessages.length; i++) {
-        const m = formattedMessages[i];
-        this.log.debug(`Message[${i}] role: ${m.role}, hasToolCalls: ${!!m.tool_calls}, hasToolCallId: ${!!m.tool_call_id}`);
-        if (m.tool_calls) {
-          this.log.debug(`  tool_calls:`, JSON.stringify(m.tool_calls).substring(0, 500));
-        }
-        if (m.tool_call_id) {
-          this.log.debug(`  tool_call_id: ${m.tool_call_id}`);
-        }
-      }
       
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
