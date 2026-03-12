@@ -154,6 +154,23 @@ export interface LogConfig {
   prefix: string
 }
 
+export interface LogEntry {
+  id: string
+  timestamp: string
+  level: 'debug' | 'info' | 'warn' | 'error'
+  prefix: string
+  message: string
+  context?: string
+  line: string
+}
+
+export interface LogsResponse {
+  entries: LogEntry[]
+  total: number
+  bufferSize: number
+  level: string
+}
+
 export interface MetricStats {
   name: string
   count: number

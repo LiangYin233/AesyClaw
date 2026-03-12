@@ -3,6 +3,16 @@ import { normalizeError } from './errors.js';
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 export type LogContext = Record<string, unknown>;
 
+export interface LogEntry {
+  id: string;
+  timestamp: string;
+  level: LogLevel;
+  prefix: string;
+  message: string;
+  context?: string;
+  line: string;
+}
+
 const LEVELS: Record<LogLevel, number> = {
   debug: 0,
   info: 1,
@@ -33,7 +43,45 @@ const PREFIX_COLORS: Record<LogLevel, string> = {
 };
 
 const DEFAULT_PREVIEW_LIMIT = 120;
+const DEFAULT_LOG_BUFFER_SIZE = 1000;
 const SENSITIVE_KEY_PATTERN = /(authorization|token|api[-_]?key|secret|password|cookie)/i;
+
+let logSequence = 0;
+
+class LogBuffer {
+  private entries: LogEntry[] = [];
+
+  constructor(private limit: number = DEFAULT_LOG_BUFFER_SIZE) {}
+
+  add(entry: Omit<LogEntry, 'id'>): void {
+    this.entries.push({
+      ...entry,
+      id: `${Date.now()}-${++logSequence}`
+    });
+
+    if (this.entries.length > this.limit) {
+      this.entries = this.entries.slice(-this.limit);
+    }
+  }
+
+  list(options: { level?: LogLevel; limit?: number } = {}): LogEntry[] {
+    const { level, limit = 200 } = options;
+    const filtered = level
+      ? this.entries.filter((entry) => entry.level === level)
+      : this.entries;
+
+    return filtered.slice(-limit).reverse();
+  }
+
+  size(): number {
+    return this.entries.length;
+  }
+}
+
+interface LoggerState {
+  level: LogLevel;
+  buffer: LogBuffer;
+}
 
 export interface LoggerOptions {
   level?: LogLevel;
@@ -127,6 +175,12 @@ function formatContext(context: LogContext): string {
   return entries.join(' ');
 }
 
+function formatBaseParts(prefix: string, level: LogLevel, message: string, timestamp: Date): string[] {
+  const timeText = timestamp.toISOString().slice(11, 23);
+  const prefixLabel = prefix ? prefix.padEnd(18).slice(0, 18) : ''.padEnd(18);
+  return [timeText, prefixLabel, PREFIXES[level], message];
+}
+
 function parseLogArgs(args: unknown[]): { context?: LogContext; extras: unknown[] } {
   if (args.length === 0) {
     return { extras: [] };
@@ -148,31 +202,34 @@ function parseLogArgs(args: unknown[]): { context?: LogContext; extras: unknown[
 }
 
 export class Logger {
-  private level: LogLevel;
+  private state: LoggerState;
   private prefix: string;
 
-  constructor(options: LoggerOptions = {}) {
-    this.level = options.level || 'info';
+  constructor(options: LoggerOptions = {}, state?: LoggerState) {
+    this.state = state || {
+      level: options.level || 'info',
+      buffer: new LogBuffer()
+    };
     this.prefix = options.prefix || '';
   }
 
   setLevel(level: LogLevel): void {
-    this.level = level;
+    this.state.level = level;
   }
 
   getLevel(): LogLevel {
-    return this.level;
+    return this.state.level;
   }
 
   getConfig(): { level: LogLevel; prefix: string } {
     return {
-      level: this.level,
+      level: this.state.level,
       prefix: this.prefix
     };
   }
 
   isLevelEnabled(level: LogLevel): boolean {
-    return LEVELS[level] >= LEVELS[this.level];
+    return LEVELS[level] >= LEVELS[this.state.level];
   }
 
   preview(value: unknown, limit: number = DEFAULT_PREVIEW_LIMIT): string {
@@ -182,15 +239,14 @@ export class Logger {
     return previewText(typeof value === 'string' ? value : String(value), limit);
   }
 
-  private format(level: LogLevel, message: string, context?: LogContext): string {
-    const timestamp = new Date().toISOString().slice(11, 23);
+  private format(level: LogLevel, message: string, context?: LogContext, timestamp: Date = new Date()): string {
     const color = PREFIX_COLORS[level];
-    const prefixLabel = this.prefix ? this.prefix.padEnd(18).slice(0, 18) : ''.padEnd(18);
+    const [timeText, prefixLabel, levelText, messageText] = formatBaseParts(this.prefix, level, message, timestamp);
     const base = [
-      `${COLORS.gray}${timestamp}${COLORS.reset}`,
+      `${COLORS.gray}${timeText}${COLORS.reset}`,
       `${COLORS.gray}${prefixLabel}${COLORS.reset}`,
-      `${color}${PREFIXES[level]}${COLORS.reset}`,
-      message
+      `${color}${levelText}${COLORS.reset}`,
+      messageText
     ].join(' ');
 
     if (!context || Object.keys(context).length === 0) {
@@ -201,13 +257,39 @@ export class Logger {
     return serialized ? `${base} | ${serialized}` : base;
   }
 
+  private formatPlain(level: LogLevel, message: string, context?: LogContext, timestamp: Date = new Date()): string {
+    const base = formatBaseParts(this.prefix, level, message, timestamp).join(' ');
+
+    if (!context || Object.keys(context).length === 0) {
+      return base;
+    }
+
+    const serialized = formatContext(context);
+    return serialized ? `${base} | ${serialized}` : base;
+  }
+
+  private recordEntry(level: LogLevel, message: string, context: LogContext | undefined, timestamp: Date): void {
+    const contextText = context && Object.keys(context).length > 0 ? formatContext(context) : undefined;
+    this.state.buffer.add({
+      timestamp: timestamp.toISOString(),
+      level,
+      prefix: this.prefix,
+      message,
+      context: contextText,
+      line: this.formatPlain(level, message, context, timestamp)
+    });
+  }
+
   private write(level: LogLevel, message: string, ...args: unknown[]): void {
     if (!this.isLevelEnabled(level)) {
       return;
     }
 
+    const timestamp = new Date();
     const { context, extras } = parseLogArgs(args);
-    const line = this.format(level, message, context);
+    const line = this.format(level, message, context, timestamp);
+
+    this.recordEntry(level, message, context, timestamp);
 
     if (level === 'error') {
       console.error(line);
@@ -222,8 +304,19 @@ export class Logger {
         acc[`extra${index + 1}`] = extra;
         return acc;
       }, {});
-      console.log(this.format('debug', `${message} (extra)`, extraContext));
+      const extraTimestamp = new Date();
+      const extraLine = this.format('debug', `${message} (extra)`, extraContext, extraTimestamp);
+      this.recordEntry('debug', `${message} (extra)`, extraContext, extraTimestamp);
+      console.log(extraLine);
     }
+  }
+
+  getEntries(options: { level?: LogLevel; limit?: number } = {}): LogEntry[] {
+    return this.state.buffer.list(options);
+  }
+
+  getBufferSize(): number {
+    return this.state.buffer.size();
   }
 
   debug(message: string, ...args: unknown[]): void {
@@ -244,9 +337,8 @@ export class Logger {
 
   child(options: LoggerOptions): Logger {
     return new Logger({
-      level: this.level,
       prefix: options.prefix || this.prefix
-    });
+    }, this.state);
   }
 }
 

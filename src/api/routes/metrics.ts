@@ -21,6 +21,35 @@ export function registerMetricsRoutes(app: Express, deps: MetricsRouteDeps = {})
     }
   });
 
+  app.get('/api/logs/entries', (req, res) => {
+    try {
+      const limitParam = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
+      const levelParam = Array.isArray(req.query.level) ? req.query.level[0] : req.query.level;
+      const limit = limitParam ? parseInt(String(limitParam), 10) : 200;
+
+      if (Number.isNaN(limit) || limit <= 0) {
+        return res.status(400).json(createValidationErrorResponse('limit must be a positive integer', 'limit'));
+      }
+
+      const validLevels: LogLevel[] = ['debug', 'info', 'warn', 'error'];
+      if (levelParam !== undefined && (typeof levelParam !== 'string' || !validLevels.includes(levelParam as LogLevel))) {
+        return res.status(400).json(createValidationErrorResponse(`level must be one of: ${validLevels.join(', ')}`, 'level'));
+      }
+
+      res.json({
+        entries: logger.getEntries({
+          limit,
+          level: typeof levelParam === 'string' ? levelParam as LogLevel : undefined
+        }),
+        total: logger.getBufferSize(),
+        bufferSize: logger.getBufferSize(),
+        level: logger.getLevel()
+      });
+    } catch (error) {
+      res.status(500).json(createErrorResponse(error));
+    }
+  });
+
   app.post('/api/logs/level', async (req, res) => {
     try {
       const { level } = req.body;
