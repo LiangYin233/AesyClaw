@@ -1,4 +1,5 @@
 import { ConfigLoader } from '../../config/loader.js';
+import { buildMainAgentRoleConfig } from '../../config/index.js';
 import type { AgentRoleConfig, Config } from '../../types.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import type { SkillManager } from '../../skills/SkillManager.js';
@@ -37,7 +38,7 @@ export class AgentRoleService {
     const config = this.getConfig();
     const roles = [this.buildMainRole(config)];
 
-    for (const [name, role] of Object.entries(config.agents?.roles || {})) {
+    for (const [name, role] of Object.entries(config.agents.roles)) {
       if (name === MAIN_AGENT_NAME) {
         continue;
       }
@@ -53,7 +54,7 @@ export class AgentRoleService {
       return this.buildMainRole(this.getConfig());
     }
 
-    const role = this.getConfig().agents?.roles?.[targetName];
+    const role = this.getConfig().agents.roles[targetName];
     if (!role) {
       return null;
     }
@@ -63,19 +64,18 @@ export class AgentRoleService {
 
   async createRole(input: AgentRoleConfig): Promise<ResolvedAgentRole> {
     const normalized = this.normalizeRoleConfig(input, false);
-    const config = this.getConfig();
-    config.agents ||= { roles: {} };
 
     if (normalized.name === MAIN_AGENT_NAME) {
       throw new Error('Cannot create role using reserved name "main"');
     }
-    if (config.agents.roles[normalized.name]) {
+    if (this.getConfig().agents.roles[normalized.name]) {
       throw new Error(`Agent role already exists: ${normalized.name}`);
     }
 
-    config.agents.roles[normalized.name] = normalized;
-    await ConfigLoader.save(config);
-    this.setConfig(config);
+    const nextConfig = await ConfigLoader.update((config) => {
+      config.agents.roles[normalized.name] = normalized;
+    });
+    this.setConfig(nextConfig);
     return this.resolveRole(normalized, false);
   }
 
@@ -89,23 +89,23 @@ export class AgentRoleService {
       };
       const normalized = this.normalizeRoleConfig(merged, true);
 
-      config.agents ||= { roles: {} };
-      config.agents.main = {
-        description: normalized.description,
-        systemPrompt: normalized.systemPrompt,
-        provider: normalized.provider,
-        model: normalized.model,
-        allowedSkills: [...normalized.allowedSkills],
-        allowedTools: [...normalized.allowedTools]
-      };
+      const nextConfig = await ConfigLoader.update((draft) => {
+        draft.agents.main = {
+          description: normalized.description,
+          systemPrompt: normalized.systemPrompt,
+          provider: normalized.provider,
+          model: normalized.model,
+          allowedSkills: [...normalized.allowedSkills],
+          allowedTools: [...normalized.allowedTools]
+        };
+      });
 
-      await ConfigLoader.save(config);
-      this.setConfig(config);
-      return this.buildMainRole(config);
+      this.setConfig(nextConfig);
+      return this.buildMainRole(nextConfig);
     }
 
     const config = this.getConfig();
-    const existing = config.agents?.roles?.[name];
+    const existing = config.agents.roles[name];
     if (!existing) {
       throw new Error(`Agent role not found: ${name}`);
     }
@@ -116,10 +116,10 @@ export class AgentRoleService {
       name
     };
     const normalized = this.normalizeRoleConfig(merged, false);
-    config.agents ||= { roles: {} };
-    config.agents.roles[name] = normalized;
-    await ConfigLoader.save(config);
-    this.setConfig(config);
+    const nextConfig = await ConfigLoader.update((draft) => {
+      draft.agents.roles[name] = normalized;
+    });
+    this.setConfig(nextConfig);
     return this.resolveRole(normalized, false);
   }
 
@@ -129,13 +129,14 @@ export class AgentRoleService {
     }
 
     const config = this.getConfig();
-    if (!config.agents?.roles?.[name]) {
+    if (!config.agents.roles[name]) {
       throw new Error(`Agent role not found: ${name}`);
     }
 
-    delete config.agents.roles[name];
-    await ConfigLoader.save(config);
-    this.setConfig(config);
+    const nextConfig = await ConfigLoader.update((draft) => {
+      delete draft.agents.roles[name];
+    });
+    this.setConfig(nextConfig);
   }
 
   buildSkillsPrompt(roleName?: string | null): string {
@@ -211,19 +212,7 @@ export class AgentRoleService {
   }
 
   private buildMainRole(config: Config): ResolvedAgentRole {
-    const mainConfig = config.agents?.main;
-    const allSkills = this.getAvailableSkillNames();
-    const allTools = this.getAvailableToolNames();
-
-    return this.resolveRole({
-      name: MAIN_AGENT_NAME,
-      description: mainConfig?.description || config.agent.defaults.description || '内建主 Agent',
-      systemPrompt: mainConfig?.systemPrompt || config.agent.defaults.systemPrompt || 'You are a helpful AI assistant.',
-      provider: mainConfig?.provider || config.agent.defaults.provider,
-      model: mainConfig?.model || config.agent.defaults.model,
-      allowedSkills: Array.isArray(mainConfig?.allowedSkills) ? mainConfig.allowedSkills : allSkills,
-      allowedTools: Array.isArray(mainConfig?.allowedTools) ? mainConfig.allowedTools : allTools
-    }, true);
+    return this.resolveRole(buildMainAgentRoleConfig(config), true);
   }
 
   private resolveRole(role: AgentRoleConfig, builtin: boolean): ResolvedAgentRole {

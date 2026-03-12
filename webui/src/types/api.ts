@@ -1,5 +1,11 @@
 // API Type Definitions
 
+import type {
+  AgentRoleConfig as SharedAgentRoleConfig,
+  Config as SharedConfig,
+  MCPServerConfig as SharedMCPServerConfig
+} from '../../../src/config/schema.ts'
+
 export interface Status {
   version: string
   uptime: number
@@ -32,15 +38,7 @@ export interface BatchDeleteResult {
   }>
 }
 
-export interface AgentRoleConfig {
-  name: string
-  description?: string
-  systemPrompt: string
-  provider: string
-  model: string
-  allowedSkills: string[]
-  allowedTools: string[]
-}
+export type AgentRoleConfig = SharedAgentRoleConfig
 
 export interface AgentRole extends AgentRoleConfig {
   builtin: boolean
@@ -60,14 +58,7 @@ export interface Tool {
   parameters: any
 }
 
-export interface MCPServerConfig {
-  type: 'local' | 'http'
-  command?: string | string[]
-  url?: string
-  environment?: string | Record<string, string>
-  enabled?: boolean
-  timeout?: number
-}
+export type MCPServerConfig = SharedMCPServerConfig
 
 export type MCPServerStatus = 'connecting' | 'connected' | 'failed' | 'disconnected'
 
@@ -86,52 +77,7 @@ export interface MCPTool {
   inputSchema: any
 }
 
-export interface Config {
-  server: {
-    host: string
-    port?: number
-    apiPort: number
-    webuiPort?: number
-    token?: string
-    apiEnabled?: boolean
-  }
-  agent: {
-    defaults: {
-      model: string
-      provider: string
-      description?: string
-      vision?: boolean
-      reasoning?: boolean
-      visionProvider?: string
-      visionModel?: string
-      maxTokens?: number
-      maxToolIterations: number
-      memoryWindow: number
-      systemPrompt?: string
-      contextMode?: 'session' | 'channel' | 'global'
-      maxSessions?: number
-      memorySummary?: {
-        enabled?: boolean
-        provider?: string
-        model?: string
-        triggerMessages?: number
-      }
-      memoryFacts?: {
-        enabled?: boolean
-        provider?: string
-        model?: string
-        maxFacts?: number
-      }
-    }
-  }
-  agents?: {
-    main?: Omit<AgentRoleConfig, 'name'>
-    roles: Record<string, AgentRoleConfig>
-  }
-  channels: Record<string, any>
-  providers: Record<string, any>
-  mcp?: Record<string, MCPServerConfig>
-}
+export type Config = SharedConfig
 
 export interface CronJob {
   id: string

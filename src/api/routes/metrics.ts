@@ -1,4 +1,5 @@
 import type { Express } from 'express';
+import type { Config } from '../../types.js';
 import { logger, type LogLevel, createErrorResponse, createValidationErrorResponse, NotFoundError } from '../../logger/index.js';
 import { metrics } from '../../logger/Metrics.js';
 import { tokenStats } from '../../logger/TokenStats.js';
@@ -6,7 +7,11 @@ import { ConfigLoader } from '../../config/loader.js';
 
 const log = logger.child({ prefix: 'MetricsAPI' });
 
-export function registerMetricsRoutes(app: Express): void {
+interface MetricsRouteDeps {
+  setConfig?: (config: Config) => void;
+}
+
+export function registerMetricsRoutes(app: Express, deps: MetricsRouteDeps = {}): void {
   // Log config
   app.get('/api/logs/config', (req, res) => {
     try {
@@ -29,13 +34,10 @@ export function registerMetricsRoutes(app: Express): void {
 
       // 保存到配置文件
       try {
-        const config = await ConfigLoader.load();
-        if (!config.log) {
-          config.log = { level };
-        } else {
+        const nextConfig = await ConfigLoader.update((config) => {
           config.log.level = level;
-        }
-        await ConfigLoader.save(config);
+        });
+        deps.setConfig?.(nextConfig);
         log.info(`Log level changed to ${level} and saved to config`);
       } catch (saveError) {
         log.warn(`Log level changed to ${level} but failed to save to config:`, saveError);

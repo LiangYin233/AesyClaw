@@ -3,12 +3,14 @@ import type { MCPClientManager } from '../../mcp/MCPClient.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import type { Config } from '../../types.js';
 import { ConfigLoader } from '../../config/loader.js';
+import { getConfigValidationIssue, parseMCPServerConfig } from '../../config/index.js';
 import { createErrorResponse, createValidationErrorResponse, NotFoundError } from '../../logger/index.js';
 
 interface MCPDeps {
   mcpManager?: MCPClientManager;
   toolRegistry?: ToolRegistry;
   getConfig: () => Config;
+  setConfig?: (config: Config) => void;
   getMcpManager: () => MCPClientManager | undefined;
   setMcpManager: (m: MCPClientManager) => void;
 }
@@ -35,17 +37,7 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
   app.post('/api/mcp/servers/:name', async (req, res) => {
     try {
       const { name } = req.params;
-      const config = req.body;
-
-      if (!config.type || !['local', 'http'].includes(config.type)) {
-        return res.status(400).json(createValidationErrorResponse('type must be "local" or "http"', 'type'));
-      }
-      if (config.type === 'local' && !config.command) {
-        return res.status(400).json(createValidationErrorResponse('command is required for local type', 'command'));
-      }
-      if (config.type === 'http' && !config.url) {
-        return res.status(400).json(createValidationErrorResponse('url is required for http type', 'url'));
-      }
+      const config = parseMCPServerConfig(req.body);
 
       let mgr = deps.getMcpManager();
       if (!mgr) {
@@ -56,10 +48,10 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
 
       await mgr.connectOne(name, config);
 
-      const currentConfig = deps.getConfig();
-      currentConfig.mcp = currentConfig.mcp || {};
-      currentConfig.mcp[name] = config;
-      await ConfigLoader.save(currentConfig);
+      const nextConfig = await ConfigLoader.update((currentConfig) => {
+        currentConfig.mcp[name] = config;
+      });
+      deps.setConfig?.(nextConfig);
 
       let toolsRegistered = 0;
       if (deps.toolRegistry) {
@@ -78,6 +70,11 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
 
       res.status(201).json({ success: true, server: mgr.getServerStatus(name), toolsRegistered });
     } catch (error) {
+      const issue = getConfigValidationIssue(error);
+      if (issue) {
+        return res.status(400).json(createValidationErrorResponse(issue.message, issue.field));
+      }
+
       res.status(500).json(createErrorResponse(error));
     }
   });
@@ -90,10 +87,11 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
       const { name } = req.params;
       await mgr.disconnectOne(name);
 
-      const currentConfig = deps.getConfig();
-      if (currentConfig.mcp?.[name]) {
-        delete currentConfig.mcp[name];
-        await ConfigLoader.save(currentConfig);
+      if (deps.getConfig().mcp[name]) {
+        const nextConfig = await ConfigLoader.update((currentConfig) => {
+          delete currentConfig.mcp[name];
+        });
+        deps.setConfig?.(nextConfig);
       }
 
       let toolsRemoved = 0;
@@ -130,17 +128,19 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
         return res.status(400).json(createValidationErrorResponse('enabled must be a boolean', 'enabled'));
       }
       const currentConfig = deps.getConfig();
-      if (!currentConfig.mcp?.[name]) {
+      if (!currentConfig.mcp[name]) {
         return res.status(404).json(createErrorResponse(new NotFoundError('MCP server in config', name)));
       }
 
-      currentConfig.mcp[name].enabled = enabled;
-      await ConfigLoader.save(currentConfig);
+      const nextConfig = await ConfigLoader.update((config) => {
+        config.mcp[name].enabled = enabled;
+      });
+      deps.setConfig?.(nextConfig);
 
       const mgr = deps.getMcpManager();
       if (mgr) {
         if (enabled) {
-          await mgr.connectOne(name, currentConfig.mcp[name]);
+          await mgr.connectOne(name, nextConfig.mcp[name]);
         } else {
           await mgr.disconnectOne(name);
         }

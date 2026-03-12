@@ -1,10 +1,66 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync, watch } from 'fs';
-import { join, dirname, basename } from 'path';
+import { existsSync, mkdirSync, readFileSync, watch, writeFileSync } from 'fs';
 import { randomBytes } from 'crypto';
+import { basename, dirname, join } from 'path';
 import type { Config } from '../types.js';
 import { logger } from '../logger/index.js';
 import { parse, stringify } from 'smol-toml';
-import { DEFAULT_CONFIG, normalizeConfig } from './normalize.js';
+import { createDefaultConfig, parseConfig, configSchema } from './schema.js';
+
+type fsWatcher = ReturnType<typeof watch>;
+type ConfigMutator = (config: Config) => void | Config | Promise<void | Config>;
+type SerializableValue = string | number | boolean | null | SerializableValue[] | { [key: string]: SerializableValue };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function stripUndefined(value: unknown): SerializableValue | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
+    return value as string | boolean | null;
+  }
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : undefined;
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => stripUndefined(item))
+      .filter((item): item is SerializableValue => item !== undefined);
+  }
+
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const result: Record<string, SerializableValue> = {};
+  for (const [key, nestedValue] of Object.entries(value)) {
+    const normalized = stripUndefined(nestedValue);
+    if (normalized !== undefined) {
+      result[key] = normalized;
+    }
+  }
+
+  return result;
+}
+
+function cloneConfig(config: Config): Config {
+  return structuredClone(config);
+}
+
+function withGeneratedToken(config: Config): Config {
+  if (config.server.token) {
+    return config;
+  }
+
+  const nextConfig = cloneConfig(config);
+  nextConfig.server.token = randomBytes(24).toString('hex');
+  return nextConfig;
+}
 
 export class ConfigLoader {
   private static config: Config | null = null;
@@ -12,6 +68,30 @@ export class ConfigLoader {
   private static watcher: fsWatcher | null = null;
   private static log = logger.child({ prefix: 'ConfigLoader' });
   private static reloadListeners = new Set<(config: Config) => void | Promise<void>>();
+
+  private static ensureConfigDirectory(): void {
+    const dir = dirname(this.configPath);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+  }
+
+  private static serializeConfig(config: Config): string {
+    const serializable = stripUndefined(config) ?? {};
+    return stringify(serializable as Record<string, unknown>);
+  }
+
+  private static writeConfig(config: Config): void {
+    this.ensureConfigDirectory();
+    const nextConfig = withGeneratedToken(config);
+    writeFileSync(this.configPath, this.serializeConfig(nextConfig), 'utf-8');
+    this.config = nextConfig;
+  }
+
+  private static readParsedConfig(): Config {
+    const raw = readFileSync(this.configPath, 'utf-8');
+    return parseConfig(parse(raw) as unknown);
+  }
 
   static setPath(configPath: string): void {
     this.configPath = configPath;
@@ -21,18 +101,16 @@ export class ConfigLoader {
     return this.configPath;
   }
 
-  static ensureDefaults(config: Config): Config {
-    return normalizeConfig(config);
+  static async save(config: unknown): Promise<void> {
+    this.writeConfig(parseConfig(config));
   }
 
-  static async save(config: Config): Promise<void> {
-    const withDefaults = this.ensureDefaults(config);
-    const dir = dirname(this.configPath);
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
-    }
-    writeFileSync(this.configPath, stringify(withDefaults), 'utf-8');
-    this.config = withDefaults;
+  static async update(mutator: ConfigMutator): Promise<Config> {
+    const currentConfig = cloneConfig(await this.load());
+    const updatedConfig = await mutator(currentConfig);
+    const nextConfig = parseConfig(updatedConfig ?? currentConfig);
+    this.writeConfig(nextConfig);
+    return nextConfig;
   }
 
   static async load(configPath?: string): Promise<Config> {
@@ -45,32 +123,28 @@ export class ConfigLoader {
     }
 
     if (!existsSync(this.configPath)) {
-      const nextConfig = this.ensureDefaults({ ...DEFAULT_CONFIG });
-      if (!nextConfig.server.token) {
-        nextConfig.server.token = randomBytes(24).toString('hex');
-      }
-      await this.save(nextConfig);
-      this.config = nextConfig;
+      const nextConfig = withGeneratedToken(createDefaultConfig());
+      this.writeConfig(nextConfig);
       this.startWatching();
       return nextConfig;
     }
 
-    const raw = readFileSync(this.configPath, 'utf-8');
-    const parsed = parse(raw) as unknown as Config;
-    const merged = this.ensureDefaults(parsed);
-    if (!merged.server.token) {
-      merged.server.token = randomBytes(24).toString('hex');
-      await this.save(merged);
+    const loadedConfig = this.readParsedConfig();
+    if (!loadedConfig.server.token) {
+      this.writeConfig(loadedConfig);
+    } else {
+      this.config = loadedConfig;
     }
-    this.config = merged;
+
     this.startWatching();
-    return merged;
+    return this.get();
   }
 
   static get(): Config {
     if (!this.config) {
       throw new Error('Config not loaded');
     }
+
     return this.config;
   }
 
@@ -81,15 +155,14 @@ export class ConfigLoader {
     };
   }
 
-  static async updatePluginConfig(name: string, enabled: boolean, options?: Record<string, any>): Promise<void> {
-    const config = this.get();
-    config.plugins ||= {};
-    config.plugins[name] = {
-      ...(config.plugins[name] || {}),
-      enabled,
-      ...(options ? { options } : {})
-    };
-    await this.save(config);
+  static async updatePluginConfig(name: string, enabled: boolean, options?: Record<string, any>): Promise<Config> {
+    return this.update((config) => {
+      config.plugins[name] = {
+        ...(config.plugins[name] || {}),
+        enabled,
+        ...(options ? { options } : {})
+      };
+    });
   }
 
   static startWatching(): void {
@@ -102,17 +175,16 @@ export class ConfigLoader {
         if (!filename || basename(filename.toString()) !== basename(this.configPath)) {
           return;
         }
+
         if (eventType !== 'change') {
           return;
         }
 
         try {
-          const raw = readFileSync(this.configPath, 'utf-8');
-          const parsed = parse(raw) as unknown as Config;
-          this.config = this.ensureDefaults(parsed);
+          this.config = this.readParsedConfig();
           this.log.info('Config reloaded from disk');
           for (const listener of this.reloadListeners) {
-            await listener(this.config);
+            await listener(this.get());
           }
         } catch (error) {
           this.log.warn('Failed to reload config:', error);
@@ -133,10 +205,9 @@ export class ConfigLoader {
   }
 }
 
-type fsWatcher = ReturnType<typeof watch>;
-
 export function getConfig(): Config {
   return ConfigLoader.get();
 }
 
-export { DEFAULT_CONFIG, normalizeConfig } from './normalize.js';
+export { configSchema, DEFAULT_CONFIG, createDefaultConfig, parseConfig } from './schema.js';
+export type { ConfigMutator };

@@ -1,4 +1,5 @@
 import { ConfigLoader } from '../../config/loader.js';
+import { resolveProviderSelection } from '../../config/index.js';
 import { createProvider } from '../../providers/index.js';
 import { logger } from '../../logger/index.js';
 import type { Services } from '../factory/ServiceFactory.js';
@@ -13,22 +14,24 @@ export function setupConfigReload(services: Services): void {
   ConfigLoader.onReload(async (newConfig) => {
     const startedAt = Date.now();
 
-    const oldProvider = currentConfig.agent.defaults.provider;
-    const newProvider = newConfig.agent.defaults.provider;
-    const oldModel = currentConfig.agent.defaults.model;
-    const newModel = newConfig.agent.defaults.model;
+    const oldProvider = resolveProviderSelection(currentConfig);
+    const newProvider = resolveProviderSelection(newConfig);
 
-    if (oldProvider !== newProvider ||
-        newConfig.providers[newProvider]?.apiBase !== currentConfig.providers[oldProvider]?.apiBase ||
-        oldModel !== newModel) {
+    if (oldProvider.name !== newProvider.name ||
+        newProvider.providerConfig?.apiBase !== oldProvider.providerConfig?.apiBase ||
+        oldProvider.model !== newProvider.model) {
       log.info('Config reload updating provider', {
-        fromProvider: oldProvider,
-        toProvider: newProvider,
-        fromModel: oldModel,
-        toModel: newModel
+        fromProvider: oldProvider.name,
+        toProvider: newProvider.name,
+        fromModel: oldProvider.model,
+        toModel: newProvider.model
       });
-      const newProviderInstance = createProvider(newProvider, newConfig.providers[newProvider]);
-      agent.updateProvider(newProviderInstance, newModel);
+      if (!newProvider.providerConfig) {
+        throw new Error(`Default provider "${newProvider.name}" not found in config`);
+      }
+
+      const newProviderInstance = createProvider(newProvider.name, newProvider.providerConfig);
+      agent.updateProvider(newProviderInstance, newProvider.model);
     }
 
     const memoryService = createMemoryService(newConfig, sessionManager, memoryFactStore);

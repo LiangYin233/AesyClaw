@@ -15,3 +15,4 @@ export { CronService } from './cron/index.js';
 export type { CronJob, CronSchedule, CronPayload } from './cron/index.js';
 export { APIServer } from './api/index.js';
 export { ConfigLoader } from './config/index.js';
+export { configSchema } from './config/index.js';

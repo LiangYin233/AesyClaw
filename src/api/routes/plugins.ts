@@ -1,9 +1,17 @@
 import type { Express } from 'express';
 import type { PluginManager } from '../../plugins/index.js';
+import type { Config } from '../../types.js';
 import { ConfigLoader } from '../../config/loader.js';
 import { createErrorResponse, createValidationErrorResponse, NotFoundError } from '../../logger/index.js';
 
-export function registerPluginRoutes(app: Express, pluginManager?: PluginManager): void {
+interface PluginRouteDeps {
+  pluginManager?: PluginManager;
+  setConfig?: (config: Config) => void;
+}
+
+export function registerPluginRoutes(app: Express, deps: PluginRouteDeps = {}): void {
+  const { pluginManager, setConfig } = deps;
+
   app.get('/api/plugins', async (req, res) => {
     try {
       if (!pluginManager) return res.json({ plugins: [] });
@@ -28,7 +36,8 @@ export function registerPluginRoutes(app: Express, pluginManager?: PluginManager
       if (!success) {
         return res.status(404).json(createErrorResponse(new NotFoundError('Plugin', name)));
       }
-      await ConfigLoader.updatePluginConfig(name, enabled);
+      const nextConfig = await ConfigLoader.updatePluginConfig(name, enabled);
+      setConfig?.(nextConfig);
       res.json({ success: true });
     } catch (error: unknown) {
       res.status(500).json(createErrorResponse(error));
@@ -66,8 +75,9 @@ export function registerPluginRoutes(app: Express, pluginManager?: PluginManager
         return res.status(404).json(createErrorResponse(new NotFoundError('Plugin', name)));
       }
       const config = ConfigLoader.get();
-      const currentEnabled = config.plugins?.[name]?.enabled ?? true;
-      await ConfigLoader.updatePluginConfig(name, currentEnabled, options);
+      const currentEnabled = config.plugins[name]?.enabled ?? true;
+      const nextConfig = await ConfigLoader.updatePluginConfig(name, currentEnabled, options);
+      setConfig?.(nextConfig);
       res.json({ success: true });
     } catch (error: unknown) {
       res.status(500).json(createErrorResponse(error));

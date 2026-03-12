@@ -1,4 +1,40 @@
-﻿export interface InboundFile {
+﻿import type {
+  AgentConfig,
+  AgentRoleConfig,
+  AgentsConfig,
+  Config,
+  LogConfig,
+  MCPServerConfig,
+  MCPServersConfig,
+  MCPTransportType,
+  MemoryFactsConfig,
+  MemorySummaryConfig,
+  MetricsConfig,
+  ProviderConfig,
+  ServerConfig,
+  StoredAgentRoleConfig,
+  ToolsConfig
+} from './config/schema.js';
+
+export type {
+  AgentConfig,
+  AgentRoleConfig,
+  AgentsConfig,
+  Config,
+  LogConfig,
+  MCPServerConfig,
+  MCPServersConfig,
+  MCPTransportType,
+  MemoryFactsConfig,
+  MemorySummaryConfig,
+  MetricsConfig,
+  ProviderConfig,
+  ServerConfig,
+  StoredAgentRoleConfig,
+  ToolsConfig
+};
+
+export interface InboundFile {
   name: string;
   url: string;
   localPath?: string;  // Channel 下载后的本地路径
@@ -88,117 +124,6 @@ export interface PluginErrorContext {
   type: 'message' | 'tool' | 'response' | 'agent';
   plugin?: string;
   data?: any;
-}
-
-export interface AgentRoleConfig {
-  name: string;
-  description?: string;
-  systemPrompt: string;
-  provider: string;
-  model: string;
-  allowedSkills: string[];
-  allowedTools: string[];
-}
-
-export type StoredAgentRoleConfig = Omit<AgentRoleConfig, 'name'>;
-
-export interface AgentsConfig {
-  main?: Partial<StoredAgentRoleConfig>;
-  roles: Record<string, AgentRoleConfig>;
-}
-
-export interface Config {
-  server: ServerConfig;
-  agent: AgentConfig;
-  agents?: AgentsConfig;
-  channels: Record<string, any>;
-  providers: Record<string, ProviderConfig>;
-  mcp?: MCPServersConfig;
-  plugins?: Record<string, any>;
-  skills?: Record<string, { enabled: boolean }>;
-  log?: LogConfig;
-  metrics?: MetricsConfig;
-  tools?: ToolsConfig;
-}
-
-export interface ToolsConfig {
-  timeoutMs?: number;
-}
-
-export interface LogConfig {
-  level?: 'debug' | 'info' | 'warn' | 'error';
-}
-
-export interface MetricsConfig {
-  enabled?: boolean;           // 是否启用指标收集，默认 true
-  maxMetrics?: number;         // 最大指标数量，默认 10000
-}
-
-export interface ServerConfig {
-  host: string;
-  apiPort: number;
-  apiEnabled?: boolean;
-  token?: string;
-}
-
-export interface AgentConfig {
-  defaults: {
-    model: string;
-    provider: string;
-    description?: string;
-
-    // 视觉和推理配置
-    vision?: boolean;           // 是否启用视觉能力
-    reasoning?: boolean;        // 是否启用推理模式
-    visionProvider?: string;    // 视觉模型提供商名称
-    visionModel?: string;       // 视觉模型名称
-
-    maxToolIterations: number;
-    memoryWindow: number;
-    memorySummary?: MemorySummaryConfig;
-    memoryFacts?: MemoryFactsConfig;
-    systemPrompt?: string;
-    contextMode: 'session' | 'channel' | 'global';
-    maxSessions?: number;
-  };
-}
-
-export interface MemorySummaryConfig {
-  enabled?: boolean;
-  provider?: string;
-  model?: string;
-  triggerMessages?: number;
-}
-
-export interface MemoryFactsConfig {
-  enabled?: boolean;
-  provider?: string;
-  model?: string;
-  maxFacts?: number;
-}
-
-export interface ProviderConfig {
-  apiKey?: string;
-  apiBase?: string;
-  model?: string;
-  headers?: Record<string, string>;
-  extraBody?: Record<string, any>;
-}
-
-export type MCPTransportType = 'local' | 'http';
-
-export interface MCPServerConfig {
-  type: MCPTransportType;
-  command?: string[];
-  url?: string;
-  environment?: Record<string, string>;
-  enabled?: boolean;
-  timeout?: number;
-  headers?: Record<string, string>;
-}
-
-export interface MCPServersConfig {
-  [name: string]: MCPServerConfig;
 }
 
 export type MCPServerStatus = 'connecting' | 'connected' | 'failed' | 'disconnected';

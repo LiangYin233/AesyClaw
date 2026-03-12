@@ -44,6 +44,7 @@ export const useConfigStore = defineStore('config', () => {
       return false
     }
 
+    await fetchConfig()
     isDirty.value = false
     loading.value = false
     return true

@@ -1,5 +1,6 @@
 import type { Express } from 'express';
 import { ConfigLoader } from '../../config/loader.js';
+import { getConfigValidationIssue } from '../../config/index.js';
 import { INTERNAL_CHANNELS } from '../../constants/index.js';
 import { createErrorResponse, createValidationErrorResponse, normalizeError, NotFoundError } from '../../logger/index.js';
 import type { ChannelManager } from '../../channels/ChannelManager.js';
@@ -31,7 +32,7 @@ interface CoreRouteDeps {
 export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
   const getChannelStatus = () => {
     const runtimeStatus = deps.channelManager.getStatus();
-    const configuredChannels = deps.getConfig().channels || {};
+    const configuredChannels = deps.getConfig().channels;
     const merged: Record<string, { running?: boolean; enabled?: boolean; connected?: boolean }> = {};
 
     for (const [name, config] of Object.entries(configuredChannels)) {
@@ -214,11 +215,19 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
   app.put('/api/config', async (req, res) => {
     try {
       const newConfig = req.body;
+      if (!newConfig || typeof newConfig !== 'object' || Array.isArray(newConfig)) {
+        return res.status(400).json(createValidationErrorResponse('config body must be an object', 'config'));
+      }
       deps.log.info('API config update requested');
-      await ConfigLoader.save(newConfig);
-      deps.setConfig(ConfigLoader.get());
+      const savedConfig = await ConfigLoader.update(() => newConfig as Config);
+      deps.setConfig(savedConfig);
       res.json({ success: true });
     } catch (error: unknown) {
+      const issue = getConfigValidationIssue(error);
+      if (issue) {
+        return res.status(400).json(createValidationErrorResponse(issue.message, issue.field));
+      }
+
       deps.log.error('API config update failed', { error: normalizeError(error) });
       res.status(500).json(createErrorResponse(error));
     }

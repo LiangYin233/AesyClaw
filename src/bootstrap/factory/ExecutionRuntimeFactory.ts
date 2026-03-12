@@ -8,23 +8,13 @@ import type { SessionRoutingService } from '../../agent/session/SessionRoutingSe
 import type { SessionManager } from '../../session/index.js';
 import { SkillManager } from '../../skills/index.js';
 import { AgentRoleService } from '../../agent/roles/AgentRoleService.js';
+import { resolveProviderSelection } from '../../config/index.js';
 import { logger } from '../../logger/index.js';
 
 const log = logger.child({ prefix: 'ExecutionRuntimeFactory' });
 
-function resolveProviderConfig(config: Config, providerName?: string, modelName?: string) {
-  const name = providerName || config.agent.defaults.provider;
-  const providerConfig = config.providers[name];
-
-  return {
-    name,
-    model: modelName || providerConfig?.model || config.agent.defaults.model,
-    providerConfig
-  };
-}
-
 function createRequiredProvider(config: Config, providerName?: string, modelName?: string) {
-  const resolved = resolveProviderConfig(config, providerName, modelName);
+  const resolved = resolveProviderSelection(config, providerName, modelName);
   if (!resolved.providerConfig) {
     throw new Error(`Default provider "${resolved.name}" not found in config`);
   }
@@ -74,13 +64,13 @@ export async function createExecutionRuntime(args: {
   const { getConfig, setConfig, eventBus, workspace, sessionManager, sessionRouting, memoryService } = args;
   const config = getConfig();
   const toolRegistry = new ToolRegistry({
-    defaultTimeout: config.tools?.timeoutMs
+    defaultTimeout: config.tools.timeoutMs
   });
   const provider = createRequiredProvider(config);
   const agentDefaults = config.agent.defaults;
   const visionSettings: VisionSettings = {
-    enabled: agentDefaults.vision || false,
-    reasoning: agentDefaults.reasoning || false,
+    enabled: agentDefaults.vision,
+    reasoning: agentDefaults.reasoning,
     visionProviderName: agentDefaults.visionProvider,
     visionModelName: agentDefaults.visionModel
   };

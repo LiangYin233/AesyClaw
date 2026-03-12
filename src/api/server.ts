@@ -133,15 +133,27 @@ export class APIServer {
       log: this.log
     });
     registerSkillRoutes(this.app, this.skillManager);
-    registerPluginRoutes(this.app, this.pluginManager);
+    registerPluginRoutes(this.app, {
+      pluginManager: this.pluginManager,
+      setConfig: (config) => {
+        this.config = config;
+      }
+    });
     registerCronRoutes(this.app, this.cronService);
     registerMCPRoutes(this.app, {
       toolRegistry: this.toolRegistry,
       getConfig: () => this.config,
+      setConfig: (config) => {
+        this.config = config;
+      },
       getMcpManager: () => this.mcpManager,
       setMcpManager: (m) => { this.mcpManager = m; }
     });
-    registerMetricsRoutes(this.app);
+    registerMetricsRoutes(this.app, {
+      setConfig: (config) => {
+        this.config = config;
+      }
+    });
   }
 
   async stop(): Promise<void> {

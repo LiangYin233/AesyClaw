@@ -5,21 +5,11 @@ import { SessionRoutingService } from '../../agent/session/SessionRoutingService
 import { MemoryFactStore, SessionManager } from '../../session/index.js';
 import { logger } from '../../logger/index.js';
 import { createProvider } from '../../providers/index.js';
+import { resolveProviderSelection } from '../../config/index.js';
 
 const log = logger.child({ prefix: 'PersistenceFactory' });
 
-function resolveProviderConfig(config: Config, providerName?: string, modelName?: string) {
-  const name = providerName || config.agent.defaults.provider;
-  const providerConfig = config.providers[name];
-
-  return {
-    name,
-    model: modelName || providerConfig?.model || config.agent.defaults.model,
-    providerConfig
-  };
-}
-
-function createOptionalProvider(resolved: ReturnType<typeof resolveProviderConfig>, label: string) {
+function createOptionalProvider(resolved: ReturnType<typeof resolveProviderSelection>, label: string) {
   if (!resolved.providerConfig) {
     log.warn(`${label} provider "${resolved.name}" not found in config`);
     return undefined;
@@ -36,31 +26,31 @@ export function createMemoryService(
   const summaryConfig = config.agent.defaults.memorySummary;
   const factsConfig = config.agent.defaults.memoryFacts;
 
-  if (!summaryConfig?.enabled && !factsConfig?.enabled) {
+  if (!summaryConfig.enabled && !factsConfig.enabled) {
     return undefined;
   }
 
-  const summaryProviderConfig = resolveProviderConfig(config, summaryConfig?.provider, summaryConfig?.model);
-  const factsProviderConfig = resolveProviderConfig(config, factsConfig?.provider, factsConfig?.model);
+  const summaryProviderConfig = resolveProviderSelection(config, summaryConfig.provider, summaryConfig.model);
+  const factsProviderConfig = resolveProviderSelection(config, factsConfig.provider, factsConfig.model);
 
   const summaryRuntimeConfig = {
-    enabled: summaryConfig?.enabled === true,
+    enabled: summaryConfig.enabled,
     model: summaryProviderConfig.model,
-    triggerMessages: summaryConfig?.triggerMessages ?? 20,
+    triggerMessages: summaryConfig.triggerMessages,
     memoryWindow: config.agent.defaults.memoryWindow
   };
   const factsRuntimeConfig = {
-    enabled: factsConfig?.enabled === true,
+    enabled: factsConfig.enabled,
     model: factsProviderConfig.model,
-    maxFacts: factsConfig?.maxFacts ?? 20
+    maxFacts: factsConfig.maxFacts
   };
 
   return new SessionMemoryService(
     sessionManager,
     factsStore,
-    summaryConfig?.enabled ? createOptionalProvider(summaryProviderConfig, 'Memory summary') : undefined,
+    summaryConfig.enabled ? createOptionalProvider(summaryProviderConfig, 'Memory summary') : undefined,
     summaryRuntimeConfig,
-    factsConfig?.enabled ? createOptionalProvider(factsProviderConfig, 'Memory facts') : undefined,
+    factsConfig.enabled ? createOptionalProvider(factsProviderConfig, 'Memory facts') : undefined,
     factsRuntimeConfig
   );
 }
@@ -73,7 +63,7 @@ export async function createPersistenceServices(config: Config): Promise<{
 }> {
   const sessionManager = new SessionManager(
     join(process.cwd(), '.aesyclaw', 'sessions'),
-    config.agent.defaults.maxSessions ?? 100
+    config.agent.defaults.maxSessions
   );
   await sessionManager.loadAll();
   log.info(`SessionManager ready, ${sessionManager.count()} sessions loaded`);

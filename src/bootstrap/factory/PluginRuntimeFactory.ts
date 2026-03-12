@@ -55,9 +55,7 @@ export async function createPluginManager(args: {
 
   pluginManager = new PluginManager(pluginContext, toolRegistry);
 
-  if (config.plugins) {
-    pluginManager.setPluginConfigs(config.plugins as Record<string, { enabled: boolean; options?: Record<string, any> }>);
-  }
+  pluginManager.setPluginConfigs(config.plugins as Record<string, { enabled: boolean; options?: Record<string, any> }>);
 
   const startBackgroundLoading = () => {
     if (started) {
@@ -70,12 +68,14 @@ export async function createPluginManager(args: {
       try {
         const newPluginConfigs = await pluginManager.applyDefaultConfigs();
         if (Object.keys(newPluginConfigs).length > 0) {
-          config.plugins = newPluginConfigs;
-          await ConfigLoader.save(config);
+          const nextConfig = await ConfigLoader.update((draft) => {
+            draft.plugins = newPluginConfigs;
+          });
+          config.plugins = nextConfig.plugins;
           log.info('Applied default plugin configs');
         }
 
-        if (config.plugins && Object.keys(config.plugins).length > 0) {
+        if (Object.keys(config.plugins).length > 0) {
           await pluginManager.loadFromConfig(config.plugins);
         }
 

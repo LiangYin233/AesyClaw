@@ -219,31 +219,12 @@ const providerKeys = computed(() => {
     return config.value ? Object.keys(config.value.providers) : []
 })
 
-function ensureAgentNestedDefaults() {
-    if (!config.value) return
-
-    config.value.agent.defaults.memorySummary ??= {
-        enabled: false,
-        provider: '',
-        model: '',
-        triggerMessages: 20,
-    }
-    config.value.agent.defaults.memoryFacts ??= {
-        enabled: false,
-        provider: '',
-        model: '',
-        maxFacts: 50,
-    }
-}
-
 async function loadConfig() {
     await configStore.fetchConfig()
-    ensureAgentNestedDefaults()
 }
 
 async function saveConfig() {
     if (!config.value) return
-    ensureAgentNestedDefaults()
     saving.value = true
     const success = await configStore.saveConfig()
     saving.value = false
