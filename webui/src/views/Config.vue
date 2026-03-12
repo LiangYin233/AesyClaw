@@ -1,13 +1,11 @@
 <template>
-    <div class="config-page">
-        <div class="page-header">
-            <h1>配置管理</h1>
-            <div class="header-actions">
+    <div class="config-page page-stack">
+        <PageHeader title="配置管理" subtitle="集中编辑运行配置并保持现有接口与结构不变。">
+            <template #actions>
                 <Button label="刷新" icon="pi pi-refresh" outlined @click="loadConfig" :loading="loading" />
                 <Button label="保存" icon="pi pi-save" @click="saveConfig" :loading="saving" :disabled="!config" />
-            </div>
-        </div>
-        
+            </template>
+        </PageHeader>
         <div v-if="config" class="config-sections">
             <Card class="config-card">
                 <template #title>服务器配置</template>
@@ -207,6 +205,7 @@ import Textarea from 'primevue/textarea'
 import Message from 'primevue/message'
 import Toast from 'primevue/toast'
 import ProgressSpinner from 'primevue/progressspinner'
+import PageHeader from '../components/common/PageHeader.vue'
 
 const configStore = useConfigStore()
 const { config, loading } = storeToRefs(configStore)

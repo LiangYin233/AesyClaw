@@ -1,12 +1,17 @@
 <template>
   <header class="page-header">
-    <div class="page-header-content">
-      <div class="page-header-left">
-        <h1 :id="titleId" class="page-title">{{ title }}</h1>
-        <p v-if="subtitle" class="page-subtitle">{{ subtitle }}</p>
+    <div class="page-header__surface">
+      <div class="page-header__main">
+        <div class="page-header__copy">
+          <h1 :id="titleId" class="page-title">{{ title }}</h1>
+          <p v-if="subtitle" class="page-subtitle">{{ subtitle }}</p>
+        </div>
+        <div v-if="$slots.actions" class="page-header__actions">
+          <slot name="actions"></slot>
+        </div>
       </div>
-      <div v-if="$slots.actions" class="page-header-actions">
-        <slot name="actions"></slot>
+      <div v-if="$slots.notice" class="page-header__notice">
+        <slot name="notice"></slot>
       </div>
     </div>
   </header>
@@ -27,92 +32,103 @@ const titleId = useUniqueId('page-title')
 
 <style scoped>
 .page-header {
-  margin-bottom: 24px;
+  margin-bottom: var(--ui-space-2);
 }
 
-.page-header-content {
+.page-header__surface {
+  padding: var(--ui-space-5);
+  border-radius: var(--ui-radius-lg);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.84)),
+    linear-gradient(180deg, rgba(37, 99, 235, 0.08), transparent 50%);
+  border: 1px solid var(--ui-border);
+  box-shadow: var(--ui-shadow-sm);
+  backdrop-filter: blur(18px);
+}
+
+.page-header__main {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 16px;
+  gap: var(--ui-space-4);
 }
 
-.page-header-left {
+.page-header__copy {
   flex: 1;
   min-width: 0;
 }
 
 .page-title {
   margin: 0;
-  font-size: 24px;
-  font-weight: 700;
-  color: #1e293b;
+  font-size: clamp(1.6rem, 2vw, 2rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ui-text);
   overflow-wrap: anywhere;
 }
 
 .page-subtitle {
-  margin: 6px 0 0 0;
-  font-size: 14px;
-  line-height: 1.5;
-  color: #64748b;
+  margin: 8px 0 0 0;
+  max-width: 70ch;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--ui-text-muted);
 }
 
-.page-header-actions {
+.page-header__actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--ui-space-3);
   flex-wrap: wrap;
   max-width: 100%;
 }
 
-.page-header-actions :deep(.p-button),
-.page-header-actions :deep(.p-inputtext),
-.page-header-actions :deep(.p-select),
-.page-header-actions :deep(.p-multiselect),
-.page-header-actions :deep(.p-inputnumber),
-.page-header-actions :deep(.p-password),
-.page-header-actions :deep(.p-inputwrapper) {
+.page-header__actions :deep(.p-button),
+.page-header__actions :deep(.p-inputtext),
+.page-header__actions :deep(.p-select),
+.page-header__actions :deep(.p-multiselect),
+.page-header__actions :deep(.p-inputnumber),
+.page-header__actions :deep(.p-password),
+.page-header__actions :deep(.p-inputwrapper) {
   max-width: 100%;
 }
 
+.page-header__notice {
+  margin-top: var(--ui-space-4);
+}
+
 @media (max-width: 768px) {
-  .page-header {
-    margin-bottom: 18px;
+  .page-header__surface {
+    padding: var(--ui-space-4);
   }
 
-  .page-header-content {
+  .page-header__main {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .page-title {
-    font-size: 21px;
-  }
-
-  .page-header-actions {
+  .page-header__actions {
     width: 100%;
     justify-content: stretch;
   }
 
-  .page-header-actions :deep(.p-button),
-  .page-header-actions :deep(.p-inputtext),
-  .page-header-actions :deep(.p-select),
-  .page-header-actions :deep(.p-multiselect),
-  .page-header-actions :deep(.p-inputnumber),
-  .page-header-actions :deep(.p-password),
-  .page-header-actions :deep(.p-inputwrapper) {
+  .page-header__actions :deep(.p-button),
+  .page-header__actions :deep(.p-inputtext),
+  .page-header__actions :deep(.p-select),
+  .page-header__actions :deep(.p-multiselect),
+  .page-header__actions :deep(.p-inputnumber),
+  .page-header__actions :deep(.p-password),
+  .page-header__actions :deep(.p-inputwrapper) {
     width: 100%;
   }
 }
 
 @media (prefers-color-scheme: dark) {
-  .page-title {
-    color: #f1f5f9;
-  }
-
-  .page-subtitle {
-    color: #94a3b8;
+  .page-header__surface {
+    background:
+      linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(15, 23, 42, 0.84)),
+      linear-gradient(180deg, rgba(37, 99, 235, 0.16), transparent 52%);
   }
 }
 </style>

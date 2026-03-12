@@ -1,66 +1,71 @@
 <template>
-    <div class="plugins-page">
-        <div class="page-header">
-            <h1>插件管理</h1>
-            <Button icon="pi pi-refresh" label="刷新" @click="loadPlugins" :loading="loading" />
-        </div>
-        
-        <div class="plugins-grid">
-            <Card v-for="item in items" :key="`${item.kind}:${item.name}`" class="plugin-card">
-                <template #title>
-                    <div class="plugin-title">
-                        <i :class="item.kind === 'channel' ? 'pi pi-send' : 'pi pi-th-large'"></i>
-                        <span>{{ item.name }}</span>
-                    </div>
-                </template>
-                <template #subtitle>
-                    <span class="version">{{ item.kind === 'channel' ? 'Channel' : `v${item.version}` }}</span>
-                </template>
-                <template #content>
-                    <p class="plugin-description">{{ item.description || '暂无描述' }}</p>
-                    <div class="plugin-stats">
-                        <Tag v-if="item.kind === 'plugin'" :value="`${item.toolsCount} 个工具`" severity="info" />
-                        <Tag v-else value="通道适配器" severity="contrast" />
-                        <Tag :value="item.enabled ? '已启用' : '已禁用'" :severity="item.enabled ? 'success' : 'danger'" />
-                    </div>
-                </template>
-                <template #footer>
-                    <div class="plugin-actions">
-                        <Button 
-                            v-if="item.kind === 'plugin'"
-                            icon="pi pi-refresh" 
-                            label="重载"
-                            outlined 
-                            size="small"
-                            :loading="reloadingPlugin === item.name"
-                            @click="reloadPluginHandler(item)"
-                            v-tooltip.top="'重新加载插件代码'"
-                        />
-                        <ToggleButton 
-                            v-model="item.enabled" 
-                            onLabel="已启用" 
-                            offLabel="已禁用"
-                            @change="toggleItemEnabled(item)"
-                            :loading="toggling"
-                        />
-                        <Button 
-                            icon="pi pi-cog" 
-                            label="配置" 
-                            outlined 
-                            size="small"
-                            @click="openConfigDialog(item)" 
-                        />
-                    </div>
-                </template>
-            </Card>
-        </div>
-        
-        <div v-if="!loading && items.length === 0" class="empty-state">
-            <i class="pi pi-th-large"></i>
-            <span>暂无插件或通道</span>
-            <p class="empty-hint">请在 plugins 目录下创建插件文件，或在配置中启用通道</p>
-        </div>
+    <div class="plugins-page page-stack">
+        <PageHeader title="插件管理" subtitle="统一管理插件与通道开关、重载和配置项。">
+            <template #actions>
+                <Button icon="pi pi-refresh" label="刷新" @click="loadPlugins" :loading="loading" />
+            </template>
+        </PageHeader>
 
+        <LoadingContainer :loading="loading" loading-text="正在加载插件与通道...">
+            <EmptyState
+                v-if="items.length === 0"
+                icon="pi pi-th-large"
+                title="暂无插件或通道"
+                description="请在 plugins 目录下创建插件文件，或在配置中启用通道。"
+            />
+
+            <PageSection v-else title="插件与通道" :subtitle="`${items.length} 项可管理资源`">
+                <div class="plugins-grid">
+                    <Card v-for="item in items" :key="`${item.kind}:${item.name}`" class="plugin-card">
+                        <template #title>
+                            <div class="plugin-title">
+                                <i :class="item.kind === 'channel' ? 'pi pi-send' : 'pi pi-th-large'"></i>
+                                <span>{{ item.name }}</span>
+                            </div>
+                        </template>
+                        <template #subtitle>
+                            <span class="version">{{ item.kind === 'channel' ? 'Channel' : `v${item.version}` }}</span>
+                        </template>
+                        <template #content>
+                            <p class="plugin-description">{{ item.description || '暂无描述' }}</p>
+                            <div class="plugin-stats">
+                                <Tag v-if="item.kind === 'plugin'" :value="`${item.toolsCount} 个工具`" severity="info" />
+                                <Tag v-else value="通道适配器" severity="contrast" />
+                                <Tag :value="item.enabled ? '已启用' : '已禁用'" :severity="item.enabled ? 'success' : 'danger'" />
+                            </div>
+                        </template>
+                        <template #footer>
+                            <div class="plugin-actions">
+                                <Button
+                                    v-if="item.kind === 'plugin'"
+                                    icon="pi pi-refresh"
+                                    label="重载"
+                                    outlined
+                                    size="small"
+                                    :loading="reloadingPlugin === item.name"
+                                    @click="reloadPluginHandler(item)"
+                                    v-tooltip.top="'重新加载插件代码'"
+                                />
+                                <ToggleButton
+                                    v-model="item.enabled"
+                                    onLabel="已启用"
+                                    offLabel="已禁用"
+                                    @change="toggleItemEnabled(item)"
+                                    :loading="toggling"
+                                />
+                                <Button
+                                    icon="pi pi-cog"
+                                    label="配置"
+                                    outlined
+                                    size="small"
+                                    @click="openConfigDialog(item)"
+                                />
+                            </div>
+                        </template>
+                    </Card>
+                </div>
+            </PageSection>
+        </LoadingContainer>
         <Dialog 
             v-model:visible="configDialogVisible" 
             :header="`配置 ${selectedItem?.name}`" 
@@ -140,6 +145,10 @@ import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
 import Password from 'primevue/password'
 import Toast from 'primevue/toast'
+import PageHeader from '../components/common/PageHeader.vue'
+import LoadingContainer from '../components/common/LoadingContainer.vue'
+import EmptyState from '../components/common/EmptyState.vue'
+import PageSection from '../components/common/PageSection.vue'
 
 const pluginsStore = usePluginsStore()
 const configStore = useConfigStore()

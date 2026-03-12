@@ -1,16 +1,11 @@
 <template>
-    <div class="agents-page">
-        <div class="page-header">
-            <div>
-                <h1>Agent 角色</h1>
-                <p class="page-subtitle">管理主 Agent 与可调用的子 Agent 角色</p>
-            </div>
-            <div class="header-actions">
+    <div class="agents-page page-stack">
+        <PageHeader title="Agent 角色" subtitle="管理主 Agent 与可调用的子 Agent 角色。">
+            <template #actions>
                 <Button label="刷新" icon="pi pi-refresh" outlined @click="loadAll" :loading="agentsStore.loading" />
                 <Button label="新建 Agent" icon="pi pi-plus" @click="openCreateDialog" />
-            </div>
-        </div>
-
+            </template>
+        </PageHeader>
         <div class="agents-grid" v-if="agentsStore.agents.length > 0">
             <Card v-for="agent in agentsStore.agents" :key="agent.name" class="agent-card">
                 <template #title>
@@ -141,6 +136,7 @@ import Textarea from 'primevue/textarea'
 import Select from 'primevue/select'
 import MultiSelect from 'primevue/multiselect'
 import Message from 'primevue/message'
+import PageHeader from '../components/common/PageHeader.vue'
 import EmptyState from '../components/common/EmptyState.vue'
 
 const agentsStore = useAgentsStore()

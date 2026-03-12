@@ -1,72 +1,66 @@
 <template>
-    <div class="logs-page">
-        <div class="page-header">
-            <h1>日志管理</h1>
-            <div class="header-actions">
+    <div class="logs-page page-stack">
+        <PageHeader title="日志管理" subtitle="统一调整日志级别并查看当前运行配置。">
+            <template #actions>
                 <Button label="刷新" icon="pi pi-refresh" outlined @click="loadConfig" :loading="loading" />
-            </div>
-        </div>
+            </template>
+        </PageHeader>
 
-        <div v-if="config" class="logs-content">
-            <Card>
-                <template #title>日志级别配置</template>
-                <template #content>
-                    <div class="config-section">
-                        <div class="form-field">
-                            <label>当前日志级别</label>
-                            <div class="level-selector">
-                                <Select
-                                    v-model="selectedLevel"
-                                    :options="logLevels"
-                                    optionLabel="label"
-                                    optionValue="value"
-                                    placeholder="选择日志级别"
-                                    fluid
-                                />
-                                <Button
-                                    label="应用"
-                                    icon="pi pi-check"
-                                    @click="applyLogLevel"
-                                    :loading="applying"
-                                    :disabled="selectedLevel === config.level"
-                                />
-                            </div>
-                            <small class="field-hint">
-                                修改日志级别后立即生效，无需重启服务
-                            </small>
+        <LoadingContainer :loading="loading && !config" loading-text="正在加载日志配置...">
+            <PageSection
+                v-if="config"
+                title="日志级别配置"
+                subtitle="修改后立即生效，无需重启服务。"
+            >
+                <div class="config-section">
+                    <div class="form-field">
+                        <label>当前日志级别</label>
+                        <div class="level-selector">
+                            <Select
+                                v-model="selectedLevel"
+                                :options="logLevels"
+                                optionLabel="label"
+                                optionValue="value"
+                                placeholder="选择日志级别"
+                                fluid
+                            />
+                            <Button
+                                label="应用"
+                                icon="pi pi-check"
+                                @click="applyLogLevel"
+                                :loading="applying"
+                                :disabled="selectedLevel === config.level"
+                            />
                         </div>
+                        <small class="field-hint">修改日志级别后立即生效，无需重启服务</small>
+                    </div>
 
-                        <div class="current-config">
-                            <h3>当前配置</h3>
-                            <div class="config-grid">
-                                <div class="config-item">
-                                    <span class="config-label">日志级别:</span>
-                                    <Tag :value="config.level.toUpperCase()" :severity="getLevelSeverity(config.level)" />
-                                </div>
-                                <div v-if="config.prefix" class="config-item">
-                                    <span class="config-label">日志前缀:</span>
-                                    <Tag :value="config.prefix" severity="info" />
-                                </div>
+                    <div class="current-config surface-panel">
+                        <h3>当前配置</h3>
+                        <div class="config-grid logs-config-grid">
+                            <div class="config-item">
+                                <span class="config-label">日志级别</span>
+                                <Tag :value="config.level.toUpperCase()" :severity="getLevelSeverity(config.level)" />
                             </div>
-                        </div>
-
-                        <div class="level-info">
-                            <h3>日志级别说明</h3>
-                            <div class="level-list">
-                                <div v-for="level in logLevels" :key="level.value" class="level-item">
-                                    <Tag :value="level.label" :severity="getLevelSeverity(level.value)" />
-                                    <span class="level-description">{{ level.description }}</span>
-                                </div>
+                            <div v-if="config.prefix" class="config-item">
+                                <span class="config-label">日志前缀</span>
+                                <Tag :value="config.prefix" severity="info" />
                             </div>
                         </div>
                     </div>
-                </template>
-            </Card>
-        </div>
 
-        <div v-else-if="loading" class="loading-container">
-            <ProgressSpinner />
-        </div>
+                    <div class="level-info">
+                        <h3>日志级别说明</h3>
+                        <div class="level-list">
+                            <div v-for="level in logLevels" :key="level.value" class="level-item">
+                                <Tag :value="level.label" :severity="getLevelSeverity(level.value)" />
+                                <span class="level-description">{{ level.description }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </PageSection>
+        </LoadingContainer>
 
         <Toast />
     </div>
@@ -78,11 +72,12 @@ import { storeToRefs } from 'pinia'
 import { useLogsStore } from '../stores'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
-import Card from 'primevue/card'
 import Select from 'primevue/select'
 import Tag from 'primevue/tag'
 import Toast from 'primevue/toast'
-import ProgressSpinner from 'primevue/progressspinner'
+import PageHeader from '../components/common/PageHeader.vue'
+import LoadingContainer from '../components/common/LoadingContainer.vue'
+import PageSection from '../components/common/PageSection.vue'
 
 const logsStore = useLogsStore()
 const { config, loading } = storeToRefs(logsStore)
@@ -136,55 +131,15 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.logs-page {
-    padding: 0;
-}
-
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 24px;
-}
-
-.page-header h1 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: bold;
-}
-
-.header-actions {
-    display: flex;
-    gap: 8px;
-}
-
-.logs-content {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
 .config-section {
     display: flex;
     flex-direction: column;
-    gap: 24px;
-}
-
-.form-field {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.form-field label {
-    font-size: 14px;
-    font-weight: 600;
-    color: #475569;
+    gap: var(--ui-space-6);
 }
 
 .level-selector {
     display: flex;
-    gap: 12px;
+    gap: var(--ui-space-3);
     align-items: flex-start;
 }
 
@@ -192,86 +147,56 @@ onMounted(() => {
     flex: 1;
 }
 
-.field-hint {
-    font-size: 12px;
-    color: #94a3b8;
-}
-
 .current-config {
-    padding: 16px;
-    background: #f8fafc;
-    border-radius: 8px;
-    border: 1px solid #e2e8f0;
+    padding: var(--ui-space-5);
 }
 
-.current-config h3 {
-    font-size: 14px;
-    font-weight: 600;
-    margin: 0 0 12px 0;
-    color: #1e293b;
+.current-config h3,
+.level-info h3 {
+    margin: 0 0 var(--ui-space-4) 0;
+    font-size: 0.95rem;
+    font-weight: 700;
 }
 
-.config-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+.logs-config-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 .config-item {
     display: flex;
-    gap: 12px;
+    gap: var(--ui-space-3);
     align-items: center;
+    min-width: 0;
 }
 
 .config-label {
-    font-size: 13px;
-    color: #64748b;
-    font-weight: 500;
-    min-width: 80px;
-}
-
-.transport-tags {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
+    font-size: 0.84rem;
+    color: var(--ui-text-muted);
+    font-weight: 600;
 }
 
 .level-info {
-    padding: 16px;
-    background: #eff6ff;
-    border-radius: 8px;
-    border: 1px solid #bfdbfe;
-}
-
-.level-info h3 {
-    font-size: 14px;
-    font-weight: 600;
-    margin: 0 0 12px 0;
-    color: #1e40af;
+    padding: var(--ui-space-5);
+    border-radius: var(--ui-radius-md);
+    border: 1px solid rgba(96, 165, 250, 0.2);
+    background: linear-gradient(180deg, rgba(239, 246, 255, 0.84), rgba(219, 234, 254, 0.72));
 }
 
 .level-list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: var(--ui-space-3);
 }
 
 .level-item {
     display: flex;
-    gap: 12px;
+    gap: var(--ui-space-3);
     align-items: center;
 }
 
 .level-description {
-    font-size: 13px;
-    color: #475569;
-}
-
-.loading-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 48px;
+    font-size: 0.9rem;
+    color: var(--ui-text-soft);
 }
 
 @media (max-width: 768px) {
@@ -279,36 +204,22 @@ onMounted(() => {
         flex-direction: column;
     }
 
-    .level-selector :deep(.p-select) {
+    .level-selector :deep(.p-select),
+    .level-selector :deep(.p-button) {
         width: 100%;
+    }
+
+    .level-item {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: var(--ui-space-2);
     }
 }
 
 @media (prefers-color-scheme: dark) {
-    .form-field label {
-        color: #94a3b8;
-    }
-
-    .current-config {
-        background: #1e293b;
-        border-color: #334155;
-    }
-
-    .current-config h3 {
-        color: #e2e8f0;
-    }
-
     .level-info {
-        background: #1e3a5f;
-        border-color: #1e40af;
-    }
-
-    .level-info h3 {
-        color: #93c5fd;
-    }
-
-    .level-description {
-        color: #cbd5e1;
+        border-color: rgba(96, 165, 250, 0.22);
+        background: linear-gradient(180deg, rgba(30, 41, 59, 0.92), rgba(30, 64, 175, 0.2));
     }
 }
 </style>

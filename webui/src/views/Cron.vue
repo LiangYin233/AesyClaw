@@ -1,69 +1,74 @@
 <template>
-    <div class="cron-page">
-        <div class="page-header">
-            <h1>定时任务</h1>
-            <div class="header-actions">
+    <div class="cron-page page-stack">
+        <PageHeader title="定时任务" subtitle="查看任务状态、执行计划并进行增删改。">
+            <template #actions>
                 <Button label="刷新" icon="pi pi-refresh" outlined @click="loadJobs" :loading="loading" />
                 <Button label="新建任务" icon="pi pi-plus" @click="openCreateDialog" />
-            </div>
-        </div>
-        
-        <div v-if="jobs.length > 0" class="jobs-list">
-            <Card v-for="job in jobs" :key="job.id" class="job-card">
-                <template #title>
-                    <div class="job-header">
-                        <span class="job-name">{{ job.name }}</span>
-                        <Tag :value="getScheduleLabel(job.schedule)" :severity="getScheduleSeverity(job.schedule)" />
-                    </div>
+            </template>
+        </PageHeader>
+
+        <LoadingContainer :loading="loading" loading-text="正在加载定时任务...">
+            <EmptyState
+                v-if="jobs.length === 0"
+                icon="pi pi-clock"
+                title="暂无定时任务"
+                description="点击右上角创建任务后，即可在这里统一管理执行计划。"
+            >
+                <template #actions>
+                    <Button label="新建任务" icon="pi pi-plus" @click="openCreateDialog" />
                 </template>
-                <template #content>
-                    <div class="job-details">
-                        <div class="detail-row">
-                            <span class="detail-label">任务ID:</span>
-                            <span class="detail-value">{{ job.id }}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">状态:</span>
-                            <Tag :value="job.enabled ? '已启用' : '已禁用'" :severity="job.enabled ? 'success' : 'danger'" />
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">下次执行:</span>
-                            <span class="detail-value">{{ formatTime(job.nextRunAtMs) }}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">上次执行:</span>
-                            <span class="detail-value">{{ formatTime(job.lastRunAtMs) }}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">目标:</span>
-                            <span class="detail-value">{{ job.payload?.target || '-' }}</span>
-                        </div>
-                    </div>
-                </template>
-                <template #footer>
-                    <div class="job-actions">
-                        <Button 
-                            :icon="job.enabled ? 'pi pi-pause' : 'pi pi-play'" 
-                            :label="job.enabled ? '禁用' : '启用'"
-                            :severity="job.enabled ? 'warning' : 'success'"
-                            size="small" 
-                            @click="toggleJob(job)" 
-                        />
-                        <Button icon="pi pi-pencil" label="编辑" severity="info" size="small" outlined @click="openEditDialog(job)" />
-                        <Button icon="pi pi-trash" label="删除" severity="danger" size="small" outlined @click="confirmDelete(job)" />
-                    </div>
-                </template>
-            </Card>
-        </div>
-        
-        <Message v-else-if="!loading" severity="info" :closable="false">
-            暂无定时任务，点击上方创建
-        </Message>
-        
-        <div v-else class="loading-container">
-            <ProgressSpinner />
-        </div>
-        
+            </EmptyState>
+
+            <PageSection v-else title="任务列表" :subtitle="`${jobs.length} 个已配置任务`">
+                <div class="jobs-list">
+                    <Card v-for="job in jobs" :key="job.id" class="job-card">
+                        <template #title>
+                            <div class="job-header">
+                                <span class="job-name">{{ job.name }}</span>
+                                <Tag :value="getScheduleLabel(job.schedule)" :severity="getScheduleSeverity(job.schedule)" />
+                            </div>
+                        </template>
+                        <template #content>
+                            <div class="job-details">
+                                <div class="detail-row">
+                                    <span class="detail-label">任务ID:</span>
+                                    <span class="detail-value">{{ job.id }}</span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">状态:</span>
+                                    <Tag :value="job.enabled ? '已启用' : '已禁用'" :severity="job.enabled ? 'success' : 'danger'" />
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">下次执行:</span>
+                                    <span class="detail-value">{{ formatTime(job.nextRunAtMs) }}</span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">上次执行:</span>
+                                    <span class="detail-value">{{ formatTime(job.lastRunAtMs) }}</span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">目标:</span>
+                                    <span class="detail-value">{{ job.payload?.target || '-' }}</span>
+                                </div>
+                            </div>
+                        </template>
+                        <template #footer>
+                            <div class="job-actions">
+                                <Button
+                                    :icon="job.enabled ? 'pi pi-pause' : 'pi pi-play'"
+                                    :label="job.enabled ? '禁用' : '启用'"
+                                    :severity="job.enabled ? 'warning' : 'success'"
+                                    size="small"
+                                    @click="toggleJob(job)"
+                                />
+                                <Button icon="pi pi-pencil" label="编辑" severity="info" size="small" outlined @click="openEditDialog(job)" />
+                                <Button icon="pi pi-trash" label="删除" severity="danger" size="small" outlined @click="confirmDelete(job)" />
+                            </div>
+                        </template>
+                    </Card>
+                </div>
+            </PageSection>
+        </LoadingContainer>
         <Dialog v-model:visible="dialogVisible" :header="isEditing ? '编辑任务' : '新建任务'" :modal="true" :style="{ width: '500px' }">
             <div class="form-fields">
                 <div class="form-field">
@@ -139,10 +144,12 @@ import Select from 'primevue/select'
 import ToggleButton from 'primevue/togglebutton'
 import Dialog from 'primevue/dialog'
 import Tag from 'primevue/tag'
-import Message from 'primevue/message'
 import Toast from 'primevue/toast'
-import ProgressSpinner from 'primevue/progressspinner'
 import DatePicker from 'primevue/datepicker'
+import PageHeader from '../components/common/PageHeader.vue'
+import LoadingContainer from '../components/common/LoadingContainer.vue'
+import EmptyState from '../components/common/EmptyState.vue'
+import PageSection from '../components/common/PageSection.vue'
 
 const cronStore = useCronStore()
 const { jobs, loading } = storeToRefs(cronStore)

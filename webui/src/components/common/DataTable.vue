@@ -1,6 +1,6 @@
 <template>
   <div class="responsive-table">
-    <div v-if="!isMobile" class="table-container">
+    <div v-if="!isMobile" class="table-container surface-panel">
       <table class="data-table" role="table" :aria-label="ariaLabel">
         <thead>
           <tr>
@@ -93,7 +93,7 @@ const getFieldValue = (item: any, field: string): any => {
 .table-container {
   width: 100%;
   overflow-x: auto;
-  border-radius: 12px;
+  border-radius: var(--ui-radius-md);
 }
 
 .data-table {
@@ -103,43 +103,44 @@ const getFieldValue = (item: any, field: string): any => {
 
 .data-table th,
 .data-table td {
-  padding: 12px;
+  padding: 14px 16px;
   text-align: left;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--ui-border);
   vertical-align: top;
 }
 
+.data-table th {
+  font-weight: 700;
+  font-size: 0.83rem;
+  color: var(--ui-text-muted);
+  background: rgba(248, 250, 252, 0.72);
+}
+
 .data-table td {
+  color: var(--ui-text-soft);
   overflow-wrap: anywhere;
 }
 
-.data-table th {
-  font-weight: 600;
-  color: #64748b;
-  font-size: 14px;
-  background: #f8fafc;
-}
-
 .data-table tbody tr {
-  transition: background-color 0.2s;
+  transition: background-color 0.18s ease, transform 0.18s ease;
 }
 
 .data-table tbody tr:hover {
-  background: #f8fafc;
+  background: rgba(239, 246, 255, 0.6);
 }
 
 .cards-container {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--ui-space-3);
 }
 
 .data-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 14px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  padding: var(--ui-space-4);
+  box-shadow: var(--ui-shadow-sm);
   min-width: 0;
 }
 
@@ -147,9 +148,9 @@ const getFieldValue = (item: any, field: string): any => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 12px;
-  padding: 9px 0;
-  border-bottom: 1px solid #f1f5f9;
+  gap: var(--ui-space-3);
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
 }
 
 .card-row:last-child {
@@ -157,16 +158,16 @@ const getFieldValue = (item: any, field: string): any => {
 }
 
 .card-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ui-text-muted);
   flex: 0 0 auto;
   max-width: 45%;
 }
 
 .card-value {
-  font-size: 14px;
-  color: #1e293b;
+  font-size: 0.92rem;
+  color: var(--ui-text-soft);
   text-align: right;
   flex: 1;
   min-width: 0;
@@ -186,38 +187,6 @@ const getFieldValue = (item: any, field: string): any => {
 
   .card-value {
     text-align: left;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  .data-table th {
-    color: #94a3b8;
-    background: #1e293b;
-  }
-
-  .data-table td {
-    border-color: #334155;
-  }
-
-  .data-table tbody tr:hover {
-    background: #1e293b;
-  }
-
-  .data-card {
-    background: #1e293b;
-    border-color: #334155;
-  }
-
-  .card-row {
-    border-color: #334155;
-  }
-
-  .card-label {
-    color: #94a3b8;
-  }
-
-  .card-value {
-    color: #f1f5f9;
   }
 }
 </style>

@@ -1,102 +1,105 @@
 <template>
-    <div class="mcp-page">
-        <div class="page-header">
-            <h1>MCP 服务器管理</h1>
-            <div class="header-actions">
+    <div class="mcp-page page-stack">
+        <PageHeader title="MCP 服务器管理" subtitle="集中查看连接状态、工具数量与服务器配置。">
+            <template #actions>
                 <Button label="刷新" icon="pi pi-refresh" outlined @click="loadServers" :loading="loading" />
                 <Button label="添加服务器" icon="pi pi-plus" @click="showAddDialog = true" />
-            </div>
-        </div>
+            </template>
+        </PageHeader>
 
-        <div v-if="servers.length > 0" class="mcp-sections">
-            <div
-                v-for="server in servers"
-                :key="server.name"
-                class="mcp-card"
+        <LoadingContainer :loading="loading" loading-text="正在加载 MCP 服务器...">
+            <EmptyState
+                v-if="servers.length === 0"
+                icon="pi pi-server"
+                title="暂无 MCP 服务器"
+                description="点击右上角“添加服务器”即可创建本地或 HTTP MCP 服务。"
             >
-                <div class="mcp-header">
-                    <div class="mcp-name-group">
-                        <span class="mcp-name">{{ server.name }}</span>
-                        <span class="mcp-type-tag">
-                            {{ server.config.type === 'local' ? '本地 (Stdio)' : 'HTTP (SSE)' }}
-                        </span>
-                    </div>
-                    <div class="mcp-header-actions">
-                        <Tag
-                            :value="getStatusLabel(server.status)"
-                            :severity="getStatusSeverity(server.status)"
-                        />
-                        <Button
-                            icon="pi pi-eye"
-                            text
-                            rounded
-                            size="small"
-                            @click="viewServerDetails(server)"
-                            v-tooltip.top="'查看工具列表'"
-                        />
-                        <Button
-                            icon="pi pi-refresh"
-                            text
-                            rounded
-                            size="small"
-                            @click="reconnectServer(server.name)"
-                            :disabled="server.status === 'connecting'"
-                            v-tooltip.top="'重新连接'"
-                        />
-                        <InputSwitch
-                            :modelValue="server.config.enabled !== false"
-                            @update:modelValue="toggleServer(server.name, $event)"
-                        />
-                        <Button
-                            icon="pi pi-trash"
-                            severity="danger"
-                            text
-                            rounded
-                            size="small"
-                            @click="confirmDelete(server)"
-                            v-tooltip.top="'删除服务器'"
-                        />
+                <template #actions>
+                    <Button label="添加服务器" icon="pi pi-plus" @click="showAddDialog = true" />
+                </template>
+            </EmptyState>
+
+            <PageSection v-else title="服务器列表" :subtitle="`${servers.length} 个已配置服务器`">
+                <div class="mcp-sections">
+                    <div
+                        v-for="server in servers"
+                        :key="server.name"
+                        class="mcp-card"
+                    >
+                        <div class="mcp-header">
+                            <div class="mcp-name-group">
+                                <span class="mcp-name">{{ server.name }}</span>
+                                <span class="mcp-type-tag">
+                                    {{ server.config.type === 'local' ? '本地 (Stdio)' : 'HTTP (SSE)' }}
+                                </span>
+                            </div>
+                            <div class="mcp-header-actions">
+                                <Tag
+                                    :value="getStatusLabel(server.status)"
+                                    :severity="getStatusSeverity(server.status)"
+                                />
+                                <Button
+                                    icon="pi pi-eye"
+                                    text
+                                    rounded
+                                    size="small"
+                                    @click="viewServerDetails(server)"
+                                    v-tooltip.top="'查看工具列表'"
+                                />
+                                <Button
+                                    icon="pi pi-refresh"
+                                    text
+                                    rounded
+                                    size="small"
+                                    @click="reconnectServer(server.name)"
+                                    :disabled="server.status === 'connecting'"
+                                    v-tooltip.top="'重新连接'"
+                                />
+                                <InputSwitch
+                                    :modelValue="server.config.enabled !== false"
+                                    @update:modelValue="toggleServer(server.name, $event)"
+                                />
+                                <Button
+                                    icon="pi pi-trash"
+                                    severity="danger"
+                                    text
+                                    rounded
+                                    size="small"
+                                    @click="confirmDelete(server)"
+                                    v-tooltip.top="'删除服务器'"
+                                />
+                            </div>
+                        </div>
+
+                        <div class="mcp-info">
+                            <div class="info-item">
+                                <span class="info-label">工具数量:</span>
+                                <span class="info-value">{{ server.toolCount }}</span>
+                            </div>
+                            <div class="info-item" v-if="server.connectedAt">
+                                <span class="info-label">连接时间:</span>
+                                <span class="info-value">{{ formatDate(server.connectedAt) }}</span>
+                            </div>
+                            <div class="info-item" v-if="server.error">
+                                <span class="info-label">错误:</span>
+                                <span class="info-value error-text">{{ server.error }}</span>
+                            </div>
+                        </div>
+
+                        <div class="mcp-config">
+                            <div class="config-item" v-if="server.config.command">
+                                <span class="config-label">命令:</span>
+                                <code class="config-value">{{ formatCommand(server.config.command) }}</code>
+                            </div>
+                            <div class="config-item" v-if="server.config.url">
+                                <span class="config-label">URL:</span>
+                                <code class="config-value">{{ server.config.url }}</code>
+                            </div>
+                        </div>
                     </div>
                 </div>
-
-                <div class="mcp-info">
-                    <div class="info-item">
-                        <span class="info-label">工具数量:</span>
-                        <span class="info-value">{{ server.toolCount }}</span>
-                    </div>
-                    <div class="info-item" v-if="server.connectedAt">
-                        <span class="info-label">连接时间:</span>
-                        <span class="info-value">{{ formatDate(server.connectedAt) }}</span>
-                    </div>
-                    <div class="info-item" v-if="server.error">
-                        <span class="info-label">错误:</span>
-                        <span class="info-value error-text">{{ server.error }}</span>
-                    </div>
-                </div>
-
-                <div class="mcp-config">
-                    <div class="config-item" v-if="server.config.command">
-                        <span class="config-label">命令:</span>
-                        <code class="config-value">{{ formatCommand(server.config.command) }}</code>
-                    </div>
-                    <div class="config-item" v-if="server.config.url">
-                        <span class="config-label">URL:</span>
-                        <code class="config-value">{{ server.config.url }}</code>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div v-else-if="!loading" class="empty-state">
-            <Message severity="info" :closable="false">
-                暂无 MCP 服务器，点击右上角"添加服务器"创建
-            </Message>
-        </div>
-
-        <div v-else class="loading-container">
-            <ProgressSpinner />
-        </div>
-
+            </PageSection>
+        </LoadingContainer>
         <!-- Add Server Dialog -->
         <Dialog v-model:visible="showAddDialog" header="添加 MCP 服务器" :style="{ width: '600px' }" modal>
             <div class="form-stack">
@@ -228,9 +231,12 @@ import InputSwitch from 'primevue/inputswitch'
 import Textarea from 'primevue/textarea'
 import Message from 'primevue/message'
 import Toast from 'primevue/toast'
-import ProgressSpinner from 'primevue/progressspinner'
 import Dialog from 'primevue/dialog'
 import Tag from 'primevue/tag'
+import PageHeader from '../components/common/PageHeader.vue'
+import LoadingContainer from '../components/common/LoadingContainer.vue'
+import EmptyState from '../components/common/EmptyState.vue'
+import PageSection from '../components/common/PageSection.vue'
 
 const mcpStore = useMcpStore()
 const { servers, loading, selectedServer, serverTools } = storeToRefs(mcpStore)

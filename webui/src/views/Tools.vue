@@ -1,36 +1,46 @@
 <template>
-    <div class="tools-page">
-        <div class="page-header">
-            <h1>工具列表</h1>
-            <Button icon="pi pi-refresh" label="刷新" @click="loadTools" />
-        </div>
-        
-        <div class="tools-grid">
-            <Card v-for="tool in tools" :key="tool.name" class="tool-card">
-                <template #title>
-                    <div class="tool-title">
-                        <i class="pi pi-box"></i>
-                        <span>{{ tool.name }}</span>
-                    </div>
-                </template>
-                <template #content>
-                    <p class="tool-description">{{ tool.description }}</p>
-                    <div v-if="tool.parameters?.properties" class="tool-params">
-                        <span class="params-label">参数:</span>
-                        <div class="params-list">
-                            <Tag v-for="(_, key) in tool.parameters?.properties" :key="String(key)" 
-                                :value="String(key)" 
-                                severity="secondary" />
-                        </div>
-                    </div>
-                </template>
-            </Card>
-        </div>
-        
-        <div v-if="!loading && tools.length === 0" class="empty-state">
-            <i class="pi pi-box"></i>
-            <span>暂无工具</span>
-        </div>
+    <div class="tools-page page-stack">
+        <PageHeader title="工具列表" subtitle="查看系统已注册工具及其参数结构">
+            <template #actions>
+                <Button icon="pi pi-refresh" label="刷新" @click="loadTools" :loading="loading" />
+            </template>
+        </PageHeader>
+
+        <LoadingContainer :loading="loading" loading-text="正在加载工具列表...">
+            <EmptyState
+                v-if="tools.length === 0"
+                icon="pi pi-box"
+                title="暂无工具"
+                description="当前没有可展示的工具，稍后刷新或检查插件与运行时注册状态。"
+            />
+
+            <PageSection v-else title="可用工具" :subtitle="`${tools.length} 个已注册工具`">
+                <div class="tools-grid">
+                    <Card v-for="tool in tools" :key="tool.name" class="tool-card">
+                        <template #title>
+                            <div class="tool-title">
+                                <i class="pi pi-box"></i>
+                                <span>{{ tool.name }}</span>
+                            </div>
+                        </template>
+                        <template #content>
+                            <p class="tool-description">{{ tool.description }}</p>
+                            <div v-if="tool.parameters?.properties" class="tool-params">
+                                <span class="params-label">参数</span>
+                                <div class="params-list">
+                                    <Tag
+                                        v-for="(_, key) in tool.parameters?.properties"
+                                        :key="String(key)"
+                                        :value="String(key)"
+                                        severity="secondary"
+                                    />
+                                </div>
+                            </div>
+                        </template>
+                    </Card>
+                </div>
+            </PageSection>
+        </LoadingContainer>
     </div>
 </template>
 
@@ -41,6 +51,10 @@ import { useToolsStore } from '../stores'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
 import Tag from 'primevue/tag'
+import PageHeader from '../components/common/PageHeader.vue'
+import LoadingContainer from '../components/common/LoadingContainer.vue'
+import EmptyState from '../components/common/EmptyState.vue'
+import PageSection from '../components/common/PageSection.vue'
 
 const toolsStore = useToolsStore()
 const { tools, loading } = storeToRefs(toolsStore)
@@ -55,50 +69,33 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.tools-page {
-    padding: 0;
-}
-
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 24px;
-    flex-wrap: wrap;
-    gap: 12px;
-}
-
-.page-header h1 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: bold;
-}
-
 .tools-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 16px;
+    gap: var(--ui-space-4);
 }
 
 .tool-card {
-    transition: box-shadow 0.2s;
     min-width: 0;
     overflow: hidden;
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
 .tool-card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+    box-shadow: var(--ui-shadow-md);
 }
 
 .tool-title {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--ui-space-2);
     min-width: 0;
 }
 
 .tool-title i {
     font-size: 18px;
+    color: var(--ui-primary);
     flex-shrink: 0;
 }
 
@@ -110,63 +107,42 @@ onMounted(() => {
 }
 
 .tool-description {
-    margin: 8px 0 0 0;
-    color: #64748b;
-    font-size: 14px;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    line-height: 1.5;
+    margin: 0;
+    color: var(--ui-text-muted);
+    font-size: 0.92rem;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
 }
 
 .tool-params {
-    margin-top: 12px;
+    margin-top: var(--ui-space-4);
 }
 
 .params-label {
-    font-size: 12px;
-    color: #94a3b8;
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: var(--ui-space-2);
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--ui-text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
 }
 
 .params-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
-}
-
-.empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 48px;
-    color: #94a3b8;
-    gap: 8px;
-}
-
-.empty-state i {
-    font-size: 48px;
+    gap: var(--ui-space-2);
 }
 
 @media (max-width: 768px) {
     .tools-grid {
         grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     }
-
-    .page-header h1 {
-        font-size: 20px;
-    }
 }
 
 @media (max-width: 640px) {
     .tools-grid {
         grid-template-columns: 1fr;
-    }
-
-    .page-header {
-        flex-direction: column;
-        align-items: stretch;
     }
 }
 </style>
