@@ -23,6 +23,23 @@ export interface ExecutionPolicyFactoryOptions {
   executionRegistry: ExecutionRegistry;
 }
 
+function buildOperationalPrompt(allowedToolNames: string[]): string {
+  const sections: string[] = [];
+
+  if (allowedToolNames.includes('send_msg_to_user')) {
+    sections.push(
+      [
+        '过程沟通要求：',
+        '当任务需要搜索、读取资料、调用工具、执行多个步骤或预计耗时较长时，先使用 send_msg_to_user 向用户发送一句简短步骤消息。',
+        '在关键阶段变化时继续用 send_msg_to_user 同步进度，例如“正在搜索资料”“正在整理大纲”“正在生成最终答案”。',
+        'send_msg_to_user 只用于过程进度同步；最终正式结果仍直接回复给用户。'
+      ].join('\n')
+    );
+  }
+
+  return sections.join('\n\n');
+}
+
 export class ExecutionPolicyFactory {
   private log = logger.child({ prefix: 'ExecutionPolicyFactory' });
 
@@ -46,7 +63,7 @@ export class ExecutionPolicyFactory {
         provider: this.options.defaultProvider,
         model: this.options.defaultModel,
         systemPrompt: this.options.defaultSystemPrompt,
-        skillsPrompt: '',
+        skillsPrompt: buildOperationalPrompt(allowedToolNames),
         allowedToolNames,
         toolRegistryView: this.options.toolRegistry,
         visionSettings: this.options.visionSettings,
@@ -67,7 +84,8 @@ export class ExecutionPolicyFactory {
 
     const auxiliaryPrompt = [
       this.agentRoleService.buildSkillsPrompt(resolvedRole.name),
-      this.agentRoleService.buildRoleDescriptionsPrompt(resolvedRole.name)
+      this.agentRoleService.buildRoleDescriptionsPrompt(resolvedRole.name),
+      buildOperationalPrompt(allowedToolNames)
     ].filter((section) => typeof section === 'string' && section.trim().length > 0).join('\n\n');
 
     return {
