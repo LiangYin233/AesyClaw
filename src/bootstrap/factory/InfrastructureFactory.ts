@@ -58,15 +58,17 @@ export async function createInfrastructure(args: {
   mcpManager: MCPClientManager | null;
 }> {
   const { config, eventBus, agent, workspace, tempDir, toolRegistry } = args;
-  const pluginManager = await createPluginManager({
-    config,
-    eventBus,
-    agent,
-    workspace,
-    tempDir,
-    toolRegistry
-  });
-  const channelManager = await createChannelManager(config, eventBus, workspace);
+  const [pluginManager, channelManager] = await Promise.all([
+    createPluginManager({
+      config,
+      eventBus,
+      agent,
+      workspace,
+      tempDir,
+      toolRegistry
+    }),
+    createChannelManager(config, eventBus, workspace)
+  ]);
   const mcpManager = createMcpManager(config, toolRegistry);
 
   return {

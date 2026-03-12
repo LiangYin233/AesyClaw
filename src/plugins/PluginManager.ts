@@ -518,10 +518,10 @@ export class PluginManager {
     try {
       const pluginEntries = await this.discoverPluginEntries();
 
-      for (const entry of pluginEntries) {
+      await Promise.all(pluginEntries.map(async (entry) => {
         const modulePlugin = await this.importPluginModule(entry.sourcePath);
 
-        if (!modulePlugin) continue;
+        if (!modulePlugin) return;
 
         const configuredPlugin = this.getConfiguredPlugin(config, entry.name);
         const pluginConfig = configuredPlugin?.config;
@@ -538,15 +538,13 @@ export class PluginManager {
 
         if (enabled) {
           try {
-            const plugin = await this.loadPluginModule(entry.name, options);
-            if (plugin) {
-              await this.loadPlugin(plugin);
-            }
+            modulePlugin.options = options;
+            await this.loadPlugin(modulePlugin);
           } catch (error) {
             this.log.error(`Failed to load plugin ${entry.name}:`, error);
           }
         }
-      }
+      }));
     } catch (error) {
       this.log.error('Failed to scan plugins directory', error);
     }
@@ -692,10 +690,10 @@ export class PluginManager {
     try {
       const pluginEntries = await this.discoverPluginEntries();
 
-      for (const entry of pluginEntries) {
+      await Promise.all(pluginEntries.map(async (entry) => {
         const plugin = await this.importPluginModule(entry.sourcePath);
         if (!plugin) {
-          continue;
+          return;
         }
 
         if (!this.getConfiguredPlugin(this.pluginConfigs, entry.name) && plugin.defaultConfig) {
@@ -705,7 +703,7 @@ export class PluginManager {
           };
           this.log.info(`Applied default config for plugin: ${entry.name}`);
         }
-      }
+      }));
     } catch (error) {
       this.log.error('Failed to apply default configs', error);
     }

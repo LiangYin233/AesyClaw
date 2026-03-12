@@ -46,8 +46,6 @@ const error = (msg: string) => log(colors.red, '[ERROR]', msg);
 function cleanupProcesses(): void {
   if (childProcesses.length === 0) return;
 
-  info('Stopping all services...');
-
   for (const child of childProcesses) {
     if (!child.pid || child.killed) continue;
 
@@ -65,7 +63,6 @@ function cleanupProcesses(): void {
   }
 
   childProcesses.length = 0;
-  success('All services stopped.');
 }
 
 // 注册信号处理器
@@ -81,35 +78,42 @@ function setupSignalHandlers(): void {
 }
 
 // 启动进程
-function startProcess(name: string, command: string, cwd?: string): ChildProcess {
-  info(`Starting ${name}...`);
+function startProcess(name: string, command: string, cwd?: string): Promise<ChildProcess> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, {
+      shell: true,
+      cwd: cwd || process.cwd(),
+      env: process.env,
+      stdio: 'inherit'
+    });
 
-  const child = spawn(command, {
-    shell: true,
-    cwd: cwd || process.cwd(),
-    env: process.env,
-    stdio: 'inherit'
+    let settled = false;
+
+    child.once('spawn', () => {
+      if (settled) return;
+      settled = true;
+      childProcesses.push(child);
+      resolve(child);
+    });
+
+    child.once('error', (err) => {
+      error(`Failed to start ${name}: ${err.message}`);
+      if (settled) return;
+      settled = true;
+      reject(err);
+    });
+
+    child.on('exit', (code, signal) => {
+      const index = childProcesses.indexOf(child);
+      if (index > -1) {
+        childProcesses.splice(index, 1);
+      }
+
+      if (code !== null && code !== 0 && !signal) {
+        warn(`${name} exited with code ${code}`);
+      }
+    });
   });
-
-  child.on('error', (err) => {
-    error(`Failed to start ${name}: ${err.message}`);
-  });
-
-  child.on('exit', (code, signal) => {
-    // 从列表中移除已退出的进程
-    const index = childProcesses.indexOf(child);
-    if (index > -1) {
-      childProcesses.splice(index, 1);
-    }
-
-    // 如果进程异常退出，记录日志
-    if (code !== null && code !== 0 && !signal) {
-      warn(`${name} exited with code ${code}`);
-    }
-  });
-
-  childProcesses.push(child);
-  return child;
 }
 
 // 获取服务状态
@@ -129,14 +133,12 @@ function getStatus(ports: Ports): void {
 
 // 启动服务
 async function startService(mode: ServiceMode, ports: Ports): Promise<void> {
-  console.log(`\n${colors.bright}AesyClaw Launcher${colors.reset}\n`);
-
   setupSignalHandlers();
 
-  const commands: Record<ServiceMode, string> = {
-    gateway: 'tsx --no-cache src/cli.ts gateway',
-    webui: 'cd webui && npm run dev',
-    all: '' // 不会直接使用
+  const commands: Record<ServiceMode, { command: string; cwd?: string }> = {
+    gateway: { command: 'tsx --no-cache src/cli.ts gateway' },
+    webui: { command: 'npm run dev', cwd: join(process.cwd(), 'webui') },
+    all: { command: '' }
   };
 
   const servicesToStart: Array<{ mode: ServiceMode; name: string }> = [];
@@ -148,16 +150,12 @@ async function startService(mode: ServiceMode, ports: Ports): Promise<void> {
     servicesToStart.push({ mode: 'webui', name: 'WebUI' });
   }
 
-  // 启动所有服务
-  for (const service of servicesToStart) {
-    startProcess(service.name, commands[service.mode]);
-  }
-
-  // 等待服务启动
-  await new Promise(resolve => setTimeout(resolve, 2000));
-
-  success('Services started successfully!\n');
-  getStatus(ports);
+  await Promise.all(
+    servicesToStart.map((service) => {
+      const target = commands[service.mode];
+      return startProcess(service.name, target.command, target.cwd);
+    })
+  );
 }
 
 // 显示帮助信息

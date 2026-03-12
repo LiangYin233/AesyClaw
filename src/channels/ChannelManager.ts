@@ -71,11 +71,16 @@ export class ChannelManager {
   }
 
   async startAll(): Promise<void> {
-    for (const channel of this.#channels.values()) {
-      try {
+    const results = await Promise.allSettled(
+      Array.from(this.#channels.values()).map(async (channel) => {
         await channel.start();
-      } catch (error) {
-        this.#log.error(`Failed to start channel ${channel.name}:`, error);
+        return channel.name;
+      })
+    );
+
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        this.#log.error('Failed to start channel:', result.reason);
       }
     }
   }

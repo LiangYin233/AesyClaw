@@ -59,12 +59,12 @@ export class SkillManager {
 
     try {
       const entries = await fs.readdir(absolutePath, { withFileTypes: true });
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
+      await Promise.all(entries.map(async (entry) => {
+        if (!entry.isDirectory()) return;
 
         const skillPath = path.join(absolutePath, entry.name);
         await this.loadSkillDirectory(skillPath, entry.name, absolutePath);
-      }
+      }));
       this.log.info(`Loaded ${this.skills.size} skills`);
     } catch (error) {
       this.log.warn(`Failed to load skills from ${absolutePath}:`, error);
