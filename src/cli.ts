@@ -33,6 +33,12 @@ interface Ports {
   webui: number;
 }
 
+interface StartTarget {
+  file: string;
+  args: string[];
+  cwd?: string;
+}
+
 function log(color: string, prefix: string, message: string) {
   console.log(`${color}${prefix}${colors.reset} ${message}`);
 }
@@ -41,6 +47,21 @@ const info = (msg: string) => log(colors.blue, '[INFO]', msg);
 const success = (msg: string) => log(colors.green, '[OK]', msg);
 const warn = (msg: string) => log(colors.yellow, '[WARN]', msg);
 const error = (msg: string) => log(colors.red, '[ERROR]', msg);
+
+function resolveLocalBin(name: string): string {
+  const suffix = process.platform === 'win32' ? '.cmd' : '';
+  return join(process.cwd(), 'node_modules', '.bin', `${name}${suffix}`);
+}
+
+function createStartTargets(): Record<'webui', StartTarget> {
+  return {
+    webui: {
+      file: process.platform === 'win32' ? 'npm.cmd' : 'npm',
+      args: ['run', 'dev'],
+      cwd: join(process.cwd(), 'webui')
+    }
+  };
+}
 
 // 清理所有子进程
 function cleanupProcesses(): void {
@@ -78,11 +99,11 @@ function setupSignalHandlers(): void {
 }
 
 // 启动进程
-function startProcess(name: string, command: string, cwd?: string): Promise<ChildProcess> {
+function startProcess(name: string, target: StartTarget): Promise<ChildProcess> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, {
-      shell: true,
-      cwd: cwd || process.cwd(),
+    const child = spawn(target.file, target.args, {
+      shell: false,
+      cwd: target.cwd || process.cwd(),
       env: process.env,
       stdio: 'inherit'
     });
@@ -132,30 +153,22 @@ function getStatus(ports: Ports): void {
 }
 
 // 启动服务
-async function startService(mode: ServiceMode, ports: Ports): Promise<void> {
+async function startService(mode: ServiceMode): Promise<void> {
   setupSignalHandlers();
 
-  const commands: Record<ServiceMode, { command: string; cwd?: string }> = {
-    gateway: { command: 'tsx --no-cache src/cli.ts gateway' },
-    webui: { command: 'npm run dev', cwd: join(process.cwd(), 'webui') },
-    all: { command: '' }
-  };
+  const targets = createStartTargets();
 
-  const servicesToStart: Array<{ mode: ServiceMode; name: string }> = [];
+  const startupTasks: Array<Promise<unknown>> = [];
+
+  if (mode === 'webui' || mode === 'all') {
+    startupTasks.push(startProcess('WebUI', targets.webui));
+  }
 
   if (mode === 'gateway' || mode === 'all') {
-    servicesToStart.push({ mode: 'gateway', name: 'Gateway' });
-  }
-  if (mode === 'webui' || mode === 'all') {
-    servicesToStart.push({ mode: 'webui', name: 'WebUI' });
+    startupTasks.push(bootstrap());
   }
 
-  await Promise.all(
-    servicesToStart.map((service) => {
-      const target = commands[service.mode];
-      return startProcess(service.name, target.command, target.cwd);
-    })
-  );
+  await Promise.all(startupTasks);
 }
 
 // 显示帮助信息
@@ -199,23 +212,22 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  // 其他命令需要加载配置
-  const config = await ConfigLoader.load();
-  const ports: Ports = {
-    api: config.server.apiPort || 18792,
-    webui: 5173  // Hardcoded: WebUI port is controlled by webui/vite.config.ts
-  };
-
   switch (command) {
     case 'start': {
       const mode = (args[1] || 'all') as ServiceMode;
-      await startService(mode, ports);
+      await startService(mode);
       break;
     }
-    case 'status':
+    case 'status': {
+      const config = await ConfigLoader.load();
+      const ports: Ports = {
+        api: config.server.apiPort || 18792,
+        webui: 5173
+      };
       getStatus(ports);
       ConfigLoader.stopWatching();
       process.exit(0);
+    }
       break;
     default:
       error(`Unknown command: ${command}`);

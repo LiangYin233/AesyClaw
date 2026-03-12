@@ -16,7 +16,7 @@
     "status": "tsx src/cli.ts status",
     "dev": "tsx watch src/cli.ts gateway",
     "dev:webui": "cd webui && npm run dev",
-    "gateway": "tsx --no-cache src/cli.ts gateway"
+    "gateway": "tsx src/cli.ts gateway"
   },
   "author": "",
   "license": "MIT",
