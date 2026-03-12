@@ -39,6 +39,12 @@ interface StartTarget {
   cwd?: string;
 }
 
+interface ResolvedStartTarget {
+  command: string;
+  args: string[];
+  shell: boolean;
+}
+
 function log(color: string, prefix: string, message: string) {
   console.log(`${color}${prefix}${colors.reset} ${message}`);
 }
@@ -60,6 +66,33 @@ function createStartTargets(): Record<'webui', StartTarget> {
       args: ['run', 'dev'],
       cwd: join(process.cwd(), 'webui')
     }
+  };
+}
+
+function resolveStartTarget(target: StartTarget): ResolvedStartTarget {
+  if (process.platform !== 'win32') {
+    return {
+      command: target.file,
+      args: target.args,
+      shell: false
+    };
+  }
+
+  const lowerFile = target.file.toLowerCase();
+  const requiresShell = lowerFile.endsWith('.cmd') || lowerFile.endsWith('.bat');
+
+  if (!requiresShell) {
+    return {
+      command: target.file,
+      args: target.args,
+      shell: false
+    };
+  }
+
+  return {
+    command: target.file,
+    args: target.args,
+    shell: true
   };
 }
 
@@ -101,8 +134,10 @@ function setupSignalHandlers(): void {
 // 启动进程
 function startProcess(name: string, target: StartTarget): Promise<ChildProcess> {
   return new Promise((resolve, reject) => {
-    const child = spawn(target.file, target.args, {
-      shell: false,
+    const resolvedTarget = resolveStartTarget(target);
+
+    const child = spawn(resolvedTarget.command, resolvedTarget.args, {
+      shell: resolvedTarget.shell,
       cwd: target.cwd || process.cwd(),
       env: process.env,
       stdio: 'inherit'
