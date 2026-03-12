@@ -219,6 +219,7 @@ onUnmounted(() => {
 .layout-wrapper {
     position: relative;
     display: flex;
+    align-items: flex-start;
     min-height: 100vh;
     min-height: 100dvh;
     background:
@@ -229,11 +230,14 @@ onUnmounted(() => {
 
 .sidebar {
     width: 272px;
+    position: sticky;
+    top: 0;
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
-    min-height: 100vh;
-    min-height: 100dvh;
+    align-self: flex-start;
+    height: 100vh;
+    height: 100dvh;
     padding: 20px 16px 16px;
     gap: 16px;
     border-right: 1px solid rgba(148, 163, 184, 0.18);
@@ -413,6 +417,7 @@ onUnmounted(() => {
     min-height: 100dvh;
     display: flex;
     flex-direction: column;
+    align-self: stretch;
 }
 
 .mobile-topbar {
@@ -452,7 +457,7 @@ onUnmounted(() => {
         left: 0;
         bottom: 0;
         width: min(300px, 86vw);
-        min-height: 100dvh;
+        height: 100dvh;
         padding: 0;
         gap: 0;
         transform: translateX(-100%);

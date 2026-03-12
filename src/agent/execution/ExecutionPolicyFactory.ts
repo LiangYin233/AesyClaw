@@ -29,10 +29,10 @@ function buildOperationalPrompt(allowedToolNames: string[]): string {
   if (allowedToolNames.includes('send_msg_to_user')) {
     sections.push(
       [
-        '过程沟通要求：',
-        '当任务需要搜索、读取资料、调用工具、执行多个步骤或预计耗时较长时，先使用 send_msg_to_user 向用户发送一句简短步骤消息。',
+        '沟通要求：',
+        '当任务需要搜索、读取资料、调用工具、执行多个步骤或预计耗时较长时，优先使用 send_msg_to_user 向用户发送简短步骤消息。',
         '在关键阶段变化时继续用 send_msg_to_user 同步进度，例如“正在搜索资料”“正在整理大纲”“正在生成最终答案”。',
-        'send_msg_to_user 只用于过程进度同步；最终正式结果仍直接回复给用户。'
+        'send_msg_to_user 不仅可用于过程进度同步，也可用于向用户发送最终任务结果；需要主动分步发送结果时，优先使用该工具。'
       ].join('\n')
     );
   }

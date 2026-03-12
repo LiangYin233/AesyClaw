@@ -23,6 +23,10 @@ function createRequiredProvider(config: Config, providerName?: string, modelName
 }
 
 function createVisionProvider(config: Config, visionSettings: VisionSettings) {
+  if (visionSettings.enabled !== false) {
+    return undefined;
+  }
+
   if (!visionSettings.visionProviderName) {
     return undefined;
   }

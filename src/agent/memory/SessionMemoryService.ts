@@ -41,6 +41,24 @@ export class SessionMemoryService {
     return sessionKey?.startsWith(CRON_SESSION_KEY_PREFIX) === true || session?.channel === INTERNAL_CHANNELS.CRON;
   }
 
+  private alignSummaryCutoff(messages: SessionMessage[], startIndex: number, rawCutoff: number): number {
+    let cutoff = Math.max(startIndex, Math.min(rawCutoff, messages.length));
+
+    while (cutoff < messages.length) {
+      const lastMessage = messages[cutoff - 1];
+      const nextMessage = messages[cutoff];
+
+      if (lastMessage?.role === 'user' && nextMessage?.role === 'assistant') {
+        cutoff += 1;
+        continue;
+      }
+
+      break;
+    }
+
+    return cutoff;
+  }
+
   async buildHistory(session: Session): Promise<SessionMessage[]> {
     if (this.shouldSkipMemory(session.key, session)) {
       return session.messages.slice(-this.summaryConfig.memoryWindow);
@@ -81,8 +99,13 @@ export class SessionMemoryService {
       return false;
     }
 
-    const summaryCutoff = session.summarizedMessageCount + overflowMessageCount;
+    const rawCutoff = session.summarizedMessageCount + overflowMessageCount;
+    const summaryCutoff = this.alignSummaryCutoff(session.messages, session.summarizedMessageCount, rawCutoff);
     const pendingMessages = session.messages.slice(session.summarizedMessageCount, summaryCutoff);
+
+    if (pendingMessages.length === 0) {
+      return false;
+    }
 
     try {
       const summary = await this.generateSummary(session.summary, pendingMessages);
@@ -110,8 +133,13 @@ export class SessionMemoryService {
 
   private async generateSummary(existingSummary: string, messages: SessionMessage[]): Promise<string | null> {
     const transcript = messages
-      .map((message) => `${message.role}: ${message.content}`)
+      .filter((message) => message.role === 'user' || message.role === 'assistant')
+      .map((message) => `${message.role === 'user' ? '用户' : '助手'}: ${message.content}`)
       .join('\n\n');
+
+    if (!transcript.trim()) {
+      return null;
+    }
 
     const response = await this.summaryProvider!.chat([
       {
