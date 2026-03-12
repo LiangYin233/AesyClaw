@@ -11,7 +11,7 @@ const log = logger.child({ prefix: 'Bootstrap' });
 export async function dispatchCronJob(services: Services, workspace: string, job: CronJob): Promise<void> {
   log.info(`Cron job triggered: ${job.name}`);
 
-  const { eventBus, agent } = services;
+  const { eventBus, pluginManager, agent } = services;
   const sessionKey = `${CRON_SESSION_KEY_PREFIX}${job.id}:${randomUUID().slice(0, 8)}`;
   const target = job.payload.target;
 
@@ -34,9 +34,20 @@ export async function dispatchCronJob(services: Services, workspace: string, job
       }
     }
 
-    await agent.processDirect(job.payload.detail, sessionKey, contextOverride);
+    const response = await agent.processDirect(job.payload.detail, sessionKey, contextOverride);
 
-    if (target && contextOverride?.chatId) {
+    if (target && contextOverride?.channel && contextOverride?.chatId && response.trim()) {
+      const outboundMessage = await pluginManager.applyOnResponse({
+        channel: contextOverride.channel,
+        chatId: contextOverride.chatId,
+        content: response,
+        messageType: contextOverride.messageType
+      });
+
+      if (outboundMessage) {
+        await eventBus.publishOutbound(outboundMessage);
+      }
+
       log.info(`Cron job response sent to ${target}`);
     }
   } catch (error: unknown) {

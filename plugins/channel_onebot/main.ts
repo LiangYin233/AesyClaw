@@ -259,7 +259,6 @@ class OneBotChannel extends BaseChannel {
 
     const senderId = userId?.toString();
     const chatId = messageType === 'private' ? userId?.toString() : groupId?.toString();
-
     if (!senderId || !chatId) return;
 
     const messageId = payload.message_id?.toString();

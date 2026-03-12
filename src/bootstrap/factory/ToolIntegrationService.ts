@@ -81,7 +81,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
 
   toolRegistry.register({
     name: 'send_msg_to_user',
-    description: '向当前会话发送文本或附件。或者你需要向用户介绍你当前正在进行的操作时也可以使用。',
+    description: '向当前会话发送文本或附件。LLM 在 Agent 执行过程中也可以使用该工具向用户同步当前步骤、说明正在进行的操作或汇报阶段性进展。',
     parameters: {
       type: 'object',
       properties: {

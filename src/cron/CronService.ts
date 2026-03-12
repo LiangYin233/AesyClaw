@@ -184,6 +184,11 @@ export class CronService {
       case 'once':
         if (job.schedule.onceAt) {
           const atMs = new Date(job.schedule.onceAt).getTime();
+          if (Number.isNaN(atMs)) {
+            this.log.warn(`Invalid onceAt time: ${job.schedule.onceAt}`);
+            job.nextRunAtMs = undefined;
+            break;
+          }
           job.nextRunAtMs = atMs > now ? atMs : undefined;
         } else {
           job.nextRunAtMs = undefined;
