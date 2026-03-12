@@ -1,37 +1,37 @@
 <template>
     <div class="chat-page">
-        <header class="chat-header">
-            <h1 id="chat-title">聊天</h1>
-            <div class="chat-actions">
-                <label for="session-key-input" class="sr-only">会话ID</label>
-                <InputText
-                    id="session-key-input"
-                    v-model="sessionKey"
-                    placeholder="会话ID"
-                    class="session-input"
-                    aria-label="会话ID"
-                />
-                <Select
-                    v-model="currentAgentName"
-                    :options="agentOptions"
-                    option-label="label"
-                    option-value="value"
-                    class="agent-select"
-                    placeholder="选择 Agent"
-                    @change="handleAgentChange"
-                />
-                <Button icon="pi pi-refresh" text @click="loadSession" aria-label="刷新并加载会话" title="加载会话" />
-                <Button icon="pi pi-plus" label="新建会话" severity="secondary" @click="createNewSession" aria-label="创建新会话" />
-            </div>
-        </header>
+        <PageHeader title="聊天" subtitle="发送消息并管理当前会话">
+            <template #actions>
+                <div class="chat-toolbar">
+                    <label for="session-key-input" class="sr-only">会话ID</label>
+                    <InputText
+                        id="session-key-input"
+                        v-model="sessionKey"
+                        placeholder="会话ID"
+                        class="session-input"
+                        aria-label="会话ID"
+                    />
+                    <Select
+                        v-model="currentAgentName"
+                        :options="agentOptions"
+                        option-label="label"
+                        option-value="value"
+                        class="agent-select"
+                        placeholder="选择 Agent"
+                        @change="handleAgentChange"
+                    />
+                    <Button icon="pi pi-refresh" text @click="loadSession" aria-label="刷新并加载会话" title="加载会话" />
+                    <Button icon="pi pi-plus" label="新建会话" severity="secondary" @click="createNewSession" aria-label="创建新会话" />
+                </div>
+            </template>
+        </PageHeader>
 
         <div
-            class="chat-messages"
             ref="messagesContainer"
+            class="chat-messages"
             role="log"
             aria-live="polite"
             aria-atomic="false"
-            aria-labelledby="chat-title"
             aria-relevant="additions"
         >
             <div v-if="messages.length === 0" class="empty-state" role="status">
@@ -95,6 +95,7 @@ import { useAgentsStore, useSessionsStore } from '../stores'
 import { useKeyboard } from '../composables/useKeyboard'
 import { announceToScreenReader } from '../composables/useA11y'
 import { useToast } from '../composables/useToast'
+import PageHeader from '../components/common/PageHeader.vue'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
@@ -250,46 +251,31 @@ onMounted(async () => {
 .chat-page {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    gap: 16px;
     min-height: 100%;
 }
 
-.chat-header {
-    padding: 16px;
-    background: #ffffff;
-    border-bottom: 1px solid #e2e8f0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-}
-
-.chat-header h1 {
-    margin: 0;
-    font-size: 20px;
-    font-weight: 600;
-}
-
-.chat-actions {
+.chat-toolbar {
     display: flex;
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+    width: 100%;
 }
 
-.session-input {
-    width: 180px;
-}
-
+.session-input,
 .agent-select {
-    width: 180px;
+    width: 220px;
 }
 
 .chat-messages {
     flex: 1;
+    min-height: 420px;
     overflow-y: auto;
     padding: 16px;
-    background: #f8fafc;
+    background: rgba(248, 250, 252, 0.9);
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -332,13 +318,23 @@ onMounted(async () => {
 }
 
 .message-card {
-    max-width: min(80%, 900px);
+    width: fit-content;
+    max-width: min(80%, 880px);
+}
+
+.message-card :deep(.p-card-body) {
+    padding: 0;
+}
+
+.message-card :deep(.p-card-content) {
+    padding: 14px 16px;
 }
 
 .message-content {
     margin: 0;
-    line-height: 1.6;
+    line-height: 1.65;
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
 
 .loading-indicator {
@@ -351,15 +347,76 @@ onMounted(async () => {
 .chat-input {
     padding: 16px;
     background: #ffffff;
-    border-top: 1px solid #e2e8f0;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
 }
 
 .input-form {
     display: flex;
     gap: 12px;
+    align-items: center;
 }
 
 .message-input {
     flex: 1;
+    min-width: 0;
+}
+
+@media (max-width: 768px) {
+    .chat-page {
+        gap: 14px;
+    }
+
+    .chat-toolbar {
+        align-items: stretch;
+    }
+
+    .session-input,
+    .agent-select {
+        width: 100%;
+    }
+
+    .chat-messages {
+        min-height: 320px;
+        padding: 14px;
+    }
+
+    .message-card {
+        max-width: calc(100% - 52px);
+    }
+
+    .input-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .input-form :deep(.p-button) {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 640px) {
+    .chat-messages {
+        padding: 12px;
+        border-radius: 14px;
+    }
+
+    .message-wrapper {
+        gap: 8px;
+    }
+
+    .message-avatar {
+        width: 34px;
+        height: 34px;
+    }
+
+    .message-card {
+        max-width: calc(100% - 42px);
+    }
+
+    .chat-input {
+        padding: 12px;
+    }
 }
 </style>

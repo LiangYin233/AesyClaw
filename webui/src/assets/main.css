@@ -1,9 +1,164 @@
-body {
+:root {
+    color-scheme: light;
+    --app-text: #1e293b;
+    --app-bg: #f8fafc;
+    --app-muted: #64748b;
+}
+
+html,
+body,
+#app {
     margin: 0;
-    padding: 0;
+    min-height: 100%;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    background: #f8fafc;
-    color: #1e293b;
+    background: var(--app-bg);
+    color: var(--app-text);
+    overflow-x: hidden;
+}
+
+a {
+    color: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+    font: inherit;
+}
+
+img,
+svg,
+video,
+canvas {
+    max-width: 100%;
+    height: auto;
+}
+
+pre,
+code,
+.p-tag,
+.p-message-text {
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 960px) {
+    .page-header {
+        margin-bottom: 18px;
+    }
+
+    .page-header,
+    .header-actions,
+    .bulk-toolbar,
+    .bulk-toolbar__actions,
+    .section-header,
+    .provider-header,
+    .agent-title-row,
+    .mcp-header-actions,
+    .level-selector,
+    .config-item {
+        flex-wrap: wrap;
+    }
+
+    .header-actions,
+    .bulk-toolbar__actions,
+    .mcp-header-actions,
+    .level-selector {
+        width: 100%;
+        gap: 10px;
+    }
+
+    .header-actions > *,
+    .bulk-toolbar__actions > *,
+    .mcp-header-actions > *,
+    .level-selector > * {
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+
+    .config-item {
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .config-grid,
+    .form-grid,
+    .details-grid,
+    .stats-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .p-card,
+    .p-message,
+    .p-panel,
+    .p-dialog,
+    .p-tag {
+        max-width: 100%;
+    }
+
+    .p-dialog {
+        width: min(96vw, 720px) !important;
+        margin: 0 2vw;
+    }
+
+    .p-dialog .p-dialog-content,
+    .p-dialog .p-dialog-footer,
+    .p-dialog .p-dialog-header {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .p-dialog .p-dialog-footer {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .p-dialog .p-dialog-footer .p-button {
+        flex: 1 1 140px;
+    }
+
+    .p-inputtext,
+    .p-select,
+    .p-multiselect,
+    .p-inputnumber,
+    .p-password,
+    .p-datepicker,
+    .p-autocomplete,
+    .p-textarea {
+        width: 100%;
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 640px) {
+    .page-header h1,
+    .page-title {
+        font-size: 22px;
+        line-height: 1.25;
+    }
+
+    .provider-header,
+    .agent-title-row,
+    .section-header,
+    .bulk-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .p-dialog {
+        width: calc(100vw - 20px) !important;
+        margin: 10px;
+    }
 }
 
 @media (prefers-color-scheme: dark) {

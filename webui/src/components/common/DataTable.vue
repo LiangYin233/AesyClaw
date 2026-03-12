@@ -1,6 +1,5 @@
 <template>
   <div class="responsive-table">
-    <!-- Desktop Table View -->
     <div v-if="!isMobile" class="table-container">
       <table class="data-table" role="table" :aria-label="ariaLabel">
         <thead>
@@ -27,7 +26,6 @@
       </table>
     </div>
 
-    <!-- Mobile Card View -->
     <div v-else class="cards-container" role="list" :aria-label="ariaLabel">
       <div
         v-for="(item, index) in data"
@@ -54,7 +52,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import { useMediaQuery } from '../../composables/useMediaQuery'
 
 export interface DataTableColumn {
@@ -79,11 +76,10 @@ const props = withDefaults(defineProps<Props>(), {
 const { isMobile } = useMediaQuery(768)
 
 const getRowKey = (item: any, index: number): string | number => {
-  return item[props.rowKey] || index
+  return item?.[props.rowKey] || index
 }
 
 const getFieldValue = (item: any, field: string): any => {
-  // Support nested fields like 'user.name'
   return field.split('.').reduce((obj, key) => obj?.[key], item)
 }
 </script>
@@ -91,11 +87,13 @@ const getFieldValue = (item: any, field: string): any => {
 <style scoped>
 .responsive-table {
   width: 100%;
+  min-width: 0;
 }
 
-/* Desktop Table Styles */
 .table-container {
+  width: 100%;
   overflow-x: auto;
+  border-radius: 12px;
 }
 
 .data-table {
@@ -108,6 +106,11 @@ const getFieldValue = (item: any, field: string): any => {
   padding: 12px;
   text-align: left;
   border-bottom: 1px solid #e2e8f0;
+  vertical-align: top;
+}
+
+.data-table td {
+  overflow-wrap: anywhere;
 }
 
 .data-table th {
@@ -125,7 +128,6 @@ const getFieldValue = (item: any, field: string): any => {
   background: #f8fafc;
 }
 
-/* Mobile Card Styles */
 .cards-container {
   display: flex;
   flex-direction: column;
@@ -135,16 +137,18 @@ const getFieldValue = (item: any, field: string): any => {
 .data-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 16px;
+  border-radius: 12px;
+  padding: 14px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  min-width: 0;
 }
 
 .card-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 8px 0;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 9px 0;
   border-bottom: 1px solid #f1f5f9;
 }
 
@@ -156,8 +160,8 @@ const getFieldValue = (item: any, field: string): any => {
   font-size: 13px;
   font-weight: 600;
   color: #64748b;
-  flex-shrink: 0;
-  margin-right: 12px;
+  flex: 0 0 auto;
+  max-width: 45%;
 }
 
 .card-value {
@@ -165,6 +169,24 @@ const getFieldValue = (item: any, field: string): any => {
   color: #1e293b;
   text-align: right;
   flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .card-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .card-label {
+    max-width: none;
+  }
+
+  .card-value {
+    text-align: left;
+  }
 }
 
 @media (prefers-color-scheme: dark) {

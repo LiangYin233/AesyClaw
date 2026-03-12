@@ -39,36 +39,70 @@ const titleId = useUniqueId('page-title')
 
 .page-header-left {
   flex: 1;
+  min-width: 0;
 }
 
 .page-title {
   margin: 0;
   font-size: 24px;
-  font-weight: bold;
+  font-weight: 700;
   color: #1e293b;
+  overflow-wrap: anywhere;
 }
 
 .page-subtitle {
-  margin: 4px 0 0 0;
+  margin: 6px 0 0 0;
   font-size: 14px;
+  line-height: 1.5;
   color: #64748b;
 }
 
 .page-header-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.page-header-actions :deep(.p-button),
+.page-header-actions :deep(.p-inputtext),
+.page-header-actions :deep(.p-select),
+.page-header-actions :deep(.p-multiselect),
+.page-header-actions :deep(.p-inputnumber),
+.page-header-actions :deep(.p-password),
+.page-header-actions :deep(.p-inputwrapper) {
+  max-width: 100%;
 }
 
 @media (max-width: 768px) {
+  .page-header {
+    margin-bottom: 18px;
+  }
+
   .page-header-content {
     flex-direction: column;
     align-items: stretch;
   }
 
+  .page-title {
+    font-size: 21px;
+  }
+
   .page-header-actions {
     width: 100%;
-    justify-content: flex-start;
+    justify-content: stretch;
+  }
+
+  .page-header-actions :deep(.p-button),
+  .page-header-actions :deep(.p-inputtext),
+  .page-header-actions :deep(.p-select),
+  .page-header-actions :deep(.p-multiselect),
+  .page-header-actions :deep(.p-inputnumber),
+  .page-header-actions :deep(.p-password),
+  .page-header-actions :deep(.p-inputwrapper) {
+    width: 100%;
   }
 }
 

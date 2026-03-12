@@ -1,4 +1,3 @@
-// UI store - manages UI state (toasts, modals, sidebar, etc.)
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
@@ -11,22 +10,48 @@ export interface ToastMessage {
 }
 
 export const useUiStore = defineStore('ui', () => {
-  // State
   const sidebarOpen = ref(true)
+  const mobileSidebarOpen = ref(false)
   const toasts = ref<ToastMessage[]>([])
   const isMobile = ref(false)
 
-  // Actions
   function toggleSidebar() {
+    if (isMobile.value) {
+      mobileSidebarOpen.value = !mobileSidebarOpen.value
+      return
+    }
+
     sidebarOpen.value = !sidebarOpen.value
   }
 
   function openSidebar() {
+    if (isMobile.value) {
+      mobileSidebarOpen.value = true
+      return
+    }
+
     sidebarOpen.value = true
   }
 
   function closeSidebar() {
+    if (isMobile.value) {
+      mobileSidebarOpen.value = false
+      return
+    }
+
     sidebarOpen.value = false
+  }
+
+  function toggleMobileSidebar() {
+    mobileSidebarOpen.value = !mobileSidebarOpen.value
+  }
+
+  function openMobileSidebar() {
+    mobileSidebarOpen.value = true
+  }
+
+  function closeMobileSidebar() {
+    mobileSidebarOpen.value = false
   }
 
   function showToast(toast: Omit<ToastMessage, 'id'>) {
@@ -34,12 +59,11 @@ export const useUiStore = defineStore('ui', () => {
     const newToast: ToastMessage = {
       id,
       ...toast,
-      life: toast.life ?? (toast.severity === 'error' ? 0 : 3000) // Errors don't auto-dismiss
+      life: toast.life ?? (toast.severity === 'error' ? 0 : 3000)
     }
 
     toasts.value.push(newToast)
 
-    // Auto-remove if life is set
     if (newToast.life && newToast.life > 0) {
       setTimeout(() => {
         removeToast(id)
@@ -57,7 +81,6 @@ export const useUiStore = defineStore('ui', () => {
     toasts.value = []
   }
 
-  // Convenience methods for different toast types
   function success(summary: string, detail?: string) {
     return showToast({ severity: 'success', summary, detail })
   }
@@ -76,18 +99,22 @@ export const useUiStore = defineStore('ui', () => {
 
   function setMobile(mobile: boolean) {
     isMobile.value = mobile
+    if (!mobile) {
+      mobileSidebarOpen.value = false
+    }
   }
 
   return {
-    // State
     sidebarOpen,
+    mobileSidebarOpen,
     toasts,
     isMobile,
-
-    // Actions
     toggleSidebar,
     openSidebar,
     closeSidebar,
+    toggleMobileSidebar,
+    openMobileSidebar,
+    closeMobileSidebar,
     showToast,
     removeToast,
     clearToasts,
