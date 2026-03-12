@@ -1,5 +1,6 @@
 import WebSocket from 'ws';
 import fs from 'fs';
+import { basename } from 'path';
 import type { EventBus } from '../../src/bus/EventBus.ts';
 import { BaseChannel } from '../../src/channels/BaseChannel.ts';
 import { MessageHandlers } from '../../src/channels/MessageParser.ts';
@@ -501,19 +502,23 @@ class OneBotChannel extends BaseChannel {
       throw new Error(`Invalid chatId: must be numeric, got ${msg.chatId}`);
     }
 
-    const segments = this.formatMessageWithBase64(msg.content, msg.media);
-    if (segments.length === 0) {
-      this.log.warn('OneBot outbound message empty', { chatId: msg.chatId, messageType: msg.messageType });
-      return;
-    }
-
-    const action = isGroup ? 'send_group_msg' : 'send_private_msg';
-    const params = isGroup
-      ? { group_id: numericChatId, message: segments }
-      : { user_id: numericChatId, message: segments };
-
     try {
-      await this.sendAction(action, params);
+      const segments = this.formatMessageWithBase64(msg.content, msg.media);
+      if (segments.length > 0) {
+        const action = isGroup ? 'send_group_msg' : 'send_private_msg';
+        const params = isGroup
+          ? { group_id: numericChatId, message: segments }
+          : { user_id: numericChatId, message: segments };
+
+        await this.sendAction(action, params);
+      }
+
+      if (msg.files) {
+        for (const filePath of msg.files) {
+          await this.uploadFile(numericChatId, isGroup, filePath);
+        }
+      }
+
       metrics.record('channel.message_sent', 1, 'count', {
         channel: this.name,
         messageType: isGroup ? 'group' : 'private',
@@ -573,17 +578,41 @@ class OneBotChannel extends BaseChannel {
       }
     }
 
-    return segments.length > 0 ? segments : [{ type: 'text', data: { text: content } }];
+    if (segments.length > 0) {
+      return segments;
+    }
+
+    if (content.trim().length > 0) {
+      return [{ type: 'text', data: { text: content } }];
+    }
+
+    return [];
+  }
+
+  private async uploadFile(chatId: number, isGroup: boolean, filePath: string): Promise<void> {
+    const normalizedPath = this.normalizeLocalPath(filePath);
+
+    if (!fs.existsSync(normalizedPath)) {
+      throw new Error(`File not found: ${filePath}`);
+    }
+
+    const action = isGroup ? 'upload_group_file' : 'upload_private_file';
+    const params = isGroup
+      ? { group_id: chatId, file: normalizedPath, name: basename(normalizedPath) }
+      : { user_id: chatId, file: normalizedPath, name: basename(normalizedPath) };
+
+    await this.sendAction(action, params);
   }
 
   private readonly MAX_IMAGE_SIZE = CONSTANTS.MAX_IMAGE_SIZE;
 
+  private normalizeLocalPath(filePath: string): string {
+    return filePath.startsWith('file://') ? filePath.substring(7) : filePath;
+  }
+
   private imageToBase64(filePath: string): string | null {
     try {
-      let path = filePath;
-      if (filePath.startsWith('file://')) {
-        path = filePath.substring(7);
-      }
+      const path = this.normalizeLocalPath(filePath);
       if (fs.existsSync(path)) {
         const stats = fs.statSync(path);
         if (stats.size > this.MAX_IMAGE_SIZE) {

@@ -77,6 +77,7 @@ export interface OutboundMessage {
   reasoning_content?: string;
   replyTo?: string;
   media?: string[];
+  files?: string[];
   metadata?: Record<string, any>;
   messageType?: 'private' | 'group';
 }

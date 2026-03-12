@@ -97,8 +97,9 @@ export abstract class BaseChannel {
   protected validateMessage(msg: OutboundMessage): boolean {
     const hasContent = msg.content && msg.content.trim().length > 0;
     const hasMedia = msg.media && msg.media.length > 0;
+    const hasFiles = msg.files && msg.files.length > 0;
 
-    if (!hasContent && !hasMedia) {
+    if (!hasContent && !hasMedia && !hasFiles) {
       this.log.error('Outbound message rejected: empty payload', {
         channel: this.name,
         chatId: msg.chatId,

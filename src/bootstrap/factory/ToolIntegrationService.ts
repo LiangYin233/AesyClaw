@@ -81,27 +81,38 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
 
   toolRegistry.register({
     name: 'send_msg_to_user',
-    description: '向当前会话发送文本或附件。LLM 在 Agent 执行过程中也可以使用该工具向用户同步当前步骤、说明正在进行的操作或汇报阶段性进展。',
+    description: '向当前会话发送文本、图片或文件。LLM 在 Agent 执行过程中也可以使用该工具向用户同步当前步骤、说明正在进行的操作或汇报阶段性进展。',
     parameters: {
       type: 'object',
       properties: {
         content: {
           type: 'string',
-          description: '发送文本。'
+          description: '发送文本；可为空，但 content、media、files 至少要提供一个。'
         },
         media: {
           type: 'array',
           items: { type: 'string' },
-          description: '附件路径数组。'
+          description: '图片路径数组。'
+        },
+        files: {
+          type: 'array',
+          items: { type: 'string' },
+          description: '非图片文件路径数组。'
         }
-      },
-      required: ['content']
+      }
     },
     execute: async (params: Record<string, any>, context?: ToolContext) => {
       const content = String(params.content ?? '');
       const media = Array.isArray(params.media)
         ? params.media.filter((item): item is string => typeof item === 'string')
         : undefined;
+      const files = Array.isArray(params.files)
+        ? params.files.filter((item): item is string => typeof item === 'string')
+        : undefined;
+
+      if (content.trim().length === 0 && (!media || media.length === 0) && (!files || files.length === 0)) {
+        return '错误：content、media、files 至少需要提供一个。';
+      }
 
       if (!context?.chatId || !context?.channel) {
         log.error('send_msg_to_user missing context', {
@@ -116,18 +127,21 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
         chatId: context.chatId,
         content,
         messageType: context.messageType || 'private',
-        media: media && media.length > 0 ? media : undefined
+        media: media && media.length > 0 ? media : undefined,
+        files: files && files.length > 0 ? files : undefined
       };
 
       try {
         await publishOutboundMessage(outboundMessage);
-        const mediaInfo = media && media.length > 0 ? ` (包含 ${media.length} 个文件)` : '';
-        return `消息已发送${mediaInfo}`;
+        const attachmentCount = (media?.length || 0) + (files?.length || 0);
+        const attachmentInfo = attachmentCount > 0 ? ` (包含 ${attachmentCount} 个附件)` : '';
+        return `消息已发送${attachmentInfo}`;
       } catch (error) {
         log.error('send_msg_to_user failed', {
           channel: context.channel,
           chatId: context.chatId,
           mediaCount: media?.length || 0,
+          fileCount: files?.length || 0,
           error: normalizeError(error)
         });
         return `发送失败：${error instanceof Error ? error.message : String(error)}`;

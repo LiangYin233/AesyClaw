@@ -284,30 +284,31 @@ class FeishuChannel extends BaseChannel {
     try {
       const token = await this.getValidToken();
       const receiveIdType = msg.messageType === 'group' ? 'chat_id' : 'open_id';
-      const { msgType, content } = await this.formatOutboundMessage(msg);
-      const uuid = this.generateUUID();
-
-      const requestBody = {
-        receive_id: msg.chatId,
-        msg_type: msgType,
-        content: JSON.stringify(content),
-        uuid
-      };
-
       const url = `${FeishuChannel.FEISHU_API_BASE}/open-apis/im/v1/messages?receive_id_type=${receiveIdType}`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json; charset=utf-8'
-        },
-        body: JSON.stringify(requestBody)
-      });
+      const outboundParts = await this.formatOutboundMessages(msg);
 
-      const result: any = await response.json();
-      if (result.code !== 0) {
-        this.log.error('Feishu API request failed', { code: result?.code, message: result?.msg });
-        throw new Error(`Feishu API error (${result.code}): ${result.msg}`);
+      for (const part of outboundParts) {
+        const requestBody = {
+          receive_id: msg.chatId,
+          msg_type: part.msgType,
+          content: JSON.stringify(part.content),
+          uuid: this.generateUUID()
+        };
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: JSON.stringify(requestBody)
+        });
+
+        const result: any = await response.json();
+        if (result.code !== 0) {
+          this.log.error('Feishu API request failed', { code: result?.code, message: result?.msg, msgType: part.msgType });
+          throw new Error(`Feishu API error (${result.code}): ${result.msg}`);
+        }
       }
 
       metrics.record('channel.message_sent', 1, 'count', {
@@ -326,21 +327,38 @@ class FeishuChannel extends BaseChannel {
     }
   }
 
-  private async formatOutboundMessage(msg: OutboundMessage): Promise<{ msgType: string; content: any }> {
-    if (msg.media && msg.media.length > 0) {
-      try {
-        const imageKey = await this.uploadImage(msg.media[0]);
-        return { msgType: 'image', content: { image_key: imageKey } };
-      } catch (error) {
-        this.log.warn('Feishu image upload failed, falling back to text', { error });
-        if (!msg.content || msg.content.trim() === '') {
-          return { msgType: 'text', content: { text: '[图片上传失败]' } };
+  private async formatOutboundMessages(msg: OutboundMessage): Promise<Array<{ msgType: string; content: Record<string, string> }>> {
+    const parts: Array<{ msgType: string; content: Record<string, string> }> = [];
+
+    if (msg.content && msg.content.trim() !== '') {
+      parts.push({ msgType: 'text', content: { text: msg.content } });
+    }
+
+    if (msg.media) {
+      for (const imagePath of msg.media) {
+        try {
+          const imageKey = await this.uploadImage(imagePath);
+          parts.push({ msgType: 'image', content: { image_key: imageKey } });
+        } catch (error) {
+          this.log.warn('Feishu image upload failed, skipping media', { imagePath, error });
+          parts.push({ msgType: 'text', content: { text: `[图片上传失败: ${basename(imagePath)}]` } });
         }
       }
     }
 
-    const textContent = msg.content && msg.content.trim() !== '' ? msg.content : '[空消息]';
-    return { msgType: 'text', content: { text: textContent } };
+    if (msg.files) {
+      for (const filePath of msg.files) {
+        try {
+          const fileKey = await this.uploadFile(filePath);
+          parts.push({ msgType: 'file', content: { file_key: fileKey } });
+        } catch (error) {
+          this.log.warn('Feishu file upload failed, skipping file', { filePath, error });
+          parts.push({ msgType: 'text', content: { text: `[文件上传失败: ${basename(filePath)}]` } });
+        }
+      }
+    }
+
+    return parts.length > 0 ? parts : [{ msgType: 'text', content: { text: '[空消息]' } }];
   }
 
   private async uploadImage(imagePath: string): Promise<string> {
@@ -388,6 +406,65 @@ class FeishuChannel extends BaseChannel {
               }
 
               resolve(result.data.image_key);
+            } catch (parseError: any) {
+              reject(new Error(`Failed to parse response: ${parseError.message}`));
+            }
+          });
+
+          res.on('error', (responseError) => {
+            reject(new Error(`Response error: ${responseError.message}`));
+          });
+        }
+      );
+    });
+  }
+
+  private async uploadFile(filePath: string): Promise<string> {
+    const token = await this.getValidToken();
+    const buffer = fs.readFileSync(filePath);
+    const FormData = (await import('form-data')).default;
+    const form = new FormData();
+    form.append('file_type', 'stream');
+    form.append('file_name', basename(filePath));
+    form.append('file', buffer, {
+      filename: basename(filePath),
+      contentType: 'application/octet-stream'
+    });
+
+    return new Promise((resolve, reject) => {
+      form.submit(
+        {
+          protocol: FeishuChannel.FEISHU_API_BASE.startsWith('https') ? 'https:' : 'http:',
+          host: new URL(FeishuChannel.FEISHU_API_BASE).host,
+          path: '/open-apis/im/v1/files',
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` }
+        },
+        (err, res) => {
+          if (err) {
+            reject(new Error(`Failed to upload file: ${err.message}`));
+            return;
+          }
+
+          let data = '';
+          res.on('data', (chunk) => {
+            data += chunk;
+          });
+
+          res.on('end', () => {
+            try {
+              if (res.statusCode !== 200) {
+                reject(new Error(`Failed to upload file: HTTP ${res.statusCode} - ${data}`));
+                return;
+              }
+
+              const result = JSON.parse(data);
+              if (result.code !== 0) {
+                reject(new Error(`Failed to upload file: ${result.msg || result.message || 'Unknown error'}`));
+                return;
+              }
+
+              resolve(result.data.file_key);
             } catch (parseError: any) {
               reject(new Error(`Failed to parse response: ${parseError.message}`));
             }
