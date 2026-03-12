@@ -6,6 +6,7 @@ const log = logger.child({ prefix: 'Bootstrap' });
 
 export async function startChannels(services: Services): Promise<void> {
   const { channelManager } = services;
+  const startedAt = Date.now();
   try {
     await Promise.race([
       channelManager.startAll(),
@@ -14,7 +15,10 @@ export async function startChannels(services: Services): Promise<void> {
       )
     ]);
   } catch (error) {
-    log.error('Channel start failed:', error);
+    log.error('Channel startup failed', { error });
   }
-  log.info('Channels started');
+  log.info('Channel startup finished', {
+    channelCount: channelManager.getEnabledChannels().length,
+    durationMs: Date.now() - startedAt
+  });
 }

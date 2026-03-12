@@ -41,6 +41,7 @@ export class ToolLoopRunner {
     let agentMode = !!initialToolCalls;
     let toolCallQueue = [...(initialToolCalls || [])];
     let iteration = 0;
+    const startedAt = Date.now();
 
     const checkAbort = () => {
       if (executionSignal?.aborted) {
@@ -63,12 +64,18 @@ export class ToolLoopRunner {
 
         const toolName = toolCall.name;
         if (!toolName) {
-          this.log.error(`Tool name is undefined: ${JSON.stringify(toolCall).substring(0, 200)}`);
+          this.log.error('Tool call missing name', { iteration, sessionKey: options.sessionKey, toolCallPreview: this.log.preview(JSON.stringify(toolCall)) });
           continue;
         }
 
         toolsUsed.push(toolName);
-        this.log.info(`[agent:${agentLabel}] Executing tool: ${toolName}`);
+        const toolStartedAt = Date.now();
+        this.log.info('Tool started', {
+          agent: agentLabel,
+          toolName,
+          iteration,
+          sessionKey: options.sessionKey
+        });
 
         let toolArgs = toolCall.arguments || {};
         let result: string;
@@ -86,7 +93,13 @@ export class ToolLoopRunner {
           }
 
           result = await this.toolRegistry.execute(execToolName, toolArgs, execContext);
-          this.log.info(`[agent:${agentLabel}] Tool ${toolName} executed, result length: ${result.length}`);
+          this.log.info('Tool completed', {
+            agent: agentLabel,
+            toolName,
+            iteration,
+            durationMs: Date.now() - toolStartedAt,
+            sessionKey: options.sessionKey
+          });
 
           if (this.pluginManager) {
             result = await this.pluginManager.applyOnToolCall(toolName, toolArgs, result);
@@ -95,7 +108,15 @@ export class ToolLoopRunner {
           const message = normalizeError(error);
           const isRetryable = isRetryableError(error);
           result = `Error: ${message}${isRetryable ? ' (retryable)' : ''}`;
-          this.log.error(`[agent:${agentLabel}] Tool ${toolName} failed:`, message);
+          this.log.error('Tool failed', {
+            agent: agentLabel,
+            toolName,
+            iteration,
+            durationMs: Date.now() - toolStartedAt,
+            retryable: isRetryable,
+            sessionKey: options.sessionKey,
+            error: message
+          });
 
           if (this.pluginManager) {
             await this.pluginManager.applyOnError(error, { type: 'tool', data: { toolName, toolArgs } });
@@ -108,27 +129,16 @@ export class ToolLoopRunner {
           toolCallId: toolCall.id || '',
           name: toolName
         });
-
-        if (toolName === 'call_agent') {
-          const preview = result.replace(/\s+/g, ' ').slice(0, 320);
-          this.log.info(`[agent:${agentLabel}] call_agent result preview: ${preview || '(empty)'}`);
-        }
       }
 
       // 执行完所有 toolCalls 后，继续调用 LLM
       checkAbort();
-
-      const lastMessages = messages.slice(-Math.min(messages.length, 3)).map((message) => {
-        const role = message.role;
-        const name = message.name ? `:${message.name}` : '';
-        const content = typeof message.content === 'string'
-          ? message.content.replace(/\s+/g, ' ').slice(0, 160)
-          : '[non-text-content]';
-        return `${role}${name}=${content || '(empty)'}`;
+      this.log.debug('LLM loop iteration', {
+        agent: agentLabel,
+        iteration,
+        currentTools: currentToolNames,
+        sessionKey: options.sessionKey
       });
-      this.log.debug(
-        `[agent:${agentLabel}] Next LLM call after tools [${currentToolNames.join(', ')}], recent messages: ${lastMessages.join(' | ')}`
-      );
 
       const tools = allowTools ? this.toolRegistry.getDefinitions() : [];
       const response = await this.provider.chat(messages, tools, options.model, {
@@ -153,6 +163,14 @@ export class ToolLoopRunner {
         toolCallQueue = response.toolCalls;
       } else {
         messages.push({ role: 'assistant', content: response.content || '' });
+        this.log.info('Execution completed', {
+          agent: agentLabel,
+          iteration,
+          toolCount: toolsUsed.length,
+          durationMs: Date.now() - startedAt,
+          sessionKey: options.sessionKey,
+          finishReason: 'stop'
+        });
         return {
           content: response.content || '',
           reasoning_content: response.reasoning_content,
@@ -163,7 +181,13 @@ export class ToolLoopRunner {
     }
 
     if (toolCallQueue.length > 0) {
-      this.log.warn(`Reached max iterations (${max})`);
+      this.log.warn('Execution reached max iterations', {
+        agent: agentLabel,
+        maxIterations: max,
+        toolCount: toolsUsed.length,
+        durationMs: Date.now() - startedAt,
+        sessionKey: options.sessionKey
+      });
       return { content: '已达到最大迭代次数', reasoning_content: undefined, toolsUsed, agentMode };
     }
 
@@ -172,6 +196,14 @@ export class ToolLoopRunner {
     const lastContent = typeof lastMessage?.content === 'string'
       ? lastMessage.content
       : lastMessage?.content?.find((c: any) => c.type === 'text')?.text || '';
+    this.log.info('Execution completed', {
+      agent: agentLabel,
+      iteration,
+      toolCount: toolsUsed.length,
+      durationMs: Date.now() - startedAt,
+      sessionKey: options.sessionKey,
+      finishReason: 'final-message'
+    });
     return { content: lastContent, reasoning_content: undefined, toolsUsed, agentMode };
   }
 

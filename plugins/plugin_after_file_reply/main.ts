@@ -220,7 +220,7 @@ const plugin: AfterFileReplyPlugin = {
     ], { allowTools: false });
     const reply = response.content?.trim() || '';
 
-    this.log.debug(`${logLabel}: LLM response length: ${reply.length}`);
+    this.log.debug('Multimodal reply generated', { logLabel, contentLength: reply.length, fileCount: files.length });
     return reply;
   },
 
@@ -265,7 +265,7 @@ const plugin: AfterFileReplyPlugin = {
         }
 
         const files = state.files;
-        plugin.log.debug(`/zjfs: Processing ${files.length} files`);
+        plugin.log.info('Direct multimodal processing started', { fileCount: files.length });
 
         try {
           const reply = await plugin.callMultimodalLLM(
@@ -300,7 +300,7 @@ const plugin: AfterFileReplyPlugin = {
     const key = this.getKey(msg);
     const state = this.waitingStates.get(key);
 
-    this.log.debug(`onMessage: key=${key}, hasState=${!!state}, media=${JSON.stringify(msg.media)}`);
+    this.log.debug('After-file message received', { key, hasState: !!state, mediaCount: msg.media?.length || 0 });
 
     if (state) {
       if (this.hasFile(msg)) {
@@ -317,9 +317,7 @@ const plugin: AfterFileReplyPlugin = {
       if (msg.content.trim()) {
         const files = state.files;
 
-        this.log.debug(`Processing text with ${files.length} files`);
-        this.log.debug(`Text content: ${msg.content.substring(0, 100)}`);
-        this.log.debug(`Files: ${JSON.stringify(files)}`);
+        this.log.info('Multimodal reply requested', { key, fileCount: files.length });
 
         try {
           const reply = await this.callMultimodalLLM(
@@ -361,10 +359,9 @@ const plugin: AfterFileReplyPlugin = {
     }
 
     const files = msg.media || [];
-    this.log.debug(`New state: files=${JSON.stringify(files)}`);
     const uniqueFiles = [...new Set(files)];
     const fileCount = uniqueFiles.length;
-    this.log.debug(`After dedup: uniqueFiles.length=${fileCount}`);
+    this.log.info('Waiting state created', { key, fileCount });
 
     if (fileCount > 0) {
       this.waitingStates.set(key, {

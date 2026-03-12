@@ -123,7 +123,7 @@ export class AgentLoop {
     this.abortService = new ExecutionAbortService(this.executionRegistry, this.backgroundTasks, this.sessionRouting);
     this.ingressService = new MessageIngressService(this.preprocessingService, this.contextResolver, this.executionService);
 
-    this.log.info(`Initialized with model: ${model}, contextMode: ${contextMode}, vision: ${visionSettings?.enabled || false}`);
+    this.log.info('Agent initialized', { model, contextMode, visionEnabled: visionSettings?.enabled || false });
   }
 
   setPluginManager(pm: PluginManager): void {
@@ -132,12 +132,11 @@ export class AgentLoop {
     this.executionService.setPluginManager(pm);
     this.rebuildExecutionServices();
     this.rebuildPreprocessingService();
-    this.log.info('PluginManager attached');
   }
 
   setSkillManager(sm: SkillManager): void {
     this.skillManager = sm;
-    this.log.info('SkillManager attached');
+    this.log.debug('Skill manager attached');
   }
 
   setAgentRoleService(service: AgentRoleService): void {
@@ -157,16 +156,16 @@ export class AgentLoop {
 
   async run(): Promise<void> {
     this.running = true;
-    this.log.info('Loop started, waiting for messages...');
+    this.log.info('Agent loop started');
 
     while (this.running) {
       try {
         const msg = await this.eventBus.consumeInbound();
-        this.log.debug(`Received message from ${msg.channel}:${msg.chatId}, content: ${msg.content.slice(0, 50)}...`);
+        this.log.debug('Inbound message dequeued', { channel: msg.channel, chatId: msg.chatId, messageType: msg.messageType || 'private', sessionKey: msg.sessionKey });
         await this.processMessage(msg);
       } catch (error) {
         if (this.running) {
-          this.log.error('Error:', error);
+          this.log.error('Agent loop iteration failed', { error });
         }
       }
     }
@@ -236,9 +235,7 @@ export class AgentLoop {
   abortExecution(sessionKey: string): boolean {
     const aborted = this.abortService.abortBySessionKey(sessionKey);
 
-    this.log.info(aborted
-      ? `Aborted execution for session: ${sessionKey}`
-      : `Abort requested for inactive session: ${sessionKey}`);
+    this.log.info(aborted ? 'Execution aborted' : 'Abort requested for inactive session', { sessionKey });
 
     return aborted;
   }
@@ -286,7 +283,7 @@ export class AgentLoop {
       defaultProvider: provider,
       defaultModel: model || this.defaultModel
     });
-    this.log.info(model ? `Provider and model updated: ${model}` : 'Provider updated');
+    this.log.info('Agent provider updated', { model: model || this.defaultModel });
   }
 
   updateMemorySettings(memoryWindow: number, memoryService?: SessionMemoryService): void {
@@ -295,7 +292,7 @@ export class AgentLoop {
     this.policyFactory.updateRuntime({ memoryWindow });
     this.rebuildExecutionServices();
     this.rebuildContextResolver();
-    this.log.info(`Memory settings updated: window=${memoryWindow}, summary=${memoryService ? 'enabled' : 'disabled'}`);
+    this.log.info('Memory settings updated', { memoryWindow, summaryEnabled: !!memoryService });
   }
 
   private async sendOutbound(msg: OutboundMessage): Promise<void> {
@@ -309,7 +306,6 @@ export class AgentLoop {
   setCommandRegistry(registry: CommandRegistry): void {
     this.commandRegistry = registry;
     this.rebuildPreprocessingService();
-    this.log.info('CommandRegistry attached');
   }
 
   private rebuildExecutionServices(): void {
@@ -354,7 +350,7 @@ export class AgentLoop {
   abortSession(channel: string, chatId: string): boolean {
     const aborted = this.abortService.abortByChat(channel, chatId);
     if (aborted) {
-      this.log.info(`Aborted current chat execution (channel: ${channel}, chatId: ${chatId})`);
+      this.log.info('Chat execution aborted', { channel, chatId });
     }
     return aborted;
   }
@@ -362,7 +358,7 @@ export class AgentLoop {
   abortBackgroundSession(channel: string, chatId: string): boolean {
     const aborted = this.backgroundTasks.abortTaskByChannel(channel, chatId);
     if (aborted) {
-      this.log.info(`Aborted background tasks for current chat (channel: ${channel}, chatId: ${chatId})`);
+      this.log.info('Background tasks aborted', { channel, chatId });
     }
     return aborted;
   }

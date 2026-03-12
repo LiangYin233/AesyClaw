@@ -67,7 +67,14 @@ export class ExecutionFinalizeService {
       await this.memoryService.maybePersistMemory(sessionKey, request.content, content);
     }
 
-    this.log.info(`Finalized execution for session ${sessionKey}`);
+    this.log.info('Execution response finalized', {
+      sessionKey,
+      channel: request.channel,
+      chatId: request.chatId,
+      messageType: request.messageType,
+      outboundSuppressed: suppressOutbound,
+      responseLength: content.length
+    });
   }
 
   async handleError(error: unknown, sessionKey: string): Promise<void> {

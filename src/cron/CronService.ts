@@ -50,7 +50,13 @@ export class CronService {
     this.computeNextRun(job);
     this.jobs.set(job.id, job);
     this.store.upsert(job).catch(err => this.log.error('Failed to save job:', err));
-    this.log.info(`Added job: ${job.name} (${job.id}), next run: ${job.nextRunAtMs ? new Date(job.nextRunAtMs).toISOString() : 'N/A'}`);
+    this.log.info('Cron job created', {
+      jobId: job.id,
+      jobName: job.name,
+      kind: job.schedule.kind,
+      nextRunAt: job.nextRunAtMs ? new Date(job.nextRunAtMs).toISOString() : undefined,
+      target: job.payload.target
+    });
     this.wakeUp();
     return job;
   }
@@ -58,7 +64,7 @@ export class CronService {
   removeJob(id: string): boolean {
     const result = this.jobs.delete(id);
     this.store.delete(id).catch(err => this.log.error('Failed to delete job:', err));
-    if (result) this.log.info(`Removed job: ${id}`);
+    if (result) this.log.info('Cron job removed', { jobId: id });
     return result;
   }
 
@@ -68,7 +74,11 @@ export class CronService {
       job.enabled = enabled;
       this.computeNextRun(job);
       this.store.updateStatus(id, enabled, job.nextRunAtMs).catch(err => this.log.error('Failed to update job status:', err));
-      this.log.info(`Job ${id} ${enabled ? 'enabled' : 'disabled'}, next run: ${job.nextRunAtMs ? new Date(job.nextRunAtMs).toISOString() : 'N/A'}`);
+      this.log.info('Cron job status updated', {
+        jobId: id,
+        enabled,
+        nextRunAt: job.nextRunAtMs ? new Date(job.nextRunAtMs).toISOString() : undefined
+      });
       this.wakeUp();
     }
   }
@@ -88,7 +98,7 @@ export class CronService {
     await this.store.initialize();
     await this.load();
     this.scheduleNext();
-    this.log.info(`Service started, ${this.jobs.size} jobs loaded`);
+    this.log.info('Cron service started', { jobCount: this.jobs.size });
   }
 
   stop(): void {
@@ -97,7 +107,7 @@ export class CronService {
       this.timer = undefined;
     }
     this.store.close().catch(err => this.log.error('Failed to close store:', err));
-    this.log.info('Service stopped');
+    this.log.info('Cron service stopped');
   }
 
   private wakeUp(): void {
@@ -119,12 +129,10 @@ export class CronService {
     }
 
     if (nearest === Infinity) {
-      this.log.debug('No jobs scheduled');
       return;
     }
 
     const delay = Math.max(0, nearest - now);
-    this.log.debug(`Next job in ${Math.round(delay / 1000)}s`);
 
     this.timer = setTimeout(async () => {
       try {
@@ -144,14 +152,23 @@ export class CronService {
 
     for (const job of this.jobs.values()) {
       if (job.enabled && job.nextRunAtMs && now >= job.nextRunAtMs) {
-        this.log.info(`Executing job: ${job.name} (${job.id})`);
+        this.log.info('Cron job executing', {
+          jobId: job.id,
+          jobName: job.name,
+          kind: job.schedule.kind,
+          target: job.payload.target
+        });
 
         if (this.onJobExecute) {
           try {
             await this.onJobExecute(job);
-            this.log.info(`Job ${job.id} completed successfully`);
+            this.log.info('Cron job completed', { jobId: job.id, jobName: job.name });
           } catch (error: unknown) {
-            this.log.error(`Job ${job.id} failed:`, normalizeError(error));
+            this.log.error('Cron job failed', {
+              jobId: job.id,
+              jobName: job.name,
+              error: normalizeError(error)
+            });
           }
         }
 
@@ -169,7 +186,7 @@ export class CronService {
     for (const id of toRemove) {
       this.jobs.delete(id);
       this.store.delete(id).catch(err => this.log.error('Failed to delete job:', err));
-      this.log.info(`One-time job ${id} completed and removed`);
+      this.log.info('One-time cron job removed', { jobId: id });
     }
 
     if (toUpdate.length > 0) {

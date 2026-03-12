@@ -21,9 +21,7 @@ async function createChannelManager(config: Config, eventBus: EventBus, workspac
     }
 
     const channel = channelManager.createChannel(channelName, channelConfig);
-    if (channel) {
-      log.info(`Channel enabled: ${channelName}`);
-    } else {
+    if (!channel) {
       log.warn(`Channel plugin not found: ${channelName}`);
     }
   }
@@ -53,12 +51,13 @@ export async function createInfrastructure(args: {
   cronService: CronService;
   onCronJob?: (job: CronJob) => Promise<void>;
 }): Promise<{
-  pluginManager: Awaited<ReturnType<typeof createPluginManager>>;
+  pluginManager: Awaited<ReturnType<typeof createPluginManager>>['pluginManager'];
+  startPluginLoading: Awaited<ReturnType<typeof createPluginManager>>['startBackgroundLoading'];
   channelManager: ChannelManager;
   mcpManager: MCPClientManager | null;
 }> {
   const { config, eventBus, agent, workspace, tempDir, toolRegistry } = args;
-  const [pluginManager, channelManager] = await Promise.all([
+  const [pluginRuntime, channelManager] = await Promise.all([
     createPluginManager({
       config,
       eventBus,
@@ -72,7 +71,8 @@ export async function createInfrastructure(args: {
   const mcpManager = createMcpManager(config, toolRegistry);
 
   return {
-    pluginManager,
+    pluginManager: pluginRuntime.pluginManager,
+    startPluginLoading: pluginRuntime.startBackgroundLoading,
     channelManager,
     mcpManager
   };

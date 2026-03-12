@@ -67,7 +67,7 @@ export class PythonRunner {
 
       pythonProcess.on('error', (error: Error & NodeJS.ErrnoException) => {
         clearTimeout(timeoutId);
-        this.log.error('Python process error:', error.message);
+        this.log.error('Python process failed', { error: error.message });
 
         if (error.code === 'ENOENT') {
           resolve('Python 未安装或不在 PATH 中。请确保已安装 Python 并添加到系统 PATH。');
@@ -92,7 +92,7 @@ export class PythonRunner {
           return;
         }
 
-        this.log.debug('Python executed successfully');
+        this.log.debug('Python execution completed', { executable: this.executable });
         const output = stdout || '代码执行完成（无输出）';
         resolve(this.truncateOutput(output));
       });

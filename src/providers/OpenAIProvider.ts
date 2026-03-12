@@ -1,6 +1,6 @@
 import { LLMProvider } from './base.js';
 import type { LLMMessage, LLMResponse, ToolDefinition, ToolCall } from '../types.js';
-import { logger, normalizeError } from '../logger/index.js';
+import { logger, normalizeError, isRetryableError } from '../logger/index.js';
 
 interface OpenAITool {
   type: string;
@@ -124,21 +124,18 @@ export class OpenAIProvider extends LLMProvider {
   ): Promise<LLMResponse> {
     const url = `${this.apiBase || this.baseURL}/chat/completions`;
     const modelName = model || this.getDefaultModel();
+    const startedAt = Date.now();
 
-    this.log.debug(`Calling OpenAI API: ${url}`);
-    this.log.debug(`Model: ${modelName}`);
-    if (options?.reasoning) {
-      this.log.debug(`Reasoning enabled`);
-    }
-    this.log.debug(`Messages: ${messages.length}`);
-    if (tools && tools.length > 0) {
-      this.log.debug(`Tools: ${tools.map(t => t.name).join(', ')}`);
-    }
+    this.log.debug('Provider request started', {
+      model: modelName,
+      apiBase: this.apiBase || this.baseURL,
+      messageCount: messages.length,
+      toolCount: tools?.length || 0,
+      reasoning: options?.reasoning === true
+    });
 
     try {
       const formattedMessages = this.formatMessages(messages);
-
-      this.log.debug(`Formatted messages count: ${formattedMessages.length}`);
       
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -188,22 +185,17 @@ export class OpenAIProvider extends LLMProvider {
       const toolCalls = data.choices?.[0]?.message?.tool_calls || [];
       const finishReason = data.choices?.[0]?.finish_reason || 'stop';
       const usage = data.usage;
+      const durationMs = Date.now() - startedAt;
 
-      this.log.debug(`Response received. Content length: ${content?.length || 0}, Reasoning length: ${reasoning_content?.length || 0}, Tool calls: ${toolCalls.length}, Finish reason: ${finishReason}`);
-      if (toolCalls.length > 0) {
-        const tcDebug = toolCalls.map((tc: any) => ({
-          id: tc.id,
-          name: tc.name,
-          hasFunction: !!(tc as any).function,
-          functionName: (tc as any).function?.name,
-          argumentsType: typeof tc.arguments,
-          argumentsKeys: tc.arguments ? Object.keys(tc.arguments) : null
-        }));
-        this.log.debug(`Tool calls detail:`, JSON.stringify(tcDebug).substring(0, 800));
-      }
-      if (usage) {
-        this.log.info(`Token usage: prompt=${usage.prompt_tokens}, completion=${usage.completion_tokens}, total=${usage.total_tokens}`);
-      }
+      this.log.info('Provider request completed', {
+        model: modelName,
+        durationMs,
+        finishReason,
+        toolCallCount: toolCalls.length,
+        promptTokens: usage?.prompt_tokens,
+        completionTokens: usage?.completion_tokens,
+        totalTokens: usage?.total_tokens
+      });
 
       return {
         content: content ?? undefined,
@@ -213,8 +205,11 @@ export class OpenAIProvider extends LLMProvider {
           try {
             args = JSON.parse(tc.function.arguments);
           } catch (error) {
-            this.log.error(`Failed to parse tool call arguments for ${tc.function.name}: ${tc.function.arguments.substring(0, 200)}`);
-            this.log.debug(`Parse error: ${error}`);
+            this.log.warn('Tool call arguments parse failed', {
+              toolName: tc.function.name,
+              argumentsPreview: this.log.preview(tc.function.arguments),
+              error: normalizeError(error)
+            });
             args = {};
           }
           return {
@@ -228,7 +223,12 @@ export class OpenAIProvider extends LLMProvider {
       };
     } catch (error: unknown) {
       const message = normalizeError(error);
-      this.log.error(`Request failed: ${message}`);
+      this.log.error('Provider request failed', {
+        model: modelName,
+        durationMs: Date.now() - startedAt,
+        retryable: isRetryableError(error),
+        error: message
+      });
       throw error;
     }
   }

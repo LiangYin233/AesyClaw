@@ -1,43 +1,150 @@
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';  // 日志级别类型
+import { normalizeError } from './errors.js';
 
-const LEVELS: Record<LogLevel, number> = {  // 日志级别数值映射
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogContext = Record<string, unknown>;
+
+const LEVELS: Record<LogLevel, number> = {
   debug: 0,
   info: 1,
   warn: 2,
   error: 3
 };
 
-const COLORS = {  // ANSI 颜色码
+const COLORS = {
   reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  dim: '\x1b[2m',
   red: '\x1b[31m',
-  green: '\x1b[32m',
   yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  magenta: '\x1b[35m',
   cyan: '\x1b[36m',
-  white: '\x1b[37m',
   gray: '\x1b[90m'
 };
 
-const PREFIXES: Record<LogLevel, string> = {  // 日志级别前缀
+const PREFIXES: Record<LogLevel, string> = {
   debug: 'DEBUG',
   info: 'INFO',
   warn: 'WARN',
   error: 'ERROR'
 };
 
-const PREFIX_COLORS: Record<LogLevel, string> = {  // 日志级别对应的颜色
+const PREFIX_COLORS: Record<LogLevel, string> = {
   debug: COLORS.gray,
   info: COLORS.cyan,
   warn: COLORS.yellow,
   error: COLORS.red
 };
 
+const DEFAULT_PREVIEW_LIMIT = 120;
+const SENSITIVE_KEY_PATTERN = /(authorization|token|api[-_]?key|secret|password|cookie)/i;
+
 export interface LoggerOptions {
-  level?: LogLevel;  // 日志级别
-  prefix?: string;  // 日志前缀
+  level?: LogLevel;
+  prefix?: string;
+}
+
+function collapseWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Error) && !(value instanceof Date);
+}
+
+function maybeRedactKey(key?: string): boolean {
+  return !!key && SENSITIVE_KEY_PATTERN.test(key);
+}
+
+function maybeRedactString(value: string): string {
+  const strippedQuery = value.replace(/(https?:\/\/[^\s?]+)\?[^\s]+/g, '$1?...');
+  return strippedQuery.replace(/\b(Bearer\s+)[^\s]+/gi, '$1[redacted]');
+}
+
+function previewText(value: string, limit: number = DEFAULT_PREVIEW_LIMIT): string {
+  const compact = collapseWhitespace(maybeRedactString(value));
+  if (compact.length <= limit) {
+    return compact;
+  }
+  return `${compact.slice(0, limit - 1)}…`;
+}
+
+function formatValue(value: unknown, key?: string): string | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (maybeRedactKey(key)) {
+    return '[redacted]';
+  }
+
+  if (value instanceof Error) {
+    return previewText(normalizeError(value));
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (typeof value === 'string') {
+    const normalized = previewText(value);
+    return normalized ? JSON.stringify(normalized) : '""';
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    const items = value
+      .slice(0, 6)
+      .map((item) => formatValue(item))
+      .filter((item): item is string => !!item);
+    const suffix = value.length > 6 ? ',…' : '';
+    return `[${items.join(',')}${suffix}]`;
+  }
+
+  if (isPlainObject(value)) {
+    const entries = Object.entries(value)
+      .slice(0, 8)
+      .map(([entryKey, entryValue]) => {
+        const formatted = formatValue(entryValue, entryKey);
+        return formatted ? `${entryKey}:${formatted}` : undefined;
+      })
+      .filter((item): item is string => !!item);
+
+    const suffix = Object.keys(value).length > 8 ? ',…' : '';
+    return `{${entries.join(',')}${suffix}}`;
+  }
+
+  return previewText(String(value));
+}
+
+function formatContext(context: LogContext): string {
+  const entries = Object.entries(context)
+    .map(([key, value]) => {
+      const formatted = formatValue(value, key);
+      return formatted === undefined ? undefined : `${key}=${formatted}`;
+    })
+    .filter((item): item is string => !!item);
+
+  return entries.join(' ');
+}
+
+function parseLogArgs(args: unknown[]): { context?: LogContext; extras: unknown[] } {
+  if (args.length === 0) {
+    return { extras: [] };
+  }
+
+  const [first, ...rest] = args;
+  if (isPlainObject(first)) {
+    return { context: first, extras: rest };
+  }
+
+  if (first instanceof Error) {
+    return { context: { error: normalizeError(first) }, extras: rest };
+  }
+
+  return {
+    context: { detail: first },
+    extras: rest
+  };
 }
 
 export class Logger {
@@ -49,64 +156,93 @@ export class Logger {
     this.prefix = options.prefix || '';
   }
 
-  setLevel(level: LogLevel): void {  // 设置日志级别
+  setLevel(level: LogLevel): void {
     this.level = level;
   }
 
-  getLevel(): LogLevel {  // 获取当前日志级别 (用于 API)
+  getLevel(): LogLevel {
     return this.level;
   }
 
-  getConfig(): { level: LogLevel; prefix: string } {  // 获取当前配置 (用于 API)
+  getConfig(): { level: LogLevel; prefix: string } {
     return {
       level: this.level,
       prefix: this.prefix
     };
   }
 
-  isLevelEnabled(level: LogLevel): boolean {  // 检查日志级别是否启用
+  isLevelEnabled(level: LogLevel): boolean {
     return LEVELS[level] >= LEVELS[this.level];
   }
 
-  private format(level: LogLevel, message: string): string {  // 格式化日志消息
-    const parts: string[] = [];
-
-    // 始终显示时间戳
-    const timestamp = new Date().toISOString().split('T').at(1)!.slice(0, -1);  // 提取时间部分
-    parts.push(`${COLORS.gray}${timestamp}${COLORS.reset}`);
-
-    const prefixStr = this.prefix ? `[${this.prefix}]` : '';  // 格式化前缀
-    const levelStr = PREFIXES[level];
-    const color = PREFIX_COLORS[level];  // 获取级别颜色
-    const reset = COLORS.reset;
-
-    parts.push(`${color}${prefixStr}${prefixStr ? ' ' : ''}[${levelStr}]${reset}`);
-    parts.push(message);
-
-    return parts.join(' ');
+  preview(value: unknown, limit: number = DEFAULT_PREVIEW_LIMIT): string {
+    if (value === undefined || value === null) {
+      return '';
+    }
+    return previewText(typeof value === 'string' ? value : String(value), limit);
   }
 
-  debug(message: string, ...args: any[]): void {  // 调试日志
-    if (!this.isLevelEnabled('debug')) return;
-    console.log(this.format('debug', message), ...args);
+  private format(level: LogLevel, message: string, context?: LogContext): string {
+    const timestamp = new Date().toISOString().slice(11, 23);
+    const color = PREFIX_COLORS[level];
+    const prefixLabel = this.prefix ? this.prefix.padEnd(18).slice(0, 18) : ''.padEnd(18);
+    const base = [
+      `${COLORS.gray}${timestamp}${COLORS.reset}`,
+      `${COLORS.gray}${prefixLabel}${COLORS.reset}`,
+      `${color}${PREFIXES[level]}${COLORS.reset}`,
+      message
+    ].join(' ');
+
+    if (!context || Object.keys(context).length === 0) {
+      return base;
+    }
+
+    const serialized = formatContext(context);
+    return serialized ? `${base} | ${serialized}` : base;
   }
 
-  info(message: string, ...args: any[]): void {  // 信息日志
-    if (!this.isLevelEnabled('info')) return;
-    console.log(this.format('info', message), ...args);
+  private write(level: LogLevel, message: string, ...args: unknown[]): void {
+    if (!this.isLevelEnabled(level)) {
+      return;
+    }
+
+    const { context, extras } = parseLogArgs(args);
+    const line = this.format(level, message, context);
+
+    if (level === 'error') {
+      console.error(line);
+    } else if (level === 'warn') {
+      console.warn(line);
+    } else {
+      console.log(line);
+    }
+
+    if (extras.length > 0 && this.isLevelEnabled('debug')) {
+      const extraContext = extras.reduce<LogContext>((acc, extra, index) => {
+        acc[`extra${index + 1}`] = extra;
+        return acc;
+      }, {});
+      console.log(this.format('debug', `${message} (extra)`, extraContext));
+    }
   }
 
-  warn(message: string, ...args: any[]): void {  // 警告日志
-    if (!this.isLevelEnabled('warn')) return;
-    console.warn(this.format('warn', message), ...args);
+  debug(message: string, ...args: unknown[]): void {
+    this.write('debug', message, ...args);
   }
 
-  error(message: string, ...args: any[]): void {  // 错误日志
-    if (!this.isLevelEnabled('error')) return;
-    console.error(this.format('error', message), ...args);
+  info(message: string, ...args: unknown[]): void {
+    this.write('info', message, ...args);
   }
 
-  child(options: LoggerOptions): Logger {  // 创建子日志记录器
+  warn(message: string, ...args: unknown[]): void {
+    this.write('warn', message, ...args);
+  }
+
+  error(message: string, ...args: unknown[]): void {
+    this.write('error', message, ...args);
+  }
+
+  child(options: LoggerOptions): Logger {
     return new Logger({
       level: this.level,
       prefix: options.prefix || this.prefix
@@ -114,13 +250,12 @@ export class Logger {
   }
 }
 
-export function createLogger(options?: LoggerOptions): Logger {  // 创建日志记录器工厂函数
+export function createLogger(options?: LoggerOptions): Logger {
   return new Logger(options);
 }
 
-export const logger = new Logger();  // 全局默认日志实例
+export const logger = new Logger();
 
-// Export error handling utilities
 export {
   normalizeError,
   createErrorResponse,
@@ -130,4 +265,3 @@ export {
   NotFoundError,
   isRetryableError
 } from './errors.js';
-

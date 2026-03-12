@@ -82,12 +82,10 @@ const plugin: any = {
       scale: Math.max(0.5, Math.min(3.0, options?.scale ?? 1.0))
     };
 
-    log.info('Plugin loaded with config:', this.config);
+    log.info('Plugin loaded', { minLength: this.config.minLength, scale: this.config.scale });
   },
 
   async onResponse(msg: OutboundMessage) {
-    log.debug(`onResponse called: content length=${msg.content?.length || 0}, has media=${!!(msg.media && msg.media.length > 0)}`);
-
     const extracted = extractThinkingTags(msg.content || '');
     const mergedReasoning = [msg.reasoning_content, extracted.reasoning]
       .filter((part) => typeof part === 'string' && part.trim().length > 0)
@@ -97,7 +95,6 @@ const plugin: any = {
     if (extracted.reasoning) {
       msg.content = extracted.content;
       msg.reasoning_content = mergedReasoning;
-      log.debug(`Extracted thinking tags: ${extracted.reasoning.length} chars`);
     }
 
     if (!msg.content || msg.content.length < this.config.minLength) {
@@ -106,7 +103,7 @@ const plugin: any = {
     }
 
     if (!this.isMarkdown(msg.content)) {
-      log.debug(`Skipped: not markdown. Content preview: ${msg.content.substring(0, 100)}`);
+      log.debug('Markdown rendering skipped: plain text', { contentLength: msg.content.length });
       return msg;
     }
 
@@ -116,7 +113,6 @@ const plugin: any = {
       if (mergedReasoning) {
         const thinkingBlock = `\n\n> ${mergedReasoning.replace(/\n/g, '\n> ')}\n`;
         markdownContent = thinkingBlock + markdownContent;
-        log.debug(`Added thinking block: ${mergedReasoning.length} chars`);
       }
 
       log.debug(`Converting markdown: ${markdownContent.length} chars`);
@@ -131,11 +127,11 @@ const plugin: any = {
       msg.media = [imagePath];
       msg.content = '';
 
-      log.info('Markdown converted successfully:', imagePath);
+      log.info('Markdown rendered to image', { imagePath });
 
       // 如果有原始 media，需要分开发送
       if (hasOriginalMedia && originalMedia) {
-        log.debug(`Original media detected (${originalMedia.length} files), will send separately`);
+        log.debug('Original media queued separately', { mediaCount: originalMedia.length });
 
         // 使用 setImmediate 确保在当前消息发送后再发送原始 media
         setImmediate(async () => {
@@ -152,7 +148,7 @@ const plugin: any = {
             // 通过 agent 的 eventBus 发送
             if (this.context?.agent?.eventBus) {
               await this.context.agent.eventBus.publishOutbound(secondMsg);
-              log.debug(`Sent original media separately (${originalMedia.length} files)`);
+              log.debug('Original media sent separately', { mediaCount: originalMedia.length });
             } else {
               log.warn('Cannot send original media: eventBus not available');
             }

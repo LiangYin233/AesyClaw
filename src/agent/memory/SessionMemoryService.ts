@@ -91,10 +91,10 @@ export class SessionMemoryService {
       }
 
       await this.sessionManager.updateSummary(sessionKey, summary, summaryCutoff);
-      this.log.info(`Updated summary for session ${sessionKey}, summarized messages: ${summaryCutoff}`);
+      this.log.info('Session summary updated', { sessionKey, summarizedMessageCount: summaryCutoff });
       return true;
     } catch (error) {
-      this.log.warn(`Failed to summarize session ${sessionKey}:`, error);
+      this.log.warn('Session summarization failed', { sessionKey, error });
       return false;
     }
   }
@@ -160,7 +160,7 @@ export class SessionMemoryService {
 
     await this.factsStore.upsertFacts(session.channel, session.chatId, extractedFacts, this.factsConfig.maxFacts);
     const persistedFacts = await this.factsStore.getFacts(session.channel, session.chatId);
-    this.log.info(`Updated facts for ${session.channel}:${session.chatId}, total facts: ${persistedFacts.length}`);
+    this.log.info('Session facts updated', { channel: session.channel, chatId: session.chatId, factCount: persistedFacts.length });
   }
 
   private async extractFacts(existingFacts: MemoryFact[], userContent: string): Promise<string[]> {

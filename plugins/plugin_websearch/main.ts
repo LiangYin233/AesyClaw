@@ -103,7 +103,10 @@ const plugin: {
     if (!this.config.apiKey) {
       this.log.warn('Tavily API key not configured. Set via options.apiKey or TAVILY_API_KEY env');
     } else {
-      this.log.info('Websearch plugin loaded');
+      this.log.info('Websearch plugin loaded', {
+        maxResults: this.config.maxResults,
+        searchDepth: this.config.searchDepth
+      });
     }
   },
 
@@ -133,8 +136,6 @@ const plugin: {
       async execute(params: Record<string, any>) {
         const { query, max_results, search_depth } = params;
 
-        plugin.log.debug(`websearch execute: query="${query}", max_results=${max_results}, search_depth=${search_depth}`);
-
         if (!query || typeof query !== 'string') {
           throw new Error('query 参数缺失或格式错误');
         }
@@ -144,7 +145,11 @@ const plugin: {
         }
 
         try {
-          plugin.log.debug(`Calling Tavily API with query: ${query}`);
+          plugin.log.info('Web search started', {
+            query: plugin.log.preview(query),
+            maxResults: max_results || plugin.config.maxResults,
+            searchDepth: search_depth || plugin.config.searchDepth
+          });
           const data = await plugin.fetchTavily('search', {
             query,
             max_results: max_results || plugin.config.maxResults,
@@ -159,11 +164,17 @@ const plugin: {
             score: 'score' in r ? r.score : undefined
           })) || [];
 
-          plugin.log.info(`Search completed: ${query}, ${results.length} results`);
+          plugin.log.info('Web search completed', {
+            query: plugin.log.preview(query),
+            resultCount: results.length
+          });
           return JSON.stringify(results);
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : String(error);
-          plugin.log.error('Search failed:', message);
+          plugin.log.error('Web search failed', {
+            query: plugin.log.preview(query),
+            error: message
+          });
           throw new Error(`搜索失败: ${message}`, { cause: error });
         }
       }
@@ -201,8 +212,6 @@ const plugin: {
       async execute(params: Record<string, any>) {
         let { urls, query, extract_depth, format } = params;
 
-        plugin.log.debug(`web_extract execute: urls=${JSON.stringify(urls)}, format=${format}`);
-
         if (!plugin.config.apiKey) {
           throw new Error('Tavily API key 未配置');
         }
@@ -214,13 +223,11 @@ const plugin: {
 
         // 如果 urls 是字符串，尝试解析
         if (typeof urls === 'string') {
-          plugin.log.debug(`urls is string, attempting to parse: ${urls.substring(0, 100)}`);
           try {
             // 尝试解析 JSON 字符串（如 "[\"url1\",\"url2\"]"）
             const parsed = JSON.parse(urls);
             if (Array.isArray(parsed)) {
               urls = parsed;
-              plugin.log.debug(`Successfully parsed urls to array, length: ${urls.length}`);
             } else {
               // 如果解析后不是数组，就当作单个 URL
               urls = [urls];
@@ -241,9 +248,12 @@ const plugin: {
           throw new Error('没有有效的 URL');
         }
 
-        plugin.log.debug(`Calling Tavily extract API with ${urls.length} URLs`);
-
         try {
+          plugin.log.info('Web extract started', {
+            urlCount: urls.length,
+            extractDepth: extract_depth || 'basic',
+            format: format || 'markdown'
+          });
           const data = await plugin.fetchTavily('extract', {
             urls: urls,
             query: query || undefined,
@@ -256,10 +266,15 @@ const plugin: {
             content: 'raw_content' in r ? r.raw_content?.substring(0, 5000) || '' : ''
           })) || [];
 
+          plugin.log.info('Web extract completed', {
+            urlCount: urls.length,
+            resultCount: results.length,
+            query: typeof query === 'string' ? plugin.log.preview(query) : undefined
+          });
           return JSON.stringify(results);
         } catch (error: unknown) {
           const message = error instanceof Error ? error.message : String(error);
-          plugin.log.error('Extract failed:', message);
+          plugin.log.error('Web extract failed', { urlCount: urls.length, error: message });
           throw new Error(`提取失败: ${message}`, { cause: error });
         }
       }

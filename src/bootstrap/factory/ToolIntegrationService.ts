@@ -9,7 +9,7 @@ import type { OutboundMessage, ToolDefinition } from '../../types.js';
 import type { AgentLoop } from '../../agent/core/AgentLoop.js';
 import type { AgentRoleService } from '../../agent/roles/AgentRoleService.js';
 import { registerCronTools } from '../../cron/CronTools.js';
-import { logger } from '../../logger/index.js';
+import { logger, normalizeError } from '../../logger/index.js';
 
 export interface ToolIntegrationOptions {
   toolRegistry: ToolRegistry;
@@ -103,10 +103,11 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
         ? params.media.filter((item): item is string => typeof item === 'string')
         : undefined;
 
-      log.info(`[send_msg_to_user] Called with content length=${content.length}, media count=${media?.length || 0}`);
-
       if (!context?.chatId || !context?.channel) {
-        log.error(`[send_msg_to_user] No context available. Full context: ${JSON.stringify(context)}`);
+        log.error('send_msg_to_user missing context', {
+          hasChannel: !!context?.channel,
+          hasChatId: !!context?.chatId
+        });
         return '错误：无法获取当前会话信息，此工具只能在用户会话中使用。';
       }
 
@@ -123,7 +124,12 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
         const mediaInfo = media && media.length > 0 ? ` (包含 ${media.length} 个文件)` : '';
         return `消息已发送${mediaInfo}`;
       } catch (error) {
-        log.error('[send_msg_to_user] Failed:', error);
+        log.error('send_msg_to_user failed', {
+          channel: context.channel,
+          chatId: context.chatId,
+          mediaCount: media?.length || 0,
+          error: normalizeError(error)
+        });
         return `发送失败：${error instanceof Error ? error.message : String(error)}`;
       }
     }
@@ -146,7 +152,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
             },
             required: ['agentName', 'task']
           }
-        },
+        }
       },
       required: ['items']
     },
@@ -156,15 +162,14 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
       }
 
       const rawTasks = params.items.map((item: any) => ({
-            agentName: String(item?.agentName || ''),
-            task: String(item?.task || '')
-          }));
+        agentName: String(item?.agentName || ''),
+        task: String(item?.task || '')
+      }));
 
-      log.info(
-        `[call_agent] Received ${rawTasks.length} task(s): ${rawTasks
-          .map((item) => `${item.agentName}(${item.task.length})`)
-          .join(', ')}`
-      );
+      log.info('call_agent started', {
+        taskCount: rawTasks.length,
+        agents: rawTasks.map((item) => item.agentName)
+      });
 
       const invalidTask = rawTasks.find((item) => !item.agentName || !item.task);
       if (invalidTask) {
@@ -184,19 +189,11 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
           signal: context?.signal
         });
 
-        log.info(
-          `[call_agent] Completed ${results.length} task(s): ${results
-            .map((item) => `${item.agentName}=${item.success ? 'ok' : 'fail'}`)
-            .join(', ')}`
-        );
-
-        for (const item of results) {
-          const previewSource = item.success ? item.result : item.error;
-          const preview = (previewSource || '').replace(/\s+/g, ' ').slice(0, 240);
-          log.debug(
-            `[call_agent] Result preview for ${item.agentName}: ${preview || '(empty)'}`
-          );
-        }
+        log.info('call_agent completed', {
+          taskCount: results.length,
+          successCount: results.filter((item) => item.success).length,
+          failedCount: results.filter((item) => !item.success).length
+        });
 
         return JSON.stringify({
           total: results.length,
@@ -205,6 +202,10 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
           results
         }, null, 2);
       } catch (error) {
+        log.error('call_agent failed', {
+          taskCount: rawTasks.length,
+          error: normalizeError(error)
+        });
         return `Error: ${error instanceof Error ? error.message : String(error)}`;
       }
     }
@@ -212,7 +213,10 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
 
   const skills = skillManager.listSkills();
   if (skills.length > 0) {
-    log.info(`Registered skill tools. Available skills: ${skills.map((skill) => skill.name).join(', ')}`);
+    log.info('Skill tools registered', {
+      skillCount: skills.length,
+      skills: skills.map((skill) => skill.name)
+    });
   }
 }
 
@@ -220,10 +224,8 @@ export function registerMcpTools(toolRegistry: ToolRegistry, mcpManager: MCPClie
   const log = logger.child({ prefix: 'ToolIntegration' });
 
   mcpManager.onToolsLoaded((tools: ToolDefinition[]) => {
-    log.debug(`MCP tools loaded callback triggered, tools count: ${tools.length}`);
     for (const tool of tools) {
       const toolName = tool.name;
-      log.debug(`Registering MCP tool: ${toolName}`);
       toolRegistry.register({
         name: toolName,
         description: tool.description,
@@ -232,6 +234,6 @@ export function registerMcpTools(toolRegistry: ToolRegistry, mcpManager: MCPClie
         source: 'mcp' as ToolSource
       }, 'mcp');
     }
-    log.info(`MCP tools registered: ${tools.length}`);
+    log.info('MCP tools registered', { toolCount: tools.length });
   });
 }

@@ -71,7 +71,7 @@ class FeishuChannel extends BaseChannel {
       const event = req.body;
 
       if (event.type === 'url_verification') {
-        this.log.info('Received URL verification challenge');
+        this.log.debug('Feishu URL verification challenge received');
         return res.json({ challenge: event.challenge });
       }
 
@@ -91,7 +91,7 @@ class FeishuChannel extends BaseChannel {
   private async startWebhookServer(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.webhookServer = this.app.listen(this.config.webhookPort, () => {
-        this.log.info(`Webhook server listening on port ${this.config.webhookPort}`);
+        this.log.info('Feishu webhook listening', { port: this.config.webhookPort });
         resolve();
       });
       this.webhookServer.on('error', reject);
@@ -121,7 +121,7 @@ class FeishuChannel extends BaseChannel {
         expiresAt: Date.now() + (result.expire - 300) * 1000
       };
 
-      this.log.info('Token refreshed successfully');
+      this.log.debug('Feishu token refreshed');
     } catch (error) {
       this.log.error('Token refresh failed:', error);
       throw error;
@@ -239,7 +239,7 @@ class FeishuChannel extends BaseChannel {
           return MessageHandlers.unknown(messageType);
       }
     } catch (error) {
-      this.log.warn('Failed to parse message content:', error);
+      this.log.warn('Feishu message parsing failed', { error });
       return { content };
     }
   }
@@ -306,7 +306,7 @@ class FeishuChannel extends BaseChannel {
 
       const result: any = await response.json();
       if (result.code !== 0) {
-        this.log.error(`Feishu API error response: ${JSON.stringify(result)}`);
+        this.log.error('Feishu API request failed', { code: result?.code, message: result?.msg });
         throw new Error(`Feishu API error (${result.code}): ${result.msg}`);
       }
 
@@ -315,14 +315,13 @@ class FeishuChannel extends BaseChannel {
         messageType: msg.messageType || 'private',
         status: 'success'
       });
-      this.log.info(`Message sent to ${msg.chatId}`);
     } catch (error) {
       metrics.record('channel.message_sent', 1, 'count', {
         channel: this.name,
         messageType: msg.messageType || 'private',
         status: 'error'
       });
-      this.log.error('Failed to send message:', error);
+      this.log.error('Feishu message send failed', { chatId: msg.chatId, messageType: msg.messageType || 'private', error });
       throw error;
     }
   }
@@ -333,7 +332,7 @@ class FeishuChannel extends BaseChannel {
         const imageKey = await this.uploadImage(msg.media[0]);
         return { msgType: 'image', content: { image_key: imageKey } };
       } catch (error) {
-        this.log.warn('Failed to upload image, falling back to text:', error);
+        this.log.warn('Feishu image upload failed, falling back to text', { error });
         if (!msg.content || msg.content.trim() === '') {
           return { msgType: 'text', content: { text: '[图片上传失败]' } };
         }

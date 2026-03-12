@@ -31,6 +31,7 @@ export interface Services {
   memoryFactStore: MemoryFactStore;
   channelManager: ChannelManager;
   pluginManager: PluginManager;
+  startPluginLoading: () => void;
   agent: AgentLoop;
   cronService: CronService;
   mcpManager: MCPClientManager | null;
@@ -52,19 +53,28 @@ export { createMemoryService };
 
 export async function createServices(options: ServiceFactoryOptions): Promise<Services> {
   const { workspace, tempDir, port, onCronJob } = options;
+  const startedAt = Date.now();
   let config = bootstrapRuntimeConfig(options.config);
   const log = appLog;
 
   log.info('Initializing services...');
 
   const eventBus = new EventBus();
+
+  const persistenceStartedAt = Date.now();
   const {
     sessionManager,
     memoryFactStore,
     memoryService,
     sessionRouting
   } = await createPersistenceServices(config);
+  const persistenceMs = Date.now() - persistenceStartedAt;
+  log.info('Service phase completed', {
+    phase: 'persistence',
+    durationMs: persistenceMs
+  });
 
+  const executionRuntimeStartedAt = Date.now();
   const executionRuntime = await createExecutionRuntime({
     getConfig: () => config,
     setConfig: (nextConfig) => { config = nextConfig; },
@@ -73,6 +83,11 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     sessionManager,
     sessionRouting,
     memoryService
+  });
+  const executionRuntimeMs = Date.now() - executionRuntimeStartedAt;
+  log.info('Service phase completed', {
+    phase: 'executionRuntime',
+    durationMs: executionRuntimeMs
   });
 
   const { provider, toolRegistry, skillManager, agentRoleService, agent } = executionRuntime;
@@ -83,14 +98,22 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   agent.setCommandRegistry(commandRegistry);
   log.info('Command registry initialized');
 
+  const cronStartedAt = Date.now();
   const cronService = new CronService(
     join(process.cwd(), '.aesyclaw', 'cron-jobs.json'),
     onCronJob || (async () => {})
   );
   await cronService.start();
+  const cronMs = Date.now() - cronStartedAt;
+  log.info('Service phase completed', {
+    phase: 'cron',
+    durationMs: cronMs
+  });
 
+  const infrastructureStartedAt = Date.now();
   const {
     pluginManager,
+    startPluginLoading,
     channelManager,
     mcpManager
   } = await createInfrastructure({
@@ -102,6 +125,11 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     toolRegistry,
     cronService,
     onCronJob
+  });
+  const infrastructureMs = Date.now() - infrastructureStartedAt;
+  log.info('Service phase completed', {
+    phase: 'infrastructure',
+    durationMs: infrastructureMs
   });
 
   agent.setPluginManager(pluginManager);
@@ -116,6 +144,8 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     agent,
     agentRoleService
   });
+
+  const apiStartedAt = Date.now();
   const apiServer = await createApiServer({
     config,
     port,
@@ -130,8 +160,20 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     memoryFactStore,
     agentRoleService
   });
+  const apiMs = Date.now() - apiStartedAt;
+  log.info('Service phase completed', {
+    phase: 'api',
+    durationMs: apiMs
+  });
 
-  log.info('All services initialized successfully');
+  log.info('All services initialized successfully', {
+    durationMs: Date.now() - startedAt,
+    persistenceMs,
+    executionRuntimeMs,
+    cronMs,
+    infrastructureMs,
+    apiMs
+  });
 
   return {
     eventBus,
@@ -141,6 +183,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     memoryFactStore,
     channelManager,
     pluginManager,
+    startPluginLoading,
     agent,
     cronService,
     mcpManager,

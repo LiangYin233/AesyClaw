@@ -10,7 +10,6 @@ export class CommandRegistry {
     const commands = handler.getCommands();
     for (const cmd of commands) {
       this.commands.set(cmd.name, cmd);
-      this.log.debug(`Registered command: ${cmd.name}`);
     }
   }
 

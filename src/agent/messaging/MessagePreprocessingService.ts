@@ -30,7 +30,11 @@ export class MessagePreprocessingService {
     if (this.commandRegistry) {
       const cmdResult = await this.commandRegistry.execute(message);
       if (cmdResult !== null) {
-        this.log.info('Built-in command executed');
+        this.log.info('Built-in command handled message', {
+          channel: message.channel,
+          chatId: message.chatId,
+          suppressOutbound
+        });
         if (!suppressOutbound) {
           await sendOutbound({
             channel: cmdResult.channel,
@@ -46,6 +50,11 @@ export class MessagePreprocessingService {
     if (this.pluginManager) {
       const cmdResult = await this.pluginManager.applyOnCommand(message);
       if (cmdResult !== null) {
+        this.log.info('Plugin command handled message', {
+          channel: message.channel,
+          chatId: message.chatId,
+          suppressOutbound
+        });
         if (!suppressOutbound) {
           await sendOutbound({
             channel: cmdResult.channel,
@@ -59,13 +68,20 @@ export class MessagePreprocessingService {
 
       const handled = await this.pluginManager.applyOnMessage(message);
       if (handled === null) {
-        this.log.debug('Message handled by plugin (null), skipping');
+        this.log.debug('Plugin consumed message', {
+          channel: message.channel,
+          chatId: message.chatId
+        });
         return { type: 'handled' };
       }
 
       if (shouldSkipLLM(handled)) {
-        const reason = getSkipReason(handled);
-        this.log.info(`Skipping LLM processing: ${reason}`);
+        this.log.info('LLM skipped by plugin', {
+          channel: handled.channel,
+          chatId: handled.chatId,
+          reason: getSkipReason(handled),
+          suppressOutbound
+        });
         if (!suppressOutbound) {
           await sendOutbound({
             channel: handled.channel,
@@ -93,7 +109,11 @@ export class MessagePreprocessingService {
       return message;
     }
 
-    this.log.info(`Received ${savedPaths.length} file(s): ${savedPaths.join(', ')}`);
+    this.log.debug('Attached saved file notes', {
+      channel: message.channel,
+      chatId: message.chatId,
+      fileCount: savedPaths.length
+    });
     const note = savedPaths.map(path => `[文件已保存至: ${path}]`).join('\n');
     return {
       ...message,

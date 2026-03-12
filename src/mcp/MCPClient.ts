@@ -22,7 +22,7 @@ export class MCPClientManager {
 
     for (const [name, serverConfig] of Object.entries(config)) {
       if (serverConfig.enabled === false) {
-        this.log.info(`Skipping disabled MCP server: ${name}`);
+        this.log.debug('Skipping disabled MCP server', { server: name });
         continue;
       }
 
@@ -39,7 +39,7 @@ export class MCPClientManager {
           info.status = 'connected';
           info.connectedAt = new Date();
           info.toolCount = this.getServerToolCount(name);
-          this.log.info(`MCP server connected: ${name} (${info.toolCount} tools)`);
+          this.log.info('MCP server ready', { server: name, toolCount: info.toolCount });
 
           const tools = this.getServerTools(name);
           if (tools.length > 0) {
@@ -61,15 +61,13 @@ export class MCPClientManager {
         this.log.info('All MCP server connections completed');
       })
       .catch((error) => {
-        this.log.error('Error in MCP server connections:', error); // 错误已记录，避免未处理的 Promise 拒绝
+        this.log.error('MCP server connection loop failed', { error }); // 错误已记录，避免未处理的 Promise 拒绝
       });
   }
 
   private async connectServer(name: string, config: MCPServerConfig): Promise<void> {
     const timeout = config.timeout ?? MCPClientManager.DEFAULT_TIMEOUT;
     const transportType = config.type || 'local';
-
-    this.log.debug(`Connecting to MCP server: ${name}, type: ${transportType}, timeout: ${timeout}ms`);
 
     const client = new Client({
       name: `aesyclaw-${name}`,
@@ -107,7 +105,7 @@ export class MCPClientManager {
         args: command.slice(1),
         env
       });
-      this.log.info(`Connecting to ${name} via stdio: ${command.join(' ')}`);
+      this.log.info('Connecting to MCP server', { server: name, transport: 'stdio' });
     } else if (transportType === 'http') {
       if (!config.url) {
         throw new Error(`MCP server ${name}: url is required for http type`);
@@ -123,7 +121,7 @@ export class MCPClientManager {
       }
 
       transport = new SSEClientTransport(new URL(config.url), sseOptions);
-      this.log.info(`Connecting to ${name} via SSE: ${config.url}`);
+      this.log.info('Connecting to MCP server', { server: name, transport: 'sse' });
     } else {
       throw new Error(`MCP server ${name}: invalid transport type ${transportType}`);
     }
@@ -134,7 +132,7 @@ export class MCPClientManager {
           await client.connect(transport as never);
           await this.loadTools(client, name);
           this.clients.set(name, client);
-          this.log.info(`Connected server: ${name}`);
+          this.log.debug('MCP transport connected', { server: name });
         })(),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error(`MCP server ${name} connection timeout after ${timeout}ms`)), timeout)
@@ -159,9 +157,9 @@ export class MCPClientManager {
         });
       }
 
-      this.log.info(`Loaded ${response.tools?.length || 0} tools from MCP server: ${prefix}`);
+      this.log.info('MCP tools loaded', { server: prefix, toolCount: response.tools?.length || 0 });
     } catch (error) {
-      this.log.error(`Failed to load tools from ${prefix}:`, error);
+      this.log.error('MCP tool loading failed', { server: prefix, error });
     }
   }
 
@@ -191,13 +189,12 @@ export class MCPClientManager {
 
     const requestTimeout = timeout ?? MCPClientManager.DEFAULT_TIMEOUT;
 
-    this.log.debug(`Calling MCP tool: server=${serverName}, tool=${toolName}, args keys=${Object.keys(args).join(', ')}`);
+    this.log.debug('MCP tool started', { server: serverName, toolName, argKeys: Object.keys(args || {}) });
 
     let parsedArgs = args; // 确保 args 是一个对象
     if (typeof args === 'string') {
       try {
         parsedArgs = JSON.parse(args);
-        this.log.debug(`Parsed string args to object`);
       } catch (error) {
         throw new Error(`Invalid arguments format: expected object, got string that cannot be parsed as JSON`, { cause: error });
       }
@@ -222,7 +219,7 @@ export class MCPClientManager {
       endTimer();
     }
 
-    this.log.debug(`MCP tool ${toolName} completed, response content items: ${response?.content?.length || 0}`);
+    this.log.debug('MCP tool completed', { server: serverName, toolName, contentItems: response?.content?.length || 0 });
 
     const textParts = (response?.content || [])
       .filter((item: any) => item?.type === 'text' && typeof item?.text === 'string')
@@ -264,7 +261,7 @@ export class MCPClientManager {
       try {
         callback(tools);
       } catch (error) {
-        this.log.error('Tool load callback error:', error);
+        this.log.error('MCP tool callback failed', { error });
       }
     }
   }
@@ -345,7 +342,7 @@ export class MCPClientManager {
         this.notifyToolsLoaded(tools); // 通知工具已加载
       }
 
-      this.log.info(`MCP server connected: ${name} (${info.toolCount} tools)`);
+      this.log.info('MCP server ready', { server: name, toolCount: info.toolCount });
     } catch (error) {
       const info = this.serverStatus.get(name)!;
       info.status = 'failed';
@@ -383,7 +380,7 @@ export class MCPClientManager {
       info.toolCount = 0;
     }
 
-    this.log.info(`MCP server disconnected: ${name} (removed ${toolsToRemove.length} tools)`);
+    this.log.info('MCP server disconnected', { server: name, removedToolCount: toolsToRemove.length });
   }
 
   /**

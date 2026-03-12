@@ -41,36 +41,10 @@ export abstract class BaseChannel {
     this.workspace = workspace || process.cwd();
   }
 
-  // ============ Abstract methods - must be implemented by subclasses ============
-
-  /**
-   * Start the channel (connect to platform)
-   */
   abstract start(): Promise<void>;
-
-  /**
-   * Stop the channel (disconnect from platform)
-   */
   abstract stop(): Promise<void>;
-
-  /**
-   * Send a message to the platform
-   */
   abstract send(msg: OutboundMessage): Promise<void>;
 
-  // ============ Template methods - standardized message processing pipeline ============
-
-  /**
-   * Process incoming message (template method)
-   *
-   * Standard pipeline:
-   * 1. Permission check
-   * 2. Parse message content
-   * 3. Download files if present
-   * 4. Publish to EventBus
-   *
-   * Subclasses should call this method after receiving platform events
-   */
   protected async processInboundMessage(
     senderId: string,
     chatId: string,
@@ -78,22 +52,22 @@ export abstract class BaseChannel {
     rawEvent: any,
     messageId?: string
   ): Promise<void> {
-    // Step 1: Permission check
     if (!this.isAllowed(senderId, messageType)) {
-      this.log.debug(`Message from ${senderId} not allowed`);
+      this.log.debug('Inbound message rejected by allowlist', {
+        channel: this.name,
+        senderId,
+        messageType
+      });
       return;
     }
 
-    // Step 2: Parse message (platform-specific)
     const parsed = await this.parseMessage(rawEvent);
 
-    // Step 3: Download files if present
     let downloadedFiles: InboundFile[] | undefined;
     if (parsed.files && parsed.files.length > 0) {
       downloadedFiles = await this.downloadFiles(parsed.files);
     }
 
-    // Step 4: Publish to EventBus
     await this.publishInbound(
       senderId,
       chatId,
@@ -106,18 +80,8 @@ export abstract class BaseChannel {
     );
   }
 
-  /**
-   * Parse platform-specific message format to standardized format
-   *
-   * Subclasses must implement this to convert platform events to ParsedMessage
-   */
   protected abstract parseMessage(rawEvent: any): Promise<ParsedMessage>;
 
-  // ============ Utility methods - shared across all channels ============
-
-  /**
-   * Check if sender is allowed to send messages
-   */
   protected isAllowed(senderId: string, messageType?: 'private' | 'group'): boolean {
     if (messageType === 'group') {
       const groupAllowFrom = this.config.groupAllowFrom;
@@ -130,28 +94,22 @@ export abstract class BaseChannel {
     }
   }
 
-  /**
-   * Validate outbound message
-   */
   protected validateMessage(msg: OutboundMessage): boolean {
     const hasContent = msg.content && msg.content.trim().length > 0;
     const hasMedia = msg.media && msg.media.length > 0;
 
     if (!hasContent && !hasMedia) {
-      this.log.error(`[${this.name}] Attempted to send empty message to ${msg.messageType || 'private'}:${msg.chatId}`);
+      this.log.error('Outbound message rejected: empty payload', {
+        channel: this.name,
+        chatId: msg.chatId,
+        messageType: msg.messageType || 'private'
+      });
       return false;
     }
 
     return true;
   }
 
-  /**
-   * Download files to local workspace
-   *
-   * @param files - Files to download
-   * @param headers - Optional headers for authentication
-   * @returns Downloaded files with localPath set
-   */
   protected async downloadFiles(
     files: InboundFile[],
     headers?: Record<string, string>
@@ -171,7 +129,11 @@ export abstract class BaseChannel {
         const response = await fetch(file.url, { headers });
 
         if (!response.ok) {
-          this.log.warn(`Failed to download ${file.name}: HTTP ${response.status}`);
+          this.log.warn('File download failed', {
+            channel: this.name,
+            fileName: file.name,
+            status: response.status
+          });
           downloaded.push(file);
           continue;
         }
@@ -181,9 +143,17 @@ export abstract class BaseChannel {
         await writeFile(localPath, buffer);
 
         downloaded.push({ ...file, localPath });
-        this.log.info(`File downloaded: ${file.name} -> ${localPath}`);
-      } catch (err) {
-        this.log.warn(`Failed to download ${file.name}:`, err);
+        this.log.debug('File downloaded', {
+          channel: this.name,
+          fileName: file.name,
+          localPath
+        });
+      } catch (error) {
+        this.log.warn('File download failed', {
+          channel: this.name,
+          fileName: file.name,
+          error
+        });
         downloaded.push(file);
       }
     }
@@ -191,9 +161,6 @@ export abstract class BaseChannel {
     return downloaded;
   }
 
-  /**
-   * Publish inbound message to EventBus
-   */
   protected async publishInbound(
     senderId: string,
     chatId: string,

@@ -103,7 +103,6 @@ export class ToolRegistry {
       source,
       registeredAt: Date.now()
     });
-    this.log.debug(`Registered tool: ${tool.name} (source: ${source})`);
   }
 
   unregister(name: string): void {
@@ -253,12 +252,10 @@ export class ToolRegistry {
       ]);
       clearTimeout(timeoutId);  // 清除超时计时器
       cleanupMergedSignal();
-      this.log.debug(`Tool ${name} completed successfully, result length: ${result.length}`);
       return result;
     } catch (error) {
       clearTimeout(timeoutId);
       cleanupMergedSignal();
-      this.log.debug(`Tool ${name} execution error: ${error instanceof Error ? error.message : String(error)}`);
       if (error instanceof Error && error.name === 'AbortError') {
         throw error;
       }

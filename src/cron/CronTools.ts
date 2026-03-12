@@ -194,5 +194,4 @@ export function registerCronTools(
     source: 'built-in'
   }, 'built-in');
 
-  log.debug('Cron tools registered');
 }

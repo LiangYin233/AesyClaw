@@ -50,7 +50,12 @@ export class ExecutionCoordinator {
 
     let result;
     if (useVisionProvider) {
-      this.log.info(`Using vision provider for session ${sessionKey}`);
+      this.log.info('Using vision provider', {
+        sessionKey,
+        agent: agentName,
+        channel: inbound.channel,
+        chatId: inbound.chatId
+      });
       result = await this.executor.executeWithVision(messages, toolContext, {
         allowTools: true,
         agentName,
@@ -85,16 +90,33 @@ export class ExecutionCoordinator {
                   suppressOutbound,
                   sendOutbound
                 });
-                this.log.info(`Background task completed for session ${sessionKey}`);
+                this.log.info('Background task completion delivered', {
+                  sessionKey,
+                  agent: agentName,
+                  channel: inbound.channel,
+                  chatId: inbound.chatId
+                });
               },
               onError: async (error) => {
-                this.log.error(`Background task error for session ${sessionKey}:`, error);
+                this.log.error('Background task failed', {
+                  sessionKey,
+                  agent: agentName,
+                  channel: inbound.channel,
+                  chatId: inbound.chatId,
+                  error
+                });
                 await this.completionService.handleError(error, sessionKey);
               }
             }
           );
 
-          this.log.info(`Delegated session ${sessionKey} to background task ${taskHandle.id}`);
+          this.log.info('Background task scheduled', {
+            sessionKey,
+            taskId: taskHandle.id,
+            agent: agentName,
+            channel: inbound.channel,
+            chatId: inbound.chatId
+          });
         }
       });
     }
@@ -118,7 +140,14 @@ export class ExecutionCoordinator {
       sendOutbound
     });
 
-    this.log.debug(`Completed session ${sessionKey}, tools: ${result.toolsUsed.join(', ') || '(none)'}`);
+    this.log.info('Execution finalized', {
+      sessionKey,
+      agent: agentName,
+      channel: inbound.channel,
+      chatId: inbound.chatId,
+      toolCount: result.toolsUsed.length,
+      needsBackground: false
+    });
 
     return {
       content: result.content,

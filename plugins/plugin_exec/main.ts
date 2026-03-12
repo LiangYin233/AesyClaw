@@ -78,7 +78,11 @@ const plugin: {
       blockedParams: this.config.shell.blockedParams
     }, this.log);
 
-    this.log.info(`Exec plugin loaded, python executable: ${this.config.python.executable}`);
+    this.log.info('Exec plugin loaded', {
+      pythonExecutable: this.config.python.executable,
+      pythonTimeoutMs: this.config.python.timeout,
+      shellTimeoutMs: this.config.shell.timeout
+    });
   },
 
   tools: [
@@ -97,10 +101,10 @@ const plugin: {
       },
       async execute(params: Record<string, any>) {
         const { code } = params;
-        plugin.log.debug('Executing python');
         if (!plugin.pythonRunner) {
           return 'Python 执行错误: runner 未初始化';
         }
+        plugin.log.info('Python execution started');
         return await plugin.pythonRunner.execute(code);
       }
     },
@@ -119,10 +123,10 @@ const plugin: {
       },
       async execute(params: Record<string, any>) {
         const { command } = params;
-        plugin.log.debug(`Executing shell: ${command}`);
         if (!plugin.shellRunner) {
           return 'Shell 执行错误: runner 未初始化';
         }
+        plugin.log.info('Shell execution started', { commandPreview: plugin.log.preview(command) });
         return await plugin.shellRunner.execute(command);
       }
     }

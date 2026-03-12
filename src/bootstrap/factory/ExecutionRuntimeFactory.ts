@@ -39,7 +39,7 @@ function createVisionProvider(config: Config, visionSettings: VisionSettings) {
 
   const providerConfig = config.providers[visionSettings.visionProviderName];
   if (!providerConfig) {
-    log.warn(`Vision provider "${visionSettings.visionProviderName}" not found in config`);
+    log.warn('Vision provider missing', { provider: visionSettings.visionProviderName });
     return undefined;
   }
 
@@ -50,7 +50,7 @@ async function createSkillManager(config: Config): Promise<SkillManager> {
   const skillManager = new SkillManager('./skills');
   skillManager.setConfig(config);
   await skillManager.loadFromDirectory();
-  log.info(`SkillManager initialized with ${skillManager.listSkills().length} skills`);
+  log.info('Skills loaded', { skillCount: skillManager.listSkills().length });
   return skillManager;
 }
 

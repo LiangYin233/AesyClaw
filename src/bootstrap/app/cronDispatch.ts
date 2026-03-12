@@ -9,7 +9,11 @@ import type { ToolContext } from '../../tools/ToolRegistry.js';
 const log = logger.child({ prefix: 'Bootstrap' });
 
 export async function dispatchCronJob(services: Services, workspace: string, job: CronJob): Promise<void> {
-  log.info(`Cron job triggered: ${job.name}`);
+  log.info('Cron dispatch started', {
+    jobId: job.id,
+    jobName: job.name,
+    target: job.payload.target
+  });
 
   const { eventBus, pluginManager, agent } = services;
   const sessionKey = `${CRON_SESSION_KEY_PREFIX}${job.id}:${randomUUID().slice(0, 8)}`;
@@ -30,7 +34,7 @@ export async function dispatchCronJob(services: Services, workspace: string, job
           source: 'cron'
         };
       } else {
-        log.error(`Invalid target format: ${target}`);
+        log.error('Cron target invalid', { jobId: job.id, target });
       }
     }
 
@@ -48,9 +52,17 @@ export async function dispatchCronJob(services: Services, workspace: string, job
         await eventBus.publishOutbound(outboundMessage);
       }
 
-      log.info(`Cron job response sent to ${target}`);
+      log.info('Cron dispatch completed', {
+        jobId: job.id,
+        target,
+        delivered: !!outboundMessage
+      });
     }
   } catch (error: unknown) {
-    log.error(`Cron job failed: ${normalizeError(error)}`);
+    log.error('Cron dispatch failed', {
+      jobId: job.id,
+      target,
+      error: normalizeError(error)
+    });
   }
 }

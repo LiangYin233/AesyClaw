@@ -37,6 +37,7 @@ export class MessageExecutionService {
       channel: context.channel,
       sessionKey: context.sessionKey
     });
+    const startedAt = Date.now();
 
     try {
       const policy = this.policyFactory.createPolicy(context.agentName);
@@ -65,13 +66,32 @@ export class MessageExecutionService {
       });
 
       if (executionResult.needsBackground) {
-        this.log.info(`Session ${context.sessionKey} delegated to background, returning immediately`);
+        this.log.info('Request delegated to background', {
+          sessionKey: context.sessionKey,
+          channel: context.channel,
+          chatId: context.chatId,
+          agent: policy.roleName,
+          durationMs: Date.now() - startedAt
+        });
         return executionResult.content;
       }
 
+      this.log.info('Request executed in foreground', {
+        sessionKey: context.sessionKey,
+        channel: context.channel,
+        chatId: context.chatId,
+        agent: policy.roleName,
+        durationMs: Date.now() - startedAt
+      });
       return executionResult.content;
     } catch (error) {
-      this.log.error(`Failed to execute message for session ${context.sessionKey}:`, error);
+      this.log.error('Request execution failed', {
+        sessionKey: context.sessionKey,
+        channel: context.channel,
+        chatId: context.chatId,
+        durationMs: Date.now() - startedAt,
+        error
+      });
       throw error;
     } finally {
       endTimer();

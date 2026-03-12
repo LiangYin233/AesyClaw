@@ -24,6 +24,7 @@ class OneBotChannel extends BaseChannel {
   readonly name = 'onebot';
   private ws?: WebSocket;
   private selfId?: string;
+  private connectAttemptCounter = 0;
   private reconnectAttempts = 0;
   private maxReconnectAttempts: number;
   private reconnectBaseDelay: number;
@@ -42,36 +43,171 @@ class OneBotChannel extends BaseChannel {
   }
 
   async start(): Promise<void> {
-    this.log.info(`Starting channel, wsUrl: ${this.config.wsUrl}`);
+    const startedAt = Date.now();
     await this.connectWebSocket();
     this.running = true;
     this.startHeartbeat();
-    this.log.info('Channel started');
+    this.log.info('OneBot channel started', {
+      wsUrl: this.config.wsUrl,
+      durationMs: Date.now() - startedAt
+    });
   }
 
   private async connectWebSocket(): Promise<void> {
+    const connectStartedAt = Date.now();
     return new Promise((resolve, reject) => {
+      const attemptId = ++this.connectAttemptCounter;
+      const parsedUrl = new URL(this.config.wsUrl);
+      const targetHost = parsedUrl.hostname;
+      const targetPort = parsedUrl.port || (parsedUrl.protocol === 'wss:' ? '443' : '80');
+      const slowTimers: NodeJS.Timeout[] = [];
+      let currentStage = 'init';
+      let socketAssignedMs: number | undefined;
+      let dnsLookupMs: number | undefined;
+      let tcpConnectMs: number | undefined;
+      let httpUpgradeMs: number | undefined;
+
+      const clearSlowTimers = () => {
+        for (const timer of slowTimers) {
+          clearTimeout(timer);
+        }
+        slowTimers.length = 0;
+      };
+
+      const scheduleSlowLog = (delayMs: number) => {
+        slowTimers.push(setTimeout(() => {
+          this.log.warn('OneBot connection still pending', {
+            attemptId,
+            elapsedMs: Date.now() - connectStartedAt,
+            stage: currentStage,
+            host: targetHost,
+            port: targetPort,
+            reconnecting: this.isReconnecting
+          });
+        }, delayMs));
+      };
+
+      scheduleSlowLog(1000);
+      scheduleSlowLog(5000);
+      scheduleSlowLog(15000);
+
       const headers: Record<string, string> = {};
       if (this.config.token) {
         headers.Authorization = `Bearer ${this.config.token}`;
       }
 
-      this.log.info(`Connecting to ${this.config.wsUrl}...`);
       this.ws = new WebSocket(this.config.wsUrl, { headers });
 
+      const request = (this.ws as any)?._req;
+      if (request?.on) {
+        request.on('socket', (socket: any) => {
+          currentStage = 'socket_assigned';
+          socketAssignedMs = Date.now() - connectStartedAt;
+          this.log.debug('OneBot socket assigned', {
+            attemptId,
+            elapsedMs: socketAssignedMs,
+            host: targetHost,
+            port: targetPort
+          });
+
+          socket.once('lookup', (error: Error | null, address: string, family: number, host: string) => {
+            currentStage = 'dns_resolved';
+            dnsLookupMs = Date.now() - connectStartedAt;
+            this.log.debug('OneBot DNS resolved', {
+              attemptId,
+              elapsedMs: dnsLookupMs,
+              address,
+              family,
+              host,
+              error: error?.message
+            });
+          });
+
+          socket.once('connect', () => {
+            currentStage = 'tcp_connected';
+            tcpConnectMs = Date.now() - connectStartedAt;
+            this.log.debug('OneBot TCP connected', {
+              attemptId,
+              elapsedMs: tcpConnectMs,
+              localAddress: socket.localAddress,
+              localPort: socket.localPort,
+              remoteAddress: socket.remoteAddress,
+              remotePort: socket.remotePort
+            });
+          });
+
+          socket.once('timeout', () => {
+            this.log.warn('OneBot socket timeout', {
+              attemptId,
+              elapsedMs: Date.now() - connectStartedAt,
+              stage: currentStage,
+              host: targetHost,
+              port: targetPort
+            });
+          });
+
+          socket.once('close', (hadError: boolean) => {
+            this.log.debug('OneBot socket closed', {
+              attemptId,
+              elapsedMs: Date.now() - connectStartedAt,
+              stage: currentStage,
+              hadError
+            });
+          });
+        });
+      }
+
+      this.ws.on('upgrade', (response: any) => {
+        currentStage = 'http_upgrade';
+        httpUpgradeMs = Date.now() - connectStartedAt;
+        this.log.debug('OneBot HTTP upgrade completed', {
+          attemptId,
+          elapsedMs: httpUpgradeMs,
+          statusCode: response?.statusCode,
+          statusMessage: response?.statusMessage
+        });
+      });
+
+      this.ws.on('unexpected-response', (_request: any, response: any) => {
+        currentStage = 'unexpected_response';
+        clearSlowTimers();
+        this.log.warn('OneBot unexpected HTTP response', {
+          attemptId,
+          elapsedMs: Date.now() - connectStartedAt,
+          statusCode: response?.statusCode,
+          statusMessage: response?.statusMessage,
+          host: targetHost,
+          port: targetPort
+        });
+      });
+
       this.ws.on('open', async () => {
-        this.log.info('WebSocket connected');
+        const websocketOpenMs = Date.now() - connectStartedAt;
+        const loginInfoStartedAt = Date.now();
         this.reconnectAttempts = 0;
         this.isReconnecting = false;
+        currentStage = 'websocket_open';
 
         try {
           const res = await this.sendAction('get_login_info', {});
           this.selfId = res.data?.user_id?.toString();
-          this.log.info(`Logged in as: ${this.selfId}`);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
-          this.log.warn(`Failed to get login info: ${message}`);
+          this.log.warn('OneBot login info unavailable', { error: message });
         } finally {
+          clearSlowTimers();
+          this.log.info('OneBot handshake completed', {
+            attemptId,
+            socketAssignedMs,
+            dnsLookupMs,
+            tcpConnectMs,
+            httpUpgradeMs,
+            wsUrl: this.config.wsUrl,
+            websocketOpenMs,
+            loginInfoMs: Date.now() - loginInfoStartedAt,
+            hasSelfId: !!this.selfId,
+            selfId: this.selfId
+          });
           this.flushPendingActions();
           resolve();
         }
@@ -87,13 +223,21 @@ class OneBotChannel extends BaseChannel {
       });
 
       this.ws.on('close', () => {
-        this.log.debug('WebSocket disconnected');
+        clearSlowTimers();
         this.clearHeartbeat();
         this.handleDisconnect();
       });
 
       this.ws.on('error', (error) => {
-        this.log.error(`WebSocket error: ${error.message}`);
+        clearSlowTimers();
+        this.log.error('OneBot websocket error', {
+          attemptId,
+          elapsedMs: Date.now() - connectStartedAt,
+          stage: currentStage,
+          host: targetHost,
+          port: targetPort,
+          error: error.message
+        });
         if (this.reconnectAttempts === 0 && !this.isReconnecting) {
           reject(error);
         }
@@ -114,7 +258,10 @@ class OneBotChannel extends BaseChannel {
     );
 
     if (this.maxReconnectAttempts > 0 && this.reconnectAttempts > this.maxReconnectAttempts) {
-      this.log.error(`Max reconnect attempts (${this.maxReconnectAttempts}) reached, giving up`);
+      this.log.error('OneBot reconnect limit reached', {
+        maxReconnectAttempts: this.maxReconnectAttempts,
+        wsUrl: this.config.wsUrl
+      });
       this.running = false;
       return;
     }
@@ -122,13 +269,17 @@ class OneBotChannel extends BaseChannel {
     const attemptMsg = this.maxReconnectAttempts > 0
       ? ` (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`
       : this.reconnectAttempts > 1 ? ` (attempt ${this.reconnectAttempts})` : '';
-    this.log.info(`Reconnecting in ${delay}ms${attemptMsg}`);
+    this.log.warn('OneBot reconnect scheduled', {
+      delayMs: delay,
+      attempts: this.reconnectAttempts,
+      maxReconnectAttempts: this.maxReconnectAttempts || undefined
+    });
 
     setTimeout(() => {
       this.connectWebSocket().then(() => {
-        this.log.info('Reconnected successfully');
+        this.log.info('OneBot reconnect succeeded', { attempts: this.reconnectAttempts });
       }).catch((err: Error) => {
-        this.log.error(`Reconnect failed: ${err.message}`);
+        this.log.error('OneBot reconnect failed', { error: err.message, attempts: this.reconnectAttempts });
       });
     }, delay);
   }
@@ -220,7 +371,7 @@ class OneBotChannel extends BaseChannel {
             }
           }
         } catch (error) {
-          this.log.debug('Failed to parse response:', error);
+          this.log.debug('OneBot response parse skipped', { error });
         }
       };
 
@@ -245,10 +396,6 @@ class OneBotChannel extends BaseChannel {
 
     if (postType === 'message') {
       void this.handleMessageEvent(payload);
-    } else if (postType === 'notice') {
-      this.log.debug(`Notice: ${payload.notice_type}`);
-    } else if (postType === 'request') {
-      this.log.debug(`Request: ${payload.request_type}`);
     }
   }
 
@@ -350,13 +497,13 @@ class OneBotChannel extends BaseChannel {
     const isGroup = msg.messageType === 'group';
     const numericChatId = parseInt(msg.chatId, 10);
     if (Number.isNaN(numericChatId)) {
-      this.log.warn(`Invalid chatId: ${msg.chatId}, must be numeric`);
+      this.log.warn('OneBot outbound chatId invalid', { chatId: msg.chatId });
       throw new Error(`Invalid chatId: must be numeric, got ${msg.chatId}`);
     }
 
     const segments = this.formatMessageWithBase64(msg.content, msg.media);
     if (segments.length === 0) {
-      this.log.warn('No valid segments to send (content empty and no valid media)');
+      this.log.warn('OneBot outbound message empty', { chatId: msg.chatId, messageType: msg.messageType });
       return;
     }
 
@@ -365,7 +512,6 @@ class OneBotChannel extends BaseChannel {
       ? { group_id: numericChatId, message: segments }
       : { user_id: numericChatId, message: segments };
 
-    this.log.info(`Sending ${isGroup ? 'group' : 'private'} message to ${msg.chatId}`);
     try {
       await this.sendAction(action, params);
       metrics.record('channel.message_sent', 1, 'count', {
@@ -373,7 +519,6 @@ class OneBotChannel extends BaseChannel {
         messageType: isGroup ? 'group' : 'private',
         status: 'success'
       });
-      this.log.info(`Message sent to ${msg.chatId}`);
     } catch (error) {
       metrics.record('channel.message_sent', 1, 'count', {
         channel: this.name,
@@ -459,7 +604,7 @@ class OneBotChannel extends BaseChannel {
     this.running = false;
     this.clearHeartbeat();
     this.ws?.close();
-    this.log.info('Channel stopped');
+    this.log.info('OneBot channel stopped');
   }
 }
 

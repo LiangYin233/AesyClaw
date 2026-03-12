@@ -65,24 +65,20 @@ export class SessionManager {
   createNewSession(channel: string, chatId: string): string {
     const uuid = randomUUID().substring(0, 8);
     const key = this.createSessionKey(channel, chatId, uuid);
-    this.log.debug(`Generated new session key: ${key}`);
     return key;
   }
 
   async getOrCreate(key: string): Promise<Session> {
     const existing = this.sessions.get(key);
     if (existing) {
-      this.log.debug(`Session found in memory: ${key}, messages: ${existing.messages.length}`);
       return existing;
     }
 
     const pending = this.sessionLocks.get(key);
     if (pending) {
-      this.log.debug(`Session creation pending: ${key}`);
       return await pending;
     }
 
-    this.log.debug(`Creating session record: ${key}`);
     const lockPromise = this.doGetOrCreate(key);
     this.sessionLocks.set(key, lockPromise);
 
@@ -125,6 +121,11 @@ export class SessionManager {
           updatedAt: new Date()
         };
         this.sessions.set(key, newSession);
+        this.log.info('Session created', {
+          sessionKey: key,
+          channel: parsed.channel,
+          chatId: parsed.chatId
+        });
 
         if (this.sessions.size >= this.maxSessions * CONSTANTS.SESSION_CLEANUP_THRESHOLD) {
           await this.cleanupOldSessions();
@@ -222,7 +223,6 @@ export class SessionManager {
 
     session.messages.push(message);
     session.updatedAt = updatedAt;
-    this.log.debug(`Added ${role} message to session ${key}, total messages: ${session.messages.length}, content length: ${content.length}`);
 
     if (session.id) {
       await this.db.transaction(async () => {

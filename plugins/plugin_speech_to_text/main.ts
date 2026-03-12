@@ -88,7 +88,7 @@ const plugin: any = {
     await fs.mkdir(this.downloadDir, { recursive: true }).catch(() => {});
 
     if (this.config.apiKey) {
-      this.log.info('Speech-to-text plugin loaded');
+      this.log.info('Speech-to-text plugin loaded', { provider: providerName, model: this.config.model });
     }
   },
 
@@ -171,24 +171,20 @@ const plugin: any = {
 
   async onMessage(msg: InboundMessage) {
     try {
-      this.log.info(`[STT] onMessage called, content="${msg.content}", files=${JSON.stringify(msg.files?.map((f: InboundFile) => ({ type: f.type, url: f.url?.substring(0, 50) })))}`);
-
       // Detect audio URL from files or rawEvent
       let audioUrl = msg.files?.find((f: InboundFile) => f.type === 'audio')?.url;
 
       if (!audioUrl && msg.rawEvent?.message) {
         const voiceSegment = msg.rawEvent.message.find((seg: any) => seg.type === 'record');
         audioUrl = voiceSegment?.data?.url || voiceSegment?.data?.file;
-        this.log.debug(`[STT] Found audio URL from rawEvent: ${audioUrl?.substring(0, 50)}`);
       }
 
       // Handle [语音] placeholder without URL
       if (!audioUrl) {
         if (msg.content === '[语音]') {
-          this.log.warn(`[STT] Voice message detected but no URL found`);
+          this.log.warn('Voice message missing audio URL', { senderId: msg.senderId, chatId: msg.chatId });
           return { ...msg, content: '[语音消息 - 无法获取音频链接]', intent: Intent.error('音频 URL 不存在') };
         }
-        this.log.debug(`[STT] Not a voice message, passing through`);
         return msg;
       }
 
@@ -198,7 +194,7 @@ const plugin: any = {
         return { ...msg, content: '[语音消息 - 转写服务未配置]', intent: Intent.error('API key 未配置') };
       }
 
-      this.log.info(`Processing voice message from ${msg.senderId}`);
+      this.log.info('Voice transcription started', { senderId: msg.senderId, chatId: msg.chatId });
 
       // Download and transcribe
       let audioPath: string | undefined;
@@ -206,7 +202,11 @@ const plugin: any = {
         audioPath = await this.downloadAudio(audioUrl, this.config.downloadTimeout);
         const transcription = await this.transcribe(audioPath);
 
-        this.log.info(`Transcription successful: ${transcription.substring(0, 50)}...`);
+        this.log.info('Voice transcription completed', {
+          senderId: msg.senderId,
+          chatId: msg.chatId,
+          preview: this.log.preview(transcription)
+        });
         return {
           ...msg,
           content: transcription,
@@ -216,14 +216,14 @@ const plugin: any = {
         };
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
-        this.log.error('Transcription failed:', message);
+        this.log.error('Voice transcription failed', { senderId: msg.senderId, chatId: msg.chatId, error: message });
         return { ...msg, content: `[语音消息 - ${message}]`, intent: Intent.error(`转写失败: ${message}`) };
       } finally {
         if (audioPath) await fs.unlink(audioPath).catch(() => {});
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      this.log.error('Unexpected error:', error);
+      this.log.error('Voice processing failed', { senderId: msg.senderId, chatId: msg.chatId, error: message });
       return { ...msg, content: '[语音消息 - 处理失败]', intent: Intent.error(`处理失败: ${message}`) };
     }
   }

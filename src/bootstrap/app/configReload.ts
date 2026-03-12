@@ -11,7 +11,7 @@ export function setupConfigReload(services: Services): void {
   let currentConfig = services.config;
 
   ConfigLoader.onReload(async (newConfig) => {
-    log.info('Config reload triggered');
+    const startedAt = Date.now();
 
     const oldProvider = currentConfig.agent.defaults.provider;
     const newProvider = newConfig.agent.defaults.provider;
@@ -21,7 +21,12 @@ export function setupConfigReload(services: Services): void {
     if (oldProvider !== newProvider ||
         newConfig.providers[newProvider]?.apiBase !== currentConfig.providers[oldProvider]?.apiBase ||
         oldModel !== newModel) {
-      log.info('Provider/model changed, updating agent');
+      log.info('Config reload updating provider', {
+        fromProvider: oldProvider,
+        toProvider: newProvider,
+        fromModel: oldModel,
+        toModel: newModel
+      });
       const newProviderInstance = createProvider(newProvider, newConfig.providers[newProvider]);
       agent.updateProvider(newProviderInstance, newModel);
     }
@@ -33,5 +38,12 @@ export function setupConfigReload(services: Services): void {
     if (apiServer) {
       apiServer.updateConfig(currentConfig);
     }
+
+    log.info('Config reload completed', {
+      provider: currentConfig.agent.defaults.provider,
+      model: currentConfig.agent.defaults.model,
+      memoryWindow: currentConfig.agent.defaults.memoryWindow,
+      durationMs: Date.now() - startedAt
+    });
   });
 }

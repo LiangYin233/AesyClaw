@@ -27,7 +27,14 @@ export class MessageIngressService {
       sendOutbound: (message: OutboundMessage) => Promise<void>;
     }
   ): Promise<string | undefined> {
-    this.log.debug(`processMessage: content="${msg.content}", media=${JSON.stringify(msg.media)}`);
+    const startedAt = Date.now();
+    this.log.info('Inbound message received', {
+      sessionKey: msg.sessionKey,
+      channel: msg.channel,
+      chatId: msg.chatId,
+      messageType: msg.messageType,
+      source: msg.metadata?.directResponse ? 'direct' : msg.metadata?.source || 'user'
+    });
 
     const preprocessResult = await this.preprocessingService.process(msg, {
       suppressOutbound: options.suppressOutbound,
@@ -35,10 +42,20 @@ export class MessageIngressService {
     });
 
     if (preprocessResult.type === 'handled') {
+      this.log.info('Inbound message handled by preprocessing', {
+        sessionKey: msg.sessionKey,
+        channel: msg.channel,
+        durationMs: Date.now() - startedAt
+      });
       return undefined;
     }
 
     if (preprocessResult.type === 'reply') {
+      this.log.info('Inbound message replied by preprocessing', {
+        sessionKey: msg.sessionKey,
+        channel: msg.channel,
+        durationMs: Date.now() - startedAt
+      });
       return preprocessResult.content;
     }
 
@@ -48,6 +65,13 @@ export class MessageIngressService {
       memoryWindow: options.memoryWindow
     });
 
-    return this.executionService.execute(context);
+    const result = await this.executionService.execute(context);
+    this.log.info('Inbound message execution finished', {
+      sessionKey: context.sessionKey,
+      channel: context.channel,
+      durationMs: Date.now() - startedAt,
+      suppressOutbound: context.suppressOutbound
+    });
+    return result;
   }
 }

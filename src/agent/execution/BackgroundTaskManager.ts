@@ -122,11 +122,21 @@ export class BackgroundTaskManager {
     };
 
     this.tasks.set(taskId, task);
-    this.log.info(`Started background task ${taskId} for session ${sessionKey}`);
+    this.log.info('Background task started', {
+      taskId,
+      sessionKey,
+      channel,
+      chatId,
+      messageType
+    });
 
     // 后台执行完整的工具循环
     this.executeTask(executor, task).catch(err => {
-      this.log.error(`Background task ${taskId} failed:`, err);
+      this.log.error('Background task execution failed', {
+        taskId,
+        sessionKey,
+        error: err
+      });
     });
 
     return this.toHandle(task);
@@ -166,7 +176,10 @@ export class BackgroundTaskManager {
       task.error = normalizedError;
       if (normalizedError.message === 'Execution aborted' || normalizedError.name === 'AbortError') {
         task.status = 'aborted';
-        this.log.info(`Background task ${task.id} aborted`);
+        this.log.info('Background task aborted', {
+          taskId: task.id,
+          sessionKey: task.sessionKey
+        });
       } else {
         task.status = 'failed';
       }
@@ -174,7 +187,12 @@ export class BackgroundTaskManager {
       await task.callbacks?.onError?.(normalizedError);
     } finally {
       this.tasks.delete(task.id);
-      this.log.info(`Background task ${task.id} completed, remaining tasks: ${this.tasks.size}`);
+      this.log.info('Background task finished', {
+        taskId: task.id,
+        sessionKey: task.sessionKey,
+        status: task.status,
+        remainingTasks: this.tasks.size
+      });
     }
   }
 
@@ -186,7 +204,10 @@ export class BackgroundTaskManager {
     for (const task of tasks) {
       task.abortController.abort();
       task.status = 'aborted';
-      this.log.info(`Aborted background task ${task.id} for session ${sessionKey}`);
+      this.log.info('Background task abort requested', {
+        taskId: task.id,
+        sessionKey
+      });
     }
     return tasks.length > 0;
   }
@@ -199,7 +220,11 @@ export class BackgroundTaskManager {
     for (const task of tasks) {
       task.abortController.abort();
       task.status = 'aborted';
-      this.log.info(`Aborted background task ${task.id} for channel ${channel}:${chatId}`);
+      this.log.info('Background task abort requested', {
+        taskId: task.id,
+        channel,
+        chatId
+      });
     }
     return tasks.length > 0;
   }

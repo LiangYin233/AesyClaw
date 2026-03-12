@@ -9,6 +9,11 @@ import { logger } from '../../logger/index.js';
 
 const log = logger.child({ prefix: 'PluginRuntimeFactory' });
 
+export interface PluginRuntime {
+  pluginManager: PluginManager;
+  startBackgroundLoading: () => void;
+}
+
 export async function createPluginManager(args: {
   config: Config;
   eventBus: EventBus;
@@ -16,9 +21,10 @@ export async function createPluginManager(args: {
   workspace: string;
   tempDir: string;
   toolRegistry: ToolRegistry;
-}): Promise<PluginManager> {
+}): Promise<PluginRuntime> {
   const { config, eventBus, agent, workspace, tempDir, toolRegistry } = args;
   let pluginManager!: PluginManager;
+  let started = false;
 
   const pluginContext: PluginContext = {
     config,
@@ -53,26 +59,37 @@ export async function createPluginManager(args: {
     pluginManager.setPluginConfigs(config.plugins as Record<string, { enabled: boolean; options?: Record<string, any> }>);
   }
 
-  void (async () => {
-    try {
-      const newPluginConfigs = await pluginManager.applyDefaultConfigs();
-      if (Object.keys(newPluginConfigs).length > 0) {
-        config.plugins = newPluginConfigs;
-        await ConfigLoader.save(config);
-        log.info('Applied default plugin configs');
-      }
-
-      if (config.plugins && Object.keys(config.plugins).length > 0) {
-        await pluginManager.loadFromConfig(config.plugins);
-      }
-
-      log.info('Plugins loaded in background');
-    } catch (error) {
-      log.error('Failed to load plugins in background', error);
+  const startBackgroundLoading = () => {
+    if (started) {
+      return;
     }
-  })();
+    started = true;
 
-  log.info('Plugins loading in background...');
+    void (async () => {
+      const startedAt = Date.now();
+      try {
+        const newPluginConfigs = await pluginManager.applyDefaultConfigs();
+        if (Object.keys(newPluginConfigs).length > 0) {
+          config.plugins = newPluginConfigs;
+          await ConfigLoader.save(config);
+          log.info('Applied default plugin configs');
+        }
 
-  return pluginManager;
+        if (config.plugins && Object.keys(config.plugins).length > 0) {
+          await pluginManager.loadFromConfig(config.plugins);
+        }
+
+        log.info('Plugins loaded in background', {
+          durationMs: Date.now() - startedAt
+        });
+      } catch (error) {
+        log.error('Failed to load plugins in background', error);
+      }
+    })();
+  };
+
+  return {
+    pluginManager,
+    startBackgroundLoading
+  };
 }

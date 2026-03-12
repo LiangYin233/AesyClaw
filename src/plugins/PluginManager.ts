@@ -12,6 +12,31 @@ interface PluginModuleEntry {
   sourcePath: string;
 }
 
+const PLUGIN_IMPORT_CONCURRENCY = 2;
+
+async function mapWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<void>
+): Promise<void> {
+  if (items.length === 0) {
+    return;
+  }
+
+  let nextIndex = 0;
+  const limit = Math.max(1, Math.min(concurrency, items.length));
+
+  const runners = Array.from({ length: limit }, async () => {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      await worker(items[currentIndex], currentIndex);
+    }
+  });
+
+  await Promise.all(runners);
+}
+
 /**
  * Command matcher types
  */
@@ -196,12 +221,15 @@ export class PluginManager {
       for (const cmd of plugin.commands) {
         const { matched, args } = matchCommand(content, cmd);
         if (matched) {
-          this.log.debug(`Command ${cmd.name} matched by plugin ${plugin.name}`);
           try {
             const result = await cmd.handler(msg, args);
             return result;
           } catch (error) {
-            this.log.error(`Plugin ${plugin.name} command ${cmd.name} error:`, error);
+            this.log.error('Plugin command failed', {
+              plugin: plugin.name,
+              command: cmd.name,
+              error
+            });
           }
         }
       }
@@ -225,17 +253,17 @@ export class PluginManager {
       }
 
       try {
-        if (options.verbose) {
-          this.log.debug(`Executing ${String(hookName)} for plugin ${plugin.name}`);
-        }
-
         const hookResult = await (hook as (...hookArgs: any[]) => Promise<T | null | undefined>).call(plugin, result, ...args);
 
         if (hookResult !== undefined && hookResult !== null) {
           result = hookResult;
         }
       } catch (error) {
-        this.log.error(`Plugin ${plugin.name} ${String(hookName)} error:`, error);
+        this.log.error('Plugin hook failed', {
+          plugin: plugin.name,
+          hook: String(hookName),
+          error
+        });
       }
     }
 
@@ -255,7 +283,11 @@ export class PluginManager {
       try {
         await (hook as (...hookArgs: any[]) => Promise<void>).call(plugin, ...args);
       } catch (error) {
-        this.log.error(`Plugin ${plugin.name} ${String(hookName)} error:`, error);
+        this.log.error('Plugin hook failed', {
+          plugin: plugin.name,
+          hook: String(hookName),
+          error
+        });
       }
     }
   }
@@ -277,10 +309,7 @@ export class PluginManager {
   }
 
   async applyOnBeforeToolCall(toolName: string, params: Record<string, any>, context?: ToolContext): Promise<Record<string, any>> {
-    this.log.debug(`applyOnBeforeToolCall: tool=${toolName}, params keys=${Object.keys(params).join(', ')}`);
-
     const result = await this.runTransformHooks('onBeforeToolCall', params, {}, toolName, context);
-    this.log.debug(`After onBeforeToolCall hooks, params keys=${Object.keys(result).join(', ')}`);
     return result;
   }
 
@@ -314,11 +343,15 @@ export class PluginManager {
       return;
     }
 
-    this.log.info(`Loading plugin: ${plugin.name} v${plugin.version}, has onResponse: ${!!plugin.onResponse}`);
+    this.log.info('Loading plugin', {
+      plugin: plugin.name,
+      version: plugin.version,
+      hasTools: !!plugin.tools?.length,
+      hasOnResponse: !!plugin.onResponse
+    });
 
     if (plugin.onLoad) {
       await plugin.onLoad(this.buildPluginContext(plugin.options));
-      this.log.debug(`Plugin ${plugin.name} onLoad completed with options:`, plugin.options);
     }
 
     if (plugin.tools) {
@@ -334,7 +367,6 @@ export class PluginManager {
           }
         };
         this.toolRegistry.register(wrappedTool, 'plugin');
-        this.log.debug(`Registered tool from ${plugin.name}: ${toolName}, has config: ${!!pluginAny.config}`);
       }
     }
 
@@ -343,7 +375,11 @@ export class PluginManager {
     }
 
     this.plugins.set(plugin.name, plugin);
-    this.log.info(`Loaded plugin: ${plugin.name}, has onResponse: ${!!plugin.onResponse}`);
+    this.log.info('Plugin loaded', {
+      plugin: plugin.name,
+      toolCount: plugin.tools?.length || 0,
+      hasOnResponse: !!plugin.onResponse
+    });
   }
 
   updateAgent(agent: AgentLoop): void {
@@ -377,7 +413,7 @@ export class PluginManager {
     }
 
     this.plugins.delete(name);
-    this.log.info(`Unloaded plugin: ${name}`);
+    this.log.info('Plugin unloaded', { plugin: name });
   }
 
   async reloadPlugin(name: string): Promise<boolean> {
@@ -518,7 +554,7 @@ export class PluginManager {
     try {
       const pluginEntries = await this.discoverPluginEntries();
 
-      await Promise.all(pluginEntries.map(async (entry) => {
+      await mapWithConcurrency(pluginEntries, PLUGIN_IMPORT_CONCURRENCY, async (entry) => {
         const modulePlugin = await this.importPluginModule(entry.sourcePath);
 
         if (!modulePlugin) return;
@@ -544,7 +580,7 @@ export class PluginManager {
             this.log.error(`Failed to load plugin ${entry.name}:`, error);
           }
         }
-      }));
+      });
     } catch (error) {
       this.log.error('Failed to scan plugins directory', error);
     }
@@ -690,7 +726,7 @@ export class PluginManager {
     try {
       const pluginEntries = await this.discoverPluginEntries();
 
-      await Promise.all(pluginEntries.map(async (entry) => {
+      await mapWithConcurrency(pluginEntries, PLUGIN_IMPORT_CONCURRENCY, async (entry) => {
         const plugin = await this.importPluginModule(entry.sourcePath);
         if (!plugin) {
           return;
@@ -703,7 +739,7 @@ export class PluginManager {
           };
           this.log.info(`Applied default config for plugin: ${entry.name}`);
         }
-      }));
+      });
     } catch (error) {
       this.log.error('Failed to apply default configs', error);
     }

@@ -161,7 +161,7 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
     }
 
     try {
-      deps.log.info(`Processing API chat request, session: ${sessionKey || 'auto'}`);
+      deps.log.info('API chat request received', { sessionKey: sessionKey || 'auto', channel, chatId });
       const response = await deps.chatService.handleChat({ sessionKey, message, channel, chatId });
       res.json(response);
     } catch (error: unknown) {
@@ -194,11 +194,11 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
     }
 
     try {
-      deps.log.info(`Sending message via API to ${req.params.name}:${chatId}`);
+      deps.log.info('API outbound send requested', { channel: req.params.name, chatId });
       await channelInstance.send({ channel: req.params.name, chatId, content });
       res.json({ success: true });
     } catch (error: unknown) {
-      deps.log.error(`Failed to send message via API to ${req.params.name}:${chatId}:`, error);
+      deps.log.error('API outbound send failed', { channel: req.params.name, chatId, error: normalizeError(error) });
       res.status(500).json(createErrorResponse(error));
     }
   });
@@ -214,12 +214,12 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
   app.put('/api/config', async (req, res) => {
     try {
       const newConfig = req.body;
-      deps.log.info('Updating config via API');
+      deps.log.info('API config update requested');
       await ConfigLoader.save(newConfig);
       deps.setConfig(ConfigLoader.get());
       res.json({ success: true });
     } catch (error: unknown) {
-      deps.log.error('Failed to update config via API:', error);
+      deps.log.error('API config update failed', { error: normalizeError(error) });
       res.status(500).json(createErrorResponse(error));
     }
   });
