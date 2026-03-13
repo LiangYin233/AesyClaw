@@ -1,11 +1,11 @@
-import type { LLMMessage, ToolCall } from '../../../types.js';
-import type { LLMProvider } from '../../../providers/base.js';
-import type { ToolRegistry, ToolContext } from '../../../tools/ToolRegistry.js';
-import type { PluginManager } from '../../../plugins/index.js';
-import type { ExecutionResult, ExecutionOptions, VisionSettings } from './types.js';
-import { logger, normalizeError, isRetryableError } from '../../../logger/index.js';
-import { metrics } from '../../../logger/Metrics.js';
-import { tokenStats } from '../../../logger/TokenStats.js';
+import type { LLMMessage, ToolCall } from '../../types.js';
+import type { LLMProvider } from '../../providers/base.js';
+import type { ToolRegistry, ToolContext } from '../../tools/ToolRegistry.js';
+import type { PluginManager } from '../../plugins/index.js';
+import type { ExecutionResult, ExecutionOptions, VisionSettings } from './ExecutionTypes.js';
+import { logger, normalizeError, isRetryableError } from '../../logger/index.js';
+import { metrics } from '../../logger/Metrics.js';
+import { tokenStats } from '../../logger/TokenStats.js';
 
 export class ToolLoopRunner {
   private log = logger.child({ prefix: 'ToolLoopRunner' });

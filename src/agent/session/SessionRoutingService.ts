@@ -15,7 +15,7 @@ export class SessionRoutingService {
     private contextMode: ContextMode = 'channel'
   ) {}
 
-  resolve(msg: Pick<InboundMessage, 'channel' | 'chatId' | 'sessionKey'>): SessionRoute {
+  resolve(msg: Pick<InboundMessage, 'channel' | 'chatId'> & { sessionKey?: string }): SessionRoute {
     const channelChatKey = `${msg.channel}:${msg.chatId}`;
     const sessionKey = msg.sessionKey || this.resolveSessionKey(msg.channel, msg.chatId, channelChatKey);
 
@@ -26,7 +26,7 @@ export class SessionRoutingService {
     return { sessionKey, channelChatKey };
   }
 
-  assignToMessage<T extends Pick<InboundMessage, 'channel' | 'chatId' | 'sessionKey'>>(msg: T): T {
+  assignToMessage<T extends Pick<InboundMessage, 'channel' | 'chatId'> & { sessionKey?: string }>(msg: T): T {
     const { sessionKey } = this.resolve(msg);
     msg.sessionKey = sessionKey;
     return msg;

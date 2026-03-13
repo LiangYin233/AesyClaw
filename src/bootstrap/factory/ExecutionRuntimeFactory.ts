@@ -1,6 +1,5 @@
 import type { Config, VisionSettings } from '../../types.js';
-import { AgentRuntime } from '../../agent/AgentRuntime.js';
-import { OutboundGateway } from '../../agent/OutboundGateway.js';
+import { AgentRuntime, OutboundGateway } from '../../agent/runtime/AgentRuntime.js';
 import { createProvider, createProviderFromConfig } from '../../providers/index.js';
 import { ToolRegistry } from '../../tools/index.js';
 import { CommandRegistry } from '../../agent/commands/index.js';

@@ -16,8 +16,8 @@ import type { ToolRegistry } from '../../tools/index.js';
 import type { MemoryFactStore, SessionManager } from '../../session/index.js';
 import type { ChannelManager } from '../../channels/ChannelManager.js';
 import type { PluginManager } from '../../plugins/index.js';
-import type { AgentRuntime } from '../../agent/AgentRuntime.js';
-import { OutboundGateway } from '../../agent/OutboundGateway.js';
+import type { AgentRuntime } from '../../agent/runtime/AgentRuntime.js';
+import { OutboundGateway } from '../../agent/runtime/AgentRuntime.js';
 import type { MCPClientManager } from '../../mcp/index.js';
 import type { SkillManager } from '../../skills/index.js';
 

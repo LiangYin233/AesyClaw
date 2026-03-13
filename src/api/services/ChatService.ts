@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import type { AgentRuntime } from '../../agent/AgentRuntime.js';
+import type { AgentRuntime } from '../../agent/runtime/AgentRuntime.js';
 import { INTERNAL_CHANNELS } from '../../constants/index.js';
 
 export interface ChatRequest {

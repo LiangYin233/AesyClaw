@@ -1,8 +1,8 @@
-import type { OutboundMessage } from '../types.js';
-import type { SessionRoutingService } from './session/SessionRoutingService.js';
-import type { BackgroundTaskHandle } from './execution/BackgroundTaskManager.js';
-import { BackgroundTaskManager } from './execution/BackgroundTaskManager.js';
-import { ExecutionRegistry, type ForegroundExecutionHandle } from './execution/ExecutionRegistry.js';
+import type { OutboundMessage } from '../../types.js';
+import type { SessionRoutingService } from '../session/SessionRoutingService.js';
+import type { BackgroundTaskHandle } from './BackgroundTaskManager.js';
+import { BackgroundTaskManager } from './BackgroundTaskManager.js';
+import { ExecutionRegistry, type ForegroundExecutionHandle } from './ExecutionRegistry.js';
 
 export interface ExecutionStatusView {
   sessionKey: string;

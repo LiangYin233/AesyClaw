@@ -1,6 +1,5 @@
-import type { LLMMessage, LLMResponse } from '../../types.js';
+import type { LLMMessage, LLMResponse, OutboundMessage } from '../../types.js';
 import type { ToolContext } from '../../tools/ToolRegistry.js';
-import type { OutboundMessage } from '../../types.js';
 import { logger } from '../../logger/index.js';
 
 export interface BackgroundTaskResult {

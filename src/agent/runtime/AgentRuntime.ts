@@ -1,25 +1,44 @@
-import type { Config, InboundMessage, OutboundMessage } from '../types.js';
-import type { LLMProvider } from '../providers/base.js';
-import type { PluginManager } from '../plugins/index.js';
-import type { ToolRegistry, ToolContext } from '../tools/ToolRegistry.js';
-import type { SessionManager } from '../session/SessionManager.js';
-import type { CommandRegistry } from './commands/index.js';
-import type { SessionMemoryService } from './memory/SessionMemoryService.js';
-import type { SessionRoutingService } from './session/SessionRoutingService.js';
-import type { AgentRoleService } from './roles/AgentRoleService.js';
-import type { VisionSettings } from '../types.js';
-import { logger } from '../logger/index.js';
-import { metrics } from '../logger/Metrics.js';
-import { CONFIG_DEFAULTS } from '../constants/index.js';
-import { OutboundGateway } from './OutboundGateway.js';
+import type { Config, InboundMessage, OutboundMessage } from '../../types.js';
+import type { LLMProvider } from '../../providers/base.js';
+import type { PluginManager } from '../../plugins/index.js';
+import type { ToolRegistry, ToolContext } from '../../tools/ToolRegistry.js';
+import type { SessionManager } from '../../session/SessionManager.js';
+import type { CommandRegistry } from '../commands/index.js';
+import type { SessionMemoryService } from '../memory/SessionMemoryService.js';
+import type { SessionRoutingService } from '../session/SessionRoutingService.js';
+import type { AgentRoleService } from '../roles/AgentRoleService.js';
+import type { VisionSettings } from '../../types.js';
+import { logger } from '../../logger/index.js';
+import { metrics } from '../../logger/Metrics.js';
+import { CONFIG_DEFAULTS } from '../../constants/index.js';
 import { AgentPipeline } from './AgentPipeline.js';
-import { SessionResolver } from './SessionResolver.js';
-import { ExecutionFinalizer } from './ExecutionFinalizer.js';
-import { ExecutionControl } from './ExecutionControl.js';
-import { ExecutionEngine } from './ExecutionEngine.js';
-import { ExecutionRuntime } from './ExecutionRuntime.js';
-import { SessionHandle } from './SessionHandle.js';
-import type { ContextMode, ExecutionStatus, SessionReference } from './types.js';
+import { SessionResolver } from '../session/SessionResolver.js';
+import { ExecutionFinalizer } from '../execution/ExecutionFinalizer.js';
+import { ExecutionControl } from '../execution/ExecutionControl.js';
+import { ExecutionEngine } from '../execution/ExecutionEngine.js';
+import { ExecutionRuntime } from '../execution/ExecutionRuntime.js';
+import type { ContextMode, ExecutionStatus, SessionReference } from '../types.js';
+
+export class OutboundGateway {
+  private log = logger.child({ prefix: 'OutboundGateway' });
+  private dispatcher?: (message: OutboundMessage) => Promise<void>;
+
+  setDispatcher(dispatcher: (message: OutboundMessage) => Promise<void>): void {
+    this.dispatcher = dispatcher;
+  }
+
+  async send(message: OutboundMessage): Promise<void> {
+    if (!this.dispatcher) {
+      this.log.error('Outbound dispatcher missing', {
+        channel: message.channel,
+        chatId: message.chatId
+      });
+      throw new Error('Outbound dispatcher not configured');
+    }
+
+    await this.dispatcher(message);
+  }
+}
 
 export interface AgentRuntimeOptions {
   provider: LLMProvider;
@@ -346,5 +365,35 @@ export class AgentRuntime {
     }
 
     await this.options.outboundGateway.send(message);
+  }
+}
+
+export class SessionHandle {
+  constructor(
+    private runtime: AgentRuntime,
+    private reference: SessionReference | string
+  ) {}
+
+  async handleMessage(
+    message: InboundMessage,
+    options?: { suppressOutbound?: boolean }
+  ): Promise<string | undefined> {
+    const bound = this.runtime.bindMessageToSession(message, this.reference);
+    return this.runtime.handleInbound(bound, options);
+  }
+
+  async runDirect(
+    content: string,
+    options?: { suppressOutbound?: boolean }
+  ): Promise<string> {
+    return this.runtime.handleDirect(content, this.reference, options);
+  }
+
+  abort(): boolean {
+    return this.runtime.abortReference(this.reference);
+  }
+
+  status() {
+    return this.runtime.getStatusByReference(this.reference);
   }
 }

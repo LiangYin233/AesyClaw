@@ -1,6 +1,6 @@
 import type { Config } from '../../types.js';
 import { APIServer } from '../../api/index.js';
-import type { AgentRuntime } from '../../agent/AgentRuntime.js';
+import type { AgentRuntime } from '../../agent/runtime/AgentRuntime.js';
 import type { SessionManager, MemoryFactStore } from '../../session/index.js';
 import type { ChannelManager } from '../../channels/ChannelManager.js';
 import type { PluginManager } from '../../plugins/index.js';

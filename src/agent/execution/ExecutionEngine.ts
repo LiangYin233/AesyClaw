@@ -1,13 +1,13 @@
-import type { VisionSettings } from '../types.js';
-import type { LLMProvider } from '../providers/base.js';
-import type { PluginManager } from '../plugins/index.js';
-import type { ToolRegistry, ToolContext } from '../tools/ToolRegistry.js';
-import type { AgentRoleService } from './roles/AgentRoleService.js';
-import { AgentExecutor } from './execution/engine/AgentExecutor.js';
-import { ScopedToolRegistry } from '../tools/ScopedToolRegistry.js';
-import { logger } from '../logger/index.js';
-import type { ExecutionContext, ExecutionPolicy } from './execution/contracts.js';
-import type { ExecutionRegistry } from './execution/ExecutionRegistry.js';
+import type { VisionSettings } from '../../types.js';
+import type { LLMProvider } from '../../providers/base.js';
+import type { PluginManager } from '../../plugins/index.js';
+import type { ToolRegistry, ToolContext } from '../../tools/ToolRegistry.js';
+import type { AgentRoleService } from '../roles/AgentRoleService.js';
+import { AgentExecutor } from './AgentExecutor.js';
+import { ScopedToolRegistry } from '../../tools/ScopedToolRegistry.js';
+import { logger } from '../../logger/index.js';
+import type { ExecutionContext, ExecutionPolicy } from './ExecutionTypes.js';
+import type { ExecutionRegistry } from './ExecutionRegistry.js';
 
 export interface ExecutionEngineOptions {
   defaultProvider: LLMProvider;

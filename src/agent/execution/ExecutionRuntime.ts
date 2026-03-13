@@ -1,10 +1,10 @@
-import type { OutboundMessage, InboundMessage, LLMMessage } from '../types.js';
-import type { PluginManager } from '../plugins/index.js';
-import type { ExecutionContext } from './execution/contracts.js';
+import type { OutboundMessage, InboundMessage, LLMMessage } from '../../types.js';
+import type { PluginManager } from '../../plugins/index.js';
+import type { ExecutionContext } from './ExecutionTypes.js';
 import type { ExecutionEngine } from './ExecutionEngine.js';
 import type { ExecutionFinalizer } from './ExecutionFinalizer.js';
 import type { ExecutionControl } from './ExecutionControl.js';
-import { logger } from '../logger/index.js';
+import { logger } from '../../logger/index.js';
 
 export class ExecutionRuntime {
   private log = logger.child({ prefix: 'ExecutionRuntime' });

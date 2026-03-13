@@ -1,8 +1,7 @@
-import type { LLMMessage, InboundFile } from '../../../types.js';
+import type { LLMMessage, InboundFile } from '../../types.js';
 import fs from 'fs';
 import { extname } from 'path';
-import { isVisionableFile } from './vision.js';
-import { buildAgentSystemPrompt } from './prompts.js';
+import { isVisionableFile } from './ExecutionTypes.js';
 
 const IMAGE_MIME_TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg',
@@ -13,6 +12,22 @@ const IMAGE_MIME_TYPES: Record<string, string> = {
   '.bmp': 'image/bmp',
   '.svg': 'image/svg+xml'
 };
+
+function buildAgentSystemPrompt(options: {
+  basePrompt: string;
+  workspace: string;
+  context?: string;
+  skillsPrompt?: string;
+}): string {
+  const sections = [
+    options.basePrompt.trim(),
+    `Workspace: ${options.workspace}`,
+    options.context ? `Context: ${options.context}` : '',
+    options.skillsPrompt?.trim() || ''
+  ].filter(Boolean);
+
+  return sections.join('\n');
+}
 
 export class ContextBuilder {
   private workspace: string;

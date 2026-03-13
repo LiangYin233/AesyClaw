@@ -2,7 +2,7 @@ import type { InboundMessage } from '../../types.js';
 import type { SessionManager } from '../../session/SessionManager.js';
 import type { AgentRoleService } from '../roles/AgentRoleService.js';
 import type { SessionRoutingService } from '../session/SessionRoutingService.js';
-import type { AgentRuntime } from '../AgentRuntime.js';
+import type { AgentRuntime } from '../runtime/AgentRuntime.js';
 import { logger } from '../../logger/index.js';
 import { CommandHandler, type CommandDefinition } from './CommandHandler.js';
 

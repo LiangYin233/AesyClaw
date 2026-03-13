@@ -1,9 +1,9 @@
-import type { LLMMessage } from '../../../types.js';
-import type { ToolContext } from '../../../tools/ToolRegistry.js';
-import type { LLMProvider } from '../../../providers/base.js';
-import type { ExecutionStrategy, ExecutionResult, ExecutionOptions, BackgroundExecutionResult } from './types.js';
+import type { LLMMessage } from '../../types.js';
+import type { ToolContext } from '../../tools/ToolRegistry.js';
+import type { LLMProvider } from '../../providers/base.js';
+import type { ExecutionStrategy, ExecutionResult, ExecutionOptions, BackgroundExecutionResult } from './ExecutionTypes.js';
 import type { ToolLoopRunner } from './ToolLoopRunner.js';
-import { logger } from '../../../logger/index.js';
+import { logger } from '../../logger/index.js';
 
 // SyncStrategy
 export class SyncStrategy implements ExecutionStrategy {

@@ -1,10 +1,10 @@
-import type { InboundMessage } from '../types.js';
-import type { ToolContext } from '../tools/ToolRegistry.js';
-import type { SessionManager } from '../session/SessionManager.js';
-import type { SessionRoutingService } from './session/SessionRoutingService.js';
-import type { SessionMemoryService } from './memory/SessionMemoryService.js';
-import type { AgentRoleService } from './roles/AgentRoleService.js';
-import type { ExecutionContext } from './execution/contracts.js';
+import type { InboundMessage } from '../../types.js';
+import type { ToolContext } from '../../tools/ToolRegistry.js';
+import type { SessionManager } from '../../session/SessionManager.js';
+import type { SessionRoutingService } from './SessionRoutingService.js';
+import type { SessionMemoryService } from '../memory/SessionMemoryService.js';
+import type { AgentRoleService } from '../roles/AgentRoleService.js';
+import type { ExecutionContext } from '../execution/ExecutionTypes.js';
 
 export interface SessionResolverOptions {
   toolContext: ToolContext;

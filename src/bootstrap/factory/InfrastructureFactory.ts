@@ -1,8 +1,8 @@
 import type { Config } from '../../types.js';
 import { ChannelManager } from '../../channels/ChannelManager.js';
 import { loadExternalChannelPlugins } from '../../channels/ChannelPluginLoader.js';
-import type { AgentRuntime } from '../../agent/AgentRuntime.js';
-import type { OutboundGateway } from '../../agent/OutboundGateway.js';
+import type { AgentRuntime } from '../../agent/runtime/AgentRuntime.js';
+import type { OutboundGateway } from '../../agent/runtime/AgentRuntime.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import type { CronJob, CronService } from '../../cron/index.js';
 import { MCPClientManager } from '../../mcp/index.js';

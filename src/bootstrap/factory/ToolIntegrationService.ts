@@ -5,7 +5,7 @@ import type { CronService } from '../../cron/index.js';
 import type { MCPClientManager } from '../../mcp/index.js';
 import type { PluginManager } from '../../plugins/index.js';
 import type { OutboundMessage, ToolDefinition } from '../../types.js';
-import type { AgentRuntime } from '../../agent/AgentRuntime.js';
+import type { AgentRuntime } from '../../agent/runtime/AgentRuntime.js';
 import type { AgentRoleService } from '../../agent/roles/AgentRoleService.js';
 import { registerCronTools } from '../../cron/CronTools.js';
 import { logger, normalizeError } from '../../logger/index.js';

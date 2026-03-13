@@ -1,6 +1,6 @@
 import type { Config } from '../../types.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
-import type { OutboundGateway } from '../../agent/OutboundGateway.js';
+import type { OutboundGateway } from '../../agent/runtime/AgentRuntime.js';
 import { PluginManager } from '../../plugins/index.js';
 import type { PluginConfigState } from '../../plugins/index.js';
 import { ConfigLoader } from '../../config/loader.js';
