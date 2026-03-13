@@ -44,22 +44,6 @@ export function registerPluginRoutes(app: Express, deps: PluginRouteDeps = {}): 
     }
   });
 
-  app.post('/api/plugins/:name/reload', async (req, res) => {
-    try {
-      if (!pluginManager) {
-        return res.status(503).json(createErrorResponse(new Error('Plugin manager not available')));
-      }
-      const { name } = req.params;
-      const success = await pluginManager.reloadPlugin(name);
-      if (!success) {
-        return res.status(404).json(createErrorResponse(new NotFoundError('Plugin', name)));
-      }
-      res.json({ success: true });
-    } catch (error: unknown) {
-      res.status(500).json(createErrorResponse(error));
-    }
-  });
-
   app.put('/api/plugins/:name/config', async (req, res) => {
     try {
       if (!pluginManager) {

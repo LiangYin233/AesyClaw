@@ -4,21 +4,170 @@ import { createWriteStream } from 'fs';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import { createHash } from 'crypto';
-import type { PluginContext } from '../../src/plugins/PluginManager.ts';
+import { definePlugin } from '../../src/plugins/index.ts';
 import type { InboundFile, InboundMessage, ProcessingIntent } from '../../src/types.ts';
 
-// Intent 辅助对象，用于创建语义化的处理意图
 const Intent = {
   error: (reason: string): Extract<ProcessingIntent, { type: 'error' }> => ({ type: 'error', reason })
 };
 
-const plugin: any = {
+interface SpeechToTextOptions {
+  provider: string;
+  model: string;
+  downloadTimeout: number;
+  transcriptionTimeout: number;
+}
+
+interface SpeechRuntimeConfig {
+  apiKey: string;
+  apiBase: string;
+  model: string;
+  downloadTimeout: number;
+  transcriptionTimeout: number;
+}
+
+function findAudioSource(message: InboundMessage): { localPath?: string; remoteUrl?: string } | null {
+  const compatFile = message.files?.find((file: InboundFile) => file.type === 'audio');
+  if (compatFile) {
+    return {
+      localPath: compatFile.localPath,
+      remoteUrl: compatFile.url
+    };
+  }
+
+  const projectedAudio = message.projection?.nonVisionFiles.find((resource) => resource.kind === 'audio');
+  if (projectedAudio) {
+    return {
+      localPath: projectedAudio.localPath,
+      remoteUrl: projectedAudio.remoteUrl
+    };
+  }
+
+  if (Array.isArray(message.rawEvent?.message)) {
+    const voiceSegment = message.rawEvent.message.find((segment: any) => segment.type === 'record');
+    if (voiceSegment) {
+      return {
+        remoteUrl: voiceSegment.data?.url || voiceSegment.data?.file
+      };
+    }
+  }
+
+  return null;
+}
+
+async function downloadAudio(downloadDir: string, url: string, timeout: number): Promise<string> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      throw new Error(`Download failed: ${response.status}`);
+    }
+
+    if (!response.body) {
+      throw new Error('Download response body is empty');
+    }
+
+    const hash = createHash('md5').update(url + Date.now()).digest('hex').substring(0, 8);
+    const filepath = join(downloadDir, `audio_${Date.now()}_${hash}.mp3`);
+    await pipeline(Readable.fromWeb(response.body as never), createWriteStream(filepath));
+    return filepath;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Download timeout');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function transcribe(config: SpeechRuntimeConfig, audioPath: string): Promise<string> {
+  if (!config.apiKey) {
+    throw new Error('API key not configured');
+  }
+
+  const url = `${config.apiBase}/audio/transcriptions`;
+  const audioBuffer = await fs.readFile(audioPath);
+  const formData = new FormData();
+  formData.append('file', new Blob([audioBuffer], { type: 'audio/mpeg' }), 'audio.mp3');
+  formData.append('model', config.model);
+  formData.append('response_format', 'json');
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), config.transcriptionTimeout);
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`
+      },
+      body: formData,
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API error ${response.status}: ${errorText.substring(0, 100)}`);
+    }
+
+    const text = await response.text();
+    try {
+      return JSON.parse(text).text?.trim() || text.trim();
+    } catch {
+      return text.trim();
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Transcription timeout');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export default definePlugin<SpeechToTextOptions>({
   name: 'plugin_speech_to_text',
   version: '1.0.0',
   description: '转写语音为文本。',
+  toolsCount: 1,
+  defaultConfig: {
+    enabled: false,
+    options: {
+      provider: 'openai',
+      model: 'whisper-1',
+      downloadTimeout: 30000,
+      transcriptionTimeout: 60000
+    }
+  },
+  async setup(ctx) {
+    const log = ctx.logger.child({ prefix: 'speech_to_text' });
+    const providerName = ctx.options.provider || 'openai';
+    const providerConfig = ctx.config.providers?.[providerName];
+    const config: SpeechRuntimeConfig = {
+      apiKey: providerConfig?.apiKey || '',
+      apiBase: providerConfig?.apiBase || 'https://api.openai.com/v1',
+      model: ctx.options.model || 'whisper-1',
+      downloadTimeout: ctx.options.downloadTimeout || 30000,
+      transcriptionTimeout: ctx.options.transcriptionTimeout || 60000
+    };
+    const downloadDir = join(ctx.tempDir, 'speech_to_text');
 
-  tools: [
-    {
+    await fs.mkdir(downloadDir, { recursive: true }).catch(() => undefined);
+
+    if (!providerConfig?.apiKey) {
+      log.warn(`Provider ${providerName} not configured or missing API key`);
+    } else {
+      log.info('Speech-to-text plugin loaded', {
+        provider: providerName,
+        model: config.model
+      });
+    }
+
+    ctx.tools.register({
       name: 'transcribe_audio',
       description: '转写音频文件为文本。',
       parameters: {
@@ -31,202 +180,114 @@ const plugin: any = {
         },
         required: ['file_path']
       },
-      execute: async (params: Record<string, any>) => {
-        const { file_path } = params;
-        // 验证文件存在
+      async execute(params: Record<string, any>) {
+        const filePath = String(params.file_path || '');
         try {
-          await fs.access(file_path);
+          await fs.access(filePath);
         } catch {
-          return `错误：文件不存在或路径无效: ${file_path}`;
+          return `错误：文件不存在或路径无效: ${filePath}`;
         }
-        // 调用已有的 transcribe 方法
+
         try {
-          const result = await plugin.transcribe(file_path);
-          return result;
-        } catch (error: unknown) {
+          return await transcribe(config, filePath);
+        } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           return `转写失败: ${message}`;
         }
       }
-    }
-  ],
+    });
 
-  log: console,
-  config: {},
-  downloadDir: null,
-
-  defaultConfig: {
-    enabled: false,
-    options: {
-      provider: 'openai',
-      model: 'whisper-1',
-      downloadTimeout: 30000,
-      transcriptionTimeout: 60000
-    }
-  },
-
-  async onLoad(context: PluginContext) {
-    this.log = context.logger?.child({ prefix: 'speech_to_text' }) || console;
-
-    const options = context.options || {};
-    const providerName = options.provider || 'openai';
-    const providerConfig = context.config?.providers?.[providerName];
-
-    if (!providerConfig?.apiKey) {
-      this.log.warn(`Provider ${providerName} not configured or missing API key`);
-    }
-
-    this.config = {
-      apiKey: providerConfig?.apiKey || '',
-      apiBase: providerConfig?.apiBase || 'https://api.openai.com/v1',
-      model: options.model || 'whisper-1',
-      downloadTimeout: options.downloadTimeout || 30000,
-      transcriptionTimeout: options.transcriptionTimeout || 60000
-    };
-
-    this.downloadDir = join(context.tempDir, 'speech_to_text');
-    await fs.mkdir(this.downloadDir, { recursive: true }).catch(() => {});
-
-    if (this.config.apiKey) {
-      this.log.info('Speech-to-text plugin loaded', { provider: providerName, model: this.config.model });
-    }
-  },
-
-  async onUnload() {
-    if (!this.downloadDir) return;
-    try {
-      const files = await fs.readdir(this.downloadDir);
-      await Promise.all(files.map(f => fs.unlink(join(this.downloadDir, f)).catch(() => {})));
-    } catch {}
-  },
-
-  async downloadAudio(url: string, timeout: number): Promise<string> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-    try {
-      const response = await fetch(url, { signal: controller.signal });
-      if (!response.ok) throw new Error(`Download failed: ${response.status}`);
-
-      const hash = createHash('md5').update(url + Date.now()).digest('hex').substring(0, 8);
-      const filepath = join(this.downloadDir, `audio_${Date.now()}_${hash}.mp3`);
-
-      if (!response.body) {
-        throw new Error('Download response body is empty');
-      }
-
-      await pipeline(Readable.fromWeb(response.body as any), createWriteStream(filepath));
-      return filepath;
-    } catch (error: unknown) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('Download timeout');
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  },
-
-  async transcribe(audioPath: string): Promise<string> {
-    if (!this.config.apiKey) throw new Error('API key not configured');
-
-    const url = `${this.config.apiBase}/audio/transcriptions`;
-    const audioBuffer = await fs.readFile(audioPath);
-    const formData = new FormData();
-    formData.append('file', new Blob([audioBuffer], { type: 'audio/mpeg' }), 'audio.mp3');
-    formData.append('model', this.config.model);
-    formData.append('response_format', 'json');
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.config.transcriptionTimeout);
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${this.config.apiKey}` },
-        body: formData,
-        signal: controller.signal
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`API error ${response.status}: ${error.substring(0, 100)}`);
-      }
-
-      const text = await response.text();
+    ctx.hooks.messageIn.transform(async (message) => {
       try {
-        return JSON.parse(text).text?.trim() || text.trim();
-      } catch {
-        return text.trim();
-      }
-    } catch (error: unknown) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error('Transcription timeout');
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  },
-
-  async onMessage(msg: InboundMessage) {
-    try {
-      // Detect audio URL from files or rawEvent
-      let audioUrl = msg.files?.find((f: InboundFile) => f.type === 'audio')?.url;
-
-      if (!audioUrl && msg.rawEvent?.message) {
-        const voiceSegment = msg.rawEvent.message.find((seg: any) => seg.type === 'record');
-        audioUrl = voiceSegment?.data?.url || voiceSegment?.data?.file;
-      }
-
-      // Handle [语音] placeholder without URL
-      if (!audioUrl) {
-        if (msg.content === '[语音]') {
-          this.log.warn('Voice message missing audio URL', { senderId: msg.senderId, chatId: msg.chatId });
-          return { ...msg, content: '[语音消息 - 无法获取音频链接]', intent: Intent.error('音频 URL 不存在') };
+        const source = findAudioSource(message);
+        if (!source) {
+          if (message.content === '[语音]') {
+            log.warn('Voice message missing audio URL', {
+              senderId: message.senderId,
+              chatId: message.chatId
+            });
+            return {
+              ...message,
+              content: '[语音消息 - 无法获取音频链接]',
+              intent: Intent.error('音频 URL 不存在')
+            };
+          }
+          return message;
         }
-        return msg;
-      }
 
-      // Check API configuration
-      if (!this.config.apiKey) {
-        this.log.warn('Voice message detected but API key not configured');
-        return { ...msg, content: '[语音消息 - 转写服务未配置]', intent: Intent.error('API key 未配置') };
-      }
+        if (!config.apiKey) {
+          log.warn('Voice message detected but API key not configured');
+          return {
+            ...message,
+            content: '[语音消息 - 转写服务未配置]',
+            intent: Intent.error('API key 未配置')
+          };
+        }
 
-      this.log.info('Voice transcription started', { senderId: msg.senderId, chatId: msg.chatId });
+        log.info('Voice transcription started', {
+          senderId: message.senderId,
+          chatId: message.chatId
+        });
 
-      // Download and transcribe
-      let audioPath: string | undefined;
-      try {
-        audioPath = await this.downloadAudio(audioUrl, this.config.downloadTimeout);
-        const transcription = await this.transcribe(audioPath);
+        let temporaryPath: string | undefined;
+        try {
+          const audioPath = source.localPath || await downloadAudio(downloadDir, source.remoteUrl || '', config.downloadTimeout);
+          if (!source.localPath) {
+            temporaryPath = audioPath;
+          }
 
-        this.log.info('Voice transcription completed', {
-          senderId: msg.senderId,
-          chatId: msg.chatId,
-          preview: this.log.preview(transcription)
+          const transcription = await transcribe(config, audioPath);
+          log.info('Voice transcription completed', {
+            senderId: message.senderId,
+            chatId: message.chatId,
+            preview: log.preview(transcription)
+          });
+
+          return {
+            ...message,
+            content: transcription,
+            files: undefined,
+            media: undefined,
+            metadata: {
+              ...message.metadata,
+              transcribed: true,
+              originalType: 'voice'
+            }
+          };
+        } catch (error) {
+          const messageText = error instanceof Error ? error.message : String(error);
+          log.error('Voice transcription failed', {
+            senderId: message.senderId,
+            chatId: message.chatId,
+            error: messageText
+          });
+          return {
+            ...message,
+            content: `[语音消息 - ${messageText}]`,
+            intent: Intent.error(`转写失败: ${messageText}`)
+          };
+        } finally {
+          if (temporaryPath) {
+            await fs.unlink(temporaryPath).catch(() => undefined);
+          }
+        }
+      } catch (error) {
+        const messageText = error instanceof Error ? error.message : String(error);
+        log.error('Voice processing failed', {
+          senderId: message.senderId,
+          chatId: message.chatId,
+          error: messageText
         });
         return {
-          ...msg,
-          content: transcription,
-          files: undefined,  // 清除文件信息
-          media: undefined,  // 清除媒体信息
-          metadata: { ...msg.metadata, transcribed: true, originalType: 'voice' }
+          ...message,
+          content: '[语音消息 - 处理失败]',
+          intent: Intent.error(`处理失败: ${messageText}`)
         };
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
-        this.log.error('Voice transcription failed', { senderId: msg.senderId, chatId: msg.chatId, error: message });
-        return { ...msg, content: `[语音消息 - ${message}]`, intent: Intent.error(`转写失败: ${message}`) };
-      } finally {
-        if (audioPath) await fs.unlink(audioPath).catch(() => {});
       }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.log.error('Voice processing failed', { senderId: msg.senderId, chatId: msg.chatId, error: message });
-      return { ...msg, content: '[语音消息 - 处理失败]', intent: Intent.error(`处理失败: ${message}`) };
-    }
-  }
-};
+    });
 
-export default plugin;
+    return async () => {
+      await fs.rm(downloadDir, { recursive: true, force: true }).catch(() => undefined);
+    };
+  }
+});

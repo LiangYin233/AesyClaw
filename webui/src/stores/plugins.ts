@@ -53,19 +53,6 @@ export const usePluginsStore = defineStore('plugins', () => {
     return true
   }
 
-  async function reloadPlugin(name: string) {
-    const { error: err } = await apiPost(`/plugins/${name}/reload`)
-
-    if (err) {
-      error.value = err
-      return false
-    }
-
-    // Refresh plugin list after reload
-    await fetchPlugins()
-    return true
-  }
-
   async function updatePluginConfig(name: string, options: Record<string, any>) {
     const { error: err } = await apiPut(`/plugins/${name}/config`, { options })
 
@@ -102,7 +89,6 @@ export const usePluginsStore = defineStore('plugins', () => {
     // Actions
     fetchPlugins,
     togglePlugin,
-    reloadPlugin,
     updatePluginConfig,
     clearError
   }

@@ -51,7 +51,10 @@ export class MessageExecutionService {
       );
 
       if (this.pluginManager) {
-        await this.pluginManager.applyOnAgentBefore(context.request, messages);
+        await this.pluginManager.runAgentBeforeTaps({
+          message: context.request,
+          messages
+        });
       }
 
       const coordinator = new ExecutionCoordinator(executor, this.backgroundTasks, this.completionService);

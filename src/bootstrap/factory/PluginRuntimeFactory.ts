@@ -1,13 +1,26 @@
-import type { Config, OutboundMessage } from '../../types.js';
+import type { Config } from '../../types.js';
 import type { EventBus } from '../../bus/EventBus.js';
-import type { AgentLoop } from '../../agent/core/AgentLoop.js';
-import type { Tool, ToolRegistry } from '../../tools/ToolRegistry.js';
+import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import { PluginManager } from '../../plugins/index.js';
-import type { PluginContext } from '../../plugins/PluginManager.js';
+import type { PluginConfigState } from '../../plugins/index.js';
 import { ConfigLoader } from '../../config/loader.js';
 import { logger } from '../../logger/index.js';
 
 const log = logger.child({ prefix: 'PluginRuntimeFactory' });
+
+function normalizePluginConfigs(
+  configs: Record<string, { enabled?: boolean; options?: Record<string, any> }>
+): Record<string, PluginConfigState> {
+  return Object.fromEntries(
+    Object.entries(configs).map(([name, config]) => [
+      name,
+      {
+        enabled: config.enabled ?? false,
+        options: config.options
+      }
+    ])
+  );
+}
 
 export interface PluginRuntime {
   pluginManager: PluginManager;
@@ -17,45 +30,25 @@ export interface PluginRuntime {
 export async function createPluginManager(args: {
   config: Config;
   eventBus: EventBus;
-  agent: AgentLoop;
   workspace: string;
   tempDir: string;
   toolRegistry: ToolRegistry;
 }): Promise<PluginRuntime> {
-  const { config, eventBus, agent, workspace, tempDir, toolRegistry } = args;
-  let pluginManager!: PluginManager;
+  const { config, eventBus, workspace, tempDir, toolRegistry } = args;
   let started = false;
 
-  const pluginContext: PluginContext = {
-    config,
-    eventBus,
-    agent,
+  const pluginManager = new PluginManager({
+    getConfig: () => ConfigLoader.get(),
     workspace,
     tempDir,
-    registerTool: (tool: Tool) => toolRegistry.register(tool),
-    getToolRegistry: () => toolRegistry,
-    logger,
-    sendMessage: async (
-      channel: string,
-      chatId: string,
-      content: string,
-      messageType?: 'private' | 'group'
-    ) => {
-      let message: OutboundMessage = {
-        channel,
-        chatId,
-        content,
-        messageType: messageType || 'private'
-      };
-
-      message = await pluginManager.applyOnResponse(message) || message;
+    toolRegistry,
+    publishOutbound: async (message) => {
       await eventBus.publishOutbound(message);
-    }
-  };
+    },
+    logger
+  });
 
-  pluginManager = new PluginManager(pluginContext, toolRegistry);
-
-  pluginManager.setPluginConfigs(config.plugins as Record<string, { enabled: boolean; options?: Record<string, any> }>);
+  pluginManager.setPluginConfigs(normalizePluginConfigs(config.plugins as Record<string, { enabled?: boolean; options?: Record<string, any> }>));
 
   const startBackgroundLoading = () => {
     if (started) {
@@ -69,14 +62,15 @@ export async function createPluginManager(args: {
         const newPluginConfigs = await pluginManager.applyDefaultConfigs();
         if (Object.keys(newPluginConfigs).length > 0) {
           const nextConfig = await ConfigLoader.update((draft) => {
-            draft.plugins = newPluginConfigs;
+            draft.plugins = newPluginConfigs as typeof draft.plugins;
           });
           config.plugins = nextConfig.plugins;
+          pluginManager.setPluginConfigs(normalizePluginConfigs(nextConfig.plugins));
           log.info('Applied default plugin configs');
         }
 
         if (Object.keys(config.plugins).length > 0) {
-          await pluginManager.loadFromConfig(config.plugins);
+          await pluginManager.loadFromConfig(normalizePluginConfigs(config.plugins));
         }
 
         log.info('Plugins loaded in background', {

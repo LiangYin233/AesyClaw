@@ -1,7 +1,6 @@
 import type { InboundMessage, OutboundMessage } from '../../types.js';
 import type { PluginManager } from '../../plugins/index.js';
 import type { CommandRegistry } from '../commands/index.js';
-import { shouldSkipLLM, getSkipReason } from '../../plugins/IntentHelpers.js';
 import { logger } from '../../logger/index.js';
 
 export type PreprocessResult =
@@ -48,25 +47,27 @@ export class MessagePreprocessingService {
     }
 
     if (this.pluginManager) {
-      const cmdResult = await this.pluginManager.applyOnCommand(message);
+      const cmdResult = await this.pluginManager.runCommands(message);
       if (cmdResult !== null) {
         this.log.info('Plugin command handled message', {
           channel: message.channel,
           chatId: message.chatId,
           suppressOutbound
         });
-        if (!suppressOutbound) {
+        if (cmdResult.type === 'reply' && !suppressOutbound) {
           await sendOutbound({
-            channel: cmdResult.channel,
-            chatId: cmdResult.chatId,
-            content: cmdResult.content,
-            messageType: cmdResult.messageType
+            channel: cmdResult.message.channel,
+            chatId: cmdResult.message.chatId,
+            content: cmdResult.message.content,
+            messageType: cmdResult.message.messageType
           });
         }
-        return { type: 'reply', content: cmdResult.content };
+        return cmdResult.type === 'reply'
+          ? { type: 'reply', content: cmdResult.message.content }
+          : { type: 'handled' };
       }
 
-      const handled = await this.pluginManager.applyOnMessage(message);
+      const handled = await this.pluginManager.runMessageInHooks(message);
       if (handled === null) {
         this.log.debug('Plugin consumed message', {
           channel: message.channel,
@@ -75,11 +76,11 @@ export class MessagePreprocessingService {
         return { type: 'handled' };
       }
 
-      if (shouldSkipLLM(handled)) {
+      if (this.shouldSkipLLM(handled)) {
         this.log.info('LLM skipped by plugin', {
           channel: handled.channel,
           chatId: handled.chatId,
-          reason: getSkipReason(handled),
+          reason: this.getSkipReason(handled),
           suppressOutbound
         });
         if (!suppressOutbound) {
@@ -97,6 +98,17 @@ export class MessagePreprocessingService {
     }
 
     return { type: 'continue', message };
+  }
+
+  private shouldSkipLLM(message: InboundMessage): boolean {
+    return !!message.intent && message.intent.type !== 'continue';
+  }
+
+  private getSkipReason(message: InboundMessage): string {
+    if (message.intent && message.intent.type !== 'continue') {
+      return `${message.intent.type}: ${message.intent.reason}`;
+    }
+    return 'unknown';
   }
 
   private attachSavedFileNotes(message: InboundMessage): InboundMessage {

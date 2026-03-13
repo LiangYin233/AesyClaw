@@ -37,8 +37,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
   registerCronTools(toolRegistry, cronService, eventBus);
 
   const publishOutboundMessage = async (message: OutboundMessage): Promise<void> => {
-    const processedMessage = await pluginManager.applyOnResponse(message) || message;
-    await eventBus.publishOutbound(processedMessage);
+    await pluginManager.dispatchMessage(message);
   };
 
   toolRegistry.register({

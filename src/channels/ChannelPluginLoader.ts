@@ -1,10 +1,21 @@
-import { readdir, stat } from 'fs/promises';
+import { mkdir, readdir, stat } from 'fs/promises';
 import { join } from 'path';
 import { logger } from '../logger/index.js';
 import type { ChannelManager, ChannelPluginDefinition } from './ChannelManager.js';
-import { importExternalModule } from '../utils/importExternalModule.js';
+import { pathToFileURL } from 'url';
 
 const log = logger.child({ prefix: 'ChannelPluginLoader' });
+
+async function importChannelModule<T = unknown>(modulePath: string): Promise<T> {
+  const tmpDir = join(process.cwd(), '.tmp', 'tsx');
+  await mkdir(tmpDir, { recursive: true });
+  process.env.TMPDIR = tmpDir;
+  process.env.TEMP = tmpDir;
+  process.env.TMP = tmpDir;
+
+  const { tsImport } = await import('tsx/esm/api');
+  return tsImport(pathToFileURL(modulePath).href, { parentURL: import.meta.url }) as Promise<T>;
+}
 
 function isChannelPluginDefinition(value: unknown): value is ChannelPluginDefinition {
   return !!value
@@ -46,7 +57,7 @@ async function discoverChannelPluginEntries(workspace: string): Promise<string[]
 
 async function importChannelPlugin(mainPath: string): Promise<ChannelPluginDefinition | null> {
   try {
-    const module = await importExternalModule<Record<string, unknown>>(mainPath);
+    const module = await importChannelModule<Record<string, unknown>>(mainPath);
     const plugin = module.default ?? module;
 
     if (!isChannelPluginDefinition(plugin)) {

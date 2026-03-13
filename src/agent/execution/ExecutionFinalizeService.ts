@@ -50,7 +50,10 @@ export class ExecutionFinalizeService {
     };
 
     if (this.pluginManager) {
-      await this.pluginManager.applyOnAgentAfter(request, llmResponse);
+      await this.pluginManager.runAgentAfterTaps({
+        message: request,
+        response: llmResponse
+      });
     }
 
     if (!suppressOutbound) {
@@ -79,7 +82,7 @@ export class ExecutionFinalizeService {
 
   async handleError(error: unknown, sessionKey: string): Promise<void> {
     if (this.pluginManager) {
-      await this.pluginManager.applyOnError(error, { type: 'agent', data: { sessionKey } });
+      await this.pluginManager.runErrorTaps(error, { type: 'agent', data: { sessionKey } });
     }
   }
 }

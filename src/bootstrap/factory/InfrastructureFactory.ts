@@ -46,7 +46,6 @@ function createMcpManager(config: Config, toolRegistry: ToolRegistry): MCPClient
 export async function createInfrastructure(args: {
   config: Config;
   eventBus: EventBus;
-  agent: AgentLoop;
   workspace: string;
   tempDir: string;
   toolRegistry: ToolRegistry;
@@ -59,12 +58,11 @@ export async function createInfrastructure(args: {
   channelManager: ChannelManager;
   mcpManager: MCPClientManager | null;
 }> {
-  const { config, eventBus, agent, workspace, tempDir, toolRegistry, sessionManager } = args;
+  const { config, eventBus, workspace, tempDir, toolRegistry, sessionManager } = args;
   const [pluginRuntime, channelManager] = await Promise.all([
     createPluginManager({
       config,
       eventBus,
-      agent,
       workspace,
       tempDir,
       toolRegistry

@@ -135,10 +135,16 @@ export class ToolLoopRunner {
             execToolName = execToolName.replace(':', '_mcp_');
           }
 
-          const execContext = { ...toolContext, source, signal: executionSignal };
+          let execContext: ToolContext = { ...toolContext, source, signal: executionSignal };
 
           if (this.pluginManager) {
-            toolArgs = await this.pluginManager.applyOnBeforeToolCall(toolName, toolArgs, execContext);
+            const nextPayload = await this.pluginManager.runToolBeforeHooks({
+              toolName,
+              params: toolArgs,
+              context: execContext
+            });
+            toolArgs = nextPayload.params;
+            execContext = nextPayload.context ?? execContext;
           }
 
           result = await this.toolRegistry.execute(execToolName, toolArgs, execContext);
@@ -151,7 +157,13 @@ export class ToolLoopRunner {
           });
 
           if (this.pluginManager) {
-            result = await this.pluginManager.applyOnToolCall(toolName, toolArgs, result);
+            const nextPayload = await this.pluginManager.runToolAfterHooks({
+              toolName,
+              params: toolArgs,
+              result,
+              context: execContext
+            });
+            result = nextPayload.result;
           }
         } catch (error: unknown) {
           const message = normalizeError(error);
@@ -168,7 +180,7 @@ export class ToolLoopRunner {
           });
 
           if (this.pluginManager) {
-            await this.pluginManager.applyOnError(error, { type: 'tool', data: { toolName, toolArgs } });
+            await this.pluginManager.runErrorTaps(error, { type: 'tool', data: { toolName, toolArgs } });
           }
         }
 

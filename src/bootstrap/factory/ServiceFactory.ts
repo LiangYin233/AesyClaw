@@ -119,7 +119,6 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   } = await createInfrastructure({
     config,
     eventBus,
-    agent,
     workspace,
     tempDir,
     toolRegistry,

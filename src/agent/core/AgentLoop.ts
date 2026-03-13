@@ -299,11 +299,12 @@ export class AgentLoop {
   }
 
   private async sendOutbound(msg: OutboundMessage): Promise<void> {
-    let processedMsg = msg;
     if (this.pluginManager) {
-      processedMsg = await this.pluginManager.applyOnResponse(msg) || msg;
+      await this.pluginManager.dispatchMessage(msg);
+      return;
     }
-    await this.eventBus.publishOutbound(processedMsg);
+
+    await this.eventBus.publishOutbound(msg);
   }
 
   setCommandRegistry(registry: CommandRegistry): void {
