@@ -462,12 +462,16 @@ class OneBotChannel extends BaseChannel {
     return this.parseMessageWithMedia(rawEvent.message);
   }
 
-  private parseMessageWithMedia(message: any): import('../../src/channels/BaseChannel.ts').ParsedMessage {
+  private async parseMessageWithMedia(
+    message: any,
+    options?: { expandReplies?: boolean }
+  ): Promise<import('../../src/channels/BaseChannel.ts').ParsedMessage> {
     if (!message) return { content: '' };
 
     let content = '';
     const mediaSet = new Set<string>();
     const fileList: InboundFile[] = [];
+    const expandReplies = options?.expandReplies !== false;
 
     if (typeof message === 'string') {
       return { content: message };
@@ -475,7 +479,7 @@ class OneBotChannel extends BaseChannel {
 
     if (Array.isArray(message)) {
       for (const seg of message) {
-        const parsed = this.parseMessageSegment(seg);
+        const parsed = await this.parseMessageSegment(seg, { expandReplies });
         if (parsed.media) {
           for (const media of parsed.media) {
             if (media) mediaSet.add(media);
@@ -498,41 +502,77 @@ class OneBotChannel extends BaseChannel {
     };
   }
 
-  private parseMessageSegment(seg: any): { content?: string; media?: string[]; files?: InboundFile[] } {
+  private async parseMessageSegment(
+    seg: any,
+    options?: { expandReplies?: boolean }
+  ): Promise<{ content?: string; media?: string[]; files?: InboundFile[] }> {
     if (!seg || typeof seg !== 'object') return { content: String(seg) };
 
     const type = seg.type;
     const data = seg.data || {};
-    const handlers: Record<string, () => { content?: string; media?: string[]; files?: InboundFile[] }> = {
-      text: () => MessageHandlers.text(data.text || ''),
-      image: () => {
+    const handlers: Record<string, () => Promise<{ content?: string; media?: string[]; files?: InboundFile[] }>> = {
+      text: async () => MessageHandlers.text(data.text || ''),
+      image: async () => {
         const file = data.file || '';
         const url = data.url || '';
         const imageUrl = url || `file://${file}`;
         return MessageHandlers.image(imageUrl, url ? `[图片](${url})` : `[图片:${file}]`);
       },
-      at: () => MessageHandlers.at(data.qq, data.qq === 'all'),
-      record: () => {
+      at: async () => MessageHandlers.at(data.qq, data.qq === 'all'),
+      record: async () => {
         const url = data.url || data.file || '';
         return url ? MessageHandlers.audio(url) : { content: '[语音]' };
       },
-      video: () => {
+      video: async () => {
         const name = data.file || 'video';
         const url = data.url || '';
         return url ? MessageHandlers.video(url, name) : { content: `[视频: ${name}]` };
       },
-      file: () => {
+      file: async () => {
         const name = data.file || 'file';
         const url = data.url || '';
         return url ? MessageHandlers.file(url, name) : { content: `[文件: ${name}]` };
       },
-      face: () => ({ content: `[表情:${data.id}]` }),
-      reply: () => ({ content: `[回复:${data.id}]` }),
-      rich: () => ({ content: `[富文本:${data.id || ''}]` })
+      face: async () => ({ content: `[表情:${data.id}]` }),
+      reply: () => this.resolveReplySegment(data.id, options?.expandReplies !== false),
+      rich: async () => ({ content: `[富文本:${data.id || ''}]` })
     };
 
     const handler = handlers[type];
-    return handler ? handler() : { content: `[${type}]` };
+    return handler ? await handler() : { content: `[${type}]` };
+  }
+
+  private async resolveReplySegment(
+    replyId: string | number | undefined,
+    expandReplies: boolean
+  ): Promise<{ content?: string; media?: string[]; files?: InboundFile[] }> {
+    if (!replyId) {
+      return { content: '[回复]' };
+    }
+
+    if (!expandReplies) {
+      return { content: `[回复:${replyId}]` };
+    }
+
+    try {
+      const response = await this.sendAction('get_msg', { message_id: replyId });
+      const referencedMessage = response?.data?.message;
+      const parsed = await this.parseMessageWithMedia(referencedMessage, { expandReplies: false });
+      const quotedContent = parsed.content?.trim();
+      const quotePrefix = quotedContent ? `【引用消息】\n${quotedContent}` : '【引用消息】';
+
+      return {
+        content: `${quotePrefix}\n\n`,
+        media: parsed.media,
+        files: parsed.files
+      };
+    } catch (error) {
+      this.log.warn('OneBot quoted message fetch failed', {
+        replyId: replyId.toString(),
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return { content: `[回复:${replyId}]` };
+    }
   }
 
   async send(msg: OutboundMessage): Promise<void> {
