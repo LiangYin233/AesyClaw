@@ -114,7 +114,9 @@ export class VisionStrategy implements ExecutionStrategy {
     return this.runner.run(visionMessages, toolContext, {
       ...options,
       model: this.visionModel,
-      allowTools: options.allowTools ?? true
+      allowTools: options.allowTools ?? true,
+      providerOverride: this.visionProvider,
+      reasoningOverride: this.visionSettings?.reasoning
     });
   }
 

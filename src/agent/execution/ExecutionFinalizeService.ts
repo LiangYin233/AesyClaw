@@ -64,7 +64,7 @@ export class ExecutionFinalizeService {
     }
 
     if (this.memoryService) {
-      await this.memoryService.maybePersistMemory(sessionKey, request.content, content);
+      await this.memoryService.maybePersistMemoryForRequest(sessionKey, request, content);
     }
 
     this.log.info('Execution response finalized', {

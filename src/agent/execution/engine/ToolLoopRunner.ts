@@ -28,7 +28,11 @@ export class ToolLoopRunner {
   async run(
     messages: LLMMessage[],
     toolContext: ToolContext,
-    options: ExecutionOptions & { model: string }
+    options: ExecutionOptions & {
+      model: string;
+      providerOverride?: LLMProvider;
+      reasoningOverride?: boolean;
+    }
   ): Promise<ExecutionResult> {
     const toolsUsed: string[] = [];
     const max = options.maxIterations ?? 40;
@@ -37,6 +41,8 @@ export class ToolLoopRunner {
     const initialToolCalls = options.initialToolCalls;
     const executionSignal = options.signal;
     const agentLabel = options.agentName || 'main';
+    const activeProvider = options.providerOverride ?? this.provider;
+    const reasoning = options.reasoningOverride ?? this.visionSettings?.reasoning;
 
     let agentMode = !!initialToolCalls;
     let toolCallQueue = [...(initialToolCalls || [])];
@@ -52,6 +58,49 @@ export class ToolLoopRunner {
         throw new Error(typeof reason === 'string' ? reason : 'Execution aborted');
       }
     };
+
+    if (toolCallQueue.length === 0) {
+      checkAbort();
+      const tools = allowTools ? this.toolRegistry.getDefinitions() : [];
+      const response = await activeProvider.chat(messages, tools, options.model, {
+        signal: executionSignal,
+        reasoning
+      });
+
+      if (response.usage) {
+        const { prompt_tokens, completion_tokens, total_tokens } = response.usage;
+        metrics.record('llm.tokens.prompt', prompt_tokens, 'count', { source });
+        metrics.record('llm.tokens.completion', completion_tokens, 'count', { source });
+        metrics.record('llm.tokens.total', total_tokens, 'count', { source });
+        tokenStats.record(prompt_tokens, completion_tokens, total_tokens);
+      }
+
+      if (response.toolCalls.length === 0) {
+        messages.push({ role: 'assistant', content: response.content || '' });
+        this.log.info('Execution completed', {
+          agent: agentLabel,
+          iteration,
+          toolCount: toolsUsed.length,
+          durationMs: Date.now() - startedAt,
+          sessionKey: options.sessionKey,
+          finishReason: 'stop'
+        });
+        return {
+          content: response.content || '',
+          reasoning_content: response.reasoning_content,
+          toolsUsed,
+          agentMode
+        };
+      }
+
+      messages.push({
+        role: 'assistant',
+        content: response.content || '',
+        toolCalls: response.toolCalls
+      });
+      toolCallQueue = response.toolCalls;
+      agentMode = true;
+    }
 
     while (toolCallQueue.length > 0 && iteration < max) {
       iteration++;
@@ -141,9 +190,9 @@ export class ToolLoopRunner {
       });
 
       const tools = allowTools ? this.toolRegistry.getDefinitions() : [];
-      const response = await this.provider.chat(messages, tools, options.model, {
+      const response = await activeProvider.chat(messages, tools, options.model, {
         signal: executionSignal,
-        reasoning: this.visionSettings?.reasoning
+        reasoning
       });
 
       if (response.usage) {
@@ -213,10 +262,10 @@ export class ToolLoopRunner {
   async callLLM(
     messages: LLMMessage[],
     model: string,
-    options?: { allowTools?: boolean; reasoning?: boolean; signal?: AbortSignal }
+    options?: { allowTools?: boolean; reasoning?: boolean; signal?: AbortSignal; providerOverride?: LLMProvider }
   ): Promise<{ content: string; reasoning_content?: string; usage?: any; toolCalls: ToolCall[] }> {
     const tools = options?.allowTools !== false ? this.toolRegistry.getDefinitions() : [];
-    const response = await this.provider.chat(messages, tools, model, {
+    const response = await (options?.providerOverride ?? this.provider).chat(messages, tools, model, {
       reasoning: options?.reasoning,
       signal: options?.signal
     });

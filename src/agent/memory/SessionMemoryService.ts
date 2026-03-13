@@ -1,3 +1,4 @@
+import type { InboundMessage } from '../../types.js';
 import type { LLMProvider } from '../../providers/base.js';
 import type { Session, SessionManager, SessionMessage } from '../../session/SessionManager.js';
 import { MemoryFactStore, type MemoryFact } from '../../session/MemoryFactStore.js';
@@ -123,11 +124,31 @@ export class SessionMemoryService {
   }
 
   async maybePersistMemory(sessionKey: string, userContent: string, _assistantContent: string): Promise<void> {
+    const request: InboundMessage = {
+      channel: '',
+      senderId: '',
+      chatId: '',
+      content: userContent,
+      timestamp: new Date()
+    };
+    return this.maybePersistMemoryForRequest(sessionKey, request, _assistantContent);
+  }
+
+  async maybePersistMemoryForRequest(sessionKey: string, request: Pick<InboundMessage, 'content' | 'media' | 'files'>, _assistantContent: string): Promise<void> {
     if (this.shouldSkipMemory(sessionKey)) {
       return;
     }
 
-    await this.maybeExtractFacts(sessionKey, userContent);
+    const hasText = request.content.trim().length > 0;
+    const hasMedia = Array.isArray(request.media) && request.media.length > 0;
+    const hasFiles = Array.isArray(request.files) && request.files.length > 0;
+
+    if (!hasText && hasMedia && !hasFiles) {
+      this.log.debug('Skip memory persistence for pure image message', { sessionKey, mediaCount: request.media?.length || 0 });
+      return;
+    }
+
+    await this.maybeExtractFacts(sessionKey, request.content);
     await this.maybeSummarizeSession(sessionKey);
   }
 
