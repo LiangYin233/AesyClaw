@@ -4,7 +4,7 @@ import type { AgentRoleConfig, Config } from '../../types.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import type { SkillManager } from '../../skills/SkillManager.js';
 import { createProvider } from '../../providers/index.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
 
 export interface ResolvedAgentRole extends AgentRoleConfig {
   builtin: boolean;
@@ -17,7 +17,7 @@ export interface ResolvedAgentRole extends AgentRoleConfig {
 const MAIN_AGENT_NAME = 'main';
 
 export class AgentRoleService {
-  private log = logger.child({ prefix: 'AgentRoleService' });
+  private log = logger.child('AgentRoleService');
 
   constructor(
     private getConfig: () => Config,

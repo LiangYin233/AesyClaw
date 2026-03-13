@@ -42,9 +42,9 @@
                                 <span class="config-label">日志级别</span>
                                 <Tag :value="config.level.toUpperCase()" :severity="getLevelSeverity(config.level)" />
                             </div>
-                            <div v-if="config.prefix" class="config-item">
-                                <span class="config-label">日志前缀</span>
-                                <Tag :value="config.prefix" severity="info" />
+                            <div class="config-item">
+                                <span class="config-label">缓存容量</span>
+                                <Tag :value="String(config.bufferSize)" severity="info" />
                             </div>
                         </div>
                     </div>
@@ -100,8 +100,8 @@
                         <article v-for="entry in logEntries" :key="entry.id" class="console-line" :class="`console-line--${entry.level}`">
                             <span class="console-line__time">{{ formatTimestamp(entry.timestamp) }}</span>
                             <span class="console-line__level">{{ entry.level.toUpperCase() }}</span>
-                            <span v-if="entry.prefix" class="console-line__prefix">{{ entry.prefix }}</span>
-                            <pre class="console-line__text">{{ entry.message }}<template v-if="entry.context"> | {{ entry.context }}</template></pre>
+                            <span v-if="entry.scope" class="console-line__prefix">{{ entry.scope }}</span>
+                            <pre class="console-line__text">{{ entry.message }}<template v-if="formatFields(entry.fields)"> | {{ formatFields(entry.fields) }}</template></pre>
                         </article>
                     </div>
                 </div>
@@ -202,6 +202,13 @@ function formatTimestamp(value: string) {
 
 function formatLastUpdate(value: number) {
     return new Date(value).toLocaleTimeString()
+}
+
+function formatFields(fields?: Record<string, string | number | boolean | null>) {
+    if (!fields) return ''
+    return Object.entries(fields)
+        .map(([key, value]) => `${key}=${String(value)}`)
+        .join(' ')
 }
 
 onMounted(async () => {

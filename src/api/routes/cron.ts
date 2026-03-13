@@ -1,7 +1,7 @@
 import type { Express } from 'express';
 import { randomUUID } from 'crypto';
 import type { CronService } from '../../cron/index.js';
-import { createErrorResponse, createValidationErrorResponse, NotFoundError } from '../../logger/index.js';
+import { createErrorResponse, createValidationErrorResponse, NotFoundError } from '../../errors/index.js';
 
 export function registerCronRoutes(app: Express, cronService?: CronService): void {
   if (!cronService) return;

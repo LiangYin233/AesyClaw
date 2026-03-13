@@ -2,8 +2,8 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import type { ToolDefinition, MCPServersConfig, MCPServerConfig, MCPServerInfo } from '../types.js';
-import { logger } from '../logger/index.js';
-import { metrics } from '../logger/Metrics.js';
+import { logger } from '../observability/index.js';
+import { metrics } from '../observability/index.js';
 import { CONSTANTS } from '../constants/index.js';
 
 export class MCPClientManager {
@@ -11,7 +11,7 @@ export class MCPClientManager {
   private tools: Map<string, ToolDefinition> = new Map();
   private serverStatus: Map<string, MCPServerInfo> = new Map();
   private toolLoadCallbacks: Array<(tools: ToolDefinition[]) => void> = [];
-  private log = logger.child({ prefix: 'MCP' });
+  private log = logger.child('MCP');
   private static readonly DEFAULT_TIMEOUT = CONSTANTS.MCP_TIMEOUT;
 
   /**

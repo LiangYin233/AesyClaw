@@ -1,11 +1,11 @@
 import { ConfigLoader } from '../../config/loader.js';
 import { resolveProviderSelection } from '../../config/index.js';
 import { createProvider } from '../../providers/index.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
 import type { Services } from '../factory/ServiceFactory.js';
 import { createMemoryService } from '../factory/ServiceFactory.js';
 
-const log = logger.child({ prefix: 'Bootstrap' });
+const log = logger.child('Bootstrap');
 
 export function setupConfigReload(services: Services): void {
   const { agentRuntime, apiServer, sessionManager, memoryFactStore } = services;

@@ -15,3 +15,16 @@ export type { CronJob, CronSchedule, CronPayload } from './cron/index.js';
 export { APIServer } from './api/index.js';
 export { ConfigLoader } from './config/index.js';
 export { configSchema } from './config/index.js';
+export { logger, logging, preview, metrics, tokenUsage } from './observability/index.js';
+export type {
+  LogEntry,
+  LogFieldValue,
+  LogFields,
+  LogLevel,
+  Logger,
+  Metric,
+  MetricStats,
+  MetricsConfig,
+  TokenUsage
+} from './observability/index.js';
+export * from './errors/index.js';

@@ -17,18 +17,20 @@ export type {
   ChannelConfig,
   Config,
   ConfigValidationIssue,
-  LogConfig,
+  LoggingConfig,
   MCPServerConfig,
   MCPServersConfig,
   MCPTransportType,
   MemoryFactsConfig,
   MemorySummaryConfig,
-  MetricsConfig,
+  ObservabilityConfig,
+  ObservabilityMetricsConfig,
   PluginConfig,
   ProviderConfig,
   ResolvedProviderSelection,
   ServerConfig,
   SkillConfig,
   StoredAgentRoleConfig,
-  ToolsConfig
+  ToolsConfig,
+  UsageConfig
 } from './schema.js';

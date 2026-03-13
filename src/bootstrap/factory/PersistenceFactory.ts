@@ -3,11 +3,11 @@ import type { Config } from '../../types.js';
 import { SessionMemoryService } from '../../agent/memory/SessionMemoryService.js';
 import { SessionRoutingService } from '../../agent/session/SessionRoutingService.js';
 import { MemoryFactStore, SessionManager } from '../../session/index.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
 import { createProvider } from '../../providers/index.js';
 import { resolveProviderSelection } from '../../config/index.js';
 
-const log = logger.child({ prefix: 'PersistenceFactory' });
+const log = logger.child('PersistenceFactory');
 
 function createOptionalProvider(resolved: ReturnType<typeof resolveProviderSelection>, label: string) {
   if (!resolved.providerConfig) {

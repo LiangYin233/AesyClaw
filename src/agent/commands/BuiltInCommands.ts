@@ -3,11 +3,11 @@ import type { SessionManager } from '../../session/SessionManager.js';
 import type { AgentRoleService } from '../roles/AgentRoleService.js';
 import type { SessionRoutingService } from '../session/SessionRoutingService.js';
 import type { AgentRuntime } from '../runtime/AgentRuntime.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
 import { CommandHandler, type CommandDefinition } from './CommandHandler.js';
 
 export class BuiltInCommands extends CommandHandler {
-  private log = logger.child({ prefix: 'BuiltInCommands' });
+  private log = logger.child('BuiltInCommands');
 
   constructor(
     private sessionManager: SessionManager,

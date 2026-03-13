@@ -1,6 +1,6 @@
 import type { LLMMessage, LLMResponse, OutboundMessage } from '../../types.js';
 import type { ToolContext } from '../../tools/ToolRegistry.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
 
 export interface BackgroundTaskResult {
   content: string;
@@ -68,7 +68,7 @@ export interface BackgroundTaskExecutor {
 export class BackgroundTaskManager {
   private tasks: Map<string, BackgroundTask> = new Map();
   private maxConcurrentPerSession: number = 5;
-  private log = logger.child({ prefix: 'BackgroundTask' });
+  private log = logger.child('BackgroundTask');
 
   constructor(private sendOutbound: (message: OutboundMessage) => Promise<void>) {
   }

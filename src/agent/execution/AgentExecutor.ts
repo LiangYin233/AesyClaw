@@ -3,7 +3,7 @@ import type { LLMProvider } from '../../providers/base.js';
 import type { ToolRegistry, ToolContext } from '../../tools/ToolRegistry.js';
 import type { PluginManager } from '../../plugins/index.js';
 import { ContextBuilder } from './ContextBuilder.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
 import { ToolLoopRunner } from './ToolLoopRunner.js';
 import { SyncStrategy, BackgroundStrategy, VisionStrategy } from './ExecutionStrategies.js';
 import { ExecutionRegistry } from './ExecutionRegistry.js';
@@ -18,7 +18,7 @@ export class AgentExecutor {
   private visionProvider?: LLMProvider;
   private visionModel?: string;
   private executionRegistry: ExecutionRegistry;
-  private log = logger.child({ prefix: 'AgentExecutor' });
+  private log = logger.child('AgentExecutor');
 
   constructor(
     provider: LLMProvider,

@@ -1,0 +1,279 @@
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogFieldValue = string | number | boolean | null;
+export type LogFields = Record<string, unknown>;
+
+export interface LogEntry {
+  id: string;
+  timestamp: string;
+  level: LogLevel;
+  scope: string;
+  message: string;
+  fields?: Record<string, LogFieldValue>;
+}
+
+export interface LoggingConfig {
+  level: LogLevel;
+  bufferSize: number;
+}
+
+export interface Logger {
+  child(scope: string): Logger;
+  debug(message: string, fields?: LogFields): void;
+  info(message: string, fields?: LogFields): void;
+  warn(message: string, fields?: LogFields): void;
+  error(message: string, fields?: LogFields): void;
+}
+
+const LEVELS: Record<LogLevel, number> = {
+  debug: 0,
+  info: 1,
+  warn: 2,
+  error: 3
+};
+
+const SENSITIVE_KEY_PATTERN = /(authorization|token|api[-_]?key|secret|password|cookie)/i;
+const DEFAULT_PREVIEW_LIMIT = 120;
+
+function collapseWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function redactString(value: string): string {
+  const strippedQuery = value.replace(/(https?:\/\/[^\s?]+)\?[^\s]+/g, '$1?...');
+  return strippedQuery.replace(/\b(Bearer\s+)[^\s]+/gi, '$1[redacted]');
+}
+
+export function preview(value: unknown, limit: number = DEFAULT_PREVIEW_LIMIT): string {
+  if (value === undefined || value === null) {
+    return '';
+  }
+
+  const compact = collapseWhitespace(redactString(typeof value === 'string' ? value : String(value)));
+  if (compact.length <= limit) {
+    return compact;
+  }
+
+  return `${compact.slice(0, Math.max(limit - 1, 1))}…`;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Error) && !(value instanceof Date);
+}
+
+function serializeFieldValue(value: unknown, key?: string): LogFieldValue | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null) {
+    return null;
+  }
+  if (key && SENSITIVE_KEY_PATTERN.test(key)) {
+    return '[redacted]';
+  }
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  if (value instanceof Error) {
+    return preview(value.message);
+  }
+  if (typeof value === 'string') {
+    return preview(value);
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'bigint') {
+    return value.toString();
+  }
+  if (Array.isArray(value)) {
+    return preview(JSON.stringify(value.slice(0, 8)));
+  }
+  if (isPlainObject(value)) {
+    const normalized: Record<string, LogFieldValue> = {};
+    for (const [nestedKey, nestedValue] of Object.entries(value).slice(0, 8)) {
+      const serialized = serializeFieldValue(nestedValue, nestedKey);
+      if (serialized !== undefined) {
+        normalized[nestedKey] = serialized;
+      }
+    }
+    return preview(JSON.stringify(normalized));
+  }
+  return preview(String(value));
+}
+
+function formatFields(fields?: Record<string, LogFieldValue>): string {
+  if (!fields || Object.keys(fields).length === 0) {
+    return '';
+  }
+
+  return Object.entries(fields)
+    .map(([key, value]) => `${key}=${typeof value === 'string' ? JSON.stringify(value) : String(value)}`)
+    .join(' ');
+}
+
+class LogBuffer {
+  private entries: LogEntry[] = [];
+  private sequence = 0;
+
+  constructor(private limit: number) {}
+
+  setLimit(limit: number): void {
+    this.limit = limit;
+    if (this.entries.length > limit) {
+      this.entries = this.entries.slice(-limit);
+    }
+  }
+
+  add(entry: Omit<LogEntry, 'id'>): void {
+    this.entries.push({
+      ...entry,
+      id: `${Date.now()}-${++this.sequence}`
+    });
+    if (this.entries.length > this.limit) {
+      this.entries = this.entries.slice(-this.limit);
+    }
+  }
+
+  list(options: { level?: LogLevel; limit?: number } = {}): LogEntry[] {
+    const filtered = options.level
+      ? this.entries.filter((entry) => entry.level === options.level)
+      : this.entries;
+    return filtered.slice(-(options.limit ?? 200)).reverse();
+  }
+
+  size(): number {
+    return this.entries.length;
+  }
+}
+
+class LoggingService {
+  private config: LoggingConfig = {
+    level: 'info',
+    bufferSize: 1000
+  };
+  private buffer = new LogBuffer(this.config.bufferSize);
+
+  readonly root: Logger = new ScopedLogger(this, '');
+
+  configure(partial: Partial<LoggingConfig>): void {
+    this.config = {
+      ...this.config,
+      ...partial
+    };
+    this.buffer.setLimit(this.config.bufferSize);
+  }
+
+  setLevel(level: LogLevel): void {
+    this.config.level = level;
+  }
+
+  getLevel(): LogLevel {
+    return this.config.level;
+  }
+
+  getConfig(): LoggingConfig {
+    return { ...this.config };
+  }
+
+  getEntries(options: { level?: LogLevel; limit?: number } = {}): LogEntry[] {
+    return this.buffer.list(options);
+  }
+
+  getBufferSize(): number {
+    return this.buffer.size();
+  }
+
+  write(level: LogLevel, scope: string, message: string, rawFields?: unknown): void {
+    if (LEVELS[level] < LEVELS[this.config.level]) {
+      return;
+    }
+
+    const fields = this.normalizeFields(rawFields);
+    const timestamp = new Date();
+    const line = this.formatLine({ level, scope, message, fields, timestamp });
+
+    this.buffer.add({
+      timestamp: timestamp.toISOString(),
+      level,
+      scope,
+      message,
+      fields
+    });
+
+    if (level === 'error') {
+      console.error(line);
+      return;
+    }
+    if (level === 'warn') {
+      console.warn(line);
+      return;
+    }
+    console.log(line);
+  }
+
+  private normalizeFields(rawFields?: unknown): Record<string, LogFieldValue> | undefined {
+    if (rawFields === undefined) {
+      return undefined;
+    }
+
+    if (!isPlainObject(rawFields)) {
+      const detail = serializeFieldValue(rawFields, 'detail');
+      return detail === undefined ? undefined : { detail };
+    }
+
+    const fields: Record<string, LogFieldValue> = {};
+    for (const [key, value] of Object.entries(rawFields)) {
+      const serialized = serializeFieldValue(value, key);
+      if (serialized !== undefined) {
+        fields[key] = serialized;
+      }
+    }
+
+    return Object.keys(fields).length > 0 ? fields : undefined;
+  }
+
+  private formatLine(entry: {
+    level: LogLevel;
+    scope: string;
+    message: string;
+    fields?: Record<string, LogFieldValue>;
+    timestamp: Date;
+  }): string {
+    const time = entry.timestamp.toISOString().slice(11, 23);
+    const scope = entry.scope ? entry.scope.padEnd(18).slice(0, 18) : ''.padEnd(18);
+    const fields = formatFields(entry.fields);
+    return fields
+      ? `${time} ${scope} ${entry.level.toUpperCase()} ${entry.message} | ${fields}`
+      : `${time} ${scope} ${entry.level.toUpperCase()} ${entry.message}`;
+  }
+}
+
+class ScopedLogger implements Logger {
+  constructor(
+    private service: LoggingService,
+    private scope: string
+  ) {}
+
+  child(scope: string): Logger {
+    return new ScopedLogger(this.service, this.scope ? `${this.scope}/${scope}` : scope);
+  }
+
+  debug(message: string, fields?: LogFields): void {
+    this.service.write('debug', this.scope, message, fields);
+  }
+
+  info(message: string, fields?: LogFields): void {
+    this.service.write('info', this.scope, message, fields);
+  }
+
+  warn(message: string, fields?: LogFields): void {
+    this.service.write('warn', this.scope, message, fields);
+  }
+
+  error(message: string, fields?: LogFields): void {
+    this.service.write('error', this.scope, message, fields);
+  }
+}
+
+export const logging = new LoggingService();
+export const logger = logging.root;

@@ -1,10 +1,11 @@
 import { randomUUID } from 'crypto';
-import { logger, normalizeError } from '../../logger/index.js';
+import { normalizeError } from '../../errors/index.js';
+import { logger } from '../../observability/index.js';
 import { CRON_SESSION_KEY_PREFIX } from '../../constants/index.js';
 import type { Services } from '../factory/ServiceFactory.js';
 import type { CronJob } from '../../cron/index.js';
 
-const log = logger.child({ prefix: 'Bootstrap' });
+const log = logger.child('Bootstrap');
 
 function parseTarget(to: string): { channel: string; chatId: string; messageType: 'private' | 'group' } | null {
   const match = to.match(/^([^:]+):(private|group):(.+)$/);

@@ -1,7 +1,7 @@
 import type { InboundMessage, OutboundMessage } from '../../types.js';
 import type { PluginManager } from '../../plugins/index.js';
 import type { CommandRegistry } from '../commands/index.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
 
 export type PipelineResult =
   | { type: 'continue'; message: InboundMessage }
@@ -9,7 +9,7 @@ export type PipelineResult =
   | { type: 'handled' };
 
 export class AgentPipeline {
-  private log = logger.child({ prefix: 'AgentPipeline' });
+  private log = logger.child('AgentPipeline');
 
   constructor(
     private commandRegistry: CommandRegistry,

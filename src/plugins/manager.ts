@@ -3,7 +3,7 @@ import { join } from 'path';
 import { mkdir } from 'fs/promises';
 import type { InboundMessage, OutboundMessage } from '../types.js';
 import type { ToolContext } from '../tools/ToolRegistry.js';
-import { logger as rootLogger } from '../logger/index.js';
+import { logger as rootLogger } from '../observability/index.js';
 import { pathToFileURL } from 'url';
 import {
   createPluginInstance,
@@ -74,7 +74,7 @@ export class PluginManager {
   private discoveredPlugins: DiscoveredPlugin[] | null = null;
 
   constructor(private readonly options: PluginManagerOptions) {
-    this.log = (options.logger ?? rootLogger).child({ prefix: 'PluginManager' });
+    this.log = (options.logger ?? rootLogger).child('PluginManager');
   }
 
   async runCommands(message: InboundMessage): Promise<PluginCommandExecutionResult | null> {

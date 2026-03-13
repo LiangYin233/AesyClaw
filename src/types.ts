@@ -3,17 +3,19 @@
   AgentRoleConfig,
   AgentsConfig,
   Config,
-  LogConfig,
   MCPServerConfig,
   MCPServersConfig,
   MCPTransportType,
   MemoryFactsConfig,
   MemorySummaryConfig,
-  MetricsConfig,
+  LoggingConfig,
+  ObservabilityConfig,
+  ObservabilityMetricsConfig,
   ProviderConfig,
   ServerConfig,
   StoredAgentRoleConfig,
-  ToolsConfig
+  ToolsConfig,
+  UsageConfig
 } from './config/schema.js';
 import type {
   ChannelConversation,
@@ -35,17 +37,19 @@ export type {
   AgentRoleConfig,
   AgentsConfig,
   Config,
-  LogConfig,
+  LoggingConfig,
   MCPServerConfig,
   MCPServersConfig,
   MCPTransportType,
   MemoryFactsConfig,
   MemorySummaryConfig,
-  MetricsConfig,
+  ObservabilityConfig,
+  ObservabilityMetricsConfig,
   ProviderConfig,
   ServerConfig,
   StoredAgentRoleConfig,
-  ToolsConfig
+  ToolsConfig,
+  UsageConfig
 };
 
 export type {

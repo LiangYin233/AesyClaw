@@ -1,13 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { apiGet, apiPost } from '../utils/apiClient'
-import type { LogConfig, LogEntry, LogsResponse } from '../types/api'
+import type { LoggingConfig, ObservabilityLogEntry, LoggingEntriesResponse } from '../types/api'
 
 type LogFilterLevel = 'all' | 'debug' | 'info' | 'warn' | 'error'
 
 export const useLogsStore = defineStore('logs', () => {
-  const config = ref<LogConfig | null>(null)
-  const entries = ref<LogEntry[]>([])
+  const config = ref<LoggingConfig | null>(null)
+  const entries = ref<ObservabilityLogEntry[]>([])
   const loading = ref(false)
   const entriesLoading = ref(false)
   const error = ref<string | null>(null)
@@ -21,7 +21,7 @@ export const useLogsStore = defineStore('logs', () => {
     loading.value = true
     error.value = null
     try {
-      const { data, error: err } = await apiGet<LogConfig>('/logs/config')
+      const { data, error: err } = await apiGet<LoggingConfig>('/observability/logging/config')
       if (err) {
         error.value = err
         config.value = null
@@ -46,7 +46,7 @@ export const useLogsStore = defineStore('logs', () => {
         params.set('level', level)
       }
 
-      const { data, error: err } = await apiGet<LogsResponse>(`/logs/entries?${params.toString()}`)
+      const { data, error: err } = await apiGet<LoggingEntriesResponse>(`/observability/logging/entries?${params.toString()}`)
       if (err) {
         error.value = err
         return false
@@ -61,7 +61,7 @@ export const useLogsStore = defineStore('logs', () => {
   }
 
   async function setLogLevel(level: string) {
-    const { error: err } = await apiPost('/logs/level', { level })
+    const { error: err } = await apiPost('/observability/logging/level', { level })
     if (err) {
       error.value = err
       return false

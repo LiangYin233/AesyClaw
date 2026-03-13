@@ -1,6 +1,7 @@
 import type { Database } from '../db/index.js';
-import { logger, normalizeError } from '../logger/index.js';
+import { normalizeError } from '../errors/index.js';
 import type { InboundMessage, OutboundMessage } from '../types.js';
+import { logger } from '../observability/index.js';
 import { ChannelRuntime } from './core/runtime.js';
 import type { ChannelAdapter } from './core/adapter.js';
 import type { DeliveryReceipt } from './core/types.js';
@@ -22,7 +23,7 @@ export class ChannelManager {
   #channels = new Map<string, ChannelAdapter>();
   #runtime: ChannelRuntime;
   #workspace: string;
-  #log = logger.child({ prefix: 'ChannelManager' });
+  #log = logger.child('ChannelManager');
 
   constructor(db: Database, workspace?: string) {
     this.#runtime = new ChannelRuntime(db, workspace || process.cwd());

@@ -1,6 +1,7 @@
 import { LLMProvider } from './base.js';
 import type { LLMMessage, LLMResponse, ToolDefinition, ToolCall } from '../types.js';
-import { logger, normalizeError, isRetryableError } from '../logger/index.js';
+import { normalizeError, isRetryableError } from '../errors/index.js';
+import { logger, preview } from '../observability/index.js';
 
 interface OpenAITool {
   type: string;
@@ -55,7 +56,7 @@ interface OpenAIResponse {
 
 export class OpenAIProvider extends LLMProvider {
   private baseURL = 'https://api.openai.com/v1';
-  private log = logger.child({ prefix: 'Provider' });
+  private log = logger.child('Provider');
 
   /**
    * Format tools for OpenAI API
@@ -171,7 +172,11 @@ export class OpenAIProvider extends LLMProvider {
       const data = await response.json() as OpenAIResponse;
 
       if (!response.ok) {
-        this.log.error(`API Error: ${response.status} ${response.statusText}`, data);
+        this.log.error(`API Error: ${response.status} ${response.statusText}`, {
+          status: response.status,
+          statusText: response.statusText,
+          response: data
+        });
         throw new Error(data.error?.message || `API Error: ${response.status} ${response.statusText}`);
       }
 
@@ -207,7 +212,7 @@ export class OpenAIProvider extends LLMProvider {
           } catch (error) {
             this.log.warn('Tool call arguments parse failed', {
               toolName: tc.function.name,
-              argumentsPreview: this.log.preview(tc.function.arguments),
+              argumentsPreview: preview(tc.function.arguments),
               error: normalizeError(error)
             });
             args = {};

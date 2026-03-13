@@ -1,9 +1,10 @@
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { Database, type DBSession, type DBMessage, type DBSessionMemory, type DBSessionAgentState } from '../db/index.js';
-import { logger } from '../logger/index.js';
+import { logger } from '../observability/index.js';
 import { CONSTANTS, CONFIG_DEFAULTS } from '../constants/index.js';
-import { metrics } from '../logger/Metrics.js';
+import { metrics } from '../observability/index.js';
+import { normalizeError } from '../errors/index.js';
 
 function parseSessionKey(key: string): { channel: string; chatId: string; uuid?: string } {
   const parts = key.split(':');
@@ -38,7 +39,7 @@ export class SessionManager {
   private sessions: Map<string, Session> = new Map();
   private maxSessions: number;
   private sessionLocks: Map<string, Promise<Session>> = new Map();
-  private log = logger.child({ prefix: 'SessionManager' });
+  private log = logger.child('SessionManager');
 
   constructor(storageDir: string, maxSessions: number = CONFIG_DEFAULTS.DEFAULT_MAX_SESSIONS) {
     this.maxSessions = maxSessions;
@@ -161,7 +162,9 @@ export class SessionManager {
         }
       }
     } catch (error) {
-      this.log.warn('Failed to cleanup old sessions:', error);
+      this.log.warn('Failed to cleanup old sessions', {
+        error: normalizeError(error)
+      });
     }
   }
 

@@ -1,14 +1,22 @@
 import { join } from 'path';
 import type { Config } from '../../types.js';
-import { logger } from '../../logger/index.js';
-import { metrics } from '../../logger/Metrics.js';
-import { tokenStats } from '../../logger/TokenStats.js';
+import { logging, metrics, tokenUsage } from '../../observability/index.js';
 import { parseConfig } from '../../config/index.js';
 
 export function bootstrapRuntimeConfig(config: Config): Config {
   const resolved = parseConfig(config);
-  logger.setLevel(resolved.log.level);
-  metrics.setEnabled(resolved.metrics.enabled);
-  tokenStats.setDataDir(join(process.cwd(), '.aesyclaw'));
+  logging.configure({
+    level: resolved.observability.logging.level,
+    bufferSize: resolved.observability.logging.bufferSize
+  });
+  metrics.configure({
+    enabled: resolved.observability.metrics.enabled,
+    maxPoints: resolved.observability.metrics.maxPoints
+  });
+  tokenUsage.configure({
+    enabled: resolved.observability.usage.enabled,
+    persistFile: join(process.cwd(), resolved.observability.usage.persistFile),
+    flushIntervalMs: resolved.observability.usage.flushIntervalMs
+  });
   return resolved;
 }

@@ -5,7 +5,7 @@ import type { ToolRegistry, ToolContext } from '../../tools/ToolRegistry.js';
 import type { AgentRoleService } from '../roles/AgentRoleService.js';
 import { AgentExecutor } from './AgentExecutor.js';
 import { ScopedToolRegistry } from '../../tools/ScopedToolRegistry.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
 import type { ExecutionContext, ExecutionPolicy } from './ExecutionTypes.js';
 import type { ExecutionRegistry } from './ExecutionRegistry.js';
 
@@ -41,7 +41,7 @@ function buildOperationalPrompt(allowedToolNames: string[]): string {
 }
 
 export class ExecutionEngine {
-  private log = logger.child({ prefix: 'ExecutionEngine' });
+  private log = logger.child('ExecutionEngine');
 
   constructor(
     private options: ExecutionEngineOptions,

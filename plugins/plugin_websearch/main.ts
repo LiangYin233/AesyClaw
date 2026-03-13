@@ -1,4 +1,5 @@
 import { definePlugin } from '../../src/plugins/index.ts';
+import { preview } from '../../src/observability/index.ts';
 
 type TavilySearchDepth = 'basic' | 'advanced' | 'fast' | 'ultra-fast';
 
@@ -56,7 +57,7 @@ export default definePlugin<WebsearchOptions>({
     }
   },
   setup(ctx) {
-    const log = ctx.logger.child({ prefix: 'websearch' });
+    const log = ctx.logger.child('websearch');
     const config: WebsearchOptions = {
       apiKey: ctx.options.apiKey || process.env.TAVILY_API_KEY || '',
       maxResults: ctx.options.maxResults || 5,
@@ -106,7 +107,7 @@ export default definePlugin<WebsearchOptions>({
         }
 
         log.info('Web search started', {
-          query: log.preview(query),
+          query: preview(query),
           maxResults: max_results || config.maxResults,
           searchDepth: search_depth || config.searchDepth
         });
@@ -127,14 +128,14 @@ export default definePlugin<WebsearchOptions>({
           })) || [];
 
           log.info('Web search completed', {
-            query: log.preview(query),
+            query: preview(query),
             resultCount: results.length
           });
           return JSON.stringify(results);
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           log.error('Web search failed', {
-            query: log.preview(query),
+            query: preview(query),
             error: message
           });
           throw new Error(`搜索失败: ${message}`, { cause: error });
@@ -222,7 +223,7 @@ export default definePlugin<WebsearchOptions>({
           log.info('Web extract completed', {
             urlCount: urls.length,
             resultCount: results.length,
-            query: typeof query === 'string' ? log.preview(query) : undefined
+            query: typeof query === 'string' ? preview(query) : undefined
           });
           return JSON.stringify(results);
         } catch (error) {

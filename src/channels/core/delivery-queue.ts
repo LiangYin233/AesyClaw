@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
 import { Database } from '../../db/index.js';
 import type { AdapterSendResult, ChannelMessage, DeliveryReceipt } from './types.js';
 
@@ -44,7 +44,7 @@ function reviveMessage(message: any): ChannelMessage {
 }
 
 export class DeliveryQueue {
-  private log = logger.child({ prefix: 'DeliveryQueue' });
+  private log = logger.child('DeliveryQueue');
   private pollTimer?: NodeJS.Timeout;
   private running = false;
   private inflight = new Set<string>();

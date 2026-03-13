@@ -1,4 +1,4 @@
-import type { Logger } from '../logger/index.js';
+import type { Logger } from '../observability/index.js';
 import type { Tool, ToolContext, ToolRegistry } from '../tools/ToolRegistry.js';
 import type { Config, InboundMessage, LLMMessage, LLMResponse, OutboundMessage, PluginErrorContext } from '../types.js';
 

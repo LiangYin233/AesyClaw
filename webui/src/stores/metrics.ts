@@ -20,7 +20,7 @@ export const useMetricsStore = defineStore('metrics', () => {
   })
 
   async function fetchOverview() {
-    const { data, error: err } = await apiGet<MetricOverview>('/metrics/overview')
+    const { data, error: err } = await apiGet<MetricOverview>('/observability/metrics/overview')
     if (err) {
       error.value = err
       return null
@@ -30,7 +30,7 @@ export const useMetricsStore = defineStore('metrics', () => {
   }
 
   async function fetchMemoryUsage() {
-    const { data, error: err } = await apiGet<MemoryUsage>('/metrics/memory')
+    const { data, error: err } = await apiGet<MemoryUsage>('/observability/metrics/memory')
     if (err) {
       error.value = err
       return null
@@ -40,7 +40,7 @@ export const useMetricsStore = defineStore('metrics', () => {
   }
 
   async function fetchMetricNames() {
-    const { data, error: err } = await apiGet<{ names: string[] }>('/metrics/names')
+    const { data, error: err } = await apiGet<{ names: string[] }>('/observability/metrics/names')
     if (err) {
       error.value = err
       return []
@@ -50,7 +50,7 @@ export const useMetricsStore = defineStore('metrics', () => {
   }
 
   async function fetchMetricStats(name: string, options?: { updateSelection?: boolean }) {
-    const { data, error: err } = await apiGet<MetricStats>(`/metrics/stats/${name}`)
+    const { data, error: err } = await apiGet<MetricStats>(`/observability/metrics/stats/${name}`)
     if (err) {
       error.value = err
       return null
@@ -62,7 +62,7 @@ export const useMetricsStore = defineStore('metrics', () => {
   }
 
   async function exportMetrics() {
-    const { data, error: err } = await apiGet<Record<string, any>>('/metrics/export')
+    const { data, error: err } = await apiGet<Record<string, any>>('/observability/metrics/export')
     if (err) {
       error.value = err
       return null
@@ -71,7 +71,7 @@ export const useMetricsStore = defineStore('metrics', () => {
   }
 
   async function clearMetrics() {
-    const { error: err } = await apiPost('/metrics/clear')
+    const { error: err } = await apiPost('/observability/metrics/clear')
     if (err) {
       error.value = err
       return false

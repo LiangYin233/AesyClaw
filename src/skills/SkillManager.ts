@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { logger } from '../logger/index.js';
+import { normalizeError } from '../errors/index.js';
+import { logger } from '../observability/index.js';
 import type { Config } from '../types.js';
 import { ConfigLoader } from '../config/loader.js';
 
@@ -38,7 +39,7 @@ export interface SkillResult {
 export class SkillManager {
   private skills: Map<string, SkillInfo> = new Map();
   private skillsDir: string = './skills';
-  private log = logger.child({ prefix: 'SkillManager' });
+  private log = logger.child('SkillManager');
   private config: Config | null = null;
 
   constructor(skillsDir?: string) {
@@ -67,7 +68,10 @@ export class SkillManager {
       }));
       this.log.info(`Loaded ${this.skills.size} skills`);
     } catch (error) {
-      this.log.warn(`Failed to load skills from ${absolutePath}:`, error);
+      this.log.warn(`Failed to load skills from ${absolutePath}`, {
+        path: absolutePath,
+        error: normalizeError(error)
+      });
     }
   }
 
@@ -102,7 +106,10 @@ export class SkillManager {
 
       this.log.debug(`Loaded skill: ${name} with ${files.length} files, enabled: ${enabled}`);
     } catch (error) {
-      this.log.warn(`Failed to load skill ${name}:`, error);
+      this.log.warn(`Failed to load skill ${name}`, {
+        skill: name,
+        error: normalizeError(error)
+      });
     }
   }
 
@@ -121,7 +128,10 @@ export class SkillManager {
         });
       }
     } catch (error) {
-      this.log.warn(`Failed to list files in ${skillPath}:`, error);
+      this.log.warn(`Failed to list files in ${skillPath}`, {
+        path: skillPath,
+        error: normalizeError(error)
+      });
     }
 
     return files;
@@ -239,7 +249,10 @@ export class SkillManager {
       const content = await fs.readFile(file.path, 'utf-8');
       return content;
     } catch (error) {
-      this.log.error(`Failed to read skill file ${file.path}:`, error);
+      this.log.error(`Failed to read skill file ${file.path}`, {
+        path: file.path,
+        error: normalizeError(error)
+      });
       return `Failed to read file: ${error}`;
     }
   }

@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { ToolContext, ToolRegistry } from '../tools/ToolRegistry.js';
 import type { CronService, CronJob, CronSchedule } from './CronService.js';
-import { logger } from '../logger/index.js';
+import { logger } from '../observability/index.js';
 
 /**
  * Parse an interval string into milliseconds
@@ -44,7 +44,7 @@ export function registerCronTools(
   toolRegistry: ToolRegistry,
   cronService: CronService
 ): void {
-  const log = logger.child({ prefix: 'CronTools' });
+  const log = logger.child('CronTools');
 
   toolRegistry.register({
     name: 'create_cron_task',

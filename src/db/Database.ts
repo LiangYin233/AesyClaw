@@ -1,12 +1,12 @@
 import sqlite3, { Database as SQLiteDatabase } from 'sqlite3';
 import { dirname } from 'path';
 import { existsSync, mkdirSync } from 'fs';
-import { logger } from '../logger/index.js';
-import { metrics } from '../logger/Metrics.js';
+import { logger } from '../observability/index.js';
+import { metrics } from '../observability/index.js';
 
 export class Database {
   private db: SQLiteDatabase;
-  private log = logger.child({ prefix: 'Database' });
+  private log = logger.child('Database');
   private initPromise: Promise<void>;
 
   constructor(dbPath: string) {

@@ -4,10 +4,10 @@ import type { ExecutionContext } from './ExecutionTypes.js';
 import type { ExecutionEngine } from './ExecutionEngine.js';
 import type { ExecutionFinalizer } from './ExecutionFinalizer.js';
 import type { ExecutionControl } from './ExecutionControl.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
 
 export class ExecutionRuntime {
-  private log = logger.child({ prefix: 'ExecutionRuntime' });
+  private log = logger.child('ExecutionRuntime');
   private readonly subAgentExcludedTools = ['send_msg_to_user', 'call_agent'];
   private static readonly IMAGE_SUMMARY_PREFIX = '【图片概括】';
 

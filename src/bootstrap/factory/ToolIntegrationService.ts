@@ -8,7 +8,8 @@ import type { OutboundMessage, ToolDefinition } from '../../types.js';
 import type { AgentRuntime } from '../../agent/runtime/AgentRuntime.js';
 import type { AgentRoleService } from '../../agent/roles/AgentRoleService.js';
 import { registerCronTools } from '../../cron/CronTools.js';
-import { logger, normalizeError } from '../../logger/index.js';
+import { normalizeError } from '../../errors/index.js';
+import { logger } from '../../observability/index.js';
 
 export interface ToolIntegrationOptions {
   toolRegistry: ToolRegistry;
@@ -29,7 +30,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
     agentRuntime,
     agentRoleService
   } = options;
-  const log = logger.child({ prefix: 'ToolIntegration' });
+  const log = logger.child('ToolIntegration');
 
   registerCronTools(toolRegistry, cronService);
 
@@ -231,7 +232,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
 }
 
 export function registerMcpTools(toolRegistry: ToolRegistry, mcpManager: MCPClientManager): void {
-  const log = logger.child({ prefix: 'ToolIntegration' });
+  const log = logger.child('ToolIntegration');
 
   mcpManager.onToolsLoaded((tools: ToolDefinition[]) => {
     for (const tool of tools) {

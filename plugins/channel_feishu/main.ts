@@ -14,8 +14,7 @@ import type {
   MessageSegment,
   ResourceHandle
 } from '../../src/channels/core/types.ts';
-import { logger } from '../../src/logger/index.ts';
-import { metrics } from '../../src/logger/Metrics.ts';
+import { logger, metrics } from '../../src/observability/index.ts';
 
 interface FeishuConfig {
   appId: string;
@@ -41,7 +40,7 @@ class FeishuAdapter implements ChannelAdapter {
   private tokenCache?: TokenCache;
   private tokenRefreshTimer?: NodeJS.Timeout;
   private running = false;
-  private log = logger.child({ prefix: 'Feishu' });
+  private log = logger.child('Feishu');
 
   constructor(private config: FeishuConfig) {
     this.app = express();

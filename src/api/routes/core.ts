@@ -2,7 +2,7 @@ import type { Express } from 'express';
 import { ConfigLoader } from '../../config/loader.js';
 import { getConfigValidationIssue } from '../../config/index.js';
 import { INTERNAL_CHANNELS } from '../../constants/index.js';
-import { createErrorResponse, createValidationErrorResponse, normalizeError, NotFoundError } from '../../logger/index.js';
+import { createErrorResponse, createValidationErrorResponse, normalizeError, NotFoundError } from '../../errors/index.js';
 import type { ChannelManager } from '../../channels/ChannelManager.js';
 import type { Config } from '../../types.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';

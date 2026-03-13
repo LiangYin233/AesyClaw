@@ -5,6 +5,7 @@ import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import { createHash } from 'crypto';
 import { definePlugin } from '../../src/plugins/index.ts';
+import { preview } from '../../src/observability/index.ts';
 import type { InboundFile, InboundMessage, ProcessingIntent } from '../../src/types.ts';
 
 const Intent = {
@@ -144,7 +145,7 @@ export default definePlugin<SpeechToTextOptions>({
     }
   },
   async setup(ctx) {
-    const log = ctx.logger.child({ prefix: 'speech_to_text' });
+    const log = ctx.logger.child('speech_to_text');
     const providerName = ctx.options.provider || 'openai';
     const providerConfig = ctx.config.providers?.[providerName];
     const config: SpeechRuntimeConfig = {
@@ -240,7 +241,7 @@ export default definePlugin<SpeechToTextOptions>({
           log.info('Voice transcription completed', {
             senderId: message.senderId,
             chatId: message.chatId,
-            preview: log.preview(transcription)
+            preview: preview(transcription)
           });
 
           return {

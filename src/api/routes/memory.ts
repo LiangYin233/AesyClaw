@@ -1,5 +1,5 @@
 import type { Express } from 'express';
-import { createErrorResponse, normalizeError, NotFoundError } from '../../logger/index.js';
+import { createErrorResponse, normalizeError, NotFoundError } from '../../errors/index.js';
 import { INTERNAL_CHANNELS } from '../../constants/index.js';
 import type { SessionManager } from '../../session/SessionManager.js';
 import type { MemoryFactStore } from '../../session/MemoryFactStore.js';

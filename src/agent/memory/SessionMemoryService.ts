@@ -2,7 +2,7 @@ import type { InboundMessage } from '../../types.js';
 import type { LLMProvider } from '../../providers/base.js';
 import type { Session, SessionManager, SessionMessage } from '../../session/SessionManager.js';
 import { MemoryFactStore, type MemoryFact } from '../../session/MemoryFactStore.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
 import { CRON_SESSION_KEY_PREFIX, INTERNAL_CHANNELS } from '../../constants/index.js';
 
 const MEMORY_FACTS_PREFIX = '长期记忆（相关时参考）：';
@@ -59,7 +59,7 @@ interface MemoryFactsRuntimeConfig {
 }
 
 export class SessionMemoryService {
-  private log = logger.child({ prefix: 'SessionMemory' });
+  private log = logger.child('SessionMemory');
 
   constructor(
     private sessionManager: SessionManager,

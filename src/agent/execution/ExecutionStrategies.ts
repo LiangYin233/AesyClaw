@@ -3,7 +3,7 @@ import type { ToolContext } from '../../tools/ToolRegistry.js';
 import type { LLMProvider } from '../../providers/base.js';
 import type { ExecutionStrategy, ExecutionResult, ExecutionOptions, BackgroundExecutionResult } from './ExecutionTypes.js';
 import type { ToolLoopRunner } from './ToolLoopRunner.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
 
 // SyncStrategy
 export class SyncStrategy implements ExecutionStrategy {
@@ -27,7 +27,7 @@ export class SyncStrategy implements ExecutionStrategy {
 // BackgroundStrategy
 export class BackgroundStrategy implements ExecutionStrategy {
   readonly name = 'background' as const;
-  private log = logger.child({ prefix: 'BackgroundStrategy' });
+  private log = logger.child('BackgroundStrategy');
 
   constructor(
     private runner: ToolLoopRunner,
@@ -93,7 +93,7 @@ export class BackgroundStrategy implements ExecutionStrategy {
 // VisionStrategy
 export class VisionStrategy implements ExecutionStrategy {
   readonly name = 'vision' as const;
-  private log = logger.child({ prefix: 'VisionStrategy' });
+  private log = logger.child('VisionStrategy');
 
   constructor(
     private runner: ToolLoopRunner,

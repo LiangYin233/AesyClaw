@@ -1,5 +1,5 @@
 import type { Config, InboundMessage, OutboundMessage } from '../types.js';
-import type { Logger } from '../logger/index.js';
+import type { Logger } from '../observability/index.js';
 import type { ToolRegistry } from '../tools/ToolRegistry.js';
 import type {
   AgentAfterPayload,
@@ -85,7 +85,7 @@ export async function createPluginInstance(options: CreatePluginInstanceOptions)
     options: Object.freeze(pluginOptions),
     workspace,
     tempDir,
-    logger: logger.child({ prefix: discovery.definition.name }),
+    logger: logger.child(discovery.definition.name),
     sendMessage: (message, sendOptions) => dispatchMessage(message, sendOptions),
     tools: {
       register(tool) {

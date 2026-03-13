@@ -66,7 +66,7 @@ export default definePlugin<Md2ImgOptions>({
     }
   },
   setup(ctx) {
-    const log = ctx.logger.child({ prefix: 'md2img' });
+    const log = ctx.logger.child('md2img');
     const config: Md2ImgOptions = {
       minLength: ctx.options.minLength ?? 50,
       scale: Math.max(0.5, Math.min(3.0, ctx.options.scale ?? 1.0))

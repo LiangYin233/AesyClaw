@@ -1,4 +1,4 @@
-import { NotFoundError } from '../../logger/index.js';
+import { NotFoundError } from '../../errors/index.js';
 import type { SessionManager } from '../../session/SessionManager.js';
 import type { AgentRoleService as RuntimeAgentRoleService } from '../../agent/roles/AgentRoleService.js';
 

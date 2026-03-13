@@ -81,13 +81,26 @@ const toolsConfigSchema = withObjectInputDefault({
   timeoutMs: z.number().int().finite().default(30000)
 });
 
-const logConfigSchema = withObjectInputDefault({
-  level: z.enum(['debug', 'info', 'warn', 'error']).default('info')
+const loggingConfigSchema = withObjectInputDefault({
+  level: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  bufferSize: z.number().int().finite().default(1000)
 });
 
-const metricsConfigSchema = withObjectInputDefault({
+const observabilityMetricsConfigSchema = withObjectInputDefault({
   enabled: z.boolean().default(true),
-  maxMetrics: z.number().int().finite().default(10000)
+  maxPoints: z.number().int().finite().default(10000)
+});
+
+const usageConfigSchema = withObjectInputDefault({
+  enabled: z.boolean().default(true),
+  persistFile: z.string().default('.aesyclaw/token-usage.json'),
+  flushIntervalMs: z.number().int().finite().default(30000)
+});
+
+const observabilityConfigSchema = withObjectInputDefault({
+  logging: loggingConfigSchema,
+  metrics: observabilityMetricsConfigSchema,
+  usage: usageConfigSchema
 });
 
 const serverConfigSchema = withObjectInputDefault({
@@ -147,8 +160,7 @@ const baseConfigSchema = z.object({
   mcp: mcpServersConfigSchema,
   plugins: z.record(z.string(), pluginConfigSchema).default(() => ({})),
   skills: z.record(z.string(), skillConfigSchema).default(() => ({})),
-  log: logConfigSchema,
-  metrics: metricsConfigSchema,
+  observability: observabilityConfigSchema,
   tools: toolsConfigSchema
 });
 
@@ -162,8 +174,10 @@ export type StoredAgentRoleConfig = z.output<typeof mainAgentRoleConfigSchema>;
 export type AgentConfig = z.output<typeof agentConfigSchema>;
 export type AgentsConfig = z.output<typeof agentsConfigSchema>;
 export type ToolsConfig = z.output<typeof toolsConfigSchema>;
-export type LogConfig = z.output<typeof logConfigSchema>;
-export type MetricsConfig = z.output<typeof metricsConfigSchema>;
+export type LoggingConfig = z.output<typeof loggingConfigSchema>;
+export type ObservabilityMetricsConfig = z.output<typeof observabilityMetricsConfigSchema>;
+export type UsageConfig = z.output<typeof usageConfigSchema>;
+export type ObservabilityConfig = z.output<typeof observabilityConfigSchema>;
 export type ServerConfig = z.output<typeof serverConfigSchema>;
 export type ChannelConfig = z.output<typeof channelConfigSchema>;
 export type PluginConfig = z.output<typeof pluginConfigSchema>;

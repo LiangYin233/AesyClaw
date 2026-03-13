@@ -8,10 +8,10 @@ import type { CronJob, CronService } from '../../cron/index.js';
 import { MCPClientManager } from '../../mcp/index.js';
 import { registerMcpTools } from './ToolIntegrationService.js';
 import { createPluginManager } from './PluginRuntimeFactory.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
 import type { SessionManager } from '../../session/index.js';
 
-const log = logger.child({ prefix: 'InfrastructureFactory' });
+const log = logger.child('InfrastructureFactory');
 
 async function createChannelManager(
   config: Config,

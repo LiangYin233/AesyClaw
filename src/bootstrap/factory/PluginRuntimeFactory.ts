@@ -4,9 +4,10 @@ import type { OutboundGateway } from '../../agent/runtime/AgentRuntime.js';
 import { PluginManager } from '../../plugins/index.js';
 import type { PluginConfigState } from '../../plugins/index.js';
 import { ConfigLoader } from '../../config/loader.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
+import { normalizeError } from '../../errors/index.js';
 
-const log = logger.child({ prefix: 'PluginRuntimeFactory' });
+const log = logger.child('PluginRuntimeFactory');
 
 function normalizePluginConfigs(
   configs: Record<string, { enabled?: boolean; options?: Record<string, any> }>
@@ -77,7 +78,9 @@ export async function createPluginManager(args: {
           durationMs: Date.now() - startedAt
         });
       } catch (error) {
-        log.error('Failed to load plugins in background', error);
+        log.error('Failed to load plugins in background', {
+          error: normalizeError(error)
+        });
       }
     })();
   };

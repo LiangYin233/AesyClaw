@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, readFileSync, watch, writeFileSync } from 'fs';
 import { randomBytes } from 'crypto';
 import { basename, dirname, join } from 'path';
 import type { Config } from '../types.js';
-import { logger } from '../logger/index.js';
+import { logger } from '../observability/index.js';
+import { normalizeError } from '../errors/index.js';
 import { parse, stringify } from 'smol-toml';
 import { createDefaultConfig, parseConfig, configSchema } from './schema.js';
 
@@ -66,7 +67,7 @@ export class ConfigLoader {
   private static config: Config | null = null;
   private static configPath = join(process.cwd(), 'config.toml');
   private static watcher: fsWatcher | null = null;
-  private static log = logger.child({ prefix: 'ConfigLoader' });
+  private static log = logger.child('ConfigLoader');
   private static reloadListeners = new Set<(config: Config) => void | Promise<void>>();
 
   private static ensureConfigDirectory(): void {
@@ -187,12 +188,16 @@ export class ConfigLoader {
             await listener(this.get());
           }
         } catch (error) {
-          this.log.warn('Failed to reload config:', error);
+          this.log.warn('Failed to reload config', {
+            error: normalizeError(error)
+          });
         }
       });
       this.log.debug('Started file watcher');
     } catch (error) {
-      this.log.warn('Failed to start file watcher:', error);
+      this.log.warn('Failed to start file watcher', {
+        error: normalizeError(error)
+      });
     }
   }
 

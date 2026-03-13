@@ -3,12 +3,11 @@ import type { LLMProvider } from '../../providers/base.js';
 import type { ToolRegistry, ToolContext } from '../../tools/ToolRegistry.js';
 import type { PluginManager } from '../../plugins/index.js';
 import type { ExecutionResult, ExecutionOptions, VisionSettings } from './ExecutionTypes.js';
-import { logger, normalizeError, isRetryableError } from '../../logger/index.js';
-import { metrics } from '../../logger/Metrics.js';
-import { tokenStats } from '../../logger/TokenStats.js';
+import { normalizeError, isRetryableError } from '../../errors/index.js';
+import { logger, metrics, preview, tokenUsage } from '../../observability/index.js';
 
 export class ToolLoopRunner {
-  private log = logger.child({ prefix: 'ToolLoopRunner' });
+  private log = logger.child('ToolLoopRunner');
 
   constructor(
     private provider: LLMProvider,
@@ -68,7 +67,7 @@ export class ToolLoopRunner {
         metrics.record('llm.tokens.prompt', prompt_tokens, 'count', { source });
         metrics.record('llm.tokens.completion', completion_tokens, 'count', { source });
         metrics.record('llm.tokens.total', total_tokens, 'count', { source });
-        tokenStats.record(prompt_tokens, completion_tokens, total_tokens);
+        tokenUsage.record(prompt_tokens, completion_tokens, total_tokens);
       }
 
       if (response.toolCalls.length === 0) {
@@ -109,7 +108,7 @@ export class ToolLoopRunner {
 
         const toolName = toolCall.name;
         if (!toolName) {
-          this.log.error('Tool call missing name', { iteration, sessionKey: options.sessionKey, toolCallPreview: this.log.preview(JSON.stringify(toolCall)) });
+          this.log.error('Tool call missing name', { iteration, sessionKey: options.sessionKey, toolCallPreview: preview(JSON.stringify(toolCall)) });
           continue;
         }
 
@@ -208,7 +207,7 @@ export class ToolLoopRunner {
         metrics.record('llm.tokens.prompt', prompt_tokens, 'count', { source });
         metrics.record('llm.tokens.completion', completion_tokens, 'count', { source });
         metrics.record('llm.tokens.total', total_tokens, 'count', { source });
-        tokenStats.record(prompt_tokens, completion_tokens, total_tokens);
+        tokenUsage.record(prompt_tokens, completion_tokens, total_tokens);
       }
 
       if (response.toolCalls.length > 0) {

@@ -2,7 +2,7 @@ import type { Express } from 'express';
 import type { PluginManager } from '../../plugins/index.js';
 import type { Config } from '../../types.js';
 import { ConfigLoader } from '../../config/loader.js';
-import { createErrorResponse, createValidationErrorResponse, NotFoundError } from '../../logger/index.js';
+import { createErrorResponse, createValidationErrorResponse, NotFoundError } from '../../errors/index.js';
 
 interface PluginRouteDeps {
   pluginManager?: PluginManager;

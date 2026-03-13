@@ -2,7 +2,7 @@ import { join } from 'path';
 import { BuiltInCommands } from '../../agent/commands/index.js';
 import { APIServer } from '../../api/index.js';
 import { CronService } from '../../cron/index.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
 import type { Config } from '../../types.js';
 import type { LLMProvider } from '../../providers/base.js';
 import type { CronJob } from '../../cron/index.js';
@@ -21,7 +21,7 @@ import { OutboundGateway } from '../../agent/runtime/AgentRuntime.js';
 import type { MCPClientManager } from '../../mcp/index.js';
 import type { SkillManager } from '../../skills/index.js';
 
-const appLog = logger.child({ prefix: 'AesyClaw' });
+const appLog = logger.child('AesyClaw');
 
 export interface Services {
   provider: LLMProvider;

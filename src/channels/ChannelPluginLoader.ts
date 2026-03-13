@@ -1,10 +1,11 @@
 import { mkdir, readdir, stat } from 'fs/promises';
 import { join } from 'path';
-import { logger } from '../logger/index.js';
+import { logger } from '../observability/index.js';
 import type { ChannelManager, ChannelPluginDefinition } from './ChannelManager.js';
 import { pathToFileURL } from 'url';
+import { normalizeError } from '../errors/index.js';
 
-const log = logger.child({ prefix: 'ChannelPluginLoader' });
+const log = logger.child('ChannelPluginLoader');
 
 async function importChannelModule<T = unknown>(modulePath: string): Promise<T> {
   const tmpDir = join(process.cwd(), '.tmp', 'tsx');
@@ -70,7 +71,10 @@ async function importChannelPlugin(mainPath: string): Promise<ChannelPluginDefin
 
     return plugin;
   } catch (error) {
-    log.warn(`Failed to import channel plugin from ${mainPath}:`, error);
+    log.warn(`Failed to import channel plugin from ${mainPath}`, {
+      path: mainPath,
+      error: normalizeError(error)
+    });
     return null;
   }
 }

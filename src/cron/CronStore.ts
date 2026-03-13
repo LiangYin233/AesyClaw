@@ -1,7 +1,7 @@
 import sqlite3 from 'sqlite3';
 import { existsSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
-import { logger } from '../logger/index.js';
+import { logger } from '../observability/index.js';
 import type { CronJob } from './CronService.js';
 
 /**
@@ -9,7 +9,7 @@ import type { CronJob } from './CronService.js';
  */
 export class CronStore {
   private db: sqlite3.Database;
-  private log = logger.child({ prefix: 'CronStore' });
+  private log = logger.child('CronStore');
   private ready = false;
 
   constructor(dbPath: string) {
@@ -222,5 +222,4 @@ export class CronStore {
     });
   }
 }
-
 

@@ -9,9 +9,9 @@ import type { MCPClientManager } from '../../mcp/index.js';
 import type { SkillManager } from '../../skills/index.js';
 import type { ToolRegistry } from '../../tools/index.js';
 import type { AgentRoleService } from '../../agent/roles/AgentRoleService.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
 
-const log = logger.child({ prefix: 'ApiInterfaceFactory' });
+const log = logger.child('ApiInterfaceFactory');
 
 export async function createApiServer(args: {
   config: Config;

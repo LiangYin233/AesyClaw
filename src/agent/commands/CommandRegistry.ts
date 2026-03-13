@@ -1,10 +1,11 @@
 import type { InboundMessage } from '../../types.js';
 import type { CommandHandler, CommandDefinition, CommandMatcher } from './CommandHandler.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
+import { normalizeError } from '../../errors/index.js';
 
 export class CommandRegistry {
   private commands: Map<string, CommandDefinition> = new Map();
-  private log = logger.child({ prefix: 'CommandRegistry' });
+  private log = logger.child('CommandRegistry');
 
   registerHandler(handler: CommandHandler): void {
     const commands = handler.getCommands();
@@ -23,7 +24,10 @@ export class CommandRegistry {
         try {
           return await cmd.handler(msg, args);
         } catch (error) {
-          this.log.error(`Command ${cmd.name} failed:`, error);
+          this.log.error(`Command ${cmd.name} failed`, {
+            command: cmd.name,
+            error: normalizeError(error)
+          });
           return {
             ...msg,
             content: `命令执行失败: ${error instanceof Error ? error.message : String(error)}`

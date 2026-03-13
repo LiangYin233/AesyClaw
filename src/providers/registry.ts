@@ -1,9 +1,9 @@
 import { LLMProvider } from './base.js';
 import { OpenAIProvider } from './OpenAIProvider.js';
 import type { ProviderConfig } from '../types.js';
-import { logger } from '../logger/index.js';
+import { logger } from '../observability/index.js';
 
-const log = logger.child({ prefix: 'Provider' });
+const log = logger.child('Provider');
 
 const BUILTIN_PROVIDERS = [
   { name: 'openai', displayName: 'OpenAI', defaultApiBase: 'https://api.openai.com/v1' },

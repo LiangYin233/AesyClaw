@@ -149,23 +149,22 @@ export interface ApiError {
   details?: any
 }
 
-export interface LogConfig {
+export interface LoggingConfig {
   level: string
-  prefix: string
+  bufferSize: number
 }
 
-export interface LogEntry {
+export interface ObservabilityLogEntry {
   id: string
   timestamp: string
   level: 'debug' | 'info' | 'warn' | 'error'
-  prefix: string
+  scope: string
   message: string
-  context?: string
-  line: string
+  fields?: Record<string, string | number | boolean | null>
 }
 
-export interface LogsResponse {
-  entries: LogEntry[]
+export interface LoggingEntriesResponse {
+  entries: ObservabilityLogEntry[]
   total: number
   bufferSize: number
   level: string
@@ -196,8 +195,8 @@ export interface MetricOverview {
 
 export interface MetricConfig {
   enabled: boolean
-  maxDataPoints: number
-  retentionMs: number
+  maxPoints: number
+  currentCount: number
 }
 
 export interface MemoryUsage {
@@ -206,4 +205,12 @@ export interface MemoryUsage {
   external: number
   rss: number
   arrayBuffers: number
+}
+
+export interface TokenUsageStats {
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  requestCount: number
+  lastUpdated: string
 }

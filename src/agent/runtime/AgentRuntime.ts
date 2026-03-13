@@ -8,8 +8,8 @@ import type { SessionMemoryService } from '../memory/SessionMemoryService.js';
 import type { SessionRoutingService } from '../session/SessionRoutingService.js';
 import type { AgentRoleService } from '../roles/AgentRoleService.js';
 import type { VisionSettings } from '../../types.js';
-import { logger } from '../../logger/index.js';
-import { metrics } from '../../logger/Metrics.js';
+import { logger } from '../../observability/index.js';
+import { metrics } from '../../observability/index.js';
 import { CONFIG_DEFAULTS } from '../../constants/index.js';
 import { AgentPipeline } from './AgentPipeline.js';
 import { SessionResolver } from '../session/SessionResolver.js';
@@ -20,7 +20,7 @@ import { ExecutionRuntime } from '../execution/ExecutionRuntime.js';
 import type { ContextMode, ExecutionStatus, SessionReference } from '../types.js';
 
 export class OutboundGateway {
-  private log = logger.child({ prefix: 'OutboundGateway' });
+  private log = logger.child('OutboundGateway');
   private dispatcher?: (message: OutboundMessage) => Promise<void>;
 
   setDispatcher(dispatcher: (message: OutboundMessage) => Promise<void>): void {
@@ -61,7 +61,7 @@ export interface AgentRuntimeOptions {
 }
 
 export class AgentRuntime {
-  private log = logger.child({ prefix: 'AgentRuntime' });
+  private log = logger.child('AgentRuntime');
   private running = false;
   private defaultProvider: LLMProvider;
   private defaultModel: string;

@@ -1,5 +1,5 @@
 ﻿import type { ToolDefinition } from '../types.js';
-import { logger } from '../logger/index.js';
+import { logger } from '../observability/index.js';
 import { CONSTANTS } from '../constants/index.js';
 
 export type ToolSource = 'built-in' | 'plugin' | 'mcp';
@@ -86,7 +86,7 @@ export class ToolRegistry {
   private tools: Map<string, Tool> = new Map();
   private toolSources: Map<string, ToolSourceInfo> = new Map();
   private blacklist: Set<string> = new Set();
-  private log = logger.child({ prefix: 'ToolRegistry' });
+  private log = logger.child('ToolRegistry');
   private defaultTimeout: number;
 
   constructor(options?: { defaultTimeout?: number }) {

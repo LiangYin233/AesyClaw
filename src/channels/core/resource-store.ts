@@ -3,7 +3,7 @@ import { basename, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { copyFile, mkdir, readFile, stat, writeFile } from 'fs/promises';
 import { Database } from '../../db/index.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
 import type { ChannelMessage, MessageSegment, ResourceHandle } from './types.js';
 
 function sanitizePathPart(value: string | undefined, fallback: string): string {
@@ -32,7 +32,7 @@ async function pathExists(path: string | undefined): Promise<boolean> {
 }
 
 export class ResourceStore {
-  private log = logger.child({ prefix: 'ResourceStore' });
+  private log = logger.child('ResourceStore');
 
   constructor(
     private db: Database,

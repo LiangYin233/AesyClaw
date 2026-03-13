@@ -1,5 +1,6 @@
 import { CronExpressionParser } from 'cron-parser';
-import { logger, normalizeError } from '../logger/index.js';
+import { normalizeError } from '../errors/index.js';
+import { logger } from '../observability/index.js';
 import { CronStore } from './CronStore.js';
 
 export interface CronJob {
@@ -34,7 +35,7 @@ export class CronService {
   private timer?: NodeJS.Timeout;
   private store: CronStore;
   private onJobExecute?: (job: CronJob) => Promise<void>;
-  private log = logger.child({ prefix: 'Cron' });
+  private log = logger.child('Cron');
 
   constructor(
     dbPath: string,
@@ -138,7 +139,9 @@ export class CronService {
       try {
         await this.runDueJobs();
       } catch (error) {
-        this.log.error('Error running due jobs:', error);
+        this.log.error('Error running due jobs', {
+          error: normalizeError(error)
+        });
       } finally {
         this.scheduleNext(); // 确保任务链不中断
       }
@@ -185,12 +188,18 @@ export class CronService {
 
     for (const id of toRemove) {
       this.jobs.delete(id);
-      this.store.delete(id).catch(err => this.log.error('Failed to delete job:', err));
+      this.store.delete(id).catch(err => this.log.error('Failed to delete job', {
+        jobId: id,
+        error: normalizeError(err)
+      }));
       this.log.info('One-time cron job removed', { jobId: id });
     }
 
     if (toUpdate.length > 0) {
-      this.store.batchUpdate(toUpdate).catch(err => this.log.error('Failed to update jobs:', err));
+      this.store.batchUpdate(toUpdate).catch(err => this.log.error('Failed to update jobs', {
+        count: toUpdate.length,
+        error: normalizeError(err)
+      }));
     }
   }
 
@@ -270,7 +279,9 @@ export class CronService {
         this.jobs.set(job.id, job);
       }
     } catch (error) {
-      this.log.error('Failed to load jobs:', error);
+      this.log.error('Failed to load jobs', {
+        error: normalizeError(error)
+      });
     }
   }
 }

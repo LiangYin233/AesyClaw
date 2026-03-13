@@ -14,8 +14,7 @@ import type {
   ResourceHandle
 } from '../../src/channels/core/types.ts';
 import { CONSTANTS } from '../../src/constants/index.ts';
-import { logger } from '../../src/logger/index.ts';
-import { metrics } from '../../src/logger/Metrics.ts';
+import { logger, metrics } from '../../src/observability/index.ts';
 
 interface OneBotConfig {
   wsUrl: string;
@@ -43,7 +42,7 @@ class OneBotAdapter implements ChannelAdapter {
   private heartbeatTimer?: NodeJS.Timeout;
   private isReconnecting = false;
   private pendingActions: Array<{ resolve: (value: unknown) => void; reject: (reason?: unknown) => void }> = [];
-  private log = logger.child({ prefix: 'OneBot' });
+  private log = logger.child('OneBot');
 
   constructor(private config: OneBotConfig) {
     this.maxReconnectAttempts = config.maxReconnectAttempts ?? 0;

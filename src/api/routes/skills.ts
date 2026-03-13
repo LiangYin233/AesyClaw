@@ -1,5 +1,5 @@
 import type { Express } from 'express';
-import { createErrorResponse, createValidationErrorResponse, NotFoundError } from '../../logger/index.js';
+import { createErrorResponse, createValidationErrorResponse, NotFoundError } from '../../errors/index.js';
 import type { SkillManager } from '../../skills/SkillManager.js';
 
 export function registerSkillRoutes(app: Express, skillManager?: SkillManager): void {

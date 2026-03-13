@@ -10,9 +10,9 @@ import type { SessionManager } from '../../session/index.js';
 import { SkillManager } from '../../skills/index.js';
 import { AgentRoleService } from '../../agent/roles/AgentRoleService.js';
 import { resolveProviderSelection } from '../../config/index.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
 
-const log = logger.child({ prefix: 'ExecutionRuntimeFactory' });
+const log = logger.child('ExecutionRuntimeFactory');
 
 function createRequiredProvider(config: Config, providerName?: string, modelName?: string) {
   const resolved = resolveProviderSelection(config, providerName, modelName);

@@ -2,7 +2,7 @@ import type { InboundMessage, LLMMessage, LLMResponse, OutboundMessage } from '.
 import type { SessionManager } from '../../session/SessionManager.js';
 import type { PluginManager } from '../../plugins/index.js';
 import type { SessionMemoryService } from '../memory/SessionMemoryService.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
 
 export interface FinalizeExecutionParams {
   sessionKey: string;
@@ -16,7 +16,7 @@ export interface FinalizeExecutionParams {
 }
 
 export class ExecutionFinalizer {
-  private log = logger.child({ prefix: 'ExecutionFinalizer' });
+  private log = logger.child('ExecutionFinalizer');
 
   constructor(
     private sessionManager: SessionManager,

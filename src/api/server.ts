@@ -11,15 +11,16 @@ import type { CronService } from '../cron/index.js';
 import type { MCPClientManager } from '../mcp/MCPClient.js';
 import type { SkillManager } from '../skills/SkillManager.js';
 import type { ToolRegistry } from '../tools/ToolRegistry.js';
-import { logger, createErrorResponse } from '../logger/index.js';
-import { metrics } from '../logger/Metrics.js';
+import { createErrorResponse } from '../errors/index.js';
+import { metrics } from '../observability/index.js';
+import { logger } from '../observability/index.js';
 import { CONSTANTS } from '../constants/index.js';
 import { registerCoreRoutes } from './routes/core.js';
 import { registerMemoryRoutes } from './routes/memory.js';
 import { registerPluginRoutes } from './routes/plugins.js';
 import { registerCronRoutes } from './routes/cron.js';
 import { registerMCPRoutes } from './routes/mcp.js';
-import { registerMetricsRoutes } from './routes/metrics.js';
+import { registerObservabilityRoutes } from './routes/observability.js';
 import { registerSkillRoutes } from './routes/skills.js';
 import type { MemoryFactStore } from '../session/MemoryFactStore.js';
 import type { AgentRoleService as RuntimeAgentRoleService } from '../agent/roles/AgentRoleService.js';
@@ -35,7 +36,7 @@ const packageVersion = packageJson.version;
 export class APIServer {
   private app = express();
   private server = createServer(this.app);
-  private log = logger.child({ prefix: 'API' });
+  private log = logger.child('API');
 
   constructor(
     private port: number,
@@ -149,7 +150,7 @@ export class APIServer {
       getMcpManager: () => this.mcpManager,
       setMcpManager: (m) => { this.mcpManager = m; }
     });
-    registerMetricsRoutes(this.app, {
+    registerObservabilityRoutes(this.app, {
       setConfig: (config) => {
         this.config = config;
       }

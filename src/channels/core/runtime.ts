@@ -1,7 +1,7 @@
 import { basename, join } from 'path';
 import { randomUUID } from 'crypto';
 import type { Database } from '../../db/index.js';
-import { logger } from '../../logger/index.js';
+import { logger } from '../../observability/index.js';
 import type { InboundMessage, OutboundMessage } from '../../types.js';
 import type { ChannelAdapter } from './adapter.js';
 import { DeliveryQueue } from './delivery-queue.js';
@@ -53,7 +53,7 @@ function makeResource(kind: ResourceHandle['kind'], input: string): ResourceHand
 }
 
 export class ChannelRuntime {
-  private log = logger.child({ prefix: 'ChannelRuntime' });
+  private log = logger.child('ChannelRuntime');
   private adapters = new Map<string, ChannelAdapter>();
   private resourceStore: ResourceStore;
   private deliveryQueue: DeliveryQueue;

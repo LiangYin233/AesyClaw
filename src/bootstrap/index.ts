@@ -1,6 +1,6 @@
 import { join } from 'path';
 import { mkdirSync, existsSync } from 'fs';
-import { logger, normalizeError } from '../logger/index.js';
+import { logger } from '../observability/index.js';
 import { CONSTANTS } from '../constants/index.js';
 import type { Config } from '../types.js';
 import type { CronJob } from '../cron/index.js';
@@ -10,7 +10,7 @@ import { dispatchCronJob } from './app/cronDispatch.js';
 import { setupConfigReload } from './app/configReload.js';
 import { setupSignalHandlers } from './app/shutdown.js';
 
-const log = logger.child({ prefix: 'Bootstrap' });
+const log = logger.child('Bootstrap');
 
 function startStartupLagMonitor(): () => void {
   const intervalMs = 250;

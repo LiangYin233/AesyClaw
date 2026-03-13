@@ -1,5 +1,6 @@
 import { platform } from 'os';
 import { definePlugin } from '../../src/plugins/index.ts';
+import { preview } from '../../src/observability/index.ts';
 import { loadConfig } from './config.ts';
 import type { ExecPluginOptions } from './config.ts';
 import { PythonRunner } from './PythonRunner.ts';
@@ -22,7 +23,7 @@ export default definePlugin<ExecPluginOptions>({
     }
   },
   setup(ctx) {
-    const log = ctx.logger.child({ prefix: 'exec' });
+    const log = ctx.logger.child('exec');
     const config = loadConfig(ctx.options);
     const pythonRunner = new PythonRunner({
       executable: config.python.executable,
@@ -78,7 +79,7 @@ export default definePlugin<ExecPluginOptions>({
       },
       async execute(params: Record<string, any>) {
         const { command } = params;
-        log.info('Shell execution started', { commandPreview: log.preview(command) });
+        log.info('Shell execution started', { commandPreview: preview(command) });
         return shellRunner.execute(command);
       }
     });

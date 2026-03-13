@@ -4,7 +4,7 @@ import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import type { Config } from '../../types.js';
 import { ConfigLoader } from '../../config/loader.js';
 import { getConfigValidationIssue, parseMCPServerConfig } from '../../config/index.js';
-import { createErrorResponse, createValidationErrorResponse, NotFoundError } from '../../logger/index.js';
+import { createErrorResponse, createValidationErrorResponse, NotFoundError } from '../../errors/index.js';
 
 interface MCPDeps {
   mcpManager?: MCPClientManager;
