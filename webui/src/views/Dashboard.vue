@@ -296,7 +296,7 @@ async function viewMetricDetails(name: string) {
     if (!isMounted.value) return
 
     try {
-        const stats = await metricsStore.fetchMetricStats(name)
+        const stats = await metricsStore.fetchMetricStats(name, { updateSelection: true })
         if (!isMounted.value) return
 
         if (stats) {

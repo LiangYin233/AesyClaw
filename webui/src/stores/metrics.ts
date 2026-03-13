@@ -49,13 +49,15 @@ export const useMetricsStore = defineStore('metrics', () => {
     return metricNames.value
   }
 
-  async function fetchMetricStats(name: string) {
+  async function fetchMetricStats(name: string, options?: { updateSelection?: boolean }) {
     const { data, error: err } = await apiGet<MetricStats>(`/metrics/stats/${name}`)
     if (err) {
       error.value = err
       return null
     }
-    selectedMetric.value = data ? { ...data, name } : null
+    if (options?.updateSelection) {
+      selectedMetric.value = data ? { ...data, name } : null
+    }
     return data
   }
 
