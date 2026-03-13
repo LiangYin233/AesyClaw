@@ -464,13 +464,16 @@ class OneBotChannel extends BaseChannel {
 
   private async parseMessageWithMedia(
     message: any,
-    options?: { expandReplies?: boolean }
+    options?: { expandReplies?: boolean; suppressImagePlaceholder?: boolean }
   ): Promise<import('../../src/channels/BaseChannel.ts').ParsedMessage> {
     if (!message) return { content: '' };
 
     let content = '';
+    let quotedContent = '';
     const mediaSet = new Set<string>();
+    const quotedMediaSet = new Set<string>();
     const fileList: InboundFile[] = [];
+    const quotedFileList: InboundFile[] = [];
     const expandReplies = options?.expandReplies !== false;
 
     if (typeof message === 'string') {
@@ -479,32 +482,48 @@ class OneBotChannel extends BaseChannel {
 
     if (Array.isArray(message)) {
       for (const seg of message) {
-        const parsed = await this.parseMessageSegment(seg, { expandReplies });
+        const parsed = await this.parseMessageSegment(seg, {
+          expandReplies,
+          suppressImagePlaceholder: options?.suppressImagePlaceholder
+        });
+        const isReplySegment = seg?.type === 'reply';
+        const targetMediaSet = isReplySegment ? quotedMediaSet : mediaSet;
+        const targetFileList = isReplySegment ? quotedFileList : fileList;
+
         if (parsed.media) {
           for (const media of parsed.media) {
-            if (media) mediaSet.add(media);
+            if (media) targetMediaSet.add(media);
           }
         }
         if (parsed.files) {
-          fileList.push(...parsed.files);
+          targetFileList.push(...parsed.files);
         }
         if (parsed.content) {
-          content += parsed.content;
+          if (isReplySegment) {
+            quotedContent += parsed.content;
+          } else {
+            content += parsed.content;
+          }
         }
       }
     }
 
-    const media = Array.from(mediaSet);
+    const normalizedContent = content.trim();
+    const normalizedQuotedContent = quotedContent.trim();
+    const mergedContent = normalizedContent && normalizedQuotedContent
+      ? `${normalizedContent}\n\n${normalizedQuotedContent}`
+      : normalizedContent || normalizedQuotedContent;
+    const media = Array.from(new Set([...mediaSet, ...quotedMediaSet]));
     return {
-      content: content.trim(),
+      content: mergedContent,
       media: media.length > 0 ? media : undefined,
-      files: fileList.length > 0 ? fileList : undefined
+      files: [...fileList, ...quotedFileList].length > 0 ? [...fileList, ...quotedFileList] : undefined
     };
   }
 
   private async parseMessageSegment(
     seg: any,
-    options?: { expandReplies?: boolean }
+    options?: { expandReplies?: boolean; suppressImagePlaceholder?: boolean }
   ): Promise<{ content?: string; media?: string[]; files?: InboundFile[] }> {
     if (!seg || typeof seg !== 'object') return { content: String(seg) };
 
@@ -516,7 +535,7 @@ class OneBotChannel extends BaseChannel {
         const file = data.file || '';
         const url = data.url || '';
         const imageUrl = url || `file://${file}`;
-        return MessageHandlers.image(imageUrl, url ? `[图片](${url})` : `[图片:${file}]`);
+        return { media: [imageUrl] };
       },
       at: async () => MessageHandlers.at(data.qq, data.qq === 'all'),
       record: async () => {
@@ -557,12 +576,15 @@ class OneBotChannel extends BaseChannel {
     try {
       const response = await this.sendAction('get_msg', { message_id: replyId });
       const referencedMessage = response?.data?.message;
-      const parsed = await this.parseMessageWithMedia(referencedMessage, { expandReplies: false });
+      const parsed = await this.parseMessageWithMedia(referencedMessage, {
+        expandReplies: false,
+        suppressImagePlaceholder: true
+      });
       const quotedContent = parsed.content?.trim();
       const quotePrefix = quotedContent ? `【引用消息】\n${quotedContent}` : '【引用消息】';
 
       return {
-        content: `${quotePrefix}\n\n`,
+        content: `${quotePrefix}`,
         media: parsed.media,
         files: parsed.files
       };

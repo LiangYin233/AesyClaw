@@ -64,14 +64,16 @@ export abstract class BaseChannel {
     const parsed = await this.parseMessage(rawEvent);
 
     let downloadedFiles: InboundFile[] | undefined;
+    let resolvedContent = parsed.content;
     if (parsed.files && parsed.files.length > 0) {
       downloadedFiles = await this.downloadFiles(parsed.files);
+      resolvedContent = this.resolveDownloadedFilePlaceholders(parsed.content, downloadedFiles);
     }
 
     await this.publishInbound(
       senderId,
       chatId,
-      parsed.content,
+      resolvedContent,
       rawEvent,
       messageId,
       messageType,
@@ -160,6 +162,23 @@ export abstract class BaseChannel {
     }
 
     return downloaded;
+  }
+
+  protected resolveDownloadedFilePlaceholders(content: string, files: InboundFile[]): string {
+    let resolvedContent = content;
+
+    for (const file of files) {
+      if (!file.localPath) {
+        continue;
+      }
+
+      resolvedContent = resolvedContent.replace(
+        `[文件: ${file.name}]`,
+        `[文件: ${file.localPath}]`
+      );
+    }
+
+    return resolvedContent;
   }
 
   protected async publishInbound(
