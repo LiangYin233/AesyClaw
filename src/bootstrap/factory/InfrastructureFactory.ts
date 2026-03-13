@@ -8,11 +8,12 @@ import { MCPClientManager } from '../../mcp/index.js';
 import { registerMcpTools } from './ToolIntegrationService.js';
 import { createPluginManager } from './PluginRuntimeFactory.js';
 import { logger } from '../../logger/index.js';
+import type { SessionManager } from '../../session/index.js';
 
 const log = logger.child({ prefix: 'InfrastructureFactory' });
 
-async function createChannelManager(config: Config, eventBus: EventBus, workspace: string): Promise<ChannelManager> {
-  const channelManager = new ChannelManager(eventBus, workspace);
+async function createChannelManager(config: Config, eventBus: EventBus, sessionManager: SessionManager, workspace: string): Promise<ChannelManager> {
+  const channelManager = new ChannelManager(eventBus, sessionManager.getDatabase(), workspace);
   await loadExternalChannelPlugins(channelManager, process.cwd());
 
   for (const [channelName, channelConfig] of Object.entries(config.channels as Record<string, { enabled?: boolean }>)) {
@@ -48,6 +49,7 @@ export async function createInfrastructure(args: {
   workspace: string;
   tempDir: string;
   toolRegistry: ToolRegistry;
+  sessionManager: SessionManager;
   cronService: CronService;
   onCronJob?: (job: CronJob) => Promise<void>;
 }): Promise<{
@@ -56,7 +58,7 @@ export async function createInfrastructure(args: {
   channelManager: ChannelManager;
   mcpManager: MCPClientManager | null;
 }> {
-  const { config, eventBus, agent, workspace, tempDir, toolRegistry } = args;
+  const { config, eventBus, agent, workspace, tempDir, toolRegistry, sessionManager } = args;
   const [pluginRuntime, channelManager] = await Promise.all([
     createPluginManager({
       config,
@@ -66,7 +68,7 @@ export async function createInfrastructure(args: {
       tempDir,
       toolRegistry
     }),
-    createChannelManager(config, eventBus, workspace)
+    createChannelManager(config, eventBus, sessionManager, workspace)
   ]);
   const mcpManager = createMcpManager(config, toolRegistry);
 

@@ -7,10 +7,9 @@ const log = logger.child({ prefix: 'Bootstrap' });
 export function wireOutbound(services: Services): void {
   const { eventBus, channelManager } = services;
   eventBus.on('outbound', async (msg: OutboundMessage) => {
-    const channel = channelManager.get(msg.channel);
-    if (channel) {
+    if (channelManager.get(msg.channel)) {
       try {
-        await channel.send(msg);
+        await channelManager.dispatch(msg);
       } catch (error: unknown) {
         log.error('Outbound send failed', {
           channel: msg.channel,

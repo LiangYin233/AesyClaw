@@ -15,6 +15,20 @@
   StoredAgentRoleConfig,
   ToolsConfig
 } from './config/schema.js';
+import type {
+  ChannelConversation,
+  ChannelSender,
+  MessageProjection,
+  MessageSegment,
+  ResourceHandle,
+  ResourceKind,
+  QuoteReference,
+  ChannelMessage,
+  ChannelCapabilityProfile,
+  AdapterInboundDraft,
+  AdapterSendResult,
+  DeliveryReceipt
+} from './channels/core/types.js';
 
 export type {
   AgentConfig,
@@ -32,6 +46,21 @@ export type {
   ServerConfig,
   StoredAgentRoleConfig,
   ToolsConfig
+};
+
+export type {
+  ResourceHandle,
+  ResourceKind,
+  ChannelConversation,
+  ChannelSender,
+  QuoteReference,
+  MessageSegment,
+  MessageProjection,
+  ChannelMessage,
+  ChannelCapabilityProfile,
+  AdapterInboundDraft,
+  AdapterSendResult,
+  DeliveryReceipt
 };
 
 export interface InboundFile {
@@ -52,6 +81,7 @@ export type ProcessingIntent =
   | { type: 'error', reason: string };      // 错误消息
 
 export interface InboundMessage {
+  id?: string;
   channel: string;
   senderId: string;
   chatId: string;
@@ -68,9 +98,16 @@ export interface InboundMessage {
   intent?: ProcessingIntent;
 
   metadata?: Record<string, any>;
+  segments?: MessageSegment[];
+  projection?: MessageProjection;
+  conversation?: ChannelConversation;
+  sender?: ChannelSender;
+  direction?: 'inbound' | 'outbound';
+  platformMessageId?: string;
 }
 
 export interface OutboundMessage {
+  id?: string;
   channel: string;
   chatId: string;
   content: string;
@@ -80,6 +117,13 @@ export interface OutboundMessage {
   files?: string[];
   metadata?: Record<string, any>;
   messageType?: 'private' | 'group';
+  idempotencyKey?: string;
+  segments?: MessageSegment[];
+  projection?: MessageProjection;
+  conversation?: ChannelConversation;
+  sender?: ChannelSender;
+  direction?: 'inbound' | 'outbound';
+  platformMessageId?: string;
 }
 
 export interface LLMMessage {

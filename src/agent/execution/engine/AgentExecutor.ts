@@ -15,6 +15,8 @@ export class AgentExecutor {
   private toolLoopRunner: ToolLoopRunner;
   private syncStrategy: SyncStrategy;
   private visionStrategy?: VisionStrategy;
+  private visionProvider?: LLMProvider;
+  private visionModel?: string;
   private executionRegistry: ExecutionRegistry;
   private log = logger.child({ prefix: 'AgentExecutor' });
 
@@ -34,6 +36,8 @@ export class AgentExecutor {
     this.executionRegistry = executionRegistry ?? new ExecutionRegistry();
     this.contextBuilder = new ContextBuilder(workspace, systemPrompt, skillsPrompt);
     this.toolLoopRunner = new ToolLoopRunner(provider, toolRegistry, pluginManager, visionSettings);
+    this.visionProvider = visionProvider;
+    this.visionModel = visionSettings?.visionModelName;
 
     this.syncStrategy = new SyncStrategy(this.toolLoopRunner, model);
     if (visionProvider && visionSettings?.visionModelName) {
@@ -158,6 +162,46 @@ export class AgentExecutor {
     const hasMedia = media && media.length > 0;
     const hasVisionableFiles = files?.some(isVisionableFile) ?? false;
     return hasMedia || hasVisionableFiles;
+  }
+
+  async summarizeVisionInput(messages: LLMMessage[], signal?: AbortSignal): Promise<string | undefined> {
+    if (!this.visionProvider || !this.visionModel) {
+      return undefined;
+    }
+
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage || lastMessage.role !== 'user' || !Array.isArray(lastMessage.content)) {
+      return undefined;
+    }
+
+    const hasImage = lastMessage.content.some((item: any) => item.type === 'image_url');
+    if (!hasImage) {
+      return undefined;
+    }
+
+    try {
+      const response = await this.visionProvider.chat([
+        {
+          role: 'system',
+          content: '请用中文简洁概括用户提供的图片内容，提取主体、场景、可见文字、关键细节和后续对话有用的信息。若有多张图，请按序号分点描述。只输出摘要内容，不要寒暄。'
+        },
+        {
+          role: 'user',
+          content: lastMessage.content
+        }
+      ], undefined, this.visionModel, {
+        reasoning: false,
+        signal
+      });
+
+      return response.content?.trim() || undefined;
+    } catch (error) {
+      this.log.warn('Vision image summary failed', {
+        model: this.visionModel,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return undefined;
+    }
   }
 
   // === BackgroundTaskExecutor 接口方法 ===

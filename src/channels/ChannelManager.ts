@@ -1,22 +1,32 @@
-import type { BaseChannel } from './BaseChannel.js';
 import type { EventBus } from '../bus/EventBus.js';
+import type { Database } from '../db/index.js';
 import { logger, normalizeError } from '../logger/index.js';
+import type { OutboundMessage } from '../types.js';
+import { ChannelRuntime } from './core/runtime.js';
+import type { ChannelAdapter } from './core/adapter.js';
+import type { DeliveryReceipt } from './core/types.js';
 
 export interface ChannelPluginDefinition {
   pluginName: string;
   channelName: string;
-  create: (config: any, eventBus: EventBus, workspace?: string) => BaseChannel;
+  create: (config: any, workspace?: string) => ChannelAdapter;
+}
+
+export interface ChannelHandle {
+  name: string;
+  send(msg: OutboundMessage): Promise<DeliveryReceipt>;
+  isRunning(): boolean;
 }
 
 export class ChannelManager {
   #plugins = new Map<string, ChannelPluginDefinition>();
-  #channels = new Map<string, BaseChannel>();
-  #eventBus: EventBus;
+  #channels = new Map<string, ChannelAdapter>();
+  #runtime: ChannelRuntime;
   #workspace: string;
   #log = logger.child({ prefix: 'ChannelManager' });
 
-  constructor(eventBus: EventBus, workspace?: string) {
-    this.#eventBus = eventBus;
+  constructor(eventBus: EventBus, db: Database, workspace?: string) {
+    this.#runtime = new ChannelRuntime(eventBus, db, workspace || process.cwd());
     this.#workspace = workspace || process.cwd();
   }
 
@@ -41,7 +51,7 @@ export class ChannelManager {
     return Array.from(this.#plugins.keys());
   }
 
-  createChannel(name: string, config: any): BaseChannel | null {
+  createChannel(name: string, config: any): ChannelHandle | null {
     const pluginName = `channel_${name}`;
     const plugin = this.#plugins.get(pluginName);
 
@@ -50,24 +60,40 @@ export class ChannelManager {
       return null;
     }
 
-    const channel = plugin.create(config, this.#eventBus, this.#workspace);
+    const channel = plugin.create(config, this.#workspace);
     this.#channels.set(plugin.channelName, channel);
+    this.#runtime.registerAdapter(plugin.channelName, channel);
     this.#log.info('Channel created', { channel: plugin.channelName, pluginName });
-    return channel;
+    return this.get(plugin.channelName) || null;
   }
 
-  register(channel: BaseChannel): void {
+  register(channel: ChannelAdapter): void {
     this.#channels.set(channel.name, channel);
+    this.#runtime.registerAdapter(channel.name, channel);
     this.#log.debug('Channel registered', { channel: channel.name });
   }
 
   unregister(name: string): void {
     this.#channels.delete(name);
+    this.#runtime.unregisterAdapter(name);
     this.#log.debug('Channel unregistered', { channel: name });
   }
 
-  get(name: string): BaseChannel | undefined {
-    return this.#channels.get(name);
+  get(name: string): ChannelHandle | undefined {
+    const channel = this.#channels.get(name);
+    if (!channel) {
+      return undefined;
+    }
+
+    return {
+      name,
+      send: async (msg: OutboundMessage) => this.dispatch({ ...msg, channel: name }),
+      isRunning: () => channel.isRunning()
+    };
+  }
+
+  async dispatch(message: OutboundMessage): Promise<DeliveryReceipt> {
+    return this.#runtime.dispatch(message);
   }
 
   async startAll(): Promise<void> {
@@ -75,7 +101,7 @@ export class ChannelManager {
     const results = await Promise.allSettled(
       channels.map(async (channel) => {
         const startedAt = Date.now();
-        await channel.start();
+        await this.#runtime.startAdapter(channel.name);
         return {
           name: channel.name,
           durationMs: Date.now() - startedAt
@@ -107,6 +133,8 @@ export class ChannelManager {
       started,
       failed
     });
+
+    await this.#runtime.start();
   }
 
   async stopAll(): Promise<void> {
@@ -115,7 +143,7 @@ export class ChannelManager {
 
     for (const channel of this.#channels.values()) {
       try {
-        await channel.stop();
+        await this.#runtime.stopAdapter(channel.name);
         stopped++;
       } catch (error) {
         failed++;
@@ -125,6 +153,8 @@ export class ChannelManager {
         });
       }
     }
+
+    this.#runtime.stop();
 
     this.#log.info('Channel shutdown finished', {
       total: this.#channels.size,

@@ -1,14 +1,21 @@
 import WebSocket from 'ws';
 import fs from 'fs';
 import { basename } from 'path';
-import type { EventBus } from '../../src/bus/EventBus.ts';
-import { BaseChannel } from '../../src/channels/BaseChannel.ts';
-import { MessageHandlers } from '../../src/channels/MessageParser.ts';
+import { randomUUID } from 'crypto';
+import type { ChannelPluginDefinition } from '../../src/channels/ChannelManager.ts';
+import type { AdapterRuntimeContext, ChannelAdapter, ChannelSendContext } from '../../src/channels/core/adapter.ts';
+import type {
+  AdapterInboundDraft,
+  AdapterSendResult,
+  ChannelMessage,
+  ChannelCapabilityProfile,
+  MessageSegment,
+  QuoteReference,
+  ResourceHandle
+} from '../../src/channels/core/types.ts';
 import { CONSTANTS } from '../../src/constants/index.ts';
 import { logger } from '../../src/logger/index.ts';
 import { metrics } from '../../src/logger/Metrics.ts';
-import type { InboundFile, OutboundMessage } from '../../src/types.ts';
-import type { ChannelPluginDefinition } from '../../src/channels/ChannelManager.ts';
 
 interface OneBotConfig {
   wsUrl: string;
@@ -21,10 +28,12 @@ interface OneBotConfig {
   heartbeatInterval?: number;
 }
 
-class OneBotChannel extends BaseChannel {
+class OneBotAdapter implements ChannelAdapter {
   readonly name = 'onebot';
   private ws?: WebSocket;
+  private runtimeContext?: AdapterRuntimeContext;
   private selfId?: string;
+  private running = false;
   private connectAttemptCounter = 0;
   private reconnectAttempts = 0;
   private maxReconnectAttempts: number;
@@ -34,16 +43,27 @@ class OneBotChannel extends BaseChannel {
   private heartbeatTimer?: NodeJS.Timeout;
   private isReconnecting = false;
   private pendingActions: Array<{ resolve: (value: unknown) => void; reject: (reason?: unknown) => void }> = [];
-  protected log = logger.child({ prefix: 'OneBot' });
+  private log = logger.child({ prefix: 'OneBot' });
 
-  constructor(config: OneBotConfig, eventBus: EventBus, workspace?: string) {
-    super(config, eventBus, workspace);
+  constructor(private config: OneBotConfig) {
     this.maxReconnectAttempts = config.maxReconnectAttempts ?? 0;
     this.reconnectBaseDelay = config.reconnectBaseDelay ?? 1000;
     this.reconnectMaxDelay = config.reconnectMaxDelay ?? 30000;
   }
 
-  async start(): Promise<void> {
+  capabilities(): ChannelCapabilityProfile {
+    return {
+      supportsMentions: true,
+      supportsQuotes: true,
+      supportsImages: true,
+      supportsFiles: true,
+      supportsAudio: true,
+      supportsVideo: true
+    };
+  }
+
+  async start(ctx: AdapterRuntimeContext): Promise<void> {
+    this.runtimeContext = ctx;
     const startedAt = Date.now();
     await this.connectWebSocket();
     this.running = true;
@@ -52,6 +72,163 @@ class OneBotChannel extends BaseChannel {
       wsUrl: this.config.wsUrl,
       durationMs: Date.now() - startedAt
     });
+  }
+
+  async stop(): Promise<void> {
+    this.running = false;
+    this.clearHeartbeat();
+    this.ws?.close();
+    this.log.info('OneBot channel stopped');
+  }
+
+  isRunning(): boolean {
+    return this.running;
+  }
+
+  async decodeInbound(rawEvent: any): Promise<AdapterInboundDraft | null> {
+    if (!rawEvent || rawEvent.post_type !== 'message') {
+      return null;
+    }
+
+    if (this.shouldIgnoreMessageEvent(rawEvent)) {
+      return null;
+    }
+
+    const messageType = rawEvent.message_type === 'group' ? 'group' : 'private';
+    const senderId = rawEvent.user_id?.toString();
+    const chatId = messageType === 'private'
+      ? rawEvent.user_id?.toString()
+      : rawEvent.group_id?.toString();
+
+    if (!senderId || !chatId || !this.isAllowed(senderId, messageType)) {
+      return null;
+    }
+
+    return {
+      conversation: {
+        id: chatId,
+        type: messageType
+      },
+      sender: {
+        id: senderId,
+        displayName: rawEvent.sender?.card || rawEvent.sender?.nickname,
+        isSelf: this.selfId ? senderId === this.selfId : false
+      },
+      timestamp: rawEvent.time ? new Date(rawEvent.time * 1000) : new Date(),
+      platformMessageId: rawEvent.message_id?.toString(),
+      segments: this.decodeSegments(rawEvent.message),
+      metadata: {
+        source: 'user'
+      },
+      rawEvent
+    };
+  }
+
+  async fetchQuotedMessage(reference: QuoteReference): Promise<AdapterInboundDraft | null> {
+    const messageId = reference.platformMessageId || reference.messageId;
+    if (!messageId) {
+      return null;
+    }
+
+    try {
+      const response = await this.sendAction('get_msg', { message_id: messageId });
+      const payload = response?.data;
+      if (!payload) {
+        return null;
+      }
+
+      const messageType = payload.message_type === 'group' ? 'group' : 'private';
+      const senderId = payload.user_id?.toString();
+      const chatId = messageType === 'private'
+        ? payload.user_id?.toString()
+        : payload.group_id?.toString();
+
+      if (!senderId || !chatId) {
+        return null;
+      }
+
+      return {
+        conversation: {
+          id: chatId,
+          type: messageType
+        },
+        sender: {
+          id: senderId,
+          displayName: payload.sender?.card || payload.sender?.nickname,
+          isSelf: this.selfId ? senderId === this.selfId : false
+        },
+        timestamp: payload.time ? new Date(payload.time * 1000) : new Date(),
+        platformMessageId: payload.message_id?.toString(),
+        segments: this.decodeSegments(payload.message),
+        metadata: {
+          source: 'quote'
+        },
+        rawEvent: payload
+      };
+    } catch (error) {
+      this.log.warn('OneBot quoted message fetch failed', {
+        messageId: messageId.toString(),
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return null;
+    }
+  }
+
+  async send(message: ChannelMessage, _context: ChannelSendContext): Promise<AdapterSendResult> {
+    const isGroup = message.conversation.type === 'group';
+    const numericChatId = parseInt(message.conversation.id, 10);
+    if (Number.isNaN(numericChatId)) {
+      throw new Error(`Invalid chatId: must be numeric, got ${message.conversation.id}`);
+    }
+
+    const outbound = this.buildOutbound(message);
+    if (outbound.inlineSegments.length === 0 && outbound.filePaths.length === 0) {
+      throw new Error('Outbound message rejected: empty payload');
+    }
+
+    try {
+      let platformMessageId: string | undefined;
+
+      if (outbound.inlineSegments.length > 0) {
+        const action = isGroup ? 'send_group_msg' : 'send_private_msg';
+        const params = isGroup
+          ? { group_id: numericChatId, message: outbound.inlineSegments }
+          : { user_id: numericChatId, message: outbound.inlineSegments };
+        const response = await this.sendAction(action, params);
+        platformMessageId = response?.data?.message_id?.toString();
+      }
+
+      for (const filePath of outbound.filePaths) {
+        await this.uploadFile(numericChatId, isGroup, filePath);
+      }
+
+      metrics.record('channel.message_sent', 1, 'count', {
+        channel: this.name,
+        messageType: isGroup ? 'group' : 'private',
+        status: 'success'
+      });
+
+      return {
+        platformMessageId
+      };
+    } catch (error) {
+      metrics.record('channel.message_sent', 1, 'count', {
+        channel: this.name,
+        messageType: isGroup ? 'group' : 'private',
+        status: 'error'
+      });
+      throw error;
+    }
+  }
+
+  classifyError(error: unknown): { retryable: boolean; code: string; message?: string } {
+    const message = error instanceof Error ? error.message : String(error);
+    const retryable = /timeout|WebSocket not connected|ECONN|socket|network|temporarily/i.test(message);
+    return {
+      retryable,
+      code: retryable ? 'transport_error' : 'send_failed',
+      message
+    };
   }
 
   private async connectWebSocket(): Promise<void> {
@@ -63,10 +240,6 @@ class OneBotChannel extends BaseChannel {
       const targetPort = parsedUrl.port || (parsedUrl.protocol === 'wss:' ? '443' : '80');
       const slowTimers: NodeJS.Timeout[] = [];
       let currentStage = 'init';
-      let socketAssignedMs: number | undefined;
-      let dnsLookupMs: number | undefined;
-      let tcpConnectMs: number | undefined;
-      let httpUpgradeMs: number | undefined;
 
       const clearSlowTimers = () => {
         for (const timer of slowTimers) {
@@ -99,92 +272,7 @@ class OneBotChannel extends BaseChannel {
 
       this.ws = new WebSocket(this.config.wsUrl, { headers });
 
-      const request = (this.ws as any)?._req;
-      if (request?.on) {
-        request.on('socket', (socket: any) => {
-          currentStage = 'socket_assigned';
-          socketAssignedMs = Date.now() - connectStartedAt;
-          this.log.debug('OneBot socket assigned', {
-            attemptId,
-            elapsedMs: socketAssignedMs,
-            host: targetHost,
-            port: targetPort
-          });
-
-          socket.once('lookup', (error: Error | null, address: string, family: number, host: string) => {
-            currentStage = 'dns_resolved';
-            dnsLookupMs = Date.now() - connectStartedAt;
-            this.log.debug('OneBot DNS resolved', {
-              attemptId,
-              elapsedMs: dnsLookupMs,
-              address,
-              family,
-              host,
-              error: error?.message
-            });
-          });
-
-          socket.once('connect', () => {
-            currentStage = 'tcp_connected';
-            tcpConnectMs = Date.now() - connectStartedAt;
-            this.log.debug('OneBot TCP connected', {
-              attemptId,
-              elapsedMs: tcpConnectMs,
-              localAddress: socket.localAddress,
-              localPort: socket.localPort,
-              remoteAddress: socket.remoteAddress,
-              remotePort: socket.remotePort
-            });
-          });
-
-          socket.once('timeout', () => {
-            this.log.warn('OneBot socket timeout', {
-              attemptId,
-              elapsedMs: Date.now() - connectStartedAt,
-              stage: currentStage,
-              host: targetHost,
-              port: targetPort
-            });
-          });
-
-          socket.once('close', (hadError: boolean) => {
-            this.log.debug('OneBot socket closed', {
-              attemptId,
-              elapsedMs: Date.now() - connectStartedAt,
-              stage: currentStage,
-              hadError
-            });
-          });
-        });
-      }
-
-      this.ws.on('upgrade', (response: any) => {
-        currentStage = 'http_upgrade';
-        httpUpgradeMs = Date.now() - connectStartedAt;
-        this.log.debug('OneBot HTTP upgrade completed', {
-          attemptId,
-          elapsedMs: httpUpgradeMs,
-          statusCode: response?.statusCode,
-          statusMessage: response?.statusMessage
-        });
-      });
-
-      this.ws.on('unexpected-response', (_request: any, response: any) => {
-        currentStage = 'unexpected_response';
-        clearSlowTimers();
-        this.log.warn('OneBot unexpected HTTP response', {
-          attemptId,
-          elapsedMs: Date.now() - connectStartedAt,
-          statusCode: response?.statusCode,
-          statusMessage: response?.statusMessage,
-          host: targetHost,
-          port: targetPort
-        });
-      });
-
       this.ws.on('open', async () => {
-        const websocketOpenMs = Date.now() - connectStartedAt;
-        const loginInfoStartedAt = Date.now();
         this.reconnectAttempts = 0;
         this.isReconnecting = false;
         currentStage = 'websocket_open';
@@ -199,13 +287,8 @@ class OneBotChannel extends BaseChannel {
           clearSlowTimers();
           this.log.info('OneBot handshake completed', {
             attemptId,
-            socketAssignedMs,
-            dnsLookupMs,
-            tcpConnectMs,
-            httpUpgradeMs,
             wsUrl: this.config.wsUrl,
-            websocketOpenMs,
-            loginInfoMs: Date.now() - loginInfoStartedAt,
+            elapsedMs: Date.now() - connectStartedAt,
             hasSelfId: !!this.selfId,
             selfId: this.selfId
           });
@@ -219,7 +302,9 @@ class OneBotChannel extends BaseChannel {
           const payload = JSON.parse(data.toString());
           this.handleOneBotEvent(payload);
         } catch (error) {
-          this.log.error('Failed to parse message:', error);
+          this.log.error('Failed to parse OneBot message', {
+            error: error instanceof Error ? error.message : String(error)
+          });
         }
       });
 
@@ -247,7 +332,9 @@ class OneBotChannel extends BaseChannel {
   }
 
   private handleDisconnect(): void {
-    if (!this.running) return;
+    if (!this.running) {
+      return;
+    }
 
     this.isReconnecting = true;
     this.reconnectAttempts++;
@@ -267,9 +354,6 @@ class OneBotChannel extends BaseChannel {
       return;
     }
 
-    const attemptMsg = this.maxReconnectAttempts > 0
-      ? ` (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`
-      : this.reconnectAttempts > 1 ? ` (attempt ${this.reconnectAttempts})` : '';
     this.log.warn('OneBot reconnect scheduled', {
       delayMs: delay,
       attempts: this.reconnectAttempts,
@@ -287,11 +371,10 @@ class OneBotChannel extends BaseChannel {
 
   private startHeartbeat(): void {
     const interval = this.config.heartbeatInterval ?? 30000;
-
     this.heartbeatTimer = setTimeout(() => {
-      this.sendHeartbeat();
+      void this.sendHeartbeat();
       this.heartbeatInterval = setInterval(() => {
-        this.sendHeartbeat();
+        void this.sendHeartbeat();
       }, interval);
     }, interval);
   }
@@ -407,7 +490,6 @@ class OneBotChannel extends BaseChannel {
 
   private handleNoticeEvent(payload: any): void {
     const noticeType = payload.notice_type;
-
     if (noticeType === 'offline_file' || noticeType === 'group_upload') {
       this.log.debug('OneBot file notice ignored', {
         noticeType,
@@ -446,254 +528,196 @@ class OneBotChannel extends BaseChannel {
       return;
     }
 
-    const messageType = payload.message_type;
-    const userId = payload.user_id;
-    const groupId = payload.group_id;
-
-    const senderId = userId?.toString();
-    const chatId = messageType === 'private' ? userId?.toString() : groupId?.toString();
-    if (!senderId || !chatId) return;
-
-    const messageId = payload.message_id?.toString();
-    await this.processInboundMessage(senderId, chatId, messageType, payload, messageId);
+    try {
+      await this.runtimeContext?.ingest(payload);
+    } catch (error) {
+      this.log.error('OneBot inbound dispatch failed', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
   }
 
-  protected async parseMessage(rawEvent: any): Promise<import('../../src/channels/BaseChannel.ts').ParsedMessage> {
-    return this.parseMessageWithMedia(rawEvent.message);
+  private isAllowed(senderId: string, messageType?: 'private' | 'group'): boolean {
+    if (messageType === 'group') {
+      const groupAllowFrom = this.config.groupAllowFrom;
+      if (!groupAllowFrom || groupAllowFrom.length === 0) {
+        return true;
+      }
+      return groupAllowFrom.includes(senderId);
+    }
+
+    const friendAllowFrom = this.config.friendAllowFrom;
+    if (!friendAllowFrom || friendAllowFrom.length === 0) {
+      return true;
+    }
+    return friendAllowFrom.includes(senderId);
   }
 
-  private async parseMessageWithMedia(
-    message: any,
-    options?: { expandReplies?: boolean; suppressImagePlaceholder?: boolean }
-  ): Promise<import('../../src/channels/BaseChannel.ts').ParsedMessage> {
-    if (!message) return { content: '' };
-
-    let content = '';
-    let quotedContent = '';
-    const mediaSet = new Set<string>();
-    const quotedMediaSet = new Set<string>();
-    const fileList: InboundFile[] = [];
-    const quotedFileList: InboundFile[] = [];
-    const expandReplies = options?.expandReplies !== false;
+  private decodeSegments(message: any): MessageSegment[] {
+    if (!message) {
+      return [];
+    }
 
     if (typeof message === 'string') {
-      return { content: message };
+      return [{ type: 'text', text: message }];
     }
 
-    if (Array.isArray(message)) {
-      for (const seg of message) {
-        const parsed = await this.parseMessageSegment(seg, {
-          expandReplies,
-          suppressImagePlaceholder: options?.suppressImagePlaceholder
-        });
-        const isReplySegment = seg?.type === 'reply';
-        const targetMediaSet = isReplySegment ? quotedMediaSet : mediaSet;
-        const targetFileList = isReplySegment ? quotedFileList : fileList;
-
-        if (parsed.media) {
-          for (const media of parsed.media) {
-            if (media) targetMediaSet.add(media);
-          }
-        }
-        if (parsed.files) {
-          targetFileList.push(...parsed.files);
-        }
-        if (parsed.content) {
-          if (isReplySegment) {
-            quotedContent += parsed.content;
-          } else {
-            content += parsed.content;
-          }
-        }
-      }
+    if (!Array.isArray(message)) {
+      return [{ type: 'unsupported', originalType: typeof message, text: String(message) }];
     }
 
-    const normalizedContent = content.trim();
-    const normalizedQuotedContent = quotedContent.trim();
-    const mergedContent = normalizedContent && normalizedQuotedContent
-      ? `${normalizedContent}\n\n${normalizedQuotedContent}`
-      : normalizedContent || normalizedQuotedContent;
-    const media = Array.from(new Set([...mediaSet, ...quotedMediaSet]));
-    return {
-      content: mergedContent,
-      media: media.length > 0 ? media : undefined,
-      files: [...fileList, ...quotedFileList].length > 0 ? [...fileList, ...quotedFileList] : undefined
-    };
+    return message.map((seg) => this.decodeSegment(seg)).filter((segment): segment is MessageSegment => !!segment);
   }
 
-  private async parseMessageSegment(
-    seg: any,
-    options?: { expandReplies?: boolean; suppressImagePlaceholder?: boolean }
-  ): Promise<{ content?: string; media?: string[]; files?: InboundFile[] }> {
-    if (!seg || typeof seg !== 'object') return { content: String(seg) };
+  private decodeSegment(seg: any): MessageSegment | null {
+    if (!seg || typeof seg !== 'object') {
+      return { type: 'text', text: String(seg ?? '') };
+    }
 
     const type = seg.type;
     const data = seg.data || {};
-    const handlers: Record<string, () => Promise<{ content?: string; media?: string[]; files?: InboundFile[] }>> = {
-      text: async () => MessageHandlers.text(data.text || ''),
-      image: async () => {
-        const file = data.file || '';
-        const url = data.url || '';
-        const imageUrl = url || `file://${file}`;
-        return { media: [imageUrl] };
-      },
-      at: async () => MessageHandlers.at(data.qq, data.qq === 'all'),
-      record: async () => {
-        const url = data.url || data.file || '';
-        return url ? MessageHandlers.audio(url) : { content: '[语音]' };
-      },
-      video: async () => {
-        const name = data.file || 'video';
-        const url = data.url || '';
-        return url ? MessageHandlers.video(url, name) : { content: `[视频: ${name}]` };
-      },
-      file: async () => {
-        const name = data.file || 'file';
-        const url = data.url || '';
-        return url ? MessageHandlers.file(url, name) : { content: `[文件: ${name}]` };
-      },
-      face: async () => ({ content: `[表情:${data.id}]` }),
-      reply: () => this.resolveReplySegment(data.id, options?.expandReplies !== false),
-      rich: async () => ({ content: `[富文本:${data.id || ''}]` })
+
+    switch (type) {
+      case 'text':
+        return { type: 'text', text: data.text || '' };
+      case 'at':
+        return {
+          type: 'mention',
+          userId: data.qq?.toString() || 'unknown',
+          display: data.qq === 'all' ? '全体成员' : data.qq?.toString()
+        };
+      case 'reply':
+        return {
+          type: 'quote',
+          reference: { platformMessageId: data.id?.toString() }
+        };
+      case 'image':
+        return { type: 'image', resource: this.buildResource('image', data.file || data.url || 'image', data.url) };
+      case 'record':
+        return { type: 'audio', resource: this.buildResource('audio', data.file || data.url || 'voice.amr', data.url) };
+      case 'video':
+        return { type: 'video', resource: this.buildResource('video', data.file || data.url || 'video.mp4', data.url) };
+      case 'file':
+        return { type: 'file', resource: this.buildResource('file', data.file || data.url || 'file', data.url) };
+      case 'face':
+        return { type: 'unsupported', originalType: 'face', text: `[表情:${data.id}]` };
+      case 'rich':
+        return { type: 'unsupported', originalType: 'rich', text: `[富文本:${data.id || ''}]` };
+      default:
+        return { type: 'unsupported', originalType: type, text: `[${type}]` };
+    }
+  }
+
+  private buildResource(kind: ResourceHandle['kind'], fileOrUrl: string, preferredUrl?: string): ResourceHandle {
+    const resourceId = randomUUID().slice(0, 8);
+    const fileName = basename((preferredUrl || fileOrUrl || `${kind}-${resourceId}`).replace(/^file:\/\//, '')) || `${kind}-${resourceId}`;
+    const localPath = this.normalizeLocalFile(fileOrUrl);
+    const remoteUrl = preferredUrl || this.normalizeRemoteUrl(fileOrUrl);
+
+    return {
+      resourceId,
+      kind,
+      originalName: fileName,
+      remoteUrl,
+      localPath,
+      platformFileId: fileOrUrl && !remoteUrl && !localPath ? fileOrUrl : undefined
     };
-
-    const handler = handlers[type];
-    return handler ? await handler() : { content: `[${type}]` };
   }
 
-  private async resolveReplySegment(
-    replyId: string | number | undefined,
-    expandReplies: boolean
-  ): Promise<{ content?: string; media?: string[]; files?: InboundFile[] }> {
-    if (!replyId) {
-      return { content: '[回复]' };
+  private normalizeRemoteUrl(value?: string): string | undefined {
+    if (!value) {
+      return undefined;
     }
-
-    if (!expandReplies) {
-      return { content: `[回复:${replyId}]` };
+    if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('file://')) {
+      return value;
     }
-
-    try {
-      const response = await this.sendAction('get_msg', { message_id: replyId });
-      const referencedMessage = response?.data?.message;
-      const parsed = await this.parseMessageWithMedia(referencedMessage, {
-        expandReplies: false,
-        suppressImagePlaceholder: true
-      });
-      const quotedContent = parsed.content?.trim();
-      const quotePrefix = quotedContent ? `【引用消息】\n${quotedContent}` : '【引用消息】';
-
-      return {
-        content: `${quotePrefix}`,
-        media: parsed.media,
-        files: parsed.files
-      };
-    } catch (error) {
-      this.log.warn('OneBot quoted message fetch failed', {
-        replyId: replyId.toString(),
-        error: error instanceof Error ? error.message : String(error)
-      });
-      return { content: `[回复:${replyId}]` };
-    }
+    return undefined;
   }
 
-  async send(msg: OutboundMessage): Promise<void> {
-    if (!this.validateMessage(msg)) {
-      return;
+  private normalizeLocalFile(value?: string): string | undefined {
+    if (!value) {
+      return undefined;
     }
-
-    const isGroup = msg.messageType === 'group';
-    const numericChatId = parseInt(msg.chatId, 10);
-    if (Number.isNaN(numericChatId)) {
-      this.log.warn('OneBot outbound chatId invalid', { chatId: msg.chatId });
-      throw new Error(`Invalid chatId: must be numeric, got ${msg.chatId}`);
+    if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('base64://')) {
+      return undefined;
     }
-
-    try {
-      const segments = this.formatMessageWithBase64(msg.content, msg.media);
-      if (segments.length > 0) {
-        const action = isGroup ? 'send_group_msg' : 'send_private_msg';
-        const params = isGroup
-          ? { group_id: numericChatId, message: segments }
-          : { user_id: numericChatId, message: segments };
-
-        await this.sendAction(action, params);
-      }
-
-      if (msg.files) {
-        for (const filePath of msg.files) {
-          await this.uploadFile(numericChatId, isGroup, filePath);
-        }
-      }
-
-      metrics.record('channel.message_sent', 1, 'count', {
-        channel: this.name,
-        messageType: isGroup ? 'group' : 'private',
-        status: 'success'
-      });
-    } catch (error) {
-      metrics.record('channel.message_sent', 1, 'count', {
-        channel: this.name,
-        messageType: isGroup ? 'group' : 'private',
-        status: 'error'
-      });
-      throw error;
-    }
+    return value.startsWith('file://') ? value.substring(7) : value;
   }
 
-  private formatMessageWithBase64(content: string, media?: string[]): any[] {
-    const segments: any[] = [];
-    let remaining = content;
+  private buildOutbound(message: ChannelMessage): { inlineSegments: any[]; filePaths: string[] } {
+    const inlineSegments: any[] = [];
+    const filePaths: string[] = [];
 
-    while (remaining.length > 0) {
-      const imageMatch = remaining.match(/\[图片\]\(([^)]+)\)/);
-      if (imageMatch) {
-        const before = remaining.substring(0, imageMatch.index);
-        if (before) {
-          segments.push({ type: 'text', data: { text: before } });
+    for (const segment of message.segments) {
+      switch (segment.type) {
+        case 'quote': {
+          const replyId = segment.reference.platformMessageId || segment.reference.messageId;
+          if (replyId) {
+            inlineSegments.push({ type: 'reply', data: { id: replyId } });
+          }
+          break;
         }
-        const base64 = this.imageToBase64(imageMatch[1]);
-        if (base64) {
-          segments.push({ type: 'image', data: { file: `base64://${base64}` } });
+        case 'text':
+          if (segment.text) {
+            inlineSegments.push({ type: 'text', data: { text: segment.text } });
+          }
+          break;
+        case 'mention':
+          inlineSegments.push({ type: 'at', data: { qq: segment.userId === 'all' ? 'all' : segment.userId } });
+          break;
+        case 'image': {
+          const image = this.resourceToImageSegment(segment.resource);
+          if (image) {
+            inlineSegments.push(image);
+          }
+          break;
         }
-        remaining = remaining.substring((imageMatch.index ?? 0) + imageMatch[0].length);
-        continue;
+        case 'file':
+        case 'audio':
+        case 'video': {
+          const filePath = this.resourceToLocalPath(segment.resource);
+          if (filePath) {
+            filePaths.push(filePath);
+          }
+          break;
+        }
+        case 'unsupported':
+          if (segment.text) {
+            inlineSegments.push({ type: 'text', data: { text: segment.text } });
+          }
+          break;
+        default:
+          break;
       }
-
-      const atMatch = remaining.match(/@(\d+)/);
-      if (atMatch) {
-        const before = remaining.substring(0, atMatch.index);
-        if (before) {
-          segments.push({ type: 'text', data: { text: before } });
-        }
-        segments.push({ type: 'at', data: { qq: atMatch[1] } });
-        remaining = remaining.substring((atMatch.index ?? 0) + atMatch[0].length);
-        continue;
-      }
-
-      const maxLength = Math.min(remaining.length, CONSTANTS.MESSAGE_MAX_LENGTH);
-      segments.push({ type: 'text', data: { text: remaining.substring(0, maxLength) } });
-      break;
     }
 
-    if (media && media.length > 0) {
-      for (const mediaPath of media) {
-        const base64 = this.imageToBase64(mediaPath);
-        if (base64) {
-          segments.push({ type: 'image', data: { file: `base64://${base64}` } });
-        }
+    return { inlineSegments, filePaths };
+  }
+
+  private resourceToImageSegment(resource: ResourceHandle): any | null {
+    const localPath = this.resourceToLocalPath(resource);
+    if (localPath) {
+      const base64 = this.imageToBase64(localPath);
+      if (base64) {
+        return { type: 'image', data: { file: `base64://${base64}` } };
       }
     }
 
-    if (segments.length > 0) {
-      return segments;
+    if (resource.remoteUrl) {
+      return { type: 'image', data: { file: resource.remoteUrl } };
     }
 
-    if (content.trim().length > 0) {
-      return [{ type: 'text', data: { text: content } }];
-    }
+    return null;
+  }
 
-    return [];
+  private resourceToLocalPath(resource: ResourceHandle): string | undefined {
+    if (resource.localPath) {
+      return this.normalizeLocalPath(resource.localPath);
+    }
+    if (resource.remoteUrl?.startsWith('file://')) {
+      return this.normalizeLocalPath(resource.remoteUrl);
+    }
+    return undefined;
   }
 
   private async uploadFile(chatId: number, isGroup: boolean, filePath: string): Promise<void> {
@@ -735,19 +759,12 @@ class OneBotChannel extends BaseChannel {
     }
     return null;
   }
-
-  async stop(): Promise<void> {
-    this.running = false;
-    this.clearHeartbeat();
-    this.ws?.close();
-    this.log.info('OneBot channel stopped');
-  }
 }
 
 const plugin: ChannelPluginDefinition = {
   pluginName: 'channel_onebot',
   channelName: 'onebot',
-  create: (config, eventBus, workspace) => new OneBotChannel(config, eventBus, workspace)
+  create: (config) => new OneBotAdapter(config)
 };
 
 export default plugin;

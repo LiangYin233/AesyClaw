@@ -28,6 +28,7 @@ export interface CoordinateExecutionResult {
 
 export class ExecutionCoordinator {
   private log = logger.child({ prefix: 'ExecutionCoordinator' });
+  private static readonly IMAGE_SUMMARY_PREFIX = '【图片概括】';
 
   constructor(
     private executor: AgentExecutor,
@@ -50,6 +51,11 @@ export class ExecutionCoordinator {
 
     let result;
     if (useVisionProvider) {
+      const imageSummary = await this.executor.summarizeVisionInput(messages);
+      if (imageSummary) {
+        this.attachImageSummary(inbound, messages, imageSummary);
+      }
+
       this.log.info('Using vision provider', {
         sessionKey,
         agent: agentName,
@@ -154,5 +160,38 @@ export class ExecutionCoordinator {
       content: result.content,
       needsBackground: false
     };
+  }
+
+  private attachImageSummary(inbound: InboundMessage, messages: LLMMessage[], summary: string): void {
+    const summaryBlock = `${ExecutionCoordinator.IMAGE_SUMMARY_PREFIX}\n${summary}`;
+    const currentContent = inbound.content?.trim() || '';
+    inbound.content = currentContent ? `${currentContent}\n\n${summaryBlock}` : summaryBlock;
+    inbound.metadata = {
+      ...(inbound.metadata || {}),
+      imageSummary: summary
+    };
+
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage || lastMessage.role !== 'user') {
+      return;
+    }
+
+    if (Array.isArray(lastMessage.content)) {
+      const content = [...lastMessage.content];
+      const insertIndex = Math.max(1, content.findIndex((item: any) => item.type === 'image_url'));
+      const textSegment: { type: 'text'; text: string } = { type: 'text', text: `\n\n${summaryBlock}` };
+
+      if (insertIndex <= 0) {
+        content.push(textSegment);
+      } else {
+        content.splice(insertIndex, 0, textSegment);
+      }
+
+      lastMessage.content = content;
+      return;
+    }
+
+    const text = typeof lastMessage.content === 'string' ? lastMessage.content.trim() : '';
+    lastMessage.content = text ? `${text}\n\n${summaryBlock}` : summaryBlock;
   }
 }

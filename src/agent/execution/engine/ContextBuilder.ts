@@ -1,6 +1,18 @@
 import type { LLMMessage, InboundFile } from '../../../types.js';
+import fs from 'fs';
+import { extname } from 'path';
 import { isVisionableFile } from './vision.js';
 import { buildAgentSystemPrompt } from './prompts.js';
+
+const IMAGE_MIME_TYPES: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.bmp': 'image/bmp',
+  '.svg': 'image/svg+xml'
+};
 
 export class ContextBuilder {
   private workspace: string;
@@ -94,7 +106,10 @@ export class ContextBuilder {
       // 添加图片 URL
       if (media) {
         for (const imageUrl of media) {
-          content.push({ type: 'image_url', image_url: { url: imageUrl } });
+          const resolvedUrl = this.resolveVisionImageUrl(imageUrl);
+          if (resolvedUrl) {
+            content.push({ type: 'image_url', image_url: { url: resolvedUrl } });
+          }
         }
       }
 
@@ -102,7 +117,10 @@ export class ContextBuilder {
       if (files) {
         for (const file of files) {
           if (file.localPath && isVisionableFile(file)) {
-            content.push({ type: 'image_url', image_url: { url: `file://${file.localPath}` } });
+            const resolvedUrl = this.resolveVisionImageUrl(file.localPath);
+            if (resolvedUrl) {
+              content.push({ type: 'image_url', image_url: { url: resolvedUrl } });
+            }
           }
         }
       }
@@ -110,5 +128,29 @@ export class ContextBuilder {
       return content;
     }
     return message;
+  }
+
+  private resolveVisionImageUrl(input: string): string | null {
+    if (!input) {
+      return null;
+    }
+
+    if (input.startsWith('data:image/')) {
+      return input;
+    }
+
+    if (input.startsWith('http://') || input.startsWith('https://')) {
+      return input;
+    }
+
+    const localPath = input.startsWith('file://') ? input.slice(7) : input;
+    if (!fs.existsSync(localPath)) {
+      return null;
+    }
+
+    const ext = extname(localPath).toLowerCase();
+    const mimeType = IMAGE_MIME_TYPES[ext] || 'image/png';
+    const buffer = fs.readFileSync(localPath);
+    return `data:${mimeType};base64,${buffer.toString('base64')}`;
   }
 }

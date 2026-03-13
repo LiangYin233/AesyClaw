@@ -123,6 +123,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     workspace,
     tempDir,
     toolRegistry,
+    sessionManager,
     cronService,
     onCronJob
   });

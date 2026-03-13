@@ -75,10 +75,50 @@ export class Database {
           )
         `);
 
+        this.db.run(`
+          CREATE TABLE IF NOT EXISTS channel_resources (
+            id TEXT PRIMARY KEY,
+            channel TEXT NOT NULL,
+            conversation_id TEXT NOT NULL,
+            message_id TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            original_name TEXT NOT NULL,
+            mime_type TEXT,
+            size INTEGER,
+            remote_url TEXT,
+            platform_file_id TEXT,
+            local_path TEXT,
+            sha256 TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        this.db.run(`
+          CREATE TABLE IF NOT EXISTS channel_delivery_jobs (
+            job_id TEXT PRIMARY KEY,
+            idempotency_key TEXT NOT NULL UNIQUE,
+            channel TEXT NOT NULL,
+            conversation_id TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            status TEXT NOT NULL,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            retryable INTEGER NOT NULL DEFAULT 0,
+            next_retry_at DATETIME,
+            platform_message_id TEXT,
+            error_code TEXT,
+            error_message TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
         this.db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_key ON sessions(key)`);
         this.db.run(`CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)`);
         this.db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_facts_unique ON memory_facts(channel, chat_id, fact)`);
         this.db.run(`CREATE INDEX IF NOT EXISTS idx_memory_facts_chat ON memory_facts(channel, chat_id)`);
+        this.db.run(`CREATE INDEX IF NOT EXISTS idx_channel_resources_message ON channel_resources(channel, conversation_id, message_id)`);
+        this.db.run(`CREATE INDEX IF NOT EXISTS idx_channel_delivery_jobs_status ON channel_delivery_jobs(status, next_retry_at)`);
 
         this.db.all<{ name: string }>(`PRAGMA table_info(memory_facts)`, (err, columns) => {
           if (err) {
