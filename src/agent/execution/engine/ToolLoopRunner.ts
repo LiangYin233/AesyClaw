@@ -21,10 +21,6 @@ export class ToolLoopRunner {
     this.provider = provider;
   }
 
-  setPluginManager(pluginManager?: PluginManager): void {
-    this.pluginManager = pluginManager;
-  }
-
   async run(
     messages: LLMMessage[],
     toolContext: ToolContext,

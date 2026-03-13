@@ -7,8 +7,8 @@ const log = logger.child({ prefix: 'Bootstrap' });
 export function setupSignalHandlers(services: Services): void {
   const shutdown = async () => {
     log.info('Shutting down...');
-    const { agent, channelManager, sessionManager, cronService } = services;
-    agent.stop();
+    const { agentRuntime, channelManager, sessionManager, cronService } = services;
+    agentRuntime.stop();
     await channelManager.stopAll();
     await (cronService as any).stop?.();
     await sessionManager.close();

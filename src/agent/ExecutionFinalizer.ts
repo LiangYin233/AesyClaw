@@ -1,8 +1,8 @@
-import type { InboundMessage, LLMMessage, LLMResponse, OutboundMessage } from '../../types.js';
-import type { SessionManager } from '../../session/SessionManager.js';
-import type { PluginManager } from '../../plugins/index.js';
-import type { SessionMemoryService } from '../memory/SessionMemoryService.js';
-import { logger } from '../../logger/index.js';
+import type { InboundMessage, LLMMessage, LLMResponse, OutboundMessage } from '../types.js';
+import type { SessionManager } from '../session/SessionManager.js';
+import type { PluginManager } from '../plugins/index.js';
+import type { SessionMemoryService } from './memory/SessionMemoryService.js';
+import { logger } from '../logger/index.js';
 
 export interface FinalizeExecutionParams {
   sessionKey: string;
@@ -15,12 +15,12 @@ export interface FinalizeExecutionParams {
   sendOutbound: (message: OutboundMessage) => Promise<void>;
 }
 
-export class ExecutionFinalizeService {
-  private log = logger.child({ prefix: 'ExecutionFinalize' });
+export class ExecutionFinalizer {
+  private log = logger.child({ prefix: 'ExecutionFinalizer' });
 
   constructor(
     private sessionManager: SessionManager,
-    private pluginManager?: PluginManager,
+    private getPluginManager: () => PluginManager | undefined,
     private memoryService?: SessionMemoryService
   ) {}
 
@@ -37,7 +37,6 @@ export class ExecutionFinalizeService {
     } = params;
 
     await this.sessionManager.addMessage(sessionKey, 'user', request.content);
-
     if (content) {
       await this.sessionManager.addMessage(sessionKey, 'assistant', content);
     }
@@ -49,8 +48,9 @@ export class ExecutionFinalizeService {
       finishReason: agentMode ? 'tool_use' : 'stop'
     };
 
-    if (this.pluginManager) {
-      await this.pluginManager.runAgentAfterTaps({
+    const pluginManager = this.getPluginManager();
+    if (pluginManager) {
+      await pluginManager.runAgentAfterTaps({
         message: request,
         response: llmResponse
       });
@@ -81,8 +81,9 @@ export class ExecutionFinalizeService {
   }
 
   async handleError(error: unknown, sessionKey: string): Promise<void> {
-    if (this.pluginManager) {
-      await this.pluginManager.runErrorTaps(error, { type: 'agent', data: { sessionKey } });
+    const pluginManager = this.getPluginManager();
+    if (pluginManager) {
+      await pluginManager.runErrorTaps(error, { type: 'agent', data: { sessionKey } });
     }
   }
 }

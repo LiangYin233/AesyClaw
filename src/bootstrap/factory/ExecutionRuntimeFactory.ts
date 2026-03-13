@@ -1,8 +1,10 @@
 import type { Config, VisionSettings } from '../../types.js';
-import type { EventBus } from '../../bus/EventBus.js';
-import { AgentLoop } from '../../agent/core/AgentLoop.js';
+import { AgentRuntime } from '../../agent/AgentRuntime.js';
+import { OutboundGateway } from '../../agent/OutboundGateway.js';
 import { createProvider, createProviderFromConfig } from '../../providers/index.js';
 import { ToolRegistry } from '../../tools/index.js';
+import { CommandRegistry } from '../../agent/commands/index.js';
+import type { PluginManager } from '../../plugins/index.js';
 import type { SessionMemoryService } from '../../agent/memory/SessionMemoryService.js';
 import type { SessionRoutingService } from '../../agent/session/SessionRoutingService.js';
 import type { SessionManager } from '../../session/index.js';
@@ -23,7 +25,7 @@ function createRequiredProvider(config: Config, providerName?: string, modelName
 }
 
 function createVisionProvider(config: Config, visionSettings: VisionSettings) {
-  if (visionSettings.enabled !== false) {
+  if (visionSettings.enabled === false) {
     return undefined;
   }
 
@@ -51,7 +53,7 @@ async function createSkillManager(config: Config): Promise<SkillManager> {
 export async function createExecutionRuntime(args: {
   getConfig: () => Config;
   setConfig: (config: Config) => void;
-  eventBus: EventBus;
+  outboundGateway: OutboundGateway;
   workspace: string;
   sessionManager: SessionManager;
   sessionRouting: SessionRoutingService;
@@ -59,17 +61,20 @@ export async function createExecutionRuntime(args: {
 }): Promise<{
   provider: ReturnType<typeof createRequiredProvider>;
   toolRegistry: ToolRegistry;
+  commandRegistry: CommandRegistry;
   skillManager: SkillManager;
   agentRoleService: AgentRoleService;
-  agent: AgentLoop;
+  agentRuntime: AgentRuntime;
   visionSettings: VisionSettings;
   visionProvider?: ReturnType<typeof createVisionProvider>;
+  setPluginManager: (pluginManager: PluginManager) => void;
 }> {
-  const { getConfig, setConfig, eventBus, workspace, sessionManager, sessionRouting, memoryService } = args;
+  const { getConfig, setConfig, outboundGateway, workspace, sessionManager, sessionRouting, memoryService } = args;
   const config = getConfig();
   const toolRegistry = new ToolRegistry({
     defaultTimeout: config.tools.timeoutMs
   });
+  const commandRegistry = new CommandRegistry();
   const provider = createRequiredProvider(config);
   const agentDefaults = config.agent.defaults;
   const visionSettings: VisionSettings = {
@@ -87,32 +92,38 @@ export async function createExecutionRuntime(args: {
     skillManager
   );
 
-  const agent = new AgentLoop(
-    eventBus,
+  let pluginManagerRef: PluginManager | undefined;
+  const agentRuntime = new AgentRuntime({
     provider,
     toolRegistry,
     sessionManager,
+    commandRegistry,
+    sessionRouting,
+    outboundGateway,
     workspace,
-    config.agent.defaults.systemPrompt,
-    config.agent.defaults.maxToolIterations,
-    config.agent.defaults.model,
-    config.agent.defaults.contextMode,
-    config.agent.defaults.memoryWindow,
-    skillManager,
+    systemPrompt: config.agent.defaults.systemPrompt,
+    maxIterations: config.agent.defaults.maxToolIterations,
+    model: config.agent.defaults.model,
+    contextMode: config.agent.defaults.contextMode,
+    memoryWindow: config.agent.defaults.memoryWindow,
     visionSettings,
     visionProvider,
-    sessionRouting,
     memoryService,
-    agentRoleService
-  );
+    agentRoleService,
+    getPluginManager: () => pluginManagerRef
+  });
 
   return {
     provider,
     toolRegistry,
+    commandRegistry,
     skillManager,
     agentRoleService,
-    agent,
+    agentRuntime,
     visionSettings,
-    visionProvider
+    visionProvider,
+    setPluginManager(pluginManager: PluginManager) {
+      pluginManagerRef = pluginManager;
+    }
   };
 }

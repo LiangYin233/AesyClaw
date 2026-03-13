@@ -8,7 +8,7 @@ import { createMemoryService } from '../factory/ServiceFactory.js';
 const log = logger.child({ prefix: 'Bootstrap' });
 
 export function setupConfigReload(services: Services): void {
-  const { agent, apiServer, sessionManager, memoryFactStore } = services;
+  const { agentRuntime, apiServer, sessionManager, memoryFactStore } = services;
   let currentConfig = services.config;
 
   ConfigLoader.onReload(async (newConfig) => {
@@ -31,11 +31,11 @@ export function setupConfigReload(services: Services): void {
       }
 
       const newProviderInstance = createProvider(newProvider.name, newProvider.providerConfig);
-      agent.updateProvider(newProviderInstance, newProvider.model);
+      agentRuntime.updateProvider(newProviderInstance, newProvider.model);
     }
 
     const memoryService = createMemoryService(newConfig, sessionManager, memoryFactStore);
-    agent.updateMemorySettings(newConfig.agent.defaults.memoryWindow, memoryService);
+    agentRuntime.updateMemorySettings(newConfig.agent.defaults.memoryWindow, memoryService);
 
     currentConfig = newConfig;
     if (apiServer) {

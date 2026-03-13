@@ -1,6 +1,6 @@
 import type { Config } from '../../types.js';
-import type { EventBus } from '../../bus/EventBus.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
+import type { OutboundGateway } from '../../agent/OutboundGateway.js';
 import { PluginManager } from '../../plugins/index.js';
 import type { PluginConfigState } from '../../plugins/index.js';
 import { ConfigLoader } from '../../config/loader.js';
@@ -29,12 +29,12 @@ export interface PluginRuntime {
 
 export async function createPluginManager(args: {
   config: Config;
-  eventBus: EventBus;
+  outboundGateway: OutboundGateway;
   workspace: string;
   tempDir: string;
   toolRegistry: ToolRegistry;
 }): Promise<PluginRuntime> {
-  const { config, eventBus, workspace, tempDir, toolRegistry } = args;
+  const { config, outboundGateway, workspace, tempDir, toolRegistry } = args;
   let started = false;
 
   const pluginManager = new PluginManager({
@@ -43,7 +43,7 @@ export async function createPluginManager(args: {
     tempDir,
     toolRegistry,
     publishOutbound: async (message) => {
-      await eventBus.publishOutbound(message);
+      await outboundGateway.send(message);
     },
     logger
   });

@@ -1,6 +1,6 @@
 import type { Config } from '../../types.js';
 import { APIServer } from '../../api/index.js';
-import type { AgentLoop } from '../../agent/core/AgentLoop.js';
+import type { AgentRuntime } from '../../agent/AgentRuntime.js';
 import type { SessionManager, MemoryFactStore } from '../../session/index.js';
 import type { ChannelManager } from '../../channels/ChannelManager.js';
 import type { PluginManager } from '../../plugins/index.js';
@@ -16,7 +16,7 @@ const log = logger.child({ prefix: 'ApiInterfaceFactory' });
 export async function createApiServer(args: {
   config: Config;
   port: number;
-  agent: AgentLoop;
+  agentRuntime: AgentRuntime;
   sessionManager: SessionManager;
   channelManager: ChannelManager;
   pluginManager: PluginManager;
@@ -27,7 +27,7 @@ export async function createApiServer(args: {
   memoryFactStore: MemoryFactStore;
   agentRoleService: AgentRoleService;
 }): Promise<APIServer | undefined> {
-  const { config, port, agent, sessionManager, channelManager, pluginManager, cronService, mcpManager, skillManager, toolRegistry, memoryFactStore, agentRoleService } = args;
+  const { config, port, agentRuntime, sessionManager, channelManager, pluginManager, cronService, mcpManager, skillManager, toolRegistry, memoryFactStore, agentRoleService } = args;
 
   if (config.server.apiEnabled === false) {
     log.info('API server disabled by configuration');
@@ -36,7 +36,7 @@ export async function createApiServer(args: {
 
   const apiServer = new APIServer(
     port,
-    agent,
+    agentRuntime,
     sessionManager,
     channelManager,
     config,

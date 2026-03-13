@@ -144,10 +144,6 @@ export class AgentExecutor {
     this.contextBuilder.setCurrentContext(channel, chatId, messageType);
   }
 
-  setPluginManager(pm: PluginManager): void {
-    this.toolLoopRunner.setPluginManager(pm);
-  }
-
   setSkillsPrompt(prompt: string): void {
     this.contextBuilder.setSkillsPrompt(prompt);
   }

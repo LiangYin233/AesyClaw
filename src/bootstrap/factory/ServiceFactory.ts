@@ -1,6 +1,5 @@
 import { join } from 'path';
-import { EventBus } from '../../bus/EventBus.js';
-import { CommandRegistry, BuiltInCommands } from '../../agent/commands/index.js';
+import { BuiltInCommands } from '../../agent/commands/index.js';
 import { APIServer } from '../../api/index.js';
 import { CronService } from '../../cron/index.js';
 import { logger } from '../../logger/index.js';
@@ -17,14 +16,14 @@ import type { ToolRegistry } from '../../tools/index.js';
 import type { MemoryFactStore, SessionManager } from '../../session/index.js';
 import type { ChannelManager } from '../../channels/ChannelManager.js';
 import type { PluginManager } from '../../plugins/index.js';
-import type { AgentLoop } from '../../agent/core/AgentLoop.js';
+import type { AgentRuntime } from '../../agent/AgentRuntime.js';
+import { OutboundGateway } from '../../agent/OutboundGateway.js';
 import type { MCPClientManager } from '../../mcp/index.js';
 import type { SkillManager } from '../../skills/index.js';
 
 const appLog = logger.child({ prefix: 'AesyClaw' });
 
 export interface Services {
-  eventBus: EventBus;
   provider: LLMProvider;
   toolRegistry: ToolRegistry;
   sessionManager: SessionManager;
@@ -32,7 +31,7 @@ export interface Services {
   channelManager: ChannelManager;
   pluginManager: PluginManager;
   startPluginLoading: () => void;
-  agent: AgentLoop;
+  agentRuntime: AgentRuntime;
   cronService: CronService;
   mcpManager: MCPClientManager | null;
   skillManager: SkillManager | null;
@@ -58,8 +57,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   const log = appLog;
 
   log.info('Initializing services...');
-
-  const eventBus = new EventBus();
+  const outboundGateway = new OutboundGateway();
 
   const persistenceStartedAt = Date.now();
   const {
@@ -78,7 +76,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   const executionRuntime = await createExecutionRuntime({
     getConfig: () => config,
     setConfig: (nextConfig) => { config = nextConfig; },
-    eventBus,
+    outboundGateway,
     workspace,
     sessionManager,
     sessionRouting,
@@ -90,12 +88,10 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     durationMs: executionRuntimeMs
   });
 
-  const { provider, toolRegistry, skillManager, agentRoleService, agent } = executionRuntime;
+  const { provider, toolRegistry, commandRegistry, skillManager, agentRoleService, agentRuntime, setPluginManager } = executionRuntime;
 
-  const commandRegistry = new CommandRegistry();
-  const builtInCommands = new BuiltInCommands(sessionManager, sessionRouting, agentRoleService, agent);
+  const builtInCommands = new BuiltInCommands(sessionManager, sessionRouting, agentRoleService, agentRuntime);
   commandRegistry.registerHandler(builtInCommands);
-  agent.setCommandRegistry(commandRegistry);
   log.info('Command registry initialized');
 
   const cronStartedAt = Date.now();
@@ -118,7 +114,8 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     mcpManager
   } = await createInfrastructure({
     config,
-    eventBus,
+    outboundGateway,
+    agentRuntime,
     workspace,
     tempDir,
     toolRegistry,
@@ -132,16 +129,15 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     durationMs: infrastructureMs
   });
 
-  agent.setPluginManager(pluginManager);
+  setPluginManager(pluginManager);
 
   registerBuiltInTools({
     toolRegistry,
     skillManager,
     cronService,
-    eventBus,
     pluginManager,
     mcpManager,
-    agent,
+    agentRuntime,
     agentRoleService
   });
 
@@ -149,7 +145,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   const apiServer = await createApiServer({
     config,
     port,
-    agent,
+    agentRuntime,
     sessionManager,
     channelManager,
     pluginManager,
@@ -176,7 +172,6 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   });
 
   return {
-    eventBus,
     provider,
     toolRegistry,
     sessionManager,
@@ -184,7 +179,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     channelManager,
     pluginManager,
     startPluginLoading,
-    agent,
+    agentRuntime,
     cronService,
     mcpManager,
     skillManager,

@@ -1,0 +1,350 @@
+import type { Config, InboundMessage, OutboundMessage } from '../types.js';
+import type { LLMProvider } from '../providers/base.js';
+import type { PluginManager } from '../plugins/index.js';
+import type { ToolRegistry, ToolContext } from '../tools/ToolRegistry.js';
+import type { SessionManager } from '../session/SessionManager.js';
+import type { CommandRegistry } from './commands/index.js';
+import type { SessionMemoryService } from './memory/SessionMemoryService.js';
+import type { SessionRoutingService } from './session/SessionRoutingService.js';
+import type { AgentRoleService } from './roles/AgentRoleService.js';
+import type { VisionSettings } from '../types.js';
+import { logger } from '../logger/index.js';
+import { metrics } from '../logger/Metrics.js';
+import { CONFIG_DEFAULTS } from '../constants/index.js';
+import { OutboundGateway } from './OutboundGateway.js';
+import { AgentPipeline } from './AgentPipeline.js';
+import { SessionResolver } from './SessionResolver.js';
+import { ExecutionFinalizer } from './ExecutionFinalizer.js';
+import { ExecutionControl } from './ExecutionControl.js';
+import { ExecutionEngine } from './ExecutionEngine.js';
+import { ExecutionRuntime } from './ExecutionRuntime.js';
+import { SessionHandle } from './SessionHandle.js';
+import type { ContextMode, ExecutionStatus, SessionReference } from './types.js';
+
+export interface AgentRuntimeOptions {
+  provider: LLMProvider;
+  toolRegistry: ToolRegistry;
+  sessionManager: SessionManager;
+  commandRegistry: CommandRegistry;
+  sessionRouting: SessionRoutingService;
+  outboundGateway: OutboundGateway;
+  workspace: string;
+  systemPrompt?: string;
+  maxIterations?: number;
+  model?: string;
+  contextMode?: ContextMode;
+  memoryWindow?: number;
+  visionSettings?: VisionSettings;
+  visionProvider?: LLMProvider;
+  memoryService?: SessionMemoryService;
+  agentRoleService?: AgentRoleService;
+  getPluginManager: () => PluginManager | undefined;
+}
+
+export class AgentRuntime {
+  private log = logger.child({ prefix: 'AgentRuntime' });
+  private running = false;
+  private defaultProvider: LLMProvider;
+  private defaultModel: string;
+  private systemPrompt: string;
+  private maxIterations: number;
+  private memoryWindow: number;
+  private memoryService?: SessionMemoryService;
+  private agentRoleService?: AgentRoleService;
+  private readonly pipeline: AgentPipeline;
+  private readonly sessionResolver: SessionResolver;
+  private readonly executionControl: ExecutionControl;
+  private readonly finalizer: ExecutionFinalizer;
+  private readonly executionEngine: ExecutionEngine;
+  private readonly executionRuntime: ExecutionRuntime;
+  private readonly toolContextBase: ToolContext;
+
+  constructor(private options: AgentRuntimeOptions) {
+    this.defaultProvider = options.provider;
+    this.defaultModel = options.model || 'gpt-4o';
+    this.systemPrompt = options.systemPrompt || 'You are a helpful AI assistant.';
+    this.maxIterations = options.maxIterations ?? CONFIG_DEFAULTS.DEFAULT_MAX_ITERATIONS;
+    this.memoryWindow = options.memoryWindow ?? CONFIG_DEFAULTS.DEFAULT_MEMORY_WINDOW;
+    this.memoryService = options.memoryService;
+    this.agentRoleService = options.agentRoleService;
+    this.toolContextBase = { workspace: options.workspace };
+
+    this.pipeline = new AgentPipeline(options.commandRegistry, options.getPluginManager);
+    this.sessionResolver = new SessionResolver(
+      options.sessionManager,
+      options.sessionRouting,
+      options.memoryService,
+      options.agentRoleService
+    );
+    this.executionControl = new ExecutionControl(
+      options.sessionRouting,
+      (message) => options.outboundGateway.send(message)
+    );
+    this.finalizer = new ExecutionFinalizer(
+      options.sessionManager,
+      options.getPluginManager,
+      options.memoryService
+    );
+    this.executionEngine = new ExecutionEngine({
+      defaultProvider: options.provider,
+      defaultModel: this.defaultModel,
+      defaultSystemPrompt: this.systemPrompt,
+      maxIterations: this.maxIterations,
+      memoryWindow: this.memoryWindow,
+      toolRegistry: options.toolRegistry,
+      workspace: options.workspace,
+      getPluginManager: options.getPluginManager,
+      visionSettings: options.visionSettings,
+      visionProvider: options.visionProvider,
+      executionRegistry: this.executionControl.registry
+    }, options.agentRoleService);
+    this.executionRuntime = new ExecutionRuntime(
+      this.executionEngine,
+      this.executionControl,
+      this.finalizer,
+      options.getPluginManager,
+      (message) => this.sendOutbound(message)
+    );
+  }
+
+  start(): void {
+    this.running = true;
+    this.log.info('Agent runtime started');
+  }
+
+  stop(): void {
+    this.running = false;
+    this.executionControl.stop();
+  }
+
+  isRunning(): boolean {
+    return this.running;
+  }
+
+  session(reference: SessionReference | string): SessionHandle {
+    return new SessionHandle(this, reference);
+  }
+
+  async handleInbound(
+    message: InboundMessage,
+    options?: { suppressOutbound?: boolean }
+  ): Promise<string | undefined> {
+    const startedAt = Date.now();
+    const endTimer = metrics.timer('agent.process_message', {
+      channel: message.channel,
+      sessionKey: message.sessionKey || 'pending'
+    });
+
+    this.log.info('Inbound message received', {
+      sessionKey: message.sessionKey,
+      channel: message.channel,
+      chatId: message.chatId,
+      messageType: message.messageType,
+      source: message.metadata?.directResponse ? 'direct' : message.metadata?.source || 'user'
+    });
+
+    const preprocessed = await this.pipeline.process(message, {
+      suppressOutbound: options?.suppressOutbound,
+      sendOutbound: (outbound) => this.sendOutbound(outbound)
+    });
+
+    if (preprocessed.type === 'handled') {
+      this.log.info('Inbound message handled by pipeline', {
+        sessionKey: message.sessionKey,
+        channel: message.channel,
+        durationMs: Date.now() - startedAt
+      });
+      endTimer();
+      return undefined;
+    }
+
+    if (preprocessed.type === 'reply') {
+      this.log.info('Inbound message replied by pipeline', {
+        sessionKey: message.sessionKey,
+        channel: message.channel,
+        durationMs: Date.now() - startedAt
+      });
+      endTimer();
+      return preprocessed.content;
+    }
+
+    const context = await this.sessionResolver.resolve(preprocessed.message, {
+      toolContext: {
+        ...this.toolContextBase,
+        channel: preprocessed.message.channel,
+        chatId: preprocessed.message.chatId,
+        messageType: preprocessed.message.messageType
+      },
+      suppressOutbound: options?.suppressOutbound,
+      memoryWindow: this.memoryWindow
+    });
+
+    try {
+      const result = await this.executionRuntime.execute(context);
+      this.log.info('Inbound message execution finished', {
+        sessionKey: context.sessionKey,
+        channel: context.channel,
+        durationMs: Date.now() - startedAt,
+        suppressOutbound: context.suppressOutbound
+      });
+      return result;
+    } finally {
+      endTimer();
+    }
+  }
+
+  async handleDirect(
+    content: string,
+    reference: SessionReference | string,
+    options?: { suppressOutbound?: boolean }
+  ): Promise<string> {
+    const bound = this.bindMessageToSession({
+      channel: typeof reference === 'string' ? 'api' : reference.channel || 'api',
+      senderId: typeof reference === 'string' ? 'api' : reference.chatId || 'api',
+      chatId: typeof reference === 'string' ? reference : reference.chatId || reference.sessionKey || 'api',
+      content,
+      timestamp: new Date(),
+      messageType: typeof reference === 'string' ? 'private' : reference.messageType,
+      sessionKey: typeof reference === 'string' ? reference : reference.sessionKey,
+      metadata: {
+        suppressOutbound: options?.suppressOutbound ?? true,
+        directResponse: true
+      }
+    }, reference);
+
+    const response = await this.handleInbound(bound, {
+      suppressOutbound: options?.suppressOutbound ?? true
+    });
+
+    return response || '';
+  }
+
+  async runSubAgentTask(
+    agentName: string,
+    task: string,
+    context?: {
+      channel?: string;
+      chatId?: string;
+      messageType?: 'private' | 'group';
+      signal?: AbortSignal;
+    }
+  ): Promise<string> {
+    return this.executionRuntime.runSubAgentTask(agentName, task, {
+      ...this.toolContextBase,
+      channel: context?.channel,
+      chatId: context?.chatId,
+      messageType: context?.messageType,
+      signal: context?.signal
+    }, {
+      signal: context?.signal
+    });
+  }
+
+  async runSubAgentTasks(
+    tasks: Array<{ agentName: string; task: string }>,
+    context?: {
+      channel?: string;
+      chatId?: string;
+      messageType?: 'private' | 'group';
+      signal?: AbortSignal;
+    }
+  ): Promise<Array<{ agentName: string; task: string; success: boolean; result?: string; error?: string }>> {
+    return this.executionRuntime.runSubAgentTasks(tasks, {
+      ...this.toolContextBase,
+      channel: context?.channel,
+      chatId: context?.chatId,
+      messageType: context?.messageType,
+      signal: context?.signal
+    }, {
+      signal: context?.signal
+    });
+  }
+
+  abortSession(sessionKeyOrChannel: string, chatId?: string): boolean {
+    if (chatId !== undefined) {
+      return this.executionControl.abortByChat(sessionKeyOrChannel, chatId);
+    }
+    return this.executionControl.abortBySessionKey(sessionKeyOrChannel);
+  }
+
+  abortReference(reference: SessionReference | string): boolean {
+    if (typeof reference === 'string') {
+      return this.abortSession(reference);
+    }
+    if (reference.sessionKey) {
+      return this.abortSession(reference.sessionKey);
+    }
+    if (reference.channel && reference.chatId) {
+      return this.abortSession(reference.channel, reference.chatId);
+    }
+    return false;
+  }
+
+  getExecutionStatus(sessionKey: string): ExecutionStatus {
+    return this.executionControl.getStatus(sessionKey);
+  }
+
+  getStatusByReference(reference: SessionReference | string): ExecutionStatus | undefined {
+    if (typeof reference === 'string') {
+      return this.getExecutionStatus(reference);
+    }
+    if (reference.sessionKey) {
+      return this.getExecutionStatus(reference.sessionKey);
+    }
+    if (reference.channel && reference.chatId) {
+      const sessionKey = this.options.sessionRouting.resolveByChannel(reference.channel, reference.chatId);
+      return sessionKey ? this.getExecutionStatus(sessionKey) : undefined;
+    }
+    return undefined;
+  }
+
+  updateProvider(provider: LLMProvider, model?: string): void {
+    this.defaultProvider = provider;
+    if (model) {
+      this.defaultModel = model;
+    }
+    this.executionEngine.updateRuntime({
+      defaultProvider: provider,
+      defaultModel: model || this.defaultModel
+    });
+    this.log.info('Agent provider updated', { model: model || this.defaultModel });
+  }
+
+  updateMemorySettings(memoryWindow: number, memoryService?: SessionMemoryService): void {
+    this.memoryWindow = memoryWindow;
+    this.memoryService = memoryService;
+    this.executionEngine.updateRuntime({ memoryWindow });
+    this.log.info('Memory settings updated', {
+      memoryWindow,
+      summaryEnabled: !!memoryService
+    });
+  }
+
+  bindMessageToSession(message: InboundMessage, reference: SessionReference | string): InboundMessage {
+    if (typeof reference === 'string') {
+      return {
+        ...message,
+        sessionKey: message.sessionKey || reference
+      };
+    }
+
+    return {
+      ...message,
+      sessionKey: message.sessionKey || reference.sessionKey,
+      channel: reference.channel || message.channel,
+      chatId: reference.chatId || message.chatId,
+      senderId: message.senderId || reference.chatId || message.chatId,
+      messageType: reference.messageType || message.messageType
+    };
+  }
+
+  private async sendOutbound(message: OutboundMessage): Promise<void> {
+    const pluginManager = this.options.getPluginManager();
+    if (pluginManager) {
+      await pluginManager.dispatchMessage(message);
+      return;
+    }
+
+    await this.options.outboundGateway.send(message);
+  }
+}

@@ -3,7 +3,6 @@ import { mkdirSync, existsSync } from 'fs';
 import { logger, normalizeError } from '../logger/index.js';
 import { CONSTANTS } from '../constants/index.js';
 import type { Config } from '../types.js';
-import type { OutboundMessage } from '../types.js';
 import type { CronJob } from '../cron/index.js';
 import { ConfigLoader } from '../config/loader.js';
 import { createServices, type Services } from './factory/ServiceFactory.js';
@@ -45,29 +44,6 @@ function ensureRuntimeDirectories(workspace: string, tempDir: string): void {
   if (!existsSync(tempDir)) {
     mkdirSync(tempDir, { recursive: true });
   }
-}
-
-function wireOutbound(services: Services): void {
-  const { eventBus, channelManager } = services;
-  eventBus.on('outbound', async (msg: OutboundMessage) => {
-    if (channelManager.get(msg.channel)) {
-      try {
-        await channelManager.dispatch(msg);
-      } catch (error: unknown) {
-        log.error('Outbound send failed', {
-          channel: msg.channel,
-          chatId: msg.chatId,
-          messageType: msg.messageType,
-          error: normalizeError(error)
-        });
-      }
-    } else {
-      log.warn('Outbound channel missing', {
-        channel: msg.channel,
-        chatId: msg.chatId
-      });
-    }
-  });
 }
 
 async function startChannels(services: Services): Promise<void> {
@@ -129,7 +105,6 @@ export async function bootstrap(): Promise<void> {
   });
 
   const wiringStartedAt = Date.now();
-  wireOutbound(servicesRef);
   setupConfigReload(servicesRef);
   setupSignalHandlers(servicesRef);
   log.info('Bootstrap phase completed', {
@@ -144,10 +119,7 @@ export async function bootstrap(): Promise<void> {
     durationMs: Date.now() - channelsStartedAt
   });
 
-  servicesRef.agent.run().catch((error: Error) => {
-    log.error('Agent loop crashed', { error: error.message });
-    process.exit(1);
-  });
+  servicesRef.agentRuntime.start();
   servicesRef.startPluginLoading();
 
   log.info('Gateway bootstrap completed', {

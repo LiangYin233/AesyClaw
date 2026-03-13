@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import type { AgentLoop } from '../../agent/core/AgentLoop.js';
+import type { AgentRuntime } from '../../agent/AgentRuntime.js';
 import { INTERNAL_CHANNELS } from '../../constants/index.js';
 
 export interface ChatRequest {
@@ -15,14 +15,15 @@ export interface ChatResponse {
 }
 
 export class ChatService {
-  constructor(private agent: Pick<AgentLoop, 'processDirect'>) {}
+  constructor(private agentRuntime: Pick<AgentRuntime, 'handleDirect'>) {}
 
   async handleChat(request: ChatRequest): Promise<ChatResponse> {
     const resolvedChannel = request.channel?.trim() || INTERNAL_CHANNELS.WEBUI;
     const key = request.sessionKey || `${resolvedChannel}:${randomUUID()}`;
     const resolvedChatId = request.chatId?.trim() || request.sessionKey || key;
 
-    const response = await this.agent.processDirect(request.message, key, {
+    const response = await this.agentRuntime.handleDirect(request.message, {
+      sessionKey: key,
       channel: resolvedChannel,
       chatId: resolvedChatId,
       messageType: 'private'

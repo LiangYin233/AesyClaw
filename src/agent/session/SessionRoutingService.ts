@@ -1,4 +1,4 @@
-import type { ContextMode } from '../core/AgentLoop.js';
+import type { ContextMode } from '../types.js';
 import type { InboundMessage } from '../../types.js';
 import type { SessionManager } from '../../session/SessionManager.js';
 

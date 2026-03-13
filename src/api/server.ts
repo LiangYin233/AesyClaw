@@ -2,7 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import type { AgentLoop } from '../agent/core/AgentLoop.js';
+import type { AgentRuntime } from '../agent/AgentRuntime.js';
 import type { SessionManager } from '../session/SessionManager.js';
 import type { ChannelManager } from '../channels/ChannelManager.js';
 import type { Config } from '../types.js';
@@ -39,7 +39,7 @@ export class APIServer {
 
   constructor(
     private port: number,
-    private agent: AgentLoop,
+    private agentRuntime: AgentRuntime,
     private sessionManager: SessionManager,
     private channelManager: ChannelManager,
     private config: Config,
@@ -105,7 +105,7 @@ export class APIServer {
   }
 
   private setupRoutes(): void {
-    const chatService = new ChatService(this.agent);
+    const chatService = new ChatService(this.agentRuntime);
     const sessionService = new SessionService(this.sessionManager, this.agentRoleService);
     const agentRoleAppService = this.agentRoleService
       ? new AgentRoleService(this.agentRoleService, this.sessionManager)
@@ -124,7 +124,7 @@ export class APIServer {
       packageVersion,
       maxMessageLength: MAX_MESSAGE_LENGTH,
       sessionCount: () => this.sessionManager.count(),
-      agentRunning: () => this.agent.isRunning(),
+      agentRunning: () => this.agentRuntime.isRunning(),
       log: this.log
     });
     registerMemoryRoutes(this.app, {

@@ -2,7 +2,7 @@ import type { InboundMessage } from '../../types.js';
 import type { SessionManager } from '../../session/SessionManager.js';
 import type { AgentRoleService } from '../roles/AgentRoleService.js';
 import type { SessionRoutingService } from '../session/SessionRoutingService.js';
-import type { AgentLoop } from '../core/AgentLoop.js';
+import type { AgentRuntime } from '../AgentRuntime.js';
 import { logger } from '../../logger/index.js';
 import { CommandHandler, type CommandDefinition } from './CommandHandler.js';
 
@@ -13,7 +13,7 @@ export class BuiltInCommands extends CommandHandler {
     private sessionManager: SessionManager,
     private sessionRouting: SessionRoutingService,
     private agentRoleService: AgentRoleService,
-    private agent: Pick<AgentLoop, 'abortSession'>
+    private agent: Pick<AgentRuntime, 'abortSession'>
   ) {
     super();
   }

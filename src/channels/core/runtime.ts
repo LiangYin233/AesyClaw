@@ -1,6 +1,5 @@
 import { basename, join } from 'path';
 import { randomUUID } from 'crypto';
-import type { EventBus } from '../../bus/EventBus.js';
 import type { Database } from '../../db/index.js';
 import { logger } from '../../logger/index.js';
 import type { InboundMessage, OutboundMessage } from '../../types.js';
@@ -59,9 +58,9 @@ export class ChannelRuntime {
   private resourceStore: ResourceStore;
   private deliveryQueue: DeliveryQueue;
   private queueStarted = false;
+  private inboundHandler?: (message: InboundMessage) => Promise<void>;
 
   constructor(
-    private eventBus: EventBus,
     db: Database,
     private workspace: string
   ) {
@@ -76,6 +75,10 @@ export class ChannelRuntime {
 
   registerAdapter(name: string, adapter: ChannelAdapter): void {
     this.adapters.set(name, adapter);
+  }
+
+  setInboundHandler(handler: (message: InboundMessage) => Promise<void>): void {
+    this.inboundHandler = handler;
   }
 
   unregisterAdapter(name: string): void {
@@ -175,7 +178,15 @@ export class ChannelRuntime {
       id: message.id
     };
 
-    this.eventBus.publishInbound(inbound);
+    if (!this.inboundHandler) {
+      this.log.warn('Inbound handler missing', {
+        channel: inbound.channel,
+        chatId: inbound.chatId
+      });
+      return;
+    }
+
+    await this.inboundHandler(inbound);
   }
 
   async dispatch(message: OutboundMessage | ChannelMessage): Promise<DeliveryReceipt> {

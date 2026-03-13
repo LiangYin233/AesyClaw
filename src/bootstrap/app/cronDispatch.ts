@@ -3,7 +3,6 @@ import { logger, normalizeError } from '../../logger/index.js';
 import { CRON_SESSION_KEY_PREFIX } from '../../constants/index.js';
 import type { Services } from '../factory/ServiceFactory.js';
 import type { CronJob } from '../../cron/index.js';
-import type { ToolContext } from '../../tools/ToolRegistry.js';
 
 const log = logger.child({ prefix: 'Bootstrap' });
 
@@ -27,30 +26,32 @@ export async function dispatchCronJob(services: Services, workspace: string, job
     target: job.payload.target
   });
 
-  const { eventBus, agent } = services;
+  const { agentRuntime } = services;
   const sessionKey = `${CRON_SESSION_KEY_PREFIX}${job.id}:${randomUUID().slice(0, 8)}`;
   const target = job.payload.target;
 
   try {
-    let contextOverride: ToolContext | undefined;
+    let contextOverride: { channel: string; chatId: string; messageType: 'private' | 'group' } | undefined;
 
     if (target) {
       const parsed = parseTarget(target);
       if (parsed) {
         contextOverride = {
-          workspace,
-          eventBus,
           channel: parsed.channel,
           chatId: parsed.chatId,
-          messageType: parsed.messageType,
-          source: 'cron'
+          messageType: parsed.messageType
         };
       } else {
         log.error('Cron target invalid', { jobId: job.id, target });
       }
     }
 
-    await agent.processDirect(job.payload.detail, sessionKey, contextOverride, {
+    await agentRuntime.handleDirect(job.payload.detail, {
+      sessionKey,
+      channel: contextOverride?.channel || 'cron',
+      chatId: contextOverride?.chatId || job.id,
+      messageType: contextOverride?.messageType
+    }, {
       suppressOutbound: !(target && contextOverride?.channel && contextOverride?.chatId)
     });
 

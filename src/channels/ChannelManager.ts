@@ -1,7 +1,6 @@
-import type { EventBus } from '../bus/EventBus.js';
 import type { Database } from '../db/index.js';
 import { logger, normalizeError } from '../logger/index.js';
-import type { OutboundMessage } from '../types.js';
+import type { InboundMessage, OutboundMessage } from '../types.js';
 import { ChannelRuntime } from './core/runtime.js';
 import type { ChannelAdapter } from './core/adapter.js';
 import type { DeliveryReceipt } from './core/types.js';
@@ -25,8 +24,8 @@ export class ChannelManager {
   #workspace: string;
   #log = logger.child({ prefix: 'ChannelManager' });
 
-  constructor(eventBus: EventBus, db: Database, workspace?: string) {
-    this.#runtime = new ChannelRuntime(eventBus, db, workspace || process.cwd());
+  constructor(db: Database, workspace?: string) {
+    this.#runtime = new ChannelRuntime(db, workspace || process.cwd());
     this.#workspace = workspace || process.cwd();
   }
 
@@ -77,6 +76,10 @@ export class ChannelManager {
     this.#channels.delete(name);
     this.#runtime.unregisterAdapter(name);
     this.#log.debug('Channel unregistered', { channel: name });
+  }
+
+  setInboundHandler(handler: (message: InboundMessage) => Promise<void>): void {
+    this.#runtime.setInboundHandler(handler);
   }
 
   get(name: string): ChannelHandle | undefined {

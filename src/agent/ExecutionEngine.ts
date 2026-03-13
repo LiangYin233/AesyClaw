@@ -1,15 +1,15 @@
-import type { VisionSettings } from '../../types.js';
-import type { LLMProvider } from '../../providers/base.js';
-import type { PluginManager } from '../../plugins/index.js';
-import type { ToolRegistry } from '../../tools/ToolRegistry.js';
-import type { AgentRoleService } from '../roles/AgentRoleService.js';
-import { AgentExecutor } from './engine/AgentExecutor.js';
-import { ScopedToolRegistry } from '../../tools/ScopedToolRegistry.js';
-import { logger } from '../../logger/index.js';
-import type { ExecutionPolicy } from './contracts.js';
-import type { ExecutionRegistry } from './ExecutionRegistry.js';
+import type { VisionSettings } from '../types.js';
+import type { LLMProvider } from '../providers/base.js';
+import type { PluginManager } from '../plugins/index.js';
+import type { ToolRegistry, ToolContext } from '../tools/ToolRegistry.js';
+import type { AgentRoleService } from './roles/AgentRoleService.js';
+import { AgentExecutor } from './execution/engine/AgentExecutor.js';
+import { ScopedToolRegistry } from '../tools/ScopedToolRegistry.js';
+import { logger } from '../logger/index.js';
+import type { ExecutionContext, ExecutionPolicy } from './execution/contracts.js';
+import type { ExecutionRegistry } from './execution/ExecutionRegistry.js';
 
-export interface ExecutionPolicyFactoryOptions {
+export interface ExecutionEngineOptions {
   defaultProvider: LLMProvider;
   defaultModel: string;
   defaultSystemPrompt: string;
@@ -17,7 +17,7 @@ export interface ExecutionPolicyFactoryOptions {
   memoryWindow: number;
   toolRegistry: ToolRegistry;
   workspace: string;
-  pluginManager?: PluginManager;
+  getPluginManager: () => PluginManager | undefined;
   visionSettings?: VisionSettings;
   visionProvider?: LLMProvider;
   executionRegistry: ExecutionRegistry;
@@ -40,22 +40,86 @@ function buildOperationalPrompt(allowedToolNames: string[]): string {
   return sections.join('\n\n');
 }
 
-export class ExecutionPolicyFactory {
-  private log = logger.child({ prefix: 'ExecutionPolicyFactory' });
+export class ExecutionEngine {
+  private log = logger.child({ prefix: 'ExecutionEngine' });
 
   constructor(
-    private options: ExecutionPolicyFactoryOptions,
+    private options: ExecutionEngineOptions,
     private agentRoleService?: AgentRoleService
   ) {}
 
-  updateRuntime(partial: Partial<Pick<ExecutionPolicyFactoryOptions, 'defaultProvider' | 'defaultModel' | 'defaultSystemPrompt' | 'maxIterations' | 'memoryWindow' | 'pluginManager' | 'visionSettings' | 'visionProvider'>>): void {
+  updateRuntime(
+    partial: Partial<Pick<ExecutionEngineOptions, 'defaultProvider' | 'defaultModel' | 'defaultSystemPrompt' | 'maxIterations' | 'memoryWindow' | 'visionSettings' | 'visionProvider'>>
+  ): void {
     this.options = {
       ...this.options,
       ...partial
     };
   }
 
-  createPolicy(roleName?: string | null, extra?: { excludeTools?: string[] }): ExecutionPolicy {
+  prepare(context: ExecutionContext): {
+    policy: ExecutionPolicy;
+    executor: AgentExecutor;
+    messages: ReturnType<AgentExecutor['buildMessages']>;
+  } {
+    const policy = this.resolvePolicy(context.agentName);
+    const executor = this.createExecutor(policy);
+    executor.setCurrentContext(context.channel, context.chatId, context.messageType);
+    const messages = executor.buildMessages(
+      context.history,
+      context.request.content,
+      context.request.media,
+      context.request.files
+    );
+
+    return { policy, executor, messages };
+  }
+
+  async runSubAgentTask(
+    agentName: string,
+    task: string,
+    toolContext: ToolContext,
+    extra?: { signal?: AbortSignal; excludeTools?: string[] }
+  ): Promise<string> {
+    const policy = this.resolvePolicy(agentName, {
+      excludeTools: extra?.excludeTools
+    });
+    const executor = this.createExecutor(policy);
+    executor.setCurrentContext(toolContext.channel, toolContext.chatId, toolContext.messageType);
+    const messages = executor.buildMessages([], task);
+    const signal = extra?.signal ?? toolContext.signal;
+
+    const initial = await executor.callLLM(messages, {
+      allowTools: true,
+      reasoning: policy.visionSettings?.reasoning,
+      signal
+    });
+
+    if (initial.toolCalls.length === 0) {
+      return initial.content;
+    }
+
+    messages.push({
+      role: 'assistant',
+      content: initial.content || '',
+      toolCalls: initial.toolCalls
+    });
+
+    const result = await executor.executeToolLoop(messages, {
+      ...toolContext,
+      signal
+    }, {
+      agentName: policy.roleName,
+      allowTools: true,
+      source: 'user',
+      initialToolCalls: initial.toolCalls,
+      signal
+    });
+
+    return result.content;
+  }
+
+  private resolvePolicy(roleName?: string | null, extra?: { excludeTools?: string[] }): ExecutionPolicy {
     if (!this.agentRoleService) {
       const allowedToolNames = this.options.toolRegistry.getDefinitions().map((tool) => tool.name);
       return {
@@ -81,7 +145,6 @@ export class ExecutionPolicyFactory {
     const allowedToolNames = this.agentRoleService.getAllowedToolNames(resolvedRole.name, {
       excludeTools: extra?.excludeTools
     });
-
     const auxiliaryPrompt = [
       this.agentRoleService.buildSkillsPrompt(resolvedRole.name),
       this.agentRoleService.buildRoleDescriptionsPrompt(resolvedRole.name),
@@ -102,7 +165,7 @@ export class ExecutionPolicyFactory {
     };
   }
 
-  createExecutor(policy: ExecutionPolicy): AgentExecutor {
+  private createExecutor(policy: ExecutionPolicy): AgentExecutor {
     this.log.debug(`Creating executor for role=${policy.roleName}, model=${policy.model}`);
 
     return new AgentExecutor(
@@ -113,7 +176,7 @@ export class ExecutionPolicyFactory {
       policy.skillsPrompt,
       policy.model,
       policy.maxIterations,
-      this.options.pluginManager,
+      this.options.getPluginManager(),
       policy.visionSettings,
       this.options.visionProvider,
       this.options.executionRegistry

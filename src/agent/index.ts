@@ -1,2 +1,3 @@
-export { AgentLoop } from './core/AgentLoop.js';
-export type { ContextMode, ExecutionStatus } from './core/AgentLoop.js';
+export { AgentRuntime } from './AgentRuntime.js';
+export { SessionHandle } from './SessionHandle.js';
+export type { ContextMode, ExecutionStatus, SessionReference } from './types.js';

@@ -1,6 +1,6 @@
 import type { LLMMessage, LLMResponse } from '../../types.js';
 import type { ToolContext } from '../../tools/ToolRegistry.js';
-import type { EventBus } from '../../bus/EventBus.js';
+import type { OutboundMessage } from '../../types.js';
 import { logger } from '../../logger/index.js';
 
 export interface BackgroundTaskResult {
@@ -68,12 +68,10 @@ export interface BackgroundTaskExecutor {
  */
 export class BackgroundTaskManager {
   private tasks: Map<string, BackgroundTask> = new Map();
-  private eventBus: EventBus;
   private maxConcurrentPerSession: number = 5;
   private log = logger.child({ prefix: 'BackgroundTask' });
 
-  constructor(eventBus: EventBus) {
-    this.eventBus = eventBus;
+  constructor(private sendOutbound: (message: OutboundMessage) => Promise<void>) {
   }
 
   /**
@@ -251,12 +249,20 @@ export class BackgroundTaskManager {
     chatId: string,
     messageType?: 'private' | 'group'
   ): Promise<void> {
-    this.eventBus.publishOutbound({
+    await this.sendOutbound({
       channel,
       chatId,
       content: '当前会话任务过多，请稍后再试',
       messageType
     });
+  }
+
+  stop(): void {
+    for (const task of this.tasks.values()) {
+      task.abortController.abort();
+      task.status = 'aborted';
+    }
+    this.tasks.clear();
   }
 
   /**

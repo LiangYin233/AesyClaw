@@ -2,11 +2,10 @@ import type { ToolContext, ToolRegistry } from '../../tools/index.js';
 import type { ToolSource } from '../../tools/ToolRegistry.js';
 import type { SkillManager } from '../../skills/index.js';
 import type { CronService } from '../../cron/index.js';
-import type { EventBus } from '../../bus/EventBus.js';
 import type { MCPClientManager } from '../../mcp/index.js';
 import type { PluginManager } from '../../plugins/index.js';
 import type { OutboundMessage, ToolDefinition } from '../../types.js';
-import type { AgentLoop } from '../../agent/core/AgentLoop.js';
+import type { AgentRuntime } from '../../agent/AgentRuntime.js';
 import type { AgentRoleService } from '../../agent/roles/AgentRoleService.js';
 import { registerCronTools } from '../../cron/CronTools.js';
 import { logger, normalizeError } from '../../logger/index.js';
@@ -15,10 +14,9 @@ export interface ToolIntegrationOptions {
   toolRegistry: ToolRegistry;
   skillManager: SkillManager;
   cronService: CronService;
-  eventBus: EventBus;
   pluginManager: PluginManager;
   mcpManager: MCPClientManager | null;
-  agent: AgentLoop;
+  agentRuntime: AgentRuntime;
   agentRoleService: AgentRoleService;
 }
 
@@ -27,14 +25,13 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
     toolRegistry,
     skillManager,
     cronService,
-    eventBus,
     pluginManager,
-    agent,
+    agentRuntime,
     agentRoleService
   } = options;
   const log = logger.child({ prefix: 'ToolIntegration' });
 
-  registerCronTools(toolRegistry, cronService, eventBus);
+  registerCronTools(toolRegistry, cronService);
 
   const publishOutboundMessage = async (message: OutboundMessage): Promise<void> => {
     await pluginManager.dispatchMessage(message);
@@ -195,7 +192,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
       }
 
       try {
-        const results = await agent.runSubAgentTasks(rawTasks, {
+        const results = await agentRuntime.runSubAgentTasks(rawTasks, {
           channel: context?.channel,
           chatId: context?.chatId,
           messageType: context?.messageType,

@@ -1,5 +1,4 @@
 ﻿import type { ToolDefinition } from '../types.js';
-import type { EventBus } from '../bus/EventBus.js';
 import { logger } from '../logger/index.js';
 import { CONSTANTS } from '../constants/index.js';
 
@@ -23,7 +22,6 @@ export interface Tool {
 
 export interface ToolContext {
   workspace: string;
-  eventBus?: EventBus;
   source?: 'user' | 'cron';
   signal?: AbortSignal;
   chatId?: string;

@@ -1,7 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { ToolContext, ToolRegistry } from '../tools/ToolRegistry.js';
 import type { CronService, CronJob, CronSchedule } from './CronService.js';
-import type { EventBus } from '../bus/EventBus.js';
 import { logger } from '../logger/index.js';
 
 /**
@@ -43,8 +42,7 @@ function normalizeOnceTime(str: string): string {
 
 export function registerCronTools(
   toolRegistry: ToolRegistry,
-  cronService: CronService,
-  _eventBus: EventBus
+  cronService: CronService
 ): void {
   const log = logger.child({ prefix: 'CronTools' });
 
