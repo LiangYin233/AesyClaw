@@ -5,7 +5,16 @@ interface LoggerLike {
   info: (message: string, ...args: any[]) => void;
   warn: (message: string, ...args: any[]) => void;
   error: (message: string, ...args: any[]) => void;
+  preview: (value: unknown, limit?: number) => string;
 }
+
+const defaultLogger: LoggerLike = {
+  debug: console.debug.bind(console),
+  info: console.info.bind(console),
+  warn: console.warn.bind(console),
+  error: console.error.bind(console),
+  preview: (value: unknown, limit: number = 120) => String(value ?? '').slice(0, limit)
+};
 
 type TavilySearchDepth = 'basic' | 'advanced' | 'fast' | 'ultra-fast';
 
@@ -54,7 +63,7 @@ const plugin: {
   version: '1.0.0',
   description: '使用 Tavily 进行网页搜索',
 
-  log: console,
+  log: defaultLogger,
   config: {
     apiKey: '',
     maxResults: 5,

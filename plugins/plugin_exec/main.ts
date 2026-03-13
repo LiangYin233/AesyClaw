@@ -10,7 +10,16 @@ interface LoggerLike {
   info: (message: string, ...args: any[]) => void;
   warn: (message: string, ...args: any[]) => void;
   error: (message: string, ...args: any[]) => void;
+  preview: (value: unknown, limit?: number) => string;
 }
+
+const defaultLogger: LoggerLike = {
+  debug: console.debug.bind(console),
+  info: console.info.bind(console),
+  warn: console.warn.bind(console),
+  error: console.error.bind(console),
+  preview: (value: unknown, limit: number = 120) => String(value ?? '').slice(0, limit)
+};
 
 const plugin: {
   name: string;
@@ -39,7 +48,7 @@ const plugin: {
   version: '1.0.0',
   description: '执行 Python 或 Shell。',
 
-  log: console,
+  log: defaultLogger,
   config: null,
   pythonRunner: null,
   shellRunner: null,
