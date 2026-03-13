@@ -397,10 +397,55 @@ class OneBotChannel extends BaseChannel {
 
     if (postType === 'message') {
       void this.handleMessageEvent(payload);
+      return;
+    }
+
+    if (postType === 'notice') {
+      this.handleNoticeEvent(payload);
     }
   }
 
+  private handleNoticeEvent(payload: any): void {
+    const noticeType = payload.notice_type;
+
+    if (noticeType === 'offline_file' || noticeType === 'group_upload') {
+      this.log.debug('OneBot file notice ignored', {
+        noticeType,
+        userId: payload.user_id?.toString(),
+        groupId: payload.group_id?.toString(),
+        fileName: payload.file?.name
+      });
+    }
+  }
+
+  private shouldIgnoreMessageEvent(payload: any): boolean {
+    const senderId = payload.user_id?.toString();
+
+    if (senderId && this.selfId && senderId === this.selfId) {
+      this.log.debug('OneBot self message ignored', {
+        messageId: payload.message_id?.toString(),
+        messageType: payload.message_type,
+        subType: payload.sub_type
+      });
+      return true;
+    }
+
+    if (payload.sub_type === 'notice') {
+      this.log.debug('OneBot notice message ignored', {
+        messageId: payload.message_id?.toString(),
+        messageType: payload.message_type
+      });
+      return true;
+    }
+
+    return false;
+  }
+
   private async handleMessageEvent(payload: any): Promise<void> {
+    if (this.shouldIgnoreMessageEvent(payload)) {
+      return;
+    }
+
     const messageType = payload.message_type;
     const userId = payload.user_id;
     const groupId = payload.group_id;
