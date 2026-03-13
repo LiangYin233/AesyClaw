@@ -2,7 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import type { AgentLoop } from '../agent/index.js';
+import type { AgentLoop } from '../agent/core/AgentLoop.js';
 import type { SessionManager } from '../session/SessionManager.js';
 import type { ChannelManager } from '../channels/ChannelManager.js';
 import type { Config } from '../types.js';

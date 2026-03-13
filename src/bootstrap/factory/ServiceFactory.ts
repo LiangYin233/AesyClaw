@@ -15,9 +15,9 @@ import { createInfrastructure } from './InfrastructureFactory.js';
 import { createApiServer } from './ApiInterfaceFactory.js';
 import type { ToolRegistry } from '../../tools/index.js';
 import type { MemoryFactStore, SessionManager } from '../../session/index.js';
-import type { ChannelManager } from '../../channels/index.js';
+import type { ChannelManager } from '../../channels/ChannelManager.js';
 import type { PluginManager } from '../../plugins/index.js';
-import type { AgentLoop } from '../../agent/index.js';
+import type { AgentLoop } from '../../agent/core/AgentLoop.js';
 import type { MCPClientManager } from '../../mcp/index.js';
 import type { SkillManager } from '../../skills/index.js';
 

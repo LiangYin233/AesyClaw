@@ -2,7 +2,6 @@ import { basename, join } from 'path';
 import { randomUUID } from 'crypto';
 import type { EventBus } from '../../bus/EventBus.js';
 import type { Database } from '../../db/index.js';
-import { detectFileType } from '../MessageParser.js';
 import { logger } from '../../logger/index.js';
 import type { InboundMessage, OutboundMessage } from '../../types.js';
 import type { ChannelAdapter } from './adapter.js';
@@ -17,6 +16,27 @@ function isChannelMessage(value: OutboundMessage | ChannelMessage): value is Cha
 
 function normalizeTimestamp(timestamp?: Date): Date {
   return timestamp instanceof Date ? timestamp : new Date();
+}
+
+function detectFileType(fileName: string): 'audio' | 'video' | 'image' | 'file' {
+  const ext = fileName.toLowerCase().match(/\.([^.]+)$/)?.[1];
+  if (!ext) {
+    return 'file';
+  }
+
+  if (['mp3', 'wav', 'm4a', 'ogg', 'opus', 'flac', 'amr', 'aac', 'wma'].includes(ext)) {
+    return 'audio';
+  }
+
+  if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm', 'm4v', 'mpg', 'mpeg'].includes(ext)) {
+    return 'video';
+  }
+
+  if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico'].includes(ext)) {
+    return 'image';
+  }
+
+  return 'file';
 }
 
 function makeResource(kind: ResourceHandle['kind'], input: string): ResourceHandle {

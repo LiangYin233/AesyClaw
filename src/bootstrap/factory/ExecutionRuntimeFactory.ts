@@ -1,6 +1,6 @@
 import type { Config, VisionSettings } from '../../types.js';
 import type { EventBus } from '../../bus/EventBus.js';
-import { AgentLoop } from '../../agent/index.js';
+import { AgentLoop } from '../../agent/core/AgentLoop.js';
 import { createProvider, createProviderFromConfig } from '../../providers/index.js';
 import { ToolRegistry } from '../../tools/index.js';
 import type { SessionMemoryService } from '../../agent/memory/SessionMemoryService.js';

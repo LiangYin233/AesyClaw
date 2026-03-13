@@ -1,15 +1,15 @@
 import { join } from 'path';
 import { mkdirSync, existsSync } from 'fs';
-import { logger } from '../logger/index.js';
+import { logger, normalizeError } from '../logger/index.js';
+import { CONSTANTS } from '../constants/index.js';
 import type { Config } from '../types.js';
+import type { OutboundMessage } from '../types.js';
 import type { CronJob } from '../cron/index.js';
 import { ConfigLoader } from '../config/loader.js';
 import { createServices, type Services } from './factory/ServiceFactory.js';
 import { dispatchCronJob } from './app/cronDispatch.js';
 import { setupConfigReload } from './app/configReload.js';
 import { setupSignalHandlers } from './app/shutdown.js';
-import { startChannels } from './app/channelStartup.js';
-import { wireOutbound } from './app/outbound.js';
 
 const log = logger.child({ prefix: 'Bootstrap' });
 
@@ -45,6 +45,48 @@ function ensureRuntimeDirectories(workspace: string, tempDir: string): void {
   if (!existsSync(tempDir)) {
     mkdirSync(tempDir, { recursive: true });
   }
+}
+
+function wireOutbound(services: Services): void {
+  const { eventBus, channelManager } = services;
+  eventBus.on('outbound', async (msg: OutboundMessage) => {
+    if (channelManager.get(msg.channel)) {
+      try {
+        await channelManager.dispatch(msg);
+      } catch (error: unknown) {
+        log.error('Outbound send failed', {
+          channel: msg.channel,
+          chatId: msg.chatId,
+          messageType: msg.messageType,
+          error: normalizeError(error)
+        });
+      }
+    } else {
+      log.warn('Outbound channel missing', {
+        channel: msg.channel,
+        chatId: msg.chatId
+      });
+    }
+  });
+}
+
+async function startChannels(services: Services): Promise<void> {
+  const { channelManager } = services;
+  const startedAt = Date.now();
+  try {
+    await Promise.race([
+      channelManager.startAll(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Channel start timeout')), CONSTANTS.CHANNEL_START_TIMEOUT)
+      )
+    ]);
+  } catch (error) {
+    log.error('Channel startup failed', { error });
+  }
+  log.info('Channel startup finished', {
+    channelCount: channelManager.getEnabledChannels().length,
+    durationMs: Date.now() - startedAt
+  });
 }
 
 export async function bootstrap(): Promise<void> {

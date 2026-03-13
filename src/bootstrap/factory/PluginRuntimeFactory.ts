@@ -1,6 +1,6 @@
 import type { Config, OutboundMessage } from '../../types.js';
 import type { EventBus } from '../../bus/EventBus.js';
-import type { AgentLoop } from '../../agent/index.js';
+import type { AgentLoop } from '../../agent/core/AgentLoop.js';
 import type { Tool, ToolRegistry } from '../../tools/ToolRegistry.js';
 import { PluginManager } from '../../plugins/index.js';
 import type { PluginContext } from '../../plugins/PluginManager.js';

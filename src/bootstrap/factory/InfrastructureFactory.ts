@@ -1,7 +1,8 @@
 import type { Config } from '../../types.js';
 import type { EventBus } from '../../bus/EventBus.js';
-import { ChannelManager, loadExternalChannelPlugins } from '../../channels/index.js';
-import type { AgentLoop } from '../../agent/index.js';
+import { ChannelManager } from '../../channels/ChannelManager.js';
+import { loadExternalChannelPlugins } from '../../channels/ChannelPluginLoader.js';
+import type { AgentLoop } from '../../agent/core/AgentLoop.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import type { CronJob, CronService } from '../../cron/index.js';
 import { MCPClientManager } from '../../mcp/index.js';

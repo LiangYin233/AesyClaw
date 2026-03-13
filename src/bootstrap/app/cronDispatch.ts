@@ -1,12 +1,24 @@
 import { randomUUID } from 'crypto';
 import { logger, normalizeError } from '../../logger/index.js';
 import { CRON_SESSION_KEY_PREFIX } from '../../constants/index.js';
-import { parseTarget } from '../shared/utils.js';
 import type { Services } from '../factory/ServiceFactory.js';
 import type { CronJob } from '../../cron/index.js';
 import type { ToolContext } from '../../tools/ToolRegistry.js';
 
 const log = logger.child({ prefix: 'Bootstrap' });
+
+function parseTarget(to: string): { channel: string; chatId: string; messageType: 'private' | 'group' } | null {
+  const match = to.match(/^([^:]+):(private|group):(.+)$/);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    channel: match[1],
+    chatId: match[3],
+    messageType: match[2] as 'private' | 'group'
+  };
+}
 
 export async function dispatchCronJob(services: Services, workspace: string, job: CronJob): Promise<void> {
   log.info('Cron dispatch started', {
