@@ -90,11 +90,12 @@ export class ExecutionCoordinator {
                   suppressOutbound,
                   sendOutbound
                 });
-                this.log.info('Background task completion delivered', {
+                this.log.info('Background task completed', {
                   sessionKey,
                   agent: agentName,
                   channel: inbound.channel,
-                  chatId: inbound.chatId
+                  chatId: inbound.chatId,
+                  outboundSuppressed: suppressOutbound
                 });
               },
               onError: async (error) => {

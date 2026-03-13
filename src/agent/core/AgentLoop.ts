@@ -240,14 +240,17 @@ export class AgentLoop {
     return aborted;
   }
 
-  async processInbound(msg: InboundMessage): Promise<string | undefined> {
-    return this.processMessage(msg, true);
+  async processInbound(msg: InboundMessage, suppressOutbound = true): Promise<string | undefined> {
+    return this.processMessage(msg, suppressOutbound);
   }
 
   async processDirect(
     content: string,
     sessionKey: string,
-    contextOverride?: Partial<ToolContext>
+    contextOverride?: Partial<ToolContext>,
+    options?: {
+      suppressOutbound?: boolean;
+    }
   ): Promise<string> {
     const response = await this.processInbound({
       channel: contextOverride?.channel || 'api',
@@ -258,10 +261,10 @@ export class AgentLoop {
       sessionKey,
       messageType: contextOverride?.messageType,
       metadata: {
-        suppressOutbound: true,
+        suppressOutbound: options?.suppressOutbound ?? true,
         directResponse: true
       }
-    });
+    }, options?.suppressOutbound ?? true);
 
     return response || '';
   }

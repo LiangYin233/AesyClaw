@@ -95,7 +95,6 @@ export class TokenStatsManager {
   private save(): void {
     try {
       writeFileSync(this.statsFile, JSON.stringify(this.stats, null, 2), 'utf-8');
-      this.log.debug(`Token stats saved to ${this.statsFile}`);
     } catch (error) {
       this.log.error(`Failed to save token stats: ${error}`);
     }
