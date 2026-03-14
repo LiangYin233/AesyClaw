@@ -16,7 +16,7 @@ import { ExecutionFinalizer } from '../execution/ExecutionFinalizer.js';
 import { ExecutionControl } from '../execution/ExecutionControl.js';
 import { ExecutionEngine } from '../execution/ExecutionEngine.js';
 import { ExecutionRuntime } from '../execution/ExecutionRuntime.js';
-import type { ContextMode, ExecutionStatus, SessionReference } from '../types.js';
+import type { ExecutionStatus, SessionReference } from '../types.js';
 
 export class OutboundGateway {
   private log = logger.child('OutboundGateway');
@@ -50,7 +50,6 @@ export interface AgentRuntimeOptions {
   systemPrompt?: string;
   maxIterations?: number;
   model?: string;
-  contextMode?: ContextMode;
   memoryWindow?: number;
   visionSettings?: VisionSettings;
   visionProvider?: LLMProvider;

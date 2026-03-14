@@ -8,6 +8,17 @@ import type { Config, VisionSettings } from '../../types.js';
 
 const log = logger.child('Bootstrap');
 
+function hasProviderConfigChanged(currentConfig: Config, nextConfig: Config): boolean {
+  const currentMainRole = getMainAgentRole(currentConfig);
+  const nextMainRole = getMainAgentRole(nextConfig);
+  const currentProvider = resolveProviderSelection(currentConfig, currentMainRole.provider, currentMainRole.model);
+  const nextProvider = resolveProviderSelection(nextConfig, nextMainRole.provider, nextMainRole.model);
+
+  return currentProvider.name !== nextProvider.name
+    || currentProvider.model !== nextProvider.model
+    || JSON.stringify(currentProvider.providerConfig || {}) !== JSON.stringify(nextProvider.providerConfig || {});
+}
+
 function buildVisionSettings(config: Config): VisionSettings {
   const mainRole = getMainAgentRole(config);
   return {
@@ -42,13 +53,12 @@ export function setupConfigReload(services: Services): void {
     const startedAt = Date.now();
     const oldMainRole = getMainAgentRole(currentConfig);
     const newMainRole = getMainAgentRole(newConfig);
+    const visionSettings = buildVisionSettings(newConfig);
 
     const oldProvider = resolveProviderSelection(currentConfig, oldMainRole.provider, oldMainRole.model);
     const newProvider = resolveProviderSelection(newConfig, newMainRole.provider, newMainRole.model);
 
-    if (oldProvider.name !== newProvider.name ||
-        newProvider.providerConfig?.apiBase !== oldProvider.providerConfig?.apiBase ||
-        oldProvider.model !== newProvider.model ||
+    if (hasProviderConfigChanged(currentConfig, newConfig) ||
         oldMainRole.systemPrompt !== newMainRole.systemPrompt ||
         oldMainRole.vision !== newMainRole.vision ||
         oldMainRole.reasoning !== newMainRole.reasoning ||
@@ -66,8 +76,8 @@ export function setupConfigReload(services: Services): void {
         model: newMainRole.model,
         systemPrompt: newMainRole.systemPrompt,
         maxIterations: newConfig.agent.defaults.maxToolIterations,
-        visionSettings: buildVisionSettings(newConfig),
-        visionProvider: createVisionProvider(newConfig, buildVisionSettings(newConfig))
+        visionSettings,
+        visionProvider: createVisionProvider(newConfig, visionSettings)
       };
 
       if (newProvider.providerConfig) {

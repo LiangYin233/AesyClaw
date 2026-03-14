@@ -113,7 +113,6 @@ export async function createExecutionRuntime(args: {
     systemPrompt: mainRole.systemPrompt,
     maxIterations: config.agent.defaults.maxToolIterations,
     model: mainRole.model,
-    contextMode: config.agent.defaults.contextMode,
     memoryWindow: config.agent.defaults.memoryWindow,
     visionSettings,
     visionProvider,

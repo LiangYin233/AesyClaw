@@ -43,10 +43,3 @@ function createProviderInstance(type: ProviderType, config: ProviderConfig, inst
 export function createProvider(name: string, config: ProviderConfig): LLMProvider {
   return createProviderInstance(config.type, config, name);
 }
-
-/**
- * 从配置创建 LLM 提供商实例（用于视觉模型等备用场景）
- */
-export function createProviderFromConfig(config: ProviderConfig): LLMProvider {
-  return createProviderInstance(config.type, config, config.type);
-}
