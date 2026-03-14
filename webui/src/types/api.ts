@@ -184,4 +184,14 @@ export interface TokenUsageStats {
   totalTokens: number
   requestCount: number
   lastUpdated: string
+  daily: TokenUsageDailyStat[]
+}
+
+export interface TokenUsageDailyStat {
+  date: string
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  requestCount: number
+  lastUpdated?: string
 }

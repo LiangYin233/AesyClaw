@@ -61,6 +61,42 @@
                     <div v-if="usageStats?.lastUpdated" class="usage-updated">
                         最后更新：{{ formatTimestamp(usageStats.lastUpdated) }}
                     </div>
+                    <div v-if="usageStats" class="daily-usage-section">
+                        <div class="daily-usage-header">
+                            <h3>最近 7 天</h3>
+                            <span>按服务端本地时区统计</span>
+                        </div>
+                        <div class="daily-usage-list">
+                            <div
+                                v-for="item in usageStats.daily"
+                                :key="item.date"
+                                class="daily-usage-row"
+                            >
+                                <div class="daily-usage-date">
+                                    <span class="daily-usage-day">{{ formatDayLabel(item.date) }}</span>
+                                    <span class="daily-usage-date-text">{{ item.date }}</span>
+                                </div>
+                                <div class="daily-usage-metrics">
+                                    <div class="daily-usage-metric">
+                                        <span class="daily-usage-metric-label">Total</span>
+                                        <span class="daily-usage-metric-value">{{ formatNumber(item.totalTokens) }}</span>
+                                    </div>
+                                    <div class="daily-usage-metric">
+                                        <span class="daily-usage-metric-label">Requests</span>
+                                        <span class="daily-usage-metric-value">{{ formatNumber(item.requestCount) }}</span>
+                                    </div>
+                                    <div class="daily-usage-metric muted">
+                                        <span class="daily-usage-metric-label">Prompt</span>
+                                        <span class="daily-usage-metric-value">{{ formatNumber(item.promptTokens) }}</span>
+                                    </div>
+                                    <div class="daily-usage-metric muted">
+                                        <span class="daily-usage-metric-label">Completion</span>
+                                        <span class="daily-usage-metric-value">{{ formatNumber(item.completionTokens) }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </template>
             </Card>
         </LoadingContainer>
@@ -139,6 +175,17 @@ function formatTime(date: Date): string {
     const minutes = date.getMinutes().toString().padStart(2, '0')
     const seconds = date.getSeconds().toString().padStart(2, '0')
     return `${hours}:${minutes}:${seconds}`
+}
+
+function formatDayLabel(value: string): string {
+    const date = new Date(`${value}T00:00:00`)
+    if (Number.isNaN(date.getTime())) {
+        return value
+    }
+
+    return date.toLocaleDateString('zh-CN', {
+        weekday: 'short'
+    })
 }
 
 async function fetchUsage() {
@@ -298,6 +345,94 @@ onUnmounted(() => {
     font-size: 13px;
 }
 
+.daily-usage-section {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.daily-usage-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.daily-usage-header h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #0f172a;
+}
+
+.daily-usage-header span {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.daily-usage-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.daily-usage-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #ffffff;
+}
+
+.daily-usage-date {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 88px;
+}
+
+.daily-usage-day {
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.daily-usage-date-text {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.daily-usage-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    flex: 1;
+}
+
+.daily-usage-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.daily-usage-metric-label {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.daily-usage-metric-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.daily-usage-metric.muted .daily-usage-metric-value {
+    font-size: 14px;
+    font-weight: 500;
+    color: #334155;
+}
+
 .confirm-content {
     display: flex;
     align-items: center;
@@ -312,6 +447,19 @@ onUnmounted(() => {
 @media (max-width: 768px) {
     .usage-grid {
         grid-template-columns: 1fr;
+    }
+
+    .daily-usage-row {
+        flex-direction: column;
+    }
+
+    .daily-usage-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .daily-usage-header {
+        flex-direction: column;
+        align-items: flex-start;
     }
 }
 </style>

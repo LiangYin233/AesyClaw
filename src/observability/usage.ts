@@ -3,12 +3,24 @@ import { dirname } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { logger } from './logging.js';
 
+const RECENT_DAILY_USAGE_DAYS = 7;
+
+export interface TokenUsageDailyStat {
+  date: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  requestCount: number;
+  lastUpdated?: Date;
+}
+
 export interface TokenUsage {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
   requestCount: number;
   lastUpdated: Date;
+  daily: TokenUsageDailyStat[];
 }
 
 export interface UsageConfig {
@@ -25,13 +37,63 @@ type PersistedTokenUsage = {
   last_updated: string;
 };
 
+type PersistedDailyTokenUsage = {
+  day_key: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  request_count: number;
+  last_updated: string;
+};
+
 const DEFAULT_STATS: TokenUsage = {
   promptTokens: 0,
   completionTokens: 0,
   totalTokens: 0,
   requestCount: 0,
-  lastUpdated: new Date()
+  lastUpdated: new Date(),
+  daily: []
 };
+
+function createEmptyDailyStat(date: string): TokenUsageDailyStat {
+  return {
+    date,
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+    requestCount: 0
+  };
+}
+
+function formatDayKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function buildRecentDailyStats(
+  source: Map<string, TokenUsageDailyStat>,
+  days: number = RECENT_DAILY_USAGE_DAYS,
+  now: Date = new Date()
+): TokenUsageDailyStat[] {
+  const result: TokenUsageDailyStat[] = [];
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - (days - 1));
+
+  for (let index = 0; index < days; index += 1) {
+    const current = new Date(start);
+    current.setDate(start.getDate() + index);
+    const dayKey = formatDayKey(current);
+    const existing = source.get(dayKey);
+    result.push(existing
+      ? { ...existing }
+      : createEmptyDailyStat(dayKey));
+  }
+
+  return result;
+}
 
 export class TokenUsageTracker {
   private log = logger.child('Usage');
@@ -41,7 +103,10 @@ export class TokenUsageTracker {
     flushIntervalMs: 30000
   };
   private stats: TokenUsage = { ...DEFAULT_STATS };
+  private dailyStats = new Map<string, TokenUsageDailyStat>();
   private dirty = false;
+  private dirtyDailyKeys = new Set<string>();
+  private resetPending = false;
   private saveInterval: NodeJS.Timeout;
   private db?: SQLiteDatabase;
   private dbPath?: string;
@@ -118,16 +183,30 @@ export class TokenUsageTracker {
       return;
     }
 
+    const now = new Date();
+    const dayKey = formatDayKey(now);
+    const daily = this.dailyStats.get(dayKey) || createEmptyDailyStat(dayKey);
+
     this.stats.promptTokens += promptTokens;
     this.stats.completionTokens += completionTokens;
     this.stats.totalTokens += totalTokens;
     this.stats.requestCount += 1;
-    this.stats.lastUpdated = new Date();
+    this.stats.lastUpdated = now;
+    daily.promptTokens += promptTokens;
+    daily.completionTokens += completionTokens;
+    daily.totalTokens += totalTokens;
+    daily.requestCount += 1;
+    daily.lastUpdated = now;
+    this.dailyStats.set(dayKey, daily);
     this.dirty = true;
+    this.dirtyDailyKeys.add(dayKey);
   }
 
   getStats(): TokenUsage {
-    return { ...this.stats };
+    return {
+      ...this.stats,
+      daily: buildRecentDailyStats(this.dailyStats)
+    };
   }
 
   getConfig(): UsageConfig {
@@ -136,7 +215,10 @@ export class TokenUsageTracker {
 
   reset(): void {
     this.stats = { ...DEFAULT_STATS, lastUpdated: new Date() };
+    this.dailyStats.clear();
     this.dirty = true;
+    this.dirtyDailyKeys.clear();
+    this.resetPending = true;
     void this.flushIfDirty().then(() => {
       this.log.info('Token usage reset');
     });
@@ -188,6 +270,17 @@ export class TokenUsageTracker {
         last_updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    await this.run(`
+      CREATE TABLE IF NOT EXISTS token_usage_daily (
+        day_key TEXT PRIMARY KEY,
+        prompt_tokens INTEGER NOT NULL DEFAULT 0,
+        completion_tokens INTEGER NOT NULL DEFAULT 0,
+        total_tokens INTEGER NOT NULL DEFAULT 0,
+        request_count INTEGER NOT NULL DEFAULT 0,
+        last_updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
   }
 
   private async loadFromDatabase(): Promise<void> {
@@ -203,21 +296,40 @@ export class TokenUsageTracker {
     );
 
     if (!row) {
-      this.stats = { ...DEFAULT_STATS, lastUpdated: new Date() };
-      return;
+      this.stats = { ...DEFAULT_STATS, lastUpdated: new Date(), daily: [] };
+    } else {
+      this.stats = {
+        promptTokens: row.prompt_tokens,
+        completionTokens: row.completion_tokens,
+        totalTokens: row.total_tokens,
+        requestCount: row.request_count,
+        lastUpdated: new Date(row.last_updated),
+        daily: []
+      };
     }
 
-    this.stats = {
-      promptTokens: row.prompt_tokens,
-      completionTokens: row.completion_tokens,
-      totalTokens: row.total_tokens,
-      requestCount: row.request_count,
-      lastUpdated: new Date(row.last_updated)
-    };
+    const dailyRows = await this.all<PersistedDailyTokenUsage>(
+      `SELECT day_key, prompt_tokens, completion_tokens, total_tokens, request_count, last_updated
+       FROM token_usage_daily`
+    );
+    this.dailyStats = new Map(
+      dailyRows.map((dailyRow) => [
+        dailyRow.day_key,
+        {
+          date: dailyRow.day_key,
+          promptTokens: dailyRow.prompt_tokens,
+          completionTokens: dailyRow.completion_tokens,
+          totalTokens: dailyRow.total_tokens,
+          requestCount: dailyRow.request_count,
+          lastUpdated: new Date(dailyRow.last_updated)
+        }
+      ])
+    );
     this.log.info('Token usage loaded', {
       persistFile: this.config.persistFile,
       totalTokens: this.stats.totalTokens,
-      requestCount: this.stats.requestCount
+      requestCount: this.stats.requestCount,
+      dailyBuckets: this.dailyStats.size
     });
   }
 
@@ -228,6 +340,13 @@ export class TokenUsageTracker {
 
     try {
       await this.ensureDatabase();
+      await this.run('BEGIN TRANSACTION');
+
+      if (this.resetPending) {
+        await this.run('DELETE FROM token_usage_daily');
+        await this.run('DELETE FROM token_usage_stats');
+      }
+
       await this.run(
         `INSERT INTO token_usage_stats (
            id, prompt_tokens, completion_tokens, total_tokens, request_count, last_updated
@@ -246,8 +365,44 @@ export class TokenUsageTracker {
           this.stats.lastUpdated.toISOString()
         ]
       );
+
+      for (const dayKey of this.dirtyDailyKeys) {
+        const daily = this.dailyStats.get(dayKey);
+        if (!daily) {
+          continue;
+        }
+
+        await this.run(
+          `INSERT INTO token_usage_daily (
+             day_key, prompt_tokens, completion_tokens, total_tokens, request_count, last_updated
+           ) VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(day_key) DO UPDATE SET
+             prompt_tokens = excluded.prompt_tokens,
+             completion_tokens = excluded.completion_tokens,
+             total_tokens = excluded.total_tokens,
+             request_count = excluded.request_count,
+             last_updated = excluded.last_updated`,
+          [
+            daily.date,
+            daily.promptTokens,
+            daily.completionTokens,
+            daily.totalTokens,
+            daily.requestCount,
+            daily.lastUpdated?.toISOString() || new Date().toISOString()
+          ]
+        );
+      }
+
+      await this.run('COMMIT');
       this.dirty = false;
+      this.dirtyDailyKeys.clear();
+      this.resetPending = false;
     } catch (error) {
+      try {
+        await this.run('ROLLBACK');
+      } catch {
+        // Ignore rollback errors and preserve dirty state for retry.
+      }
       this.log.error('Failed to save token usage', {
         persistFile: this.config.persistFile,
         error: error instanceof Error ? error.message : String(error)
@@ -297,6 +452,22 @@ export class TokenUsageTracker {
           return;
         }
         resolve(row as T | undefined);
+      });
+    });
+  }
+
+  private async all<T>(sql: string, params: unknown[] = []): Promise<T[]> {
+    if (!this.db) {
+      throw new Error('Token usage database is not initialized');
+    }
+
+    return await new Promise<T[]>((resolve, reject) => {
+      this.db!.all(sql, params, (error, rows) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve((rows as T[]) || []);
       });
     });
   }
