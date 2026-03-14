@@ -88,7 +88,7 @@
                                                 severity="secondary"
                                             />
                                             <Tag
-                                                :value="session.summary ? `摘要 ${session.summarizedMessageCount}` : '无摘要'"
+                                                :value="session.summary ? `已摘要消息 ${session.summarizedMessageCount}` : '无摘要'"
                                                 :severity="session.summary ? 'success' : 'secondary'"
                                             />
                                         </div>

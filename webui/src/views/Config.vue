@@ -11,7 +11,7 @@
                 <template #title>服务器配置</template>
                 <template #content>
                     <div class="form-grid">
-                        <div v-for="(value, key) in config.server" :key="key" class="form-field">
+                            <div v-for="(value, key) in config.server" :key="key" class="form-field">
                             <label class="capitalize">{{ formatLabel(key) }}</label>
                             <InputNumber 
                                 v-if="isNumber(value)" 
@@ -41,7 +41,7 @@
                     <div class="form-grid">
                         <template v-for="(value, key) in config.agent.defaults" :key="key">
                             <div v-if="!isAgentConfigHidden(String(key))" class="form-field">
-                                <label class="capitalize">{{ formatLabel(key) }}</label>
+                                <label class="capitalize">{{ getAgentDefaultsLabel(String(key)) }}</label>
                                 <template v-if="key === 'contextMode'">
                                     <Select v-model="config.agent.defaults[key]" :options="['session', 'channel', 'global']" placeholder="选择模式" />
                                 </template>
@@ -86,12 +86,13 @@
                                     <InputText v-model="config.agent.defaults.memorySummary.model" />
                                 </div>
                                 <div class="form-field">
-                                    <label>Trigger Messages</label>
+                                    <label>Compress Rounds</label>
                                     <InputNumber
-                                        v-model="config.agent.defaults.memorySummary.triggerMessages"
+                                        v-model="config.agent.defaults.memorySummary.compressRounds"
                                         :useGrouping="false"
                                         :min="1"
                                     />
+                                    <small class="field-hint">当未摘要对话轮次超出 memoryWindow 时，压缩最早的若干轮。</small>
                                 </div>
                             </div>
                         </div>
@@ -251,6 +252,14 @@ function isAgentConfigHidden(key: string): boolean {
     return ['memorySummary', 'memoryFacts'].includes(key)
 }
 
+function getAgentDefaultsLabel(key: string): string {
+    if (key === 'memoryWindow') {
+        return 'Memory Window (对话轮次)'
+    }
+
+    return formatLabel(key)
+}
+
 function goToAgents() {
     navigateWithToken(router, '/agents', getRouteToken(route))
 }
@@ -349,6 +358,11 @@ onMounted(() => {
     font-size: 14px;
     font-weight: 500;
     color: #475569;
+}
+
+.field-hint {
+    font-size: 12px;
+    color: #64748b;
 }
 
 .capitalize {

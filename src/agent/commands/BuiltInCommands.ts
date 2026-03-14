@@ -72,13 +72,26 @@ export class BuiltInCommands extends CommandHandler {
   }
 
   private async handleNew(msg: InboundMessage): Promise<InboundMessage> {
+    const currentSessionKey = this.resolveSessionKey(msg);
     const newSessionKey = this.sessionRouting.createNewSession(msg.channel, msg.chatId);
     const uuid = newSessionKey.split(':')[2] || 'default';
+    let inheritedRole: string | null = null;
+
+    if (currentSessionKey) {
+      inheritedRole = await this.sessionManager.getSessionAgent(currentSessionKey);
+      if (inheritedRole) {
+        await this.sessionManager.setSessionAgent(newSessionKey, inheritedRole);
+      }
+    }
+
     this.log.info(`Created new session: ${newSessionKey}`);
 
     return {
       ...msg,
-      content: `已开启新对话 (${uuid})`
+      sessionKey: newSessionKey,
+      content: inheritedRole
+        ? `已开启新对话 (${uuid})，继承当前会话角色：${inheritedRole}`
+        : `已开启新对话 (${uuid})`
     };
   }
 

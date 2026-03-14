@@ -36,7 +36,7 @@ export function createMemoryService(
   const summaryRuntimeConfig = {
     enabled: summaryConfig.enabled,
     model: summaryProviderConfig.model,
-    triggerMessages: summaryConfig.triggerMessages,
+    compressRounds: summaryConfig.compressRounds,
     memoryWindow: config.agent.defaults.memoryWindow
   };
   const factsRuntimeConfig = {

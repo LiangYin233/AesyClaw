@@ -67,7 +67,8 @@ export class ExecutionFinalizer {
     }
 
     if (this.memoryService) {
-      await this.memoryService.maybePersistMemoryForRequest(sessionKey, request, content);
+      await this.memoryService.maybeSummarizeSession(sessionKey);
+      this.memoryService.enqueueFactsExtractionForRequest(sessionKey, request);
     }
 
     this.log.info('Execution response finalized', {

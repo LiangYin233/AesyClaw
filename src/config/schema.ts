@@ -12,12 +12,12 @@ function withObjectInputDefault<T extends z.ZodRawShape>(shape: T) {
   return schema.prefault(() => ({} as z.input<typeof schema>));
 }
 
-const memorySummaryConfigSchema = withObjectInputDefault({
+const memorySummaryConfigSchema = z.object({
   enabled: z.boolean().default(false),
   provider: z.string().default(''),
   model: z.string().default(''),
-  triggerMessages: z.number().int().finite().default(50)
-});
+  compressRounds: z.number().int().finite().min(1).default(10)
+}).strict().prefault(() => ({}));
 
 const memoryFactsConfigSchema = withObjectInputDefault({
   enabled: z.boolean().default(false),

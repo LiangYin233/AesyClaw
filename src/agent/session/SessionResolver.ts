@@ -5,6 +5,7 @@ import type { SessionRoutingService } from './SessionRoutingService.js';
 import type { SessionMemoryService } from '../memory/SessionMemoryService.js';
 import type { AgentRoleService } from '../roles/AgentRoleService.js';
 import type { ExecutionContext } from '../execution/ExecutionTypes.js';
+import { sliceRecentConversationRounds } from '../memory/conversationRounds.js';
 
 export interface SessionResolverOptions {
   toolContext: ToolContext;
@@ -31,7 +32,7 @@ export class SessionResolver {
     const session = await this.sessionManager.getOrCreate(sessionKey);
     const history = this.memoryService
       ? await this.memoryService.buildHistory(session)
-      : session.messages.slice(-options.memoryWindow);
+      : sliceRecentConversationRounds(session.messages, options.memoryWindow);
 
     return {
       request: message,

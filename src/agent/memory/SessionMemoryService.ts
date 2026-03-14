@@ -4,6 +4,7 @@ import type { Session, SessionManager, SessionMessage } from '../../session/Sess
 import { MemoryFactStore, type MemoryFact } from '../../session/MemoryFactStore.js';
 import { logger } from '../../observability/index.js';
 import { CRON_SESSION_KEY_PREFIX, INTERNAL_CHANNELS } from '../../constants/index.js';
+import { collectConversationRounds, sliceRecentConversationRounds } from './conversationRounds.js';
 
 const MEMORY_FACTS_PREFIX = '长期记忆（相关时参考）：';
 const MEMORY_SUMMARY_PREFIX = '会话摘要（旧上下文）：';
@@ -48,7 +49,7 @@ function buildFactsUserPrompt(existingFactsBlock: string, userContent: string): 
 interface MemorySummaryRuntimeConfig {
   enabled: boolean;
   model?: string;
-  triggerMessages: number;
+  compressRounds: number;
   memoryWindow: number;
 }
 
@@ -60,6 +61,7 @@ interface MemoryFactsRuntimeConfig {
 
 export class SessionMemoryService {
   private log = logger.child('SessionMemory');
+  private factsQueue: Map<string, Promise<void>> = new Map();
 
   constructor(
     private sessionManager: SessionManager,
@@ -74,27 +76,9 @@ export class SessionMemoryService {
     return sessionKey?.startsWith(CRON_SESSION_KEY_PREFIX) === true || session?.channel === INTERNAL_CHANNELS.CRON;
   }
 
-  private alignSummaryCutoff(messages: SessionMessage[], startIndex: number, rawCutoff: number): number {
-    let cutoff = Math.max(startIndex, Math.min(rawCutoff, messages.length));
-
-    while (cutoff < messages.length) {
-      const lastMessage = messages[cutoff - 1];
-      const nextMessage = messages[cutoff];
-
-      if (lastMessage?.role === 'user' && nextMessage?.role === 'assistant') {
-        cutoff += 1;
-        continue;
-      }
-
-      break;
-    }
-
-    return cutoff;
-  }
-
   async buildHistory(session: Session): Promise<SessionMessage[]> {
     if (this.shouldSkipMemory(session.key, session)) {
-      return session.messages.slice(-this.summaryConfig.memoryWindow);
+      return sliceRecentConversationRounds(session.messages, this.summaryConfig.memoryWindow);
     }
 
     const facts = await this.factsStore.getFacts(session.channel, session.chatId);
@@ -106,13 +90,13 @@ export class SessionMemoryService {
         }]
       : [];
 
-    const recentStart = Math.max(
-      session.summarizedMessageCount,
-      session.messages.length - this.summaryConfig.memoryWindow,
-      0
+    const recentMessages = sliceRecentConversationRounds(
+      session.messages,
+      this.summaryConfig.memoryWindow,
+      session.summarizedMessageCount
     );
 
-    return [...factMessage, ...summaryMessage, ...session.messages.slice(recentStart)];
+    return [...factMessage, ...summaryMessage, ...recentMessages];
   }
 
   async maybeSummarizeSession(sessionKey: string): Promise<boolean> {
@@ -125,15 +109,17 @@ export class SessionMemoryService {
       return false;
     }
 
-    const unsummarizedMessageCount = Math.max(0, session.messages.length - session.summarizedMessageCount);
-    const overflowMessageCount = Math.max(0, unsummarizedMessageCount - this.summaryConfig.memoryWindow);
-
-    if (overflowMessageCount < this.summaryConfig.triggerMessages) {
+    const unsummarizedRounds = collectConversationRounds(session.messages, session.summarizedMessageCount);
+    if (unsummarizedRounds.length <= this.summaryConfig.memoryWindow) {
       return false;
     }
 
-    const rawCutoff = session.summarizedMessageCount + overflowMessageCount;
-    const summaryCutoff = this.alignSummaryCutoff(session.messages, session.summarizedMessageCount, rawCutoff);
+    const roundsToCompress = unsummarizedRounds.slice(0, this.summaryConfig.compressRounds);
+    if (roundsToCompress.length === 0) {
+      return false;
+    }
+
+    const summaryCutoff = roundsToCompress[roundsToCompress.length - 1].end;
     const pendingMessages = session.messages.slice(session.summarizedMessageCount, summaryCutoff);
 
     if (pendingMessages.length === 0) {
@@ -148,6 +134,17 @@ export class SessionMemoryService {
 
       await this.sessionManager.updateSummary(sessionKey, summary, summaryCutoff);
       this.log.info('Session summary updated', { sessionKey, summarizedMessageCount: summaryCutoff });
+
+      const remainingRounds = unsummarizedRounds.length - roundsToCompress.length;
+      if (remainingRounds > this.summaryConfig.memoryWindow) {
+        this.log.warn('Memory summary compressRounds too small to shrink within memoryWindow', {
+          sessionKey,
+          memoryWindow: this.summaryConfig.memoryWindow,
+          compressRounds: this.summaryConfig.compressRounds,
+          remainingRounds
+        });
+      }
+
       return true;
     } catch (error) {
       this.log.warn('Session summarization failed', { sessionKey, error });
@@ -163,13 +160,12 @@ export class SessionMemoryService {
       content: userContent,
       timestamp: new Date()
     };
-    return this.maybePersistMemoryForRequest(sessionKey, request, _assistantContent);
+    return this.maybeExtractFactsForRequest(sessionKey, request);
   }
 
-  async maybePersistMemoryForRequest(
+  async maybeExtractFactsForRequest(
     sessionKey: string,
     request: Pick<InboundMessage, 'content'> & Partial<Pick<InboundMessage, 'media' | 'files'>>,
-    _assistantContent: string
   ): Promise<void> {
     if (this.shouldSkipMemory(sessionKey)) {
       return;
@@ -185,7 +181,41 @@ export class SessionMemoryService {
     }
 
     await this.maybeExtractFacts(sessionKey, request.content);
-    await this.maybeSummarizeSession(sessionKey);
+  }
+
+  enqueueFactsExtractionForRequest(
+    sessionKey: string,
+    request: Pick<InboundMessage, 'content'> & Partial<Pick<InboundMessage, 'media' | 'files'>>
+  ): void {
+    const queuedRequest = {
+      content: request.content,
+      media: Array.isArray(request.media) ? [...request.media] : request.media,
+      files: Array.isArray(request.files) ? [...request.files] : request.files
+    };
+    const previous = this.factsQueue.get(sessionKey) ?? Promise.resolve();
+    const task = previous
+      .catch(() => undefined)
+      .then(async () => {
+        const startedAt = Date.now();
+        await this.maybeExtractFactsForRequest(sessionKey, queuedRequest);
+        this.log.debug('Background facts extraction completed', {
+          sessionKey,
+          durationMs: Date.now() - startedAt
+        });
+      })
+      .catch((error) => {
+        this.log.warn('Background facts extraction failed', {
+          sessionKey,
+          error
+        });
+      });
+
+    this.factsQueue.set(sessionKey, task);
+    void task.finally(() => {
+      if (this.factsQueue.get(sessionKey) === task) {
+        this.factsQueue.delete(sessionKey);
+      }
+    });
   }
 
   private async generateSummary(existingSummary: string, messages: SessionMessage[]): Promise<string | null> {
