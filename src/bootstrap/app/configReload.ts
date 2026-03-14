@@ -45,64 +45,67 @@ function createVisionProvider(config: Config, settings: VisionSettings) {
   return createProvider(settings.visionProviderName, providerConfig);
 }
 
-export function setupConfigReload(services: Services): void {
+export async function applyRuntimeConfigUpdate(services: Services, currentConfig: Config, newConfig: Config): Promise<void> {
   const { agentRuntime, apiServer, sessionManager, memoryFactStore, skillManager } = services;
+  const startedAt = Date.now();
+  const oldMainRole = getMainAgentRole(currentConfig);
+  const newMainRole = getMainAgentRole(newConfig);
+  const visionSettings = buildVisionSettings(newConfig);
+
+  const oldProvider = resolveProviderSelection(currentConfig, oldMainRole.provider, oldMainRole.model);
+  const newProvider = resolveProviderSelection(newConfig, newMainRole.provider, newMainRole.model);
+
+  if (hasProviderConfigChanged(currentConfig, newConfig) ||
+      oldMainRole.systemPrompt !== newMainRole.systemPrompt ||
+      oldMainRole.vision !== newMainRole.vision ||
+      oldMainRole.reasoning !== newMainRole.reasoning ||
+      oldMainRole.visionProvider !== newMainRole.visionProvider ||
+      oldMainRole.visionModel !== newMainRole.visionModel ||
+      currentConfig.agent.defaults.maxToolIterations !== newConfig.agent.defaults.maxToolIterations) {
+    log.info('Config reload updating main agent runtime', {
+      fromProvider: oldProvider.name,
+      toProvider: newProvider.name,
+      fromModel: oldProvider.model,
+      toModel: newProvider.model
+    });
+
+    const runtimeUpdate: Parameters<typeof agentRuntime.updateMainAgentRuntime>[0] = {
+      model: newMainRole.model,
+      systemPrompt: newMainRole.systemPrompt,
+      maxIterations: newConfig.agent.defaults.maxToolIterations,
+      visionSettings,
+      visionProvider: createVisionProvider(newConfig, visionSettings)
+    };
+
+    if (newProvider.providerConfig) {
+      runtimeUpdate.provider = createProvider(newProvider.name, newProvider.providerConfig);
+    } else {
+      log.warn('Config reload main provider missing', { provider: newProvider.name });
+    }
+
+    agentRuntime.updateMainAgentRuntime(runtimeUpdate);
+  }
+
+  const memoryService = createMemoryService(newConfig, sessionManager, memoryFactStore);
+  agentRuntime.updateMemorySettings(newConfig.agent.defaults.memoryWindow, memoryService);
+  skillManager?.applyConfig(newConfig);
+
+  services.config = newConfig;
+  apiServer?.updateConfig(newConfig);
+
+  log.info('Config reload completed', {
+    provider: newMainRole.provider,
+    model: newMainRole.model,
+    memoryWindow: newConfig.agent.defaults.memoryWindow,
+    durationMs: Date.now() - startedAt
+  });
+}
+
+export function setupConfigReload(services: Services): void {
   let currentConfig = services.config;
 
   ConfigLoader.onReload(async (newConfig) => {
-    const startedAt = Date.now();
-    const oldMainRole = getMainAgentRole(currentConfig);
-    const newMainRole = getMainAgentRole(newConfig);
-    const visionSettings = buildVisionSettings(newConfig);
-
-    const oldProvider = resolveProviderSelection(currentConfig, oldMainRole.provider, oldMainRole.model);
-    const newProvider = resolveProviderSelection(newConfig, newMainRole.provider, newMainRole.model);
-
-    if (hasProviderConfigChanged(currentConfig, newConfig) ||
-        oldMainRole.systemPrompt !== newMainRole.systemPrompt ||
-        oldMainRole.vision !== newMainRole.vision ||
-        oldMainRole.reasoning !== newMainRole.reasoning ||
-        oldMainRole.visionProvider !== newMainRole.visionProvider ||
-        oldMainRole.visionModel !== newMainRole.visionModel ||
-        currentConfig.agent.defaults.maxToolIterations !== newConfig.agent.defaults.maxToolIterations) {
-      log.info('Config reload updating main agent runtime', {
-        fromProvider: oldProvider.name,
-        toProvider: newProvider.name,
-        fromModel: oldProvider.model,
-        toModel: newProvider.model
-      });
-
-      const runtimeUpdate: Parameters<typeof agentRuntime.updateMainAgentRuntime>[0] = {
-        model: newMainRole.model,
-        systemPrompt: newMainRole.systemPrompt,
-        maxIterations: newConfig.agent.defaults.maxToolIterations,
-        visionSettings,
-        visionProvider: createVisionProvider(newConfig, visionSettings)
-      };
-
-      if (newProvider.providerConfig) {
-        runtimeUpdate.provider = createProvider(newProvider.name, newProvider.providerConfig);
-      } else {
-        log.warn('Config reload main provider missing', { provider: newProvider.name });
-      }
-
-      agentRuntime.updateMainAgentRuntime(runtimeUpdate);
-    }
-
-    const memoryService = createMemoryService(newConfig, sessionManager, memoryFactStore);
-    agentRuntime.updateMemorySettings(newConfig.agent.defaults.memoryWindow, memoryService);
-    skillManager?.applyConfig(newConfig);
-
+    await applyRuntimeConfigUpdate(services, currentConfig, newConfig);
     currentConfig = newConfig;
-    if (apiServer) {
-      apiServer.updateConfig(currentConfig);
-    }
-
-    log.info('Config reload completed', {
-      provider: newMainRole.provider,
-      model: newMainRole.model,
-      memoryWindow: currentConfig.agent.defaults.memoryWindow,
-      durationMs: Date.now() - startedAt
-    });
   });
 }

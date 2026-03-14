@@ -2,7 +2,7 @@ import type { Express } from 'express';
 import { ConfigLoader } from '../../config/loader.js';
 import { getConfigValidationIssue } from '../../config/index.js';
 import { INTERNAL_CHANNELS } from '../../constants/index.js';
-import { createErrorResponse, createValidationErrorResponse, normalizeError, NotFoundError } from '../../errors/index.js';
+import { createErrorResponse, createValidationErrorResponse, normalizeError, NotFoundError, ValidationError } from '../../errors/index.js';
 import type { ChannelManager } from '../../channels/ChannelManager.js';
 import type { Config } from '../../types.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
@@ -10,6 +10,7 @@ import type { ChatService } from '../services/ChatService.js';
 import type { SessionService } from '../services/SessionService.js';
 import type { AgentRoleService } from '../services/AgentRoleService.js';
 import { parseAgentRoleInput } from '../mappers/agentRoleMapper.js';
+import { SessionManager } from '../../session/SessionManager.js';
 
 interface CoreRouteDeps {
   chatService: ChatService;
@@ -77,11 +78,23 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
   });
 
   app.get('/api/sessions/:key', async (req, res) => {
-    res.json(await deps.sessionService.getSessionDetails(req.params.key));
+    try {
+      SessionManager.validateSessionKey(req.params.key);
+      res.json(await deps.sessionService.getSessionDetails(req.params.key));
+    } catch (error: unknown) {
+      if (error instanceof ValidationError) {
+        return res.status(400).json(createValidationErrorResponse(error.message, 'key'));
+      }
+      if (error instanceof NotFoundError) {
+        return res.status(404).json(createErrorResponse(error));
+      }
+      res.status(500).json(createErrorResponse(error));
+    }
   });
 
   app.put('/api/sessions/:key/agent', async (req, res) => {
     try {
+      SessionManager.validateSessionKey(req.params.key);
       const { agentName } = req.body;
       if (agentName !== null && agentName !== undefined && typeof agentName !== 'string') {
         return res.status(400).json(createValidationErrorResponse('agentName must be a string or null', 'agentName'));
@@ -89,6 +102,9 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
 
       res.json(await deps.sessionService.setSessionAgent(req.params.key, agentName ?? null));
     } catch (error: unknown) {
+      if (error instanceof ValidationError) {
+        return res.status(400).json(createValidationErrorResponse(error.message, 'key'));
+      }
       if (error instanceof NotFoundError) {
         return res.status(404).json(createErrorResponse(error));
       }
@@ -97,7 +113,15 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
   });
 
   app.delete('/api/sessions/:key', async (req, res) => {
-    res.json(await deps.sessionService.deleteSession(req.params.key));
+    try {
+      SessionManager.validateSessionKey(req.params.key);
+      res.json(await deps.sessionService.deleteSession(req.params.key));
+    } catch (error: unknown) {
+      if (error instanceof ValidationError) {
+        return res.status(400).json(createValidationErrorResponse(error.message, 'key'));
+      }
+      res.status(500).json(createErrorResponse(error));
+    }
   });
 
   app.get('/api/agents', async (req, res) => {

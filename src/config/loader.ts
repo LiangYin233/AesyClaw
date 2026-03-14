@@ -69,6 +69,7 @@ export class ConfigLoader {
   private static watcher: fsWatcher | null = null;
   private static log = logger.child('ConfigLoader');
   private static reloadListeners = new Set<(config: Config) => void | Promise<void>>();
+  private static suppressedReloadSignatures = new Set<string>();
 
   private static ensureConfigDirectory(): void {
     const dir = dirname(this.configPath);
@@ -82,11 +83,12 @@ export class ConfigLoader {
     return stringify(serializable as Record<string, unknown>);
   }
 
-  private static writeConfig(config: Config): void {
+  private static writeConfig(config: Config): Config {
     this.ensureConfigDirectory();
     const nextConfig = withGeneratedToken(config);
     writeFileSync(this.configPath, this.serializeConfig(nextConfig), 'utf-8');
     this.config = nextConfig;
+    return nextConfig;
   }
 
   private static readParsedConfig(): Config {
@@ -95,6 +97,11 @@ export class ConfigLoader {
   }
 
   static setPath(configPath: string): void {
+    if (this.configPath !== configPath) {
+      this.stopWatching();
+      this.config = null;
+      this.suppressedReloadSignatures.clear();
+    }
     this.configPath = configPath;
   }
 
@@ -103,20 +110,22 @@ export class ConfigLoader {
   }
 
   static async save(config: unknown): Promise<void> {
-    this.writeConfig(parseConfig(config));
+    const nextConfig = this.writeConfig(parseConfig(config));
+    await this.notifyReload(nextConfig, true);
   }
 
   static async update(mutator: ConfigMutator): Promise<Config> {
     const currentConfig = cloneConfig(await this.load());
     const updatedConfig = await mutator(currentConfig);
     const nextConfig = parseConfig(updatedConfig ?? currentConfig);
-    this.writeConfig(nextConfig);
-    return nextConfig;
+    const savedConfig = this.writeConfig(nextConfig);
+    await this.notifyReload(savedConfig, true);
+    return savedConfig;
   }
 
   static async load(configPath?: string): Promise<Config> {
     if (configPath) {
-      this.configPath = configPath;
+      this.setPath(configPath);
     }
 
     if (this.config) {
@@ -156,6 +165,16 @@ export class ConfigLoader {
     };
   }
 
+  private static async notifyReload(config: Config, suppressNextWatchEvent: boolean = false): Promise<void> {
+    if (suppressNextWatchEvent) {
+      this.suppressedReloadSignatures.add(this.serializeConfig(config));
+    }
+
+    for (const listener of this.reloadListeners) {
+      await listener(config);
+    }
+  }
+
   static async updatePluginConfig(name: string, enabled: boolean, options?: Record<string, any>): Promise<Config> {
     return this.update((config) => {
       config.plugins[name] = {
@@ -182,11 +201,17 @@ export class ConfigLoader {
         }
 
         try {
-          this.config = this.readParsedConfig();
-          this.log.info('Config reloaded from disk');
-          for (const listener of this.reloadListeners) {
-            await listener(this.get());
+          const nextConfig = this.readParsedConfig();
+          const signature = this.serializeConfig(nextConfig);
+          this.config = nextConfig;
+
+          if (this.suppressedReloadSignatures.delete(signature)) {
+            this.log.debug('Skipped redundant config reload notification');
+            return;
           }
+
+          this.log.info('Config reloaded from disk');
+          await this.notifyReload(nextConfig);
         } catch (error) {
           this.log.warn('Failed to reload config', {
             error: normalizeError(error)

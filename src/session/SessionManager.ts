@@ -3,14 +3,26 @@ import { randomUUID } from 'crypto';
 import { Database, type DBSession, type DBMessage, type DBSessionMemory, type DBSessionAgentState } from '../db/index.js';
 import { logger } from '../observability/index.js';
 import { CONSTANTS, CONFIG_DEFAULTS } from '../constants/index.js';
-import { normalizeError } from '../errors/index.js';
+import { normalizeError, NotFoundError, ValidationError } from '../errors/index.js';
 
 function parseSessionKey(key: string): { channel: string; chatId: string; uuid?: string } {
   const parts = key.split(':');
-  if (parts.length >= 3) {
-    return { channel: parts[0], chatId: parts[1], uuid: parts.slice(2).join(':') };
+  const channel = parts[0]?.trim();
+  const chatId = parts[1]?.trim();
+
+  if (!channel || !chatId) {
+    throw new ValidationError('session key must use format "channel:chatId[:uuid]"', {
+      field: 'key',
+      key
+    });
   }
-  return { channel: parts[0], chatId: parts[1] };
+
+  if (parts.length >= 3) {
+    const uuid = parts.slice(2).join(':').trim();
+    return { channel, chatId, ...(uuid ? { uuid } : {}) };
+  }
+
+  return { channel, chatId };
 }
 
 export interface SessionMessage {
@@ -55,6 +67,10 @@ export class SessionManager {
     return this.db;
   }
 
+  static validateSessionKey(key: string): void {
+    parseSessionKey(key);
+  }
+
   createSessionKey(channel: string, chatId: string, uuid?: string): string {
     if (uuid) {
       return `${channel}:${chatId}:${uuid}`;
@@ -69,6 +85,8 @@ export class SessionManager {
   }
 
   async getOrCreate(key: string): Promise<Session> {
+    parseSessionKey(key);
+
     const existing = this.sessions.get(key);
     if (existing) {
       return existing;
@@ -87,6 +105,35 @@ export class SessionManager {
     } finally {
       this.sessionLocks.delete(key);
     }
+  }
+
+  async get(key: string): Promise<Session | null> {
+    parseSessionKey(key);
+
+    const existing = this.sessions.get(key);
+    if (existing) {
+      return existing;
+    }
+
+    const pending = this.sessionLocks.get(key);
+    if (pending) {
+      return await pending;
+    }
+
+    const session = await this.load(key);
+    if (session) {
+      this.sessions.set(key, session);
+    }
+
+    return session;
+  }
+
+  async getExistingOrThrow(key: string): Promise<Session> {
+    const session = await this.get(key);
+    if (!session) {
+      throw new NotFoundError('Session', key);
+    }
+    return session;
   }
 
   private async doGetOrCreate(key: string): Promise<Session> {
@@ -271,6 +318,24 @@ export class SessionManager {
     return session.agentName || null;
   }
 
+  async getExistingSessionAgent(key: string): Promise<string | null> {
+    const session = await this.get(key);
+    if (!session) {
+      return null;
+    }
+    if (!session.id) {
+      return session.agentName || null;
+    }
+
+    const row = await this.db.get<DBSessionAgentState>(
+      `SELECT * FROM session_agent_state WHERE session_id = ?`,
+      [session.id]
+    );
+
+    session.agentName = row?.agent_name || undefined;
+    return session.agentName || null;
+  }
+
   async setSessionAgent(key: string, agentName: string): Promise<void> {
     const session = await this.getOrCreate(key);
     if (!session.id) {
@@ -292,6 +357,33 @@ export class SessionManager {
     const session = await this.getOrCreate(key);
     if (!session.id) {
       return;
+    }
+
+    session.agentName = undefined;
+    await this.db.run(`DELETE FROM session_agent_state WHERE session_id = ?`, [session.id]);
+  }
+
+  async setExistingSessionAgent(key: string, agentName: string): Promise<void> {
+    const session = await this.getExistingOrThrow(key);
+    if (!session.id) {
+      throw new NotFoundError('Session', key);
+    }
+
+    session.agentName = agentName;
+    await this.db.run(
+      `INSERT INTO session_agent_state (session_id, agent_name, updated_at)
+       VALUES (?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(session_id) DO UPDATE SET
+         agent_name = excluded.agent_name,
+         updated_at = excluded.updated_at`,
+      [session.id, agentName]
+    );
+  }
+
+  async clearExistingSessionAgent(key: string): Promise<void> {
+    const session = await this.getExistingOrThrow(key);
+    if (!session.id) {
+      throw new NotFoundError('Session', key);
     }
 
     session.agentName = undefined;

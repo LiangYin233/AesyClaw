@@ -25,13 +25,13 @@ export class SessionService {
   }
 
   async getSessionDetails(key: string) {
-    const session = await this.sessionManager.getOrCreate(key);
+    const session = await this.sessionManager.getExistingOrThrow(key);
     return {
       key: session.key,
       channel: session.channel,
       chatId: session.chatId,
       uuid: session.uuid,
-      agentName: session.agentName || await this.sessionManager.getSessionAgent(session.key) || this.getDefaultRoleName(),
+      agentName: session.agentName || await this.sessionManager.getExistingSessionAgent(session.key) || this.getDefaultRoleName(),
       messageCount: session.messages.length,
       messages: session.messages
     };
@@ -43,7 +43,7 @@ export class SessionService {
     }
 
     if (agentName === null || agentName === '') {
-      await this.sessionManager.clearSessionAgent(key);
+      await this.sessionManager.clearExistingSessionAgent(key);
       return { success: true, agentName: this.getDefaultRoleName() };
     }
 
@@ -52,7 +52,7 @@ export class SessionService {
       throw new NotFoundError('Agent role', agentName);
     }
 
-    await this.sessionManager.setSessionAgent(key, role.name);
+    await this.sessionManager.setExistingSessionAgent(key, role.name);
     return { success: true, agentName: role.name };
   }
 

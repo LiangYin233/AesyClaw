@@ -5,7 +5,7 @@ import { bootstrap } from './bootstrap/index.js';
 import { ConfigLoader } from './config/loader.js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -86,7 +86,7 @@ function resolveStartTarget(target: StartTarget): ResolvedStartTarget {
 }
 
 // 清理所有子进程
-function cleanupProcesses(): void {
+export function cleanupProcesses(): void {
   if (childProcesses.length === 0) return;
 
   for (const child of childProcesses) {
@@ -177,6 +177,18 @@ function getStatus(ports: Ports): void {
 }
 
 // 启动服务
+export async function runStartupTasks(
+  startupTasks: Array<Promise<unknown>>,
+  cleanup: () => void = cleanupProcesses
+): Promise<void> {
+  try {
+    await Promise.all(startupTasks);
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
+}
+
 async function startService(mode: ServiceMode): Promise<void> {
   setupSignalHandlers();
 
@@ -192,7 +204,7 @@ async function startService(mode: ServiceMode): Promise<void> {
     startupTasks.push(bootstrap());
   }
 
-  await Promise.all(startupTasks);
+  await runStartupTasks(startupTasks);
 }
 
 // 显示帮助信息
@@ -260,8 +272,10 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  error(`Fatal error: ${err.message}`);
-  console.error(err);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    error(`Fatal error: ${err.message}`);
+    console.error(err);
+    process.exit(1);
+  });
+}
