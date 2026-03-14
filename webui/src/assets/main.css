@@ -19,6 +19,8 @@
     --ui-success-soft: #dcfce7;
     --ui-warning-soft: #fef3c7;
     --ui-danger-soft: #fee2e2;
+    --ui-overlay: rgba(255, 255, 255, 0.7);
+    --ui-overlay-strong: rgba(255, 255, 255, 0.9);
     --ui-radius-sm: 12px;
     --ui-radius-md: 18px;
     --ui-radius-lg: 24px;
@@ -192,12 +194,13 @@ small,
 
 .p-dialog {
     overflow: hidden;
+    background: var(--ui-surface-strong);
 }
 
 .p-dialog .p-dialog-header {
     padding: 1.1rem 1.25rem;
     border-bottom: 1px solid var(--ui-border);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.9));
+    background: linear-gradient(180deg, var(--ui-overlay-strong), var(--ui-overlay));
 }
 
 .p-dialog .p-dialog-content,
@@ -214,7 +217,7 @@ small,
     padding-bottom: 1.25rem;
     padding-top: 1rem;
     border-top: 1px solid var(--ui-border);
-    background: rgba(248, 250, 252, 0.72);
+    background: var(--ui-overlay);
 }
 
 .p-button {
@@ -225,7 +228,7 @@ small,
 }
 
 .p-button.p-button-outlined {
-    background: rgba(255, 255, 255, 0.65);
+    background: var(--ui-overlay);
 }
 
 .p-inputtext,
@@ -251,6 +254,35 @@ small,
 .p-datepicker-input {
     border-radius: 12px !important;
     min-height: 44px;
+}
+
+.p-inputtext,
+.p-select,
+.p-multiselect,
+.p-inputnumber-input,
+.p-password-input,
+.p-textarea textarea,
+.p-datepicker-input,
+.p-select-label,
+.p-multiselect-label {
+    background: transparent;
+    color: var(--ui-text);
+}
+
+.p-select-overlay,
+.p-multiselect-overlay,
+.p-autocomplete-overlay,
+.p-datepicker-panel {
+    background: var(--ui-surface-strong);
+    border: 1px solid var(--ui-border);
+    box-shadow: var(--ui-shadow-md);
+    backdrop-filter: blur(16px);
+}
+
+.p-select-option,
+.p-multiselect-option,
+.p-autocomplete-option {
+    color: var(--ui-text);
 }
 
 .p-tag {
@@ -351,8 +383,33 @@ small,
         --ui-text-muted: #94a3b8;
         --ui-text-faint: #64748b;
         --ui-primary-soft: rgba(37, 99, 235, 0.18);
+        --ui-overlay: rgba(15, 23, 42, 0.72);
+        --ui-overlay-strong: rgba(15, 23, 42, 0.92);
     }
+}
 
+:root.dark {
+    color-scheme: dark;
+    --ui-bg: #0b1220;
+    --ui-bg-elevated: #111b2f;
+    --ui-surface: rgba(15, 23, 42, 0.82);
+    --ui-surface-strong: rgba(15, 23, 42, 0.96);
+    --ui-surface-muted: rgba(30, 41, 59, 0.92);
+    --ui-border: rgba(148, 163, 184, 0.16);
+    --ui-border-strong: rgba(148, 163, 184, 0.24);
+    --ui-shadow-sm: 0 14px 32px rgba(2, 6, 23, 0.35);
+    --ui-shadow-md: 0 24px 60px rgba(2, 6, 23, 0.45);
+    --ui-shadow-lg: 0 36px 90px rgba(2, 6, 23, 0.6);
+    --ui-text: #e2e8f0;
+    --ui-text-soft: #cbd5e1;
+    --ui-text-muted: #94a3b8;
+    --ui-text-faint: #64748b;
+    --ui-primary-soft: rgba(37, 99, 235, 0.18);
+    --ui-overlay: rgba(15, 23, 42, 0.72);
+    --ui-overlay-strong: rgba(15, 23, 42, 0.92);
+}
+
+@media (prefers-color-scheme: dark) {
     body {
         background:
             radial-gradient(circle at top left, rgba(37, 99, 235, 0.16) 0, transparent 32%),
@@ -375,4 +432,33 @@ small,
     .p-dialog .p-dialog-footer {
         background: rgba(15, 23, 42, 0.72);
     }
+}
+
+:root.dark body {
+    background:
+        radial-gradient(circle at top left, rgba(37, 99, 235, 0.16) 0, transparent 32%),
+        radial-gradient(circle at top right, rgba(14, 165, 233, 0.12) 0, transparent 22%),
+        linear-gradient(180deg, #08101d 0%, var(--ui-bg) 50%, #0f172a 100%);
+    color: var(--ui-text);
+}
+
+:root.dark .p-card,
+:root.dark .p-panel,
+:root.dark .p-dialog {
+    border-color: var(--ui-border);
+    box-shadow: var(--ui-shadow-sm);
+}
+
+:root.dark .p-dialog .p-dialog-header {
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.88));
+}
+
+:root.dark .p-dialog .p-dialog-footer {
+    background: rgba(15, 23, 42, 0.72);
+}
+
+:root.dark .p-button.p-button-outlined {
+    background: rgba(15, 23, 42, 0.52);
+    border-color: var(--ui-border-strong);
+    color: var(--ui-text-soft);
 }

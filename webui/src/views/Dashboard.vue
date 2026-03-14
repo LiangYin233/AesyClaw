@@ -297,7 +297,7 @@ onUnmounted(() => {
 
 .auto-refresh-label,
 .last-update {
-    color: #64748b;
+    color: var(--ui-text-muted);
     font-size: 13px;
 }
 
@@ -323,32 +323,32 @@ onUnmounted(() => {
     flex-direction: column;
     gap: 8px;
     padding: 16px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--ui-border);
     border-radius: 12px;
-    background: #f8fafc;
+    background: var(--ui-surface-muted);
 }
 
 .usage-label {
-    color: #64748b;
+    color: var(--ui-text-muted);
     font-size: 14px;
 }
 
 .usage-value {
-    color: #0f172a;
+    color: var(--ui-text);
     font-size: 28px;
     font-weight: 700;
 }
 
 .usage-updated {
     margin-top: 16px;
-    color: #64748b;
+    color: var(--ui-text-muted);
     font-size: 13px;
 }
 
 .daily-usage-section {
     margin-top: 24px;
     padding-top: 20px;
-    border-top: 1px solid #e2e8f0;
+    border-top: 1px solid var(--ui-border);
 }
 
 .daily-usage-header {
@@ -362,12 +362,12 @@ onUnmounted(() => {
 .daily-usage-header h3 {
     margin: 0;
     font-size: 16px;
-    color: #0f172a;
+    color: var(--ui-text);
 }
 
 .daily-usage-header span {
     font-size: 12px;
-    color: #64748b;
+    color: var(--ui-text-muted);
 }
 
 .daily-usage-list {
@@ -381,9 +381,10 @@ onUnmounted(() => {
     justify-content: space-between;
     gap: 16px;
     padding: 14px 16px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--ui-border);
     border-radius: 12px;
-    background: #ffffff;
+    background: var(--ui-surface);
+    box-shadow: var(--ui-shadow-sm);
 }
 
 .daily-usage-date {
@@ -395,12 +396,12 @@ onUnmounted(() => {
 
 .daily-usage-day {
     font-weight: 600;
-    color: #0f172a;
+    color: var(--ui-text);
 }
 
 .daily-usage-date-text {
     font-size: 12px;
-    color: #64748b;
+    color: var(--ui-text-muted);
 }
 
 .daily-usage-metrics {
@@ -418,19 +419,19 @@ onUnmounted(() => {
 
 .daily-usage-metric-label {
     font-size: 12px;
-    color: #64748b;
+    color: var(--ui-text-muted);
 }
 
 .daily-usage-metric-value {
     font-size: 16px;
     font-weight: 600;
-    color: #0f172a;
+    color: var(--ui-text);
 }
 
 .daily-usage-metric.muted .daily-usage-metric-value {
     font-size: 14px;
     font-weight: 500;
-    color: #334155;
+    color: var(--ui-text-soft);
 }
 
 .confirm-content {
