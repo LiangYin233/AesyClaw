@@ -26,6 +26,7 @@ function normalizePluginConfigs(
 export interface PluginRuntime {
   pluginManager: PluginManager;
   startBackgroundLoading: () => void;
+  isBackgroundLoadingComplete: () => boolean;
 }
 
 export async function createPluginManager(args: {
@@ -37,6 +38,7 @@ export async function createPluginManager(args: {
 }): Promise<PluginRuntime> {
   const { config, outboundGateway, workspace, tempDir, toolRegistry } = args;
   let started = false;
+  let completed = false;
 
   const pluginManager = new PluginManager({
     getConfig: () => ConfigLoader.get(),
@@ -81,12 +83,15 @@ export async function createPluginManager(args: {
         log.error('Failed to load plugins in background', {
           error: normalizeError(error)
         });
+      } finally {
+        completed = true;
       }
     })();
   };
 
   return {
     pluginManager,
-    startBackgroundLoading
+    startBackgroundLoading,
+    isBackgroundLoadingComplete: () => completed
   };
 }

@@ -151,7 +151,7 @@ export class BuiltInCommands extends CommandHandler {
   }
 
   private async handleAgentCurrent(msg: InboundMessage): Promise<InboundMessage> {
-    const sessionKey = msg.sessionKey;
+    const sessionKey = this.resolveSessionKey(msg);
     if (!sessionKey) {
       return { ...msg, content: '当前消息未绑定会话，无法查看 Agent 角色。' };
     }
@@ -161,7 +161,7 @@ export class BuiltInCommands extends CommandHandler {
   }
 
   private async handleAgentUse(msg: InboundMessage, args: string[]): Promise<InboundMessage> {
-    const sessionKey = msg.sessionKey;
+    const sessionKey = this.resolveSessionKey(msg);
     if (!sessionKey) {
       return { ...msg, content: '当前消息未绑定会话，无法切换 Agent 角色。' };
     }
@@ -177,12 +177,29 @@ export class BuiltInCommands extends CommandHandler {
   }
 
   private async handleAgentReset(msg: InboundMessage): Promise<InboundMessage> {
-    const sessionKey = msg.sessionKey;
+    const sessionKey = this.resolveSessionKey(msg);
     if (!sessionKey) {
       return { ...msg, content: '当前消息未绑定会话，无法重置 Agent 角色。' };
     }
 
     await this.sessionManager.clearSessionAgent(sessionKey);
     return { ...msg, content: `已将当前会话角色重置为 ${this.agentRoleService.getDefaultRoleName()}` };
+  }
+
+  private resolveSessionKey(msg: InboundMessage): string | null {
+    if (msg.sessionKey) {
+      return msg.sessionKey;
+    }
+    if (!msg.channel || !msg.chatId) {
+      return null;
+    }
+
+    const { sessionKey } = this.sessionRouting.resolve({
+      channel: msg.channel,
+      chatId: msg.chatId,
+      sessionKey: msg.sessionKey
+    });
+    msg.sessionKey = sessionKey;
+    return sessionKey;
   }
 }

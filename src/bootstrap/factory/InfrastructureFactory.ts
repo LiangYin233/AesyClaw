@@ -64,6 +64,7 @@ export async function createInfrastructure(args: {
 }): Promise<{
   pluginManager: Awaited<ReturnType<typeof createPluginManager>>['pluginManager'];
   startPluginLoading: Awaited<ReturnType<typeof createPluginManager>>['startBackgroundLoading'];
+  isPluginLoadingComplete: Awaited<ReturnType<typeof createPluginManager>>['isBackgroundLoadingComplete'];
   channelManager: ChannelManager;
   mcpManager: MCPClientManager | null;
 }> {
@@ -86,6 +87,7 @@ export async function createInfrastructure(args: {
   return {
     pluginManager: pluginRuntime.pluginManager,
     startPluginLoading: pluginRuntime.startBackgroundLoading,
+    isPluginLoadingComplete: pluginRuntime.isBackgroundLoadingComplete,
     channelManager,
     mcpManager
   };

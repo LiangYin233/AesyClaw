@@ -31,6 +31,7 @@ export interface Services {
   channelManager: ChannelManager;
   pluginManager: PluginManager;
   startPluginLoading: () => void;
+  isPluginLoadingComplete: () => boolean;
   agentRuntime: AgentRuntime;
   cronService: CronService;
   mcpManager: MCPClientManager | null;
@@ -110,6 +111,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   const {
     pluginManager,
     startPluginLoading,
+    isPluginLoadingComplete,
     channelManager,
     mcpManager
   } = await createInfrastructure({
@@ -130,6 +132,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   });
 
   setPluginManager(pluginManager);
+  agentRoleService.setPluginLoadingStateResolver(isPluginLoadingComplete);
 
   registerBuiltInTools({
     toolRegistry,
@@ -179,6 +182,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     channelManager,
     pluginManager,
     startPluginLoading,
+    isPluginLoadingComplete,
     agentRuntime,
     cronService,
     mcpManager,

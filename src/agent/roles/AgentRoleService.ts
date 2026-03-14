@@ -18,6 +18,7 @@ const MAIN_AGENT_NAME = 'main';
 
 export class AgentRoleService {
   private log = logger.child('AgentRoleService');
+  private isPluginLoadingComplete: () => boolean = () => true;
 
   constructor(
     private getConfig: () => Config,
@@ -28,6 +29,10 @@ export class AgentRoleService {
 
   getMainAgentName(): string {
     return MAIN_AGENT_NAME;
+  }
+
+  setPluginLoadingStateResolver(resolver: () => boolean): void {
+    this.isPluginLoadingComplete = resolver;
   }
 
   getDefaultRoleName(): string {
@@ -226,11 +231,14 @@ export class AgentRoleService {
   private resolveRole(role: AgentRoleConfig, builtin: boolean): ResolvedAgentRole {
     const availableSkillSet = new Set(this.getAvailableSkillNames());
     const availableToolSet = new Set(this.getAvailableToolNames());
+    const pluginLoadingComplete = this.isPluginLoadingComplete();
 
     const availableSkills = role.allowedSkills.filter((name) => availableSkillSet.has(name));
     const missingSkills = role.allowedSkills.filter((name) => !availableSkillSet.has(name));
     const availableTools = role.allowedTools.filter((name) => availableToolSet.has(name));
-    const missingTools = role.allowedTools.filter((name) => !availableToolSet.has(name));
+    const missingTools = pluginLoadingComplete
+      ? role.allowedTools.filter((name) => !availableToolSet.has(name))
+      : [];
 
     return {
       ...role,
