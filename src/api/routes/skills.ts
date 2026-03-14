@@ -1,6 +1,6 @@
 import type { Express } from 'express';
-import { createErrorResponse, createValidationErrorResponse, NotFoundError } from '../../errors/index.js';
 import type { SkillManager } from '../../skills/SkillManager.js';
+import { badRequest, notFound, serverError } from './helpers.js';
 
 export function registerSkillRoutes(app: Express, skillManager?: SkillManager): void {
   if (!skillManager) {
@@ -14,7 +14,7 @@ export function registerSkillRoutes(app: Express, skillManager?: SkillManager): 
   app.get('/api/skills/:name', (req, res) => {
     const skill = skillManager.getSkill(req.params.name);
     if (!skill) {
-      return res.status(404).json(createErrorResponse(new NotFoundError('Skill', req.params.name)));
+      return notFound(res, 'Skill', req.params.name);
     }
 
     res.json({ skill });
@@ -25,7 +25,7 @@ export function registerSkillRoutes(app: Express, skillManager?: SkillManager): 
       const summary = await skillManager.reload();
       res.json({ success: true, summary });
     } catch (error: unknown) {
-      res.status(500).json(createErrorResponse(error));
+      serverError(res, error);
     }
   });
 
@@ -33,17 +33,17 @@ export function registerSkillRoutes(app: Express, skillManager?: SkillManager): 
     try {
       const { enabled } = req.body;
       if (typeof enabled !== 'boolean') {
-        return res.status(400).json(createValidationErrorResponse('enabled must be a boolean', 'enabled'));
+        return badRequest(res, 'enabled must be a boolean', 'enabled');
       }
 
       const success = await skillManager.toggleSkill(req.params.name, enabled);
       if (!success) {
-        return res.status(404).json(createErrorResponse(new NotFoundError('Skill', req.params.name)));
+        return notFound(res, 'Skill', req.params.name);
       }
 
       res.json({ success: true });
     } catch (error: unknown) {
-      res.status(500).json(createErrorResponse(error));
+      serverError(res, error);
     }
   });
 }

@@ -2,7 +2,7 @@ import type { Express } from 'express';
 import type { PluginManager } from '../../plugins/index.js';
 import type { Config } from '../../types.js';
 import { ConfigLoader } from '../../config/loader.js';
-import { createErrorResponse, createValidationErrorResponse, NotFoundError } from '../../errors/index.js';
+import { badRequest, notFound, serverError, unavailable } from './helpers.js';
 
 interface PluginRouteDeps {
   pluginManager?: PluginManager;
@@ -18,45 +18,45 @@ export function registerPluginRoutes(app: Express, deps: PluginRouteDeps = {}): 
       const plugins = await pluginManager.getAllPlugins();
       res.json({ plugins });
     } catch (error: unknown) {
-      res.status(500).json(createErrorResponse(error));
+      serverError(res, error);
     }
   });
 
   app.post('/api/plugins/:name/toggle', async (req, res) => {
     try {
       if (!pluginManager) {
-        return res.status(503).json(createErrorResponse(new Error('Plugin manager not available')));
+        return unavailable(res, 'Plugin manager not available');
       }
       const { enabled } = req.body;
       if (typeof enabled !== 'boolean') {
-        return res.status(400).json(createValidationErrorResponse('enabled is required and must be a boolean', 'enabled'));
+        return badRequest(res, 'enabled is required and must be a boolean', 'enabled');
       }
       const { name } = req.params;
       const success = await pluginManager.enablePlugin(name, enabled);
       if (!success) {
-        return res.status(404).json(createErrorResponse(new NotFoundError('Plugin', name)));
+        return notFound(res, 'Plugin', name);
       }
       const nextConfig = await ConfigLoader.updatePluginConfig(name, enabled);
       setConfig?.(nextConfig);
       res.json({ success: true });
     } catch (error: unknown) {
-      res.status(500).json(createErrorResponse(error));
+      serverError(res, error);
     }
   });
 
   app.put('/api/plugins/:name/config', async (req, res) => {
     try {
       if (!pluginManager) {
-        return res.status(503).json(createErrorResponse(new Error('Plugin manager not available')));
+        return unavailable(res, 'Plugin manager not available');
       }
       const { options } = req.body;
       if (!options || typeof options !== 'object') {
-        return res.status(400).json(createValidationErrorResponse('options is required and must be an object', 'options'));
+        return badRequest(res, 'options is required and must be an object', 'options');
       }
       const { name } = req.params;
       const success = await pluginManager.updatePluginConfig(name, options);
       if (!success) {
-        return res.status(404).json(createErrorResponse(new NotFoundError('Plugin', name)));
+        return notFound(res, 'Plugin', name);
       }
       const config = ConfigLoader.get();
       const currentEnabled = config.plugins[name]?.enabled ?? true;
@@ -64,7 +64,7 @@ export function registerPluginRoutes(app: Express, deps: PluginRouteDeps = {}): 
       setConfig?.(nextConfig);
       res.json({ success: true });
     } catch (error: unknown) {
-      res.status(500).json(createErrorResponse(error));
+      serverError(res, error);
     }
   });
 }

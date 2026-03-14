@@ -1,8 +1,8 @@
 import type { Express } from 'express';
 import type { Config } from '../../types.js';
-import { createErrorResponse, createValidationErrorResponse } from '../../errors/index.js';
 import { logging, tokenUsage, logger, type LogLevel } from '../../observability/index.js';
 import { ConfigLoader } from '../../config/loader.js';
+import { badRequest, serverError } from './helpers.js';
 
 const log = logger.child('ObservabilityAPI');
 
@@ -15,7 +15,7 @@ export function registerObservabilityRoutes(app: Express, deps: ObservabilityRou
     try {
       res.json(logging.getConfig());
     } catch (error) {
-      res.status(500).json(createErrorResponse(error));
+      serverError(res, error);
     }
   });
 
@@ -26,12 +26,12 @@ export function registerObservabilityRoutes(app: Express, deps: ObservabilityRou
       const limit = limitParam ? parseInt(String(limitParam), 10) : 200;
 
       if (Number.isNaN(limit) || limit <= 0) {
-        return res.status(400).json(createValidationErrorResponse('limit must be a positive integer', 'limit'));
+        return badRequest(res, 'limit must be a positive integer', 'limit');
       }
 
       const validLevels: LogLevel[] = ['debug', 'info', 'warn', 'error'];
       if (levelParam !== undefined && (typeof levelParam !== 'string' || !validLevels.includes(levelParam as LogLevel))) {
-        return res.status(400).json(createValidationErrorResponse(`level must be one of: ${validLevels.join(', ')}`, 'level'));
+        return badRequest(res, `level must be one of: ${validLevels.join(', ')}`, 'level');
       }
 
       res.json({
@@ -44,7 +44,7 @@ export function registerObservabilityRoutes(app: Express, deps: ObservabilityRou
         level: logging.getLevel()
       });
     } catch (error) {
-      res.status(500).json(createErrorResponse(error));
+      serverError(res, error);
     }
   });
 
@@ -53,7 +53,7 @@ export function registerObservabilityRoutes(app: Express, deps: ObservabilityRou
       const { level } = req.body;
       const validLevels: LogLevel[] = ['debug', 'info', 'warn', 'error'];
       if (!level || !validLevels.includes(level)) {
-        return res.status(400).json(createValidationErrorResponse(`level must be one of: ${validLevels.join(', ')}`, 'level'));
+        return badRequest(res, `level must be one of: ${validLevels.join(', ')}`, 'level');
       }
 
       logging.setLevel(level);
@@ -73,7 +73,7 @@ export function registerObservabilityRoutes(app: Express, deps: ObservabilityRou
 
       res.json({ success: true, level: logging.getLevel() });
     } catch (error) {
-      res.status(500).json(createErrorResponse(error));
+      serverError(res, error);
     }
   });
 
@@ -81,7 +81,7 @@ export function registerObservabilityRoutes(app: Express, deps: ObservabilityRou
     try {
       res.json(tokenUsage.getStats());
     } catch (error) {
-      res.status(500).json(createErrorResponse(error));
+      serverError(res, error);
     }
   });
 
@@ -90,7 +90,7 @@ export function registerObservabilityRoutes(app: Express, deps: ObservabilityRou
       tokenUsage.reset();
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json(createErrorResponse(error));
+      serverError(res, error);
     }
   });
 }

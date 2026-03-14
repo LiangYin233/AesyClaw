@@ -11,6 +11,7 @@ import type { SessionService } from '../services/SessionService.js';
 import type { AgentRoleService } from '../services/AgentRoleService.js';
 import { parseAgentRoleInput } from '../mappers/agentRoleMapper.js';
 import { SessionManager } from '../../session/SessionManager.js';
+import { badRequest, notFound, serverError, unavailable, wrap } from './helpers.js';
 
 interface CoreRouteDeps {
   chatService: ChatService;
@@ -83,12 +84,12 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
       res.json(await deps.sessionService.getSessionDetails(req.params.key));
     } catch (error: unknown) {
       if (error instanceof ValidationError) {
-        return res.status(400).json(createValidationErrorResponse(error.message, 'key'));
+        return badRequest(res, error.message, 'key');
       }
       if (error instanceof NotFoundError) {
         return res.status(404).json(createErrorResponse(error));
       }
-      res.status(500).json(createErrorResponse(error));
+      serverError(res, error);
     }
   });
 
@@ -97,18 +98,18 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
       SessionManager.validateSessionKey(req.params.key);
       const { agentName } = req.body;
       if (agentName !== null && agentName !== undefined && typeof agentName !== 'string') {
-        return res.status(400).json(createValidationErrorResponse('agentName must be a string or null', 'agentName'));
+        return badRequest(res, 'agentName must be a string or null', 'agentName');
       }
 
       res.json(await deps.sessionService.setSessionAgent(req.params.key, agentName ?? null));
     } catch (error: unknown) {
       if (error instanceof ValidationError) {
-        return res.status(400).json(createValidationErrorResponse(error.message, 'key'));
+        return badRequest(res, error.message, 'key');
       }
       if (error instanceof NotFoundError) {
         return res.status(404).json(createErrorResponse(error));
       }
-      res.status(500).json(createErrorResponse(error));
+      serverError(res, error);
     }
   });
 
@@ -118,9 +119,9 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
       res.json(await deps.sessionService.deleteSession(req.params.key));
     } catch (error: unknown) {
       if (error instanceof ValidationError) {
-        return res.status(400).json(createValidationErrorResponse(error.message, 'key'));
+        return badRequest(res, error.message, 'key');
       }
-      res.status(500).json(createErrorResponse(error));
+      serverError(res, error);
     }
   });
 
@@ -132,41 +133,33 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
     res.json(await deps.agentRoleService.listAgents());
   });
 
-  app.post('/api/agents', async (req, res) => {
+  app.post('/api/agents', wrap(async (req, res) => {
+    if (!deps.agentRoleService) return unavailable(res, 'Agent role service unavailable');
     try {
-      if (!deps.agentRoleService) {
-        return res.status(503).json(createErrorResponse(new Error('Agent role service unavailable')));
-      }
-
       res.status(201).json(await deps.agentRoleService.createAgent(parseAgentRoleInput(req.body)));
     } catch (error: unknown) {
       res.status(400).json(createErrorResponse(error));
     }
-  });
+  }));
 
-  app.put('/api/agents/:name', async (req, res) => {
+  app.put('/api/agents/:name', wrap(async (req, res) => {
+    if (!deps.agentRoleService) return unavailable(res, 'Agent role service unavailable');
     try {
-      if (!deps.agentRoleService) {
-        return res.status(503).json(createErrorResponse(new Error('Agent role service unavailable')));
-      }
-
-      res.json(await deps.agentRoleService.updateAgent(req.params.name, parseAgentRoleInput(req.body, req.params.name)));
+      const name = String(req.params.name);
+      res.json(await deps.agentRoleService.updateAgent(name, parseAgentRoleInput(req.body, name)));
     } catch (error: unknown) {
       res.status(400).json(createErrorResponse(error));
     }
-  });
+  }));
 
-  app.delete('/api/agents/:name', async (req, res) => {
+  app.delete('/api/agents/:name', wrap(async (req, res) => {
+    if (!deps.agentRoleService) return unavailable(res, 'Agent role service unavailable');
     try {
-      if (!deps.agentRoleService) {
-        return res.status(503).json(createErrorResponse(new Error('Agent role service unavailable')));
-      }
-
-      res.json(await deps.agentRoleService.deleteAgent(req.params.name));
+      res.json(await deps.agentRoleService.deleteAgent(String(req.params.name)));
     } catch (error: unknown) {
       res.status(400).json(createErrorResponse(error));
     }
-  });
+  }));
 
   app.post('/api/chat', async (req, res) => {
     const { sessionKey, message, channel, chatId } = req.body;
@@ -191,7 +184,7 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
       res.json(response);
     } catch (error: unknown) {
       deps.log.error(`Chat error: ${normalizeError(error)}`);
-      res.status(500).json(createErrorResponse(error));
+      serverError(res, error);
     }
   });
 
@@ -215,7 +208,7 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
 
     const channelInstance = deps.channelManager.get(req.params.name);
     if (!channelInstance) {
-      return res.status(404).json(createErrorResponse(new NotFoundError('Channel', req.params.name)));
+      return notFound(res, 'Channel', req.params.name);
     }
 
     try {
@@ -224,7 +217,7 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
       res.json({ success: true });
     } catch (error: unknown) {
       deps.log.error('API outbound send failed', { channel: req.params.name, chatId, error: normalizeError(error) });
-      res.status(500).json(createErrorResponse(error));
+      serverError(res, error);
     }
   });
 
@@ -240,7 +233,7 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
     try {
       const newConfig = req.body;
       if (!newConfig || typeof newConfig !== 'object' || Array.isArray(newConfig)) {
-        return res.status(400).json(createValidationErrorResponse('config body must be an object', 'config'));
+        return badRequest(res, 'config body must be an object', 'config');
       }
       deps.log.info('API config update requested');
       const savedConfig = await ConfigLoader.update(() => newConfig as Config);
@@ -249,11 +242,11 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
     } catch (error: unknown) {
       const issue = getConfigValidationIssue(error);
       if (issue) {
-        return res.status(400).json(createValidationErrorResponse(issue.message, issue.field));
+        return badRequest(res, issue.message, issue.field);
       }
 
       deps.log.error('API config update failed', { error: normalizeError(error) });
-      res.status(500).json(createErrorResponse(error));
+      serverError(res, error);
     }
   });
 }

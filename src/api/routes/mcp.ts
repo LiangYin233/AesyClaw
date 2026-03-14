@@ -4,7 +4,7 @@ import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import type { Config } from '../../types.js';
 import { ConfigLoader } from '../../config/loader.js';
 import { getConfigValidationIssue, parseMCPServerConfig } from '../../config/index.js';
-import { createErrorResponse, createValidationErrorResponse, NotFoundError } from '../../errors/index.js';
+import { badRequest, notFound, serverError } from './helpers.js';
 
 interface MCPDeps {
   mcpManager?: MCPClientManager;
@@ -24,11 +24,11 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
 
   app.get('/api/mcp/servers/:name', (req, res) => {
     const mgr = deps.getMcpManager();
-    if (!mgr) return res.status(404).json(createErrorResponse(new NotFoundError('MCP manager', 'mcp')));
+    if (!mgr) return notFound(res, 'MCP manager', 'mcp');
     const { name } = req.params;
     const server = mgr.getServerStatus(name);
     if (!server || (Array.isArray(server) ? false : server.status === 'disconnected')) {
-      return res.status(404).json(createErrorResponse(new NotFoundError('MCP server', name)));
+      return notFound(res, 'MCP server', name);
     }
     const tools = mgr.getToolsForServer(name);
     res.json({ server, tools });
@@ -72,17 +72,17 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
     } catch (error) {
       const issue = getConfigValidationIssue(error);
       if (issue) {
-        return res.status(400).json(createValidationErrorResponse(issue.message, issue.field));
+        return badRequest(res, issue.message, issue.field);
       }
 
-      res.status(500).json(createErrorResponse(error));
+      serverError(res, error);
     }
   });
 
   app.delete('/api/mcp/servers/:name', async (req, res) => {
     try {
       const mgr = deps.getMcpManager();
-      if (!mgr) return res.status(404).json(createErrorResponse(new NotFoundError('MCP manager', 'mcp')));
+      if (!mgr) return notFound(res, 'MCP manager', 'mcp');
 
       const { name } = req.params;
       await mgr.disconnectOne(name);
@@ -103,19 +103,19 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
 
       res.json({ success: true, message: `MCP server "${name}" removed`, toolsRemoved });
     } catch (error) {
-      res.status(500).json(createErrorResponse(error));
+      serverError(res, error);
     }
   });
 
   app.post('/api/mcp/servers/:name/reconnect', async (req, res) => {
     try {
       const mgr = deps.getMcpManager();
-      if (!mgr) return res.status(404).json(createErrorResponse(new NotFoundError('MCP manager', 'mcp')));
+      if (!mgr) return notFound(res, 'MCP manager', 'mcp');
       const { name } = req.params;
       await mgr.reconnect(name);
       res.json({ success: true, server: mgr.getServerStatus(name) });
     } catch (error) {
-      res.status(500).json(createErrorResponse(error));
+      serverError(res, error);
     }
   });
 
@@ -125,11 +125,11 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
       const { enabled } = req.body;
 
       if (typeof enabled !== 'boolean') {
-        return res.status(400).json(createValidationErrorResponse('enabled must be a boolean', 'enabled'));
+        return badRequest(res, 'enabled must be a boolean', 'enabled');
       }
       const currentConfig = deps.getConfig();
       if (!currentConfig.mcp[name]) {
-        return res.status(404).json(createErrorResponse(new NotFoundError('MCP server in config', name)));
+        return notFound(res, 'MCP server in config', name);
       }
 
       const nextConfig = await ConfigLoader.update((config) => {
@@ -148,7 +148,7 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
 
       res.json({ success: true, enabled, server: mgr?.getServerStatus(name) });
     } catch (error) {
-      res.status(500).json(createErrorResponse(error));
+      serverError(res, error);
     }
   });
 }

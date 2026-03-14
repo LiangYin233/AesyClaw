@@ -72,28 +72,16 @@
                         </div>
 
                         <div class="mcp-info">
-                            <div class="info-item">
-                                <span class="info-label">工具数量:</span>
-                                <span class="info-value">{{ server.toolCount }}</span>
-                            </div>
-                            <div class="info-item" v-if="server.connectedAt">
-                                <span class="info-label">连接时间:</span>
-                                <span class="info-value">{{ formatDateTime(server.connectedAt) }}</span>
-                            </div>
-                            <div class="info-item" v-if="server.error">
-                                <span class="info-label">错误:</span>
-                                <span class="info-value error-text">{{ server.error }}</span>
+                            <div v-for="item in getServerInfo(server)" :key="item.label" class="info-item">
+                                <span class="info-label">{{ item.label }}:</span>
+                                <span class="info-value" :class="{ 'error-text': item.error }">{{ item.value }}</span>
                             </div>
                         </div>
 
                         <div class="mcp-config">
-                            <div class="config-item" v-if="server.config.command">
-                                <span class="config-label">命令:</span>
-                                <code class="config-value">{{ formatCommand(server.config.command) }}</code>
-                            </div>
-                            <div class="config-item" v-if="server.config.url">
-                                <span class="config-label">URL:</span>
-                                <code class="config-value">{{ server.config.url }}</code>
+                            <div v-for="item in getServerConfig(server)" :key="item.label" class="config-item">
+                                <span class="config-label">{{ item.label }}:</span>
+                                <code class="config-value">{{ item.value }}</code>
                             </div>
                         </div>
                     </div>
@@ -159,24 +147,14 @@
                 <div class="details-section">
                     <h3>基本信息</h3>
                     <div class="details-grid">
-                        <div class="detail-item">
-                            <span class="detail-label">名称:</span>
-                            <span class="detail-value">{{ selectedServer.name }}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">状态:</span>
+                        <div v-for="item in getServerDetails(selectedServer)" :key="item.label" class="detail-item">
+                            <span class="detail-label">{{ item.label }}:</span>
                             <Tag
-                                :value="getStatusLabel(selectedServer.status)"
+                                v-if="item.status"
+                                :value="item.value"
                                 :severity="getStatusSeverity(selectedServer.status)"
                             />
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">类型:</span>
-                            <span class="detail-value">{{ selectedServer.config.type }}</span>
-                        </div>
-                        <div class="detail-item">
-                            <span class="detail-label">工具数量:</span>
-                            <span class="detail-value">{{ selectedServer.toolCount }}</span>
+                            <span v-else class="detail-value">{{ item.value }}</span>
                         </div>
                     </div>
                 </div>
@@ -185,9 +163,7 @@
                     <h3>工具列表</h3>
                     <div v-if="serverTools.length > 0" class="tools-list">
                         <div v-for="tool in serverTools" :key="tool.name" class="tool-item">
-                            <div class="tool-header">
-                                <span class="tool-name">{{ tool.name }}</span>
-                            </div>
+                            <span class="tool-name">{{ tool.name }}</span>
                             <p class="tool-description">{{ tool.description }}</p>
                         </div>
                     </div>
@@ -254,14 +230,24 @@ const mcpTypes = [
     { label: 'HTTP (SSE)', value: 'http' }
 ]
 
-const newServer = ref({
+const DEFAULT_SERVER = {
     name: '',
     type: 'local' as 'local' | 'http',
     command: '["npx", "-y", "@modelcontextprotocol/server-filesystem", "/path/to/files"]',
     url: '',
     environment: '{}',
     timeout: 120000
-})
+}
+const STATUS_META: Record<string, { label: string; severity: 'success' | 'info' | 'warn' | 'danger' }> = {
+    connecting: { label: '连接中', severity: 'info' },
+    connected: { label: '已连接', severity: 'success' },
+    failed: { label: '失败', severity: 'danger' },
+    disconnected: { label: '已断开', severity: 'warn' }
+}
+
+const newServer = ref({ ...DEFAULT_SERVER })
+const notify = (severity: 'success' | 'info' | 'warn' | 'error', detail: string, summary = severity === 'error' ? '错误' : severity === 'warn' ? '警告' : '成功') =>
+    toast.add({ severity, summary, detail, life: 3000 })
 
 let refreshInterval: number | null = null
 
@@ -271,7 +257,7 @@ async function loadServers() {
 
 async function addServer() {
     if (!newServer.value.name) {
-        toast.add({ severity: 'warn', summary: '警告', detail: '请输入服务器名称', life: 3000 })
+        notify('warn', '请输入服务器名称')
         return
     }
 
@@ -287,7 +273,7 @@ async function addServer() {
             try {
                 config.command = JSON.parse(newServer.value.command)
             } catch {
-                toast.add({ severity: 'error', summary: '错误', detail: '命令格式错误，请使用 JSON 数组格式', life: 3000 })
+                notify('error', '命令格式错误，请使用 JSON 数组格式')
                 adding.value = false
                 return
             }
@@ -299,18 +285,18 @@ async function addServer() {
             try {
                 config.environment = JSON.parse(newServer.value.environment)
             } catch {
-                toast.add({ severity: 'warn', summary: '警告', detail: '环境变量格式错误，已忽略', life: 3000 })
+                notify('warn', '环境变量格式错误，已忽略')
             }
         }
 
         const success = await mcpStore.addServer(newServer.value.name, config)
         if (success) {
-            toast.add({ severity: 'success', summary: '成功', detail: '服务器已添加并开始连接', life: 3000 })
+            notify('success', '服务器已添加并开始连接')
             showAddDialog.value = false
             resetNewServer()
             await loadServers()
         } else {
-            toast.add({ severity: 'error', summary: '错误', detail: '添加服务器失败', life: 3000 })
+            notify('error', '添加服务器失败')
         }
     } finally {
         adding.value = false
@@ -318,14 +304,7 @@ async function addServer() {
 }
 
 function resetNewServer() {
-    newServer.value = {
-        name: '',
-        type: 'local',
-        command: '["npx", "-y", "@modelcontextprotocol/server-filesystem", "/path/to/files"]',
-        url: '',
-        environment: '{}',
-        timeout: 120000
-    }
+    newServer.value = { ...DEFAULT_SERVER }
 }
 
 async function deleteServer() {
@@ -336,32 +315,32 @@ async function deleteServer() {
     deleting.value = false
 
     if (success) {
-        toast.add({ severity: 'success', summary: '成功', detail: '服务器已删除', life: 3000 })
+        notify('success', '服务器已删除')
         showDeleteDialog.value = false
         serverToDelete.value = null
         await loadServers()
     } else {
-        toast.add({ severity: 'error', summary: '错误', detail: '删除服务器失败', life: 3000 })
+        notify('error', '删除服务器失败')
     }
 }
 
 async function reconnectServer(name: string) {
     const success = await mcpStore.reconnectServer(name)
     if (success) {
-        toast.add({ severity: 'success', summary: '成功', detail: '正在重新连接...', life: 3000 })
+        notify('success', '正在重新连接...')
         setTimeout(loadServers, 1000)
     } else {
-        toast.add({ severity: 'error', summary: '错误', detail: '重新连接失败', life: 3000 })
+        notify('error', '重新连接失败')
     }
 }
 
 async function toggleServer(name: string, enabled: boolean) {
     const success = await mcpStore.toggleServer(name, enabled)
     if (success) {
-        toast.add({ severity: 'success', summary: '成功', detail: enabled ? '服务器已启用' : '服务器已禁用', life: 3000 })
+        notify('success', enabled ? '服务器已启用' : '服务器已禁用')
         await loadServers()
     } else {
-        toast.add({ severity: 'error', summary: '错误', detail: '操作失败', life: 3000 })
+        notify('error', '操作失败')
     }
 }
 
@@ -378,30 +357,39 @@ async function viewServerDetails(server: MCPServerInfo) {
 }
 
 function getStatusLabel(status: string): string {
-    const labels: Record<string, string> = {
-        connecting: '连接中',
-        connected: '已连接',
-        failed: '失败',
-        disconnected: '已断开'
-    }
-    return labels[status] || status
+    return STATUS_META[status]?.label || status
 }
 
 function getStatusSeverity(status: string): 'success' | 'info' | 'warn' | 'danger' {
-    const severities: Record<string, 'success' | 'info' | 'warn' | 'danger'> = {
-        connecting: 'info',
-        connected: 'success',
-        failed: 'danger',
-        disconnected: 'warn'
-    }
-    return severities[status] || 'info'
+    return STATUS_META[status]?.severity || 'info'
 }
 
 function formatCommand(command: string | string[]): string {
-    if (Array.isArray(command)) {
-        return command.join(' ')
-    }
-    return command
+    return Array.isArray(command) ? command.join(' ') : command
+}
+
+function getServerInfo(server: MCPServerInfo) {
+    return [
+        { label: '工具数量', value: server.toolCount },
+        ...(server.connectedAt ? [{ label: '连接时间', value: formatDateTime(server.connectedAt) }] : []),
+        ...(server.error ? [{ label: '错误', value: server.error, error: true }] : [])
+    ]
+}
+
+function getServerConfig(server: MCPServerInfo) {
+    return [
+        ...(server.config.command ? [{ label: '命令', value: formatCommand(server.config.command) }] : []),
+        ...(server.config.url ? [{ label: 'URL', value: server.config.url }] : [])
+    ]
+}
+
+function getServerDetails(server: MCPServerInfo) {
+    return [
+        { label: '名称', value: server.name },
+        { label: '状态', value: getStatusLabel(server.status), status: true },
+        { label: '类型', value: server.config.type },
+        { label: '工具数量', value: server.toolCount }
+    ]
 }
 
 onMounted(() => {
@@ -604,15 +592,13 @@ onUnmounted(() => {
     border: 1px solid #e2e8f0;
 }
 
-.tool-header {
-    margin-bottom: 6px;
-}
-
 .tool-name {
     font-size: 14px;
     font-weight: 600;
     color: #1e293b;
     font-family: 'Courier New', monospace;
+    display: block;
+    margin-bottom: 6px;
 }
 
 .tool-description {
