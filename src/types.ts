@@ -13,7 +13,6 @@
   ProviderConfig,
   ServerConfig,
   ToolsConfig,
-  UsageConfig
 } from './config/schema.js';
 import type {
   ChannelConversation,
@@ -44,8 +43,7 @@ export type {
   ObservabilityConfig,
   ProviderConfig,
   ServerConfig,
-  ToolsConfig,
-  UsageConfig
+  ToolsConfig
 };
 
 export type {

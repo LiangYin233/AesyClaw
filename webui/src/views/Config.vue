@@ -35,7 +35,7 @@
                 <template #title>Agent 全局运行配置</template>
                 <template #content>
                     <Message severity="info" :closable="false" class="config-hint">
-                        Agent 的 Provider、Model、System Prompt、Vision、Reasoning 与工具迭代上限均已迁移到 Agent 页面管理。
+                        Agent 的 Provider、Model、System Prompt、Vision 与 Reasoning 已迁移到 Agent 页面管理；工具迭代上限仍在当前页统一配置。
                         <Button label="前往 Agent 页面" link size="small" @click="goToAgents" />
                     </Message>
                     <div class="form-grid">

@@ -266,10 +266,6 @@ export class AgentRoleService {
     if (!input.model?.trim()) {
       throw new Error('Agent role model is required');
     }
-    if (!Number.isInteger(input.maxToolIterations) || input.maxToolIterations < 1) {
-      throw new Error('Agent role maxToolIterations must be a positive integer');
-    }
-
     const normalized: AgentRoleConfig = {
       name,
       description: input.description?.trim() || '',
@@ -280,7 +276,6 @@ export class AgentRoleService {
       reasoning: input.reasoning === true,
       visionProvider: input.visionProvider?.trim() || '',
       visionModel: input.visionModel?.trim() || '',
-      maxToolIterations: input.maxToolIterations,
       allowedSkills: [...new Set((input.allowedSkills || []).map((item) => item.trim()).filter(Boolean))],
       allowedTools: [...new Set((input.allowedTools || []).map((item) => item.trim()).filter(Boolean))]
     };

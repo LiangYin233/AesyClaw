@@ -6,13 +6,11 @@ import { parseConfig } from '../../config/index.js';
 export function bootstrapRuntimeConfig(config: Config): Config {
   const resolved = parseConfig(config);
   logging.configure({
-    level: resolved.observability.logging.level,
-    bufferSize: resolved.observability.logging.bufferSize
+    level: resolved.observability.level
   });
   tokenUsage.configure({
-    enabled: resolved.observability.usage.enabled,
-    persistFile: join(process.cwd(), resolved.observability.usage.persistFile),
-    flushIntervalMs: resolved.observability.usage.flushIntervalMs
+    enabled: true,
+    persistFile: join(process.cwd(), '.aesyclaw', 'token-usage.db')
   });
   return resolved;
 }

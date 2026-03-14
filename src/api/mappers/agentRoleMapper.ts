@@ -16,19 +16,6 @@ function parseBooleanField(value: unknown, field: string): boolean {
   throw new Error(`${field} must be a boolean`);
 }
 
-function parseIntegerField(value: unknown, field: string, fallback: number): number {
-  if (value === undefined || value === null || value === '') {
-    return fallback;
-  }
-
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 1) {
-    throw new Error(`${field} must be a positive integer`);
-  }
-
-  return parsed;
-}
-
 export function parseAgentRoleInput(body: any, nameFromPath?: string): AgentRoleConfig {
   if (!body || typeof body !== 'object') {
     throw new Error('Agent role payload must be an object');
@@ -43,7 +30,6 @@ export function parseAgentRoleInput(body: any, nameFromPath?: string): AgentRole
   const reasoning = parseBooleanField(body.reasoning, 'reasoning');
   const visionProvider = String(body.visionProvider || '').trim();
   const visionModel = String(body.visionModel || '').trim();
-  const maxToolIterations = parseIntegerField(body.maxToolIterations, 'maxToolIterations', 40);
   const allowedSkills = Array.isArray(body.allowedSkills)
     ? body.allowedSkills.filter((item: unknown): item is string => typeof item === 'string')
     : [];
@@ -74,7 +60,6 @@ export function parseAgentRoleInput(body: any, nameFromPath?: string): AgentRole
     reasoning,
     visionProvider,
     visionModel,
-    maxToolIterations,
     allowedSkills,
     allowedTools
   };

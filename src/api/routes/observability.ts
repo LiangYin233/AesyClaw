@@ -60,7 +60,7 @@ export function registerObservabilityRoutes(app: Express, deps: ObservabilityRou
 
       try {
         const nextConfig = await ConfigLoader.update((config) => {
-          config.observability.logging.level = level;
+          config.observability.level = level;
         });
         deps.setConfig?.(nextConfig);
         log.info('Logging level updated', { level });

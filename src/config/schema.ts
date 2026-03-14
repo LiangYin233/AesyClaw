@@ -49,12 +49,12 @@ const agentRoleConfigSchema = z.object({
   reasoning: z.boolean().default(false),
   visionProvider: z.string().default(''),
   visionModel: z.string().default(''),
-  maxToolIterations: z.number().int().finite().default(40),
   allowedSkills: z.array(z.string()).default(() => []),
   allowedTools: z.array(z.string()).default(() => [])
 });
 
 const agentDefaultsSchema = z.object({
+  maxToolIterations: z.number().int().finite().default(40),
   memoryWindow: z.number().int().finite().default(50),
   memorySummary: memorySummaryConfigSchema,
   memoryFacts: memoryFactsConfigSchema,
@@ -77,7 +77,6 @@ function createDefaultMainAgentRole(): z.output<typeof agentRoleConfigSchema> {
     reasoning: false,
     visionProvider: '',
     visionModel: '',
-    maxToolIterations: 40,
     allowedSkills: [],
     allowedTools: []
   });
@@ -106,21 +105,9 @@ const toolsConfigSchema = withObjectInputDefault({
   timeoutMs: z.number().int().finite().default(30000)
 });
 
-const loggingConfigSchema = withObjectInputDefault({
-  level: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
-  bufferSize: z.number().int().finite().default(1000)
-});
-
-const usageConfigSchema = withObjectInputDefault({
-  enabled: z.boolean().default(true),
-  persistFile: z.string().default('.aesyclaw/token-usage.json'),
-  flushIntervalMs: z.number().int().finite().default(30000)
-});
-
-const observabilityConfigSchema = withObjectInputDefault({
-  logging: loggingConfigSchema,
-  usage: usageConfigSchema
-});
+const observabilityConfigSchema = z.object({
+  level: z.enum(['debug', 'info', 'warn', 'error']).default('info')
+}).strict().prefault(() => ({}));
 
 const serverConfigSchema = withObjectInputDefault({
   host: z.string().default('0.0.0.0'),
@@ -192,8 +179,7 @@ export type AgentRoleConfig = z.output<typeof agentRoleConfigSchema>;
 export type AgentConfig = z.output<typeof agentConfigSchema>;
 export type AgentsConfig = z.output<typeof agentsConfigSchema>;
 export type ToolsConfig = z.output<typeof toolsConfigSchema>;
-export type LoggingConfig = z.output<typeof loggingConfigSchema>;
-export type UsageConfig = z.output<typeof usageConfigSchema>;
+export type LoggingConfig = z.output<typeof observabilityConfigSchema>;
 export type ObservabilityConfig = z.output<typeof observabilityConfigSchema>;
 export type ServerConfig = z.output<typeof serverConfigSchema>;
 export type ChannelConfig = z.output<typeof channelConfigSchema>;
@@ -328,8 +314,7 @@ export function getConfigValidationIssue(error: unknown): ConfigValidationIssue 
       'vision',
       'reasoning',
       'visionProvider',
-      'visionModel',
-      'maxToolIterations'
+      'visionModel'
     ].includes(key));
 
     if (migratedKey) {

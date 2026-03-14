@@ -30,5 +30,4 @@ export type {
   ServerConfig,
   SkillConfig,
   ToolsConfig,
-  UsageConfig
 } from './schema.js';

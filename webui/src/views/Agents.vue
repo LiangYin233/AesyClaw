@@ -23,7 +23,6 @@
                         <Tag :value="`Model: ${agent.model}`" severity="contrast" />
                         <Tag :value="`Vision: ${agent.vision ? '开' : '关'}`" :severity="agent.vision ? 'success' : 'secondary'" />
                         <Tag :value="`Reasoning: ${agent.reasoning ? '开' : '关'}`" :severity="agent.reasoning ? 'warn' : 'secondary'" />
-                        <Tag :value="`迭代: ${agent.maxToolIterations}`" severity="info" />
                         <Tag :value="`Skills: ${agent.availableSkills.length}`" severity="info" />
                         <Tag :value="`Tools: ${agent.availableTools.length}`" severity="warn" />
                     </div>
@@ -104,12 +103,6 @@
                         <InputText v-model="form.visionModel" placeholder="未配置时不会启用视觉模型" />
                     </div>
                 </div>
-                <div class="form-grid">
-                    <div class="form-field">
-                        <label>Max Tool Iterations</label>
-                        <InputNumber v-model="form.maxToolIterations" :useGrouping="false" :min="1" />
-                    </div>
-                </div>
                 <div class="form-field">
                     <label>System Prompt</label>
                     <Textarea v-model="form.systemPrompt" rows="8" fluid />
@@ -170,7 +163,6 @@ import Select from 'primevue/select'
 import MultiSelect from 'primevue/multiselect'
 import Message from 'primevue/message'
 import ToggleButton from 'primevue/togglebutton'
-import InputNumber from 'primevue/inputnumber'
 import PageHeader from '../components/common/PageHeader.vue'
 import EmptyState from '../components/common/EmptyState.vue'
 
@@ -197,7 +189,6 @@ const form = reactive<AgentRoleConfig>({
     reasoning: false,
     visionProvider: '',
     visionModel: '',
-    maxToolIterations: 40,
     allowedSkills: [],
     allowedTools: []
 })
@@ -219,7 +210,6 @@ function getMainAgentTemplate(): AgentRoleConfig {
         reasoning: main?.reasoning ?? false,
         visionProvider: main?.visionProvider || '',
         visionModel: main?.visionModel || '',
-        maxToolIterations: main?.maxToolIterations ?? 40,
         allowedSkills: [...(main?.allowedSkills || [])],
         allowedTools: [...(main?.allowedTools || [])]
     }
@@ -236,7 +226,6 @@ function resetForm() {
     form.reasoning = template.reasoning
     form.visionProvider = template.visionProvider
     form.visionModel = template.visionModel
-    form.maxToolIterations = template.maxToolIterations
     form.allowedSkills = [...template.allowedSkills]
     form.allowedTools = [...template.allowedTools]
 }
@@ -271,7 +260,6 @@ function openEditDialog(agent: AgentRole) {
     form.reasoning = agent.reasoning
     form.visionProvider = agent.visionProvider || ''
     form.visionModel = agent.visionModel || ''
-    form.maxToolIterations = agent.maxToolIterations
     form.allowedSkills = [...agent.allowedSkills]
     form.allowedTools = [...agent.allowedTools]
     dialogVisible.value = true
@@ -289,7 +277,6 @@ async function saveAgent() {
         reasoning: form.reasoning,
         visionProvider: form.visionProvider || '',
         visionModel: form.visionModel.trim(),
-        maxToolIterations: Number(form.maxToolIterations) || 40,
         allowedSkills: [...form.allowedSkills],
         allowedTools: [...form.allowedTools]
     }

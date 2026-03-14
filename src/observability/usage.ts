@@ -1,6 +1,6 @@
-import { existsSync, readFileSync, writeFileSync } from 'fs';
-import { dirname, join } from 'path';
-import { mkdirSync } from 'fs';
+import sqlite3, { Database as SQLiteDatabase } from 'sqlite3';
+import { dirname } from 'path';
+import { existsSync, mkdirSync } from 'fs';
 import { logger } from './logging.js';
 
 export interface TokenUsage {
@@ -17,28 +17,39 @@ export interface UsageConfig {
   flushIntervalMs: number;
 }
 
+type PersistedTokenUsage = {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  request_count: number;
+  last_updated: string;
+};
+
+const DEFAULT_STATS: TokenUsage = {
+  promptTokens: 0,
+  completionTokens: 0,
+  totalTokens: 0,
+  requestCount: 0,
+  lastUpdated: new Date()
+};
+
 export class TokenUsageTracker {
   private log = logger.child('Usage');
   private config: UsageConfig = {
     enabled: true,
-    persistFile: 'token-usage.json',
+    persistFile: 'token-usage.db',
     flushIntervalMs: 30000
   };
-  private stats: TokenUsage = {
-    promptTokens: 0,
-    completionTokens: 0,
-    totalTokens: 0,
-    requestCount: 0,
-    lastUpdated: new Date()
-  };
+  private stats: TokenUsage = { ...DEFAULT_STATS };
   private dirty = false;
   private saveInterval: NodeJS.Timeout;
+  private db?: SQLiteDatabase;
+  private dbPath?: string;
+  private ready: Promise<void> = Promise.resolve();
 
   constructor() {
     this.saveInterval = setInterval(() => {
-      if (this.dirty) {
-        this.flush();
-      }
+      void this.flushIfDirty();
     }, this.config.flushIntervalMs);
   }
 
@@ -53,26 +64,53 @@ export class TokenUsageTracker {
     if (previousInterval !== this.config.flushIntervalMs) {
       clearInterval(this.saveInterval);
       this.saveInterval = setInterval(() => {
-        if (this.dirty) {
-          this.flush();
-        }
+        void this.flushIfDirty();
       }, this.config.flushIntervalMs);
     }
 
-    if (previousFile !== this.config.persistFile) {
-      if (this.dirty) {
-        this.saveToFile(previousFile);
-      }
-      this.loadFromConfiguredFile();
-    } else if (partial.enabled !== undefined && this.config.enabled) {
-      this.loadFromConfiguredFile();
+    if (!this.config.enabled) {
+      this.ready = this.ready
+        .then(async () => {
+          await this.flushIfDirty();
+          await this.closeDatabase();
+        })
+        .catch((error) => {
+          this.log.warn('Failed to disable token usage database', {
+            persistFile: this.config.persistFile,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        });
+      return;
     }
-  }
 
-  setDataDir(dataDir: string): void {
-    this.configure({
-      persistFile: join(dataDir, 'token-usage.json')
-    });
+    if (previousFile !== this.config.persistFile) {
+      this.ready = this.ready
+        .then(async () => {
+          await this.flushIfDirty();
+          await this.closeDatabase();
+          await this.openDatabase(this.config.persistFile);
+          await this.loadFromDatabase();
+        })
+        .catch((error) => {
+          this.log.warn('Failed to reconfigure token usage database', {
+            persistFile: this.config.persistFile,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        });
+      return;
+    }
+
+    this.ready = this.ready
+      .then(async () => {
+        await this.ensureDatabase();
+        await this.loadFromDatabase();
+      })
+      .catch((error) => {
+        this.log.warn('Failed to initialize token usage database', {
+          persistFile: this.config.persistFile,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      });
   }
 
   record(promptTokens: number, completionTokens: number, totalTokens: number): void {
@@ -97,64 +135,170 @@ export class TokenUsageTracker {
   }
 
   reset(): void {
-    this.stats = {
-      promptTokens: 0,
-      completionTokens: 0,
-      totalTokens: 0,
-      requestCount: 0,
-      lastUpdated: new Date()
-    };
+    this.stats = { ...DEFAULT_STATS, lastUpdated: new Date() };
     this.dirty = true;
-    this.flush();
-    this.log.info('Token usage reset');
+    void this.flushIfDirty().then(() => {
+      this.log.info('Token usage reset');
+    });
   }
 
-  destroy(): void {
+  async destroy(): Promise<void> {
     clearInterval(this.saveInterval);
-    if (this.dirty) {
-      this.flush();
+    await this.flushIfDirty();
+    await this.closeDatabase();
+  }
+
+  private async ensureDatabase(): Promise<void> {
+    if (this.db && this.dbPath === this.config.persistFile) {
+      return;
     }
+
+    await this.openDatabase(this.config.persistFile);
   }
 
-  private loadFromConfiguredFile(): void {
-    try {
-      if (!this.config.enabled || !existsSync(this.config.persistFile)) {
-        return;
-      }
-
-      const data = JSON.parse(readFileSync(this.config.persistFile, 'utf-8')) as Omit<TokenUsage, 'lastUpdated'> & { lastUpdated: string };
-      this.stats = {
-        ...data,
-        lastUpdated: new Date(data.lastUpdated)
-      };
-      this.log.info('Token usage loaded', {
-        persistFile: this.config.persistFile,
-        totalTokens: this.stats.totalTokens,
-        requestCount: this.stats.requestCount
-      });
-    } catch (error) {
-      this.log.warn('Failed to load token usage', {
-        persistFile: this.config.persistFile,
-        error: error instanceof Error ? error.message : String(error)
-      });
+  private async openDatabase(filePath: string): Promise<void> {
+    if (this.db && this.dbPath === filePath) {
+      return;
     }
+
+    await this.closeDatabase();
+    const dir = dirname(filePath);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+
+    this.dbPath = filePath;
+    this.db = await new Promise<SQLiteDatabase>((resolve, reject) => {
+      const db = new sqlite3.Database(filePath, (error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(db);
+      });
+    });
+
+    await this.run(`
+      CREATE TABLE IF NOT EXISTS token_usage_stats (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        prompt_tokens INTEGER NOT NULL DEFAULT 0,
+        completion_tokens INTEGER NOT NULL DEFAULT 0,
+        total_tokens INTEGER NOT NULL DEFAULT 0,
+        request_count INTEGER NOT NULL DEFAULT 0,
+        last_updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
   }
 
-  private flush(): void {
-    this.saveToFile(this.config.persistFile);
-    this.dirty = false;
+  private async loadFromDatabase(): Promise<void> {
+    if (!this.config.enabled) {
+      return;
+    }
+
+    await this.ensureDatabase();
+    const row = await this.get<PersistedTokenUsage>(
+      `SELECT prompt_tokens, completion_tokens, total_tokens, request_count, last_updated
+       FROM token_usage_stats
+       WHERE id = 1`
+    );
+
+    if (!row) {
+      this.stats = { ...DEFAULT_STATS, lastUpdated: new Date() };
+      return;
+    }
+
+    this.stats = {
+      promptTokens: row.prompt_tokens,
+      completionTokens: row.completion_tokens,
+      totalTokens: row.total_tokens,
+      requestCount: row.request_count,
+      lastUpdated: new Date(row.last_updated)
+    };
+    this.log.info('Token usage loaded', {
+      persistFile: this.config.persistFile,
+      totalTokens: this.stats.totalTokens,
+      requestCount: this.stats.requestCount
+    });
   }
 
-  private saveToFile(filePath: string): void {
+  private async flushIfDirty(): Promise<void> {
+    if (!this.config.enabled || !this.dirty) {
+      return;
+    }
+
     try {
-      mkdirSync(dirname(filePath), { recursive: true });
-      writeFileSync(filePath, JSON.stringify(this.stats, null, 2), 'utf-8');
+      await this.ensureDatabase();
+      await this.run(
+        `INSERT INTO token_usage_stats (
+           id, prompt_tokens, completion_tokens, total_tokens, request_count, last_updated
+         ) VALUES (1, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           prompt_tokens = excluded.prompt_tokens,
+           completion_tokens = excluded.completion_tokens,
+           total_tokens = excluded.total_tokens,
+           request_count = excluded.request_count,
+           last_updated = excluded.last_updated`,
+        [
+          this.stats.promptTokens,
+          this.stats.completionTokens,
+          this.stats.totalTokens,
+          this.stats.requestCount,
+          this.stats.lastUpdated.toISOString()
+        ]
+      );
+      this.dirty = false;
     } catch (error) {
       this.log.error('Failed to save token usage', {
-        persistFile: filePath,
+        persistFile: this.config.persistFile,
         error: error instanceof Error ? error.message : String(error)
       });
     }
+  }
+
+  private async closeDatabase(): Promise<void> {
+    if (!this.db) {
+      return;
+    }
+
+    const db = this.db;
+    this.db = undefined;
+    this.dbPath = undefined;
+
+    await new Promise<void>((resolve) => {
+      db.close(() => resolve());
+    });
+  }
+
+  private async run(sql: string, params: unknown[] = []): Promise<void> {
+    if (!this.db) {
+      throw new Error('Token usage database is not initialized');
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      this.db!.run(sql, params, (error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
+    });
+  }
+
+  private async get<T>(sql: string, params: unknown[] = []): Promise<T | undefined> {
+    if (!this.db) {
+      throw new Error('Token usage database is not initialized');
+    }
+
+    return await new Promise<T | undefined>((resolve, reject) => {
+      this.db!.get(sql, params, (error, row) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(row as T | undefined);
+      });
+    });
   }
 }
 

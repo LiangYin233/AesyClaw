@@ -50,11 +50,11 @@ export function setupConfigReload(services: Services): void {
         newProvider.providerConfig?.apiBase !== oldProvider.providerConfig?.apiBase ||
         oldProvider.model !== newProvider.model ||
         oldMainRole.systemPrompt !== newMainRole.systemPrompt ||
-        oldMainRole.maxToolIterations !== newMainRole.maxToolIterations ||
         oldMainRole.vision !== newMainRole.vision ||
         oldMainRole.reasoning !== newMainRole.reasoning ||
         oldMainRole.visionProvider !== newMainRole.visionProvider ||
-        oldMainRole.visionModel !== newMainRole.visionModel) {
+        oldMainRole.visionModel !== newMainRole.visionModel ||
+        currentConfig.agent.defaults.maxToolIterations !== newConfig.agent.defaults.maxToolIterations) {
       log.info('Config reload updating main agent runtime', {
         fromProvider: oldProvider.name,
         toProvider: newProvider.name,
@@ -65,7 +65,7 @@ export function setupConfigReload(services: Services): void {
       const runtimeUpdate: Parameters<typeof agentRuntime.updateMainAgentRuntime>[0] = {
         model: newMainRole.model,
         systemPrompt: newMainRole.systemPrompt,
-        maxIterations: newMainRole.maxToolIterations,
+        maxIterations: newConfig.agent.defaults.maxToolIterations,
         visionSettings: buildVisionSettings(newConfig),
         visionProvider: createVisionProvider(newConfig, buildVisionSettings(newConfig))
       };

@@ -111,7 +111,7 @@ export async function createExecutionRuntime(args: {
     outboundGateway,
     workspace,
     systemPrompt: mainRole.systemPrompt,
-    maxIterations: mainRole.maxToolIterations,
+    maxIterations: config.agent.defaults.maxToolIterations,
     model: mainRole.model,
     contextMode: config.agent.defaults.contextMode,
     memoryWindow: config.agent.defaults.memoryWindow,

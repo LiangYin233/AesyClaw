@@ -163,7 +163,7 @@ export class ExecutionEngine {
       toolRegistryView: new ScopedToolRegistry(this.options.toolRegistry, allowedToolNames) as unknown as ToolRegistry,
       visionSettings,
       visionProvider: this.agentRoleService.createVisionProviderForRole(resolvedRole.name),
-      maxIterations: resolvedRole.maxToolIterations,
+      maxIterations: this.options.maxIterations,
       memoryWindow: this.options.memoryWindow
     };
   }
