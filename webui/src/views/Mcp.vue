@@ -78,7 +78,7 @@
                             </div>
                             <div class="info-item" v-if="server.connectedAt">
                                 <span class="info-label">连接时间:</span>
-                                <span class="info-value">{{ formatDate(server.connectedAt) }}</span>
+                                <span class="info-value">{{ formatDateTime(server.connectedAt) }}</span>
                             </div>
                             <div class="info-item" v-if="server.error">
                                 <span class="info-label">错误:</span>
@@ -201,17 +201,15 @@
             </template>
         </Dialog>
 
-        <!-- Delete Confirmation Dialog -->
-        <Dialog v-model:visible="showDeleteDialog" header="确认删除" :style="{ width: '450px' }" modal>
-            <div class="confirm-content">
-                <i class="pi pi-exclamation-triangle" style="font-size: 2rem; color: var(--red-500)"></i>
-                <span>确定要删除服务器 <strong>{{ serverToDelete?.name }}</strong> 吗？此操作无法撤销。</span>
-            </div>
-            <template #footer>
-                <Button label="取消" text @click="showDeleteDialog = false" />
-                <Button label="删除" severity="danger" @click="deleteServer" :loading="deleting" />
-            </template>
-        </Dialog>
+        <ConfirmDialog
+            v-model:visible="showDeleteDialog"
+            title="确认删除"
+            :message="`确定要删除服务器 ${serverToDelete?.name || ''} 吗？此操作无法撤销。`"
+            :loading="deleting"
+            confirm-label="删除"
+            confirm-severity="danger"
+            :on-confirm="deleteServer"
+        />
 
         <Toast />
     </div>
@@ -237,6 +235,8 @@ import PageHeader from '../components/common/PageHeader.vue'
 import LoadingContainer from '../components/common/LoadingContainer.vue'
 import EmptyState from '../components/common/EmptyState.vue'
 import PageSection from '../components/common/PageSection.vue'
+import ConfirmDialog from '../components/common/ConfirmDialog.vue'
+import { formatDateTime } from '../utils/formatters'
 
 const mcpStore = useMcpStore()
 const { servers, loading, selectedServer, serverTools } = storeToRefs(mcpStore)
@@ -400,11 +400,6 @@ function getStatusSeverity(status: string): 'success' | 'info' | 'warn' | 'dange
         disconnected: 'warn'
     }
     return severities[status] || 'info'
-}
-
-function formatDate(dateStr: string): string {
-    const date = new Date(dateStr)
-    return date.toLocaleString('zh-CN')
 }
 
 function formatCommand(command: string | string[]): string {
@@ -658,13 +653,6 @@ onUnmounted(() => {
     font-size: 13px;
     color: #64748b;
     margin: 0;
-}
-
-.confirm-content {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 16px 0;
 }
 
 @media (max-width: 768px) {

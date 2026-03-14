@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { apiGet, apiDelete } from '../utils/apiClient'
 import type { MemoryEntry } from '../types/api'
+import { withRequestState } from '../utils/requestState'
 
 export const useMemoryStore = defineStore('memory', () => {
   const entries = ref<MemoryEntry[]>([])
@@ -9,9 +10,7 @@ export const useMemoryStore = defineStore('memory', () => {
   const error = ref<string | null>(null)
 
   async function fetchEntries() {
-    loading.value = true
-    error.value = null
-    try {
+    return withRequestState(loading, error, async () => {
       const { data, error: err } = await apiGet<{ items: MemoryEntry[] }>('/memory')
       if (err) {
         error.value = err
@@ -20,15 +19,11 @@ export const useMemoryStore = defineStore('memory', () => {
       }
       entries.value = data?.items || []
       return entries.value
-    } finally {
-      loading.value = false
-    }
+    })
   }
 
   async function deleteEntry(key: string) {
-    loading.value = true
-    error.value = null
-    try {
+    return withRequestState(loading, error, async () => {
       const { error: err } = await apiDelete(`/memory/${encodeURIComponent(key)}`)
       if (err) {
         error.value = err
@@ -36,15 +31,11 @@ export const useMemoryStore = defineStore('memory', () => {
       }
       entries.value = entries.value.filter((entry) => entry.key !== key)
       return true
-    } finally {
-      loading.value = false
-    }
+    })
   }
 
   async function clearAll() {
-    loading.value = true
-    error.value = null
-    try {
+    return withRequestState(loading, error, async () => {
       const { error: err } = await apiDelete('/memory')
       if (err) {
         error.value = err
@@ -52,9 +43,7 @@ export const useMemoryStore = defineStore('memory', () => {
       }
       entries.value = []
       return true
-    } finally {
-      loading.value = false
-    }
+    })
   }
 
   return { entries, loading, error, fetchEntries, deleteEntry, clearAll }

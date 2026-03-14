@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { apiGet, apiPost, apiDelete } from '../utils/apiClient'
 import type { MCPServerConfig, MCPServerInfo, MCPTool } from '../types/api'
+import { withRequestState } from '../utils/requestState'
 
 export const useMcpStore = defineStore('mcp', () => {
   const servers = ref<MCPServerInfo[]>([])
@@ -11,9 +12,7 @@ export const useMcpStore = defineStore('mcp', () => {
   const error = ref<string | null>(null)
 
   async function fetchServers() {
-    loading.value = true
-    error.value = null
-    try {
+    return withRequestState(loading, error, async () => {
       const { data, error: err } = await apiGet<{ servers: MCPServerInfo[] }>('/mcp/servers')
       if (err) {
         error.value = err
@@ -22,9 +21,7 @@ export const useMcpStore = defineStore('mcp', () => {
       }
       servers.value = data?.servers || []
       return servers.value
-    } finally {
-      loading.value = false
-    }
+    })
   }
 
   async function fetchServer(name: string) {

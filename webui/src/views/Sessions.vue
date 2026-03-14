@@ -133,29 +133,25 @@
             </LoadingContainer>
         </Dialog>
 
-        <Dialog v-model:visible="deleteVisible" header="确认删除" modal role="alertdialog" aria-labelledby="delete-dialog-title">
-            <p>
-                确定要删除会话
-                <span class="session-key">{{ selectedSession?.key }}</span>
-                吗？此操作无法撤销。
-            </p>
-            <template #footer>
-                <Button label="取消" text @click="deleteVisible = false" :disabled="deleting" aria-label="取消删除" />
-                <Button label="删除" severity="danger" @click="doDelete" :loading="deleting" :disabled="bulkDeleting" aria-label="确认删除会话" />
-            </template>
-        </Dialog>
+        <ConfirmDialog
+            v-model:visible="deleteVisible"
+            title="确认删除"
+            :message="`确定要删除会话 ${selectedSession?.key || ''} 吗？此操作无法撤销。`"
+            :loading="deleting"
+            confirm-label="删除"
+            confirm-severity="danger"
+            :on-confirm="doDelete"
+        />
 
-        <Dialog v-model:visible="bulkDeleteVisible" header="确认批量删除" modal role="alertdialog" aria-labelledby="bulk-delete-dialog-title">
-            <p>
-                确定要批量删除已选择的
-                <span class="bulk-toolbar__count">{{ selectedCount }}</span>
-                个会话吗？此操作无法撤销。
-            </p>
-            <template #footer>
-                <Button label="取消" text @click="bulkDeleteVisible = false" :disabled="bulkDeleting" aria-label="取消批量删除" />
-                <Button label="批量删除" severity="danger" @click="doBulkDelete" :loading="bulkDeleting" :disabled="!hasSelectedSessions || deleting" aria-label="确认批量删除会话" />
-            </template>
-        </Dialog>
+        <ConfirmDialog
+            v-model:visible="bulkDeleteVisible"
+            title="确认批量删除"
+            :message="`确定要批量删除已选择的 ${selectedCount} 个会话吗？此操作无法撤销。`"
+            :loading="bulkDeleting"
+            confirm-label="批量删除"
+            confirm-severity="danger"
+            :on-confirm="doBulkDelete"
+        />
     </div>
 </template>
 
@@ -170,6 +166,7 @@ import PageHeader from '../components/common/PageHeader.vue'
 import LoadingContainer from '../components/common/LoadingContainer.vue'
 import EmptyState from '../components/common/EmptyState.vue'
 import DataTable from '../components/common/DataTable.vue'
+import ConfirmDialog from '../components/common/ConfirmDialog.vue'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
 import Tag from 'primevue/tag'

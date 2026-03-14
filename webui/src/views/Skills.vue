@@ -2,7 +2,7 @@
     <div class="skills-page page-stack">
         <PageHeader title="Skills 管理" subtitle="配置 Agent 可用的 Skills，并查看详情内容。">
             <template #actions>
-                <Button label="刷新" icon="pi pi-refresh" outlined @click="refreshSkills" :loading="loading || reloading" />
+                <Button label="刷新" icon="pi pi-refresh" outlined @click="reloadAllSkills" :loading="loading || reloading" />
             </template>
         </PageHeader>
 
@@ -95,14 +95,6 @@ const { skills, selectedSkill, loading, reloading } = storeToRefs(skillsStore)
 const toast = useToast()
 const showDetailsDialog = ref(false)
 
-async function loadSkills() {
-    await skillsStore.fetchSkills()
-}
-
-async function refreshSkills() {
-    await reloadAllSkills()
-}
-
 async function viewSkillDetails(name: string) {
     const skill = await skillsStore.fetchSkill(name)
     if (skill) {
@@ -150,7 +142,7 @@ async function reloadAllSkills() {
 }
 
 onMounted(() => {
-    loadSkills()
+    skillsStore.fetchSkills()
 })
 </script>
 

@@ -139,6 +139,7 @@ import PageHeader from '../components/common/PageHeader.vue'
 import LoadingContainer from '../components/common/LoadingContainer.vue'
 import EmptyState from '../components/common/EmptyState.vue'
 import PageSection from '../components/common/PageSection.vue'
+import { formatLabel } from '../utils/formatters'
 
 const pluginsStore = usePluginsStore()
 const configStore = useConfigStore()
@@ -263,10 +264,6 @@ async function savePluginConfig() {
     } finally {
         saving.value = false
     }
-}
-
-function formatLabel(key: string): string {
-    return key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())
 }
 
 function isBoolean(value: any): boolean {

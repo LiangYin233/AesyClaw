@@ -208,6 +208,7 @@ import Message from 'primevue/message'
 import Toast from 'primevue/toast'
 import ProgressSpinner from 'primevue/progressspinner'
 import PageHeader from '../components/common/PageHeader.vue'
+import { formatLabel } from '../utils/formatters'
 
 const configStore = useConfigStore()
 const { config, loading } = storeToRefs(configStore)
@@ -236,10 +237,6 @@ async function saveConfig() {
     } else {
         toast.add({ severity: 'error', summary: '错误', detail: '保存失败', life: 3000 })
     }
-}
-
-function formatLabel(key: string): string {
-    return key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())
 }
 
 function isNumber(value: any): boolean {

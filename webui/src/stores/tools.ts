@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { apiGet } from '../utils/apiClient'
 import type { Tool } from '../types/api'
+import { withRequestState } from '../utils/requestState'
 
 export const useToolsStore = defineStore('tools', () => {
   const tools = ref<Tool[]>([])
@@ -9,9 +10,7 @@ export const useToolsStore = defineStore('tools', () => {
   const error = ref<string | null>(null)
 
   async function fetchTools() {
-    loading.value = true
-    error.value = null
-    try {
+    return withRequestState(loading, error, async () => {
       const { data, error: err } = await apiGet<{ tools: Tool[] }>('/tools')
       if (err) {
         error.value = err
@@ -20,9 +19,7 @@ export const useToolsStore = defineStore('tools', () => {
       }
       tools.value = data?.tools || []
       return tools.value
-    } finally {
-      loading.value = false
-    }
+    })
   }
 
   return { tools, loading, error, fetchTools }

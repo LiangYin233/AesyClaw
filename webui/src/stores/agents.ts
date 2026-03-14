@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { apiDelete, apiGet, apiPost, apiPut } from '../utils/apiClient'
 import type { AgentRole, AgentRoleConfig } from '../types/api'
+import { withRequestState } from '../utils/requestState'
 
 export const useAgentsStore = defineStore('agents', () => {
   const agents = ref<AgentRole[]>([])
@@ -9,9 +10,7 @@ export const useAgentsStore = defineStore('agents', () => {
   const error = ref<string | null>(null)
 
   async function fetchAgents() {
-    loading.value = true
-    error.value = null
-    try {
+    return withRequestState(loading, error, async () => {
       const { data, error: err } = await apiGet<{ agents: AgentRole[] }>('/agents')
       if (err) {
         error.value = err
@@ -20,9 +19,7 @@ export const useAgentsStore = defineStore('agents', () => {
       }
       agents.value = data?.agents || []
       return agents.value
-    } finally {
-      loading.value = false
-    }
+    })
   }
 
   async function createAgent(agent: AgentRoleConfig) {

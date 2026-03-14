@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { apiGet, apiPost, apiPut } from '../utils/apiClient'
 import type { PluginInfo } from '../types/api'
+import { withRequestState } from '../utils/requestState'
 
 export const usePluginsStore = defineStore('plugins', () => {
   // State
@@ -20,20 +21,15 @@ export const usePluginsStore = defineStore('plugins', () => {
 
   // Actions
   async function fetchPlugins() {
-    loading.value = true
-    error.value = null
-
-    const { data, error: err } = await apiGet<{ plugins: PluginInfo[] }>('/plugins')
-
-    if (err) {
-      error.value = err
-      loading.value = false
-      return false
-    }
-
-    plugins.value = data?.plugins || []
-    loading.value = false
-    return true
+    return withRequestState(loading, error, async () => {
+      const { data, error: err } = await apiGet<{ plugins: PluginInfo[] }>('/plugins')
+      if (err) {
+        error.value = err
+        return false
+      }
+      plugins.value = data?.plugins || []
+      return true
+    })
   }
 
   async function togglePlugin(name: string, enabled: boolean) {

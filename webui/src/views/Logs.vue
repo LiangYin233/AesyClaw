@@ -69,7 +69,7 @@
 
                 <div class="toolbar-meta">
                     <span class="meta-item">最近 {{ logEntries.length }} 条</span>
-                    <span class="meta-item" v-if="lastUpdate">更新于 {{ formatLastUpdate(lastUpdate) }}</span>
+                    <span class="meta-item" v-if="lastUpdate">更新于 {{ formatClock(new Date(lastUpdate)) }}</span>
                 </div>
             </div>
 
@@ -98,7 +98,7 @@
 
                     <div class="console-body">
                         <article v-for="entry in logEntries" :key="entry.id" class="console-line" :class="`console-line--${entry.level}`">
-                            <span class="console-line__time">{{ formatTimestamp(entry.timestamp) }}</span>
+                            <span class="console-line__time">{{ formatDateTime(entry.timestamp) }}</span>
                             <span class="console-line__level">{{ entry.level.toUpperCase() }}</span>
                             <span v-if="entry.scope" class="console-line__prefix">{{ entry.scope }}</span>
                             <pre class="console-line__text">{{ entry.message }}<template v-if="formatFields(entry.fields)"> | {{ formatFields(entry.fields) }}</template></pre>
@@ -125,6 +125,7 @@ import EmptyState from '../components/common/EmptyState.vue'
 import PageHeader from '../components/common/PageHeader.vue'
 import LoadingContainer from '../components/common/LoadingContainer.vue'
 import PageSection from '../components/common/PageSection.vue'
+import { formatClock, formatDateTime } from '../utils/formatters'
 
 const logsStore = useLogsStore()
 const { config, entries, loading, entriesLoading, error, lastUpdate, activeLevel } = storeToRefs(logsStore)
@@ -194,14 +195,6 @@ function getLevelSeverity(level: string): 'success' | 'info' | 'warn' | 'danger'
         debug: 'success'
     }
     return severities[level] || 'info'
-}
-
-function formatTimestamp(value: string) {
-    return new Date(value).toLocaleString()
-}
-
-function formatLastUpdate(value: number) {
-    return new Date(value).toLocaleTimeString()
 }
 
 function formatFields(fields?: Record<string, string | number | boolean | null>) {

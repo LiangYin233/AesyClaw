@@ -1,18 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
-import Dashboard from '../views/Dashboard.vue'
-import Chat from '../views/Chat.vue'
-import Sessions from '../views/Sessions.vue'
-import Memory from '../views/Memory.vue'
-import Tools from '../views/Tools.vue'
-import Plugins from '../views/Plugins.vue'
-import Config from '../views/Config.vue'
-import Mcp from '../views/Mcp.vue'
-import Skills from '../views/Skills.vue'
-import Agents from '../views/Agents.vue'
-import Cron from '../views/Cron.vue'
-import Logs from '../views/Logs.vue'
-import Unauthorized from '../views/Unauthorized.vue'
 import { buildTokenQuery, getRouteToken } from '../utils/auth'
 
 const router = createRouter({
@@ -21,25 +8,25 @@ const router = createRouter({
     {
       path: '/unauthorized',
       name: 'unauthorized',
-      component: Unauthorized
+      component: () => import('../views/Unauthorized.vue')
     },
     {
       path: '/',
       component: AppLayout,
       children: [
-        { path: '', name: 'dashboard', component: Dashboard },
-        { path: 'chat', name: 'chat', component: Chat },
-        { path: 'chat/:sessionKey', name: 'chat-session', component: Chat },
-        { path: 'sessions', name: 'sessions', component: Sessions },
-        { path: 'memory', name: 'memory', component: Memory },
-        { path: 'agents', name: 'agents', component: Agents },
-        { path: 'tools', name: 'tools', component: Tools },
-        { path: 'plugins', name: 'plugins', component: Plugins },
-        { path: 'config', name: 'config', component: Config },
-        { path: 'mcp', name: 'mcp', component: Mcp },
-        { path: 'skills', name: 'skills', component: Skills },
-        { path: 'cron', name: 'cron', component: Cron },
-        { path: 'logs', name: 'logs', component: Logs }
+        { path: '', name: 'dashboard', component: () => import('../views/Dashboard.vue') },
+        { path: 'chat', name: 'chat', component: () => import('../views/Chat.vue') },
+        { path: 'chat/:sessionKey', name: 'chat-session', component: () => import('../views/Chat.vue') },
+        { path: 'sessions', name: 'sessions', component: () => import('../views/Sessions.vue') },
+        { path: 'memory', name: 'memory', component: () => import('../views/Memory.vue') },
+        { path: 'agents', name: 'agents', component: () => import('../views/Agents.vue') },
+        { path: 'tools', name: 'tools', component: () => import('../views/Tools.vue') },
+        { path: 'plugins', name: 'plugins', component: () => import('../views/Plugins.vue') },
+        { path: 'config', name: 'config', component: () => import('../views/Config.vue') },
+        { path: 'mcp', name: 'mcp', component: () => import('../views/Mcp.vue') },
+        { path: 'skills', name: 'skills', component: () => import('../views/Skills.vue') },
+        { path: 'cron', name: 'cron', component: () => import('../views/Cron.vue') },
+        { path: 'logs', name: 'logs', component: () => import('../views/Logs.vue') }
       ]
     }
   ]

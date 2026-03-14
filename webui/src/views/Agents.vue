@@ -138,13 +138,15 @@
             </template>
         </Dialog>
 
-        <Dialog v-model:visible="deleteVisible" header="删除 Agent" modal>
-            <p>确定要删除 Agent <strong>{{ deletingAgent?.name }}</strong> 吗？</p>
-            <template #footer>
-                <Button label="取消" text @click="deleteVisible = false" />
-                <Button label="删除" severity="danger" @click="doDelete" :loading="deleting" />
-            </template>
-        </Dialog>
+        <ConfirmDialog
+            v-model:visible="deleteVisible"
+            title="删除 Agent"
+            :message="`确定要删除 Agent ${deletingAgent?.name || ''} 吗？`"
+            :loading="deleting"
+            confirm-label="删除"
+            confirm-severity="danger"
+            :on-confirm="doDelete"
+        />
     </div>
 </template>
 
@@ -165,6 +167,7 @@ import Message from 'primevue/message'
 import ToggleButton from 'primevue/togglebutton'
 import PageHeader from '../components/common/PageHeader.vue'
 import EmptyState from '../components/common/EmptyState.vue'
+import ConfirmDialog from '../components/common/ConfirmDialog.vue'
 
 const agentsStore = useAgentsStore()
 const configStore = useConfigStore()

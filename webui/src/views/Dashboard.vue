@@ -59,7 +59,7 @@
                         </div>
                     </div>
                     <div v-if="usageStats?.lastUpdated" class="usage-updated">
-                        最后更新：{{ formatTimestamp(usageStats.lastUpdated) }}
+                        最后更新：{{ formatDateTime(usageStats.lastUpdated) }}
                     </div>
                     <div v-if="usageStats" class="daily-usage-section">
                         <div class="daily-usage-header">
@@ -101,16 +101,15 @@
             </Card>
         </LoadingContainer>
 
-        <Dialog v-model:visible="showResetDialog" header="确认重置" :style="{ width: '450px' }" modal>
-            <div class="confirm-content">
-                <i class="pi pi-exclamation-triangle confirm-icon"></i>
-                <span>确定要重置 Token 使用统计吗？此操作无法撤销。</span>
-            </div>
-            <template #footer>
-                <Button label="取消" text @click="showResetDialog = false" />
-                <Button label="重置" severity="danger" @click="resetUsage" :loading="resetting" />
-            </template>
-        </Dialog>
+        <ConfirmDialog
+            v-model:visible="showResetDialog"
+            title="确认重置"
+            message="确定要重置 Token 使用统计吗？此操作无法撤销。"
+            :loading="resetting"
+            confirm-label="重置"
+            confirm-severity="danger"
+            :on-confirm="resetUsage"
+        />
 
         <Toast />
     </div>
@@ -124,11 +123,12 @@ import type { TokenUsageStats } from '../types/api'
 import { useToast } from 'primevue/usetoast'
 import PageHeader from '../components/common/PageHeader.vue'
 import LoadingContainer from '../components/common/LoadingContainer.vue'
+import ConfirmDialog from '../components/common/ConfirmDialog.vue'
 import DashboardChannelsCard from '../components/dashboard/DashboardChannelsCard.vue'
 import DashboardStatsGrid from '../components/dashboard/DashboardStatsGrid.vue'
+import { formatClock, formatDateTime, formatNumber } from '../utils/formatters'
 import Button from 'primevue/button'
 import InputSwitch from 'primevue/inputswitch'
-import Dialog from 'primevue/dialog'
 import Toast from 'primevue/toast'
 import Card from 'primevue/card'
 import Tag from 'primevue/tag'
@@ -156,25 +156,6 @@ function formatUptime(seconds: number): string {
     if (days > 0) return `${days}天 ${hours}小时`
     if (hours > 0) return `${hours}小时 ${mins}分钟`
     return `${mins}分钟`
-}
-
-function formatNumber(value: number): string {
-    return new Intl.NumberFormat('zh-CN').format(value)
-}
-
-function formatTimestamp(value: string): string {
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) {
-        return value
-    }
-    return date.toLocaleString('zh-CN', { hour12: false })
-}
-
-function formatTime(date: Date): string {
-    const hours = date.getHours().toString().padStart(2, '0')
-    const minutes = date.getMinutes().toString().padStart(2, '0')
-    const seconds = date.getSeconds().toString().padStart(2, '0')
-    return `${hours}:${minutes}:${seconds}`
 }
 
 function formatDayLabel(value: string): string {
@@ -209,7 +190,7 @@ async function refreshAll() {
             systemStore.refresh(),
             fetchUsage()
         ])
-        lastUpdateTime.value = `更新于 ${formatTime(new Date())}`
+        lastUpdateTime.value = `更新于 ${formatClock(new Date())}`
     } finally {
         refreshing.value = false
         initialLoading.value = false
@@ -432,17 +413,6 @@ onUnmounted(() => {
     font-size: 14px;
     font-weight: 500;
     color: var(--ui-text-soft);
-}
-
-.confirm-content {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.confirm-icon {
-    font-size: 2rem;
-    color: var(--red-500);
 }
 
 @media (max-width: 768px) {

@@ -107,42 +107,32 @@
                         </div>
 
                         <div v-if="entry.updatedAt" class="memory-updated">
-                            最近更新：{{ formatTime(entry.updatedAt) }}
+                            最近更新：{{ formatDateTime(entry.updatedAt) }}
                         </div>
                     </template>
                 </Card>
             </div>
         </LoadingContainer>
 
-        <Dialog
+        <ConfirmDialog
             v-model:visible="clearEntryVisible"
-            header="确认清空"
-            modal
-            :style="{ width: '420px' }"
-        >
-            <p>
-                确定要清空
-                <span class="memory-key">{{ selectedEntry?.channel }} / {{ selectedEntry?.chatId }}</span>
-                的全部记忆吗？这会清空该聊天对象下的长期事实和所有会话摘要。
-            </p>
-            <template #footer>
-                <Button label="取消" text @click="clearEntryVisible = false" />
-                <Button label="清空" severity="danger" :loading="clearing" @click="clearEntry" />
-            </template>
-        </Dialog>
+            title="确认清空"
+            :message="`确定要清空 ${selectedEntry?.channel || ''} / ${selectedEntry?.chatId || ''} 的全部记忆吗？这会清空该聊天对象下的长期事实和所有会话摘要。`"
+            :loading="clearing"
+            confirm-label="清空"
+            confirm-severity="danger"
+            :on-confirm="clearEntry"
+        />
 
-        <Dialog
+        <ConfirmDialog
             v-model:visible="clearAllVisible"
-            header="确认清空全部记忆"
-            modal
-            :style="{ width: '420px' }"
-        >
-            <p>确定要清空全部摘要和长期事实吗？此操作无法撤销。</p>
-            <template #footer>
-                <Button label="取消" text @click="clearAllVisible = false" />
-                <Button label="全部清空" severity="danger" :loading="clearing" @click="clearAll" />
-            </template>
-        </Dialog>
+            title="确认清空全部记忆"
+            message="确定要清空全部摘要和长期事实吗？此操作无法撤销。"
+            :loading="clearing"
+            confirm-label="全部清空"
+            confirm-severity="danger"
+            :on-confirm="clearAll"
+        />
     </div>
 </template>
 
@@ -157,9 +147,10 @@ import { announceToScreenReader } from '../composables/useA11y'
 import PageHeader from '../components/common/PageHeader.vue'
 import LoadingContainer from '../components/common/LoadingContainer.vue'
 import EmptyState from '../components/common/EmptyState.vue'
+import ConfirmDialog from '../components/common/ConfirmDialog.vue'
+import { formatDateTime } from '../utils/formatters'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
-import Dialog from 'primevue/dialog'
 import Tag from 'primevue/tag'
 import { getRouteToken, navigateWithToken } from '../utils/auth'
 
@@ -184,15 +175,6 @@ async function loadMemory() {
     }
 
     announceToScreenReader(`已加载 ${items.length} 个聊天对象的记忆`, 'polite')
-}
-
-function formatTime(value: string) {
-    const time = new Date(value)
-    if (Number.isNaN(time.getTime())) {
-        return value
-    }
-
-    return time.toLocaleString('zh-CN', { hour12: false })
 }
 
 function confirmClearEntry(entry: MemoryEntry) {

@@ -40,11 +40,11 @@
                                 </div>
                                 <div class="detail-row">
                                     <span class="detail-label">下次执行:</span>
-                                    <span class="detail-value">{{ formatTime(job.nextRunAtMs) }}</span>
+                                    <span class="detail-value">{{ job.nextRunAtMs ? formatDateTime(job.nextRunAtMs) : '-' }}</span>
                                 </div>
                                 <div class="detail-row">
                                     <span class="detail-label">上次执行:</span>
-                                    <span class="detail-value">{{ formatTime(job.lastRunAtMs) }}</span>
+                                    <span class="detail-value">{{ job.lastRunAtMs ? formatDateTime(job.lastRunAtMs) : '-' }}</span>
                                 </div>
                                 <div class="detail-row">
                                     <span class="detail-label">目标:</span>
@@ -118,13 +118,15 @@
             </template>
         </Dialog>
         
-        <Dialog v-model:visible="deleteDialogVisible" header="确认删除" :modal="true" :style="{ width: '400px' }">
-            <p>确定要删除任务 "{{ jobToDelete?.name }}" 吗？</p>
-            <template #footer>
-                <Button label="取消" severity="secondary" @click="deleteDialogVisible = false" />
-                <Button label="删除" severity="danger" @click="deleteJob" :loading="deleting" />
-            </template>
-        </Dialog>
+        <ConfirmDialog
+            v-model:visible="deleteDialogVisible"
+            title="确认删除"
+            :message="'确定要删除任务 &quot;' + (jobToDelete?.name || '') + '&quot; 吗？'"
+            :loading="deleting"
+            confirm-label="删除"
+            confirm-severity="danger"
+            :on-confirm="deleteJob"
+        />
         
         <Toast />
     </div>
@@ -150,6 +152,8 @@ import PageHeader from '../components/common/PageHeader.vue'
 import LoadingContainer from '../components/common/LoadingContainer.vue'
 import EmptyState from '../components/common/EmptyState.vue'
 import PageSection from '../components/common/PageSection.vue'
+import ConfirmDialog from '../components/common/ConfirmDialog.vue'
+import { formatDateTime } from '../utils/formatters'
 
 const cronStore = useCronStore()
 const { jobs, loading } = storeToRefs(cronStore)
@@ -351,11 +355,6 @@ function getScheduleSeverity(schedule: CronJob['schedule']): string {
         case 'cron': return 'help'
         default: return 'info'
     }
-}
-
-function formatTime(ms?: number): string {
-    if (!ms) return '-'
-    return new Date(ms).toLocaleString('zh-CN')
 }
 
 function formatIntervalMs(ms: number): string {

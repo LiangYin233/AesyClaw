@@ -2,7 +2,7 @@
     <div class="tools-page page-stack">
         <PageHeader title="工具列表" subtitle="查看系统已注册工具及其参数结构">
             <template #actions>
-                <Button icon="pi pi-refresh" label="刷新" @click="loadTools" :loading="loading" />
+                <Button icon="pi pi-refresh" label="刷新" @click="toolsStore.fetchTools()" :loading="loading" />
             </template>
         </PageHeader>
 
@@ -59,12 +59,8 @@ import PageSection from '../components/common/PageSection.vue'
 const toolsStore = useToolsStore()
 const { tools, loading } = storeToRefs(toolsStore)
 
-async function loadTools() {
-    await toolsStore.fetchTools()
-}
-
 onMounted(() => {
-    loadTools()
+    toolsStore.fetchTools()
 })
 </script>
 
