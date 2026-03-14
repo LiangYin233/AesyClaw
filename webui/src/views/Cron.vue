@@ -121,7 +121,7 @@
         <ConfirmDialog
             v-model:visible="deleteDialogVisible"
             title="确认删除"
-            :message="'确定要删除任务 &quot;' + (jobToDelete?.name || '') + '&quot; 吗？'"
+            :message="deleteMessage"
             :loading="deleting"
             confirm-label="删除"
             confirm-severity="danger"
@@ -133,7 +133,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue'
+import { computed, reactive, ref, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import type { CronJob } from '../types/api'
 import { useCronStore } from '../stores'
@@ -166,6 +166,7 @@ const deleteDialogVisible = ref(false)
 const isEditing = ref(false)
 const jobToDelete = ref<CronJob | null>(null)
 const editingJobId = ref('')
+const deleteMessage = computed(() => `确定要删除任务 "${jobToDelete.value?.name || ''}" 吗？`)
 
 const scheduleTypes = [
     { label: '执行一次', value: 'once' },
