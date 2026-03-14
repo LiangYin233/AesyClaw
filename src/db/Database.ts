@@ -2,7 +2,6 @@ import sqlite3, { Database as SQLiteDatabase } from 'sqlite3';
 import { dirname } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { logger } from '../observability/index.js';
-import { metrics } from '../observability/index.js';
 
 export class Database {
   private db: SQLiteDatabase;
@@ -181,10 +180,8 @@ export class Database {
   }
 
   run(sql: string, params: any[] = []): Promise<{ lastID: number; changes: number }> {
-    const endTimer = metrics.timer('db.query_time', { operation: 'run' });
     return new Promise((resolve, reject) => {
       this.db.run(sql, params, function(err: Error | null) {
-        endTimer();
         if (err) {
           reject(err);
         } else {
@@ -195,10 +192,8 @@ export class Database {
   }
 
   get<T>(sql: string, params: any[] = []): Promise<T | undefined> {
-    const endTimer = metrics.timer('db.query_time', { operation: 'get' });
     return new Promise((resolve, reject) => {
       this.db.get(sql, params, (err: Error | null, row: any) => {
-        endTimer();
         if (err) {
           reject(err);
         } else {
@@ -209,10 +204,8 @@ export class Database {
   }
 
   all<T>(sql: string, params: any[] = []): Promise<T[]> {
-    const endTimer = metrics.timer('db.query_time', { operation: 'all' });
     return new Promise((resolve, reject) => {
       this.db.all(sql, params, (err: Error | null, rows: any[]) => {
-        endTimer();
         if (err) {
           reject(err);
         } else {

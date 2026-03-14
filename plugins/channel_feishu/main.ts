@@ -14,7 +14,7 @@ import type {
   MessageSegment,
   ResourceHandle
 } from '../../src/channels/core/types.ts';
-import { logger, metrics } from '../../src/observability/index.ts';
+import { logger } from '../../src/observability/index.ts';
 
 interface FeishuConfig {
   appId: string;
@@ -147,19 +147,8 @@ class FeishuAdapter implements ChannelAdapter {
         platformMessageId = result.data?.message_id || platformMessageId;
       }
 
-      metrics.record('channel.message_sent', 1, 'count', {
-        channel: this.name,
-        messageType: message.conversation.type,
-        status: 'success'
-      });
-
       return { platformMessageId };
     } catch (error) {
-      metrics.record('channel.message_sent', 1, 'count', {
-        channel: this.name,
-        messageType: message.conversation.type,
-        status: 'error'
-      });
       throw error;
     }
   }

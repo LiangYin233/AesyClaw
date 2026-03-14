@@ -3,7 +3,6 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import type { ToolDefinition, MCPServersConfig, MCPServerConfig, MCPServerInfo } from '../types.js';
 import { logger } from '../observability/index.js';
-import { metrics } from '../observability/index.js';
 import { CONSTANTS } from '../constants/index.js';
 
 export class MCPClientManager {
@@ -204,20 +203,15 @@ export class MCPClientManager {
       throw new Error(`Invalid arguments: expected object, got ${typeof parsedArgs}`);
     }
 
-    const endTimer = metrics.timer('mcp.call_time', { server: serverName, tool: toolName });
     let response;
-    try {
-      response = await Promise.race<any>([
-        client.callTool(
-          { name: toolName, arguments: parsedArgs }
-        ),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`MCP tool call timeout after ${requestTimeout}ms`)), requestTimeout)
-        )
-      ]);
-    } finally {
-      endTimer();
-    }
+    response = await Promise.race<any>([
+      client.callTool(
+        { name: toolName, arguments: parsedArgs }
+      ),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`MCP tool call timeout after ${requestTimeout}ms`)), requestTimeout)
+      )
+    ]);
 
     this.log.debug('MCP tool completed', { server: serverName, toolName, contentItems: response?.content?.length || 0 });
 

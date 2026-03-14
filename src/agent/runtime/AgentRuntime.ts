@@ -9,7 +9,6 @@ import type { SessionRoutingService } from '../session/SessionRoutingService.js'
 import type { AgentRoleService } from '../roles/AgentRoleService.js';
 import type { VisionSettings } from '../../types.js';
 import { logger } from '../../observability/index.js';
-import { metrics } from '../../observability/index.js';
 import { CONFIG_DEFAULTS } from '../../constants/index.js';
 import { AgentPipeline } from './AgentPipeline.js';
 import { SessionResolver } from '../session/SessionResolver.js';
@@ -149,10 +148,6 @@ export class AgentRuntime {
     options?: { suppressOutbound?: boolean }
   ): Promise<string | undefined> {
     const startedAt = Date.now();
-    const endTimer = metrics.timer('agent.process_message', {
-      channel: message.channel,
-      sessionKey: message.sessionKey || 'pending'
-    });
 
     this.log.info('Inbound message received', {
       sessionKey: message.sessionKey,
@@ -173,7 +168,6 @@ export class AgentRuntime {
         channel: message.channel,
         durationMs: Date.now() - startedAt
       });
-      endTimer();
       return undefined;
     }
 
@@ -183,7 +177,6 @@ export class AgentRuntime {
         channel: message.channel,
         durationMs: Date.now() - startedAt
       });
-      endTimer();
       return preprocessed.content;
     }
 
@@ -198,18 +191,14 @@ export class AgentRuntime {
       memoryWindow: this.memoryWindow
     });
 
-    try {
-      const result = await this.executionRuntime.execute(context);
-      this.log.info('Inbound message execution finished', {
-        sessionKey: context.sessionKey,
-        channel: context.channel,
-        durationMs: Date.now() - startedAt,
-        suppressOutbound: context.suppressOutbound
-      });
-      return result;
-    } finally {
-      endTimer();
-    }
+    const result = await this.executionRuntime.execute(context);
+    this.log.info('Inbound message execution finished', {
+      sessionKey: context.sessionKey,
+      channel: context.channel,
+      durationMs: Date.now() - startedAt,
+      suppressOutbound: context.suppressOutbound
+    });
+    return result;
   }
 
   async handleDirect(

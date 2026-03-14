@@ -12,7 +12,6 @@ import type { MCPClientManager } from '../mcp/MCPClient.js';
 import type { SkillManager } from '../skills/SkillManager.js';
 import type { ToolRegistry } from '../tools/ToolRegistry.js';
 import { createErrorResponse } from '../errors/index.js';
-import { metrics } from '../observability/index.js';
 import { logger } from '../observability/index.js';
 import { CONSTANTS } from '../constants/index.js';
 import { registerCoreRoutes } from './routes/core.js';
@@ -91,17 +90,6 @@ export class APIServer {
       }
 
       return res.status(401).json(createErrorResponse(new Error('Unauthorized: invalid or missing token')));
-    });
-
-    this.app.use((req, res, next) => {
-      const endTimer = metrics.timer('api.request_time', {
-        method: req.method,
-        path: req.path
-      });
-      res.on('finish', () => {
-        endTimer();
-      });
-      next();
     });
   }
 

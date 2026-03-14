@@ -4,7 +4,7 @@ import type { ToolRegistry, ToolContext } from '../../tools/ToolRegistry.js';
 import type { PluginManager } from '../../plugins/index.js';
 import type { ExecutionResult, ExecutionOptions, VisionSettings } from './ExecutionTypes.js';
 import { normalizeError, isRetryableError } from '../../errors/index.js';
-import { logger, metrics, preview, tokenUsage } from '../../observability/index.js';
+import { logger, preview, tokenUsage } from '../../observability/index.js';
 
 export class ToolLoopRunner {
   private log = logger.child('ToolLoopRunner');
@@ -64,9 +64,6 @@ export class ToolLoopRunner {
 
       if (response.usage) {
         const { prompt_tokens, completion_tokens, total_tokens } = response.usage;
-        metrics.record('llm.tokens.prompt', prompt_tokens, 'count', { source });
-        metrics.record('llm.tokens.completion', completion_tokens, 'count', { source });
-        metrics.record('llm.tokens.total', total_tokens, 'count', { source });
         tokenUsage.record(prompt_tokens, completion_tokens, total_tokens);
       }
 
@@ -204,9 +201,6 @@ export class ToolLoopRunner {
 
       if (response.usage) {
         const { prompt_tokens, completion_tokens, total_tokens } = response.usage;
-        metrics.record('llm.tokens.prompt', prompt_tokens, 'count', { source });
-        metrics.record('llm.tokens.completion', completion_tokens, 'count', { source });
-        metrics.record('llm.tokens.total', total_tokens, 'count', { source });
         tokenUsage.record(prompt_tokens, completion_tokens, total_tokens);
       }
 

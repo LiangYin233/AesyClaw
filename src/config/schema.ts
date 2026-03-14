@@ -111,11 +111,6 @@ const loggingConfigSchema = withObjectInputDefault({
   bufferSize: z.number().int().finite().default(1000)
 });
 
-const observabilityMetricsConfigSchema = withObjectInputDefault({
-  enabled: z.boolean().default(true),
-  maxPoints: z.number().int().finite().default(10000)
-});
-
 const usageConfigSchema = withObjectInputDefault({
   enabled: z.boolean().default(true),
   persistFile: z.string().default('.aesyclaw/token-usage.json'),
@@ -124,7 +119,6 @@ const usageConfigSchema = withObjectInputDefault({
 
 const observabilityConfigSchema = withObjectInputDefault({
   logging: loggingConfigSchema,
-  metrics: observabilityMetricsConfigSchema,
   usage: usageConfigSchema
 });
 
@@ -199,7 +193,6 @@ export type AgentConfig = z.output<typeof agentConfigSchema>;
 export type AgentsConfig = z.output<typeof agentsConfigSchema>;
 export type ToolsConfig = z.output<typeof toolsConfigSchema>;
 export type LoggingConfig = z.output<typeof loggingConfigSchema>;
-export type ObservabilityMetricsConfig = z.output<typeof observabilityMetricsConfigSchema>;
 export type UsageConfig = z.output<typeof usageConfigSchema>;
 export type ObservabilityConfig = z.output<typeof observabilityConfigSchema>;
 export type ServerConfig = z.output<typeof serverConfigSchema>;

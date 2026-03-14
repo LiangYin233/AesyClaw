@@ -14,7 +14,7 @@ import type {
   ResourceHandle
 } from '../../src/channels/core/types.ts';
 import { CONSTANTS } from '../../src/constants/index.ts';
-import { logger, metrics } from '../../src/observability/index.ts';
+import { logger } from '../../src/observability/index.ts';
 
 interface OneBotConfig {
   wsUrl: string;
@@ -201,21 +201,10 @@ class OneBotAdapter implements ChannelAdapter {
         await this.uploadFile(numericChatId, isGroup, filePath);
       }
 
-      metrics.record('channel.message_sent', 1, 'count', {
-        channel: this.name,
-        messageType: isGroup ? 'group' : 'private',
-        status: 'success'
-      });
-
       return {
         platformMessageId
       };
     } catch (error) {
-      metrics.record('channel.message_sent', 1, 'count', {
-        channel: this.name,
-        messageType: isGroup ? 'group' : 'private',
-        status: 'error'
-      });
       throw error;
     }
   }

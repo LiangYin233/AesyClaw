@@ -3,7 +3,6 @@ import { randomUUID } from 'crypto';
 import { Database, type DBSession, type DBMessage, type DBSessionMemory, type DBSessionAgentState } from '../db/index.js';
 import { logger } from '../observability/index.js';
 import { CONSTANTS, CONFIG_DEFAULTS } from '../constants/index.js';
-import { metrics } from '../observability/index.js';
 import { normalizeError } from '../errors/index.js';
 
 function parseSessionKey(key: string): { channel: string; chatId: string; uuid?: string } {
@@ -91,54 +90,48 @@ export class SessionManager {
   }
 
   private async doGetOrCreate(key: string): Promise<Session> {
-    const endTimer = metrics.timer('session.load_time', { operation: 'doGetOrCreate' });
-
-    try {
-      const existing = this.sessions.get(key);
-      if (existing) {
-        return existing;
-      }
-
-      const parsed = parseSessionKey(key);
-      const session = await this.load(key);
-
-      if (!session) {
-        const result = await this.db.run(
-          `INSERT INTO sessions (key, channel, chat_id, uuid) VALUES (?, ?, ?, ?)`,
-          [key, parsed.channel, parsed.chatId, parsed.uuid || null]
-        );
-
-        const newSession: Session = {
-          key,
-          id: result.lastID,
-          channel: parsed.channel,
-          chatId: parsed.chatId,
-          uuid: parsed.uuid,
-          agentName: undefined,
-          summary: '',
-          summarizedMessageCount: 0,
-          messages: [],
-          createdAt: new Date(),
-          updatedAt: new Date()
-        };
-        this.sessions.set(key, newSession);
-        this.log.info('Session created', {
-          sessionKey: key,
-          channel: parsed.channel,
-          chatId: parsed.chatId
-        });
-
-        if (this.sessions.size >= this.maxSessions * CONSTANTS.SESSION_CLEANUP_THRESHOLD) {
-          await this.cleanupOldSessions();
-        }
-        return newSession;
-      }
-
-      this.sessions.set(key, session);
-      return session;
-    } finally {
-      endTimer();
+    const existing = this.sessions.get(key);
+    if (existing) {
+      return existing;
     }
+
+    const parsed = parseSessionKey(key);
+    const session = await this.load(key);
+
+    if (!session) {
+      const result = await this.db.run(
+        `INSERT INTO sessions (key, channel, chat_id, uuid) VALUES (?, ?, ?, ?)`,
+        [key, parsed.channel, parsed.chatId, parsed.uuid || null]
+      );
+
+      const newSession: Session = {
+        key,
+        id: result.lastID,
+        channel: parsed.channel,
+        chatId: parsed.chatId,
+        uuid: parsed.uuid,
+        agentName: undefined,
+        summary: '',
+        summarizedMessageCount: 0,
+        messages: [],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      this.sessions.set(key, newSession);
+      this.log.info('Session created', {
+        sessionKey: key,
+        channel: parsed.channel,
+        chatId: parsed.chatId
+      });
+
+      if (this.sessions.size >= this.maxSessions * CONSTANTS.SESSION_CLEANUP_THRESHOLD) {
+        await this.cleanupOldSessions();
+      }
+      return newSession;
+    }
+
+    this.sessions.set(key, session);
+    return session;
   }
 
   private async cleanupOldSessions(): Promise<void> {

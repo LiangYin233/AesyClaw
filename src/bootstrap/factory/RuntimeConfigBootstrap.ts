@@ -1,6 +1,6 @@
 import { join } from 'path';
 import type { Config } from '../../types.js';
-import { logging, metrics, tokenUsage } from '../../observability/index.js';
+import { logging, tokenUsage } from '../../observability/index.js';
 import { parseConfig } from '../../config/index.js';
 
 export function bootstrapRuntimeConfig(config: Config): Config {
@@ -8,10 +8,6 @@ export function bootstrapRuntimeConfig(config: Config): Config {
   logging.configure({
     level: resolved.observability.logging.level,
     bufferSize: resolved.observability.logging.bufferSize
-  });
-  metrics.configure({
-    enabled: resolved.observability.metrics.enabled,
-    maxPoints: resolved.observability.metrics.maxPoints
   });
   tokenUsage.configure({
     enabled: resolved.observability.usage.enabled,

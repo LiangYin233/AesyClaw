@@ -178,43 +178,6 @@ export interface LoggingEntriesResponse {
   level: string
 }
 
-export interface MetricStats {
-  name: string
-  count: number
-  sum: number
-  min: number
-  max: number
-  mean: number
-  p50: number
-  p95: number
-  p99: number
-}
-
-export interface MetricOverview {
-  totalMetrics: number
-  totalDataPoints: number
-  memoryUsage: {
-    heapUsed: number
-    heapTotal: number
-    external: number
-    rss: number
-  }
-}
-
-export interface MetricConfig {
-  enabled: boolean
-  maxPoints: number
-  currentCount: number
-}
-
-export interface MemoryUsage {
-  heapUsed: number
-  heapTotal: number
-  external: number
-  rss: number
-  arrayBuffers: number
-}
-
 export interface TokenUsageStats {
   promptTokens: number
   completionTokens: number
