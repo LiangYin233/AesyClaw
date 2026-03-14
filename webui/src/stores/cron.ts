@@ -1,27 +1,12 @@
-// Cron store - manages scheduled jobs
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { apiGet, apiPost, apiPut, apiDelete } from '../utils/apiClient'
 import type { CronJob } from '../types/api'
 
 export const useCronStore = defineStore('cron', () => {
-  // State
   const jobs = ref<CronJob[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
-
-  // Getters
-  const enabledJobs = computed(() => jobs.value.filter(j => j.enabled))
-  const disabledJobs = computed(() => jobs.value.filter(j => !j.enabled))
-  const jobCount = computed(() => jobs.value.length)
-
-  const upcomingJobs = computed(() =>
-    jobs.value
-      .filter(j => j.enabled && j.nextRunAtMs)
-      .sort((a, b) => (a.nextRunAtMs || 0) - (b.nextRunAtMs || 0))
-  )
-
-  // Actions
   async function fetchJobs() {
     loading.value = true
     error.value = null
@@ -78,7 +63,6 @@ export const useCronStore = defineStore('cron', () => {
       return false
     }
 
-    // Update local state
     const index = jobs.value.findIndex(j => j.id === id)
     if (index !== -1) {
       jobs.value[index] = { ...jobs.value[index], ...job }
@@ -95,7 +79,6 @@ export const useCronStore = defineStore('cron', () => {
       return false
     }
 
-    // Remove from local state
     jobs.value = jobs.value.filter(j => j.id !== id)
     return true
   }
@@ -108,7 +91,6 @@ export const useCronStore = defineStore('cron', () => {
       return false
     }
 
-    // Update local state
     const job = jobs.value.find(j => j.id === id)
     if (job) {
       job.enabled = enabled
@@ -117,29 +99,15 @@ export const useCronStore = defineStore('cron', () => {
     return true
   }
 
-  function clearError() {
-    error.value = null
-  }
-
   return {
-    // State
     jobs,
     loading,
     error,
-
-    // Getters
-    enabledJobs,
-    disabledJobs,
-    jobCount,
-    upcomingJobs,
-
-    // Actions
     fetchJobs,
     fetchJob,
     createJob,
     updateJob,
     deleteJob,
-    toggleJob,
-    clearError
+    toggleJob
   }
 })

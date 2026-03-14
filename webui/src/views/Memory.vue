@@ -56,7 +56,7 @@
                                     label="清空"
                                     text
                                     severity="danger"
-                                    @click="confirmClearEntry(entry)"
+                                    @click="selectedEntry = entry; clearEntryVisible = true"
                                     aria-label="清空该聊天对象的记忆"
                                 />
                             </div>
@@ -175,11 +175,6 @@ async function loadMemory() {
     }
 
     announceToScreenReader(`已加载 ${items.length} 个聊天对象的记忆`, 'polite')
-}
-
-function confirmClearEntry(entry: MemoryEntry) {
-    selectedEntry.value = entry
-    clearEntryVisible.value = true
 }
 
 async function clearEntry() {

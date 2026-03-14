@@ -40,7 +40,7 @@
                     <div class="agent-actions">
                         <Button label="编辑" icon="pi pi-pencil" text @click="openEditDialog(agent)" />
                         <template v-if="!agent.builtin">
-                            <Button label="删除" icon="pi pi-trash" severity="danger" text @click="confirmDelete(agent)" />
+                            <Button label="删除" icon="pi pi-trash" severity="danger" text @click="deletingAgent = agent; deleteVisible = true" />
                         </template>
                     </div>
                 </template>
@@ -297,11 +297,6 @@ async function saveAgent() {
 
     toast.success('保存成功', `Agent 角色 ${result.name} 已保存`)
     dialogVisible.value = false
-}
-
-function confirmDelete(agent: AgentRole) {
-    deletingAgent.value = agent
-    deleteVisible.value = true
 }
 
 async function doDelete() {

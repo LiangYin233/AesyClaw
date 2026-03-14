@@ -297,19 +297,6 @@ onMounted(() => {
     padding: 0;
 }
 
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 24px;
-}
-
-.page-header h1 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: bold;
-}
-
 .plugins-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -356,26 +343,6 @@ onMounted(() => {
     display: flex;
     gap: 8px;
     align-items: center;
-}
-
-.empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 48px;
-    color: #94a3b8;
-    gap: 8px;
-}
-
-.empty-state i {
-    font-size: 48px;
-}
-
-.empty-hint {
-    font-size: 14px;
-    color: #64748b;
-    margin-top: 8px;
 }
 
 .config-form {

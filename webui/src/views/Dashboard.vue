@@ -9,7 +9,7 @@
                         <span v-if="lastUpdateTime" class="last-update">{{ lastUpdateTime }}</span>
                     </div>
                     <Button label="刷新" icon="pi pi-refresh" outlined @click="refreshAll" :loading="refreshing" />
-                    <Button label="重置 Token 统计" icon="pi pi-trash" severity="danger" outlined @click="confirmReset" />
+                    <Button label="重置 Token 统计" icon="pi pi-trash" severity="danger" outlined @click="showResetDialog = true" />
                 </div>
             </template>
         </PageHeader>
@@ -221,10 +221,6 @@ function toggleAutoRefresh() {
     } else {
         stopAutoRefresh()
     }
-}
-
-function confirmReset() {
-    showResetDialog.value = true
 }
 
 async function resetUsage() {

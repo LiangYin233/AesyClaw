@@ -2,7 +2,7 @@
     <div class="config-page page-stack">
         <PageHeader title="配置管理" subtitle="集中编辑全局运行参数、服务端配置与 Provider 配置。">
             <template #actions>
-                <Button label="刷新" icon="pi pi-refresh" outlined @click="loadConfig" :loading="loading" />
+                <Button label="刷新" icon="pi pi-refresh" outlined @click="configStore.fetchConfig()" :loading="loading" />
                 <Button label="保存" icon="pi pi-save" @click="saveConfig" :loading="saving" :disabled="!config" />
             </template>
         </PageHeader>
@@ -217,15 +217,9 @@ const router = useRouter()
 const toast = useToast()
 const saving = ref(false)
 
-const providerKeys = computed(() => {
-    return config.value ? Object.keys(config.value.providers) : []
-})
+const providerKeys = computed(() => config.value ? Object.keys(config.value.providers) : [])
 
 const providerTypeOptions = ['openai']
-
-async function loadConfig() {
-    await configStore.fetchConfig()
-}
 
 async function saveConfig() {
     if (!config.value) return
@@ -283,31 +277,13 @@ function removeProvider(key: string) {
 }
 
 onMounted(() => {
-    loadConfig()
+    configStore.fetchConfig()
 })
 </script>
 
 <style scoped>
 .config-page {
     padding: 0;
-}
-
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 24px;
-}
-
-.page-header h1 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: bold;
-}
-
-.header-actions {
-    display: flex;
-    gap: 8px;
 }
 
 .config-sections {
@@ -345,12 +321,6 @@ onMounted(() => {
     gap: 16px;
 }
 
-.form-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
 .form-field {
     display: flex;
     flex-direction: column;
@@ -372,22 +342,6 @@ onMounted(() => {
     text-transform: capitalize;
 }
 
-.channel-section {
-    margin-bottom: 16px;
-}
-
-.channel-section:last-child {
-    margin-bottom: 0;
-}
-
-.channel-title {
-    font-size: 16px;
-    font-weight: 500;
-    margin: 0 0 12px 0;
-    padding-left: 12px;
-    border-left: 3px solid #3b82f6;
-}
-
 .section-header {
     display: flex;
     justify-content: space-between;
@@ -395,29 +349,25 @@ onMounted(() => {
     width: 100%;
 }
 
-.provider-section,
-.mcp-section {
+.provider-section {
     padding: 12px;
     background: #f8fafc;
     border-radius: 8px;
     margin-bottom: 12px;
 }
 
-.provider-section:last-child,
-.mcp-section:last-child {
+.provider-section:last-child {
     margin-bottom: 0;
 }
 
-.provider-header,
-.mcp-header {
+.provider-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 12px;
 }
 
-.provider-name,
-.mcp-name {
+.provider-name {
     font-weight: 500;
 }
 
@@ -433,8 +383,7 @@ onMounted(() => {
         color: #94a3b8;
     }
     .nested-config-section,
-    .provider-section,
-    .mcp-section {
+    .provider-section {
         background: #1e293b;
     }
 }

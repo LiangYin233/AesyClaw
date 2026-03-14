@@ -1,4 +1,3 @@
-// Sessions store - manages chat sessions
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { apiGet, apiDelete, apiPost, apiPut } from '../utils/apiClient'
@@ -136,10 +135,6 @@ export const useSessionsStore = defineStore('sessions', () => {
     return null
   }
 
-  function clearError() {
-    error.value = null
-  }
-
   return {
     sessions,
     currentSession,
@@ -152,7 +147,6 @@ export const useSessionsStore = defineStore('sessions', () => {
     setSessionAgent,
     deleteSession,
     deleteSessions,
-    sendMessage,
-    clearError
+    sendMessage
   }
 })

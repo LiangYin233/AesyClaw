@@ -62,7 +62,7 @@
                                     @click="toggleJob(job)"
                                 />
                                 <Button icon="pi pi-pencil" label="编辑" severity="info" size="small" outlined @click="openEditDialog(job)" />
-                                <Button icon="pi pi-trash" label="删除" severity="danger" size="small" outlined @click="confirmDelete(job)" />
+                                <Button icon="pi pi-trash" label="删除" severity="danger" size="small" outlined @click="jobToDelete = job; deleteDialogVisible = true" />
                             </div>
                         </template>
                     </Card>
@@ -305,11 +305,6 @@ async function saveJob() {
     }
 }
 
-function confirmDelete(job: CronJob) {
-    jobToDelete.value = job
-    deleteDialogVisible.value = true
-}
-
 async function deleteJob() {
     if (!jobToDelete.value) return
 
@@ -396,24 +391,6 @@ onMounted(() => {
     padding: 0;
 }
 
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 24px;
-}
-
-.page-header h1 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: bold;
-}
-
-.header-actions {
-    display: flex;
-    gap: 8px;
-}
-
 .jobs-list {
     display: flex;
     flex-direction: column;
@@ -477,13 +454,6 @@ onMounted(() => {
     font-size: 14px;
     font-weight: 500;
     color: #475569;
-}
-
-.loading-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 48px;
 }
 
 @media (prefers-color-scheme: dark) {

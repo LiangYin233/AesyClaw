@@ -1,17 +1,14 @@
-// Config store - manages application configuration
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { apiGet, apiPut } from '../utils/apiClient'
 import type { Config } from '../types/api'
 
 export const useConfigStore = defineStore('config', () => {
-  // State
   const config = ref<Config | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
   const isDirty = ref(false)
 
-  // Actions
   async function fetchConfig() {
     loading.value = true
     error.value = null
@@ -62,22 +59,14 @@ export const useConfigStore = defineStore('config', () => {
     isDirty.value = false
   }
 
-  function clearError() {
-    error.value = null
-  }
-
   return {
-    // State
     config,
     loading,
     error,
     isDirty,
-
-    // Actions
     fetchConfig,
     saveConfig,
     updateConfig,
-    resetConfig,
-    clearError
+    resetConfig
   }
 })

@@ -65,7 +65,7 @@
                                     text
                                     rounded
                                     size="small"
-                                    @click="confirmDelete(server)"
+                                    @click="serverToDelete = server; showDeleteDialog = true"
                                     v-tooltip.top="'删除服务器'"
                                 />
                             </div>
@@ -328,11 +328,6 @@ function resetNewServer() {
     }
 }
 
-function confirmDelete(server: MCPServerInfo) {
-    serverToDelete.value = server
-    showDeleteDialog.value = true
-}
-
 async function deleteServer() {
     if (!serverToDelete.value) return
 
@@ -424,24 +419,6 @@ onUnmounted(() => {
 <style scoped>
 .mcp-page {
     padding: 0;
-}
-
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 24px;
-}
-
-.page-header h1 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: bold;
-}
-
-.header-actions {
-    display: flex;
-    gap: 8px;
 }
 
 .mcp-sections {
@@ -553,17 +530,6 @@ onUnmounted(() => {
     border-radius: 4px;
     font-family: 'Courier New', monospace;
     word-break: break-all;
-}
-
-.empty-state {
-    padding: 48px 0;
-}
-
-.loading-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 48px;
 }
 
 .form-stack {
