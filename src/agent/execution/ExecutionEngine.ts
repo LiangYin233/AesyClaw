@@ -131,6 +131,7 @@ export class ExecutionEngine {
         allowedToolNames,
         toolRegistryView: this.options.toolRegistry,
         visionSettings: this.options.visionSettings,
+        visionProvider: this.options.visionProvider,
         maxIterations: this.options.maxIterations,
         memoryWindow: this.options.memoryWindow
       };
@@ -145,6 +146,7 @@ export class ExecutionEngine {
     const allowedToolNames = this.agentRoleService.getAllowedToolNames(resolvedRole.name, {
       excludeTools: extra?.excludeTools
     });
+    const visionSettings = this.agentRoleService.getVisionSettingsForRole(resolvedRole.name);
     const auxiliaryPrompt = [
       this.agentRoleService.buildSkillsPrompt(resolvedRole.name),
       this.agentRoleService.buildRoleDescriptionsPrompt(resolvedRole.name),
@@ -159,8 +161,9 @@ export class ExecutionEngine {
       skillsPrompt: auxiliaryPrompt,
       allowedToolNames,
       toolRegistryView: new ScopedToolRegistry(this.options.toolRegistry, allowedToolNames) as unknown as ToolRegistry,
-      visionSettings: this.options.visionSettings,
-      maxIterations: this.options.maxIterations,
+      visionSettings,
+      visionProvider: this.agentRoleService.createVisionProviderForRole(resolvedRole.name),
+      maxIterations: resolvedRole.maxToolIterations,
       memoryWindow: this.options.memoryWindow
     };
   }
@@ -178,7 +181,7 @@ export class ExecutionEngine {
       policy.maxIterations,
       this.options.getPluginManager(),
       policy.visionSettings,
-      this.options.visionProvider,
+      policy.visionProvider,
       this.options.executionRegistry
     );
   }

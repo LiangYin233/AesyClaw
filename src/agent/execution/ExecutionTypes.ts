@@ -40,6 +40,7 @@ export interface ExecutionPolicy {
   allowedToolNames: string[];
   toolRegistryView: Pick<ToolRegistry, 'getDefinitions' | 'execute'>;
   visionSettings?: VisionSettings;
+  visionProvider?: LLMProvider;
   maxIterations: number;
   memoryWindow: number;
 }

@@ -2,7 +2,7 @@
     <div class="skills-page page-stack">
         <PageHeader title="Skills 管理" subtitle="配置 Agent 可用的 Skills，并查看详情内容。">
             <template #actions>
-                <Button label="刷新" icon="pi pi-refresh" outlined @click="loadSkills" :loading="loading" />
+                <Button label="刷新" icon="pi pi-refresh" outlined @click="refreshSkills" :loading="loading || reloading" />
             </template>
         </PageHeader>
 
@@ -91,12 +91,16 @@ import EmptyState from '../components/common/EmptyState.vue'
 import PageSection from '../components/common/PageSection.vue'
 
 const skillsStore = useSkillsStore()
-const { skills, selectedSkill, loading } = storeToRefs(skillsStore)
+const { skills, selectedSkill, loading, reloading } = storeToRefs(skillsStore)
 const toast = useToast()
 const showDetailsDialog = ref(false)
 
 async function loadSkills() {
     await skillsStore.fetchSkills()
+}
+
+async function refreshSkills() {
+    await reloadAllSkills()
 }
 
 async function viewSkillDetails(name: string) {
@@ -117,6 +121,32 @@ async function toggleSkillHandler(name: string, enabled: boolean) {
         const skill = skills.value.find(s => s.name === name)
         if (skill) skill.enabled = !enabled
     }
+}
+
+async function reloadAllSkills() {
+    const summary = await skillsStore.reloadSkills()
+    if (!summary) {
+        toast.add({ severity: 'error', summary: '错误', detail: skillsStore.error || '重新加载 Skills 失败', life: 3000 })
+        return
+    }
+
+    if (showDetailsDialog.value && selectedSkill.value === null) {
+        showDetailsDialog.value = false
+    }
+
+    const parts = [
+        `新增 ${summary.added.length}`,
+        `更新 ${summary.updated.length}`,
+        `移除 ${summary.removed.length}`,
+        `清理引用 ${summary.cleanedAgentRefs}`
+    ]
+
+    toast.add({
+        severity: 'success',
+        summary: 'Skills 已重新加载',
+        detail: parts.join('，'),
+        life: 3500
+    })
 }
 
 onMounted(() => {

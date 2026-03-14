@@ -1,10 +1,10 @@
 import { ConfigLoader } from '../../config/loader.js';
-import { buildMainAgentRoleConfig } from '../../config/index.js';
-import type { AgentRoleConfig, Config } from '../../types.js';
+import type { AgentRoleConfig, Config, VisionSettings } from '../../types.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import type { SkillManager } from '../../skills/SkillManager.js';
 import { createProvider } from '../../providers/index.js';
 import { logger } from '../../observability/index.js';
+import type { LLMProvider } from '../../providers/base.js';
 
 export interface ResolvedAgentRole extends AgentRoleConfig {
   builtin: boolean;
@@ -36,13 +36,13 @@ export class AgentRoleService {
 
   listResolvedRoles(): ResolvedAgentRole[] {
     const config = this.getConfig();
-    const roles = [this.buildMainRole(config)];
+    const mainRole = config.agents.roles[MAIN_AGENT_NAME];
+    const roles = [this.resolveRole(mainRole, true)];
 
-    for (const [name, role] of Object.entries(config.agents.roles)) {
-      if (name === MAIN_AGENT_NAME) {
-        continue;
+    for (const [name, role] of Object.entries(config.agents.roles).sort(([left], [right]) => left.localeCompare(right))) {
+      if (name !== MAIN_AGENT_NAME) {
+        roles.push(this.resolveRole(role, false));
       }
-      roles.push(this.resolveRole({ ...role, name }, false));
     }
 
     return roles;
@@ -50,16 +50,12 @@ export class AgentRoleService {
 
   getResolvedRole(name?: string | null): ResolvedAgentRole | null {
     const targetName = name || MAIN_AGENT_NAME;
-    if (targetName === MAIN_AGENT_NAME) {
-      return this.buildMainRole(this.getConfig());
-    }
-
     const role = this.getConfig().agents.roles[targetName];
     if (!role) {
       return null;
     }
 
-    return this.resolveRole({ ...role, name: targetName }, false);
+    return this.resolveRole(role, targetName === MAIN_AGENT_NAME);
   }
 
   async createRole(input: AgentRoleConfig): Promise<ResolvedAgentRole> {
@@ -80,30 +76,6 @@ export class AgentRoleService {
   }
 
   async updateRole(name: string, input: Partial<AgentRoleConfig>): Promise<ResolvedAgentRole> {
-    if (name === MAIN_AGENT_NAME) {
-      const config = this.getConfig();
-      const merged: AgentRoleConfig = {
-        ...this.buildMainRole(config),
-        ...input,
-        name: MAIN_AGENT_NAME
-      };
-      const normalized = this.normalizeRoleConfig(merged, true);
-
-      const nextConfig = await ConfigLoader.update((draft) => {
-        draft.agents.main = {
-          description: normalized.description,
-          systemPrompt: normalized.systemPrompt,
-          provider: normalized.provider,
-          model: normalized.model,
-          allowedSkills: [...normalized.allowedSkills],
-          allowedTools: [...normalized.allowedTools]
-        };
-      });
-
-      this.setConfig(nextConfig);
-      return this.buildMainRole(nextConfig);
-    }
-
     const config = this.getConfig();
     const existing = config.agents.roles[name];
     if (!existing) {
@@ -115,12 +87,12 @@ export class AgentRoleService {
       ...input,
       name
     };
-    const normalized = this.normalizeRoleConfig(merged, false);
+    const normalized = this.normalizeRoleConfig(merged, name === MAIN_AGENT_NAME);
     const nextConfig = await ConfigLoader.update((draft) => {
       draft.agents.roles[name] = normalized;
     });
     this.setConfig(nextConfig);
-    return this.resolveRole(normalized, false);
+    return this.resolveRole(normalized, name === MAIN_AGENT_NAME);
   }
 
   async deleteRole(name: string): Promise<void> {
@@ -197,7 +169,7 @@ export class AgentRoleService {
     return role.availableTools.filter((name) => !excluded.has(name));
   }
 
-  createProviderForRole(roleName?: string | null) {
+  createProviderForRole(roleName?: string | null): LLMProvider {
     const role = this.getResolvedRole(roleName);
     if (!role) {
       throw new Error(`Agent role not found: ${roleName}`);
@@ -211,8 +183,44 @@ export class AgentRoleService {
     return createProvider(role.provider, providerConfig);
   }
 
-  private buildMainRole(config: Config): ResolvedAgentRole {
-    return this.resolveRole(buildMainAgentRoleConfig(config), true);
+  createVisionProviderForRole(roleName?: string | null): LLMProvider | undefined {
+    const role = this.getResolvedRole(roleName);
+    if (!role || !role.vision) {
+      return undefined;
+    }
+    if (!role.visionProvider) {
+      this.log.warn('Vision provider missing for role', { role: role.name });
+      return undefined;
+    }
+    if (!role.visionModel) {
+      this.log.warn('Vision model missing for role', { role: role.name });
+      return undefined;
+    }
+
+    const providerConfig = this.getConfig().providers[role.visionProvider];
+    if (!providerConfig) {
+      this.log.warn('Vision provider not found for role', {
+        role: role.name,
+        provider: role.visionProvider
+      });
+      return undefined;
+    }
+
+    return createProvider(role.visionProvider, providerConfig);
+  }
+
+  getVisionSettingsForRole(roleName?: string | null): VisionSettings | undefined {
+    const role = this.getResolvedRole(roleName);
+    if (!role) {
+      return undefined;
+    }
+
+    return {
+      enabled: role.vision,
+      reasoning: role.reasoning,
+      visionProviderName: role.visionProvider || undefined,
+      visionModelName: role.visionModel || undefined
+    };
   }
 
   private resolveRole(role: AgentRoleConfig, builtin: boolean): ResolvedAgentRole {
@@ -258,6 +266,9 @@ export class AgentRoleService {
     if (!input.model?.trim()) {
       throw new Error('Agent role model is required');
     }
+    if (!Number.isInteger(input.maxToolIterations) || input.maxToolIterations < 1) {
+      throw new Error('Agent role maxToolIterations must be a positive integer');
+    }
 
     const normalized: AgentRoleConfig = {
       name,
@@ -265,8 +276,13 @@ export class AgentRoleService {
       systemPrompt: input.systemPrompt || 'You are a helpful AI assistant.',
       provider: input.provider.trim(),
       model: input.model.trim(),
-      allowedSkills: [...new Set((input.allowedSkills || []).filter(Boolean))],
-      allowedTools: [...new Set((input.allowedTools || []).filter(Boolean))]
+      vision: input.vision === true,
+      reasoning: input.reasoning === true,
+      visionProvider: input.visionProvider?.trim() || '',
+      visionModel: input.visionModel?.trim() || '',
+      maxToolIterations: input.maxToolIterations,
+      allowedSkills: [...new Set((input.allowedSkills || []).map((item) => item.trim()).filter(Boolean))],
+      allowedTools: [...new Set((input.allowedTools || []).map((item) => item.trim()).filter(Boolean))]
     };
 
     this.log.debug(`Normalized agent role: ${normalized.name}`);

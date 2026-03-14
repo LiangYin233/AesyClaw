@@ -42,39 +42,64 @@ const providerConfigSchema = z.object({
 const agentRoleConfigSchema = z.object({
   name: z.string(),
   description: z.string().default(''),
-  systemPrompt: z.string(),
-  provider: z.string(),
-  model: z.string(),
-  allowedSkills: z.array(z.string()).default(() => []),
-  allowedTools: z.array(z.string()).default(() => [])
-});
-
-const mainAgentRoleConfigSchema = agentRoleConfigSchema.omit({ name: true });
-
-const agentDefaultsSchema = withObjectInputDefault({
-  model: z.string().default(DEFAULT_PROVIDER_MODEL),
+  systemPrompt: z.string().default(DEFAULT_SYSTEM_PROMPT),
   provider: z.string().default(DEFAULT_PROVIDER_NAME),
-  description: z.string().default('内建主 Agent'),
+  model: z.string().default(DEFAULT_PROVIDER_MODEL),
   vision: z.boolean().default(false),
   reasoning: z.boolean().default(false),
   visionProvider: z.string().default(''),
   visionModel: z.string().default(''),
   maxToolIterations: z.number().int().finite().default(40),
+  allowedSkills: z.array(z.string()).default(() => []),
+  allowedTools: z.array(z.string()).default(() => [])
+});
+
+const agentDefaultsSchema = z.object({
   memoryWindow: z.number().int().finite().default(50),
   memorySummary: memorySummaryConfigSchema,
   memoryFacts: memoryFactsConfigSchema,
-  systemPrompt: z.string().default(DEFAULT_SYSTEM_PROMPT),
   contextMode: z.enum(['session', 'channel', 'global']).default('channel'),
   maxSessions: z.number().int().finite().default(100)
-});
+}).strict().prefault(() => ({}));
 
 const agentConfigSchema = withObjectInputDefault({
   defaults: agentDefaultsSchema
 });
 
-const agentsConfigSchema = withObjectInputDefault({
-  main: mainAgentRoleConfigSchema.optional(),
-  roles: z.record(z.string(), agentRoleConfigSchema).default(() => ({}))
+function createDefaultMainAgentRole(): z.output<typeof agentRoleConfigSchema> {
+  return agentRoleConfigSchema.parse({
+    name: MAIN_AGENT_NAME,
+    description: '内建主 Agent',
+    systemPrompt: DEFAULT_SYSTEM_PROMPT,
+    provider: DEFAULT_PROVIDER_NAME,
+    model: DEFAULT_PROVIDER_MODEL,
+    vision: false,
+    reasoning: false,
+    visionProvider: '',
+    visionModel: '',
+    maxToolIterations: 40,
+    allowedSkills: [],
+    allowedTools: []
+  });
+}
+
+const agentsConfigSchema = z.object({
+  roles: z.record(z.string(), agentRoleConfigSchema)
+    .default(() => ({
+      [MAIN_AGENT_NAME]: createDefaultMainAgentRole()
+    }))
+}).strict().prefault(() => ({
+  roles: {
+    [MAIN_AGENT_NAME]: createDefaultMainAgentRole()
+  }
+})).superRefine((value, ctx) => {
+  if (!value.roles[MAIN_AGENT_NAME]) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['roles', MAIN_AGENT_NAME],
+      message: 'agents.roles.main is required'
+    });
+  }
 });
 
 const toolsConfigSchema = withObjectInputDefault({
@@ -170,7 +195,6 @@ export type MemorySummaryConfig = z.output<typeof memorySummaryConfigSchema>;
 export type MemoryFactsConfig = z.output<typeof memoryFactsConfigSchema>;
 export type ProviderConfig = z.output<typeof providerConfigSchema>;
 export type AgentRoleConfig = z.output<typeof agentRoleConfigSchema>;
-export type StoredAgentRoleConfig = z.output<typeof mainAgentRoleConfigSchema>;
 export type AgentConfig = z.output<typeof agentConfigSchema>;
 export type AgentsConfig = z.output<typeof agentsConfigSchema>;
 export type ToolsConfig = z.output<typeof toolsConfigSchema>;
@@ -217,33 +241,35 @@ function resolvePrimaryProviderName(providers: Record<string, ProviderConfig>, r
   return Object.keys(providers)[0] ?? DEFAULT_PROVIDER_NAME;
 }
 
-function buildStoredMainAgentConfig(config: ParsedConfig, defaults: AgentConfig['defaults']): StoredAgentRoleConfig {
+function normalizeRole(
+  name: string,
+  role: AgentRoleConfig,
+  providers: Record<string, ProviderConfig>
+): AgentRoleConfig {
   return {
-    description: config.agents.main?.description ?? defaults.description,
-    systemPrompt: config.agents.main?.systemPrompt ?? defaults.systemPrompt,
-    provider: config.agents.main?.provider ?? defaults.provider,
-    model: config.agents.main?.model ?? defaults.model,
-    allowedSkills: config.agents.main?.allowedSkills ?? [],
-    allowedTools: config.agents.main?.allowedTools ?? []
+    ...role,
+    name,
+    provider: resolvePrimaryProviderName(providers, role.provider)
   };
 }
 
 function normalizeParsedConfig(config: ParsedConfig) {
   const providers = ensureProviders(config.providers);
-  const defaults = {
-    ...config.agent.defaults,
-    provider: resolvePrimaryProviderName(providers, config.agent.defaults.provider)
-  };
+  const roles = Object.fromEntries(
+    Object.entries(config.agents.roles).map(([name, role]) => [
+      name,
+      normalizeRole(name, role, providers)
+    ])
+  );
 
   return {
     ...config,
     providers,
     agent: {
-      defaults
+      defaults: config.agent.defaults
     },
     agents: {
-      main: buildStoredMainAgentConfig(config, defaults),
-      roles: config.agents.roles
+      roles
     }
   };
 }
@@ -265,30 +291,22 @@ export function createDefaultConfig(): Config {
 }
 
 export function resolveProviderSelection(
-  config: Pick<Config, 'providers' | 'agent'>,
+  config: Pick<Config, 'providers'>,
   providerName?: string,
   modelName?: string
 ): ResolvedProviderSelection {
-  const name = providerName || config.agent.defaults.provider;
+  const name = resolvePrimaryProviderName(config.providers, providerName || DEFAULT_PROVIDER_NAME);
   const providerConfig = config.providers[name];
 
   return {
     name,
-    model: modelName || providerConfig?.model || config.agent.defaults.model,
+    model: modelName || providerConfig?.model || DEFAULT_PROVIDER_MODEL,
     providerConfig
   };
 }
 
-export function buildMainAgentRoleConfig(config: Config): AgentRoleConfig {
-  return {
-    name: MAIN_AGENT_NAME,
-    description: config.agents.main.description,
-    systemPrompt: config.agents.main.systemPrompt,
-    provider: config.agents.main.provider,
-    model: config.agents.main.model,
-    allowedSkills: [...config.agents.main.allowedSkills],
-    allowedTools: [...config.agents.main.allowedTools]
-  };
+export function getMainAgentRole(config: Config): AgentRoleConfig {
+  return config.agents.roles[MAIN_AGENT_NAME];
 }
 
 export function getConfigValidationIssue(error: unknown): ConfigValidationIssue | null {
@@ -299,6 +317,34 @@ export function getConfigValidationIssue(error: unknown): ConfigValidationIssue 
   const issue = error.issues[0];
   if (!issue) {
     return { message: 'Invalid configuration' };
+  }
+
+  if (issue.code === 'unrecognized_keys' && issue.path.join('.') === 'agents' && issue.keys.includes('main')) {
+    return {
+      message: 'agents.main has been removed; use agents.roles.main',
+      field: 'agents.main'
+    };
+  }
+
+  if (issue.code === 'unrecognized_keys' && issue.path.join('.') === 'agent.defaults') {
+    const migratedKey = issue.keys.find((key) => [
+      'provider',
+      'model',
+      'description',
+      'systemPrompt',
+      'vision',
+      'reasoning',
+      'visionProvider',
+      'visionModel',
+      'maxToolIterations'
+    ].includes(key));
+
+    if (migratedKey) {
+      return {
+        message: `agent.defaults.${migratedKey} has been removed; move it to agents.roles.<name>.${migratedKey}`,
+        field: `agent.defaults.${migratedKey}`
+      };
+    }
   }
 
   const field = issue.path.map(String).join('.');

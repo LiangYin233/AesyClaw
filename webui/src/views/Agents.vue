@@ -1,6 +1,6 @@
 <template>
     <div class="agents-page page-stack">
-        <PageHeader title="Agent 角色" subtitle="管理主 Agent 与可调用的子 Agent 角色。">
+        <PageHeader title="Agent 角色" subtitle="统一管理主 Agent 与其他角色的模型、Vision、Reasoning 与工具能力。">
             <template #actions>
                 <Button label="刷新" icon="pi pi-refresh" outlined @click="loadAll" :loading="agentsStore.loading" />
                 <Button label="新建 Agent" icon="pi pi-plus" @click="openCreateDialog" />
@@ -21,6 +21,9 @@
                     <div class="agent-meta">
                         <Tag :value="`Provider: ${agent.provider}`" severity="secondary" />
                         <Tag :value="`Model: ${agent.model}`" severity="contrast" />
+                        <Tag :value="`Vision: ${agent.vision ? '开' : '关'}`" :severity="agent.vision ? 'success' : 'secondary'" />
+                        <Tag :value="`Reasoning: ${agent.reasoning ? '开' : '关'}`" :severity="agent.reasoning ? 'warn' : 'secondary'" />
+                        <Tag :value="`迭代: ${agent.maxToolIterations}`" severity="info" />
                         <Tag :value="`Skills: ${agent.availableSkills.length}`" severity="info" />
                         <Tag :value="`Tools: ${agent.availableTools.length}`" severity="warn" />
                     </div>
@@ -30,6 +33,10 @@
                         <span v-if="agent.missingSkills.length && agent.missingTools.length">；</span>
                         <span v-if="agent.missingTools.length">Tools {{ agent.missingTools.join(', ') }}</span>
                     </Message>
+                    <div v-if="agent.vision" class="vision-meta">
+                        <span>Vision Provider: {{ agent.visionProvider || '未配置' }}</span>
+                        <span>Vision Model: {{ agent.visionModel || '未配置' }}</span>
+                    </div>
                     <pre class="prompt-preview">{{ agent.systemPrompt }}</pre>
                     <div class="agent-actions">
                         <Button label="编辑" icon="pi pi-pencil" text @click="openEditDialog(agent)" />
@@ -75,6 +82,32 @@
                     <div class="form-field">
                         <label>Model</label>
                         <InputText v-model="form.model" />
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Vision</label>
+                        <ToggleButton v-model="form.vision" onLabel="已启用" offLabel="已禁用" />
+                    </div>
+                    <div class="form-field">
+                        <label>Reasoning</label>
+                        <ToggleButton v-model="form.reasoning" onLabel="已启用" offLabel="已禁用" />
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Vision Provider</label>
+                        <Select v-model="form.visionProvider" :options="providerOptions" placeholder="选择视觉提供商" showClear />
+                    </div>
+                    <div class="form-field">
+                        <label>Vision Model</label>
+                        <InputText v-model="form.visionModel" placeholder="未配置时不会启用视觉模型" />
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>Max Tool Iterations</label>
+                        <InputNumber v-model="form.maxToolIterations" :useGrouping="false" :min="1" />
                     </div>
                 </div>
                 <div class="form-field">
@@ -136,6 +169,8 @@ import Textarea from 'primevue/textarea'
 import Select from 'primevue/select'
 import MultiSelect from 'primevue/multiselect'
 import Message from 'primevue/message'
+import ToggleButton from 'primevue/togglebutton'
+import InputNumber from 'primevue/inputnumber'
 import PageHeader from '../components/common/PageHeader.vue'
 import EmptyState from '../components/common/EmptyState.vue'
 
@@ -158,6 +193,11 @@ const form = reactive<AgentRoleConfig>({
     provider: '',
     model: '',
     systemPrompt: 'You are a helpful AI assistant.',
+    vision: false,
+    reasoning: false,
+    visionProvider: '',
+    visionModel: '',
+    maxToolIterations: 40,
     allowedSkills: [],
     allowedTools: []
 })
@@ -166,14 +206,39 @@ const providerOptions = computed(() => Object.keys(configStore.config?.providers
 const skillOptions = computed(() => skillsStore.skills.map(skill => ({ label: skill.name, value: skill.name })))
 const toolOptions = computed(() => toolsStore.tools.map(tool => ({ label: tool.name, value: tool.name })))
 
+function getMainAgentTemplate(): AgentRoleConfig {
+    const main = configStore.config?.agents.roles.main
+
+    return {
+        name: '',
+        description: main?.description || '',
+        provider: main?.provider || providerOptions.value[0] || 'openai',
+        model: main?.model || 'gpt-4o',
+        systemPrompt: main?.systemPrompt || 'You are a helpful AI assistant.',
+        vision: main?.vision ?? false,
+        reasoning: main?.reasoning ?? false,
+        visionProvider: main?.visionProvider || '',
+        visionModel: main?.visionModel || '',
+        maxToolIterations: main?.maxToolIterations ?? 40,
+        allowedSkills: [...(main?.allowedSkills || [])],
+        allowedTools: [...(main?.allowedTools || [])]
+    }
+}
+
 function resetForm() {
+    const template = getMainAgentTemplate()
     form.name = ''
-    form.description = ''
-    form.provider = providerOptions.value[0] || 'openai'
-    form.model = configStore.config?.agent.defaults.model || 'gpt-4o'
-    form.systemPrompt = configStore.config?.agent.defaults.systemPrompt || 'You are a helpful AI assistant.'
-    form.allowedSkills = []
-    form.allowedTools = []
+    form.description = template.description
+    form.provider = template.provider
+    form.model = template.model
+    form.systemPrompt = template.systemPrompt
+    form.vision = template.vision
+    form.reasoning = template.reasoning
+    form.visionProvider = template.visionProvider
+    form.visionModel = template.visionModel
+    form.maxToolIterations = template.maxToolIterations
+    form.allowedSkills = [...template.allowedSkills]
+    form.allowedTools = [...template.allowedTools]
 }
 
 async function loadAll() {
@@ -202,6 +267,11 @@ function openEditDialog(agent: AgentRole) {
     form.provider = agent.provider
     form.model = agent.model
     form.systemPrompt = agent.systemPrompt
+    form.vision = agent.vision
+    form.reasoning = agent.reasoning
+    form.visionProvider = agent.visionProvider || ''
+    form.visionModel = agent.visionModel || ''
+    form.maxToolIterations = agent.maxToolIterations
     form.allowedSkills = [...agent.allowedSkills]
     form.allowedTools = [...agent.allowedTools]
     dialogVisible.value = true
@@ -215,6 +285,11 @@ async function saveAgent() {
         provider: form.provider,
         model: form.model.trim(),
         systemPrompt: form.systemPrompt,
+        vision: form.vision,
+        reasoning: form.reasoning,
+        visionProvider: form.visionProvider || '',
+        visionModel: form.visionModel.trim(),
+        maxToolIterations: Number(form.maxToolIterations) || 40,
         allowedSkills: [...form.allowedSkills],
         allowedTools: [...form.allowedTools]
     }
@@ -268,24 +343,6 @@ onMounted(() => {
     padding: 0;
 }
 
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 24px;
-}
-
-.page-subtitle {
-    margin: 4px 0 0;
-    color: #64748b;
-}
-
-.header-actions {
-    display: flex;
-    gap: 8px;
-}
-
 .agents-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
@@ -318,6 +375,15 @@ onMounted(() => {
     flex-wrap: wrap;
     gap: 8px;
     margin-bottom: 12px;
+}
+
+.vision-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: #64748b;
 }
 
 .prompt-preview {

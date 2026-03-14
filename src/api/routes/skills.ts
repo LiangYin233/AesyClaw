@@ -20,6 +20,15 @@ export function registerSkillRoutes(app: Express, skillManager?: SkillManager): 
     res.json({ skill });
   });
 
+  app.post('/api/skills/reload', async (_req, res) => {
+    try {
+      const summary = await skillManager.reload();
+      res.json({ success: true, summary });
+    } catch (error: unknown) {
+      res.status(500).json(createErrorResponse(error));
+    }
+  });
+
   app.post('/api/skills/:name/toggle', async (req, res) => {
     try {
       const { enabled } = req.body;

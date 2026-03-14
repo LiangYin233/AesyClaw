@@ -2,9 +2,9 @@ export { ConfigLoader, getConfig } from './loader.js';
 export type { ConfigMutator } from './loader.js';
 export {
   DEFAULT_CONFIG,
-  buildMainAgentRoleConfig,
   configSchema,
   createDefaultConfig,
+  getMainAgentRole,
   getConfigValidationIssue,
   parseConfig,
   parseMCPServerConfig,
@@ -30,7 +30,6 @@ export type {
   ResolvedProviderSelection,
   ServerConfig,
   SkillConfig,
-  StoredAgentRoleConfig,
   ToolsConfig,
   UsageConfig
 } from './schema.js';

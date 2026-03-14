@@ -329,6 +329,61 @@ export class AgentRuntime {
     this.log.info('Agent provider updated', { model: model || this.defaultModel });
   }
 
+  updateMainAgentRuntime(options: {
+    provider?: LLMProvider;
+    model?: string;
+    systemPrompt?: string;
+    maxIterations?: number;
+    visionSettings?: VisionSettings;
+    visionProvider?: LLMProvider;
+  }): void {
+    if (options.provider) {
+      this.defaultProvider = options.provider;
+    }
+    if (options.model) {
+      this.defaultModel = options.model;
+    }
+    if (options.systemPrompt !== undefined) {
+      this.systemPrompt = options.systemPrompt;
+    }
+    if (options.maxIterations !== undefined) {
+      this.maxIterations = options.maxIterations;
+    }
+
+    const runtimeUpdate: Partial<{
+      defaultProvider: LLMProvider;
+      defaultModel: string;
+      defaultSystemPrompt: string;
+      maxIterations: number;
+      visionSettings?: VisionSettings;
+      visionProvider?: LLMProvider;
+    }> = {};
+    if ('provider' in options) {
+      runtimeUpdate.defaultProvider = options.provider;
+    }
+    if ('model' in options) {
+      runtimeUpdate.defaultModel = options.model;
+    }
+    if ('systemPrompt' in options) {
+      runtimeUpdate.defaultSystemPrompt = options.systemPrompt;
+    }
+    if ('maxIterations' in options) {
+      runtimeUpdate.maxIterations = options.maxIterations;
+    }
+    if ('visionSettings' in options) {
+      runtimeUpdate.visionSettings = options.visionSettings;
+    }
+    if ('visionProvider' in options) {
+      runtimeUpdate.visionProvider = options.visionProvider;
+    }
+
+    this.executionEngine.updateRuntime(runtimeUpdate);
+    this.log.info('Main agent runtime updated', {
+      model: options.model || this.defaultModel,
+      maxIterations: options.maxIterations || this.maxIterations
+    });
+  }
+
   updateMemorySettings(memoryWindow: number, memoryService?: SessionMemoryService): void {
     this.memoryWindow = memoryWindow;
     this.memoryService = memoryService;

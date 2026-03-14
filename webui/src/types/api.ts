@@ -120,6 +120,14 @@ export interface SkillInfo {
   files?: { name: string; path: string; isDirectory: boolean }[]
 }
 
+export interface SkillReloadSummary {
+  added: string[]
+  updated: string[]
+  removed: string[]
+  total: number
+  cleanedAgentRefs: number
+}
+
 export interface MemoryEntry {
   key: string
   channel: string

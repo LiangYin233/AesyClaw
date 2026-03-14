@@ -1,6 +1,6 @@
 import type { Config, VisionSettings } from '../../types.js';
 import { AgentRuntime, OutboundGateway } from '../../agent/runtime/AgentRuntime.js';
-import { createProvider, createProviderFromConfig } from '../../providers/index.js';
+import { createProvider } from '../../providers/index.js';
 import { ToolRegistry } from '../../tools/index.js';
 import { CommandRegistry } from '../../agent/commands/index.js';
 import type { PluginManager } from '../../plugins/index.js';
@@ -9,7 +9,7 @@ import type { SessionRoutingService } from '../../agent/session/SessionRoutingSe
 import type { SessionManager } from '../../session/index.js';
 import { SkillManager } from '../../skills/index.js';
 import { AgentRoleService } from '../../agent/roles/AgentRoleService.js';
-import { resolveProviderSelection } from '../../config/index.js';
+import { getMainAgentRole, resolveProviderSelection } from '../../config/index.js';
 import { logger } from '../../observability/index.js';
 
 const log = logger.child('ExecutionRuntimeFactory');
@@ -17,7 +17,7 @@ const log = logger.child('ExecutionRuntimeFactory');
 function createRequiredProvider(config: Config, providerName?: string, modelName?: string) {
   const resolved = resolveProviderSelection(config, providerName, modelName);
   if (!resolved.providerConfig) {
-    throw new Error(`Default provider "${resolved.name}" not found in config`);
+    throw new Error(`Provider "${resolved.name}" not found in config`);
   }
 
   return createProvider(resolved.name, resolved.providerConfig);
@@ -29,6 +29,11 @@ function createVisionProvider(config: Config, visionSettings: VisionSettings) {
   }
 
   if (!visionSettings.visionProviderName) {
+    log.warn('Vision provider missing', { provider: '', model: visionSettings.visionModelName });
+    return undefined;
+  }
+  if (!visionSettings.visionModelName) {
+    log.warn('Vision model missing', { provider: visionSettings.visionProviderName });
     return undefined;
   }
 
@@ -38,13 +43,23 @@ function createVisionProvider(config: Config, visionSettings: VisionSettings) {
     return undefined;
   }
 
-  return createProviderFromConfig(providerConfig);
+  return createProvider(visionSettings.visionProviderName, providerConfig);
+}
+
+function buildVisionSettingsFromRole(config: ReturnType<typeof getMainAgentRole>): VisionSettings {
+  return {
+    enabled: config.vision,
+    reasoning: config.reasoning,
+    visionProviderName: config.visionProvider || undefined,
+    visionModelName: config.visionModel || undefined
+  };
 }
 
 async function createSkillManager(config: Config): Promise<SkillManager> {
   const skillManager = new SkillManager('./skills');
   skillManager.setConfig(config);
   await skillManager.loadFromDirectory();
+  await skillManager.startWatching();
   log.info('Skills loaded', { skillCount: skillManager.listSkills().length });
   return skillManager;
 }
@@ -74,14 +89,9 @@ export async function createExecutionRuntime(args: {
     defaultTimeout: config.tools.timeoutMs
   });
   const commandRegistry = new CommandRegistry();
-  const provider = createRequiredProvider(config);
-  const agentDefaults = config.agent.defaults;
-  const visionSettings: VisionSettings = {
-    enabled: agentDefaults.vision,
-    reasoning: agentDefaults.reasoning,
-    visionProviderName: agentDefaults.visionProvider,
-    visionModelName: agentDefaults.visionModel
-  };
+  const mainRole = getMainAgentRole(config);
+  const provider = createRequiredProvider(config, mainRole.provider, mainRole.model);
+  const visionSettings = buildVisionSettingsFromRole(mainRole);
   const visionProvider = createVisionProvider(config, visionSettings);
   const skillManager = await createSkillManager(config);
   const agentRoleService = new AgentRoleService(
@@ -100,9 +110,9 @@ export async function createExecutionRuntime(args: {
     sessionRouting,
     outboundGateway,
     workspace,
-    systemPrompt: config.agent.defaults.systemPrompt,
-    maxIterations: config.agent.defaults.maxToolIterations,
-    model: config.agent.defaults.model,
+    systemPrompt: mainRole.systemPrompt,
+    maxIterations: mainRole.maxToolIterations,
+    model: mainRole.model,
     contextMode: config.agent.defaults.contextMode,
     memoryWindow: config.agent.defaults.memoryWindow,
     visionSettings,

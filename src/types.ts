@@ -13,7 +13,6 @@
   ObservabilityMetricsConfig,
   ProviderConfig,
   ServerConfig,
-  StoredAgentRoleConfig,
   ToolsConfig,
   UsageConfig
 } from './config/schema.js';
@@ -47,7 +46,6 @@ export type {
   ObservabilityMetricsConfig,
   ProviderConfig,
   ServerConfig,
-  StoredAgentRoleConfig,
   ToolsConfig,
   UsageConfig
 };

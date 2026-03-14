@@ -1,12 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { apiGet, apiPost } from '../utils/apiClient'
-import type { SkillInfo } from '../types/api'
+import type { SkillInfo, SkillReloadSummary } from '../types/api'
 
 export const useSkillsStore = defineStore('skills', () => {
   const skills = ref<SkillInfo[]>([])
   const selectedSkill = ref<SkillInfo | null>(null)
   const loading = ref(false)
+  const reloading = ref(false)
   const error = ref<string | null>(null)
 
   async function fetchSkills() {
@@ -20,6 +21,9 @@ export const useSkillsStore = defineStore('skills', () => {
         return []
       }
       skills.value = data?.skills || []
+      if (selectedSkill.value && !skills.value.some((item) => item.name === selectedSkill.value?.name)) {
+        selectedSkill.value = null
+      }
       return skills.value
     } finally {
       loading.value = false
@@ -49,5 +53,22 @@ export const useSkillsStore = defineStore('skills', () => {
     return true
   }
 
-  return { skills, selectedSkill, loading, error, fetchSkills, fetchSkill, toggleSkill }
+  async function reloadSkills() {
+    reloading.value = true
+    error.value = null
+    try {
+      const { data, error: err } = await apiPost<{ success: boolean; summary: SkillReloadSummary }>('/skills/reload')
+      if (err) {
+        error.value = err
+        return null
+      }
+
+      await fetchSkills()
+      return data?.summary || null
+    } finally {
+      reloading.value = false
+    }
+  }
+
+  return { skills, selectedSkill, loading, reloading, error, fetchSkills, fetchSkill, toggleSkill, reloadSkills }
 })

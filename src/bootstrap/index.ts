@@ -5,6 +5,7 @@ import { CONSTANTS } from '../constants/index.js';
 import type { Config } from '../types.js';
 import type { CronJob } from '../cron/index.js';
 import { ConfigLoader } from '../config/loader.js';
+import { getMainAgentRole } from '../config/index.js';
 import { createServices, type Services } from './factory/ServiceFactory.js';
 import { dispatchCronJob } from './app/cronDispatch.js';
 import { setupConfigReload } from './app/configReload.js';
@@ -72,13 +73,14 @@ export async function bootstrap(): Promise<void> {
   const port = config.server.apiPort ?? 18792;
   const workspace = join(process.cwd(), 'workspace');
   const tempDir = join(process.cwd(), '.aesyclaw', 'temp');
+  const mainRole = getMainAgentRole(config);
 
   ensureRuntimeDirectories(workspace, tempDir);
 
   log.info('Gateway bootstrap started', {
     workspace,
-    provider: config.agent.defaults.provider,
-    model: config.agent.defaults.model,
+    provider: mainRole.provider,
+    model: mainRole.model,
     apiPort: port
   });
 
@@ -124,8 +126,8 @@ export async function bootstrap(): Promise<void> {
 
   log.info('Gateway bootstrap completed', {
     durationMs: Date.now() - startedAt,
-    provider: config.agent.defaults.provider,
-    model: config.agent.defaults.model,
+    provider: mainRole.provider,
+    model: mainRole.model,
     apiEnabled: servicesRef.apiServer !== undefined,
     channelCount: servicesRef.channelManager.getEnabledChannels().length,
     pluginCount: Object.keys(servicesRef.pluginManager.getPluginConfigs()).length,

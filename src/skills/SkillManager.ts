@@ -1,9 +1,13 @@
+import { watch, type FSWatcher } from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
 import { normalizeError } from '../errors/index.js';
 import { logger } from '../observability/index.js';
 import type { Config } from '../types.js';
 import { ConfigLoader } from '../config/loader.js';
+
+const SKILL_ENTRY_FILE = 'SKILL.md';
+const RELOAD_DEBOUNCE_MS = 250;
 
 export interface SkillFile {
   name: string;
@@ -36,11 +40,24 @@ export interface SkillResult {
   consumed?: boolean;
 }
 
+export interface SkillReloadSummary {
+  added: string[];
+  updated: string[];
+  removed: string[];
+  total: number;
+  cleanedAgentRefs: number;
+}
+
 export class SkillManager {
-  private skills: Map<string, SkillInfo> = new Map();
-  private skillsDir: string = './skills';
-  private log = logger.child('SkillManager');
+  private skills = new Map<string, SkillInfo>();
+  private skillsDir = './skills';
+  private readonly log = logger.child('SkillManager');
   private config: Config | null = null;
+  private rootWatcher: FSWatcher | null = null;
+  private dirWatchers = new Map<string, FSWatcher>();
+  private reloadTimer: NodeJS.Timeout | null = null;
+  private reloadPromise: Promise<SkillReloadSummary> | null = null;
+  private pendingReload = false;
 
   constructor(skillsDir?: string) {
     if (skillsDir) {
@@ -49,23 +66,28 @@ export class SkillManager {
   }
 
   setConfig(config: Config): void {
+    this.applyConfig(config);
+  }
+
+  applyConfig(config: Config): void {
     this.config = config;
+    for (const skill of this.skills.values()) {
+      skill.enabled = config.skills?.[skill.name]?.enabled ?? true;
+    }
   }
 
   async loadFromDirectory(dir?: string): Promise<void> {
-    const skillsPath = dir || this.skillsDir;
-    // 转换为绝对路径
-    const absolutePath = path.isAbsolute(skillsPath) ? skillsPath : path.resolve(process.cwd(), skillsPath);
+    if (dir) {
+      this.skillsDir = dir;
+    }
+
+    const absolutePath = this.resolveSkillsPath();
+    await fs.mkdir(absolutePath, { recursive: true });
     this.log.info(`Loading skills from: ${absolutePath}`);
 
     try {
-      const entries = await fs.readdir(absolutePath, { withFileTypes: true });
-      await Promise.all(entries.map(async (entry) => {
-        if (!entry.isDirectory()) return;
-
-        const skillPath = path.join(absolutePath, entry.name);
-        await this.loadSkillDirectory(skillPath, entry.name, absolutePath);
-      }));
+      this.skills = await this.scanSkillDirectory(absolutePath);
+      this.applyConfig(this.config ?? ConfigLoader.get());
       this.log.info(`Loaded ${this.skills.size} skills`);
     } catch (error) {
       this.log.warn(`Failed to load skills from ${absolutePath}`, {
@@ -75,45 +97,299 @@ export class SkillManager {
     }
   }
 
-  private async loadSkillDirectory(skillPath: string, name: string, basePath: string): Promise<void> {
-    try {
-      // 查找 SKILL.md 文件
-      const skillMdPath = path.join(skillPath, 'SKILL.md');
+  async startWatching(): Promise<void> {
+    if (this.rootWatcher) {
+      return;
+    }
 
-      let content = '';
-      try {
-        content = await fs.readFile(skillMdPath, 'utf-8');
-      } catch {
-        this.log.debug(`No SKILL.md found for skill: ${name}`);
+    const absolutePath = this.resolveSkillsPath();
+    await fs.mkdir(absolutePath, { recursive: true });
+
+    this.rootWatcher = watch(absolutePath, (_eventType, filename) => {
+      this.scheduleReload(filename ? `root:${filename.toString()}` : 'root');
+    });
+
+    await this.syncDirectoryWatchers();
+    this.log.info('Skill directory watcher started', { path: absolutePath });
+  }
+
+  async stopWatching(): Promise<void> {
+    if (this.reloadTimer) {
+      clearTimeout(this.reloadTimer);
+      this.reloadTimer = null;
+    }
+
+    if (this.rootWatcher) {
+      this.rootWatcher.close();
+      this.rootWatcher = null;
+    }
+
+    for (const watcher of this.dirWatchers.values()) {
+      watcher.close();
+    }
+    this.dirWatchers.clear();
+    this.log.info('Skill directory watcher stopped');
+  }
+
+  async reload(): Promise<SkillReloadSummary> {
+    if (this.reloadPromise) {
+      this.pendingReload = true;
+      return this.reloadPromise;
+    }
+
+    this.reloadPromise = (async () => {
+      let lastSummary = await this.performReload();
+
+      while (this.pendingReload) {
+        this.pendingReload = false;
+        lastSummary = await this.performReload();
+      }
+
+      return lastSummary;
+    })();
+
+    try {
+      return await this.reloadPromise;
+    } finally {
+      this.reloadPromise = null;
+    }
+  }
+
+  getSkill(name: string): SkillInfo | undefined {
+    return this.skills.get(name);
+  }
+
+  listSkills(): SkillInfo[] {
+    return Array.from(this.skills.values());
+  }
+
+  async toggleSkill(name: string, enabled: boolean): Promise<boolean> {
+    const skill = this.skills.get(name);
+    if (!skill) return false;
+
+    skill.enabled = enabled;
+
+    if (this.config) {
+      if (!this.config.skills) {
+        this.config.skills = {};
+      }
+      this.config.skills[name] = { enabled };
+      const nextConfig = await ConfigLoader.save(this.config).then(() => ConfigLoader.get());
+      this.applyConfig(nextConfig);
+      this.log.info(`Saved skill ${name} enabled state to config`);
+    }
+
+    return true;
+  }
+
+  async readSkillFile(skillName: string, fileName?: string): Promise<string | null> {
+    const skill = this.skills.get(skillName);
+    if (!skill) {
+      return null;
+    }
+
+    const targetFileName = this.sanitizeFileName(fileName || SKILL_ENTRY_FILE);
+    if (!targetFileName) {
+      return 'Invalid file name';
+    }
+
+    const file = skill.files?.find((entry) => entry.name === targetFileName);
+    if (!file) {
+      return `File "${targetFileName}" not found in skill "${skillName}"`;
+    }
+
+    if (file.isDirectory) {
+      return `"${targetFileName}" is a directory, not a file`;
+    }
+
+    try {
+      return await fs.readFile(file.path, 'utf-8');
+    } catch (error) {
+      this.log.error(`Failed to read skill file ${file.path}`, {
+        path: file.path,
+        error: normalizeError(error)
+      });
+      return `Failed to read file: ${error}`;
+    }
+  }
+
+  async listSkillFiles(skillName: string): Promise<SkillFile[] | null> {
+    const skill = this.skills.get(skillName);
+    if (!skill) {
+      return null;
+    }
+    return skill.files || [];
+  }
+
+  async getSkillContent(name: string): Promise<string | null> {
+    return this.readSkillFile(name, SKILL_ENTRY_FILE);
+  }
+
+  buildSkillsPrompt(): string {
+    const skills = this.listSkills().filter((skill) => skill.enabled);
+    if (skills.length === 0) {
+      return '';
+    }
+
+    const skillsList = skills
+      .map((skill) => `- ${skill.name}: ${skill.description || '无描述'}`)
+      .join('\n');
+
+    return [
+      '可用 skills：',
+      skillsList,
+      '需要 skill 时：先用 read_skill 读 SKILL.md；需要更多文件时再用 list_skill_files。'
+    ].join('\n');
+  }
+
+  registerSkill(skill: SkillInfo): void {
+    this.skills.set(skill.name, skill);
+  }
+
+  unregisterSkill(name: string): void {
+    this.skills.delete(name);
+  }
+
+  private resolveSkillsPath(): string {
+    return path.isAbsolute(this.skillsDir) ? this.skillsDir : path.resolve(process.cwd(), this.skillsDir);
+  }
+
+  private scheduleReload(reason: string): void {
+    if (this.reloadTimer) {
+      clearTimeout(this.reloadTimer);
+    }
+
+    this.reloadTimer = setTimeout(() => {
+      this.reloadTimer = null;
+      void this.reload().catch((error) => {
+        this.log.error('Skill reload failed', {
+          reason,
+          error: normalizeError(error)
+        });
+      });
+    }, RELOAD_DEBOUNCE_MS);
+  }
+
+  private async performReload(): Promise<SkillReloadSummary> {
+    const absolutePath = this.resolveSkillsPath();
+    await fs.mkdir(absolutePath, { recursive: true });
+
+    const previousSkills = this.skills;
+    const nextSkills = await this.scanSkillDirectory(absolutePath);
+    this.skills = nextSkills;
+    this.applyConfig(this.config ?? ConfigLoader.get());
+
+    await this.syncDirectoryWatchers();
+
+    const summary = this.buildReloadSummary(previousSkills, nextSkills);
+    const cleanedAgentRefs = summary.removed.length > 0
+      ? await this.cleanupRemovedSkillReferences(summary.removed)
+      : 0;
+
+    const result: SkillReloadSummary = {
+      ...summary,
+      cleanedAgentRefs
+    };
+
+    this.log.info('Skills reloaded', {
+      added: result.added,
+      updated: result.updated,
+      removed: result.removed,
+      total: result.total,
+      cleanedAgentRefs: result.cleanedAgentRefs
+    });
+    return result;
+  }
+
+  private buildReloadSummary(previousSkills: Map<string, SkillInfo>, nextSkills: Map<string, SkillInfo>): SkillReloadSummary {
+    const previousNames = new Set(previousSkills.keys());
+    const nextNames = new Set(nextSkills.keys());
+
+    const added = Array.from(nextNames).filter((name) => !previousNames.has(name)).sort();
+    const removed = Array.from(previousNames).filter((name) => !nextNames.has(name)).sort();
+    const updated = Array.from(nextNames)
+      .filter((name) => previousNames.has(name))
+      .filter((name) => this.skillFingerprint(previousSkills.get(name)!) !== this.skillFingerprint(nextSkills.get(name)!))
+      .sort();
+
+    return {
+      added,
+      updated,
+      removed,
+      total: nextSkills.size,
+      cleanedAgentRefs: 0
+    };
+  }
+
+  private skillFingerprint(skill: SkillInfo): string {
+    const files = [...(skill.files || [])]
+      .map((file) => ({
+        name: file.name,
+        path: file.path,
+        isDirectory: file.isDirectory
+      }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+
+    return JSON.stringify({
+      name: skill.name,
+      description: skill.description,
+      path: skill.path,
+      content: skill.content,
+      enabled: skill.enabled,
+      files
+    });
+  }
+
+  private async scanSkillDirectory(absolutePath: string): Promise<Map<string, SkillInfo>> {
+    const skillMap = new Map<string, SkillInfo>();
+    const entries = await fs.readdir(absolutePath, { withFileTypes: true });
+
+    await Promise.all(entries.map(async (entry) => {
+      if (!entry.isDirectory() || entry.name.startsWith('.')) {
         return;
       }
 
+      const skillPath = path.join(absolutePath, entry.name);
+      const skill = await this.loadSkillDirectory(skillPath, entry.name);
+      if (skill) {
+        skillMap.set(entry.name, skill);
+      }
+    }));
+
+    return new Map([...skillMap.entries()].sort(([left], [right]) => left.localeCompare(right)));
+  }
+
+  private async loadSkillDirectory(skillPath: string, name: string): Promise<SkillInfo | null> {
+    try {
+      const skillMdPath = path.join(skillPath, SKILL_ENTRY_FILE);
+      const content = await fs.readFile(skillMdPath, 'utf-8');
       const { description } = this.parseSkillFile(content);
-      const files = await this.getSkillFilesList(skillPath, basePath);
+      const files = await this.getSkillFilesList(skillPath);
+      const enabled = this.config?.skills?.[name]?.enabled ?? true;
 
-      // 从配置中读取 enabled 状态，默认 true
-      const skillConfig = this.config?.skills?.[name];
-      const enabled = skillConfig?.enabled ?? true;
-
-      this.skills.set(name, {
+      this.log.debug(`Loaded skill: ${name} with ${files.length} files, enabled: ${enabled}`);
+      return {
         name,
         description: description || '',
         path: skillMdPath,
         files,
         content,
         enabled
-      });
-
-      this.log.debug(`Loaded skill: ${name} with ${files.length} files, enabled: ${enabled}`);
+      };
     } catch (error) {
-      this.log.warn(`Failed to load skill ${name}`, {
-        skill: name,
-        error: normalizeError(error)
-      });
+      if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+        this.log.warn(`Failed to load skill ${name}`, {
+          skill: name,
+          error: normalizeError(error)
+        });
+      } else {
+        this.log.debug(`No ${SKILL_ENTRY_FILE} found for skill: ${name}`);
+      }
+      return null;
     }
   }
 
-  private async getSkillFilesList(skillPath: string, _basePath: string): Promise<SkillFile[]> {
+  private async getSkillFilesList(skillPath: string): Promise<SkillFile[]> {
     const files: SkillFile[] = [];
 
     try {
@@ -134,7 +410,7 @@ export class SkillManager {
       });
     }
 
-    return files;
+    return files.sort((left, right) => left.name.localeCompare(right.name));
   }
 
   private parseSkillFile(content: string): { description: string; metadata: Record<string, string> } {
@@ -142,14 +418,11 @@ export class SkillManager {
     const metadata: Record<string, string> = {};
 
     if (frontMatterMatch) {
-      // 使用更健壮的方式解析 front matter
       const frontMatterLines = frontMatterMatch[1].split('\n');
       let currentKey = '';
 
       for (const line of frontMatterLines) {
-        // 检查是否是列表项或空行
         if (line.startsWith('  - ') || line.startsWith('- ')) {
-          // 多行值，继续添加到上一个 key
           if (currentKey) {
             metadata[currentKey] += '\n' + line.trim();
           }
@@ -187,7 +460,6 @@ export class SkillManager {
   }
 
   private sanitizeFileName(fileName: string): string {
-    // 防止路径遍历攻击
     const normalized = path.normalize(fileName);
     if (normalized.startsWith('..') || path.isAbsolute(normalized)) {
       return '';
@@ -195,105 +467,67 @@ export class SkillManager {
     return normalized;
   }
 
-  getSkill(name: string): SkillInfo | undefined {
-    return this.skills.get(name);
-  }
+  private async syncDirectoryWatchers(): Promise<void> {
+    const absolutePath = this.resolveSkillsPath();
+    const entries = await fs.readdir(absolutePath, { withFileTypes: true });
+    const nextDirectories = new Set(
+      entries
+        .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+        .map((entry) => path.join(absolutePath, entry.name))
+    );
 
-  listSkills(): SkillInfo[] {
-    return Array.from(this.skills.values());
-  }
-
-  async toggleSkill(name: string, enabled: boolean): Promise<boolean> {
-    const skill = this.skills.get(name);
-    if (!skill) return false;
-
-    skill.enabled = enabled;
-
-    // 持久化到 config.yaml
-    if (this.config) {
-      if (!this.config.skills) {
-        this.config.skills = {};
+    for (const [dirPath, watcher] of this.dirWatchers.entries()) {
+      if (nextDirectories.has(dirPath)) {
+        continue;
       }
-      this.config.skills[name] = { enabled };
-      await ConfigLoader.save(this.config);
-      this.log.info(`Saved skill ${name} enabled state to config`);
+      watcher.close();
+      this.dirWatchers.delete(dirPath);
     }
 
-    return true;
-  }
+    for (const dirPath of nextDirectories) {
+      if (this.dirWatchers.has(dirPath)) {
+        continue;
+      }
 
-  /**
-   * 读取 skill 目录下指定文件的内容
-   */
-  async readSkillFile(skillName: string, fileName?: string): Promise<string | null> {
-    const skill = this.skills.get(skillName);
-    if (!skill) {
-      return null;
-    }
-
-    const targetFileName = this.sanitizeFileName(fileName || 'SKILL.md');
-    if (!targetFileName) {
-      return 'Invalid file name';
-    }
-
-    const file = skill.files?.find(f => f.name === targetFileName);
-    if (!file) {
-      return `File "${targetFileName}" not found in skill "${skillName}"`;
-    }
-
-    if (file.isDirectory) {
-      return `"${targetFileName}" is a directory, not a file`;
-    }
-
-    try {
-      const content = await fs.readFile(file.path, 'utf-8');
-      return content;
-    } catch (error) {
-      this.log.error(`Failed to read skill file ${file.path}`, {
-        path: file.path,
-        error: normalizeError(error)
-      });
-      return `Failed to read file: ${error}`;
+      try {
+        const watcher = watch(dirPath, (_eventType, filename) => {
+          this.scheduleReload(filename ? `dir:${filename.toString()}` : `dir:${path.basename(dirPath)}`);
+        });
+        this.dirWatchers.set(dirPath, watcher);
+      } catch (error) {
+        this.log.warn('Failed to watch skill directory', {
+          path: dirPath,
+          error: normalizeError(error)
+        });
+      }
     }
   }
 
-  /**
-   * 获取 skill 目录下所有文件的列表
-   */
-  async listSkillFiles(skillName: string): Promise<SkillFile[] | null> {
-    const skill = this.skills.get(skillName);
-    if (!skill) {
-      return null;
-    }
-    return skill.files || [];
-  }
+  private async cleanupRemovedSkillReferences(removedSkills: string[]): Promise<number> {
+    const removedSet = new Set(removedSkills);
+    let cleanedAgentRefs = 0;
 
-  async getSkillContent(name: string): Promise<string | null> {
-    return this.readSkillFile(name, 'SKILL.md');
-  }
+    const nextConfig = await ConfigLoader.update((config) => {
+      if (!config.skills) {
+        config.skills = {};
+      }
 
-  buildSkillsPrompt(): string {
-    const skills = this.listSkills().filter(s => s.enabled);
-    if (skills.length === 0) {
-      return '';
-    }
+      const prune = (allowedSkills: string[] = []): string[] => {
+        const nextAllowedSkills = allowedSkills.filter((name) => !removedSet.has(name));
+        cleanedAgentRefs += allowedSkills.length - nextAllowedSkills.length;
+        return nextAllowedSkills;
+      };
 
-    const skillsList = skills
-      .map((skill) => `- ${skill.name}: ${skill.description || '无描述'}`)
-      .join('\n');
+      for (const role of Object.values(config.agents.roles)) {
+        role.allowedSkills = prune(role.allowedSkills);
+      }
 
-    return [
-      '可用 skills：',
-      skillsList,
-      '需要 skill 时：先用 read_skill 读 SKILL.md；需要更多文件时再用 list_skill_files。'
-    ].join('\n');
-  }
+      for (const removedSkill of removedSkills) {
+        delete config.skills[removedSkill];
+      }
+    });
 
-  registerSkill(skill: SkillInfo): void {
-    this.skills.set(skill.name, skill);
-  }
-
-  unregisterSkill(name: string): void {
-    this.skills.delete(name);
+    this.applyConfig(nextConfig);
+    return cleanedAgentRefs;
   }
 }

@@ -1,6 +1,6 @@
 <template>
     <div class="config-page page-stack">
-        <PageHeader title="配置管理" subtitle="集中编辑运行配置并保持现有接口与结构不变。">
+        <PageHeader title="配置管理" subtitle="集中编辑全局运行参数、服务端配置与 Provider 配置。">
             <template #actions>
                 <Button label="刷新" icon="pi pi-refresh" outlined @click="loadConfig" :loading="loading" />
                 <Button label="保存" icon="pi pi-save" @click="saveConfig" :loading="saving" :disabled="!config" />
@@ -32,20 +32,17 @@
             </Card>
             
             <Card class="config-card">
-                <template #title>Agent 默认配置</template>
+                <template #title>Agent 全局运行配置</template>
                 <template #content>
                     <Message severity="info" :closable="false" class="config-hint">
-                        主 Agent 的描述、Provider、Model 与 System Prompt 已独立到 Agent 页面管理。
+                        Agent 的 Provider、Model、System Prompt、Vision、Reasoning 与工具迭代上限均已迁移到 Agent 页面管理。
                         <Button label="前往 Agent 页面" link size="small" @click="goToAgents" />
                     </Message>
                     <div class="form-grid">
                         <template v-for="(value, key) in config.agent.defaults" :key="key">
                             <div v-if="!isAgentConfigHidden(String(key))" class="form-field">
                                 <label class="capitalize">{{ formatLabel(key) }}</label>
-                                <template v-if="key === 'provider'">
-                                    <Select v-model="config.agent.defaults[key]" :options="providerKeys" placeholder="选择提供商" />
-                                </template>
-                                <template v-else-if="key === 'contextMode'">
+                                <template v-if="key === 'contextMode'">
                                     <Select v-model="config.agent.defaults[key]" :options="['session', 'channel', 'global']" placeholder="选择模式" />
                                 </template>
                                 <InputNumber 
@@ -251,7 +248,7 @@ function isLongString(value: any): boolean {
 }
 
 function isAgentConfigHidden(key: string): boolean {
-    return ['memorySummary', 'memoryFacts', 'provider', 'model', 'systemPrompt', 'description'].includes(key)
+    return ['memorySummary', 'memoryFacts'].includes(key)
 }
 
 function goToAgents() {
