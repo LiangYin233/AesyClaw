@@ -31,6 +31,40 @@ const LEVELS: Record<LogLevel, number> = {
   error: 3
 };
 
+const ANSI = {
+  reset: '\x1b[0m',
+  dim: '\x1b[2m',
+  cyan: '\x1b[36m',
+  blue: '\x1b[34m',
+  yellow: '\x1b[33m',
+  red: '\x1b[31m'
+} as const;
+
+function shouldUseColor(): boolean {
+  if (process.env.NO_COLOR !== undefined) {
+    return false;
+  }
+
+  return !!process.stdout?.isTTY;
+}
+
+function colorize(text: string, color: string): string {
+  return `${color}${text}${ANSI.reset}`;
+}
+
+function levelColor(level: LogLevel): string {
+  switch (level) {
+    case 'debug':
+      return ANSI.cyan;
+    case 'info':
+      return ANSI.blue;
+    case 'warn':
+      return ANSI.yellow;
+    case 'error':
+      return ANSI.red;
+  }
+}
+
 const SENSITIVE_KEY_PATTERN = /(authorization|token|api[-_]?key|secret|password|cookie)/i;
 const DEFAULT_PREVIEW_LIMIT = 120;
 
@@ -242,9 +276,17 @@ class LoggingService {
     const time = entry.timestamp.toISOString().slice(11, 23);
     const scope = entry.scope ? entry.scope.padEnd(18).slice(0, 18) : ''.padEnd(18);
     const fields = formatFields(entry.fields);
-    return fields
-      ? `${time} ${scope} ${entry.level.toUpperCase()} ${entry.message} | ${fields}`
-      : `${time} ${scope} ${entry.level.toUpperCase()} ${entry.message}`;
+    const useColor = shouldUseColor();
+    const renderedTime = useColor ? colorize(time, ANSI.dim) : time;
+    const renderedScope = useColor ? colorize(scope, ANSI.dim) : scope;
+    const renderedLevel = useColor
+      ? colorize(entry.level.toUpperCase(), levelColor(entry.level))
+      : entry.level.toUpperCase();
+    const renderedFields = useColor && fields ? colorize(fields, ANSI.dim) : fields;
+
+    return renderedFields
+      ? `${renderedTime} ${renderedScope} ${renderedLevel} ${entry.message} | ${renderedFields}`
+      : `${renderedTime} ${renderedScope} ${renderedLevel} ${entry.message}`;
   }
 }
 

@@ -1,4 +1,4 @@
-import { join } from 'path';
+import { basename, extname, join } from 'path';
 import * as fs from 'fs/promises';
 import { createWriteStream } from 'fs';
 import { Readable } from 'stream';
@@ -91,8 +91,10 @@ async function transcribe(config: SpeechRuntimeConfig, audioPath: string): Promi
 
   const url = `${config.apiBase}/audio/transcriptions`;
   const audioBuffer = await fs.readFile(audioPath);
+  const fileName = resolveAudioUploadName(audioPath);
+  const mimeType = resolveAudioMimeType(audioPath);
   const formData = new FormData();
-  formData.append('file', new Blob([audioBuffer], { type: 'audio/mpeg' }), 'audio.mp3');
+  formData.append('file', new Blob([audioBuffer], { type: mimeType }), fileName);
   formData.append('model', config.model);
   formData.append('response_format', 'json');
 
@@ -127,6 +129,41 @@ async function transcribe(config: SpeechRuntimeConfig, audioPath: string): Promi
     throw error;
   } finally {
     clearTimeout(timeoutId);
+  }
+}
+
+function resolveAudioUploadName(audioPath: string): string {
+  const name = basename(audioPath).trim();
+  if (name.length > 0) {
+    return name;
+  }
+
+  const ext = extname(audioPath).toLowerCase();
+  return ext ? `audio${ext}` : 'audio';
+}
+
+function resolveAudioMimeType(audioPath: string): string {
+  switch (extname(audioPath).toLowerCase()) {
+    case '.mp3':
+      return 'audio/mpeg';
+    case '.wav':
+      return 'audio/wav';
+    case '.m4a':
+      return 'audio/mp4';
+    case '.ogg':
+      return 'audio/ogg';
+    case '.opus':
+      return 'audio/opus';
+    case '.flac':
+      return 'audio/flac';
+    case '.aac':
+      return 'audio/aac';
+    case '.amr':
+      return 'audio/amr';
+    case '.webm':
+      return 'audio/webm';
+    default:
+      return 'application/octet-stream';
   }
 }
 

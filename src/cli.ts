@@ -13,17 +13,6 @@ const __dirname = dirname(__filename);
 // 子进程列表
 const childProcesses: ChildProcess[] = [];
 
-// 颜色输出
-const colors = {
-  reset: '\x1b[0m',
-  bright: '\x1b[1m',
-  dim: '\x1b[2m',
-  red: '\x1b[31m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m'
-} as const;
-
 // 服务模式类型
 type ServiceMode = 'gateway' | 'webui' | 'all';
 
@@ -45,14 +34,14 @@ interface ResolvedStartTarget {
   shell: boolean;
 }
 
-function log(color: string, prefix: string, message: string) {
-  console.log(`${color}${prefix}${colors.reset} ${message}`);
+function log(prefix: string, message: string) {
+  console.log(`${prefix} ${message}`);
 }
 
-const info = (msg: string) => log(colors.blue, '[INFO]', msg);
-const success = (msg: string) => log(colors.green, '[OK]', msg);
-const warn = (msg: string) => log(colors.yellow, '[WARN]', msg);
-const error = (msg: string) => log(colors.red, '[ERROR]', msg);
+const info = (msg: string) => log('[INFO]', msg);
+const success = (msg: string) => log('[OK]', msg);
+const warn = (msg: string) => log('[WARN]', msg);
+const error = (msg: string) => log('[ERROR]', msg);
 
 function resolveLocalBin(name: string): string {
   const suffix = process.platform === 'win32' ? '.cmd' : '';
@@ -174,7 +163,7 @@ function startProcess(name: string, target: StartTarget): Promise<ChildProcess> 
 
 // 获取服务状态
 function getStatus(ports: Ports): void {
-  console.log(`\n${colors.bright}AesyClaw Services Status${colors.reset}\n`);
+  console.log('\nAesyClaw Services Status\n');
 
   const services = [
     { name: 'API Server', port: ports.api },
@@ -213,7 +202,7 @@ function showHelp(): void {
   );
 
   console.log(`
-${colors.bright}AesyClaw CLI v${packageJson.version}${colors.reset}
+AesyClaw CLI v${packageJson.version}
 
 Usage: tsx src/cli.ts <command> [options]
 

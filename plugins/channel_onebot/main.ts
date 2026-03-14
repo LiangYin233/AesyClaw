@@ -640,7 +640,24 @@ class OneBotAdapter implements ChannelAdapter {
     if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('base64://')) {
       return undefined;
     }
-    return value.startsWith('file://') ? value.substring(7) : value;
+
+    if (value.startsWith('file://')) {
+      return value.substring(7);
+    }
+
+    const isWindowsAbsolute = /^[A-Za-z]:[\\/]/.test(value);
+    const isUnixAbsolute = value.startsWith('/');
+    const isUncPath = value.startsWith('\\\\');
+    const isExplicitRelative = value.startsWith('./')
+      || value.startsWith('../')
+      || value.startsWith('.\\')
+      || value.startsWith('..\\');
+
+    if (!isWindowsAbsolute && !isUnixAbsolute && !isUncPath && !isExplicitRelative) {
+      return undefined;
+    }
+
+    return value;
   }
 
   private buildOutbound(message: ChannelMessage): { inlineSegments: any[]; filePaths: string[] } {
