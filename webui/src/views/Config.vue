@@ -159,6 +159,10 @@
                             </div>
                             <div class="form-grid">
                                 <div class="form-field">
+                                    <label>Type</label>
+                                    <Select v-model="value.type" :options="providerTypeOptions" placeholder="选择 Provider 类型" />
+                                </div>
+                                <div class="form-field">
                                     <label>API Key</label>
                                     <Password v-model="value.apiKey" placeholder="留空保持原值" :feedback="false" toggleMask fluid />
                                 </div>
@@ -216,6 +220,8 @@ const providerKeys = computed(() => {
     return config.value ? Object.keys(config.value.providers) : []
 })
 
+const providerTypeOptions = ['openai']
+
 async function loadConfig() {
     await configStore.fetchConfig()
 }
@@ -271,7 +277,7 @@ function goToPlugins() {
 function addProvider() {
     if (!config.value) return
     const newName = `provider${Object.keys(config.value.providers).length + 1}`
-    config.value.providers[newName] = { apiKey: '', apiBase: '' }
+    config.value.providers[newName] = { type: 'openai', apiKey: '', apiBase: '' }
 }
 
 function removeProvider(key: string) {

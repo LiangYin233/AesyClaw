@@ -4,6 +4,7 @@ const DEFAULT_SYSTEM_PROMPT = 'You are a helpful AI assistant.';
 const DEFAULT_PROVIDER_NAME = 'openai';
 const DEFAULT_PROVIDER_MODEL = 'gpt-4o';
 const DEFAULT_PROVIDER_API_BASE = 'https://api.openai.com/v1';
+const DEFAULT_PROVIDER_TYPE = 'openai';
 const HTTP_URL_PROTOCOL = /^https?$/;
 const MAIN_AGENT_NAME = 'main';
 
@@ -26,12 +27,15 @@ const memoryFactsConfigSchema = withObjectInputDefault({
   maxFacts: z.number().int().finite().default(100)
 });
 
+const providerTypeSchema = z.enum(['openai']);
+
 const providerApiBaseSchema = z.union([
   z.literal(''),
   z.url({ protocol: HTTP_URL_PROTOCOL })
 ]);
 
 const providerConfigSchema = z.object({
+  type: providerTypeSchema,
   apiKey: z.string().optional(),
   apiBase: providerApiBaseSchema.optional(),
   model: z.string().optional(),
@@ -201,6 +205,7 @@ export type ResolvedProviderSelection = {
 function createDefaultProviders(): Record<string, ProviderConfig> {
   return {
     [DEFAULT_PROVIDER_NAME]: {
+      type: DEFAULT_PROVIDER_TYPE,
       apiKey: '',
       apiBase: DEFAULT_PROVIDER_API_BASE,
       model: DEFAULT_PROVIDER_MODEL
@@ -296,33 +301,6 @@ export function getConfigValidationIssue(error: unknown): ConfigValidationIssue 
   const issue = error.issues[0];
   if (!issue) {
     return { message: 'Invalid configuration' };
-  }
-
-  if (issue.code === 'unrecognized_keys' && issue.path.join('.') === 'agents' && issue.keys.includes('main')) {
-    return {
-      message: 'agents.main has been removed; use agents.roles.main',
-      field: 'agents.main'
-    };
-  }
-
-  if (issue.code === 'unrecognized_keys' && issue.path.join('.') === 'agent.defaults') {
-    const migratedKey = issue.keys.find((key) => [
-      'provider',
-      'model',
-      'description',
-      'systemPrompt',
-      'vision',
-      'reasoning',
-      'visionProvider',
-      'visionModel'
-    ].includes(key));
-
-    if (migratedKey) {
-      return {
-        message: `agent.defaults.${migratedKey} has been removed; move it to agents.roles.<name>.${migratedKey}`,
-        field: `agent.defaults.${migratedKey}`
-      };
-    }
   }
 
   const field = issue.path.map(String).join('.');
