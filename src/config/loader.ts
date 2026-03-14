@@ -5,7 +5,7 @@ import type { Config } from '../types.js';
 import { logger } from '../observability/index.js';
 import { normalizeError } from '../errors/index.js';
 import { parse, stringify } from 'smol-toml';
-import { createDefaultConfig, parseConfig, configSchema } from './schema.js';
+import { createDefaultConfig, parseConfig } from './schema.js';
 
 type fsWatcher = ReturnType<typeof watch>;
 type ConfigMutator = (config: Config) => void | Config | Promise<void | Config>;

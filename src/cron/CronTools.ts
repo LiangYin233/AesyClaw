@@ -1,7 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { ToolContext, ToolRegistry } from '../tools/ToolRegistry.js';
 import type { CronService, CronJob, CronSchedule } from './CronService.js';
-import { logger } from '../observability/index.js';
 
 /**
  * Parse an interval string into milliseconds
@@ -44,8 +43,6 @@ export function registerCronTools(
   toolRegistry: ToolRegistry,
   cronService: CronService
 ): void {
-  const log = logger.child('CronTools');
-
   toolRegistry.register({
     name: 'create_cron_task',
     description: '创建定时任务。适用于“稍后提醒我”或“到某个时间再告诉我/再处理”的请求。调用该工具时应只创建任务，不要当场回答用户要等到未来才处理的问题；任务会自动发送到当前会话用户，无需传入目标参数。',

@@ -185,28 +185,24 @@ class OneBotAdapter implements ChannelAdapter {
       throw new Error('Outbound message rejected: empty payload');
     }
 
-    try {
-      let platformMessageId: string | undefined;
+    let platformMessageId: string | undefined;
 
-      if (outbound.inlineSegments.length > 0) {
-        const action = isGroup ? 'send_group_msg' : 'send_private_msg';
-        const params = isGroup
-          ? { group_id: numericChatId, message: outbound.inlineSegments }
-          : { user_id: numericChatId, message: outbound.inlineSegments };
-        const response = await this.sendAction(action, params);
-        platformMessageId = response?.data?.message_id?.toString();
-      }
-
-      for (const filePath of outbound.filePaths) {
-        await this.uploadFile(numericChatId, isGroup, filePath);
-      }
-
-      return {
-        platformMessageId
-      };
-    } catch (error) {
-      throw error;
+    if (outbound.inlineSegments.length > 0) {
+      const action = isGroup ? 'send_group_msg' : 'send_private_msg';
+      const params = isGroup
+        ? { group_id: numericChatId, message: outbound.inlineSegments }
+        : { user_id: numericChatId, message: outbound.inlineSegments };
+      const response = await this.sendAction(action, params);
+      platformMessageId = response?.data?.message_id?.toString();
     }
+
+    for (const filePath of outbound.filePaths) {
+      await this.uploadFile(numericChatId, isGroup, filePath);
+    }
+
+    return {
+      platformMessageId
+    };
   }
 
   classifyError(error: unknown): { retryable: boolean; code: string; message?: string } {

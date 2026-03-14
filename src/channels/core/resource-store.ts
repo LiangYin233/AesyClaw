@@ -8,7 +8,9 @@ import type { ChannelMessage, MessageSegment, ResourceHandle } from './types.js'
 
 function sanitizePathPart(value: string | undefined, fallback: string): string {
   const sanitized = (value || fallback)
-    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+    .split('')
+    .map((char) => (char < ' ' || /[<>:"/\\|?*]/.test(char) ? '_' : char))
+    .join('')
     .replace(/\s+/g, ' ')
     .trim();
   return sanitized || fallback;

@@ -122,35 +122,31 @@ class FeishuAdapter implements ChannelAdapter {
     const parts = await this.formatOutboundMessages(message);
     let platformMessageId: string | undefined;
 
-    try {
-      for (const part of parts) {
-        const requestBody = {
-          receive_id: message.conversation.id,
-          msg_type: part.msgType,
-          content: JSON.stringify(part.content),
-          uuid: randomUUID()
-        };
+    for (const part of parts) {
+      const requestBody = {
+        receive_id: message.conversation.id,
+        msg_type: part.msgType,
+        content: JSON.stringify(part.content),
+        uuid: randomUUID()
+      };
 
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json; charset=utf-8'
-          },
-          body: JSON.stringify(requestBody)
-        });
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json; charset=utf-8'
+        },
+        body: JSON.stringify(requestBody)
+      });
 
-        const result: any = await response.json();
-        if (result.code !== 0) {
-          throw new Error(`Feishu API error (${result.code}): ${result.msg}`);
-        }
-        platformMessageId = result.data?.message_id || platformMessageId;
+      const result: any = await response.json();
+      if (result.code !== 0) {
+        throw new Error(`Feishu API error (${result.code}): ${result.msg}`);
       }
-
-      return { platformMessageId };
-    } catch (error) {
-      throw error;
+      platformMessageId = result.data?.message_id || platformMessageId;
     }
+
+    return { platformMessageId };
   }
 
   classifyError(error: unknown): { retryable: boolean; code: string; message?: string } {

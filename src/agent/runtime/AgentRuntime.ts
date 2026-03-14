@@ -1,4 +1,4 @@
-import type { Config, InboundMessage, OutboundMessage } from '../../types.js';
+import type { InboundMessage, OutboundMessage } from '../../types.js';
 import type { LLMProvider } from '../../providers/base.js';
 import type { PluginManager } from '../../plugins/index.js';
 import type { ToolRegistry, ToolContext } from '../../tools/ToolRegistry.js';

@@ -38,15 +38,8 @@ function log(prefix: string, message: string) {
   console.log(`${prefix} ${message}`);
 }
 
-const info = (msg: string) => log('[INFO]', msg);
-const success = (msg: string) => log('[OK]', msg);
 const warn = (msg: string) => log('[WARN]', msg);
 const error = (msg: string) => log('[ERROR]', msg);
-
-function resolveLocalBin(name: string): string {
-  const suffix = process.platform === 'win32' ? '.cmd' : '';
-  return join(process.cwd(), 'node_modules', '.bin', `${name}${suffix}`);
-}
 
 function createStartTargets(): Record<'webui', StartTarget> {
   return {
