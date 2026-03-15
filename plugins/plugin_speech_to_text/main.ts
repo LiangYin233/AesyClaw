@@ -27,6 +27,59 @@ interface SpeechRuntimeConfig {
   transcriptionTimeout: number;
 }
 
+function normalizeAudioExtension(extension?: string): string | undefined {
+  if (!extension) {
+    return undefined;
+  }
+
+  const normalized = extension.startsWith('.') ? extension.toLowerCase() : `.${extension.toLowerCase()}`;
+  const allowedExtensions = new Set([
+    '.mp3', '.wav', '.m4a', '.ogg', '.opus', '.flac', '.aac', '.amr', '.webm'
+  ]);
+
+  return allowedExtensions.has(normalized) ? normalized : undefined;
+}
+
+function resolveAudioExtensionFromUrl(url: string): string | undefined {
+  try {
+    const parsed = new URL(url);
+    return normalizeAudioExtension(extname(parsed.pathname));
+  } catch {
+    return normalizeAudioExtension(extname(url));
+  }
+}
+
+function resolveAudioExtensionFromContentType(contentType?: string | null): string | undefined {
+  const normalized = contentType?.split(';', 1)[0]?.trim().toLowerCase();
+  switch (normalized) {
+    case 'audio/mpeg':
+    case 'audio/mp3':
+      return '.mp3';
+    case 'audio/wav':
+    case 'audio/x-wav':
+    case 'audio/wave':
+      return '.wav';
+    case 'audio/mp4':
+    case 'audio/x-m4a':
+      return '.m4a';
+    case 'audio/ogg':
+      return '.ogg';
+    case 'audio/opus':
+      return '.opus';
+    case 'audio/flac':
+    case 'audio/x-flac':
+      return '.flac';
+    case 'audio/aac':
+      return '.aac';
+    case 'audio/amr':
+      return '.amr';
+    case 'audio/webm':
+      return '.webm';
+    default:
+      return undefined;
+  }
+}
+
 function findAudioSource(message: InboundMessage): { localPath?: string; remoteUrl?: string } | null {
   const compatFile = message.files?.find((file: InboundFile) => file.type === 'audio');
   if (compatFile) {
@@ -71,7 +124,9 @@ async function downloadAudio(downloadDir: string, url: string, timeout: number):
     }
 
     const hash = createHash('md5').update(url + Date.now()).digest('hex').substring(0, 8);
-    const filepath = join(downloadDir, `audio_${Date.now()}_${hash}.mp3`);
+    const extension = resolveAudioExtensionFromUrl(url)
+      || resolveAudioExtensionFromContentType(response.headers.get('content-type'));
+    const filepath = join(downloadDir, `audio_${Date.now()}_${hash}${extension || ''}`);
     await pipeline(Readable.fromWeb(response.body as never), createWriteStream(filepath));
     return filepath;
   } catch (error) {
