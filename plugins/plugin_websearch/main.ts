@@ -74,7 +74,7 @@ export default definePlugin<WebsearchOptions>({
     }
 
     ctx.tools.register({
-      name: 'websearch',
+      name: 'web_search',
       description: '搜索网页信息；适合时效性问题。',
       parameters: {
         type: 'object',
