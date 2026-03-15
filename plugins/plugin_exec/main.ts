@@ -1,6 +1,7 @@
 import { platform } from 'os';
 import { definePlugin } from '../../src/plugins/index.ts';
 import { preview } from '../../src/observability/index.ts';
+import type { ToolContext } from '../../src/tools/index.ts';
 import { loadConfig } from './config.ts';
 import type { ExecPluginOptions } from './config.ts';
 import { PythonRunner } from './PythonRunner.ts';
@@ -57,10 +58,10 @@ export default definePlugin<ExecPluginOptions>({
         },
         required: ['code']
       },
-      async execute(params: Record<string, any>) {
+      async execute(params: Record<string, any>, context?: ToolContext) {
         const { code } = params;
-        log.info('Python execution started');
-        return pythonRunner.execute(code);
+        log.info('Python execution started', { cwd: context?.workspace });
+        return pythonRunner.execute(code, context?.workspace);
       }
     });
 
@@ -77,10 +78,13 @@ export default definePlugin<ExecPluginOptions>({
         },
         required: ['command']
       },
-      async execute(params: Record<string, any>) {
+      async execute(params: Record<string, any>, context?: ToolContext) {
         const { command } = params;
-        log.info('Shell execution started', { commandPreview: preview(command) });
-        return shellRunner.execute(command);
+        log.info('Shell execution started', {
+          commandPreview: preview(command),
+          cwd: context?.workspace
+        });
+        return shellRunner.execute(command, context?.workspace);
       }
     });
   }

@@ -32,7 +32,7 @@ export class PythonRunner {
     return output.substring(0, this.maxOutput) + `\n[输出已截断，原始长度: ${output.length} 字符]`;
   }
 
-  async execute(code: string): Promise<string> {
+  async execute(code: string, cwd?: string): Promise<string> {
     if (typeof code !== 'string') {
       return 'Python 执行错误: code 参数必须是字符串';
     }
@@ -43,6 +43,7 @@ export class PythonRunner {
       let timedOut = false;
 
       const pythonProcess = spawn(this.executable, ['-c', code], {
+        cwd,
         shell: false,
         windowsHide: true
       });

@@ -60,7 +60,7 @@ export class ShellRunner {
     return output.substring(0, this.maxOutput) + `\n[输出已截断，原始长度: ${output.length} 字符]`;
   }
 
-  async execute(command: string): Promise<string> {
+  async execute(command: string, cwd?: string): Promise<string> {
     const blacklistCheck = this.checkBlacklist(command);
     if (blacklistCheck.blocked) {
       return `错误: ${blacklistCheck.reason}`;
@@ -68,6 +68,7 @@ export class ShellRunner {
 
     try {
       const { stdout, stderr } = await execAsync(command, {
+        cwd,
         timeout: this.timeout,
         maxBuffer: 10 * 1024 * 1024
       });
