@@ -4,6 +4,6 @@ config.toml
 opencode.jsonc
 .aesyclaw/
 .claude/
-skills/
+/skills/
 workspace/
 .tmp/
