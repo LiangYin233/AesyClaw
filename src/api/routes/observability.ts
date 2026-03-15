@@ -1,6 +1,7 @@
 import type { Express } from 'express';
 import type { Config } from '../../types.js';
 import { logging, tokenUsage, logger, type LogLevel } from '../../observability/index.js';
+import { formatLocalTimestamp } from '../../observability/logging.js';
 import { ConfigLoader } from '../../config/loader.js';
 import { badRequest, serverError } from './helpers.js';
 
@@ -79,7 +80,15 @@ export function registerObservabilityRoutes(app: Express, deps: ObservabilityRou
 
   app.get('/api/observability/usage', (req, res) => {
     try {
-      res.json(tokenUsage.getStats());
+      const stats = tokenUsage.getStats();
+      res.json({
+        ...stats,
+        lastUpdated: formatLocalTimestamp(stats.lastUpdated),
+        daily: stats.daily.map((item) => ({
+          ...item,
+          lastUpdated: item.lastUpdated ? formatLocalTimestamp(item.lastUpdated) : undefined
+        }))
+      });
     } catch (error) {
       serverError(res, error);
     }

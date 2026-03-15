@@ -1,7 +1,8 @@
 import { join } from 'path';
 import { randomUUID } from 'crypto';
-import { Database, type DBSession, type DBMessage, type DBSessionMemory, type DBSessionAgentState } from '../db/index.js';
+import { Database, type DBConversationMemory, type DBMessage, type DBSession, type DBSessionMemory } from '../db/index.js';
 import { logger } from '../observability/index.js';
+import { formatLocalTimestamp } from '../observability/logging.js';
 import { CONSTANTS, CONFIG_DEFAULTS } from '../constants/index.js';
 import { normalizeError, NotFoundError, ValidationError } from '../errors/index.js';
 
@@ -31,13 +32,26 @@ export interface SessionMessage {
   timestamp?: string;
 }
 
+export interface ConversationMessage extends SessionMessage {
+  id: number;
+  sessionKey: string;
+  sessionId: number;
+}
+
+export interface ConversationMemory {
+  channel: string;
+  chatId: string;
+  summary: string;
+  summarizedUntilMessageId: number;
+  updatedAt?: string;
+}
+
 export interface Session {
   key: string;
   id?: number;
   channel: string;
   chatId: string;
   uuid?: string;
-  agentName?: string;
   summary: string;
   summarizedMessageCount: number;
   messages: SessionMessage[];
@@ -146,9 +160,10 @@ export class SessionManager {
     const session = await this.load(key);
 
     if (!session) {
+      const createdAt = formatLocalTimestamp(new Date());
       const result = await this.db.run(
-        `INSERT INTO sessions (key, channel, chat_id, uuid) VALUES (?, ?, ?, ?)`,
-        [key, parsed.channel, parsed.chatId, parsed.uuid || null]
+        `INSERT INTO sessions (key, channel, chat_id, uuid, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        [key, parsed.channel, parsed.chatId, parsed.uuid || null, createdAt, createdAt]
       );
 
       const newSession: Session = {
@@ -157,7 +172,6 @@ export class SessionManager {
         channel: parsed.channel,
         chatId: parsed.chatId,
         uuid: parsed.uuid,
-        agentName: undefined,
         summary: '',
         summarizedMessageCount: 0,
         messages: [],
@@ -189,7 +203,7 @@ export class SessionManager {
       if (totalCount > this.maxSessions) {
         const toDelete = totalCount - this.maxSessions;
         const oldSessions = await this.db.all<DBSession>(
-          `SELECT key FROM sessions ORDER BY updated_at ASC LIMIT ?`,
+          `SELECT key FROM sessions ORDER BY datetime(updated_at) ASC LIMIT ?`,
           [toDelete]
         );
 
@@ -211,8 +225,7 @@ export class SessionManager {
   private mapRowToSession(
     row: DBSession,
     messages: DBMessage[],
-    memory?: DBSessionMemory,
-    agentState?: DBSessionAgentState
+    memory?: DBSessionMemory
   ): Session {
     return {
       key: row.key,
@@ -220,7 +233,6 @@ export class SessionManager {
       channel: row.channel,
       chatId: row.chat_id,
       uuid: row.uuid || undefined,
-      agentName: agentState?.agent_name || undefined,
       summary: memory?.summary || '',
       summarizedMessageCount: memory?.summarized_message_count || 0,
       messages: messages.map((message) => ({
@@ -234,13 +246,12 @@ export class SessionManager {
   }
 
   private async loadSessionData(row: DBSession): Promise<Session> {
-    const [messages, memory, agentState] = await Promise.all([
+    const [messages, memory] = await Promise.all([
       this.db.all<DBMessage>(`SELECT * FROM messages WHERE session_id = ? ORDER BY id ASC`, [row.id]),
-      this.db.get<DBSessionMemory>(`SELECT * FROM session_memory WHERE session_id = ?`, [row.id]),
-      this.db.get<DBSessionAgentState>(`SELECT * FROM session_agent_state WHERE session_id = ?`, [row.id])
+      this.db.get<DBSessionMemory>(`SELECT * FROM session_memory WHERE session_id = ?`, [row.id])
     ]);
 
-    return this.mapRowToSession(row, messages, memory, agentState);
+    return this.mapRowToSession(row, messages, memory);
   }
 
   private async load(key: string): Promise<Session | null> {
@@ -256,7 +267,7 @@ export class SessionManager {
   async addMessage(key: string, role: 'user' | 'assistant' | 'system', content: string): Promise<void> {
     const session = await this.getOrCreate(key);
     const updatedAt = new Date();
-    const timestamp = updatedAt.toISOString();
+    const timestamp = formatLocalTimestamp(updatedAt);
 
     const message: SessionMessage = {
       role,
@@ -283,6 +294,7 @@ export class SessionManager {
     session.summary = summary;
     session.summarizedMessageCount = summarizedMessageCount;
     session.updatedAt = new Date();
+    const updatedAt = formatLocalTimestamp(session.updatedAt);
 
     if (session.id) {
       await this.db.transaction(async () => {
@@ -293,112 +305,78 @@ export class SessionManager {
              summary = excluded.summary,
              summarized_message_count = excluded.summarized_message_count,
              updated_at = excluded.updated_at`,
-          [session.id, summary, summarizedMessageCount, session.updatedAt.toISOString()]
+          [session.id, summary, summarizedMessageCount, updatedAt]
         );
         await this.db.run(
           `UPDATE sessions SET updated_at = ? WHERE key = ?`,
-          [session.updatedAt.toISOString(), key]
+          [updatedAt, key]
         );
       });
     }
   }
 
-  async getSessionAgent(key: string): Promise<string | null> {
-    const session = await this.getOrCreate(key);
-    if (!session.id) {
-      return session.agentName || null;
-    }
-
-    const row = await this.db.get<DBSessionAgentState>(
-      `SELECT * FROM session_agent_state WHERE session_id = ?`,
-      [session.id]
-    );
-
-    session.agentName = row?.agent_name || undefined;
-    return session.agentName || null;
+  async getConversationMessages(channel: string, chatId: string): Promise<ConversationMessage[]> {
+    return this.db.all<{
+      id: number;
+      session_id: number;
+      session_key: string;
+      role: string;
+      content: string;
+      timestamp: string;
+    }>(
+      `SELECT
+         m.id,
+         m.session_id,
+         s.key as session_key,
+         m.role,
+         m.content,
+         m.timestamp
+       FROM messages m
+       INNER JOIN sessions s ON s.id = m.session_id
+       WHERE s.channel = ? AND s.chat_id = ?
+       ORDER BY m.id ASC`,
+      [channel, chatId]
+    ).then((rows) => rows.map((row) => ({
+      id: row.id,
+      sessionId: row.session_id,
+      sessionKey: row.session_key,
+      role: row.role as SessionMessage['role'],
+      content: row.content,
+      timestamp: row.timestamp
+    })));
   }
 
-  async getExistingSessionAgent(key: string): Promise<string | null> {
-    const session = await this.get(key);
-    if (!session) {
-      return null;
-    }
-    if (!session.id) {
-      return session.agentName || null;
-    }
-
-    const row = await this.db.get<DBSessionAgentState>(
-      `SELECT * FROM session_agent_state WHERE session_id = ?`,
-      [session.id]
+  async getConversationMemory(channel: string, chatId: string): Promise<ConversationMemory> {
+    const row = await this.db.get<DBConversationMemory>(
+      `SELECT * FROM conversation_memory WHERE channel = ? AND chat_id = ?`,
+      [channel, chatId]
     );
 
-    session.agentName = row?.agent_name || undefined;
-    return session.agentName || null;
+    return {
+      channel,
+      chatId,
+      summary: row?.summary || '',
+      summarizedUntilMessageId: row?.summarized_until_message_id || 0,
+      updatedAt: row?.updated_at
+    };
   }
 
-  async setSessionAgent(key: string, agentName: string): Promise<void> {
-    const session = await this.getOrCreate(key);
-    if (!session.id) {
-      return;
-    }
-
-    session.agentName = agentName;
+  async updateConversationSummary(
+    channel: string,
+    chatId: string,
+    summary: string,
+    summarizedUntilMessageId: number
+  ): Promise<void> {
+    const updatedAt = formatLocalTimestamp(new Date());
     await this.db.run(
-      `INSERT INTO session_agent_state (session_id, agent_name, updated_at)
-       VALUES (?, ?, CURRENT_TIMESTAMP)
-       ON CONFLICT(session_id) DO UPDATE SET
-         agent_name = excluded.agent_name,
+      `INSERT INTO conversation_memory (channel, chat_id, summary, summarized_until_message_id, updated_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(channel, chat_id) DO UPDATE SET
+         summary = excluded.summary,
+         summarized_until_message_id = excluded.summarized_until_message_id,
          updated_at = excluded.updated_at`,
-      [session.id, agentName]
+      [channel, chatId, summary, summarizedUntilMessageId, updatedAt]
     );
-  }
-
-  async clearSessionAgent(key: string): Promise<void> {
-    const session = await this.getOrCreate(key);
-    if (!session.id) {
-      return;
-    }
-
-    session.agentName = undefined;
-    await this.db.run(`DELETE FROM session_agent_state WHERE session_id = ?`, [session.id]);
-  }
-
-  async setExistingSessionAgent(key: string, agentName: string): Promise<void> {
-    const session = await this.getExistingOrThrow(key);
-    if (!session.id) {
-      throw new NotFoundError('Session', key);
-    }
-
-    session.agentName = agentName;
-    await this.db.run(
-      `INSERT INTO session_agent_state (session_id, agent_name, updated_at)
-       VALUES (?, ?, CURRENT_TIMESTAMP)
-       ON CONFLICT(session_id) DO UPDATE SET
-         agent_name = excluded.agent_name,
-         updated_at = excluded.updated_at`,
-      [session.id, agentName]
-    );
-  }
-
-  async clearExistingSessionAgent(key: string): Promise<void> {
-    const session = await this.getExistingOrThrow(key);
-    if (!session.id) {
-      throw new NotFoundError('Session', key);
-    }
-
-    session.agentName = undefined;
-    await this.db.run(`DELETE FROM session_agent_state WHERE session_id = ?`, [session.id]);
-  }
-
-  async deleteAgentBindings(agentName: string): Promise<number> {
-    for (const session of this.sessions.values()) {
-      if (session.agentName === agentName) {
-        session.agentName = undefined;
-      }
-    }
-
-    const result = await this.db.run(`DELETE FROM session_agent_state WHERE agent_name = ?`, [agentName]);
-    return result.changes;
   }
 
   async clearSummary(key: string): Promise<void> {
@@ -418,6 +396,7 @@ export class SessionManager {
     }
 
     await this.db.run(`DELETE FROM session_memory`);
+    await this.db.run(`DELETE FROM conversation_memory`);
   }
 
   async clearConversationSummaries(channel: string, chatId: string): Promise<void> {
@@ -435,6 +414,7 @@ export class SessionManager {
        )`,
       [channel, chatId]
     );
+    await this.db.run(`DELETE FROM conversation_memory WHERE channel = ? AND chat_id = ?`, [channel, chatId]);
   }
 
   list(): Session[] {
@@ -454,7 +434,7 @@ export class SessionManager {
     await this.db.ready();
 
     const sessions = await this.db.all<DBSession>(
-      `SELECT * FROM sessions ORDER BY updated_at DESC LIMIT ?`,
+      `SELECT * FROM sessions ORDER BY datetime(updated_at) DESC LIMIT ?`,
       [this.maxSessions]
     );
 

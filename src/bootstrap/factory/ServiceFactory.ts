@@ -150,6 +150,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     port,
     agentRuntime,
     sessionManager,
+    sessionRouting,
     channelManager,
     pluginManager,
     cronService,

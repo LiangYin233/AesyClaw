@@ -1,6 +1,6 @@
 import type { InboundMessage } from '../../types.js';
 import type { ToolContext } from '../../tools/ToolRegistry.js';
-import type { SessionManager } from '../../session/SessionManager.js';
+import type { SessionManager, SessionMessage } from '../../session/SessionManager.js';
 import type { SessionRoutingService } from './SessionRoutingService.js';
 import type { SessionMemoryService } from '../memory/SessionMemoryService.js';
 import type { AgentRoleService } from '../roles/AgentRoleService.js';
@@ -32,7 +32,7 @@ export class SessionResolver {
     const session = await this.sessionManager.getOrCreate(sessionKey);
     const history = this.memoryService
       ? await this.memoryService.buildHistory(session)
-      : sliceRecentConversationRounds(session.messages, options.memoryWindow);
+      : await this.buildHistoryWithoutMemory(session, options.memoryWindow);
 
     return {
       request: message,
@@ -40,7 +40,7 @@ export class SessionResolver {
       channel: message.channel,
       chatId: message.chatId,
       messageType: message.messageType,
-      agentName: (await this.sessionManager.getSessionAgent(sessionKey))
+      agentName: this.sessionRouting.getConversationAgent(message.channel, message.chatId)
         || this.agentRoleService?.getDefaultRoleName()
         || 'main',
       session,
@@ -53,5 +53,21 @@ export class SessionResolver {
         messageType: message.messageType
       }
     };
+  }
+
+  private async buildHistoryWithoutMemory(session: Awaited<ReturnType<SessionManager['getOrCreate']>>, memoryWindow: number): Promise<SessionMessage[]> {
+    if (this.sessionRouting.getContextMode() !== 'channel') {
+      return sliceRecentConversationRounds(session.messages, memoryWindow);
+    }
+
+    const conversationMessages = await this.sessionManager.getConversationMessages(session.channel, session.chatId);
+    return sliceRecentConversationRounds(
+      conversationMessages.map((message) => ({
+        role: message.role,
+        content: message.content,
+        timestamp: message.timestamp
+      })),
+      memoryWindow
+    );
   }
 }

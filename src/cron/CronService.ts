@@ -1,6 +1,7 @@
 import { CronExpressionParser } from 'cron-parser';
 import { normalizeError } from '../errors/index.js';
 import { logger } from '../observability/index.js';
+import { formatLocalTimestamp } from '../observability/logging.js';
 import { CronStore } from './CronStore.js';
 
 export interface CronJob {
@@ -55,7 +56,7 @@ export class CronService {
       jobId: job.id,
       jobName: job.name,
       kind: job.schedule.kind,
-      nextRunAt: job.nextRunAtMs ? new Date(job.nextRunAtMs).toISOString() : undefined,
+      nextRunAt: job.nextRunAtMs ? formatLocalTimestamp(new Date(job.nextRunAtMs)) : undefined,
       target: job.payload.target
     });
     this.wakeUp();
@@ -78,7 +79,7 @@ export class CronService {
       this.log.info('Cron job status updated', {
         jobId: id,
         enabled,
-        nextRunAt: job.nextRunAtMs ? new Date(job.nextRunAtMs).toISOString() : undefined
+        nextRunAt: job.nextRunAtMs ? formatLocalTimestamp(new Date(job.nextRunAtMs)) : undefined
       });
       this.wakeUp();
     }

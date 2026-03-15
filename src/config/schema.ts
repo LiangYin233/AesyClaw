@@ -62,7 +62,7 @@ const agentDefaultsSchema = z.object({
   memoryWindow: z.number().int().finite().default(50),
   memorySummary: memorySummaryConfigSchema,
   memoryFacts: memoryFactsConfigSchema,
-  contextMode: z.enum(['session', 'channel', 'global']).default('channel'),
+  contextMode: z.enum(['session', 'channel']).default('session'),
   maxSessions: z.number().int().finite().default(100)
 }).strict().prefault(() => ({}));
 

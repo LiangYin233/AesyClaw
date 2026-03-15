@@ -20,6 +20,16 @@ function parseTarget(to: string): { channel: string; chatId: string; messageType
   };
 }
 
+function buildCronExecutionPrompt(job: CronJob): string {
+  return [
+    '你正在执行一个定时任务。',
+    '直接完成下面的任务，并把结果发送给目标用户。',
+    '不要复述这段系统说明，不要解释这是定时任务或后台触发，除非任务本身要求。',
+    `任务名称：${job.name}`,
+    `执行指令：${job.payload.detail}`
+  ].join('\n');
+}
+
 export async function dispatchCronJob(services: Services, workspace: string, job: CronJob): Promise<void> {
   log.info('Cron dispatch started', {
     jobId: job.id,
@@ -47,7 +57,7 @@ export async function dispatchCronJob(services: Services, workspace: string, job
       }
     }
 
-    await agentRuntime.handleDirect(job.payload.detail, {
+    await agentRuntime.handleDirect(buildCronExecutionPrompt(job), {
       sessionKey,
       channel: contextOverride?.channel || 'cron',
       chatId: contextOverride?.chatId || job.id,

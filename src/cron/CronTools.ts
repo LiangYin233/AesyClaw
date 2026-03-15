@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { ToolContext, ToolRegistry } from '../tools/ToolRegistry.js';
 import type { CronService, CronJob, CronSchedule } from './CronService.js';
+import { formatLocalTimestamp } from '../observability/logging.js';
 
 /**
  * Parse an interval string into milliseconds
@@ -45,7 +46,7 @@ export function registerCronTools(
 ): void {
   toolRegistry.register({
     name: 'create_cron_task',
-    description: '创建定时任务。适用于“稍后提醒我”或“到某个时间再告诉我/再处理”的请求。调用该工具时应只创建任务，不要当场回答用户要等到未来才处理的问题；任务会自动发送到当前会话用户，无需传入目标参数。',
+    description: '创建定时任务。适用于“稍后提醒我”或“到某个时间再告诉我/再处理”的请求。调用该工具时只创建任务，不要当场提前完成未来任务。`detail` 必须写成未来触发时可直接执行的指令句，直接对 Agent 下命令，不要写“用户让我”“到时候提醒”“请根据之前对话”等转述。',
     parameters: {
       type: 'object',
       properties: {
@@ -64,7 +65,7 @@ export function registerCronTools(
         },
         detail: {
           type: 'string',
-          description: '触发时发送给 AI 的完整指令。这里应填写未来真正要处理的原始请求，不要提前写答案。'
+          description: '触发时发送给 AI 的直接执行指令。请写成祈使句，例如“现在提醒用户缴电费”“现在给用户发送今天的新闻简报”“现在总结今天美股收盘情况并发给用户”。不要写成转述、备注或上下文说明。'
         },
       },
       required: ['type', 'time', 'description', 'detail']
@@ -84,7 +85,7 @@ export function registerCronTools(
         case 'once': {
           const relativeMs = parseInterval(String(time));
           if (relativeMs) {
-            schedule.onceAt = new Date(Date.now() + relativeMs).toISOString();
+            schedule.onceAt = formatLocalTimestamp(new Date(Date.now() + relativeMs));
             break;
           }
 
@@ -132,7 +133,7 @@ export function registerCronTools(
         id: job.id,
         message: `任务已创建: ${description}`,
         nextRunAtMs: job.nextRunAtMs,
-        nextRunAt: new Date(job.nextRunAtMs!).toISOString()
+        nextRunAt: formatLocalTimestamp(new Date(job.nextRunAtMs!))
       });
     },
     source: 'built-in'

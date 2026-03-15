@@ -3,6 +3,8 @@ import { dirname } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { logger } from '../observability/index.js';
 
+const SQLITE_LOCAL_TIMESTAMP_EXPRESSION = `STRFTIME('%Y-%m-%dT%H:%M:%f', 'now', 'localtime')`;
+
 export class Database {
   private db: SQLiteDatabase;
   private log = logger.child('Database');
@@ -28,8 +30,8 @@ export class Database {
             channel TEXT NOT NULL,
             chat_id TEXT NOT NULL,
             uuid TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME DEFAULT (${SQLITE_LOCAL_TIMESTAMP_EXPRESSION}),
+            updated_at DATETIME DEFAULT (${SQLITE_LOCAL_TIMESTAMP_EXPRESSION})
           )
         `);
 
@@ -39,7 +41,7 @@ export class Database {
             session_id INTEGER NOT NULL,
             role TEXT NOT NULL,
             content TEXT NOT NULL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            timestamp DATETIME DEFAULT (${SQLITE_LOCAL_TIMESTAMP_EXPRESSION}),
             FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
           )
         `);
@@ -49,7 +51,7 @@ export class Database {
             session_id INTEGER PRIMARY KEY,
             summary TEXT NOT NULL DEFAULT '',
             summarized_message_count INTEGER NOT NULL DEFAULT 0,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT (${SQLITE_LOCAL_TIMESTAMP_EXPRESSION}),
             FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
           )
         `);
@@ -58,7 +60,7 @@ export class Database {
           CREATE TABLE IF NOT EXISTS session_agent_state (
             session_id INTEGER PRIMARY KEY,
             agent_name TEXT NOT NULL,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT (${SQLITE_LOCAL_TIMESTAMP_EXPRESSION}),
             FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
           )
         `);
@@ -69,8 +71,19 @@ export class Database {
             channel TEXT NOT NULL,
             chat_id TEXT NOT NULL,
             fact TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME DEFAULT (${SQLITE_LOCAL_TIMESTAMP_EXPRESSION}),
+            updated_at DATETIME DEFAULT (${SQLITE_LOCAL_TIMESTAMP_EXPRESSION})
+          )
+        `);
+
+        this.db.run(`
+          CREATE TABLE IF NOT EXISTS conversation_memory (
+            channel TEXT NOT NULL,
+            chat_id TEXT NOT NULL,
+            summary TEXT NOT NULL DEFAULT '',
+            summarized_until_message_id INTEGER NOT NULL DEFAULT 0,
+            updated_at DATETIME DEFAULT (${SQLITE_LOCAL_TIMESTAMP_EXPRESSION}),
+            PRIMARY KEY (channel, chat_id)
           )
         `);
 
@@ -88,8 +101,8 @@ export class Database {
             platform_file_id TEXT,
             local_path TEXT,
             sha256 TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME DEFAULT (${SQLITE_LOCAL_TIMESTAMP_EXPRESSION}),
+            updated_at DATETIME DEFAULT (${SQLITE_LOCAL_TIMESTAMP_EXPRESSION})
           )
         `);
 
@@ -107,8 +120,8 @@ export class Database {
             platform_message_id TEXT,
             error_code TEXT,
             error_message TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME DEFAULT (${SQLITE_LOCAL_TIMESTAMP_EXPRESSION}),
+            updated_at DATETIME DEFAULT (${SQLITE_LOCAL_TIMESTAMP_EXPRESSION})
           )
         `);
 
@@ -143,9 +156,9 @@ export class Database {
 
           statements.push(
             `UPDATE memory_facts
-             SET created_at = COALESCE(created_at, updated_at, CURRENT_TIMESTAMP)`,
+             SET created_at = COALESCE(created_at, updated_at, ${SQLITE_LOCAL_TIMESTAMP_EXPRESSION})`,
             `UPDATE memory_facts
-             SET last_seen_at = COALESCE(last_seen_at, updated_at, created_at, CURRENT_TIMESTAMP)`,
+             SET last_seen_at = COALESCE(last_seen_at, updated_at, created_at, ${SQLITE_LOCAL_TIMESTAMP_EXPRESSION})`,
             `UPDATE memory_facts
              SET confidence = COALESCE(confidence, 1)`,
             `UPDATE memory_facts
@@ -280,6 +293,14 @@ export interface DBSessionMemory {
   session_id: number;
   summary: string;
   summarized_message_count: number;
+  updated_at: string;
+}
+
+export interface DBConversationMemory {
+  channel: string;
+  chat_id: string;
+  summary: string;
+  summarized_until_message_id: number;
   updated_at: string;
 }
 

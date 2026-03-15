@@ -4,6 +4,7 @@ import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import type { Config } from '../../types.js';
 import { ConfigLoader } from '../../config/loader.js';
 import { getConfigValidationIssue, parseMCPServerConfig } from '../../config/index.js';
+import { formatLocalTimestamp } from '../../observability/logging.js';
 import { badRequest, notFound, serverError } from './helpers.js';
 
 interface MCPDeps {
@@ -15,11 +16,27 @@ interface MCPDeps {
   setMcpManager: (m: MCPClientManager) => void;
 }
 
+function serializeServerStatus(server: any): any {
+  if (Array.isArray(server)) {
+    return server.map((item) => serializeServerStatus(item));
+  }
+  if (!server || typeof server !== 'object') {
+    return server;
+  }
+
+  return {
+    ...server,
+    connectedAt: server.connectedAt instanceof Date
+      ? formatLocalTimestamp(server.connectedAt)
+      : server.connectedAt
+  };
+}
+
 export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
   app.get('/api/mcp/servers', (req, res) => {
     const mgr = deps.getMcpManager();
     if (!mgr) return res.json({ servers: [] });
-    res.json({ servers: mgr.getServerStatus() });
+    res.json({ servers: serializeServerStatus(mgr.getServerStatus()) });
   });
 
   app.get('/api/mcp/servers/:name', (req, res) => {
@@ -31,7 +48,7 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
       return notFound(res, 'MCP server', name);
     }
     const tools = mgr.getToolsForServer(name);
-    res.json({ server, tools });
+    res.json({ server: serializeServerStatus(server), tools });
   });
 
   app.post('/api/mcp/servers/:name', async (req, res) => {
@@ -68,7 +85,7 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
         toolsRegistered = tools.length;
       }
 
-      res.status(201).json({ success: true, server: mgr.getServerStatus(name), toolsRegistered });
+      res.status(201).json({ success: true, server: serializeServerStatus(mgr.getServerStatus(name)), toolsRegistered });
     } catch (error) {
       const issue = getConfigValidationIssue(error);
       if (issue) {
@@ -113,7 +130,7 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
       if (!mgr) return notFound(res, 'MCP manager', 'mcp');
       const { name } = req.params;
       await mgr.reconnect(name);
-      res.json({ success: true, server: mgr.getServerStatus(name) });
+      res.json({ success: true, server: serializeServerStatus(mgr.getServerStatus(name)) });
     } catch (error) {
       serverError(res, error);
     }
@@ -146,7 +163,7 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
         }
       }
 
-      res.json({ success: true, enabled, server: mgr?.getServerStatus(name) });
+      res.json({ success: true, enabled, server: serializeServerStatus(mgr?.getServerStatus(name)) });
     } catch (error) {
       serverError(res, error);
     }

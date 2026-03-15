@@ -1,6 +1,7 @@
 import type { InboundMessage } from '../../types.js';
 import type { LLMProvider } from '../../providers/base.js';
 import type { Session, SessionManager, SessionMessage } from '../../session/SessionManager.js';
+import type { ContextMode } from '../types.js';
 import { MemoryFactStore, type MemoryFact } from '../../session/MemoryFactStore.js';
 import { logger } from '../../observability/index.js';
 import { CRON_SESSION_KEY_PREFIX, INTERNAL_CHANNELS } from '../../constants/index.js';
@@ -51,6 +52,7 @@ interface MemorySummaryRuntimeConfig {
   model?: string;
   compressRounds: number;
   memoryWindow: number;
+  contextMode: ContextMode;
 }
 
 interface MemoryFactsRuntimeConfig {
@@ -81,6 +83,10 @@ export class SessionMemoryService {
       return sliceRecentConversationRounds(session.messages, this.summaryConfig.memoryWindow);
     }
 
+    if (this.summaryConfig.contextMode === 'channel') {
+      return this.buildConversationHistory(session);
+    }
+
     const facts = await this.factsStore.getFacts(session.channel, session.chatId);
     const factMessage = this.buildFactsMessage(facts);
     const summaryMessage = session.summary.trim()
@@ -107,6 +113,10 @@ export class SessionMemoryService {
     const session = await this.sessionManager.getOrCreate(sessionKey);
     if (this.shouldSkipMemory(sessionKey, session)) {
       return false;
+    }
+
+    if (this.summaryConfig.contextMode === 'channel') {
+      return this.maybeSummarizeConversation(session);
     }
 
     const unsummarizedRounds = collectConversationRounds(session.messages, session.summarizedMessageCount);
@@ -148,6 +158,88 @@ export class SessionMemoryService {
       return true;
     } catch (error) {
       this.log.warn('Session summarization failed', { sessionKey, error });
+      return false;
+    }
+  }
+
+  private async buildConversationHistory(session: Session): Promise<SessionMessage[]> {
+    const facts = await this.factsStore.getFacts(session.channel, session.chatId);
+    const factMessage = this.buildFactsMessage(facts);
+    const conversationMemory = await this.sessionManager.getConversationMemory(session.channel, session.chatId);
+    const summaryMessage = conversationMemory.summary.trim()
+      ? [{
+          role: 'system' as const,
+          content: `${MEMORY_SUMMARY_PREFIX}\n${conversationMemory.summary.trim()}`
+        }]
+      : [];
+
+    const recentMessages = sliceRecentConversationRounds(
+      (await this.sessionManager.getConversationMessages(session.channel, session.chatId))
+        .filter((message) => message.id > conversationMemory.summarizedUntilMessageId)
+        .map((message) => ({
+          role: message.role,
+          content: message.content,
+          timestamp: message.timestamp
+        })),
+      this.summaryConfig.memoryWindow
+    );
+
+    return [...factMessage, ...summaryMessage, ...recentMessages];
+  }
+
+  private async maybeSummarizeConversation(session: Session): Promise<boolean> {
+    const conversationMemory = await this.sessionManager.getConversationMemory(session.channel, session.chatId);
+    const unsummarizedMessages = (await this.sessionManager.getConversationMessages(session.channel, session.chatId))
+      .filter((message) => message.id > conversationMemory.summarizedUntilMessageId);
+    const unsummarizedRounds = collectConversationRounds(unsummarizedMessages);
+
+    if (unsummarizedRounds.length <= this.summaryConfig.memoryWindow) {
+      return false;
+    }
+
+    const roundsToCompress = unsummarizedRounds.slice(0, this.summaryConfig.compressRounds);
+    if (roundsToCompress.length === 0) {
+      return false;
+    }
+
+    const summaryCutoff = roundsToCompress[roundsToCompress.length - 1].end;
+    const pendingMessages = unsummarizedMessages.slice(0, summaryCutoff);
+    if (pendingMessages.length === 0) {
+      return false;
+    }
+
+    try {
+      const summary = await this.generateSummary(
+        conversationMemory.summary,
+        pendingMessages.map((message) => ({
+          role: message.role,
+          content: message.content,
+          timestamp: message.timestamp
+        }))
+      );
+      if (!summary) {
+        return false;
+      }
+
+      const summarizedUntilMessageId = pendingMessages[pendingMessages.length - 1]?.id || 0;
+      await this.sessionManager.updateConversationSummary(
+        session.channel,
+        session.chatId,
+        summary,
+        summarizedUntilMessageId
+      );
+      this.log.info('Conversation summary updated', {
+        channel: session.channel,
+        chatId: session.chatId,
+        summarizedUntilMessageId
+      });
+      return true;
+    } catch (error) {
+      this.log.warn('Conversation summarization failed', {
+        channel: session.channel,
+        chatId: session.chatId,
+        error
+      });
       return false;
     }
   }

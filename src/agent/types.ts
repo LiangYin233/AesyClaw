@@ -1,7 +1,7 @@
 import type { BackgroundTaskHandle } from './execution/BackgroundTaskManager.js';
 import type { ForegroundExecutionHandle } from './execution/ExecutionRegistry.js';
 
-export type ContextMode = 'session' | 'channel' | 'global';
+export type ContextMode = 'session' | 'channel';
 
 export interface ExecutionStatus {
   sessionKey: string;

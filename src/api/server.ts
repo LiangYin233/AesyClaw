@@ -11,6 +11,7 @@ import type { CronService } from '../cron/index.js';
 import type { MCPClientManager } from '../mcp/MCPClient.js';
 import type { SkillManager } from '../skills/SkillManager.js';
 import type { ToolRegistry } from '../tools/ToolRegistry.js';
+import type { SessionRoutingService } from '../agent/session/SessionRoutingService.js';
 import { createErrorResponse } from '../errors/index.js';
 import { logger } from '../observability/index.js';
 import { CONSTANTS } from '../constants/index.js';
@@ -41,6 +42,7 @@ export class APIServer {
     private port: number,
     private agentRuntime: AgentRuntime,
     private sessionManager: SessionManager,
+    private sessionRouting: SessionRoutingService,
     private channelManager: ChannelManager,
     private config: Config,
     private pluginManager?: PluginManager,
@@ -95,9 +97,9 @@ export class APIServer {
 
   private setupRoutes(): void {
     const chatService = new ChatService(this.agentRuntime);
-    const sessionService = new SessionService(this.sessionManager, this.agentRoleService);
+    const sessionService = new SessionService(this.sessionManager, this.sessionRouting, this.agentRoleService);
     const agentRoleAppService = this.agentRoleService
-      ? new AgentRoleService(this.agentRoleService, this.sessionManager)
+      ? new AgentRoleService(this.agentRoleService, this.sessionRouting)
       : undefined;
 
     registerCoreRoutes(this.app, {

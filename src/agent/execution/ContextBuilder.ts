@@ -2,6 +2,7 @@ import type { LLMMessage, InboundFile } from '../../types.js';
 import fs from 'fs';
 import { extname } from 'path';
 import { isVisionableFile } from './ExecutionTypes.js';
+import { formatLocalClock, formatLocalDateTime, formatLocalTimestamp, getCurrentTimezone } from '../../observability/logging.js';
 
 const IMAGE_MIME_TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg',
@@ -86,10 +87,10 @@ export class ContextBuilder {
   private buildSystemPrompt(): string {
     const now = new Date();
     const prompt = this.systemPrompt
-      .replace(/\{\{\s*current_time\s*\}\}/g, now.toISOString())
-      .replace(/\{\{\s*current_date\s*\}\}/g, now.toLocaleString())
-      .replace(/\{\{\s*current_hour\s*\}\}/g, now.toLocaleTimeString())
-      .replace(/\{\{\s*timezone\s*\}\}/g, Intl.DateTimeFormat().resolvedOptions().timeZone)
+      .replace(/\{\{\s*current_time\s*\}\}/g, formatLocalTimestamp(now))
+      .replace(/\{\{\s*current_date\s*\}\}/g, formatLocalDateTime(now))
+      .replace(/\{\{\s*current_hour\s*\}\}/g, formatLocalClock(now))
+      .replace(/\{\{\s*timezone\s*\}\}/g, getCurrentTimezone())
       .replace(/\{\{\s*cwd\s*\}\}/g, this.workspace)
       .replace(/\{\{\s*os\s*\}\}/g, process.platform);
 

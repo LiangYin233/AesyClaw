@@ -52,19 +52,19 @@ export class BuiltInCommands extends CommandHandler {
       },
       {
         name: 'agent-current',
-        description: '查看当前 Agent 角色',
+        description: '查看当前聊天 Agent 角色',
         matcher: { type: 'exact', value: '/agent current' },
         handler: this.handleAgentCurrent.bind(this)
       },
       {
         name: 'agent-use',
-        description: '切换当前会话 Agent 角色',
+        description: '切换当前聊天 Agent 角色',
         matcher: { type: 'regex', value: /^\/agent\s+use\s+([\w-]+)$/ },
         handler: this.handleAgentUse.bind(this)
       },
       {
         name: 'agent-reset',
-        description: '重置当前会话 Agent 角色',
+        description: '重置当前聊天 Agent 角色',
         matcher: { type: 'exact', value: '/agent reset' },
         handler: this.handleAgentReset.bind(this)
       }
@@ -72,26 +72,15 @@ export class BuiltInCommands extends CommandHandler {
   }
 
   private async handleNew(msg: InboundMessage): Promise<InboundMessage> {
-    const currentSessionKey = this.resolveSessionKey(msg);
     const newSessionKey = this.sessionRouting.createNewSession(msg.channel, msg.chatId);
     const uuid = newSessionKey.split(':')[2] || 'default';
-    let inheritedRole: string | null = null;
-
-    if (currentSessionKey) {
-      inheritedRole = await this.sessionManager.getSessionAgent(currentSessionKey);
-      if (inheritedRole) {
-        await this.sessionManager.setSessionAgent(newSessionKey, inheritedRole);
-      }
-    }
 
     this.log.info(`Created new session: ${newSessionKey}`);
 
     return {
       ...msg,
       sessionKey: newSessionKey,
-      content: inheritedRole
-        ? `已开启新对话 (${uuid})，继承当前会话角色：${inheritedRole}`
-        : `已开启新对话 (${uuid})`
+      content: `已开启新对话 (${uuid})`
     };
   }
 
@@ -114,7 +103,7 @@ export class BuiltInCommands extends CommandHandler {
       lines.push(`${marker} ${index + 1}. ${uuid} | ${session.messages.length}条消息 | 创建于${createdAt} | 更新于${updatedAt}`);
     });
     lines.push('');
-    lines.push('使用 /switch <序号> 切换会话');
+    lines.push('使用 /switch <序号> 切换当前活动会话');
 
     return { ...msg, content: lines.join('\n') };
   }
@@ -164,55 +153,24 @@ export class BuiltInCommands extends CommandHandler {
   }
 
   private async handleAgentCurrent(msg: InboundMessage): Promise<InboundMessage> {
-    const sessionKey = this.resolveSessionKey(msg);
-    if (!sessionKey) {
-      return { ...msg, content: '当前消息未绑定会话，无法查看 Agent 角色。' };
-    }
-
-    const currentRole = await this.sessionManager.getSessionAgent(sessionKey) || this.agentRoleService.getDefaultRoleName();
-    return { ...msg, content: `当前会话角色：${currentRole}` };
+    const currentRole = this.sessionRouting.getConversationAgent(msg.channel, msg.chatId)
+      || this.agentRoleService.getDefaultRoleName();
+    return { ...msg, content: `当前聊天角色：${currentRole}` };
   }
 
   private async handleAgentUse(msg: InboundMessage, args: string[]): Promise<InboundMessage> {
-    const sessionKey = this.resolveSessionKey(msg);
-    if (!sessionKey) {
-      return { ...msg, content: '当前消息未绑定会话，无法切换 Agent 角色。' };
-    }
-
     const roleName = args[0];
     const role = this.agentRoleService.getResolvedRole(roleName);
     if (!role) {
       return { ...msg, content: `Agent 角色不存在：${roleName}` };
     }
 
-    await this.sessionManager.setSessionAgent(sessionKey, role.name);
-    return { ...msg, content: `已切换当前会话角色为 ${role.name}` };
+    this.sessionRouting.setConversationAgent(msg.channel, msg.chatId, role.name);
+    return { ...msg, content: `已切换当前聊天角色为 ${role.name}` };
   }
 
   private async handleAgentReset(msg: InboundMessage): Promise<InboundMessage> {
-    const sessionKey = this.resolveSessionKey(msg);
-    if (!sessionKey) {
-      return { ...msg, content: '当前消息未绑定会话，无法重置 Agent 角色。' };
-    }
-
-    await this.sessionManager.clearSessionAgent(sessionKey);
-    return { ...msg, content: `已将当前会话角色重置为 ${this.agentRoleService.getDefaultRoleName()}` };
-  }
-
-  private resolveSessionKey(msg: InboundMessage): string | null {
-    if (msg.sessionKey) {
-      return msg.sessionKey;
-    }
-    if (!msg.channel || !msg.chatId) {
-      return null;
-    }
-
-    const { sessionKey } = this.sessionRouting.resolve({
-      channel: msg.channel,
-      chatId: msg.chatId,
-      sessionKey: msg.sessionKey
-    });
-    msg.sessionKey = sessionKey;
-    return sessionKey;
+    this.sessionRouting.clearConversationAgent(msg.channel, msg.chatId);
+    return { ...msg, content: `已将当前聊天角色重置为 ${this.agentRoleService.getDefaultRoleName()}` };
   }
 }

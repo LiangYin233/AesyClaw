@@ -1,9 +1,10 @@
 import sqlite3, { Database as SQLiteDatabase } from 'sqlite3';
 import { dirname } from 'path';
 import { existsSync, mkdirSync } from 'fs';
-import { logger } from './logging.js';
+import { formatLocalTimestamp, logger } from './logging.js';
 
 const RECENT_DAILY_USAGE_DAYS = 7;
+const SQLITE_LOCAL_TIMESTAMP_EXPRESSION = `STRFTIME('%Y-%m-%dT%H:%M:%f', 'now', 'localtime')`;
 
 export interface TokenUsageDailyStat {
   date: string;
@@ -267,7 +268,7 @@ export class TokenUsageTracker {
         completion_tokens INTEGER NOT NULL DEFAULT 0,
         total_tokens INTEGER NOT NULL DEFAULT 0,
         request_count INTEGER NOT NULL DEFAULT 0,
-        last_updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        last_updated TEXT NOT NULL DEFAULT (${SQLITE_LOCAL_TIMESTAMP_EXPRESSION})
       )
     `);
 
@@ -278,7 +279,7 @@ export class TokenUsageTracker {
         completion_tokens INTEGER NOT NULL DEFAULT 0,
         total_tokens INTEGER NOT NULL DEFAULT 0,
         request_count INTEGER NOT NULL DEFAULT 0,
-        last_updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        last_updated TEXT NOT NULL DEFAULT (${SQLITE_LOCAL_TIMESTAMP_EXPRESSION})
       )
     `);
   }
@@ -362,7 +363,7 @@ export class TokenUsageTracker {
           this.stats.completionTokens,
           this.stats.totalTokens,
           this.stats.requestCount,
-          this.stats.lastUpdated.toISOString()
+          formatLocalTimestamp(this.stats.lastUpdated)
         ]
       );
 
@@ -388,7 +389,7 @@ export class TokenUsageTracker {
             daily.completionTokens,
             daily.totalTokens,
             daily.requestCount,
-            daily.lastUpdated?.toISOString() || new Date().toISOString()
+            formatLocalTimestamp(daily.lastUpdated || new Date())
           ]
         );
       }

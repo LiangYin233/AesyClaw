@@ -1,11 +1,11 @@
 import type { AgentRoleConfig } from '../../types.js';
 import type { AgentRoleService as RuntimeAgentRoleService } from '../../agent/roles/AgentRoleService.js';
-import type { SessionManager } from '../../session/SessionManager.js';
+import type { SessionRoutingService } from '../../agent/session/SessionRoutingService.js';
 
 export class AgentRoleService {
   constructor(
     private agentRoleService: RuntimeAgentRoleService,
-    private sessionManager: SessionManager
+    private sessionRouting: SessionRoutingService
   ) {}
 
   async listAgents() {
@@ -24,7 +24,7 @@ export class AgentRoleService {
 
   async deleteAgent(name: string) {
     await this.agentRoleService.deleteRole(name);
-    await this.sessionManager.deleteAgentBindings(name);
+    this.sessionRouting.deleteAgentBindings(name);
     return { success: true };
   }
 }

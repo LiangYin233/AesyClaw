@@ -18,7 +18,7 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
       const db = deps.sessionManager.getDatabase();
       await db.ready();
 
-      const [sessionRows, factRows] = await Promise.all([
+      const [sessionRows, factRows, conversationRows] = await Promise.all([
         db.all<{
           key: string;
           channel: string;
@@ -41,7 +41,7 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
           FROM sessions s
           LEFT JOIN session_memory sm ON sm.session_id = s.id
           WHERE s.channel != ?
-          ORDER BY s.updated_at DESC`,
+          ORDER BY datetime(s.updated_at) DESC`,
           [INTERNAL_CHANNELS.CRON]
         ),
         db.all<{
@@ -53,7 +53,20 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
           `SELECT channel, chat_id, fact, updated_at
            FROM memory_facts
            WHERE channel != ?
-           ORDER BY updated_at DESC, id DESC`,
+           ORDER BY datetime(updated_at) DESC, id DESC`,
+          [INTERNAL_CHANNELS.CRON]
+        ),
+        db.all<{
+          channel: string;
+          chat_id: string;
+          summary: string;
+          summarized_until_message_id: number;
+          updated_at: string;
+        }>(
+          `SELECT channel, chat_id, summary, summarized_until_message_id, updated_at
+           FROM conversation_memory
+           WHERE channel != ?
+           ORDER BY datetime(updated_at) DESC`,
           [INTERNAL_CHANNELS.CRON]
         )
       ]);
@@ -88,6 +101,8 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
         factCount: number;
         sessionCount: number;
         summaryCount: number;
+        conversationSummary?: string;
+        conversationSummarizedUntilMessageId?: number;
         sessions: Array<{
           sessionKey: string;
           uuid?: string;
@@ -125,6 +140,31 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
         });
         existing.updatedAt = getLatestTimestamp(existing.updatedAt, row.summary_updated_at, row.session_updated_at);
 
+        conversationMap.set(conversationKey, existing);
+      }
+
+      for (const row of conversationRows) {
+        const conversationKey = `${row.channel}:${row.chat_id}`;
+        const existing = conversationMap.get(conversationKey) || {
+          key: `memory:${conversationKey}`,
+          channel: row.channel,
+          chatId: row.chat_id,
+          facts: factsByConversation.get(conversationKey)?.facts || [],
+          factCount: factsByConversation.get(conversationKey)?.facts.length || 0,
+          sessionCount: 0,
+          summaryCount: 0,
+          conversationSummary: undefined,
+          conversationSummarizedUntilMessageId: undefined,
+          sessions: [],
+          updatedAt: factsByConversation.get(conversationKey)?.updatedAt
+        };
+
+        if (row.summary.trim()) {
+          existing.summaryCount += 1;
+          existing.conversationSummary = row.summary;
+          existing.conversationSummarizedUntilMessageId = row.summarized_until_message_id;
+        }
+        existing.updatedAt = getLatestTimestamp(existing.updatedAt, row.updated_at);
         conversationMap.set(conversationKey, existing);
       }
 

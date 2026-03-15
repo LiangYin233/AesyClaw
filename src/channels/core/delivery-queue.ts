@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { logger } from '../../observability/index.js';
+import { formatLocalTimestamp } from '../../observability/logging.js';
 import { Database } from '../../db/index.js';
 import type { AdapterSendResult, ChannelMessage, DeliveryReceipt } from './types.js';
 
@@ -43,6 +44,24 @@ function reviveMessage(message: any): ChannelMessage {
   } as ChannelMessage;
 }
 
+function serializeMessage(message: ChannelMessage): Record<string, unknown> {
+  return {
+    ...message,
+    timestamp: formatLocalTimestamp(message.timestamp),
+    segments: Array.isArray(message.segments)
+      ? message.segments.map((segment: any) => {
+          if (segment?.type === 'quote' && segment.message) {
+            return {
+              ...segment,
+              message: serializeMessage(segment.message)
+            };
+          }
+          return segment;
+        })
+      : []
+  };
+}
+
 export class DeliveryQueue {
   private log = logger.child('DeliveryQueue');
   private pollTimer?: NodeJS.Timeout;
@@ -71,7 +90,10 @@ export class DeliveryQueue {
     }
 
     this.running = true;
-    await this.db.run(`UPDATE channel_delivery_jobs SET status = 'queued', updated_at = CURRENT_TIMESTAMP WHERE status = 'sending'`);
+    await this.db.run(
+      `UPDATE channel_delivery_jobs SET status = 'queued', updated_at = ? WHERE status = 'sending'`,
+      [formatLocalTimestamp(new Date())]
+    );
     this.pollTimer = setInterval(() => {
       void this.processDueJobs();
     }, this.options.pollIntervalMs ?? 2000);
@@ -101,13 +123,14 @@ export class DeliveryQueue {
     let jobId = existing?.job_id;
     if (!jobId) {
       jobId = randomUUID();
+      const now = formatLocalTimestamp(new Date());
       await this.db.run(
         `INSERT INTO channel_delivery_jobs (
            job_id, idempotency_key, channel, conversation_id, payload_json,
            status, attempts, retryable, next_retry_at, platform_message_id,
            error_code, error_message, created_at, updated_at
-         ) VALUES (?, ?, ?, ?, ?, 'queued', 0, 0, NULL, NULL, NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-        [jobId, idempotencyKey, args.channel, args.conversationId, JSON.stringify(args.payload)]
+         ) VALUES (?, ?, ?, ?, ?, 'queued', 0, 0, NULL, NULL, NULL, NULL, ?, ?)`,
+        [jobId, idempotencyKey, args.channel, args.conversationId, JSON.stringify(serializeMessage(args.payload)), now, now]
       );
     }
 
@@ -123,10 +146,10 @@ export class DeliveryQueue {
     const rows = await this.db.all<DeliveryJobRow>(
       `SELECT * FROM channel_delivery_jobs
        WHERE status = 'queued'
-          OR (status = 'failed' AND retryable = 1 AND next_retry_at IS NOT NULL AND next_retry_at <= ?)
-       ORDER BY created_at ASC
+          OR (status = 'failed' AND retryable = 1 AND next_retry_at IS NOT NULL AND datetime(next_retry_at) <= datetime(?))
+       ORDER BY datetime(created_at) ASC
        LIMIT 20`,
-      [new Date().toISOString()]
+      [formatLocalTimestamp(new Date())]
     );
 
     for (const row of rows) {
@@ -153,8 +176,8 @@ export class DeliveryQueue {
     this.inflight.add(jobId);
 
     await this.db.run(
-      `UPDATE channel_delivery_jobs SET status = 'sending', attempts = ?, updated_at = CURRENT_TIMESTAMP WHERE job_id = ?`,
-      [attempts, jobId]
+      `UPDATE channel_delivery_jobs SET status = 'sending', attempts = ?, updated_at = ? WHERE job_id = ?`,
+      [attempts, formatLocalTimestamp(new Date()), jobId]
     );
 
     try {
@@ -163,23 +186,30 @@ export class DeliveryQueue {
         `UPDATE channel_delivery_jobs
          SET status = 'sent', retryable = 0, next_retry_at = NULL,
              platform_message_id = ?, error_code = NULL, error_message = NULL,
-             updated_at = CURRENT_TIMESTAMP
+             updated_at = ?
          WHERE job_id = ?`,
-        [result.platformMessageId || null, jobId]
+        [result.platformMessageId || null, formatLocalTimestamp(new Date()), jobId]
       );
     } catch (error) {
       const classification = this.classifier(job, error);
       const retryable = classification.retryable && attempts < (this.options.maxAttempts ?? 3);
       const nextRetryAt = retryable
-        ? new Date(Date.now() + Math.min(30_000, 1000 * Math.pow(2, attempts - 1))).toISOString()
+        ? formatLocalTimestamp(new Date(Date.now() + Math.min(30_000, 1000 * Math.pow(2, attempts - 1))))
         : null;
 
       await this.db.run(
         `UPDATE channel_delivery_jobs
          SET status = 'failed', retryable = ?, next_retry_at = ?,
-             error_code = ?, error_message = ?, updated_at = CURRENT_TIMESTAMP
+             error_code = ?, error_message = ?, updated_at = ?
          WHERE job_id = ?`,
-        [retryable ? 1 : 0, nextRetryAt, classification.code, classification.message || this.errorMessage(error), jobId]
+        [
+          retryable ? 1 : 0,
+          nextRetryAt,
+          classification.code,
+          classification.message || this.errorMessage(error),
+          formatLocalTimestamp(new Date()),
+          jobId
+        ]
       );
       this.log.warn('Delivery job failed', {
         jobId,

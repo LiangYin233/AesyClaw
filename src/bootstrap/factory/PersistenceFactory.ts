@@ -37,7 +37,8 @@ export function createMemoryService(
     enabled: summaryConfig.enabled,
     model: summaryProviderConfig.model,
     compressRounds: summaryConfig.compressRounds,
-    memoryWindow: config.agent.defaults.memoryWindow
+    memoryWindow: config.agent.defaults.memoryWindow,
+    contextMode: config.agent.defaults.contextMode
   };
   const factsRuntimeConfig = {
     enabled: factsConfig.enabled,

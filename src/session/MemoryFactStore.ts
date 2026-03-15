@@ -1,4 +1,5 @@
 import { type Database, type DBMemoryFact } from '../db/index.js';
+import { formatLocalTimestamp } from '../observability/logging.js';
 
 export interface MemoryFact {
   content: string;
@@ -23,7 +24,7 @@ export class MemoryFactStore {
     const rows = await this.db.all<DBMemoryFact>(
       `SELECT * FROM memory_facts
        WHERE channel = ? AND chat_id = ?
-       ORDER BY confidence DESC, last_seen_at DESC, updated_at DESC, id DESC`,
+       ORDER BY confidence DESC, datetime(last_seen_at) DESC, datetime(updated_at) DESC, id DESC`,
       [channel, chatId]
     );
 
@@ -59,7 +60,7 @@ export class MemoryFactStore {
       return;
     }
 
-    const updatedAt = new Date().toISOString();
+    const updatedAt = formatLocalTimestamp(new Date());
 
     await this.db.transaction(async () => {
       for (const fact of normalizedFacts) {
@@ -86,7 +87,7 @@ export class MemoryFactStore {
       const rows = await this.db.all<Pick<DBMemoryFact, 'id'>>(
         `SELECT id FROM memory_facts
          WHERE channel = ? AND chat_id = ?
-         ORDER BY confidence DESC, last_seen_at DESC, updated_at DESC, id DESC`,
+         ORDER BY confidence DESC, datetime(last_seen_at) DESC, datetime(updated_at) DESC, id DESC`,
         [channel, chatId]
       );
 

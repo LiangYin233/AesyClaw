@@ -1,10 +1,12 @@
 import { NotFoundError } from '../../errors/index.js';
 import type { SessionManager } from '../../session/SessionManager.js';
 import type { AgentRoleService as RuntimeAgentRoleService } from '../../agent/roles/AgentRoleService.js';
+import type { SessionRoutingService } from '../../agent/session/SessionRoutingService.js';
 
 export class SessionService {
   constructor(
     private sessionManager: SessionManager,
+    private sessionRouting: SessionRoutingService,
     private agentRoleService?: RuntimeAgentRoleService
   ) {}
 
@@ -19,7 +21,7 @@ export class SessionService {
       channel: session.channel,
       chatId: session.chatId,
       uuid: session.uuid,
-      agentName: session.agentName || await this.sessionManager.getSessionAgent(session.key) || this.getDefaultRoleName(),
+      agentName: this.sessionRouting.getConversationAgent(session.channel, session.chatId) || this.getDefaultRoleName(),
       messageCount: session.messages.length
     })));
   }
@@ -31,7 +33,7 @@ export class SessionService {
       channel: session.channel,
       chatId: session.chatId,
       uuid: session.uuid,
-      agentName: session.agentName || await this.sessionManager.getExistingSessionAgent(session.key) || this.getDefaultRoleName(),
+      agentName: this.sessionRouting.getConversationAgent(session.channel, session.chatId) || this.getDefaultRoleName(),
       messageCount: session.messages.length,
       messages: session.messages
     };
@@ -43,7 +45,8 @@ export class SessionService {
     }
 
     if (agentName === null || agentName === '') {
-      await this.sessionManager.clearExistingSessionAgent(key);
+      const session = await this.sessionManager.getExistingOrThrow(key);
+      this.sessionRouting.clearConversationAgent(session.channel, session.chatId);
       return { success: true, agentName: this.getDefaultRoleName() };
     }
 
@@ -52,7 +55,8 @@ export class SessionService {
       throw new NotFoundError('Agent role', agentName);
     }
 
-    await this.sessionManager.setExistingSessionAgent(key, role.name);
+    const session = await this.sessionManager.getExistingOrThrow(key);
+    this.sessionRouting.setConversationAgent(session.channel, session.chatId, role.name);
     return { success: true, agentName: role.name };
   }
 

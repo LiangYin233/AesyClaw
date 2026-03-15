@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { copyFile, mkdir, readFile, stat, writeFile } from 'fs/promises';
 import { Database } from '../../db/index.js';
 import { logger } from '../../observability/index.js';
+import { formatLocalTimestamp } from '../../observability/logging.js';
 import type { ChannelMessage, MessageSegment, ResourceHandle } from './types.js';
 
 function sanitizePathPart(value: string | undefined, fallback: string): string {
@@ -159,11 +160,13 @@ export class ResourceStore {
       sha256
     };
 
+    const now = formatLocalTimestamp(new Date());
+
     await this.db.run(
       `INSERT INTO channel_resources (
          id, channel, conversation_id, message_id, kind, original_name,
-         mime_type, size, remote_url, platform_file_id, local_path, sha256, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+         mime_type, size, remote_url, platform_file_id, local_path, sha256, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          mime_type = excluded.mime_type,
          size = excluded.size,
@@ -171,7 +174,7 @@ export class ResourceStore {
          platform_file_id = excluded.platform_file_id,
          local_path = excluded.local_path,
          sha256 = excluded.sha256,
-         updated_at = CURRENT_TIMESTAMP`,
+         updated_at = excluded.updated_at`,
       [
         resourceRecordId,
         channel,
@@ -184,7 +187,9 @@ export class ResourceStore {
         resource.remoteUrl || null,
         resource.platformFileId || null,
         finalPath || null,
-        sha256 || null
+        sha256 || null,
+        now,
+        now
       ]
     );
 

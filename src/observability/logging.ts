@@ -72,6 +72,31 @@ function padNumber(value: number, size: number = 2): string {
   return String(value).padStart(size, '0');
 }
 
+function formatTimezoneOffset(date: Date): string {
+  const offsetMinutes = -date.getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? '+' : '-';
+  const absoluteMinutes = Math.abs(offsetMinutes);
+  const hours = Math.floor(absoluteMinutes / 60);
+  const minutes = absoluteMinutes % 60;
+  return `${sign}${padNumber(hours)}:${padNumber(minutes)}`;
+}
+
+export function formatLocalTimestamp(date: Date = new Date()): string {
+  return `${date.getFullYear()}-${padNumber(date.getMonth() + 1)}-${padNumber(date.getDate())}T${padNumber(date.getHours())}:${padNumber(date.getMinutes())}:${padNumber(date.getSeconds())}.${padNumber(date.getMilliseconds(), 3)}${formatTimezoneOffset(date)}`;
+}
+
+export function formatLocalDateTime(date: Date = new Date()): string {
+  return `${date.getFullYear()}-${padNumber(date.getMonth() + 1)}-${padNumber(date.getDate())} ${padNumber(date.getHours())}:${padNumber(date.getMinutes())}:${padNumber(date.getSeconds())}`;
+}
+
+export function formatLocalClock(date: Date = new Date()): string {
+  return `${padNumber(date.getHours())}:${padNumber(date.getMinutes())}:${padNumber(date.getSeconds())}`;
+}
+
+export function getCurrentTimezone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'local';
+}
+
 function formatLocalTime(date: Date): string {
   return `${padNumber(date.getHours())}:${padNumber(date.getMinutes())}:${padNumber(date.getSeconds())}.${padNumber(date.getMilliseconds(), 3)}`;
 }
@@ -113,7 +138,7 @@ function serializeFieldValue(value: unknown, key?: string): LogFieldValue | unde
     return '[redacted]';
   }
   if (value instanceof Date) {
-    return value.toISOString();
+    return formatLocalTimestamp(value);
   }
   if (value instanceof Error) {
     return preview(value.message);
@@ -235,7 +260,7 @@ class LoggingService {
     const line = this.formatLine({ level, scope, message, fields, timestamp });
 
     this.buffer.add({
-      timestamp: timestamp.toISOString(),
+      timestamp: formatLocalTimestamp(timestamp),
       level,
       scope,
       message,
