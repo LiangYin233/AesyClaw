@@ -68,6 +68,14 @@ function levelColor(level: LogLevel): string {
 const SENSITIVE_KEY_PATTERN = /(authorization|token|api[-_]?key|secret|password|cookie)/i;
 const DEFAULT_PREVIEW_LIMIT = 120;
 
+function padNumber(value: number, size: number = 2): string {
+  return String(value).padStart(size, '0');
+}
+
+function formatLocalTime(date: Date): string {
+  return `${padNumber(date.getHours())}:${padNumber(date.getMinutes())}:${padNumber(date.getSeconds())}.${padNumber(date.getMilliseconds(), 3)}`;
+}
+
 function collapseWhitespace(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }
@@ -273,7 +281,7 @@ class LoggingService {
     fields?: Record<string, LogFieldValue>;
     timestamp: Date;
   }): string {
-    const time = entry.timestamp.toISOString().slice(11, 23);
+    const time = formatLocalTime(entry.timestamp);
     const scope = entry.scope ? entry.scope.padEnd(18).slice(0, 18) : ''.padEnd(18);
     const fields = formatFields(entry.fields);
     const useColor = shouldUseColor();

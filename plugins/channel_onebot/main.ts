@@ -1,7 +1,7 @@
 import WebSocket from 'ws';
 import fs from 'fs';
 import { basename } from 'path';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import type { ChannelPluginDefinition } from '../../src/channels/ChannelManager.ts';
 import type { AdapterRuntimeContext, ChannelAdapter, ChannelSendContext } from '../../src/channels/core/adapter.ts';
 import type {
@@ -29,6 +29,8 @@ interface OneBotConfig {
 
 class OneBotAdapter implements ChannelAdapter {
   readonly name = 'onebot';
+  private readonly FILE_UPLOAD_CHUNK_SIZE = 64 * 1024;
+  private readonly FILE_UPLOAD_RETENTION_MS = 30 * 1000;
   private ws?: WebSocket;
   private runtimeContext?: AdapterRuntimeContext;
   private selfId?: string;
@@ -435,7 +437,9 @@ class OneBotAdapter implements ChannelAdapter {
             if (response.status === 'ok') {
               settle(resolve, response);
             } else {
-              settle(reject, new Error(response.msg || 'Action failed'));
+              const errorMessage = response.wording || response.msg || response.message || 'Action failed';
+              const retcode = response.retcode !== undefined ? ` (retcode=${response.retcode})` : '';
+              settle(reject, new Error(`${errorMessage}${retcode}`));
             }
           }
         } catch (error) {
@@ -728,12 +732,103 @@ class OneBotAdapter implements ChannelAdapter {
       throw new Error(`File not found: ${filePath}`);
     }
 
+    const uploadedPath = await this.uploadFileStream(normalizedPath);
+
     const action = isGroup ? 'upload_group_file' : 'upload_private_file';
     const params = isGroup
-      ? { group_id: chatId, file: normalizedPath, name: basename(normalizedPath) }
-      : { user_id: chatId, file: normalizedPath, name: basename(normalizedPath) };
+      ? { group_id: chatId, file: uploadedPath, name: basename(normalizedPath) }
+      : { user_id: chatId, file: uploadedPath, name: basename(normalizedPath) };
 
     await this.sendAction(action, params);
+  }
+
+  private async uploadFileStream(filePath: string): Promise<string> {
+    const fileName = basename(filePath);
+    const fileSize = fs.statSync(filePath).size;
+    const totalChunks = Math.max(1, Math.ceil(fileSize / this.FILE_UPLOAD_CHUNK_SIZE));
+    const expectedSha256 = this.calculateFileSha256(filePath);
+    const streamId = randomUUID();
+
+    this.log.info('OneBot stream upload started', {
+      fileName,
+      fileSize,
+      totalChunks
+    });
+
+    const fd = fs.openSync(filePath, 'r');
+    try {
+      let chunkIndex = 0;
+      let position = 0;
+
+      while (position < fileSize || (fileSize === 0 && chunkIndex === 0)) {
+        const length = fileSize === 0
+          ? 0
+          : Math.min(this.FILE_UPLOAD_CHUNK_SIZE, fileSize - position);
+        const buffer = Buffer.alloc(length);
+        const bytesRead = fileSize === 0 ? 0 : fs.readSync(fd, buffer, 0, length, position);
+
+        await this.sendAction('upload_file_stream', {
+          stream_id: streamId,
+          chunk_data: buffer.subarray(0, bytesRead).toString('base64'),
+          chunk_index: chunkIndex,
+          total_chunks: totalChunks,
+          file_size: fileSize,
+          expected_sha256: expectedSha256,
+          filename: fileName,
+          file_retention: this.FILE_UPLOAD_RETENTION_MS
+        });
+
+        position += bytesRead;
+        chunkIndex += 1;
+
+        if (fileSize === 0) {
+          break;
+        }
+      }
+    } finally {
+      fs.closeSync(fd);
+    }
+
+    const response = await this.sendAction('upload_file_stream', {
+      stream_id: streamId,
+      is_complete: true
+    });
+    const result = response?.data;
+
+    if (result?.status !== 'file_complete' || typeof result.file_path !== 'string' || result.file_path.length === 0) {
+      throw new Error(`Stream upload incomplete: ${JSON.stringify(result)}`);
+    }
+
+    this.log.info('OneBot stream upload completed', {
+      fileName,
+      fileSize,
+      filePath: result.file_path
+    });
+
+    return result.file_path;
+  }
+
+  private calculateFileSha256(filePath: string): string {
+    const hash = createHash('sha256');
+    const fd = fs.openSync(filePath, 'r');
+
+    try {
+      const buffer = Buffer.alloc(this.FILE_UPLOAD_CHUNK_SIZE);
+      let bytesRead = 0;
+      let position = 0;
+
+      do {
+        bytesRead = fs.readSync(fd, buffer, 0, buffer.length, position);
+        if (bytesRead > 0) {
+          hash.update(buffer.subarray(0, bytesRead));
+          position += bytesRead;
+        }
+      } while (bytesRead > 0);
+    } finally {
+      fs.closeSync(fd);
+    }
+
+    return hash.digest('hex');
   }
 
   private readonly MAX_IMAGE_SIZE = CONSTANTS.MAX_IMAGE_SIZE;

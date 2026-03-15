@@ -1,6 +1,7 @@
 import { watch, type FSWatcher } from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
+import matter from 'gray-matter';
 import { normalizeError } from '../errors/index.js';
 import { logger } from '../observability/index.js';
 import type { Config } from '../types.js';
@@ -414,29 +415,10 @@ export class SkillManager {
   }
 
   private parseSkillFile(content: string): { description: string; metadata: Record<string, string> } {
-    const frontMatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-    const metadata: Record<string, string> = {};
-
-    if (frontMatterMatch) {
-      const frontMatterLines = frontMatterMatch[1].split('\n');
-      let currentKey = '';
-
-      for (const line of frontMatterLines) {
-        if (line.startsWith('  - ') || line.startsWith('- ')) {
-          if (currentKey) {
-            metadata[currentKey] += '\n' + line.trim();
-          }
-          continue;
-        }
-
-        const colonIndex = line.indexOf(':');
-        if (colonIndex > 0) {
-          currentKey = line.substring(0, colonIndex).trim();
-          const value = line.substring(colonIndex + 1).trim();
-          metadata[currentKey] = value;
-        }
-      }
-    }
+    const parsed = matter(content);
+    const metadata = Object.fromEntries(
+      Object.entries(parsed.data).map(([key, value]) => [key, this.normalizeFrontMatterValue(value)])
+    );
 
     let description = '';
     const lines = content.split('\n');
@@ -457,6 +439,26 @@ export class SkillManager {
     }
 
     return { description: metadata.description || description, metadata };
+  }
+
+  private normalizeFrontMatterValue(value: unknown): string {
+    if (typeof value === 'string') {
+      return value.trim();
+    }
+
+    if (Array.isArray(value)) {
+      return value.map((item) => this.normalizeFrontMatterValue(item)).join('\n');
+    }
+
+    if (value === null || value === undefined) {
+      return '';
+    }
+
+    if (typeof value === 'object') {
+      return JSON.stringify(value);
+    }
+
+    return String(value);
   }
 
   private sanitizeFileName(fileName: string): string {

@@ -25,7 +25,7 @@ git clone → npm install → npm run start:all
 
 **核心模块**：
 - `agent/` — AI Agent 核心，包含执行引擎、命令注册、消息处理
-- `channels/` — 消息渠道适配器，支持 OneBot（QQ）和飞书
+- `channels/` — 消息渠道适配器，支持 OneBot 和飞书
 - `plugins/` — 插件系统，生命周期钩子驱动
 - `skills/` — 技能管理，Prompt 模板
 - `session/` — 会话管理，SQLite 持久化
