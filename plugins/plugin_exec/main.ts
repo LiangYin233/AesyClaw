@@ -33,10 +33,7 @@ export default definePlugin<ExecPluginOptions>({
     }, log);
     const shellRunner = new ShellRunner({
       timeout: config.shell.timeout,
-      maxOutput: config.shell.maxOutput,
-      blockedCommands: config.shell.blockedCommands,
-      blockedPaths: config.shell.blockedPaths,
-      blockedParams: config.shell.blockedParams
+      maxOutput: config.shell.maxOutput
     }, log);
 
     log.info('Exec plugin loaded', {
@@ -47,7 +44,7 @@ export default definePlugin<ExecPluginOptions>({
 
     ctx.tools.register({
       name: 'python_exec',
-      description: '用系统 Python 执行代码。',
+      description: '执行本地 Python 代码。',
       parameters: {
         type: 'object',
         properties: {
@@ -61,13 +58,13 @@ export default definePlugin<ExecPluginOptions>({
       async execute(params: Record<string, any>, context?: ToolContext) {
         const { code } = params;
         log.info('Python execution started', { cwd: context?.workspace });
-        return pythonRunner.execute(code, context?.workspace);
+        return pythonRunner.execute(code, context?.workspace, context?.signal);
       }
     });
 
     ctx.tools.register({
       name: 'shell_exec',
-      description: '执行 Shell 命令；危险命令会被拦截。',
+      description: '直接执行本地 Shell 命令。',
       parameters: {
         type: 'object',
         properties: {
@@ -84,7 +81,7 @@ export default definePlugin<ExecPluginOptions>({
           commandPreview: preview(command),
           cwd: context?.workspace
         });
-        return shellRunner.execute(command, context?.workspace);
+        return shellRunner.execute(command, context?.workspace, context?.signal);
       }
     });
   }

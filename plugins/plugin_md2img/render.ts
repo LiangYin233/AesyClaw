@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { fileURLToPath } from 'url';
+import { randomUUID } from 'crypto';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { chromium } from 'playwright';
 import { marked } from 'marked';
 import markedKatex from 'marked-katex-extension';
@@ -11,6 +12,14 @@ const __dirname = path.dirname(__filename);
 marked.use(markedKatex({ throwOnError: false }));
 marked.setOptions({ gfm: true, breaks: true });
 
+function sanitizeHtml(html: string): string {
+    return html
+        .replace(/<\s*(script|style|iframe|object|embed|meta|link|base|form|input|button|textarea|select)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
+        .replace(/<\s*(script|style|iframe|object|embed|meta|link|base|form|input|button|textarea|select)\b[^>]*\/?>/gi, '')
+        .replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+        .replace(/\s+srcdoc\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+}
+
 export async function renderMarkdownToImage(markdownText: string, outputPath: string, scale: string | number = 1.0): Promise<string> {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({
@@ -20,6 +29,11 @@ export async function renderMarkdownToImage(markdownText: string, outputPath: st
 
     const templatePath = path.join(__dirname, 'template.html');
     let htmlTemplate = fs.readFileSync(templatePath, 'utf-8');
+    const sansFontUrl = pathToFileURL(path.join(__dirname, 'SourceHanSans-VF.otf.woff2')).toString();
+    const serifFontUrl = pathToFileURL(path.join(__dirname, 'SourceHanSerif-VF.otf.woff2')).toString();
+    htmlTemplate = htmlTemplate
+        .replaceAll('./SourceHanSans-VF.otf.woff2', sansFontUrl)
+        .replaceAll('./SourceHanSerif-VF.otf.woff2', serifFontUrl);
 
     const thinkingMatch = markdownText.match(/<thinking>([\s\S]*?)<\/thinking>/i);
     let thinkingContent = '';
@@ -35,10 +49,10 @@ export async function renderMarkdownToImage(markdownText: string, outputPath: st
         htmlContent = `<div class="thinking">\n<div class="thinking-label">思考过程</div>\n${thinkingHtml}\n</div>\n${htmlContent}`;
     }
 
-    htmlTemplate = htmlTemplate.replace('{{ content }}', htmlContent);
+    htmlTemplate = htmlTemplate.replace('{{ content }}', sanitizeHtml(htmlContent));
 
-    // Write temporary HTML file to ensure fonts load correctly with file:// protocol
-    const tmpHtmlPath = path.join(__dirname, `temp_${Date.now()}.html`);
+    // Keep the temporary HTML alongside the output image to avoid writing into the plugin source directory.
+    const tmpHtmlPath = path.join(path.dirname(outputPath), `md2img_${randomUUID()}.html`);
     fs.writeFileSync(tmpHtmlPath, htmlTemplate, 'utf-8');
 
     try {

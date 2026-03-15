@@ -32,7 +32,7 @@ export class PythonRunner {
     return output.substring(0, this.maxOutput) + `\n[输出已截断，原始长度: ${output.length} 字符]`;
   }
 
-  async execute(code: string, cwd?: string): Promise<string> {
+  async execute(code: string, cwd?: string, signal?: AbortSignal): Promise<string> {
     if (typeof code !== 'string') {
       return 'Python 执行错误: code 参数必须是字符串';
     }
@@ -41,12 +41,34 @@ export class PythonRunner {
       let stdout = '';
       let stderr = '';
       let timedOut = false;
+      let aborted = false;
+      let settled = false;
 
-      const pythonProcess = spawn(this.executable, ['-c', code], {
+      const pythonProcess = spawn(this.executable, ['-I', '-B', '-c', code], {
         cwd,
         shell: false,
         windowsHide: true
       });
+
+      const finish = (value: string) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timeoutId);
+        signal?.removeEventListener('abort', onAbort);
+        resolve(value);
+      };
+
+      const onAbort = () => {
+        aborted = true;
+        pythonProcess.kill('SIGTERM');
+        setTimeout(() => {
+          if (!pythonProcess.killed) {
+            pythonProcess.kill('SIGKILL');
+          }
+        }, 1000);
+      };
 
       const timeoutId = setTimeout(() => {
         timedOut = true;
@@ -58,6 +80,14 @@ export class PythonRunner {
         }, 1000);
       }, this.timeout);
 
+      if (signal) {
+        if (signal.aborted) {
+          onAbort();
+        } else {
+          signal.addEventListener('abort', onAbort, { once: true });
+        }
+      }
+
       pythonProcess.stdout.on('data', (data: Buffer | string) => {
         stdout += data.toString();
       });
@@ -67,35 +97,37 @@ export class PythonRunner {
       });
 
       pythonProcess.on('error', (error: Error & NodeJS.ErrnoException) => {
-        clearTimeout(timeoutId);
         this.log.error('Python process failed', { error: error.message });
 
         if (error.code === 'ENOENT') {
-          resolve('Python 未安装或不在 PATH 中。请确保已安装 Python 并添加到系统 PATH。');
+          finish('Python 未安装或不在 PATH 中。请确保已安装 Python 并添加到系统 PATH。');
         } else {
-          resolve(`Python 执行错误: ${error.message}`);
+          finish(`Python 执行错误: ${error.message}`);
         }
       });
 
       pythonProcess.on('close', (code: number | null) => {
-        clearTimeout(timeoutId);
+        if (aborted) {
+          finish('Python 执行已取消');
+          return;
+        }
 
         if (timedOut) {
           this.log.warn(`Python execution timed out after ${this.timeout}ms`);
-          resolve(`Python 超时: 执行时间超过 ${this.timeout}ms`);
+          finish(`Python 超时: 执行时间超过 ${this.timeout}ms`);
           return;
         }
 
         if (code !== 0) {
           this.log.debug(`Python exited with code ${code}`);
           const errorOutput = stderr || stdout || '未知错误';
-          resolve(`Python 执行错误:\n${this.truncateOutput(errorOutput)}`);
+          finish(`Python 执行错误:\n${this.truncateOutput(errorOutput)}`);
           return;
         }
 
         this.log.debug('Python execution completed', { executable: this.executable });
         const output = stdout || '代码执行完成（无输出）';
-        resolve(this.truncateOutput(output));
+        finish(this.truncateOutput(output));
       });
     });
   }

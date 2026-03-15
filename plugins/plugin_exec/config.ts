@@ -9,9 +9,6 @@ export interface PythonExecOptions {
 export interface ShellExecOptions {
   timeout: number;
   maxOutput: number;
-  blockedCommands: string[];
-  blockedPaths: string[];
-  blockedParams: string[];
 }
 
 export interface ExecPluginConfig {
@@ -24,31 +21,6 @@ export interface ExecPluginOptions {
   shell?: Partial<ShellExecOptions>;
 }
 
-const DEFAULT_BLOCKED_COMMANDS = [
-  'rm', 'rmdir', 'unlink', 'del', 'erase', 'Remove-Item',
-  'format', 'mkfs', 'diskpart',
-  'dd', 'fdisk', 'parted', 'sfdisk',
-  'shutdown', 'reboot', 'init', 'halt',
-  'kill', 'killall', 'pkill',
-  'systemctl', 'service',
-  'iptables', 'ufw',
-  'chmod', 'chown',
-  'userdel', 'usermod', 'net user',
-  'netsh interface', 'ipconfig /release',
-  'reg', 'regedit'
-];
-
-const DEFAULT_BLOCKED_PATHS = [
-  '/', '/bin', '/sbin', '/usr', '/etc', '/boot', '/dev', '/var',
-  'C:\\', 'C:/',
-  'C:\\Windows', 'C:\\System32', 'C:\\Program Files',
-  '/System', '/boot', '/proc'
-];
-
-const DEFAULT_BLOCKED_PARAMS = [
-  '-rf', '-r -f', '-fr', '/s /q', '/f /s', '-Force', '--force', '-y', '-rf /*'
-];
-
 const DEFAULT_CONFIG: ExecPluginConfig = {
   python: {
     executable: platform() === 'win32' ? 'python' : 'python3',
@@ -57,17 +29,11 @@ const DEFAULT_CONFIG: ExecPluginConfig = {
   },
   shell: {
     timeout: 30000,
-    maxOutput: 10000,
-    blockedCommands: DEFAULT_BLOCKED_COMMANDS,
-    blockedPaths: DEFAULT_BLOCKED_PATHS,
-    blockedParams: DEFAULT_BLOCKED_PARAMS
+    maxOutput: 10000
   }
 };
 
 export const CONFIG = {
-  DEFAULT_BLOCKED_COMMANDS,
-  DEFAULT_BLOCKED_PATHS,
-  DEFAULT_BLOCKED_PARAMS,
   DEFAULT_CONFIG
 };
 
@@ -96,15 +62,6 @@ export function loadConfig(options?: ExecPluginOptions): ExecPluginConfig {
     }
     if (typeof options.shell.maxOutput === 'number') {
       config.shell.maxOutput = options.shell.maxOutput;
-    }
-    if (Array.isArray(options.shell.blockedCommands)) {
-      config.shell.blockedCommands = options.shell.blockedCommands;
-    }
-    if (Array.isArray(options.shell.blockedPaths)) {
-      config.shell.blockedPaths = options.shell.blockedPaths;
-    }
-    if (Array.isArray(options.shell.blockedParams)) {
-      config.shell.blockedParams = options.shell.blockedParams;
     }
   }
 
