@@ -490,12 +490,23 @@ class OneBotAdapter implements ChannelAdapter {
 
   private shouldIgnoreMessageEvent(payload: any): boolean {
     const senderId = payload.user_id?.toString();
+    const rawText = this.extractInboundRawText(payload);
 
     if (senderId && this.selfId && senderId === this.selfId) {
       this.log.debug('OneBot self message ignored', {
         messageId: payload.message_id?.toString(),
         messageType: payload.message_type,
         subType: payload.sub_type
+      });
+      return true;
+    }
+
+    if (rawText.trim().length === 0) {
+      this.log.debug('OneBot empty message ignored', {
+        messageId: payload.message_id?.toString(),
+        messageType: payload.message_type,
+        subType: payload.sub_type,
+        senderId
       });
       return true;
     }
@@ -509,6 +520,48 @@ class OneBotAdapter implements ChannelAdapter {
     }
 
     return false;
+  }
+
+  private extractInboundRawText(payload: any): string {
+    if (typeof payload?.raw_message === 'string') {
+      return payload.raw_message;
+    }
+
+    if (typeof payload?.message === 'string') {
+      return payload.message;
+    }
+
+    if (!Array.isArray(payload?.message)) {
+      return '';
+    }
+
+    return payload.message.map((segment: any) => {
+      if (!segment || typeof segment !== 'object') {
+        return String(segment ?? '');
+      }
+
+      const type = segment.type;
+      const data = segment.data || {};
+
+      switch (type) {
+        case 'text':
+          return data.text || '';
+        case 'file':
+          return `[file:${data.name || data.file || ''}]`;
+        case 'image':
+          return `[image:${data.file || data.url || ''}]`;
+        case 'record':
+          return `[record:${data.file || data.url || ''}]`;
+        case 'video':
+          return `[video:${data.file || data.url || ''}]`;
+        case 'reply':
+          return `[reply:${data.id || ''}]`;
+        case 'at':
+          return `[@${data.qq || ''}]`;
+        default:
+          return `[${type}]`;
+      }
+    }).join('');
   }
 
   private async handleMessageEvent(payload: any): Promise<void> {
