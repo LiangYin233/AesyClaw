@@ -20,9 +20,9 @@ export class CronStore {
 
     this.db = new sqlite3.Database(dbPath, (err) => {
       if (err) {
-        this.log.error(`Failed to open database: ${err.message}`);
+        this.log.error(`打开数据库失败: ${err.message}`);
       } else {
-        this.log.info(`Database opened: ${dbPath}`);
+        this.log.info(`数据库已打开: ${dbPath}`);
       }
     });
   }
@@ -53,7 +53,7 @@ export class CronStore {
     `);
 
     this.ready = true;
-    this.log.info('Database initialized');
+    this.log.info('数据库初始化完成');
   }
 
   /**
@@ -212,14 +212,13 @@ export class CronStore {
     return new Promise((resolve, reject) => {
       this.db.close((err) => {
         if (err) {
-          this.log.error(`Failed to close database: ${err.message}`);
+          this.log.error(`关闭数据库失败: ${err.message}`);
           reject(err);
         } else {
-          this.log.info('Database closed');
+          this.log.info('数据库已关闭');
           resolve();
         }
       });
     });
   }
 }
-

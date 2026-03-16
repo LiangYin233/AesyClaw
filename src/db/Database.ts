@@ -167,7 +167,7 @@ export class Database {
 
           const runNext = (index: number) => {
             if (index >= statements.length) {
-              this.log.info('Tables initialized');
+              this.log.info('数据表初始化完成');
               resolve();
               return;
             }
@@ -231,7 +231,7 @@ export class Database {
   close(): Promise<void> {
     return new Promise((resolve) => {
       this.db.close(() => {
-        this.log.info('Database closed');
+        this.log.info('数据库已关闭');
         resolve();
       });
     });

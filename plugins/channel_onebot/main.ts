@@ -69,7 +69,7 @@ class OneBotAdapter implements ChannelAdapter {
     await this.connectWebSocket();
     this.running = true;
     this.startHeartbeat();
-    this.log.info('OneBot channel started', {
+    this.log.info('OneBot 渠道已启动', {
       wsUrl: this.config.wsUrl,
       durationMs: Date.now() - startedAt
     });
@@ -79,7 +79,7 @@ class OneBotAdapter implements ChannelAdapter {
     this.running = false;
     this.clearHeartbeat();
     this.ws?.close();
-    this.log.info('OneBot channel stopped');
+    this.log.info('OneBot 渠道已停止');
   }
 
   isRunning(): boolean {
@@ -167,7 +167,7 @@ class OneBotAdapter implements ChannelAdapter {
         rawEvent: payload
       };
     } catch (error) {
-      this.log.warn('OneBot quoted message fetch failed', {
+      this.log.warn('OneBot 引用消息获取失败', {
         messageId: messageId.toString(),
         error: error instanceof Error ? error.message : String(error)
       });
@@ -236,7 +236,7 @@ class OneBotAdapter implements ChannelAdapter {
 
       const scheduleSlowLog = (delayMs: number) => {
         slowTimers.push(setTimeout(() => {
-          this.log.warn('OneBot connection still pending', {
+          this.log.warn('OneBot 连接仍在等待', {
             attemptId,
             elapsedMs: Date.now() - connectStartedAt,
             stage: currentStage,
@@ -268,10 +268,10 @@ class OneBotAdapter implements ChannelAdapter {
           this.selfId = res.data?.user_id?.toString();
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
-          this.log.warn('OneBot login info unavailable', { error: message });
+          this.log.warn('OneBot 登录信息不可用', { error: message });
         } finally {
           clearSlowTimers();
-          this.log.info('OneBot handshake completed', {
+          this.log.info('OneBot 握手完成', {
             attemptId,
             wsUrl: this.config.wsUrl,
             elapsedMs: Date.now() - connectStartedAt,
@@ -288,7 +288,7 @@ class OneBotAdapter implements ChannelAdapter {
           const payload = JSON.parse(data.toString());
           this.handleOneBotEvent(payload);
         } catch (error) {
-          this.log.error('Failed to parse OneBot message', {
+          this.log.error('解析 OneBot 消息失败', {
             error: error instanceof Error ? error.message : String(error)
           });
         }
@@ -302,7 +302,7 @@ class OneBotAdapter implements ChannelAdapter {
 
       this.ws.on('error', (error) => {
         clearSlowTimers();
-        this.log.error('OneBot websocket error', {
+        this.log.error('OneBot WebSocket 出错', {
           attemptId,
           elapsedMs: Date.now() - connectStartedAt,
           stage: currentStage,
@@ -332,7 +332,7 @@ class OneBotAdapter implements ChannelAdapter {
     );
 
     if (this.maxReconnectAttempts > 0 && this.reconnectAttempts > this.maxReconnectAttempts) {
-      this.log.error('OneBot reconnect limit reached', {
+      this.log.error('已达到 OneBot 重连上限', {
         maxReconnectAttempts: this.maxReconnectAttempts,
         wsUrl: this.config.wsUrl
       });
@@ -340,7 +340,7 @@ class OneBotAdapter implements ChannelAdapter {
       return;
     }
 
-    this.log.warn('OneBot reconnect scheduled', {
+    this.log.warn('已计划 OneBot 重连', {
       delayMs: delay,
       attempts: this.reconnectAttempts,
       maxReconnectAttempts: this.maxReconnectAttempts || undefined
@@ -348,9 +348,9 @@ class OneBotAdapter implements ChannelAdapter {
 
     setTimeout(() => {
       this.connectWebSocket().then(() => {
-        this.log.info('OneBot reconnect succeeded', { attempts: this.reconnectAttempts });
+        this.log.info('OneBot 重连成功', { attempts: this.reconnectAttempts });
       }).catch((err: Error) => {
-        this.log.error('OneBot reconnect failed', { error: err.message, attempts: this.reconnectAttempts });
+        this.log.error('OneBot 重连失败', { error: err.message, attempts: this.reconnectAttempts });
       });
     }, delay);
   }
@@ -572,7 +572,7 @@ class OneBotAdapter implements ChannelAdapter {
     try {
       await this.runtimeContext?.ingest(payload);
     } catch (error) {
-      this.log.error('OneBot inbound dispatch failed', {
+      this.log.error('OneBot 入站消息分发失败', {
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -802,7 +802,7 @@ class OneBotAdapter implements ChannelAdapter {
     const expectedSha256 = this.calculateFileSha256(filePath);
     const streamId = randomUUID();
 
-    this.log.info('OneBot stream upload started', {
+    this.log.info('OneBot 流式上传开始', {
       fileName,
       fileSize,
       totalChunks
@@ -852,7 +852,7 @@ class OneBotAdapter implements ChannelAdapter {
       throw new Error(`Stream upload incomplete: ${JSON.stringify(result)}`);
     }
 
-    this.log.info('OneBot stream upload completed', {
+    this.log.info('OneBot 流式上传完成', {
       fileName,
       fileSize,
       filePath: result.file_path
@@ -896,15 +896,15 @@ class OneBotAdapter implements ChannelAdapter {
       if (fs.existsSync(path)) {
         const stats = fs.statSync(path);
         if (stats.size > this.MAX_IMAGE_SIZE) {
-          this.log.warn(`Image too large: ${filePath} (${stats.size} bytes)`);
+          this.log.warn(`图片过大: ${filePath} (${stats.size} 字节)`);
           return null;
         }
         const buffer = fs.readFileSync(path);
         return buffer.toString('base64');
       }
-      this.log.warn(`File not found: ${filePath}`);
+      this.log.warn(`文件不存在: ${filePath}`);
     } catch (error) {
-      this.log.warn(`Failed to convert image to base64: ${filePath}`, error);
+      this.log.warn(`图片转 base64 失败: ${filePath}`, error);
     }
     return null;
   }

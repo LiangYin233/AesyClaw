@@ -39,7 +39,7 @@ export class ExecutionRuntime {
           this.attachImageSummary(context.request, messages, imageSummary);
         }
 
-        this.log.info('Using vision provider', {
+        this.log.info('正在使用视觉模型处理', {
           sessionKey: context.sessionKey,
           agent: policy.roleName,
           channel: context.channel,
@@ -64,7 +64,7 @@ export class ExecutionRuntime {
           sendOutbound: this.sendOutbound
         });
 
-        this.log.info('Request executed in foreground', {
+        this.log.info('请求已在前台完成', {
           sessionKey: context.sessionKey,
           channel: context.channel,
           chatId: context.chatId,
@@ -102,7 +102,7 @@ export class ExecutionRuntime {
                   sendOutbound: this.sendOutbound
                 });
 
-                this.log.info('Background task completion delivered', {
+                this.log.info('后台任务结果已发送', {
                   sessionKey: context.sessionKey,
                   agent: policy.roleName,
                   channel: context.request.channel,
@@ -115,7 +115,7 @@ export class ExecutionRuntime {
             }
           );
 
-          this.log.info('Background task scheduled', {
+          this.log.info('后台任务已创建', {
             sessionKey: context.sessionKey,
             taskId: taskHandle.id,
             agent: policy.roleName,
@@ -127,7 +127,7 @@ export class ExecutionRuntime {
 
       const backgroundResult = result as any;
       if (backgroundResult.needsBackground) {
-        this.log.info('Request delegated to background', {
+        this.log.info('请求已转入后台处理', {
           sessionKey: context.sessionKey,
           channel: context.channel,
           chatId: context.chatId,
@@ -148,7 +148,7 @@ export class ExecutionRuntime {
         sendOutbound: this.sendOutbound
       });
 
-      this.log.info('Request executed in foreground', {
+      this.log.info('请求已在前台完成', {
         sessionKey: context.sessionKey,
         channel: context.channel,
         chatId: context.chatId,
@@ -158,7 +158,7 @@ export class ExecutionRuntime {
 
       return result.content;
     } catch (error) {
-      this.log.error('Request execution failed', {
+      this.log.error('请求执行失败', {
         sessionKey: context.sessionKey,
         channel: context.channel,
         chatId: context.chatId,

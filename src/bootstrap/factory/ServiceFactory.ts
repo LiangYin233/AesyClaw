@@ -57,7 +57,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   let config = bootstrapRuntimeConfig(options.config);
   const log = appLog;
 
-  log.info('Initializing services...');
+  log.info('正在初始化服务');
   const outboundGateway = new OutboundGateway();
 
   const persistenceStartedAt = Date.now();
@@ -68,7 +68,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     sessionRouting
   } = await createPersistenceServices(config);
   const persistenceMs = Date.now() - persistenceStartedAt;
-  log.info('Service phase completed', {
+  log.info('服务阶段完成', {
     phase: 'persistence',
     durationMs: persistenceMs
   });
@@ -84,7 +84,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     memoryService
   });
   const executionRuntimeMs = Date.now() - executionRuntimeStartedAt;
-  log.info('Service phase completed', {
+  log.info('服务阶段完成', {
     phase: 'executionRuntime',
     durationMs: executionRuntimeMs
   });
@@ -93,7 +93,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
 
   const builtInCommands = new BuiltInCommands(sessionManager, sessionRouting, agentRoleService, agentRuntime);
   commandRegistry.registerHandler(builtInCommands);
-  log.info('Command registry initialized');
+  log.info('命令注册表已初始化');
 
   const cronStartedAt = Date.now();
   const cronService = new CronService(
@@ -102,7 +102,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   );
   await cronService.start();
   const cronMs = Date.now() - cronStartedAt;
-  log.info('Service phase completed', {
+  log.info('服务阶段完成', {
     phase: 'cron',
     durationMs: cronMs
   });
@@ -126,7 +126,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     onCronJob
   });
   const infrastructureMs = Date.now() - infrastructureStartedAt;
-  log.info('Service phase completed', {
+  log.info('服务阶段完成', {
     phase: 'infrastructure',
     durationMs: infrastructureMs
   });
@@ -161,12 +161,12 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     agentRoleService
   });
   const apiMs = Date.now() - apiStartedAt;
-  log.info('Service phase completed', {
+  log.info('服务阶段完成', {
     phase: 'api',
     durationMs: apiMs
   });
 
-  log.info('All services initialized successfully', {
+  log.info('所有服务初始化完成', {
     durationMs: Date.now() - startedAt,
     persistenceMs,
     executionRuntimeMs,

@@ -29,7 +29,7 @@ export class AgentPipeline {
 
     const builtInResult = await this.commandRegistry.execute(message);
     if (builtInResult !== null) {
-      this.log.info('Built-in command handled message', {
+      this.log.info('内建命令已处理消息', {
         channel: message.channel,
         chatId: message.chatId,
         suppressOutbound
@@ -51,7 +51,7 @@ export class AgentPipeline {
 
     const pluginCommandResult = await pluginManager.runCommands(message);
     if (pluginCommandResult !== null) {
-      this.log.info('Plugin command handled message', {
+      this.log.info('插件命令已处理消息', {
         channel: message.channel,
         chatId: message.chatId,
         suppressOutbound
@@ -80,7 +80,7 @@ export class AgentPipeline {
     }
 
     if (this.shouldSkipLLM(transformed)) {
-      this.log.info('LLM skipped by plugin', {
+      this.log.info('插件已跳过 LLM 处理', {
         channel: transformed.channel,
         chatId: transformed.chatId,
         reason: this.getSkipReason(transformed),

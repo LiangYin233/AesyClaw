@@ -11,7 +11,7 @@ const log = logger.child('PersistenceFactory');
 
 function createOptionalProvider(resolved: ReturnType<typeof resolveProviderSelection>, label: string) {
   if (!resolved.providerConfig) {
-    log.warn(`${label} provider "${resolved.name}" not found in config`);
+    log.warn(`配置中未找到${label}提供商 "${resolved.name}"`);
     return undefined;
   }
 
@@ -49,9 +49,9 @@ export function createMemoryService(
   return new SessionMemoryService(
     sessionManager,
     factsStore,
-    summaryConfig.enabled ? createOptionalProvider(summaryProviderConfig, 'Memory summary') : undefined,
+    summaryConfig.enabled ? createOptionalProvider(summaryProviderConfig, '记忆摘要') : undefined,
     summaryRuntimeConfig,
-    factsConfig.enabled ? createOptionalProvider(factsProviderConfig, 'Memory facts') : undefined,
+    factsConfig.enabled ? createOptionalProvider(factsProviderConfig, '长期记忆') : undefined,
     factsRuntimeConfig
   );
 }
@@ -67,12 +67,12 @@ export async function createPersistenceServices(config: Config): Promise<{
     config.agent.defaults.maxSessions
   );
   await sessionManager.loadAll();
-  log.info(`SessionManager ready, ${sessionManager.count()} sessions loaded`);
+  log.info(`会话管理器已就绪，已加载 ${sessionManager.count()} 个会话`);
 
   const memoryFactStore = new MemoryFactStore(sessionManager.getDatabase());
   const memoryService = createMemoryService(config, sessionManager, memoryFactStore);
   if (memoryService) {
-    log.info('Memory service enabled');
+    log.info('记忆服务已启用');
   }
 
   return {

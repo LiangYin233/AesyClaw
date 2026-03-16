@@ -64,9 +64,9 @@ export function registerObservabilityRoutes(app: Express, deps: ObservabilityRou
           config.observability.level = level;
         });
         deps.setConfig?.(nextConfig);
-        log.info('Logging level updated', { level });
+        log.info('日志级别已更新', { level });
       } catch (saveError) {
-        log.warn('Logging level updated in memory but failed to persist', {
+        log.warn('日志级别已在内存更新，但写入配置失败', {
           level,
           error: saveError instanceof Error ? saveError.message : String(saveError)
         });

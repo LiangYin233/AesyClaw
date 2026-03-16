@@ -192,7 +192,7 @@ export class AgentExecutor {
 
       return response.content?.trim() || undefined;
     } catch (error) {
-      this.log.warn('Vision image summary failed', {
+      this.log.warn('图片内容摘要生成失败', {
         model: this.visionModel,
         error: error instanceof Error ? error.message : String(error)
       });
@@ -205,8 +205,8 @@ export class AgentExecutor {
   abort(sessionKey: string): void {
     const aborted = this.executionRegistry.abort(sessionKey);
     this.log.info(aborted
-      ? `Abort requested for session: ${sessionKey}`
-      : `Abort requested for inactive session: ${sessionKey}`);
+      ? `已请求中止会话: ${sessionKey}`
+      : `会话当前没有运行中的任务: ${sessionKey}`);
   }
 
   async executeToolLoop(

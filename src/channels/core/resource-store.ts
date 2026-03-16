@@ -143,7 +143,7 @@ export class ResourceStore {
         finalPath = targetPath;
       }
     } catch (error) {
-      this.log.warn('Resource localization failed', {
+      this.log.warn('资源本地化失败', {
         channel,
         conversationId,
         messageId,

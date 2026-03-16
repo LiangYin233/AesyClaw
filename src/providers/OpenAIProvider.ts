@@ -172,7 +172,7 @@ export class OpenAIProvider extends LLMProvider {
       const data = await response.json() as OpenAIResponse;
 
       if (!response.ok) {
-        this.log.error(`API Error: ${response.status} ${response.statusText}`, {
+        this.log.error(`API 请求错误: ${response.status} ${response.statusText}`, {
           status: response.status,
           statusText: response.statusText,
           response: data
@@ -181,7 +181,7 @@ export class OpenAIProvider extends LLMProvider {
       }
 
       if (data.error) {
-        this.log.error(`Response Error:`, data.error);
+        this.log.error('响应错误', data.error);
         throw new Error(data.error.message || 'OpenAI API error');
       }
 
@@ -192,7 +192,7 @@ export class OpenAIProvider extends LLMProvider {
       const usage = data.usage;
       const durationMs = Date.now() - startedAt;
 
-      this.log.info('Provider request completed', {
+      this.log.info('提供商请求完成', {
         model: modelName,
         durationMs,
         finishReason,
@@ -210,7 +210,7 @@ export class OpenAIProvider extends LLMProvider {
           try {
             args = JSON.parse(tc.function.arguments);
           } catch (error) {
-            this.log.warn('Tool call arguments parse failed', {
+            this.log.warn('工具调用参数解析失败', {
               toolName: tc.function.name,
               argumentsPreview: preview(tc.function.arguments),
               error: normalizeError(error)
@@ -228,7 +228,7 @@ export class OpenAIProvider extends LLMProvider {
       };
     } catch (error: unknown) {
       const message = normalizeError(error);
-      this.log.error('Provider request failed', {
+      this.log.error('提供商请求失败', {
         model: modelName,
         durationMs: Date.now() - startedAt,
         retryable: isRetryableError(error),

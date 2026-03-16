@@ -194,17 +194,17 @@ export class AgentRoleService {
       return undefined;
     }
     if (!role.visionProvider) {
-      this.log.warn('Vision provider missing for role', { role: role.name });
+      this.log.warn('角色未配置视觉提供商', { role: role.name });
       return undefined;
     }
     if (!role.visionModel) {
-      this.log.warn('Vision model missing for role', { role: role.name });
+      this.log.warn('角色未配置视觉模型', { role: role.name });
       return undefined;
     }
 
     const providerConfig = this.getConfig().providers[role.visionProvider];
     if (!providerConfig) {
-      this.log.warn('Vision provider not found for role', {
+      this.log.warn('未找到角色对应的视觉提供商', {
         role: role.name,
         provider: role.visionProvider
       });

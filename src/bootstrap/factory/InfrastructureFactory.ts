@@ -32,7 +32,7 @@ async function createChannelManager(
 
     const channel = channelManager.createChannel(channelName, channelConfig);
     if (!channel) {
-      log.warn(`Channel plugin not found: ${channelName}`);
+      log.warn(`未找到渠道插件: ${channelName}`);
     }
   }
 
@@ -47,7 +47,7 @@ function createMcpManager(config: Config, toolRegistry: ToolRegistry): MCPClient
   const mcpManager = new MCPClientManager();
   registerMcpTools(toolRegistry, mcpManager);
   mcpManager.connectAsync(config.mcp);
-  log.info('MCP servers connecting in background...');
+  log.info('MCP 服务器正在后台连接');
   return mcpManager;
 }
 

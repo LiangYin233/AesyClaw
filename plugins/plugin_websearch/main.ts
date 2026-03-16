@@ -65,9 +65,9 @@ export default definePlugin<WebsearchOptions>({
     };
 
     if (!config.apiKey) {
-      log.warn('Tavily API key not configured. Set via options.apiKey or TAVILY_API_KEY env');
+      log.warn('未配置 Tavily API 密钥，请通过 options.apiKey 或环境变量 TAVILY_API_KEY 设置');
     } else {
-      log.info('Websearch plugin loaded', {
+      log.info('网页搜索插件已加载', {
         maxResults: config.maxResults,
         searchDepth: config.searchDepth
       });
@@ -106,7 +106,7 @@ export default definePlugin<WebsearchOptions>({
           throw new Error('Tavily API key 未配置');
         }
 
-        log.info('Web search started', {
+        log.info('网页搜索开始', {
           query: preview(query),
           maxResults: max_results || config.maxResults,
           searchDepth: search_depth || config.searchDepth
@@ -127,14 +127,14 @@ export default definePlugin<WebsearchOptions>({
             score: 'score' in result ? result.score : undefined
           })) || [];
 
-          log.info('Web search completed', {
+          log.info('网页搜索完成', {
             query: preview(query),
             resultCount: results.length
           });
           return JSON.stringify(results);
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          log.error('Web search failed', {
+          log.error('网页搜索失败', {
             query: preview(query),
             error: message
           });
@@ -201,7 +201,7 @@ export default definePlugin<WebsearchOptions>({
           throw new Error('没有有效的 URL');
         }
 
-        log.info('Web extract started', {
+        log.info('网页提取开始', {
           urlCount: urls.length,
           extractDepth: extract_depth || 'advanced',
           format: format || 'markdown'
@@ -220,7 +220,7 @@ export default definePlugin<WebsearchOptions>({
             content: 'raw_content' in result ? result.raw_content || '' : ''
           })) || [];
 
-          log.info('Web extract completed', {
+          log.info('网页提取完成', {
             urlCount: urls.length,
             resultCount: results.length,
             query: typeof query === 'string' ? preview(query) : undefined
@@ -228,7 +228,7 @@ export default definePlugin<WebsearchOptions>({
           return JSON.stringify(results);
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          log.error('Web extract failed', {
+          log.error('网页提取失败', {
             urlCount: urls.length,
             error: message
           });

@@ -211,7 +211,7 @@ export class DeliveryQueue {
           jobId
         ]
       );
-      this.log.warn('Delivery job failed', {
+      this.log.warn('投递任务失败', {
         jobId,
         channel: job.channel,
         attempts,

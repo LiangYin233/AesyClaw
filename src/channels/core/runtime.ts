@@ -179,7 +179,7 @@ export class ChannelRuntime {
     };
 
     if (!this.inboundHandler) {
-      this.log.warn('Inbound handler missing', {
+      this.log.warn('未设置入站消息处理器', {
         channel: inbound.channel,
         chatId: inbound.chatId
       });
@@ -249,7 +249,7 @@ export class ChannelRuntime {
           message: quotedDraft ? this.materializeDraft(message.channel, quotedDraft, 'inbound') : undefined
         } satisfies QuoteSegment);
       } catch (error) {
-        this.log.warn('Quoted message expansion failed', {
+        this.log.warn('引用消息展开失败', {
           channel: message.channel,
           messageId: message.id,
           platformMessageId: segment.reference.platformMessageId,

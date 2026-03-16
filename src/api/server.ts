@@ -60,7 +60,7 @@ export class APIServer {
 
     return new Promise((resolve) => {
       this.server.listen(this.port, () => {
-        this.log.info(`Server started on http://localhost:${this.port}`);
+        this.log.info(`API 服务已启动: http://localhost:${this.port}`);
         resolve();
       });
     });
@@ -150,7 +150,7 @@ export class APIServer {
   async stop(): Promise<void> {
     return new Promise((resolve) => {
       this.server.close(() => {
-        this.log.info('Server stopped');
+        this.log.info('API 服务已停止');
         resolve();
       });
     });
@@ -158,6 +158,6 @@ export class APIServer {
 
   updateConfig(config: Config): void {
     this.config = config;
-    this.log.info('Config updated');
+    this.log.info('配置已更新');
   }
 }

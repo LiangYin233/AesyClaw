@@ -208,7 +208,7 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
 
       res.json({ items });
     } catch (error: unknown) {
-      deps.log.error(`Memory list error: ${normalizeError(error)}`);
+      deps.log.error(`记忆列表加载失败: ${normalizeError(error)}`);
       res.status(500).json(createErrorResponse(error));
     }
   });
@@ -255,7 +255,7 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
 
       res.json({ success: true });
     } catch (error: unknown) {
-      deps.log.error(`Memory delete error: ${normalizeError(error)}`);
+      deps.log.error(`记忆删除失败: ${normalizeError(error)}`);
 
       if (error instanceof NotFoundError) {
         return res.status(404).json(createErrorResponse(error));
@@ -279,7 +279,7 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
 
       res.json({ success: true });
     } catch (error: unknown) {
-      deps.log.error(`Memory clear-all error: ${normalizeError(error)}`);
+      deps.log.error(`清空全部记忆失败: ${normalizeError(error)}`);
       res.status(500).json(createErrorResponse(error));
     }
   });

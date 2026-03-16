@@ -36,7 +36,7 @@ function createVisionProvider(config: Config, settings: VisionSettings) {
 
   const providerConfig = config.providers[settings.visionProviderName];
   if (!providerConfig) {
-    log.warn('Config reload vision provider missing', {
+    log.warn('配置热重载时未找到视觉提供商', {
       provider: settings.visionProviderName
     });
     return undefined;
@@ -62,7 +62,7 @@ export async function applyRuntimeConfigUpdate(services: Services, currentConfig
       oldMainRole.visionProvider !== newMainRole.visionProvider ||
       oldMainRole.visionModel !== newMainRole.visionModel ||
       currentConfig.agent.defaults.maxToolIterations !== newConfig.agent.defaults.maxToolIterations) {
-    log.info('Config reload updating main agent runtime', {
+    log.info('配置热重载：正在更新主运行时', {
       fromProvider: oldProvider.name,
       toProvider: newProvider.name,
       fromModel: oldProvider.model,
@@ -80,7 +80,7 @@ export async function applyRuntimeConfigUpdate(services: Services, currentConfig
     if (newProvider.providerConfig) {
       runtimeUpdate.provider = createProvider(newProvider.name, newProvider.providerConfig);
     } else {
-      log.warn('Config reload main provider missing', { provider: newProvider.name });
+      log.warn('配置热重载时未找到主提供商', { provider: newProvider.name });
     }
 
     agentRuntime.updateMainAgentRuntime(runtimeUpdate);
@@ -93,7 +93,7 @@ export async function applyRuntimeConfigUpdate(services: Services, currentConfig
   services.config = newConfig;
   apiServer?.updateConfig(newConfig);
 
-  log.info('Config reload completed', {
+  log.info('配置热重载完成', {
     provider: newMainRole.provider,
     model: newMainRole.model,
     memoryWindow: newConfig.agent.defaults.memoryWindow,

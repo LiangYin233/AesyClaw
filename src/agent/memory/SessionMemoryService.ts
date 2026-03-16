@@ -143,11 +143,11 @@ export class SessionMemoryService {
       }
 
       await this.sessionManager.updateSummary(sessionKey, summary, summaryCutoff);
-      this.log.info('Session summary updated', { sessionKey, summarizedMessageCount: summaryCutoff });
+      this.log.info('会话摘要已更新', { sessionKey, summarizedMessageCount: summaryCutoff });
 
       const remainingRounds = unsummarizedRounds.length - roundsToCompress.length;
       if (remainingRounds > this.summaryConfig.memoryWindow) {
-        this.log.warn('Memory summary compressRounds too small to shrink within memoryWindow', {
+        this.log.warn('摘要压缩轮数不足，无法收敛到 memoryWindow 内', {
           sessionKey,
           memoryWindow: this.summaryConfig.memoryWindow,
           compressRounds: this.summaryConfig.compressRounds,
@@ -157,7 +157,7 @@ export class SessionMemoryService {
 
       return true;
     } catch (error) {
-      this.log.warn('Session summarization failed', { sessionKey, error });
+      this.log.warn('会话摘要生成失败', { sessionKey, error });
       return false;
     }
   }
@@ -228,14 +228,14 @@ export class SessionMemoryService {
         summary,
         summarizedUntilMessageId
       );
-      this.log.info('Conversation summary updated', {
+      this.log.info('对话摘要已更新', {
         channel: session.channel,
         chatId: session.chatId,
         summarizedUntilMessageId
       });
       return true;
     } catch (error) {
-      this.log.warn('Conversation summarization failed', {
+      this.log.warn('对话摘要生成失败', {
         channel: session.channel,
         chatId: session.chatId,
         error
@@ -296,7 +296,7 @@ export class SessionMemoryService {
         });
       })
       .catch((error) => {
-        this.log.warn('Background facts extraction failed', {
+        this.log.warn('后台事实提取失败', {
           sessionKey,
           error
         });
@@ -367,7 +367,7 @@ export class SessionMemoryService {
 
     await this.factsStore.upsertFacts(session.channel, session.chatId, extractedFacts, this.factsConfig.maxFacts);
     const persistedFacts = await this.factsStore.getFacts(session.channel, session.chatId);
-    this.log.info('Session facts updated', { channel: session.channel, chatId: session.chatId, factCount: persistedFacts.length });
+    this.log.info('会话事实记忆已更新', { channel: session.channel, chatId: session.chatId, factCount: persistedFacts.length });
   }
 
   private async extractFacts(existingFacts: MemoryFact[], userContent: string): Promise<string[]> {

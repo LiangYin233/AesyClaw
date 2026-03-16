@@ -71,7 +71,7 @@ export class ExecutionFinalizer {
       this.memoryService.enqueueFactsExtractionForRequest(sessionKey, request);
     }
 
-    this.log.info('Execution response finalized', {
+    this.log.info('执行结果已完成收尾', {
       sessionKey,
       channel: request.channel,
       chatId: request.chatId,

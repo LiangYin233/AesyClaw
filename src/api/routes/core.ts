@@ -179,11 +179,11 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
     }
 
     try {
-      deps.log.info('API chat request received', { sessionKey: sessionKey || 'auto', channel, chatId });
+      deps.log.info('收到 API 对话请求', { sessionKey: sessionKey || 'auto', channel, chatId });
       const response = await deps.chatService.handleChat({ sessionKey, message, channel, chatId });
       res.json(response);
     } catch (error: unknown) {
-      deps.log.error(`Chat error: ${normalizeError(error)}`);
+      deps.log.error(`对话请求失败: ${normalizeError(error)}`);
       serverError(res, error);
     }
   });
@@ -212,11 +212,11 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
     }
 
     try {
-      deps.log.info('API outbound send requested', { channel: req.params.name, chatId });
+      deps.log.info('收到 API 外发消息请求', { channel: req.params.name, chatId });
       await channelInstance.send({ channel: req.params.name, chatId, content });
       res.json({ success: true });
     } catch (error: unknown) {
-      deps.log.error('API outbound send failed', { channel: req.params.name, chatId, error: normalizeError(error) });
+      deps.log.error('API 外发消息失败', { channel: req.params.name, chatId, error: normalizeError(error) });
       serverError(res, error);
     }
   });
@@ -235,7 +235,7 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
       if (!newConfig || typeof newConfig !== 'object' || Array.isArray(newConfig)) {
         return badRequest(res, 'config body must be an object', 'config');
       }
-      deps.log.info('API config update requested');
+      deps.log.info('收到 API 配置更新请求');
       const savedConfig = await ConfigLoader.update(() => newConfig as Config);
       deps.setConfig(savedConfig);
       res.json({ success: true });
@@ -245,7 +245,7 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
         return badRequest(res, issue.message, issue.field);
       }
 
-      deps.log.error('API config update failed', { error: normalizeError(error) });
+      deps.log.error('API 配置更新失败', { error: normalizeError(error) });
       serverError(res, error);
     }
   });

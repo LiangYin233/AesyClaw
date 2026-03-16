@@ -210,17 +210,17 @@ export class ConfigLoader {
             return;
           }
 
-          this.log.info('Config reloaded from disk');
+          this.log.info('配置已从磁盘重新加载');
           await this.notifyReload(nextConfig);
         } catch (error) {
-          this.log.warn('Failed to reload config', {
+          this.log.warn('重新加载配置失败', {
             error: normalizeError(error)
           });
         }
       });
       this.log.debug('Started file watcher');
     } catch (error) {
-      this.log.warn('Failed to start file watcher', {
+      this.log.warn('启动配置文件监视器失败', {
         error: normalizeError(error)
       });
     }

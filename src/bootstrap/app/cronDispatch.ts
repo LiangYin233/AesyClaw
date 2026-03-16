@@ -31,7 +31,7 @@ function buildCronExecutionPrompt(job: CronJob): string {
 }
 
 export async function dispatchCronJob(services: Services, workspace: string, job: CronJob): Promise<void> {
-  log.info('Cron dispatch started', {
+  log.info('定时任务派发开始', {
     jobId: job.id,
     jobName: job.name,
     target: job.payload.target
@@ -53,7 +53,7 @@ export async function dispatchCronJob(services: Services, workspace: string, job
           messageType: parsed.messageType
         };
       } else {
-        log.error('Cron target invalid', { jobId: job.id, target });
+        log.error('定时任务目标无效', { jobId: job.id, target });
       }
     }
 
@@ -66,13 +66,13 @@ export async function dispatchCronJob(services: Services, workspace: string, job
       suppressOutbound: !(target && contextOverride?.channel && contextOverride?.chatId)
     });
 
-    log.info('Cron request accepted', {
+    log.info('定时任务请求已受理', {
       jobId: job.id,
       target,
       willSendFinalResponse: !!(target && contextOverride?.channel && contextOverride?.chatId)
     });
   } catch (error: unknown) {
-    log.error('Cron dispatch failed', {
+    log.error('定时任务派发失败', {
       jobId: job.id,
       target,
       error: normalizeError(error)

@@ -84,14 +84,14 @@ export class SkillManager {
 
     const absolutePath = this.resolveSkillsPath();
     await fs.mkdir(absolutePath, { recursive: true });
-    this.log.info(`Loading skills from: ${absolutePath}`);
+    this.log.info(`正在加载技能目录: ${absolutePath}`);
 
     try {
       this.skills = await this.scanSkillDirectory(absolutePath);
       this.applyConfig(this.config ?? ConfigLoader.get());
-      this.log.info(`Loaded ${this.skills.size} skills`);
+      this.log.info(`已加载 ${this.skills.size} 个技能`);
     } catch (error) {
-      this.log.warn(`Failed to load skills from ${absolutePath}`, {
+      this.log.warn(`加载技能目录失败: ${absolutePath}`, {
         path: absolutePath,
         error: normalizeError(error)
       });
@@ -111,7 +111,7 @@ export class SkillManager {
     });
 
     await this.syncDirectoryWatchers();
-    this.log.info('Skill directory watcher started', { path: absolutePath });
+    this.log.info('技能目录监视器已启动', { path: absolutePath });
   }
 
   async stopWatching(): Promise<void> {
@@ -129,7 +129,7 @@ export class SkillManager {
       watcher.close();
     }
     this.dirWatchers.clear();
-    this.log.info('Skill directory watcher stopped');
+    this.log.info('技能目录监视器已停止');
   }
 
   async reload(): Promise<SkillReloadSummary> {
@@ -177,7 +177,7 @@ export class SkillManager {
       this.config.skills[name] = { enabled };
       const nextConfig = await ConfigLoader.save(this.config).then(() => ConfigLoader.get());
       this.applyConfig(nextConfig);
-      this.log.info(`Saved skill ${name} enabled state to config`);
+      this.log.info(`已将技能 ${name} 的启用状态写入配置`);
     }
 
     return true;
@@ -206,7 +206,7 @@ export class SkillManager {
     try {
       return await fs.readFile(file.path, 'utf-8');
     } catch (error) {
-      this.log.error(`Failed to read skill file ${file.path}`, {
+      this.log.error(`读取技能文件失败: ${file.path}`, {
         path: file.path,
         error: normalizeError(error)
       });
@@ -263,7 +263,7 @@ export class SkillManager {
     this.reloadTimer = setTimeout(() => {
       this.reloadTimer = null;
       void this.reload().catch((error) => {
-        this.log.error('Skill reload failed', {
+        this.log.error('技能重载失败', {
           reason,
           error: normalizeError(error)
         });
@@ -292,7 +292,7 @@ export class SkillManager {
       cleanedAgentRefs
     };
 
-    this.log.info('Skills reloaded', {
+    this.log.info('技能已重载', {
       added: result.added,
       updated: result.updated,
       removed: result.removed,
@@ -379,7 +379,7 @@ export class SkillManager {
       };
     } catch (error) {
       if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
-        this.log.warn(`Failed to load skill ${name}`, {
+        this.log.warn(`加载技能失败: ${name}`, {
           skill: name,
           error: normalizeError(error)
         });
@@ -405,7 +405,7 @@ export class SkillManager {
         });
       }
     } catch (error) {
-      this.log.warn(`Failed to list files in ${skillPath}`, {
+      this.log.warn(`列出技能文件失败: ${skillPath}`, {
         path: skillPath,
         error: normalizeError(error)
       });
@@ -497,7 +497,7 @@ export class SkillManager {
         });
         this.dirWatchers.set(dirPath, watcher);
       } catch (error) {
-        this.log.warn('Failed to watch skill directory', {
+        this.log.warn('监视技能目录失败', {
           path: dirPath,
           error: normalizeError(error)
         });

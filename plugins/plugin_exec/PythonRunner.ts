@@ -97,7 +97,7 @@ export class PythonRunner {
       });
 
       pythonProcess.on('error', (error: Error & NodeJS.ErrnoException) => {
-        this.log.error('Python process failed', { error: error.message });
+        this.log.error('Python 进程启动失败', { error: error.message });
 
         if (error.code === 'ENOENT') {
           finish('Python 未安装或不在 PATH 中。请确保已安装 Python 并添加到系统 PATH。');
@@ -113,7 +113,7 @@ export class PythonRunner {
         }
 
         if (timedOut) {
-          this.log.warn(`Python execution timed out after ${this.timeout}ms`);
+          this.log.warn(`Python 执行超时，已超过 ${this.timeout}ms`);
           finish(`Python 超时: 执行时间超过 ${this.timeout}ms`);
           return;
         }

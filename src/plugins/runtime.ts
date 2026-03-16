@@ -163,7 +163,7 @@ export async function disposePluginInstance(
   try {
     await instance.teardown?.();
   } catch (error) {
-    logger.error('Plugin teardown failed', {
+    logger.error('插件卸载清理失败', {
       plugin: instance.name,
       error
     });

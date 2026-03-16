@@ -28,7 +28,7 @@ export class OutboundGateway {
 
   async send(message: OutboundMessage): Promise<void> {
     if (!this.dispatcher) {
-      this.log.error('Outbound dispatcher missing', {
+      this.log.error('未配置出站消息分发器', {
         channel: message.channel,
         chatId: message.chatId
       });
@@ -126,7 +126,7 @@ export class AgentRuntime {
 
   start(): void {
     this.running = true;
-    this.log.info('Agent runtime started');
+    this.log.info('运行时已启动');
   }
 
   stop(): void {
@@ -148,7 +148,7 @@ export class AgentRuntime {
   ): Promise<string | undefined> {
     const startedAt = Date.now();
 
-    this.log.info('Inbound message received', {
+    this.log.info('收到入站消息', {
       sessionKey: message.sessionKey,
       channel: message.channel,
       chatId: message.chatId,
@@ -162,7 +162,7 @@ export class AgentRuntime {
     });
 
     if (preprocessed.type === 'handled') {
-      this.log.info('Inbound message handled by pipeline', {
+      this.log.info('入站消息已由处理流水线接管', {
         sessionKey: message.sessionKey,
         channel: message.channel,
         durationMs: Date.now() - startedAt
@@ -171,7 +171,7 @@ export class AgentRuntime {
     }
 
     if (preprocessed.type === 'reply') {
-      this.log.info('Inbound message replied by pipeline', {
+      this.log.info('入站消息已由处理流水线直接回复', {
         sessionKey: message.sessionKey,
         channel: message.channel,
         durationMs: Date.now() - startedAt
@@ -191,7 +191,7 @@ export class AgentRuntime {
     });
 
     const result = await this.executionRuntime.execute(context);
-    this.log.info('Inbound message execution finished', {
+    this.log.info('入站消息处理完成', {
       sessionKey: context.sessionKey,
       channel: context.channel,
       durationMs: Date.now() - startedAt,
@@ -314,7 +314,7 @@ export class AgentRuntime {
       defaultProvider: provider,
       defaultModel: model || this.defaultModel
     });
-    this.log.info('Agent provider updated', { model: model || this.defaultModel });
+    this.log.info('运行模型配置已更新', { model: model || this.defaultModel });
   }
 
   updateMainAgentRuntime(options: {
@@ -366,7 +366,7 @@ export class AgentRuntime {
     }
 
     this.executionEngine.updateRuntime(runtimeUpdate);
-    this.log.info('Main agent runtime updated', {
+    this.log.info('主运行时配置已更新', {
       model: options.model || this.defaultModel,
       maxIterations: options.maxIterations || this.maxIterations
     });
@@ -376,7 +376,7 @@ export class AgentRuntime {
     this.memoryWindow = memoryWindow;
     this.memoryService = memoryService;
     this.executionEngine.updateRuntime({ memoryWindow });
-    this.log.info('Memory settings updated', {
+    this.log.info('记忆设置已更新', {
       memoryWindow,
       summaryEnabled: !!memoryService
     });

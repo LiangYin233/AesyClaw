@@ -20,11 +20,11 @@ export class CommandRegistry {
     for (const cmd of this.commands.values()) {
       const { matched, args } = this.matchCommand(content, cmd.matcher);
       if (matched) {
-        this.log.info(`Executing command: ${cmd.name}`);
+        this.log.info(`正在执行命令: ${cmd.name}`);
         try {
           return await cmd.handler(msg, args);
         } catch (error) {
-          this.log.error(`Command ${cmd.name} failed`, {
+          this.log.error(`命令 ${cmd.name} 执行失败`, {
             command: cmd.name,
             error: normalizeError(error)
           });

@@ -51,8 +51,8 @@ export class CronService {
   addJob(job: CronJob): CronJob {
     this.computeNextRun(job);
     this.jobs.set(job.id, job);
-    this.store.upsert(job).catch(err => this.log.error('Failed to save job:', err));
-    this.log.info('Cron job created', {
+    this.store.upsert(job).catch(err => this.log.error('保存任务失败:', err));
+    this.log.info('定时任务已创建', {
       jobId: job.id,
       jobName: job.name,
       kind: job.schedule.kind,
@@ -65,8 +65,8 @@ export class CronService {
 
   removeJob(id: string): boolean {
     const result = this.jobs.delete(id);
-    this.store.delete(id).catch(err => this.log.error('Failed to delete job:', err));
-    if (result) this.log.info('Cron job removed', { jobId: id });
+    this.store.delete(id).catch(err => this.log.error('删除任务失败:', err));
+    if (result) this.log.info('定时任务已删除', { jobId: id });
     return result;
   }
 
@@ -75,8 +75,8 @@ export class CronService {
     if (job) {
       job.enabled = enabled;
       this.computeNextRun(job);
-      this.store.updateStatus(id, enabled, job.nextRunAtMs).catch(err => this.log.error('Failed to update job status:', err));
-      this.log.info('Cron job status updated', {
+      this.store.updateStatus(id, enabled, job.nextRunAtMs).catch(err => this.log.error('更新任务状态失败:', err));
+      this.log.info('定时任务状态已更新', {
         jobId: id,
         enabled,
         nextRunAt: job.nextRunAtMs ? formatLocalTimestamp(new Date(job.nextRunAtMs)) : undefined
@@ -100,7 +100,7 @@ export class CronService {
     await this.store.initialize();
     await this.load();
     this.scheduleNext();
-    this.log.info('Cron service started', { jobCount: this.jobs.size });
+    this.log.info('定时任务服务已启动', { jobCount: this.jobs.size });
   }
 
   stop(): void {
@@ -108,8 +108,8 @@ export class CronService {
       clearTimeout(this.timer);
       this.timer = undefined;
     }
-    this.store.close().catch(err => this.log.error('Failed to close store:', err));
-    this.log.info('Cron service stopped');
+    this.store.close().catch(err => this.log.error('关闭任务存储失败:', err));
+    this.log.info('定时任务服务已停止');
   }
 
   private wakeUp(): void {
@@ -140,7 +140,7 @@ export class CronService {
       try {
         await this.runDueJobs();
       } catch (error) {
-        this.log.error('Error running due jobs', {
+        this.log.error('执行到期任务时出错', {
           error: normalizeError(error)
         });
       } finally {
@@ -156,7 +156,7 @@ export class CronService {
 
     for (const job of this.jobs.values()) {
       if (job.enabled && job.nextRunAtMs && now >= job.nextRunAtMs) {
-        this.log.info('Cron job executing', {
+        this.log.info('定时任务执行中', {
           jobId: job.id,
           jobName: job.name,
           kind: job.schedule.kind,
@@ -166,9 +166,9 @@ export class CronService {
         if (this.onJobExecute) {
           try {
             await this.onJobExecute(job);
-            this.log.info('Cron job completed', { jobId: job.id, jobName: job.name });
+            this.log.info('定时任务执行完成', { jobId: job.id, jobName: job.name });
           } catch (error: unknown) {
-            this.log.error('Cron job failed', {
+            this.log.error('定时任务执行失败', {
               jobId: job.id,
               jobName: job.name,
               error: normalizeError(error)
@@ -189,15 +189,15 @@ export class CronService {
 
     for (const id of toRemove) {
       this.jobs.delete(id);
-      this.store.delete(id).catch(err => this.log.error('Failed to delete job', {
+      this.store.delete(id).catch(err => this.log.error('删除任务失败', {
         jobId: id,
         error: normalizeError(err)
       }));
-      this.log.info('One-time cron job removed', { jobId: id });
+      this.log.info('一次性定时任务已移除', { jobId: id });
     }
 
     if (toUpdate.length > 0) {
-      this.store.batchUpdate(toUpdate).catch(err => this.log.error('Failed to update jobs', {
+      this.store.batchUpdate(toUpdate).catch(err => this.log.error('批量更新任务失败', {
         count: toUpdate.length,
         error: normalizeError(err)
       }));
@@ -212,7 +212,7 @@ export class CronService {
         if (job.schedule.onceAt) {
           const atMs = new Date(job.schedule.onceAt).getTime();
           if (Number.isNaN(atMs)) {
-            this.log.warn(`Invalid onceAt time: ${job.schedule.onceAt}`);
+            this.log.warn(`无效的 onceAt 时间: ${job.schedule.onceAt}`);
             job.nextRunAtMs = undefined;
             break;
           }
@@ -235,7 +235,7 @@ export class CronService {
           const minutes = parseInt(parts[1]);
 
           if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
-            this.log.warn(`Invalid dailyAt time: ${job.schedule.dailyAt}`);
+            this.log.warn(`无效的 dailyAt 时间: ${job.schedule.dailyAt}`);
             job.nextRunAtMs = undefined;
             break;
           }
@@ -260,7 +260,7 @@ export class CronService {
             });
             job.nextRunAtMs = interval.next().getTime();
           } catch {
-            this.log.warn(`Invalid cron expression: ${job.schedule.cronExpr}`);
+            this.log.warn(`无效的 cron 表达式: ${job.schedule.cronExpr}`);
             job.nextRunAtMs = undefined;
           }
         } else {
@@ -280,7 +280,7 @@ export class CronService {
         this.jobs.set(job.id, job);
       }
     } catch (error) {
-      this.log.error('Failed to load jobs', {
+      this.log.error('加载定时任务失败', {
         error: normalizeError(error)
       });
     }

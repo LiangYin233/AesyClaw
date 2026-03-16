@@ -69,18 +69,18 @@ export async function createPluginManager(args: {
           });
           config.plugins = nextConfig.plugins;
           pluginManager.setPluginConfigs(normalizePluginConfigs(nextConfig.plugins));
-          log.info('Applied default plugin configs');
+          log.info('已应用默认插件配置');
         }
 
         if (Object.keys(config.plugins).length > 0) {
           await pluginManager.loadFromConfig(normalizePluginConfigs(config.plugins));
         }
 
-        log.info('Plugins loaded in background', {
+        log.info('插件已在后台加载完成', {
           durationMs: Date.now() - startedAt
         });
       } catch (error) {
-        log.error('Failed to load plugins in background', {
+        log.error('后台加载插件失败', {
           error: normalizeError(error)
         });
       } finally {

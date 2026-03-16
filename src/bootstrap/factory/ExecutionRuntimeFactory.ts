@@ -29,17 +29,17 @@ function createVisionProvider(config: Config, visionSettings: VisionSettings) {
   }
 
   if (!visionSettings.visionProviderName) {
-    log.warn('Vision provider missing', { provider: '', model: visionSettings.visionModelName });
+    log.warn('未配置视觉提供商', { provider: '', model: visionSettings.visionModelName });
     return undefined;
   }
   if (!visionSettings.visionModelName) {
-    log.warn('Vision model missing', { provider: visionSettings.visionProviderName });
+    log.warn('未配置视觉模型', { provider: visionSettings.visionProviderName });
     return undefined;
   }
 
   const providerConfig = config.providers[visionSettings.visionProviderName];
   if (!providerConfig) {
-    log.warn('Vision provider missing', { provider: visionSettings.visionProviderName });
+    log.warn('未找到视觉提供商', { provider: visionSettings.visionProviderName });
     return undefined;
   }
 
@@ -60,7 +60,7 @@ async function createSkillManager(config: Config): Promise<SkillManager> {
   skillManager.setConfig(config);
   await skillManager.loadFromDirectory();
   await skillManager.startWatching();
-  log.info('Skills loaded', { skillCount: skillManager.listSkills().length });
+  log.info('技能加载完成', { skillCount: skillManager.listSkills().length });
   return skillManager;
 }
 

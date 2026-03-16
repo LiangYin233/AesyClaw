@@ -119,7 +119,7 @@ export class BackgroundTaskManager {
     };
 
     this.tasks.set(taskId, task);
-    this.log.info('Background task started', {
+    this.log.info('后台任务已启动', {
       taskId,
       sessionKey,
       channel,
@@ -129,7 +129,7 @@ export class BackgroundTaskManager {
 
     // 后台执行完整的工具循环
     this.executeTask(executor, task).catch(err => {
-      this.log.error('Background task execution failed', {
+      this.log.error('后台任务执行失败', {
         taskId,
         sessionKey,
         error: err
@@ -173,7 +173,7 @@ export class BackgroundTaskManager {
       task.error = normalizedError;
       if (normalizedError.message === 'Execution aborted' || normalizedError.name === 'AbortError') {
         task.status = 'aborted';
-        this.log.info('Background task aborted', {
+        this.log.info('后台任务已中止', {
           taskId: task.id,
           sessionKey: task.sessionKey
         });
@@ -184,7 +184,7 @@ export class BackgroundTaskManager {
       await task.callbacks?.onError?.(normalizedError);
     } finally {
       this.tasks.delete(task.id);
-      this.log.info('Background task finished', {
+      this.log.info('后台任务已结束', {
         taskId: task.id,
         sessionKey: task.sessionKey,
         status: task.status,
@@ -201,7 +201,7 @@ export class BackgroundTaskManager {
     for (const task of tasks) {
       task.abortController.abort();
       task.status = 'aborted';
-      this.log.info('Background task abort requested', {
+      this.log.info('已请求中止后台任务', {
         taskId: task.id,
         sessionKey
       });
@@ -217,7 +217,7 @@ export class BackgroundTaskManager {
     for (const task of tasks) {
       task.abortController.abort();
       task.status = 'aborted';
-      this.log.info('Background task abort requested', {
+      this.log.info('已请求中止后台任务', {
         taskId: task.id,
         channel,
         chatId

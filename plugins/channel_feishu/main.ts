@@ -64,7 +64,7 @@ class FeishuAdapter implements ChannelAdapter {
     await this.refreshToken();
     this.startTokenRefreshTimer();
     this.running = true;
-    this.log.info('Feishu channel started');
+    this.log.info('飞书渠道已启动');
   }
 
   async stop(): Promise<void> {
@@ -79,7 +79,7 @@ class FeishuAdapter implements ChannelAdapter {
       });
       this.webhookServer = undefined;
     }
-    this.log.info('Feishu channel stopped');
+    this.log.info('飞书渠道已停止');
   }
 
   isRunning(): boolean {
@@ -171,12 +171,12 @@ class FeishuAdapter implements ChannelAdapter {
       }
 
       if (payload.header?.token !== this.config.verificationToken) {
-        this.log.warn('Invalid Feishu verification token');
+        this.log.warn('飞书校验令牌无效');
         return res.status(401).json({ error: 'Invalid token' });
       }
 
       void this.handleFeishuEvent(payload).catch((error) => {
-        this.log.error('Feishu event handling failed', {
+        this.log.error('飞书事件处理失败', {
           error: error instanceof Error ? error.message : String(error)
         });
       });
@@ -188,7 +188,7 @@ class FeishuAdapter implements ChannelAdapter {
   private async startWebhookServer(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.webhookServer = this.app.listen(this.config.webhookPort, () => {
-        this.log.info('Feishu webhook listening', { port: this.config.webhookPort });
+        this.log.info('飞书回调服务监听中', { port: this.config.webhookPort });
         resolve();
       });
       this.webhookServer.on('error', reject);
@@ -232,7 +232,7 @@ class FeishuAdapter implements ChannelAdapter {
   private startTokenRefreshTimer(): void {
     this.tokenRefreshTimer = setInterval(() => {
       void this.refreshToken().catch((error) => {
-        this.log.error('Scheduled token refresh failed', {
+        this.log.error('定时刷新令牌失败', {
           error: error instanceof Error ? error.message : String(error)
         });
       });

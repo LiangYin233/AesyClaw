@@ -6,7 +6,7 @@ const log = logger.child('Bootstrap');
 
 export function setupSignalHandlers(services: Services): void {
   const shutdown = async () => {
-    log.info('Shutting down...');
+    log.info('正在关闭服务');
     const { agentRuntime, channelManager, sessionManager, cronService, skillManager } = services;
     agentRuntime.stop();
     await skillManager?.stopWatching();
@@ -15,7 +15,7 @@ export function setupSignalHandlers(services: Services): void {
     await tokenUsage.destroy();
     await sessionManager.close();
     ConfigLoader.stopWatching();
-    log.info('All services stopped');
+    log.info('所有服务已停止');
     process.exit(0);
   };
 

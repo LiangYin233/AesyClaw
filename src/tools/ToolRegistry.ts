@@ -213,7 +213,7 @@ export class ToolRegistry {
     const timeoutController = new AbortController();
     const timeoutId = setTimeout(() => {
       timeoutController.abort(createTimeoutError(tool.name, timeout));
-      this.log.warn(`Tool ${name} execution timed out after ${timeout}ms`);
+      this.log.warn(`工具 ${name} 执行超时，已超过 ${timeout}ms`);
     }, timeout);
 
     const { signal: mergedSignal, cleanup: cleanupMergedSignal } = mergeAbortSignals([context?.signal, timeoutController.signal]);

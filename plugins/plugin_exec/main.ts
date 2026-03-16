@@ -36,7 +36,7 @@ export default definePlugin<ExecPluginOptions>({
       maxOutput: config.shell.maxOutput
     }, log);
 
-    log.info('Exec plugin loaded', {
+    log.info('执行插件已加载', {
       pythonExecutable: config.python.executable,
       pythonTimeoutMs: config.python.timeout,
       shellTimeoutMs: config.shell.timeout
@@ -57,7 +57,7 @@ export default definePlugin<ExecPluginOptions>({
       },
       async execute(params: Record<string, any>, context?: ToolContext) {
         const { code } = params;
-        log.info('Python execution started', { cwd: context?.workspace });
+        log.info('Python 执行开始', { cwd: context?.workspace });
         return pythonRunner.execute(code, context?.workspace, context?.signal);
       }
     });
@@ -77,7 +77,7 @@ export default definePlugin<ExecPluginOptions>({
       },
       async execute(params: Record<string, any>, context?: ToolContext) {
         const { command } = params;
-        log.info('Shell execution started', {
+        log.info('Shell 执行开始', {
           commandPreview: preview(command),
           cwd: context?.workspace
         });

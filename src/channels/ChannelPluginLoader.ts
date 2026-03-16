@@ -71,7 +71,7 @@ async function importChannelPlugin(mainPath: string): Promise<ChannelPluginDefin
 
     return plugin;
   } catch (error) {
-    log.warn(`Failed to import channel plugin from ${mainPath}`, {
+    log.warn(`导入渠道插件失败: ${mainPath}`, {
       path: mainPath,
       error: normalizeError(error)
     });
@@ -85,7 +85,7 @@ export async function loadExternalChannelPlugins(channelManager: ChannelManager,
   for (const mainPath of entries) {
     const plugin = await importChannelPlugin(mainPath);
     if (!plugin) {
-      log.warn(`Invalid channel plugin skipped: ${mainPath}`);
+      log.warn(`渠道插件无效，已跳过: ${mainPath}`);
       continue;
     }
 

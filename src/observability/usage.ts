@@ -141,7 +141,7 @@ export class TokenUsageTracker {
           await this.closeDatabase();
         })
         .catch((error) => {
-          this.log.warn('Failed to disable token usage database', {
+          this.log.warn('禁用令牌用量数据库失败', {
             persistFile: this.config.persistFile,
             error: error instanceof Error ? error.message : String(error)
           });
@@ -158,7 +158,7 @@ export class TokenUsageTracker {
           await this.loadFromDatabase();
         })
         .catch((error) => {
-          this.log.warn('Failed to reconfigure token usage database', {
+          this.log.warn('重配令牌用量数据库失败', {
             persistFile: this.config.persistFile,
             error: error instanceof Error ? error.message : String(error)
           });
@@ -172,7 +172,7 @@ export class TokenUsageTracker {
         await this.loadFromDatabase();
       })
       .catch((error) => {
-        this.log.warn('Failed to initialize token usage database', {
+        this.log.warn('初始化令牌用量数据库失败', {
           persistFile: this.config.persistFile,
           error: error instanceof Error ? error.message : String(error)
         });
@@ -221,7 +221,7 @@ export class TokenUsageTracker {
     this.dirtyDailyKeys.clear();
     this.resetPending = true;
     void this.flushIfDirty().then(() => {
-      this.log.info('Token usage reset');
+      this.log.info('令牌用量已重置');
     });
   }
 
@@ -326,7 +326,7 @@ export class TokenUsageTracker {
         }
       ])
     );
-    this.log.info('Token usage loaded', {
+    this.log.info('令牌用量已加载', {
       persistFile: this.config.persistFile,
       totalTokens: this.stats.totalTokens,
       requestCount: this.stats.requestCount,
@@ -404,7 +404,7 @@ export class TokenUsageTracker {
       } catch {
         // Ignore rollback errors and preserve dirty state for retry.
       }
-      this.log.error('Failed to save token usage', {
+      this.log.error('保存令牌用量失败', {
         persistFile: this.config.persistFile,
         error: error instanceof Error ? error.message : String(error)
       });

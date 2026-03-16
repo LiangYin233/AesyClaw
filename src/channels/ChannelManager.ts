@@ -32,7 +32,7 @@ export class ChannelManager {
 
   registerPlugin(plugin: ChannelPluginDefinition): void {
     if (this.#plugins.has(plugin.pluginName)) {
-      this.#log.warn('Channel plugin overwritten', { pluginName: plugin.pluginName });
+      this.#log.warn('渠道插件重复注册，已覆盖', { pluginName: plugin.pluginName });
     }
     this.#plugins.set(plugin.pluginName, plugin);
     this.#log.debug('Channel plugin registered', { pluginName: plugin.pluginName });
@@ -56,14 +56,14 @@ export class ChannelManager {
     const plugin = this.#plugins.get(pluginName);
 
     if (!plugin) {
-      this.#log.warn('Channel plugin missing', { pluginName });
+      this.#log.warn('未找到渠道插件', { pluginName });
       return null;
     }
 
     const channel = plugin.create(config, this.#workspace);
     this.#channels.set(plugin.channelName, channel);
     this.#runtime.registerAdapter(plugin.channelName, channel);
-    this.#log.info('Channel created', { channel: plugin.channelName, pluginName });
+    this.#log.info('渠道已创建', { channel: plugin.channelName, pluginName });
     return this.get(plugin.channelName) || null;
   }
 
@@ -119,20 +119,20 @@ export class ChannelManager {
       const channelName = channels[index]?.name || `#${index}`;
       if (result.status === 'fulfilled') {
         started++;
-        this.#log.info('Channel started', {
+        this.#log.info('渠道已启动', {
           channel: result.value.name,
           durationMs: result.value.durationMs
         });
         continue;
       }
       failed++;
-      this.#log.error('Channel start failed', {
+      this.#log.error('渠道启动失败', {
         channel: channelName,
         error: normalizeError(result.reason)
       });
     }
 
-    this.#log.info('Channel startup finished', {
+    this.#log.info('渠道启动完成', {
       total: channels.length,
       started,
       failed
@@ -151,7 +151,7 @@ export class ChannelManager {
         stopped++;
       } catch (error) {
         failed++;
-        this.#log.error('Channel stop failed', {
+        this.#log.error('渠道停止失败', {
           channel: channel.name,
           error: normalizeError(error)
         });
@@ -160,7 +160,7 @@ export class ChannelManager {
 
     this.#runtime.stop();
 
-    this.#log.info('Channel shutdown finished', {
+    this.#log.info('渠道停止完成', {
       total: this.#channels.size,
       stopped,
       failed

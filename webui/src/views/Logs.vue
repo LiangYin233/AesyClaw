@@ -1,21 +1,50 @@
 <template>
     <div class="logs-page page-stack">
-        <PageHeader title="日志管理" subtitle="调整日志级别并查看当前运行中的最近日志。">
+        <PageHeader title="日志管理" subtitle="以更清晰的运行面板视图查看最近日志与日志级别。">
             <template #actions>
                 <Button label="刷新" icon="pi pi-refresh" outlined @click="refreshAll" :loading="loading || entriesLoading" />
             </template>
         </PageHeader>
 
-        <LoadingContainer :loading="loading && !config" :error="!config ? error : null" loading-text="正在加载日志配置..." :on-retry="refreshAll">
+        <LoadingContainer
+            :loading="loading && !config"
+            :error="!config ? error : null"
+            loading-text="正在加载日志配置..."
+            :on-retry="refreshAll"
+        >
             <PageSection
                 v-if="config"
-                title="日志级别配置"
-                subtitle="修改后立即生效，无需重启服务。"
+                title="运行概览"
+                subtitle="当前日志级别、缓存容量与日志流状态会在这里统一展示。"
             >
-                <div class="config-section">
-                    <div class="form-field">
-                        <label>当前日志级别</label>
-                        <div class="level-selector">
+                <div class="monitor-overview">
+                    <article class="monitor-stat monitor-stat--primary">
+                        <span class="monitor-stat__label">当前日志级别</span>
+                        <strong class="monitor-stat__value">{{ formatLevelLabel(config.level) }}</strong>
+                        <span class="monitor-stat__meta">实时生效</span>
+                    </article>
+                    <article class="monitor-stat">
+                        <span class="monitor-stat__label">当前列表条数</span>
+                        <strong class="monitor-stat__value">{{ logEntries.length }}</strong>
+                        <span class="monitor-stat__meta">受筛选条件影响</span>
+                    </article>
+                    <article class="monitor-stat">
+                        <span class="monitor-stat__label">最近更新时间</span>
+                        <strong class="monitor-stat__value monitor-stat__value--compact">{{ lastUpdateLabel }}</strong>
+                        <span class="monitor-stat__meta">轮询刷新中</span>
+                    </article>
+                </div>
+
+                <div class="monitor-actions">
+                    <section class="monitor-card surface-panel">
+                        <div class="monitor-card__head">
+                            <div>
+                                <h3>日志级别</h3>
+                                <p>修改后立即生效，无需重启服务。</p>
+                            </div>
+                            <span class="level-badge" :class="`level-badge--${config.level}`">{{ formatLevelLabel(config.level) }}</span>
+                        </div>
+                        <div class="control-row">
                             <Select
                                 v-model="selectedLevel"
                                 :options="logLevels"
@@ -32,47 +61,31 @@
                                 :disabled="selectedLevel === config.level"
                             />
                         </div>
-                        <small class="field-hint">修改日志级别后立即生效，无需重启服务</small>
-                    </div>
+                    </section>
 
-                    <div class="current-config surface-panel">
-                        <h3>当前配置</h3>
-                        <div class="config-grid logs-config-grid">
-                            <div class="config-item">
-                                <span class="config-label">日志级别</span>
-                                <Tag :value="config.level.toUpperCase()" :severity="getLevelSeverity(config.level)" />
+                    <section class="monitor-card surface-panel">
+                        <div class="monitor-card__head">
+                            <div>
+                                <h3>日志筛选</h3>
+                                <p>筛选当前进程中最近输出的日志记录。</p>
                             </div>
-                            <div class="config-item">
-                                <span class="config-label">缓存容量</span>
-                                <Tag :value="String(config.bufferSize)" severity="info" />
-                            </div>
+                            <span class="filter-hint">共 {{ logEntries.length }} 条</span>
                         </div>
-                    </div>
+                        <div class="control-row control-row--single">
+                            <Select
+                                v-model="selectedFilter"
+                                :options="filterOptions"
+                                optionLabel="label"
+                                optionValue="value"
+                                @change="applyFilter"
+                            />
+                        </div>
+                    </section>
                 </div>
             </PageSection>
         </LoadingContainer>
 
-        <PageSection title="日志内容" subtitle="展示当前进程最近输出的日志，自动刷新。">
-            <div class="logs-toolbar surface-panel">
-                <div class="toolbar-group">
-                    <div class="toolbar-field">
-                        <label>级别筛选</label>
-                        <Select
-                            v-model="selectedFilter"
-                            :options="filterOptions"
-                            optionLabel="label"
-                            optionValue="value"
-                            @change="applyFilter"
-                        />
-                    </div>
-                </div>
-
-                <div class="toolbar-meta">
-                    <span class="meta-item">最近 {{ logEntries.length }} 条</span>
-                    <span class="meta-item" v-if="lastUpdate">更新于 {{ formatClock(new Date(lastUpdate)) }}</span>
-                </div>
-            </div>
-
+        <PageSection title="日志流">
             <LoadingContainer
                 :loading="entriesLoading && logEntries.length === 0"
                 :error="logEntries.length === 0 ? error : null"
@@ -86,22 +99,36 @@
                     description="当前没有可展示的运行日志，稍后刷新再试。"
                 />
 
-                <div v-else class="console-panel" role="log" aria-live="polite">
-                    <div class="console-toolbar">
-                        <div class="console-dots" aria-hidden="true">
-                            <span class="console-dot console-dot--red"></span>
-                            <span class="console-dot console-dot--yellow"></span>
-                            <span class="console-dot console-dot--green"></span>
+                <div v-else class="logs-stream" role="log" aria-live="polite">
+                    <div class="logs-stream__toolbar">
+                        <h3>运行日志</h3>
+                        <div class="logs-stream__meta">
+                            <span class="stream-meta">筛选：{{ filterLabel }}</span>
+                            <span class="stream-meta">更新于 {{ lastUpdateLabel }}</span>
+                            <span class="stream-meta">共 {{ logEntries.length }} 条</span>
                         </div>
-                        <span class="console-title">runtime.log</span>
                     </div>
 
-                    <div class="console-body">
-                        <article v-for="entry in logEntries" :key="entry.id" class="console-line" :class="`console-line--${entry.level}`">
-                            <span class="console-line__time">{{ formatDateTime(entry.timestamp) }}</span>
-                            <span class="console-line__level">{{ entry.level.toUpperCase() }}</span>
-                            <span v-if="entry.scope" class="console-line__prefix">{{ entry.scope }}</span>
-                            <pre class="console-line__text">{{ entry.message }}<template v-if="formatFields(entry.fields)"> | {{ formatFields(entry.fields) }}</template></pre>
+                    <div class="logs-stream__list">
+                        <article
+                            v-for="entry in logEntries"
+                            :key="entry.id"
+                            class="log-row"
+                            :class="`log-row--${entry.level}`"
+                        >
+                            <div class="log-row__meta">
+                                <span class="log-row__time">{{ formatDateTime(entry.timestamp) }}</span>
+                                <span class="log-row__submeta">
+                                    <span class="log-level" :class="`log-level--${entry.level}`">{{ formatLevelLabel(entry.level) }}</span>
+                                    <span v-if="entry.scope" class="log-scope">{{ entry.scope }}</span>
+                                </span>
+                            </div>
+                            <div class="log-row__content">
+                                <pre class="log-row__message">{{ entry.message }}</pre>
+                                <div v-if="formatFieldSummary(entry.fields)" class="log-row__fields">
+                                    {{ formatFieldSummary(entry.fields) }}
+                                </div>
+                            </div>
                         </article>
                     </div>
                 </div>
@@ -119,7 +146,6 @@ import { useLogsStore } from '../stores'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Select from 'primevue/select'
-import Tag from 'primevue/tag'
 import Toast from 'primevue/toast'
 import EmptyState from '../components/common/EmptyState.vue'
 import PageHeader from '../components/common/PageHeader.vue'
@@ -127,35 +153,52 @@ import LoadingContainer from '../components/common/LoadingContainer.vue'
 import PageSection from '../components/common/PageSection.vue'
 import { formatClock, formatDateTime } from '../utils/formatters'
 
+type LogFilterLevel = 'all' | 'debug' | 'info' | 'warn' | 'error'
+type LogLevel = 'debug' | 'info' | 'warn' | 'error'
+
 const logsStore = useLogsStore()
 const { config, entries, loading, entriesLoading, error, lastUpdate, activeLevel } = storeToRefs(logsStore)
 const toast = useToast()
 
 const applying = ref(false)
-const selectedLevel = ref('info')
-const selectedFilter = ref<'all' | 'debug' | 'info' | 'warn' | 'error'>('all')
+const selectedLevel = ref<LogLevel>('info')
+const selectedFilter = ref<LogFilterLevel>('all')
+
+const levelLabelMap: Record<LogFilterLevel, string> = {
+    all: '全部',
+    error: '错误',
+    warn: '警告',
+    info: '信息',
+    debug: '调试'
+}
 
 const logLevels = [
-    { label: 'ERROR', value: 'error' },
-    { label: 'WARN', value: 'warn' },
-    { label: 'INFO', value: 'info' },
-    { label: 'DEBUG', value: 'debug' }
+    { label: '错误', value: 'error' },
+    { label: '警告', value: 'warn' },
+    { label: '信息', value: 'info' },
+    { label: '调试', value: 'debug' }
 ]
 
 const filterOptions = [
     { label: '全部', value: 'all' },
-    { label: 'ERROR', value: 'error' },
-    { label: 'WARN', value: 'warn' },
-    { label: 'INFO', value: 'info' },
-    { label: 'DEBUG', value: 'debug' }
+    { label: '错误', value: 'error' },
+    { label: '警告', value: 'warn' },
+    { label: '信息', value: 'info' },
+    { label: '调试', value: 'debug' }
 ]
 
 const logEntries = computed(() => entries.value)
+const lastUpdateLabel = computed(() => (lastUpdate.value ? formatClock(new Date(lastUpdate.value)) : '尚未刷新'))
+const filterLabel = computed(() => levelLabelMap[selectedFilter.value])
+
+function formatLevelLabel(level: LogFilterLevel | string) {
+    return levelLabelMap[level as LogFilterLevel] || String(level).toUpperCase()
+}
 
 async function loadConfig() {
     const loadedConfig = await logsStore.fetchConfig()
     if (loadedConfig) {
-        selectedLevel.value = loadedConfig.level
+        selectedLevel.value = loadedConfig.level as LogLevel
     }
 }
 
@@ -175,7 +218,7 @@ async function applyLogLevel() {
     applying.value = false
 
     if (success) {
-        toast.add({ severity: 'success', summary: '成功', detail: `日志级别已更新为 ${selectedLevel.value.toUpperCase()}`, life: 3000 })
+        toast.add({ severity: 'success', summary: '成功', detail: `日志级别已更新为${formatLevelLabel(selectedLevel.value)}`, life: 3000 })
         await loadConfig()
         await loadEntries()
     } else {
@@ -187,21 +230,18 @@ async function applyFilter() {
     await loadEntries()
 }
 
-function getLevelSeverity(level: string): 'success' | 'info' | 'warn' | 'danger' {
-    const severities: Record<string, 'success' | 'info' | 'warn' | 'danger'> = {
-        error: 'danger',
-        warn: 'warn',
-        info: 'info',
-        debug: 'success'
-    }
-    return severities[level] || 'info'
+function getFieldEntries(fields?: Record<string, string | number | boolean | null>) {
+    if (!fields) return []
+    return Object.entries(fields).map(([key, value]) => ({
+        key,
+        value: String(value)
+    }))
 }
 
-function formatFields(fields?: Record<string, string | number | boolean | null>) {
-    if (!fields) return ''
-    return Object.entries(fields)
-        .map(([key, value]) => `${key}=${String(value)}`)
-        .join(' ')
+function formatFieldSummary(fields?: Record<string, string | number | boolean | null>) {
+    const entries = getFieldEntries(fields)
+    if (entries.length === 0) return ''
+    return entries.map((entry) => `${entry.key}=${entry.value}`).join('  ·  ')
 }
 
 onMounted(async () => {
@@ -216,216 +256,380 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.config-section {
+.monitor-overview {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--ui-space-4);
+    margin-bottom: var(--ui-space-5);
+}
+
+.monitor-stat {
+    position: relative;
     display: flex;
     flex-direction: column;
-    gap: var(--ui-space-6);
+    gap: 10px;
+    min-width: 0;
+    padding: var(--ui-space-5);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-md);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 251, 255, 0.92)),
+        linear-gradient(120deg, rgba(37, 99, 235, 0.04), transparent 60%);
+    box-shadow: var(--ui-shadow-sm);
 }
 
-.level-selector {
+.monitor-stat__label {
+    font-size: 0.82rem;
+    letter-spacing: 0.04em;
+    color: var(--ui-text-muted);
+}
+
+.monitor-stat__value {
+    font-size: 1.45rem;
+    line-height: 1.1;
+    font-weight: 800;
+    color: var(--ui-text);
+}
+
+.monitor-stat__value--compact {
+    font-size: 1.12rem;
+}
+
+.monitor-stat__meta {
+    font-size: 0.82rem;
+    color: var(--ui-text-faint);
+}
+
+.monitor-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+    gap: var(--ui-space-4);
+}
+
+.monitor-card {
     display: flex;
-    gap: var(--ui-space-3);
-    align-items: flex-start;
-}
-
-.level-selector :deep(.p-select) {
-    flex: 1;
-}
-
-.current-config,
-.logs-toolbar {
+    flex-direction: column;
+    gap: var(--ui-space-4);
     padding: var(--ui-space-5);
 }
 
-.current-config h3 {
-    margin: 0 0 var(--ui-space-4) 0;
-    font-size: 0.95rem;
+.monitor-card__head {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--ui-space-4);
+    align-items: flex-start;
+}
+
+.monitor-card__head h3 {
+    margin: 0 0 6px 0;
+    font-size: 1rem;
     font-weight: 700;
+    color: var(--ui-text);
 }
 
-.logs-config-grid {
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+.monitor-card__head p {
+    margin: 0;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    color: var(--ui-text-muted);
 }
 
-.config-item {
+.level-badge,
+.filter-hint {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.level-badge {
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    background: rgba(255, 255, 255, 0.75);
+    color: var(--ui-text-soft);
+}
+
+.level-badge--debug {
+    color: #0369a1;
+    background: rgba(224, 242, 254, 0.92);
+}
+
+.level-badge--info {
+    color: #1d4ed8;
+    background: rgba(219, 234, 254, 0.92);
+}
+
+.level-badge--warn {
+    color: #b45309;
+    background: rgba(254, 243, 199, 0.92);
+}
+
+.level-badge--error {
+    color: #b91c1c;
+    background: rgba(254, 226, 226, 0.92);
+}
+
+.filter-hint {
+    color: var(--ui-text-muted);
+    background: var(--ui-overlay);
+}
+
+.control-row {
     display: flex;
     gap: var(--ui-space-3);
+    align-items: stretch;
+}
+
+.control-row :deep(.p-select) {
+    flex: 1;
+}
+
+.control-row--single :deep(.p-select) {
+    width: 100%;
+}
+
+.logs-stream__toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--ui-space-4);
+    padding: 0 0 var(--ui-space-4) 0;
+}
+
+.logs-stream__toolbar h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--ui-text);
+}
+
+.logs-stream__meta {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--ui-space-2);
+}
+
+.stream-meta {
+    font-size: 0.82rem;
+    color: var(--ui-text-muted);
+}
+
+.logs-stream__list {
+    display: flex;
+    flex-direction: column;
+    max-height: 72vh;
+    overflow: auto;
+    border-top: 1px solid var(--ui-border);
+    border-bottom: 1px solid var(--ui-border);
+    background: rgba(255, 255, 255, 0.45);
+}
+
+.log-row {
+    display: grid;
+    grid-template-columns: 188px minmax(0, 1fr);
+    gap: var(--ui-space-4);
+    padding: 16px var(--ui-space-4);
+    border-bottom: 1px solid var(--ui-border);
+    background: transparent;
+    transition: background-color 0.18s ease;
+}
+
+.log-row:hover {
+    background: rgba(239, 246, 255, 0.4);
+}
+
+.log-row__meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    padding-top: 2px;
+}
+
+.log-row__time {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--ui-text-soft);
+    white-space: nowrap;
+}
+
+.log-row__submeta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
     align-items: center;
     min-width: 0;
 }
 
-.config-label {
-    font-size: 0.84rem;
-    color: var(--ui-text-muted);
-    font-weight: 600;
-}
-
-.logs-toolbar {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--ui-space-4);
-    align-items: end;
-}
-
-.toolbar-group,
-.toolbar-field {
-    display: flex;
-    flex-direction: column;
-    gap: var(--ui-space-2);
-}
-
-.toolbar-field label {
-    font-size: 0.84rem;
-    color: var(--ui-text-muted);
-    font-weight: 600;
-}
-
-.toolbar-meta {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: var(--ui-space-3);
-    color: var(--ui-text-muted);
-    font-size: 0.88rem;
-}
-
-.console-panel {
-    overflow: hidden;
-    border-radius: 18px;
-    border: 1px solid rgba(148, 163, 184, 0.18);
-    background: #0b1220;
-    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.18);
-}
-
-.console-toolbar {
-    display: flex;
+.log-level {
+    display: inline-flex;
     align-items: center;
-    gap: var(--ui-space-3);
-    padding: 14px 18px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-    background: linear-gradient(180deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.92));
-}
-
-.console-dots {
-    display: flex;
-    gap: 8px;
-}
-
-.console-dot {
-    width: 11px;
-    height: 11px;
-    border-radius: 999px;
-}
-
-.console-dot--red {
-    background: #f87171;
-}
-
-.console-dot--yellow {
-    background: #fbbf24;
-}
-
-.console-dot--green {
-    background: #34d399;
-}
-
-.console-title {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
-    font-size: 0.84rem;
-    color: rgba(226, 232, 240, 0.9);
-}
-
-.console-body {
-    max-height: 68vh;
-    overflow: auto;
-    padding: 14px 0;
-}
-
-.console-line {
-    display: grid;
-    grid-template-columns: 168px 68px minmax(0, 180px) minmax(0, 1fr);
-    gap: 12px;
-    align-items: start;
-    padding: 8px 18px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
-    font-size: 0.85rem;
-    line-height: 1.65;
-    color: #e2e8f0;
-}
-
-.console-line:hover {
-    background: rgba(255, 255, 255, 0.03);
-}
-
-.console-line__time {
-    color: #94a3b8;
-    white-space: nowrap;
-}
-
-.console-line__level {
+    font-size: 0.76rem;
     font-weight: 700;
     letter-spacing: 0.04em;
+    text-transform: uppercase;
 }
 
-.console-line__prefix {
-    color: #cbd5e1;
-    opacity: 0.9;
+.log-level--debug {
+    color: #0369a1;
+}
+
+.log-level--info {
+    color: #1d4ed8;
+}
+
+.log-level--warn {
+    color: #b45309;
+}
+
+.log-level--error {
+    color: #b91c1c;
+}
+
+.log-scope {
+    min-width: 0;
+    font-size: 0.8rem;
+    color: var(--ui-text-faint);
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
-.console-line__text {
+.log-row__content {
+    min-width: 0;
+}
+
+.log-row__message {
     margin: 0;
     white-space: pre-wrap;
     word-break: break-word;
-    color: inherit;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
+    font-size: 0.92rem;
+    line-height: 1.72;
+    color: var(--ui-text-soft);
 }
 
-.console-line--debug .console-line__level,
-.console-line--debug .console-line__text {
-    color: #93c5fd;
+.log-row__fields {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed rgba(148, 163, 184, 0.18);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
+    font-size: 0.76rem;
+    line-height: 1.65;
+    color: var(--ui-text-muted);
+    word-break: break-word;
 }
 
-.console-line--info .console-line__level,
-.console-line--info .console-line__text {
-    color: #e2e8f0;
+.log-row--debug {
+    box-shadow: none;
 }
 
-.console-line--warn .console-line__level,
-.console-line--warn .console-line__text {
-    color: #fbbf24;
+.log-row--debug .log-row__message {
+    color: #0f172a;
 }
 
-.console-line--error .console-line__level,
-.console-line--error .console-line__text {
-    color: #f87171;
+.log-row--info {
+    box-shadow: none;
 }
 
-@media (max-width: 768px) {
-    .level-selector,
-    .logs-toolbar {
+.log-row--info .log-row__message {
+    color: var(--ui-text-soft);
+}
+
+.log-row--warn {
+    box-shadow: none;
+}
+
+.log-row--warn .log-row__message {
+    color: #92400e;
+}
+
+.log-row--error {
+    box-shadow: none;
+}
+
+.log-row--error .log-row__message {
+    color: #991b1b;
+}
+
+@media (max-width: 1120px) {
+    .monitor-overview {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .monitor-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .logs-stream__toolbar {
         flex-direction: column;
         align-items: stretch;
     }
 
-    .level-selector :deep(.p-select),
-    .level-selector :deep(.p-button),
-    .toolbar-field :deep(.p-select) {
-        width: 100%;
-    }
-
-    .toolbar-meta {
+    .logs-stream__meta {
         justify-content: flex-start;
     }
 
-    .console-line {
+    .log-row {
+        grid-template-columns: 156px minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .monitor-overview {
         grid-template-columns: 1fr;
-        gap: 4px;
     }
 
-    .console-line__prefix {
+    .monitor-card,
+    .monitor-stat {
+        padding: var(--ui-space-4);
+    }
+
+    .monitor-card__head,
+    .control-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .control-row :deep(.p-select),
+    .control-row :deep(.p-button) {
+        width: 100%;
+    }
+
+    .logs-stream__toolbar {
+        padding-bottom: var(--ui-space-3);
+    }
+
+    .logs-stream__list {
+        max-height: 64vh;
+    }
+
+    .log-row {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        padding: 14px 0;
+    }
+
+    .log-row__meta {
+        gap: 6px;
+    }
+
+    .log-scope {
         white-space: normal;
+        overflow: visible;
+    }
+
+    .log-row__message {
+        font-size: 0.88rem;
+        line-height: 1.7;
+    }
+
+    .log-row__fields {
+        font-size: 0.75rem;
     }
 }
 </style>

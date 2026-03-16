@@ -69,7 +69,7 @@ export class ToolLoopRunner {
 
       if (response.toolCalls.length === 0) {
         messages.push({ role: 'assistant', content: response.content || '' });
-        this.log.info('Execution completed', {
+        this.log.info('执行完成', {
           agent: agentLabel,
           iteration,
           toolCount: toolsUsed.length,
@@ -105,13 +105,13 @@ export class ToolLoopRunner {
 
         const toolName = toolCall.name;
         if (!toolName) {
-          this.log.error('Tool call missing name', { iteration, sessionKey: options.sessionKey, toolCallPreview: preview(JSON.stringify(toolCall)) });
+          this.log.error('工具调用缺少名称', { iteration, sessionKey: options.sessionKey, toolCallPreview: preview(JSON.stringify(toolCall)) });
           continue;
         }
 
         toolsUsed.push(toolName);
         const toolStartedAt = Date.now();
-        this.log.info('Tool started', {
+        this.log.info('工具开始执行', {
           agent: agentLabel,
           toolName,
           iteration,
@@ -140,7 +140,7 @@ export class ToolLoopRunner {
           }
 
           result = await this.toolRegistry.execute(execToolName, toolArgs, execContext);
-          this.log.info('Tool completed', {
+          this.log.info('工具执行完成', {
             agent: agentLabel,
             toolName,
             iteration,
@@ -161,7 +161,7 @@ export class ToolLoopRunner {
           const message = normalizeError(error);
           const isRetryable = isRetryableError(error);
           result = `Error: ${message}${isRetryable ? ' (retryable)' : ''}`;
-          this.log.error('Tool failed', {
+          this.log.error('工具执行失败', {
             agent: agentLabel,
             toolName,
             iteration,
@@ -213,7 +213,7 @@ export class ToolLoopRunner {
         toolCallQueue = response.toolCalls;
       } else {
         messages.push({ role: 'assistant', content: response.content || '' });
-        this.log.info('Execution completed', {
+        this.log.info('执行完成', {
           agent: agentLabel,
           iteration,
           toolCount: toolsUsed.length,
@@ -231,7 +231,7 @@ export class ToolLoopRunner {
     }
 
     if (toolCallQueue.length > 0) {
-      this.log.warn('Execution reached max iterations', {
+      this.log.warn('已达到最大迭代次数', {
         agent: agentLabel,
         maxIterations: max,
         toolCount: toolsUsed.length,
@@ -246,7 +246,7 @@ export class ToolLoopRunner {
     const lastContent = typeof lastMessage?.content === 'string'
       ? lastMessage.content
       : lastMessage?.content?.find((c: any) => c.type === 'text')?.text || '';
-    this.log.info('Execution completed', {
+    this.log.info('执行完成', {
       agent: agentLabel,
       iteration,
       toolCount: toolsUsed.length,

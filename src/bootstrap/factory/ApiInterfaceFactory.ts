@@ -32,7 +32,7 @@ export async function createApiServer(args: {
   const { config, port, agentRuntime, sessionManager, sessionRouting, channelManager, pluginManager, cronService, mcpManager, skillManager, toolRegistry, memoryFactStore, agentRoleService } = args;
 
   if (config.server.apiEnabled === false) {
-    log.info('API server disabled by configuration');
+    log.info('API 服务已在配置中禁用');
     return undefined;
   }
 
@@ -52,6 +52,6 @@ export async function createApiServer(args: {
     agentRoleService
   );
   await apiServer.start();
-  log.info(`API server started on port ${port}`);
+  log.info(`API 服务已在端口 ${port} 启动`);
   return apiServer;
 }

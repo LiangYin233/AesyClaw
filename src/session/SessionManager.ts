@@ -70,7 +70,7 @@ export class SessionManager {
     this.maxSessions = maxSessions;
     const dbPath = join(storageDir, 'sessions.db');
     this.db = new Database(dbPath);
-    this.log.info(`Initialized with SQLite: ${dbPath}`);
+    this.log.info(`SQLite 已初始化: ${dbPath}`);
   }
 
   async ready(): Promise<void> {
@@ -179,7 +179,7 @@ export class SessionManager {
         updatedAt: new Date()
       };
       this.sessions.set(key, newSession);
-      this.log.info('Session created', {
+      this.log.info('会话已创建', {
         sessionKey: key,
         channel: parsed.channel,
         chatId: parsed.chatId
@@ -212,11 +212,11 @@ export class SessionManager {
         }
 
         if (oldSessions.length > 0) {
-          this.log.info(`Cleaned up ${oldSessions.length} old sessions (max: ${this.maxSessions})`);
+          this.log.info(`已清理 ${oldSessions.length} 个旧会话 (上限: ${this.maxSessions})`);
         }
       }
     } catch (error) {
-      this.log.warn('Failed to cleanup old sessions', {
+      this.log.warn('清理旧会话失败', {
         error: normalizeError(error)
       });
     }
@@ -450,7 +450,7 @@ export class SessionManager {
       }
     }
 
-    this.log.info(`Loaded ${this.sessions.size} sessions from database`);
+    this.log.info(`已从数据库加载 ${this.sessions.size} 个会话`);
   }
 
   async close(): Promise<void> {

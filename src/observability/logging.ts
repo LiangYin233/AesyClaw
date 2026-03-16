@@ -178,6 +178,30 @@ function formatFields(fields?: Record<string, LogFieldValue>): string {
     .join(' ');
 }
 
+function formatScopeSegment(scope: string): string {
+  if (!scope) {
+    return '';
+  }
+
+  const normalized = normalizeScope(scope);
+  return `[${normalized}]`;
+}
+
+function normalizeScope(scope: string): string {
+  const segments = scope.split('/').filter(Boolean);
+  if (segments.length < 2) {
+    return scope;
+  }
+
+  const last = segments[segments.length - 1];
+  const previous = segments[segments.length - 2];
+  if (previous.startsWith('plugin_') && previous.slice('plugin_'.length) === last) {
+    return segments.slice(0, -1).join('/');
+  }
+
+  return scope;
+}
+
 class LogBuffer {
   private entries: LogEntry[] = [];
   private sequence = 0;
@@ -307,19 +331,22 @@ class LoggingService {
     timestamp: Date;
   }): string {
     const time = formatLocalTime(entry.timestamp);
-    const scope = entry.scope ? entry.scope.padEnd(18).slice(0, 18) : ''.padEnd(18);
+    const scope = formatScopeSegment(entry.scope);
     const fields = formatFields(entry.fields);
     const useColor = shouldUseColor();
     const renderedTime = useColor ? colorize(time, ANSI.dim) : time;
-    const renderedScope = useColor ? colorize(scope, ANSI.dim) : scope;
     const renderedLevel = useColor
-      ? colorize(entry.level.toUpperCase(), levelColor(entry.level))
-      : entry.level.toUpperCase();
+      ? colorize(entry.level.toUpperCase().padEnd(5), levelColor(entry.level))
+      : entry.level.toUpperCase().padEnd(5);
+    const renderedScope = scope
+      ? (useColor ? colorize(scope, ANSI.dim) : scope)
+      : '';
     const renderedFields = useColor && fields ? colorize(fields, ANSI.dim) : fields;
+    const scopePart = renderedScope ? ` ${renderedScope}` : '';
 
     return renderedFields
-      ? `${renderedTime} ${renderedScope} ${renderedLevel} ${entry.message} | ${renderedFields}`
-      : `${renderedTime} ${renderedScope} ${renderedLevel} ${entry.message}`;
+      ? `${renderedTime} ${renderedLevel}${scopePart} ${entry.message} | ${renderedFields}`
+      : `${renderedTime} ${renderedLevel}${scopePart} ${entry.message}`;
   }
 }
 

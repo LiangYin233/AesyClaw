@@ -15,7 +15,7 @@ function createProviderInstance(type: ProviderType, config: ProviderConfig, inst
   const spec = PROVIDER_TYPES.find((item) => item.type === type);
   if (!spec) {
     const available = PROVIDER_TYPES.map((item) => item.type).join(', ');
-    log.error(`Unknown provider type: ${type}. Available: ${available}`);
+    log.error(`未知提供商类型: ${type}。可用类型: ${available}`);
     throw new Error(`Unknown provider type: ${type}. Available: ${available}`);
   }
 
@@ -24,7 +24,7 @@ function createProviderInstance(type: ProviderType, config: ProviderConfig, inst
   const headers = config.headers;
   const extraBody = config.extraBody;
 
-  log.info(`Creating provider: ${instanceName} (${spec.displayName})`, {
+  log.info(`正在创建提供商: ${instanceName} (${spec.displayName})`, {
     providerName: instanceName,
     providerType: type
   });

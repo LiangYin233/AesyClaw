@@ -30,7 +30,7 @@ function startStartupLagMonitor(): () => void {
   return () => {
     clearInterval(timer);
     if (maxLagMs >= warnThresholdMs) {
-      log.info('Startup event loop lag summary', {
+      log.info('启动阶段事件循环延迟较高', {
         maxLagMs
       });
     }
@@ -58,9 +58,9 @@ async function startChannels(services: Services): Promise<void> {
       )
     ]);
   } catch (error) {
-    log.error('Channel startup failed', { error });
+    log.error('渠道启动失败', { error });
   }
-  log.info('Channel startup finished', {
+  log.info('渠道启动完成', {
     channelCount: channelManager.getEnabledChannels().length,
     durationMs: Date.now() - startedAt
   });
@@ -77,7 +77,7 @@ export async function bootstrap(): Promise<void> {
 
   ensureRuntimeDirectories(workspace, tempDir);
 
-  log.info('Gateway bootstrap started', {
+  log.info('网关启动中', {
     workspace,
     provider: mainRole.provider,
     model: mainRole.model,
@@ -101,7 +101,7 @@ export async function bootstrap(): Promise<void> {
     port,
     onCronJob
   });
-  log.info('Bootstrap phase completed', {
+  log.info('启动阶段完成', {
     phase: 'services',
     durationMs: Date.now() - servicesStartedAt
   });
@@ -109,14 +109,14 @@ export async function bootstrap(): Promise<void> {
   const wiringStartedAt = Date.now();
   setupConfigReload(servicesRef);
   setupSignalHandlers(servicesRef);
-  log.info('Bootstrap phase completed', {
+  log.info('启动阶段完成', {
     phase: 'wiring',
     durationMs: Date.now() - wiringStartedAt
   });
 
   const channelsStartedAt = Date.now();
   await startChannels(servicesRef);
-  log.info('Bootstrap phase completed', {
+  log.info('启动阶段完成', {
     phase: 'channels',
     durationMs: Date.now() - channelsStartedAt
   });
@@ -124,7 +124,7 @@ export async function bootstrap(): Promise<void> {
   servicesRef.agentRuntime.start();
   servicesRef.startPluginLoading();
 
-  log.info('Gateway bootstrap completed', {
+  log.info('网关启动完成', {
     durationMs: Date.now() - startedAt,
     provider: mainRole.provider,
     model: mainRole.model,

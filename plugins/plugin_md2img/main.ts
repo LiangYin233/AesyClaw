@@ -72,7 +72,7 @@ export default definePlugin<Md2ImgOptions>({
       scale: Math.max(0.5, Math.min(3.0, ctx.options.scale ?? 1.0))
     };
 
-    log.info('Plugin loaded', {
+    log.info('Markdown 转图片插件已加载', {
       minLength: config.minLength,
       scale: config.scale
     });
@@ -130,12 +130,12 @@ export default definePlugin<Md2ImgOptions>({
               messageType: baseMessage.messageType,
               media: originalMedia
             }, { skipHooks: true }).catch((error: unknown) => {
-              log.error('Failed to send original media separately', { error });
+              log.error('单独发送原始媒体失败', { error });
             });
           });
         }
 
-        log.info('Markdown rendered to image', { imagePath });
+        log.info('Markdown 已渲染为图片', { imagePath });
 
         return {
           ...baseMessage,
@@ -143,7 +143,7 @@ export default definePlugin<Md2ImgOptions>({
           media: [imagePath]
         };
       } catch (error) {
-        log.error('Conversion failed', { error });
+        log.error('转换失败', { error });
         return baseMessage;
       }
     });

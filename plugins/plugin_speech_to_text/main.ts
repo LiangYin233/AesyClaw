@@ -252,9 +252,9 @@ export default definePlugin<SpeechToTextOptions>({
     await fs.mkdir(downloadDir, { recursive: true }).catch(() => undefined);
 
     if (!providerConfig?.apiKey) {
-      log.warn(`Provider ${providerName} not configured or missing API key`);
+      log.warn(`提供商 ${providerName} 未配置或缺少 API 密钥`);
     } else {
-      log.info('Speech-to-text plugin loaded', {
+      log.info('语音转写插件已加载', {
         provider: providerName,
         model: config.model
       });
@@ -295,7 +295,7 @@ export default definePlugin<SpeechToTextOptions>({
         const source = findAudioSource(message);
         if (!source) {
           if (message.content === '[语音]') {
-            log.warn('Voice message missing audio URL', {
+            log.warn('语音消息缺少音频链接', {
               senderId: message.senderId,
               chatId: message.chatId
             });
@@ -309,7 +309,7 @@ export default definePlugin<SpeechToTextOptions>({
         }
 
         if (!config.apiKey) {
-          log.warn('Voice message detected but API key not configured');
+          log.warn('检测到语音消息，但未配置 API 密钥');
           return {
             ...message,
             content: '[语音消息 - 转写服务未配置]',
@@ -317,7 +317,7 @@ export default definePlugin<SpeechToTextOptions>({
           };
         }
 
-        log.info('Voice transcription started', {
+        log.info('语音转写开始', {
           senderId: message.senderId,
           chatId: message.chatId
         });
@@ -330,7 +330,7 @@ export default definePlugin<SpeechToTextOptions>({
           }
 
           const transcription = await transcribe(config, audioPath);
-          log.info('Voice transcription completed', {
+          log.info('语音转写完成', {
             senderId: message.senderId,
             chatId: message.chatId,
             preview: preview(transcription)
@@ -349,7 +349,7 @@ export default definePlugin<SpeechToTextOptions>({
           };
         } catch (error) {
           const messageText = error instanceof Error ? error.message : String(error);
-          log.error('Voice transcription failed', {
+          log.error('语音转写失败', {
             senderId: message.senderId,
             chatId: message.chatId,
             error: messageText
@@ -366,7 +366,7 @@ export default definePlugin<SpeechToTextOptions>({
         }
       } catch (error) {
         const messageText = error instanceof Error ? error.message : String(error);
-        log.error('Voice processing failed', {
+        log.error('语音处理失败', {
           senderId: message.senderId,
           chatId: message.chatId,
           error: messageText

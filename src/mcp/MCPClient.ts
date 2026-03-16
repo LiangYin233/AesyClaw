@@ -38,7 +38,7 @@ export class MCPClientManager {
           info.status = 'connected';
           info.connectedAt = new Date();
           info.toolCount = this.getServerToolCount(name);
-          this.log.info('MCP server ready', { server: name, toolCount: info.toolCount });
+          this.log.info('MCP 服务器就绪', { server: name, toolCount: info.toolCount });
 
           const tools = this.getServerTools(name);
           if (tools.length > 0) {
@@ -49,7 +49,7 @@ export class MCPClientManager {
           const info = this.serverStatus.get(name)!;
           info.status = 'failed';
           info.error = error instanceof Error ? error.message : String(error);
-          this.log.error(`MCP server connection failed: ${name}`, error);
+          this.log.error(`MCP 服务器连接失败: ${name}`, error);
         });
 
       promises.push(promise);
@@ -57,10 +57,10 @@ export class MCPClientManager {
 
     Promise.all(promises) // 后台异步连接，不阻塞启动
       .then(() => {
-        this.log.info('All MCP server connections completed');
+        this.log.info('所有 MCP 服务器连接完成');
       })
       .catch((error) => {
-        this.log.error('MCP server connection loop failed', { error }); // 错误已记录，避免未处理的 Promise 拒绝
+        this.log.error('MCP 服务器连接流程失败', { error }); // 错误已记录，避免未处理的 Promise 拒绝
       });
   }
 
@@ -104,7 +104,7 @@ export class MCPClientManager {
         args: command.slice(1),
         env
       });
-      this.log.info('Connecting to MCP server', { server: name, transport: 'stdio' });
+      this.log.info('正在连接 MCP 服务器', { server: name, transport: 'stdio' });
     } else if (transportType === 'http') {
       if (!config.url) {
         throw new Error(`MCP server ${name}: url is required for http type`);
@@ -120,7 +120,7 @@ export class MCPClientManager {
       }
 
       transport = new SSEClientTransport(new URL(config.url), sseOptions);
-      this.log.info('Connecting to MCP server', { server: name, transport: 'sse' });
+      this.log.info('正在连接 MCP 服务器', { server: name, transport: 'sse' });
     } else {
       throw new Error(`MCP server ${name}: invalid transport type ${transportType}`);
     }
@@ -156,9 +156,9 @@ export class MCPClientManager {
         });
       }
 
-      this.log.info('MCP tools loaded', { server: prefix, toolCount: response.tools?.length || 0 });
+      this.log.info('MCP 工具已加载', { server: prefix, toolCount: response.tools?.length || 0 });
     } catch (error) {
-      this.log.error('MCP tool loading failed', { server: prefix, error });
+      this.log.error('MCP 工具加载失败', { server: prefix, error });
     }
   }
 
@@ -255,7 +255,7 @@ export class MCPClientManager {
       try {
         callback(tools);
       } catch (error) {
-        this.log.error('MCP tool callback failed', { error });
+        this.log.error('MCP 工具回调执行失败', { error });
       }
     }
   }
@@ -336,7 +336,7 @@ export class MCPClientManager {
         this.notifyToolsLoaded(tools); // 通知工具已加载
       }
 
-      this.log.info('MCP server ready', { server: name, toolCount: info.toolCount });
+      this.log.info('MCP 服务器就绪', { server: name, toolCount: info.toolCount });
     } catch (error) {
       const info = this.serverStatus.get(name)!;
       info.status = 'failed';
@@ -374,7 +374,7 @@ export class MCPClientManager {
       info.toolCount = 0;
     }
 
-    this.log.info('MCP server disconnected', { server: name, removedToolCount: toolsToRemove.length });
+    this.log.info('MCP 服务器已断开连接', { server: name, removedToolCount: toolsToRemove.length });
   }
 
   /**

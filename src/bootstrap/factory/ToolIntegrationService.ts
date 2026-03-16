@@ -112,7 +112,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
       }
 
       if (!context?.chatId || !context?.channel) {
-        log.error('send_msg_to_user missing context', {
+        log.error('send_msg_to_user 缺少会话上下文', {
           hasChannel: !!context?.channel,
           hasChatId: !!context?.chatId
         });
@@ -134,7 +134,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
         const attachmentInfo = attachmentCount > 0 ? ` (包含 ${attachmentCount} 个附件)` : '';
         return `消息已发送${attachmentInfo}`;
       } catch (error) {
-        log.error('send_msg_to_user failed', {
+        log.error('send_msg_to_user 执行失败', {
           channel: context.channel,
           chatId: context.chatId,
           mediaCount: media?.length || 0,
@@ -177,7 +177,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
         task: String(item?.task || '')
       }));
 
-      log.info('call_agent started', {
+      log.info('call_agent 开始执行', {
         taskCount: rawTasks.length,
         agents: rawTasks.map((item) => item.agentName)
       });
@@ -200,7 +200,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
           signal: context?.signal
         });
 
-        log.info('call_agent completed', {
+        log.info('call_agent 执行完成', {
           taskCount: results.length,
           successCount: results.filter((item) => item.success).length,
           failedCount: results.filter((item) => !item.success).length
@@ -213,7 +213,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
           results
         }, null, 2);
       } catch (error) {
-        log.error('call_agent failed', {
+        log.error('call_agent 执行失败', {
           taskCount: rawTasks.length,
           error: normalizeError(error)
         });
@@ -224,7 +224,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
 
   const skills = skillManager.listSkills();
   if (skills.length > 0) {
-    log.info('Skill tools registered', {
+    log.info('技能工具已注册', {
       skillCount: skills.length,
       skills: skills.map((skill) => skill.name)
     });
@@ -245,6 +245,6 @@ export function registerMcpTools(toolRegistry: ToolRegistry, mcpManager: MCPClie
         source: 'mcp' as ToolSource
       }, 'mcp');
     }
-    log.info('MCP tools registered', { toolCount: tools.length });
+    log.info('MCP 工具已注册', { toolCount: tools.length });
   });
 }

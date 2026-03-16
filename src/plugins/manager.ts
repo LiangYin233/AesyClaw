@@ -92,7 +92,7 @@ export class PluginManager {
             ? { type: 'reply', message: result }
             : { type: 'handled' };
         } catch (error) {
-          this.log.error('Plugin command failed', {
+          this.log.error('插件命令执行失败', {
             plugin: instance.name,
             command: command.name,
             error
@@ -116,7 +116,7 @@ export class PluginManager {
           }
           current = next;
         } catch (error) {
-          this.log.error('Plugin messageIn hook failed', {
+          this.log.error('插件消息入站钩子执行失败', {
             plugin: instance.name,
             error
           });
@@ -139,7 +139,7 @@ export class PluginManager {
           }
           current = next;
         } catch (error) {
-          this.log.error('Plugin messageOut hook failed', {
+          this.log.error('插件消息出站钩子执行失败', {
             plugin: instance.name,
             error
           });
@@ -162,7 +162,7 @@ export class PluginManager {
           }
           current = next;
         } catch (error) {
-          this.log.error('Plugin toolBefore hook failed', {
+          this.log.error('插件工具前置钩子执行失败', {
             plugin: instance.name,
             toolName: current.toolName,
             error
@@ -186,7 +186,7 @@ export class PluginManager {
           }
           current = next;
         } catch (error) {
-          this.log.error('Plugin toolAfter hook failed', {
+          this.log.error('插件工具后置钩子执行失败', {
             plugin: instance.name,
             toolName: current.toolName,
             error
@@ -319,7 +319,7 @@ export class PluginManager {
       return true;
     } catch (error) {
       this.pluginConfigs[key] = previousState;
-      this.log.error('Plugin enable toggle failed', {
+      this.log.error('插件启停切换失败', {
         plugin: discovery.name,
         enabled,
         error
@@ -329,7 +329,7 @@ export class PluginManager {
         try {
           await this.activate(discovery, previousState.options);
         } catch (restoreError) {
-          this.log.error('Plugin restore failed', {
+          this.log.error('插件回滚恢复失败', {
             plugin: discovery.name,
             error: restoreError
           });
@@ -368,7 +368,7 @@ export class PluginManager {
       return true;
     } catch (error) {
       this.pluginConfigs[key] = previousState;
-      this.log.error('Plugin config rebuild failed', {
+      this.log.error('插件配置重建失败', {
         plugin: discovery.name,
         error
       });
@@ -377,7 +377,7 @@ export class PluginManager {
         try {
           await this.activate(discovery, previousState.options);
         } catch (restoreError) {
-          this.log.error('Plugin restore failed', {
+          this.log.error('插件回滚恢复失败', {
             plugin: discovery.name,
             error: restoreError
           });
@@ -422,7 +422,7 @@ export class PluginManager {
         try {
           await handler(payload as never);
         } catch (error) {
-          this.log.error('Plugin tap hook failed', {
+          this.log.error('插件监听钩子执行失败', {
             plugin: instance.name,
             hook: hookName,
             error
@@ -480,7 +480,7 @@ export class PluginManager {
     });
 
     this.instances.set(discovery.name, instance);
-    this.log.info('Plugin enabled', {
+    this.log.info('插件已启用', {
       plugin: discovery.name,
       toolCount: instance.tools.length
     });
@@ -494,7 +494,7 @@ export class PluginManager {
 
     await disposePluginInstance(instance, this.options.toolRegistry, this.log);
     this.instances.delete(name);
-    this.log.info('Plugin disabled', { plugin: name });
+    this.log.info('插件已停用', { plugin: name });
   }
 
   private async findDiscoveredPlugin(name: string): Promise<DiscoveredPlugin | null> {
@@ -529,7 +529,7 @@ export class PluginManager {
         }
       }
     } catch (error) {
-      this.log.error('Failed to scan plugins directory', { error });
+      this.log.error('扫描插件目录失败', { error });
       this.discoveredPlugins = [];
       return this.discoveredPlugins;
     }
@@ -540,7 +540,7 @@ export class PluginManager {
         const module = await importPluginModule<Record<string, unknown>>(entry.sourcePath);
         const plugin = (module.default ?? module) as unknown;
         if (!isPluginDefinition(plugin)) {
-          this.log.warn('Invalid plugin module skipped', {
+          this.log.warn('插件模块无效，已跳过', {
             plugin: entry.name
           });
           continue;
@@ -553,7 +553,7 @@ export class PluginManager {
           definition: plugin as Plugin
         });
       } catch (error) {
-        this.log.error('Failed to import plugin module', {
+        this.log.error('导入插件模块失败', {
           plugin: entry.name,
           error
         });
