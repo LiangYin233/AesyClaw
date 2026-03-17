@@ -10,6 +10,7 @@ export class ExecutionRuntime {
   private log = logger.child('ExecutionRuntime');
   private readonly subAgentExcludedTools = ['send_msg_to_user', 'call_agent'];
   private static readonly IMAGE_SUMMARY_PREFIX = '【图片概括】';
+  private static readonly VISION_DISABLED_MESSAGE = '当前 Agent 未启用视觉识别，暂时无法读取图片内容。请先在 Agent 配置中开启 Vision 并配置视觉模型后重试。';
 
   constructor(
     private engine: ExecutionEngine,
@@ -30,6 +31,28 @@ export class ExecutionRuntime {
           message: context.request,
           messages
         });
+      }
+
+      if (this.hasVisionInput(context.request) && !executor.needsVisionProvider(context.request.media, context.request.files)) {
+        this.log.warn('检测到图片输入，但当前 Agent 未启用视觉识别', {
+          sessionKey: context.sessionKey,
+          agent: policy.roleName,
+          channel: context.channel,
+          chatId: context.chatId
+        });
+
+        await this.finalizer.finalize({
+          sessionKey: context.sessionKey,
+          request: context.request,
+          content: ExecutionRuntime.VISION_DISABLED_MESSAGE,
+          reasoning_content: undefined,
+          agentMode: false,
+          sessionMessages: messages,
+          suppressOutbound: context.suppressOutbound,
+          sendOutbound: this.sendOutbound
+        });
+
+        return ExecutionRuntime.VISION_DISABLED_MESSAGE;
       }
 
       const useVisionProvider = executor.needsVisionProvider(context.request.media, context.request.files);
@@ -202,6 +225,11 @@ export class ExecutionRuntime {
         };
       }
     }));
+  }
+
+  private hasVisionInput(inbound: InboundMessage): boolean {
+    return (Array.isArray(inbound.media) && inbound.media.length > 0)
+      || (Array.isArray(inbound.files) && inbound.files.some((file) => file.type === 'image'));
   }
 
   private attachImageSummary(inbound: InboundMessage, messages: LLMMessage[], summary: string): void {
