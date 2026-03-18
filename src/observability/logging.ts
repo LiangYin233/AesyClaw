@@ -65,8 +65,27 @@ function levelColor(level: LogLevel): string {
   }
 }
 
-const SENSITIVE_KEY_PATTERN = /(authorization|token|api[-_]?key|secret|password|cookie)/i;
 const DEFAULT_PREVIEW_LIMIT = 120;
+
+function normalizeSensitiveKey(key: string): string {
+  return key.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+}
+
+function isSensitiveKey(key: string): boolean {
+  const normalized = normalizeSensitiveKey(key);
+  return normalized === 'authorization'
+    || normalized === 'token'
+    || normalized === 'accesstoken'
+    || normalized === 'refreshtoken'
+    || normalized === 'sessiontoken'
+    || normalized === 'bearertoken'
+    || normalized === 'apikey'
+    || normalized === 'clientsecret'
+    || normalized === 'secret'
+    || normalized === 'password'
+    || normalized === 'cookie'
+    || normalized === 'setcookie';
+}
 
 function padNumber(value: number, size: number = 2): string {
   return String(value).padStart(size, '0');
@@ -134,7 +153,7 @@ function serializeFieldValue(value: unknown, key?: string): LogFieldValue | unde
   if (value === null) {
     return null;
   }
-  if (key && SENSITIVE_KEY_PATTERN.test(key)) {
+  if (key && isSensitiveKey(key)) {
     return '[redacted]';
   }
   if (value instanceof Date) {
