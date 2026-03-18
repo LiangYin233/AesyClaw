@@ -36,6 +36,14 @@ export function registerSkillRoutes(app: Express, skillManager?: SkillManager): 
         return badRequest(res, 'enabled must be a boolean', 'enabled');
       }
 
+      const skill = skillManager.getSkill(req.params.name);
+      if (!skill) {
+        return notFound(res, 'Skill', req.params.name);
+      }
+      if (!skill.configurable) {
+        return badRequest(res, 'built-in skill cannot be toggled', 'name');
+      }
+
       const success = await skillManager.toggleSkill(req.params.name, enabled);
       if (!success) {
         return notFound(res, 'Skill', req.params.name);

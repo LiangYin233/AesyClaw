@@ -116,6 +116,9 @@ export interface SkillInfo {
   description: string
   path: string
   enabled: boolean
+  source: 'builtin' | 'external'
+  builtin: boolean
+  configurable: boolean
   content?: string
   files?: { name: string; path: string; isDirectory: boolean }[]
 }

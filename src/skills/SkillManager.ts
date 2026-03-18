@@ -10,6 +10,8 @@ import { ConfigLoader } from '../config/loader.js';
 const SKILL_ENTRY_FILE = 'SKILL.md';
 const RELOAD_DEBOUNCE_MS = 250;
 
+export type SkillSource = 'builtin' | 'external';
+
 export interface SkillFile {
   name: string;
   path: string;
@@ -23,6 +25,9 @@ export interface SkillInfo {
   files?: SkillFile[];
   content?: string;
   enabled: boolean;
+  source: SkillSource;
+  builtin: boolean;
+  configurable: boolean;
 }
 
 export interface SkillContext {
@@ -49,20 +54,34 @@ export interface SkillReloadSummary {
   cleanedAgentRefs: number;
 }
 
+interface SkillRootSpec {
+  source: SkillSource;
+  dir: string;
+}
+
+export interface SkillManagerOptions {
+  builtinSkillsDir?: string;
+  externalSkillsDir?: string;
+}
+
 export class SkillManager {
   private skills = new Map<string, SkillInfo>();
-  private skillsDir = './skills';
+  private builtinSkillsDir = './skills';
+  private externalSkillsDir = './workspace/skills';
   private readonly log = logger.child('SkillManager');
   private config: Config | null = null;
-  private rootWatcher: FSWatcher | null = null;
+  private rootWatchers = new Map<string, FSWatcher>();
   private dirWatchers = new Map<string, FSWatcher>();
   private reloadTimer: NodeJS.Timeout | null = null;
   private reloadPromise: Promise<SkillReloadSummary> | null = null;
   private pendingReload = false;
 
-  constructor(skillsDir?: string) {
-    if (skillsDir) {
-      this.skillsDir = skillsDir;
+  constructor(options?: SkillManagerOptions) {
+    if (options?.builtinSkillsDir) {
+      this.builtinSkillsDir = options.builtinSkillsDir;
+    }
+    if (options?.externalSkillsDir) {
+      this.externalSkillsDir = options.externalSkillsDir;
     }
   }
 
@@ -73,45 +92,54 @@ export class SkillManager {
   applyConfig(config: Config): void {
     this.config = config;
     for (const skill of this.skills.values()) {
-      skill.enabled = config.skills?.[skill.name]?.enabled ?? true;
+      skill.enabled = skill.builtin
+        ? true
+        : (config.skills?.[skill.name]?.enabled ?? true);
     }
   }
 
-  async loadFromDirectory(dir?: string): Promise<void> {
-    if (dir) {
-      this.skillsDir = dir;
+  async loadFromDirectory(): Promise<void> {
+    const rootSpecs = this.getRootSpecs();
+    for (const spec of rootSpecs) {
+      await fs.mkdir(spec.dir, { recursive: true });
     }
 
-    const absolutePath = this.resolveSkillsPath();
-    await fs.mkdir(absolutePath, { recursive: true });
-    this.log.info(`正在加载技能目录: ${absolutePath}`);
+    this.log.info('正在加载技能目录', {
+      builtinDir: rootSpecs.find((spec) => spec.source === 'builtin')?.dir,
+      externalDir: rootSpecs.find((spec) => spec.source === 'external')?.dir
+    });
 
     try {
-      this.skills = await this.scanSkillDirectory(absolutePath);
+      this.skills = await this.scanAllSkillDirectories();
       this.applyConfig(this.config ?? ConfigLoader.get());
+      await this.cleanupBuiltinSkillConfigEntries();
       this.log.info(`已加载 ${this.skills.size} 个技能`);
     } catch (error) {
-      this.log.warn(`加载技能目录失败: ${absolutePath}`, {
-        path: absolutePath,
+      this.log.warn('加载技能目录失败', {
         error: normalizeError(error)
       });
     }
   }
 
   async startWatching(): Promise<void> {
-    if (this.rootWatcher) {
+    if (this.rootWatchers.size > 0) {
       return;
     }
 
-    const absolutePath = this.resolveSkillsPath();
-    await fs.mkdir(absolutePath, { recursive: true });
-
-    this.rootWatcher = watch(absolutePath, (_eventType, filename) => {
-      this.scheduleReload(filename ? `root:${filename.toString()}` : 'root');
-    });
+    const rootSpecs = this.getRootSpecs();
+    for (const spec of rootSpecs) {
+      await fs.mkdir(spec.dir, { recursive: true });
+      const watcher = watch(spec.dir, (_eventType, filename) => {
+        this.scheduleReload(filename ? `${spec.source}:root:${filename.toString()}` : `${spec.source}:root`);
+      });
+      this.rootWatchers.set(spec.dir, watcher);
+    }
 
     await this.syncDirectoryWatchers();
-    this.log.info('技能目录监视器已启动', { path: absolutePath });
+    this.log.info('技能目录监视器已启动', {
+      builtinDir: rootSpecs.find((spec) => spec.source === 'builtin')?.dir,
+      externalDir: rootSpecs.find((spec) => spec.source === 'external')?.dir
+    });
   }
 
   async stopWatching(): Promise<void> {
@@ -120,10 +148,10 @@ export class SkillManager {
       this.reloadTimer = null;
     }
 
-    if (this.rootWatcher) {
-      this.rootWatcher.close();
-      this.rootWatcher = null;
+    for (const watcher of this.rootWatchers.values()) {
+      watcher.close();
     }
+    this.rootWatchers.clear();
 
     for (const watcher of this.dirWatchers.values()) {
       watcher.close();
@@ -166,7 +194,12 @@ export class SkillManager {
 
   async toggleSkill(name: string, enabled: boolean): Promise<boolean> {
     const skill = this.skills.get(name);
-    if (!skill) return false;
+    if (!skill) {
+      return false;
+    }
+    if (!skill.configurable) {
+      throw new Error(`Built-in skill cannot be toggled: ${name}`);
+    }
 
     skill.enabled = enabled;
 
@@ -243,16 +276,21 @@ export class SkillManager {
     ].join('\n');
   }
 
-  registerSkill(skill: SkillInfo): void {
-    this.skills.set(skill.name, skill);
+  private getRootSpecs(): SkillRootSpec[] {
+    return [
+      {
+        source: 'builtin',
+        dir: this.resolvePath(this.builtinSkillsDir)
+      },
+      {
+        source: 'external',
+        dir: this.resolvePath(this.externalSkillsDir)
+      }
+    ];
   }
 
-  unregisterSkill(name: string): void {
-    this.skills.delete(name);
-  }
-
-  private resolveSkillsPath(): string {
-    return path.isAbsolute(this.skillsDir) ? this.skillsDir : path.resolve(process.cwd(), this.skillsDir);
+  private resolvePath(dir: string): string {
+    return path.isAbsolute(dir) ? dir : path.resolve(process.cwd(), dir);
   }
 
   private scheduleReload(reason: string): void {
@@ -272,14 +310,16 @@ export class SkillManager {
   }
 
   private async performReload(): Promise<SkillReloadSummary> {
-    const absolutePath = this.resolveSkillsPath();
-    await fs.mkdir(absolutePath, { recursive: true });
+    for (const spec of this.getRootSpecs()) {
+      await fs.mkdir(spec.dir, { recursive: true });
+    }
 
     const previousSkills = this.skills;
-    const nextSkills = await this.scanSkillDirectory(absolutePath);
+    const nextSkills = await this.scanAllSkillDirectories();
     this.skills = nextSkills;
     this.applyConfig(this.config ?? ConfigLoader.get());
 
+    await this.cleanupBuiltinSkillConfigEntries();
     await this.syncDirectoryWatchers();
 
     const summary = this.buildReloadSummary(previousSkills, nextSkills);
@@ -337,21 +377,46 @@ export class SkillManager {
       path: skill.path,
       content: skill.content,
       enabled: skill.enabled,
+      source: skill.source,
+      builtin: skill.builtin,
+      configurable: skill.configurable,
       files
     });
   }
 
-  private async scanSkillDirectory(absolutePath: string): Promise<Map<string, SkillInfo>> {
+  private async scanAllSkillDirectories(): Promise<Map<string, SkillInfo>> {
+    const merged = new Map<string, SkillInfo>();
+
+    for (const spec of this.getRootSpecs()) {
+      const skillMap = await this.scanSkillDirectory(spec);
+      for (const [name, skill] of skillMap.entries()) {
+        if (merged.has(name)) {
+          const existing = merged.get(name)!;
+          this.log.warn('检测到重复 skill 名称，已保留优先项', {
+            skill: name,
+            keptSource: existing.source,
+            ignoredSource: skill.source
+          });
+          continue;
+        }
+        merged.set(name, skill);
+      }
+    }
+
+    return new Map([...merged.entries()].sort(([left], [right]) => left.localeCompare(right)));
+  }
+
+  private async scanSkillDirectory(spec: SkillRootSpec): Promise<Map<string, SkillInfo>> {
     const skillMap = new Map<string, SkillInfo>();
-    const entries = await fs.readdir(absolutePath, { withFileTypes: true });
+    const entries = await fs.readdir(spec.dir, { withFileTypes: true });
 
     await Promise.all(entries.map(async (entry) => {
       if (!entry.isDirectory() || entry.name.startsWith('.')) {
         return;
       }
 
-      const skillPath = path.join(absolutePath, entry.name);
-      const skill = await this.loadSkillDirectory(skillPath, entry.name);
+      const skillPath = path.join(spec.dir, entry.name);
+      const skill = await this.loadSkillDirectory(skillPath, entry.name, spec.source);
       if (skill) {
         skillMap.set(entry.name, skill);
       }
@@ -360,31 +425,35 @@ export class SkillManager {
     return new Map([...skillMap.entries()].sort(([left], [right]) => left.localeCompare(right)));
   }
 
-  private async loadSkillDirectory(skillPath: string, name: string): Promise<SkillInfo | null> {
+  private async loadSkillDirectory(skillPath: string, name: string, source: SkillSource): Promise<SkillInfo | null> {
     try {
       const skillMdPath = path.join(skillPath, SKILL_ENTRY_FILE);
       const content = await fs.readFile(skillMdPath, 'utf-8');
       const { description } = this.parseSkillFile(content);
       const files = await this.getSkillFilesList(skillPath);
-      const enabled = this.config?.skills?.[name]?.enabled ?? true;
+      const builtin = source === 'builtin';
+      const enabled = builtin
+        ? true
+        : (this.config?.skills?.[name]?.enabled ?? true);
 
-      this.log.debug(`Loaded skill: ${name} with ${files.length} files, enabled: ${enabled}`);
       return {
         name,
         description: description || '',
         path: skillMdPath,
         files,
         content,
-        enabled
+        enabled,
+        source,
+        builtin,
+        configurable: !builtin
       };
     } catch (error) {
       if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
         this.log.warn(`加载技能失败: ${name}`, {
           skill: name,
+          source,
           error: normalizeError(error)
         });
-      } else {
-        this.log.debug(`No ${SKILL_ENTRY_FILE} found for skill: ${name}`);
       }
       return null;
     }
@@ -396,7 +465,9 @@ export class SkillManager {
     try {
       const entries = await fs.readdir(skillPath, { withFileTypes: true });
       for (const entry of entries) {
-        if (entry.name.startsWith('.')) continue;
+        if (entry.name.startsWith('.')) {
+          continue;
+        }
 
         files.push({
           name: entry.name,
@@ -470,13 +541,17 @@ export class SkillManager {
   }
 
   private async syncDirectoryWatchers(): Promise<void> {
-    const absolutePath = this.resolveSkillsPath();
-    const entries = await fs.readdir(absolutePath, { withFileTypes: true });
-    const nextDirectories = new Set(
-      entries
-        .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
-        .map((entry) => path.join(absolutePath, entry.name))
-    );
+    const nextDirectories = new Set<string>();
+
+    for (const spec of this.getRootSpecs()) {
+      const entries = await fs.readdir(spec.dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory() || entry.name.startsWith('.')) {
+          continue;
+        }
+        nextDirectories.add(path.join(spec.dir, entry.name));
+      }
+    }
 
     for (const [dirPath, watcher] of this.dirWatchers.entries()) {
       if (nextDirectories.has(dirPath)) {
@@ -510,10 +585,6 @@ export class SkillManager {
     let cleanedAgentRefs = 0;
 
     const nextConfig = await ConfigLoader.update((config) => {
-      if (!config.skills) {
-        config.skills = {};
-      }
-
       const prune = (allowedSkills: string[] = []): string[] => {
         const nextAllowedSkills = allowedSkills.filter((name) => !removedSet.has(name));
         cleanedAgentRefs += allowedSkills.length - nextAllowedSkills.length;
@@ -531,5 +602,30 @@ export class SkillManager {
 
     this.applyConfig(nextConfig);
     return cleanedAgentRefs;
+  }
+
+  private async cleanupBuiltinSkillConfigEntries(): Promise<void> {
+    if (!this.config) {
+      return;
+    }
+
+    const builtinSkillNames = Array.from(this.skills.values())
+      .filter((skill) => skill.builtin)
+      .map((skill) => skill.name);
+    if (builtinSkillNames.length === 0) {
+      return;
+    }
+
+    const staleNames = builtinSkillNames.filter((name) => this.config?.skills?.[name]);
+    if (staleNames.length === 0) {
+      return;
+    }
+
+    const nextConfig = await ConfigLoader.update((config) => {
+      for (const name of staleNames) {
+        delete config.skills[name];
+      }
+    });
+    this.applyConfig(nextConfig);
   }
 }

@@ -1,6 +1,6 @@
 <template>
     <div class="skills-page page-stack">
-        <PageHeader title="Skills 管理" subtitle="配置 Agent 可用的 Skills，并查看详情内容。">
+        <PageHeader title="Skills 管理" subtitle="查看内置与外置 Skills，并管理可配置的外置 Skill。">
             <template #actions>
                 <Button label="刷新" icon="pi pi-refresh" outlined @click="reloadAllSkills" :loading="loading || reloading" />
             </template>
@@ -22,10 +22,23 @@
                                 <span class="skill-name">{{ skill.name }}</span>
                                 <div class="skill-toggle" @click.stop>
                                     <Tag
+                                        :value="skill.builtin ? '内置' : '外置'"
+                                        :severity="skill.builtin ? 'info' : 'warning'"
+                                    />
+                                    <Tag
                                         :value="skill.enabled ? '已启用' : '已禁用'"
                                         :severity="skill.enabled ? 'success' : 'secondary'"
                                     />
-                                    <InputSwitch v-model="skill.enabled" @change="toggleSkillHandler(skill.name, skill.enabled)" />
+                                    <InputSwitch
+                                        v-if="skill.configurable"
+                                        v-model="skill.enabled"
+                                        @change="toggleSkillHandler(skill.name, skill.enabled)"
+                                    />
+                                    <Tag
+                                        v-else
+                                        value="固定启用"
+                                        severity="contrast"
+                                    />
                                 </div>
                             </div>
                         </template>
@@ -49,6 +62,14 @@
                     <div class="detail-item">
                         <span class="detail-label">状态</span>
                         <Tag :value="selectedSkill.enabled ? '已启用' : '已禁用'" :severity="selectedSkill.enabled ? 'success' : 'secondary'" />
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">来源</span>
+                        <Tag :value="selectedSkill.builtin ? '内置' : '外置'" :severity="selectedSkill.builtin ? 'info' : 'warning'" />
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">配置</span>
+                        <Tag :value="selectedSkill.configurable ? '可禁用' : '固定启用'" :severity="selectedSkill.configurable ? 'secondary' : 'contrast'" />
                     </div>
                     <div class="detail-item" v-if="selectedSkill.files?.length">
                         <span class="detail-label">文件数</span>

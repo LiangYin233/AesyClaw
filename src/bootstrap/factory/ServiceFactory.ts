@@ -188,8 +188,11 @@ function buildVisionSettingsFromRole(config: ReturnType<typeof getMainAgentRole>
   };
 }
 
-async function createSkillManager(config: Config): Promise<SkillManager> {
-  const skillManager = new SkillManager('./skills');
+async function createSkillManager(config: Config, workspace: string): Promise<SkillManager> {
+  const skillManager = new SkillManager({
+    builtinSkillsDir: './skills',
+    externalSkillsDir: join(workspace, 'skills')
+  });
   skillManager.setConfig(config);
   await skillManager.loadFromDirectory();
   await skillManager.startWatching();
@@ -226,7 +229,7 @@ async function createExecutionRuntime(args: {
   const provider = createRequiredProvider(config, mainRole.provider, mainRole.model);
   const visionSettings = buildVisionSettingsFromRole(mainRole);
   const visionProvider = createVisionProvider(config, visionSettings);
-  const skillManager = await createSkillManager(config);
+  const skillManager = await createSkillManager(config, workspace);
   const agentRoleService = new AgentRoleService(
     getConfig,
     setConfig,
