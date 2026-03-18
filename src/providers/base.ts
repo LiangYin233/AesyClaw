@@ -12,10 +12,10 @@ export abstract class LLMProvider {
    * @param extraBody - Additional body parameters for API requests
    */
   constructor(
-    protected apiKey?: string,
-    protected apiBase?: string,
-    protected headers?: Record<string, string>,
-    protected extraBody?: Record<string, any>
+    _apiKey?: string,
+    _apiBase?: string,
+    _headers?: Record<string, string>,
+    _extraBody?: Record<string, any>
   ) {}
 
   /**

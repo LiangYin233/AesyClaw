@@ -219,7 +219,7 @@ const saving = ref(false)
 
 const providerKeys = computed(() => config.value ? Object.keys(config.value.providers) : [])
 
-const providerTypeOptions = ['openai']
+const providerTypeOptions = ['openai', 'openai_responses', 'anthropic']
 
 async function saveConfig() {
     if (!config.value) return

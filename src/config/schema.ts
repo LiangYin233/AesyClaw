@@ -27,7 +27,7 @@ const memoryFactsConfigSchema = withObjectInputDefault({
   maxFacts: z.number().int().finite().default(100)
 });
 
-const providerTypeSchema = z.enum(['openai']);
+const providerTypeSchema = z.enum(['openai', 'openai_responses', 'anthropic']);
 
 const providerApiBaseSchema = z.union([
   z.literal(''),
