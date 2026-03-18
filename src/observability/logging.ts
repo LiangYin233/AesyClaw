@@ -33,10 +33,13 @@ const LEVELS: Record<LogLevel, number> = {
 
 const ANSI = {
   reset: '\x1b[0m',
+  bold: '\x1b[1m',
   dim: '\x1b[2m',
   cyan: '\x1b[36m',
   blue: '\x1b[34m',
+  brightBlue: '\x1b[94m',
   yellow: '\x1b[33m',
+  brightYellow: '\x1b[93m',
   red: '\x1b[31m'
 } as const;
 
@@ -52,14 +55,18 @@ function colorize(text: string, color: string): string {
   return `${color}${text}${ANSI.reset}`;
 }
 
+function colorizeWithEffects(text: string, ...effects: string[]): string {
+  return `${effects.join('')}${text}${ANSI.reset}`;
+}
+
 function levelColor(level: LogLevel): string {
   switch (level) {
     case 'debug':
       return ANSI.cyan;
     case 'info':
-      return ANSI.blue;
+      return ANSI.brightBlue;
     case 'warn':
-      return ANSI.yellow;
+      return ANSI.brightYellow;
     case 'error':
       return ANSI.red;
   }
@@ -354,9 +361,14 @@ class LoggingService {
     const fields = formatFields(entry.fields);
     const useColor = shouldUseColor();
     const renderedTime = useColor ? colorize(time, ANSI.dim) : time;
+    const levelText = entry.level.toUpperCase().padEnd(5);
     const renderedLevel = useColor
-      ? colorize(entry.level.toUpperCase().padEnd(5), levelColor(entry.level))
-      : entry.level.toUpperCase().padEnd(5);
+      ? entry.level === 'info'
+        ? colorizeWithEffects(levelText, ANSI.dim, levelColor(entry.level))
+        : entry.level === 'warn'
+          ? colorizeWithEffects(levelText, ANSI.bold, levelColor(entry.level))
+          : colorize(levelText, levelColor(entry.level))
+      : levelText;
     const renderedScope = scope
       ? (useColor ? colorize(scope, ANSI.dim) : scope)
       : '';
