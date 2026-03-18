@@ -64,17 +64,32 @@ function withGeneratedToken(config: Config): Config {
 }
 
 export class ConfigLoader {
+  private static readonly WATCH_DEBOUNCE_MS = 150;
   private static config: Config | null = null;
   private static configPath = join(process.cwd(), 'config.toml');
   private static watcher: fsWatcher | null = null;
   private static log = logger.child('ConfigLoader');
   private static reloadListeners = new Set<(config: Config) => void | Promise<void>>();
-  private static suppressedReloadSignatures = new Set<string>();
+  private static lastAppliedSignature: string | null = null;
+  private static reloadTimer: NodeJS.Timeout | null = null;
 
   private static ensureConfigDirectory(): void {
     const dir = dirname(this.configPath);
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
+    }
+  }
+
+  private static applyConfigState(config: Config): Config {
+    this.config = config;
+    this.lastAppliedSignature = this.serializeConfig(config);
+    return config;
+  }
+
+  private static clearReloadTimer(): void {
+    if (this.reloadTimer) {
+      clearTimeout(this.reloadTimer);
+      this.reloadTimer = null;
     }
   }
 
@@ -87,8 +102,7 @@ export class ConfigLoader {
     this.ensureConfigDirectory();
     const nextConfig = withGeneratedToken(config);
     writeFileSync(this.configPath, this.serializeConfig(nextConfig), 'utf-8');
-    this.config = nextConfig;
-    return nextConfig;
+    return this.applyConfigState(nextConfig);
   }
 
   private static readParsedConfig(): Config {
@@ -100,18 +114,14 @@ export class ConfigLoader {
     if (this.configPath !== configPath) {
       this.stopWatching();
       this.config = null;
-      this.suppressedReloadSignatures.clear();
+      this.lastAppliedSignature = null;
     }
     this.configPath = configPath;
   }
 
-  static getPath(): string {
-    return this.configPath;
-  }
-
   static async save(config: unknown): Promise<void> {
     const nextConfig = this.writeConfig(parseConfig(config));
-    await this.notifyReload(nextConfig, true);
+    await this.notifyReload(nextConfig);
   }
 
   static async update(mutator: ConfigMutator): Promise<Config> {
@@ -119,7 +129,7 @@ export class ConfigLoader {
     const updatedConfig = await mutator(currentConfig);
     const nextConfig = parseConfig(updatedConfig ?? currentConfig);
     const savedConfig = this.writeConfig(nextConfig);
-    await this.notifyReload(savedConfig, true);
+    await this.notifyReload(savedConfig);
     return savedConfig;
   }
 
@@ -143,7 +153,7 @@ export class ConfigLoader {
     if (!loadedConfig.server.token) {
       this.writeConfig(loadedConfig);
     } else {
-      this.config = loadedConfig;
+      this.applyConfigState(loadedConfig);
     }
 
     this.startWatching();
@@ -165,11 +175,8 @@ export class ConfigLoader {
     };
   }
 
-  private static async notifyReload(config: Config, suppressNextWatchEvent: boolean = false): Promise<void> {
-    if (suppressNextWatchEvent) {
-      this.suppressedReloadSignatures.add(this.serializeConfig(config));
-    }
-
+  private static async notifyReload(config: Config): Promise<void> {
+    this.applyConfigState(config);
     for (const listener of this.reloadListeners) {
       await listener(config);
     }
@@ -191,7 +198,7 @@ export class ConfigLoader {
     }
 
     try {
-      this.watcher = watch(this.configPath, async (eventType, filename) => {
+      this.watcher = watch(this.configPath, (eventType, filename) => {
         if (!filename || basename(filename.toString()) !== basename(this.configPath)) {
           return;
         }
@@ -200,23 +207,11 @@ export class ConfigLoader {
           return;
         }
 
-        try {
-          const nextConfig = this.readParsedConfig();
-          const signature = this.serializeConfig(nextConfig);
-          this.config = nextConfig;
-
-          if (this.suppressedReloadSignatures.delete(signature)) {
-            this.log.debug('Skipped redundant config reload notification');
-            return;
-          }
-
-          this.log.info('配置已从磁盘重新加载');
-          await this.notifyReload(nextConfig);
-        } catch (error) {
-          this.log.warn('重新加载配置失败', {
-            error: normalizeError(error)
-          });
-        }
+        this.clearReloadTimer();
+        this.reloadTimer = setTimeout(() => {
+          this.clearReloadTimer();
+          void this.reloadFromDisk();
+        }, this.WATCH_DEBOUNCE_MS);
       });
       this.log.debug('Started file watcher');
     } catch (error) {
@@ -227,10 +222,31 @@ export class ConfigLoader {
   }
 
   static stopWatching(): void {
+    this.clearReloadTimer();
+
     if (this.watcher) {
       this.watcher.close();
       this.watcher = null;
       this.log.debug('Stopped file watcher');
+    }
+  }
+
+  private static async reloadFromDisk(): Promise<void> {
+    try {
+      const nextConfig = this.readParsedConfig();
+      const signature = this.serializeConfig(nextConfig);
+
+      if (signature === this.lastAppliedSignature) {
+        this.log.debug('Skipped redundant config reload notification');
+        return;
+      }
+
+      this.log.info('配置已从磁盘重新加载');
+      await this.notifyReload(nextConfig);
+    } catch (error) {
+      this.log.warn('重新加载配置失败', {
+        error: normalizeError(error)
+      });
     }
   }
 }
