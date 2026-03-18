@@ -1,6 +1,7 @@
 import { join } from 'path';
 import { BuiltInCommands } from '../../agent/commands/index.js';
 import { AgentRuntime, OutboundGateway } from '../../agent/runtime/AgentRuntime.js';
+import { LongTermMemoryService } from '../../agent/memory/LongTermMemoryService.js';
 import { SessionMemoryService } from '../../agent/memory/SessionMemoryService.js';
 import { SessionRoutingService } from '../../agent/session/SessionRoutingService.js';
 import { AgentRoleService } from '../../agent/roles/AgentRoleService.js';
@@ -13,7 +14,7 @@ import { CronService } from '../../cron/index.js';
 import { logging, logger, tokenUsage } from '../../observability/index.js';
 import { createProvider } from '../../providers/index.js';
 import type { LLMProvider } from '../../providers/base.js';
-import { MemoryFactStore, SessionManager } from '../../session/index.js';
+import { LongTermMemoryStore, SessionManager } from '../../session/index.js';
 import { SkillManager } from '../../skills/index.js';
 import { ToolRegistry, registerBuiltInTools, registerMcpTools } from '../../tools/index.js';
 import { CommandRegistry } from '../../agent/commands/index.js';
@@ -30,7 +31,7 @@ export interface Services {
   provider: LLMProvider;
   toolRegistry: ToolRegistry;
   sessionManager: SessionManager;
-  memoryFactStore: MemoryFactStore;
+  longTermMemoryStore: LongTermMemoryStore;
   channelManager: ChannelManager;
   pluginManager: PluginManager;
   startPluginLoading: () => void;
@@ -76,18 +77,16 @@ function createOptionalProvider(resolved: ReturnType<typeof resolveProviderSelec
 export function createMemoryService(
   config: Config,
   sessionManager: SessionManager,
-  factsStore: MemoryFactStore
+  longTermMemoryStore: LongTermMemoryStore
 ): SessionMemoryService | undefined {
   const summaryConfig = config.agent.defaults.memorySummary;
-  const factsConfig = config.agent.defaults.memoryFacts;
+  const memoryConfig = config.agent.defaults.memoryFacts;
 
-  if (!summaryConfig.enabled && !factsConfig.enabled) {
+  if (!summaryConfig.enabled && !memoryConfig.enabled) {
     return undefined;
   }
 
   const summaryProviderConfig = resolveProviderSelection(config, summaryConfig.provider, summaryConfig.model);
-  const factsProviderConfig = resolveProviderSelection(config, factsConfig.provider, factsConfig.model);
-
   const summaryRuntimeConfig = {
     enabled: summaryConfig.enabled,
     model: summaryProviderConfig.model,
@@ -95,25 +94,35 @@ export function createMemoryService(
     memoryWindow: config.agent.defaults.memoryWindow,
     contextMode: config.agent.defaults.contextMode
   };
-  const factsRuntimeConfig = {
-    enabled: factsConfig.enabled,
-    model: factsProviderConfig.model,
-    maxFacts: factsConfig.maxFacts
-  };
+  if (memoryConfig.enabled && (!memoryConfig.provider || !memoryConfig.model)) {
+    appLog.warn('长期记忆已启用，但未完整配置 memoryFacts.provider/model；后台自治维护将被跳过');
+  }
+  const longTermMemoryService = memoryConfig.enabled
+    ? new LongTermMemoryService(
+        sessionManager,
+        longTermMemoryStore,
+        {
+          enabled: memoryConfig.enabled,
+          model: memoryConfig.model || undefined,
+          maxFacts: memoryConfig.maxFacts
+        },
+        memoryConfig.provider && memoryConfig.model
+          ? createOptionalProvider(resolveProviderSelection(config, memoryConfig.provider, memoryConfig.model), '长期记忆')
+          : undefined
+      )
+    : undefined;
 
   return new SessionMemoryService(
     sessionManager,
-    factsStore,
     summaryConfig.enabled ? createOptionalProvider(summaryProviderConfig, '记忆摘要') : undefined,
     summaryRuntimeConfig,
-    factsConfig.enabled ? createOptionalProvider(factsProviderConfig, '长期记忆') : undefined,
-    factsRuntimeConfig
+    longTermMemoryService
   );
 }
 
 async function createPersistenceServices(config: Config): Promise<{
   sessionManager: SessionManager;
-  memoryFactStore: MemoryFactStore;
+  longTermMemoryStore: LongTermMemoryStore;
   memoryService?: SessionMemoryService;
   sessionRouting: SessionRoutingService;
 }> {
@@ -124,15 +133,15 @@ async function createPersistenceServices(config: Config): Promise<{
   await sessionManager.loadAll();
   appLog.info(`会话管理器已就绪，已加载 ${sessionManager.count()} 个会话`);
 
-  const memoryFactStore = new MemoryFactStore(sessionManager.getDatabase());
-  const memoryService = createMemoryService(config, sessionManager, memoryFactStore);
+  const longTermMemoryStore = new LongTermMemoryStore(sessionManager.getDatabase());
+  const memoryService = createMemoryService(config, sessionManager, longTermMemoryStore);
   if (memoryService) {
     appLog.info('记忆服务已启用');
   }
 
   return {
     sessionManager,
-    memoryFactStore,
+    longTermMemoryStore,
     memoryService,
     sessionRouting: new SessionRoutingService(sessionManager, config.agent.defaults.contextMode)
   };
@@ -435,7 +444,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   const persistenceStartedAt = Date.now();
   const {
     sessionManager,
-    memoryFactStore,
+    longTermMemoryStore,
     memoryService,
     sessionRouting
   } = await createPersistenceServices(config);
@@ -511,7 +520,8 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     pluginManager,
     mcpManager,
     agentRuntime,
-    agentRoleService
+    agentRoleService,
+    memoryService
   });
 
   const apiStartedAt = Date.now();
@@ -529,7 +539,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
         mcpManager: mcpManager ?? undefined,
         skillManager,
         toolRegistry,
-        memoryFactStore,
+        longTermMemoryStore,
         agentRoleService
       });
   if (apiServer) {
@@ -557,7 +567,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     provider,
     toolRegistry,
     sessionManager,
-    memoryFactStore,
+    longTermMemoryStore,
     channelManager,
     pluginManager,
     startPluginLoading,

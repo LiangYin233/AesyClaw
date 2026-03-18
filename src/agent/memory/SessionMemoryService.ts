@@ -2,12 +2,18 @@ import type { InboundMessage } from '../../types.js';
 import type { LLMProvider } from '../../providers/base.js';
 import type { Session, SessionManager, SessionMessage } from '../../session/SessionManager.js';
 import type { ContextMode } from '../types.js';
-import { MemoryFactStore, type MemoryFact } from '../../session/MemoryFactStore.js';
+import {
+  type LongTermMemoryEntry,
+  type LongTermMemoryOperation,
+  type MemoryOperationActor,
+  type MemoryOperationInput,
+  type MemoryOperationResult
+} from '../../session/LongTermMemoryStore.js';
 import { logger } from '../../observability/index.js';
 import { CRON_SESSION_KEY_PREFIX, INTERNAL_CHANNELS } from '../../constants/index.js';
 import { collectConversationRounds, sliceRecentConversationRounds } from './conversationRounds.js';
+import { LongTermMemoryService } from './LongTermMemoryService.js';
 
-const MEMORY_FACTS_PREFIX = '长期记忆（相关时参考）：';
 const MEMORY_SUMMARY_PREFIX = '会话摘要（旧上下文）：';
 
 const SUMMARY_SYSTEM_PROMPT = [
@@ -20,30 +26,11 @@ const SUMMARY_SYSTEM_PROMPT = [
   '输出: 新的完整对话摘要。'
 ].join('\n');
 
-const FACTS_SYSTEM_PROMPT = [
-  '角色: 长期记忆提取器',
-  '任务: 仅提取“用户本人”的长期稳定信息。',
-  '优先提取: 用户身份背景、个人偏好、长期习惯、长期目标、长期约束。',
-  '可提取示例: 语言偏好、回答风格偏好、职业/角色、常用工具、长期项目。',
-  '禁止提取: 知识问答主题、一次性请求、临时任务、助手内容、推测信息。',
-  '判定规则: 若不确定是否是用户长期信息，则不要提取。',
-  '约束: 只能依据用户原话；不编造；每行一条；不要编号或解释。',
-  '输出: 从本条用户消息中能确认的长期事实；可重复输出已存在事实用于再次确认；若没有则输出“无”。'
-].join('\n');
-
 function buildSummaryUserPrompt(existingSummary: string, transcript: string): string {
   return [
     `已有摘要:\n${existingSummary || '(无)'}`,
     `需要压缩并合并的新增对话:\n${transcript || '(无新增对话)'}`,
     '请输出合并后的完整对话摘要。'
-  ].join('\n\n');
-}
-
-function buildFactsUserPrompt(existingFactsBlock: string, userContent: string): string {
-  return [
-    `已有用户长期记忆:\n${existingFactsBlock || '(无)'}`,
-    `用户消息:\n${userContent || '(空)'}`,
-    '请只依据用户消息，输出其中能确认的长期稳定事实。'
   ].join('\n\n');
 }
 
@@ -55,24 +42,40 @@ interface MemorySummaryRuntimeConfig {
   contextMode: ContextMode;
 }
 
-interface MemoryFactsRuntimeConfig {
-  enabled: boolean;
-  model?: string;
-  maxFacts: number;
-}
-
 export class SessionMemoryService {
   private log = logger.child('SessionMemory');
-  private factsQueue: Map<string, Promise<void>> = new Map();
 
   constructor(
     private sessionManager: SessionManager,
-    private factsStore: MemoryFactStore,
     private summaryProvider: LLMProvider | undefined,
     private summaryConfig: MemorySummaryRuntimeConfig,
-    private factsProvider?: LLMProvider,
-    private factsConfig?: MemoryFactsRuntimeConfig
+    private longTermMemoryService?: LongTermMemoryService
   ) {}
+
+  hasLongTermMemory(): boolean {
+    return !!this.longTermMemoryService?.isEnabled();
+  }
+
+  async listLongTermMemory(channel: string, chatId: string): Promise<LongTermMemoryEntry[]> {
+    return this.longTermMemoryService?.listEntries(channel, chatId) || [];
+  }
+
+  async listLongTermMemoryOperations(channel: string, chatId: string, limit = 10): Promise<LongTermMemoryOperation[]> {
+    return this.longTermMemoryService?.listRecentOperations(channel, chatId, limit) || [];
+  }
+
+  async applyLongTermMemoryOperations(
+    channel: string,
+    chatId: string,
+    operations: MemoryOperationInput[],
+    actor: MemoryOperationActor
+  ): Promise<MemoryOperationResult[]> {
+    if (!this.longTermMemoryService) {
+      throw new Error('Long-term memory service is not enabled');
+    }
+
+    return this.longTermMemoryService.applyOperations(channel, chatId, operations, actor);
+  }
 
   private shouldSkipMemory(sessionKey?: string, session?: Pick<Session, 'channel'>): boolean {
     return sessionKey?.startsWith(CRON_SESSION_KEY_PREFIX) === true || session?.channel === INTERNAL_CHANNELS.CRON;
@@ -87,8 +90,9 @@ export class SessionMemoryService {
       return this.buildConversationHistory(session);
     }
 
-    const facts = await this.factsStore.getFacts(session.channel, session.chatId);
-    const factMessage = this.buildFactsMessage(facts);
+    const memoryMessages = this.longTermMemoryService
+      ? await this.longTermMemoryService.buildMemoryMessages(session.channel, session.chatId)
+      : [];
     const summaryMessage = session.summary.trim()
       ? [{
           role: 'system' as const,
@@ -102,7 +106,7 @@ export class SessionMemoryService {
       session.summarizedMessageCount
     );
 
-    return [...factMessage, ...summaryMessage, ...recentMessages];
+    return [...memoryMessages, ...summaryMessage, ...recentMessages];
   }
 
   async maybeSummarizeSession(sessionKey: string): Promise<boolean> {
@@ -163,8 +167,9 @@ export class SessionMemoryService {
   }
 
   private async buildConversationHistory(session: Session): Promise<SessionMessage[]> {
-    const facts = await this.factsStore.getFacts(session.channel, session.chatId);
-    const factMessage = this.buildFactsMessage(facts);
+    const memoryMessages = this.longTermMemoryService
+      ? await this.longTermMemoryService.buildMemoryMessages(session.channel, session.chatId)
+      : [];
     const conversationMemory = await this.sessionManager.getConversationMemory(session.channel, session.chatId);
     const summaryMessage = conversationMemory.summary.trim()
       ? [{
@@ -184,7 +189,7 @@ export class SessionMemoryService {
       this.summaryConfig.memoryWindow
     );
 
-    return [...factMessage, ...summaryMessage, ...recentMessages];
+    return [...memoryMessages, ...summaryMessage, ...recentMessages];
   }
 
   private async maybeSummarizeConversation(session: Session): Promise<boolean> {
@@ -244,70 +249,16 @@ export class SessionMemoryService {
     }
   }
 
-  async maybePersistMemory(sessionKey: string, userContent: string, _assistantContent: string): Promise<void> {
-    const request: InboundMessage = {
-      channel: '',
-      senderId: '',
-      chatId: '',
-      content: userContent,
-      timestamp: new Date()
-    };
-    return this.maybeExtractFactsForRequest(sessionKey, request);
-  }
-
-  async maybeExtractFactsForRequest(
+  enqueueLongTermMemoryMaintenance(
     sessionKey: string,
     request: Pick<InboundMessage, 'content'> & Partial<Pick<InboundMessage, 'media' | 'files'>>,
-  ): Promise<void> {
-    if (this.shouldSkipMemory(sessionKey)) {
-      return;
-    }
-
-    const hasText = request.content.trim().length > 0;
-    const hasMedia = Array.isArray(request.media) && request.media.length > 0;
-    const hasFiles = Array.isArray(request.files) && request.files.length > 0;
-
-    if (!hasText && hasMedia && !hasFiles) {
-      this.log.debug('Skip memory persistence for pure image message', { sessionKey, mediaCount: request.media?.length || 0 });
-      return;
-    }
-
-    await this.maybeExtractFacts(sessionKey, request.content);
-  }
-
-  enqueueFactsExtractionForRequest(
-    sessionKey: string,
-    request: Pick<InboundMessage, 'content'> & Partial<Pick<InboundMessage, 'media' | 'files'>>
+    assistantContent: string
   ): void {
-    const queuedRequest = {
-      content: request.content,
-      media: Array.isArray(request.media) ? [...request.media] : request.media,
-      files: Array.isArray(request.files) ? [...request.files] : request.files
-    };
-    const previous = this.factsQueue.get(sessionKey) ?? Promise.resolve();
-    const task = previous
-      .catch(() => undefined)
-      .then(async () => {
-        const startedAt = Date.now();
-        await this.maybeExtractFactsForRequest(sessionKey, queuedRequest);
-        this.log.debug('Background facts extraction completed', {
-          sessionKey,
-          durationMs: Date.now() - startedAt
-        });
-      })
-      .catch((error) => {
-        this.log.warn('后台事实提取失败', {
-          sessionKey,
-          error
-        });
-      });
+    if (!this.longTermMemoryService || this.shouldSkipMemory(sessionKey)) {
+      return;
+    }
 
-    this.factsQueue.set(sessionKey, task);
-    void task.finally(() => {
-      if (this.factsQueue.get(sessionKey) === task) {
-        this.factsQueue.delete(sessionKey);
-      }
-    });
+    this.longTermMemoryService.enqueueMaintenance(sessionKey, request, assistantContent);
   }
 
   private async generateSummary(existingSummary: string, messages: SessionMessage[]): Promise<string | null> {
@@ -332,68 +283,5 @@ export class SessionMemoryService {
     ], undefined, this.summaryConfig.model, { reasoning: false });
 
     return response.content?.trim() || null;
-  }
-
-  private buildFactsMessage(facts: MemoryFact[]): SessionMessage[] {
-    if (facts.length === 0) {
-      return [];
-    }
-
-    return [{
-      role: 'system',
-      content: [
-        MEMORY_FACTS_PREFIX,
-        ...facts.map((fact, index) => `${index + 1}. ${fact.content}`)
-      ].join('\n')
-    }];
-  }
-
-  private async maybeExtractFacts(sessionKey: string, userContent: string): Promise<void> {
-    if (!this.factsConfig?.enabled || !this.factsProvider) {
-      return;
-    }
-
-    const session = await this.sessionManager.getOrCreate(sessionKey);
-    if (this.shouldSkipMemory(sessionKey, session)) {
-      return;
-    }
-
-    const existingFacts = await this.factsStore.getFacts(session.channel, session.chatId);
-    const extractedFacts = await this.extractFacts(existingFacts, userContent);
-
-    if (extractedFacts.length === 0) {
-      return;
-    }
-
-    await this.factsStore.upsertFacts(session.channel, session.chatId, extractedFacts, this.factsConfig.maxFacts);
-    const persistedFacts = await this.factsStore.getFacts(session.channel, session.chatId);
-    this.log.info('会话事实记忆已更新', { channel: session.channel, chatId: session.chatId, factCount: persistedFacts.length });
-  }
-
-  private async extractFacts(existingFacts: MemoryFact[], userContent: string): Promise<string[]> {
-    const existingFactsBlock = existingFacts.length > 0
-      ? existingFacts.map((fact, index) => `${index + 1}. ${fact.content}`).join('\n')
-      : '(无)';
-
-    const response = await this.factsProvider!.chat([
-      {
-        role: 'system',
-        content: FACTS_SYSTEM_PROMPT
-      },
-      {
-        role: 'user',
-        content: buildFactsUserPrompt(existingFactsBlock, userContent)
-      }
-    ], undefined, this.factsConfig?.model, { reasoning: false });
-
-    const raw = response.content?.trim() || '';
-    if (!raw || raw === '无') {
-      return [];
-    }
-
-    return raw
-      .split('\n')
-      .map((line) => line.replace(/^[-*\d.\s]+/, '').trim())
-      .filter((line) => line.length > 0 && line !== '无');
   }
 }

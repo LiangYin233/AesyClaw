@@ -46,7 +46,7 @@ function createVisionProvider(config: Config, settings: VisionSettings) {
 }
 
 export async function applyRuntimeConfigUpdate(services: Services, currentConfig: Config, newConfig: Config): Promise<void> {
-  const { agentRuntime, apiServer, sessionManager, memoryFactStore, skillManager } = services;
+  const { agentRuntime, apiServer, sessionManager, longTermMemoryStore, skillManager } = services;
   const startedAt = Date.now();
   const oldMainRole = getMainAgentRole(currentConfig);
   const newMainRole = getMainAgentRole(newConfig);
@@ -86,7 +86,7 @@ export async function applyRuntimeConfigUpdate(services: Services, currentConfig
     agentRuntime.updateMainAgentRuntime(runtimeUpdate);
   }
 
-  const memoryService = createMemoryService(newConfig, sessionManager, memoryFactStore);
+  const memoryService = createMemoryService(newConfig, sessionManager, longTermMemoryStore);
   agentRuntime.updateMemorySettings(newConfig.agent.defaults.memoryWindow, memoryService);
   skillManager?.applyConfig(newConfig);
 

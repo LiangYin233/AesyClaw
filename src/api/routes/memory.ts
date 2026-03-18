@@ -2,23 +2,67 @@ import type { Express } from 'express';
 import { createErrorResponse, normalizeError, NotFoundError } from '../../errors/index.js';
 import { INTERNAL_CHANNELS } from '../../constants/index.js';
 import type { SessionManager } from '../../session/SessionManager.js';
-import type { MemoryFactStore } from '../../session/MemoryFactStore.js';
+import type { LongTermMemoryStore } from '../../session/LongTermMemoryStore.js';
 
 interface MemoryRouteDeps {
   sessionManager: SessionManager;
-  memoryFactStore?: MemoryFactStore;
+  longTermMemoryStore: LongTermMemoryStore;
   log: {
     error(message: string, ...args: any[]): void;
   };
 }
 
+function parseJson<T>(value?: string | null): T | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return undefined;
+  }
+}
+
+async function resolveConversationTarget(sessionManager: SessionManager, rawKey: string): Promise<{
+  channel: string;
+  chatId: string;
+}> {
+  const db = sessionManager.getDatabase();
+  const sessionRow = await db.get<{
+    key: string;
+    channel: string;
+    chat_id: string;
+  }>(`SELECT key, channel, chat_id FROM sessions WHERE key = ?`, [rawKey]);
+
+  if (sessionRow) {
+    return {
+      channel: sessionRow.channel,
+      chatId: sessionRow.chat_id
+    };
+  }
+
+  if (rawKey.startsWith('memory:')) {
+    const conversationKey = rawKey.slice('memory:'.length);
+    const separatorIndex = conversationKey.indexOf(':');
+    if (separatorIndex > 0) {
+      return {
+        channel: conversationKey.slice(0, separatorIndex),
+        chatId: conversationKey.slice(separatorIndex + 1)
+      };
+    }
+  }
+
+  throw new NotFoundError('Memory entry', rawKey);
+}
+
 export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void {
-  app.get('/api/memory', async (req, res) => {
+  app.get('/api/memory', async (_req, res) => {
     try {
       const db = deps.sessionManager.getDatabase();
       await db.ready();
 
-      const [sessionRows, factRows, conversationRows] = await Promise.all([
+      const [sessionRows, entryRows, operationRows, conversationRows] = await Promise.all([
         db.all<{
           key: string;
           channel: string;
@@ -45,15 +89,42 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
           [INTERNAL_CHANNELS.CRON]
         ),
         db.all<{
+          id: number;
           channel: string;
           chat_id: string;
-          fact: string;
+          kind: string;
+          content: string;
+          status: string;
+          confidence: number;
+          confirmations: number;
+          created_at: string;
           updated_at: string;
+          last_seen_at: string;
         }>(
-          `SELECT channel, chat_id, fact, updated_at
-           FROM memory_facts
+          `SELECT *
+           FROM memory_entries
            WHERE channel != ?
+             AND status != 'deleted'
            ORDER BY datetime(updated_at) DESC, id DESC`,
+          [INTERNAL_CHANNELS.CRON]
+        ),
+        db.all<{
+          id: number;
+          channel: string;
+          chat_id: string;
+          entry_id: number | null;
+          action: string;
+          actor: string;
+          reason: string | null;
+          before_json: string | null;
+          after_json: string | null;
+          evidence_json: string | null;
+          created_at: string;
+        }>(
+          `SELECT *
+           FROM memory_operations
+           WHERE channel != ?
+           ORDER BY datetime(created_at) DESC, id DESC`,
           [INTERNAL_CHANNELS.CRON]
         ),
         db.all<{
@@ -71,21 +142,8 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
         )
       ]);
 
-      const factsByConversation = new Map<string, { facts: string[]; updatedAt?: string }>();
-
-      for (const row of factRows) {
-        const conversationKey = `${row.channel}:${row.chat_id}`;
-        const current = factsByConversation.get(conversationKey) || { facts: [], updatedAt: row.updated_at };
-        current.facts.push(row.fact);
-        current.updatedAt = [current.updatedAt, row.updated_at]
-          .filter((value): value is string => Boolean(value))
-          .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0];
-        factsByConversation.set(conversationKey, current);
-      }
-
       const getLatestTimestamp = (...values: Array<string | null | undefined>): string | undefined => {
         const timestamps = values.filter((value): value is string => Boolean(value));
-
         if (timestamps.length === 0) {
           return undefined;
         }
@@ -93,12 +151,95 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
         return timestamps.sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0];
       };
 
+      const entriesByConversation = new Map<string, Array<{
+        id: number;
+        kind: string;
+        content: string;
+        status: string;
+        confidence: number;
+        confirmations: number;
+        createdAt?: string;
+        updatedAt?: string;
+        lastSeenAt?: string;
+      }>>();
+
+      for (const row of entryRows) {
+        const key = `${row.channel}:${row.chat_id}`;
+        const bucket = entriesByConversation.get(key) || [];
+        bucket.push({
+          id: row.id,
+          kind: row.kind,
+          content: row.content,
+          status: row.status,
+          confidence: row.confidence,
+          confirmations: row.confirmations,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          lastSeenAt: row.last_seen_at
+        });
+        entriesByConversation.set(key, bucket);
+      }
+
+      const operationsByConversation = new Map<string, Array<{
+        id: number;
+        entryId?: number;
+        action: string;
+        actor: string;
+        reason?: string;
+        before?: unknown;
+        after?: unknown;
+        evidence: string[];
+        createdAt?: string;
+      }>>();
+
+      for (const row of operationRows) {
+        const key = `${row.channel}:${row.chat_id}`;
+        const bucket = operationsByConversation.get(key) || [];
+        if (bucket.length >= 20) {
+          continue;
+        }
+
+        bucket.push({
+          id: row.id,
+          entryId: row.entry_id ?? undefined,
+          action: row.action,
+          actor: row.actor,
+          reason: row.reason || undefined,
+          before: parseJson(row.before_json),
+          after: parseJson(row.after_json),
+          evidence: parseJson<string[]>(row.evidence_json) || [],
+          createdAt: row.created_at
+        });
+        operationsByConversation.set(key, bucket);
+      }
+
       const conversationMap = new Map<string, {
         key: string;
         channel: string;
         chatId: string;
-        facts: string[];
-        factCount: number;
+        activeEntryCount: number;
+        entries: Array<{
+          id: number;
+          kind: string;
+          content: string;
+          status: string;
+          confidence: number;
+          confirmations: number;
+          createdAt?: string;
+          updatedAt?: string;
+          lastSeenAt?: string;
+        }>;
+        recentOperations: Array<{
+          id: number;
+          entryId?: number;
+          action: string;
+          actor: string;
+          reason?: string;
+          before?: unknown;
+          after?: unknown;
+          evidence: string[];
+          createdAt?: string;
+        }>;
         sessionCount: number;
         summaryCount: number;
         conversationSummary?: string;
@@ -115,16 +256,21 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
 
       for (const row of sessionRows) {
         const conversationKey = `${row.channel}:${row.chat_id}`;
+        const existingEntries = entriesByConversation.get(conversationKey) || [];
         const existing = conversationMap.get(conversationKey) || {
           key: `memory:${conversationKey}`,
           channel: row.channel,
           chatId: row.chat_id,
-          facts: factsByConversation.get(conversationKey)?.facts || [],
-          factCount: factsByConversation.get(conversationKey)?.facts.length || 0,
+          activeEntryCount: existingEntries.filter((entry) => entry.status === 'active').length,
+          entries: existingEntries,
+          recentOperations: operationsByConversation.get(conversationKey) || [],
           sessionCount: 0,
           summaryCount: 0,
           sessions: [],
-          updatedAt: factsByConversation.get(conversationKey)?.updatedAt
+          updatedAt: getLatestTimestamp(
+            ...existingEntries.map((entry) => entry.updatedAt),
+            ...(operationsByConversation.get(conversationKey) || []).map((operation) => operation.createdAt)
+          )
         };
 
         existing.sessionCount += 1;
@@ -139,24 +285,26 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
           updatedAt: getLatestTimestamp(row.summary_updated_at, row.session_updated_at)
         });
         existing.updatedAt = getLatestTimestamp(existing.updatedAt, row.summary_updated_at, row.session_updated_at);
-
         conversationMap.set(conversationKey, existing);
       }
 
       for (const row of conversationRows) {
         const conversationKey = `${row.channel}:${row.chat_id}`;
+        const existingEntries = entriesByConversation.get(conversationKey) || [];
         const existing = conversationMap.get(conversationKey) || {
           key: `memory:${conversationKey}`,
           channel: row.channel,
           chatId: row.chat_id,
-          facts: factsByConversation.get(conversationKey)?.facts || [],
-          factCount: factsByConversation.get(conversationKey)?.facts.length || 0,
+          activeEntryCount: existingEntries.filter((entry) => entry.status === 'active').length,
+          entries: existingEntries,
+          recentOperations: operationsByConversation.get(conversationKey) || [],
           sessionCount: 0,
           summaryCount: 0,
-          conversationSummary: undefined,
-          conversationSummarizedUntilMessageId: undefined,
           sessions: [],
-          updatedAt: factsByConversation.get(conversationKey)?.updatedAt
+          updatedAt: getLatestTimestamp(
+            ...existingEntries.map((entry) => entry.updatedAt),
+            ...(operationsByConversation.get(conversationKey) || []).map((operation) => operation.createdAt)
+          )
         };
 
         if (row.summary.trim()) {
@@ -168,7 +316,7 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
         conversationMap.set(conversationKey, existing);
       }
 
-      for (const [conversationKey, factData] of factsByConversation.entries()) {
+      for (const [conversationKey, entries] of entriesByConversation.entries()) {
         if (conversationMap.has(conversationKey)) {
           continue;
         }
@@ -180,17 +328,21 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
           key: `memory:${conversationKey}`,
           channel,
           chatId,
-          facts: factData.facts,
-          factCount: factData.facts.length,
+          activeEntryCount: entries.filter((entry) => entry.status === 'active').length,
+          entries,
+          recentOperations: operationsByConversation.get(conversationKey) || [],
           sessionCount: 0,
           summaryCount: 0,
           sessions: [],
-          updatedAt: factData.updatedAt
+          updatedAt: getLatestTimestamp(
+            ...entries.map((entry) => entry.updatedAt),
+            ...(operationsByConversation.get(conversationKey) || []).map((operation) => operation.createdAt)
+          )
         });
       }
 
       const items = Array.from(conversationMap.values())
-        .filter((item) => item.factCount > 0 || item.summaryCount > 0)
+        .filter((item) => item.activeEntryCount > 0 || item.summaryCount > 0 || item.entries.length > 0 || item.recentOperations.length > 0)
         .map((item) => ({
           ...item,
           sessions: item.sessions.sort((left, right) => {
@@ -213,71 +365,53 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
     }
   });
 
+  app.get('/api/memory/:key/history', async (req, res) => {
+    try {
+      const rawKey = decodeURIComponent(req.params.key);
+      const { channel, chatId } = await resolveConversationTarget(deps.sessionManager, rawKey);
+      const items = await deps.longTermMemoryStore.listOperations(channel, chatId, 100);
+      res.json({ items });
+    } catch (error: unknown) {
+      deps.log.error(`记忆历史加载失败: ${normalizeError(error)}`);
+      if (error instanceof NotFoundError) {
+        res.status(404).json(createErrorResponse(error));
+        return;
+      }
+      res.status(500).json(createErrorResponse(error));
+    }
+  });
+
   app.delete('/api/memory/:key', async (req, res) => {
     try {
-      const db = deps.sessionManager.getDatabase();
-      await db.ready();
-
       const rawKey = decodeURIComponent(req.params.key);
-      let channel: string | undefined;
-      let chatId: string | undefined;
+      const { channel, chatId } = await resolveConversationTarget(deps.sessionManager, rawKey);
 
-      const sessionRow = await db.get<{
-        key: string;
-        channel: string;
-        chat_id: string;
-      }>(`SELECT key, channel, chat_id FROM sessions WHERE key = ?`, [rawKey]);
+      await deps.sessionManager.clearConversationSummaries(channel, chatId);
+      const deletedCount = await deps.longTermMemoryStore.deleteConversationEntries(
+        channel,
+        chatId,
+        'api',
+        'Cleared from memory API'
+      );
 
-      if (sessionRow) {
-        channel = sessionRow.channel;
-        chatId = sessionRow.chat_id;
-        await deps.sessionManager.clearSummary(sessionRow.key);
-      } else if (rawKey.startsWith('memory:')) {
-        const conversationKey = rawKey.slice('memory:'.length);
-        const separatorIndex = conversationKey.indexOf(':');
-
-        if (separatorIndex > 0) {
-          channel = conversationKey.slice(0, separatorIndex);
-          chatId = conversationKey.slice(separatorIndex + 1);
-          await deps.sessionManager.clearConversationSummaries(channel, chatId);
-        }
-      }
-
-      if (!channel || !chatId) {
-        throw new NotFoundError('Memory entry', rawKey);
-      }
-
-      if (deps.memoryFactStore) {
-        await deps.memoryFactStore.clearFacts(channel, chatId);
-      } else {
-        await db.run(`DELETE FROM memory_facts WHERE channel = ? AND chat_id = ?`, [channel, chatId]);
-      }
-
-      res.json({ success: true });
+      res.json({ success: true, deletedCount });
     } catch (error: unknown) {
       deps.log.error(`记忆删除失败: ${normalizeError(error)}`);
 
       if (error instanceof NotFoundError) {
-        return res.status(404).json(createErrorResponse(error));
+        res.status(404).json(createErrorResponse(error));
+        return;
       }
 
       res.status(500).json(createErrorResponse(error));
     }
   });
 
-  app.delete('/api/memory', async (req, res) => {
+  app.delete('/api/memory', async (_req, res) => {
     try {
       await deps.sessionManager.clearAllSummaries();
-
-      if (deps.memoryFactStore) {
-        await deps.memoryFactStore.clearAllFacts();
-      } else {
-        const db = deps.sessionManager.getDatabase();
-        await db.ready();
-        await db.run(`DELETE FROM memory_facts`);
-      }
-
-      res.json({ success: true });
+      const deletedCount = await deps.longTermMemoryStore.deleteAllEntries('api', 'Cleared all memory from memory API');
+      res.json({ success: true, deletedCount });
     } catch (error: unknown) {
       deps.log.error(`清空全部记忆失败: ${normalizeError(error)}`);
       res.status(500).json(createErrorResponse(error));

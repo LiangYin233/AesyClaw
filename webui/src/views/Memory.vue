@@ -1,6 +1,6 @@
 <template>
     <div class="memory-page">
-        <PageHeader title="记忆" subtitle="按聊天对象查看摘要和长期事实">
+        <PageHeader title="记忆" subtitle="按聊天对象查看摘要、长期记忆和操作记录">
             <template #actions>
                 <Button
                     icon="pi pi-trash"
@@ -30,7 +30,7 @@
                 v-if="entries.length === 0"
                 icon="pi pi-bookmark"
                 title="暂无记忆"
-                description="当前还没有可展示的摘要或长期事实"
+                description="当前还没有可展示的摘要、长期记忆或操作记录"
             />
 
             <div v-else class="memory-list">
@@ -41,7 +41,7 @@
                                 <div class="memory-title">{{ entry.channel }} / {{ entry.chatId }}</div>
                                 <div class="memory-meta">
                                     <Tag :value="entry.channel" severity="primary" />
-                                    <Tag :value="`事实 ${entry.factCount}`" severity="info" />
+                                    <Tag :value="`生效 ${entry.activeEntryCount}`" severity="info" />
                                     <Tag :value="`会话 ${entry.sessionCount}`" severity="secondary" />
                                     <Tag
                                         :value="entry.summaryCount > 0 ? `摘要 ${entry.summaryCount}` : '无摘要'"
@@ -63,15 +63,40 @@
                         </div>
 
                         <div class="memory-section">
-                            <div class="section-label">长期事实</div>
-                            <ul v-if="entry.facts.length > 0" class="facts-list">
-                                <li v-for="fact in entry.facts" :key="fact">{{ fact }}</li>
-                            </ul>
-                            <div v-else class="text-muted">暂无长期事实</div>
+                            <div class="section-label">长期记忆</div>
+                            <div v-if="entry.entries.length === 0" class="text-muted">暂无长期记忆</div>
+                            <div v-else class="memory-entry-list">
+                                <div v-for="item in entry.entries" :key="item.id" class="memory-entry-item">
+                                    <div class="memory-entry-header">
+                                        <div class="memory-entry-meta">
+                                            <Tag :value="memoryKindLabel(item.kind)" severity="contrast" />
+                                            <Tag :value="memoryStatusLabel(item.status)" :severity="memoryStatusSeverity(item.status)" />
+                                            <Tag :value="`置信度 ${item.confidence}`" severity="info" />
+                                            <Tag :value="`确认 ${item.confirmations}`" severity="secondary" />
+                                        </div>
+                                        <div v-if="item.updatedAt" class="text-muted">
+                                            {{ formatDateTime(item.updatedAt) }}
+                                        </div>
+                                    </div>
+                                    <div class="summary-content">{{ item.content }}</div>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="memory-section">
                             <div class="section-label">会话摘要</div>
+                            <div v-if="entry.conversationSummary" class="session-summary-item">
+                                <div class="session-summary-header">
+                                    <div class="session-summary-meta">
+                                        <span class="memory-key">对话级摘要</span>
+                                        <Tag
+                                            :value="`已摘要消息 ${entry.conversationSummarizedUntilMessageId || 0}`"
+                                            severity="success"
+                                        />
+                                    </div>
+                                </div>
+                                <div class="summary-content">{{ entry.conversationSummary }}</div>
+                            </div>
                             <div v-if="entry.sessions.length === 0" class="text-muted">暂无会话摘要</div>
                             <div v-else class="session-summary-list">
                                 <div
@@ -106,6 +131,69 @@
                             </div>
                         </div>
 
+                        <div class="memory-section">
+                            <div class="section-label">最近操作</div>
+                            <div v-if="entry.recentOperations.length === 0" class="text-muted">暂无操作记录</div>
+                            <div v-else class="operation-list">
+                                <div
+                                    v-for="operation in entry.recentOperations"
+                                    :key="operation.id"
+                                    class="operation-item"
+                                >
+                                    <div class="operation-header">
+                                        <div class="operation-meta">
+                                            <Tag :value="memoryActionLabel(operation.action)" severity="warning" />
+                                            <Tag :value="memoryActorLabel(operation.actor)" severity="secondary" />
+                                            <Tag
+                                                v-if="operation.entryId"
+                                                :value="`#${operation.entryId}`"
+                                                severity="contrast"
+                                            />
+                                        </div>
+                                        <div v-if="operation.createdAt" class="text-muted">
+                                            {{ formatDateTime(operation.createdAt) }}
+                                        </div>
+                                    </div>
+                                    <div v-if="operation.reason" class="summary-content">{{ operation.reason }}</div>
+                                </div>
+                            </div>
+                            <div class="memory-actions inline-actions">
+                                <Button
+                                    icon="pi pi-history"
+                                    :label="expandedHistories[entry.key] ? '收起历史' : '查看完整历史'"
+                                    text
+                                    @click="toggleHistory(entry)"
+                                />
+                            </div>
+                            <div v-if="expandedHistories[entry.key]" class="history-panel">
+                                <div v-if="historyLoadingKeys[entry.key]" class="text-muted">正在加载历史...</div>
+                                <div v-else-if="(histories[entry.key] || []).length === 0" class="text-muted">暂无更多历史</div>
+                                <div v-else class="operation-list">
+                                    <div
+                                        v-for="operation in histories[entry.key]"
+                                        :key="operation.id"
+                                        class="operation-item"
+                                    >
+                                        <div class="operation-header">
+                                            <div class="operation-meta">
+                                                <Tag :value="memoryActionLabel(operation.action)" severity="warning" />
+                                                <Tag :value="memoryActorLabel(operation.actor)" severity="secondary" />
+                                                <Tag
+                                                    v-if="operation.entryId"
+                                                    :value="`#${operation.entryId}`"
+                                                    severity="contrast"
+                                                />
+                                            </div>
+                                            <div v-if="operation.createdAt" class="text-muted">
+                                                {{ formatDateTime(operation.createdAt) }}
+                                            </div>
+                                        </div>
+                                        <div v-if="operation.reason" class="summary-content">{{ operation.reason }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div v-if="entry.updatedAt" class="memory-updated">
                             最近更新：{{ formatDateTime(entry.updatedAt) }}
                         </div>
@@ -117,7 +205,7 @@
         <ConfirmDialog
             v-model:visible="clearEntryVisible"
             title="确认清空"
-            :message="`确定要清空 ${selectedEntry?.channel || ''} / ${selectedEntry?.chatId || ''} 的全部记忆吗？这会清空该聊天对象下的长期事实和所有会话摘要。`"
+            :message="`确定要清空 ${selectedEntry?.channel || ''} / ${selectedEntry?.chatId || ''} 的全部记忆吗？这会清空该聊天对象下的长期记忆和所有会话摘要。`"
             :loading="clearing"
             confirm-label="清空"
             confirm-severity="danger"
@@ -127,7 +215,7 @@
         <ConfirmDialog
             v-model:visible="clearAllVisible"
             title="确认清空全部记忆"
-            message="确定要清空全部摘要和长期事实吗？此操作无法撤销。"
+            message="确定要清空全部摘要和长期记忆吗？此操作无法撤销。"
             :loading="clearing"
             confirm-label="全部清空"
             confirm-severity="danger"
@@ -140,7 +228,7 @@
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
-import type { MemoryEntry } from '../types/api'
+import type { MemoryEntry, MemoryOperation } from '../types/api'
 import { useMemoryStore } from '../stores'
 import { useToast } from '../composables/useToast'
 import { announceToScreenReader } from '../composables/useA11y'
@@ -159,12 +247,44 @@ const route = useRoute()
 const routeToken = getRouteToken(route)
 const toast = useToast()
 const memoryStore = useMemoryStore()
-const { entries, loading, error } = storeToRefs(memoryStore)
+const { entries, histories, loading, error } = storeToRefs(memoryStore)
 
 const selectedEntry = ref<MemoryEntry | null>(null)
 const clearEntryVisible = ref(false)
 const clearAllVisible = ref(false)
 const clearing = ref(false)
+const expandedHistories = ref<Record<string, boolean>>({})
+const historyLoadingKeys = ref<Record<string, boolean>>({})
+
+const MEMORY_KIND_LABELS: Record<string, string> = {
+    profile: '画像',
+    preference: '偏好',
+    project: '项目',
+    rule: '规则',
+    context: '上下文',
+    other: '其他'
+}
+
+const MEMORY_STATUS_LABELS: Record<string, string> = {
+    active: '生效中',
+    archived: '已归档',
+    deleted: '已删除'
+}
+
+const MEMORY_ACTION_LABELS: Record<string, string> = {
+    create: '新建',
+    update: '更新',
+    merge: '合并',
+    archive: '归档',
+    delete: '删除'
+}
+
+const MEMORY_ACTOR_LABELS: Record<string, string> = {
+    background: '后台自治',
+    tool: '工具调用',
+    api: '控制台',
+    migration: '迁移'
+}
 
 async function loadMemory() {
     const items = await memoryStore.fetchEntries()
@@ -175,6 +295,56 @@ async function loadMemory() {
     }
 
     announceToScreenReader(`已加载 ${items.length} 个聊天对象的记忆`, 'polite')
+}
+
+function memoryKindLabel(kind: string) {
+    return MEMORY_KIND_LABELS[kind] || kind
+}
+
+function memoryStatusLabel(status: string) {
+    return MEMORY_STATUS_LABELS[status] || status
+}
+
+function memoryStatusSeverity(status: string) {
+    if (status === 'active') {
+        return 'success'
+    }
+    if (status === 'archived') {
+        return 'secondary'
+    }
+    return 'danger'
+}
+
+function memoryActionLabel(action: MemoryOperation['action']) {
+    return MEMORY_ACTION_LABELS[action] || action
+}
+
+function memoryActorLabel(actor: MemoryOperation['actor']) {
+    return MEMORY_ACTOR_LABELS[actor] || actor
+}
+
+async function toggleHistory(entry: MemoryEntry) {
+    const nextExpanded = !expandedHistories.value[entry.key]
+    expandedHistories.value = {
+        ...expandedHistories.value,
+        [entry.key]: nextExpanded
+    }
+
+    if (!nextExpanded || histories.value[entry.key]) {
+        return
+    }
+
+    historyLoadingKeys.value = {
+        ...historyLoadingKeys.value,
+        [entry.key]: true
+    }
+
+    await memoryStore.fetchHistory(entry.key)
+
+    historyLoadingKeys.value = {
+        ...historyLoadingKeys.value,
+        [entry.key]: false
+    }
 }
 
 async function clearEntry() {
@@ -280,20 +450,26 @@ onMounted(() => {
     margin-bottom: 8px;
 }
 
-.session-summary-list {
+.session-summary-list,
+.memory-entry-list,
+.operation-list {
     display: flex;
     flex-direction: column;
     gap: 12px;
 }
 
-.session-summary-item {
+.session-summary-item,
+.memory-entry-item,
+.operation-item {
     border: 1px solid #e2e8f0;
     border-radius: 8px;
     padding: 12px;
     background: #f8fafc;
 }
 
-.session-summary-header {
+.session-summary-header,
+.memory-entry-header,
+.operation-header {
     display: flex;
     justify-content: space-between;
     gap: 12px;
@@ -301,7 +477,9 @@ onMounted(() => {
     margin-bottom: 8px;
 }
 
-.session-summary-meta {
+.session-summary-meta,
+.memory-entry-meta,
+.operation-meta {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
@@ -315,20 +493,17 @@ onMounted(() => {
     word-break: break-word;
 }
 
-.facts-list {
-    margin: 0;
-    padding-left: 20px;
-    color: #1e293b;
-    line-height: 1.6;
-}
-
-.facts-list li + li {
-    margin-top: 6px;
-}
-
 .memory-updated {
     font-size: 12px;
     color: #94a3b8;
+}
+
+.inline-actions {
+    margin-top: 12px;
+}
+
+.history-panel {
+    margin-top: 12px;
 }
 
 .text-muted {
@@ -341,23 +516,28 @@ onMounted(() => {
     }
 
     .memory-card-header,
-    .session-summary-header {
+    .session-summary-header,
+    .memory-entry-header,
+    .operation-header {
         flex-direction: column;
     }
 }
 
 @media (prefers-color-scheme: dark) {
     .memory-title,
-    .summary-content,
-    .facts-list {
+    .summary-content {
         color: #f1f5f9;
     }
 
-    .section-label {
+    .section-label,
+    .text-muted,
+    .memory-updated {
         color: #94a3b8;
     }
 
-    .session-summary-item {
+    .session-summary-item,
+    .memory-entry-item,
+    .operation-item {
         background: #1e293b;
         border-color: #334155;
     }

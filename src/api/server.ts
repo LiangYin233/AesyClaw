@@ -22,7 +22,7 @@ import { registerCronRoutes } from './routes/cron.js';
 import { registerMCPRoutes } from './routes/mcp.js';
 import { registerObservabilityRoutes } from './routes/observability.js';
 import { registerSkillRoutes } from './routes/skills.js';
-import type { MemoryFactStore } from '../session/MemoryFactStore.js';
+import type { LongTermMemoryStore } from '../session/LongTermMemoryStore.js';
 import type { AgentRoleService } from '../agent/roles/AgentRoleService.js';
 
 const MAX_MESSAGE_LENGTH = CONSTANTS.MESSAGE_MAX_LENGTH;
@@ -45,7 +45,7 @@ export class APIServer {
   private mcpManager?: MCPClientManager;
   private skillManager?: SkillManager;
   private toolRegistry?: ToolRegistry;
-  private memoryFactStore?: MemoryFactStore;
+  private longTermMemoryStore: LongTermMemoryStore;
   private agentRoleService?: AgentRoleService;
 
   constructor(options: {
@@ -60,7 +60,7 @@ export class APIServer {
     mcpManager?: MCPClientManager;
     skillManager?: SkillManager;
     toolRegistry?: ToolRegistry;
-    memoryFactStore?: MemoryFactStore;
+    longTermMemoryStore: LongTermMemoryStore;
     agentRoleService?: AgentRoleService;
   }) {
     this.port = options.port;
@@ -74,7 +74,7 @@ export class APIServer {
     this.mcpManager = options.mcpManager;
     this.skillManager = options.skillManager;
     this.toolRegistry = options.toolRegistry;
-    this.memoryFactStore = options.memoryFactStore;
+    this.longTermMemoryStore = options.longTermMemoryStore;
     this.agentRoleService = options.agentRoleService;
   }
 
@@ -137,7 +137,7 @@ export class APIServer {
     });
     registerMemoryRoutes(this.app, {
       sessionManager: this.sessionManager,
-      memoryFactStore: this.memoryFactStore,
+      longTermMemoryStore: this.longTermMemoryStore,
       log: this.log
     });
     registerSkillRoutes(this.app, this.skillManager);

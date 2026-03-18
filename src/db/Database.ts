@@ -21,7 +21,7 @@ export class Database {
   }
 
   private async init(): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       this.db.serialize(() => {
         this.db.run(`
           CREATE TABLE IF NOT EXISTS sessions (
@@ -66,13 +66,35 @@ export class Database {
         `);
 
         this.db.run(`
-          CREATE TABLE IF NOT EXISTS memory_facts (
+          CREATE TABLE IF NOT EXISTS memory_entries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             channel TEXT NOT NULL,
             chat_id TEXT NOT NULL,
-            fact TEXT NOT NULL,
+            kind TEXT NOT NULL DEFAULT 'other',
+            content TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            confidence REAL NOT NULL DEFAULT 1,
+            confirmations INTEGER NOT NULL DEFAULT 1,
             created_at DATETIME DEFAULT (${SQLITE_LOCAL_TIMESTAMP_EXPRESSION}),
-            updated_at DATETIME DEFAULT (${SQLITE_LOCAL_TIMESTAMP_EXPRESSION})
+            updated_at DATETIME DEFAULT (${SQLITE_LOCAL_TIMESTAMP_EXPRESSION}),
+            last_seen_at DATETIME DEFAULT (${SQLITE_LOCAL_TIMESTAMP_EXPRESSION})
+          )
+        `);
+
+        this.db.run(`
+          CREATE TABLE IF NOT EXISTS memory_operations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            channel TEXT NOT NULL,
+            chat_id TEXT NOT NULL,
+            entry_id INTEGER,
+            action TEXT NOT NULL,
+            actor TEXT NOT NULL,
+            reason TEXT,
+            before_json TEXT,
+            after_json TEXT,
+            evidence_json TEXT,
+            created_at DATETIME DEFAULT (${SQLITE_LOCAL_TIMESTAMP_EXPRESSION}),
+            FOREIGN KEY (entry_id) REFERENCES memory_entries(id) ON DELETE SET NULL
           )
         `);
 
@@ -127,63 +149,13 @@ export class Database {
 
         this.db.run(`CREATE INDEX IF NOT EXISTS idx_sessions_key ON sessions(key)`);
         this.db.run(`CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id)`);
-        this.db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_facts_unique ON memory_facts(channel, chat_id, fact)`);
-        this.db.run(`CREATE INDEX IF NOT EXISTS idx_memory_facts_chat ON memory_facts(channel, chat_id)`);
+        this.db.run(`CREATE INDEX IF NOT EXISTS idx_memory_entries_chat ON memory_entries(channel, chat_id, status)`);
+        this.db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_entries_unique_active ON memory_entries(channel, chat_id, content) WHERE status = 'active'`);
+        this.db.run(`CREATE INDEX IF NOT EXISTS idx_memory_operations_chat ON memory_operations(channel, chat_id, created_at)`);
         this.db.run(`CREATE INDEX IF NOT EXISTS idx_channel_resources_message ON channel_resources(channel, conversation_id, message_id)`);
         this.db.run(`CREATE INDEX IF NOT EXISTS idx_channel_delivery_jobs_status ON channel_delivery_jobs(status, next_retry_at)`);
-
-        this.db.all<{ name: string }>(`PRAGMA table_info(memory_facts)`, (err, columns) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-
-          const columnNames = new Set(columns.map((column) => column.name));
-          const statements: string[] = [];
-
-          if (!columnNames.has('created_at')) {
-            statements.push(`ALTER TABLE memory_facts ADD COLUMN created_at DATETIME`);
-          }
-          if (!columnNames.has('last_seen_at')) {
-            statements.push(`ALTER TABLE memory_facts ADD COLUMN last_seen_at DATETIME`);
-          }
-          if (!columnNames.has('confidence')) {
-            statements.push(`ALTER TABLE memory_facts ADD COLUMN confidence REAL NOT NULL DEFAULT 1`);
-          }
-          if (!columnNames.has('confirmations')) {
-            statements.push(`ALTER TABLE memory_facts ADD COLUMN confirmations INTEGER NOT NULL DEFAULT 1`);
-          }
-
-          statements.push(
-            `UPDATE memory_facts
-             SET created_at = COALESCE(created_at, updated_at, ${SQLITE_LOCAL_TIMESTAMP_EXPRESSION})`,
-            `UPDATE memory_facts
-             SET last_seen_at = COALESCE(last_seen_at, updated_at, created_at, ${SQLITE_LOCAL_TIMESTAMP_EXPRESSION})`,
-            `UPDATE memory_facts
-             SET confidence = COALESCE(confidence, 1)`,
-            `UPDATE memory_facts
-             SET confirmations = COALESCE(confirmations, 1)`
-          );
-
-          const runNext = (index: number) => {
-            if (index >= statements.length) {
-              this.log.info('数据表初始化完成');
-              resolve();
-              return;
-            }
-
-            this.db.run(statements[index], (statementErr: Error | null) => {
-              if (statementErr) {
-                reject(statementErr);
-                return;
-              }
-
-              runNext(index + 1);
-            });
-          };
-
-          runNext(0);
-        });
+        this.log.info('数据表初始化完成');
+        resolve();
       });
     });
   }
@@ -310,14 +282,30 @@ export interface DBSessionAgentState {
   updated_at: string;
 }
 
-export interface DBMemoryFact {
+export interface DBMemoryEntry {
   id: number;
   channel: string;
   chat_id: string;
-  fact: string;
+  kind: string;
+  content: string;
+  status: string;
+  confidence: number;
+  confirmations: number;
   created_at: string;
   updated_at: string;
   last_seen_at: string;
-  confidence: number;
-  confirmations: number;
+}
+
+export interface DBMemoryOperation {
+  id: number;
+  channel: string;
+  chat_id: string;
+  entry_id: number | null;
+  action: string;
+  actor: string;
+  reason: string | null;
+  before_json: string | null;
+  after_json: string | null;
+  evidence_json: string | null;
+  created_at: string;
 }

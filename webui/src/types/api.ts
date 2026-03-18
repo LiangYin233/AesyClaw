@@ -132,10 +132,13 @@ export interface MemoryEntry {
   key: string
   channel: string
   chatId: string
-  facts: string[]
-  factCount: number
+  activeEntryCount: number
+  entries: MemoryRecord[]
+  recentOperations: MemoryOperation[]
   sessionCount: number
   summaryCount: number
+  conversationSummary?: string
+  conversationSummarizedUntilMessageId?: number
   sessions: {
     sessionKey: string
     uuid?: string
@@ -144,6 +147,30 @@ export interface MemoryEntry {
     updatedAt?: string
   }[]
   updatedAt?: string
+}
+
+export interface MemoryRecord {
+  id: number
+  kind: 'profile' | 'preference' | 'project' | 'rule' | 'context' | 'other'
+  content: string
+  status: 'active' | 'archived' | 'deleted'
+  confidence: number
+  confirmations: number
+  createdAt?: string
+  updatedAt?: string
+  lastSeenAt?: string
+}
+
+export interface MemoryOperation {
+  id: number
+  entryId?: number
+  action: 'create' | 'update' | 'merge' | 'archive' | 'delete'
+  actor: 'background' | 'tool' | 'api' | 'migration'
+  reason?: string
+  before?: any
+  after?: any
+  evidence: string[]
+  createdAt?: string
 }
 
 export interface ApiResponse<T> {

@@ -7,6 +7,7 @@ import type { PluginManager } from '../plugins/index.js';
 import type { OutboundMessage, ToolDefinition } from '../types.js';
 import type { AgentRuntime } from '../agent/runtime/AgentRuntime.js';
 import type { AgentRoleService } from '../agent/roles/AgentRoleService.js';
+import type { SessionMemoryService } from '../agent/memory/SessionMemoryService.js';
 import { registerCronTools } from '../cron/CronTools.js';
 import { normalizeError } from '../errors/index.js';
 import { logger } from '../observability/index.js';
@@ -19,6 +20,7 @@ export interface ToolIntegrationOptions {
   mcpManager: MCPClientManager | null;
   agentRuntime: AgentRuntime;
   agentRoleService: AgentRoleService;
+  memoryService?: SessionMemoryService;
 }
 
 export function registerBuiltInTools(options: ToolIntegrationOptions): void {
@@ -28,7 +30,8 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
     cronService,
     pluginManager,
     agentRuntime,
-    agentRoleService
+    agentRoleService,
+    memoryService
   } = options;
   const log = logger.child('ToolIntegration');
 
@@ -221,6 +224,155 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
       }
     }
   }, 'built-in' as ToolSource);
+
+  if (memoryService?.hasLongTermMemory()) {
+    toolRegistry.register({
+      name: 'memory_list',
+      description: '列出当前聊天对象的长期记忆，以及最近的记忆变更记录。',
+      parameters: {
+        type: 'object',
+        properties: {}
+      },
+      execute: async (_params: Record<string, any>, context?: ToolContext) => {
+        if (!context?.channel || !context?.chatId) {
+          return '错误：无法获取当前会话信息，此工具只能在用户会话中使用。';
+        }
+
+        try {
+          const [entries, operations] = await Promise.all([
+            memoryService.listLongTermMemory(context.channel, context.chatId),
+            memoryService.listLongTermMemoryOperations(context.channel, context.chatId, 10)
+          ]);
+
+          return JSON.stringify({
+            entries,
+            recentOperations: operations
+          }, null, 2);
+        } catch (error) {
+          log.error('memory_list 执行失败', {
+            channel: context.channel,
+            chatId: context.chatId,
+            error: normalizeError(error)
+          });
+          return `Error: ${error instanceof Error ? error.message : String(error)}`;
+        }
+      }
+    }, 'built-in' as ToolSource);
+
+    toolRegistry.register({
+      name: 'memory_manage',
+      description: '对当前聊天对象的长期记忆执行 create、update、merge、archive、delete 操作。',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['create', 'update', 'merge', 'archive', 'delete']
+          },
+          entryId: {
+            type: 'number',
+            description: 'update/archive/delete/merge 的目标记忆 ID'
+          },
+          sourceIds: {
+            type: 'array',
+            items: { type: 'number' },
+            description: 'merge 时需要合并进目标记忆的源记忆 ID 列表'
+          },
+          kind: {
+            type: 'string',
+            enum: ['profile', 'preference', 'project', 'rule', 'context', 'other']
+          },
+          content: {
+            type: 'string',
+            description: 'create 或 update/merge 后的记忆内容'
+          },
+          reason: {
+            type: 'string',
+            description: '操作原因'
+          },
+          evidence: {
+            type: 'array',
+            items: { type: 'string' },
+            description: '支撑这次操作的关键证据片段'
+          }
+        },
+        required: ['action']
+      },
+      execute: async (params: Record<string, any>, context?: ToolContext) => {
+        if (!context?.channel || !context?.chatId) {
+          return '错误：无法获取当前会话信息，此工具只能在用户会话中使用。';
+        }
+
+        try {
+          const results = await memoryService.applyLongTermMemoryOperations(
+            context.channel,
+            context.chatId,
+            [{
+              action: String(params.action || '') as 'create' | 'update' | 'merge' | 'archive' | 'delete',
+              entryId: typeof params.entryId === 'number' ? params.entryId : undefined,
+              sourceIds: Array.isArray(params.sourceIds)
+                ? params.sourceIds.filter((value: unknown): value is number => typeof value === 'number')
+                : undefined,
+              kind: typeof params.kind === 'string' ? params.kind as 'profile' | 'preference' | 'project' | 'rule' | 'context' | 'other' : undefined,
+              content: typeof params.content === 'string' ? params.content : undefined,
+              reason: typeof params.reason === 'string' ? params.reason : undefined,
+              evidence: Array.isArray(params.evidence)
+                ? params.evidence.filter((value: unknown): value is string => typeof value === 'string')
+                : undefined
+            }],
+            'tool'
+          );
+
+          return JSON.stringify({
+            success: true,
+            results
+          }, null, 2);
+        } catch (error) {
+          log.error('memory_manage 执行失败', {
+            channel: context.channel,
+            chatId: context.chatId,
+            error: normalizeError(error)
+          });
+          return `Error: ${error instanceof Error ? error.message : String(error)}`;
+        }
+      }
+    }, 'built-in' as ToolSource);
+
+    toolRegistry.register({
+      name: 'memory_history',
+      description: '查看当前聊天对象的长期记忆操作历史。',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: {
+            type: 'number',
+            description: '返回最近多少条操作记录，默认 20'
+          }
+        }
+      },
+      execute: async (params: Record<string, any>, context?: ToolContext) => {
+        if (!context?.channel || !context?.chatId) {
+          return '错误：无法获取当前会话信息，此工具只能在用户会话中使用。';
+        }
+
+        const limit = typeof params.limit === 'number' && Number.isFinite(params.limit)
+          ? Math.max(1, Math.min(100, Math.floor(params.limit)))
+          : 20;
+
+        try {
+          const operations = await memoryService.listLongTermMemoryOperations(context.channel, context.chatId, limit);
+          return JSON.stringify({ items: operations }, null, 2);
+        } catch (error) {
+          log.error('memory_history 执行失败', {
+            channel: context.channel,
+            chatId: context.chatId,
+            error: normalizeError(error)
+          });
+          return `Error: ${error instanceof Error ? error.message : String(error)}`;
+        }
+      }
+    }, 'built-in' as ToolSource);
+  }
 
   const skills = skillManager.listSkills();
   if (skills.length > 0) {

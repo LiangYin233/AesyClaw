@@ -336,7 +336,7 @@ export class ExecutionRuntime {
 
     if (this.memoryService) {
       await this.memoryService.maybeSummarizeSession(sessionKey);
-      this.memoryService.enqueueFactsExtractionForRequest(sessionKey, request);
+      this.memoryService.enqueueLongTermMemoryMaintenance(sessionKey, request, content);
     }
 
     this.log.info('执行结果已完成收尾', {

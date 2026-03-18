@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { apiGet, apiDelete } from '../utils/apiClient'
-import type { MemoryEntry } from '../types/api'
+import type { MemoryEntry, MemoryOperation } from '../types/api'
 import { withRequestState } from '../utils/requestState'
 
 export const useMemoryStore = defineStore('memory', () => {
   const entries = ref<MemoryEntry[]>([])
+  const histories = ref<Record<string, MemoryOperation[]>>({})
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -30,6 +31,9 @@ export const useMemoryStore = defineStore('memory', () => {
         return false
       }
       entries.value = entries.value.filter((entry) => entry.key !== key)
+      const nextHistories = { ...histories.value }
+      delete nextHistories[key]
+      histories.value = nextHistories
       return true
     })
   }
@@ -42,9 +46,26 @@ export const useMemoryStore = defineStore('memory', () => {
         return false
       }
       entries.value = []
+      histories.value = {}
       return true
     })
   }
 
-  return { entries, loading, error, fetchEntries, deleteEntry, clearAll }
+  async function fetchHistory(key: string) {
+    return withRequestState(loading, error, async () => {
+      const { data, error: err } = await apiGet<{ items: MemoryOperation[] }>(`/memory/${encodeURIComponent(key)}/history`)
+      if (err) {
+        error.value = err
+        return []
+      }
+      const items = data?.items || []
+      histories.value = {
+        ...histories.value,
+        [key]: items
+      }
+      return items
+    })
+  }
+
+  return { entries, histories, loading, error, fetchEntries, fetchHistory, deleteEntry, clearAll }
 })
