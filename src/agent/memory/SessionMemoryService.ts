@@ -90,9 +90,6 @@ export class SessionMemoryService {
       return this.buildConversationHistory(session);
     }
 
-    const memoryMessages = this.longTermMemoryService
-      ? await this.longTermMemoryService.buildMemoryMessages(session.channel, session.chatId)
-      : [];
     const summaryMessage = session.summary.trim()
       ? [{
           role: 'system' as const,
@@ -106,11 +103,11 @@ export class SessionMemoryService {
       session.summarizedMessageCount
     );
 
-    return [...memoryMessages, ...summaryMessage, ...recentMessages];
+    return [...summaryMessage, ...recentMessages];
   }
 
   async maybeSummarizeSession(sessionKey: string): Promise<boolean> {
-    if (!this.summaryConfig.enabled || !this.summaryProvider) {
+    if (!this.summaryConfig.enabled || !this.summaryProvider || !this.summaryConfig.model) {
       return false;
     }
 
@@ -167,9 +164,6 @@ export class SessionMemoryService {
   }
 
   private async buildConversationHistory(session: Session): Promise<SessionMessage[]> {
-    const memoryMessages = this.longTermMemoryService
-      ? await this.longTermMemoryService.buildMemoryMessages(session.channel, session.chatId)
-      : [];
     const conversationMemory = await this.sessionManager.getConversationMemory(session.channel, session.chatId);
     const summaryMessage = conversationMemory.summary.trim()
       ? [{
@@ -189,7 +183,7 @@ export class SessionMemoryService {
       this.summaryConfig.memoryWindow
     );
 
-    return [...memoryMessages, ...summaryMessage, ...recentMessages];
+    return [...summaryMessage, ...recentMessages];
   }
 
   private async maybeSummarizeConversation(session: Session): Promise<boolean> {

@@ -70,7 +70,6 @@ export class OpenAIChatAdapter implements ProviderAdapter {
   readonly type = 'openai';
   readonly displayName = 'OpenAI Chat Completions';
   readonly defaultApiBase = 'https://api.openai.com/v1';
-  readonly defaultModel = 'gpt-4o';
 
   capabilities(): ProviderCapabilityProfile {
     return {

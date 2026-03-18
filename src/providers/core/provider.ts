@@ -30,8 +30,4 @@ export class RuntimeBackedProvider extends LLMProvider {
   ): Promise<LLMResponse> {
     return this.runtime.chat(messages, tools, model, options);
   }
-
-  getDefaultModel(): string {
-    return this.runtime.getDefaultModel();
-  }
 }

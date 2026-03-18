@@ -273,8 +273,8 @@ onMounted(async () => {
     min-height: 420px;
     overflow-y: auto;
     padding: 16px;
-    background: rgba(248, 250, 252, 0.9);
-    border: 1px solid #e2e8f0;
+    background: var(--ui-surface-muted);
+    border: 1px solid var(--ui-border);
     border-radius: 16px;
     display: flex;
     flex-direction: column;
@@ -287,7 +287,7 @@ onMounted(async () => {
     align-items: center;
     justify-content: center;
     height: 100%;
-    color: #94a3b8;
+    color: var(--ui-text-faint);
     gap: 8px;
 }
 
@@ -313,8 +313,8 @@ onMounted(async () => {
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    background: #dbeafe;
-    color: #1d4ed8;
+    background: var(--ui-primary-soft);
+    color: var(--ui-primary-text);
 }
 
 .message-card {
@@ -341,13 +341,13 @@ onMounted(async () => {
     display: flex;
     align-items: center;
     gap: 12px;
-    color: #64748b;
+    color: var(--ui-text-muted);
 }
 
 .chat-input {
     padding: 16px;
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
+    background: var(--ui-surface-strong);
+    border: 1px solid var(--ui-border);
     border-radius: 16px;
 }
 

@@ -58,7 +58,7 @@ function buildAriaLabel(key: string, value: ChannelStatus): string {
 
 <style scoped>
 .channels-card {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--ui-shadow-sm);
   margin-bottom: 24px;
 }
 
@@ -73,9 +73,9 @@ function buildAriaLabel(key: string, value: ChannelStatus): string {
   justify-content: space-between;
   align-items: center;
   padding: 16px;
-  background: #f8fafc;
+  background: var(--ui-surface-muted);
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--ui-border);
 }
 
 .channel-info {
@@ -87,6 +87,6 @@ function buildAriaLabel(key: string, value: ChannelStatus): string {
 .channel-name {
   font-size: 16px;
   font-weight: 500;
-  color: #1e293b;
+  color: var(--ui-text);
 }
 </style>

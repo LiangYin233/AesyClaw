@@ -1,6 +1,6 @@
 import type { InboundMessage } from '../../types.js';
 import type { LLMProvider } from '../../providers/base.js';
-import type { SessionManager, SessionMessage } from '../../session/SessionManager.js';
+import type { SessionManager } from '../../session/SessionManager.js';
 import {
   LongTermMemoryStore,
   type LongTermMemoryEntry,
@@ -12,7 +12,6 @@ import {
 } from '../../session/LongTermMemoryStore.js';
 import { logger } from '../../observability/index.js';
 
-const MEMORY_PREFIX = '长期记忆（相关时参考）：';
 const MAX_BACKGROUND_ACTIONS = 5;
 
 const MEMORY_MANAGER_SYSTEM_PROMPT = [
@@ -59,7 +58,6 @@ function isObject(value: unknown): value is Record<string, unknown> {
 interface LongTermMemoryRuntimeConfig {
   enabled: boolean;
   model?: string;
-  maxFacts: number;
 }
 
 export class LongTermMemoryService {
@@ -84,29 +82,6 @@ export class LongTermMemoryService {
 
   private canRunBackgroundMaintenance(): boolean {
     return this.config.enabled && !!this.provider && !!this.config.model;
-  }
-
-  async buildMemoryMessages(channel: string, chatId: string): Promise<SessionMessage[]> {
-    if (!this.config.enabled) {
-      return [];
-    }
-
-    const entries = await this.store.listEntries(channel, chatId, {
-      statuses: ['active'],
-      limit: this.config.maxFacts
-    });
-
-    if (entries.length === 0) {
-      return [];
-    }
-
-    return [{
-      role: 'system',
-      content: [
-        MEMORY_PREFIX,
-        ...entries.map((entry, index) => `${index + 1}. [${entry.kind}] ${entry.content}`)
-      ].join('\n')
-    }];
   }
 
   async listEntries(channel: string, chatId: string): Promise<LongTermMemoryEntry[]> {

@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 const DEFAULT_SYSTEM_PROMPT = 'You are a helpful AI assistant.';
 const DEFAULT_PROVIDER_NAME = 'openai';
-const DEFAULT_PROVIDER_MODEL = 'gpt-4o';
 const DEFAULT_PROVIDER_API_BASE = 'https://api.openai.com/v1';
 const DEFAULT_PROVIDER_TYPE = 'openai';
 const HTTP_URL_PROTOCOL = /^https?$/;
@@ -23,8 +22,7 @@ const memorySummaryConfigSchema = z.object({
 const memoryFactsConfigSchema = withObjectInputDefault({
   enabled: z.boolean().default(false),
   provider: z.string().default(''),
-  model: z.string().default(''),
-  maxFacts: z.number().int().finite().default(100)
+  model: z.string().default('')
 });
 
 const providerTypeSchema = z.enum(['openai', 'openai_responses', 'anthropic']);
@@ -38,7 +36,6 @@ const providerConfigSchema = z.object({
   type: providerTypeSchema,
   apiKey: z.string().optional(),
   apiBase: providerApiBaseSchema.optional(),
-  model: z.string().optional(),
   headers: z.record(z.string(), z.string()).optional(),
   extraBody: z.record(z.string(), z.unknown()).optional()
 });
@@ -48,7 +45,7 @@ const agentRoleConfigSchema = z.object({
   description: z.string().default(''),
   systemPrompt: z.string().default(DEFAULT_SYSTEM_PROMPT),
   provider: z.string().default(DEFAULT_PROVIDER_NAME),
-  model: z.string().default(DEFAULT_PROVIDER_MODEL),
+  model: z.string(),
   vision: z.boolean().default(false),
   reasoning: z.boolean().default(false),
   visionProvider: z.string().default(''),
@@ -76,7 +73,7 @@ function createDefaultMainAgentRole(): z.output<typeof agentRoleConfigSchema> {
     description: '内建主 Agent',
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
     provider: DEFAULT_PROVIDER_NAME,
-    model: DEFAULT_PROVIDER_MODEL,
+    model: 'gpt-4o',
     vision: false,
     reasoning: false,
     visionProvider: '',
@@ -207,8 +204,7 @@ function createDefaultProviders(): Record<string, ProviderConfig> {
     [DEFAULT_PROVIDER_NAME]: {
       type: DEFAULT_PROVIDER_TYPE,
       apiKey: '',
-      apiBase: DEFAULT_PROVIDER_API_BASE,
-      model: DEFAULT_PROVIDER_MODEL
+      apiBase: DEFAULT_PROVIDER_API_BASE
     }
   };
 }
@@ -284,7 +280,7 @@ export function resolveProviderSelection(
 
   return {
     name,
-    model: modelName || providerConfig?.model || DEFAULT_PROVIDER_MODEL,
+    model: modelName?.trim() || '',
     providerConfig
   };
 }

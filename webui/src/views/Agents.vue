@@ -207,7 +207,7 @@ function getMainAgentTemplate(): AgentRoleConfig {
         name: '',
         description: main?.description || '',
         provider: main?.provider || providerOptions.value[0] || 'openai',
-        model: main?.model || 'gpt-4o',
+        model: main?.model || '',
         systemPrompt: main?.systemPrompt || 'You are a helpful AI assistant.',
         vision: main?.vision ?? false,
         reasoning: main?.reasoning ?? false,
@@ -351,7 +351,7 @@ onMounted(() => {
 
 .agent-desc {
     margin-top: 4px;
-    color: #64748b;
+    color: var(--ui-text-muted);
     font-size: 13px;
 }
 
@@ -368,13 +368,13 @@ onMounted(() => {
     gap: 12px;
     margin-bottom: 12px;
     font-size: 13px;
-    color: #64748b;
+    color: var(--ui-text-muted);
 }
 
 .prompt-preview {
     white-space: pre-wrap;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: var(--ui-surface-muted);
+    border: 1px solid var(--ui-border);
     border-radius: 8px;
     padding: 12px;
     min-height: 140px;

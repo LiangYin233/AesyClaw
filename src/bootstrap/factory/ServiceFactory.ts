@@ -81,15 +81,19 @@ export function createMemoryService(
 ): SessionMemoryService | undefined {
   const summaryConfig = config.agent.defaults.memorySummary;
   const memoryConfig = config.agent.defaults.memoryFacts;
+  const summaryEnabled = summaryConfig.enabled && !!summaryConfig.provider && !!summaryConfig.model;
 
   if (!summaryConfig.enabled && !memoryConfig.enabled) {
     return undefined;
   }
 
-  const summaryProviderConfig = resolveProviderSelection(config, summaryConfig.provider, summaryConfig.model);
+  if (summaryConfig.enabled && !summaryEnabled) {
+    appLog.warn('会话摘要已启用，但未完整配置 memorySummary.provider/model；摘要压缩将被跳过');
+  }
+
   const summaryRuntimeConfig = {
-    enabled: summaryConfig.enabled,
-    model: summaryProviderConfig.model,
+    enabled: summaryEnabled,
+    model: summaryConfig.model || undefined,
     compressRounds: summaryConfig.compressRounds,
     memoryWindow: config.agent.defaults.memoryWindow,
     contextMode: config.agent.defaults.contextMode
@@ -103,8 +107,7 @@ export function createMemoryService(
         longTermMemoryStore,
         {
           enabled: memoryConfig.enabled,
-          model: memoryConfig.model || undefined,
-          maxFacts: memoryConfig.maxFacts
+          model: memoryConfig.model || undefined
         },
         memoryConfig.provider && memoryConfig.model
           ? createOptionalProvider(resolveProviderSelection(config, memoryConfig.provider, memoryConfig.model), '长期记忆')
@@ -114,7 +117,9 @@ export function createMemoryService(
 
   return new SessionMemoryService(
     sessionManager,
-    summaryConfig.enabled ? createOptionalProvider(summaryProviderConfig, '记忆摘要') : undefined,
+    summaryEnabled
+      ? createOptionalProvider(resolveProviderSelection(config, summaryConfig.provider, summaryConfig.model), '记忆摘要')
+      : undefined,
     summaryRuntimeConfig,
     longTermMemoryService
   );
@@ -149,6 +154,9 @@ async function createPersistenceServices(config: Config): Promise<{
 
 function createRequiredProvider(config: Config, providerName?: string, modelName?: string) {
   const resolved = resolveProviderSelection(config, providerName, modelName);
+  if (!resolved.model) {
+    throw new Error(`Model is required for provider "${resolved.name}"`);
+  }
   if (!resolved.providerConfig) {
     throw new Error(`Provider "${resolved.name}" not found in config`);
   }

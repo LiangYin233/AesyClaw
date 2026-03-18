@@ -57,14 +57,14 @@ defineProps<{
 }
 
 .stat-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--ui-surface-strong);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
   padding: 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--ui-shadow-sm);
 }
 
 .stat-content {
@@ -75,43 +75,43 @@ defineProps<{
 
 .stat-label {
   font-size: 14px;
-  color: #64748b;
+  color: var(--ui-text-muted);
 }
 
 .stat-value {
   font-size: 24px;
   font-weight: bold;
-  color: #1e293b;
+  color: var(--ui-text);
 }
 
 .stat-icon {
   width: 48px;
   height: 48px;
   border-radius: 8px;
-  background: #f1f5f9;
+  background: var(--ui-surface-muted);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 20px;
-  color: #64748b;
+  color: var(--ui-text-muted);
 }
 
 .icon-success {
-  background: #dcfce7;
-  color: #16a34a;
+  background: var(--ui-success-soft);
+  color: var(--ui-success);
 }
 
 .icon-danger {
-  background: #fee2e2;
-  color: #dc2626;
+  background: var(--ui-danger-soft);
+  color: var(--ui-danger);
 }
 
 .text-success {
-  color: #16a34a;
+  color: var(--ui-success);
 }
 
 .text-danger {
-  color: #dc2626;
+  color: var(--ui-danger);
 }
 
 @media (max-width: 1024px) {

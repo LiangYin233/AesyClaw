@@ -5,6 +5,7 @@
     --ui-surface: rgba(255, 255, 255, 0.92);
     --ui-surface-strong: #ffffff;
     --ui-surface-muted: #f8fbff;
+    --ui-surface-code: #eff6ff;
     --ui-border: rgba(148, 163, 184, 0.22);
     --ui-border-strong: rgba(100, 116, 139, 0.22);
     --ui-shadow-sm: 0 10px 30px rgba(15, 23, 42, 0.05);
@@ -16,9 +17,19 @@
     --ui-text-faint: #94a3b8;
     --ui-primary: #2563eb;
     --ui-primary-soft: #dbeafe;
+    --ui-primary-text: #1d4ed8;
+    --ui-accent-soft: #e0f2fe;
+    --ui-success: #16a34a;
     --ui-success-soft: #dcfce7;
+    --ui-warning: #b45309;
     --ui-warning-soft: #fef3c7;
+    --ui-danger: #dc2626;
     --ui-danger-soft: #fee2e2;
+    --ui-danger-strong: #991b1b;
+    --ui-danger-text: #b91c1c;
+    --ui-debug: #0369a1;
+    --ui-debug-soft: rgba(224, 242, 254, 0.92);
+    --ui-hover: rgba(239, 246, 255, 0.4);
     --ui-overlay: rgba(255, 255, 255, 0.7);
     --ui-overlay-strong: rgba(255, 255, 255, 0.9);
     --ui-radius-sm: 12px;
@@ -373,6 +384,7 @@ small,
         --ui-surface: rgba(15, 23, 42, 0.82);
         --ui-surface-strong: rgba(15, 23, 42, 0.96);
         --ui-surface-muted: rgba(30, 41, 59, 0.92);
+        --ui-surface-code: rgba(30, 41, 59, 0.9);
         --ui-border: rgba(148, 163, 184, 0.16);
         --ui-border-strong: rgba(148, 163, 184, 0.24);
         --ui-shadow-sm: 0 14px 32px rgba(2, 6, 23, 0.35);
@@ -382,7 +394,20 @@ small,
         --ui-text-soft: #cbd5e1;
         --ui-text-muted: #94a3b8;
         --ui-text-faint: #64748b;
+        --ui-primary-text: #93c5fd;
         --ui-primary-soft: rgba(37, 99, 235, 0.18);
+        --ui-accent-soft: rgba(14, 165, 233, 0.18);
+        --ui-success: #4ade80;
+        --ui-success-soft: rgba(34, 197, 94, 0.18);
+        --ui-warning: #fbbf24;
+        --ui-warning-soft: rgba(245, 158, 11, 0.18);
+        --ui-danger: #f87171;
+        --ui-danger-soft: rgba(239, 68, 68, 0.18);
+        --ui-danger-strong: #fecaca;
+        --ui-danger-text: #fca5a5;
+        --ui-debug: #7dd3fc;
+        --ui-debug-soft: rgba(8, 145, 178, 0.2);
+        --ui-hover: rgba(30, 41, 59, 0.58);
         --ui-overlay: rgba(15, 23, 42, 0.72);
         --ui-overlay-strong: rgba(15, 23, 42, 0.92);
     }
@@ -395,6 +420,7 @@ small,
     --ui-surface: rgba(15, 23, 42, 0.82);
     --ui-surface-strong: rgba(15, 23, 42, 0.96);
     --ui-surface-muted: rgba(30, 41, 59, 0.92);
+    --ui-surface-code: rgba(30, 41, 59, 0.9);
     --ui-border: rgba(148, 163, 184, 0.16);
     --ui-border-strong: rgba(148, 163, 184, 0.24);
     --ui-shadow-sm: 0 14px 32px rgba(2, 6, 23, 0.35);
@@ -404,7 +430,20 @@ small,
     --ui-text-soft: #cbd5e1;
     --ui-text-muted: #94a3b8;
     --ui-text-faint: #64748b;
+    --ui-primary-text: #93c5fd;
     --ui-primary-soft: rgba(37, 99, 235, 0.18);
+    --ui-accent-soft: rgba(14, 165, 233, 0.18);
+    --ui-success: #4ade80;
+    --ui-success-soft: rgba(34, 197, 94, 0.18);
+    --ui-warning: #fbbf24;
+    --ui-warning-soft: rgba(245, 158, 11, 0.18);
+    --ui-danger: #f87171;
+    --ui-danger-soft: rgba(239, 68, 68, 0.18);
+    --ui-danger-strong: #fecaca;
+    --ui-danger-text: #fca5a5;
+    --ui-debug: #7dd3fc;
+    --ui-debug-soft: rgba(8, 145, 178, 0.2);
+    --ui-hover: rgba(30, 41, 59, 0.58);
     --ui-overlay: rgba(15, 23, 42, 0.72);
     --ui-overlay-strong: rgba(15, 23, 42, 0.92);
 }

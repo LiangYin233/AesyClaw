@@ -28,16 +28,17 @@ const message = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+  background: linear-gradient(135deg, var(--ui-surface-code) 0%, var(--ui-surface-muted) 100%);
   padding: 24px;
 }
 
 .unauthorized-card {
   width: min(480px, 100%);
-  background: #fff;
+  background: var(--ui-surface-strong);
+  border: 1px solid var(--ui-border);
   border-radius: 16px;
   padding: 32px;
-  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+  box-shadow: var(--ui-shadow-md);
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -46,24 +47,24 @@ const message = computed(() => {
 
 .unauthorized-icon {
   font-size: 40px;
-  color: #2563eb;
+  color: var(--ui-primary);
 }
 
 h1 {
   margin: 0;
   font-size: 28px;
-  color: #0f172a;
+  color: var(--ui-text);
 }
 
 p {
   margin: 0;
-  color: #475569;
+  color: var(--ui-text-soft);
   line-height: 1.6;
 }
 
 code {
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: var(--ui-surface-code);
+  color: var(--ui-primary-text);
   padding: 12px;
   border-radius: 8px;
   font-size: 13px;

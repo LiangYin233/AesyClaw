@@ -319,17 +319,17 @@ onMounted(() => {
 
 .plugin-title i {
     font-size: 18px;
-    color: #6366f1;
+    color: var(--ui-primary);
 }
 
 .version {
     font-size: 12px;
-    color: #94a3b8;
+    color: var(--ui-text-faint);
 }
 
 .plugin-description {
     margin: 8px 0;
-    color: #64748b;
+    color: var(--ui-text-muted);
     font-size: 14px;
 }
 
@@ -360,12 +360,12 @@ onMounted(() => {
 .form-field label {
     font-size: 14px;
     font-weight: 500;
-    color: #475569;
+    color: var(--ui-text-soft);
 }
 
 .nested-config {
     padding-left: 16px;
-    border-left: 2px solid #e2e8f0;
+    border-left: 2px solid var(--ui-border);
 }
 
 .nested-field {
@@ -377,26 +377,17 @@ onMounted(() => {
 
 .nested-field label {
     font-size: 13px;
-    color: #64748b;
+    color: var(--ui-text-muted);
 }
 
 .no-config {
     text-align: center;
-    color: #94a3b8;
+    color: var(--ui-text-faint);
     padding: 24px;
 }
 
 .capitalize {
     text-transform: capitalize;
-}
-
-@media (prefers-color-scheme: dark) {
-    .form-field label {
-        color: #94a3b8;
-    }
-    .nested-field label {
-        color: #94a3b8;
-    }
 }
 
 @media (max-width: 1024px) {

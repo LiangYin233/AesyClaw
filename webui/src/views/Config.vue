@@ -43,7 +43,7 @@
                             <div v-if="!isAgentConfigHidden(String(key))" class="form-field">
                                 <label class="capitalize">{{ getAgentDefaultsLabel(String(key)) }}</label>
                                 <template v-if="key === 'contextMode'">
-                                    <Select v-model="config.agent.defaults[key]" :options="['session', 'channel', 'global']" placeholder="选择模式" />
+                                    <Select v-model="config.agent.defaults[key]" :options="['session', 'channel']" placeholder="选择模式" />
                                 </template>
                                 <InputNumber 
                                     v-else-if="isNumber(value)" 
@@ -63,10 +63,10 @@
                     </div>
                     <div class="nested-configs">
                         <div class="nested-config-section">
-                            <h3 class="nested-config-title">Memory Summary</h3>
+                            <h3 class="nested-config-title">会话摘要</h3>
                             <div class="form-grid">
                                 <div class="form-field">
-                                    <label>Enabled</label>
+                                    <label>启用摘要</label>
                                     <ToggleButton
                                         v-model="config.agent.defaults.memorySummary.enabled"
                                         onLabel="已启用"
@@ -86,7 +86,7 @@
                                     <InputText v-model="config.agent.defaults.memorySummary.model" />
                                 </div>
                                 <div class="form-field">
-                                    <label>Compress Rounds</label>
+                                    <label>压缩轮数</label>
                                     <InputNumber
                                         v-model="config.agent.defaults.memorySummary.compressRounds"
                                         :useGrouping="false"
@@ -97,10 +97,10 @@
                             </div>
                         </div>
                         <div class="nested-config-section">
-                            <h3 class="nested-config-title">Memory Facts</h3>
+                            <h3 class="nested-config-title">长期记忆</h3>
                             <div class="form-grid">
                                 <div class="form-field">
-                                    <label>Enabled</label>
+                                    <label>启用长期记忆</label>
                                     <ToggleButton
                                         v-model="config.agent.defaults.memoryFacts.enabled"
                                         onLabel="已启用"
@@ -119,15 +119,32 @@
                                     <label>Model</label>
                                     <InputText v-model="config.agent.defaults.memoryFacts.model" />
                                 </div>
-                                <div class="form-field">
-                                    <label>Max Facts</label>
-                                    <InputNumber
-                                        v-model="config.agent.defaults.memoryFacts.maxFacts"
-                                        :useGrouping="false"
-                                        :min="1"
-                                    />
-                                </div>
                             </div>
+                        </div>
+                    </div>
+                </template>
+            </Card>
+
+            <Card class="config-card">
+                <template #title>运行与日志</template>
+                <template #content>
+                    <div class="form-grid">
+                        <div class="form-field">
+                            <label>日志级别</label>
+                            <Select
+                                v-model="config.observability.level"
+                                :options="['debug', 'info', 'warn', 'error']"
+                                placeholder="选择日志级别"
+                            />
+                        </div>
+                        <div class="form-field">
+                            <label>工具超时 (ms)</label>
+                            <InputNumber
+                                v-model="config.tools.timeoutMs"
+                                :useGrouping="false"
+                                :min="1000"
+                            />
+                            <small class="field-hint">统一控制工具执行超时时间。</small>
                         </div>
                     </div>
                 </template>
@@ -169,6 +186,28 @@
                                 <div class="form-field">
                                     <label>API Base</label>
                                     <InputText v-model="value.apiBase" placeholder="https://api.example.com" />
+                                </div>
+                                <div class="form-field form-field--full">
+                                    <label>Headers (JSON)</label>
+                                    <Textarea
+                                        :modelValue="formatJsonObject(value.headers)"
+                                        rows="4"
+                                        fluid
+                                        placeholder="{&quot;X-Test&quot;:&quot;value&quot;}"
+                                        @update:modelValue="updateProviderJsonField(key, 'headers', $event)"
+                                    />
+                                    <small class="field-hint">额外请求头，留空表示不传。</small>
+                                </div>
+                                <div class="form-field form-field--full">
+                                    <label>Extra Body (JSON)</label>
+                                    <Textarea
+                                        :modelValue="formatJsonObject(value.extraBody)"
+                                        rows="5"
+                                        fluid
+                                        placeholder="{&quot;max_tokens&quot;:2048}"
+                                        @update:modelValue="updateProviderJsonField(key, 'extraBody', $event)"
+                                    />
+                                    <small class="field-hint">透传给 Provider 原生 API 的额外请求体字段。</small>
                                 </div>
                             </div>
                         </div>
@@ -253,8 +292,52 @@ function getAgentDefaultsLabel(key: string): string {
     if (key === 'memoryWindow') {
         return 'Memory Window (对话轮次)'
     }
+    if (key === 'maxToolIterations') {
+        return 'Max Tool Iterations'
+    }
+    if (key === 'maxSessions') {
+        return 'Max Sessions'
+    }
+    if (key === 'contextMode') {
+        return 'Context Mode'
+    }
 
     return formatLabel(key)
+}
+
+function formatJsonObject(value: Record<string, any> | undefined): string {
+    if (!value || Object.keys(value).length === 0) {
+        return ''
+    }
+
+    return JSON.stringify(value, null, 2)
+}
+
+function updateProviderJsonField(
+    providerName: string,
+    field: 'headers' | 'extraBody',
+    rawValue: string
+) {
+    if (!config.value) return
+    const provider = config.value.providers[providerName]
+    if (!provider) return
+
+    const trimmed = rawValue.trim()
+    if (!trimmed) {
+        delete provider[field]
+        return
+    }
+
+    try {
+        const parsed = JSON.parse(trimmed)
+        if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+            return
+        }
+
+        provider[field] = parsed as any
+    } catch {
+        // Keep the last valid object until the user finishes editing valid JSON.
+    }
 }
 
 function goToAgents() {
@@ -305,7 +388,7 @@ onMounted(() => {
 
 .nested-config-section {
     padding: 16px;
-    background: #f8fafc;
+    background: var(--ui-surface-muted);
     border-radius: 8px;
 }
 
@@ -327,15 +410,19 @@ onMounted(() => {
     gap: 6px;
 }
 
+.form-field--full {
+    grid-column: 1 / -1;
+}
+
 .form-field label {
     font-size: 14px;
     font-weight: 500;
-    color: #475569;
+    color: var(--ui-text-soft);
 }
 
 .field-hint {
     font-size: 12px;
-    color: #64748b;
+    color: var(--ui-text-muted);
 }
 
 .capitalize {
@@ -351,7 +438,7 @@ onMounted(() => {
 
 .provider-section {
     padding: 12px;
-    background: #f8fafc;
+    background: var(--ui-surface-muted);
     border-radius: 8px;
     margin-bottom: 12px;
 }
@@ -378,13 +465,4 @@ onMounted(() => {
     padding: 48px;
 }
 
-@media (prefers-color-scheme: dark) {
-    .form-field label {
-        color: #94a3b8;
-    }
-    .nested-config-section,
-    .provider-section {
-        background: #1e293b;
-    }
-}
 </style>

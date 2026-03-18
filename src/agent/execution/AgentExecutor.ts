@@ -18,6 +18,7 @@ export class AgentExecutor {
   private visionProvider?: LLMProvider;
   private visionModel?: string;
   private executionRegistry: ExecutionRegistry;
+  private model: string;
   private log = logger.child('AgentExecutor');
 
   constructor(
@@ -26,13 +27,18 @@ export class AgentExecutor {
     workspace: string,
     systemPrompt?: string,
     skillsPrompt?: string,
-    private model: string = 'gpt-4o',
+    model?: string,
     private maxIterations: number = 40,
     pluginManager?: PluginManager,
     visionSettings?: VisionSettings,
     visionProvider?: LLMProvider,
     executionRegistry?: ExecutionRegistry
   ) {
+    if (!model?.trim()) {
+      throw new Error('AgentExecutor requires an explicit model');
+    }
+
+    this.model = model;
     this.executionRegistry = executionRegistry ?? new ExecutionRegistry();
     this.contextBuilder = new ContextBuilder(workspace, systemPrompt, skillsPrompt);
     this.toolLoopRunner = new ToolLoopRunner(provider, toolRegistry, pluginManager, visionSettings);

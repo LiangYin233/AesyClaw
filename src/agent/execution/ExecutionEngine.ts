@@ -11,7 +11,7 @@ import type { ExecutionRegistry } from './ExecutionRegistry.js';
 
 export interface ExecutionEngineOptions {
   defaultProvider: LLMProvider;
-  defaultModel: string;
+  mainModel: string;
   defaultSystemPrompt: string;
   maxIterations: number;
   memoryWindow: number;
@@ -37,6 +37,19 @@ function buildOperationalPrompt(allowedToolNames: string[]): string {
     );
   }
 
+  if (allowedToolNames.includes('memory_list')) {
+    sections.push(
+      [
+        '长期记忆要求：',
+        '当任务涉及用户偏好、固定习惯、长期项目背景、既有约定、历史决策、提醒偏好或任何“可能以前说过”的信息时，优先先用 memory_list 查询，再继续回答或规划。',
+        '不要因为自己“猜测用户应该是这样”而跳过记忆查询；拿不准时先查。',
+        '当用户明确说出新的长期有效信息，或你已从对话中确认稳定偏好、规则、约束、长期背景时，优先考虑用 memory_manage 写入或更新长期记忆。',
+        '当准备覆盖、归档、删除或合并已有长期记忆时，若需要追溯变化原因，先用 memory_history 查看最近操作记录。',
+        '一次性任务、临时状态、短期上下文不要写进长期记忆。'
+      ].join('\n')
+    );
+  }
+
   return sections.join('\n\n');
 }
 
@@ -49,7 +62,7 @@ export class ExecutionEngine {
   ) {}
 
   updateRuntime(
-    partial: Partial<Pick<ExecutionEngineOptions, 'defaultProvider' | 'defaultModel' | 'defaultSystemPrompt' | 'maxIterations' | 'memoryWindow' | 'visionSettings' | 'visionProvider'>>
+    partial: Partial<Pick<ExecutionEngineOptions, 'defaultProvider' | 'mainModel' | 'defaultSystemPrompt' | 'maxIterations' | 'memoryWindow' | 'visionSettings' | 'visionProvider'>>
   ): void {
     this.options = {
       ...this.options,
@@ -125,7 +138,7 @@ export class ExecutionEngine {
       return {
         roleName: 'main',
         provider: this.options.defaultProvider,
-        model: this.options.defaultModel,
+        model: this.options.mainModel,
         systemPrompt: this.options.defaultSystemPrompt,
         skillsPrompt: buildOperationalPrompt(allowedToolNames),
         allowedToolNames,

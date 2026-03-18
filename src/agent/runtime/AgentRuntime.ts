@@ -62,7 +62,7 @@ export class AgentRuntime {
   private log = logger.child('AgentRuntime');
   private running = false;
   private defaultProvider: LLMProvider;
-  private defaultModel: string;
+  private mainModel: string;
   private systemPrompt: string;
   private maxIterations: number;
   private memoryWindow: number;
@@ -75,8 +75,12 @@ export class AgentRuntime {
   private readonly toolContextBase: ToolContext;
 
   constructor(private options: AgentRuntimeOptions) {
+    if (!options.model?.trim()) {
+      throw new Error('AgentRuntime requires an explicit model');
+    }
+
     this.defaultProvider = options.provider;
-    this.defaultModel = options.model || 'gpt-4o';
+    this.mainModel = options.model;
     this.systemPrompt = options.systemPrompt || 'You are a helpful AI assistant.';
     this.maxIterations = options.maxIterations ?? CONFIG_DEFAULTS.DEFAULT_MAX_ITERATIONS;
     this.memoryWindow = options.memoryWindow ?? CONFIG_DEFAULTS.DEFAULT_MEMORY_WINDOW;
@@ -95,7 +99,7 @@ export class AgentRuntime {
     const backgroundTaskManager = new BackgroundTaskManager((message) => this.sendOutbound(message));
     this.executionEngine = new ExecutionEngine({
       defaultProvider: options.provider,
-      defaultModel: this.defaultModel,
+      mainModel: this.mainModel,
       defaultSystemPrompt: this.systemPrompt,
       maxIterations: this.maxIterations,
       memoryWindow: this.memoryWindow,
@@ -302,13 +306,13 @@ export class AgentRuntime {
   updateProvider(provider: LLMProvider, model?: string): void {
     this.defaultProvider = provider;
     if (model) {
-      this.defaultModel = model;
+      this.mainModel = model;
     }
     this.executionEngine.updateRuntime({
       defaultProvider: provider,
-      defaultModel: model || this.defaultModel
+      mainModel: model || this.mainModel
     });
-    this.log.info('运行模型配置已更新', { model: model || this.defaultModel });
+    this.log.info('运行模型配置已更新', { model: model || this.mainModel });
   }
 
   updateMainAgentRuntime(options: {
@@ -322,8 +326,11 @@ export class AgentRuntime {
     if (options.provider) {
       this.defaultProvider = options.provider;
     }
+    if ('model' in options && !options.model?.trim()) {
+      throw new Error('Main agent runtime update requires an explicit model');
+    }
     if (options.model) {
-      this.defaultModel = options.model;
+      this.mainModel = options.model;
     }
     if (options.systemPrompt !== undefined) {
       this.systemPrompt = options.systemPrompt;
@@ -334,7 +341,7 @@ export class AgentRuntime {
 
     const runtimeUpdate: Partial<{
       defaultProvider: LLMProvider;
-      defaultModel: string;
+      mainModel: string;
       defaultSystemPrompt: string;
       maxIterations: number;
       visionSettings?: VisionSettings;
@@ -344,7 +351,7 @@ export class AgentRuntime {
       runtimeUpdate.defaultProvider = options.provider;
     }
     if ('model' in options) {
-      runtimeUpdate.defaultModel = options.model;
+      runtimeUpdate.mainModel = options.model;
     }
     if ('systemPrompt' in options) {
       runtimeUpdate.defaultSystemPrompt = options.systemPrompt;
@@ -361,7 +368,7 @@ export class AgentRuntime {
 
     this.executionEngine.updateRuntime(runtimeUpdate);
     this.log.info('主运行时配置已更新', {
-      model: options.model || this.defaultModel,
+      model: options.model || this.mainModel,
       maxIterations: options.maxIterations || this.maxIterations
     });
   }

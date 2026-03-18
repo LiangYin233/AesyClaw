@@ -273,9 +273,20 @@ onUnmounted(() => {
     border: 1px solid var(--ui-border);
     border-radius: var(--ui-radius-md);
     background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 251, 255, 0.92)),
-        linear-gradient(120deg, rgba(37, 99, 235, 0.04), transparent 60%);
+        linear-gradient(180deg, var(--ui-surface-strong), var(--ui-surface-muted)),
+        linear-gradient(120deg, var(--ui-primary-soft), transparent 60%);
     box-shadow: var(--ui-shadow-sm);
+}
+
+.monitor-stat--primary {
+    border-color: var(--ui-border-strong);
+    background:
+        linear-gradient(180deg, var(--ui-surface-strong), var(--ui-surface)),
+        linear-gradient(120deg, color-mix(in srgb, var(--ui-primary-soft) 150%, transparent), transparent 62%);
+}
+
+.monitor-stat--primary .monitor-stat__value {
+    color: var(--ui-primary-text);
 }
 
 .monitor-stat__label {
@@ -349,28 +360,28 @@ onUnmounted(() => {
 
 .level-badge {
     border: 1px solid rgba(148, 163, 184, 0.22);
-    background: rgba(255, 255, 255, 0.75);
+    background: var(--ui-overlay-strong);
     color: var(--ui-text-soft);
 }
 
 .level-badge--debug {
-    color: #0369a1;
-    background: rgba(224, 242, 254, 0.92);
+    color: var(--ui-debug);
+    background: var(--ui-debug-soft);
 }
 
 .level-badge--info {
-    color: #1d4ed8;
-    background: rgba(219, 234, 254, 0.92);
+    color: var(--ui-primary-text);
+    background: var(--ui-primary-soft);
 }
 
 .level-badge--warn {
-    color: #b45309;
-    background: rgba(254, 243, 199, 0.92);
+    color: var(--ui-warning);
+    background: var(--ui-warning-soft);
 }
 
 .level-badge--error {
-    color: #b91c1c;
-    background: rgba(254, 226, 226, 0.92);
+    color: var(--ui-danger-text);
+    background: var(--ui-danger-soft);
 }
 
 .filter-hint {
@@ -426,7 +437,7 @@ onUnmounted(() => {
     overflow: auto;
     border-top: 1px solid var(--ui-border);
     border-bottom: 1px solid var(--ui-border);
-    background: rgba(255, 255, 255, 0.45);
+    background: var(--ui-overlay);
 }
 
 .log-row {
@@ -440,7 +451,7 @@ onUnmounted(() => {
 }
 
 .log-row:hover {
-    background: rgba(239, 246, 255, 0.4);
+    background: var(--ui-hover);
 }
 
 .log-row__meta {
@@ -476,19 +487,19 @@ onUnmounted(() => {
 }
 
 .log-level--debug {
-    color: #0369a1;
+    color: var(--ui-debug);
 }
 
 .log-level--info {
-    color: #1d4ed8;
+    color: var(--ui-primary-text);
 }
 
 .log-level--warn {
-    color: #b45309;
+    color: var(--ui-warning);
 }
 
 .log-level--error {
-    color: #b91c1c;
+    color: var(--ui-danger-text);
 }
 
 .log-scope {
@@ -529,7 +540,7 @@ onUnmounted(() => {
 }
 
 .log-row--debug .log-row__message {
-    color: #0f172a;
+    color: var(--ui-text);
 }
 
 .log-row--info {
@@ -545,7 +556,7 @@ onUnmounted(() => {
 }
 
 .log-row--warn .log-row__message {
-    color: #92400e;
+    color: var(--ui-warning);
 }
 
 .log-row--error {
@@ -553,7 +564,7 @@ onUnmounted(() => {
 }
 
 .log-row--error .log-row__message {
-    color: #991b1b;
+    color: var(--ui-danger-strong);
 }
 
 @media (max-width: 1120px) {

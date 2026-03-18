@@ -94,13 +94,13 @@ withDefaults(defineProps<Props>(), {
 }
 
 .error-container {
-  background: linear-gradient(180deg, rgba(254, 242, 242, 0.95), rgba(254, 226, 226, 0.9));
-  border-color: rgba(248, 113, 113, 0.26);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ui-danger-soft) 82%, transparent), var(--ui-danger-soft));
+  border-color: color-mix(in srgb, var(--ui-danger) 26%, transparent);
 }
 
 .error-icon {
   font-size: 2rem;
-  color: #dc2626;
+  color: var(--ui-danger);
 }
 
 .error-content {
@@ -113,7 +113,7 @@ withDefaults(defineProps<Props>(), {
   margin: 0;
   font-size: 1rem;
   font-weight: 700;
-  color: #991b1b;
+  color: var(--ui-danger-strong);
 }
 
 .error-message {
@@ -121,22 +121,6 @@ withDefaults(defineProps<Props>(), {
   max-width: 58ch;
   font-size: 0.92rem;
   line-height: 1.6;
-  color: #b91c1c;
-}
-
-@media (prefers-color-scheme: dark) {
-  .error-container {
-    background: linear-gradient(180deg, rgba(69, 10, 10, 0.84), rgba(127, 29, 29, 0.74));
-    border-color: rgba(248, 113, 113, 0.22);
-  }
-
-  .error-title {
-    color: #fecaca;
-  }
-
-  .error-message,
-  .error-icon {
-    color: #fca5a5;
-  }
+  color: var(--ui-danger-text);
 }
 </style>

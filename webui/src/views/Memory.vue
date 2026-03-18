@@ -416,7 +416,7 @@ onMounted(() => {
 .memory-title {
     font-size: 16px;
     font-weight: 600;
-    color: #1e293b;
+    color: var(--ui-text);
     margin-bottom: 8px;
     word-break: break-all;
 }
@@ -446,7 +446,7 @@ onMounted(() => {
 .section-label {
     font-size: 13px;
     font-weight: 600;
-    color: #64748b;
+    color: var(--ui-text-muted);
     margin-bottom: 8px;
 }
 
@@ -461,10 +461,10 @@ onMounted(() => {
 .session-summary-item,
 .memory-entry-item,
 .operation-item {
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--ui-border);
     border-radius: 8px;
     padding: 12px;
-    background: #f8fafc;
+    background: var(--ui-surface-muted);
 }
 
 .session-summary-header,
@@ -487,7 +487,7 @@ onMounted(() => {
 }
 
 .summary-content {
-    color: #1e293b;
+    color: var(--ui-text);
     line-height: 1.6;
     white-space: pre-wrap;
     word-break: break-word;
@@ -495,7 +495,7 @@ onMounted(() => {
 
 .memory-updated {
     font-size: 12px;
-    color: #94a3b8;
+    color: var(--ui-text-faint);
 }
 
 .inline-actions {
@@ -507,7 +507,7 @@ onMounted(() => {
 }
 
 .text-muted {
-    color: #94a3b8;
+    color: var(--ui-text-faint);
 }
 
 @media (max-width: 768px) {
@@ -520,26 +520,6 @@ onMounted(() => {
     .memory-entry-header,
     .operation-header {
         flex-direction: column;
-    }
-}
-
-@media (prefers-color-scheme: dark) {
-    .memory-title,
-    .summary-content {
-        color: #f1f5f9;
-    }
-
-    .section-label,
-    .text-muted,
-    .memory-updated {
-        color: #94a3b8;
-    }
-
-    .session-summary-item,
-    .memory-entry-item,
-    .operation-item {
-        background: #1e293b;
-        border-color: #334155;
     }
 }
 </style>

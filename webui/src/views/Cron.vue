@@ -426,12 +426,12 @@ onMounted(() => {
 
 .detail-label {
     font-weight: 500;
-    color: #64748b;
+    color: var(--ui-text-muted);
     min-width: 80px;
 }
 
 .detail-value {
-    color: #334155;
+    color: var(--ui-text-soft);
 }
 
 .job-actions {
@@ -454,18 +454,6 @@ onMounted(() => {
 .form-field label {
     font-size: 14px;
     font-weight: 500;
-    color: #475569;
-}
-
-@media (prefers-color-scheme: dark) {
-    .form-field label {
-        color: #94a3b8;
-    }
-    .detail-label {
-        color: #94a3b8;
-    }
-    .detail-value {
-        color: #e2e8f0;
-    }
+    color: var(--ui-text-soft);
 }
 </style>

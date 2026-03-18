@@ -228,7 +228,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
   if (memoryService?.hasLongTermMemory()) {
     toolRegistry.register({
       name: 'memory_list',
-      description: '列出当前聊天对象的长期记忆，以及最近的记忆变更记录。',
+      description: '列出当前聊天对象的长期记忆，以及最近的记忆变更记录。涉及用户偏好、固定习惯、长期背景、既有约定或历史决策时，应优先先查这个工具。',
       parameters: {
         type: 'object',
         properties: {}
@@ -261,7 +261,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
 
     toolRegistry.register({
       name: 'memory_manage',
-      description: '对当前聊天对象的长期记忆执行 create、update、merge、archive、delete 操作。',
+      description: '对当前聊天对象的长期记忆执行 create、update、merge、archive、delete 操作。确认新的稳定偏好、长期约束、项目背景或长期规则后，应主动用它维护记忆。',
       parameters: {
         type: 'object',
         properties: {
@@ -340,7 +340,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
 
     toolRegistry.register({
       name: 'memory_history',
-      description: '查看当前聊天对象的长期记忆操作历史。',
+      description: '查看当前聊天对象的长期记忆操作历史。需要追溯某条长期记忆为何被创建、更新、合并、归档或删除时使用。',
       parameters: {
         type: 'object',
         properties: {

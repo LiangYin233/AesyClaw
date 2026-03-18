@@ -417,16 +417,16 @@ onUnmounted(() => {
 
 .mcp-card {
     padding: 20px;
-    background: #ffffff;
+    background: var(--ui-surface-strong);
     border-radius: 12px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--ui-border);
     transition: box-shadow 0.2s ease, transform 0.1s ease, border-color 0.2s ease;
 }
 
 .mcp-card:hover {
-    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+    box-shadow: var(--ui-shadow-sm);
     transform: translateY(-1px);
-    border-color: #bfdbfe;
+    border-color: var(--ui-primary-soft);
 }
 
 .mcp-header {
@@ -450,7 +450,7 @@ onUnmounted(() => {
 
 .mcp-type-tag {
     font-size: 12px;
-    color: #64748b;
+    color: var(--ui-text-muted);
 }
 
 .mcp-header-actions {
@@ -465,7 +465,7 @@ onUnmounted(() => {
     gap: 16px;
     margin-bottom: 12px;
     padding: 12px;
-    background: #f8fafc;
+    background: var(--ui-surface-muted);
     border-radius: 8px;
 }
 
@@ -477,18 +477,18 @@ onUnmounted(() => {
 
 .info-label {
     font-size: 13px;
-    color: #64748b;
+    color: var(--ui-text-muted);
     font-weight: 500;
 }
 
 .info-value {
     font-size: 13px;
-    color: #1e293b;
+    color: var(--ui-text);
     font-weight: 600;
 }
 
 .error-text {
-    color: #dc2626;
+    color: var(--ui-danger);
 }
 
 .mcp-config {
@@ -505,15 +505,15 @@ onUnmounted(() => {
 
 .config-label {
     font-size: 13px;
-    color: #64748b;
+    color: var(--ui-text-muted);
     font-weight: 500;
     min-width: 60px;
 }
 
 .config-value {
     font-size: 12px;
-    color: #475569;
-    background: #f1f5f9;
+    color: var(--ui-text-soft);
+    background: var(--ui-surface-code);
     padding: 4px 8px;
     border-radius: 4px;
     font-family: 'Courier New', monospace;
@@ -535,12 +535,12 @@ onUnmounted(() => {
 .form-field label {
     font-size: 14px;
     font-weight: 500;
-    color: #475569;
+    color: var(--ui-text-soft);
 }
 
 .field-hint {
     font-size: 12px;
-    color: #94a3b8;
+    color: var(--ui-text-faint);
     margin-top: 2px;
 }
 
@@ -552,7 +552,7 @@ onUnmounted(() => {
     font-size: 16px;
     font-weight: 600;
     margin-bottom: 12px;
-    color: #1e293b;
+    color: var(--ui-text);
 }
 
 .details-grid {
@@ -569,13 +569,13 @@ onUnmounted(() => {
 
 .detail-label {
     font-size: 13px;
-    color: #64748b;
+    color: var(--ui-text-muted);
     font-weight: 500;
 }
 
 .detail-value {
     font-size: 13px;
-    color: #1e293b;
+    color: var(--ui-text);
     font-weight: 600;
 }
 
@@ -587,15 +587,15 @@ onUnmounted(() => {
 
 .tool-item {
     padding: 12px;
-    background: #f8fafc;
+    background: var(--ui-surface-muted);
     border-radius: 8px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--ui-border);
 }
 
 .tool-name {
     font-size: 14px;
     font-weight: 600;
-    color: #1e293b;
+    color: var(--ui-text);
     font-family: 'Courier New', monospace;
     display: block;
     margin-bottom: 6px;
@@ -603,7 +603,7 @@ onUnmounted(() => {
 
 .tool-description {
     font-size: 13px;
-    color: #64748b;
+    color: var(--ui-text-muted);
     margin: 0;
 }
 
@@ -627,40 +627,4 @@ onUnmounted(() => {
     }
 }
 
-@media (prefers-color-scheme: dark) {
-    .mcp-card {
-        background: #1e293b;
-        border-color: #334155;
-    }
-
-    .mcp-info {
-        background: #0f172a;
-    }
-
-    .info-value {
-        color: #e2e8f0;
-    }
-
-    .config-value {
-        background: #0f172a;
-        color: #cbd5e1;
-    }
-
-    .tool-item {
-        background: #0f172a;
-        border-color: #334155;
-    }
-
-    .tool-name {
-        color: #e2e8f0;
-    }
-
-    .details-section h3 {
-        color: #e2e8f0;
-    }
-
-    .detail-value {
-        color: #e2e8f0;
-    }
-}
 </style>

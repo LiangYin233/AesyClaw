@@ -100,7 +100,6 @@ export class OpenAIResponsesAdapter implements ProviderAdapter {
   readonly type = 'openai_responses';
   readonly displayName = 'OpenAI Responses';
   readonly defaultApiBase = 'https://api.openai.com/v1';
-  readonly defaultModel = 'gpt-4o';
 
   capabilities(): ProviderCapabilityProfile {
     return {

@@ -21,10 +21,6 @@ export class ProviderRuntime {
     private config: ProviderRuntimeConfig
   ) {}
 
-  getDefaultModel(): string {
-    return this.adapter.defaultModel;
-  }
-
   async chat(
     messages: LLMMessage[],
     tools?: ToolDefinition[],
@@ -32,16 +28,16 @@ export class ProviderRuntime {
     options?: ProviderChatOptions
   ): Promise<LLMResponse> {
     const explicitModel = typeof model === 'string' && model.length > 0;
-    const modelName = explicitModel ? model : this.getDefaultModel();
+    if (!explicitModel) {
+      throw new Error(`${this.adapter.displayName} requires an explicit model`);
+    }
+
+    const modelName = model;
     const apiBase = this.config.apiBase || this.adapter.defaultApiBase;
     const startedAt = Date.now();
     const context: ProviderLogContext = {
       warn: (message, fields) => this.log.warn(message, fields)
     };
-
-    if (!explicitModel) {
-      this.adapter.onMissingModel?.(context, modelName);
-    }
 
     this.log.debug('Provider request started', {
       providerType: this.adapter.type,

@@ -101,7 +101,6 @@ export class AnthropicMessagesAdapter implements ProviderAdapter {
   readonly type = 'anthropic';
   readonly displayName = 'Anthropic';
   readonly defaultApiBase = 'https://api.anthropic.com/v1';
-  readonly defaultModel = 'claude-sonnet-4-5';
 
   capabilities(): ProviderCapabilityProfile {
     return {
@@ -110,12 +109,6 @@ export class AnthropicMessagesAdapter implements ProviderAdapter {
       supportsReasoning: true,
       supportsStatefulConversation: false
     };
-  }
-
-  onMissingModel(context: ProviderLogContext, model: string): void {
-    context.warn('Anthropic provider 未显式配置 model，正在使用占位默认值', {
-      model
-    });
   }
 
   buildRequest(

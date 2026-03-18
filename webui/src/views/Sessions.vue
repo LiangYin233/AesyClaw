@@ -374,19 +374,19 @@ onMounted(() => {
     gap: 12px;
     flex-wrap: wrap;
     padding: 12px 16px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--ui-border);
     border-radius: 12px;
-    background: #f8fafc;
+    background: var(--ui-surface-muted);
 }
 
 .bulk-toolbar__summary {
-    color: #475569;
+    color: var(--ui-text-soft);
     font-size: 14px;
 }
 
 .bulk-toolbar__count {
     font-weight: 700;
-    color: #0f172a;
+    color: var(--ui-text);
 }
 
 .bulk-toolbar__actions {
@@ -401,7 +401,7 @@ onMounted(() => {
 }
 
 .text-muted {
-    color: #94a3b8;
+    color: var(--ui-text-faint);
 }
 
 .action-buttons {
@@ -433,18 +433,18 @@ onMounted(() => {
 }
 
 .detail-message.user {
-    background: #f1f5f9;
+    background: var(--ui-surface-muted);
     margin-left: 32px;
 }
 
 .detail-message.assistant {
-    background: #e0f2fe;
+    background: var(--ui-accent-soft);
     margin-right: 32px;
 }
 
 .message-role {
     font-size: 12px;
-    color: #64748b;
+    color: var(--ui-text-muted);
     margin-bottom: 4px;
     font-weight: 500;
 }
@@ -464,30 +464,4 @@ onMounted(() => {
     }
 }
 
-@media (prefers-color-scheme: dark) {
-    .bulk-toolbar {
-        background: #0f172a;
-        border-color: #334155;
-    }
-
-    .bulk-toolbar__summary {
-        color: #cbd5e1;
-    }
-
-    .bulk-toolbar__count {
-        color: #f8fafc;
-    }
-
-    .detail-message.user {
-        background: #334155;
-    }
-
-    .detail-message.assistant {
-        background: #1e3a5f;
-    }
-
-    .message-role {
-        color: #94a3b8;
-    }
-}
 </style>

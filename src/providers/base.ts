@@ -38,9 +38,4 @@ export abstract class LLMProvider {
     }
   ): Promise<LLMResponse>;
 
-  /**
-   * Get the default model identifier for this provider
-   * @returns Default model name
-   */
-  abstract getDefaultModel(): string;
 }

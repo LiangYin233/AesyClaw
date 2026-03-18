@@ -45,7 +45,6 @@ export interface ProviderAdapter {
   readonly type: string;
   readonly displayName: string;
   readonly defaultApiBase: string;
-  readonly defaultModel: string;
   capabilities(): ProviderCapabilityProfile;
   buildRequest(
     messages: LLMMessage[],
@@ -59,5 +58,4 @@ export interface ProviderAdapter {
   extractErrorMessage(data: unknown): string | undefined;
   diagnoseEmptyBody?(meta: ProviderResponseMeta): string | undefined;
   diagnoseInvalidJson?(meta: ProviderResponseMeta): string | undefined;
-  onMissingModel?(context: ProviderLogContext, model: string): void;
 }
