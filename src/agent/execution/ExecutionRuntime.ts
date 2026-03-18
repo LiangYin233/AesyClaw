@@ -1,24 +1,66 @@
-import type { OutboundMessage, InboundMessage, LLMMessage } from '../../types.js';
+import type { OutboundMessage, InboundMessage, LLMMessage, LLMResponse } from '../../types.js';
 import type { PluginManager } from '../../plugins/index.js';
+import type { SessionManager } from '../../session/SessionManager.js';
+import type { SessionMemoryService } from '../memory/SessionMemoryService.js';
+import type { SessionRoutingService } from '../session/SessionRoutingService.js';
 import type { ExecutionContext } from './ExecutionTypes.js';
 import type { ExecutionEngine } from './ExecutionEngine.js';
-import type { ExecutionFinalizer } from './ExecutionFinalizer.js';
-import type { ExecutionControl } from './ExecutionControl.js';
+import type { ExecutionStatus } from '../types.js';
 import { logger } from '../../observability/index.js';
+import { BackgroundTaskManager } from './BackgroundTaskManager.js';
+import { ExecutionRegistry } from './ExecutionRegistry.js';
+
+interface FinalizeExecutionParams {
+  sessionKey: string;
+  request: InboundMessage;
+  content: string;
+  reasoning_content?: string;
+  agentMode: boolean;
+  suppressOutbound?: boolean;
+}
 
 export class ExecutionRuntime {
   private log = logger.child('ExecutionRuntime');
   private readonly subAgentExcludedTools = ['send_msg_to_user', 'call_agent'];
   private static readonly IMAGE_SUMMARY_PREFIX = '【图片概括】';
   private static readonly VISION_DISABLED_MESSAGE = '当前 Agent 未启用视觉识别，暂时无法读取图片内容。请先在 Agent 配置中开启 Vision 并配置视觉模型后重试。';
+  private readonly registry: ExecutionRegistry;
+  private readonly backgroundTasks: BackgroundTaskManager;
 
-  constructor(
-    private engine: ExecutionEngine,
-    private control: ExecutionControl,
-    private finalizer: ExecutionFinalizer,
-    private getPluginManager: () => PluginManager | undefined,
-    private sendOutbound: (message: OutboundMessage) => Promise<void>
-  ) {}
+  constructor(args: {
+    engine: ExecutionEngine;
+    sessionRouting: SessionRoutingService;
+    sessionManager: SessionManager;
+    memoryService?: SessionMemoryService;
+    getPluginManager: () => PluginManager | undefined;
+    sendOutbound: (message: OutboundMessage) => Promise<void>;
+    executionRegistry?: ExecutionRegistry;
+    backgroundTaskManager?: BackgroundTaskManager;
+  }) {
+    this.engine = args.engine;
+    this.sessionRouting = args.sessionRouting;
+    this.sessionManager = args.sessionManager;
+    this.memoryService = args.memoryService;
+    this.getPluginManager = args.getPluginManager;
+    this.sendOutbound = args.sendOutbound;
+    this.registry = args.executionRegistry ?? new ExecutionRegistry();
+    this.backgroundTasks = args.backgroundTaskManager ?? new BackgroundTaskManager(args.sendOutbound);
+  }
+
+  private engine: ExecutionEngine;
+  private sessionRouting: SessionRoutingService;
+  private sessionManager: SessionManager;
+  private memoryService?: SessionMemoryService;
+  private getPluginManager: () => PluginManager | undefined;
+  private sendOutbound: (message: OutboundMessage) => Promise<void>;
+
+  setMemoryService(memoryService?: SessionMemoryService): void {
+    this.memoryService = memoryService;
+  }
+
+  get executionRegistry(): ExecutionRegistry {
+    return this.registry;
+  }
 
   async execute(context: ExecutionContext): Promise<string | undefined> {
     const startedAt = Date.now();
@@ -41,15 +83,13 @@ export class ExecutionRuntime {
           chatId: context.chatId
         });
 
-        await this.finalizer.finalize({
+        await this.finalize({
           sessionKey: context.sessionKey,
           request: context.request,
           content: ExecutionRuntime.VISION_DISABLED_MESSAGE,
           reasoning_content: undefined,
           agentMode: false,
-          sessionMessages: messages,
-          suppressOutbound: context.suppressOutbound,
-          sendOutbound: this.sendOutbound
+          suppressOutbound: context.suppressOutbound
         });
 
         return ExecutionRuntime.VISION_DISABLED_MESSAGE;
@@ -76,15 +116,13 @@ export class ExecutionRuntime {
           sessionKey: context.sessionKey
         });
 
-        await this.finalizer.finalize({
+        await this.finalize({
           sessionKey: context.sessionKey,
           request: context.request,
           content: result.content,
           reasoning_content: result.reasoning_content,
           agentMode: result.agentMode,
-          sessionMessages: messages,
-          suppressOutbound: context.suppressOutbound,
-          sendOutbound: this.sendOutbound
+          suppressOutbound: context.suppressOutbound
         });
 
         this.log.info('请求已在前台完成', {
@@ -103,7 +141,7 @@ export class ExecutionRuntime {
         source: context.toolContext.source || 'user',
         sessionKey: context.sessionKey,
         onNeedsBackground: async (response, bgMessages, bgContext) => {
-          const taskHandle = await this.control.backgroundTasks.startTask(
+          const taskHandle = await this.backgroundTasks.startTask(
             executor,
             context.sessionKey,
             context.request.channel,
@@ -111,18 +149,16 @@ export class ExecutionRuntime {
             context.request.messageType,
             bgMessages,
             bgContext,
-            response as any,
+            response as LLMResponse,
             {
-              onComplete: async (bgResult, finalMessages) => {
-                await this.finalizer.finalize({
+              onComplete: async (bgResult) => {
+                await this.finalize({
                   sessionKey: context.sessionKey,
                   request: context.request,
                   content: bgResult.content,
                   reasoning_content: bgResult.reasoning_content,
                   agentMode: bgResult.agentMode,
-                  sessionMessages: finalMessages,
-                  suppressOutbound: context.suppressOutbound,
-                  sendOutbound: this.sendOutbound
+                  suppressOutbound: context.suppressOutbound
                 });
 
                 this.log.info('后台任务结果已发送', {
@@ -133,7 +169,7 @@ export class ExecutionRuntime {
                 });
               },
               onError: async (error) => {
-                await this.finalizer.handleError(error, context.sessionKey);
+                await this.handleError(error, context.sessionKey);
               }
             }
           );
@@ -148,7 +184,7 @@ export class ExecutionRuntime {
         }
       });
 
-      const backgroundResult = result as any;
+      const backgroundResult = result as { needsBackground?: boolean; content: string };
       if (backgroundResult.needsBackground) {
         this.log.info('请求已转入后台处理', {
           sessionKey: context.sessionKey,
@@ -160,15 +196,13 @@ export class ExecutionRuntime {
         return result.content;
       }
 
-      await this.finalizer.finalize({
+      await this.finalize({
         sessionKey: context.sessionKey,
         request: context.request,
         content: result.content,
         reasoning_content: result.reasoning_content,
         agentMode: result.agentMode,
-        sessionMessages: messages,
-        suppressOutbound: context.suppressOutbound,
-        sendOutbound: this.sendOutbound
+        suppressOutbound: context.suppressOutbound
       });
 
       this.log.info('请求已在前台完成', {
@@ -225,6 +259,101 @@ export class ExecutionRuntime {
         };
       }
     }));
+  }
+
+  abortBySessionKey(sessionKey: string): boolean {
+    return this.registry.abort(sessionKey) || this.backgroundTasks.abortTask(sessionKey);
+  }
+
+  abortByChat(channel: string, chatId: string): boolean {
+    const sessionKey = this.sessionRouting.resolveByChannel(channel, chatId);
+    const abortedForeground = sessionKey ? this.registry.abort(sessionKey) : false;
+    const abortedBackground = sessionKey
+      ? this.backgroundTasks.abortTask(sessionKey)
+      : this.backgroundTasks.abortTaskByChannel(channel, chatId);
+
+    return abortedForeground || abortedBackground;
+  }
+
+  getStatus(sessionKey: string): ExecutionStatus {
+    const foreground = this.registry.getHandle(sessionKey);
+    const background = this.backgroundTasks.getTasksBySessionHandle(sessionKey);
+
+    return {
+      sessionKey,
+      foreground,
+      background,
+      active: !!foreground || background.length > 0
+    };
+  }
+
+  stop(): void {
+    for (const handle of this.registry.listHandles()) {
+      this.registry.abort(handle.sessionKey);
+    }
+    this.backgroundTasks.stop();
+  }
+
+  private async finalize(params: FinalizeExecutionParams): Promise<void> {
+    const {
+      sessionKey,
+      request,
+      content,
+      reasoning_content,
+      agentMode,
+      suppressOutbound = false
+    } = params;
+
+    await this.sessionManager.addMessage(sessionKey, 'user', request.content);
+    if (content) {
+      await this.sessionManager.addMessage(sessionKey, 'assistant', content);
+    }
+
+    const llmResponse: LLMResponse = {
+      content,
+      reasoning_content,
+      toolCalls: [],
+      finishReason: agentMode ? 'tool_use' : 'stop'
+    };
+
+    const pluginManager = this.getPluginManager();
+    if (pluginManager) {
+      await pluginManager.runAgentAfterTaps({
+        message: request,
+        response: llmResponse
+      });
+    }
+
+    if (!suppressOutbound) {
+      await this.sendOutbound({
+        channel: request.channel,
+        chatId: request.chatId,
+        content,
+        reasoning_content,
+        messageType: request.messageType
+      });
+    }
+
+    if (this.memoryService) {
+      await this.memoryService.maybeSummarizeSession(sessionKey);
+      this.memoryService.enqueueFactsExtractionForRequest(sessionKey, request);
+    }
+
+    this.log.info('执行结果已完成收尾', {
+      sessionKey,
+      channel: request.channel,
+      chatId: request.chatId,
+      messageType: request.messageType,
+      outboundSuppressed: suppressOutbound,
+      responseLength: content.length
+    });
+  }
+
+  private async handleError(error: unknown, sessionKey: string): Promise<void> {
+    const pluginManager = this.getPluginManager();
+    if (pluginManager) {
+      await pluginManager.runErrorTaps(error, { type: 'agent', data: { sessionKey } });
+    }
   }
 
   private hasVisionInput(inbound: InboundMessage): boolean {

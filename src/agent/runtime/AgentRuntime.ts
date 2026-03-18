@@ -12,10 +12,10 @@ import { logger } from '../../observability/index.js';
 import { CONFIG_DEFAULTS } from '../../constants/index.js';
 import { AgentPipeline } from './AgentPipeline.js';
 import { SessionResolver } from '../session/SessionResolver.js';
-import { ExecutionFinalizer } from '../execution/ExecutionFinalizer.js';
-import { ExecutionControl } from '../execution/ExecutionControl.js';
+import { BackgroundTaskManager } from '../execution/BackgroundTaskManager.js';
 import { ExecutionEngine } from '../execution/ExecutionEngine.js';
 import { ExecutionRuntime } from '../execution/ExecutionRuntime.js';
+import { ExecutionRegistry } from '../execution/ExecutionRegistry.js';
 import type { ExecutionStatus, SessionReference } from '../types.js';
 
 export class OutboundGateway {
@@ -70,8 +70,6 @@ export class AgentRuntime {
   private agentRoleService?: AgentRoleService;
   private readonly pipeline: AgentPipeline;
   private readonly sessionResolver: SessionResolver;
-  private readonly executionControl: ExecutionControl;
-  private readonly finalizer: ExecutionFinalizer;
   private readonly executionEngine: ExecutionEngine;
   private readonly executionRuntime: ExecutionRuntime;
   private readonly toolContextBase: ToolContext;
@@ -93,15 +91,8 @@ export class AgentRuntime {
       options.memoryService,
       options.agentRoleService
     );
-    this.executionControl = new ExecutionControl(
-      options.sessionRouting,
-      (message) => options.outboundGateway.send(message)
-    );
-    this.finalizer = new ExecutionFinalizer(
-      options.sessionManager,
-      options.getPluginManager,
-      options.memoryService
-    );
+    const executionRegistry = new ExecutionRegistry();
+    const backgroundTaskManager = new BackgroundTaskManager((message) => this.sendOutbound(message));
     this.executionEngine = new ExecutionEngine({
       defaultProvider: options.provider,
       defaultModel: this.defaultModel,
@@ -113,15 +104,18 @@ export class AgentRuntime {
       getPluginManager: options.getPluginManager,
       visionSettings: options.visionSettings,
       visionProvider: options.visionProvider,
-      executionRegistry: this.executionControl.registry
+      executionRegistry
     }, options.agentRoleService);
-    this.executionRuntime = new ExecutionRuntime(
-      this.executionEngine,
-      this.executionControl,
-      this.finalizer,
-      options.getPluginManager,
-      (message) => this.sendOutbound(message)
-    );
+    this.executionRuntime = new ExecutionRuntime({
+      engine: this.executionEngine,
+      sessionRouting: options.sessionRouting,
+      sessionManager: options.sessionManager,
+      memoryService: options.memoryService,
+      getPluginManager: options.getPluginManager,
+      sendOutbound: (message) => this.sendOutbound(message),
+      executionRegistry,
+      backgroundTaskManager
+    });
   }
 
   start(): void {
@@ -131,7 +125,7 @@ export class AgentRuntime {
 
   stop(): void {
     this.running = false;
-    this.executionControl.stop();
+    this.executionRuntime.stop();
   }
 
   isRunning(): boolean {
@@ -269,9 +263,9 @@ export class AgentRuntime {
 
   abortSession(sessionKeyOrChannel: string, chatId?: string): boolean {
     if (chatId !== undefined) {
-      return this.executionControl.abortByChat(sessionKeyOrChannel, chatId);
+      return this.executionRuntime.abortByChat(sessionKeyOrChannel, chatId);
     }
-    return this.executionControl.abortBySessionKey(sessionKeyOrChannel);
+    return this.executionRuntime.abortBySessionKey(sessionKeyOrChannel);
   }
 
   abortReference(reference: SessionReference | string): boolean {
@@ -288,7 +282,7 @@ export class AgentRuntime {
   }
 
   getExecutionStatus(sessionKey: string): ExecutionStatus {
-    return this.executionControl.getStatus(sessionKey);
+    return this.executionRuntime.getStatus(sessionKey);
   }
 
   getStatusByReference(reference: SessionReference | string): ExecutionStatus | undefined {
@@ -376,6 +370,7 @@ export class AgentRuntime {
     this.memoryWindow = memoryWindow;
     this.memoryService = memoryService;
     this.executionEngine.updateRuntime({ memoryWindow });
+    this.executionRuntime.setMemoryService(memoryService);
     this.log.info('记忆设置已更新', {
       memoryWindow,
       summaryEnabled: !!memoryService

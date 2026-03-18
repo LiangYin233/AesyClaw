@@ -23,10 +23,7 @@ import { registerMCPRoutes } from './routes/mcp.js';
 import { registerObservabilityRoutes } from './routes/observability.js';
 import { registerSkillRoutes } from './routes/skills.js';
 import type { MemoryFactStore } from '../session/MemoryFactStore.js';
-import type { AgentRoleService as RuntimeAgentRoleService } from '../agent/roles/AgentRoleService.js';
-import { ChatService } from './services/ChatService.js';
-import { SessionService } from './services/SessionService.js';
-import { AgentRoleService } from './services/AgentRoleService.js';
+import type { AgentRoleService } from '../agent/roles/AgentRoleService.js';
 
 const MAX_MESSAGE_LENGTH = CONSTANTS.MESSAGE_MAX_LENGTH;
 
@@ -37,22 +34,49 @@ export class APIServer {
   private app = express();
   private server = createServer(this.app);
   private log = logger.child('API');
+  private port: number;
+  private agentRuntime: AgentRuntime;
+  private sessionManager: SessionManager;
+  private sessionRouting: SessionRoutingService;
+  private channelManager: ChannelManager;
+  private config: Config;
+  private pluginManager?: PluginManager;
+  private cronService?: CronService;
+  private mcpManager?: MCPClientManager;
+  private skillManager?: SkillManager;
+  private toolRegistry?: ToolRegistry;
+  private memoryFactStore?: MemoryFactStore;
+  private agentRoleService?: AgentRoleService;
 
-  constructor(
-    private port: number,
-    private agentRuntime: AgentRuntime,
-    private sessionManager: SessionManager,
-    private sessionRouting: SessionRoutingService,
-    private channelManager: ChannelManager,
-    private config: Config,
-    private pluginManager?: PluginManager,
-    private cronService?: CronService,
-    private mcpManager?: MCPClientManager,
-    private skillManager?: SkillManager,
-    private toolRegistry?: ToolRegistry,
-    private memoryFactStore?: MemoryFactStore,
-    private agentRoleService?: RuntimeAgentRoleService
-  ) {}
+  constructor(options: {
+    port: number;
+    agentRuntime: AgentRuntime;
+    sessionManager: SessionManager;
+    sessionRouting: SessionRoutingService;
+    channelManager: ChannelManager;
+    config: Config;
+    pluginManager?: PluginManager;
+    cronService?: CronService;
+    mcpManager?: MCPClientManager;
+    skillManager?: SkillManager;
+    toolRegistry?: ToolRegistry;
+    memoryFactStore?: MemoryFactStore;
+    agentRoleService?: AgentRoleService;
+  }) {
+    this.port = options.port;
+    this.agentRuntime = options.agentRuntime;
+    this.sessionManager = options.sessionManager;
+    this.sessionRouting = options.sessionRouting;
+    this.channelManager = options.channelManager;
+    this.config = options.config;
+    this.pluginManager = options.pluginManager;
+    this.cronService = options.cronService;
+    this.mcpManager = options.mcpManager;
+    this.skillManager = options.skillManager;
+    this.toolRegistry = options.toolRegistry;
+    this.memoryFactStore = options.memoryFactStore;
+    this.agentRoleService = options.agentRoleService;
+  }
 
   async start(): Promise<void> {
     this.setupMiddleware();
@@ -96,16 +120,11 @@ export class APIServer {
   }
 
   private setupRoutes(): void {
-    const chatService = new ChatService(this.agentRuntime);
-    const sessionService = new SessionService(this.sessionManager, this.sessionRouting, this.agentRoleService);
-    const agentRoleAppService = this.agentRoleService
-      ? new AgentRoleService(this.agentRoleService, this.sessionRouting)
-      : undefined;
-
     registerCoreRoutes(this.app, {
-      chatService,
-      sessionService,
-      agentRoleService: agentRoleAppService,
+      agentRuntime: this.agentRuntime,
+      sessionManager: this.sessionManager,
+      sessionRouting: this.sessionRouting,
+      agentRoleService: this.agentRoleService,
       channelManager: this.channelManager,
       getConfig: () => this.config,
       setConfig: (config) => {
@@ -114,8 +133,6 @@ export class APIServer {
       toolRegistry: this.toolRegistry,
       packageVersion,
       maxMessageLength: MAX_MESSAGE_LENGTH,
-      sessionCount: () => this.sessionManager.count(),
-      agentRunning: () => this.agentRuntime.isRunning(),
       log: this.log
     });
     registerMemoryRoutes(this.app, {

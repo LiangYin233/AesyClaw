@@ -1,4 +1,5 @@
 import type { Express } from 'express';
+import { randomUUID } from 'crypto';
 import { ConfigLoader } from '../../config/loader.js';
 import { getConfigValidationIssue } from '../../config/index.js';
 import { INTERNAL_CHANNELS } from '../../constants/index.js';
@@ -6,16 +7,17 @@ import { createErrorResponse, createValidationErrorResponse, normalizeError, Not
 import type { ChannelManager } from '../../channels/ChannelManager.js';
 import type { Config } from '../../types.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
-import type { ChatService } from '../services/ChatService.js';
-import type { SessionService } from '../services/SessionService.js';
-import type { AgentRoleService } from '../services/AgentRoleService.js';
 import { parseAgentRoleInput } from '../mappers/agentRoleMapper.js';
 import { SessionManager } from '../../session/SessionManager.js';
+import type { SessionRoutingService } from '../../agent/session/SessionRoutingService.js';
+import type { AgentRoleService } from '../../agent/roles/AgentRoleService.js';
+import type { AgentRuntime } from '../../agent/runtime/AgentRuntime.js';
 import { badRequest, notFound, serverError, unavailable, wrap } from './helpers.js';
 
 interface CoreRouteDeps {
-  chatService: ChatService;
-  sessionService: SessionService;
+  agentRuntime: Pick<AgentRuntime, 'handleDirect' | 'isRunning'>;
+  sessionManager: SessionManager;
+  sessionRouting: SessionRoutingService;
   agentRoleService?: AgentRoleService;
   channelManager: ChannelManager;
   getConfig: () => Config;
@@ -23,8 +25,6 @@ interface CoreRouteDeps {
   toolRegistry?: ToolRegistry;
   packageVersion: string;
   maxMessageLength: number;
-  sessionCount: () => number;
-  agentRunning: () => boolean;
   log: {
     info(message: string, ...args: any[]): void;
     error(message: string, ...args: any[]): void;
@@ -32,6 +32,81 @@ interface CoreRouteDeps {
 }
 
 export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
+  const getDefaultRoleName = () => deps.agentRoleService?.getDefaultRoleName() || 'main';
+
+  const listSessions = async () => {
+    const sessions = deps.sessionManager.list();
+    return Promise.all(sessions.map(async (session) => ({
+      key: session.key,
+      channel: session.channel,
+      chatId: session.chatId,
+      uuid: session.uuid,
+      agentName: deps.sessionRouting.getConversationAgent(session.channel, session.chatId) || getDefaultRoleName(),
+      messageCount: session.messages.length
+    })));
+  };
+
+  const getSessionDetails = async (key: string) => {
+    const session = await deps.sessionManager.getExistingOrThrow(key);
+    return {
+      key: session.key,
+      channel: session.channel,
+      chatId: session.chatId,
+      uuid: session.uuid,
+      agentName: deps.sessionRouting.getConversationAgent(session.channel, session.chatId) || getDefaultRoleName(),
+      messageCount: session.messages.length,
+      messages: session.messages
+    };
+  };
+
+  const setSessionAgent = async (key: string, agentName: string | null): Promise<{ success: true; agentName: string }> => {
+    if (!deps.agentRoleService) {
+      throw new Error('Agent role service unavailable');
+    }
+
+    if (agentName === null || agentName === '') {
+      const session = await deps.sessionManager.getExistingOrThrow(key);
+      deps.sessionRouting.clearConversationAgent(session.channel, session.chatId);
+      return { success: true, agentName: getDefaultRoleName() };
+    }
+
+    const role = deps.agentRoleService.getResolvedRole(agentName);
+    if (!role) {
+      throw new NotFoundError('Agent role', agentName);
+    }
+
+    const session = await deps.sessionManager.getExistingOrThrow(key);
+    deps.sessionRouting.setConversationAgent(session.channel, session.chatId, role.name);
+    return { success: true, agentName: role.name };
+  };
+
+  const deleteSession = async (key: string): Promise<{ success: true }> => {
+    await deps.sessionManager.delete(key);
+    return { success: true };
+  };
+
+  const createChatResponse = async (request: {
+    sessionKey?: string;
+    message: string;
+    channel?: string;
+    chatId?: string;
+  }) => {
+    const resolvedChannel = request.channel?.trim() || INTERNAL_CHANNELS.WEBUI;
+    const key = request.sessionKey || `${resolvedChannel}:${randomUUID()}`;
+    const resolvedChatId = request.chatId?.trim() || request.sessionKey || key;
+    const response = await deps.agentRuntime.handleDirect(request.message, {
+      sessionKey: key,
+      channel: resolvedChannel,
+      chatId: resolvedChatId,
+      messageType: 'private'
+    });
+
+    return {
+      success: true as const,
+      response
+    };
+  };
+
   const getChannelStatus = () => {
     const runtimeStatus = deps.channelManager.getStatus();
     const configuredChannels = deps.getConfig().channels;
@@ -69,19 +144,19 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
       version: deps.packageVersion,
       uptime: process.uptime(),
       channels: getChannelStatus(),
-      sessions: deps.sessionCount(),
-      agentRunning: deps.agentRunning()
+      sessions: deps.sessionManager.count(),
+      agentRunning: deps.agentRuntime.isRunning()
     });
   });
 
   app.get('/api/sessions', async (req, res) => {
-    res.json({ sessions: await deps.sessionService.listSessions() });
+    res.json({ sessions: await listSessions() });
   });
 
   app.get('/api/sessions/:key', async (req, res) => {
     try {
       SessionManager.validateSessionKey(req.params.key);
-      res.json(await deps.sessionService.getSessionDetails(req.params.key));
+      res.json(await getSessionDetails(req.params.key));
     } catch (error: unknown) {
       if (error instanceof ValidationError) {
         return badRequest(res, error.message, 'key');
@@ -101,7 +176,7 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
         return badRequest(res, 'agentName must be a string or null', 'agentName');
       }
 
-      res.json(await deps.sessionService.setSessionAgent(req.params.key, agentName ?? null));
+      res.json(await setSessionAgent(req.params.key, agentName ?? null));
     } catch (error: unknown) {
       if (error instanceof ValidationError) {
         return badRequest(res, error.message, 'key');
@@ -116,7 +191,7 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
   app.delete('/api/sessions/:key', async (req, res) => {
     try {
       SessionManager.validateSessionKey(req.params.key);
-      res.json(await deps.sessionService.deleteSession(req.params.key));
+      res.json(await deleteSession(req.params.key));
     } catch (error: unknown) {
       if (error instanceof ValidationError) {
         return badRequest(res, error.message, 'key');
@@ -130,13 +205,14 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
       return res.json({ agents: [] });
     }
 
-    res.json(await deps.agentRoleService.listAgents());
+    res.json({ agents: deps.agentRoleService.listResolvedRoles() });
   });
 
   app.post('/api/agents', wrap(async (req, res) => {
     if (!deps.agentRoleService) return unavailable(res, 'Agent role service unavailable');
     try {
-      res.status(201).json(await deps.agentRoleService.createAgent(parseAgentRoleInput(req.body)));
+      const agent = await deps.agentRoleService.createRole(parseAgentRoleInput(req.body));
+      res.status(201).json({ agent });
     } catch (error: unknown) {
       res.status(400).json(createErrorResponse(error));
     }
@@ -146,7 +222,8 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
     if (!deps.agentRoleService) return unavailable(res, 'Agent role service unavailable');
     try {
       const name = String(req.params.name);
-      res.json(await deps.agentRoleService.updateAgent(name, parseAgentRoleInput(req.body, name)));
+      const agent = await deps.agentRoleService.updateRole(name, parseAgentRoleInput(req.body, name));
+      res.json({ agent });
     } catch (error: unknown) {
       res.status(400).json(createErrorResponse(error));
     }
@@ -155,7 +232,9 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
   app.delete('/api/agents/:name', wrap(async (req, res) => {
     if (!deps.agentRoleService) return unavailable(res, 'Agent role service unavailable');
     try {
-      res.json(await deps.agentRoleService.deleteAgent(String(req.params.name)));
+      await deps.agentRoleService.deleteRole(String(req.params.name));
+      deps.sessionRouting.deleteAgentBindings(String(req.params.name));
+      res.json({ success: true });
     } catch (error: unknown) {
       res.status(400).json(createErrorResponse(error));
     }
@@ -180,7 +259,7 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
 
     try {
       deps.log.info('收到 API 对话请求', { sessionKey: sessionKey || 'auto', channel, chatId });
-      const response = await deps.chatService.handleChat({ sessionKey, message, channel, chatId });
+      const response = await createChatResponse({ sessionKey, message, channel, chatId });
       res.json(response);
     } catch (error: unknown) {
       deps.log.error(`对话请求失败: ${normalizeError(error)}`);

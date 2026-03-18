@@ -1,15 +1,15 @@
-import type { ToolContext, ToolRegistry } from '../../tools/index.js';
-import type { ToolSource } from '../../tools/ToolRegistry.js';
-import type { SkillManager } from '../../skills/index.js';
-import type { CronService } from '../../cron/index.js';
-import type { MCPClientManager } from '../../mcp/index.js';
-import type { PluginManager } from '../../plugins/index.js';
-import type { OutboundMessage, ToolDefinition } from '../../types.js';
-import type { AgentRuntime } from '../../agent/runtime/AgentRuntime.js';
-import type { AgentRoleService } from '../../agent/roles/AgentRoleService.js';
-import { registerCronTools } from '../../cron/CronTools.js';
-import { normalizeError } from '../../errors/index.js';
-import { logger } from '../../observability/index.js';
+import type { ToolContext, ToolRegistry } from './index.js';
+import type { ToolSource } from './ToolRegistry.js';
+import type { SkillManager } from '../skills/index.js';
+import type { CronService } from '../cron/index.js';
+import type { MCPClientManager } from '../mcp/index.js';
+import type { PluginManager } from '../plugins/index.js';
+import type { OutboundMessage, ToolDefinition } from '../types.js';
+import type { AgentRuntime } from '../agent/runtime/AgentRuntime.js';
+import type { AgentRoleService } from '../agent/roles/AgentRoleService.js';
+import { registerCronTools } from '../cron/CronTools.js';
+import { normalizeError } from '../errors/index.js';
+import { logger } from '../observability/index.js';
 
 export interface ToolIntegrationOptions {
   toolRegistry: ToolRegistry;
