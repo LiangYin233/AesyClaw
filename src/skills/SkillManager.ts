@@ -6,6 +6,7 @@ import { normalizeError } from '../errors/index.js';
 import { logger } from '../observability/index.js';
 import type { Config } from '../types.js';
 import { ConfigLoader } from '../config/loader.js';
+import { formatSkillsPrompt } from './promptFormatter.js';
 
 const SKILL_ENTRY_FILE = 'SKILL.md';
 const RELOAD_DEBOUNCE_MS = 250;
@@ -261,20 +262,7 @@ export class SkillManager {
   }
 
   buildSkillsPrompt(): string {
-    const skills = this.listSkills().filter((skill) => skill.enabled);
-    if (skills.length === 0) {
-      return '';
-    }
-
-    const skillsList = skills
-      .map((skill) => `- ${skill.name}: ${skill.description || '无描述'}`)
-      .join('\n');
-
-    return [
-      '可用 skills：',
-      skillsList,
-      '需要 skill 时：先用 read_skill 读 SKILL.md；需要更多文件时再用 list_skill_files。'
-    ].join('\n');
+    return formatSkillsPrompt(this.listSkills().filter((skill) => skill.enabled));
   }
 
   private getRootSpecs(): SkillRootSpec[] {

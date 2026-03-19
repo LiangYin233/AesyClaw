@@ -2,6 +2,7 @@ import { ConfigLoader } from '../../config/loader.js';
 import type { AgentRoleConfig, Config, VisionSettings } from '../../types.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import type { SkillManager } from '../../skills/SkillManager.js';
+import { formatSkillsPrompt } from '../../skills/promptFormatter.js';
 import { createProvider } from '../../providers/index.js';
 import { logger } from '../../observability/index.js';
 import type { LLMProvider } from '../../providers/base.js';
@@ -131,15 +132,7 @@ export class AgentRoleService {
       return '';
     }
 
-    const skillsList = skills
-      .map((skill) => `- ${skill.name}: ${skill.description || '无描述'}`)
-      .join('\n');
-
-    return [
-      '可用 skills：',
-      skillsList,
-      '需要 skill 时：先用 read_skill 读 SKILL.md；需要更多文件时再用 list_skill_files。'
-    ].join('\n');
+    return formatSkillsPrompt(skills);
   }
 
   buildRoleDescriptionsPrompt(roleName?: string | null): string {

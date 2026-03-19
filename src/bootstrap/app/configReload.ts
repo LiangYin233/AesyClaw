@@ -7,12 +7,10 @@ import {
   getToolRuntimeConfig
 } from '../../config/index.js';
 import { logging, logger } from '../../observability/index.js';
-import { MCPClientManager } from '../../mcp/MCPClient.js';
-import { clearMcpServerTools, syncMcpServerTools } from '../../mcp/toolSync.js';
+import { syncConfiguredMcpServers } from '../../mcp/runtime.js';
 import { createProvider } from '../../providers/index.js';
 import type { Services } from '../factory/ServiceFactory.js';
 import { createMemoryService } from '../factory/ServiceFactory.js';
-import { registerMcpTools } from '../../tools/index.js';
 import type { Config, VisionSettings } from '../../types.js';
 
 const log = logger.child('Bootstrap');
@@ -64,54 +62,6 @@ function buildMemoryComparable(config: Config) {
     maintenanceProviderConfig: memory.facts.maintenance.providerConfig ?? null,
     recallProviderConfig: memory.facts.recall.providerConfig ?? null
   };
-}
-
-function hasEnabledMcpServer(config: Config): boolean {
-  return Object.values(config.mcp).some((server) => server.enabled !== false);
-}
-
-async function ensureMcpManager(services: Services): Promise<MCPClientManager> {
-  if (services.mcpManager) {
-    return services.mcpManager;
-  }
-
-  const manager = new MCPClientManager();
-  registerMcpTools(services.toolRegistry, manager);
-  services.mcpManager = manager;
-  return manager;
-}
-
-async function syncMcpRuntime(services: Services, nextConfig: Config): Promise<void> {
-  const manager = hasEnabledMcpServer(nextConfig)
-    ? await ensureMcpManager(services)
-    : services.mcpManager;
-  const currentStatuses = manager?.getServerStatus();
-  const currentNames = new Set(
-    Array.isArray(currentStatuses)
-      ? currentStatuses.map((server) => server.name)
-      : []
-  );
-
-  for (const name of currentNames) {
-    if (nextConfig.mcp[name]) {
-      continue;
-    }
-
-    await manager?.disconnectOne(name);
-    clearMcpServerTools(services.toolRegistry, name);
-  }
-
-  for (const [name, serverConfig] of Object.entries(nextConfig.mcp)) {
-    if (serverConfig.enabled === false) {
-      await manager?.disconnectOne(name);
-      clearMcpServerTools(services.toolRegistry, name);
-      continue;
-    }
-
-    const activeManager = await ensureMcpManager(services);
-    await activeManager.connectOne(name, serverConfig);
-    syncMcpServerTools(services.toolRegistry, activeManager, name);
-  }
 }
 
 function buildReloadRules(): ReloadRule[] {
@@ -229,7 +179,13 @@ function buildReloadRules(): ReloadRule[] {
       key: 'mcp-runtime',
       hasChanged: (currentConfig, nextConfig) => compare(currentConfig.mcp) !== compare(nextConfig.mcp),
       apply: async (services, nextConfig) => {
-        await syncMcpRuntime(services, nextConfig);
+        await syncConfiguredMcpServers({
+          getMcpManager: () => services.mcpManager ?? undefined,
+          setMcpManager: (manager) => {
+            services.mcpManager = manager;
+          },
+          toolRegistry: services.toolRegistry
+        }, nextConfig);
       }
     }
   ];

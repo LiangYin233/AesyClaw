@@ -121,16 +121,23 @@ export class APIServer {
   }
 
   private setupRoutes(): void {
+    const getConfig = () => this.configStore.getConfig();
+    const setConfig = (config: Config) => {
+      this.configStore.setConfig(config);
+    };
+    const getMcpManager = () => this.mcpManager;
+    const setMcpManager = (manager: MCPClientManager) => {
+      this.mcpManager = manager;
+    };
+
     registerCoreRoutes(this.app, {
       agentRuntime: this.agentRuntime,
       sessionManager: this.sessionManager,
       sessionRouting: this.sessionRouting,
       agentRoleService: this.agentRoleService,
       channelManager: this.channelManager,
-      getConfig: () => this.configStore.getConfig(),
-      setConfig: (config) => {
-        this.configStore.setConfig(config);
-      },
+      getConfig,
+      setConfig,
       toolRegistry: this.toolRegistry,
       packageVersion,
       maxMessageLength: MAX_MESSAGE_LENGTH,
@@ -144,25 +151,19 @@ export class APIServer {
     registerSkillRoutes(this.app, this.skillManager);
     registerPluginRoutes(this.app, {
       pluginManager: this.pluginManager,
-      getConfig: () => this.configStore.getConfig(),
-      setConfig: (config) => {
-        this.configStore.setConfig(config);
-      }
+      getConfig,
+      setConfig
     });
     registerCronRoutes(this.app, this.cronService);
     registerMCPRoutes(this.app, {
       toolRegistry: this.toolRegistry,
-      getConfig: () => this.configStore.getConfig(),
-      setConfig: (config) => {
-        this.configStore.setConfig(config);
-      },
-      getMcpManager: () => this.mcpManager,
-      setMcpManager: (m) => { this.mcpManager = m; }
+      getConfig,
+      setConfig,
+      getMcpManager,
+      setMcpManager
     });
     registerObservabilityRoutes(this.app, {
-      setConfig: (config) => {
-        this.configStore.setConfig(config);
-      }
+      setConfig
     });
   }
 

@@ -26,9 +26,10 @@ import { createProvider } from '../../providers/index.js';
 import type { LLMProvider } from '../../providers/base.js';
 import { LongTermMemoryStore, SessionManager } from '../../session/index.js';
 import { SkillManager } from '../../skills/index.js';
-import { ToolRegistry, registerBuiltInTools, registerMcpTools } from '../../tools/index.js';
+import { ToolRegistry, registerBuiltInTools } from '../../tools/index.js';
 import { CommandRegistry } from '../../agent/commands/index.js';
 import { MCPClientManager } from '../../mcp/index.js';
+import { startConfiguredMcpServers } from '../../mcp/runtime.js';
 import { PluginManager } from '../../plugins/index.js';
 import type { PluginConfigState } from '../../plugins/index.js';
 import type { Config, VisionSettings } from '../../types.js';
@@ -453,18 +454,6 @@ async function createChannelManager(
   return channelManager;
 }
 
-function createMcpManager(config: Config, toolRegistry: ToolRegistry): MCPClientManager | null {
-  if (!config.mcp || Object.keys(config.mcp).length === 0) {
-    return null;
-  }
-
-  const mcpManager = new MCPClientManager();
-  registerMcpTools(toolRegistry, mcpManager);
-  mcpManager.connectAsync(config.mcp);
-  appLog.info('MCP 服务器正在后台连接');
-  return mcpManager;
-}
-
 async function createInfrastructure(args: {
   configStore: RuntimeConfigStore;
   outboundGateway: OutboundGateway;
@@ -492,7 +481,14 @@ async function createInfrastructure(args: {
     }),
     createChannelManager(config, sessionManager, workspace, agentRuntime)
   ]);
-  const mcpManager = createMcpManager(config, toolRegistry);
+  let mcpManager: MCPClientManager | undefined;
+  mcpManager = startConfiguredMcpServers({
+    getMcpManager: () => mcpManager,
+    setMcpManager: (manager) => {
+      mcpManager = manager;
+    },
+    toolRegistry
+  }, config) ?? undefined;
   outboundGateway.setDispatcher(async (message) => {
     await channelManager.dispatch(message);
   });
@@ -502,7 +498,7 @@ async function createInfrastructure(args: {
     startPluginLoading: pluginRuntime.startBackgroundLoading,
     isPluginLoadingComplete: pluginRuntime.isBackgroundLoadingComplete,
     channelManager,
-    mcpManager
+    mcpManager: mcpManager ?? null
   };
 }
 

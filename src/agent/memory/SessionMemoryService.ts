@@ -42,6 +42,12 @@ interface MemorySummaryRuntimeConfig {
   contextMode: ContextMode;
 }
 
+interface SummaryCompressionBatch {
+  pendingMessages: SessionMessage[];
+  summaryCutoff: number;
+  remainingRounds: number;
+}
+
 export class SessionMemoryService {
   private log = logger.child('SessionMemory');
 
@@ -123,43 +129,26 @@ export class SessionMemoryService {
       return this.maybeSummarizeConversation(session);
     }
 
-    const unsummarizedRounds = collectConversationRounds(session.messages, session.summarizedMessageCount);
-    if (unsummarizedRounds.length <= this.summaryConfig.memoryWindow) {
-      return false;
-    }
-
-    const roundsToCompress = unsummarizedRounds.slice(0, this.summaryConfig.compressRounds);
-    if (roundsToCompress.length === 0) {
-      return false;
-    }
-
-    const summaryCutoff = roundsToCompress[roundsToCompress.length - 1].end;
-    const pendingMessages = session.messages.slice(session.summarizedMessageCount, summaryCutoff);
-
-    if (pendingMessages.length === 0) {
-      return false;
-    }
-
     try {
-      const summary = await this.generateSummary(session.summary, pendingMessages);
-      if (!summary) {
-        return false;
-      }
+      const unsummarizedMessages = session.messages.slice(session.summarizedMessageCount);
+      return (await this.summarizeUnsummarizedMessages(
+        session.summary,
+        unsummarizedMessages,
+        async (summary, _pendingMessages, relativeSummaryCutoff, remainingRounds) => {
+          const summarizedMessageCount = session.summarizedMessageCount + relativeSummaryCutoff;
+          await this.sessionManager.updateSummary(sessionKey, summary, summarizedMessageCount);
+          this.log.info('会话摘要已更新', { sessionKey, summarizedMessageCount });
 
-      await this.sessionManager.updateSummary(sessionKey, summary, summaryCutoff);
-      this.log.info('会话摘要已更新', { sessionKey, summarizedMessageCount: summaryCutoff });
-
-      const remainingRounds = unsummarizedRounds.length - roundsToCompress.length;
-      if (remainingRounds > this.summaryConfig.memoryWindow) {
-        this.log.warn('摘要压缩轮数不足，无法收敛到 memoryWindow 内', {
-          sessionKey,
-          memoryWindow: this.summaryConfig.memoryWindow,
-          compressRounds: this.summaryConfig.compressRounds,
-          remainingRounds
-        });
-      }
-
-      return true;
+          if (remainingRounds > this.summaryConfig.memoryWindow) {
+            this.log.warn('摘要压缩轮数不足，无法收敛到 memoryWindow 内', {
+              sessionKey,
+              memoryWindow: this.summaryConfig.memoryWindow,
+              compressRounds: this.summaryConfig.compressRounds,
+              remainingRounds
+            });
+          }
+        }
+      )).changed;
     } catch (error) {
       this.log.warn('会话摘要生成失败', { sessionKey, error });
       return false;
@@ -224,49 +213,31 @@ export class SessionMemoryService {
     const conversationMemory = await this.sessionManager.getConversationMemory(session.channel, session.chatId);
     const unsummarizedMessages = (await this.sessionManager.getConversationMessages(session.channel, session.chatId))
       .filter((message) => message.id > conversationMemory.summarizedUntilMessageId);
-    const unsummarizedRounds = collectConversationRounds(unsummarizedMessages);
-
-    if (unsummarizedRounds.length <= this.summaryConfig.memoryWindow) {
-      return false;
-    }
-
-    const roundsToCompress = unsummarizedRounds.slice(0, this.summaryConfig.compressRounds);
-    if (roundsToCompress.length === 0) {
-      return false;
-    }
-
-    const summaryCutoff = roundsToCompress[roundsToCompress.length - 1].end;
-    const pendingMessages = unsummarizedMessages.slice(0, summaryCutoff);
-    if (pendingMessages.length === 0) {
-      return false;
-    }
 
     try {
-      const summary = await this.generateSummary(
+      const summaryMessages = unsummarizedMessages.map((message) => ({
+        role: message.role,
+        content: message.content,
+        timestamp: message.timestamp
+      }));
+      return (await this.summarizeUnsummarizedMessages(
         conversationMemory.summary,
-        pendingMessages.map((message) => ({
-          role: message.role,
-          content: message.content,
-          timestamp: message.timestamp
-        }))
-      );
-      if (!summary) {
-        return false;
-      }
-
-      const summarizedUntilMessageId = pendingMessages[pendingMessages.length - 1]?.id || 0;
-      await this.sessionManager.updateConversationSummary(
-        session.channel,
-        session.chatId,
-        summary,
-        summarizedUntilMessageId
-      );
-      this.log.info('对话摘要已更新', {
-        channel: session.channel,
-        chatId: session.chatId,
-        summarizedUntilMessageId
-      });
-      return true;
+        summaryMessages,
+        async (summary, pendingMessages) => {
+          const summarizedUntilMessageId = unsummarizedMessages[pendingMessages.length - 1]?.id || 0;
+          await this.sessionManager.updateConversationSummary(
+            session.channel,
+            session.chatId,
+            summary,
+            summarizedUntilMessageId
+          );
+          this.log.info('对话摘要已更新', {
+            channel: session.channel,
+            chatId: session.chatId,
+            summarizedUntilMessageId
+          });
+        }
+      )).changed;
     } catch (error) {
       this.log.warn('对话摘要生成失败', {
         channel: session.channel,
@@ -311,5 +282,56 @@ export class SessionMemoryService {
     ], undefined, this.summaryConfig.model, { reasoning: false });
 
     return response.content?.trim() || null;
+  }
+
+  private createSummaryCompressionBatch(unsummarizedMessages: SessionMessage[]): SummaryCompressionBatch | null {
+    const unsummarizedRounds = collectConversationRounds(unsummarizedMessages);
+    if (unsummarizedRounds.length <= this.summaryConfig.memoryWindow) {
+      return null;
+    }
+
+    const roundsToCompress = unsummarizedRounds.slice(0, this.summaryConfig.compressRounds);
+    if (roundsToCompress.length === 0) {
+      return null;
+    }
+
+    const summaryCutoff = roundsToCompress[roundsToCompress.length - 1].end;
+    const pendingMessages = unsummarizedMessages.slice(0, summaryCutoff);
+    if (pendingMessages.length === 0) {
+      return null;
+    }
+
+    return {
+      pendingMessages,
+      summaryCutoff,
+      remainingRounds: unsummarizedRounds.length - roundsToCompress.length
+    };
+  }
+
+  private async summarizeUnsummarizedMessages(
+    existingSummary: string,
+    unsummarizedMessages: SessionMessage[],
+    persist: (
+      summary: string,
+      pendingMessages: SessionMessage[],
+      summaryCutoff: number,
+      remainingRounds: number
+    ) => Promise<void>
+  ): Promise<{ changed: boolean; remainingRounds: number }> {
+    const batch = this.createSummaryCompressionBatch(unsummarizedMessages);
+    if (!batch) {
+      return { changed: false, remainingRounds: 0 };
+    }
+
+    const summary = await this.generateSummary(existingSummary, batch.pendingMessages);
+    if (!summary) {
+      return { changed: false, remainingRounds: batch.remainingRounds };
+    }
+
+    await persist(summary, batch.pendingMessages, batch.summaryCutoff, batch.remainingRounds);
+    return {
+      changed: true,
+      remainingRounds: batch.remainingRounds
+    };
   }
 }
