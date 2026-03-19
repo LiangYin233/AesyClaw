@@ -4,6 +4,7 @@ import type { OutboundGateway } from '../../agent/runtime/AgentRuntime.js';
 import { PluginManager } from '../../plugins/index.js';
 import type { PluginConfigState } from '../../plugins/index.js';
 import { ConfigLoader } from '../../config/loader.js';
+import { RuntimeConfigStore } from '../../config/RuntimeConfigStore.js';
 import { logger } from '../../observability/index.js';
 import { normalizeError } from '../../errors/index.js';
 
@@ -30,18 +31,18 @@ export interface PluginRuntime {
 }
 
 export async function createPluginManager(args: {
-  config: Config;
+  configStore: RuntimeConfigStore;
   outboundGateway: OutboundGateway;
   workspace: string;
   tempDir: string;
   toolRegistry: ToolRegistry;
 }): Promise<PluginRuntime> {
-  const { config, outboundGateway, workspace, tempDir, toolRegistry } = args;
+  const { configStore, outboundGateway, workspace, tempDir, toolRegistry } = args;
   let started = false;
   let completed = false;
 
   const pluginManager = new PluginManager({
-    getConfig: () => ConfigLoader.get(),
+    getConfig: () => configStore.get(),
     workspace,
     tempDir,
     toolRegistry,
@@ -51,6 +52,7 @@ export async function createPluginManager(args: {
     logger
   });
 
+  const config = configStore.get();
   pluginManager.setPluginConfigs(normalizePluginConfigs(config.plugins as Record<string, { enabled?: boolean; options?: Record<string, any> }>));
 
   const startBackgroundLoading = () => {
@@ -67,13 +69,14 @@ export async function createPluginManager(args: {
           const nextConfig = await ConfigLoader.update((draft) => {
             draft.plugins = newPluginConfigs as typeof draft.plugins;
           });
-          config.plugins = nextConfig.plugins;
+          configStore.set(nextConfig);
           pluginManager.setPluginConfigs(normalizePluginConfigs(nextConfig.plugins));
           log.info('已应用默认插件配置');
         }
 
-        if (Object.keys(config.plugins).length > 0) {
-          await pluginManager.loadFromConfig(normalizePluginConfigs(config.plugins));
+        const latestConfig = configStore.get();
+        if (Object.keys(latestConfig.plugins).length > 0) {
+          await pluginManager.loadFromConfig(normalizePluginConfigs(latestConfig.plugins));
         }
 
         log.info('插件已在后台加载完成', {

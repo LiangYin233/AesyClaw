@@ -81,13 +81,16 @@ export class SessionMemoryService {
     return sessionKey?.startsWith(CRON_SESSION_KEY_PREFIX) === true || session?.channel === INTERNAL_CHANNELS.CRON;
   }
 
-  async buildHistory(session: Session): Promise<SessionMessage[]> {
+  async buildHistory(
+    session: Session,
+    request?: Pick<InboundMessage, 'content'> & Partial<Pick<InboundMessage, 'media' | 'files'>>
+  ): Promise<SessionMessage[]> {
     if (this.shouldSkipMemory(session.key, session)) {
       return sliceRecentConversationRounds(session.messages, this.summaryConfig.memoryWindow);
     }
 
     if (this.summaryConfig.contextMode === 'channel') {
-      return this.buildConversationHistory(session);
+      return this.attachRecallMessage(session, request, await this.buildConversationHistory(session));
     }
 
     const summaryMessage = session.summary.trim()
@@ -103,7 +106,7 @@ export class SessionMemoryService {
       session.summarizedMessageCount
     );
 
-    return [...summaryMessage, ...recentMessages];
+    return this.attachRecallMessage(session, request, [...summaryMessage, ...recentMessages]);
   }
 
   async maybeSummarizeSession(sessionKey: string): Promise<boolean> {
@@ -184,6 +187,37 @@ export class SessionMemoryService {
     );
 
     return [...summaryMessage, ...recentMessages];
+  }
+
+  private async attachRecallMessage(
+    session: Session,
+    request: Pick<InboundMessage, 'content'> & Partial<Pick<InboundMessage, 'media' | 'files'>> | undefined,
+    history: SessionMessage[]
+  ): Promise<SessionMessage[]> {
+    if (!request || !this.longTermMemoryService) {
+      return history;
+    }
+
+    const recallContent = await this.longTermMemoryService.buildRecallMessage(session.channel, session.chatId, request);
+    if (!recallContent) {
+      return history;
+    }
+
+    const insertIndex = history.findIndex((message) => message.role !== 'system');
+    const recallMessage: SessionMessage = {
+      role: 'system',
+      content: recallContent
+    };
+
+    if (insertIndex === -1) {
+      return [...history, recallMessage];
+    }
+
+    return [
+      ...history.slice(0, insertIndex),
+      recallMessage,
+      ...history.slice(insertIndex)
+    ];
   }
 
   private async maybeSummarizeConversation(session: Session): Promise<boolean> {

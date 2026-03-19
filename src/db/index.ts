@@ -6,5 +6,6 @@ export {
   type DBConversationMemory,
   type DBSessionAgentState,
   type DBMemoryEntry,
-  type DBMemoryOperation
+  type DBMemoryOperation,
+  type DBMemoryEmbedding
 } from './Database.js';

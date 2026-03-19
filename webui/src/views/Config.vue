@@ -119,6 +119,43 @@
                                     <label>Model</label>
                                     <InputText v-model="config.agent.defaults.memoryFacts.model" />
                                 </div>
+                                <div class="form-field">
+                                    <label>Retrieval Provider</label>
+                                    <Select
+                                        v-model="config.agent.defaults.memoryFacts.retrievalProvider"
+                                        :options="retrievalProviderKeys"
+                                        placeholder="选择 embeddings 提供商"
+                                    />
+                                    <small class="field-hint">仅允许选择 type 为 openai 的 Provider。</small>
+                                </div>
+                                <div class="form-field">
+                                    <label>Retrieval Model</label>
+                                    <InputText v-model="config.agent.defaults.memoryFacts.retrievalModel" />
+                                    <small class="field-hint">用于 embeddings 检索，不影响长期记忆后台维护模型。</small>
+                                </div>
+                                <div class="form-field">
+                                    <label>Retrieval Threshold</label>
+                                    <InputNumber
+                                        v-model="config.agent.defaults.memoryFacts.retrievalThreshold"
+                                        :useGrouping="false"
+                                        :min="0"
+                                        :max="1"
+                                        :minFractionDigits="0"
+                                        :maxFractionDigits="4"
+                                        :step="0.01"
+                                    />
+                                    <small class="field-hint">仅注入相似度大于等于该阈值的长期记忆。</small>
+                                </div>
+                                <div class="form-field">
+                                    <label>Retrieval TopK</label>
+                                    <InputNumber
+                                        v-model="config.agent.defaults.memoryFacts.retrievalTopK"
+                                        :useGrouping="false"
+                                        :min="1"
+                                        :max="20"
+                                    />
+                                    <small class="field-hint">最多向 Prompt 注入多少条相关长期记忆。</small>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -257,6 +294,12 @@ const toast = useToast()
 const saving = ref(false)
 
 const providerKeys = computed(() => config.value ? Object.keys(config.value.providers) : [])
+const retrievalProviderKeys = computed(() => {
+    if (!config.value) return []
+    return Object.entries(config.value.providers)
+        .filter(([, provider]) => provider.type === 'openai')
+        .map(([name]) => name)
+})
 
 const providerTypeOptions = ['openai', 'openai_responses', 'anthropic']
 

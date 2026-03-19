@@ -12,6 +12,7 @@ import type { MCPClientManager } from '../mcp/MCPClient.js';
 import type { SkillManager } from '../skills/SkillManager.js';
 import type { ToolRegistry } from '../tools/ToolRegistry.js';
 import type { SessionRoutingService } from '../agent/session/SessionRoutingService.js';
+import { RuntimeConfigStore } from '../config/RuntimeConfigStore.js';
 import { createErrorResponse } from '../errors/index.js';
 import { logger } from '../observability/index.js';
 import { CONSTANTS } from '../constants/index.js';
@@ -39,7 +40,7 @@ export class APIServer {
   private sessionManager: SessionManager;
   private sessionRouting: SessionRoutingService;
   private channelManager: ChannelManager;
-  private config: Config;
+  private configStore: RuntimeConfigStore;
   private pluginManager?: PluginManager;
   private cronService?: CronService;
   private mcpManager?: MCPClientManager;
@@ -54,7 +55,7 @@ export class APIServer {
     sessionManager: SessionManager;
     sessionRouting: SessionRoutingService;
     channelManager: ChannelManager;
-    config: Config;
+    configStore: RuntimeConfigStore;
     pluginManager?: PluginManager;
     cronService?: CronService;
     mcpManager?: MCPClientManager;
@@ -68,7 +69,7 @@ export class APIServer {
     this.sessionManager = options.sessionManager;
     this.sessionRouting = options.sessionRouting;
     this.channelManager = options.channelManager;
-    this.config = options.config;
+    this.configStore = options.configStore;
     this.pluginManager = options.pluginManager;
     this.cronService = options.cronService;
     this.mcpManager = options.mcpManager;
@@ -109,7 +110,7 @@ export class APIServer {
       }
 
       const requestToken = Array.isArray(req.query.token) ? req.query.token[0] : req.query.token;
-      const expectedToken = this.config.server.token;
+      const expectedToken = this.configStore.get().server.token;
 
       if (typeof requestToken === 'string' && expectedToken && requestToken === expectedToken) {
         return next();
@@ -126,9 +127,9 @@ export class APIServer {
       sessionRouting: this.sessionRouting,
       agentRoleService: this.agentRoleService,
       channelManager: this.channelManager,
-      getConfig: () => this.config,
+      getConfig: () => this.configStore.get(),
       setConfig: (config) => {
-        this.config = config;
+        this.configStore.set(config);
       },
       toolRegistry: this.toolRegistry,
       packageVersion,
@@ -143,23 +144,24 @@ export class APIServer {
     registerSkillRoutes(this.app, this.skillManager);
     registerPluginRoutes(this.app, {
       pluginManager: this.pluginManager,
+      getConfig: () => this.configStore.get(),
       setConfig: (config) => {
-        this.config = config;
+        this.configStore.set(config);
       }
     });
     registerCronRoutes(this.app, this.cronService);
     registerMCPRoutes(this.app, {
       toolRegistry: this.toolRegistry,
-      getConfig: () => this.config,
+      getConfig: () => this.configStore.get(),
       setConfig: (config) => {
-        this.config = config;
+        this.configStore.set(config);
       },
       getMcpManager: () => this.mcpManager,
       setMcpManager: (m) => { this.mcpManager = m; }
     });
     registerObservabilityRoutes(this.app, {
       setConfig: (config) => {
-        this.config = config;
+        this.configStore.set(config);
       }
     });
   }
@@ -174,7 +176,7 @@ export class APIServer {
   }
 
   updateConfig(config: Config): void {
-    this.config = config;
+    this.configStore.set(config);
     this.log.info('配置已更新');
   }
 }

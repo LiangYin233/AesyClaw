@@ -1,9 +1,11 @@
+import { createHash } from 'crypto';
 import type { InboundMessage } from '../../types.js';
 import type { LLMProvider } from '../../providers/base.js';
 import type { SessionManager } from '../../session/SessionManager.js';
 import {
   LongTermMemoryStore,
   type LongTermMemoryEntry,
+  type LongTermMemoryEntryWithEmbedding,
   type LongTermMemoryOperation,
   type MemoryEntryKind,
   type MemoryOperationActor,
@@ -11,6 +13,7 @@ import {
   type MemoryOperationResult
 } from '../../session/LongTermMemoryStore.js';
 import { logger } from '../../observability/index.js';
+import { OpenAIEmbeddingsClient } from './OpenAIEmbeddingsClient.js';
 
 const MAX_BACKGROUND_ACTIONS = 5;
 
@@ -58,18 +61,24 @@ function isObject(value: unknown): value is Record<string, unknown> {
 interface LongTermMemoryRuntimeConfig {
   enabled: boolean;
   model?: string;
+  retrievalProvider?: string;
+  retrievalModel?: string;
+  retrievalThreshold: number;
+  retrievalTopK: number;
 }
 
 export class LongTermMemoryService {
   private log = logger.child('LongTermMemory');
   private maintenanceQueue: Map<string, Promise<void>> = new Map();
   private missingProviderWarned = false;
+  private missingRetrievalWarned = false;
 
   constructor(
     private sessionManager: SessionManager,
     private store: LongTermMemoryStore,
     private config: LongTermMemoryRuntimeConfig,
-    private provider?: LLMProvider
+    private provider?: LLMProvider,
+    private retrievalClient?: OpenAIEmbeddingsClient
   ) {}
 
   isEnabled(): boolean {
@@ -82,6 +91,13 @@ export class LongTermMemoryService {
 
   private canRunBackgroundMaintenance(): boolean {
     return this.config.enabled && !!this.provider && !!this.config.model;
+  }
+
+  private canRunRecall(): boolean {
+    return this.config.enabled
+      && !!this.retrievalClient
+      && !!this.config.retrievalProvider
+      && !!this.config.retrievalModel;
   }
 
   async listEntries(channel: string, chatId: string): Promise<LongTermMemoryEntry[]> {
@@ -115,6 +131,150 @@ export class LongTermMemoryService {
 
   async deleteAllEntries(actor: MemoryOperationActor, reason: string): Promise<number> {
     return this.store.deleteAllEntries(actor, reason);
+  }
+
+  async buildRecallMessage(
+    channel: string,
+    chatId: string,
+    request: Pick<InboundMessage, 'content'> & Partial<Pick<InboundMessage, 'media' | 'files'>>
+  ): Promise<string | null> {
+    const query = request.content.trim();
+    const hasMedia = Array.isArray(request.media) && request.media.length > 0;
+    const hasFiles = Array.isArray(request.files) && request.files.length > 0;
+
+    if (!query) {
+      if (hasMedia || hasFiles) {
+        this.log.debug('长期记忆自动召回已跳过：当前请求仅包含非文本内容，不会发送到 embeddings 模型', {
+          channel,
+          chatId,
+          threshold: this.config.retrievalThreshold,
+          mediaCount: request.media?.length || 0,
+          fileCount: request.files?.length || 0
+        });
+      }
+      return null;
+    }
+
+    if (!this.canRunRecall()) {
+      if (!this.missingRetrievalWarned && this.config.enabled) {
+        this.missingRetrievalWarned = true;
+        this.log.warn('长期记忆自动召回未启用：缺少 retrievalProvider/retrievalModel 或 embeddings client');
+      }
+      return null;
+    }
+
+    if (hasMedia || hasFiles) {
+      this.log.debug('长期记忆自动召回将仅使用文本内容生成 query embedding，非文本内容不会发送到 embeddings 模型', {
+        channel,
+        chatId,
+        threshold: this.config.retrievalThreshold,
+        mediaCount: request.media?.length || 0,
+        fileCount: request.files?.length || 0
+      });
+    }
+
+    try {
+      const candidates = await this.store.listActiveEntriesWithEmbeddings(
+        channel,
+        chatId,
+        this.config.retrievalProvider!,
+        this.config.retrievalModel!
+      );
+
+      if (candidates.length === 0) {
+        this.log.debug('长期记忆自动召回未命中：当前聊天对象没有 active 长期记忆', {
+          channel,
+          chatId,
+          threshold: this.config.retrievalThreshold
+        });
+        return null;
+      }
+
+      const queryEmbedding = await this.retrievalClient!.embed(query, this.config.retrievalModel!);
+      const preparedCandidates = await this.prepareCandidateEmbeddings(candidates);
+      const evaluated: Array<{ entry: LongTermMemoryEntry; similarity: number }> = [];
+      const scored: Array<{ entry: LongTermMemoryEntry; similarity: number }> = [];
+      for (const candidate of preparedCandidates) {
+        const embedding = candidate.embedding;
+        if (!embedding || embedding.length === 0 || embedding.length !== queryEmbedding.length) {
+          continue;
+        }
+
+        const similarity = cosineSimilarity(queryEmbedding, embedding);
+        evaluated.push({
+          entry: candidate.entry,
+          similarity
+        });
+        if (similarity >= this.config.retrievalThreshold) {
+          scored.push({
+            entry: candidate.entry,
+            similarity
+          });
+        }
+      }
+
+      const rankedEvaluated = evaluated
+        .slice()
+        .sort((left, right) => right.similarity - left.similarity);
+
+      if (scored.length === 0) {
+        this.log.debug('长期记忆自动召回未命中：没有记忆超过阈值', {
+          channel,
+          chatId,
+          threshold: this.config.retrievalThreshold,
+          candidateCount: preparedCandidates.length,
+          evaluatedCount: evaluated.length,
+          bestSimilarity: rankedEvaluated[0] ? roundSimilarity(rankedEvaluated[0].similarity) : null,
+          topResults: rankedEvaluated.slice(0, 3).map(({ entry, similarity }) => ({
+            entryId: entry.id,
+            similarity: roundSimilarity(similarity)
+          }))
+        });
+        return null;
+      }
+
+      const selected = scored
+        .slice()
+        .sort((left, right) => {
+          if (right.similarity !== left.similarity) {
+            return right.similarity - left.similarity;
+          }
+          if (right.entry.confidence !== left.entry.confidence) {
+            return right.entry.confidence - left.entry.confidence;
+          }
+          return (right.entry.updatedAt || '').localeCompare(left.entry.updatedAt || '');
+        })
+        .slice(0, this.config.retrievalTopK);
+
+      this.log.info('长期记忆自动召回命中', {
+        channel,
+        chatId,
+        threshold: this.config.retrievalThreshold,
+        topK: this.config.retrievalTopK,
+        candidateCount: preparedCandidates.length,
+        evaluatedCount: evaluated.length,
+        matchedCount: scored.length,
+        injectedCount: selected.length,
+        entryIds: selected.map(({ entry }) => entry.id),
+        selectedResults: selected.map(({ entry, similarity }) => ({
+          entryId: entry.id,
+          similarity: roundSimilarity(similarity)
+        }))
+      });
+
+      return [
+        '相关长期记忆（自动召回）',
+        ...selected.map(({ entry }) => `[${entry.kind}] ${entry.content}`),
+        '仅在与当前请求直接相关时使用；若不相关请忽略。'
+      ].join('\n');
+    } catch (error) {
+      this.log.warn('长期记忆自动召回失败，已跳过本轮注入', {
+        channel,
+        chatId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return null;
+    }
   }
 
   enqueueMaintenance(
@@ -288,4 +448,106 @@ export class LongTermMemoryService {
       }))
       .filter((item) => !!item.action);
   }
+
+  private async prepareCandidateEmbeddings(
+    candidates: LongTermMemoryEntryWithEmbedding[]
+  ): Promise<Array<{ entry: LongTermMemoryEntry; embedding?: number[] }>> {
+    const prepared = candidates.map((candidate) => ({
+      entry: candidate.entry,
+      embedding: undefined as number[] | undefined
+    }));
+    const missing: Array<{ index: number; entry: LongTermMemoryEntry; contentHash: string }> = [];
+
+    for (const [index, candidate] of candidates.entries()) {
+      const contentHash = hashMemoryContent(candidate.entry.content);
+      const cached = candidate.embedding;
+      if (cached && cached.contentHash === contentHash && cached.embedding.length > 0) {
+        prepared[index].embedding = cached.embedding;
+        continue;
+      }
+
+      missing.push({
+        index,
+        entry: candidate.entry,
+        contentHash
+      });
+    }
+
+    if (missing.length === 0) {
+      return prepared;
+    }
+
+    this.log.debug('长期记忆自动召回需要补全 embedding 缓存', {
+      provider: this.config.retrievalProvider,
+      model: this.config.retrievalModel,
+      missingCount: missing.length,
+      candidateCount: candidates.length,
+      entryIds: missing.map((item) => item.entry.id)
+    });
+
+    try {
+      const embeddings = await this.retrievalClient!.embedMany(
+        missing.map((item) => item.entry.content),
+        this.config.retrievalModel!
+      );
+
+      await Promise.all(missing.map(async (item, index) => {
+        const embedding = embeddings[index];
+        if (!embedding || embedding.length === 0) {
+          return;
+        }
+
+        prepared[item.index].embedding = embedding;
+        await this.store.upsertEmbedding({
+          entryId: item.entry.id,
+          providerName: this.config.retrievalProvider!,
+          model: this.config.retrievalModel!,
+          contentHash: item.contentHash,
+          embedding
+        });
+      }));
+    } catch (error) {
+      this.log.warn('长期记忆 embedding 批量补全失败，将仅使用已有缓存继续召回', {
+        provider: this.config.retrievalProvider,
+        model: this.config.retrievalModel,
+        missingCount: missing.length,
+        candidateCount: candidates.length,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+
+    return prepared;
+  }
+}
+
+function hashMemoryContent(content: string): string {
+  return createHash('sha256').update(content.trim()).digest('hex');
+}
+
+function roundSimilarity(value: number): number {
+  return Number(value.toFixed(4));
+}
+
+function cosineSimilarity(left: number[], right: number[]): number {
+  if (left.length === 0 || right.length === 0 || left.length !== right.length) {
+    return 0;
+  }
+
+  let dot = 0;
+  let leftNorm = 0;
+  let rightNorm = 0;
+
+  for (let index = 0; index < left.length; index += 1) {
+    const leftValue = left[index] || 0;
+    const rightValue = right[index] || 0;
+    dot += leftValue * rightValue;
+    leftNorm += leftValue * leftValue;
+    rightNorm += rightValue * rightValue;
+  }
+
+  if (leftNorm === 0 || rightNorm === 0) {
+    return 0;
+  }
+
+  return dot / (Math.sqrt(leftNorm) * Math.sqrt(rightNorm));
 }

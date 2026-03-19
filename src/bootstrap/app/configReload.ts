@@ -46,7 +46,7 @@ function createVisionProvider(config: Config, settings: VisionSettings) {
 }
 
 export async function applyRuntimeConfigUpdate(services: Services, currentConfig: Config, newConfig: Config): Promise<void> {
-  const { agentRuntime, apiServer, sessionManager, longTermMemoryStore, skillManager } = services;
+  const { agentRuntime, apiServer, sessionManager, longTermMemoryStore, skillManager, toolRegistry, sessionRouting } = services;
   const startedAt = Date.now();
   const oldMainRole = getMainAgentRole(currentConfig);
   const newMainRole = getMainAgentRole(newConfig);
@@ -86,8 +86,11 @@ export async function applyRuntimeConfigUpdate(services: Services, currentConfig
     agentRuntime.updateMainAgentRuntime(runtimeUpdate);
   }
 
+  services.configStore.set(newConfig);
   const memoryService = createMemoryService(newConfig, sessionManager, longTermMemoryStore);
   agentRuntime.updateMemorySettings(newConfig.agent.defaults.memoryWindow, memoryService);
+  toolRegistry.setDefaultTimeout(newConfig.tools.timeoutMs);
+  sessionRouting.setContextMode(newConfig.agent.defaults.contextMode);
   skillManager?.applyConfig(newConfig);
 
   services.config = newConfig;
@@ -102,7 +105,7 @@ export async function applyRuntimeConfigUpdate(services: Services, currentConfig
 }
 
 export function setupConfigReload(services: Services): void {
-  let currentConfig = services.config;
+  let currentConfig = services.configStore.get();
 
   ConfigLoader.onReload(async (newConfig) => {
     await applyRuntimeConfigUpdate(services, currentConfig, newConfig);

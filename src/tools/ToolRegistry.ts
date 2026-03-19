@@ -94,6 +94,14 @@ export class ToolRegistry {
     this.defaultTimeout = options?.defaultTimeout ?? CONSTANTS.TOOL_TIMEOUT;
   }
 
+  setDefaultTimeout(timeout: number): void {
+    if (!Number.isFinite(timeout) || timeout <= 0) {
+      return;
+    }
+    this.defaultTimeout = Math.floor(timeout);
+    this.log.info('默认工具超时已更新', { timeoutMs: this.defaultTimeout });
+  }
+
   register(tool: Tool, source: ToolSource = 'built-in'): void {
     const toolWithSource = { ...tool, source };
     this.tools.set(tool.name, toolWithSource);

@@ -16,13 +16,17 @@ const memorySummaryConfigSchema = z.object({
   enabled: z.boolean().default(false),
   provider: z.string().default(''),
   model: z.string().default(''),
-  compressRounds: z.number().int().finite().min(1).default(10)
+  compressRounds: z.number().int().finite().min(1).default(5)
 }).strict().prefault(() => ({}));
 
 const memoryFactsConfigSchema = withObjectInputDefault({
   enabled: z.boolean().default(false),
   provider: z.string().default(''),
-  model: z.string().default('')
+  model: z.string().default(''),
+  retrievalProvider: z.string().default(''),
+  retrievalModel: z.string().default(''),
+  retrievalThreshold: z.number().finite().min(0).max(1).default(0.59),
+  retrievalTopK: z.number().int().finite().min(1).max(20).default(5)
 });
 
 const providerTypeSchema = z.enum(['openai', 'openai_responses', 'anthropic']);
@@ -55,8 +59,8 @@ const agentRoleConfigSchema = z.object({
 });
 
 const agentDefaultsSchema = z.object({
-  maxToolIterations: z.number().int().finite().default(40),
-  memoryWindow: z.number().int().finite().default(50),
+  maxToolIterations: z.number().int().finite().default(128),
+  memoryWindow: z.number().int().finite().default(10),
   memorySummary: memorySummaryConfigSchema,
   memoryFacts: memoryFactsConfigSchema,
   contextMode: z.enum(['session', 'channel']).default('session'),
@@ -71,7 +75,7 @@ function createDefaultMainAgentRole(): z.output<typeof agentRoleConfigSchema> {
   return agentRoleConfigSchema.parse({
     name: MAIN_AGENT_NAME,
     description: '内建主 Agent',
-    systemPrompt: DEFAULT_SYSTEM_PROMPT,
+    systemPrompt: 'You are a helpful AI assistant. Now is {{current_date}}. Running on {{os}} {{cwd}}.',
     provider: DEFAULT_PROVIDER_NAME,
     model: 'gpt-4o',
     vision: false,
@@ -103,7 +107,7 @@ const agentsConfigSchema = z.object({
 });
 
 const toolsConfigSchema = withObjectInputDefault({
-  timeoutMs: z.number().int().finite().default(30000)
+  timeoutMs: z.number().int().finite().default(120000)
 });
 
 const observabilityConfigSchema = z.object({
@@ -169,6 +173,29 @@ const baseConfigSchema = z.object({
   skills: z.record(z.string(), skillConfigSchema).default(() => ({})),
   observability: observabilityConfigSchema,
   tools: toolsConfigSchema
+}).superRefine((value, ctx) => {
+  const retrievalProvider = value.agent.defaults.memoryFacts.retrievalProvider.trim();
+  if (!retrievalProvider) {
+    return;
+  }
+
+  const providerConfig = value.providers[retrievalProvider];
+  if (!providerConfig) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['agent', 'defaults', 'memoryFacts', 'retrievalProvider'],
+      message: `memoryFacts.retrievalProvider not found: ${retrievalProvider}`
+    });
+    return;
+  }
+
+  if (providerConfig.type !== 'openai') {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['agent', 'defaults', 'memoryFacts', 'retrievalProvider'],
+      message: 'memoryFacts.retrievalProvider must reference a provider with type "openai"'
+    });
+  }
 });
 
 type ParsedConfig = z.output<typeof baseConfigSchema>;

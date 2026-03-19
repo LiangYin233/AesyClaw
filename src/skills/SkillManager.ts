@@ -111,7 +111,9 @@ export class SkillManager {
 
     try {
       this.skills = await this.scanAllSkillDirectories();
-      this.applyConfig(this.config ?? ConfigLoader.get());
+      if (this.config) {
+        this.applyConfig(this.config);
+      }
       await this.cleanupBuiltinSkillConfigEntries();
       this.log.info(`已加载 ${this.skills.size} 个技能`);
     } catch (error) {
@@ -203,15 +205,14 @@ export class SkillManager {
 
     skill.enabled = enabled;
 
-    if (this.config) {
-      if (!this.config.skills) {
-        this.config.skills = {};
+    const nextConfig = await ConfigLoader.update((config) => {
+      if (!config.skills) {
+        config.skills = {};
       }
-      this.config.skills[name] = { enabled };
-      const nextConfig = await ConfigLoader.save(this.config).then(() => ConfigLoader.get());
-      this.applyConfig(nextConfig);
-      this.log.info(`已将技能 ${name} 的启用状态写入配置`);
-    }
+      config.skills[name] = { enabled };
+    });
+    this.applyConfig(nextConfig);
+    this.log.info(`已将技能 ${name} 的启用状态写入配置`);
 
     return true;
   }
@@ -317,7 +318,9 @@ export class SkillManager {
     const previousSkills = this.skills;
     const nextSkills = await this.scanAllSkillDirectories();
     this.skills = nextSkills;
-    this.applyConfig(this.config ?? ConfigLoader.get());
+    if (this.config) {
+      this.applyConfig(this.config);
+    }
 
     await this.cleanupBuiltinSkillConfigEntries();
     await this.syncDirectoryWatchers();

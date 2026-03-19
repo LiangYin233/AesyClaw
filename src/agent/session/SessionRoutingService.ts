@@ -52,6 +52,10 @@ export class SessionRoutingService {
     return this.contextMode;
   }
 
+  setContextMode(contextMode: ContextMode): void {
+    this.contextMode = contextMode;
+  }
+
   getConversationAgent(channel: string, chatId: string): string | undefined {
     return this.conversationAgents.get(`${channel}:${chatId}`);
   }

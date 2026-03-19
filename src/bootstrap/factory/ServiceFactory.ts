@@ -2,6 +2,7 @@ import { join } from 'path';
 import { BuiltInCommands } from '../../agent/commands/index.js';
 import { AgentRuntime, OutboundGateway } from '../../agent/runtime/AgentRuntime.js';
 import { LongTermMemoryService } from '../../agent/memory/LongTermMemoryService.js';
+import { OpenAIEmbeddingsClient } from '../../agent/memory/OpenAIEmbeddingsClient.js';
 import { SessionMemoryService } from '../../agent/memory/SessionMemoryService.js';
 import { SessionRoutingService } from '../../agent/session/SessionRoutingService.js';
 import { AgentRoleService } from '../../agent/roles/AgentRoleService.js';
@@ -9,6 +10,7 @@ import { APIServer } from '../../api/index.js';
 import { ChannelManager } from '../../channels/ChannelManager.js';
 import { loadExternalChannelPlugins } from '../../channels/ChannelPluginLoader.js';
 import { ConfigLoader } from '../../config/loader.js';
+import { RuntimeConfigStore } from '../../config/RuntimeConfigStore.js';
 import { getMainAgentRole, parseConfig, resolveProviderSelection } from '../../config/index.js';
 import { CronService } from '../../cron/index.js';
 import { logging, logger, tokenUsage } from '../../observability/index.js';
@@ -32,6 +34,7 @@ export interface Services {
   toolRegistry: ToolRegistry;
   sessionManager: SessionManager;
   longTermMemoryStore: LongTermMemoryStore;
+  sessionRouting: SessionRoutingService;
   channelManager: ChannelManager;
   pluginManager: PluginManager;
   startPluginLoading: () => void;
@@ -41,6 +44,7 @@ export interface Services {
   mcpManager: MCPClientManager | null;
   skillManager: SkillManager | null;
   config: Config;
+  configStore: RuntimeConfigStore;
   workspace: string;
   apiServer?: APIServer;
 }
@@ -74,6 +78,28 @@ function createOptionalProvider(resolved: ReturnType<typeof resolveProviderSelec
   return createProvider(resolved.name, resolved.providerConfig);
 }
 
+function createEmbeddingsClient(config: Config, providerName: string): OpenAIEmbeddingsClient | undefined {
+  const providerConfig = config.providers[providerName];
+  if (!providerConfig) {
+    appLog.warn('未找到 embeddings 提供商', { provider: providerName });
+    return undefined;
+  }
+
+  if (providerConfig.type !== 'openai') {
+    appLog.warn('embeddings 提供商必须为 openai 类型', {
+      provider: providerName,
+      type: providerConfig.type
+    });
+    return undefined;
+  }
+
+  return new OpenAIEmbeddingsClient({
+    apiKey: providerConfig.apiKey,
+    apiBase: providerConfig.apiBase,
+    headers: providerConfig.headers
+  });
+}
+
 export function createMemoryService(
   config: Config,
   sessionManager: SessionManager,
@@ -101,16 +127,26 @@ export function createMemoryService(
   if (memoryConfig.enabled && (!memoryConfig.provider || !memoryConfig.model)) {
     appLog.warn('长期记忆已启用，但未完整配置 memoryFacts.provider/model；后台自治维护将被跳过');
   }
+  if (memoryConfig.enabled && ((memoryConfig.retrievalProvider && !memoryConfig.retrievalModel) || (!memoryConfig.retrievalProvider && memoryConfig.retrievalModel))) {
+    appLog.warn('长期记忆自动召回需要同时配置 memoryFacts.retrievalProvider 与 memoryFacts.retrievalModel；当前将保持禁用');
+  }
   const longTermMemoryService = memoryConfig.enabled
     ? new LongTermMemoryService(
         sessionManager,
         longTermMemoryStore,
         {
           enabled: memoryConfig.enabled,
-          model: memoryConfig.model || undefined
+          model: memoryConfig.model || undefined,
+          retrievalProvider: memoryConfig.retrievalProvider || undefined,
+          retrievalModel: memoryConfig.retrievalModel || undefined,
+          retrievalThreshold: memoryConfig.retrievalThreshold,
+          retrievalTopK: memoryConfig.retrievalTopK
         },
         memoryConfig.provider && memoryConfig.model
           ? createOptionalProvider(resolveProviderSelection(config, memoryConfig.provider, memoryConfig.model), '长期记忆')
+          : undefined,
+        memoryConfig.retrievalProvider && memoryConfig.retrievalModel
+          ? createEmbeddingsClient(config, memoryConfig.retrievalProvider)
           : undefined
       )
     : undefined;
@@ -295,7 +331,7 @@ function normalizePluginConfigs(
 }
 
 async function createPluginRuntime(args: {
-  config: Config;
+  configStore: RuntimeConfigStore;
   outboundGateway: OutboundGateway;
   workspace: string;
   tempDir: string;
@@ -305,12 +341,12 @@ async function createPluginRuntime(args: {
   startBackgroundLoading: () => void;
   isBackgroundLoadingComplete: () => boolean;
 }> {
-  const { config, outboundGateway, workspace, tempDir, toolRegistry } = args;
+  const { configStore, outboundGateway, workspace, tempDir, toolRegistry } = args;
   let started = false;
   let completed = false;
 
   const pluginManager = new PluginManager({
-    getConfig: () => ConfigLoader.get(),
+    getConfig: () => configStore.get(),
     workspace,
     tempDir,
     toolRegistry,
@@ -320,6 +356,7 @@ async function createPluginRuntime(args: {
     logger
   });
 
+  const config = configStore.get();
   pluginManager.setPluginConfigs(normalizePluginConfigs(config.plugins as Record<string, { enabled?: boolean; options?: Record<string, any> }>));
 
   const startBackgroundLoading = () => {
@@ -336,13 +373,14 @@ async function createPluginRuntime(args: {
           const nextConfig = await ConfigLoader.update((draft) => {
             draft.plugins = newPluginConfigs as typeof draft.plugins;
           });
-          config.plugins = nextConfig.plugins;
+          configStore.set(nextConfig);
           pluginManager.setPluginConfigs(normalizePluginConfigs(nextConfig.plugins));
           appLog.info('已应用默认插件配置');
         }
 
-        if (Object.keys(config.plugins).length > 0) {
-          await pluginManager.loadFromConfig(normalizePluginConfigs(config.plugins));
+        const latestConfig = configStore.get();
+        if (Object.keys(latestConfig.plugins).length > 0) {
+          await pluginManager.loadFromConfig(normalizePluginConfigs(latestConfig.plugins));
         }
 
         appLog.info('插件已在后台加载完成', {
@@ -404,7 +442,7 @@ function createMcpManager(config: Config, toolRegistry: ToolRegistry): MCPClient
 }
 
 async function createInfrastructure(args: {
-  config: Config;
+  configStore: RuntimeConfigStore;
   outboundGateway: OutboundGateway;
   agentRuntime: AgentRuntime;
   workspace: string;
@@ -418,10 +456,11 @@ async function createInfrastructure(args: {
   channelManager: ChannelManager;
   mcpManager: MCPClientManager | null;
 }> {
-  const { config, outboundGateway, agentRuntime, workspace, tempDir, toolRegistry, sessionManager } = args;
+  const { configStore, outboundGateway, agentRuntime, workspace, tempDir, toolRegistry, sessionManager } = args;
+  const config = configStore.get();
   const [pluginRuntime, channelManager] = await Promise.all([
     createPluginRuntime({
-      config,
+      configStore,
       outboundGateway,
       workspace,
       tempDir,
@@ -446,7 +485,8 @@ async function createInfrastructure(args: {
 export async function createServices(options: ServiceFactoryOptions): Promise<Services> {
   const { workspace, tempDir, port, onCronJob } = options;
   const startedAt = Date.now();
-  let config = bootstrapRuntimeConfig(options.config);
+  const configStore = new RuntimeConfigStore(bootstrapRuntimeConfig(options.config));
+  const config = configStore.get();
   const log = appLog;
 
   log.info('正在初始化服务');
@@ -467,8 +507,8 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
 
   const executionRuntimeStartedAt = Date.now();
   const executionRuntime = await createExecutionRuntime({
-    getConfig: () => config,
-    setConfig: (nextConfig) => { config = nextConfig; },
+    getConfig: () => configStore.get(),
+    setConfig: (nextConfig) => { configStore.set(nextConfig); },
     outboundGateway,
     workspace,
     sessionManager,
@@ -507,7 +547,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     channelManager,
     mcpManager
   } = await createInfrastructure({
-    config,
+    configStore,
     outboundGateway,
     agentRuntime,
     workspace,
@@ -541,13 +581,13 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     ? undefined
     : new APIServer({
         port,
-        agentRuntime,
-        sessionManager,
-        sessionRouting,
-        channelManager,
-        config,
-        pluginManager,
-        cronService,
+      agentRuntime,
+      sessionManager,
+      sessionRouting,
+      channelManager,
+      configStore,
+      pluginManager,
+      cronService,
         mcpManager: mcpManager ?? undefined,
         skillManager,
         toolRegistry,
@@ -580,6 +620,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     toolRegistry,
     sessionManager,
     longTermMemoryStore,
+    sessionRouting,
     channelManager,
     pluginManager,
     startPluginLoading,
@@ -588,7 +629,8 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     cronService,
     mcpManager,
     skillManager,
-    config,
+    config: configStore.get(),
+    configStore,
     workspace,
     apiServer
   };

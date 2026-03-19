@@ -99,6 +99,20 @@ export class Database {
         `);
 
         this.db.run(`
+          CREATE TABLE IF NOT EXISTS memory_embeddings (
+            entry_id INTEGER NOT NULL,
+            provider_name TEXT NOT NULL,
+            model TEXT NOT NULL,
+            content_hash TEXT NOT NULL,
+            dimensions INTEGER NOT NULL,
+            embedding_json TEXT NOT NULL,
+            updated_at DATETIME DEFAULT (${SQLITE_LOCAL_TIMESTAMP_EXPRESSION}),
+            PRIMARY KEY (entry_id, provider_name, model),
+            FOREIGN KEY (entry_id) REFERENCES memory_entries(id) ON DELETE CASCADE
+          )
+        `);
+
+        this.db.run(`
           CREATE TABLE IF NOT EXISTS conversation_memory (
             channel TEXT NOT NULL,
             chat_id TEXT NOT NULL,
@@ -152,6 +166,7 @@ export class Database {
         this.db.run(`CREATE INDEX IF NOT EXISTS idx_memory_entries_chat ON memory_entries(channel, chat_id, status)`);
         this.db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_entries_unique_active ON memory_entries(channel, chat_id, content) WHERE status = 'active'`);
         this.db.run(`CREATE INDEX IF NOT EXISTS idx_memory_operations_chat ON memory_operations(channel, chat_id, created_at)`);
+        this.db.run(`CREATE INDEX IF NOT EXISTS idx_memory_embeddings_lookup ON memory_embeddings(provider_name, model, updated_at)`);
         this.db.run(`CREATE INDEX IF NOT EXISTS idx_channel_resources_message ON channel_resources(channel, conversation_id, message_id)`);
         this.db.run(`CREATE INDEX IF NOT EXISTS idx_channel_delivery_jobs_status ON channel_delivery_jobs(status, next_retry_at)`);
         this.log.info('数据表初始化完成');
@@ -308,4 +323,14 @@ export interface DBMemoryOperation {
   after_json: string | null;
   evidence_json: string | null;
   created_at: string;
+}
+
+export interface DBMemoryEmbedding {
+  entry_id: number;
+  provider_name: string;
+  model: string;
+  content_hash: string;
+  dimensions: number;
+  embedding_json: string;
+  updated_at: string;
 }

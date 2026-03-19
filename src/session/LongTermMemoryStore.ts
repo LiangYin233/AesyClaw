@@ -1,4 +1,4 @@
-import { type Database, type DBMemoryEntry, type DBMemoryOperation } from '../db/index.js';
+import { type Database, type DBMemoryEmbedding, type DBMemoryEntry, type DBMemoryOperation } from '../db/index.js';
 import { formatLocalTimestamp } from '../observability/logging.js';
 
 export type MemoryEntryKind = 'profile' | 'preference' | 'project' | 'rule' | 'context' | 'other';
@@ -32,6 +32,21 @@ export interface LongTermMemoryOperation {
   after?: unknown;
   evidence?: string[];
   createdAt?: string;
+}
+
+export interface LongTermMemoryEmbedding {
+  entryId: number;
+  providerName: string;
+  model: string;
+  contentHash: string;
+  dimensions: number;
+  embedding: number[];
+  updatedAt?: string;
+}
+
+export interface LongTermMemoryEntryWithEmbedding {
+  entry: LongTermMemoryEntry;
+  embedding?: LongTermMemoryEmbedding;
 }
 
 export interface MemoryOperationInput {
@@ -109,6 +124,18 @@ export class LongTermMemoryStore {
     };
   }
 
+  private mapEmbedding(row: DBMemoryEmbedding): LongTermMemoryEmbedding {
+    return {
+      entryId: row.entry_id,
+      providerName: row.provider_name,
+      model: row.model,
+      contentHash: row.content_hash,
+      dimensions: row.dimensions,
+      embedding: this.parseJson<number[]>(row.embedding_json) || [],
+      updatedAt: row.updated_at
+    };
+  }
+
   async listEntries(
     channel: string,
     chatId: string,
@@ -160,6 +187,103 @@ export class LongTermMemoryStore {
     );
 
     return rows.map((row) => this.mapOperation(row));
+  }
+
+  async getEmbedding(
+    entryId: number,
+    providerName: string,
+    model: string
+  ): Promise<LongTermMemoryEmbedding | undefined> {
+    const row = await this.db.get<DBMemoryEmbedding>(
+      `SELECT *
+       FROM memory_embeddings
+       WHERE entry_id = ? AND provider_name = ? AND model = ?`,
+      [entryId, providerName, model]
+    );
+
+    return row ? this.mapEmbedding(row) : undefined;
+  }
+
+  async upsertEmbedding(args: {
+    entryId: number;
+    providerName: string;
+    model: string;
+    contentHash: string;
+    embedding: number[];
+  }): Promise<void> {
+    const now = formatLocalTimestamp(new Date());
+    await this.db.run(
+      `INSERT INTO memory_embeddings (
+        entry_id, provider_name, model, content_hash, dimensions, embedding_json, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(entry_id, provider_name, model)
+      DO UPDATE SET
+        content_hash = excluded.content_hash,
+        dimensions = excluded.dimensions,
+        embedding_json = excluded.embedding_json,
+        updated_at = excluded.updated_at`,
+      [
+        args.entryId,
+        args.providerName,
+        args.model,
+        args.contentHash,
+        args.embedding.length,
+        JSON.stringify(args.embedding),
+        now
+      ]
+    );
+  }
+
+  async listActiveEntriesWithEmbeddings(
+    channel: string,
+    chatId: string,
+    providerName: string,
+    model: string
+  ): Promise<LongTermMemoryEntryWithEmbedding[]> {
+    const rows = await this.db.all<Array<DBMemoryEntry & {
+      emb_entry_id: number | null;
+      emb_provider_name: string | null;
+      emb_model: string | null;
+      emb_content_hash: string | null;
+      emb_dimensions: number | null;
+      emb_embedding_json: string | null;
+      emb_updated_at: string | null;
+    }>[number]>(
+      `SELECT
+         me.*,
+         emb.entry_id AS emb_entry_id,
+         emb.provider_name AS emb_provider_name,
+         emb.model AS emb_model,
+         emb.content_hash AS emb_content_hash,
+         emb.dimensions AS emb_dimensions,
+         emb.embedding_json AS emb_embedding_json,
+         emb.updated_at AS emb_updated_at
+       FROM memory_entries me
+       LEFT JOIN memory_embeddings emb
+         ON emb.entry_id = me.id
+        AND emb.provider_name = ?
+        AND emb.model = ?
+       WHERE me.channel = ?
+         AND me.chat_id = ?
+         AND me.status = 'active'
+       ORDER BY me.confidence DESC, datetime(me.updated_at) DESC, me.id DESC`,
+      [providerName, model, channel, chatId]
+    );
+
+    return rows.map((row) => ({
+      entry: this.mapEntry(row),
+      embedding: row.emb_entry_id === null
+        ? undefined
+        : this.mapEmbedding({
+            entry_id: row.emb_entry_id,
+            provider_name: row.emb_provider_name || providerName,
+            model: row.emb_model || model,
+            content_hash: row.emb_content_hash || '',
+            dimensions: row.emb_dimensions || 0,
+            embedding_json: row.emb_embedding_json || '[]',
+            updated_at: row.emb_updated_at || ''
+          })
+    }));
   }
 
   private async getEntryRow(channel: string, chatId: string, entryId: number): Promise<DBMemoryEntry | undefined> {

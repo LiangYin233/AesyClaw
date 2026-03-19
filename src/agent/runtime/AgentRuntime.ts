@@ -376,6 +376,7 @@ export class AgentRuntime {
   updateMemorySettings(memoryWindow: number, memoryService?: SessionMemoryService): void {
     this.memoryWindow = memoryWindow;
     this.memoryService = memoryService;
+    this.sessionResolver.setMemoryService(memoryService);
     this.executionEngine.updateRuntime({ memoryWindow });
     this.executionRuntime.setMemoryService(memoryService);
     this.log.info('记忆设置已更新', {

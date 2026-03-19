@@ -21,6 +21,10 @@ export class SessionResolver {
     private agentRoleService?: AgentRoleService
   ) {}
 
+  setMemoryService(memoryService?: SessionMemoryService): void {
+    this.memoryService = memoryService;
+  }
+
   async resolve(message: InboundMessage, options: SessionResolverOptions): Promise<ExecutionContext> {
     let sessionKey = message.sessionKey;
     if (!sessionKey) {
@@ -31,7 +35,7 @@ export class SessionResolver {
 
     const session = await this.sessionManager.getOrCreate(sessionKey);
     const history = this.memoryService
-      ? await this.memoryService.buildHistory(session)
+      ? await this.memoryService.buildHistory(session, message)
       : await this.buildHistoryWithoutMemory(session, options.memoryWindow);
 
     return {

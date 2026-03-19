@@ -6,11 +6,12 @@ import { badRequest, notFound, serverError, unavailable } from './helpers.js';
 
 interface PluginRouteDeps {
   pluginManager?: PluginManager;
+  getConfig: () => Config;
   setConfig?: (config: Config) => void;
 }
 
-export function registerPluginRoutes(app: Express, deps: PluginRouteDeps = {}): void {
-  const { pluginManager, setConfig } = deps;
+export function registerPluginRoutes(app: Express, deps: PluginRouteDeps): void {
+  const { pluginManager, getConfig, setConfig } = deps;
 
   app.get('/api/plugins', async (req, res) => {
     try {
@@ -58,7 +59,7 @@ export function registerPluginRoutes(app: Express, deps: PluginRouteDeps = {}): 
       if (!success) {
         return notFound(res, 'Plugin', name);
       }
-      const config = ConfigLoader.get();
+      const config = getConfig();
       const currentEnabled = config.plugins[name]?.enabled ?? true;
       const nextConfig = await ConfigLoader.updatePluginConfig(name, currentEnabled, options);
       setConfig?.(nextConfig);
