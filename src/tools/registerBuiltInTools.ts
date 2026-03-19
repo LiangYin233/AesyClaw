@@ -8,6 +8,7 @@ import type { OutboundMessage, ToolDefinition } from '../types.js';
 import type { AgentRuntime } from '../agent/runtime/AgentRuntime.js';
 import type { AgentRoleService } from '../agent/roles/AgentRoleService.js';
 import type { SessionMemoryService } from '../agent/memory/SessionMemoryService.js';
+import type { SessionManager } from '../session/index.js';
 import { registerCronTools } from '../cron/CronTools.js';
 import { normalizeError } from '../errors/index.js';
 import { logger } from '../observability/index.js';
@@ -20,6 +21,7 @@ export interface ToolIntegrationOptions {
   mcpManager: MCPClientManager | null;
   agentRuntime: AgentRuntime;
   agentRoleService: AgentRoleService;
+  sessionManager: SessionManager;
   memoryService?: SessionMemoryService;
 }
 
@@ -31,6 +33,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
     pluginManager,
     agentRuntime,
     agentRoleService,
+    sessionManager,
     memoryService
   } = options;
   const log = logger.child('ToolIntegration');
@@ -39,6 +42,26 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
 
   const publishOutboundMessage = async (message: OutboundMessage): Promise<void> => {
     await pluginManager.dispatchMessage(message);
+  };
+
+  const buildHistoryEntry = (content: string, media?: string[], files?: string[]): string => {
+    const trimmed = content.trim();
+    const attachmentParts: string[] = [];
+
+    if (media && media.length > 0) {
+      attachmentParts.push(`${media.length} 张图片`);
+    }
+
+    if (files && files.length > 0) {
+      attachmentParts.push(`${files.length} 个文件`);
+    }
+
+    if (attachmentParts.length === 0) {
+      return trimmed;
+    }
+
+    const attachmentSummary = `发送了${attachmentParts.join('、')}`;
+    return trimmed ? `${trimmed}\n\n[附件: ${attachmentSummary}]` : `[附件: ${attachmentSummary}]`;
   };
 
   toolRegistry.register({
@@ -133,6 +156,12 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
 
       try {
         await publishOutboundMessage(outboundMessage);
+        if (context.sessionKey) {
+          const historyEntry = buildHistoryEntry(content, media, files);
+          if (historyEntry) {
+            await sessionManager.addMessage(context.sessionKey, 'assistant', historyEntry);
+          }
+        }
         const attachmentCount = (media?.length || 0) + (files?.length || 0);
         const attachmentInfo = attachmentCount > 0 ? ` (包含 ${attachmentCount} 个附件)` : '';
         return `消息已发送${attachmentInfo}`;
@@ -140,6 +169,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
         log.error('send_msg_to_user 执行失败', {
           channel: context.channel,
           chatId: context.chatId,
+          sessionKey: context.sessionKey,
           mediaCount: media?.length || 0,
           fileCount: files?.length || 0,
           error: normalizeError(error)

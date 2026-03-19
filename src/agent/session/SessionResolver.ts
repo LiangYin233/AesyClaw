@@ -48,6 +48,7 @@ export class SessionResolver {
       suppressOutbound: options.suppressOutbound === true,
       toolContext: {
         ...options.toolContext,
+        sessionKey,
         channel: message.channel,
         chatId: message.chatId,
         messageType: message.messageType

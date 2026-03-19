@@ -532,6 +532,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     mcpManager,
     agentRuntime,
     agentRoleService,
+    sessionManager,
     memoryService
   });
 

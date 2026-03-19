@@ -24,6 +24,7 @@ export interface ToolContext {
   workspace: string;
   source?: 'user' | 'cron';
   signal?: AbortSignal;
+  sessionKey?: string;
   chatId?: string;
   messageType?: 'private' | 'group';
   channel?: string;
