@@ -11,7 +11,15 @@ import { ChannelManager } from '../../channels/ChannelManager.js';
 import { loadExternalChannelPlugins } from '../../channels/ChannelPluginLoader.js';
 import { ConfigLoader } from '../../config/loader.js';
 import { RuntimeConfigStore } from '../../config/RuntimeConfigStore.js';
-import { getMainAgentRole, parseConfig, resolveProviderSelection } from '../../config/index.js';
+import {
+  getMainAgentConfig,
+  getMemoryConfig,
+  getSessionRuntimeConfig,
+  getToolRuntimeConfig,
+  listEmbeddingProviderNames,
+  parseConfig,
+  resolveProviderSelection
+} from '../../config/index.js';
 import { CronService } from '../../cron/index.js';
 import { logging, logger, tokenUsage } from '../../observability/index.js';
 import { createProvider } from '../../providers/index.js';
@@ -24,6 +32,7 @@ import { MCPClientManager } from '../../mcp/index.js';
 import { PluginManager } from '../../plugins/index.js';
 import type { PluginConfigState } from '../../plugins/index.js';
 import type { Config, VisionSettings } from '../../types.js';
+import type { ResolvedProviderSelection } from '../../config/schema.js';
 import type { CronJob } from '../../cron/index.js';
 import { normalizeError } from '../../errors/index.js';
 
@@ -69,7 +78,7 @@ function bootstrapRuntimeConfig(config: Config): Config {
   return resolved;
 }
 
-function createOptionalProvider(resolved: ReturnType<typeof resolveProviderSelection>, label: string) {
+function createOptionalProvider(resolved: ResolvedProviderSelection, label: string) {
   if (!resolved.providerConfig) {
     appLog.warn(`配置中未找到${label}提供商 "${resolved.name}"`);
     return undefined;
@@ -78,25 +87,26 @@ function createOptionalProvider(resolved: ReturnType<typeof resolveProviderSelec
   return createProvider(resolved.name, resolved.providerConfig);
 }
 
-function createEmbeddingsClient(config: Config, providerName: string): OpenAIEmbeddingsClient | undefined {
-  const providerConfig = config.providers[providerName];
-  if (!providerConfig) {
-    appLog.warn('未找到 embeddings 提供商', { provider: providerName });
+function createEmbeddingsClient(resolved: ResolvedProviderSelection | undefined): OpenAIEmbeddingsClient | undefined {
+  if (!resolved?.providerConfig) {
+    if (resolved?.name) {
+      appLog.warn('未找到 embeddings 提供商', { provider: resolved.name });
+    }
     return undefined;
   }
 
-  if (providerConfig.type !== 'openai') {
+  if (!listEmbeddingProviderNames({ [resolved.name]: resolved.providerConfig }).length) {
     appLog.warn('embeddings 提供商必须为 openai 类型', {
-      provider: providerName,
-      type: providerConfig.type
+      provider: resolved.name,
+      type: resolved.providerConfig.type
     });
     return undefined;
   }
 
   return new OpenAIEmbeddingsClient({
-    apiKey: providerConfig.apiKey,
-    apiBase: providerConfig.apiBase,
-    headers: providerConfig.headers
+    apiKey: resolved.providerConfig.apiKey,
+    apiBase: resolved.providerConfig.apiBase,
+    headers: resolved.providerConfig.headers
   });
 }
 
@@ -105,55 +115,76 @@ export function createMemoryService(
   sessionManager: SessionManager,
   longTermMemoryStore: LongTermMemoryStore
 ): SessionMemoryService | undefined {
-  const summaryConfig = config.agent.defaults.memorySummary;
-  const memoryConfig = config.agent.defaults.memoryFacts;
-  const summaryEnabled = summaryConfig.enabled && !!summaryConfig.provider && !!summaryConfig.model;
+  const memoryConfig = getMemoryConfig(config);
+  const summaryConfig = memoryConfig.summary;
+  const sessionConfig = memoryConfig.session;
+  const maintenanceSelection = memoryConfig.facts.maintenance.provider && memoryConfig.facts.maintenance.model
+    ? resolveProviderSelection(
+        config,
+        memoryConfig.facts.maintenance.provider,
+        memoryConfig.facts.maintenance.model
+      )
+    : undefined;
+  const recallSelection = memoryConfig.facts.recall.provider && memoryConfig.facts.recall.model
+    ? resolveProviderSelection(
+        config,
+        memoryConfig.facts.recall.provider,
+        memoryConfig.facts.recall.model
+      )
+    : undefined;
 
-  if (!summaryConfig.enabled && !memoryConfig.enabled) {
+  if (!summaryConfig.enabled && !memoryConfig.facts.enabled) {
     return undefined;
   }
 
-  if (summaryConfig.enabled && !summaryEnabled) {
+  if (!summaryConfig.enabled && config.agent.defaults.memorySummary.enabled) {
     appLog.warn('会话摘要已启用，但未完整配置 memorySummary.provider/model；摘要压缩将被跳过');
   }
 
   const summaryRuntimeConfig = {
-    enabled: summaryEnabled,
-    model: summaryConfig.model || undefined,
+    enabled: summaryConfig.enabled,
+    model: summaryConfig.model,
     compressRounds: summaryConfig.compressRounds,
-    memoryWindow: config.agent.defaults.memoryWindow,
-    contextMode: config.agent.defaults.contextMode
+    memoryWindow: sessionConfig.memoryWindow,
+    contextMode: sessionConfig.contextMode
   };
-  if (memoryConfig.enabled && (!memoryConfig.provider || !memoryConfig.model)) {
+
+  if (memoryConfig.facts.enabled && !memoryConfig.facts.maintenance.enabled) {
     appLog.warn('长期记忆已启用，但未完整配置 memoryFacts.provider/model；后台自治维护将被跳过');
   }
-  if (memoryConfig.enabled && ((memoryConfig.retrievalProvider && !memoryConfig.retrievalModel) || (!memoryConfig.retrievalProvider && memoryConfig.retrievalModel))) {
+
+  if (
+    memoryConfig.facts.enabled
+    && !memoryConfig.facts.recall.enabled
+    && (config.agent.defaults.memoryFacts.retrievalProvider || config.agent.defaults.memoryFacts.retrievalModel)
+  ) {
     appLog.warn('长期记忆自动召回需要同时配置 memoryFacts.retrievalProvider 与 memoryFacts.retrievalModel；当前将保持禁用');
   }
-  const longTermMemoryService = memoryConfig.enabled
+
+  const longTermMemoryService = memoryConfig.facts.enabled
     ? new LongTermMemoryService(
         sessionManager,
         longTermMemoryStore,
         {
-          enabled: memoryConfig.enabled,
-          model: memoryConfig.model || undefined,
-          retrievalProvider: memoryConfig.retrievalProvider || undefined,
-          retrievalModel: memoryConfig.retrievalModel || undefined,
-          retrievalThreshold: memoryConfig.retrievalThreshold,
-          retrievalTopK: memoryConfig.retrievalTopK
+          enabled: memoryConfig.facts.enabled,
+          model: memoryConfig.facts.maintenance.model,
+          retrievalProvider: memoryConfig.facts.recall.provider,
+          retrievalModel: memoryConfig.facts.recall.model,
+          retrievalThreshold: memoryConfig.facts.recall.threshold,
+          retrievalTopK: memoryConfig.facts.recall.topK
         },
-        memoryConfig.provider && memoryConfig.model
-          ? createOptionalProvider(resolveProviderSelection(config, memoryConfig.provider, memoryConfig.model), '长期记忆')
+        maintenanceSelection
+          ? createOptionalProvider(maintenanceSelection, '长期记忆')
           : undefined,
-        memoryConfig.retrievalProvider && memoryConfig.retrievalModel
-          ? createEmbeddingsClient(config, memoryConfig.retrievalProvider)
+        recallSelection
+          ? createEmbeddingsClient(recallSelection)
           : undefined
       )
     : undefined;
 
   return new SessionMemoryService(
     sessionManager,
-    summaryEnabled
+    summaryConfig.enabled && summaryConfig.provider && summaryConfig.model
       ? createOptionalProvider(resolveProviderSelection(config, summaryConfig.provider, summaryConfig.model), '记忆摘要')
       : undefined,
     summaryRuntimeConfig,
@@ -167,9 +198,10 @@ async function createPersistenceServices(config: Config): Promise<{
   memoryService?: SessionMemoryService;
   sessionRouting: SessionRoutingService;
 }> {
+  const sessionConfig = getSessionRuntimeConfig(config);
   const sessionManager = new SessionManager(
     join(process.cwd(), '.aesyclaw', 'sessions'),
-    config.agent.defaults.maxSessions
+    sessionConfig.maxSessions
   );
   await sessionManager.loadAll();
   appLog.info(`会话管理器已就绪，已加载 ${sessionManager.count()} 个会话`);
@@ -184,7 +216,7 @@ async function createPersistenceServices(config: Config): Promise<{
     sessionManager,
     longTermMemoryStore,
     memoryService,
-    sessionRouting: new SessionRoutingService(sessionManager, config.agent.defaults.contextMode)
+    sessionRouting: new SessionRoutingService(sessionManager, sessionConfig.contextMode)
   };
 }
 
@@ -223,15 +255,6 @@ function createVisionProvider(config: Config, visionSettings: VisionSettings) {
   return createProvider(visionSettings.visionProviderName, providerConfig);
 }
 
-function buildVisionSettingsFromRole(config: ReturnType<typeof getMainAgentRole>): VisionSettings {
-  return {
-    enabled: config.vision,
-    reasoning: config.reasoning,
-    visionProviderName: config.visionProvider || undefined,
-    visionModelName: config.visionModel || undefined
-  };
-}
-
 async function createSkillManager(config: Config, workspace: string): Promise<SkillManager> {
   const skillManager = new SkillManager({
     builtinSkillsDir: './skills',
@@ -265,13 +288,14 @@ async function createExecutionRuntime(args: {
 }> {
   const { getConfig, setConfig, outboundGateway, workspace, sessionManager, sessionRouting, memoryService } = args;
   const config = getConfig();
+  const toolConfig = getToolRuntimeConfig(config);
+  const mainAgentConfig = getMainAgentConfig(config);
   const toolRegistry = new ToolRegistry({
-    defaultTimeout: config.tools.timeoutMs
+    defaultTimeout: toolConfig.timeoutMs
   });
   const commandRegistry = new CommandRegistry();
-  const mainRole = getMainAgentRole(config);
-  const provider = createRequiredProvider(config, mainRole.provider, mainRole.model);
-  const visionSettings = buildVisionSettingsFromRole(mainRole);
+  const provider = createRequiredProvider(config, mainAgentConfig.role.provider, mainAgentConfig.role.model);
+  const visionSettings = mainAgentConfig.visionSettings;
   const visionProvider = createVisionProvider(config, visionSettings);
   const skillManager = await createSkillManager(config, workspace);
   const agentRoleService = new AgentRoleService(
@@ -290,10 +314,10 @@ async function createExecutionRuntime(args: {
     sessionRouting,
     outboundGateway,
     workspace,
-    systemPrompt: mainRole.systemPrompt,
-    maxIterations: config.agent.defaults.maxToolIterations,
-    model: mainRole.model,
-    memoryWindow: config.agent.defaults.memoryWindow,
+    systemPrompt: mainAgentConfig.role.systemPrompt,
+    maxIterations: mainAgentConfig.maxIterations,
+    model: mainAgentConfig.role.model,
+    memoryWindow: mainAgentConfig.memoryWindow,
     visionSettings,
     visionProvider,
     memoryService,
@@ -346,7 +370,7 @@ async function createPluginRuntime(args: {
   let completed = false;
 
   const pluginManager = new PluginManager({
-    getConfig: () => configStore.get(),
+    getConfig: () => configStore.getConfig(),
     workspace,
     tempDir,
     toolRegistry,
@@ -356,7 +380,7 @@ async function createPluginRuntime(args: {
     logger
   });
 
-  const config = configStore.get();
+  const config = configStore.getConfig();
   pluginManager.setPluginConfigs(normalizePluginConfigs(config.plugins as Record<string, { enabled?: boolean; options?: Record<string, any> }>));
 
   const startBackgroundLoading = () => {
@@ -373,12 +397,12 @@ async function createPluginRuntime(args: {
           const nextConfig = await ConfigLoader.update((draft) => {
             draft.plugins = newPluginConfigs as typeof draft.plugins;
           });
-          configStore.set(nextConfig);
+          configStore.setConfig(nextConfig);
           pluginManager.setPluginConfigs(normalizePluginConfigs(nextConfig.plugins));
           appLog.info('已应用默认插件配置');
         }
 
-        const latestConfig = configStore.get();
+        const latestConfig = configStore.getConfig();
         if (Object.keys(latestConfig.plugins).length > 0) {
           await pluginManager.loadFromConfig(normalizePluginConfigs(latestConfig.plugins));
         }
@@ -457,7 +481,7 @@ async function createInfrastructure(args: {
   mcpManager: MCPClientManager | null;
 }> {
   const { configStore, outboundGateway, agentRuntime, workspace, tempDir, toolRegistry, sessionManager } = args;
-  const config = configStore.get();
+  const config = configStore.getConfig();
   const [pluginRuntime, channelManager] = await Promise.all([
     createPluginRuntime({
       configStore,
@@ -486,7 +510,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   const { workspace, tempDir, port, onCronJob } = options;
   const startedAt = Date.now();
   const configStore = new RuntimeConfigStore(bootstrapRuntimeConfig(options.config));
-  const config = configStore.get();
+  const config = configStore.getConfig();
   const log = appLog;
 
   log.info('正在初始化服务');
@@ -507,8 +531,8 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
 
   const executionRuntimeStartedAt = Date.now();
   const executionRuntime = await createExecutionRuntime({
-    getConfig: () => configStore.get(),
-    setConfig: (nextConfig) => { configStore.set(nextConfig); },
+    getConfig: () => configStore.getConfig(),
+    setConfig: (nextConfig) => { configStore.setConfig(nextConfig); },
     outboundGateway,
     workspace,
     sessionManager,
@@ -629,7 +653,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     cronService,
     mcpManager,
     skillManager,
-    config: configStore.get(),
+    config: configStore.getConfig(),
     configStore,
     workspace,
     apiServer

@@ -5,7 +5,7 @@ import { CONSTANTS } from '../constants/index.js';
 import type { Config } from '../types.js';
 import type { CronJob } from '../cron/index.js';
 import { ConfigLoader } from '../config/loader.js';
-import { getMainAgentRole } from '../config/index.js';
+import { getMainAgentConfig } from '../config/index.js';
 import { createServices, type Services } from './factory/ServiceFactory.js';
 import { dispatchCronJob } from './app/cronDispatch.js';
 import { setupConfigReload } from './app/configReload.js';
@@ -73,14 +73,14 @@ export async function bootstrap(): Promise<void> {
   const port = config.server.apiPort ?? 18792;
   const workspace = join(process.cwd(), 'workspace');
   const tempDir = join(process.cwd(), '.aesyclaw', 'temp');
-  const mainRole = getMainAgentRole(config);
+  const mainAgent = getMainAgentConfig(config);
 
   ensureRuntimeDirectories(workspace, tempDir);
 
   log.info('网关启动中', {
     workspace,
-    provider: mainRole.provider,
-    model: mainRole.model,
+    provider: mainAgent.provider.name,
+    model: mainAgent.role.model,
     apiPort: port
   });
 
@@ -126,8 +126,8 @@ export async function bootstrap(): Promise<void> {
 
   log.info('网关启动完成', {
     durationMs: Date.now() - startedAt,
-    provider: mainRole.provider,
-    model: mainRole.model,
+    provider: mainAgent.provider.name,
+    model: mainAgent.role.model,
     apiEnabled: servicesRef.apiServer !== undefined,
     channelCount: servicesRef.channelManager.getEnabledChannels().length,
     pluginCount: Object.keys(servicesRef.pluginManager.getPluginConfigs()).length,

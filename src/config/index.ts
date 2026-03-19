@@ -4,12 +4,22 @@ export {
   DEFAULT_CONFIG,
   configSchema,
   createDefaultConfig,
-  getMainAgentRole,
   getConfigValidationIssue,
   parseConfig,
-  parseMCPServerConfig,
-  resolveProviderSelection
+  parseMCPServerConfig
 } from './schema.js';
+export { resolveConfig, resolveProviderSelection } from './resolve.js';
+export {
+  getMainAgentConfig,
+  getMainAgentRole,
+  getMemoryConfig,
+  getMemoryRecallConfig,
+  getMemorySummaryConfig,
+  getObservabilityConfig,
+  getSessionRuntimeConfig,
+  getToolRuntimeConfig
+} from './selectors.js';
+export { isEmbeddingCapableProvider, listEmbeddingProviderNames } from './providerCapabilities.js';
 export type {
   AgentConfig,
   AgentRoleConfig,
@@ -17,6 +27,7 @@ export type {
   ChannelConfig,
   Config,
   ConfigValidationIssue,
+  ContextMode,
   LoggingConfig,
   MCPServerConfig,
   MCPServersConfig,
@@ -26,8 +37,16 @@ export type {
   ObservabilityConfig,
   PluginConfig,
   ProviderConfig,
+  RawConfig,
   ResolvedProviderSelection,
   ServerConfig,
   SkillConfig,
   ToolsConfig,
 } from './schema.js';
+export type { ResolvedConfig } from './resolve.js';
+export type {
+  ResolvedMainAgentConfig,
+  ResolvedMemoryConfig,
+  ResolvedMemoryRecallConfig,
+  ResolvedMemorySummaryConfig
+} from './selectors.js';

@@ -42,7 +42,7 @@ export async function createPluginManager(args: {
   let completed = false;
 
   const pluginManager = new PluginManager({
-    getConfig: () => configStore.get(),
+    getConfig: () => configStore.getConfig(),
     workspace,
     tempDir,
     toolRegistry,
@@ -52,7 +52,7 @@ export async function createPluginManager(args: {
     logger
   });
 
-  const config = configStore.get();
+  const config = configStore.getConfig();
   pluginManager.setPluginConfigs(normalizePluginConfigs(config.plugins as Record<string, { enabled?: boolean; options?: Record<string, any> }>));
 
   const startBackgroundLoading = () => {
@@ -69,12 +69,12 @@ export async function createPluginManager(args: {
           const nextConfig = await ConfigLoader.update((draft) => {
             draft.plugins = newPluginConfigs as typeof draft.plugins;
           });
-          configStore.set(nextConfig);
+          configStore.setConfig(nextConfig);
           pluginManager.setPluginConfigs(normalizePluginConfigs(nextConfig.plugins));
           log.info('已应用默认插件配置');
         }
 
-        const latestConfig = configStore.get();
+        const latestConfig = configStore.getConfig();
         if (Object.keys(latestConfig.plugins).length > 0) {
           await pluginManager.loadFromConfig(normalizePluginConfigs(latestConfig.plugins));
         }

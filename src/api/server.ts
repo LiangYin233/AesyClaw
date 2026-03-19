@@ -110,7 +110,7 @@ export class APIServer {
       }
 
       const requestToken = Array.isArray(req.query.token) ? req.query.token[0] : req.query.token;
-      const expectedToken = this.configStore.get().server.token;
+      const expectedToken = this.configStore.getConfig().server.token;
 
       if (typeof requestToken === 'string' && expectedToken && requestToken === expectedToken) {
         return next();
@@ -127,9 +127,9 @@ export class APIServer {
       sessionRouting: this.sessionRouting,
       agentRoleService: this.agentRoleService,
       channelManager: this.channelManager,
-      getConfig: () => this.configStore.get(),
+      getConfig: () => this.configStore.getConfig(),
       setConfig: (config) => {
-        this.configStore.set(config);
+        this.configStore.setConfig(config);
       },
       toolRegistry: this.toolRegistry,
       packageVersion,
@@ -144,24 +144,24 @@ export class APIServer {
     registerSkillRoutes(this.app, this.skillManager);
     registerPluginRoutes(this.app, {
       pluginManager: this.pluginManager,
-      getConfig: () => this.configStore.get(),
+      getConfig: () => this.configStore.getConfig(),
       setConfig: (config) => {
-        this.configStore.set(config);
+        this.configStore.setConfig(config);
       }
     });
     registerCronRoutes(this.app, this.cronService);
     registerMCPRoutes(this.app, {
       toolRegistry: this.toolRegistry,
-      getConfig: () => this.configStore.get(),
+      getConfig: () => this.configStore.getConfig(),
       setConfig: (config) => {
-        this.configStore.set(config);
+        this.configStore.setConfig(config);
       },
       getMcpManager: () => this.mcpManager,
       setMcpManager: (m) => { this.mcpManager = m; }
     });
     registerObservabilityRoutes(this.app, {
       setConfig: (config) => {
-        this.configStore.set(config);
+        this.configStore.setConfig(config);
       }
     });
   }
@@ -176,7 +176,7 @@ export class APIServer {
   }
 
   updateConfig(config: Config): void {
-    this.configStore.set(config);
+    this.configStore.setConfig(config);
     this.log.info('配置已更新');
   }
 }

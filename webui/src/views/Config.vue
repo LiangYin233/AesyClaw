@@ -11,26 +11,25 @@
                 <template #title>服务器配置</template>
                 <template #content>
                     <div class="form-grid">
-                            <div v-for="(value, key) in config.server" :key="key" class="form-field">
-                            <label class="capitalize">{{ formatLabel(key) }}</label>
-                            <InputNumber 
-                                v-if="isNumber(value)" 
-                                v-model="config.server[key]" 
-                                :useGrouping="false" 
+                        <div
+                            v-for="field in serverSection.fields"
+                            :key="field.key"
+                            class="form-field"
+                            :class="{ 'form-field--full': field.fullWidth }"
+                        >
+                            <label>{{ field.label }}</label>
+                            <component
+                                :is="getFieldComponent(field)"
+                                v-bind="getFieldProps(field)"
+                                :modelValue="getFieldValue(field.path)"
+                                @update:modelValue="setFieldValue(field.path, $event)"
                             />
-                            <ToggleButton
-                                v-else-if="isBoolean(value)"
-                                v-model="config.server[key]"
-                                onLabel="已启用"
-                                offLabel="已禁用"
-                            />
-                            <Password v-else-if="key === 'token'" v-model="config.server[key]" :feedback="false" toggleMask fluid />
-                            <InputText v-else v-model="config.server[key]" />
+                            <small v-if="field.description" class="field-hint">{{ field.description }}</small>
                         </div>
                     </div>
                 </template>
             </Card>
-            
+
             <Card class="config-card">
                 <template #title>Agent 全局运行配置</template>
                 <template #content>
@@ -38,123 +37,28 @@
                         Agent 的 Provider、Model、System Prompt、Vision 与 Reasoning 已迁移到 Agent 页面管理；工具迭代上限仍在当前页统一配置。
                         <Button label="前往 Agent 页面" link size="small" @click="goToAgents" />
                     </Message>
-                    <div class="form-grid">
-                        <template v-for="(value, key) in config.agent.defaults" :key="key">
-                            <div v-if="!isAgentConfigHidden(String(key))" class="form-field">
-                                <label class="capitalize">{{ getAgentDefaultsLabel(String(key)) }}</label>
-                                <template v-if="key === 'contextMode'">
-                                    <Select v-model="config.agent.defaults[key]" :options="['session', 'channel']" placeholder="选择模式" />
-                                </template>
-                                <InputNumber 
-                                    v-else-if="isNumber(value)" 
-                                    v-model="config.agent.defaults[key]" 
-                                    :useGrouping="false" 
-                                />
-                                <ToggleButton
-                                    v-else-if="isBoolean(value)"
-                                    v-model="config.agent.defaults[key]"
-                                    onLabel="已启用"
-                                    offLabel="已禁用"
-                                />
-                                <Textarea v-else-if="isLongString(value)" v-model="config.agent.defaults[key]" rows="3" fluid />
-                                <InputText v-else v-model="config.agent.defaults[key]" />
-                            </div>
-                        </template>
-                    </div>
                     <div class="nested-configs">
-                        <div class="nested-config-section">
-                            <h3 class="nested-config-title">会话摘要</h3>
+                        <div
+                            v-for="section in agentSections"
+                            :key="section.key"
+                            class="nested-config-section"
+                        >
+                            <h3 class="nested-config-title">{{ section.title }}</h3>
                             <div class="form-grid">
-                                <div class="form-field">
-                                    <label>启用摘要</label>
-                                    <ToggleButton
-                                        v-model="config.agent.defaults.memorySummary.enabled"
-                                        onLabel="已启用"
-                                        offLabel="已禁用"
+                                <div
+                                    v-for="field in section.fields"
+                                    :key="field.key"
+                                    class="form-field"
+                                    :class="{ 'form-field--full': field.fullWidth }"
+                                >
+                                    <label>{{ field.label }}</label>
+                                    <component
+                                        :is="getFieldComponent(field)"
+                                        v-bind="getFieldProps(field)"
+                                        :modelValue="getFieldValue(field.path)"
+                                        @update:modelValue="setFieldValue(field.path, $event)"
                                     />
-                                </div>
-                                <div class="form-field">
-                                    <label>Provider</label>
-                                    <Select
-                                        v-model="config.agent.defaults.memorySummary.provider"
-                                        :options="providerKeys"
-                                        placeholder="选择提供商"
-                                    />
-                                </div>
-                                <div class="form-field">
-                                    <label>Model</label>
-                                    <InputText v-model="config.agent.defaults.memorySummary.model" />
-                                </div>
-                                <div class="form-field">
-                                    <label>压缩轮数</label>
-                                    <InputNumber
-                                        v-model="config.agent.defaults.memorySummary.compressRounds"
-                                        :useGrouping="false"
-                                        :min="1"
-                                    />
-                                    <small class="field-hint">当未摘要对话轮次超出 memoryWindow 时，压缩最早的若干轮。</small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="nested-config-section">
-                            <h3 class="nested-config-title">长期记忆</h3>
-                            <div class="form-grid">
-                                <div class="form-field">
-                                    <label>启用长期记忆</label>
-                                    <ToggleButton
-                                        v-model="config.agent.defaults.memoryFacts.enabled"
-                                        onLabel="已启用"
-                                        offLabel="已禁用"
-                                    />
-                                </div>
-                                <div class="form-field">
-                                    <label>Provider</label>
-                                    <Select
-                                        v-model="config.agent.defaults.memoryFacts.provider"
-                                        :options="providerKeys"
-                                        placeholder="选择提供商"
-                                    />
-                                </div>
-                                <div class="form-field">
-                                    <label>Model</label>
-                                    <InputText v-model="config.agent.defaults.memoryFacts.model" />
-                                </div>
-                                <div class="form-field">
-                                    <label>Retrieval Provider</label>
-                                    <Select
-                                        v-model="config.agent.defaults.memoryFacts.retrievalProvider"
-                                        :options="retrievalProviderKeys"
-                                        placeholder="选择 embeddings 提供商"
-                                    />
-                                    <small class="field-hint">仅允许选择 type 为 openai 的 Provider。</small>
-                                </div>
-                                <div class="form-field">
-                                    <label>Retrieval Model</label>
-                                    <InputText v-model="config.agent.defaults.memoryFacts.retrievalModel" />
-                                    <small class="field-hint">用于 embeddings 检索，不影响长期记忆后台维护模型。</small>
-                                </div>
-                                <div class="form-field">
-                                    <label>Retrieval Threshold</label>
-                                    <InputNumber
-                                        v-model="config.agent.defaults.memoryFacts.retrievalThreshold"
-                                        :useGrouping="false"
-                                        :min="0"
-                                        :max="1"
-                                        :minFractionDigits="0"
-                                        :maxFractionDigits="4"
-                                        :step="0.01"
-                                    />
-                                    <small class="field-hint">仅注入相似度大于等于该阈值的长期记忆。</small>
-                                </div>
-                                <div class="form-field">
-                                    <label>Retrieval TopK</label>
-                                    <InputNumber
-                                        v-model="config.agent.defaults.memoryFacts.retrievalTopK"
-                                        :useGrouping="false"
-                                        :min="1"
-                                        :max="20"
-                                    />
-                                    <small class="field-hint">最多向 Prompt 注入多少条相关长期记忆。</small>
+                                    <small v-if="field.description" class="field-hint">{{ field.description }}</small>
                                 </div>
                             </div>
                         </div>
@@ -165,28 +69,35 @@
             <Card class="config-card">
                 <template #title>运行与日志</template>
                 <template #content>
-                    <div class="form-grid">
-                        <div class="form-field">
-                            <label>日志级别</label>
-                            <Select
-                                v-model="config.observability.level"
-                                :options="['debug', 'info', 'warn', 'error']"
-                                placeholder="选择日志级别"
-                            />
-                        </div>
-                        <div class="form-field">
-                            <label>工具超时 (ms)</label>
-                            <InputNumber
-                                v-model="config.tools.timeoutMs"
-                                :useGrouping="false"
-                                :min="1000"
-                            />
-                            <small class="field-hint">统一控制工具执行超时时间。</small>
+                    <div class="nested-configs nested-configs--tight">
+                        <div
+                            v-for="section in runtimeSections"
+                            :key="section.key"
+                            class="nested-config-section"
+                        >
+                            <h3 class="nested-config-title">{{ section.title }}</h3>
+                            <div class="form-grid">
+                                <div
+                                    v-for="field in section.fields"
+                                    :key="field.key"
+                                    class="form-field"
+                                    :class="{ 'form-field--full': field.fullWidth }"
+                                >
+                                    <label>{{ field.label }}</label>
+                                    <component
+                                        :is="getFieldComponent(field)"
+                                        v-bind="getFieldProps(field)"
+                                        :modelValue="getFieldValue(field.path)"
+                                        @update:modelValue="setFieldValue(field.path, $event)"
+                                    />
+                                    <small v-if="field.description" class="field-hint">{{ field.description }}</small>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </template>
             </Card>
-            
+
             <Card class="config-card">
                 <template #title>通道配置</template>
                 <template #content>
@@ -196,7 +107,7 @@
                     </Message>
                 </template>
             </Card>
-            
+
             <Card class="config-card">
                 <template #title>
                     <div class="section-header">
@@ -254,13 +165,12 @@
                     </Message>
                 </template>
             </Card>
-            
         </div>
-        
+
         <div v-else-if="loading" class="loading-container">
             <ProgressSpinner />
         </div>
-        
+
         <Toast />
     </div>
 </template>
@@ -268,9 +178,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useConfigStore } from '../stores'
 import { useRoute, useRouter } from 'vue-router'
-import { getRouteToken, navigateWithToken } from '../utils/auth'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'
 import Card from 'primevue/card'
@@ -284,7 +192,35 @@ import Message from 'primevue/message'
 import Toast from 'primevue/toast'
 import ProgressSpinner from 'primevue/progressspinner'
 import PageHeader from '../components/common/PageHeader.vue'
-import { formatLabel } from '../utils/formatters'
+import { useConfigStore } from '../stores'
+import { getRouteToken, navigateWithToken } from '../utils/auth'
+
+type ConfigFieldType = 'text' | 'number' | 'boolean' | 'password' | 'textarea' | 'select'
+type OptionSourceKey = 'contextModes' | 'providerKeys' | 'embeddingProviders' | 'logLevels'
+
+interface ConfigFieldDescriptor {
+    key: string
+    label: string
+    path: string[]
+    type: ConfigFieldType
+    description?: string
+    fullWidth?: boolean
+    placeholder?: string
+    rows?: number
+    min?: number
+    max?: number
+    step?: number
+    minFractionDigits?: number
+    maxFractionDigits?: number
+    options?: string[]
+    optionsKey?: OptionSourceKey
+}
+
+interface ConfigSectionDescriptor {
+    key: string
+    title: string
+    fields: ConfigFieldDescriptor[]
+}
 
 const configStore = useConfigStore()
 const { config, loading } = storeToRefs(configStore)
@@ -302,6 +238,188 @@ const retrievalProviderKeys = computed(() => {
 })
 
 const providerTypeOptions = ['openai', 'openai_responses', 'anthropic']
+const contextModeOptions = ['session', 'channel']
+const logLevelOptions = ['debug', 'info', 'warn', 'error']
+
+const serverSection: ConfigSectionDescriptor = {
+    key: 'server',
+    title: '服务器配置',
+    fields: [
+        { key: 'host', label: 'Host', path: ['server', 'host'], type: 'text' },
+        { key: 'apiPort', label: 'API Port', path: ['server', 'apiPort'], type: 'number', min: 1 },
+        { key: 'apiEnabled', label: 'API Enabled', path: ['server', 'apiEnabled'], type: 'boolean' },
+        { key: 'token', label: 'Token', path: ['server', 'token'], type: 'password' }
+    ]
+}
+
+const agentSections: ConfigSectionDescriptor[] = [
+    {
+        key: 'agent-runtime',
+        title: 'Agent Runtime',
+        fields: [
+            {
+                key: 'maxToolIterations',
+                label: 'Max Tool Iterations',
+                path: ['agent', 'defaults', 'maxToolIterations'],
+                type: 'number',
+                min: 1
+            },
+            {
+                key: 'memoryWindow',
+                label: 'Memory Window',
+                path: ['agent', 'defaults', 'memoryWindow'],
+                type: 'number',
+                min: 1,
+                description: '控制 recent history 保留的对话轮次数。'
+            },
+            {
+                key: 'maxSessions',
+                label: 'Max Sessions',
+                path: ['agent', 'defaults', 'maxSessions'],
+                type: 'number',
+                min: 1
+            },
+            {
+                key: 'contextMode',
+                label: 'Context Mode',
+                path: ['agent', 'defaults', 'contextMode'],
+                type: 'select',
+                optionsKey: 'contextModes'
+            }
+        ]
+    },
+    {
+        key: 'memory-summary',
+        title: '会话摘要',
+        fields: [
+            {
+                key: 'summary-enabled',
+                label: '启用摘要',
+                path: ['agent', 'defaults', 'memorySummary', 'enabled'],
+                type: 'boolean'
+            },
+            {
+                key: 'summary-provider',
+                label: 'Provider',
+                path: ['agent', 'defaults', 'memorySummary', 'provider'],
+                type: 'select',
+                optionsKey: 'providerKeys'
+            },
+            {
+                key: 'summary-model',
+                label: 'Model',
+                path: ['agent', 'defaults', 'memorySummary', 'model'],
+                type: 'text'
+            },
+            {
+                key: 'summary-compress-rounds',
+                label: '压缩轮数',
+                path: ['agent', 'defaults', 'memorySummary', 'compressRounds'],
+                type: 'number',
+                min: 1,
+                description: '当未摘要对话轮次超出 memoryWindow 时，压缩最早的若干轮。'
+            }
+        ]
+    },
+    {
+        key: 'memory-facts-maintenance',
+        title: '长期记忆维护',
+        fields: [
+            {
+                key: 'facts-enabled',
+                label: '启用长期记忆',
+                path: ['agent', 'defaults', 'memoryFacts', 'enabled'],
+                type: 'boolean'
+            },
+            {
+                key: 'facts-provider',
+                label: 'Provider',
+                path: ['agent', 'defaults', 'memoryFacts', 'provider'],
+                type: 'select',
+                optionsKey: 'providerKeys'
+            },
+            {
+                key: 'facts-model',
+                label: 'Model',
+                path: ['agent', 'defaults', 'memoryFacts', 'model'],
+                type: 'text',
+                description: '用于长期记忆的后台维护与归纳。'
+            }
+        ]
+    },
+    {
+        key: 'memory-facts-recall',
+        title: '长期记忆自动召回',
+        fields: [
+            {
+                key: 'facts-retrieval-provider',
+                label: 'Retrieval Provider',
+                path: ['agent', 'defaults', 'memoryFacts', 'retrievalProvider'],
+                type: 'select',
+                optionsKey: 'embeddingProviders',
+                description: '仅允许选择 type 为 openai 的 Provider。'
+            },
+            {
+                key: 'facts-retrieval-model',
+                label: 'Retrieval Model',
+                path: ['agent', 'defaults', 'memoryFacts', 'retrievalModel'],
+                type: 'text',
+                description: '用于 embeddings 检索，不影响长期记忆后台维护模型。'
+            },
+            {
+                key: 'facts-retrieval-threshold',
+                label: 'Retrieval Threshold',
+                path: ['agent', 'defaults', 'memoryFacts', 'retrievalThreshold'],
+                type: 'number',
+                min: 0,
+                max: 1,
+                step: 0.01,
+                minFractionDigits: 0,
+                maxFractionDigits: 4,
+                description: '仅注入相似度大于等于该阈值的长期记忆。'
+            },
+            {
+                key: 'facts-retrieval-topk',
+                label: 'Retrieval TopK',
+                path: ['agent', 'defaults', 'memoryFacts', 'retrievalTopK'],
+                type: 'number',
+                min: 1,
+                max: 20,
+                description: '最多向 Prompt 注入多少条相关长期记忆。'
+            }
+        ]
+    }
+]
+
+const runtimeSections: ConfigSectionDescriptor[] = [
+    {
+        key: 'observability',
+        title: '日志',
+        fields: [
+            {
+                key: 'observability-level',
+                label: '日志级别',
+                path: ['observability', 'level'],
+                type: 'select',
+                optionsKey: 'logLevels'
+            }
+        ]
+    },
+    {
+        key: 'tools',
+        title: '工具运行',
+        fields: [
+            {
+                key: 'tools-timeout',
+                label: '工具超时 (ms)',
+                path: ['tools', 'timeoutMs'],
+                type: 'number',
+                min: 1000,
+                description: '统一控制工具执行超时时间。'
+            }
+        ]
+    }
+]
 
 async function saveConfig() {
     if (!config.value) return
@@ -315,37 +433,107 @@ async function saveConfig() {
     }
 }
 
-function isNumber(value: any): boolean {
-    return typeof value === 'number'
+function getFieldComponent(field: ConfigFieldDescriptor) {
+    switch (field.type) {
+        case 'number':
+            return InputNumber
+        case 'boolean':
+            return ToggleButton
+        case 'password':
+            return Password
+        case 'textarea':
+            return Textarea
+        case 'select':
+            return Select
+        default:
+            return InputText
+    }
 }
 
-function isBoolean(value: any): boolean {
-    return typeof value === 'boolean'
+function getFieldProps(field: ConfigFieldDescriptor) {
+    if (field.type === 'number') {
+        return {
+            useGrouping: false,
+            min: field.min,
+            max: field.max,
+            step: field.step,
+            minFractionDigits: field.minFractionDigits,
+            maxFractionDigits: field.maxFractionDigits
+        }
+    }
+
+    if (field.type === 'boolean') {
+        return {
+            onLabel: '已启用',
+            offLabel: '已禁用'
+        }
+    }
+
+    if (field.type === 'password') {
+        return {
+            feedback: false,
+            toggleMask: true,
+            fluid: true,
+            placeholder: field.placeholder
+        }
+    }
+
+    if (field.type === 'textarea') {
+        return {
+            rows: field.rows ?? 3,
+            fluid: true,
+            placeholder: field.placeholder
+        }
+    }
+
+    if (field.type === 'select') {
+        return {
+            options: resolveFieldOptions(field),
+            placeholder: field.placeholder ?? '请选择'
+        }
+    }
+
+    return {
+        placeholder: field.placeholder
+    }
 }
 
-function isLongString(value: any): boolean {
-    return typeof value === 'string' && value.length > 100
+function resolveFieldOptions(field: ConfigFieldDescriptor): string[] {
+    if (field.options) return field.options
+
+    switch (field.optionsKey) {
+        case 'contextModes':
+            return contextModeOptions
+        case 'providerKeys':
+            return providerKeys.value
+        case 'embeddingProviders':
+            return retrievalProviderKeys.value
+        case 'logLevels':
+            return logLevelOptions
+        default:
+            return []
+    }
 }
 
-function isAgentConfigHidden(key: string): boolean {
-    return ['memorySummary', 'memoryFacts'].includes(key)
+function getFieldValue(path: string[]): any {
+    if (!config.value) return undefined
+
+    return path.reduce<any>((current, key) => current?.[key], config.value)
 }
 
-function getAgentDefaultsLabel(key: string): string {
-    if (key === 'memoryWindow') {
-        return 'Memory Window (对话轮次)'
-    }
-    if (key === 'maxToolIterations') {
-        return 'Max Tool Iterations'
-    }
-    if (key === 'maxSessions') {
-        return 'Max Sessions'
-    }
-    if (key === 'contextMode') {
-        return 'Context Mode'
+function setFieldValue(path: string[], value: any) {
+    if (!config.value || path.length === 0) return
+
+    let current: Record<string, any> = config.value as Record<string, any>
+    for (const key of path.slice(0, -1)) {
+        const nextValue = current[key]
+        if (!nextValue || typeof nextValue !== 'object' || Array.isArray(nextValue)) {
+            current[key] = {}
+        }
+        current = current[key] as Record<string, any>
     }
 
-    return formatLabel(key)
+    current[path[path.length - 1]] = value
 }
 
 function formatJsonObject(value: Record<string, any> | undefined): string {
@@ -429,6 +617,10 @@ onMounted(() => {
     margin-top: 16px;
 }
 
+.nested-configs--tight {
+    margin-top: 0;
+}
+
 .nested-config-section {
     padding: 16px;
     background: var(--ui-surface-muted);
@@ -468,10 +660,6 @@ onMounted(() => {
     color: var(--ui-text-muted);
 }
 
-.capitalize {
-    text-transform: capitalize;
-}
-
 .section-header {
     display: flex;
     justify-content: space-between;
@@ -508,4 +696,9 @@ onMounted(() => {
     padding: 48px;
 }
 
+@media (max-width: 768px) {
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+}
 </style>
