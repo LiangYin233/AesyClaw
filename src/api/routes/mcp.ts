@@ -4,6 +4,7 @@ import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import type { Config } from '../../types.js';
 import { ConfigLoader } from '../../config/loader.js';
 import { getConfigValidationIssue, parseMCPServerConfig } from '../../config/index.js';
+import { clearMcpServerTools, syncMcpServerTools } from '../../mcp/toolSync.js';
 import { formatLocalTimestamp } from '../../observability/logging.js';
 import { badRequest, notFound, serverError } from './helpers.js';
 
@@ -70,20 +71,9 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
       });
       deps.setConfig?.(nextConfig);
 
-      let toolsRegistered = 0;
-      if (deps.toolRegistry) {
-        const tools = mgr.getTools().filter(t => t.name.startsWith(`mcp_${name}_`));
-        for (const tool of tools) {
-          deps.toolRegistry.register({
-            name: tool.name,
-            description: tool.description,
-            parameters: tool.parameters,
-            execute: async (params: any) => mgr!.callTool(tool.name, params),
-            source: 'mcp' as any
-          }, 'mcp');
-        }
-        toolsRegistered = tools.length;
-      }
+      const toolsRegistered = deps.toolRegistry
+        ? syncMcpServerTools(deps.toolRegistry, mgr, name)
+        : 0;
 
       res.status(201).json({ success: true, server: serializeServerStatus(mgr.getServerStatus(name)), toolsRegistered });
     } catch (error) {
@@ -111,12 +101,9 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
         deps.setConfig?.(nextConfig);
       }
 
-      let toolsRemoved = 0;
-      if (deps.toolRegistry) {
-        const toRemove = deps.toolRegistry.list().filter((t: any) => t.name.startsWith(`mcp_${name}_`));
-        for (const tool of toRemove) deps.toolRegistry.unregister(tool.name);
-        toolsRemoved = toRemove.length;
-      }
+      const toolsRemoved = deps.toolRegistry
+        ? clearMcpServerTools(deps.toolRegistry, name)
+        : 0;
 
       res.json({ success: true, message: `MCP server "${name}" removed`, toolsRemoved });
     } catch (error) {
@@ -130,6 +117,9 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
       if (!mgr) return notFound(res, 'MCP manager', 'mcp');
       const { name } = req.params;
       await mgr.reconnect(name);
+      if (deps.toolRegistry) {
+        syncMcpServerTools(deps.toolRegistry, mgr, name);
+      }
       res.json({ success: true, server: serializeServerStatus(mgr.getServerStatus(name)) });
     } catch (error) {
       serverError(res, error);
@@ -158,8 +148,14 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
       if (mgr) {
         if (enabled) {
           await mgr.connectOne(name, nextConfig.mcp[name]);
+          if (deps.toolRegistry) {
+            syncMcpServerTools(deps.toolRegistry, mgr, name);
+          }
         } else {
           await mgr.disconnectOne(name);
+          if (deps.toolRegistry) {
+            clearMcpServerTools(deps.toolRegistry, name);
+          }
         }
       }
 
