@@ -16,9 +16,14 @@ import { ExecutionEngine } from '../execution/ExecutionEngine.js';
 import { ExecutionRuntime } from '../execution/ExecutionRuntime.js';
 import { ExecutionRegistry } from '../execution/ExecutionRegistry.js';
 import type { ExecutionStatus } from '../../domain/execution.js';
-import type { SessionReference } from '../../domain/session.js';
+import {
+  bindSessionReference,
+  mapSessionReference,
+  type SessionReference
+} from '../../domain/session.js';
 import type { EventBus } from '../../../events/EventBus.js';
 import type { AesyClawEvents } from '../../../events/events.js';
+import { OutboundGateway } from '../../facade/OutboundGateway.js';
 import {
   handleDirectMessage,
   handleInboundMessage,
@@ -30,27 +35,6 @@ import {
 
 const DEFAULT_MAX_ITERATIONS = 40;
 const DEFAULT_MEMORY_WINDOW = 50;
-
-export class OutboundGateway {
-  private log = logger.child('OutboundGateway');
-  private dispatcher?: (message: OutboundMessage) => Promise<void>;
-
-  setDispatcher(dispatcher: (message: OutboundMessage) => Promise<void>): void {
-    this.dispatcher = dispatcher;
-  }
-
-  async send(message: OutboundMessage): Promise<void> {
-    if (!this.dispatcher) {
-      this.log.error('未配置出站消息分发器', {
-        channel: message.channel,
-        chatId: message.chatId
-      });
-      throw new Error('Outbound dispatcher not configured');
-    }
-
-    await this.dispatcher(message);
-  }
-}
 
 export interface RuntimeCoordinatorOptions {
   provider: LLMProvider;
@@ -297,16 +281,10 @@ export class RuntimeCoordinator {
   }
 
   abortReference(reference: SessionReference | string): boolean {
-    if (typeof reference === 'string') {
-      return this.abortSession(reference);
-    }
-    if (reference.sessionKey) {
-      return this.abortSession(reference.sessionKey);
-    }
-    if (reference.channel && reference.chatId) {
-      return this.abortSession(reference.channel, reference.chatId);
-    }
-    return false;
+    return mapSessionReference(reference, {
+      bySessionKey: (sessionKey) => this.abortSession(sessionKey),
+      byChannelChat: (channel, chatId) => this.abortSession(channel, chatId)
+    }) ?? false;
   }
 
   getExecutionStatus(sessionKey: string): ExecutionStatus {
@@ -314,17 +292,13 @@ export class RuntimeCoordinator {
   }
 
   getStatusByReference(reference: SessionReference | string): ExecutionStatus | undefined {
-    if (typeof reference === 'string') {
-      return this.getExecutionStatus(reference);
-    }
-    if (reference.sessionKey) {
-      return this.getExecutionStatus(reference.sessionKey);
-    }
-    if (reference.channel && reference.chatId) {
-      const sessionKey = this.options.sessionRouting.resolveByChannel(reference.channel, reference.chatId);
-      return sessionKey ? this.getExecutionStatus(sessionKey) : undefined;
-    }
-    return undefined;
+    return mapSessionReference(reference, {
+      bySessionKey: (sessionKey) => this.getExecutionStatus(sessionKey),
+      byChannelChat: (channel, chatId) => {
+        const sessionKey = this.options.sessionRouting.resolveByChannel(channel, chatId);
+        return sessionKey ? this.getExecutionStatus(sessionKey) : undefined;
+      }
+    });
   }
 
   updateProvider(provider: LLMProvider, model?: string): void {
@@ -410,21 +384,7 @@ export class RuntimeCoordinator {
   }
 
   bindMessageToSession(message: InboundMessage, reference: SessionReference | string): InboundMessage {
-    if (typeof reference === 'string') {
-      return {
-        ...message,
-        sessionKey: message.sessionKey || reference
-      };
-    }
-
-    return {
-      ...message,
-      sessionKey: message.sessionKey || reference.sessionKey,
-      channel: reference.channel || message.channel,
-      chatId: reference.chatId || message.chatId,
-      senderId: message.senderId || reference.chatId || message.chatId,
-      messageType: reference.messageType || message.messageType
-    };
+    return bindSessionReference(message, reference);
   }
 
   private async sendOutbound(message: OutboundMessage): Promise<void> {

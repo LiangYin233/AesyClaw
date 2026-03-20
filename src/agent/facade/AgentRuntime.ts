@@ -1,7 +1,12 @@
 import type { InboundMessage } from '../../types.js';
 import type { ExecutionStatus } from '../domain/execution.js';
 import type { AgentRuntimeDeps } from '../domain/ports.js';
-import type { SessionReference } from '../domain/session.js';
+import {
+  bindSessionReference,
+  mapSessionReference,
+  type SessionReference
+} from '../domain/session.js';
+import type { RuntimeLifecycle } from '../domain/runtime.js';
 import { SessionHandle } from './SessionHandle.js';
 import type { LLMProvider } from '../../providers/base.js';
 import type { SessionMemoryService } from '../infrastructure/memory/SessionMemoryService.js';
@@ -10,17 +15,31 @@ import type { VisionSettings } from '../../types.js';
 export class AgentRuntime {
   private running = false;
 
-  constructor(private readonly deps: AgentRuntimeDeps) {}
+  constructor(
+    private readonly deps: AgentRuntimeDeps,
+    private readonly lifecycle?: RuntimeLifecycle
+  ) {}
 
   start(): void {
+    if (this.lifecycle) {
+      this.lifecycle.start();
+      return;
+    }
     this.running = true;
   }
 
   stop(): void {
+    if (this.lifecycle) {
+      this.lifecycle.stop();
+      return;
+    }
     this.running = false;
   }
 
   isRunning(): boolean {
+    if (this.lifecycle) {
+      return this.lifecycle.isRunning();
+    }
     return this.running;
   }
 
@@ -32,21 +51,7 @@ export class AgentRuntime {
     message: InboundMessage,
     reference: SessionReference | string
   ): InboundMessage {
-    if (typeof reference === 'string') {
-      return {
-        ...message,
-        sessionKey: message.sessionKey || reference
-      };
-    }
-
-    return {
-      ...message,
-      sessionKey: message.sessionKey || reference.sessionKey,
-      channel: reference.channel || message.channel,
-      chatId: reference.chatId || message.chatId,
-      senderId: message.senderId || reference.chatId || message.chatId,
-      messageType: reference.messageType || message.messageType
-    };
+    return bindSessionReference(message, reference);
   }
 
   async handleInbound(
@@ -69,19 +74,14 @@ export class AgentRuntime {
       return this.deps.abortReference(reference);
     }
 
-    if (this.deps.abortSession) {
-      if (typeof reference === 'string') {
-        return this.deps.abortSession(reference);
-      }
-      if (reference.sessionKey) {
-        return this.deps.abortSession(reference.sessionKey);
-      }
-      if (reference.channel && reference.chatId) {
-        return this.deps.abortSession(reference.channel, reference.chatId);
-      }
+    if (!this.deps.abortSession) {
+      return false;
     }
 
-    return false;
+    return mapSessionReference(reference, {
+      bySessionKey: (sessionKey) => this.deps.abortSession!(sessionKey),
+      byChannelChat: (channel, chatId) => this.deps.abortSession!(channel, chatId)
+    }) ?? false;
   }
 
   abortSession(sessionKeyOrChannel: string, chatId?: string): boolean {
@@ -97,16 +97,13 @@ export class AgentRuntime {
       return this.deps.getStatusByReference(reference);
     }
 
-    if (this.deps.getExecutionStatus) {
-      if (typeof reference === 'string') {
-        return this.deps.getExecutionStatus(reference);
-      }
-      if (reference.sessionKey) {
-        return this.deps.getExecutionStatus(reference.sessionKey);
-      }
+    if (!this.deps.getExecutionStatus) {
+      return undefined;
     }
 
-    return undefined;
+    return mapSessionReference(reference, {
+      bySessionKey: (sessionKey) => this.deps.getExecutionStatus!(sessionKey)
+    });
   }
 
   getExecutionStatus(sessionKey: string): ExecutionStatus | undefined {

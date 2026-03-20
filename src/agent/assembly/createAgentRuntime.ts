@@ -7,13 +7,7 @@ export interface CreateAgentRuntimeInput {
 
 export function createAgentRuntime(input: CreateAgentRuntimeInput): AgentRuntime {
   const services = createAgentServices(input.delegate);
-  const runtime = new AgentRuntime(services.facadeDeps);
-
-  runtime.start = services.delegate.start.bind(services.delegate);
-  runtime.stop = services.delegate.stop.bind(services.delegate);
-  runtime.isRunning = services.delegate.isRunning.bind(services.delegate);
-
-  return runtime;
+  return new AgentRuntime(services.facadeDeps, services.delegate);
 }
 
 export async function createConfiguredAgentRuntime(
