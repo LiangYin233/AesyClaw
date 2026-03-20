@@ -1,15 +1,15 @@
 import { join } from 'path';
-import { BuiltInCommands } from '../../agent/commands/index.js';
+import { BuiltInCommands } from '../../agent/legacy-commands/index.js';
 import {
   AgentRuntime,
   OutboundGateway,
   createLegacyCompatibleAgentRuntime
-} from '../../agent-next/index.js';
-import { LongTermMemoryService } from '../../agent/memory/LongTermMemoryService.js';
-import { OpenAIEmbeddingsClient } from '../../agent/memory/OpenAIEmbeddingsClient.js';
-import { SessionMemoryService } from '../../agent/memory/SessionMemoryService.js';
-import { SessionRoutingService } from '../../agent/session/SessionRoutingService.js';
-import { AgentRoleService } from '../../agent/roles/AgentRoleService.js';
+} from '../../agent/index.js';
+import { LongTermMemoryService } from '../../agent/legacy-memory/LongTermMemoryService.js';
+import { OpenAIEmbeddingsClient } from '../../agent/legacy-memory/OpenAIEmbeddingsClient.js';
+import { SessionMemoryService } from '../../agent/legacy-memory/SessionMemoryService.js';
+import { SessionRoutingService } from '../../agent/legacy-session/SessionRoutingService.js';
+import { AgentRoleService } from '../../agent/legacy-roles/AgentRoleService.js';
 import { APIServer } from '../../api/index.js';
 import { ChannelManager } from '../../channels/ChannelManager.js';
 import { loadExternalChannelPlugins } from '../../channels/ChannelPluginLoader.js';
@@ -31,7 +31,7 @@ import type { LLMProvider } from '../../providers/base.js';
 import { LongTermMemoryStore, SessionManager } from '../../session/index.js';
 import { SkillManager } from '../../skills/index.js';
 import { ToolRegistry, registerBuiltInTools } from '../../tools/index.js';
-import { CommandRegistry } from '../../agent/commands/index.js';
+import { CommandRegistry } from '../../agent/legacy-commands/index.js';
 import { MCPClientManager } from '../../mcp/index.js';
 import { startConfiguredMcpServers } from '../../mcp/runtime.js';
 import { PluginManager } from '../../plugins/index.js';

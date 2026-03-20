@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { runSubAgentTasks } from '../../../src/agent-next/application/turn/runSubAgentTasks.js';
+import { runSubAgentTasks } from '../../../src/agent/application/turn/runSubAgentTasks.js';
 
 test('runSubAgentTasks preserves per-task success and error results', async () => {
   const input = {

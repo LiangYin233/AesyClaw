@@ -1,7 +1,7 @@
 import type { InboundMessage } from '../../../src/types.js';
-import type { SessionReference } from '../../../src/agent/types.js';
+import type { SessionReference } from '../../../src/agent/legacy-types.js';
 import type { LLMProvider } from '../../../src/providers/base.js';
-import type { SessionMemoryService } from '../../../src/agent/memory/SessionMemoryService.js';
+import type { SessionMemoryService } from '../../../src/agent/legacy-memory/SessionMemoryService.js';
 import type { VisionSettings } from '../../../src/types.js';
 
 export interface RuntimeDepsFake {

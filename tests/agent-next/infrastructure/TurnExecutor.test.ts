@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { TurnExecutor } from '../../../src/agent-next/infrastructure/execution/TurnExecutor.js';
+import { TurnExecutor } from '../../../src/agent/infrastructure/execution/TurnExecutor.js';
 
 test('TurnExecutor delegates iterative tool work through ToolCallLoop', async () => {
   const context = {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { SessionResolver } from '../../../src/agent-next/infrastructure/session/SessionResolver.js';
+import { SessionResolver } from '../../../src/agent/infrastructure/session/SessionResolver.js';
 import type { InboundMessage } from '../../../src/types.js';
 
 function createMessage(): InboundMessage {

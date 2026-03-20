@@ -8,11 +8,11 @@ import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import { parseAgentRoleInput } from '../mappers/agentRoleMapper.js';
 import { SessionManager } from '../../session/SessionManager.js';
 import { SessionNotFoundError, SessionValidationError } from '../../session/errors.js';
-import type { SessionRoutingService } from '../../agent/session/SessionRoutingService.js';
-import type { AgentRoleService } from '../../agent/roles/AgentRoleService.js';
-import { AgentRoleNotFoundError } from '../../agent/roles/errors.js';
-import type { AgentRuntime } from '../../agent-next/index.js';
-import { assignSessionAgent } from '../../agent/usecases/index.js';
+import type { SessionRoutingService } from '../../agent/legacy-session/SessionRoutingService.js';
+import type { AgentRoleService } from '../../agent/legacy-roles/AgentRoleService.js';
+import { AgentRoleNotFoundError } from '../../agent/legacy-roles/errors.js';
+import type { AgentRuntime } from '../../agent/index.js';
+import { assignSessionAgent } from '../../agent/legacy-usecases/index.js';
 import { badRequest, notFound, serverError, unavailable, wrap } from './helpers.js';
 
 const WEBUI_CHANNEL = 'webui';

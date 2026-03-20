@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { runAgentTurn } from '../../../src/agent-next/application/turn/runAgentTurn.js';
+import { runAgentTurn } from '../../../src/agent/application/turn/runAgentTurn.js';
 
 test('runAgentTurn delegates the turn context to the configured executor', async () => {
   const context = {

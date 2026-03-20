@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createAgentRuntime } from '../../../src/agent-next/index.js';
+import { createAgentRuntime } from '../../../src/agent/index.js';
 import { buildRuntimeDeps } from '../support/fakes.js';
 
 test('createAgentRuntime wires the facade to inbound, direct, status, and abort use cases', async () => {

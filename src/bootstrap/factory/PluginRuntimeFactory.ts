@@ -1,5 +1,5 @@
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
-import type { OutboundGateway } from '../../agent-next/index.js';
+import type { OutboundGateway } from '../../agent/index.js';
 import { PluginManager } from '../../plugins/index.js';
 import type { PluginConfigState } from '../../plugins/index.js';
 import { ConfigLoader } from '../../config/loader.js';

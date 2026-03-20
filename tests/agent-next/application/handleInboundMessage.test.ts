@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { handleInboundMessage } from '../../../src/agent-next/application/inbound/handleInboundMessage.js';
+import { handleInboundMessage } from '../../../src/agent/application/inbound/handleInboundMessage.js';
 import type { InboundMessage } from '../../../src/types.js';
 
 function createMessage(): InboundMessage {

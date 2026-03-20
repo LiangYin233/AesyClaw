@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { AgentRuntime, SessionHandle } from '../../../src/agent-next/index.js';
+import { AgentRuntime, SessionHandle } from '../../../src/agent/index.js';
 import { buildRuntimeDeps } from '../support/fakes.js';
 
 test('SessionHandle binds its reference before delegating inbound handling', async () => {

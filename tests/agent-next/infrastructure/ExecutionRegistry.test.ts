@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ExecutionRegistry } from '../../../src/agent-next/infrastructure/execution/ExecutionRegistry.js';
+import { ExecutionRegistry } from '../../../src/agent/infrastructure/execution/ExecutionRegistry.js';
 
 test('ExecutionRegistry tracks and aborts a running session', () => {
   const registry = new ExecutionRegistry();

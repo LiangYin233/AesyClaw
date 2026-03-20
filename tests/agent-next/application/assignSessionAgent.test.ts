@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { assignSessionAgent, AgentRoleNotFoundError } from '../../../src/agent-next/application/session/assignSessionAgent.js';
+import { assignSessionAgent, AgentRoleNotFoundError } from '../../../src/agent/application/session/assignSessionAgent.js';
 
 test('assignSessionAgent clears the binding when agentName is null', async () => {
   const calls: string[] = [];

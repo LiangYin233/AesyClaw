@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { handleDirectMessage } from '../../../src/agent-next/application/inbound/handleDirectMessage.js';
+import { handleDirectMessage } from '../../../src/agent/application/inbound/handleDirectMessage.js';
 import type { InboundMessage } from '../../../src/types.js';
 
 test('handleDirectMessage binds the provided reference before calling inbound flow', async () => {

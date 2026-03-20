@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { AgentRuntime } from '../../../src/agent-next/index.js';
+import { AgentRuntime } from '../../../src/agent/index.js';
 import { buildRuntimeDeps } from '../support/fakes.js';
 
 test('AgentRuntime delegates direct handling to the configured use case', async () => {
