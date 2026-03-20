@@ -1,4 +1,10 @@
-import type { AdapterInboundDraft, AdapterSendResult, ChannelCapabilityProfile, ChannelMessage, QuoteReference } from './types.js';
+import type {
+  AdapterInboundDraft,
+  AdapterSendResult,
+  ChannelCapabilityProfile,
+  ChannelMessage,
+  QuoteReference
+} from './types.js';
 
 export interface AdapterRuntimeContext {
   workspace: string;
@@ -18,6 +24,10 @@ export interface ChannelAdapter {
   isRunning(): boolean;
   capabilities(): ChannelCapabilityProfile;
   decodeInbound(rawEvent: any): Promise<AdapterInboundDraft | null> | AdapterInboundDraft | null;
+  resolveResource?(
+    resource: import('./types.js').ResourceHandle,
+    rawEvent?: unknown
+  ): Promise<import('./types.js').ResourceHandle | null>;
   fetchQuotedMessage?(reference: QuoteReference, rawEvent?: any): Promise<AdapterInboundDraft | null>;
   send(message: ChannelMessage, context: ChannelSendContext): Promise<AdapterSendResult>;
   classifyError(error: unknown): { retryable: boolean; code: string; message?: string };

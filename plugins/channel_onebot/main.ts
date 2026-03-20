@@ -89,7 +89,15 @@ class OneBotAdapter implements ChannelAdapter {
   }
 
   async decodeInbound(rawEvent: any): Promise<AdapterInboundDraft | null> {
-    if (!rawEvent || rawEvent.post_type !== 'message') {
+    if (!rawEvent || typeof rawEvent !== 'object') {
+      return null;
+    }
+
+    if (rawEvent.post_type === 'notice') {
+      return this.decodeNoticeInbound(rawEvent);
+    }
+
+    if (rawEvent.post_type !== 'message') {
       return null;
     }
 
@@ -125,6 +133,53 @@ class OneBotAdapter implements ChannelAdapter {
       },
       rawEvent
     };
+  }
+
+  async resolveResource(resource: ResourceHandle, rawEvent?: unknown): Promise<ResourceHandle | null> {
+    if (resource.localPath || resource.remoteUrl || !resource.platformFileId || !rawEvent || typeof rawEvent !== 'object') {
+      return resource;
+    }
+
+    const payload = rawEvent as Record<string, any>;
+    const noticeType = payload.notice_type;
+
+    if (noticeType === 'offline_file' && typeof payload.file?.url === 'string') {
+      return {
+        ...resource,
+        originalName: payload.file?.name || resource.originalName,
+        remoteUrl: payload.file.url,
+        size: typeof payload.file?.size === 'number' ? payload.file.size : resource.size
+      };
+    }
+
+    if (noticeType === 'group_upload') {
+      const fileId = payload.file?.id;
+      const busid = payload.file?.busid;
+      const groupId = payload.group_id;
+
+      if (typeof fileId !== 'string' || (typeof busid !== 'number' && typeof busid !== 'string') || (!groupId && groupId !== 0)) {
+        return resource;
+      }
+
+      const response = await this.sendAction('get_group_file_url', {
+        group_id: groupId,
+        file_id: fileId,
+        busid
+      });
+      const remoteUrl = response?.data?.url || response?.url;
+      if (typeof remoteUrl !== 'string' || remoteUrl.length === 0) {
+        return resource;
+      }
+
+      return {
+        ...resource,
+        originalName: payload.file?.name || resource.originalName,
+        remoteUrl,
+        size: typeof payload.file?.size === 'number' ? payload.file.size : resource.size
+      };
+    }
+
+    return resource;
   }
 
   async fetchQuotedMessage(reference: QuoteReference): Promise<AdapterInboundDraft | null> {
@@ -474,20 +529,108 @@ class OneBotAdapter implements ChannelAdapter {
     }
 
     if (postType === 'notice') {
-      this.handleNoticeEvent(payload);
+      void this.handleNoticeEvent(payload);
     }
   }
 
-  private handleNoticeEvent(payload: any): void {
+  private async handleNoticeEvent(payload: any): Promise<void> {
     const noticeType = payload.notice_type;
-    if (noticeType === 'offline_file' || noticeType === 'group_upload') {
-      this.log.debug('OneBot file notice ignored', {
+    if (noticeType !== 'offline_file' && noticeType !== 'group_upload') {
+      return;
+    }
+
+    try {
+      await this.runtimeContext?.ingest(payload);
+    } catch (error) {
+      this.log.error('OneBot 文件通知分发失败', {
         noticeType,
         userId: payload.user_id?.toString(),
         groupId: payload.group_id?.toString(),
-        fileName: payload.file?.name
+        fileName: payload.file?.name,
+        error: error instanceof Error ? error.message : String(error)
       });
     }
+  }
+
+  private decodeNoticeInbound(payload: any): AdapterInboundDraft | null {
+    const noticeType = payload.notice_type;
+    const senderId = payload.user_id?.toString();
+
+    if (noticeType === 'offline_file') {
+      if (!senderId || !this.isAllowed(senderId, 'private')) {
+        return null;
+      }
+
+      return {
+        conversation: {
+          id: senderId,
+          type: 'private'
+        },
+        sender: {
+          id: senderId,
+          isSelf: this.selfId ? senderId === this.selfId : false
+        },
+        timestamp: payload.time ? new Date(payload.time * 1000) : new Date(),
+        segments: [
+          {
+            type: 'file',
+            resource: {
+              resourceId: randomUUID().slice(0, 8),
+              kind: 'file',
+              originalName: payload.file?.name || 'file',
+              remoteUrl: typeof payload.file?.url === 'string' ? payload.file.url : undefined,
+              size: typeof payload.file?.size === 'number' ? payload.file.size : undefined,
+              platformFileId: typeof payload.file?.url === 'string' ? undefined : payload.file?.name
+            }
+          }
+        ],
+        metadata: {
+          source: 'user',
+          noticeType
+        },
+        rawEvent: payload
+      };
+    }
+
+    if (noticeType === 'group_upload') {
+      const groupId = payload.group_id?.toString();
+      const fileId = payload.file?.id;
+
+      if (!senderId || !groupId || typeof fileId !== 'string' || !this.isAllowed(senderId, 'group')) {
+        return null;
+      }
+
+      return {
+        conversation: {
+          id: groupId,
+          type: 'group'
+        },
+        sender: {
+          id: senderId,
+          isSelf: this.selfId ? senderId === this.selfId : false
+        },
+        timestamp: payload.time ? new Date(payload.time * 1000) : new Date(),
+        segments: [
+          {
+            type: 'file',
+            resource: {
+              resourceId: randomUUID().slice(0, 8),
+              kind: 'file',
+              originalName: payload.file?.name || 'file',
+              size: typeof payload.file?.size === 'number' ? payload.file.size : undefined,
+              platformFileId: fileId
+            }
+          }
+        ],
+        metadata: {
+          source: 'user',
+          noticeType
+        },
+        rawEvent: payload
+      };
+    }
+
+    return null;
   }
 
   private shouldIgnoreMessageEvent(payload: any): boolean {

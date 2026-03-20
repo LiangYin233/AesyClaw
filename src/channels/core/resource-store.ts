@@ -7,6 +7,8 @@ import { logger } from '../../observability/index.js';
 import { formatLocalTimestamp } from '../../observability/logging.js';
 import type { ChannelMessage, MessageSegment, ResourceHandle } from './types.js';
 
+type ResourceResolver = (resource: ResourceHandle, rawEvent?: unknown) => Promise<ResourceHandle | null>;
+
 function sanitizePathPart(value: string | undefined, fallback: string): string {
   const sanitized = (value || fallback)
     .split('')
@@ -42,10 +44,17 @@ export class ResourceStore {
     readonly assetsRoot: string
   ) {}
 
-  async ensureLocalResources(message: ChannelMessage): Promise<ChannelMessage> {
+  async ensureLocalResources(message: ChannelMessage, resolveResource?: ResourceResolver): Promise<ChannelMessage> {
     return {
       ...message,
-      segments: await this.mapSegments(message.channel, message.conversation.id, message.id, message.segments)
+      segments: await this.mapSegments(
+        message.channel,
+        message.conversation.id,
+        message.id,
+        message.segments,
+        message.rawEvent,
+        resolveResource
+      )
     };
   }
 
@@ -53,7 +62,9 @@ export class ResourceStore {
     channel: string,
     conversationId: string,
     messageId: string,
-    segments: MessageSegment[]
+    segments: MessageSegment[],
+    rawEvent?: unknown,
+    resolveResource?: ResourceResolver
   ): Promise<MessageSegment[]> {
     const mapped: MessageSegment[] = [];
 
@@ -65,7 +76,14 @@ export class ResourceStore {
         case 'video':
           mapped.push({
             ...segment,
-            resource: await this.ensureResourceLocal(channel, conversationId, messageId, segment.resource)
+            resource: await this.ensureResourceLocal(
+              channel,
+              conversationId,
+              messageId,
+              segment.resource,
+              rawEvent,
+              resolveResource
+            )
           });
           break;
         case 'quote':
@@ -78,7 +96,9 @@ export class ResourceStore {
                     segment.message.channel,
                     segment.message.conversation.id,
                     segment.message.id,
-                    segment.message.segments
+                    segment.message.segments,
+                    segment.message.rawEvent,
+                    resolveResource
                   )
                 }
               : undefined
@@ -97,10 +117,14 @@ export class ResourceStore {
     channel: string,
     conversationId: string,
     messageId: string,
-    resource: ResourceHandle
+    resource: ResourceHandle,
+    rawEvent?: unknown,
+    resolveResource?: ResourceResolver
   ): Promise<ResourceHandle> {
+    const resolvedResource = await this.resolveResource(resource, rawEvent, resolveResource);
+    const effectiveResource = resolvedResource ?? resource;
     const resourceRecordId = `${channel}:${conversationId}:${messageId}:${resource.resourceId}`;
-    const sourceLocalPath = this.resolveSourceLocalPath(resource);
+    const sourceLocalPath = this.resolveSourceLocalPath(effectiveResource);
     const targetDir = join(
       this.assetsRoot,
       sanitizePathPart(channel, 'channel'),
@@ -109,12 +133,12 @@ export class ResourceStore {
     );
     await mkdir(targetDir, { recursive: true });
 
-    const targetName = `${sanitizePathPart(resource.resourceId, 'resource')}-${sanitizePathPart(this.resolveFileName(resource), `${resource.kind}`)}`;
+    const targetName = `${sanitizePathPart(resource.resourceId, 'resource')}-${sanitizePathPart(this.resolveFileName(effectiveResource), `${resource.kind}`)}`;
     const targetPath = join(targetDir, targetName);
 
-    let finalPath = resource.localPath;
-    let size = resource.size;
-    let sha256 = resource.sha256;
+    let finalPath = effectiveResource.localPath;
+    let size = effectiveResource.size;
+    let sha256 = effectiveResource.sha256;
 
     try {
       if (sourceLocalPath && await pathExists(sourceLocalPath)) {
@@ -128,9 +152,9 @@ export class ResourceStore {
         size = buffer.length;
         sha256 = createHash('sha256').update(buffer).digest('hex');
         finalPath = resolvedTarget;
-      } else if (resource.remoteUrl && isHttpUrl(resource.remoteUrl)) {
-        const response = await fetch(resource.remoteUrl, {
-          headers: resource.downloadHeaders
+      } else if (effectiveResource.remoteUrl && isHttpUrl(effectiveResource.remoteUrl)) {
+        const response = await fetch(effectiveResource.remoteUrl, {
+          headers: effectiveResource.downloadHeaders
         });
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
@@ -154,7 +178,8 @@ export class ResourceStore {
     }
 
     const hydrated: ResourceHandle = {
-      ...resource,
+      ...effectiveResource,
+      resourceId: resource.resourceId,
       localPath: finalPath,
       size,
       sha256
@@ -181,11 +206,11 @@ export class ResourceStore {
         conversationId,
         messageId,
         resource.kind,
-        resource.originalName,
-        resource.mimeType || null,
+        hydrated.originalName,
+        hydrated.mimeType || null,
         size || null,
-        resource.remoteUrl || null,
-        resource.platformFileId || null,
+        hydrated.remoteUrl || null,
+        hydrated.platformFileId || null,
         finalPath || null,
         sha256 || null,
         now,
@@ -194,6 +219,37 @@ export class ResourceStore {
     );
 
     return hydrated;
+  }
+
+  private async resolveResource(
+    resource: ResourceHandle,
+    rawEvent: unknown,
+    resolveResource?: ResourceResolver
+  ): Promise<ResourceHandle | null> {
+    if (!resolveResource || resource.localPath || resource.remoteUrl || !resource.platformFileId) {
+      return resource;
+    }
+
+    try {
+      const resolved = await resolveResource(resource, rawEvent);
+      if (!resolved) {
+        return resource;
+      }
+
+      return {
+        ...resource,
+        ...resolved,
+        resourceId: resource.resourceId,
+        kind: resource.kind
+      };
+    } catch (error) {
+      this.log.warn('资源补全失败', {
+        resourceId: resource.resourceId,
+        kind: resource.kind,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return resource;
+    }
   }
 
   private resolveSourceLocalPath(resource: ResourceHandle): string | undefined {

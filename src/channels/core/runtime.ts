@@ -182,7 +182,10 @@ export class ChannelRuntime {
 
     let message = this.materializeDraft(channel, draft, 'inbound');
     message = await this.expandQuotes(adapter, message, rawEvent);
-    message = await this.resourceStore.ensureLocalResources(message);
+    message = await this.resourceStore.ensureLocalResources(
+      message,
+      adapter.resolveResource?.bind(adapter)
+    );
 
     const projected = projectMessage(message);
     message = { ...message, projection: projected.projection };
