@@ -19,9 +19,9 @@ export function createAgentRuntime(input: CreateAgentRuntimeInput): AgentRuntime
 export async function createConfiguredAgentRuntime(
   runtimeOptions: unknown
 ): Promise<AgentRuntime> {
-  const runtimeModule = await import('../../agent/core-runtime/AgentRuntime.js');
-  const delegate = new runtimeModule.AgentRuntime(
-    runtimeOptions as ConstructorParameters<typeof runtimeModule.AgentRuntime>[0]
+  const runtimeModule = await import('../infrastructure/runtime/RuntimeCoordinator.js');
+  const delegate = new runtimeModule.RuntimeCoordinator(
+    runtimeOptions as ConstructorParameters<typeof runtimeModule.RuntimeCoordinator>[0]
   );
 
   return createAgentRuntime({ delegate });

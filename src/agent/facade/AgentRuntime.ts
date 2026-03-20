@@ -4,7 +4,7 @@ import type { AgentRuntimeDeps } from '../domain/ports.js';
 import type { SessionReference } from '../domain/session.js';
 import { SessionHandle } from './SessionHandle.js';
 import type { LLMProvider } from '../../providers/base.js';
-import type { SessionMemoryService } from '../../agent/core-memory/SessionMemoryService.js';
+import type { SessionMemoryService } from '../infrastructure/memory/SessionMemoryService.js';
 import type { VisionSettings } from '../../types.js';
 
 export class AgentRuntime {

@@ -1,12 +1,12 @@
-import type { AgentTurnContext } from '../inbound/handleInboundMessage.js';
+import type { ExecutionContext } from '../../infrastructure/execution/ExecutionTypes.js';
 
 export interface RunAgentTurnDeps {
-  executeTurn: (context: AgentTurnContext) => Promise<string | undefined>;
+  executeTurn: (context: ExecutionContext) => Promise<string | undefined>;
 }
 
 export async function runAgentTurn(
   deps: RunAgentTurnDeps,
-  input: AgentTurnContext
+  input: ExecutionContext
 ): Promise<string | undefined> {
   return deps.executeTurn(input);
 }

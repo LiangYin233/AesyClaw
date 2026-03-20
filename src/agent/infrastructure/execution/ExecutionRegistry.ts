@@ -1,44 +1,64 @@
-import type { ExecutionStatus } from '../../domain/execution.js';
+export interface ForegroundExecutionHandle {
+  sessionKey: string;
+  status: 'running' | 'aborted';
+  scope?: 'chat' | 'session' | 'backgroundTask';
+  channel?: string;
+  chatId?: string;
+  startedAt?: Date;
+}
 
 interface ExecutionEntry {
   controller: AbortController;
-  status: ExecutionStatus;
+  handle: ForegroundExecutionHandle;
 }
 
 export class ExecutionRegistry {
-  private readonly entries = new Map<string, ExecutionEntry>();
+  private controllers = new Map<string, ExecutionEntry>();
 
-  start(
-    sessionKey: string,
-    controller = new AbortController(),
-    metadata?: Pick<ExecutionStatus, 'channel' | 'chatId'>
+  begin(
+    key: string,
+    controller?: AbortController,
+    metadata?: Omit<ForegroundExecutionHandle, 'sessionKey' | 'status'>
   ): AbortController {
-    this.entries.set(sessionKey, {
-      controller,
-      status: {
-        sessionKey,
-        active: !controller.signal.aborted,
+    const activeController = controller ?? new AbortController();
+    this.controllers.set(key, {
+      controller: activeController,
+      handle: {
+        sessionKey: key,
+        status: activeController.signal.aborted ? 'aborted' : 'running',
+        scope: metadata?.scope || 'session',
         channel: metadata?.channel,
-        chatId: metadata?.chatId
+        chatId: metadata?.chatId,
+        startedAt: metadata?.startedAt || new Date()
       }
     });
-    return controller;
+    return activeController;
   }
 
-  getStatus(sessionKey: string): ExecutionStatus | undefined {
-    const entry = this.entries.get(sessionKey);
+  get(key: string): AbortController | undefined {
+    return this.controllers.get(key)?.controller;
+  }
+
+  getHandle(key: string): ForegroundExecutionHandle | undefined {
+    const entry = this.controllers.get(key);
     if (!entry) {
       return undefined;
     }
 
     return {
-      ...entry.status,
-      active: !entry.controller.signal.aborted
+      ...entry.handle,
+      status: entry.controller.signal.aborted ? 'aborted' : 'running'
     };
   }
 
-  abortBySessionKey(sessionKey: string): boolean {
-    const entry = this.entries.get(sessionKey);
+  listHandles(): ForegroundExecutionHandle[] {
+    return Array.from(this.controllers.keys())
+      .map((sessionKey) => this.getHandle(sessionKey))
+      .filter((handle): handle is ForegroundExecutionHandle => !!handle);
+  }
+
+  abort(key: string): boolean {
+    const entry = this.controllers.get(key);
     if (!entry) {
       return false;
     }
@@ -47,7 +67,14 @@ export class ExecutionRegistry {
     return true;
   }
 
-  end(sessionKey: string): void {
-    this.entries.delete(sessionKey);
+  end(key: string, controller?: AbortController): void {
+    const current = this.controllers.get(key);
+    if (!current) {
+      return;
+    }
+
+    if (!controller || current.controller === controller) {
+      this.controllers.delete(key);
+    }
   }
 }

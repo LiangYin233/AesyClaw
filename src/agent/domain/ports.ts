@@ -2,7 +2,7 @@ import type { InboundMessage } from '../../types.js';
 import type { ExecutionStatus } from './execution.js';
 import type { SessionReference } from './session.js';
 import type { LLMProvider } from '../../providers/base.js';
-import type { SessionMemoryService } from '../../agent/core-memory/SessionMemoryService.js';
+import type { SessionMemoryService } from '../infrastructure/memory/SessionMemoryService.js';
 import type { VisionSettings } from '../../types.js';
 
 export interface AgentRuntimeDeps {

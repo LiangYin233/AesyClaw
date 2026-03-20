@@ -1,7 +1,7 @@
 import { logger } from '../../observability/index.js';
 import type { Services } from '../factory/ServiceFactory.js';
 import type { CronJob } from '../../cron/index.js';
-import { dispatchCronJob as dispatchCronJobUsecase } from '../../agent/core-usecases/index.js';
+import { dispatchCronJob as dispatchCronJobUsecase } from '../../agent/application/index.js';
 
 const log = logger.child('Bootstrap');
 export async function dispatchCronJob(services: Services, workspace: string, job: CronJob): Promise<void> {

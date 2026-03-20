@@ -1,14 +1,8 @@
 import type { ToolContext } from '../../../tools/ToolRegistry.js';
 import type { InboundMessage } from '../../../types.js';
+import type { ExecutionContext } from '../../infrastructure/execution/ExecutionTypes.js';
 
-export interface AgentTurnContext {
-  sessionKey: string;
-  channel: string;
-  chatId: string;
-  messageType?: 'private' | 'group';
-  suppressOutbound?: boolean;
-  toolContext: ToolContext;
-}
+export type AgentTurnContext = ExecutionContext;
 
 export type InboundPipelineResult =
   | { type: 'handled' }

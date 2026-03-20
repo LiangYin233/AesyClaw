@@ -11,7 +11,7 @@ import type { CronService } from '../cron/index.js';
 import type { MCPClientManager } from '../mcp/MCPClient.js';
 import type { SkillManager } from '../skills/SkillManager.js';
 import type { ToolRegistry } from '../tools/ToolRegistry.js';
-import type { SessionRoutingService } from '../agent/core-session/SessionRoutingService.js';
+import type { SessionRoutingService } from '../agent/infrastructure/session/SessionRoutingService.js';
 import { RuntimeConfigStore } from '../config/RuntimeConfigStore.js';
 import { ConfigManager } from '../config/ConfigManager.js';
 import { createErrorResponse } from './errors.js';
@@ -24,7 +24,7 @@ import { registerMCPRoutes } from './routes/mcp.js';
 import { registerObservabilityRoutes } from './routes/observability.js';
 import { registerSkillRoutes } from './routes/skills.js';
 import type { LongTermMemoryStore } from '../session/LongTermMemoryStore.js';
-import type { AgentRoleService } from '../agent/core-roles/AgentRoleService.js';
+import type { AgentRoleService } from '../agent/infrastructure/roles/AgentRoleService.js';
 
 const MAX_MESSAGE_LENGTH = 50000;
 

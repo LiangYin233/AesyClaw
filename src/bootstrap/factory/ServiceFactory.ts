@@ -1,15 +1,15 @@
 import { join } from 'path';
-import { BuiltInCommands } from '../../agent/core-commands/index.js';
+import { BuiltInCommands } from '../../agent/application/index.js';
 import {
   AgentRuntime,
   OutboundGateway,
   createConfiguredAgentRuntime
 } from '../../agent/index.js';
-import { LongTermMemoryService } from '../../agent/core-memory/LongTermMemoryService.js';
-import { OpenAIEmbeddingsClient } from '../../agent/core-memory/OpenAIEmbeddingsClient.js';
-import { SessionMemoryService } from '../../agent/core-memory/SessionMemoryService.js';
-import { SessionRoutingService } from '../../agent/core-session/SessionRoutingService.js';
-import { AgentRoleService } from '../../agent/core-roles/AgentRoleService.js';
+import { LongTermMemoryService } from '../../agent/infrastructure/memory/LongTermMemoryService.js';
+import { OpenAIEmbeddingsClient } from '../../agent/infrastructure/memory/OpenAIEmbeddingsClient.js';
+import { SessionMemoryService } from '../../agent/infrastructure/memory/SessionMemoryService.js';
+import { SessionRoutingService } from '../../agent/infrastructure/session/SessionRoutingService.js';
+import { AgentRoleService } from '../../agent/infrastructure/roles/AgentRoleService.js';
 import { APIServer } from '../../api/index.js';
 import { ChannelManager } from '../../channels/ChannelManager.js';
 import { loadExternalChannelPlugins } from '../../channels/ChannelPluginLoader.js';
@@ -31,7 +31,7 @@ import type { LLMProvider } from '../../providers/base.js';
 import { LongTermMemoryStore, SessionManager } from '../../session/index.js';
 import { SkillManager } from '../../skills/index.js';
 import { ToolRegistry, registerBuiltInTools } from '../../tools/index.js';
-import { CommandRegistry } from '../../agent/core-commands/index.js';
+import { CommandRegistry } from '../../agent/application/index.js';
 import { MCPClientManager } from '../../mcp/index.js';
 import { startConfiguredMcpServers } from '../../mcp/runtime.js';
 import { PluginManager } from '../../plugins/index.js';
