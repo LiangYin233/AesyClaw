@@ -1,6 +1,7 @@
 <template>
   <header class="page-header">
     <div class="page-header__surface">
+      <div class="page-header__eyebrow">中文控制台</div>
       <div class="page-header__main">
         <div class="page-header__copy">
           <h1 :id="titleId" class="page-title">{{ title }}</h1>
@@ -39,11 +40,20 @@ const titleId = useUniqueId('page-title')
   padding: var(--ui-space-5);
   border-radius: var(--ui-radius-lg);
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(248, 250, 252, 0.84)),
-    linear-gradient(180deg, rgba(37, 99, 235, 0.08), transparent 50%);
+    radial-gradient(circle at top right, color-mix(in srgb, var(--ui-accent-strong) 14%, transparent), transparent 32%),
+    linear-gradient(135deg, color-mix(in srgb, var(--ui-panel-strong) 92%, transparent), color-mix(in srgb, var(--ui-panel) 90%, transparent));
   border: 1px solid var(--ui-border);
   box-shadow: var(--ui-shadow-sm);
   backdrop-filter: blur(18px);
+}
+
+.page-header__eyebrow {
+  margin-bottom: 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ui-text-faint);
 }
 
 .page-header__main {
@@ -84,16 +94,6 @@ const titleId = useUniqueId('page-title')
   max-width: 100%;
 }
 
-.page-header__actions :deep(.p-button),
-.page-header__actions :deep(.p-inputtext),
-.page-header__actions :deep(.p-select),
-.page-header__actions :deep(.p-multiselect),
-.page-header__actions :deep(.p-inputnumber),
-.page-header__actions :deep(.p-password),
-.page-header__actions :deep(.p-inputwrapper) {
-  max-width: 100%;
-}
-
 .page-header__notice {
   margin-top: var(--ui-space-4);
 }
@@ -111,24 +111,6 @@ const titleId = useUniqueId('page-title')
   .page-header__actions {
     width: 100%;
     justify-content: stretch;
-  }
-
-  .page-header__actions :deep(.p-button),
-  .page-header__actions :deep(.p-inputtext),
-  .page-header__actions :deep(.p-select),
-  .page-header__actions :deep(.p-multiselect),
-  .page-header__actions :deep(.p-inputnumber),
-  .page-header__actions :deep(.p-password),
-  .page-header__actions :deep(.p-inputwrapper) {
-    width: 100%;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  .page-header__surface {
-    background:
-      linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(15, 23, 42, 0.84)),
-      linear-gradient(180deg, rgba(37, 99, 235, 0.16), transparent 52%);
   }
 }
 </style>

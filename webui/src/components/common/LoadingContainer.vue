@@ -10,7 +10,7 @@
     </div>
 
     <div v-else-if="error" class="error-container" role="alert">
-      <i class="pi pi-exclamation-triangle error-icon" aria-hidden="true"></i>
+      <UiIcon name="warning" size="lg" class="error-icon" />
       <div class="error-content">
         <p class="error-title">{{ errorTitle }}</p>
         <p class="error-message">{{ error }}</p>
@@ -18,7 +18,7 @@
       <Button
         v-if="onRetry"
         label="重试"
-        icon="pi pi-refresh"
+        icon="refresh"
         severity="secondary"
         @click="onRetry"
         aria-label="重试加载"
@@ -33,6 +33,7 @@
 import ProgressSpinner from 'primevue/progressspinner'
 import Button from 'primevue/button'
 import Skeleton from 'primevue/skeleton'
+import UiIcon from '../ui/UiIcon.vue'
 
 interface Props {
   loading?: boolean
@@ -69,9 +70,9 @@ withDefaults(defineProps<Props>(), {
   gap: var(--ui-space-4);
   min-height: 240px;
   padding: var(--ui-space-8) var(--ui-space-6);
-  border-radius: var(--ui-radius-md);
+  border-radius: var(--ui-radius-lg);
   border: 1px solid var(--ui-border);
-  background: var(--ui-surface);
+  background: var(--ui-panel);
   box-shadow: var(--ui-shadow-sm);
   text-align: center;
 }
@@ -99,7 +100,6 @@ withDefaults(defineProps<Props>(), {
 }
 
 .error-icon {
-  font-size: 2rem;
   color: var(--ui-danger);
 }
 
@@ -113,7 +113,7 @@ withDefaults(defineProps<Props>(), {
   margin: 0;
   font-size: 1rem;
   font-weight: 700;
-  color: var(--ui-danger-strong);
+  color: var(--ui-danger-text);
 }
 
 .error-message {

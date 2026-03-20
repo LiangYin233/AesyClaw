@@ -5,7 +5,7 @@
         <span class="stat-label" id="version-label">版本</span>
         <span class="stat-value" aria-labelledby="version-label">{{ version }}</span>
       </div>
-      <div class="stat-icon" aria-hidden="true"><i class="pi pi-info-circle"></i></div>
+      <div class="stat-icon" aria-hidden="true"><UiIcon name="info" /></div>
     </div>
 
     <div class="stat-card" role="article" aria-label="运行时间">
@@ -13,7 +13,7 @@
         <span class="stat-label" id="uptime-label">运行时间</span>
         <span class="stat-value" aria-labelledby="uptime-label">{{ formatUptime(uptime) }}</span>
       </div>
-      <div class="stat-icon" aria-hidden="true"><i class="pi pi-clock"></i></div>
+      <div class="stat-icon" aria-hidden="true"><UiIcon name="clock" /></div>
     </div>
 
     <div class="stat-card" role="article" aria-label="会话统计">
@@ -21,7 +21,7 @@
         <span class="stat-label" id="sessions-label">会话数</span>
         <span class="stat-value" aria-labelledby="sessions-label">{{ sessionCount }}</span>
       </div>
-      <div class="stat-icon" aria-hidden="true"><i class="pi pi-comments"></i></div>
+      <div class="stat-icon" aria-hidden="true"><UiIcon name="comments" /></div>
     </div>
 
     <div class="stat-card" role="article" aria-label="Agent 状态">
@@ -32,13 +32,15 @@
         </span>
       </div>
       <div class="stat-icon" :class="agentRunning ? 'icon-success' : 'icon-danger'" aria-hidden="true">
-        <i :class="agentRunning ? 'pi pi-play' : 'pi pi-stop'"></i>
+        <UiIcon :name="agentRunning ? 'play' : 'stop'" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import UiIcon from '../ui/UiIcon.vue'
+
 defineProps<{
   version: string
   uptime: number
@@ -57,9 +59,9 @@ defineProps<{
 }
 
 .stat-card {
-  background: var(--ui-surface-strong);
+  background: var(--ui-panel);
   border: 1px solid var(--ui-border);
-  border-radius: 12px;
+  border-radius: 1.25rem;
   padding: 20px;
   display: flex;
   justify-content: space-between;
@@ -87,8 +89,8 @@ defineProps<{
 .stat-icon {
   width: 48px;
   height: 48px;
-  border-radius: 8px;
-  background: var(--ui-surface-muted);
+  border-radius: 1rem;
+  background: var(--ui-panel-alt);
   display: flex;
   align-items: center;
   justify-content: center;

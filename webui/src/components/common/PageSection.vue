@@ -27,6 +27,7 @@ defineProps<Props>()
 <style scoped>
 .page-section {
   padding: var(--ui-space-5);
+  border-radius: 1.4rem;
 }
 
 .page-section__header {

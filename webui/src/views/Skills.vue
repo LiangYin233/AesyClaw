@@ -1,6 +1,6 @@
 <template>
     <div class="skills-page page-stack">
-        <PageHeader title="Skills 管理" subtitle="查看内置与外置 Skills，并管理可配置的外置 Skill。">
+        <PageHeader title="技能管理" subtitle="查看内置与外置技能，并管理可配置的外置技能。">
             <template #actions>
                 <Button label="刷新" icon="pi pi-refresh" outlined @click="reloadAllSkills" :loading="loading || reloading" />
             </template>

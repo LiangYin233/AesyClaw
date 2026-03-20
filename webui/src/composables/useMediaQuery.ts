@@ -1,6 +1,6 @@
 // Mobile detection and responsive utilities
 import { ref, onMounted, onUnmounted } from 'vue'
-import { useThrottle } from './useThrottle'
+import { throttle } from './useThrottle'
 
 /**
  * Detect if device is mobile based on screen width
@@ -9,6 +9,7 @@ import { useThrottle } from './useThrottle'
  */
 export function useMediaQuery(breakpoint: number = 768) {
   const isMobile = ref(false)
+  let throttledCheck: (() => void) | null = null
 
   const checkMobile = () => {
     isMobile.value = window.innerWidth < breakpoint
@@ -16,12 +17,14 @@ export function useMediaQuery(breakpoint: number = 768) {
 
   onMounted(() => {
     checkMobile()
-    const throttledCheck = useThrottle(checkMobile, 200)
+    throttledCheck = throttle(checkMobile, 200)
     window.addEventListener('resize', throttledCheck)
+  })
 
-    onUnmounted(() => {
+  onUnmounted(() => {
+    if (throttledCheck) {
       window.removeEventListener('resize', throttledCheck)
-    })
+    }
   })
 
   return {
@@ -36,6 +39,7 @@ export function useMediaQuery(breakpoint: number = 768) {
 export function useWindowSize() {
   const width = ref(0)
   const height = ref(0)
+  let throttledUpdate: (() => void) | null = null
 
   const update = () => {
     width.value = window.innerWidth
@@ -44,12 +48,14 @@ export function useWindowSize() {
 
   onMounted(() => {
     update()
-    const throttledUpdate = useThrottle(update, 200)
+    throttledUpdate = throttle(update, 200)
     window.addEventListener('resize', throttledUpdate)
+  })
 
-    onUnmounted(() => {
+  onUnmounted(() => {
+    if (throttledUpdate) {
       window.removeEventListener('resize', throttledUpdate)
-    })
+    }
   })
 
   return {
@@ -64,20 +70,20 @@ export function useWindowSize() {
  */
 export function usePrefersReducedMotion() {
   const prefersReducedMotion = ref(false)
+  let mediaQuery: MediaQueryList | null = null
+  const handler = (e: MediaQueryListEvent) => {
+    prefersReducedMotion.value = e.matches
+  }
 
   onMounted(() => {
-    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+    mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
     prefersReducedMotion.value = mediaQuery.matches
 
-    const handler = (e: MediaQueryListEvent) => {
-      prefersReducedMotion.value = e.matches
-    }
-
     mediaQuery.addEventListener('change', handler)
+  })
 
-    onUnmounted(() => {
-      mediaQuery.removeEventListener('change', handler)
-    })
+  onUnmounted(() => {
+    mediaQuery?.removeEventListener('change', handler)
   })
 
   return {

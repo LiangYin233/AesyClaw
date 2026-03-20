@@ -1,6 +1,6 @@
 <template>
     <div class="chat-page">
-        <PageHeader title="聊天" subtitle="发送消息并管理当前会话">
+        <PageHeader title="对话" subtitle="发送消息、切换会话并为当前上下文指定 Agent。">
             <template #actions>
                 <div class="chat-toolbar">
                     <label for="session-key-input" class="sr-only">会话ID</label>

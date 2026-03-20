@@ -1,7 +1,7 @@
 <template>
   <Dialog v-model:visible="visibleModel" :header="title" modal :style="{ width: '450px' }">
     <div class="confirm-content">
-      <i class="pi pi-exclamation-triangle confirm-icon"></i>
+      <UiIcon name="warning" size="lg" class="confirm-icon" />
       <span>{{ message }}</span>
     </div>
     <template #footer>
@@ -15,6 +15,7 @@
 import { computed } from 'vue'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
+import UiIcon from '../ui/UiIcon.vue'
 
 interface Props {
   visible: boolean
@@ -49,7 +50,6 @@ const visibleModel = computed({
 }
 
 .confirm-icon {
-  font-size: 2rem;
-  color: var(--red-500);
+  color: var(--ui-warning);
 }
 </style>

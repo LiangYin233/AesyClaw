@@ -4,7 +4,7 @@
     <template #content>
       <EmptyState
         v-if="!channels || Object.keys(channels).length === 0"
-        icon="pi pi-inbox"
+        icon="inbox"
         title="暂无通道数据"
         description="系统中没有配置任何通道"
       />
@@ -28,7 +28,7 @@
             v-if="getConnectedState(value) !== undefined"
             :value="getConnectedState(value) ? '已连接' : '未连接'"
             :severity="getConnectedState(value) ? 'success' : 'warn'"
-            icon="pi pi-circle-fill"
+            icon="circle-fill"
           />
         </div>
       </div>
@@ -58,7 +58,6 @@ function buildAriaLabel(key: string, value: ChannelStatus): string {
 
 <style scoped>
 .channels-card {
-  box-shadow: var(--ui-shadow-sm);
   margin-bottom: 24px;
 }
 
@@ -73,9 +72,9 @@ function buildAriaLabel(key: string, value: ChannelStatus): string {
   justify-content: space-between;
   align-items: center;
   padding: 16px;
-  background: var(--ui-surface-muted);
-  border-radius: 8px;
-  border: 1px solid var(--ui-border);
+  background: var(--ui-panel-alt);
+  border-radius: 1rem;
+  border: 1px solid var(--ui-border-subtle);
 }
 
 .channel-info {

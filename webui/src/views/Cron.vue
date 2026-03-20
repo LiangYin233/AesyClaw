@@ -343,12 +343,12 @@ function getScheduleLabel(schedule: CronJob['schedule']): string {
     }
 }
 
-function getScheduleSeverity(schedule: CronJob['schedule']): string {
+function getScheduleSeverity(schedule: CronJob['schedule']): 'info' | 'success' | 'warning' | 'contrast' {
     switch (schedule.kind) {
         case 'once': return 'info'
         case 'interval': return 'warning'
         case 'daily': return 'success'
-        case 'cron': return 'help'
+        case 'cron': return 'contrast'
         default: return 'info'
     }
 }

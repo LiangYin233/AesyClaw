@@ -1,6 +1,6 @@
 <template>
     <div class="logs-page page-stack">
-        <PageHeader title="日志管理" subtitle="以更清晰的运行面板视图查看最近日志与日志级别。">
+        <PageHeader title="观测日志" subtitle="以更清晰的运行面板视图查看最近日志与日志级别。">
             <template #actions>
                 <Button label="刷新" icon="pi pi-refresh" outlined @click="refreshAll" :loading="loading || entriesLoading" />
             </template>

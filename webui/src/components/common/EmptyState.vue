@@ -1,7 +1,7 @@
 <template>
   <div class="empty-state" role="status">
     <div class="empty-state__icon-shell">
-      <i v-if="icon" :class="icon" class="empty-icon" aria-hidden="true"></i>
+      <UiIcon v-if="icon" :name="icon" size="lg" />
     </div>
     <div class="empty-content">
       <p class="empty-title">{{ title }}</p>
@@ -14,6 +14,8 @@
 </template>
 
 <script setup lang="ts">
+import UiIcon from '../ui/UiIcon.vue'
+
 interface Props {
   icon?: string
   title: string
@@ -21,7 +23,7 @@ interface Props {
 }
 
 withDefaults(defineProps<Props>(), {
-  icon: 'pi pi-inbox'
+  icon: 'inbox'
 })
 </script>
 
@@ -34,7 +36,7 @@ withDefaults(defineProps<Props>(), {
   gap: var(--ui-space-4);
   padding: var(--ui-space-10) var(--ui-space-6);
   text-align: center;
-  background: var(--ui-surface);
+  background: var(--ui-panel);
   border: 1px dashed var(--ui-border-strong);
   border-radius: var(--ui-radius-lg);
   box-shadow: var(--ui-shadow-sm);
@@ -47,12 +49,8 @@ withDefaults(defineProps<Props>(), {
   width: 72px;
   height: 72px;
   border-radius: 999px;
-  background: var(--ui-primary-soft);
-  color: var(--ui-primary);
-}
-
-.empty-icon {
-  font-size: 30px;
+  background: color-mix(in srgb, var(--ui-accent-strong) 12%, transparent);
+  color: var(--ui-accent-strong);
 }
 
 .empty-content {

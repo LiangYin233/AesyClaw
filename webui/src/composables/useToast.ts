@@ -5,6 +5,21 @@ import { announceToScreenReader } from './useA11y'
 export function useToast() {
   const uiStore = useUiStore()
 
+  function add(input: {
+    severity?: 'success' | 'info' | 'warn' | 'warning' | 'error'
+    summary: string
+    detail?: string
+    life?: number
+  }) {
+    const severity = input.severity === 'warning' ? 'warn' : (input.severity ?? 'info')
+    return uiStore.showToast({
+      severity,
+      summary: input.summary,
+      detail: input.detail,
+      life: input.life
+    })
+  }
+
   function success(summary: string, detail?: string) {
     announceToScreenReader(`成功：${summary}`, 'polite')
     return uiStore.success(summary, detail)
@@ -34,6 +49,7 @@ export function useToast() {
   }
 
   return {
+    add,
     success,
     info,
     warn,
