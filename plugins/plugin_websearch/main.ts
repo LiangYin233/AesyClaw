@@ -46,6 +46,7 @@ async function fetchTavily(endpoint: string, body: Record<string, any>, apiKey: 
 export default definePlugin<WebsearchOptions>({
   name: 'plugin_websearch',
   version: '1.0.0',
+  author: 'aesyclaw_official',
   description: '使用 Tavily 进行网页搜索',
   toolsCount: 2,
   defaultConfig: {

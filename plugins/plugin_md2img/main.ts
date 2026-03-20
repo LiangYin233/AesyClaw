@@ -56,6 +56,7 @@ async function renderToImage(tempDir: string, text: string, scale: number): Prom
 export default definePlugin<Md2ImgOptions>({
   name: 'plugin_md2img',
   version: '1.0.0',
+  author: 'aesyclaw_official',
   description: '将 Markdown 自动转换为图片',
   toolsCount: 0,
   defaultConfig: {

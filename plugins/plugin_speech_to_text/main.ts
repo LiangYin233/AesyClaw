@@ -225,6 +225,7 @@ function resolveAudioMimeType(audioPath: string): string {
 export default definePlugin<SpeechToTextOptions>({
   name: 'plugin_speech_to_text',
   version: '1.0.0',
+  author: 'aesyclaw_official',
   description: '转写语音为文本。',
   toolsCount: 1,
   defaultConfig: {

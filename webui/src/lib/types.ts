@@ -131,6 +131,16 @@ export interface ToolInfo {
   parameters: Record<string, unknown>;
 }
 
+export type ProviderType = 'openai' | 'openai_responses' | 'anthropic';
+
+export interface ProviderConfig {
+  type: ProviderType;
+  apiKey?: string;
+  apiBase?: string;
+  headers?: Record<string, string>;
+  extraBody?: Record<string, unknown>;
+}
+
 export interface PluginInfo {
   name: string;
   version: string;
@@ -248,7 +258,7 @@ export interface AppConfig {
       };
     };
   };
-  providers?: Record<string, unknown>;
+  providers?: Record<string, ProviderConfig>;
   agents?: {
     roles?: {
       main?: Partial<AgentRoleConfig>;

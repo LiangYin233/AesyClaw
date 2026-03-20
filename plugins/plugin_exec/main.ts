@@ -10,6 +10,7 @@ import { ShellRunner } from './ShellRunner.ts';
 export default definePlugin<ExecPluginOptions>({
   name: 'plugin_exec',
   version: '1.0.0',
+  author: 'aesyclaw_official',
   description: '执行 Python 或 Shell。',
   toolsCount: 2,
   defaultConfig: {

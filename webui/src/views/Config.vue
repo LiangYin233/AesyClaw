@@ -187,37 +187,87 @@
 
           <section v-if="configDraft" class="hairline-card rounded-2xl p-8">
             <div class="mb-6 flex items-center justify-between">
-              <h3 class="cn-section-title text-on-surface">扩展能力</h3>
-              <span class="text-xs font-bold tracking-[0.08em] text-primary">已载入结构总览</span>
+              <div>
+                <h3 class="cn-section-title text-on-surface">Provider 配置</h3>
+                <p class="mt-1 text-sm text-on-surface-variant">这里直接编辑底层模型提供商配置，主 Agent 与记忆模块可复用这些 provider 名称。</p>
+              </div>
+              <button
+                class="rounded-xl bg-surface-container-high px-4 py-2 text-sm font-semibold text-on-surface transition hover:bg-surface-container-highest"
+                type="button"
+                @click="addProvider"
+              >
+                新增 Provider
+              </button>
             </div>
-            <div class="divide-y divide-outline-variant/10">
-              <div class="flex items-center justify-between py-4">
-                <div>
-                  <p class="text-sm font-bold text-on-surface">Providers</p>
-                  <p class="tech-text mt-1 text-[10px] text-outline">{{ providerNames.join(' · ') || '无' }}</p>
+            <div class="space-y-5">
+              <article
+                v-for="[providerName, provider] in providerEntries"
+                :key="providerName"
+                class="rounded-2xl border border-outline-variant/12 bg-surface-container-lowest p-5"
+              >
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div class="grid min-w-0 flex-1 grid-cols-1 gap-4 md:grid-cols-2">
+                    <label class="space-y-1.5">
+                      <span class="text-xs font-bold tracking-[0.08em] text-outline">Provider 名称</span>
+                      <input
+                        :value="providerName"
+                        class="tech-text w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20"
+                        type="text"
+                        @change="renameProvider(providerName, ($event.target as HTMLInputElement).value)"
+                      />
+                    </label>
+                    <label class="space-y-1.5">
+                      <span class="text-xs font-bold tracking-[0.08em] text-outline">类型</span>
+                      <select v-model="provider.type" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20">
+                        <option value="openai">openai</option>
+                        <option value="openai_responses">openai_responses</option>
+                        <option value="anthropic">anthropic</option>
+                      </select>
+                    </label>
+                    <label class="space-y-1.5 md:col-span-2">
+                      <span class="text-xs font-bold tracking-[0.08em] text-outline">API Base</span>
+                      <input v-model="provider.apiBase" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" placeholder="https://api.example.com/v1" />
+                    </label>
+                    <label class="space-y-1.5 md:col-span-2">
+                      <span class="text-xs font-bold tracking-[0.08em] text-outline">API Key</span>
+                      <input v-model="provider.apiKey" class="tech-text w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" placeholder="sk-..." />
+                    </label>
+                  </div>
+                  <button
+                    class="rounded-xl border border-error/20 px-4 py-2 text-sm font-semibold text-error transition hover:bg-error-container/60"
+                    type="button"
+                    @click="removeProvider(providerName)"
+                  >
+                    删除
+                  </button>
                 </div>
-                <span class="text-sm font-bold text-on-surface">{{ providerNames.length }}</span>
-              </div>
-              <div class="flex items-center justify-between py-4">
-                <div>
-                  <p class="text-sm font-bold text-on-surface">Channels</p>
-                  <p class="tech-text mt-1 text-[10px] text-outline">{{ channelNames.join(' · ') || '无' }}</p>
+
+                <div class="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
+                  <label class="space-y-1.5">
+                    <span class="text-xs font-bold tracking-[0.08em] text-outline">Headers JSON</span>
+                    <textarea
+                      :value="providerHeadersDrafts[providerName] || '{}'"
+                      class="tech-text min-h-[9rem] w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20"
+                      @input="updateProviderJsonDraft(providerName, 'headers', ($event.target as HTMLTextAreaElement).value)"
+                    ></textarea>
+                    <p class="text-[11px] text-on-surface-variant">用于写额外请求头，需保持 JSON 对象格式。</p>
+                    <p v-if="providerJsonErrors[providerName]?.headers" class="text-[11px] text-error">{{ providerJsonErrors[providerName]?.headers }}</p>
+                  </label>
+                  <label class="space-y-1.5">
+                    <span class="text-xs font-bold tracking-[0.08em] text-outline">Extra Body JSON</span>
+                    <textarea
+                      :value="providerExtraBodyDrafts[providerName] || '{}'"
+                      class="tech-text min-h-[9rem] w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20"
+                      @input="updateProviderJsonDraft(providerName, 'extraBody', ($event.target as HTMLTextAreaElement).value)"
+                    ></textarea>
+                    <p class="text-[11px] text-on-surface-variant">用于补充供应商私有请求体字段，需保持 JSON 对象格式。</p>
+                    <p v-if="providerJsonErrors[providerName]?.extraBody" class="text-[11px] text-error">{{ providerJsonErrors[providerName]?.extraBody }}</p>
+                  </label>
                 </div>
-                <span class="text-sm font-bold text-on-surface">{{ channelNames.length }}</span>
-              </div>
-              <div class="flex items-center justify-between py-4">
-                <div>
-                  <p class="text-sm font-bold text-on-surface">MCP Servers</p>
-                  <p class="tech-text mt-1 text-[10px] text-outline">{{ mcpNames.join(' · ') || '无' }}</p>
-                </div>
-                <span class="text-sm font-bold text-on-surface">{{ mcpNames.length }}</span>
-              </div>
-              <div class="flex items-center justify-between py-4">
-                <div>
-                  <p class="text-sm font-bold text-on-surface">Plugins / Skills</p>
-                  <p class="tech-text mt-1 text-[10px] text-outline">{{ pluginNames.length }} 插件 · {{ skillNames.length }} 技能</p>
-                </div>
-                <span class="text-sm font-bold text-on-surface">{{ pluginNames.length + skillNames.length }}</span>
+              </article>
+
+              <div v-if="!providerEntries.length" class="rounded-2xl bg-surface-container-low px-4 py-5 text-sm text-on-surface-variant">
+                当前没有 provider，点击上方“新增 Provider”开始配置。
               </div>
             </div>
           </section>
@@ -292,7 +342,7 @@ import { useRoute, useRouter } from 'vue-router';
 import AppIcon from '@/components/AppIcon.vue';
 import { apiGet, apiPut } from '@/lib/api';
 import { getRouteToken } from '@/lib/auth';
-import type { AppConfig, AgentRoleConfig } from '@/lib/types';
+import type { AppConfig, AgentRoleConfig, ProviderConfig } from '@/lib/types';
 
 const route = useRoute();
 const router = useRouter();
@@ -304,6 +354,9 @@ const error = ref('');
 const saveMessage = ref('');
 const config = ref<AppConfig | null>(null);
 const configDraft = ref<AppConfig | null>(null);
+const providerHeadersDrafts = ref<Record<string, string>>({});
+const providerExtraBodyDrafts = ref<Record<string, string>>({});
+const providerJsonErrors = ref<Record<string, { headers?: string; extraBody?: string }>>({});
 
 const mainRole = computed<AgentRoleConfig>(() => {
   const target = configDraft.value?.agents?.roles?.main as AgentRoleConfig | undefined;
@@ -323,11 +376,133 @@ const mainRole = computed<AgentRoleConfig>(() => {
 });
 
 const providerNames = computed(() => Object.keys(configDraft.value?.providers || {}));
+const providerEntries = computed(() => Object.entries(configDraft.value?.providers || {}) as Array<[string, ProviderConfig]>);
 const channelNames = computed(() => Object.keys(configDraft.value?.channels || {}));
 const mcpNames = computed(() => Object.keys(configDraft.value?.mcp || {}));
 const pluginNames = computed(() => Object.keys(configDraft.value?.plugins || {}));
 const skillNames = computed(() => Object.keys(configDraft.value?.skills || {}));
 const serverHealthTone = computed(() => (configDraft.value?.server?.apiEnabled ? 'bg-emerald-500' : 'bg-orange-500'));
+const hasProviderJsonErrors = computed(() => Object.values(providerJsonErrors.value).some((item) => Boolean(item?.headers || item?.extraBody)));
+
+function createEmptyProvider(): ProviderConfig {
+  return {
+    type: 'openai',
+    apiKey: '',
+    apiBase: '',
+    headers: {},
+    extraBody: {},
+  };
+}
+
+function formatJsonObject(value: Record<string, unknown> | undefined) {
+  return JSON.stringify(value || {}, null, 2);
+}
+
+function syncProviderEditors() {
+  const providers = configDraft.value?.providers || {};
+  providerHeadersDrafts.value = {};
+  providerExtraBodyDrafts.value = {};
+  providerJsonErrors.value = {};
+
+  for (const [name, provider] of Object.entries(providers)) {
+    providerHeadersDrafts.value[name] = formatJsonObject(provider.headers);
+    providerExtraBodyDrafts.value[name] = formatJsonObject(provider.extraBody as Record<string, unknown> | undefined);
+  }
+}
+
+function parseJsonObject(text: string, label: string): Record<string, unknown> {
+  const trimmed = text.trim();
+  if (!trimmed) return {};
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    throw new Error(`${label} 必须是合法 JSON`);
+  }
+
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+    throw new Error(`${label} 必须是 JSON 对象`);
+  }
+
+  return parsed as Record<string, unknown>;
+}
+
+function updateProviderJsonDraft(name: string, field: 'headers' | 'extraBody', value: string) {
+  if (!configDraft.value?.providers?.[name]) return;
+
+  if (field === 'headers') {
+    providerHeadersDrafts.value[name] = value;
+  } else {
+    providerExtraBodyDrafts.value[name] = value;
+  }
+
+  const nextErrors = { ...(providerJsonErrors.value[name] || {}) };
+
+  try {
+    const parsed = parseJsonObject(value, field === 'headers' ? 'Headers' : 'Extra Body');
+    if (field === 'headers') {
+      configDraft.value.providers[name].headers = Object.fromEntries(
+        Object.entries(parsed).map(([key, item]) => [key, String(item ?? '')])
+      );
+      delete nextErrors.headers;
+    } else {
+      configDraft.value.providers[name].extraBody = parsed;
+      delete nextErrors.extraBody;
+    }
+  } catch (parseError) {
+    const message = parseError instanceof Error ? parseError.message : 'JSON 解析失败';
+    if (field === 'headers') {
+      nextErrors.headers = message;
+    } else {
+      nextErrors.extraBody = message;
+    }
+  }
+
+  providerJsonErrors.value[name] = nextErrors;
+}
+
+function addProvider() {
+  if (!configDraft.value) return;
+
+  let index = 1;
+  let name = `provider${index}`;
+  while (configDraft.value.providers?.[name]) {
+    index += 1;
+    name = `provider${index}`;
+  }
+
+  configDraft.value.providers ||= {};
+  configDraft.value.providers[name] = createEmptyProvider();
+  syncProviderEditors();
+}
+
+function renameProvider(oldName: string, nextNameRaw: string) {
+  if (!configDraft.value?.providers) return;
+
+  const nextName = nextNameRaw.trim();
+  if (!nextName || nextName === oldName) {
+    return;
+  }
+  if (configDraft.value.providers[nextName]) {
+    error.value = `Provider 名称 "${nextName}" 已存在`;
+    return;
+  }
+
+  const nextProviders: Record<string, ProviderConfig> = {};
+  for (const [name, provider] of Object.entries(configDraft.value.providers)) {
+    nextProviders[name === oldName ? nextName : name] = provider;
+  }
+  configDraft.value.providers = nextProviders;
+  error.value = '';
+  syncProviderEditors();
+}
+
+function removeProvider(name: string) {
+  if (!configDraft.value?.providers?.[name]) return;
+  delete configDraft.value.providers[name];
+  syncProviderEditors();
+}
 
 function normalizeConfig(source: AppConfig): AppConfig {
   const next = structuredClone(source || {});
@@ -385,6 +560,7 @@ async function loadConfig() {
 
   config.value = normalizeConfig(result.data);
   configDraft.value = normalizeConfig(result.data);
+  syncProviderEditors();
   loading.value = false;
 }
 
@@ -392,10 +568,15 @@ function resetDraft() {
   if (!config.value) return;
   configDraft.value = normalizeConfig(config.value);
   saveMessage.value = '';
+  syncProviderEditors();
 }
 
 async function saveConfig() {
   if (!configDraft.value) return;
+  if (hasProviderJsonErrors.value) {
+    error.value = 'Provider JSON 配置存在格式错误，请先修正后再保存';
+    return;
+  }
 
   saving.value = true;
   error.value = '';
@@ -408,6 +589,7 @@ async function saveConfig() {
   }
 
   config.value = normalizeConfig(configDraft.value);
+  syncProviderEditors();
   saveMessage.value = '配置已写回磁盘。部分模块可能需要重载后生效。';
 }
 
