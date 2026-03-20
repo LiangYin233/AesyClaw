@@ -1,7 +1,7 @@
 import type { Express } from 'express';
 import type { MCPClientManager } from '../../mcp/MCPClient.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
-import type { Config } from '../../types.js';
+import type { Config, MCPServerInfo } from '../../types.js';
 import { ConfigLoader } from '../../config/loader.js';
 import { getConfigValidationIssue, parseMCPServerConfig } from '../../config/index.js';
 import { connectMcpServer, disconnectMcpServer, reconnectMcpServer } from '../../mcp/runtime.js';
@@ -15,6 +15,8 @@ interface MCPDeps {
   getMcpManager: () => MCPClientManager | undefined;
   setMcpManager: (m: MCPClientManager) => void;
 }
+
+type SerializedMcpServer = MCPServerInfo;
 
 function serializeServerStatus(server: any): any {
   if (Array.isArray(server)) {
@@ -32,22 +34,58 @@ function serializeServerStatus(server: any): any {
   };
 }
 
+export function resolveConfiguredMcpServer(
+  config: Config,
+  manager: MCPClientManager | undefined,
+  name: string
+): SerializedMcpServer | null {
+  const configuredServer = config.mcp[name];
+  if (!configuredServer) {
+    return null;
+  }
+
+  const runtimeServer = manager?.getServerStatus(name);
+  if (runtimeServer && !Array.isArray(runtimeServer) && runtimeServer.status !== 'disconnected') {
+    return {
+      ...runtimeServer,
+      config: configuredServer
+    };
+  }
+
+  return {
+    name,
+    status: 'disconnected',
+    config: configuredServer,
+    toolCount: 0
+  };
+}
+
+export function listConfiguredMcpServers(
+  config: Config,
+  manager: MCPClientManager | undefined
+): SerializedMcpServer[] {
+  return Object.keys(config.mcp)
+    .map((name) => resolveConfiguredMcpServer(config, manager, name))
+    .filter((server): server is SerializedMcpServer => server !== null);
+}
+
 export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
   app.get('/api/mcp/servers', (req, res) => {
-    const mgr = deps.getMcpManager();
-    if (!mgr) return res.json({ servers: [] });
-    res.json({ servers: serializeServerStatus(mgr.getServerStatus()) });
+    res.json({
+      servers: serializeServerStatus(listConfiguredMcpServers(deps.getConfig(), deps.getMcpManager()))
+    });
   });
 
   app.get('/api/mcp/servers/:name', (req, res) => {
-    const mgr = deps.getMcpManager();
-    if (!mgr) return notFound(res, 'MCP manager', 'mcp');
     const { name } = req.params;
-    const server = mgr.getServerStatus(name);
-    if (!server || (Array.isArray(server) ? false : server.status === 'disconnected')) {
+    const server = resolveConfiguredMcpServer(deps.getConfig(), deps.getMcpManager(), name);
+    if (!server) {
       return notFound(res, 'MCP server', name);
     }
-    const tools = mgr.getToolsForServer(name);
+
+    const tools = server.status === 'disconnected'
+      ? []
+      : deps.getMcpManager()?.getToolsForServer(name) ?? [];
     res.json({ server: serializeServerStatus(server), tools });
   });
 
@@ -67,7 +105,11 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
       });
       deps.setConfig?.(nextConfig);
 
-      res.status(201).json({ success: true, server: serializeServerStatus(manager.getServerStatus(name)), toolsRegistered });
+      res.status(201).json({
+        success: true,
+        server: serializeServerStatus(resolveConfiguredMcpServer(nextConfig, manager, name)),
+        toolsRegistered
+      });
     } catch (error) {
       const issue = getConfigValidationIssue(error);
       if (issue) {
@@ -154,7 +196,11 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
         server = result.manager?.getServerStatus(name) || deps.getMcpManager()?.getServerStatus(name);
       }
 
-      res.json({ success: true, enabled, server: serializeServerStatus(server) });
+      res.json({
+        success: true,
+        enabled,
+        server: serializeServerStatus(resolveConfiguredMcpServer(nextConfig, deps.getMcpManager(), name) ?? server)
+      });
     } catch (error) {
       serverError(res, error);
     }

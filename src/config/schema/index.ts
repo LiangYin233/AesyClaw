@@ -3,7 +3,6 @@ import { isEmbeddingCapableProvider } from '../providerCapabilities.js';
 import { resolveConfig, type ResolvedConfig } from '../resolve.js';
 import {
   agentConfigSchema,
-  agentDefaultsSchema,
   agentRoleConfigSchema,
   agentsConfigSchema,
   contextModeSchema,
@@ -25,7 +24,7 @@ import {
   type ProviderConfig
 } from './providers.js';
 import { serverConfigSchema, type ServerConfig } from './server.js';
-import { HTTP_URL_PROTOCOL, MAIN_AGENT_NAME, withObjectInputDefault } from './shared.js';
+import { HTTP_URL_PROTOCOL, withObjectInputDefault } from './shared.js';
 import {
   observabilityConfigSchema,
   toolsConfigSchema,

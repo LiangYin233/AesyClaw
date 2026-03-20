@@ -64,6 +64,16 @@ export class ExecutionRuntime {
 
   async execute(context: ExecutionContext): Promise<string | undefined> {
     const startedAt = Date.now();
+    let requestPersisted = false;
+    const ensureRequestPersisted = async (): Promise<void> => {
+      if (requestPersisted) {
+        return;
+      }
+
+      await this.sessionManager.addMessage(context.sessionKey, 'user', context.request.content);
+      requestPersisted = true;
+    };
+
     try {
       const { policy, executor, messages } = this.engine.prepare(context);
       const pluginManager = this.getPluginManager();
@@ -83,6 +93,7 @@ export class ExecutionRuntime {
           chatId: context.chatId
         });
 
+        await ensureRequestPersisted();
         await this.finalize({
           sessionKey: context.sessionKey,
           request: context.request,
@@ -101,6 +112,8 @@ export class ExecutionRuntime {
         if (imageSummary) {
           this.attachImageSummary(context.request, messages, imageSummary);
         }
+
+        await ensureRequestPersisted();
 
         this.log.info('正在使用视觉模型处理', {
           sessionKey: context.sessionKey,
@@ -135,6 +148,7 @@ export class ExecutionRuntime {
         return result.content;
       }
 
+      await ensureRequestPersisted();
       const result = await executor.executeWithBackground(messages, context.toolContext, {
         allowTools: true,
         agentName: policy.roleName,
@@ -304,7 +318,6 @@ export class ExecutionRuntime {
       suppressOutbound = false
     } = params;
 
-    await this.sessionManager.addMessage(sessionKey, 'user', request.content);
     if (content) {
       await this.sessionManager.addMessage(sessionKey, 'assistant', content);
     }

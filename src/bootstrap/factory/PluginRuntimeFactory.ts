@@ -1,4 +1,3 @@
-import type { Config } from '../../types.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import type { OutboundGateway } from '../../agent/runtime/AgentRuntime.js';
 import { PluginManager } from '../../plugins/index.js';

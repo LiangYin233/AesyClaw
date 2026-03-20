@@ -17,6 +17,36 @@ function normalizeTimestamp(timestamp?: Date): Date {
   return timestamp instanceof Date ? timestamp : new Date();
 }
 
+function restoreLiteralNewlines(text: string): string {
+  return text
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/\r\n/g, '\n');
+}
+
+function normalizeOutboundSegments(segments: MessageSegment[]): MessageSegment[] {
+  return segments.map((segment) => {
+    if (segment.type === 'text') {
+      return {
+        ...segment,
+        text: restoreLiteralNewlines(segment.text)
+      };
+    }
+
+    if (segment.type === 'quote' && segment.message) {
+      return {
+        ...segment,
+        message: {
+          ...segment.message,
+          segments: normalizeOutboundSegments(segment.message.segments)
+        }
+      };
+    }
+
+    return segment;
+  });
+}
+
 function detectFileType(fileName: string): 'audio' | 'video' | 'image' | 'file' {
   const ext = fileName.toLowerCase().match(/\.([^.]+)$/)?.[1];
   if (!ext) {
@@ -275,7 +305,7 @@ export class ChannelRuntime {
     }
 
     if (Array.isArray(message.segments) && message.segments.length > 0) {
-      const segments = [...message.segments];
+      const segments = normalizeOutboundSegments([...message.segments]);
       if (message.replyTo && !segments.some((segment) => segment.type === 'quote')) {
         segments.unshift({
           type: 'quote',
@@ -315,7 +345,7 @@ export class ChannelRuntime {
     if (message.content) {
       segments.push({
         type: 'text',
-        text: message.content
+        text: restoreLiteralNewlines(message.content)
       });
     }
 
