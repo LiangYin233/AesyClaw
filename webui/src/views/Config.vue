@@ -1,6 +1,6 @@
 <template>
     <div class="config-page page-stack">
-        <PageHeader title="配置管理" subtitle="集中编辑全局运行参数、服务端配置与 Provider 配置。">
+        <PageHeader title="系统设置" subtitle="集中编辑全局运行参数、服务端配置与 Provider 配置。">
             <template #actions>
                 <Button label="刷新" icon="pi pi-refresh" outlined @click="configStore.fetchConfig()" :loading="loading" />
                 <Button label="保存" icon="pi pi-save" @click="saveConfig" :loading="saving" :disabled="!config" />

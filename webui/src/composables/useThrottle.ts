@@ -1,5 +1,5 @@
 // Throttle utility
-import { ref, type Ref } from 'vue'
+import { ref, watch, type Ref } from 'vue'
 
 /**
  * Throttle a function call
@@ -60,19 +60,31 @@ export function useThrottleFn<T extends (...args: any[]) => any>(
 export function useThrottle<T>(value: Ref<T>, limit: number): Ref<T> {
   const throttledValue = ref(value.value) as Ref<T>
   let lastUpdate = 0
+  let timeoutId: number | null = null
 
-  const updateValue = (newValue: T) => {
-    const now = Date.now()
-    if (now - lastUpdate >= limit) {
-      throttledValue.value = newValue
-      lastUpdate = now
-    }
-  }
+  watch(
+    value,
+    (newValue) => {
+      const now = Date.now()
+      const remaining = limit - (now - lastUpdate)
 
-  // Watch for changes
-  const stopWatch = () => {
-    // Cleanup function
-  }
+      if (remaining <= 0) {
+        throttledValue.value = newValue
+        lastUpdate = now
+        return
+      }
+
+      if (timeoutId) {
+        window.clearTimeout(timeoutId)
+      }
+
+      timeoutId = window.setTimeout(() => {
+        throttledValue.value = newValue
+        lastUpdate = Date.now()
+      }, remaining)
+    },
+    { flush: 'sync' }
+  )
 
   return throttledValue
 }

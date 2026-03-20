@@ -1,11 +1,20 @@
 <template>
     <div class="agents-page page-stack">
-        <PageHeader title="Agent 角色" subtitle="统一管理主 Agent 与其他角色的模型、Vision、Reasoning 与工具能力。">
+        <PageHeader title="Agent 编排" subtitle="集中管理主 Agent 与专用角色的模型、视觉、推理与可用能力边界。">
             <template #actions>
                 <Button label="刷新" icon="pi pi-refresh" outlined @click="loadAll" :loading="agentsStore.loading" />
                 <Button label="新建 Agent" icon="pi pi-plus" @click="openCreateDialog" />
             </template>
         </PageHeader>
+        <div v-if="agentsStore.agents.length > 0" class="agent-summary-grid">
+            <Card v-for="item in summaryCards" :key="item.label" class="summary-card">
+                <template #content>
+                    <div class="summary-card__label">{{ item.label }}</div>
+                    <div class="summary-card__value">{{ item.value }}</div>
+                    <div class="summary-card__hint">{{ item.hint }}</div>
+                </template>
+            </Card>
+        </div>
         <div class="agents-grid" v-if="agentsStore.agents.length > 0">
             <Card v-for="agent in agentsStore.agents" :key="agent.name" class="agent-card">
                 <template #title>
@@ -19,12 +28,28 @@
                 </template>
                 <template #content>
                     <div class="agent-meta">
-                        <Tag :value="`Provider: ${agent.provider}`" severity="secondary" />
-                        <Tag :value="`Model: ${agent.model}`" severity="contrast" />
-                        <Tag :value="`Vision: ${agent.vision ? '开' : '关'}`" :severity="agent.vision ? 'success' : 'secondary'" />
-                        <Tag :value="`Reasoning: ${agent.reasoning ? '开' : '关'}`" :severity="agent.reasoning ? 'warn' : 'secondary'" />
-                        <Tag :value="`Skills: ${agent.availableSkills.length}`" severity="info" />
-                        <Tag :value="`Tools: ${agent.availableTools.length}`" severity="warn" />
+                        <Tag :value="`提供商 ${agent.provider}`" severity="secondary" />
+                        <Tag :value="agent.model" severity="contrast" />
+                        <Tag :value="`视觉 ${agent.vision ? '开启' : '关闭'}`" :severity="agent.vision ? 'success' : 'secondary'" />
+                        <Tag :value="`推理 ${agent.reasoning ? '开启' : '关闭'}`" :severity="agent.reasoning ? 'warn' : 'secondary'" />
+                    </div>
+                    <div class="agent-capability-grid">
+                        <div class="agent-capability">
+                            <span class="agent-capability__label">技能数量</span>
+                            <strong>{{ agent.availableSkills.length }}</strong>
+                        </div>
+                        <div class="agent-capability">
+                            <span class="agent-capability__label">工具数量</span>
+                            <strong>{{ agent.availableTools.length }}</strong>
+                        </div>
+                        <div class="agent-capability">
+                            <span class="agent-capability__label">视觉模型</span>
+                            <strong>{{ agent.visionModel || '未配置' }}</strong>
+                        </div>
+                        <div class="agent-capability">
+                            <span class="agent-capability__label">视觉提供商</span>
+                            <strong>{{ agent.visionProvider || '未配置' }}</strong>
+                        </div>
                     </div>
                     <Message v-if="agent.missingSkills.length || agent.missingTools.length" severity="warn" :closable="false">
                         缺失资源：
@@ -199,6 +224,19 @@ const form = reactive<AgentRoleConfig>({
 const providerOptions = computed(() => Object.keys(configStore.config?.providers || {}))
 const skillOptions = computed(() => skillsStore.skills.map(skill => ({ label: skill.name, value: skill.name })))
 const toolOptions = computed(() => toolsStore.tools.map(tool => ({ label: tool.name, value: tool.name })))
+const summaryCards = computed(() => {
+    const total = agentsStore.agents.length
+    const visionEnabled = agentsStore.agents.filter(agent => agent.vision).length
+    const reasoningEnabled = agentsStore.agents.filter(agent => agent.reasoning).length
+    const missingResources = agentsStore.agents.filter(agent => agent.missingSkills.length || agent.missingTools.length).length
+
+    return [
+        { label: '角色总数', value: String(total), hint: '包含内建与自定义角色' },
+        { label: '已启用视觉', value: String(visionEnabled), hint: '支持图像或截图输入' },
+        { label: '已启用推理', value: String(reasoningEnabled), hint: '适合复杂规划任务' },
+        { label: '需关注角色', value: String(missingResources), hint: '存在缺失技能或工具引用' }
+    ]
+})
 
 function getMainAgentTemplate(): AgentRoleConfig {
     const main = configStore.config?.agents.roles.main
@@ -334,6 +372,33 @@ onMounted(() => {
     gap: 16px;
 }
 
+.agent-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+}
+
+.summary-card__label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ui-text-faint);
+}
+
+.summary-card__value {
+    margin-top: 8px;
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--ui-text-strong);
+}
+
+.summary-card__hint {
+    margin-top: 6px;
+    color: var(--ui-text-muted);
+    font-size: 13px;
+}
+
 .agent-card {
     height: 100%;
 }
@@ -362,6 +427,28 @@ onMounted(() => {
     margin-bottom: 12px;
 }
 
+.agent-capability-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.agent-capability {
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid var(--ui-border-subtle);
+    background: var(--ui-panel-alt);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.agent-capability__label {
+    font-size: 12px;
+    color: var(--ui-text-faint);
+}
+
 .vision-meta {
     display: flex;
     flex-wrap: wrap;
@@ -373,7 +460,7 @@ onMounted(() => {
 
 .prompt-preview {
     white-space: pre-wrap;
-    background: var(--ui-surface-muted);
+    background: var(--ui-panel-alt);
     border: 1px solid var(--ui-border);
     border-radius: 8px;
     padding: 12px;
@@ -416,5 +503,11 @@ onMounted(() => {
     display: flex;
     flex-direction: column;
     gap: 8px;
+}
+
+@media (max-width: 768px) {
+    .agent-capability-grid {
+        grid-template-columns: 1fr;
+    }
 }
 </style>

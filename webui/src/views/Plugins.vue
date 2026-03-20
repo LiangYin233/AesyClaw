@@ -80,10 +80,10 @@
                     
                     <template v-else-if="isObject(value)">
                         <div class="nested-config">
-                            <div v-for="(nestedValue, nestedKey) in value" :key="nestedKey" class="nested-field">
+                            <div v-for="(_, nestedKey) in value" :key="nestedKey" class="nested-field">
                                 <label>{{ nestedKey }}</label>
                                 <Password 
-                                    v-if="isSensitiveKey(nestedKey)" 
+                                    v-if="isSensitiveKey(String(nestedKey))" 
                                     v-model="configForm[key][nestedKey]" 
                                     :feedback="false" 
                                     toggleMask 
@@ -123,7 +123,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
-import type { Config, PluginInfo } from '../types/api'
+import type { PluginInfo } from '../types/api'
 import { useConfigStore, usePluginsStore } from '../stores'
 import { useToast } from 'primevue/usetoast'
 import Button from 'primevue/button'

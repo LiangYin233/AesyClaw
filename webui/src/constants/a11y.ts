@@ -26,16 +26,17 @@ export const ARIA_LABELS = {
   warning: '警告',
 
   // Pages
-  dashboard: '仪表盘',
-  chat: '聊天',
+  overview: '总览',
+  dialogue: '对话',
   sessions: '会话管理',
   memory: '记忆管理',
   tools: '工具管理',
   plugins: '插件管理',
   cron: '定时任务',
-  config: '配置',
+  config: '系统设置',
   mcp: 'MCP 服务器',
-  skills: 'Skills 管理'
+  skills: '技能管理',
+  observability: '观测日志'
 } as const
 
 export const KEYBOARD_SHORTCUTS = {

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 export interface ToastMessage {
   id: string
@@ -14,6 +14,35 @@ export const useUiStore = defineStore('ui', () => {
   const mobileSidebarOpen = ref(false)
   const toasts = ref<ToastMessage[]>([])
   const isMobile = ref(false)
+  const theme = ref<'light' | 'dark'>('light')
+  const themeReady = ref(false)
+
+  const isDark = computed(() => theme.value === 'dark')
+
+  function applyTheme(nextTheme: 'light' | 'dark') {
+    theme.value = nextTheme
+    document.documentElement.dataset.theme = nextTheme
+    window.localStorage.setItem('aesyclaw-webui-theme', nextTheme)
+  }
+
+  function initializeTheme() {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const storedTheme = window.localStorage.getItem('aesyclaw-webui-theme')
+    if (storedTheme === 'light' || storedTheme === 'dark') {
+      applyTheme(storedTheme)
+    } else {
+      applyTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    }
+
+    themeReady.value = true
+  }
+
+  function toggleTheme() {
+    applyTheme(theme.value === 'dark' ? 'light' : 'dark')
+  }
 
   function toggleSidebar() {
     if (isMobile.value) {
@@ -109,6 +138,9 @@ export const useUiStore = defineStore('ui', () => {
     mobileSidebarOpen,
     toasts,
     isMobile,
+    theme,
+    themeReady,
+    isDark,
     toggleSidebar,
     openSidebar,
     closeSidebar,
@@ -122,6 +154,9 @@ export const useUiStore = defineStore('ui', () => {
     info,
     warn,
     error,
-    setMobile
+    setMobile,
+    applyTheme,
+    initializeTheme,
+    toggleTheme
   }
 })

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
 import { buildTokenQuery, getRouteToken } from '../utils/auth'
+import { resolveLegacyConsolePath } from './legacyRedirects'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -11,23 +12,108 @@ const router = createRouter({
       component: () => import('../views/Unauthorized.vue')
     },
     {
-      path: '/',
+      path: '/overview',
       component: AppLayout,
       children: [
-        { path: '', name: 'dashboard', component: () => import('../views/Dashboard.vue') },
-        { path: 'chat', name: 'chat', component: () => import('../views/Chat.vue') },
-        { path: 'chat/:sessionKey', name: 'chat-session', component: () => import('../views/Chat.vue') },
-        { path: 'sessions', name: 'sessions', component: () => import('../views/Sessions.vue') },
-        { path: 'memory', name: 'memory', component: () => import('../views/Memory.vue') },
-        { path: 'agents', name: 'agents', component: () => import('../views/Agents.vue') },
-        { path: 'tools', name: 'tools', component: () => import('../views/Tools.vue') },
-        { path: 'plugins', name: 'plugins', component: () => import('../views/Plugins.vue') },
-        { path: 'config', name: 'config', component: () => import('../views/Config.vue') },
-        { path: 'mcp', name: 'mcp', component: () => import('../views/Mcp.vue') },
-        { path: 'skills', name: 'skills', component: () => import('../views/Skills.vue') },
-        { path: 'cron', name: 'cron', component: () => import('../views/Cron.vue') },
-        { path: 'logs', name: 'logs', component: () => import('../views/Logs.vue') }
+        { path: '', name: 'overview', component: () => import('../views/Dashboard.vue') }
       ]
+    },
+    {
+      path: '/dialogue',
+      component: AppLayout,
+      children: [
+        { path: '', name: 'dialogue', component: () => import('../views/Chat.vue') },
+        { path: ':sessionKey', name: 'dialogue-session', component: () => import('../views/Chat.vue') }
+      ]
+    },
+    {
+      path: '/sessions',
+      component: AppLayout,
+      children: [
+        { path: '', name: 'sessions', component: () => import('../views/Sessions.vue') }
+      ]
+    },
+    {
+      path: '/memory',
+      component: AppLayout,
+      children: [
+        { path: '', name: 'memory', component: () => import('../views/Memory.vue') }
+      ]
+    },
+    {
+      path: '/agents',
+      component: AppLayout,
+      children: [
+        { path: '', name: 'agents', component: () => import('../views/Agents.vue') }
+      ]
+    },
+    {
+      path: '/skills',
+      component: AppLayout,
+      children: [
+        { path: '', name: 'skills', component: () => import('../views/Skills.vue') }
+      ]
+    },
+    {
+      path: '/tools',
+      component: AppLayout,
+      children: [
+        { path: '', name: 'tools', component: () => import('../views/Tools.vue') }
+      ]
+    },
+    {
+      path: '/plugins',
+      component: AppLayout,
+      children: [
+        { path: '', name: 'plugins', component: () => import('../views/Plugins.vue') }
+      ]
+    },
+    {
+      path: '/cron',
+      component: AppLayout,
+      children: [
+        { path: '', name: 'cron', component: () => import('../views/Cron.vue') }
+      ]
+    },
+    {
+      path: '/mcp',
+      component: AppLayout,
+      children: [
+        { path: '', name: 'mcp', component: () => import('../views/Mcp.vue') }
+      ]
+    },
+    {
+      path: '/observability',
+      component: AppLayout,
+      children: [
+        { path: 'logs', name: 'observability-logs', component: () => import('../views/Logs.vue') }
+      ]
+    },
+    {
+      path: '/settings',
+      component: AppLayout,
+      children: [
+        { path: 'config', name: 'settings-config', component: () => import('../views/Config.vue') }
+      ]
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      redirect: (to) => {
+        const nextPath = resolveLegacyConsolePath(to.path)
+        if (nextPath) {
+          return {
+            path: nextPath,
+            query: to.query,
+            hash: to.hash
+          }
+        }
+
+        return {
+          name: 'overview',
+          query: to.query,
+          hash: to.hash
+        }
+      }
     }
   ]
 })

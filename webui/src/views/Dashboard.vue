@@ -1,6 +1,6 @@
 <template>
     <div class="dashboard-page">
-        <PageHeader title="仪表盘" subtitle="系统状态与 Token 使用统计">
+        <PageHeader title="总览" subtitle="以中文控制台视图集中观察系统状态、通道健康与 Token 消耗。">
             <template #actions>
                 <div class="header-actions">
                     <div class="auto-refresh-control">
