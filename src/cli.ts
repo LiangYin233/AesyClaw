@@ -105,7 +105,7 @@ export function cleanupProcesses(): void {
 
 // 注册信号处理器
 export function shouldCliExitOnShutdown(mode: ServiceMode): boolean {
-  return mode === 'webui';
+  return mode === 'webui' || mode === 'all';
 }
 
 export function getChildProcessStdio(): ChildProcessStdio {

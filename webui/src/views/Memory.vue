@@ -6,7 +6,7 @@
           <p class="cn-kicker text-outline">记忆</p>
           <h1 class="cn-page-title mt-2 text-on-surface">记忆管理台</h1>
           <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">
-            对照 Stitch 的 Memory Management 结构，把会话摘要、长期事实和近期记忆操作收束到同一套工作台里。
+            在这里集中查看会话摘要、长期事实和最近的记忆操作，方便快速了解系统记住了什么。
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-3">

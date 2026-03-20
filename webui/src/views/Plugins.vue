@@ -5,7 +5,7 @@
         <div>
           <p class="cn-kicker text-outline">插件</p>
           <h1 class="cn-page-title mt-2 text-on-surface">插件中心</h1>
-          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">沿用 Stitch 的“市场卡片 + 右侧 Inspector”结构，集中管理插件启停与配置差异。</p>
+          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">集中管理插件启停、工具挂载和配置差异，方便快速检查当前扩展能力。</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <button class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface shadow-sm transition hover:bg-surface-container-high" type="button" :disabled="loading" @click="loadPlugins">

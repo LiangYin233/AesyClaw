@@ -5,7 +5,7 @@
         <div>
           <p class="cn-kicker text-outline">设置</p>
           <h1 class="cn-page-title mt-2 text-on-surface">系统配置</h1>
-          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">按 Stitch 的工作台结构组织服务参数、主 Agent、记忆策略和扩展模块，不再保留旧后台式配置页。</p>
+          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">在这里统一调整服务参数、主 Agent、记忆策略和扩展模块配置，保存后会写回当前系统设置。</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <button

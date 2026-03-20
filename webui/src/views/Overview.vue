@@ -5,7 +5,7 @@
         <div>
           <p class="cn-kicker text-outline">总览</p>
           <h1 class="cn-page-title mt-2 text-on-surface">系统运行总览</h1>
-          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">直接基于新版控制台布局呈现系统状态、活跃会话、Token 使用与关键风险，不再沿用旧后台页面结构。</p>
+          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">这里会集中展示系统状态、活跃会话、Token 使用和关键风险，方便先快速了解当前整体运行情况。</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <button class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface shadow-sm transition-colors hover:bg-surface-container-high" type="button" :disabled="refreshing" @click="loadOverview">
@@ -173,9 +173,9 @@
             <div class="absolute -bottom-5 -right-5 opacity-10">
               <AppIcon name="rocket" size="xl" class="size-28" />
             </div>
-            <p class="cn-kicker opacity-70">能力建议</p>
-            <h4 class="mt-2 font-headline text-xl font-extrabold">继续推进控制台迁移</h4>
-            <p class="mt-2 text-sm leading-6 opacity-80">总览和 Agent 已切到新版结构，其余模块建议继续按同样的信息架构迁移，避免新旧页面并存。</p>
+            <p class="cn-kicker opacity-70">猜你在找</p>
+            <h4 class="mt-2 font-headline text-xl font-extrabold">从 Agent 开始配置更快</h4>
+            <p class="mt-2 text-sm leading-6 opacity-80">如果你准备调整角色能力、绑定技能或检查缺失资源，可以先进入 Agent 页面，这里会更集中也更直观。</p>
             <router-link :to="{ path: '/agents', query: token ? { token } : {} }" class="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-primary transition hover:bg-white/90">
               前往 Agent 页
               <AppIcon name="arrowRight" size="sm" />

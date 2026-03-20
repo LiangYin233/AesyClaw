@@ -5,7 +5,7 @@
         <AppIcon name="deployed" size="xl" />
       </div>
       <p class="cn-kicker mt-6 text-outline">{{ title }}</p>
-      <h2 class="mt-2 text-[1.8rem] font-bold tracking-[-0.02em] text-on-surface">模块正在迁移到新版控制台</h2>
+      <h2 class="mt-2 text-[1.8rem] font-bold tracking-[-0.02em] text-on-surface">这个模块稍后开放</h2>
       <p class="cn-body mt-4 text-sm text-on-surface-variant">{{ description }}</p>
       <router-link :to="{ path: '/overview', query: token ? { token } : {} }" class="mt-8 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:opacity-90">
         返回总览
@@ -25,5 +25,5 @@ const route = useRoute();
 const token = getRouteToken(route);
 
 const title = computed(() => String(route.meta.title || '控制台'));
-const description = computed(() => String(route.meta.description || '该模块已经挂入新版壳层，但业务页面仍在迁移中。'));
+const description = computed(() => String(route.meta.description || '这个模块已经预留入口，但当前页面内容还没有完全开放。'));
 </script>

@@ -5,7 +5,7 @@
         <div>
           <p class="cn-kicker text-outline">Agent</p>
           <h1 class="cn-page-title mt-2 text-on-surface">Agent 编排中心</h1>
-          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">直接基于新版控制台页面结构管理角色、模型、视觉能力与可用资源边界，不再沿用旧表单后台的组织方式。</p>
+          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">在这里集中管理角色、模型、视觉能力和可用资源，方便快速检查每个 Agent 当前能做什么。</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <button class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface shadow-sm transition-colors hover:bg-surface-container-high" type="button" :disabled="loading" @click="loadAgentsPage">

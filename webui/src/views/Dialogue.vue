@@ -172,8 +172,8 @@
             </template>
 
             <div v-else class="rounded-[1.4rem] bg-surface-container-low p-8 text-center">
-              <p class="cn-section-title text-on-surface">准备开始新的工作流对话</p>
-              <p class="cn-body mt-2 text-sm text-on-surface-variant">输入指令后会自动创建新的 WebUI 会话，并切入这套对话编排工作台。</p>
+              <p class="cn-section-title text-on-surface">准备开始新的对话</p>
+              <p class="cn-body mt-2 text-sm text-on-surface-variant">输入指令后会自动创建新的 WebUI 会话，你可以在这里持续追踪整轮对话内容。</p>
             </div>
           </div>
         </div>
