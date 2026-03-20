@@ -3,7 +3,7 @@ import type { LLMProvider } from '../../providers/base.js';
 import type { ToolRegistry, ToolContext } from '../../tools/ToolRegistry.js';
 import type { PluginManager } from '../../plugins/index.js';
 import type { ExecutionResult, ExecutionOptions, VisionSettings } from './ExecutionTypes.js';
-import { normalizeError, isRetryableError } from '../../errors/index.js';
+import { normalizeExecutionError, isRetryableExecutionError } from './errors.js';
 import { logger, preview, tokenUsage } from '../../observability/index.js';
 
 export class ToolLoopRunner {
@@ -158,8 +158,8 @@ export class ToolLoopRunner {
             result = nextPayload.result;
           }
         } catch (error: unknown) {
-          const message = normalizeError(error);
-          const isRetryable = isRetryableError(error);
+          const message = normalizeExecutionError(error);
+          const isRetryable = isRetryableExecutionError(error);
           result = `Error: ${message}${isRetryable ? ' (retryable)' : ''}`;
           this.log.error('工具执行失败', {
             agent: agentLabel,

@@ -10,11 +10,12 @@ import {
   type MemoryOperationResult
 } from '../../session/LongTermMemoryStore.js';
 import { logger } from '../../observability/index.js';
-import { CRON_SESSION_KEY_PREFIX, INTERNAL_CHANNELS } from '../../constants/index.js';
 import { collectConversationRounds, sliceRecentConversationRounds } from './conversationRounds.js';
 import { LongTermMemoryService } from './LongTermMemoryService.js';
 
 const MEMORY_SUMMARY_PREFIX = '会话摘要（旧上下文）：';
+const CRON_CHANNEL = 'cron';
+const CRON_SESSION_KEY_PREFIX = `${CRON_CHANNEL}:`;
 
 const SUMMARY_SYSTEM_PROMPT = [
   '角色: 对话摘要器',
@@ -84,7 +85,7 @@ export class SessionMemoryService {
   }
 
   private shouldSkipMemory(sessionKey?: string, session?: Pick<Session, 'channel'>): boolean {
-    return sessionKey?.startsWith(CRON_SESSION_KEY_PREFIX) === true || session?.channel === INTERNAL_CHANNELS.CRON;
+    return sessionKey?.startsWith(CRON_SESSION_KEY_PREFIX) === true || session?.channel === CRON_CHANNEL;
   }
 
   async buildHistory(

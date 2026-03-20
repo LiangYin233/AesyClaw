@@ -3,7 +3,7 @@ import { join } from 'path';
 import { logger } from '../observability/index.js';
 import type { ChannelManager, ChannelPluginDefinition } from './ChannelManager.js';
 import { pathToFileURL } from 'url';
-import { normalizeError } from '../errors/index.js';
+import { normalizeChannelError } from './errors.js';
 
 const log = logger.child('ChannelPluginLoader');
 
@@ -73,7 +73,7 @@ async function importChannelPlugin(mainPath: string): Promise<ChannelPluginDefin
   } catch (error) {
     log.warn(`导入渠道插件失败: ${mainPath}`, {
       path: mainPath,
-      error: normalizeError(error)
+      error: normalizeChannelError(error)
     });
     return null;
   }

@@ -1,5 +1,5 @@
 import { CronExpressionParser } from 'cron-parser';
-import { normalizeError } from '../errors/index.js';
+import { normalizeCronError } from './errors.js';
 import { logger } from '../observability/index.js';
 import { formatLocalTimestamp } from '../observability/logging.js';
 import { CronStore } from './CronStore.js';
@@ -141,7 +141,7 @@ export class CronService {
         await this.runDueJobs();
       } catch (error) {
         this.log.error('执行到期任务时出错', {
-          error: normalizeError(error)
+          error: normalizeCronError(error)
         });
       } finally {
         this.scheduleNext(); // 确保任务链不中断
@@ -171,7 +171,7 @@ export class CronService {
             this.log.error('定时任务执行失败', {
               jobId: job.id,
               jobName: job.name,
-              error: normalizeError(error)
+              error: normalizeCronError(error)
             });
           }
         }
@@ -191,7 +191,7 @@ export class CronService {
       this.jobs.delete(id);
       this.store.delete(id).catch(err => this.log.error('删除任务失败', {
         jobId: id,
-        error: normalizeError(err)
+        error: normalizeCronError(err)
       }));
       this.log.info('一次性定时任务已移除', { jobId: id });
     }
@@ -199,7 +199,7 @@ export class CronService {
     if (toUpdate.length > 0) {
       this.store.batchUpdate(toUpdate).catch(err => this.log.error('批量更新任务失败', {
         count: toUpdate.length,
-        error: normalizeError(err)
+        error: normalizeCronError(err)
       }));
     }
   }
@@ -281,7 +281,7 @@ export class CronService {
       }
     } catch (error) {
       this.log.error('加载定时任务失败', {
-        error: normalizeError(error)
+        error: normalizeCronError(error)
       });
     }
   }

@@ -1,17 +1,16 @@
 import type { Express } from 'express';
 import type { PluginManager } from '../../plugins/index.js';
 import type { Config } from '../../types.js';
-import { ConfigLoader } from '../../config/loader.js';
 import { badRequest, notFound, serverError, unavailable } from './helpers.js';
 
 interface PluginRouteDeps {
   pluginManager?: PluginManager;
   getConfig: () => Config;
-  setConfig?: (config: Config) => void;
+  updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>;
 }
 
 export function registerPluginRoutes(app: Express, deps: PluginRouteDeps): void {
-  const { pluginManager, getConfig, setConfig } = deps;
+  const { pluginManager, getConfig, updateConfig } = deps;
 
   app.get('/api/plugins', async (req, res) => {
     try {
@@ -37,8 +36,12 @@ export function registerPluginRoutes(app: Express, deps: PluginRouteDeps): void 
       if (!success) {
         return notFound(res, 'Plugin', name);
       }
-      const nextConfig = await ConfigLoader.updatePluginConfig(name, enabled);
-      setConfig?.(nextConfig);
+      await updateConfig((config) => {
+        config.plugins[name] = {
+          ...(config.plugins[name] || {}),
+          enabled
+        };
+      });
       res.json({ success: true });
     } catch (error: unknown) {
       serverError(res, error);
@@ -61,8 +64,13 @@ export function registerPluginRoutes(app: Express, deps: PluginRouteDeps): void 
       }
       const config = getConfig();
       const currentEnabled = config.plugins[name]?.enabled ?? true;
-      const nextConfig = await ConfigLoader.updatePluginConfig(name, currentEnabled, options);
-      setConfig?.(nextConfig);
+      await updateConfig((config) => {
+        config.plugins[name] = {
+          ...(config.plugins[name] || {}),
+          enabled: currentEnabled,
+          options
+        };
+      });
       res.json({ success: true });
     } catch (error: unknown) {
       serverError(res, error);

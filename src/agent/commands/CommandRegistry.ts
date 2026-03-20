@@ -1,7 +1,7 @@
 import type { InboundMessage } from '../../types.js';
 import type { CommandHandler, CommandDefinition, CommandMatcher } from './CommandHandler.js';
 import { logger } from '../../observability/index.js';
-import { normalizeError } from '../../errors/index.js';
+import { normalizeCommandError } from './errors.js';
 
 export class CommandRegistry {
   private commands: Map<string, CommandDefinition> = new Map();
@@ -26,7 +26,7 @@ export class CommandRegistry {
         } catch (error) {
           this.log.error(`命令 ${cmd.name} 执行失败`, {
             command: cmd.name,
-            error: normalizeError(error)
+            error: normalizeCommandError(error)
           });
           return {
             ...msg,

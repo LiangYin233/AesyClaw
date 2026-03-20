@@ -13,9 +13,9 @@ import type { SkillManager } from '../skills/SkillManager.js';
 import type { ToolRegistry } from '../tools/ToolRegistry.js';
 import type { SessionRoutingService } from '../agent/session/SessionRoutingService.js';
 import { RuntimeConfigStore } from '../config/RuntimeConfigStore.js';
-import { createErrorResponse } from '../errors/index.js';
+import { ConfigManager } from '../config/ConfigManager.js';
+import { createErrorResponse } from './errors.js';
 import { logger } from '../observability/index.js';
-import { CONSTANTS } from '../constants/index.js';
 import { registerCoreRoutes } from './routes/core.js';
 import { registerMemoryRoutes } from './routes/memory.js';
 import { registerPluginRoutes } from './routes/plugins.js';
@@ -26,7 +26,7 @@ import { registerSkillRoutes } from './routes/skills.js';
 import type { LongTermMemoryStore } from '../session/LongTermMemoryStore.js';
 import type { AgentRoleService } from '../agent/roles/AgentRoleService.js';
 
-const MAX_MESSAGE_LENGTH = CONSTANTS.MESSAGE_MAX_LENGTH;
+const MAX_MESSAGE_LENGTH = 50000;
 
 const packageJson = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8'));
 const packageVersion = packageJson.version;
@@ -41,6 +41,7 @@ export class APIServer {
   private sessionRouting: SessionRoutingService;
   private channelManager: ChannelManager;
   private configStore: RuntimeConfigStore;
+  private configManager: ConfigManager;
   private pluginManager?: PluginManager;
   private cronService?: CronService;
   private mcpManager?: MCPClientManager;
@@ -56,6 +57,7 @@ export class APIServer {
     sessionRouting: SessionRoutingService;
     channelManager: ChannelManager;
     configStore: RuntimeConfigStore;
+    configManager: ConfigManager;
     pluginManager?: PluginManager;
     cronService?: CronService;
     mcpManager?: MCPClientManager;
@@ -70,6 +72,7 @@ export class APIServer {
     this.sessionRouting = options.sessionRouting;
     this.channelManager = options.channelManager;
     this.configStore = options.configStore;
+    this.configManager = options.configManager;
     this.pluginManager = options.pluginManager;
     this.cronService = options.cronService;
     this.mcpManager = options.mcpManager;
@@ -122,9 +125,8 @@ export class APIServer {
 
   private setupRoutes(): void {
     const getConfig = () => this.configStore.getConfig();
-    const setConfig = (config: Config) => {
-      this.configStore.setConfig(config);
-    };
+    const updateConfig = (mutator: (config: Config) => void | Config | Promise<void | Config>) =>
+      this.configManager.update(mutator);
     const getMcpManager = () => this.mcpManager;
     const setMcpManager = (manager: MCPClientManager) => {
       this.mcpManager = manager;
@@ -137,7 +139,7 @@ export class APIServer {
       agentRoleService: this.agentRoleService,
       channelManager: this.channelManager,
       getConfig,
-      setConfig,
+      updateConfig,
       toolRegistry: this.toolRegistry,
       packageVersion,
       maxMessageLength: MAX_MESSAGE_LENGTH,
@@ -152,18 +154,18 @@ export class APIServer {
     registerPluginRoutes(this.app, {
       pluginManager: this.pluginManager,
       getConfig,
-      setConfig
+      updateConfig
     });
     registerCronRoutes(this.app, this.cronService);
     registerMCPRoutes(this.app, {
       toolRegistry: this.toolRegistry,
       getConfig,
-      setConfig,
+      updateConfig,
       getMcpManager,
       setMcpManager
     });
     registerObservabilityRoutes(this.app, {
-      setConfig
+      updateConfig
     });
   }
 

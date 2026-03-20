@@ -1,5 +1,5 @@
 import type { Database } from '../db/index.js';
-import { normalizeError } from '../errors/index.js';
+import { normalizeChannelError } from './errors.js';
 import type { InboundMessage, OutboundMessage } from '../types.js';
 import { logger } from '../observability/index.js';
 import { ChannelRuntime } from './core/runtime.js';
@@ -128,7 +128,7 @@ export class ChannelManager {
       failed++;
       this.#log.error('渠道启动失败', {
         channel: channelName,
-        error: normalizeError(result.reason)
+        error: normalizeChannelError(result.reason)
       });
     }
 
@@ -153,7 +153,7 @@ export class ChannelManager {
         failed++;
         this.#log.error('渠道停止失败', {
           channel: channel.name,
-          error: normalizeError(error)
+          error: normalizeChannelError(error)
         });
       }
     }

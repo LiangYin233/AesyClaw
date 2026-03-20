@@ -1,17 +1,20 @@
 import { join } from 'path';
 import { mkdirSync, existsSync } from 'fs';
 import { logger } from '../observability/index.js';
-import { CONSTANTS } from '../constants/index.js';
 import type { Config } from '../types.js';
 import type { CronJob } from '../cron/index.js';
-import { ConfigLoader } from '../config/loader.js';
+import { ConfigManager } from '../config/ConfigManager.js';
 import { getMainAgentConfig } from '../config/index.js';
 import { createServices, type Services } from './factory/ServiceFactory.js';
 import { dispatchCronJob } from './app/cronDispatch.js';
 import { setupConfigReload } from './app/configReload.js';
+import { setupEventListeners } from './app/eventListeners.js';
 import { setupSignalHandlers } from './app/shutdown.js';
+import { EventBus } from '../events/EventBus.js';
+import type { AesyClawEvents } from '../events/events.js';
 
 const log = logger.child('Bootstrap');
+const CHANNEL_START_TIMEOUT = 30000;
 
 function startStartupLagMonitor(): () => void {
   const intervalMs = 250;
@@ -54,7 +57,7 @@ async function startChannels(services: Services): Promise<void> {
     await Promise.race([
       channelManager.startAll(),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Channel start timeout')), CONSTANTS.CHANNEL_START_TIMEOUT)
+        setTimeout(() => reject(new Error('Channel start timeout')), CHANNEL_START_TIMEOUT)
       )
     ]);
   } catch (error) {
@@ -69,7 +72,9 @@ async function startChannels(services: Services): Promise<void> {
 export async function bootstrap(): Promise<void> {
   const startedAt = Date.now();
   const stopLagMonitor = startStartupLagMonitor();
-  const config = await ConfigLoader.load() as Config;
+  const eventBus = new EventBus<AesyClawEvents>();
+  const configManager = new ConfigManager(eventBus);
+  const config = await configManager.load() as Config;
   const port = config.server.apiPort ?? 18792;
   const workspace = join(process.cwd(), 'workspace');
   const tempDir = join(process.cwd(), '.aesyclaw', 'temp');
@@ -98,6 +103,8 @@ export async function bootstrap(): Promise<void> {
     workspace,
     tempDir,
     config,
+    configManager,
+    eventBus,
     port,
     onCronJob
   });
@@ -108,6 +115,7 @@ export async function bootstrap(): Promise<void> {
 
   const wiringStartedAt = Date.now();
   setupConfigReload(servicesRef);
+  setupEventListeners(servicesRef);
   setupSignalHandlers(servicesRef);
   log.info('启动阶段完成', {
     phase: 'wiring',

@@ -24,4 +24,3 @@ export type {
   Logger,
   TokenUsage
 } from './observability/index.js';
-export * from './errors/index.js';

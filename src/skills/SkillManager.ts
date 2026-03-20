@@ -2,10 +2,9 @@ import { watch, type FSWatcher } from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
 import matter from 'gray-matter';
-import { normalizeError } from '../errors/index.js';
+import { normalizeSkillError } from './errors.js';
 import { logger } from '../observability/index.js';
 import type { Config } from '../types.js';
-import { ConfigLoader } from '../config/loader.js';
 import { formatSkillsPrompt } from './promptFormatter.js';
 
 const SKILL_ENTRY_FILE = 'SKILL.md';
@@ -63,6 +62,7 @@ interface SkillRootSpec {
 export interface SkillManagerOptions {
   builtinSkillsDir?: string;
   externalSkillsDir?: string;
+  updateConfig?: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>;
 }
 
 export class SkillManager {
@@ -71,6 +71,7 @@ export class SkillManager {
   private externalSkillsDir = './workspace/skills';
   private readonly log = logger.child('SkillManager');
   private config: Config | null = null;
+  private readonly updateConfig?: SkillManagerOptions['updateConfig'];
   private rootWatchers = new Map<string, FSWatcher>();
   private dirWatchers = new Map<string, FSWatcher>();
   private reloadTimer: NodeJS.Timeout | null = null;
@@ -84,6 +85,7 @@ export class SkillManager {
     if (options?.externalSkillsDir) {
       this.externalSkillsDir = options.externalSkillsDir;
     }
+    this.updateConfig = options?.updateConfig;
   }
 
   setConfig(config: Config): void {
@@ -119,7 +121,7 @@ export class SkillManager {
       this.log.info(`已加载 ${this.skills.size} 个技能`);
     } catch (error) {
       this.log.warn('加载技能目录失败', {
-        error: normalizeError(error)
+        error: normalizeSkillError(error)
       });
     }
   }
@@ -206,7 +208,11 @@ export class SkillManager {
 
     skill.enabled = enabled;
 
-    const nextConfig = await ConfigLoader.update((config) => {
+    if (!this.updateConfig) {
+      throw new Error('SkillManager updateConfig is not configured');
+    }
+
+    const nextConfig = await this.updateConfig((config) => {
       if (!config.skills) {
         config.skills = {};
       }
@@ -243,7 +249,7 @@ export class SkillManager {
     } catch (error) {
       this.log.error(`读取技能文件失败: ${file.path}`, {
         path: file.path,
-        error: normalizeError(error)
+        error: normalizeSkillError(error)
       });
       return `Failed to read file: ${error}`;
     }
@@ -292,7 +298,7 @@ export class SkillManager {
       void this.reload().catch((error) => {
         this.log.error('技能重载失败', {
           reason,
-          error: normalizeError(error)
+          error: normalizeSkillError(error)
         });
       });
     }, RELOAD_DEBOUNCE_MS);
@@ -443,7 +449,7 @@ export class SkillManager {
         this.log.warn(`加载技能失败: ${name}`, {
           skill: name,
           source,
-          error: normalizeError(error)
+          error: normalizeSkillError(error)
         });
       }
       return null;
@@ -469,7 +475,7 @@ export class SkillManager {
     } catch (error) {
       this.log.warn(`列出技能文件失败: ${skillPath}`, {
         path: skillPath,
-        error: normalizeError(error)
+        error: normalizeSkillError(error)
       });
     }
 
@@ -565,7 +571,7 @@ export class SkillManager {
       } catch (error) {
         this.log.warn('监视技能目录失败', {
           path: dirPath,
-          error: normalizeError(error)
+          error: normalizeSkillError(error)
         });
       }
     }
@@ -575,7 +581,11 @@ export class SkillManager {
     const removedSet = new Set(removedSkills);
     let cleanedAgentRefs = 0;
 
-    const nextConfig = await ConfigLoader.update((config) => {
+    if (!this.updateConfig) {
+      return 0;
+    }
+
+    const nextConfig = await this.updateConfig((config) => {
       const prune = (allowedSkills: string[] = []): string[] => {
         const nextAllowedSkills = allowedSkills.filter((name) => !removedSet.has(name));
         cleanedAgentRefs += allowedSkills.length - nextAllowedSkills.length;
@@ -612,7 +622,11 @@ export class SkillManager {
       return;
     }
 
-    const nextConfig = await ConfigLoader.update((config) => {
+    if (!this.updateConfig) {
+      return;
+    }
+
+    const nextConfig = await this.updateConfig((config) => {
       for (const name of staleNames) {
         delete config.skills[name];
       }

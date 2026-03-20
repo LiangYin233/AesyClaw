@@ -1,4 +1,4 @@
-import { normalizeError, isRetryableError } from '../../errors/index.js';
+import { normalizeProviderError, isRetryableProviderError } from './errors.js';
 import { logger, preview } from '../../observability/index.js';
 import type { LLMMessage, LLMResponse, ToolDefinition } from '../../types.js';
 import type {
@@ -22,7 +22,7 @@ function shouldRetryProviderError(error: unknown, signal?: AbortSignal): boolean
     return false;
   }
 
-  return isRetryableError(error);
+  return isRetryableProviderError(error);
 }
 
 export class ProviderRuntime {
@@ -142,7 +142,7 @@ export class ProviderRuntime {
           durationMs,
           attempt,
           retryable,
-          error: normalizeError(error)
+          error: normalizeProviderError(error)
         });
 
         if (attempt >= maxAttempts || !retryable) {

@@ -1,6 +1,8 @@
 import type { LLMMessage, LLMResponse, OutboundMessage } from '../../types.js';
 import type { ToolContext } from '../../tools/ToolRegistry.js';
 import { logger } from '../../observability/index.js';
+import type { EventBus } from '../../events/EventBus.js';
+import type { AesyClawEvents } from '../../events/events.js';
 
 export interface BackgroundTaskResult {
   content: string;
@@ -70,7 +72,10 @@ export class BackgroundTaskManager {
   private maxConcurrentPerSession: number = 5;
   private log = logger.child('BackgroundTask');
 
-  constructor(private sendOutbound: (message: OutboundMessage) => Promise<void>) {
+  constructor(
+    private sendOutbound: (message: OutboundMessage) => Promise<void>,
+    private eventBus?: EventBus<AesyClawEvents>
+  ) {
   }
 
   /**
@@ -165,6 +170,12 @@ export class BackgroundTaskManager {
 
       task.result = result;
       task.status = 'completed';
+      await this.eventBus?.emit('background_task.completed', {
+        sessionKey: task.sessionKey,
+        taskId: task.id,
+        channel: task.channel,
+        chatId: task.chatId
+      });
 
       // 调用完成回调
       await task.callbacks?.onComplete?.(result, task.messages);
@@ -179,6 +190,11 @@ export class BackgroundTaskManager {
         });
       } else {
         task.status = 'failed';
+        await this.eventBus?.emit('background_task.failed', {
+          sessionKey: task.sessionKey,
+          taskId: task.id,
+          error: normalizedError
+        });
       }
       // 调用错误回调
       await task.callbacks?.onError?.(normalizedError);

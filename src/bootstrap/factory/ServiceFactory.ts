@@ -9,7 +9,7 @@ import { AgentRoleService } from '../../agent/roles/AgentRoleService.js';
 import { APIServer } from '../../api/index.js';
 import { ChannelManager } from '../../channels/ChannelManager.js';
 import { loadExternalChannelPlugins } from '../../channels/ChannelPluginLoader.js';
-import { ConfigLoader } from '../../config/loader.js';
+import { ConfigManager } from '../../config/ConfigManager.js';
 import { RuntimeConfigStore } from '../../config/RuntimeConfigStore.js';
 import {
   getMainAgentConfig,
@@ -35,7 +35,9 @@ import type { PluginConfigState } from '../../plugins/index.js';
 import type { Config, VisionSettings } from '../../types.js';
 import type { ResolvedProviderSelection } from '../../config/schema.js';
 import type { CronJob } from '../../cron/index.js';
-import { normalizeError } from '../../errors/index.js';
+import { normalizeBootstrapError } from './errors.js';
+import { EventBus } from '../../events/EventBus.js';
+import type { AesyClawEvents } from '../../events/events.js';
 
 const appLog = logger.child('AesyClaw');
 
@@ -55,6 +57,8 @@ export interface Services {
   skillManager: SkillManager | null;
   config: Config;
   configStore: RuntimeConfigStore;
+  configManager: ConfigManager;
+  eventBus: EventBus<AesyClawEvents>;
   workspace: string;
   apiServer?: APIServer;
 }
@@ -63,6 +67,8 @@ export interface ServiceFactoryOptions {
   workspace: string;
   tempDir: string;
   config: Config;
+  configManager: ConfigManager;
+  eventBus: EventBus<AesyClawEvents>;
   port: number;
   onCronJob?: (job: CronJob) => Promise<void>;
 }
@@ -256,10 +262,15 @@ function createVisionProvider(config: Config, visionSettings: VisionSettings) {
   return createProvider(visionSettings.visionProviderName, providerConfig);
 }
 
-async function createSkillManager(config: Config, workspace: string): Promise<SkillManager> {
+async function createSkillManager(
+  config: Config,
+  workspace: string,
+  updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>
+): Promise<SkillManager> {
   const skillManager = new SkillManager({
     builtinSkillsDir: './skills',
-    externalSkillsDir: join(workspace, 'skills')
+    externalSkillsDir: join(workspace, 'skills'),
+    updateConfig
   });
   skillManager.setConfig(config);
   await skillManager.loadFromDirectory();
@@ -271,6 +282,8 @@ async function createSkillManager(config: Config, workspace: string): Promise<Sk
 async function createExecutionRuntime(args: {
   getConfig: () => Config;
   setConfig: (config: Config) => void;
+  updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>;
+  eventBus: EventBus<AesyClawEvents>;
   outboundGateway: OutboundGateway;
   workspace: string;
   sessionManager: SessionManager;
@@ -287,7 +300,7 @@ async function createExecutionRuntime(args: {
   visionProvider?: ReturnType<typeof createVisionProvider>;
   setPluginManager: (pluginManager: PluginManager) => void;
 }> {
-  const { getConfig, setConfig, outboundGateway, workspace, sessionManager, sessionRouting, memoryService } = args;
+  const { getConfig, setConfig, updateConfig, eventBus, outboundGateway, workspace, sessionManager, sessionRouting, memoryService } = args;
   const config = getConfig();
   const toolConfig = getToolRuntimeConfig(config);
   const mainAgentConfig = getMainAgentConfig(config);
@@ -298,10 +311,11 @@ async function createExecutionRuntime(args: {
   const provider = createRequiredProvider(config, mainAgentConfig.role.provider, mainAgentConfig.role.model);
   const visionSettings = mainAgentConfig.visionSettings;
   const visionProvider = createVisionProvider(config, visionSettings);
-  const skillManager = await createSkillManager(config, workspace);
+  const skillManager = await createSkillManager(config, workspace, updateConfig);
   const agentRoleService = new AgentRoleService(
     getConfig,
     setConfig,
+    updateConfig,
     toolRegistry,
     skillManager
   );
@@ -323,7 +337,8 @@ async function createExecutionRuntime(args: {
     visionProvider,
     memoryService,
     agentRoleService,
-    getPluginManager: () => pluginManagerRef
+    getPluginManager: () => pluginManagerRef,
+    eventBus
   });
 
   return {
@@ -357,6 +372,7 @@ function normalizePluginConfigs(
 
 async function createPluginRuntime(args: {
   configStore: RuntimeConfigStore;
+  configManager: ConfigManager;
   outboundGateway: OutboundGateway;
   workspace: string;
   tempDir: string;
@@ -366,7 +382,7 @@ async function createPluginRuntime(args: {
   startBackgroundLoading: () => void;
   isBackgroundLoadingComplete: () => boolean;
 }> {
-  const { configStore, outboundGateway, workspace, tempDir, toolRegistry } = args;
+  const { configStore, configManager, outboundGateway, workspace, tempDir, toolRegistry } = args;
   let started = false;
   let completed = false;
 
@@ -395,7 +411,7 @@ async function createPluginRuntime(args: {
       try {
         const newPluginConfigs = await pluginManager.applyDefaultConfigs();
         if (Object.keys(newPluginConfigs).length > 0) {
-          const nextConfig = await ConfigLoader.update((draft) => {
+          const nextConfig = await configManager.update((draft) => {
             draft.plugins = newPluginConfigs as typeof draft.plugins;
           });
           configStore.setConfig(nextConfig);
@@ -413,7 +429,7 @@ async function createPluginRuntime(args: {
         });
       } catch (error) {
         appLog.error('后台加载插件失败', {
-          error: normalizeError(error)
+          error: normalizeBootstrapError(error)
         });
       } finally {
         completed = true;
@@ -456,6 +472,7 @@ async function createChannelManager(
 
 async function createInfrastructure(args: {
   configStore: RuntimeConfigStore;
+  configManager: ConfigManager;
   outboundGateway: OutboundGateway;
   agentRuntime: AgentRuntime;
   workspace: string;
@@ -469,11 +486,12 @@ async function createInfrastructure(args: {
   channelManager: ChannelManager;
   mcpManager: MCPClientManager | null;
 }> {
-  const { configStore, outboundGateway, agentRuntime, workspace, tempDir, toolRegistry, sessionManager } = args;
+  const { configStore, configManager, outboundGateway, agentRuntime, workspace, tempDir, toolRegistry, sessionManager } = args;
   const config = configStore.getConfig();
   const [pluginRuntime, channelManager] = await Promise.all([
     createPluginRuntime({
       configStore,
+      configManager,
       outboundGateway,
       workspace,
       tempDir,
@@ -503,7 +521,7 @@ async function createInfrastructure(args: {
 }
 
 export async function createServices(options: ServiceFactoryOptions): Promise<Services> {
-  const { workspace, tempDir, port, onCronJob } = options;
+  const { workspace, tempDir, port, onCronJob, configManager, eventBus } = options;
   const startedAt = Date.now();
   const configStore = new RuntimeConfigStore(bootstrapRuntimeConfig(options.config));
   const config = configStore.getConfig();
@@ -529,6 +547,8 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   const executionRuntime = await createExecutionRuntime({
     getConfig: () => configStore.getConfig(),
     setConfig: (nextConfig) => { configStore.setConfig(nextConfig); },
+    updateConfig: (mutator) => configManager.update(mutator),
+    eventBus,
     outboundGateway,
     workspace,
     sessionManager,
@@ -568,6 +588,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     mcpManager
   } = await createInfrastructure({
     configStore,
+    configManager,
     outboundGateway,
     agentRuntime,
     workspace,
@@ -590,7 +611,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     cronService,
     pluginManager,
     mcpManager,
-    agentRuntime,
+    runSubAgentTasks: (tasks, context) => agentRuntime.runSubAgentTasks(tasks, context),
     agentRoleService,
     sessionManager,
     memoryService
@@ -604,9 +625,10 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
       agentRuntime,
       sessionManager,
       sessionRouting,
-      channelManager,
-      configStore,
-      pluginManager,
+        channelManager,
+        configStore,
+        configManager,
+        pluginManager,
       cronService,
         mcpManager: mcpManager ?? undefined,
         skillManager,
@@ -651,6 +673,8 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     skillManager,
     config: configStore.getConfig(),
     configStore,
+    configManager,
+    eventBus,
     workspace,
     apiServer
   };

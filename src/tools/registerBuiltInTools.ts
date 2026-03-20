@@ -5,12 +5,11 @@ import type { CronService } from '../cron/index.js';
 import type { MCPClientManager } from '../mcp/index.js';
 import type { PluginManager } from '../plugins/index.js';
 import type { OutboundMessage, ToolDefinition } from '../types.js';
-import type { AgentRuntime } from '../agent/runtime/AgentRuntime.js';
 import type { AgentRoleService } from '../agent/roles/AgentRoleService.js';
 import type { SessionMemoryService } from '../agent/memory/SessionMemoryService.js';
 import type { SessionManager } from '../session/index.js';
 import { registerCronTools } from '../cron/CronTools.js';
-import { normalizeError } from '../errors/index.js';
+import { normalizeToolError } from './errors.js';
 import { logger } from '../observability/index.js';
 
 export interface ToolIntegrationOptions {
@@ -19,7 +18,15 @@ export interface ToolIntegrationOptions {
   cronService: CronService;
   pluginManager: PluginManager;
   mcpManager: MCPClientManager | null;
-  agentRuntime: AgentRuntime;
+  runSubAgentTasks: (
+    tasks: Array<{ agentName: string; task: string }>,
+    context?: {
+      channel?: string;
+      chatId?: string;
+      messageType?: 'private' | 'group';
+      signal?: AbortSignal;
+    }
+  ) => Promise<Array<{ agentName: string; task: string; success: boolean; result?: string; error?: string }>>;
   agentRoleService: AgentRoleService;
   sessionManager: SessionManager;
   memoryService?: SessionMemoryService;
@@ -31,7 +38,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
     skillManager,
     cronService,
     pluginManager,
-    agentRuntime,
+    runSubAgentTasks,
     agentRoleService,
     sessionManager,
     memoryService
@@ -172,7 +179,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
           sessionKey: context.sessionKey,
           mediaCount: media?.length || 0,
           fileCount: files?.length || 0,
-          error: normalizeError(error)
+          error: normalizeToolError(error)
         });
         return `发送失败：${error instanceof Error ? error.message : String(error)}`;
       }
@@ -226,7 +233,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
       }
 
       try {
-        const results = await agentRuntime.runSubAgentTasks(rawTasks, {
+        const results = await runSubAgentTasks(rawTasks, {
           channel: context?.channel,
           chatId: context?.chatId,
           messageType: context?.messageType,
@@ -248,7 +255,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
       } catch (error) {
         log.error('call_agent 执行失败', {
           taskCount: rawTasks.length,
-          error: normalizeError(error)
+          error: normalizeToolError(error)
         });
         return `Error: ${error instanceof Error ? error.message : String(error)}`;
       }
@@ -282,7 +289,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
           log.error('memory_list 执行失败', {
             channel: context.channel,
             chatId: context.chatId,
-            error: normalizeError(error)
+            error: normalizeToolError(error)
           });
           return `Error: ${error instanceof Error ? error.message : String(error)}`;
         }
@@ -361,7 +368,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
           log.error('memory_manage 执行失败', {
             channel: context.channel,
             chatId: context.chatId,
-            error: normalizeError(error)
+            error: normalizeToolError(error)
           });
           return `Error: ${error instanceof Error ? error.message : String(error)}`;
         }
@@ -396,7 +403,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
           log.error('memory_history 执行失败', {
             channel: context.channel,
             chatId: context.chatId,
-            error: normalizeError(error)
+            error: normalizeToolError(error)
           });
           return `Error: ${error instanceof Error ? error.message : String(error)}`;
         }

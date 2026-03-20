@@ -1,6 +1,7 @@
 ﻿import type { ToolDefinition } from '../types.js';
 import { logger } from '../observability/index.js';
-import { CONSTANTS } from '../constants/index.js';
+
+const DEFAULT_TOOL_TIMEOUT = 30000;
 
 export type ToolSource = 'built-in' | 'plugin' | 'mcp';
 
@@ -91,7 +92,7 @@ export class ToolRegistry {
   private defaultTimeout: number;
 
   constructor(options?: { defaultTimeout?: number }) {
-    this.defaultTimeout = options?.defaultTimeout ?? CONSTANTS.TOOL_TIMEOUT;
+    this.defaultTimeout = options?.defaultTimeout ?? DEFAULT_TOOL_TIMEOUT;
   }
 
   setDefaultTimeout(timeout: number): void {

@@ -3,7 +3,8 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import type { ToolDefinition, MCPServersConfig, MCPServerConfig, MCPServerInfo } from '../types.js';
 import { logger } from '../observability/index.js';
-import { CONSTANTS } from '../constants/index.js';
+
+const DEFAULT_MCP_TIMEOUT = 120000;
 
 export class MCPClientManager {
   private clients: Map<string, Client> = new Map();
@@ -11,7 +12,7 @@ export class MCPClientManager {
   private serverStatus: Map<string, MCPServerInfo> = new Map();
   private toolLoadCallbacks: Array<(tools: ToolDefinition[]) => void> = [];
   private log = logger.child('MCP');
-  private static readonly DEFAULT_TIMEOUT = CONSTANTS.MCP_TIMEOUT;
+  private static readonly DEFAULT_TIMEOUT = DEFAULT_MCP_TIMEOUT;
 
   /**
    * 非阻塞连接 - 后台异步连接所有服务器

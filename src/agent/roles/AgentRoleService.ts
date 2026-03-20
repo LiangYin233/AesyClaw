@@ -1,4 +1,3 @@
-import { ConfigLoader } from '../../config/loader.js';
 import type { AgentRoleConfig, Config, VisionSettings } from '../../types.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import type { SkillManager } from '../../skills/SkillManager.js';
@@ -24,6 +23,7 @@ export class AgentRoleService {
   constructor(
     private getConfig: () => Config,
     private setConfig: (config: Config) => void,
+    private updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>,
     private toolRegistry: Pick<ToolRegistry, 'getDefinitions'>,
     private skillManager?: SkillManager
   ) {}
@@ -74,7 +74,7 @@ export class AgentRoleService {
       throw new Error(`Agent role already exists: ${normalized.name}`);
     }
 
-    const nextConfig = await ConfigLoader.update((config) => {
+    const nextConfig = await this.updateConfig((config) => {
       config.agents.roles[normalized.name] = normalized;
     });
     this.setConfig(nextConfig);
@@ -94,7 +94,7 @@ export class AgentRoleService {
       name
     };
     const normalized = this.normalizeRoleConfig(merged, name === MAIN_AGENT_NAME);
-    const nextConfig = await ConfigLoader.update((draft) => {
+    const nextConfig = await this.updateConfig((draft) => {
       draft.agents.roles[name] = normalized;
     });
     this.setConfig(nextConfig);
@@ -111,7 +111,7 @@ export class AgentRoleService {
       throw new Error(`Agent role not found: ${name}`);
     }
 
-    const nextConfig = await ConfigLoader.update((draft) => {
+    const nextConfig = await this.updateConfig((draft) => {
       delete draft.agents.roles[name];
     });
     this.setConfig(nextConfig);

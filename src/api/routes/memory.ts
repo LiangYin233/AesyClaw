@@ -1,8 +1,14 @@
 import type { Express } from 'express';
-import { createErrorResponse, normalizeError, NotFoundError } from '../../errors/index.js';
-import { INTERNAL_CHANNELS } from '../../constants/index.js';
+import {
+  ApiNotFoundError,
+  createErrorResponse,
+  createNotFoundErrorResponse,
+  normalizeApiError
+} from '../errors.js';
 import type { SessionManager } from '../../session/SessionManager.js';
 import type { LongTermMemoryStore } from '../../session/LongTermMemoryStore.js';
+
+const CRON_CHANNEL = 'cron';
 
 interface MemoryRouteDeps {
   sessionManager: SessionManager;
@@ -53,7 +59,7 @@ async function resolveConversationTarget(sessionManager: SessionManager, rawKey:
     }
   }
 
-  throw new NotFoundError('Memory entry', rawKey);
+  throw new ApiNotFoundError('Memory entry', rawKey);
 }
 
 export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void {
@@ -86,7 +92,7 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
           LEFT JOIN session_memory sm ON sm.session_id = s.id
           WHERE s.channel != ?
           ORDER BY datetime(s.updated_at) DESC`,
-          [INTERNAL_CHANNELS.CRON]
+          [CRON_CHANNEL]
         ),
         db.all<{
           id: number;
@@ -106,7 +112,7 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
            WHERE channel != ?
              AND status != 'deleted'
            ORDER BY datetime(updated_at) DESC, id DESC`,
-          [INTERNAL_CHANNELS.CRON]
+          [CRON_CHANNEL]
         ),
         db.all<{
           id: number;
@@ -125,7 +131,7 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
            FROM memory_operations
            WHERE channel != ?
            ORDER BY datetime(created_at) DESC, id DESC`,
-          [INTERNAL_CHANNELS.CRON]
+          [CRON_CHANNEL]
         ),
         db.all<{
           channel: string;
@@ -138,7 +144,7 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
            FROM conversation_memory
            WHERE channel != ?
            ORDER BY datetime(updated_at) DESC`,
-          [INTERNAL_CHANNELS.CRON]
+          [CRON_CHANNEL]
         )
       ]);
 
@@ -360,7 +366,7 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
 
       res.json({ items });
     } catch (error: unknown) {
-      deps.log.error(`记忆列表加载失败: ${normalizeError(error)}`);
+      deps.log.error(`记忆列表加载失败: ${normalizeApiError(error)}`);
       res.status(500).json(createErrorResponse(error));
     }
   });
@@ -372,9 +378,9 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
       const items = await deps.longTermMemoryStore.listOperations(channel, chatId, 100);
       res.json({ items });
     } catch (error: unknown) {
-      deps.log.error(`记忆历史加载失败: ${normalizeError(error)}`);
-      if (error instanceof NotFoundError) {
-        res.status(404).json(createErrorResponse(error));
+      deps.log.error(`记忆历史加载失败: ${normalizeApiError(error)}`);
+      if (error instanceof ApiNotFoundError) {
+        res.status(404).json(createNotFoundErrorResponse(error.resource, error.id));
         return;
       }
       res.status(500).json(createErrorResponse(error));
@@ -396,10 +402,10 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
 
       res.json({ success: true, deletedCount });
     } catch (error: unknown) {
-      deps.log.error(`记忆删除失败: ${normalizeError(error)}`);
+      deps.log.error(`记忆删除失败: ${normalizeApiError(error)}`);
 
-      if (error instanceof NotFoundError) {
-        res.status(404).json(createErrorResponse(error));
+      if (error instanceof ApiNotFoundError) {
+        res.status(404).json(createNotFoundErrorResponse(error.resource, error.id));
         return;
       }
 
@@ -413,7 +419,7 @@ export function registerMemoryRoutes(app: Express, deps: MemoryRouteDeps): void 
       const deletedCount = await deps.longTermMemoryStore.deleteAllEntries('api', 'Cleared all memory from memory API');
       res.json({ success: true, deletedCount });
     } catch (error: unknown) {
-      deps.log.error(`清空全部记忆失败: ${normalizeError(error)}`);
+      deps.log.error(`清空全部记忆失败: ${normalizeApiError(error)}`);
       res.status(500).json(createErrorResponse(error));
     }
   });

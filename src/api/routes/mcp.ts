@@ -2,7 +2,6 @@ import type { Express } from 'express';
 import type { MCPClientManager } from '../../mcp/MCPClient.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import type { Config, MCPServerInfo } from '../../types.js';
-import { ConfigLoader } from '../../config/loader.js';
 import { getConfigValidationIssue, parseMCPServerConfig } from '../../config/index.js';
 import { connectMcpServer, disconnectMcpServer, reconnectMcpServer } from '../../mcp/runtime.js';
 import { formatLocalTimestamp } from '../../observability/logging.js';
@@ -11,7 +10,7 @@ import { badRequest, notFound, serverError } from './helpers.js';
 interface MCPDeps {
   toolRegistry?: ToolRegistry;
   getConfig: () => Config;
-  setConfig?: (config: Config) => void;
+  updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>;
   getMcpManager: () => MCPClientManager | undefined;
   setMcpManager: (m: MCPClientManager) => void;
 }
@@ -100,10 +99,9 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
         toolRegistry: deps.toolRegistry
       }, name, config);
 
-      const nextConfig = await ConfigLoader.update((currentConfig) => {
+      const nextConfig = await deps.updateConfig((currentConfig) => {
         currentConfig.mcp[name] = config;
       });
-      deps.setConfig?.(nextConfig);
 
       res.status(201).json({
         success: true,
@@ -127,10 +125,9 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
 
       const { name } = req.params;
       if (deps.getConfig().mcp[name]) {
-        const nextConfig = await ConfigLoader.update((currentConfig) => {
+        await deps.updateConfig((currentConfig) => {
           delete currentConfig.mcp[name];
         });
-        deps.setConfig?.(nextConfig);
       }
 
       const { toolsRemoved } = await disconnectMcpServer({
@@ -174,10 +171,9 @@ export function registerMCPRoutes(app: Express, deps: MCPDeps): void {
         return notFound(res, 'MCP server in config', name);
       }
 
-      const nextConfig = await ConfigLoader.update((config) => {
+      const nextConfig = await deps.updateConfig((config) => {
         config.mcp[name].enabled = enabled;
       });
-      deps.setConfig?.(nextConfig);
 
       let server = deps.getMcpManager()?.getServerStatus(name);
       if (enabled) {

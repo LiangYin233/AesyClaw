@@ -2,16 +2,15 @@ import type { Express } from 'express';
 import type { Config } from '../../types.js';
 import { logging, tokenUsage, logger, type LogLevel } from '../../observability/index.js';
 import { formatLocalTimestamp } from '../../observability/logging.js';
-import { ConfigLoader } from '../../config/loader.js';
 import { badRequest, serverError } from './helpers.js';
 
 const log = logger.child('ObservabilityAPI');
 
 interface ObservabilityRouteDeps {
-  setConfig?: (config: Config) => void;
+  updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>;
 }
 
-export function registerObservabilityRoutes(app: Express, deps: ObservabilityRouteDeps = {}): void {
+export function registerObservabilityRoutes(app: Express, deps: ObservabilityRouteDeps): void {
   app.get('/api/observability/logging/config', (req, res) => {
     try {
       res.json(logging.getConfig());
@@ -60,10 +59,9 @@ export function registerObservabilityRoutes(app: Express, deps: ObservabilityRou
       logging.setLevel(level);
 
       try {
-        const nextConfig = await ConfigLoader.update((config) => {
+        await deps.updateConfig((config) => {
           config.observability.level = level;
         });
-        deps.setConfig?.(nextConfig);
         log.info('日志级别已更新', { level });
       } catch (saveError) {
         log.warn('日志级别已在内存更新，但写入配置失败', {

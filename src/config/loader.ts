@@ -3,7 +3,7 @@ import { randomBytes } from 'crypto';
 import { basename, dirname, join } from 'path';
 import type { Config } from '../types.js';
 import { logger } from '../observability/index.js';
-import { normalizeError } from '../errors/index.js';
+import { normalizeConfigError } from './errors.js';
 import { parse, stringify } from 'smol-toml';
 import { createDefaultConfig, parseConfig } from './schema.js';
 
@@ -216,7 +216,7 @@ export class ConfigLoader {
       this.log.debug('Started file watcher');
     } catch (error) {
       this.log.warn('启动配置文件监视器失败', {
-        error: normalizeError(error)
+        error: normalizeConfigError(error)
       });
     }
   }
@@ -245,7 +245,7 @@ export class ConfigLoader {
       await this.notifyReload(nextConfig);
     } catch (error) {
       this.log.warn('重新加载配置失败', {
-        error: normalizeError(error)
+        error: normalizeConfigError(error)
       });
     }
   }

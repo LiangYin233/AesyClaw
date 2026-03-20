@@ -1,18 +1,21 @@
 import type { Express } from 'express';
 import { randomUUID } from 'crypto';
-import { ConfigLoader } from '../../config/loader.js';
 import { getConfigValidationIssue } from '../../config/index.js';
-import { INTERNAL_CHANNELS } from '../../constants/index.js';
-import { createErrorResponse, createValidationErrorResponse, normalizeError, NotFoundError, ValidationError } from '../../errors/index.js';
+import { createErrorResponse, createValidationErrorResponse, normalizeApiError } from '../errors.js';
 import type { ChannelManager } from '../../channels/ChannelManager.js';
 import type { Config } from '../../types.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import { parseAgentRoleInput } from '../mappers/agentRoleMapper.js';
 import { SessionManager } from '../../session/SessionManager.js';
+import { SessionNotFoundError, SessionValidationError } from '../../session/errors.js';
 import type { SessionRoutingService } from '../../agent/session/SessionRoutingService.js';
 import type { AgentRoleService } from '../../agent/roles/AgentRoleService.js';
+import { AgentRoleNotFoundError } from '../../agent/roles/errors.js';
 import type { AgentRuntime } from '../../agent/runtime/AgentRuntime.js';
+import { assignSessionAgent } from '../../agent/usecases/index.js';
 import { badRequest, notFound, serverError, unavailable, wrap } from './helpers.js';
+
+const WEBUI_CHANNEL = 'webui';
 
 interface CoreRouteDeps {
   agentRuntime: Pick<AgentRuntime, 'handleDirect' | 'isRunning'>;
@@ -21,7 +24,7 @@ interface CoreRouteDeps {
   agentRoleService?: AgentRoleService;
   channelManager: ChannelManager;
   getConfig: () => Config;
-  setConfig: (config: Config) => void;
+  updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>;
   toolRegistry?: ToolRegistry;
   packageVersion: string;
   maxMessageLength: number;
@@ -64,20 +67,18 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
       throw new Error('Agent role service unavailable');
     }
 
-    if (agentName === null || agentName === '') {
-      const session = await deps.sessionManager.getExistingOrThrow(key);
-      deps.sessionRouting.clearConversationAgent(session.channel, session.chatId);
-      return { success: true, agentName: getDefaultRoleName() };
-    }
-
-    const role = deps.agentRoleService.getResolvedRole(agentName);
-    if (!role) {
-      throw new NotFoundError('Agent role', agentName);
-    }
-
-    const session = await deps.sessionManager.getExistingOrThrow(key);
-    deps.sessionRouting.setConversationAgent(session.channel, session.chatId, role.name);
-    return { success: true, agentName: role.name };
+    return assignSessionAgent({
+      getDefaultRoleName,
+      getSession: async (sessionKey) => deps.sessionManager.getExistingOrThrow(sessionKey),
+      getResolvedRole: (name) => deps.agentRoleService!.getResolvedRole(name),
+      clearConversationAgent: (channel, chatId) => deps.sessionRouting.clearConversationAgent(channel, chatId),
+      setConversationAgent: (channel, chatId, resolvedAgentName) => {
+        deps.sessionRouting.setConversationAgent(channel, chatId, resolvedAgentName);
+      }
+    }, {
+      sessionKey: key,
+      agentName
+    });
   };
 
   const deleteSession = async (key: string): Promise<{ success: true }> => {
@@ -91,7 +92,7 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
     channel?: string;
     chatId?: string;
   }) => {
-    const resolvedChannel = request.channel?.trim() || INTERNAL_CHANNELS.WEBUI;
+    const resolvedChannel = request.channel?.trim() || WEBUI_CHANNEL;
     const key = request.sessionKey || `${resolvedChannel}:${randomUUID()}`;
     const resolvedChatId = request.chatId?.trim() || request.sessionKey || key;
     const response = await deps.agentRuntime.handleDirect(request.message, {
@@ -130,7 +131,7 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
       };
     }
 
-    merged[INTERNAL_CHANNELS.WEBUI] = {
+    merged[WEBUI_CHANNEL] = {
       running: true,
       enabled: true,
       connected: true
@@ -158,10 +159,10 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
       SessionManager.validateSessionKey(req.params.key);
       res.json(await getSessionDetails(req.params.key));
     } catch (error: unknown) {
-      if (error instanceof ValidationError) {
+      if (error instanceof SessionValidationError) {
         return badRequest(res, error.message, 'key');
       }
-      if (error instanceof NotFoundError) {
+      if (error instanceof SessionNotFoundError) {
         return res.status(404).json(createErrorResponse(error));
       }
       serverError(res, error);
@@ -178,10 +179,10 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
 
       res.json(await setSessionAgent(req.params.key, agentName ?? null));
     } catch (error: unknown) {
-      if (error instanceof ValidationError) {
+      if (error instanceof SessionValidationError) {
         return badRequest(res, error.message, 'key');
       }
-      if (error instanceof NotFoundError) {
+      if (error instanceof SessionNotFoundError || error instanceof AgentRoleNotFoundError) {
         return res.status(404).json(createErrorResponse(error));
       }
       serverError(res, error);
@@ -193,7 +194,7 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
       SessionManager.validateSessionKey(req.params.key);
       res.json(await deleteSession(req.params.key));
     } catch (error: unknown) {
-      if (error instanceof ValidationError) {
+      if (error instanceof SessionValidationError) {
         return badRequest(res, error.message, 'key');
       }
       serverError(res, error);
@@ -262,7 +263,7 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
       const response = await createChatResponse({ sessionKey, message, channel, chatId });
       res.json(response);
     } catch (error: unknown) {
-      deps.log.error(`对话请求失败: ${normalizeError(error)}`);
+      deps.log.error(`对话请求失败: ${normalizeApiError(error)}`);
       serverError(res, error);
     }
   });
@@ -295,7 +296,7 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
       await channelInstance.send({ channel: req.params.name, chatId, content });
       res.json({ success: true });
     } catch (error: unknown) {
-      deps.log.error('API 外发消息失败', { channel: req.params.name, chatId, error: normalizeError(error) });
+      deps.log.error('API 外发消息失败', { channel: req.params.name, chatId, error: normalizeApiError(error) });
       serverError(res, error);
     }
   });
@@ -315,8 +316,7 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
         return badRequest(res, 'config body must be an object', 'config');
       }
       deps.log.info('收到 API 配置更新请求');
-      const savedConfig = await ConfigLoader.update(() => newConfig as Config);
-      deps.setConfig(savedConfig);
+      await deps.updateConfig(() => newConfig as Config);
       res.json({ success: true });
     } catch (error: unknown) {
       const issue = getConfigValidationIssue(error);
@@ -324,7 +324,7 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
         return badRequest(res, issue.message, issue.field);
       }
 
-      deps.log.error('API 配置更新失败', { error: normalizeError(error) });
+      deps.log.error('API 配置更新失败', { error: normalizeApiError(error) });
       serverError(res, error);
     }
   });

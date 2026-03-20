@@ -9,7 +9,6 @@ import type { SessionRoutingService } from '../session/SessionRoutingService.js'
 import type { AgentRoleService } from '../roles/AgentRoleService.js';
 import type { VisionSettings } from '../../types.js';
 import { logger } from '../../observability/index.js';
-import { CONFIG_DEFAULTS } from '../../constants/index.js';
 import { AgentPipeline } from './AgentPipeline.js';
 import { SessionResolver } from '../session/SessionResolver.js';
 import { BackgroundTaskManager } from '../execution/BackgroundTaskManager.js';
@@ -17,6 +16,19 @@ import { ExecutionEngine } from '../execution/ExecutionEngine.js';
 import { ExecutionRuntime } from '../execution/ExecutionRuntime.js';
 import { ExecutionRegistry } from '../execution/ExecutionRegistry.js';
 import type { ExecutionStatus, SessionReference } from '../types.js';
+import type { EventBus } from '../../events/EventBus.js';
+import type { AesyClawEvents } from '../../events/events.js';
+import {
+  handleDirectMessage,
+  handleInboundMessage,
+  runAgentTurn,
+  type HandleDirectMessageDeps,
+  type HandleInboundMessageDeps,
+  type RunAgentTurnDeps
+} from '../usecases/index.js';
+
+const DEFAULT_MAX_ITERATIONS = 40;
+const DEFAULT_MEMORY_WINDOW = 50;
 
 export class OutboundGateway {
   private log = logger.child('OutboundGateway');
@@ -56,6 +68,7 @@ export interface AgentRuntimeOptions {
   memoryService?: SessionMemoryService;
   agentRoleService?: AgentRoleService;
   getPluginManager: () => PluginManager | undefined;
+  eventBus?: EventBus<AesyClawEvents>;
 }
 
 export class AgentRuntime {
@@ -73,6 +86,9 @@ export class AgentRuntime {
   private readonly executionEngine: ExecutionEngine;
   private readonly executionRuntime: ExecutionRuntime;
   private readonly toolContextBase: ToolContext;
+  private readonly handleInboundMessageDeps: HandleInboundMessageDeps;
+  private readonly handleDirectMessageDeps: HandleDirectMessageDeps;
+  private readonly runAgentTurnDeps: RunAgentTurnDeps;
 
   constructor(private options: AgentRuntimeOptions) {
     if (!options.model?.trim()) {
@@ -82,8 +98,8 @@ export class AgentRuntime {
     this.defaultProvider = options.provider;
     this.mainModel = options.model;
     this.systemPrompt = options.systemPrompt || 'You are a helpful AI assistant.';
-    this.maxIterations = options.maxIterations ?? CONFIG_DEFAULTS.DEFAULT_MAX_ITERATIONS;
-    this.memoryWindow = options.memoryWindow ?? CONFIG_DEFAULTS.DEFAULT_MEMORY_WINDOW;
+    this.maxIterations = options.maxIterations ?? DEFAULT_MAX_ITERATIONS;
+    this.memoryWindow = options.memoryWindow ?? DEFAULT_MEMORY_WINDOW;
     this.memoryService = options.memoryService;
     this.agentRoleService = options.agentRoleService;
     this.toolContextBase = { workspace: options.workspace };
@@ -96,7 +112,10 @@ export class AgentRuntime {
       options.agentRoleService
     );
     const executionRegistry = new ExecutionRegistry();
-    const backgroundTaskManager = new BackgroundTaskManager((message) => this.sendOutbound(message));
+    const backgroundTaskManager = new BackgroundTaskManager(
+      (message) => this.sendOutbound(message),
+      options.eventBus
+    );
     this.executionEngine = new ExecutionEngine({
       defaultProvider: options.provider,
       mainModel: this.mainModel,
@@ -120,6 +139,47 @@ export class AgentRuntime {
       executionRegistry,
       backgroundTaskManager
     });
+    this.runAgentTurnDeps = {
+      executeTurn: async (context) => this.executionRuntime.execute(context)
+    };
+    this.handleInboundMessageDeps = {
+      logInbound: (message) => {
+        this.log.info('收到入站消息', {
+          sessionKey: message.sessionKey,
+          channel: message.channel,
+          chatId: message.chatId,
+          messageType: message.messageType,
+          source: message.metadata?.directResponse ? 'direct' : message.metadata?.source || 'user'
+        });
+      },
+      processInbound: async ({ message, suppressOutbound }) => this.pipeline.process(message, {
+        suppressOutbound,
+        sendOutbound: async (outbound) => this.sendOutbound(outbound)
+      }),
+      resolveTurnContext: async ({ message, suppressOutbound, toolContextBase }) => this.sessionResolver.resolve(message, {
+        toolContext: {
+          ...toolContextBase,
+          channel: message.channel,
+          chatId: message.chatId,
+          messageType: message.messageType
+        },
+        suppressOutbound,
+        memoryWindow: this.memoryWindow
+      }),
+      runTurn: async (context) => runAgentTurn(this.runAgentTurnDeps, context),
+      logCompletion: (context) => {
+        this.log.info('入站消息处理完成', {
+          sessionKey: context.sessionKey,
+          channel: context.channel,
+          durationMs: undefined,
+          suppressOutbound: context.suppressOutbound
+        });
+      }
+    };
+    this.handleDirectMessageDeps = {
+      bindMessageToSession: (message, reference) => this.bindMessageToSession(message, reference),
+      handleInboundMessage: async (input) => handleInboundMessage(this.handleInboundMessageDeps, input)
+    };
   }
 
   start(): void {
@@ -145,21 +205,13 @@ export class AgentRuntime {
     options?: { suppressOutbound?: boolean }
   ): Promise<string | undefined> {
     const startedAt = Date.now();
-
-    this.log.info('收到入站消息', {
-      sessionKey: message.sessionKey,
-      channel: message.channel,
-      chatId: message.chatId,
-      messageType: message.messageType,
-      source: message.metadata?.directResponse ? 'direct' : message.metadata?.source || 'user'
-    });
-
-    const preprocessed = await this.pipeline.process(message, {
+    const result = await handleInboundMessage(this.handleInboundMessageDeps, {
+      message,
       suppressOutbound: options?.suppressOutbound,
-      sendOutbound: (outbound) => this.sendOutbound(outbound)
+      toolContextBase: this.toolContextBase
     });
 
-    if (preprocessed.type === 'handled') {
+    if (result.status === 'handled') {
       this.log.info('入站消息已由处理流水线接管', {
         sessionKey: message.sessionKey,
         channel: message.channel,
@@ -168,34 +220,22 @@ export class AgentRuntime {
       return undefined;
     }
 
-    if (preprocessed.type === 'reply') {
+    if (result.status === 'replied') {
       this.log.info('入站消息已由处理流水线直接回复', {
         sessionKey: message.sessionKey,
         channel: message.channel,
         durationMs: Date.now() - startedAt
       });
-      return preprocessed.content;
+      return result.content;
     }
 
-    const context = await this.sessionResolver.resolve(preprocessed.message, {
-      toolContext: {
-        ...this.toolContextBase,
-        channel: preprocessed.message.channel,
-        chatId: preprocessed.message.chatId,
-        messageType: preprocessed.message.messageType
-      },
-      suppressOutbound: options?.suppressOutbound,
-      memoryWindow: this.memoryWindow
-    });
-
-    const result = await this.executionRuntime.execute(context);
     this.log.info('入站消息处理完成', {
-      sessionKey: context.sessionKey,
-      channel: context.channel,
+      sessionKey: message.sessionKey,
+      channel: message.channel,
       durationMs: Date.now() - startedAt,
-      suppressOutbound: context.suppressOutbound
+      suppressOutbound: options?.suppressOutbound === true
     });
-    return result;
+    return result.content;
   }
 
   async handleDirect(
@@ -203,25 +243,12 @@ export class AgentRuntime {
     reference: SessionReference | string,
     options?: { suppressOutbound?: boolean }
   ): Promise<string> {
-    const bound = this.bindMessageToSession({
-      channel: typeof reference === 'string' ? 'api' : reference.channel || 'api',
-      senderId: typeof reference === 'string' ? 'api' : reference.chatId || 'api',
-      chatId: typeof reference === 'string' ? reference : reference.chatId || reference.sessionKey || 'api',
+    return handleDirectMessage(this.handleDirectMessageDeps, {
       content,
-      timestamp: new Date(),
-      messageType: typeof reference === 'string' ? 'private' : reference.messageType,
-      sessionKey: typeof reference === 'string' ? reference : reference.sessionKey,
-      metadata: {
-        suppressOutbound: options?.suppressOutbound ?? true,
-        directResponse: true
-      }
-    }, reference);
-
-    const response = await this.handleInbound(bound, {
-      suppressOutbound: options?.suppressOutbound ?? true
+      reference,
+      suppressOutbound: options?.suppressOutbound,
+      toolContextBase: this.toolContextBase
     });
-
-    return response || '';
   }
 
   async runSubAgentTask(

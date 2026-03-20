@@ -5,7 +5,7 @@ import type { PluginConfigState } from '../../plugins/index.js';
 import { ConfigLoader } from '../../config/loader.js';
 import { RuntimeConfigStore } from '../../config/RuntimeConfigStore.js';
 import { logger } from '../../observability/index.js';
-import { normalizeError } from '../../errors/index.js';
+import { normalizeBootstrapError } from './errors.js';
 
 const log = logger.child('PluginRuntimeFactory');
 
@@ -83,7 +83,7 @@ export async function createPluginManager(args: {
         });
       } catch (error) {
         log.error('后台加载插件失败', {
-          error: normalizeError(error)
+          error: normalizeBootstrapError(error)
         });
       } finally {
         completed = true;

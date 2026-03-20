@@ -3,8 +3,11 @@ import { randomUUID } from 'crypto';
 import { Database, type DBConversationMemory, type DBMessage, type DBSession, type DBSessionMemory } from '../db/index.js';
 import { logger } from '../observability/index.js';
 import { formatLocalTimestamp } from '../observability/logging.js';
-import { CONSTANTS, CONFIG_DEFAULTS } from '../constants/index.js';
-import { normalizeError, NotFoundError, ValidationError } from '../errors/index.js';
+import { normalizeSessionError, SessionNotFoundError, SessionValidationError } from './errors.js';
+
+const DEFAULT_MAX_SESSIONS = 100;
+const SESSION_CLEANUP_THRESHOLD = 0.9;
+const SESSION_LOAD_BATCH_SIZE = 10;
 
 function parseSessionKey(key: string): { channel: string; chatId: string; uuid?: string } {
   const parts = key.split(':');
@@ -12,7 +15,7 @@ function parseSessionKey(key: string): { channel: string; chatId: string; uuid?:
   const chatId = parts[1]?.trim();
 
   if (!channel || !chatId) {
-    throw new ValidationError('session key must use format "channel:chatId[:uuid]"', {
+    throw new SessionValidationError('session key must use format "channel:chatId[:uuid]"', {
       field: 'key',
       key
     });
@@ -66,7 +69,7 @@ export class SessionManager {
   private sessionLocks: Map<string, Promise<Session>> = new Map();
   private log = logger.child('SessionManager');
 
-  constructor(storageDir: string, maxSessions: number = CONFIG_DEFAULTS.DEFAULT_MAX_SESSIONS) {
+  constructor(storageDir: string, maxSessions: number = DEFAULT_MAX_SESSIONS) {
     this.maxSessions = maxSessions;
     const dbPath = join(storageDir, 'sessions.db');
     this.db = new Database(dbPath);
@@ -145,7 +148,7 @@ export class SessionManager {
   async getExistingOrThrow(key: string): Promise<Session> {
     const session = await this.get(key);
     if (!session) {
-      throw new NotFoundError('Session', key);
+      throw new SessionNotFoundError(key);
     }
     return session;
   }
@@ -185,7 +188,7 @@ export class SessionManager {
         chatId: parsed.chatId
       });
 
-      if (this.sessions.size >= this.maxSessions * CONSTANTS.SESSION_CLEANUP_THRESHOLD) {
+      if (this.sessions.size >= this.maxSessions * SESSION_CLEANUP_THRESHOLD) {
         await this.cleanupOldSessions();
       }
       return newSession;
@@ -217,7 +220,7 @@ export class SessionManager {
       }
     } catch (error) {
       this.log.warn('清理旧会话失败', {
-        error: normalizeError(error)
+        error: normalizeSessionError(error)
       });
     }
   }
@@ -438,7 +441,7 @@ export class SessionManager {
       [this.maxSessions]
     );
 
-    const batchSize = CONSTANTS.SESSION_LOAD_BATCH_SIZE;
+    const batchSize = SESSION_LOAD_BATCH_SIZE;
     for (let i = 0; i < sessions.length; i += batchSize) {
       const batch = sessions.slice(i, i + batchSize);
       const loadedSessions = await Promise.all(
