@@ -191,4 +191,39 @@
     background: color-mix(in srgb, var(--color-surface-container-lowest) 92%, transparent);
     box-shadow: 0 20px 44px -30px color-mix(in srgb, var(--color-on-background) 20%, transparent);
   }
+
+  .break-anywhere {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .sidebar-rail-scroll {
+    min-width: 0;
+  }
+
+  .sidebar-rail-scroll-2xl {
+    min-width: 0;
+  }
+
+  @media (min-width: 80rem) {
+    .sidebar-rail-scroll {
+      position: sticky;
+      top: 2rem;
+      max-height: calc(100vh - 6rem);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding-right: 0.25rem;
+    }
+  }
+
+  @media (min-width: 96rem) {
+    .sidebar-rail-scroll-2xl {
+      position: sticky;
+      top: 2rem;
+      max-height: calc(100vh - 6rem);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding-right: 0.25rem;
+    }
+  }
 }

@@ -120,7 +120,7 @@
         </section>
 
         <aside class="w-full shrink-0 xl:w-[380px]">
-          <div class="space-y-6 xl:sticky xl:top-8">
+          <div class="sidebar-rail-scroll space-y-6">
             <section class="hairline-card overflow-hidden rounded-[1.6rem]">
               <div class="flex items-center justify-between bg-surface-container-low px-4 py-3">
                 <span class="tech-text text-[10px] tracking-[0.16em] text-outline">SKILL.md 概览</span>
@@ -134,7 +134,7 @@
                 </template>
                 <template v-else-if="selectedSkill">
                   <h3 class="text-xl font-bold text-on-surface">{{ selectedSkill.name }}</h3>
-                  <p class="mt-4 text-sm leading-7 text-on-surface-variant">
+                  <p class="break-anywhere mt-4 text-sm leading-7 text-on-surface-variant">
                     {{ selectedSkill.content || selectedSkill.description || '当前技能没有附带更多文档内容。' }}
                   </p>
                   <div class="mt-5 grid grid-cols-2 gap-3 text-xs">
@@ -161,7 +161,7 @@
                 <template v-if="selectedSkill?.files?.length">
                   <div v-for="file in selectedSkill.files" :key="file.path" class="rounded-lg bg-surface-container-lowest px-3 py-2.5">
                     <p class="tech-text text-[11px] text-on-surface">{{ file.name }}</p>
-                    <p class="tech-text mt-1 text-[10px] text-outline">{{ file.path }}</p>
+                    <p class="tech-text break-anywhere mt-1 text-[10px] text-outline">{{ file.path }}</p>
                   </div>
                 </template>
                 <p v-else class="text-sm text-on-surface-variant">当前技能没有可列出的额外文件。</p>

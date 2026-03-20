@@ -117,7 +117,7 @@
 
         <aside class="mt-6 w-full shrink-0 border-outline-variant/10 xl:mt-0 xl:ml-6 xl:w-[390px] xl:border-l">
           <div class="h-full rounded-[1.6rem] bg-surface-container-low xl:rounded-none xl:bg-transparent">
-            <div class="rounded-[1.6rem] bg-surface-container-lowest xl:sticky xl:top-8 xl:ml-6">
+            <div class="sidebar-rail-scroll rounded-[1.6rem] bg-surface-container-lowest xl:ml-6">
               <div class="border-b border-outline-variant/10 bg-surface-container-lowest px-6 py-6">
                 <div class="mb-4 flex items-center justify-between">
                   <h3 class="cn-section-title text-on-surface">任务详情</h3>

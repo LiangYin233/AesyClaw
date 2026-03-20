@@ -273,7 +273,7 @@
           </section>
         </div>
 
-        <aside class="space-y-8 xl:col-span-4">
+        <aside class="sidebar-rail-scroll min-w-0 space-y-8 xl:col-span-4">
           <section class="rounded-2xl border border-white/20 bg-surface-container-lowest/80 p-6 shadow-xl shadow-blue-900/5 backdrop-blur-xl">
             <h5 class="text-xs font-bold tracking-[0.2em] text-outline">配置健康</h5>
             <div class="mt-6 space-y-4">

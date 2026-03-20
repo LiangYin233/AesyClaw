@@ -96,7 +96,7 @@
         </section>
 
         <aside class="w-full shrink-0 xl:w-[400px]">
-          <div class="space-y-6 xl:sticky xl:top-8">
+          <div class="sidebar-rail-scroll space-y-6">
             <section class="rounded-[1.6rem] bg-surface-container-low p-6">
               <div class="mb-6 flex items-center justify-between">
                 <h3 class="cn-section-title text-on-surface">Inspector</h3>
@@ -145,7 +145,7 @@
                   <div class="rounded-2xl bg-slate-950 p-4 text-slate-100">
                     <p class="cn-kicker text-slate-500">配置快照</p>
                     <div class="mt-3 space-y-2">
-                      <p class="tech-text text-[11px] text-slate-300">author = {{ selectedPlugin.author || 'unknown' }}</p>
+                      <p class="tech-text break-anywhere text-[11px] text-slate-300">author = {{ selectedPlugin.author || 'unknown' }}</p>
                       <p class="tech-text text-[11px] text-slate-300">enabled = {{ String(selectedPlugin.enabled) }}</p>
                       <p class="tech-text text-[11px] text-slate-300">options_keys = {{ Object.keys(selectedPlugin.options || {}).length }}</p>
                     </div>

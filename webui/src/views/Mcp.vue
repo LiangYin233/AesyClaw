@@ -103,7 +103,7 @@
         </section>
 
         <aside class="w-full shrink-0 xl:w-[420px]">
-          <div class="space-y-6 xl:sticky xl:top-8">
+          <div class="sidebar-rail-scroll space-y-6">
             <section class="rounded-[1.6rem] bg-surface-container-low p-6">
               <div class="mb-5 flex items-center justify-between">
                 <h3 class="cn-section-title text-on-surface">{{ selectedName ? '服务配置' : '新建服务' }}</h3>
@@ -180,7 +180,7 @@
               <div class="max-h-[22rem] space-y-3 overflow-y-auto pr-2">
                 <div v-for="tool in tools" :key="tool.name" class="rounded-xl bg-surface-container-low px-3 py-3">
                   <div class="flex items-start justify-between gap-3">
-                    <h4 class="tech-text text-xs font-bold text-on-surface">{{ tool.name }}</h4>
+                    <h4 class="tech-text break-anywhere text-xs font-bold text-on-surface">{{ tool.name }}</h4>
                     <span class="rounded bg-primary-fixed px-1.5 py-0.5 text-[10px] font-bold text-on-primary-fixed">{{ Object.keys(tool.parameters || {}).length }} 参</span>
                   </div>
                   <p class="mt-2 text-[11px] leading-5 text-on-surface-variant">{{ tool.description || '暂无工具描述。' }}</p>

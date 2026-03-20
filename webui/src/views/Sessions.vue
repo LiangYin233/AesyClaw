@@ -207,8 +207,8 @@
         </section>
 
         <aside class="hidden w-[430px] shrink-0 2xl:block">
-          <div class="sticky top-8">
-            <section class="hairline-card min-h-[38rem] rounded-[1.6rem] p-5">
+          <div class="sidebar-rail-scroll-2xl">
+            <section class="hairline-card flex h-[calc(100vh-6rem)] min-h-[38rem] flex-col overflow-hidden rounded-[1.6rem] p-5">
               <SessionDetailPanel
                 :detail="detail"
                 :detail-error="detailError"

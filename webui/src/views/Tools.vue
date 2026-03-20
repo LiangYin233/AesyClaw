@@ -67,12 +67,12 @@
         </section>
 
         <aside class="w-full shrink-0 xl:w-[380px]">
-          <div class="space-y-6 xl:sticky xl:top-8">
+          <div class="sidebar-rail-scroll space-y-6">
             <section class="hairline-card rounded-[1.6rem] p-6">
               <h3 class="cn-section-title text-on-surface">参数结构</h3>
               <template v-if="selectedTool">
                 <div class="mt-5 rounded-2xl bg-surface-container-low px-4 py-4">
-                  <p class="tech-text text-xs text-primary">{{ selectedTool.name }}</p>
+                  <p class="tech-text break-anywhere text-xs text-primary">{{ selectedTool.name }}</p>
                   <p class="mt-2 text-sm leading-6 text-on-surface-variant">{{ selectedTool.description || '暂无描述' }}</p>
                 </div>
                 <pre class="tech-text mt-4 max-h-[28rem] overflow-auto rounded-2xl bg-slate-950 p-4 text-[11px] leading-6 text-slate-200">{{ formattedParameters }}</pre>

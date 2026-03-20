@@ -181,7 +181,7 @@
         </div>
 
         <aside class="w-full shrink-0 xl:w-[390px]">
-          <div class="space-y-6 xl:sticky xl:top-8">
+          <div class="sidebar-rail-scroll space-y-6">
             <section class="rounded-[1.6rem] bg-surface-container-low p-6">
               <h3 class="cn-kicker text-outline">维护动作</h3>
               <div class="mt-5 space-y-3">
@@ -207,7 +207,7 @@
               </div>
               <template v-if="selectedItem">
                 <div class="mt-5 rounded-2xl bg-surface-container-low px-4 py-4">
-                  <p class="tech-text text-xs text-primary">{{ selectedItem.chatId || selectedItem.key }}</p>
+                  <p class="tech-text break-anywhere text-xs text-primary">{{ selectedItem.chatId || selectedItem.key }}</p>
                   <p class="mt-2 text-sm leading-6 text-on-surface-variant">{{ memoryPreview(selectedItem) }}</p>
                 </div>
 
@@ -221,7 +221,7 @@
                     <div class="mt-3 space-y-2">
                       <button v-for="session in selectedItem.sessions.slice(0, 4)" :key="session.sessionKey" class="flex w-full items-center justify-between rounded-lg bg-surface-container-lowest px-3 py-2 text-left transition hover:bg-surface-container-high" type="button" @click="openDialogue(session.sessionKey)">
                         <div>
-                          <p class="tech-text text-[11px] text-on-surface">{{ session.sessionKey }}</p>
+                          <p class="tech-text break-anywhere text-[11px] text-on-surface">{{ session.sessionKey }}</p>
                           <p class="mt-1 text-[11px] text-on-surface-variant">{{ session.summary ? abbreviateText(session.summary, 42) : '暂无摘要内容' }}</p>
                         </div>
                         <span class="tech-text text-[10px] text-outline">{{ session.summarizedMessageCount }} 轮</span>
