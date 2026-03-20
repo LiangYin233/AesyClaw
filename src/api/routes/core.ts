@@ -11,7 +11,7 @@ import { SessionNotFoundError, SessionValidationError } from '../../session/erro
 import type { SessionRoutingService } from '../../agent/session/SessionRoutingService.js';
 import type { AgentRoleService } from '../../agent/roles/AgentRoleService.js';
 import { AgentRoleNotFoundError } from '../../agent/roles/errors.js';
-import type { AgentRuntime } from '../../agent/runtime/AgentRuntime.js';
+import type { AgentRuntime } from '../../agent-next/index.js';
 import { assignSessionAgent } from '../../agent/usecases/index.js';
 import { badRequest, notFound, serverError, unavailable, wrap } from './helpers.js';
 

@@ -1,6 +1,10 @@
 import { join } from 'path';
 import { BuiltInCommands } from '../../agent/commands/index.js';
-import { AgentRuntime, OutboundGateway } from '../../agent/runtime/AgentRuntime.js';
+import {
+  AgentRuntime,
+  OutboundGateway,
+  createLegacyCompatibleAgentRuntime
+} from '../../agent-next/index.js';
 import { LongTermMemoryService } from '../../agent/memory/LongTermMemoryService.js';
 import { OpenAIEmbeddingsClient } from '../../agent/memory/OpenAIEmbeddingsClient.js';
 import { SessionMemoryService } from '../../agent/memory/SessionMemoryService.js';
@@ -321,7 +325,7 @@ async function createExecutionRuntime(args: {
   );
 
   let pluginManagerRef: PluginManager | undefined;
-  const agentRuntime = new AgentRuntime({
+  const agentRuntime = await createLegacyCompatibleAgentRuntime({
     provider,
     toolRegistry,
     sessionManager,

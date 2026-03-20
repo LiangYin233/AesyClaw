@@ -5,6 +5,7 @@ export interface AgentTurnContext {
   sessionKey: string;
   channel: string;
   chatId: string;
+  messageType?: 'private' | 'group';
   suppressOutbound?: boolean;
   toolContext: ToolContext;
 }
