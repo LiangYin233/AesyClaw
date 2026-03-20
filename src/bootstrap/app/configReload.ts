@@ -10,7 +10,7 @@ import { syncConfiguredMcpServers } from '../../mcp/runtime.js';
 import { createProvider } from '../../providers/index.js';
 import type { Services } from '../factory/ServiceFactory.js';
 import { createMemoryService } from '../factory/ServiceFactory.js';
-import { reloadRuntimeConfig as reloadRuntimeConfigUsecase } from '../../agent/usecases/index.js';
+import { reloadRuntimeConfig as reloadRuntimeConfigUsecase } from '../../agent/core-usecases/index.js';
 
 const log = logger.child('Bootstrap');
 

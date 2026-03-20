@@ -2,7 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import type { AgentRuntime } from '../agent/runtime/AgentRuntime.js';
+import type { AgentRuntime } from '../agent/index.js';
 import type { SessionManager } from '../session/SessionManager.js';
 import type { ChannelManager } from '../channels/ChannelManager.js';
 import type { Config } from '../types.js';
@@ -11,7 +11,7 @@ import type { CronService } from '../cron/index.js';
 import type { MCPClientManager } from '../mcp/MCPClient.js';
 import type { SkillManager } from '../skills/SkillManager.js';
 import type { ToolRegistry } from '../tools/ToolRegistry.js';
-import type { SessionRoutingService } from '../agent/session/SessionRoutingService.js';
+import type { SessionRoutingService } from '../agent/core-session/SessionRoutingService.js';
 import { RuntimeConfigStore } from '../config/RuntimeConfigStore.js';
 import { ConfigManager } from '../config/ConfigManager.js';
 import { createErrorResponse } from './errors.js';
@@ -24,7 +24,7 @@ import { registerMCPRoutes } from './routes/mcp.js';
 import { registerObservabilityRoutes } from './routes/observability.js';
 import { registerSkillRoutes } from './routes/skills.js';
 import type { LongTermMemoryStore } from '../session/LongTermMemoryStore.js';
-import type { AgentRoleService } from '../agent/roles/AgentRoleService.js';
+import type { AgentRoleService } from '../agent/core-roles/AgentRoleService.js';
 
 const MAX_MESSAGE_LENGTH = 50000;
 
