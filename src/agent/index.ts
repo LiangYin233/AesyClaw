@@ -1,7 +1,7 @@
 export { AgentRuntime, OutboundGateway, SessionHandle } from './facade/index.js';
 export {
   createAgentRuntime,
-  createLegacyCompatibleAgentRuntime
+  createConfiguredAgentRuntime
 } from './assembly/createAgentRuntime.js';
 export { createAgentServices } from './assembly/createAgentServices.js';
 export type { ExecutionStatus } from './domain/execution.js';

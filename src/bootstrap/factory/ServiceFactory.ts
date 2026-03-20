@@ -1,15 +1,15 @@
 import { join } from 'path';
-import { BuiltInCommands } from '../../agent/legacy-commands/index.js';
+import { BuiltInCommands } from '../../agent/core-commands/index.js';
 import {
   AgentRuntime,
   OutboundGateway,
-  createLegacyCompatibleAgentRuntime
+  createConfiguredAgentRuntime
 } from '../../agent/index.js';
-import { LongTermMemoryService } from '../../agent/legacy-memory/LongTermMemoryService.js';
-import { OpenAIEmbeddingsClient } from '../../agent/legacy-memory/OpenAIEmbeddingsClient.js';
-import { SessionMemoryService } from '../../agent/legacy-memory/SessionMemoryService.js';
-import { SessionRoutingService } from '../../agent/legacy-session/SessionRoutingService.js';
-import { AgentRoleService } from '../../agent/legacy-roles/AgentRoleService.js';
+import { LongTermMemoryService } from '../../agent/core-memory/LongTermMemoryService.js';
+import { OpenAIEmbeddingsClient } from '../../agent/core-memory/OpenAIEmbeddingsClient.js';
+import { SessionMemoryService } from '../../agent/core-memory/SessionMemoryService.js';
+import { SessionRoutingService } from '../../agent/core-session/SessionRoutingService.js';
+import { AgentRoleService } from '../../agent/core-roles/AgentRoleService.js';
 import { APIServer } from '../../api/index.js';
 import { ChannelManager } from '../../channels/ChannelManager.js';
 import { loadExternalChannelPlugins } from '../../channels/ChannelPluginLoader.js';
@@ -31,7 +31,7 @@ import type { LLMProvider } from '../../providers/base.js';
 import { LongTermMemoryStore, SessionManager } from '../../session/index.js';
 import { SkillManager } from '../../skills/index.js';
 import { ToolRegistry, registerBuiltInTools } from '../../tools/index.js';
-import { CommandRegistry } from '../../agent/legacy-commands/index.js';
+import { CommandRegistry } from '../../agent/core-commands/index.js';
 import { MCPClientManager } from '../../mcp/index.js';
 import { startConfiguredMcpServers } from '../../mcp/runtime.js';
 import { PluginManager } from '../../plugins/index.js';
@@ -325,7 +325,7 @@ async function createExecutionRuntime(args: {
   );
 
   let pluginManagerRef: PluginManager | undefined;
-  const agentRuntime = await createLegacyCompatibleAgentRuntime({
+  const agentRuntime = await createConfiguredAgentRuntime({
     provider,
     toolRegistry,
     sessionManager,

@@ -9,7 +9,6 @@
     "build:webui": "cd webui && npm run build",
     "lint": "eslint \"src/**/*.ts\" \"plugins/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" \"plugins/**/*.ts\" --fix",
-    "test": "node --import tsx --test",
     "start": "tsx src/cli.ts start",
     "start:gateway": "tsx src/cli.ts gateway",
     "start:webui": "tsx src/cli.ts start webui",

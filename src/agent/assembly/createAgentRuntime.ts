@@ -16,12 +16,12 @@ export function createAgentRuntime(input: CreateAgentRuntimeInput): AgentRuntime
   return runtime;
 }
 
-export async function createLegacyCompatibleAgentRuntime(
-  legacyOptions: unknown
+export async function createConfiguredAgentRuntime(
+  runtimeOptions: unknown
 ): Promise<AgentRuntime> {
-  const legacyModule = await import('../../agent/legacy-runtime/AgentRuntime.js');
-  const delegate = new legacyModule.AgentRuntime(
-    legacyOptions as ConstructorParameters<typeof legacyModule.AgentRuntime>[0]
+  const runtimeModule = await import('../../agent/core-runtime/AgentRuntime.js');
+  const delegate = new runtimeModule.AgentRuntime(
+    runtimeOptions as ConstructorParameters<typeof runtimeModule.AgentRuntime>[0]
   );
 
   return createAgentRuntime({ delegate });
