@@ -1,404 +1,260 @@
 <template>
-    <div class="plugins-page page-stack">
-        <PageHeader title="插件管理" subtitle="统一管理插件与通道开关和配置项。">
-            <template #actions>
-                <Button icon="pi pi-refresh" label="刷新" @click="loadPlugins" :loading="loading" />
-            </template>
-        </PageHeader>
+  <div class="p-5 md:p-8">
+    <div class="mx-auto max-w-[1680px]">
+      <header class="mb-8 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <p class="cn-kicker text-outline">插件</p>
+          <h1 class="cn-page-title mt-2 text-on-surface">插件中心</h1>
+          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">沿用 Stitch 的“市场卡片 + 右侧 Inspector”结构，集中管理插件启停与配置差异。</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <button class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface shadow-sm transition hover:bg-surface-container-high" type="button" :disabled="loading" @click="loadPlugins">
+            <AppIcon name="refresh" size="sm" />
+            刷新
+          </button>
+        </div>
+      </header>
 
-        <LoadingContainer :loading="loading" loading-text="正在加载插件与通道...">
-            <EmptyState
-                v-if="items.length === 0"
-                icon="pi pi-th-large"
-                title="暂无插件或通道"
-                description="请在 plugins 目录下创建插件文件，或在配置中启用通道。"
-            />
+      <div v-if="error" class="mb-6 rounded-2xl border border-error/20 bg-error-container/60 px-5 py-4 text-sm text-on-error-container">
+        <p class="font-bold">插件数据加载失败</p>
+        <p class="mt-2 leading-6">{{ error }}</p>
+      </div>
 
-            <PageSection v-else title="插件与通道" :subtitle="`${items.length} 项可管理资源`">
-                <div class="plugins-grid">
-                    <Card v-for="item in items" :key="`${item.kind}:${item.name}`" class="plugin-card">
-                        <template #title>
-                            <div class="plugin-title">
-                                <i :class="item.kind === 'channel' ? 'pi pi-send' : 'pi pi-th-large'"></i>
-                                <span>{{ item.name }}</span>
-                            </div>
-                        </template>
-                        <template #subtitle>
-                            <span class="version">{{ item.kind === 'channel' ? 'Channel' : `v${item.version}` }}</span>
-                        </template>
-                        <template #content>
-                            <p class="plugin-description">{{ item.description || '暂无描述' }}</p>
-                            <div class="plugin-stats">
-                                <Tag v-if="item.kind === 'plugin'" :value="`${item.toolsCount} 个工具`" severity="info" />
-                                <Tag v-else value="通道适配器" severity="contrast" />
-                                <Tag :value="item.enabled ? '已启用' : '已禁用'" :severity="item.enabled ? 'success' : 'danger'" />
-                            </div>
-                        </template>
-                        <template #footer>
-                            <div class="plugin-actions">
-                                <ToggleButton
-                                    v-model="item.enabled"
-                                    onLabel="已启用"
-                                    offLabel="已禁用"
-                                    @change="toggleItemEnabled(item)"
-                                    :loading="toggling"
-                                />
-                                <Button
-                                    icon="pi pi-cog"
-                                    label="配置"
-                                    outlined
-                                    size="small"
-                                    @click="openConfigDialog(item)"
-                                />
-                            </div>
-                        </template>
-                    </Card>
+      <div class="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <article class="hairline-card rounded-2xl p-5">
+          <p class="cn-kicker text-outline">插件总数</p>
+          <p class="cn-metric mt-2 text-on-surface">{{ plugins.length }}</p>
+        </article>
+        <article class="hairline-card rounded-2xl p-5">
+          <p class="cn-kicker text-outline">已启用</p>
+          <p class="cn-metric mt-2 text-emerald-600">{{ enabledCount }}</p>
+        </article>
+        <article class="hairline-card rounded-2xl p-5">
+          <p class="cn-kicker text-outline">异常候选</p>
+          <p class="cn-metric mt-2 text-error">{{ disabledCount }}</p>
+        </article>
+        <article class="hairline-card rounded-2xl p-5">
+          <p class="cn-kicker text-outline">挂载工具</p>
+          <p class="cn-metric mt-2 text-primary">{{ totalTools }}</p>
+        </article>
+      </div>
+
+      <div class="flex flex-col gap-6 xl:flex-row">
+        <section class="min-w-0 flex-1 space-y-4">
+          <div class="flex items-center justify-between px-2">
+            <h2 class="cn-section-title text-on-surface">活跃市场</h2>
+            <span class="tech-text text-xs text-on-surface-variant">{{ plugins.length }} 个插件</span>
+          </div>
+
+          <article
+            v-for="plugin in plugins"
+            :key="plugin.name"
+            class="rounded-[1.6rem] p-1 transition-all"
+            :class="selectedName === plugin.name ? 'bg-primary-fixed/25 ring-1 ring-primary/15' : 'bg-surface-container-lowest ring-1 ring-outline-variant/10 hover:shadow-md'"
+          >
+            <div class="flex flex-col gap-5 rounded-[1.4rem] p-5 md:flex-row md:items-start md:gap-6">
+              <button class="flex min-w-0 flex-1 items-start gap-5 text-left" type="button" @click="selectedName = plugin.name">
+                <div class="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary-fixed text-primary">
+                  <AppIcon name="plugins" />
                 </div>
-            </PageSection>
-        </LoadingContainer>
-        <Dialog 
-            v-model:visible="configDialogVisible" 
-            :header="`配置 ${selectedItem?.name}`" 
-            :modal="true" 
-            :style="{ width: '500px' }"
-        >
-            <div v-if="selectedItem" class="config-form">
-                <div v-for="(value, key) in configForm" :key="key" class="form-field">
-                    <label class="capitalize">{{ formatLabel(key) }}</label>
-                    
-                    <template v-if="isBoolean(value)">
-                        <ToggleButton v-model="configForm[key]" onLabel="是" offLabel="否" />
-                    </template>
-                    
-                    <template v-else-if="isNumber(value)">
-                        <InputNumber v-model="configForm[key]" :useGrouping="false" />
-                    </template>
-                    
-                    <template v-else-if="isArray(value)">
-                        <InputText v-model="configForm[key]" placeholder="逗号分隔" />
-                    </template>
-                    
-                    <template v-else-if="isObject(value)">
-                        <div class="nested-config">
-                            <div v-for="(_, nestedKey) in value" :key="nestedKey" class="nested-field">
-                                <label>{{ nestedKey }}</label>
-                                <Password 
-                                    v-if="isSensitiveKey(String(nestedKey))" 
-                                    v-model="configForm[key][nestedKey]" 
-                                    :feedback="false" 
-                                    toggleMask 
-                                    fluid 
-                                />
-                                <InputText v-else v-model="configForm[key][nestedKey]" />
-                            </div>
-                        </div>
-                    </template>
-                    
-                    <template v-else>
-                        <Password 
-                            v-if="isSensitiveKey(key)" 
-                            v-model="configForm[key]" 
-                            :feedback="false" 
-                            toggleMask 
-                            fluid 
-                        />
-                        <InputText v-else v-model="configForm[key]" />
-                    </template>
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-3">
+                    <h3 class="truncate text-lg font-bold text-on-surface">{{ plugin.name }}</h3>
+                    <span class="rounded bg-surface-container-low px-2 py-0.5 text-[10px] font-bold text-outline">{{ plugin.version }}</span>
+                    <span class="rounded-full px-2 py-0.5 text-[10px] font-bold" :class="plugin.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-error-container text-on-error-container'">
+                      {{ plugin.enabled ? '已启用' : '已停用' }}
+                    </span>
+                  </div>
+                  <p class="mt-2 text-sm leading-6 text-on-surface-variant">{{ plugin.description || '当前插件没有提供描述信息。' }}</p>
+                  <div class="mt-4 flex flex-wrap gap-6">
+                    <div>
+                      <p class="text-[10px] font-bold tracking-[0.08em] text-outline">工具数</p>
+                      <p class="tech-text mt-1 text-xs text-on-surface">{{ plugin.toolsCount }}</p>
+                    </div>
+                    <div>
+                      <p class="text-[10px] font-bold tracking-[0.08em] text-outline">作者</p>
+                      <p class="mt-1 text-xs text-on-surface">{{ plugin.author || '未知' }}</p>
+                    </div>
+                    <div>
+                      <p class="text-[10px] font-bold tracking-[0.08em] text-outline">配置键</p>
+                      <p class="tech-text mt-1 text-xs text-on-surface">{{ Object.keys(plugin.options || {}).length }}</p>
+                    </div>
+                  </div>
                 </div>
-                
-                <div v-if="Object.keys(configForm).length === 0" class="no-config">
-                    该项暂无可编辑配置
-                </div>
+              </button>
+
+              <div class="flex gap-2 self-start">
+                <button class="rounded-xl border border-outline-variant/20 px-3 py-2 text-xs font-semibold text-on-surface transition hover:bg-surface-container-high" type="button" @click="selectedName = plugin.name">
+                  检视
+                </button>
+                <button class="rounded-xl border px-3 py-2 text-xs font-semibold transition" :class="plugin.enabled ? 'border-error/20 text-error hover:bg-error-container/60' : 'border-primary/20 text-primary hover:bg-primary-fixed/50'" type="button" @click="togglePlugin(plugin)">
+                  {{ plugin.enabled ? '停用' : '启用' }}
+                </button>
+              </div>
             </div>
-            <template #footer>
-                <Button label="取消" severity="secondary" @click="configDialogVisible = false" />
-                <Button label="保存" @click="savePluginConfig" :loading="saving" />
-            </template>
-        </Dialog>
-        
-        <Toast />
+          </article>
+        </section>
+
+        <aside class="w-full shrink-0 xl:w-[400px]">
+          <div class="space-y-6 xl:sticky xl:top-8">
+            <section class="rounded-[1.6rem] bg-surface-container-low p-6">
+              <div class="mb-6 flex items-center justify-between">
+                <h3 class="cn-section-title text-on-surface">Inspector</h3>
+                <AppIcon name="overview" size="sm" class="text-outline" />
+              </div>
+
+              <template v-if="selectedPlugin">
+                <div class="rounded-2xl border border-primary/10 bg-primary-fixed/30 p-4">
+                  <div class="flex items-center gap-2 text-primary">
+                    <AppIcon name="warning" size="sm" />
+                    <span class="text-xs font-bold tracking-[0.08em]">影响范围</span>
+                  </div>
+                  <p class="mt-3 text-sm leading-6 text-on-surface-variant">
+                    该插件当前接入 <span class="font-bold text-primary">{{ selectedPlugin.toolsCount }}</span> 个工具，并可通过配置项参与消息链路与扩展动作。
+                  </p>
+                  <div class="mt-4 h-1.5 overflow-hidden rounded-full bg-outline-variant/20">
+                    <div class="h-full rounded-full bg-primary" :style="{ width: `${impactWidth(selectedPlugin)}%` }"></div>
+                  </div>
+                </div>
+
+                <div class="mt-6 space-y-4">
+                  <div>
+                    <p class="text-[10px] font-bold tracking-[0.12em] text-outline">能力摘要</p>
+                    <div class="mt-3 flex flex-wrap gap-2">
+                      <span class="rounded-lg bg-surface-container-lowest px-3 py-1.5 text-[11px] font-semibold text-on-surface">{{ selectedPlugin.enabled ? '运行中' : '已停用' }}</span>
+                      <span class="rounded-lg bg-surface-container-lowest px-3 py-1.5 text-[11px] font-semibold text-on-surface">{{ selectedPlugin.version }}</span>
+                      <span class="rounded-lg bg-surface-container-lowest px-3 py-1.5 text-[11px] font-semibold text-on-surface">{{ selectedPlugin.toolsCount }} 个工具</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div class="mb-3 flex items-center justify-between">
+                      <p class="text-[10px] font-bold tracking-[0.12em] text-outline">配置 JSON</p>
+                      <button class="text-[11px] font-bold tracking-[0.08em] text-primary" type="button" :disabled="saving" @click="savePluginConfig">
+                        {{ saving ? '保存中...' : '保存配置' }}
+                      </button>
+                    </div>
+                    <textarea
+                      v-model="optionsDraft"
+                      class="tech-text min-h-[14rem] w-full rounded-2xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-xs text-on-surface outline-none transition focus:border-primary/30 focus:ring-2 focus:ring-primary/15"
+                      spellcheck="false"
+                    ></textarea>
+                    <p v-if="jsonError" class="mt-2 text-xs text-error">{{ jsonError }}</p>
+                  </div>
+
+                  <div class="rounded-2xl bg-slate-950 p-4 text-slate-100">
+                    <p class="cn-kicker text-slate-500">配置快照</p>
+                    <div class="mt-3 space-y-2">
+                      <p class="tech-text text-[11px] text-slate-300">author = {{ selectedPlugin.author || 'unknown' }}</p>
+                      <p class="tech-text text-[11px] text-slate-300">enabled = {{ String(selectedPlugin.enabled) }}</p>
+                      <p class="tech-text text-[11px] text-slate-300">options_keys = {{ Object.keys(selectedPlugin.options || {}).length }}</p>
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <p v-else class="text-sm text-on-surface-variant">从左侧选择一个插件后，这里会显示配置与运行检视面板。</p>
+            </section>
+          </div>
+        </aside>
+      </div>
     </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, onMounted } from 'vue'
-import { storeToRefs } from 'pinia'
-import type { PluginInfo } from '../types/api'
-import { useConfigStore, usePluginsStore } from '../stores'
-import { useToast } from 'primevue/usetoast'
-import Button from 'primevue/button'
-import Card from 'primevue/card'
-import Tag from 'primevue/tag'
-import ToggleButton from 'primevue/togglebutton'
-import Dialog from 'primevue/dialog'
-import InputText from 'primevue/inputtext'
-import InputNumber from 'primevue/inputnumber'
-import Password from 'primevue/password'
-import Toast from 'primevue/toast'
-import PageHeader from '../components/common/PageHeader.vue'
-import LoadingContainer from '../components/common/LoadingContainer.vue'
-import EmptyState from '../components/common/EmptyState.vue'
-import PageSection from '../components/common/PageSection.vue'
-import { formatLabel } from '../utils/formatters'
+import { computed, onMounted, ref, watch } from 'vue';
+import AppIcon from '@/components/AppIcon.vue';
+import { apiGet, apiPost, apiPut } from '@/lib/api';
+import { getRouteToken } from '@/lib/auth';
+import type { PluginInfo } from '@/lib/types';
+import { useRoute } from 'vue-router';
 
-const pluginsStore = usePluginsStore()
-const configStore = useConfigStore()
-const { plugins, loading } = storeToRefs(pluginsStore)
-const toast = useToast()
+const route = useRoute();
+const token = getRouteToken(route);
 
-const toggling = ref(false)
-const saving = ref(false)
+const plugins = ref<PluginInfo[]>([]);
+const selectedName = ref('');
+const optionsDraft = ref('{}');
+const loading = ref(false);
+const saving = ref(false);
+const error = ref('');
+const jsonError = ref('');
 
-const configDialogVisible = ref(false)
-type ChannelItem = {
-    kind: 'channel'
-    name: string
-    description: string
-    enabled: boolean
-    config: Record<string, any>
+const selectedPlugin = computed(() => plugins.value.find((plugin) => plugin.name === selectedName.value) || plugins.value[0] || null);
+const enabledCount = computed(() => plugins.value.filter((plugin) => plugin.enabled).length);
+const disabledCount = computed(() => plugins.value.filter((plugin) => !plugin.enabled).length);
+const totalTools = computed(() => plugins.value.reduce((sum, plugin) => sum + plugin.toolsCount, 0));
+
+function syncDraft(plugin: PluginInfo | null) {
+  optionsDraft.value = JSON.stringify(plugin?.options || {}, null, 2);
+  jsonError.value = '';
 }
 
-type PluginItem = PluginInfo & { kind: 'plugin' }
-type ManageableItem = PluginItem | ChannelItem
-
-const selectedItem = ref<ManageableItem | null>(null)
-const configForm = reactive<Record<string, any>>({})
-
-const items = computed<ManageableItem[]>(() => {
-    const pluginItems: PluginItem[] = plugins.value.map(plugin => ({ ...plugin, kind: 'plugin' }))
-    const channels = configStore.config?.channels || {}
-    const channelItems: ChannelItem[] = Object.entries(channels).map(([name, config]) => ({
-        kind: 'channel',
-        name,
-        description: `Channel 适配器：${name}`,
-        enabled: Boolean((config as Record<string, any>)?.enabled),
-        config: { ...(config as Record<string, any>) }
-    }))
-    return [...pluginItems, ...channelItems]
-})
+function impactWidth(plugin: PluginInfo) {
+  return Math.min(95, 24 + plugin.toolsCount * 8 + Object.keys(plugin.options || {}).length * 4);
+}
 
 async function loadPlugins() {
-    try {
-        await Promise.all([pluginsStore.fetchPlugins(), configStore.fetchConfig()])
-    } catch (e) {
-        console.error('Failed to load plugins:', e)
-    }
+  loading.value = true;
+  error.value = '';
+
+  const result = await apiGet<{ plugins: PluginInfo[] }>('/api/plugins', token);
+  loading.value = false;
+
+  if (result.error || !result.data) {
+    error.value = result.error || '插件加载失败';
+    plugins.value = [];
+    return;
+  }
+
+  plugins.value = result.data.plugins;
+  if (!plugins.value.some((plugin) => plugin.name === selectedName.value)) {
+    selectedName.value = plugins.value[0]?.name || '';
+  }
 }
 
-async function toggleItemEnabled(item: ManageableItem) {
-    toggling.value = true
-    try {
-        if (item.kind === 'channel') {
-            if (!configStore.config?.channels?.[item.name]) {
-                toast.add({ severity: 'error', summary: '失败', detail: '通道配置不存在', life: 3000 })
-                return
-            }
-            configStore.config.channels[item.name].enabled = item.enabled
-            const success = await configStore.saveConfig()
-            if (success) {
-                toast.add({ severity: 'success', summary: '成功', detail: item.enabled ? '通道已启用' : '通道已禁用', life: 3000 })
-            } else {
-                item.enabled = !item.enabled
-                toast.add({ severity: 'error', summary: '失败', detail: '操作失败', life: 3000 })
-            }
-            return
-        }
+async function togglePlugin(plugin: PluginInfo) {
+  const result = await apiPost<{ success: true }>(`/api/plugins/${encodeURIComponent(plugin.name)}/toggle`, token, {
+    enabled: !plugin.enabled,
+  });
 
-        const success = await pluginsStore.togglePlugin(item.name, item.enabled)
-        if (success) {
-            toast.add({ severity: 'success', summary: '成功', detail: item.enabled ? '插件已启用' : '插件已禁用', life: 3000 })
-        } else {
-            item.enabled = !item.enabled
-            toast.add({ severity: 'error', summary: '失败', detail: '操作失败', life: 3000 })
-        }
-    } catch (e) {
-        item.enabled = !item.enabled
-        console.error('Failed to toggle item:', e)
-    } finally {
-        toggling.value = false
-    }
-}
+  if (result.error) {
+    error.value = result.error;
+    return;
+  }
 
-function openConfigDialog(item: ManageableItem) {
-    selectedItem.value = item
-    Object.keys(configForm).forEach(key => { delete configForm[key] })
-    const configToUse = item.kind === 'channel'
-        ? item.config
-        : (Object.keys(item.options || {}).length > 0 ? item.options || {} : item.defaultConfig?.options || {})
-    for (const [key, value] of Object.entries(configToUse)) {
-        configForm[key] = value
-    }
-    configDialogVisible.value = true
+  await loadPlugins();
 }
 
 async function savePluginConfig() {
-    if (!selectedItem.value) return
-    saving.value = true
-    try {
-        if (selectedItem.value.kind === 'channel') {
-            if (!configStore.config) {
-                toast.add({ severity: 'error', summary: '失败', detail: '配置未加载', life: 3000 })
-                return
-            }
-            configStore.config.channels[selectedItem.value.name] = { ...configForm }
-            const success = await configStore.saveConfig()
-            if (success) {
-                toast.add({ severity: 'success', summary: '成功', detail: '通道配置已保存', life: 3000 })
-                configDialogVisible.value = false
-                await loadPlugins()
-            } else {
-                toast.add({ severity: 'error', summary: '失败', detail: '保存失败', life: 3000 })
-            }
-            return
-        }
+  if (!selectedPlugin.value) {
+    return;
+  }
 
-        const success = await pluginsStore.updatePluginConfig(selectedItem.value.name, configForm)
-        if (success) {
-            toast.add({ severity: 'success', summary: '成功', detail: '配置已保存', life: 3000 })
-            configDialogVisible.value = false
-        } else {
-            toast.add({ severity: 'error', summary: '失败', detail: '保存失败', life: 3000 })
-        }
-    } catch (e) {
-        console.error('Failed to save config:', e)
-    } finally {
-        saving.value = false
+  try {
+    jsonError.value = '';
+    const options = JSON.parse(optionsDraft.value) as Record<string, unknown>;
+    saving.value = true;
+    const result = await apiPut<{ success: true }>(`/api/plugins/${encodeURIComponent(selectedPlugin.value.name)}/config`, token, {
+      options,
+    });
+    saving.value = false;
+
+    if (result.error) {
+      error.value = result.error;
+      return;
     }
+
+    await loadPlugins();
+  } catch (parseError) {
+    jsonError.value = parseError instanceof Error ? parseError.message : 'JSON 解析失败';
+  }
 }
 
-function isBoolean(value: any): boolean {
-    return typeof value === 'boolean'
-}
+watch(selectedPlugin, (plugin) => {
+  syncDraft(plugin);
+}, { immediate: true });
 
-function isNumber(value: any): boolean {
-    return typeof value === 'number'
-}
-
-function isArray(value: any): boolean {
-    return Array.isArray(value)
-}
-
-function isObject(value: any): boolean {
-    return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function isSensitiveKey(key: string): boolean {
-    const lower = key.toLowerCase()
-    return lower.includes('key') || lower.includes('password') || lower.includes('token') || lower.includes('secret') || lower.includes('api')
-}
-
-onMounted(() => {
-    loadPlugins()
-})
+onMounted(loadPlugins);
 </script>
-
-<style scoped>
-.plugins-page {
-    padding: 0;
-}
-
-.plugins-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-}
-
-.plugin-card {
-    transition: box-shadow 0.2s;
-}
-
-.plugin-card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.plugin-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.plugin-title i {
-    font-size: 18px;
-    color: var(--ui-primary);
-}
-
-.version {
-    font-size: 12px;
-    color: var(--ui-text-faint);
-}
-
-.plugin-description {
-    margin: 8px 0;
-    color: var(--ui-text-muted);
-    font-size: 14px;
-}
-
-.plugin-stats {
-    margin-top: 12px;
-    display: flex;
-    gap: 8px;
-}
-
-.plugin-actions {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-.config-form {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.form-field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.form-field label {
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--ui-text-soft);
-}
-
-.nested-config {
-    padding-left: 16px;
-    border-left: 2px solid var(--ui-border);
-}
-
-.nested-field {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin-bottom: 8px;
-}
-
-.nested-field label {
-    font-size: 13px;
-    color: var(--ui-text-muted);
-}
-
-.no-config {
-    text-align: center;
-    color: var(--ui-text-faint);
-    padding: 24px;
-}
-
-.capitalize {
-    text-transform: capitalize;
-}
-
-@media (max-width: 1024px) {
-    .plugins-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-@media (max-width: 640px) {
-    .plugins-grid {
-        grid-template-columns: 1fr;
-    }
-}
-</style>

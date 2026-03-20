@@ -1,7 +1,19 @@
-import { createRouter, createWebHistory } from 'vue-router'
-import AppLayout from '../components/AppLayout.vue'
-import { buildTokenQuery, getRouteToken } from '../utils/auth'
-import { resolveLegacyConsolePath } from './legacyRedirects'
+import { createRouter, createWebHistory } from 'vue-router';
+import MainLayout from '@/layout/MainLayout.vue';
+import Overview from '@/views/Overview.vue';
+import Agents from '@/views/Agents.vue';
+import Sessions from '@/views/Sessions.vue';
+import Logs from '@/views/Logs.vue';
+import Dialogue from '@/views/Dialogue.vue';
+import Config from '@/views/Config.vue';
+import Memory from '@/views/Memory.vue';
+import Skills from '@/views/Skills.vue';
+import Tools from '@/views/Tools.vue';
+import Plugins from '@/views/Plugins.vue';
+import Cron from '@/views/Cron.vue';
+import Mcp from '@/views/Mcp.vue';
+import Unauthorized from '@/views/Unauthorized.vue';
+import { buildTokenQuery, getRouteToken } from '@/lib/auth';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -9,126 +21,62 @@ const router = createRouter({
     {
       path: '/unauthorized',
       name: 'unauthorized',
-      component: () => import('../views/Unauthorized.vue')
+      component: Unauthorized,
     },
     {
-      path: '/overview',
-      component: AppLayout,
+      path: '/',
+      redirect: (to) => ({ path: '/overview', query: to.query, hash: to.hash }),
+    },
+    {
+      path: '/chat',
+      redirect: (to) => ({ path: '/dialogue', query: to.query, hash: to.hash }),
+    },
+    {
+      path: '/chat/:sessionKey',
+      redirect: (to) => ({ path: `/dialogue/${to.params.sessionKey}`, query: to.query, hash: to.hash }),
+    },
+    {
+      path: '/logs',
+      redirect: (to) => ({ path: '/observability/logs', query: to.query, hash: to.hash }),
+    },
+    {
+      path: '/config',
+      redirect: (to) => ({ path: '/settings/config', query: to.query, hash: to.hash }),
+    },
+    {
+      path: '/',
+      component: MainLayout,
       children: [
-        { path: '', name: 'overview', component: () => import('../views/Dashboard.vue') }
-      ]
+        { path: 'overview', name: 'overview', component: Overview, meta: { title: '总览' } },
+        { path: 'dialogue', name: 'dialogue', component: Dialogue, meta: { title: '对话' } },
+        { path: 'dialogue/:sessionKey', name: 'dialogue-session', component: Dialogue, meta: { title: '对话' } },
+        { path: 'sessions', name: 'sessions', component: Sessions, meta: { title: '会话' } },
+        { path: 'memory', name: 'memory', component: Memory, meta: { title: '记忆' } },
+        { path: 'agents', name: 'agents', component: Agents, meta: { title: 'Agent' } },
+        { path: 'skills', name: 'skills', component: Skills, meta: { title: '技能' } },
+        { path: 'tools', name: 'tools', component: Tools, meta: { title: '工具' } },
+        { path: 'plugins', name: 'plugins', component: Plugins, meta: { title: '插件' } },
+        { path: 'cron', name: 'cron', component: Cron, meta: { title: '定时任务' } },
+        { path: 'mcp', name: 'mcp', component: Mcp, meta: { title: 'MCP' } },
+        { path: 'observability/logs', name: 'observability-logs', component: Logs, meta: { title: '观测' } },
+        { path: 'settings/config', name: 'settings-config', component: Config, meta: { title: '设置' } },
+        { path: ':pathMatch(.*)*', name: 'placeholder', component: () => import('@/views/Placeholder.vue'), meta: { title: '控制台', description: '该路径已进入新版控制台，但模块内容尚未完全迁移。' } },
+      ],
     },
-    {
-      path: '/dialogue',
-      component: AppLayout,
-      children: [
-        { path: '', name: 'dialogue', component: () => import('../views/Chat.vue') },
-        { path: ':sessionKey', name: 'dialogue-session', component: () => import('../views/Chat.vue') }
-      ]
-    },
-    {
-      path: '/sessions',
-      component: AppLayout,
-      children: [
-        { path: '', name: 'sessions', component: () => import('../views/Sessions.vue') }
-      ]
-    },
-    {
-      path: '/memory',
-      component: AppLayout,
-      children: [
-        { path: '', name: 'memory', component: () => import('../views/Memory.vue') }
-      ]
-    },
-    {
-      path: '/agents',
-      component: AppLayout,
-      children: [
-        { path: '', name: 'agents', component: () => import('../views/Agents.vue') }
-      ]
-    },
-    {
-      path: '/skills',
-      component: AppLayout,
-      children: [
-        { path: '', name: 'skills', component: () => import('../views/Skills.vue') }
-      ]
-    },
-    {
-      path: '/tools',
-      component: AppLayout,
-      children: [
-        { path: '', name: 'tools', component: () => import('../views/Tools.vue') }
-      ]
-    },
-    {
-      path: '/plugins',
-      component: AppLayout,
-      children: [
-        { path: '', name: 'plugins', component: () => import('../views/Plugins.vue') }
-      ]
-    },
-    {
-      path: '/cron',
-      component: AppLayout,
-      children: [
-        { path: '', name: 'cron', component: () => import('../views/Cron.vue') }
-      ]
-    },
-    {
-      path: '/mcp',
-      component: AppLayout,
-      children: [
-        { path: '', name: 'mcp', component: () => import('../views/Mcp.vue') }
-      ]
-    },
-    {
-      path: '/observability',
-      component: AppLayout,
-      children: [
-        { path: 'logs', name: 'observability-logs', component: () => import('../views/Logs.vue') }
-      ]
-    },
-    {
-      path: '/settings',
-      component: AppLayout,
-      children: [
-        { path: 'config', name: 'settings-config', component: () => import('../views/Config.vue') }
-      ]
-    },
-    {
-      path: '/:pathMatch(.*)*',
-      redirect: (to) => {
-        const nextPath = resolveLegacyConsolePath(to.path)
-        if (nextPath) {
-          return {
-            path: nextPath,
-            query: to.query,
-            hash: to.hash
-          }
-        }
-
-        return {
-          name: 'overview',
-          query: to.query,
-          hash: to.hash
-        }
-      }
-    }
-  ]
-})
+  ],
+});
 
 router.beforeEach((to, from) => {
   if (to.name === 'unauthorized') {
-    return true
+    return true;
   }
 
-  const token = getRouteToken(to) || getRouteToken(from)
+  const token = getRouteToken(to) || getRouteToken(from);
   if (!token) {
     return {
       name: 'unauthorized',
-      query: { reason: 'missing' }
-    }
+      query: { reason: 'missing' },
+    };
   }
 
   if (getRouteToken(to) !== token) {
@@ -136,11 +84,11 @@ router.beforeEach((to, from) => {
       path: to.path,
       query: buildTokenQuery(to.query, token),
       hash: to.hash,
-      replace: true
-    }
+      replace: true,
+    };
   }
 
-  return true
-})
+  return true;
+});
 
-export default router
+export default router;

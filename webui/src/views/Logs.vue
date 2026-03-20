@@ -1,646 +1,291 @@
 <template>
-    <div class="logs-page page-stack">
-        <PageHeader title="观测日志" subtitle="以更清晰的运行面板视图查看最近日志与日志级别。">
-            <template #actions>
-                <Button label="刷新" icon="pi pi-refresh" outlined @click="refreshAll" :loading="loading || entriesLoading" />
-            </template>
-        </PageHeader>
+  <div class="p-5 md:p-8">
+    <div class="mx-auto max-w-[1680px]">
+      <header class="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p class="cn-kicker text-outline">观测</p>
+          <h1 class="cn-page-title mt-2 text-on-surface">日志观测面板</h1>
+          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">直接接入运行时日志缓冲区，支持等级筛选、缓冲占用查看和在线调整日志级别，便于快速定位链路问题。</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <button
+            class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface shadow-sm transition-colors hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-60"
+            type="button"
+            :disabled="loading"
+            @click="loadLogsPage"
+          >
+            <AppIcon name="refresh" size="sm" />
+            刷新
+          </button>
+          <button
+            class="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition"
+            :class="autoRefresh ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'border border-outline-variant/20 bg-surface-container-lowest text-on-surface'"
+            type="button"
+            @click="autoRefresh = !autoRefresh"
+          >
+            <AppIcon name="history" size="sm" />
+            {{ autoRefresh ? '自动刷新中' : '开启自动刷新' }}
+          </button>
+        </div>
+      </header>
 
-        <LoadingContainer
-            :loading="loading && !config"
-            :error="!config ? error : null"
-            loading-text="正在加载日志配置..."
-            :on-retry="refreshAll"
-        >
-            <PageSection
-                v-if="config"
-                title="运行概览"
-                subtitle="当前日志级别、缓存容量与日志流状态会在这里统一展示。"
-            >
-                <div class="monitor-overview">
-                    <article class="monitor-stat monitor-stat--primary">
-                        <span class="monitor-stat__label">当前日志级别</span>
-                        <strong class="monitor-stat__value">{{ formatLevelLabel(config.level) }}</strong>
-                        <span class="monitor-stat__meta">实时生效</span>
-                    </article>
-                    <article class="monitor-stat">
-                        <span class="monitor-stat__label">当前列表条数</span>
-                        <strong class="monitor-stat__value">{{ logEntries.length }}</strong>
-                        <span class="monitor-stat__meta">受筛选条件影响</span>
-                    </article>
-                    <article class="monitor-stat">
-                        <span class="monitor-stat__label">最近更新时间</span>
-                        <strong class="monitor-stat__value monitor-stat__value--compact">{{ lastUpdateLabel }}</strong>
-                        <span class="monitor-stat__meta">轮询刷新中</span>
-                    </article>
+      <div v-if="error" class="mb-6 rounded-2xl border border-error/20 bg-error-container/60 px-5 py-4 text-sm text-on-error-container">
+        <div class="flex items-start gap-3">
+          <AppIcon name="warning" />
+          <div>
+            <p class="font-bold">日志数据加载失败</p>
+            <p class="mt-1 leading-6">{{ error }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <article class="hairline-card rounded-2xl p-5">
+          <div class="mb-3 flex items-start justify-between">
+            <AppIcon name="panel" class="text-tertiary" />
+            <span class="rounded-full bg-tertiary-fixed px-2 py-0.5 text-[10px] font-bold text-on-tertiary-fixed">{{ bufferUsagePercent }}</span>
+          </div>
+          <p class="cn-kicker text-outline">缓冲占用</p>
+          <p class="cn-metric mt-1 text-on-surface">{{ currentBufferSize }}</p>
+          <p class="tech-text mt-2 text-xs text-on-surface-variant">上限 {{ bufferCapacity }}</p>
+        </article>
+
+        <article class="hairline-card rounded-2xl p-5">
+          <div class="mb-3 flex items-start justify-between">
+            <AppIcon name="history" class="text-sky-600" />
+            <span class="rounded-full bg-surface-container-low px-2 py-0.5 text-[10px] font-bold text-outline">本次视图</span>
+          </div>
+          <p class="cn-kicker text-outline">已加载条目</p>
+          <p class="cn-metric mt-1 text-on-surface">{{ formatNumber(entries.length) }}</p>
+          <p class="mt-2 text-xs text-on-surface-variant">筛选条件：{{ levelFilter === 'all' ? '全部等级' : `${levelLabel(levelFilter)} 级` }}</p>
+        </article>
+
+        <article class="hairline-card rounded-2xl p-5">
+          <div class="mb-3 flex items-start justify-between">
+            <AppIcon name="refresh" class="text-orange-600" />
+            <span class="rounded-full bg-surface-container-low px-2 py-0.5 text-[10px] font-bold text-outline">{{ autoRefresh ? '10s' : '手动' }}</span>
+          </div>
+          <p class="cn-kicker text-outline">最近刷新</p>
+          <p class="cn-metric mt-1 text-on-surface text-[1.5rem]">{{ lastUpdatedLabel }}</p>
+          <p class="tech-text mt-2 text-xs text-on-surface-variant">{{ lastUpdatedTime }}</p>
+        </article>
+      </div>
+
+      <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <section class="hairline-card overflow-hidden rounded-[1.6rem]">
+          <div class="flex flex-col gap-4 border-b border-outline-variant/18 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 class="cn-section-title text-on-surface">实时日志流</h2>
+              <p class="mt-1 text-sm text-on-surface-variant">按时间倒序显示缓冲区中的最新日志，保留精确时间戳和字段摘要。</p>
+            </div>
+
+            <div class="flex flex-wrap gap-3">
+              <label class="flex items-center gap-2 rounded-xl border border-outline-variant/18 bg-surface-container-low px-3 py-2 text-sm text-on-surface">
+                <span class="text-outline">筛选等级</span>
+                <select v-model="levelFilter" class="rounded-lg bg-surface-container-lowest px-2 py-1 outline-none">
+                  <option value="all">全部</option>
+                  <option v-for="level in levels" :key="level" :value="level">{{ levelLabel(level) }}</option>
+                </select>
+              </label>
+
+              <label class="flex items-center gap-2 rounded-xl border border-outline-variant/18 bg-surface-container-low px-3 py-2 text-sm text-on-surface">
+                <span class="text-outline">载入数量</span>
+                <select v-model.number="limit" class="rounded-lg bg-surface-container-lowest px-2 py-1 outline-none">
+                  <option :value="100">100</option>
+                  <option :value="200">200</option>
+                  <option :value="500">500</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div v-if="loading" class="px-5 py-16 text-center text-sm text-on-surface-variant">正在拉取日志数据...</div>
+
+          <div v-else-if="entries.length" class="divide-y divide-outline-variant/14">
+            <article v-for="entry in entries" :key="entry.id" class="px-5 py-4 transition-colors hover:bg-surface-container-low/45">
+              <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span :class="levelBadgeClass(entry.level)" class="rounded-full px-2.5 py-1 text-[11px] font-semibold">{{ levelLabel(entry.level) }}</span>
+                    <span class="tech-text rounded-full bg-surface-container-low px-2.5 py-1 text-[11px] text-on-surface-variant">{{ entry.scope || 'root' }}</span>
+                  </div>
+                  <p class="cn-body mt-3 break-words text-sm text-on-surface">{{ entry.message }}</p>
+                  <div v-if="entry.fields && Object.keys(entry.fields).length" class="mt-3 flex flex-wrap gap-2">
+                    <span v-for="(value, key) in entry.fields" :key="key" class="tech-text rounded-full bg-surface-container-low px-2.5 py-1 text-[11px] text-on-surface-variant">
+                      {{ key }}={{ formatKeyValue(value) }}
+                    </span>
+                  </div>
                 </div>
-
-                <div class="monitor-actions">
-                    <section class="monitor-card surface-panel">
-                        <div class="monitor-card__head">
-                            <div>
-                                <h3>日志级别</h3>
-                                <p>修改后立即生效，无需重启服务。</p>
-                            </div>
-                            <span class="level-badge" :class="`level-badge--${config.level}`">{{ formatLevelLabel(config.level) }}</span>
-                        </div>
-                        <div class="control-row">
-                            <Select
-                                v-model="selectedLevel"
-                                :options="logLevels"
-                                optionLabel="label"
-                                optionValue="value"
-                                placeholder="选择日志级别"
-                                fluid
-                            />
-                            <Button
-                                label="应用"
-                                icon="pi pi-check"
-                                @click="applyLogLevel"
-                                :loading="applying"
-                                :disabled="selectedLevel === config.level"
-                            />
-                        </div>
-                    </section>
-
-                    <section class="monitor-card surface-panel">
-                        <div class="monitor-card__head">
-                            <div>
-                                <h3>日志筛选</h3>
-                                <p>筛选当前进程中最近输出的日志记录。</p>
-                            </div>
-                            <span class="filter-hint">共 {{ logEntries.length }} 条</span>
-                        </div>
-                        <div class="control-row control-row--single">
-                            <Select
-                                v-model="selectedFilter"
-                                :options="filterOptions"
-                                optionLabel="label"
-                                optionValue="value"
-                                @change="applyFilter"
-                            />
-                        </div>
-                    </section>
+                <div class="shrink-0 text-right">
+                  <p class="tech-text text-xs text-outline">{{ formatDateTime(entry.timestamp) }}</p>
+                  <p class="mt-1 text-xs text-on-surface-variant">{{ formatRelativeTime(entry.timestamp) }}</p>
                 </div>
-            </PageSection>
-        </LoadingContainer>
+              </div>
+            </article>
+          </div>
 
-        <PageSection title="日志流">
-            <LoadingContainer
-                :loading="entriesLoading && logEntries.length === 0"
-                :error="logEntries.length === 0 ? error : null"
-                loading-text="正在加载日志内容..."
-                :on-retry="loadEntries"
-            >
-                <EmptyState
-                    v-if="logEntries.length === 0"
-                    icon="pi pi-file"
-                    title="暂无日志"
-                    description="当前没有可展示的运行日志，稍后刷新再试。"
-                />
+          <div v-else class="px-5 py-16 text-center">
+            <p class="cn-section-title text-on-surface">当前筛选条件下没有日志</p>
+            <p class="cn-body mt-2 text-sm text-on-surface-variant">可以切换筛选等级或调高运行时日志等级，查看更多调试信息。</p>
+          </div>
+        </section>
 
-                <div v-else class="logs-stream" role="log" aria-live="polite">
-                    <div class="logs-stream__toolbar">
-                        <h3>运行日志</h3>
-                        <div class="logs-stream__meta">
-                            <span class="stream-meta">筛选：{{ filterLabel }}</span>
-                            <span class="stream-meta">更新于 {{ lastUpdateLabel }}</span>
-                            <span class="stream-meta">共 {{ logEntries.length }} 条</span>
-                        </div>
-                    </div>
-
-                    <div class="logs-stream__list">
-                        <article
-                            v-for="entry in logEntries"
-                            :key="entry.id"
-                            class="log-row"
-                            :class="`log-row--${entry.level}`"
-                        >
-                            <div class="log-row__meta">
-                                <span class="log-row__time">{{ formatDateTime(entry.timestamp) }}</span>
-                                <span class="log-row__submeta">
-                                    <span class="log-level" :class="`log-level--${entry.level}`">{{ formatLevelLabel(entry.level) }}</span>
-                                    <span v-if="entry.scope" class="log-scope">{{ entry.scope }}</span>
-                                </span>
-                            </div>
-                            <div class="log-row__content">
-                                <pre class="log-row__message">{{ entry.message }}</pre>
-                                <div v-if="formatFieldSummary(entry.fields)" class="log-row__fields">
-                                    {{ formatFieldSummary(entry.fields) }}
-                                </div>
-                            </div>
-                        </article>
-                    </div>
-                </div>
-            </LoadingContainer>
-        </PageSection>
-
-        <Toast />
+        <aside class="space-y-6">
+          <section class="hairline-card rounded-[1.6rem] p-5">
+            <p class="cn-kicker text-outline">运行控制</p>
+            <h2 class="cn-section-title mt-2 text-on-surface">调整日志等级</h2>
+            <p class="mt-2 text-sm text-on-surface-variant">更新后立即作用于内存日志服务，并尝试写回配置。</p>
+            <div class="mt-4 space-y-3">
+              <label class="block">
+                <span class="mb-2 block text-sm text-outline">目标等级</span>
+                <select v-model="levelDraft" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface outline-none">
+                  <option v-for="level in levels" :key="level" :value="level">{{ levelLabel(level) }}</option>
+                </select>
+              </label>
+              <button
+                class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+                type="button"
+                :disabled="savingLevel || levelDraft === runtimeLevel"
+                @click="updateRuntimeLevel"
+              >
+                <AppIcon name="save" size="sm" />
+                {{ savingLevel ? '保存中...' : '应用日志等级' }}
+              </button>
+            </div>
+          </section>
+        </aside>
+      </div>
     </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useLogsStore } from '../stores'
-import { useToast } from 'primevue/usetoast'
-import Button from 'primevue/button'
-import Select from 'primevue/select'
-import Toast from 'primevue/toast'
-import EmptyState from '../components/common/EmptyState.vue'
-import PageHeader from '../components/common/PageHeader.vue'
-import LoadingContainer from '../components/common/LoadingContainer.vue'
-import PageSection from '../components/common/PageSection.vue'
-import { formatClock, formatDateTime } from '../utils/formatters'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
+import AppIcon from '@/components/AppIcon.vue';
+import { apiGet, apiPost } from '@/lib/api';
+import { getRouteToken } from '@/lib/auth';
+import { formatDateTime, formatKeyValue, formatNumber, formatRelativeTime } from '@/lib/format';
+import type { LogLevel, ObservabilityEntriesResponse, ObservabilityLogEntry, ObservabilityLoggingConfig } from '@/lib/types';
 
-type LogFilterLevel = 'all' | 'debug' | 'info' | 'warn' | 'error'
-type LogLevel = 'debug' | 'info' | 'warn' | 'error'
+const route = useRoute();
+const token = getRouteToken(route);
 
-const logsStore = useLogsStore()
-const { config, entries, loading, entriesLoading, error, lastUpdate, activeLevel } = storeToRefs(logsStore)
-const toast = useToast()
+const levels: LogLevel[] = ['debug', 'info', 'warn', 'error'];
 
-const applying = ref(false)
-const selectedLevel = ref<LogLevel>('info')
-const selectedFilter = ref<LogFilterLevel>('all')
+const config = ref<ObservabilityLoggingConfig | null>(null);
+const entries = ref<ObservabilityLogEntry[]>([]);
+const bufferTotal = ref(0);
+const loading = ref(false);
+const savingLevel = ref(false);
+const error = ref('');
+const autoRefresh = ref(false);
+const levelFilter = ref<'all' | LogLevel>('all');
+const levelDraft = ref<LogLevel>('info');
+const limit = ref(200);
+const lastUpdatedAt = ref<Date | null>(null);
+let refreshTimer: number | null = null;
 
-const levelLabelMap: Record<LogFilterLevel, string> = {
-    all: '全部',
-    error: '错误',
-    warn: '警告',
-    info: '信息',
-    debug: '调试'
+const runtimeLevel = computed<LogLevel>(() => config.value?.level || 'info');
+const currentBufferSize = computed(() => formatNumber(bufferTotal.value));
+const bufferCapacity = computed(() => formatNumber(config.value?.bufferSize || 0));
+const bufferUsagePercent = computed(() => {
+  const capacity = config.value?.bufferSize || 0;
+  if (!capacity) return '0%';
+  return `${Math.min(100, Math.round((bufferTotal.value / capacity) * 100))}%`;
+});
+const lastUpdatedLabel = computed(() => lastUpdatedAt.value ? formatRelativeTime(lastUpdatedAt.value) : '-');
+const lastUpdatedTime = computed(() => lastUpdatedAt.value ? formatDateTime(lastUpdatedAt.value) : '-');
+
+function levelLabel(level: LogLevel | 'all') {
+  if (level === 'all') return '全部';
+  if (level === 'debug') return '调试';
+  if (level === 'info') return '信息';
+  if (level === 'warn') return '警告';
+  return '错误';
 }
 
-const logLevels = [
-    { label: '错误', value: 'error' },
-    { label: '警告', value: 'warn' },
-    { label: '信息', value: 'info' },
-    { label: '调试', value: 'debug' }
-]
-
-const filterOptions = [
-    { label: '全部', value: 'all' },
-    { label: '错误', value: 'error' },
-    { label: '警告', value: 'warn' },
-    { label: '信息', value: 'info' },
-    { label: '调试', value: 'debug' }
-]
-
-const logEntries = computed(() => entries.value)
-const lastUpdateLabel = computed(() => (lastUpdate.value ? formatClock(new Date(lastUpdate.value)) : '尚未刷新'))
-const filterLabel = computed(() => levelLabelMap[selectedFilter.value])
-
-function formatLevelLabel(level: LogFilterLevel | string) {
-    return levelLabelMap[level as LogFilterLevel] || String(level).toUpperCase()
+function levelBadgeClass(level: LogLevel) {
+  if (level === 'debug') return 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300';
+  if (level === 'info') return 'bg-primary-fixed text-on-primary-fixed';
+  if (level === 'warn') return 'bg-tertiary-fixed text-on-tertiary-fixed';
+  return 'bg-error-container text-on-error-container';
 }
 
-async function loadConfig() {
-    const loadedConfig = await logsStore.fetchConfig()
-    if (loadedConfig) {
-        selectedLevel.value = loadedConfig.level as LogLevel
-    }
+async function loadLogsPage() {
+  loading.value = true;
+  error.value = '';
+
+  const [configResult, entriesResult] = await Promise.all([
+    apiGet<ObservabilityLoggingConfig>('/api/observability/logging/config', token),
+    apiGet<ObservabilityEntriesResponse>('/api/observability/logging/entries', token, {
+      limit: limit.value,
+      level: levelFilter.value === 'all' ? undefined : levelFilter.value,
+    }),
+  ]);
+
+  if (configResult.error || entriesResult.error) {
+    error.value = configResult.error || entriesResult.error || '加载失败';
+  }
+
+  config.value = configResult.data;
+  entries.value = entriesResult.data?.entries || [];
+  bufferTotal.value = entriesResult.data?.total || 0;
+  levelDraft.value = configResult.data?.level || levelDraft.value;
+  lastUpdatedAt.value = new Date();
+  loading.value = false;
 }
 
-async function loadEntries() {
-    await logsStore.fetchEntries(selectedFilter.value)
+async function updateRuntimeLevel() {
+  savingLevel.value = true;
+  const result = await apiPost<{ success: true; level: LogLevel }>('/api/observability/logging/level', token, {
+    level: levelDraft.value,
+  });
+  savingLevel.value = false;
+
+  if (result.error) {
+    error.value = result.error;
+    return;
+  }
+
+  if (config.value) {
+    config.value = {
+      ...config.value,
+      level: result.data?.level || levelDraft.value,
+    };
+  }
+
+  await loadLogsPage();
 }
 
-async function refreshAll() {
-    await Promise.all([loadConfig(), loadEntries()])
+function syncAutoRefresh() {
+  if (refreshTimer) {
+    window.clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
+
+  if (autoRefresh.value) {
+    refreshTimer = window.setInterval(() => {
+      loadLogsPage();
+    }, 10000);
+  }
 }
 
-async function applyLogLevel() {
-    if (!selectedLevel.value) return
+watch([levelFilter, limit], () => {
+  loadLogsPage();
+});
 
-    applying.value = true
-    const success = await logsStore.setLogLevel(selectedLevel.value)
-    applying.value = false
+watch(autoRefresh, () => {
+  syncAutoRefresh();
+});
 
-    if (success) {
-        toast.add({ severity: 'success', summary: '成功', detail: `日志级别已更新为${formatLevelLabel(selectedLevel.value)}`, life: 3000 })
-        await loadConfig()
-        await loadEntries()
-    } else {
-        toast.add({ severity: 'error', summary: '错误', detail: logsStore.error || '更新日志级别失败', life: 3000 })
-    }
-}
+onMounted(() => {
+  loadLogsPage();
+});
 
-async function applyFilter() {
-    await loadEntries()
-}
-
-function getFieldEntries(fields?: Record<string, string | number | boolean | null>) {
-    if (!fields) return []
-    return Object.entries(fields).map(([key, value]) => ({
-        key,
-        value: String(value)
-    }))
-}
-
-function formatFieldSummary(fields?: Record<string, string | number | boolean | null>) {
-    const entries = getFieldEntries(fields)
-    if (entries.length === 0) return ''
-    return entries.map((entry) => `${entry.key}=${entry.value}`).join('  ·  ')
-}
-
-onMounted(async () => {
-    selectedFilter.value = activeLevel.value
-    await refreshAll()
-    logsStore.startPolling(3000)
-})
-
-onUnmounted(() => {
-    logsStore.stopPolling()
-})
+onBeforeUnmount(() => {
+  if (refreshTimer) {
+    window.clearInterval(refreshTimer);
+  }
+});
 </script>
-
-<style scoped>
-.monitor-overview {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: var(--ui-space-4);
-    margin-bottom: var(--ui-space-5);
-}
-
-.monitor-stat {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    min-width: 0;
-    padding: var(--ui-space-5);
-    border: 1px solid var(--ui-border);
-    border-radius: var(--ui-radius-md);
-    background:
-        linear-gradient(180deg, var(--ui-surface-strong), var(--ui-surface-muted)),
-        linear-gradient(120deg, var(--ui-primary-soft), transparent 60%);
-    box-shadow: var(--ui-shadow-sm);
-}
-
-.monitor-stat--primary {
-    border-color: var(--ui-border-strong);
-    background:
-        linear-gradient(180deg, var(--ui-surface-strong), var(--ui-surface)),
-        linear-gradient(120deg, color-mix(in srgb, var(--ui-primary-soft) 150%, transparent), transparent 62%);
-}
-
-.monitor-stat--primary .monitor-stat__value {
-    color: var(--ui-primary-text);
-}
-
-.monitor-stat__label {
-    font-size: 0.82rem;
-    letter-spacing: 0.04em;
-    color: var(--ui-text-muted);
-}
-
-.monitor-stat__value {
-    font-size: 1.45rem;
-    line-height: 1.1;
-    font-weight: 800;
-    color: var(--ui-text);
-}
-
-.monitor-stat__value--compact {
-    font-size: 1.12rem;
-}
-
-.monitor-stat__meta {
-    font-size: 0.82rem;
-    color: var(--ui-text-faint);
-}
-
-.monitor-actions {
-    display: grid;
-    grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
-    gap: var(--ui-space-4);
-}
-
-.monitor-card {
-    display: flex;
-    flex-direction: column;
-    gap: var(--ui-space-4);
-    padding: var(--ui-space-5);
-}
-
-.monitor-card__head {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--ui-space-4);
-    align-items: flex-start;
-}
-
-.monitor-card__head h3 {
-    margin: 0 0 6px 0;
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--ui-text);
-}
-
-.monitor-card__head p {
-    margin: 0;
-    font-size: 0.88rem;
-    line-height: 1.5;
-    color: var(--ui-text-muted);
-}
-
-.level-badge,
-.filter-hint {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 32px;
-    padding: 0 12px;
-    border-radius: 999px;
-    font-size: 0.8rem;
-    font-weight: 700;
-    white-space: nowrap;
-}
-
-.level-badge {
-    border: 1px solid rgba(148, 163, 184, 0.22);
-    background: var(--ui-overlay-strong);
-    color: var(--ui-text-soft);
-}
-
-.level-badge--debug {
-    color: var(--ui-debug);
-    background: var(--ui-debug-soft);
-}
-
-.level-badge--info {
-    color: var(--ui-primary-text);
-    background: var(--ui-primary-soft);
-}
-
-.level-badge--warn {
-    color: var(--ui-warning);
-    background: var(--ui-warning-soft);
-}
-
-.level-badge--error {
-    color: var(--ui-danger-text);
-    background: var(--ui-danger-soft);
-}
-
-.filter-hint {
-    color: var(--ui-text-muted);
-    background: var(--ui-overlay);
-}
-
-.control-row {
-    display: flex;
-    gap: var(--ui-space-3);
-    align-items: stretch;
-}
-
-.control-row :deep(.p-select) {
-    flex: 1;
-}
-
-.control-row--single :deep(.p-select) {
-    width: 100%;
-}
-
-.logs-stream__toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: var(--ui-space-4);
-    padding: 0 0 var(--ui-space-4) 0;
-}
-
-.logs-stream__toolbar h3 {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--ui-text);
-}
-
-.logs-stream__meta {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: var(--ui-space-2);
-}
-
-.stream-meta {
-    font-size: 0.82rem;
-    color: var(--ui-text-muted);
-}
-
-.logs-stream__list {
-    display: flex;
-    flex-direction: column;
-    max-height: 72vh;
-    overflow: auto;
-    border-top: 1px solid var(--ui-border);
-    border-bottom: 1px solid var(--ui-border);
-    background: var(--ui-overlay);
-}
-
-.log-row {
-    display: grid;
-    grid-template-columns: 188px minmax(0, 1fr);
-    gap: var(--ui-space-4);
-    padding: 16px var(--ui-space-4);
-    border-bottom: 1px solid var(--ui-border);
-    background: transparent;
-    transition: background-color 0.18s ease;
-}
-
-.log-row:hover {
-    background: var(--ui-hover);
-}
-
-.log-row__meta {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 0;
-    padding-top: 2px;
-}
-
-.log-row__time {
-    font-size: 0.82rem;
-    font-weight: 600;
-    color: var(--ui-text-soft);
-    white-space: nowrap;
-}
-
-.log-row__submeta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-    min-width: 0;
-}
-
-.log-level {
-    display: inline-flex;
-    align-items: center;
-    font-size: 0.76rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-}
-
-.log-level--debug {
-    color: var(--ui-debug);
-}
-
-.log-level--info {
-    color: var(--ui-primary-text);
-}
-
-.log-level--warn {
-    color: var(--ui-warning);
-}
-
-.log-level--error {
-    color: var(--ui-danger-text);
-}
-
-.log-scope {
-    min-width: 0;
-    font-size: 0.8rem;
-    color: var(--ui-text-faint);
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.log-row__content {
-    min-width: 0;
-}
-
-.log-row__message {
-    margin: 0;
-    white-space: pre-wrap;
-    word-break: break-word;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
-    font-size: 0.92rem;
-    line-height: 1.72;
-    color: var(--ui-text-soft);
-}
-
-.log-row__fields {
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px dashed rgba(148, 163, 184, 0.18);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
-    font-size: 0.76rem;
-    line-height: 1.65;
-    color: var(--ui-text-muted);
-    word-break: break-word;
-}
-
-.log-row--debug {
-    box-shadow: none;
-}
-
-.log-row--debug .log-row__message {
-    color: var(--ui-text);
-}
-
-.log-row--info {
-    box-shadow: none;
-}
-
-.log-row--info .log-row__message {
-    color: var(--ui-text-soft);
-}
-
-.log-row--warn {
-    box-shadow: none;
-}
-
-.log-row--warn .log-row__message {
-    color: var(--ui-warning);
-}
-
-.log-row--error {
-    box-shadow: none;
-}
-
-.log-row--error .log-row__message {
-    color: var(--ui-danger-strong);
-}
-
-@media (max-width: 1120px) {
-    .monitor-overview {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .monitor-actions {
-        grid-template-columns: 1fr;
-    }
-
-    .logs-stream__toolbar {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .logs-stream__meta {
-        justify-content: flex-start;
-    }
-
-    .log-row {
-        grid-template-columns: 156px minmax(0, 1fr);
-    }
-}
-
-@media (max-width: 768px) {
-    .monitor-overview {
-        grid-template-columns: 1fr;
-    }
-
-    .monitor-card,
-    .monitor-stat {
-        padding: var(--ui-space-4);
-    }
-
-    .monitor-card__head,
-    .control-row {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .control-row :deep(.p-select),
-    .control-row :deep(.p-button) {
-        width: 100%;
-    }
-
-    .logs-stream__toolbar {
-        padding-bottom: var(--ui-space-3);
-    }
-
-    .logs-stream__list {
-        max-height: 64vh;
-    }
-
-    .log-row {
-        grid-template-columns: 1fr;
-        gap: 8px;
-        padding: 14px 0;
-    }
-
-    .log-row__meta {
-        gap: 6px;
-    }
-
-    .log-scope {
-        white-space: normal;
-        overflow: visible;
-    }
-
-    .log-row__message {
-        font-size: 0.88rem;
-        line-height: 1.7;
-    }
-
-    .log-row__fields {
-        font-size: 0.75rem;
-    }
-}
-</style>

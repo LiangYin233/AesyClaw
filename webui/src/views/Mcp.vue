@@ -1,630 +1,428 @@
 <template>
-    <div class="mcp-page page-stack">
-        <PageHeader title="MCP 服务器管理" subtitle="集中查看连接状态、工具数量与服务器配置。">
-            <template #actions>
-                <Button label="刷新" icon="pi pi-refresh" outlined @click="loadServers" :loading="loading" />
-                <Button label="添加服务器" icon="pi pi-plus" @click="showAddDialog = true" />
-            </template>
-        </PageHeader>
+  <div class="p-5 md:p-8">
+    <div class="mx-auto max-w-[1760px]">
+      <div class="flex flex-col gap-6 xl:flex-row">
+        <section class="min-w-0 flex-1">
+          <header class="mb-8">
+            <p class="cn-kicker text-outline">MCP</p>
+            <h1 class="cn-page-title mt-2 text-on-surface">MCP 连接中心</h1>
+            <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">直接对齐 Stitch 的 MCP Connectivity Hub，把服务节点、暴露工具和连接日志整合进同一块工作台。</p>
+          </header>
 
-        <LoadingContainer :loading="loading" loading-text="正在加载 MCP 服务器...">
-            <EmptyState
-                v-if="servers.length === 0"
-                icon="pi pi-server"
-                title="暂无 MCP 服务器"
-                description="点击右上角“添加服务器”即可创建本地或 HTTP MCP 服务。"
+          <div v-if="error" class="mb-6 rounded-2xl border border-error/20 bg-error-container/60 px-5 py-4 text-sm text-on-error-container">
+            <p class="font-bold">MCP 数据加载失败</p>
+            <p class="mt-2 leading-6">{{ error }}</p>
+          </div>
+
+          <div class="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <article class="hairline-card rounded-2xl p-5">
+              <p class="cn-kicker text-outline">服务总数</p>
+              <div class="mt-2 flex items-end gap-2">
+                <span class="cn-metric text-primary">{{ servers.length }}</span>
+              </div>
+            </article>
+            <article class="hairline-card rounded-2xl p-5">
+              <p class="cn-kicker text-outline">已连接</p>
+              <div class="mt-2 flex items-end gap-2">
+                <span class="cn-metric text-emerald-600">{{ connectedCount }}</span>
+                <span class="inline-block size-2 rounded-full bg-emerald-500"></span>
+              </div>
+            </article>
+            <article class="hairline-card rounded-2xl p-5">
+              <p class="cn-kicker text-outline">未连接</p>
+              <div class="mt-2 flex items-end gap-2">
+                <span class="cn-metric text-error">{{ disconnectedCount }}</span>
+              </div>
+            </article>
+            <article class="hairline-card rounded-2xl p-5">
+              <p class="cn-kicker text-outline">暴露工具</p>
+              <div class="mt-2 flex items-end gap-2">
+                <span class="cn-metric text-on-surface">{{ totalTools }}</span>
+              </div>
+            </article>
+          </div>
+
+          <div class="mb-4 flex items-center justify-between px-2">
+            <h2 class="cn-section-title text-on-surface">已注册节点</h2>
+            <div class="flex gap-3">
+              <button class="rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-2 text-sm font-semibold text-on-surface transition hover:bg-surface-container-high" type="button" :disabled="loading" @click="loadServers">
+                刷新
+              </button>
+              <button class="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white transition hover:opacity-90" type="button" @click="startCreate">
+                连接新服务
+              </button>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <article
+              v-for="server in servers"
+              :key="server.name"
+              class="rounded-[1.6rem] border border-outline-variant/10 bg-surface-container-lowest p-4 transition-all hover:shadow-[0_12px_40px_rgba(0,74,198,0.06)]"
+              :class="selectedName === server.name ? 'ring-2 ring-primary/15' : ''"
             >
-                <template #actions>
-                    <Button label="添加服务器" icon="pi pi-plus" @click="showAddDialog = true" />
-                </template>
-            </EmptyState>
-
-            <PageSection v-else title="服务器列表" :subtitle="`${servers.length} 个已配置服务器`">
-                <div class="mcp-sections">
-                    <div
-                        v-for="server in servers"
-                        :key="server.name"
-                        class="mcp-card"
-                    >
-                        <div class="mcp-header">
-                            <div class="mcp-name-group">
-                                <span class="mcp-name">{{ server.name }}</span>
-                                <span class="mcp-type-tag">
-                                    {{ server.config.type === 'local' ? '本地 (Stdio)' : 'HTTP (SSE)' }}
-                                </span>
-                            </div>
-                            <div class="mcp-header-actions">
-                                <Tag
-                                    :value="getStatusLabel(server.status)"
-                                    :severity="getStatusSeverity(server.status)"
-                                />
-                                <Button
-                                    icon="pi pi-eye"
-                                    text
-                                    rounded
-                                    size="small"
-                                    @click="viewServerDetails(server)"
-                                    v-tooltip.top="'查看工具列表'"
-                                />
-                                <Button
-                                    icon="pi pi-refresh"
-                                    text
-                                    rounded
-                                    size="small"
-                                    @click="reconnectServer(server.name)"
-                                    :disabled="server.status === 'connecting'"
-                                    v-tooltip.top="'重新连接'"
-                                />
-                                <InputSwitch
-                                    :modelValue="server.config.enabled !== false"
-                                    @update:modelValue="toggleServer(server.name, $event)"
-                                />
-                                <Button
-                                    icon="pi pi-trash"
-                                    severity="danger"
-                                    text
-                                    rounded
-                                    size="small"
-                                    @click="serverToDelete = server; showDeleteDialog = true"
-                                    v-tooltip.top="'删除服务器'"
-                                />
-                            </div>
-                        </div>
-
-                        <div class="mcp-info">
-                            <div v-for="item in getServerInfo(server)" :key="item.label" class="info-item">
-                                <span class="info-label">{{ item.label }}:</span>
-                                <span class="info-value" :class="{ 'error-text': item.error }">{{ item.value }}</span>
-                            </div>
-                        </div>
-
-                        <div class="mcp-config">
-                            <div v-for="item in getServerConfig(server)" :key="item.label" class="config-item">
-                                <span class="config-label">{{ item.label }}:</span>
-                                <code class="config-value">{{ item.value }}</code>
-                            </div>
-                        </div>
+              <div class="flex flex-col gap-4 md:flex-row md:items-center md:gap-6">
+                <button class="flex min-w-0 flex-1 items-center gap-5 text-left" type="button" @click="selectServer(server.name)">
+                  <div class="flex size-12 shrink-0 items-center justify-center rounded-2xl" :class="statusIconTone(server.status)">
+                    <AppIcon name="mcp" />
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="mb-1 flex flex-wrap items-center gap-3">
+                      <h3 class="truncate text-base font-bold text-on-surface">{{ server.name }}</h3>
+                      <span class="rounded px-2 py-0.5 text-[10px] font-bold tracking-[0.08em]" :class="statusBadgeTone(server.status)">{{ statusLabel(server.status) }}</span>
                     </div>
-                </div>
-            </PageSection>
-        </LoadingContainer>
-        <!-- Add Server Dialog -->
-        <Dialog v-model:visible="showAddDialog" header="添加 MCP 服务器" :style="{ width: '600px' }" modal>
-            <div class="form-stack">
-                <div class="form-field">
-                    <label>服务器名称 *</label>
-                    <InputText v-model="newServer.name" placeholder="例如: filesystem" />
-                </div>
-                <div class="form-field">
-                    <label>类型 *</label>
-                    <Select
-                        v-model="newServer.type"
-                        :options="mcpTypes"
-                        optionLabel="label"
-                        optionValue="value"
-                        placeholder="选择类型"
-                        fluid
-                    />
-                </div>
-                <div class="form-field" v-if="newServer.type === 'local'">
-                    <label>命令 (JSON 数组) *</label>
-                    <Textarea
-                        v-model="newServer.command"
-                        placeholder='["npx", "-y", "@modelcontextprotocol/server-filesystem", "/path/to/files"]'
-                        rows="3"
-                        fluid
-                    />
-                    <small class="field-hint">以 JSON 数组形式填写完整命令及参数</small>
-                </div>
-                <div class="form-field" v-if="newServer.type === 'http'">
-                    <label>URL *</label>
-                    <InputText v-model="newServer.url" placeholder="http://localhost:3000/sse" />
-                    <small class="field-hint">指向 MCP HTTP(SSE) 服务器地址</small>
-                </div>
-                <div class="form-field">
-                    <label>环境变量 (JSON 对象)</label>
-                    <Textarea
-                        v-model="newServer.environment"
-                        placeholder='{"KEY": "value"}'
-                        rows="2"
-                        fluid
-                    />
-                </div>
-                <div class="form-field">
-                    <label>超时 (毫秒)</label>
-                    <InputNumber v-model="newServer.timeout" placeholder="120000" :useGrouping="false" />
-                </div>
-            </div>
-            <template #footer>
-                <Button label="取消" text @click="showAddDialog = false" />
-                <Button label="添加并连接" @click="addServer" :loading="adding" />
-            </template>
-        </Dialog>
+                    <p class="tech-text text-xs text-on-surface-variant">{{ serverAddress(server) }}</p>
+                  </div>
+                </button>
 
-        <!-- Server Details Dialog -->
-        <Dialog v-model:visible="showDetailsDialog" header="服务器详情" :style="{ width: '700px' }" modal>
-            <div v-if="selectedServer">
-                <div class="details-section">
-                    <h3>基本信息</h3>
-                    <div class="details-grid">
-                        <div v-for="item in getServerDetails(selectedServer)" :key="item.label" class="detail-item">
-                            <span class="detail-label">{{ item.label }}:</span>
-                            <Tag
-                                v-if="item.status"
-                                :value="item.value"
-                                :severity="getStatusSeverity(selectedServer.status)"
-                            />
-                            <span v-else class="detail-value">{{ item.value }}</span>
-                        </div>
+                <div class="flex items-center gap-8 border-slate-100 md:border-x md:px-6">
+                  <div class="text-center">
+                    <p class="text-[10px] font-bold tracking-[0.08em] text-outline">工具</p>
+                    <p class="text-sm font-black text-on-surface">{{ server.toolCount }}</p>
+                  </div>
+                  <div class="text-center">
+                    <p class="text-[10px] font-bold tracking-[0.08em] text-outline">最后连接</p>
+                    <p class="tech-text text-xs text-on-surface">{{ server.connectedAt ? formatRelativeTime(server.connectedAt) : '--' }}</p>
+                  </div>
+                </div>
+
+                <div class="flex flex-col items-start gap-2 md:items-end">
+                  <p class="tech-text text-[11px]" :class="server.error ? 'text-error' : 'text-outline'">{{ server.error || `已连接：${server.connectedAt ? formatDateTime(server.connectedAt) : '未知'}` }}</p>
+                  <div class="flex gap-2">
+                    <button class="rounded-lg border border-outline-variant/20 px-3 py-2 text-xs font-semibold text-on-surface transition hover:bg-surface-container-high" type="button" @click="selectServer(server.name)">
+                      检视
+                    </button>
+                    <button v-if="server.status !== 'connected'" class="rounded-lg bg-primary-fixed px-3 py-2 text-xs font-bold text-on-primary-fixed transition hover:opacity-90" type="button" @click="reconnectServer(server.name)">
+                      重连
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <aside class="w-full shrink-0 xl:w-[420px]">
+          <div class="space-y-6 xl:sticky xl:top-8">
+            <section class="rounded-[1.6rem] bg-surface-container-low p-6">
+              <div class="mb-5 flex items-center justify-between">
+                <h3 class="cn-section-title text-on-surface">{{ selectedName ? '服务配置' : '新建服务' }}</h3>
+                <button v-if="selectedName" class="text-[11px] font-bold tracking-[0.08em] text-primary" type="button" @click="startCreate">新增</button>
+              </div>
+
+              <div class="space-y-4">
+                <label>
+                  <span class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">服务名</span>
+                  <input v-model="draftName" class="tech-text w-full rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none" type="text" placeholder="knowledge_base" />
+                </label>
+                <div class="grid grid-cols-2 gap-3">
+                  <label>
+                    <span class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">传输类型</span>
+                    <select v-model="draft.type" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none">
+                      <option value="local">local</option>
+                      <option value="http">http</option>
+                    </select>
+                  </label>
+                  <label class="flex items-center justify-between rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-3">
+                    <div>
+                      <p class="text-sm font-semibold text-on-surface">启用</p>
+                      <p class="mt-1 text-[11px] text-on-surface-variant">保存后即时切换</p>
                     </div>
+                    <button class="relative h-5 w-10 rounded-full transition" :class="draft.enabled ? 'bg-primary-container' : 'bg-surface-container-high'" type="button" @click="draft.enabled = !draft.enabled">
+                      <span class="absolute top-0.5 size-4 rounded-full bg-white transition" :class="draft.enabled ? 'right-0.5' : 'left-0.5'"></span>
+                    </button>
+                  </label>
                 </div>
 
-                <div class="details-section">
-                    <h3>工具列表</h3>
-                    <div v-if="serverTools.length > 0" class="tools-list">
-                        <div v-for="tool in serverTools" :key="tool.name" class="tool-item">
-                            <span class="tool-name">{{ tool.name }}</span>
-                            <p class="tool-description">{{ tool.description }}</p>
-                        </div>
-                    </div>
-                    <Message v-else severity="info" :closable="false">
-                        该服务器暂无可用工具
-                    </Message>
+                <label v-if="draft.type === 'http'">
+                  <span class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">URL</span>
+                  <input v-model="draft.url" class="tech-text w-full rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none" type="text" placeholder="https://example.com/mcp" />
+                </label>
+
+                <label v-else>
+                  <span class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">Command</span>
+                  <textarea v-model="commandText" class="tech-text min-h-24 w-full rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-xs text-on-surface outline-none" spellcheck="false" placeholder="npx&#10;@modelcontextprotocol/server-filesystem&#10;/workspace"></textarea>
+                </label>
+
+                <label>
+                  <span class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">超时 (ms)</span>
+                  <input v-model.number="draft.timeout" class="tech-text w-full rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-sm text-on-surface outline-none" type="number" min="1000" />
+                </label>
+
+                <label>
+                  <span class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">Environment JSON</span>
+                  <textarea v-model="environmentText" class="tech-text min-h-24 w-full rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-xs text-on-surface outline-none" spellcheck="false"></textarea>
+                </label>
+
+                <label>
+                  <span class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">Headers JSON</span>
+                  <textarea v-model="headersText" class="tech-text min-h-24 w-full rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-3 text-xs text-on-surface outline-none" spellcheck="false"></textarea>
+                </label>
+
+                <p v-if="jsonError" class="text-xs text-error">{{ jsonError }}</p>
+
+                <div class="grid grid-cols-2 gap-3">
+                  <button class="rounded-xl bg-surface-container-high py-3 text-sm font-bold text-on-surface transition hover:bg-surface-container-highest" type="button" :disabled="saving" @click="saveServer">
+                    {{ saving ? '保存中...' : '保存配置' }}
+                  </button>
+                  <button v-if="selectedName" class="rounded-xl border border-error/20 py-3 text-sm font-bold text-error transition hover:bg-error-container/60" type="button" :disabled="saving" @click="deleteServer">
+                    删除服务
+                  </button>
                 </div>
-            </div>
-            <template #footer>
-                <Button label="关闭" @click="showDetailsDialog = false" />
-            </template>
-        </Dialog>
+              </div>
+            </section>
 
-        <ConfirmDialog
-            v-model:visible="showDeleteDialog"
-            title="确认删除"
-            :message="`确定要删除服务器 ${serverToDelete?.name || ''} 吗？此操作无法撤销。`"
-            :loading="deleting"
-            confirm-label="删除"
-            confirm-severity="danger"
-            :on-confirm="deleteServer"
-        />
+            <section class="hairline-card rounded-[1.6rem] p-5">
+              <div class="mb-4 flex items-center justify-between">
+                <h3 class="cn-section-title text-on-surface">暴露工具</h3>
+                <span class="tech-text text-[11px] text-outline">{{ tools.length }}</span>
+              </div>
+              <div class="max-h-[22rem] space-y-3 overflow-y-auto pr-2">
+                <div v-for="tool in tools" :key="tool.name" class="rounded-xl bg-surface-container-low px-3 py-3">
+                  <div class="flex items-start justify-between gap-3">
+                    <h4 class="tech-text text-xs font-bold text-on-surface">{{ tool.name }}</h4>
+                    <span class="rounded bg-primary-fixed px-1.5 py-0.5 text-[10px] font-bold text-on-primary-fixed">{{ Object.keys(tool.parameters || {}).length }} 参</span>
+                  </div>
+                  <p class="mt-2 text-[11px] leading-5 text-on-surface-variant">{{ tool.description || '暂无工具描述。' }}</p>
+                </div>
+                <p v-if="!tools.length" class="text-sm text-on-surface-variant">当前服务尚未暴露工具，或仍未连接成功。</p>
+              </div>
+            </section>
 
-        <Toast />
+            <section class="rounded-[1.6rem] bg-slate-950 p-5 text-slate-100 shadow-2xl shadow-slate-900/10">
+              <div class="mb-4 flex items-center justify-between">
+                <h3 class="cn-kicker text-slate-500">实时日志</h3>
+                <div class="flex gap-2">
+                  <span class="inline-block size-2 rounded-full bg-emerald-500"></span>
+                  <span class="inline-block size-2 rounded-full bg-slate-700"></span>
+                </div>
+              </div>
+              <div class="max-h-[22rem] space-y-2 overflow-y-auto pr-2">
+                <p v-for="entry in filteredLogs" :key="entry.id" class="tech-text text-[11px] leading-5 text-slate-300">
+                  <span class="text-slate-500">[{{ formatDateTime(entry.timestamp) }}]</span>
+                  <span class="ml-2" :class="entry.level === 'error' ? 'text-red-400' : entry.level === 'warn' ? 'text-amber-300' : 'text-sky-400'">{{ entry.level.toUpperCase() }}</span>
+                  <span class="ml-2">{{ entry.message }}</span>
+                </p>
+                <p v-if="!filteredLogs.length" class="text-sm text-slate-400">当前没有匹配到相关 MCP 日志。</p>
+              </div>
+            </section>
+          </div>
+        </aside>
+      </div>
     </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import { storeToRefs } from 'pinia'
-import type { MCPServerInfo, MCPServerConfig } from '../types/api'
-import { useMcpStore } from '../stores'
-import { useToast } from 'primevue/usetoast'
-import Button from 'primevue/button'
-import InputText from 'primevue/inputtext'
-import InputNumber from 'primevue/inputnumber'
-import Select from 'primevue/select'
-import InputSwitch from 'primevue/inputswitch'
-import Textarea from 'primevue/textarea'
-import Message from 'primevue/message'
-import Toast from 'primevue/toast'
-import Dialog from 'primevue/dialog'
-import Tag from 'primevue/tag'
-import PageHeader from '../components/common/PageHeader.vue'
-import LoadingContainer from '../components/common/LoadingContainer.vue'
-import EmptyState from '../components/common/EmptyState.vue'
-import PageSection from '../components/common/PageSection.vue'
-import ConfirmDialog from '../components/common/ConfirmDialog.vue'
-import { formatDateTime } from '../utils/formatters'
+import { computed, onMounted, ref, watch } from 'vue';
+import AppIcon from '@/components/AppIcon.vue';
+import { apiDelete, apiGet, apiPost } from '@/lib/api';
+import { getRouteToken } from '@/lib/auth';
+import { formatDateTime, formatRelativeTime } from '@/lib/format';
+import type { MCPServerInfo, ObservabilityLogEntry, ToolInfo } from '@/lib/types';
+import { useRoute } from 'vue-router';
 
-const mcpStore = useMcpStore()
-const { servers, loading, selectedServer, serverTools } = storeToRefs(mcpStore)
-const toast = useToast()
+type McpDraft = NonNullable<MCPServerInfo['config']>;
 
-const adding = ref(false)
-const deleting = ref(false)
-const showAddDialog = ref(false)
-const showDetailsDialog = ref(false)
-const showDeleteDialog = ref(false)
-const serverToDelete = ref<MCPServerInfo | null>(null)
+const route = useRoute();
+const token = getRouteToken(route);
 
-const mcpTypes = [
-    { label: '本地 (Stdio)', value: 'local' },
-    { label: 'HTTP (SSE)', value: 'http' }
-]
+const servers = ref<MCPServerInfo[]>([]);
+const tools = ref<ToolInfo[]>([]);
+const logs = ref<ObservabilityLogEntry[]>([]);
+const selectedName = ref('');
+const draftName = ref('');
+const draft = ref<McpDraft>(createDraft());
+const commandText = ref('');
+const environmentText = ref('{}');
+const headersText = ref('{}');
+const loading = ref(false);
+const saving = ref(false);
+const error = ref('');
+const jsonError = ref('');
 
-const DEFAULT_SERVER = {
-    name: '',
-    type: 'local' as 'local' | 'http',
-    command: '["npx", "-y", "@modelcontextprotocol/server-filesystem", "/path/to/files"]',
+const connectedCount = computed(() => servers.value.filter((server) => server.status === 'connected').length);
+const disconnectedCount = computed(() => servers.value.filter((server) => server.status !== 'connected').length);
+const totalTools = computed(() => servers.value.reduce((sum, server) => sum + server.toolCount, 0));
+const filteredLogs = computed(() => {
+  const keyword = selectedName.value.toLowerCase();
+  return logs.value.filter((entry) => (
+    entry.scope.toLowerCase().includes('mcp')
+    || entry.message.toLowerCase().includes('mcp')
+    || (keyword && entry.message.toLowerCase().includes(keyword))
+  )).slice(0, 20);
+});
+
+function createDraft(): McpDraft {
+  return {
+    enabled: true,
+    type: 'local',
+    command: [],
     url: '',
-    environment: '{}',
-    timeout: 120000
-}
-const STATUS_META: Record<string, { label: string; severity: 'success' | 'info' | 'warn' | 'danger' }> = {
-    connecting: { label: '连接中', severity: 'info' },
-    connected: { label: '已连接', severity: 'success' },
-    failed: { label: '失败', severity: 'danger' },
-    disconnected: { label: '已断开', severity: 'warn' }
+    timeout: 30000,
+    environment: {},
+    headers: {},
+  };
 }
 
-const newServer = ref({ ...DEFAULT_SERVER })
-const notify = (severity: 'success' | 'info' | 'warn' | 'error', detail: string, summary = severity === 'error' ? '错误' : severity === 'warn' ? '警告' : '成功') =>
-    toast.add({ severity, summary, detail, life: 3000 })
+function syncDraft(server: MCPServerInfo | null) {
+  draft.value = {
+    ...createDraft(),
+    ...(server?.config || {}),
+  };
+  draftName.value = server?.name || '';
+  commandText.value = (server?.config.command || []).join('\n');
+  environmentText.value = JSON.stringify(server?.config.environment || {}, null, 2);
+  headersText.value = JSON.stringify(server?.config.headers || {}, null, 2);
+  jsonError.value = '';
+}
 
-let refreshInterval: number | null = null
+function statusLabel(status: MCPServerInfo['status']) {
+  const map = {
+    connected: '已连接',
+    connecting: '连接中',
+    failed: '失败',
+    disconnected: '未连接',
+  };
+  return map[status] || status;
+}
+
+function statusBadgeTone(status: MCPServerInfo['status']) {
+  if (status === 'connected') return 'bg-emerald-100 text-emerald-700';
+  if (status === 'connecting') return 'bg-tertiary-fixed text-tertiary';
+  if (status === 'failed') return 'bg-error-container text-on-error-container';
+  return 'bg-surface-container-high text-on-surface-variant';
+}
+
+function statusIconTone(status: MCPServerInfo['status']) {
+  if (status === 'connected') return 'bg-primary-fixed text-primary';
+  if (status === 'connecting') return 'bg-tertiary-fixed text-tertiary';
+  if (status === 'failed') return 'bg-error-container text-on-error-container';
+  return 'bg-surface-container-low text-outline';
+}
+
+function serverAddress(server: MCPServerInfo) {
+  return server.config.type === 'http'
+    ? server.config.url || '(未配置 URL)'
+    : (server.config.command?.join(' ') || '(未配置 command)');
+}
 
 async function loadServers() {
-    await mcpStore.fetchServers()
+  loading.value = true;
+  error.value = '';
+
+  const [serversResult, logsResult] = await Promise.all([
+    apiGet<{ servers: MCPServerInfo[] }>('/api/mcp/servers', token),
+    apiGet<{ entries: ObservabilityLogEntry[] }>('/api/observability/logging/entries', token, { limit: 40 }),
+  ]);
+  loading.value = false;
+
+  if (serversResult.error || !serversResult.data) {
+    error.value = serversResult.error || 'MCP 服务加载失败';
+    servers.value = [];
+    return;
+  }
+
+  servers.value = serversResult.data.servers;
+  logs.value = logsResult.data?.entries || [];
+
+  if (!servers.value.some((server) => server.name === selectedName.value)) {
+    selectedName.value = servers.value[0]?.name || '';
+  }
+  await selectServer(selectedName.value);
 }
 
-async function addServer() {
-    if (!newServer.value.name) {
-        notify('warn', '请输入服务器名称')
-        return
-    }
+async function selectServer(name: string) {
+  if (!name) {
+    tools.value = [];
+    syncDraft(null);
+    return;
+  }
 
-    adding.value = true
-    try {
-        const config: MCPServerConfig = {
-            type: newServer.value.type,
-            enabled: true,
-            timeout: newServer.value.timeout
-        }
+  selectedName.value = name;
+  const result = await apiGet<{ server: MCPServerInfo; tools: ToolInfo[] }>(`/api/mcp/servers/${encodeURIComponent(name)}`, token);
+  if (result.error || !result.data) {
+    error.value = result.error || 'MCP 详情加载失败';
+    return;
+  }
 
-        if (newServer.value.type === 'local') {
-            try {
-                config.command = JSON.parse(newServer.value.command)
-            } catch {
-                notify('error', '命令格式错误，请使用 JSON 数组格式')
-                adding.value = false
-                return
-            }
-        } else {
-            config.url = newServer.value.url
-        }
-
-        if (newServer.value.environment) {
-            try {
-                config.environment = JSON.parse(newServer.value.environment)
-            } catch {
-                notify('warn', '环境变量格式错误，已忽略')
-            }
-        }
-
-        const success = await mcpStore.addServer(newServer.value.name, config)
-        if (success) {
-            notify('success', '服务器已添加并开始连接')
-            showAddDialog.value = false
-            resetNewServer()
-            await loadServers()
-        } else {
-            notify('error', '添加服务器失败')
-        }
-    } finally {
-        adding.value = false
-    }
+  tools.value = result.data.tools || [];
+  syncDraft(result.data.server);
 }
 
-function resetNewServer() {
-    newServer.value = { ...DEFAULT_SERVER }
+function startCreate() {
+  selectedName.value = '';
+  tools.value = [];
+  syncDraft(null);
 }
 
-async function deleteServer() {
-    if (!serverToDelete.value) return
+async function saveServer() {
+  if (!draftName.value.trim()) {
+    error.value = '服务名不能为空';
+    return;
+  }
 
-    deleting.value = true
-    const success = await mcpStore.deleteServer(serverToDelete.value.name)
-    deleting.value = false
+  try {
+    jsonError.value = '';
+    const payload: McpDraft = {
+      ...draft.value,
+      command: draft.value.type === 'local'
+        ? commandText.value.split('\n').map((line) => line.trim()).filter(Boolean)
+        : undefined,
+      url: draft.value.type === 'http' ? draft.value.url?.trim() : undefined,
+      environment: JSON.parse(environmentText.value || '{}') as Record<string, string>,
+      headers: JSON.parse(headersText.value || '{}') as Record<string, string>,
+    };
 
-    if (success) {
-        notify('success', '服务器已删除')
-        showDeleteDialog.value = false
-        serverToDelete.value = null
-        await loadServers()
-    } else {
-        notify('error', '删除服务器失败')
+    saving.value = true;
+    const result = await apiPost<{ success: true }>('/api/mcp/servers/' + encodeURIComponent(draftName.value.trim()), token, payload);
+    saving.value = false;
+
+    if (result.error) {
+      error.value = result.error;
+      return;
     }
+
+    selectedName.value = draftName.value.trim();
+    await loadServers();
+  } catch (parseError) {
+    jsonError.value = parseError instanceof Error ? parseError.message : 'JSON 解析失败';
+  }
 }
 
 async function reconnectServer(name: string) {
-    const success = await mcpStore.reconnectServer(name)
-    if (success) {
-        notify('success', '正在重新连接...')
-        setTimeout(loadServers, 1000)
-    } else {
-        notify('error', '重新连接失败')
-    }
+  const result = await apiPost<{ success: true }>(`/api/mcp/servers/${encodeURIComponent(name)}/reconnect`, token);
+  if (result.error) {
+    error.value = result.error;
+    return;
+  }
+
+  await loadServers();
 }
 
-async function toggleServer(name: string, enabled: boolean) {
-    const success = await mcpStore.toggleServer(name, enabled)
-    if (success) {
-        notify('success', enabled ? '服务器已启用' : '服务器已禁用')
-        await loadServers()
-    } else {
-        notify('error', '操作失败')
-    }
+async function deleteServer() {
+  if (!selectedName.value || !window.confirm(`确认删除 MCP 服务 ${selectedName.value} 吗？`)) {
+    return;
+  }
+
+  saving.value = true;
+  const result = await apiDelete<{ success: true }>(`/api/mcp/servers/${encodeURIComponent(selectedName.value)}`, token);
+  saving.value = false;
+
+  if (result.error) {
+    error.value = result.error;
+    return;
+  }
+
+  startCreate();
+  await loadServers();
 }
 
-async function viewServerDetails(server: MCPServerInfo) {
-    selectedServer.value = server
-    serverTools.value = []
-    showDetailsDialog.value = true
+watch(selectedName, (name) => {
+  if (!name) {
+    syncDraft(null);
+  }
+});
 
-    const result = await mcpStore.fetchServer(server.name)
-    if (result) {
-        selectedServer.value = result.server
-        serverTools.value = result.tools
-    }
-}
-
-function getStatusLabel(status: string): string {
-    return STATUS_META[status]?.label || status
-}
-
-function getStatusSeverity(status: string): 'success' | 'info' | 'warn' | 'danger' {
-    return STATUS_META[status]?.severity || 'info'
-}
-
-function formatCommand(command: string | string[]): string {
-    return Array.isArray(command) ? command.join(' ') : command
-}
-
-function getServerInfo(server: MCPServerInfo) {
-    return [
-        { label: '工具数量', value: server.toolCount },
-        ...(server.connectedAt ? [{ label: '连接时间', value: formatDateTime(server.connectedAt) }] : []),
-        ...(server.error ? [{ label: '错误', value: server.error, error: true }] : [])
-    ]
-}
-
-function getServerConfig(server: MCPServerInfo) {
-    return [
-        ...(server.config.command ? [{ label: '命令', value: formatCommand(server.config.command) }] : []),
-        ...(server.config.url ? [{ label: 'URL', value: server.config.url }] : [])
-    ]
-}
-
-function getServerDetails(server: MCPServerInfo) {
-    return [
-        { label: '名称', value: server.name },
-        { label: '状态', value: getStatusLabel(server.status), status: true },
-        { label: '类型', value: server.config.type },
-        { label: '工具数量', value: server.toolCount }
-    ]
-}
-
-onMounted(() => {
-    loadServers()
-    refreshInterval = window.setInterval(loadServers, 5000)
-})
-
-onUnmounted(() => {
-    if (refreshInterval) {
-        clearInterval(refreshInterval)
-    }
-})
+onMounted(loadServers);
 </script>
-
-<style scoped>
-.mcp-page {
-    padding: 0;
-}
-
-.mcp-sections {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.mcp-card {
-    padding: 20px;
-    background: var(--ui-surface-strong);
-    border-radius: 12px;
-    border: 1px solid var(--ui-border);
-    transition: box-shadow 0.2s ease, transform 0.1s ease, border-color 0.2s ease;
-}
-
-.mcp-card:hover {
-    box-shadow: var(--ui-shadow-sm);
-    transform: translateY(-1px);
-    border-color: var(--ui-primary-soft);
-}
-
-.mcp-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-    gap: 12px;
-}
-
-.mcp-name-group {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.mcp-name {
-    font-weight: 600;
-    font-size: 16px;
-}
-
-.mcp-type-tag {
-    font-size: 12px;
-    color: var(--ui-text-muted);
-}
-
-.mcp-header-actions {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.mcp-info {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    margin-bottom: 12px;
-    padding: 12px;
-    background: var(--ui-surface-muted);
-    border-radius: 8px;
-}
-
-.info-item {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-.info-label {
-    font-size: 13px;
-    color: var(--ui-text-muted);
-    font-weight: 500;
-}
-
-.info-value {
-    font-size: 13px;
-    color: var(--ui-text);
-    font-weight: 600;
-}
-
-.error-text {
-    color: var(--ui-danger);
-}
-
-.mcp-config {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.config-item {
-    display: flex;
-    gap: 8px;
-    align-items: flex-start;
-}
-
-.config-label {
-    font-size: 13px;
-    color: var(--ui-text-muted);
-    font-weight: 500;
-    min-width: 60px;
-}
-
-.config-value {
-    font-size: 12px;
-    color: var(--ui-text-soft);
-    background: var(--ui-surface-code);
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-family: 'Courier New', monospace;
-    word-break: break-all;
-}
-
-.form-stack {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
-}
-
-.form-field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.form-field label {
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--ui-text-soft);
-}
-
-.field-hint {
-    font-size: 12px;
-    color: var(--ui-text-faint);
-    margin-top: 2px;
-}
-
-.details-section {
-    margin-bottom: 24px;
-}
-
-.details-section h3 {
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 12px;
-    color: var(--ui-text);
-}
-
-.details-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-}
-
-.detail-item {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-.detail-label {
-    font-size: 13px;
-    color: var(--ui-text-muted);
-    font-weight: 500;
-}
-
-.detail-value {
-    font-size: 13px;
-    color: var(--ui-text);
-    font-weight: 600;
-}
-
-.tools-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.tool-item {
-    padding: 12px;
-    background: var(--ui-surface-muted);
-    border-radius: 8px;
-    border: 1px solid var(--ui-border);
-}
-
-.tool-name {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--ui-text);
-    font-family: 'Courier New', monospace;
-    display: block;
-    margin-bottom: 6px;
-}
-
-.tool-description {
-    font-size: 13px;
-    color: var(--ui-text-muted);
-    margin: 0;
-}
-
-@media (max-width: 768px) {
-    .form-stack {
-        grid-template-columns: 1fr;
-    }
-
-    .mcp-header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .mcp-header-actions {
-        align-self: stretch;
-        justify-content: flex-start;
-    }
-
-    .details-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-</style>

@@ -1,704 +1,422 @@
 <template>
-    <div class="config-page page-stack">
-        <PageHeader title="系统设置" subtitle="集中编辑全局运行参数、服务端配置与 Provider 配置。">
-            <template #actions>
-                <Button label="刷新" icon="pi pi-refresh" outlined @click="configStore.fetchConfig()" :loading="loading" />
-                <Button label="保存" icon="pi pi-save" @click="saveConfig" :loading="saving" :disabled="!config" />
-            </template>
-        </PageHeader>
-        <div v-if="config" class="config-sections">
-            <Card class="config-card">
-                <template #title>服务器配置</template>
-                <template #content>
-                    <div class="form-grid">
-                        <div
-                            v-for="field in serverSection.fields"
-                            :key="field.key"
-                            class="form-field"
-                            :class="{ 'form-field--full': field.fullWidth }"
-                        >
-                            <label>{{ field.label }}</label>
-                            <component
-                                :is="getFieldComponent(field)"
-                                v-bind="getFieldProps(field)"
-                                :modelValue="getFieldValue(field.path)"
-                                @update:modelValue="setFieldValue(field.path, $event)"
-                            />
-                            <small v-if="field.description" class="field-hint">{{ field.description }}</small>
-                        </div>
-                    </div>
-                </template>
-            </Card>
+  <div class="p-5 md:p-8">
+    <div class="mx-auto max-w-[1600px]">
+      <header class="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p class="cn-kicker text-outline">设置</p>
+          <h1 class="cn-page-title mt-2 text-on-surface">系统配置</h1>
+          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">按 Stitch 的工作台结构组织服务参数、主 Agent、记忆策略和扩展模块，不再保留旧后台式配置页。</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <button
+            class="rounded-xl bg-surface-container-high px-5 py-2.5 text-sm font-semibold text-on-surface transition hover:bg-surface-container-highest"
+            type="button"
+            :disabled="loading || saving"
+            @click="resetDraft"
+          >
+            放弃更改
+          </button>
+          <button
+            class="rounded-xl bg-gradient-to-br from-primary to-primary-container px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            type="button"
+            :disabled="loading || saving || !configDraft"
+            @click="saveConfig"
+          >
+            {{ saving ? '保存中...' : '应用更改' }}
+          </button>
+        </div>
+      </header>
 
-            <Card class="config-card">
-                <template #title>Agent 全局运行配置</template>
-                <template #content>
-                    <Message severity="info" :closable="false" class="config-hint">
-                        Agent 的 Provider、Model、System Prompt、Vision 与 Reasoning 已迁移到 Agent 页面管理；工具迭代上限仍在当前页统一配置。
-                        <Button label="前往 Agent 页面" link size="small" @click="goToAgents" />
-                    </Message>
-                    <div class="nested-configs">
-                        <div
-                            v-for="section in agentSections"
-                            :key="section.key"
-                            class="nested-config-section"
-                        >
-                            <h3 class="nested-config-title">{{ section.title }}</h3>
-                            <div class="form-grid">
-                                <div
-                                    v-for="field in section.fields"
-                                    :key="field.key"
-                                    class="form-field"
-                                    :class="{ 'form-field--full': field.fullWidth }"
-                                >
-                                    <label>{{ field.label }}</label>
-                                    <component
-                                        :is="getFieldComponent(field)"
-                                        v-bind="getFieldProps(field)"
-                                        :modelValue="getFieldValue(field.path)"
-                                        @update:modelValue="setFieldValue(field.path, $event)"
-                                    />
-                                    <small v-if="field.description" class="field-hint">{{ field.description }}</small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </template>
-            </Card>
+      <div v-if="error" class="mb-6 rounded-2xl border border-error/20 bg-error-container/60 px-5 py-4 text-sm text-on-error-container">
+        <p class="font-bold">配置读取失败</p>
+        <p class="mt-2 leading-6">{{ error }}</p>
+      </div>
 
-            <Card class="config-card">
-                <template #title>运行与日志</template>
-                <template #content>
-                    <div class="nested-configs nested-configs--tight">
-                        <div
-                            v-for="section in runtimeSections"
-                            :key="section.key"
-                            class="nested-config-section"
-                        >
-                            <h3 class="nested-config-title">{{ section.title }}</h3>
-                            <div class="form-grid">
-                                <div
-                                    v-for="field in section.fields"
-                                    :key="field.key"
-                                    class="form-field"
-                                    :class="{ 'form-field--full': field.fullWidth }"
-                                >
-                                    <label>{{ field.label }}</label>
-                                    <component
-                                        :is="getFieldComponent(field)"
-                                        v-bind="getFieldProps(field)"
-                                        :modelValue="getFieldValue(field.path)"
-                                        @update:modelValue="setFieldValue(field.path, $event)"
-                                    />
-                                    <small v-if="field.description" class="field-hint">{{ field.description }}</small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </template>
-            </Card>
+      <div v-if="saveMessage" class="mb-6 flex items-center justify-between rounded-r-xl border-l-4 border-primary bg-primary-fixed/30 p-4">
+        <div class="flex items-center gap-3">
+          <AppIcon name="overview" class="text-primary" />
+          <p class="text-sm font-medium text-on-primary-fixed">{{ saveMessage }}</p>
+        </div>
+        <button class="text-xs font-bold tracking-[0.08em] text-primary hover:underline" type="button" @click="goToLogs">查看观测</button>
+      </div>
 
-            <Card class="config-card">
-                <template #title>通道配置</template>
-                <template #content>
-                    <Message severity="info" :closable="false" class="config-hint">
-                        通道配置已迁移到插件页面，与其他插件使用统一的管理方式。
-                        <Button label="前往插件页面" link size="small" @click="goToPlugins" />
-                    </Message>
-                </template>
-            </Card>
+      <div class="grid grid-cols-1 gap-8 xl:grid-cols-12">
+        <div class="space-y-8 xl:col-span-8">
+          <section v-if="configDraft" class="hairline-card rounded-2xl p-8">
+            <div class="mb-8 flex items-start justify-between gap-4">
+              <div class="flex items-center gap-4">
+                <div class="flex size-12 items-center justify-center rounded-lg bg-surface-container-low text-primary">
+                  <AppIcon name="panel" />
+                </div>
+                <div>
+                  <h3 class="cn-section-title text-on-surface">服务设置</h3>
+                  <p class="mt-1 text-sm text-on-surface-variant">网关主机、端口与接口开关。</p>
+                </div>
+              </div>
+              <span class="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-bold tracking-[0.08em] text-emerald-700">已接入</span>
+            </div>
 
-            <Card class="config-card">
-                <template #title>
-                    <div class="section-header">
-                        <span>提供商配置</span>
-                        <Button label="添加" icon="pi pi-plus" size="small" @click="addProvider" />
-                    </div>
-                </template>
-                <template #content>
-                    <div v-if="Object.keys(config.providers).length > 0">
-                        <div v-for="(value, key) in config.providers" :key="key" class="provider-section">
-                            <div class="provider-header">
-                                <span class="provider-name">{{ key }}</span>
-                                <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="removeProvider(key)" />
-                            </div>
-                            <div class="form-grid">
-                                <div class="form-field">
-                                    <label>Type</label>
-                                    <Select v-model="value.type" :options="providerTypeOptions" placeholder="选择 Provider 类型" />
-                                </div>
-                                <div class="form-field">
-                                    <label>API Key</label>
-                                    <Password v-model="value.apiKey" placeholder="留空保持原值" :feedback="false" toggleMask fluid />
-                                </div>
-                                <div class="form-field">
-                                    <label>API Base</label>
-                                    <InputText v-model="value.apiBase" placeholder="https://api.example.com" />
-                                </div>
-                                <div class="form-field form-field--full">
-                                    <label>Headers (JSON)</label>
-                                    <Textarea
-                                        :modelValue="formatJsonObject(value.headers)"
-                                        rows="4"
-                                        fluid
-                                        placeholder="{&quot;X-Test&quot;:&quot;value&quot;}"
-                                        @update:modelValue="updateProviderJsonField(key, 'headers', $event)"
-                                    />
-                                    <small class="field-hint">额外请求头，留空表示不传。</small>
-                                </div>
-                                <div class="form-field form-field--full">
-                                    <label>Extra Body (JSON)</label>
-                                    <Textarea
-                                        :modelValue="formatJsonObject(value.extraBody)"
-                                        rows="5"
-                                        fluid
-                                        placeholder="{&quot;max_tokens&quot;:2048}"
-                                        @update:modelValue="updateProviderJsonField(key, 'extraBody', $event)"
-                                    />
-                                    <small class="field-hint">透传给 Provider 原生 API 的额外请求体字段。</small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <Message v-else severity="info" :closable="false">
-                        暂无提供商，点击上方添加
-                    </Message>
-                </template>
-            </Card>
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <label class="space-y-1.5">
+                <span class="text-xs font-bold tracking-[0.08em] text-outline">服务地址</span>
+                <input v-model="configDraft.server!.host" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none ring-0 transition focus:ring-2 focus:ring-primary/20" type="text" />
+              </label>
+              <label class="space-y-1.5">
+                <span class="text-xs font-bold tracking-[0.08em] text-outline">端口</span>
+                <input v-model.number="configDraft.server!.apiPort" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none ring-0 transition focus:ring-2 focus:ring-primary/20" type="number" />
+              </label>
+              <label class="space-y-1.5 md:col-span-2">
+                <span class="text-xs font-bold tracking-[0.08em] text-outline">访问 Token</span>
+                <input v-model="configDraft.server!.token" class="tech-text w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none ring-0 transition focus:ring-2 focus:ring-primary/20" type="text" />
+              </label>
+              <div class="md:col-span-2 flex items-center justify-between rounded-lg bg-surface px-4 py-3">
+                <div>
+                  <p class="text-sm font-medium text-on-surface">启用 API 服务</p>
+                  <p class="mt-1 text-xs text-on-surface-variant">关闭后仅保留本地运行环境。</p>
+                </div>
+                <button class="relative h-5 w-10 rounded-full transition" :class="configDraft.server!.apiEnabled ? 'bg-primary-container' : 'bg-surface-container-high'" type="button" @click="configDraft.server!.apiEnabled = !configDraft.server!.apiEnabled">
+                  <span class="absolute top-0.5 size-4 rounded-full bg-white transition" :class="configDraft.server!.apiEnabled ? 'right-0.5' : 'left-0.5'"></span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section v-if="configDraft" class="hairline-card rounded-2xl p-8">
+            <div class="mb-8 flex items-start justify-between gap-4">
+              <div class="flex items-center gap-4">
+                <div class="flex size-12 items-center justify-center rounded-lg bg-surface-container-low text-primary">
+                  <AppIcon name="agents" />
+                </div>
+                <div>
+                  <h3 class="cn-section-title text-on-surface">主 Agent</h3>
+                  <p class="mt-1 text-sm text-on-surface-variant">默认角色的模型与能力参数。</p>
+                </div>
+              </div>
+              <span class="rounded-full bg-orange-100 px-3 py-1 text-[10px] font-bold tracking-[0.08em] text-orange-700">部分变更需重载</span>
+            </div>
+
+            <div class="space-y-6">
+              <label class="space-y-1.5">
+                <span class="text-xs font-bold tracking-[0.08em] text-outline">模型</span>
+                <input v-model="mainRole.model" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" />
+              </label>
+
+              <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <label class="space-y-1.5">
+                  <span class="text-xs font-bold tracking-[0.08em] text-outline">Provider</span>
+                  <input v-model="mainRole.provider" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" />
+                </label>
+                <label class="space-y-1.5">
+                  <span class="text-xs font-bold tracking-[0.08em] text-outline">Vision Provider</span>
+                  <input v-model="mainRole.visionProvider" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" />
+                </label>
+                <label class="space-y-1.5">
+                  <span class="text-xs font-bold tracking-[0.08em] text-outline">Vision Model</span>
+                  <input v-model="mainRole.visionModel" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" />
+                </label>
+              </div>
+
+              <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div class="flex items-center justify-between rounded-lg bg-surface px-4 py-3">
+                  <div>
+                    <p class="text-sm font-medium text-on-surface">启用视觉</p>
+                    <p class="mt-1 text-xs text-on-surface-variant">允许视觉模型参与当前主角色。</p>
+                  </div>
+                  <button class="relative h-5 w-10 rounded-full transition" :class="mainRole.vision ? 'bg-primary-container' : 'bg-surface-container-high'" type="button" @click="mainRole.vision = !mainRole.vision">
+                    <span class="absolute top-0.5 size-4 rounded-full bg-white transition" :class="mainRole.vision ? 'right-0.5' : 'left-0.5'"></span>
+                  </button>
+                </div>
+                <div class="flex items-center justify-between rounded-lg bg-surface px-4 py-3">
+                  <div>
+                    <p class="text-sm font-medium text-on-surface">推理模式</p>
+                    <p class="mt-1 text-xs text-on-surface-variant">启用后允许更重的思考路径。</p>
+                  </div>
+                  <button class="relative h-5 w-10 rounded-full transition" :class="mainRole.reasoning ? 'bg-primary-container' : 'bg-surface-container-high'" type="button" @click="mainRole.reasoning = !mainRole.reasoning">
+                    <span class="absolute top-0.5 size-4 rounded-full bg-white transition" :class="mainRole.reasoning ? 'right-0.5' : 'left-0.5'"></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div v-if="configDraft" class="grid grid-cols-1 gap-8 md:grid-cols-2">
+            <section class="hairline-card rounded-2xl p-8">
+              <h4 class="cn-section-title text-on-surface">会话与记忆策略</h4>
+              <div class="mt-5 grid grid-cols-1 gap-4">
+                <label class="space-y-1.5">
+                  <span class="text-xs font-bold tracking-[0.08em] text-outline">上下文模式</span>
+                  <select v-model="configDraft.agent!.defaults!.contextMode" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20">
+                    <option value="session">session</option>
+                    <option value="channel">channel</option>
+                  </select>
+                </label>
+                <label class="space-y-1.5">
+                  <span class="text-xs font-bold tracking-[0.08em] text-outline">最大会话数</span>
+                  <input v-model.number="configDraft.agent!.defaults!.maxSessions" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="number" />
+                </label>
+                <label class="space-y-1.5">
+                  <span class="text-xs font-bold tracking-[0.08em] text-outline">记忆窗口</span>
+                  <input v-model.number="configDraft.agent!.defaults!.memoryWindow" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="number" />
+                </label>
+                <label class="space-y-1.5">
+                  <span class="text-xs font-bold tracking-[0.08em] text-outline">最大工具迭代</span>
+                  <input v-model.number="configDraft.agent!.defaults!.maxToolIterations" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="number" />
+                </label>
+              </div>
+            </section>
+
+            <section class="hairline-card rounded-2xl p-8">
+              <h4 class="cn-section-title text-on-surface">观测与超时</h4>
+              <div class="mt-5 grid grid-cols-1 gap-4">
+                <label class="space-y-1.5">
+                  <span class="text-xs font-bold tracking-[0.08em] text-outline">日志等级</span>
+                  <select v-model="configDraft.observability!.level" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20">
+                    <option value="debug">debug</option>
+                    <option value="info">info</option>
+                    <option value="warn">warn</option>
+                    <option value="error">error</option>
+                  </select>
+                </label>
+                <label class="space-y-1.5">
+                  <span class="text-xs font-bold tracking-[0.08em] text-outline">工具超时 (ms)</span>
+                  <input v-model.number="configDraft.tools!.timeoutMs" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="number" />
+                </label>
+              </div>
+            </section>
+          </div>
+
+          <section v-if="configDraft" class="hairline-card rounded-2xl p-8">
+            <div class="mb-6 flex items-center justify-between">
+              <h3 class="cn-section-title text-on-surface">扩展能力</h3>
+              <span class="text-xs font-bold tracking-[0.08em] text-primary">已载入结构总览</span>
+            </div>
+            <div class="divide-y divide-outline-variant/10">
+              <div class="flex items-center justify-between py-4">
+                <div>
+                  <p class="text-sm font-bold text-on-surface">Providers</p>
+                  <p class="tech-text mt-1 text-[10px] text-outline">{{ providerNames.join(' · ') || '无' }}</p>
+                </div>
+                <span class="text-sm font-bold text-on-surface">{{ providerNames.length }}</span>
+              </div>
+              <div class="flex items-center justify-between py-4">
+                <div>
+                  <p class="text-sm font-bold text-on-surface">Channels</p>
+                  <p class="tech-text mt-1 text-[10px] text-outline">{{ channelNames.join(' · ') || '无' }}</p>
+                </div>
+                <span class="text-sm font-bold text-on-surface">{{ channelNames.length }}</span>
+              </div>
+              <div class="flex items-center justify-between py-4">
+                <div>
+                  <p class="text-sm font-bold text-on-surface">MCP Servers</p>
+                  <p class="tech-text mt-1 text-[10px] text-outline">{{ mcpNames.join(' · ') || '无' }}</p>
+                </div>
+                <span class="text-sm font-bold text-on-surface">{{ mcpNames.length }}</span>
+              </div>
+              <div class="flex items-center justify-between py-4">
+                <div>
+                  <p class="text-sm font-bold text-on-surface">Plugins / Skills</p>
+                  <p class="tech-text mt-1 text-[10px] text-outline">{{ pluginNames.length }} 插件 · {{ skillNames.length }} 技能</p>
+                </div>
+                <span class="text-sm font-bold text-on-surface">{{ pluginNames.length + skillNames.length }}</span>
+              </div>
+            </div>
+          </section>
         </div>
 
-        <div v-else-if="loading" class="loading-container">
-            <ProgressSpinner />
-        </div>
+        <aside class="space-y-8 xl:col-span-4">
+          <section class="rounded-2xl border border-white/20 bg-surface-container-lowest/80 p-6 shadow-xl shadow-blue-900/5 backdrop-blur-xl">
+            <h5 class="text-xs font-bold tracking-[0.2em] text-outline">配置健康</h5>
+            <div class="mt-6 space-y-4">
+              <div class="flex items-start gap-4">
+                <span class="mt-1 size-2 rounded-full" :class="serverHealthTone"></span>
+                <div>
+                  <p class="text-sm font-bold text-on-surface">端口配置检查</p>
+                  <p class="mt-1 text-xs text-on-surface-variant">当前网关监听 {{ configDraft?.server?.host || '-' }}:{{ configDraft?.server?.apiPort || '-' }}。</p>
+                </div>
+              </div>
+              <div class="flex items-start gap-4">
+                <span class="mt-1 size-2 rounded-full bg-emerald-500"></span>
+                <div>
+                  <p class="text-sm font-bold text-on-surface">Provider 结构</p>
+                  <p class="mt-1 text-xs text-on-surface-variant">检测到 {{ providerNames.length }} 个 provider，可直接复用在 Agent 与记忆配置中。</p>
+                </div>
+              </div>
+              <div class="flex items-start gap-4">
+                <span class="mt-1 size-2 rounded-full" :class="mcpNames.length ? 'bg-orange-500' : 'bg-slate-300'"></span>
+                <div>
+                  <p class="text-sm font-bold text-on-surface">MCP 扩展</p>
+                  <p class="mt-1 text-xs text-on-surface-variant">当前配置中有 {{ mcpNames.length }} 个 MCP 服务项，建议结合连接状态页继续检查。</p>
+                </div>
+              </div>
+            </div>
+            <div class="mt-8 border-t border-outline-variant/10 pt-6">
+              <button class="w-full rounded-lg bg-surface-container-high py-2 text-xs font-bold tracking-[0.12em] text-on-surface-variant transition hover:bg-surface-container-highest" type="button" @click="loadConfig">
+                重新拉取配置
+              </button>
+            </div>
+          </section>
 
-        <Toast />
+          <section class="rounded-2xl bg-surface-container-low p-6">
+            <div class="mb-6 flex items-center justify-between">
+              <h5 class="text-xs font-bold tracking-[0.2em] text-outline">当前快照</h5>
+              <span class="tech-text text-[10px] text-primary">配置实时映射</span>
+            </div>
+            <div class="space-y-5">
+              <div class="rounded-lg bg-surface-container-lowest px-4 py-3">
+                <p class="tech-text text-xs text-outline">环境</p>
+                <p class="mt-1 text-sm font-bold text-on-surface">WEBUI_CONFIG_SYNC</p>
+              </div>
+              <div class="rounded-lg bg-surface-container-lowest px-4 py-3">
+                <p class="tech-text text-xs text-outline">默认主模型</p>
+                <p class="mt-1 text-sm font-bold text-on-surface">{{ mainRole.model || '-' }}</p>
+              </div>
+              <div class="rounded-lg bg-surface-container-lowest px-4 py-3">
+                <p class="tech-text text-xs text-outline">上下文模式</p>
+                <p class="mt-1 text-sm font-bold text-on-surface">{{ configDraft?.agent?.defaults?.contextMode || '-' }}</p>
+              </div>
+              <div class="rounded-lg bg-surface-container-lowest px-4 py-3">
+                <p class="tech-text text-xs text-outline">日志等级</p>
+                <p class="mt-1 text-sm font-bold text-on-surface">{{ configDraft?.observability?.level || '-' }}</p>
+              </div>
+            </div>
+          </section>
+        </aside>
+      </div>
     </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { storeToRefs } from 'pinia'
-import { useRoute, useRouter } from 'vue-router'
-import { useToast } from 'primevue/usetoast'
-import Button from 'primevue/button'
-import Card from 'primevue/card'
-import InputText from 'primevue/inputtext'
-import InputNumber from 'primevue/inputnumber'
-import ToggleButton from 'primevue/togglebutton'
-import Select from 'primevue/select'
-import Password from 'primevue/password'
-import Textarea from 'primevue/textarea'
-import Message from 'primevue/message'
-import Toast from 'primevue/toast'
-import ProgressSpinner from 'primevue/progressspinner'
-import PageHeader from '../components/common/PageHeader.vue'
-import { useConfigStore } from '../stores'
-import { getRouteToken, navigateWithToken } from '../utils/auth'
+import { computed, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import AppIcon from '@/components/AppIcon.vue';
+import { apiGet, apiPut } from '@/lib/api';
+import { getRouteToken } from '@/lib/auth';
+import type { AppConfig, AgentRoleConfig } from '@/lib/types';
 
-type ConfigFieldType = 'text' | 'number' | 'boolean' | 'password' | 'textarea' | 'select'
-type OptionSourceKey = 'contextModes' | 'providerKeys' | 'embeddingProviders' | 'logLevels'
+const route = useRoute();
+const router = useRouter();
+const token = getRouteToken(route);
 
-interface ConfigFieldDescriptor {
-    key: string
-    label: string
-    path: string[]
-    type: ConfigFieldType
-    description?: string
-    fullWidth?: boolean
-    placeholder?: string
-    rows?: number
-    min?: number
-    max?: number
-    step?: number
-    minFractionDigits?: number
-    maxFractionDigits?: number
-    options?: string[]
-    optionsKey?: OptionSourceKey
+const loading = ref(false);
+const saving = ref(false);
+const error = ref('');
+const saveMessage = ref('');
+const config = ref<AppConfig | null>(null);
+const configDraft = ref<AppConfig | null>(null);
+
+const mainRole = computed<AgentRoleConfig>(() => {
+  const target = configDraft.value?.agents?.roles?.main as AgentRoleConfig | undefined;
+  return target || {
+    name: 'main',
+    description: '',
+    provider: '',
+    model: '',
+    systemPrompt: '',
+    vision: false,
+    reasoning: false,
+    visionProvider: '',
+    visionModel: '',
+    allowedSkills: [],
+    allowedTools: [],
+  };
+});
+
+const providerNames = computed(() => Object.keys(configDraft.value?.providers || {}));
+const channelNames = computed(() => Object.keys(configDraft.value?.channels || {}));
+const mcpNames = computed(() => Object.keys(configDraft.value?.mcp || {}));
+const pluginNames = computed(() => Object.keys(configDraft.value?.plugins || {}));
+const skillNames = computed(() => Object.keys(configDraft.value?.skills || {}));
+const serverHealthTone = computed(() => (configDraft.value?.server?.apiEnabled ? 'bg-emerald-500' : 'bg-orange-500'));
+
+function normalizeConfig(source: AppConfig): AppConfig {
+  const next = structuredClone(source || {});
+
+  next.server ||= { host: '0.0.0.0', apiPort: 18792, apiEnabled: true, token: '' };
+  next.agent ||= { defaults: {} };
+  next.agent.defaults ||= {};
+  next.agent.defaults.memorySummary ||= { enabled: false, provider: '', model: '', compressRounds: 5 };
+  next.agent.defaults.memoryFacts ||= {
+    enabled: false,
+    provider: '',
+    model: '',
+    retrievalProvider: '',
+    retrievalModel: '',
+    retrievalThreshold: 0.59,
+    retrievalTopK: 5,
+  };
+  next.agents ||= { roles: {} };
+  next.agents.roles ||= {};
+  next.agents.roles.main ||= {
+    name: 'main',
+    description: '',
+    provider: '',
+    model: '',
+    systemPrompt: '',
+    vision: false,
+    reasoning: false,
+    visionProvider: '',
+    visionModel: '',
+    allowedSkills: [],
+    allowedTools: [],
+  };
+  next.providers ||= {};
+  next.channels ||= {};
+  next.plugins ||= {};
+  next.skills ||= {};
+  next.mcp ||= {};
+  next.observability ||= { level: 'info' };
+  next.tools ||= { timeoutMs: 120000 };
+
+  return next;
 }
 
-interface ConfigSectionDescriptor {
-    key: string
-    title: string
-    fields: ConfigFieldDescriptor[]
+async function loadConfig() {
+  loading.value = true;
+  error.value = '';
+  saveMessage.value = '';
+
+  const result = await apiGet<AppConfig>('/api/config', token);
+  if (result.error || !result.data) {
+    error.value = result.error || '配置加载失败';
+    loading.value = false;
+    return;
+  }
+
+  config.value = normalizeConfig(result.data);
+  configDraft.value = normalizeConfig(result.data);
+  loading.value = false;
 }
 
-const configStore = useConfigStore()
-const { config, loading } = storeToRefs(configStore)
-const route = useRoute()
-const router = useRouter()
-const toast = useToast()
-const saving = ref(false)
-
-const providerKeys = computed(() => config.value ? Object.keys(config.value.providers) : [])
-const retrievalProviderKeys = computed(() => {
-    if (!config.value) return []
-    return Object.entries(config.value.providers)
-        .filter(([, provider]) => provider.type === 'openai')
-        .map(([name]) => name)
-})
-
-const providerTypeOptions = ['openai', 'openai_responses', 'anthropic']
-const contextModeOptions = ['session', 'channel']
-const logLevelOptions = ['debug', 'info', 'warn', 'error']
-
-const serverSection: ConfigSectionDescriptor = {
-    key: 'server',
-    title: '服务器配置',
-    fields: [
-        { key: 'host', label: 'Host', path: ['server', 'host'], type: 'text' },
-        { key: 'apiPort', label: 'API Port', path: ['server', 'apiPort'], type: 'number', min: 1 },
-        { key: 'apiEnabled', label: 'API Enabled', path: ['server', 'apiEnabled'], type: 'boolean' },
-        { key: 'token', label: 'Token', path: ['server', 'token'], type: 'password' }
-    ]
+function resetDraft() {
+  if (!config.value) return;
+  configDraft.value = normalizeConfig(config.value);
+  saveMessage.value = '';
 }
-
-const agentSections: ConfigSectionDescriptor[] = [
-    {
-        key: 'agent-runtime',
-        title: 'Agent Runtime',
-        fields: [
-            {
-                key: 'maxToolIterations',
-                label: 'Max Tool Iterations',
-                path: ['agent', 'defaults', 'maxToolIterations'],
-                type: 'number',
-                min: 1
-            },
-            {
-                key: 'memoryWindow',
-                label: 'Memory Window',
-                path: ['agent', 'defaults', 'memoryWindow'],
-                type: 'number',
-                min: 1,
-                description: '控制 recent history 保留的对话轮次数。'
-            },
-            {
-                key: 'maxSessions',
-                label: 'Max Sessions',
-                path: ['agent', 'defaults', 'maxSessions'],
-                type: 'number',
-                min: 1
-            },
-            {
-                key: 'contextMode',
-                label: 'Context Mode',
-                path: ['agent', 'defaults', 'contextMode'],
-                type: 'select',
-                optionsKey: 'contextModes'
-            }
-        ]
-    },
-    {
-        key: 'memory-summary',
-        title: '会话摘要',
-        fields: [
-            {
-                key: 'summary-enabled',
-                label: '启用摘要',
-                path: ['agent', 'defaults', 'memorySummary', 'enabled'],
-                type: 'boolean'
-            },
-            {
-                key: 'summary-provider',
-                label: 'Provider',
-                path: ['agent', 'defaults', 'memorySummary', 'provider'],
-                type: 'select',
-                optionsKey: 'providerKeys'
-            },
-            {
-                key: 'summary-model',
-                label: 'Model',
-                path: ['agent', 'defaults', 'memorySummary', 'model'],
-                type: 'text'
-            },
-            {
-                key: 'summary-compress-rounds',
-                label: '压缩轮数',
-                path: ['agent', 'defaults', 'memorySummary', 'compressRounds'],
-                type: 'number',
-                min: 1,
-                description: '当未摘要对话轮次超出 memoryWindow 时，压缩最早的若干轮。'
-            }
-        ]
-    },
-    {
-        key: 'memory-facts-maintenance',
-        title: '长期记忆维护',
-        fields: [
-            {
-                key: 'facts-enabled',
-                label: '启用长期记忆',
-                path: ['agent', 'defaults', 'memoryFacts', 'enabled'],
-                type: 'boolean'
-            },
-            {
-                key: 'facts-provider',
-                label: 'Provider',
-                path: ['agent', 'defaults', 'memoryFacts', 'provider'],
-                type: 'select',
-                optionsKey: 'providerKeys'
-            },
-            {
-                key: 'facts-model',
-                label: 'Model',
-                path: ['agent', 'defaults', 'memoryFacts', 'model'],
-                type: 'text',
-                description: '用于长期记忆的后台维护与归纳。'
-            }
-        ]
-    },
-    {
-        key: 'memory-facts-recall',
-        title: '长期记忆自动召回',
-        fields: [
-            {
-                key: 'facts-retrieval-provider',
-                label: 'Retrieval Provider',
-                path: ['agent', 'defaults', 'memoryFacts', 'retrievalProvider'],
-                type: 'select',
-                optionsKey: 'embeddingProviders',
-                description: '仅允许选择 type 为 openai 的 Provider。'
-            },
-            {
-                key: 'facts-retrieval-model',
-                label: 'Retrieval Model',
-                path: ['agent', 'defaults', 'memoryFacts', 'retrievalModel'],
-                type: 'text',
-                description: '用于 embeddings 检索，不影响长期记忆后台维护模型。'
-            },
-            {
-                key: 'facts-retrieval-threshold',
-                label: 'Retrieval Threshold',
-                path: ['agent', 'defaults', 'memoryFacts', 'retrievalThreshold'],
-                type: 'number',
-                min: 0,
-                max: 1,
-                step: 0.01,
-                minFractionDigits: 0,
-                maxFractionDigits: 4,
-                description: '仅注入相似度大于等于该阈值的长期记忆。'
-            },
-            {
-                key: 'facts-retrieval-topk',
-                label: 'Retrieval TopK',
-                path: ['agent', 'defaults', 'memoryFacts', 'retrievalTopK'],
-                type: 'number',
-                min: 1,
-                max: 20,
-                description: '最多向 Prompt 注入多少条相关长期记忆。'
-            }
-        ]
-    }
-]
-
-const runtimeSections: ConfigSectionDescriptor[] = [
-    {
-        key: 'observability',
-        title: '日志',
-        fields: [
-            {
-                key: 'observability-level',
-                label: '日志级别',
-                path: ['observability', 'level'],
-                type: 'select',
-                optionsKey: 'logLevels'
-            }
-        ]
-    },
-    {
-        key: 'tools',
-        title: '工具运行',
-        fields: [
-            {
-                key: 'tools-timeout',
-                label: '工具超时 (ms)',
-                path: ['tools', 'timeoutMs'],
-                type: 'number',
-                min: 1000,
-                description: '统一控制工具执行超时时间。'
-            }
-        ]
-    }
-]
 
 async function saveConfig() {
-    if (!config.value) return
-    saving.value = true
-    const success = await configStore.saveConfig()
-    saving.value = false
-    if (success) {
-        toast.add({ severity: 'success', summary: '成功', detail: '配置已保存', life: 3000 })
-    } else {
-        toast.add({ severity: 'error', summary: '错误', detail: '保存失败', life: 3000 })
-    }
+  if (!configDraft.value) return;
+
+  saving.value = true;
+  error.value = '';
+  const result = await apiPut<{ success: true }>('/api/config', token, configDraft.value);
+  saving.value = false;
+
+  if (result.error) {
+    error.value = result.error;
+    return;
+  }
+
+  config.value = normalizeConfig(configDraft.value);
+  saveMessage.value = '配置已写回磁盘。部分模块可能需要重载后生效。';
 }
 
-function getFieldComponent(field: ConfigFieldDescriptor) {
-    switch (field.type) {
-        case 'number':
-            return InputNumber
-        case 'boolean':
-            return ToggleButton
-        case 'password':
-            return Password
-        case 'textarea':
-            return Textarea
-        case 'select':
-            return Select
-        default:
-            return InputText
-    }
+function goToLogs() {
+  router.push({
+    path: '/observability/logs',
+    query: token ? { token } : {},
+  });
 }
 
-function getFieldProps(field: ConfigFieldDescriptor) {
-    if (field.type === 'number') {
-        return {
-            useGrouping: false,
-            min: field.min,
-            max: field.max,
-            step: field.step,
-            minFractionDigits: field.minFractionDigits,
-            maxFractionDigits: field.maxFractionDigits
-        }
-    }
-
-    if (field.type === 'boolean') {
-        return {
-            onLabel: '已启用',
-            offLabel: '已禁用'
-        }
-    }
-
-    if (field.type === 'password') {
-        return {
-            feedback: false,
-            toggleMask: true,
-            fluid: true,
-            placeholder: field.placeholder
-        }
-    }
-
-    if (field.type === 'textarea') {
-        return {
-            rows: field.rows ?? 3,
-            fluid: true,
-            placeholder: field.placeholder
-        }
-    }
-
-    if (field.type === 'select') {
-        return {
-            options: resolveFieldOptions(field),
-            placeholder: field.placeholder ?? '请选择'
-        }
-    }
-
-    return {
-        placeholder: field.placeholder
-    }
-}
-
-function resolveFieldOptions(field: ConfigFieldDescriptor): string[] {
-    if (field.options) return field.options
-
-    switch (field.optionsKey) {
-        case 'contextModes':
-            return contextModeOptions
-        case 'providerKeys':
-            return providerKeys.value
-        case 'embeddingProviders':
-            return retrievalProviderKeys.value
-        case 'logLevels':
-            return logLevelOptions
-        default:
-            return []
-    }
-}
-
-function getFieldValue(path: string[]): any {
-    if (!config.value) return undefined
-
-    return path.reduce<any>((current, key) => current?.[key], config.value)
-}
-
-function setFieldValue(path: string[], value: any) {
-    if (!config.value || path.length === 0) return
-
-    let current: Record<string, any> = config.value as Record<string, any>
-    for (const key of path.slice(0, -1)) {
-        const nextValue = current[key]
-        if (!nextValue || typeof nextValue !== 'object' || Array.isArray(nextValue)) {
-            current[key] = {}
-        }
-        current = current[key] as Record<string, any>
-    }
-
-    current[path[path.length - 1]] = value
-}
-
-function formatJsonObject(value: Record<string, any> | undefined): string {
-    if (!value || Object.keys(value).length === 0) {
-        return ''
-    }
-
-    return JSON.stringify(value, null, 2)
-}
-
-function updateProviderJsonField(
-    providerName: string,
-    field: 'headers' | 'extraBody',
-    rawValue: string
-) {
-    if (!config.value) return
-    const provider = config.value.providers[providerName]
-    if (!provider) return
-
-    const trimmed = rawValue.trim()
-    if (!trimmed) {
-        delete provider[field]
-        return
-    }
-
-    try {
-        const parsed = JSON.parse(trimmed)
-        if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
-            return
-        }
-
-        provider[field] = parsed as any
-    } catch {
-        // Keep the last valid object until the user finishes editing valid JSON.
-    }
-}
-
-function goToAgents() {
-    navigateWithToken(router, '/agents', getRouteToken(route))
-}
-
-function goToPlugins() {
-    navigateWithToken(router, '/plugins', getRouteToken(route))
-}
-
-function addProvider() {
-    if (!config.value) return
-    const newName = `provider${Object.keys(config.value.providers).length + 1}`
-    config.value.providers[newName] = { type: 'openai', apiKey: '', apiBase: '' }
-}
-
-function removeProvider(key: string) {
-    if (!config.value) return
-    delete config.value.providers[key]
-}
-
-onMounted(() => {
-    configStore.fetchConfig()
-})
+loadConfig();
 </script>
-
-<style scoped>
-.config-page {
-    padding: 0;
-}
-
-.config-sections {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.config-card {
-    margin-bottom: 0;
-}
-
-.nested-configs {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    margin-top: 16px;
-}
-
-.nested-configs--tight {
-    margin-top: 0;
-}
-
-.nested-config-section {
-    padding: 16px;
-    background: var(--ui-surface-muted);
-    border-radius: 8px;
-}
-
-.nested-config-title {
-    margin: 0 0 12px 0;
-    font-size: 16px;
-    font-weight: 600;
-}
-
-.form-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
-}
-
-.form-field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.form-field--full {
-    grid-column: 1 / -1;
-}
-
-.form-field label {
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--ui-text-soft);
-}
-
-.field-hint {
-    font-size: 12px;
-    color: var(--ui-text-muted);
-}
-
-.section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-}
-
-.provider-section {
-    padding: 12px;
-    background: var(--ui-surface-muted);
-    border-radius: 8px;
-    margin-bottom: 12px;
-}
-
-.provider-section:last-child {
-    margin-bottom: 0;
-}
-
-.provider-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-}
-
-.provider-name {
-    font-weight: 500;
-}
-
-.loading-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 48px;
-}
-
-@media (max-width: 768px) {
-    .form-grid {
-        grid-template-columns: 1fr;
-    }
-}
-</style>

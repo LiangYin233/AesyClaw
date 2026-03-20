@@ -14,12 +14,6 @@ export type {
   HandleDirectMessageDeps,
   HandleDirectMessageInput
 } from './inbound/handleDirectMessage.js';
-export { assignSessionAgent, AgentRoleNotFoundError } from './session/assignSessionAgent.js';
-export type {
-  AssignSessionAgentDeps,
-  AssignSessionAgentInput,
-  AssignSessionAgentResult
-} from './session/assignSessionAgent.js';
 export { runAgentTurn } from './turn/runAgentTurn.js';
 export type { RunAgentTurnDeps } from './turn/runAgentTurn.js';
 export { runSubAgentTasks } from './turn/runSubAgentTasks.js';

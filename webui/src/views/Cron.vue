@@ -1,459 +1,422 @@
 <template>
-    <div class="cron-page page-stack">
-        <PageHeader title="定时任务" subtitle="查看任务状态、执行计划并进行增删改。">
-            <template #actions>
-                <Button label="刷新" icon="pi pi-refresh" outlined @click="loadJobs" :loading="loading" />
-                <Button label="新建任务" icon="pi pi-plus" @click="openCreateDialog" />
-            </template>
-        </PageHeader>
-
-        <LoadingContainer :loading="loading" loading-text="正在加载定时任务...">
-            <EmptyState
-                v-if="jobs.length === 0"
-                icon="pi pi-clock"
-                title="暂无定时任务"
-                description="点击右上角创建任务后，即可在这里统一管理执行计划。"
-            >
-                <template #actions>
-                    <Button label="新建任务" icon="pi pi-plus" @click="openCreateDialog" />
-                </template>
-            </EmptyState>
-
-            <PageSection v-else title="任务列表" :subtitle="`${jobs.length} 个已配置任务`">
-                <div class="jobs-list">
-                    <Card v-for="job in jobs" :key="job.id" class="job-card">
-                        <template #title>
-                            <div class="job-header">
-                                <span class="job-name">{{ job.name }}</span>
-                                <Tag :value="getScheduleLabel(job.schedule)" :severity="getScheduleSeverity(job.schedule)" />
-                            </div>
-                        </template>
-                        <template #content>
-                            <div class="job-details">
-                                <div class="detail-row">
-                                    <span class="detail-label">任务ID:</span>
-                                    <span class="detail-value">{{ job.id }}</span>
-                                </div>
-                                <div class="detail-row">
-                                    <span class="detail-label">状态:</span>
-                                    <Tag :value="job.enabled ? '已启用' : '已禁用'" :severity="job.enabled ? 'success' : 'danger'" />
-                                </div>
-                                <div class="detail-row">
-                                    <span class="detail-label">下次执行:</span>
-                                    <span class="detail-value">{{ job.nextRunAtMs ? formatDateTime(job.nextRunAtMs) : '-' }}</span>
-                                </div>
-                                <div class="detail-row">
-                                    <span class="detail-label">上次执行:</span>
-                                    <span class="detail-value">{{ job.lastRunAtMs ? formatDateTime(job.lastRunAtMs) : '-' }}</span>
-                                </div>
-                                <div class="detail-row">
-                                    <span class="detail-label">目标:</span>
-                                    <span class="detail-value">{{ job.payload?.target || '-' }}</span>
-                                </div>
-                            </div>
-                        </template>
-                        <template #footer>
-                            <div class="job-actions">
-                                <Button
-                                    :icon="job.enabled ? 'pi pi-pause' : 'pi pi-play'"
-                                    :label="job.enabled ? '禁用' : '启用'"
-                                    :severity="job.enabled ? 'warning' : 'success'"
-                                    size="small"
-                                    @click="toggleJob(job)"
-                                />
-                                <Button icon="pi pi-pencil" label="编辑" severity="info" size="small" outlined @click="openEditDialog(job)" />
-                                <Button icon="pi pi-trash" label="删除" severity="danger" size="small" outlined @click="jobToDelete = job; deleteDialogVisible = true" />
-                            </div>
-                        </template>
-                    </Card>
-                </div>
-            </PageSection>
-        </LoadingContainer>
-        <Dialog v-model:visible="dialogVisible" :header="isEditing ? '编辑任务' : '新建任务'" :modal="true" :style="{ width: '500px' }">
-            <div class="form-fields">
-                <div class="form-field">
-                    <label>任务名称</label>
-                    <InputText v-model="form.name" placeholder="任务名称" fluid />
-                </div>
-                <div class="form-field">
-                    <label>执行类型</label>
-                    <Select v-model="form.scheduleKind" :options="scheduleTypes" optionLabel="label" optionValue="value" placeholder="选择执行类型" @change="onScheduleTypeChange" />
-                </div>
-                <div class="form-field" v-if="form.scheduleKind === 'once'">
-                    <label>执行时间</label>
-                    <DatePicker v-model="form.onceAt" showTime hourFormat="24" placeholder="选择时间" fluid />
-                </div>
-                <div class="form-field" v-if="form.scheduleKind === 'interval'">
-                    <label>间隔时间</label>
-                    <InputText v-model="form.intervalStr" placeholder="如: 10m, 1h, 30s" fluid />
-                </div>
-                <div class="form-field" v-if="form.scheduleKind === 'daily'">
-                    <label>每日时间</label>
-                    <InputText v-model="form.dailyAt" placeholder="如: 09:00" fluid />
-                </div>
-                <div class="form-field" v-if="form.scheduleKind === 'cron'">
-                    <label>Cron 表达式</label>
-                    <InputText v-model="form.cronExpr" placeholder="分 时 日 月 周 (如: 0 9 * * *)" fluid />
-                </div>
-                <div class="form-field">
-                    <label>任务描述</label>
-                    <InputText v-model="form.description" placeholder="任务简介" fluid />
-                </div>
-                <div class="form-field">
-                    <label>详细指令</label>
-                    <Textarea v-model="form.detail" placeholder="触发时将发送给LLM处理的指令" rows="3" fluid />
-                </div>
-                <div class="form-field">
-                    <label>发送目标</label>
-                    <InputText v-model="form.target" placeholder="onebot:private:QQ号 或 onebot:group:群号" fluid />
-                </div>
-                <div class="form-field">
-                    <label>启用状态</label>
-                    <ToggleButton v-model="form.enabled" onLabel="已启用" offLabel="已禁用" />
-                </div>
+  <div class="p-5 md:p-8">
+    <div class="mx-auto max-w-[1720px]">
+      <div class="flex min-h-[calc(100vh-8rem)] flex-col xl:flex-row">
+        <div class="min-w-0 flex-1">
+          <header class="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p class="cn-kicker text-outline">定时任务</p>
+              <h1 class="cn-page-title mt-2 text-on-surface">Cron 调度台</h1>
+              <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">按照 Stitch 的主表格加右侧配置器布局，统一管理自动化任务、执行计划和投递目标。</p>
             </div>
-            <template #footer>
-                <Button label="取消" severity="secondary" @click="dialogVisible = false" />
-                <Button label="保存" @click="saveJob" :loading="saving" />
-            </template>
-        </Dialog>
-        
-        <ConfirmDialog
-            v-model:visible="deleteDialogVisible"
-            title="确认删除"
-            :message="deleteMessage"
-            :loading="deleting"
-            confirm-label="删除"
-            confirm-severity="danger"
-            :on-confirm="deleteJob"
-        />
-        
-        <Toast />
+            <div class="flex flex-wrap gap-3">
+              <button class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface shadow-sm transition hover:bg-surface-container-high" type="button" :disabled="loading" @click="loadJobs">
+                <AppIcon name="refresh" size="sm" />
+                刷新
+              </button>
+              <button class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-primary to-primary-container px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:opacity-90" type="button" @click="startCreate">
+                <AppIcon name="plus" size="sm" />
+                新建任务
+              </button>
+            </div>
+          </header>
+
+          <div v-if="error" class="mb-6 rounded-2xl border border-error/20 bg-error-container/60 px-5 py-4 text-sm text-on-error-container">
+            <p class="font-bold">定时任务加载失败</p>
+            <p class="mt-2 leading-6">{{ error }}</p>
+          </div>
+
+          <div class="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <article class="rounded-full border border-outline-variant/10 bg-surface-container-lowest p-6">
+              <p class="tech-text text-[10px] tracking-[0.14em] text-on-surface-variant">TOTAL TASKS</p>
+              <div class="mt-2 flex items-end gap-2">
+                <span class="cn-metric text-on-surface">{{ jobs.length }}</span>
+                <span class="text-xs font-bold text-primary">当前总量</span>
+              </div>
+            </article>
+            <article class="rounded-full border border-outline-variant/10 bg-surface-container-lowest p-6">
+              <p class="tech-text text-[10px] tracking-[0.14em] text-on-surface-variant">ACTIVE / ENABLED</p>
+              <div class="mt-2 flex items-end gap-2">
+                <span class="cn-metric text-on-surface">{{ enabledCount }}</span>
+                <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">{{ enabledRate }}%</span>
+              </div>
+            </article>
+            <article class="rounded-full border border-outline-variant/10 bg-surface-container-lowest p-6">
+              <p class="tech-text text-[10px] tracking-[0.14em] text-on-surface-variant">NEXT EXECUTION</p>
+              <div class="mt-2 flex items-end gap-2">
+                <span class="cn-metric text-on-surface">{{ nextExecutionLabel }}</span>
+              </div>
+            </article>
+            <article class="rounded-full border border-outline-variant/10 bg-surface-container-lowest p-6">
+              <p class="tech-text text-[10px] tracking-[0.14em] text-on-surface-variant">EXECUTION HEALTH</p>
+              <div class="mt-2 flex items-end gap-2">
+                <span class="cn-metric text-tertiary">{{ jobs.length ? '稳定' : '空闲' }}</span>
+              </div>
+            </article>
+          </div>
+
+          <div class="overflow-hidden rounded-full border border-outline-variant/10 bg-surface-container-lowest">
+            <div v-if="loading" class="px-6 py-14 text-center text-sm text-on-surface-variant">正在加载任务列表...</div>
+
+            <table v-else class="min-w-full border-collapse text-left text-sm">
+              <thead class="bg-surface-container-low">
+                <tr>
+                  <th class="px-6 py-4 text-[11px] font-bold tracking-[0.08em] text-outline">任务与目标</th>
+                  <th class="px-6 py-4 text-[11px] font-bold tracking-[0.08em] text-outline">计划表达式</th>
+                  <th class="px-6 py-4 text-[11px] font-bold tracking-[0.08em] text-outline">状态</th>
+                  <th class="px-6 py-4 text-[11px] font-bold tracking-[0.08em] text-outline">最近执行</th>
+                  <th class="px-6 py-4 text-[11px] font-bold tracking-[0.08em] text-outline">下次执行</th>
+                  <th class="px-6 py-4 text-right text-[11px] font-bold tracking-[0.08em] text-outline">操作</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-outline-variant/10">
+                <tr
+                  v-for="job in jobs"
+                  :key="job.id"
+                  class="cursor-pointer transition hover:bg-surface-container-high/50"
+                  :class="selectedId === job.id ? 'bg-surface-container-high/15' : ''"
+                  @click="selectJob(job.id)"
+                >
+                  <td class="px-6 py-5">
+                    <div class="flex items-center gap-3">
+                      <div class="flex size-10 items-center justify-center rounded-xl bg-primary-fixed text-primary">
+                        <AppIcon name="cron" size="sm" />
+                      </div>
+                      <div>
+                        <p class="text-sm font-bold text-on-surface">{{ job.name }}</p>
+                        <p class="tech-text mt-1 text-[11px] text-on-surface-variant">TARGET: {{ job.payload.target || job.payload.channel || '-' }}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-6 py-5">
+                    <p class="tech-text inline-flex rounded-lg bg-surface-container-low px-2 py-1 text-xs text-on-surface">{{ scheduleToken(job.schedule) }}</p>
+                    <p class="mt-2 text-[11px] italic text-on-surface-variant">{{ scheduleSummary(job.schedule) }}</p>
+                  </td>
+                  <td class="px-6 py-5">
+                    <span class="rounded-full px-3 py-1 text-[10px] font-bold tracking-[0.08em]" :class="job.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-surface-container-high text-on-surface-variant'">
+                      {{ job.enabled ? '已启用' : '已停用' }}
+                    </span>
+                  </td>
+                  <td class="px-6 py-5 tech-text text-xs text-on-surface-variant">{{ job.lastRunAtMs ? formatDateTime(job.lastRunAtMs) : '--' }}</td>
+                  <td class="px-6 py-5 tech-text text-xs text-on-surface-variant">{{ job.nextRunAtMs ? formatDateTime(job.nextRunAtMs) : '--' }}</td>
+                  <td class="px-6 py-5 text-right">
+                    <div class="flex justify-end gap-2">
+                      <button class="rounded-lg border border-outline-variant/20 px-3 py-2 text-xs font-semibold text-on-surface transition hover:bg-surface-container-high" type="button" @click.stop="toggleJob(job)">
+                        {{ job.enabled ? '停用' : '启用' }}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                <tr v-if="!jobs.length">
+                  <td colspan="6" class="px-6 py-14 text-center text-sm text-on-surface-variant">还没有定时任务，点击右上角开始创建。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <aside class="mt-6 w-full shrink-0 border-outline-variant/10 xl:mt-0 xl:ml-6 xl:w-[390px] xl:border-l">
+          <div class="h-full rounded-[1.6rem] bg-surface-container-low xl:rounded-none xl:bg-transparent">
+            <div class="rounded-[1.6rem] bg-surface-container-lowest xl:sticky xl:top-8 xl:ml-6">
+              <div class="border-b border-outline-variant/10 bg-surface-container-lowest px-6 py-6">
+                <div class="mb-4 flex items-center justify-between">
+                  <h3 class="cn-section-title text-on-surface">任务详情</h3>
+                  <button v-if="selectedId" class="rounded-lg border border-outline-variant/20 px-3 py-2 text-xs font-semibold text-on-surface transition hover:bg-surface-container-low" type="button" @click="startCreate">
+                    新建
+                  </button>
+                </div>
+                <div class="rounded-2xl bg-surface-container-low px-4 py-4">
+                  <div class="flex items-center gap-2">
+                    <span class="inline-block size-2 rounded-full" :class="draft.enabled ? 'bg-primary' : 'bg-outline-variant'"></span>
+                    <span class="text-xs font-bold tracking-[0.08em] text-on-surface-variant">{{ selectedId ? '当前选中' : '新建任务' }}</span>
+                  </div>
+                  <p class="mt-3 text-base font-bold text-primary">{{ draft.name || '未命名任务' }}</p>
+                  <p class="tech-text mt-1 text-[11px] text-on-surface-variant">ID: {{ selectedId || '待创建' }}</p>
+                </div>
+              </div>
+
+              <div class="space-y-8 p-6">
+                <div class="space-y-4">
+                  <div>
+                    <label class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">任务名称</label>
+                    <input v-model="draft.name" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition focus:border-primary/30 focus:ring-2 focus:ring-primary/15" type="text" />
+                  </div>
+
+                  <div class="grid grid-cols-2 gap-3">
+                    <label>
+                      <span class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">调度类型</span>
+                      <select v-model="draft.schedule.kind" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none">
+                        <option value="once">once</option>
+                        <option value="interval">interval</option>
+                        <option value="daily">daily</option>
+                        <option value="cron">cron</option>
+                      </select>
+                    </label>
+                    <label class="flex items-center justify-between rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3">
+                      <div>
+                        <p class="text-sm font-semibold text-on-surface">启用任务</p>
+                        <p class="mt-1 text-[11px] text-on-surface-variant">保存后立即生效</p>
+                      </div>
+                      <button class="relative h-5 w-10 rounded-full transition" :class="draft.enabled ? 'bg-primary-container' : 'bg-surface-container-high'" type="button" @click="draft.enabled = !draft.enabled">
+                        <span class="absolute top-0.5 size-4 rounded-full bg-white transition" :class="draft.enabled ? 'right-0.5' : 'left-0.5'"></span>
+                      </button>
+                    </label>
+                  </div>
+
+                  <div v-if="draft.schedule.kind === 'once'">
+                    <label class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">执行时间</label>
+                    <input v-model="draft.schedule.onceAt" class="tech-text w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none" type="datetime-local" />
+                  </div>
+                  <div v-else-if="draft.schedule.kind === 'interval'">
+                    <label class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">间隔毫秒</label>
+                    <input v-model.number="draft.schedule.intervalMs" class="tech-text w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none" type="number" min="1000" />
+                  </div>
+                  <div v-else-if="draft.schedule.kind === 'daily'" class="grid grid-cols-2 gap-3">
+                    <label>
+                      <span class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">每日时间</span>
+                      <input v-model="draft.schedule.dailyAt" class="tech-text w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none" type="time" />
+                    </label>
+                    <label>
+                      <span class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">时区</span>
+                      <input v-model="draft.schedule.tz" class="tech-text w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none" type="text" placeholder="Asia/Shanghai" />
+                    </label>
+                  </div>
+                  <div v-else>
+                    <label class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">Cron 表达式</label>
+                    <input v-model="draft.schedule.cronExpr" class="tech-text w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none" type="text" placeholder="*/15 * * * *" />
+                  </div>
+                </div>
+
+                <div class="space-y-4">
+                  <h4 class="cn-kicker text-outline">投递内容</h4>
+                  <label>
+                    <span class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">描述</span>
+                    <input v-model="draft.payload.description" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none" type="text" />
+                  </label>
+                  <label>
+                    <span class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">详细内容</span>
+                    <textarea v-model="draft.payload.detail" class="min-h-28 w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none"></textarea>
+                  </label>
+                  <div class="grid grid-cols-2 gap-3">
+                    <label>
+                      <span class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">渠道</span>
+                      <input v-model="draft.payload.channel" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none" type="text" placeholder="telegram" />
+                    </label>
+                    <label>
+                      <span class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">目标</span>
+                      <input v-model="draft.payload.target" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none" type="text" placeholder="ops-room" />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="border-t border-outline-variant/10 bg-surface-container-lowest p-6">
+                <button class="mb-3 w-full rounded-xl bg-surface-container-high py-3 text-sm font-bold text-on-surface transition hover:bg-surface-container-highest" type="button" :disabled="saving" @click="saveJob">
+                  {{ saving ? '保存中...' : selectedId ? '保存更改' : '创建任务' }}
+                </button>
+                <button v-if="selectedId" class="w-full rounded-xl py-3 text-sm font-bold text-error transition hover:bg-error/10" type="button" :disabled="saving" @click="deleteJob">
+                  删除任务配置
+                </button>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
     </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, onMounted } from 'vue'
-import { storeToRefs } from 'pinia'
-import type { CronJob } from '../types/api'
-import { useCronStore } from '../stores'
-import { useToast } from 'primevue/usetoast'
-import Button from 'primevue/button'
-import Card from 'primevue/card'
-import InputText from 'primevue/inputtext'
-import Textarea from 'primevue/textarea'
-import Select from 'primevue/select'
-import ToggleButton from 'primevue/togglebutton'
-import Dialog from 'primevue/dialog'
-import Tag from 'primevue/tag'
-import Toast from 'primevue/toast'
-import DatePicker from 'primevue/datepicker'
-import PageHeader from '../components/common/PageHeader.vue'
-import LoadingContainer from '../components/common/LoadingContainer.vue'
-import EmptyState from '../components/common/EmptyState.vue'
-import PageSection from '../components/common/PageSection.vue'
-import ConfirmDialog from '../components/common/ConfirmDialog.vue'
-import { formatDateTime } from '../utils/formatters'
+import { computed, onMounted, ref } from 'vue';
+import AppIcon from '@/components/AppIcon.vue';
+import { apiDelete, apiGet, apiPost, apiPut } from '@/lib/api';
+import { formatDateTime } from '@/lib/format';
+import type { CronJob } from '@/lib/types';
+import { useRoute } from 'vue-router';
+import { getRouteToken } from '@/lib/auth';
 
-const cronStore = useCronStore()
-const { jobs, loading } = storeToRefs(cronStore)
-const toast = useToast()
-const saving = ref(false)
-const deleting = ref(false)
+const route = useRoute();
+const token = getRouteToken(route);
 
-const dialogVisible = ref(false)
-const deleteDialogVisible = ref(false)
-const isEditing = ref(false)
-const jobToDelete = ref<CronJob | null>(null)
-const editingJobId = ref('')
-const deleteMessage = computed(() => `确定要删除任务 "${jobToDelete.value?.name || ''}" 吗？`)
+const jobs = ref<CronJob[]>([]);
+const selectedId = ref('');
+const loading = ref(false);
+const saving = ref(false);
+const error = ref('');
+const draft = ref<CronJob>(createEmptyJob());
 
-const scheduleTypes = [
-    { label: '执行一次', value: 'once' },
-    { label: '间隔执行', value: 'interval' },
-    { label: '每日执行', value: 'daily' },
-    { label: 'Cron 表达式', value: 'cron' }
-]
+const enabledCount = computed(() => jobs.value.filter((job) => job.enabled).length);
+const enabledRate = computed(() => {
+  if (!jobs.value.length) return '0.0';
+  return ((enabledCount.value / jobs.value.length) * 100).toFixed(1);
+});
+const nextExecutionLabel = computed(() => {
+  const nextRun = [...jobs.value]
+    .filter((job) => typeof job.nextRunAtMs === 'number')
+    .sort((left, right) => (left.nextRunAtMs || 0) - (right.nextRunAtMs || 0))[0];
+  return nextRun?.nextRunAtMs ? formatDateTime(nextRun.nextRunAtMs) : '--';
+});
 
-const form = reactive({
+function createEmptyJob(): CronJob {
+  return {
+    id: '',
     name: '',
-    scheduleKind: 'once' as 'once' | 'interval' | 'daily' | 'cron',
-    onceAt: null as Date | null,
-    intervalStr: '',
-    dailyAt: '',
-    cronExpr: '',
-    description: '',
-    detail: '',
-    target: '',
-    enabled: true
-})
+    enabled: true,
+    schedule: {
+      kind: 'cron',
+      cronExpr: '*/15 * * * *',
+      tz: 'Asia/Shanghai',
+    },
+    payload: {
+      description: '',
+      detail: '',
+      channel: '',
+      target: '',
+    },
+  };
+}
+
+function normalizeDraft(job: CronJob) {
+  return structuredClone({
+    ...createEmptyJob(),
+    ...job,
+    schedule: {
+      ...createEmptyJob().schedule,
+      ...job.schedule,
+    },
+    payload: {
+      ...createEmptyJob().payload,
+      ...job.payload,
+    },
+  });
+}
+
+function scheduleToken(schedule: CronJob['schedule']) {
+  if (schedule.kind === 'cron') return schedule.cronExpr || '--';
+  if (schedule.kind === 'interval') return `${schedule.intervalMs || 0}ms`;
+  if (schedule.kind === 'daily') return schedule.dailyAt || '--';
+  return schedule.onceAt || '--';
+}
+
+function scheduleSummary(schedule: CronJob['schedule']) {
+  if (schedule.kind === 'cron') return '按 cron 表达式循环执行';
+  if (schedule.kind === 'interval') return `每 ${schedule.intervalMs || 0}ms 执行一次`;
+  if (schedule.kind === 'daily') return `每天 ${schedule.dailyAt || '--'} 执行`;
+  return '单次定时执行';
+}
 
 async function loadJobs() {
-    await cronStore.fetchJobs()
+  loading.value = true;
+  error.value = '';
+
+  const result = await apiGet<{ jobs: CronJob[] }>('/api/cron', token);
+  loading.value = false;
+
+  if (result.error || !result.data) {
+    error.value = result.error || '任务加载失败';
+    jobs.value = [];
+    return;
+  }
+
+  jobs.value = result.data.jobs;
+  if (selectedId.value && jobs.value.some((job) => job.id === selectedId.value)) {
+    await selectJob(selectedId.value);
+    return;
+  }
+
+  if (!selectedId.value && jobs.value[0]) {
+    await selectJob(jobs.value[0].id);
+  } else if (!jobs.value.length) {
+    draft.value = createEmptyJob();
+  }
 }
 
-function openCreateDialog() {
-    isEditing.value = false
-    editingJobId.value = ''
-    form.name = ''
-    form.scheduleKind = 'once'
-    form.onceAt = null
-    form.intervalStr = ''
-    form.dailyAt = ''
-    form.cronExpr = ''
-    form.description = ''
-    form.detail = ''
-    form.target = ''
-    form.enabled = true
-    dialogVisible.value = true
+async function selectJob(id: string) {
+  selectedId.value = id;
+
+  const result = await apiGet<{ job: CronJob }>(`/api/cron/${encodeURIComponent(id)}`, token);
+  if (result.error || !result.data) {
+    error.value = result.error || '任务详情加载失败';
+    return;
+  }
+
+  draft.value = normalizeDraft(result.data.job);
 }
 
-async function openEditDialog(job: CronJob) {
-    isEditing.value = true
-    editingJobId.value = job.id
-
-    let fullJob = job
-    if (job.payload?.detail === '[隐藏]') {
-        try {
-            const fetched = await cronStore.fetchJob(job.id)
-            if (fetched) {
-                fullJob = fetched
-            }
-        } catch (error) {
-            console.error('Failed to fetch full job details:', error)
-        }
-    }
-
-    form.name = fullJob.name
-    form.scheduleKind = fullJob.schedule.kind
-    form.onceAt = fullJob.schedule.onceAt ? new Date(fullJob.schedule.onceAt) : null
-    form.intervalStr = fullJob.schedule.intervalMs ? formatIntervalMs(fullJob.schedule.intervalMs) : ''
-    form.dailyAt = fullJob.schedule.dailyAt || ''
-    form.cronExpr = fullJob.schedule.cronExpr || ''
-    form.description = fullJob.payload?.description || ''
-    form.detail = fullJob.payload?.detail || ''
-    form.target = fullJob.payload?.target || ''
-    form.enabled = fullJob.enabled
-    dialogVisible.value = true
-}
-
-function onScheduleTypeChange() {
-    form.onceAt = null
-    form.intervalStr = ''
-    form.dailyAt = ''
-    form.cronExpr = ''
+function startCreate() {
+  selectedId.value = '';
+  draft.value = createEmptyJob();
 }
 
 async function saveJob() {
-    if (!form.name || !form.detail) {
-        toast.add({ severity: 'warn', summary: '警告', detail: '请填写任务名称和详细指令', life: 3000 })
-        return
-    }
+  if (!draft.value.name.trim()) {
+    error.value = '任务名称不能为空';
+    return;
+  }
 
-    const schedule: any = { kind: form.scheduleKind }
+  if (!draft.value.payload.description.trim()) {
+    error.value = '任务描述不能为空';
+    return;
+  }
 
-    switch (form.scheduleKind) {
-        case 'once':
-            if (form.onceAt) schedule.onceAt = form.onceAt.toISOString()
-            break
-        case 'interval':
-            if (form.intervalStr) {
-                const ms = parseIntervalStr(form.intervalStr)
-                if (!ms) {
-                    toast.add({ severity: 'warn', summary: '警告', detail: '无效的间隔格式', life: 3000 })
-                    return
-                }
-                schedule.intervalMs = ms
-            }
-            break
-        case 'daily':
-            schedule.dailyAt = form.dailyAt
-            break
-        case 'cron':
-            schedule.cronExpr = form.cronExpr
-            break
-    }
+  saving.value = true;
+  error.value = '';
 
-    const jobData = {
-        name: form.name,
-        schedule,
-        payload: {
-            description: form.description,
-            detail: form.detail,
-            target: form.target
-        },
-        enabled: form.enabled
-    }
+  const payload = {
+    name: draft.value.name,
+    enabled: draft.value.enabled,
+    schedule: draft.value.schedule,
+    payload: draft.value.payload,
+  };
 
-    saving.value = true
-    let success = false
+  const result = selectedId.value
+    ? await apiPut<{ success: true; job: CronJob }>(`/api/cron/${encodeURIComponent(selectedId.value)}`, token, payload)
+    : await apiPost<{ success: true; job: CronJob }>('/api/cron', token, payload);
 
-    if (isEditing.value) {
-        success = await cronStore.updateJob(editingJobId.value, jobData)
-    } else {
-        const result = await cronStore.createJob(jobData)
-        success = result !== null
-    }
+  saving.value = false;
 
-    saving.value = false
+  if (result.error) {
+    error.value = result.error;
+    return;
+  }
 
-    if (success) {
-        dialogVisible.value = false
-        toast.add({ severity: 'success', summary: '成功', detail: isEditing.value ? '任务已更新' : '任务已创建', life: 3000 })
-        loadJobs()
-    } else {
-        toast.add({ severity: 'error', summary: '错误', detail: '操作失败', life: 3000 })
-    }
-}
-
-async function deleteJob() {
-    if (!jobToDelete.value) return
-
-    deleting.value = true
-    const success = await cronStore.deleteJob(jobToDelete.value.id)
-    deleting.value = false
-
-    if (success) {
-        deleteDialogVisible.value = false
-        toast.add({ severity: 'success', summary: '成功', detail: '任务已删除', life: 3000 })
-        loadJobs()
-    } else {
-        toast.add({ severity: 'error', summary: '错误', detail: '删除失败', life: 3000 })
-    }
+  if (result.data?.job?.id) {
+    selectedId.value = result.data.job.id;
+  }
+  await loadJobs();
 }
 
 async function toggleJob(job: CronJob) {
-    const enabled = !job.enabled
-    const success = await cronStore.toggleJob(job.id, enabled)
-    if (success) {
-        toast.add({ severity: 'success', summary: '成功', detail: enabled ? '任务已启用' : '任务已禁用', life: 3000 })
-        loadJobs()
-    } else {
-        toast.add({ severity: 'error', summary: '错误', detail: '操作失败', life: 3000 })
-    }
+  const result = await apiPost<{ success: true }>(`/api/cron/${encodeURIComponent(job.id)}/toggle`, token, {
+    enabled: !job.enabled,
+  });
+
+  if (result.error) {
+    error.value = result.error;
+    return;
+  }
+
+  await loadJobs();
 }
 
-function getScheduleLabel(schedule: CronJob['schedule']): string {
-    switch (schedule.kind) {
-        case 'once': return '执行一次'
-        case 'interval': return '间隔执行'
-        case 'daily': return '每日执行'
-        case 'cron': return 'Cron'
-        default: return schedule.kind
-    }
+async function deleteJob() {
+  if (!selectedId.value || !window.confirm(`确认删除任务 ${draft.value.name || selectedId.value} 吗？`)) {
+    return;
+  }
+
+  saving.value = true;
+  const result = await apiDelete<{ success: true }>(`/api/cron/${encodeURIComponent(selectedId.value)}`, token);
+  saving.value = false;
+
+  if (result.error) {
+    error.value = result.error;
+    return;
+  }
+
+  selectedId.value = '';
+  draft.value = createEmptyJob();
+  await loadJobs();
 }
 
-function getScheduleSeverity(schedule: CronJob['schedule']): 'info' | 'success' | 'warning' | 'contrast' {
-    switch (schedule.kind) {
-        case 'once': return 'info'
-        case 'interval': return 'warning'
-        case 'daily': return 'success'
-        case 'cron': return 'contrast'
-        default: return 'info'
-    }
-}
-
-function formatIntervalMs(ms: number): string {
-    const units = [
-        ['d', 24 * 60 * 60 * 1000],
-        ['h', 60 * 60 * 1000],
-        ['m', 60 * 1000],
-        ['s', 1000]
-    ] as const
-
-    let remaining = ms
-    let result = ''
-    for (const [unit, value] of units) {
-        const count = Math.floor(remaining / value)
-        if (count > 0) {
-            result += `${count}${unit}`
-            remaining %= value
-        }
-    }
-    return result || '0s'
-}
-
-function parseIntervalStr(str: string): number | null {
-    const regex = /^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/
-    const match = str.match(regex)
-    if (!match) return null
-
-    const [, d, h, m, s] = match
-    return (parseInt(d || '0') * 24 * 60 * 60 + parseInt(h || '0') * 60 * 60 + parseInt(m || '0') * 60 + parseInt(s || '0')) * 1000
-}
-
-onMounted(() => {
-    loadJobs()
-})
+onMounted(loadJobs);
 </script>
-
-<style scoped>
-.cron-page {
-    padding: 0;
-}
-
-.jobs-list {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.job-card {
-    margin-bottom: 0;
-}
-
-.job-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.job-name {
-    font-weight: 500;
-}
-
-.job-details {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.detail-row {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-.detail-label {
-    font-weight: 500;
-    color: var(--ui-text-muted);
-    min-width: 80px;
-}
-
-.detail-value {
-    color: var(--ui-text-soft);
-}
-
-.job-actions {
-    display: flex;
-    gap: 8px;
-}
-
-.form-fields {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.form-field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.form-field label {
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--ui-text-soft);
-}
-</style>

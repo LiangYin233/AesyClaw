@@ -11,7 +11,6 @@ import { SessionNotFoundError, SessionValidationError } from '../../session/erro
 import type { SessionRoutingService } from '../../agent/infrastructure/session/SessionRoutingService.js';
 import type { AgentRoleService } from '../../agent/infrastructure/roles/AgentRoleService.js';
 import type { AgentRuntime } from '../../agent/index.js';
-import { assignSessionAgent, AgentRoleNotFoundError } from '../../agent/application/index.js';
 import { badRequest, notFound, serverError, unavailable, wrap } from './helpers.js';
 
 const WEBUI_CHANNEL = 'webui';
@@ -59,25 +58,6 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
       messageCount: session.messages.length,
       messages: session.messages
     };
-  };
-
-  const setSessionAgent = async (key: string, agentName: string | null): Promise<{ success: true; agentName: string }> => {
-    if (!deps.agentRoleService) {
-      throw new Error('Agent role service unavailable');
-    }
-
-    return assignSessionAgent({
-      getDefaultRoleName,
-      getSession: async (sessionKey) => deps.sessionManager.getExistingOrThrow(sessionKey),
-      getResolvedRole: (name) => deps.agentRoleService!.getResolvedRole(name),
-      clearConversationAgent: (channel, chatId) => deps.sessionRouting.clearConversationAgent(channel, chatId),
-      setConversationAgent: (channel, chatId, resolvedAgentName) => {
-        deps.sessionRouting.setConversationAgent(channel, chatId, resolvedAgentName);
-      }
-    }, {
-      sessionKey: key,
-      agentName
-    });
   };
 
   const deleteSession = async (key: string): Promise<{ success: true }> => {
@@ -162,26 +142,6 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
         return badRequest(res, error.message, 'key');
       }
       if (error instanceof SessionNotFoundError) {
-        return res.status(404).json(createErrorResponse(error));
-      }
-      serverError(res, error);
-    }
-  });
-
-  app.put('/api/sessions/:key/agent', async (req, res) => {
-    try {
-      SessionManager.validateSessionKey(req.params.key);
-      const { agentName } = req.body;
-      if (agentName !== null && agentName !== undefined && typeof agentName !== 'string') {
-        return badRequest(res, 'agentName must be a string or null', 'agentName');
-      }
-
-      res.json(await setSessionAgent(req.params.key, agentName ?? null));
-    } catch (error: unknown) {
-      if (error instanceof SessionValidationError) {
-        return badRequest(res, error.message, 'key');
-      }
-      if (error instanceof SessionNotFoundError || error instanceof AgentRoleNotFoundError) {
         return res.status(404).json(createErrorResponse(error));
       }
       serverError(res, error);

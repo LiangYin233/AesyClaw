@@ -34,6 +34,8 @@ interface ResolvedStartTarget {
   shell: boolean;
 }
 
+type ChildProcessStdio = ['ignore', 'inherit', 'inherit'];
+
 function log(prefix: string, message: string) {
   console.log(`${prefix} ${message}`);
 }
@@ -102,11 +104,29 @@ export function cleanupProcesses(): void {
 }
 
 // 注册信号处理器
-function setupSignalHandlers(): void {
+export function shouldCliExitOnShutdown(mode: ServiceMode): boolean {
+  return mode === 'webui';
+}
+
+export function getChildProcessStdio(): ChildProcessStdio {
+  return ['ignore', 'inherit', 'inherit'];
+}
+
+function setupSignalHandlers(mode: ServiceMode): void {
+  let shuttingDown = false;
+
   const handleShutdown = () => {
+    if (shuttingDown) {
+      return;
+    }
+
+    shuttingDown = true;
     console.log(''); // 换行使输出更清晰
     cleanupProcesses();
-    process.exit(0);
+
+    if (shouldCliExitOnShutdown(mode)) {
+      process.exit(0);
+    }
   };
 
   process.on('SIGINT', handleShutdown);
@@ -122,7 +142,7 @@ function startProcess(name: string, target: StartTarget): Promise<ChildProcess> 
       shell: resolvedTarget.shell,
       cwd: target.cwd || process.cwd(),
       env: process.env,
-      stdio: 'inherit'
+      stdio: getChildProcessStdio()
     });
 
     let settled = false;
@@ -183,7 +203,7 @@ export async function runStartupTasks(
 }
 
 async function startService(mode: ServiceMode): Promise<void> {
-  setupSignalHandlers();
+  setupSignalHandlers(mode);
 
   const targets = createStartTargets();
 
