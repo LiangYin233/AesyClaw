@@ -13,8 +13,10 @@ import type {
   QuoteReference,
   ResourceHandle
 } from '../../src/channels/core/types.ts';
-import { CONSTANTS } from '../../src/constants/index.ts';
 import { logger } from '../../src/observability/index.ts';
+
+const WEBSOCKET_ACTION_TIMEOUT = 10000;
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 
 interface OneBotConfig {
   wsUrl: string;
@@ -459,7 +461,7 @@ class OneBotAdapter implements ChannelAdapter {
 
       timeoutHandle = setTimeout(() => {
         settle(reject, new Error('Action timeout'));
-      }, CONSTANTS.WEBSOCKET_ACTION_TIMEOUT);
+      }, WEBSOCKET_ACTION_TIMEOUT);
     });
   }
 
@@ -884,7 +886,7 @@ class OneBotAdapter implements ChannelAdapter {
     return hash.digest('hex');
   }
 
-  private readonly MAX_IMAGE_SIZE = CONSTANTS.MAX_IMAGE_SIZE;
+  private readonly MAX_IMAGE_SIZE = MAX_IMAGE_SIZE;
 
   private normalizeLocalPath(filePath: string): string {
     return filePath.startsWith('file://') ? filePath.substring(7) : filePath;
@@ -904,7 +906,9 @@ class OneBotAdapter implements ChannelAdapter {
       }
       this.log.warn(`文件不存在: ${filePath}`);
     } catch (error) {
-      this.log.warn(`图片转 base64 失败: ${filePath}`, error);
+      this.log.warn(`图片转 base64 失败: ${filePath}`, {
+        error: error instanceof Error ? error.message : String(error)
+      });
     }
     return null;
   }
