@@ -1,6 +1,11 @@
 <template>
   <div class="flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden xl:flex-row">
-    <aside class="flex w-full shrink-0 flex-col border-b border-outline-variant/10 bg-surface-container-low xl:w-80 xl:border-b-0 xl:border-r">
+    <div v-if="sidebarVisible" class="fixed inset-0 z-20 bg-slate-900/30 backdrop-blur-[2px] md:left-64 xl:hidden" @click="sidebarVisible = false" />
+
+    <aside
+      class="fixed top-14 bottom-0 left-0 z-30 flex w-72 shrink-0 flex-col border-r border-outline-variant/10 bg-surface-container-low shadow-xl transition-transform md:left-64 xl:static xl:inset-auto xl:z-auto xl:w-80 xl:translate-x-0 xl:shadow-none"
+      :class="sidebarVisible ? 'translate-x-0' : '-translate-x-full xl:translate-x-0'"
+    >
       <div class="space-y-4 p-4">
         <div class="relative">
           <AppIcon name="search" size="sm" class="pointer-events-none absolute left-3 top-3 text-outline" />
@@ -69,12 +74,19 @@
       </div>
     </aside>
 
-    <section class="min-w-0 flex-1 bg-surface">
-      <div class="flex h-full min-h-0 flex-col">
-        <header class="border-b border-outline-variant/10 bg-surface-container-lowest px-4 py-4 md:px-5">
+    <section class="flex min-w-0 flex-1 flex-col overflow-hidden bg-surface">
+      <div class="flex min-h-0 flex-1 flex-col">
+        <header class="border-b border-outline-variant/10 bg-surface-container-lowest px-4 py-3 md:px-5 md:py-4">
           <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
             <div class="min-w-0">
               <div class="flex flex-wrap items-center gap-2">
+                <button
+                  class="inline-flex size-8 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-surface-container-high xl:hidden"
+                  type="button"
+                  @click="sidebarVisible = !sidebarVisible"
+                >
+                  <AppIcon name="menu" size="sm" />
+                </button>
                 <h1 class="truncate text-sm font-extrabold tracking-[0.01em] text-on-surface">{{ headerTitle }}</h1>
                 <span v-if="resolvedSessionKey" class="tech-text rounded-full bg-surface-container-low px-2 py-0.5 text-[10px] text-outline">{{ resolvedSessionKey }}</span>
               </div>
@@ -178,8 +190,8 @@
           </div>
         </div>
 
-        <footer class="border-t border-outline-variant/10 bg-surface-container-lowest px-4 py-5 md:px-6">
-          <div class="mx-auto max-w-4xl space-y-4">
+        <footer class="border-t border-outline-variant/10 bg-surface-container-lowest px-4 py-3 md:px-6 md:py-5">
+          <div class="mx-auto max-w-4xl space-y-3 md:space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-3 px-1">
               <div class="flex flex-wrap items-center gap-3 text-[10px]">
                 <span class="flex items-center gap-1.5 rounded bg-primary-fixed/60 px-2 py-1 font-bold text-on-primary-fixed">
@@ -196,7 +208,7 @@
               <div class="relative rounded-2xl border border-outline-variant/10 bg-surface-container-low p-2 transition-all group-focus-within:border-primary/45">
                 <textarea
                   v-model="draft"
-                  class="min-h-[108px] w-full resize-none bg-transparent px-3 py-3 text-sm text-on-surface outline-none placeholder:text-outline"
+                  class="min-h-[72px] w-full resize-none bg-transparent px-3 py-3 text-sm text-on-surface outline-none placeholder:text-outline md:min-h-[108px]"
                   placeholder="输入指令..."
                   @keydown="handleDraftKeydown"
                 ></textarea>
@@ -335,13 +347,13 @@ const detailLoading = ref(false);
 const sending = ref(false);
 const deleting = ref(false);
 const detailError = ref('');
-const error = ref('');
 const draft = ref('');
 const sessionFilter = ref('');
 const agentFilter = ref<'all' | string>('all');
 const activeDetail = ref<SessionDetail | null>(null);
 const draftSessionKey = ref('');
 const sessionPreviews = ref<Record<string, string>>({});
+const sidebarVisible = ref(false);
 
 const routeSessionKey = computed(() => {
   const raw = route.params.sessionKey;
@@ -407,7 +419,6 @@ async function loadSessions() {
   const sessionsResult = await apiGet<{ sessions: Session[] }>('/api/sessions', token);
 
   sessions.value = sessionsResult.data?.sessions || [];
-  error.value = sessionsResult.error || '';
 
   sessionsLoading.value = false;
 }
@@ -443,6 +454,7 @@ async function syncRouteSession() {
 }
 
 async function openSession(key: string) {
+  sidebarVisible.value = false;
   await router.push({
     path: `/dialogue/${key}`,
     query: buildTokenQuery(route.query, token),
@@ -512,6 +524,7 @@ async function deleteCurrentSession() {
 function startFreshDialogue() {
   draftSessionKey.value = '';
   draft.value = '';
+  sidebarVisible.value = false;
   router.push({
     path: '/dialogue',
     query: buildTokenQuery(route.query, token),

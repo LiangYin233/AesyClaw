@@ -14,7 +14,16 @@ export default defineConfig(() => {
     server: {
       host: '0.0.0.0',
       port: 5173,
-      hmr: process.env.DISABLE_HMR !== 'true',
+      strictPort: true,
+      hmr: {
+        host: 'localhost',
+        port: 5173,
+        overlay: true,
+      },
+      watch: {
+        usePolling: true,
+        interval: 300,
+      },
       proxy: {
         '/api': {
           target: 'http://127.0.0.1:18792',

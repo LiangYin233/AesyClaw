@@ -16,6 +16,7 @@
     "status": "tsx src/cli.ts status",
     "dev": "tsx watch src/cli.ts gateway",
     "dev:webui": "cd webui && npm run dev",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:webui\"",
     "gateway": "tsx src/cli.ts gateway"
   },
   "author": "",
@@ -40,6 +41,7 @@
     "@types/ws": "^8.5.10",
     "@typescript-eslint/eslint-plugin": "^8.26.1",
     "@typescript-eslint/parser": "^8.26.1",
+    "concurrently": "^9.1.2",
     "eslint": "^9.22.0",
     "globals": "^15.15.0",
     "tsx": "^4.7.0",

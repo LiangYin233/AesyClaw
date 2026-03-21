@@ -76,38 +76,70 @@
 
       <section>
         <label class="mb-3 block text-[10px] font-mono uppercase tracking-[0.2em] text-outline">技能边界</label>
-        <div class="grid gap-2">
-          <label v-for="skill in skills" :key="skill.name" class="flex items-start gap-3 rounded-xl bg-surface-container-low px-4 py-3 text-sm">
-            <input
-              type="checkbox"
-              :checked="form.allowedSkills.includes(skill.name)"
-              class="mt-0.5 size-4 rounded border-outline-variant text-primary"
-              @change="$emit('toggle-skill', skill.name)"
-            />
-            <div class="min-w-0">
-              <p class="font-semibold text-on-surface">{{ skill.name }}</p>
-              <p class="mt-1 text-xs leading-5 text-on-surface-variant">{{ skill.description || '无描述' }}</p>
-            </div>
-          </label>
+        <div ref="skillTriggerRef">
+          <button
+            class="flex w-full items-center justify-between rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition hover:border-primary/30"
+            type="button"
+            @click="toggleDropdown('skill')"
+          >
+            <span :class="form.allowedSkills.length ? '' : 'text-outline'">
+              {{ form.allowedSkills.length ? `已选 ${form.allowedSkills.length} 项` : '请选择技能' }}
+            </span>
+            <svg class="size-4 text-outline transition" :class="skillDropdownOpen ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" /></svg>
+          </button>
         </div>
+        <Teleport to="body">
+          <div v-if="skillDropdownOpen" ref="skillPanelRef" class="fixed z-[999] max-h-48 overflow-y-auto rounded-xl border border-outline-variant/20 bg-surface-container-lowest py-1 shadow-xl" :style="skillPanelStyle">
+            <label
+              v-for="skill in skills"
+              :key="skill.name"
+              class="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-surface-container-high"
+            >
+              <input
+                type="checkbox"
+                :checked="form.allowedSkills.includes(skill.name)"
+                class="size-4 rounded border-outline-variant accent-primary"
+                @change="toggleSkill(skill.name)"
+              />
+              <span class="text-on-surface">{{ skill.name }}</span>
+            </label>
+            <div v-if="!skills.length" class="px-4 py-3 text-xs text-outline">暂无可选技能</div>
+          </div>
+        </Teleport>
       </section>
 
       <section>
         <label class="mb-3 block text-[10px] font-mono uppercase tracking-[0.2em] text-outline">工具边界</label>
-        <div class="grid gap-2">
-          <label v-for="tool in tools" :key="tool.name" class="flex items-start gap-3 rounded-xl bg-surface-container-low px-4 py-3 text-sm">
-            <input
-              type="checkbox"
-              :checked="form.allowedTools.includes(tool.name)"
-              class="mt-0.5 size-4 rounded border-outline-variant text-primary"
-              @change="$emit('toggle-tool', tool.name)"
-            />
-            <div class="min-w-0">
-              <p class="font-semibold text-on-surface">{{ tool.name }}</p>
-              <p class="mt-1 text-xs leading-5 text-on-surface-variant">{{ tool.description || '无描述' }}</p>
-            </div>
-          </label>
+        <div ref="toolTriggerRef">
+          <button
+            class="flex w-full items-center justify-between rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition hover:border-primary/30"
+            type="button"
+            @click="toggleDropdown('tool')"
+          >
+            <span :class="form.allowedTools.length ? '' : 'text-outline'">
+              {{ form.allowedTools.length ? `已选 ${form.allowedTools.length} 项` : '请选择工具' }}
+            </span>
+            <svg class="size-4 text-outline transition" :class="toolDropdownOpen ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" /></svg>
+          </button>
         </div>
+        <Teleport to="body">
+          <div v-if="toolDropdownOpen" ref="toolPanelRef" class="fixed z-[999] max-h-48 overflow-y-auto rounded-xl border border-outline-variant/20 bg-surface-container-lowest py-1 shadow-xl" :style="toolPanelStyle">
+            <label
+              v-for="tool in tools"
+              :key="tool.name"
+              class="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-surface-container-high"
+            >
+              <input
+                type="checkbox"
+                :checked="form.allowedTools.includes(tool.name)"
+                class="size-4 rounded border-outline-variant accent-primary"
+                @change="toggleTool(tool.name)"
+              />
+              <span class="text-on-surface">{{ tool.name }}</span>
+            </label>
+            <div v-if="!tools.length" class="px-4 py-3 text-xs text-outline">暂无可选工具</div>
+          </div>
+        </Teleport>
       </section>
     </div>
 
@@ -132,10 +164,10 @@
 </template>
 
 <script setup lang="ts">
-import AppIcon from '@/components/AppIcon.vue';
+import { nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
 import type { AgentRole, AgentRoleConfig, SkillInfo, ToolInfo } from '@/lib/types';
 
-defineProps<{
+const props = defineProps<{
   form: AgentRoleConfig;
   saving: boolean;
   drawerMode: 'create' | 'edit' | null;
@@ -149,7 +181,63 @@ defineEmits<{
   close: [];
   save: [];
   delete: [];
-  'toggle-skill': [name: string];
-  'toggle-tool': [name: string];
 }>();
+
+const skillDropdownOpen = ref(false);
+const toolDropdownOpen = ref(false);
+const skillTriggerRef = useTemplateRef('skillTriggerRef');
+const toolTriggerRef = useTemplateRef('toolTriggerRef');
+const skillPanelStyle = ref<Record<string, string>>({});
+const toolPanelStyle = ref<Record<string, string>>({});
+
+function toggleDropdown(type: 'skill' | 'tool') {
+  if (type === 'skill') {
+    skillDropdownOpen.value = !skillDropdownOpen.value;
+    toolDropdownOpen.value = false;
+    if (skillDropdownOpen.value) nextTick(() => positionPanel('skill'));
+  } else {
+    toolDropdownOpen.value = !toolDropdownOpen.value;
+    skillDropdownOpen.value = false;
+    if (toolDropdownOpen.value) nextTick(() => positionPanel('tool'));
+  }
+}
+
+function positionPanel(type: 'skill' | 'tool') {
+  const trigger = type === 'skill' ? skillTriggerRef.value : toolTriggerRef.value;
+  if (!trigger) return;
+  const rect = trigger.getBoundingClientRect();
+  const panelHeight = 192;
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const showAbove = spaceBelow < panelHeight + 8;
+  const style = {
+    left: `${rect.left}px`,
+    width: `${rect.width}px`,
+    ...(showAbove ? { bottom: `${window.innerHeight - rect.top + 4}px` } : { top: `${rect.bottom + 4}px` }),
+  };
+  if (type === 'skill') skillPanelStyle.value = style;
+  else toolPanelStyle.value = style;
+}
+
+function toggleSkill(name: string) {
+  const idx = props.form.allowedSkills.indexOf(name);
+  if (idx >= 0) props.form.allowedSkills.splice(idx, 1);
+  else props.form.allowedSkills.push(name);
+}
+
+function toggleTool(name: string) {
+  const idx = props.form.allowedTools.indexOf(name);
+  if (idx >= 0) props.form.allowedTools.splice(idx, 1);
+  else props.form.allowedTools.push(name);
+}
+
+function handleClickOutside(e: MouseEvent) {
+  const target = e.target as Node;
+  const inSkillTrigger = skillTriggerRef.value?.contains(target);
+  const inToolTrigger = toolTriggerRef.value?.contains(target);
+  if (!inSkillTrigger) skillDropdownOpen.value = false;
+  if (!inToolTrigger) toolDropdownOpen.value = false;
+}
+
+onMounted(() => document.addEventListener('click', handleClickOutside));
+onBeforeUnmount(() => document.removeEventListener('click', handleClickOutside));
 </script>

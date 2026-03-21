@@ -27,27 +27,27 @@
           </div>
 
           <div class="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <article class="rounded-full border border-outline-variant/10 bg-surface-container-lowest p-6">
+            <article class="hairline-card rounded-2xl p-5">
               <p class="tech-text text-[10px] tracking-[0.14em] text-on-surface-variant">TOTAL TASKS</p>
               <div class="mt-2 flex items-end gap-2">
                 <span class="cn-metric text-on-surface">{{ jobs.length }}</span>
                 <span class="text-xs font-bold text-primary">当前总量</span>
               </div>
             </article>
-            <article class="rounded-full border border-outline-variant/10 bg-surface-container-lowest p-6">
+            <article class="hairline-card rounded-2xl p-5">
               <p class="tech-text text-[10px] tracking-[0.14em] text-on-surface-variant">ACTIVE / ENABLED</p>
               <div class="mt-2 flex items-end gap-2">
                 <span class="cn-metric text-on-surface">{{ enabledCount }}</span>
                 <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">{{ enabledRate }}%</span>
               </div>
             </article>
-            <article class="rounded-full border border-outline-variant/10 bg-surface-container-lowest p-6">
+            <article class="hairline-card rounded-2xl p-5">
               <p class="tech-text text-[10px] tracking-[0.14em] text-on-surface-variant">NEXT EXECUTION</p>
               <div class="mt-2 flex items-end gap-2">
                 <span class="cn-metric text-on-surface">{{ nextExecutionLabel }}</span>
               </div>
             </article>
-            <article class="rounded-full border border-outline-variant/10 bg-surface-container-lowest p-6">
+            <article class="hairline-card rounded-2xl p-5">
               <p class="tech-text text-[10px] tracking-[0.14em] text-on-surface-variant">EXECUTION HEALTH</p>
               <div class="mt-2 flex items-end gap-2">
                 <span class="cn-metric text-tertiary">{{ jobs.length ? '稳定' : '空闲' }}</span>
@@ -55,7 +55,7 @@
             </article>
           </div>
 
-          <div class="overflow-hidden rounded-full border border-outline-variant/10 bg-surface-container-lowest">
+          <div class="overflow-x-auto rounded-2xl border border-outline-variant/10 bg-surface-container-lowest">
             <div v-if="loading" class="px-6 py-14 text-center text-sm text-on-surface-variant">正在加载任务列表...</div>
 
             <table v-else class="min-w-full border-collapse text-left text-sm">
@@ -92,14 +92,14 @@
                     <p class="tech-text inline-flex rounded-lg bg-surface-container-low px-2 py-1 text-xs text-on-surface">{{ scheduleToken(job.schedule) }}</p>
                     <p class="mt-2 text-[11px] italic text-on-surface-variant">{{ scheduleSummary(job.schedule) }}</p>
                   </td>
-                  <td class="px-6 py-5">
-                    <span class="rounded-full px-3 py-1 text-[10px] font-bold tracking-[0.08em]" :class="job.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-surface-container-high text-on-surface-variant'">
+                  <td class="px-6 py-5 whitespace-nowrap">
+                    <span class="inline-flex rounded-full px-3 py-1 text-[10px] font-bold tracking-[0.08em]" :class="job.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-surface-container-high text-on-surface-variant'">
                       {{ job.enabled ? '已启用' : '已停用' }}
                     </span>
                   </td>
-                  <td class="px-6 py-5 tech-text text-xs text-on-surface-variant">{{ job.lastRunAtMs ? formatDateTime(job.lastRunAtMs) : '--' }}</td>
-                  <td class="px-6 py-5 tech-text text-xs text-on-surface-variant">{{ job.nextRunAtMs ? formatDateTime(job.nextRunAtMs) : '--' }}</td>
-                  <td class="px-6 py-5 text-right">
+                  <td class="px-6 py-5 whitespace-nowrap tech-text text-xs text-on-surface-variant">{{ job.lastRunAtMs ? formatDateTime(job.lastRunAtMs) : '--' }}</td>
+                  <td class="px-6 py-5 whitespace-nowrap tech-text text-xs text-on-surface-variant">{{ job.nextRunAtMs ? formatDateTime(job.nextRunAtMs) : '--' }}</td>
+                  <td class="px-6 py-5 whitespace-nowrap text-right">
                     <div class="flex justify-end gap-2">
                       <button class="rounded-lg border border-outline-variant/20 px-3 py-2 text-xs font-semibold text-on-surface transition hover:bg-surface-container-high" type="button" @click.stop="toggleJob(job)">
                         {{ job.enabled ? '停用' : '启用' }}

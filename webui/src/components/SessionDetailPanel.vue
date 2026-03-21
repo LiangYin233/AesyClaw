@@ -87,7 +87,7 @@ defineProps<{
   detailLoading: boolean;
 }>();
 
-const emit = defineEmits<{
+defineEmits<{
   (event: 'openDialogue'): void;
   (event: 'deleteSession'): void;
 }>();

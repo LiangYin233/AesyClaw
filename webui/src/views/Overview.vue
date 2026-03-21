@@ -12,10 +12,6 @@
             <AppIcon name="refresh" size="sm" />
             刷新
           </button>
-          <button class="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:opacity-90" type="button" @click="goToDialogue">
-            <AppIcon name="rocket" size="sm" />
-            进入对话
-          </button>
         </div>
       </div>
 
@@ -35,7 +31,7 @@
             <AppIcon name="panel" class="text-primary" />
             <span class="rounded bg-primary-fixed px-2 py-0.5 text-[10px] font-bold text-on-primary-fixed">{{ status?.agentRunning ? '运行中' : '已停止' }}</span>
           </div>
-          <p class="cn-kicker text-outline">核心运行态</p>
+          <p class="cn-kicker text-outline">当前版本</p>
           <p class="cn-metric mt-1 text-on-surface">{{ status?.version || '-' }}</p>
           <p class="tech-text mt-2 text-xs text-on-surface-variant">运行时长：{{ status ? formatUptime(status.uptime) : '-' }}</p>
         </article>
@@ -67,12 +63,15 @@
 
         <article class="rounded-2xl bg-surface-container-lowest p-5 shadow-sm">
           <div class="mb-3 flex items-start justify-between">
-            <AppIcon name="mcp" class="text-orange-600" />
-            <span class="rounded bg-error-container px-2 py-0.5 text-[10px] font-bold text-on-error-container">{{ disconnectedServers }} 异常</span>
+            <AppIcon name="mcp" :class="disconnectedServers > 0 ? 'text-orange-600' : 'text-emerald-600'" />
+            <span
+              class="rounded px-2 py-0.5 text-[10px] font-bold"
+              :class="disconnectedServers > 0 ? 'bg-error-container text-on-error-container' : 'bg-emerald-100 text-emerald-700'"
+            >{{ disconnectedServers > 0 ? `${disconnectedServers} 异常` : '正常' }}</span>
           </div>
           <p class="cn-kicker text-outline">MCP 服务</p>
           <p class="cn-metric mt-1 text-on-surface">{{ servers.length }} 个服务</p>
-          <p class="mt-2 flex items-center gap-1 text-xs font-medium text-error">
+          <p class="mt-2 flex items-center gap-1 text-xs font-medium" :class="disconnectedServers > 0 ? 'text-error' : 'text-emerald-600'">
             <AppIcon name="warning" size="sm" />
             {{ disconnectedServers > 0 ? '存在未连接服务' : '运行正常' }}
           </p>
@@ -304,10 +303,6 @@ async function loadOverview() {
   servers.value = serversResult.data?.servers || [];
   logs.value = logsResult.data?.entries || [];
   refreshing.value = false;
-}
-
-function goToDialogue() {
-  router.push({ path: '/dialogue', query: token ? { token } : {} });
 }
 
 function openSession(sessionKey: string) {

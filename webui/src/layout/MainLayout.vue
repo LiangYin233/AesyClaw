@@ -5,12 +5,7 @@
         <button class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-outline-variant/20 bg-surface-container-low text-on-surface md:hidden" type="button" @click="mobileMenuOpen = !mobileMenuOpen">
           <AppIcon name="menu" />
         </button>
-        <div class="flex items-center gap-3">
-          <div class="flex size-9 items-center justify-center rounded-xl bg-primary text-on-primary shadow-lg shadow-primary/20">
-            <AppIcon name="deployed" />
-          </div>
-          <p class="text-[11px] font-bold tracking-[0.16em] text-outline">AesyClaw</p>
-        </div>
+        <p class="font-headline text-lg font-black tracking-[0.04em] text-on-surface">AesyClaw</p>
       </div>
 
       <div class="flex items-center gap-2 md:gap-3">

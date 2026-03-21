@@ -61,7 +61,7 @@
       </div>
 
       <div class="relative flex flex-col gap-8 2xl:flex-row">
-        <div class="grid flex-1 grid-cols-1 gap-6 pb-20 xl:grid-cols-2">
+        <div class="grid w-full min-w-0 flex-1 self-start grid-cols-1 gap-6 pb-20 xl:grid-cols-2">
           <div v-if="mainAgent" class="col-span-1 flex flex-col gap-6 rounded-2xl border border-primary/20 bg-gradient-to-r from-primary-fixed to-surface-container-lowest p-6 shadow-sm xl:col-span-2 md:flex-row">
             <div class="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-xl shadow-primary/20">
               <AppIcon name="robot" size="xl" />
@@ -147,7 +147,7 @@
           </button>
         </div>
 
-        <aside v-if="selectedAgent || drawerMode === 'create'" class="hidden w-[460px] shrink-0 rounded-[1.4rem] border border-outline-variant/20 bg-surface-container-lowest shadow-xl shadow-slate-200/40 2xl:flex 2xl:sticky 2xl:top-8 2xl:h-[calc(100vh-8rem)] 2xl:flex-col">
+        <aside v-if="selectedAgent || drawerMode === 'create'" class="hidden w-[460px] shrink-0 rounded-[1.4rem] border border-outline-variant/20 bg-surface-container-lowest shadow-xl shadow-slate-200/40 2xl:block 2xl:sticky 2xl:top-8 2xl:self-start">
           <AgentEditor
             :form="form"
             :saving="saving"
@@ -159,8 +159,6 @@
             @close="resetSelection"
             @save="saveAgent"
             @delete="deleteAgent"
-            @toggle-skill="toggleSkill"
-            @toggle-tool="toggleTool"
           />
         </aside>
       </div>
@@ -179,8 +177,6 @@
             @close="resetSelection"
             @save="saveAgent"
             @delete="deleteAgent"
-            @toggle-skill="toggleSkill"
-            @toggle-tool="toggleTool"
           />
         </div>
       </div>
@@ -315,18 +311,6 @@ function selectAgent(agent: AgentRole) {
 function resetSelection() {
   drawerMode.value = null;
   selectedAgent.value = null;
-}
-
-function toggleSkill(name: string) {
-  form.allowedSkills = form.allowedSkills.includes(name)
-    ? form.allowedSkills.filter((item) => item !== name)
-    : [...form.allowedSkills, name];
-}
-
-function toggleTool(name: string) {
-  form.allowedTools = form.allowedTools.includes(name)
-    ? form.allowedTools.filter((item) => item !== name)
-    : [...form.allowedTools, name];
 }
 
 async function saveAgent() {

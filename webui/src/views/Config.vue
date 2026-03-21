@@ -306,30 +306,6 @@
             </div>
           </section>
 
-          <section class="rounded-2xl bg-surface-container-low p-6">
-            <div class="mb-6 flex items-center justify-between">
-              <h5 class="text-xs font-bold tracking-[0.2em] text-outline">当前快照</h5>
-              <span class="tech-text text-[10px] text-primary">配置实时映射</span>
-            </div>
-            <div class="space-y-5">
-              <div class="rounded-lg bg-surface-container-lowest px-4 py-3">
-                <p class="tech-text text-xs text-outline">环境</p>
-                <p class="mt-1 text-sm font-bold text-on-surface">WEBUI_CONFIG_SYNC</p>
-              </div>
-              <div class="rounded-lg bg-surface-container-lowest px-4 py-3">
-                <p class="tech-text text-xs text-outline">默认主模型</p>
-                <p class="mt-1 text-sm font-bold text-on-surface">{{ mainRole.model || '-' }}</p>
-              </div>
-              <div class="rounded-lg bg-surface-container-lowest px-4 py-3">
-                <p class="tech-text text-xs text-outline">上下文模式</p>
-                <p class="mt-1 text-sm font-bold text-on-surface">{{ configDraft?.agent?.defaults?.contextMode || '-' }}</p>
-              </div>
-              <div class="rounded-lg bg-surface-container-lowest px-4 py-3">
-                <p class="tech-text text-xs text-outline">日志等级</p>
-                <p class="mt-1 text-sm font-bold text-on-surface">{{ configDraft?.observability?.level || '-' }}</p>
-              </div>
-            </div>
-          </section>
         </aside>
       </div>
     </div>
@@ -377,10 +353,7 @@ const mainRole = computed<AgentRoleConfig>(() => {
 
 const providerNames = computed(() => Object.keys(configDraft.value?.providers || {}));
 const providerEntries = computed(() => Object.entries(configDraft.value?.providers || {}) as Array<[string, ProviderConfig]>);
-const channelNames = computed(() => Object.keys(configDraft.value?.channels || {}));
 const mcpNames = computed(() => Object.keys(configDraft.value?.mcp || {}));
-const pluginNames = computed(() => Object.keys(configDraft.value?.plugins || {}));
-const skillNames = computed(() => Object.keys(configDraft.value?.skills || {}));
 const serverHealthTone = computed(() => (configDraft.value?.server?.apiEnabled ? 'bg-emerald-500' : 'bg-orange-500'));
 const hasProviderJsonErrors = computed(() => Object.values(providerJsonErrors.value).some((item) => Boolean(item?.headers || item?.extraBody)));
 

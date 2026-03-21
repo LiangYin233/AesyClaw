@@ -168,14 +168,6 @@
               </div>
             </section>
 
-            <section class="rounded-[1.6rem] bg-surface-container-low p-4">
-              <p class="cn-kicker text-outline">使用提示</p>
-              <div class="mt-4 flex flex-wrap gap-2">
-                <span class="rounded-lg bg-surface-container-lowest px-3 py-1.5 text-[11px] font-semibold text-on-surface">{{ selectedSkill?.enabled ? '当前可用' : '当前停用' }}</span>
-                <span class="rounded-lg bg-surface-container-lowest px-3 py-1.5 text-[11px] font-semibold text-on-surface">{{ selectedSkill?.configurable ? '支持启停' : '固定内建' }}</span>
-                <span class="rounded-lg bg-surface-container-lowest px-3 py-1.5 text-[11px] font-semibold text-on-surface">{{ selectedSkill?.builtin ? '内建技能' : '工作区技能' }}</span>
-              </div>
-            </section>
           </div>
         </aside>
       </div>

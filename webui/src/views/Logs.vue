@@ -181,7 +181,8 @@ const bufferTotal = ref(0);
 const loading = ref(false);
 const savingLevel = ref(false);
 const error = ref('');
-const autoRefresh = ref(false);
+const autoRefresh = ref(true);
+const initialLoad = ref(true);
 const levelFilter = ref<'all' | LogLevel>('all');
 const levelDraft = ref<LogLevel>('info');
 const limit = ref(200);
@@ -215,7 +216,9 @@ function levelBadgeClass(level: LogLevel) {
 }
 
 async function loadLogsPage() {
-  loading.value = true;
+  if (initialLoad.value) {
+    loading.value = true;
+  }
   error.value = '';
 
   const [configResult, entriesResult] = await Promise.all([
@@ -236,6 +239,7 @@ async function loadLogsPage() {
   levelDraft.value = configResult.data?.level || levelDraft.value;
   lastUpdatedAt.value = new Date();
   loading.value = false;
+  initialLoad.value = false;
 }
 
 async function updateRuntimeLevel() {
