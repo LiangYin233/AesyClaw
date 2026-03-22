@@ -210,6 +210,42 @@ class OneBotAdapter implements ChannelAdapter {
       }
     }
 
+    // 处理 message 类型中的文件 segment
+    if (payload.post_type === 'message' && resource.platformFileId) {
+      const fileId = resource.platformFileId;
+      const messageType = payload.message_type;
+      const groupId = payload.group_id;
+
+      try {
+        let response;
+        if (messageType === 'group' && groupId) {
+          response = await this.sendAction('get_group_file_url', {
+            group_id: groupId,
+            file_id: fileId
+          });
+        } else {
+          response = await this.sendAction('get_private_file_url', {
+            file_id: fileId
+          });
+        }
+
+        const remoteUrl = response?.data?.url || response?.url;
+        if (typeof remoteUrl === 'string' && remoteUrl.length > 0) {
+          return {
+            ...resource,
+            remoteUrl
+          };
+        }
+      } catch (error) {
+        this.log.warn('消息文件 URL 获取失败', {
+          fileId,
+          messageType,
+          groupId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
     return resource;
   }
 
@@ -809,13 +845,13 @@ class OneBotAdapter implements ChannelAdapter {
           reference: { platformMessageId: data.id?.toString() }
         };
       case 'image':
-        return { type: 'image', resource: this.buildResource('image', data.file || data.url || 'image', data.url) };
+        return { type: 'image', resource: this.buildMediaResource('image', data) };
       case 'record':
-        return { type: 'audio', resource: this.buildResource('audio', data.file || data.url || 'voice.amr', data.url) };
+        return { type: 'audio', resource: this.buildMediaResource('audio', data) };
       case 'video':
-        return { type: 'video', resource: this.buildResource('video', data.file || data.url || 'video.mp4', data.url) };
+        return { type: 'video', resource: this.buildMediaResource('video', data) };
       case 'file':
-        return { type: 'file', resource: this.buildResource('file', data.file || data.url || 'file', data.url) };
+        return { type: 'file', resource: this.buildFileResource(data) };
       case 'face':
         return { type: 'unsupported', originalType: 'face', text: `[表情:${data.id}]` };
       case 'rich':
@@ -838,6 +874,60 @@ class OneBotAdapter implements ChannelAdapter {
       remoteUrl,
       localPath,
       platformFileId: fileOrUrl && !remoteUrl && !localPath ? fileOrUrl : undefined
+    };
+  }
+
+  private buildFileResource(data: Record<string, any>): ResourceHandle {
+    const resourceId = randomUUID().slice(0, 8);
+    const originalName = data.name || basename(data.file || data.url || `file-${resourceId}`);
+    const remoteUrl = this.normalizeRemoteUrl(data.url);
+    const localPath = this.normalizeLocalFile(data.path);
+    const platformFileId = data.file_id || data.file_unique ||
+      (!remoteUrl && !localPath && data.file && data.file !== 'empty' ? data.file : undefined);
+
+    let size: number | undefined;
+    if (typeof data.file_size === 'number') {
+      size = data.file_size;
+    } else if (typeof data.file_size === 'string' && data.file_size !== 'empty' && data.file_size.length > 0) {
+      size = parseInt(data.file_size);
+      if (isNaN(size)) size = undefined;
+    }
+
+    return {
+      resourceId,
+      kind: 'file',
+      originalName,
+      remoteUrl,
+      localPath,
+      platformFileId,
+      size
+    };
+  }
+
+  private buildMediaResource(kind: ResourceHandle['kind'], data: Record<string, any>): ResourceHandle {
+    const resourceId = randomUUID().slice(0, 8);
+    const originalName = data.name || basename(data.file || data.url || `${kind}-${resourceId}`);
+    const remoteUrl = this.normalizeRemoteUrl(data.url);
+    const localPath = this.normalizeLocalFile(data.path);
+    const platformFileId = data.file_id || data.file_unique ||
+      (!remoteUrl && !localPath && data.file ? data.file : undefined);
+
+    let size: number | undefined;
+    if (typeof data.file_size === 'number') {
+      size = data.file_size;
+    } else if (typeof data.file_size === 'string' && data.file_size.length > 0) {
+      size = parseInt(data.file_size);
+      if (isNaN(size)) size = undefined;
+    }
+
+    return {
+      resourceId,
+      kind,
+      originalName,
+      remoteUrl,
+      localPath,
+      platformFileId,
+      size
     };
   }
 
