@@ -356,7 +356,7 @@ export class LongTermMemoryService {
     const hasFiles = Array.isArray(request.files) && request.files.length > 0;
 
     if (!hasText && hasMedia && !hasFiles) {
-      this.log.debug('Skip long-term memory maintenance for pure image message', { sessionKey, mediaCount: request.media?.length || 0 });
+      this.log.debug('跳过纯图片消息的长期记忆维护', { sessionKey, mediaCount: request.media?.length || 0 });
       return;
     }
 

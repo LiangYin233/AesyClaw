@@ -116,7 +116,7 @@ export class ToolRegistry {
   unregister(name: string): void {
     this.tools.delete(name);
     this.toolSources.delete(name);
-    this.log.debug(`Unregistered tool: ${name}`);
+    this.log.debug(`已注销工具: ${name}`);
   }
 
   /**
@@ -159,7 +159,7 @@ export class ToolRegistry {
       }
     }
     if (count > 0) {
-      this.log.debug(`Unregistered ${count} tools from source: ${source}`);
+      this.log.debug(`已从来源 ${source} 注销 ${count} 个工具`);
     }
     return count;
   }
@@ -169,7 +169,7 @@ export class ToolRegistry {
    */
   setBlacklist(names: string[]): void {
     this.blacklist = new Set(names);
-    this.log.debug(`Tool blacklist set: ${names.join(', ')}`);
+    this.log.debug(`工具黑名单已设置: ${names.join(', ')}`);
   }
 
   /**
@@ -209,12 +209,12 @@ export class ToolRegistry {
       throw new Error(`Tool not found: ${name}`);
     }
 
-    this.log.debug(`Executing tool: ${name}, source: ${tool.source}, params keys: ${Object.keys(params).join(', ')}`);
+    this.log.debug(`正在执行工具: ${name}, 来源: ${tool.source}, 参数键: ${Object.keys(params).join(', ')}`);
 
     if (tool.validate) {
       const errors = tool.validate(params);  // 验证参数
       if (errors.length > 0) {
-        this.log.debug(`Tool ${name} validation failed: ${errors.join(', ')}`);
+        this.log.debug(`工具 ${name} 验证失败: ${errors.join(', ')}`);
         throw new Error(`Validation errors: ${errors.join(', ')}`);
       }
     }

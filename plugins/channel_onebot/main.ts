@@ -270,7 +270,7 @@ class OneBotAdapter implements ChannelAdapter {
       throw new Error(`Invalid chatId: must be numeric, got ${message.conversation.id}`);
     }
 
-    const outbound = this.buildOutbound(message);
+    const outbound = await this.buildOutbound(message);
     if (outbound.inlineSegments.length === 0 && outbound.filePaths.length === 0) {
       throw new Error('Outbound message rejected: empty payload');
     }
@@ -878,7 +878,7 @@ class OneBotAdapter implements ChannelAdapter {
     return value;
   }
 
-  private buildOutbound(message: ChannelMessage): { inlineSegments: any[]; filePaths: string[] } {
+  private async buildOutbound(message: ChannelMessage): Promise<{ inlineSegments: any[]; filePaths: string[] }> {
     const inlineSegments: any[] = [];
     const filePaths: string[] = [];
 
@@ -900,7 +900,7 @@ class OneBotAdapter implements ChannelAdapter {
           inlineSegments.push({ type: 'at', data: { qq: segment.userId === 'all' ? 'all' : segment.userId } });
           break;
         case 'image': {
-          const image = this.resourceToImageSegment(segment.resource);
+          const image = await this.resourceToImageSegment(segment.resource);
           if (image) {
             inlineSegments.push(image);
           }
@@ -928,10 +928,10 @@ class OneBotAdapter implements ChannelAdapter {
     return { inlineSegments, filePaths };
   }
 
-  private resourceToImageSegment(resource: ResourceHandle): any | null {
+  private async resourceToImageSegment(resource: ResourceHandle): Promise<any | null> {
     const localPath = this.resourceToLocalPath(resource);
     if (localPath) {
-      const base64 = this.imageToBase64(localPath);
+      const base64 = await this.imageToBase64(localPath);
       if (base64) {
         return { type: 'image', data: { file: `base64://${base64}` } };
       }
@@ -973,9 +973,10 @@ class OneBotAdapter implements ChannelAdapter {
 
   private async uploadFileStream(filePath: string): Promise<string> {
     const fileName = basename(filePath);
-    const fileSize = fs.statSync(filePath).size;
+    const stat = await fs.promises.stat(filePath);
+    const fileSize = stat.size;
     const totalChunks = Math.max(1, Math.ceil(fileSize / this.FILE_UPLOAD_CHUNK_SIZE));
-    const expectedSha256 = this.calculateFileSha256(filePath);
+    const expectedSha256 = await this.calculateFileSha256(filePath);
     const streamId = randomUUID();
 
     this.log.info('OneBot 流式上传开始', {
@@ -984,7 +985,7 @@ class OneBotAdapter implements ChannelAdapter {
       totalChunks
     });
 
-    const fd = fs.openSync(filePath, 'r');
+    const fd = await fs.promises.open(filePath, 'r');
     try {
       let chunkIndex = 0;
       let position = 0;
@@ -994,7 +995,7 @@ class OneBotAdapter implements ChannelAdapter {
           ? 0
           : Math.min(this.FILE_UPLOAD_CHUNK_SIZE, fileSize - position);
         const buffer = Buffer.alloc(length);
-        const bytesRead = fileSize === 0 ? 0 : fs.readSync(fd, buffer, 0, length, position);
+        const { bytesRead } = fileSize === 0 ? { bytesRead: 0 } : await fd.read(buffer, 0, length, position);
 
         await this.sendAction('upload_file_stream', {
           stream_id: streamId,
@@ -1015,7 +1016,7 @@ class OneBotAdapter implements ChannelAdapter {
         }
       }
     } finally {
-      fs.closeSync(fd);
+      await fd.close();
     }
 
     const response = await this.sendAction('upload_file_stream', {
@@ -1037,9 +1038,9 @@ class OneBotAdapter implements ChannelAdapter {
     return result.file_path;
   }
 
-  private calculateFileSha256(filePath: string): string {
+  private async calculateFileSha256(filePath: string): Promise<string> {
     const hash = createHash('sha256');
-    const fd = fs.openSync(filePath, 'r');
+    const fd = await fs.promises.open(filePath, 'r');
 
     try {
       const buffer = Buffer.alloc(this.FILE_UPLOAD_CHUNK_SIZE);
@@ -1047,14 +1048,15 @@ class OneBotAdapter implements ChannelAdapter {
       let position = 0;
 
       do {
-        bytesRead = fs.readSync(fd, buffer, 0, buffer.length, position);
+        const result = await fd.read(buffer, 0, buffer.length, position);
+        bytesRead = result.bytesRead;
         if (bytesRead > 0) {
           hash.update(buffer.subarray(0, bytesRead));
           position += bytesRead;
         }
       } while (bytesRead > 0);
     } finally {
-      fs.closeSync(fd);
+      await fd.close();
     }
 
     return hash.digest('hex');
@@ -1066,19 +1068,22 @@ class OneBotAdapter implements ChannelAdapter {
     return filePath.startsWith('file://') ? filePath.substring(7) : filePath;
   }
 
-  private imageToBase64(filePath: string): string | null {
+  private async imageToBase64(filePath: string): Promise<string | null> {
     try {
       const path = this.normalizeLocalPath(filePath);
-      if (fs.existsSync(path)) {
-        const stats = fs.statSync(path);
-        if (stats.size > this.MAX_IMAGE_SIZE) {
-          this.log.warn(`图片过大: ${filePath} (${stats.size} 字节)`);
-          return null;
-        }
-        const buffer = fs.readFileSync(path);
-        return buffer.toString('base64');
+      try {
+        await fs.promises.access(path);
+      } catch {
+        this.log.warn(`文件不存在: ${filePath}`);
+        return null;
       }
-      this.log.warn(`文件不存在: ${filePath}`);
+      const stats = await fs.promises.stat(path);
+      if (stats.size > this.MAX_IMAGE_SIZE) {
+        this.log.warn(`图片过大: ${filePath} (${stats.size} 字节)`);
+        return null;
+      }
+      const buffer = await fs.promises.readFile(path);
+      return buffer.toString('base64');
     } catch (error) {
       this.log.warn(`图片转 base64 失败: ${filePath}`, {
         error: error instanceof Error ? error.message : String(error)

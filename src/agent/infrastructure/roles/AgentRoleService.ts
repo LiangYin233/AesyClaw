@@ -281,7 +281,7 @@ export class AgentRoleService {
       allowedTools: [...new Set((input.allowedTools || []).map((item) => item.trim()).filter(Boolean))]
     };
 
-    this.log.debug(`Normalized agent role: ${normalized.name}`);
+    this.log.debug(`已规范化代理角色: ${normalized.name}`);
     return normalized;
   }
 }

@@ -22,7 +22,7 @@ export class MCPClientManager {
 
     for (const [name, serverConfig] of Object.entries(config)) {
       if (serverConfig.enabled === false) {
-        this.log.debug('Skipping disabled MCP server', { server: name });
+        this.log.debug('跳过已禁用的 MCP 服务器', { server: name });
         continue;
       }
 

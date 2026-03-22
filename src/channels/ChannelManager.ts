@@ -35,12 +35,12 @@ export class ChannelManager {
       this.#log.warn('渠道插件重复注册，已覆盖', { pluginName: plugin.pluginName });
     }
     this.#plugins.set(plugin.pluginName, plugin);
-    this.#log.debug('Channel plugin registered', { pluginName: plugin.pluginName });
+    this.#log.debug('渠道插件已注册', { pluginName: plugin.pluginName });
   }
 
   unregisterPlugin(pluginName: string): void {
     this.#plugins.delete(pluginName);
-    this.#log.debug('Channel plugin unregistered', { pluginName });
+    this.#log.debug('渠道插件已注销', { pluginName });
   }
 
   getPlugin(pluginName: string): ChannelPluginDefinition | undefined {
@@ -70,13 +70,13 @@ export class ChannelManager {
   register(channel: ChannelAdapter): void {
     this.#channels.set(channel.name, channel);
     this.#runtime.registerAdapter(channel.name, channel);
-    this.#log.debug('Channel registered', { channel: channel.name });
+    this.#log.debug('渠道已注册', { channel: channel.name });
   }
 
   unregister(name: string): void {
     this.#channels.delete(name);
     this.#runtime.unregisterAdapter(name);
-    this.#log.debug('Channel unregistered', { channel: name });
+    this.#log.debug('渠道已注销', { channel: name });
   }
 
   setInboundHandler(handler: (message: InboundMessage) => Promise<void>): void {

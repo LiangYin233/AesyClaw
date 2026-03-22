@@ -182,7 +182,7 @@ export class ExecutionEngine {
   }
 
   private createExecutor(policy: ExecutionPolicy): AgentExecutor {
-    this.log.debug(`Creating executor for role=${policy.roleName}, model=${policy.model}`);
+    this.log.debug(`正在创建执行器: 角色=${policy.roleName}, 模型=${policy.model}`);
 
     return new AgentExecutor(
       policy.provider,

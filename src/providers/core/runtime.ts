@@ -51,7 +51,7 @@ export class ProviderRuntime {
       warn: (message, fields) => this.log.warn(message, fields)
     };
 
-    this.log.debug('Provider request started', {
+    this.log.debug('提供商请求已开始', {
       providerType: this.adapter.type,
       providerName: this.adapter.displayName,
       model: modelName,

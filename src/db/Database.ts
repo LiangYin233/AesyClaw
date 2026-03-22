@@ -230,7 +230,7 @@ export class Database {
         this.db.run('BEGIN IMMEDIATE', (err: Error | null) => {
           if (err) {
             if (err.message && err.message.includes('cannot start a transaction')) {
-              this.log.debug('Already in transaction, executing without new transaction');
+              this.log.debug('已在事务中，无需新建事务');
               Promise.resolve(fn()).then(resolve).catch(reject);
               return;
             }

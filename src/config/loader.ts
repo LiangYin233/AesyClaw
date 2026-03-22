@@ -213,7 +213,7 @@ export class ConfigLoader {
           void this.reloadFromDisk();
         }, this.WATCH_DEBOUNCE_MS);
       });
-      this.log.debug('Started file watcher');
+      this.log.debug('已启动文件监视器');
     } catch (error) {
       this.log.warn('启动配置文件监视器失败', {
         error: normalizeConfigError(error)
@@ -227,7 +227,7 @@ export class ConfigLoader {
     if (this.watcher) {
       this.watcher.close();
       this.watcher = null;
-      this.log.debug('Stopped file watcher');
+      this.log.debug('已停止文件监视器');
     }
   }
 
@@ -237,7 +237,7 @@ export class ConfigLoader {
       const signature = this.serializeConfig(nextConfig);
 
       if (signature === this.lastAppliedSignature) {
-        this.log.debug('Skipped redundant config reload notification');
+        this.log.debug('跳过冗余的配置重载通知');
         return;
       }
 

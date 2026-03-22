@@ -72,7 +72,7 @@ export class AgentPipeline {
 
     const transformed = await pluginManager.runMessageInHooks(message);
     if (transformed === null) {
-      this.log.debug('Plugin consumed message', {
+      this.log.debug('插件已消费消息', {
         channel: message.channel,
         chatId: message.chatId
       });
@@ -121,7 +121,7 @@ export class AgentPipeline {
       return message;
     }
 
-    this.log.debug('Attached saved file notes', {
+    this.log.debug('已附加保存的文件备注', {
       channel: message.channel,
       chatId: message.chatId,
       fileCount: savedPaths.length
