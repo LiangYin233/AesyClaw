@@ -135,6 +135,24 @@ class OneBotAdapter implements ChannelAdapter {
     };
   }
 
+  private buildResourceFromResponse(
+    resource: ResourceHandle,
+    response: any,
+    payload: Record<string, any>
+  ): ResourceHandle | null {
+    const remoteUrl = response?.data?.url || response?.url;
+    if (typeof remoteUrl !== 'string' || remoteUrl.length === 0) {
+      return null;
+    }
+
+    return {
+      ...resource,
+      originalName: payload.file?.name || resource.originalName,
+      remoteUrl,
+      size: typeof payload.file?.size === 'number' ? payload.file.size : resource.size
+    };
+  }
+
   async resolveResource(resource: ResourceHandle, rawEvent?: unknown): Promise<ResourceHandle | null> {
     if (resource.localPath || resource.remoteUrl || !resource.platformFileId || !rawEvent || typeof rawEvent !== 'object') {
       return resource;
@@ -154,17 +172,8 @@ class OneBotAdapter implements ChannelAdapter {
         const response = await this.sendAction('get_private_file_url', {
           file_id: fileId
         });
-        const remoteUrl = response?.data?.url || response?.url;
-        if (typeof remoteUrl !== 'string' || remoteUrl.length === 0) {
-          return resource;
-        }
-
-        return {
-          ...resource,
-          originalName: payload.file?.name || resource.originalName,
-          remoteUrl,
-          size: typeof payload.file?.size === 'number' ? payload.file.size : resource.size
-        };
+        const result = this.buildResourceFromResponse(resource, response, payload);
+        return result ?? resource;
       } catch (error) {
         this.log.warn('OneBot 私聊文件 URL 获取失败', {
           fileId,
@@ -189,17 +198,8 @@ class OneBotAdapter implements ChannelAdapter {
           file_id: fileId,
           busid
         });
-        const remoteUrl = response?.data?.url || response?.url;
-        if (typeof remoteUrl !== 'string' || remoteUrl.length === 0) {
-          return resource;
-        }
-
-        return {
-          ...resource,
-          originalName: payload.file?.name || resource.originalName,
-          remoteUrl,
-          size: typeof payload.file?.size === 'number' ? payload.file.size : resource.size
-        };
+        const result = this.buildResourceFromResponse(resource, response, payload);
+        return result ?? resource;
       } catch (error) {
         this.log.warn('OneBot 群聊文件 URL 获取失败', {
           fileId,
