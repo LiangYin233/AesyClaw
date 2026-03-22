@@ -143,13 +143,35 @@ class OneBotAdapter implements ChannelAdapter {
     const payload = rawEvent as Record<string, any>;
     const noticeType = payload.notice_type;
 
-    if (noticeType === 'offline_file' && typeof payload.file?.url === 'string') {
-      return {
-        ...resource,
-        originalName: payload.file?.name || resource.originalName,
-        remoteUrl: payload.file.url,
-        size: typeof payload.file?.size === 'number' ? payload.file.size : resource.size
-      };
+    if (noticeType === 'offline_file') {
+      const fileId = payload.file?.id;
+
+      if (typeof fileId !== 'string') {
+        return resource;
+      }
+
+      try {
+        const response = await this.sendAction('get_private_file_url', {
+          file_id: fileId
+        });
+        const remoteUrl = response?.data?.url || response?.url;
+        if (typeof remoteUrl !== 'string' || remoteUrl.length === 0) {
+          return resource;
+        }
+
+        return {
+          ...resource,
+          originalName: payload.file?.name || resource.originalName,
+          remoteUrl,
+          size: typeof payload.file?.size === 'number' ? payload.file.size : resource.size
+        };
+      } catch (error) {
+        this.log.warn('OneBot 私聊文件 URL 获取失败', {
+          fileId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+        return resource;
+      }
     }
 
     if (noticeType === 'group_upload') {
@@ -161,22 +183,31 @@ class OneBotAdapter implements ChannelAdapter {
         return resource;
       }
 
-      const response = await this.sendAction('get_group_file_url', {
-        group_id: groupId,
-        file_id: fileId,
-        busid
-      });
-      const remoteUrl = response?.data?.url || response?.url;
-      if (typeof remoteUrl !== 'string' || remoteUrl.length === 0) {
+      try {
+        const response = await this.sendAction('get_group_file_url', {
+          group_id: groupId,
+          file_id: fileId,
+          busid
+        });
+        const remoteUrl = response?.data?.url || response?.url;
+        if (typeof remoteUrl !== 'string' || remoteUrl.length === 0) {
+          return resource;
+        }
+
+        return {
+          ...resource,
+          originalName: payload.file?.name || resource.originalName,
+          remoteUrl,
+          size: typeof payload.file?.size === 'number' ? payload.file.size : resource.size
+        };
+      } catch (error) {
+        this.log.warn('OneBot 群聊文件 URL 获取失败', {
+          fileId,
+          groupId,
+          error: error instanceof Error ? error.message : String(error)
+        });
         return resource;
       }
-
-      return {
-        ...resource,
-        originalName: payload.file?.name || resource.originalName,
-        remoteUrl,
-        size: typeof payload.file?.size === 'number' ? payload.file.size : resource.size
-      };
     }
 
     return resource;
