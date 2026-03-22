@@ -258,16 +258,12 @@ export class ToolRegistry {
           mergedSignal.addEventListener('abort', onAbort, { once: true });
         })
       ]);
-      clearTimeout(timeoutId);  // 清除超时计时器
-      cleanupMergedSignal();
       return result;
     } catch (error) {
+      throw error;
+    } finally {
       clearTimeout(timeoutId);
       cleanupMergedSignal();
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw error;
-      }
-      throw error;
     }
   }
 }

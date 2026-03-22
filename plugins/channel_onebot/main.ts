@@ -498,7 +498,7 @@ class OneBotAdapter implements ChannelAdapter {
         return;
       }
 
-      const id = Date.now();
+      const id = randomUUID();
       const message = JSON.stringify({ action, params, echo: id });
       let settled = false;
       let timeoutHandle: NodeJS.Timeout | undefined;
