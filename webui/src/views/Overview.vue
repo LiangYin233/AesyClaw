@@ -72,7 +72,7 @@
           <p class="cn-kicker text-outline">MCP 服务</p>
           <p class="cn-metric mt-1 text-on-surface">{{ servers.length }} 个服务</p>
           <p class="mt-2 flex items-center gap-1 text-xs font-medium" :class="disconnectedServers > 0 ? 'text-error' : 'text-emerald-600'">
-            <AppIcon name="warning" size="sm" />
+            <AppIcon :name="disconnectedServers > 0 ? 'warning' : 'check'" size="sm" :class="disconnectedServers > 0 ? 'text-error' : 'text-emerald-600'" />
             {{ disconnectedServers > 0 ? '存在未连接服务' : '运行正常' }}
           </p>
         </article>
