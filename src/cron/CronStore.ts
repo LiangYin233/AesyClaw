@@ -4,6 +4,9 @@ import { dirname } from 'path';
 import { logger } from '../observability/index.js';
 import type { CronJob } from './CronService.js';
 
+type SQLiteParam = string | number | boolean | null | Buffer | Date | undefined;
+type SQLiteParams = SQLiteParam[];
+
 /**
  * Cron 任务数据库存储
  */
@@ -172,7 +175,7 @@ export class CronStore {
   /**
    * 执行 SQL 语句（无返回值）
    */
-  private run(sql: string, params: any[] = []): Promise<{ changes: number; lastID: number }> {
+  private run(sql: string, params: SQLiteParams = []): Promise<{ changes: number; lastID: number }> {
     return new Promise((resolve, reject) => {
       this.db.run(sql, params, function(err) {
         if (err) reject(err);
@@ -184,11 +187,11 @@ export class CronStore {
   /**
    * 获取单行数据
    */
-  private getRow(sql: string, params: any[] = []): Promise<any> {
+  private getRow(sql: string, params: SQLiteParams = []): Promise<Record<string, unknown> | undefined> {
     return new Promise((resolve, reject) => {
       this.db.get(sql, params, (err, row) => {
         if (err) reject(err);
-        else resolve(row);
+        else resolve(row as Record<string, unknown> | undefined);
       });
     });
   }
@@ -196,11 +199,11 @@ export class CronStore {
   /**
    * 获取多行数据
    */
-  private getRows(sql: string, params: any[] = []): Promise<any[]> {
+  private getRows(sql: string, params: SQLiteParams = []): Promise<Record<string, unknown>[]> {
     return new Promise((resolve, reject) => {
       this.db.all(sql, params, (err, rows) => {
         if (err) reject(err);
-        else resolve(rows || []);
+        else resolve((rows || []) as Record<string, unknown>[]);
       });
     });
   }

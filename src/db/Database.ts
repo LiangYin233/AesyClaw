@@ -3,6 +3,9 @@ import { dirname } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { logger } from '../observability/index.js';
 
+type SQLiteParam = string | number | boolean | null | Buffer | Date | undefined;
+type SQLiteParams = SQLiteParam[];
+
 const SQLITE_LOCAL_TIMESTAMP_EXPRESSION = `STRFTIME('%Y-%m-%dT%H:%M:%f', 'now', 'localtime')`;
 
 export class Database {
@@ -179,7 +182,7 @@ export class Database {
     await this.initPromise;
   }
 
-  run(sql: string, params: any[] = []): Promise<{ lastID: number; changes: number }> {
+  run(sql: string, params: SQLiteParams = []): Promise<{ lastID: number; changes: number }> {
     return new Promise((resolve, reject) => {
       this.db.run(sql, params, function(err: Error | null) {
         if (err) {
@@ -191,7 +194,7 @@ export class Database {
     });
   }
 
-  get<T>(sql: string, params: any[] = []): Promise<T | undefined> {
+  get<T>(sql: string, params: SQLiteParams = []): Promise<T | undefined> {
     return new Promise((resolve, reject) => {
       this.db.get(sql, params, (err: Error | null, row: any) => {
         if (err) {
@@ -203,7 +206,7 @@ export class Database {
     });
   }
 
-  all<T>(sql: string, params: any[] = []): Promise<T[]> {
+  all<T>(sql: string, params: SQLiteParams = []): Promise<T[]> {
     return new Promise((resolve, reject) => {
       this.db.all(sql, params, (err: Error | null, rows: any[]) => {
         if (err) {
