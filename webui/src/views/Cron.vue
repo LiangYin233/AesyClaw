@@ -248,7 +248,22 @@ const nextExecutionLabel = computed(() => {
   const nextRun = [...jobs.value]
     .filter((job) => typeof job.nextRunAtMs === 'number')
     .sort((left, right) => (left.nextRunAtMs || 0) - (right.nextRunAtMs || 0))[0];
-  return nextRun?.nextRunAtMs ? formatDateTime(nextRun.nextRunAtMs) : '--';
+  if (!nextRun?.nextRunAtMs) return '--';
+
+  const diff = nextRun.nextRunAtMs - Date.now();
+  if (diff < 0) return '已过期';
+
+  const seconds = Math.round(diff / 1000);
+  if (seconds < 60) return `${seconds}秒后`;
+
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}分钟后`;
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}小时后`;
+
+  const days = Math.round(hours / 24);
+  return `${days}天后`;
 });
 
 function createEmptyJob(): CronJob {
