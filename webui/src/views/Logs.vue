@@ -39,7 +39,7 @@
         </div>
       </div>
 
-      <div class="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div class="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <article class="hairline-card rounded-2xl p-5">
           <div class="mb-3 flex items-start justify-between">
             <AppIcon name="panel" class="text-tertiary" />
@@ -68,6 +68,15 @@
           <p class="cn-kicker text-outline">最近刷新</p>
           <p class="cn-metric mt-1 text-on-surface text-[1.5rem]">{{ lastUpdatedLabel }}</p>
           <p class="tech-text mt-2 text-xs text-on-surface-variant">{{ lastUpdatedTime }}</p>
+        </article>
+
+        <article class="hairline-card rounded-2xl p-5">
+          <div class="mb-3 flex items-start justify-between">
+            <AppIcon name="observability" class="text-outline" />
+          </div>
+          <p class="cn-kicker text-outline">Token 使用</p>
+          <p class="cn-metric mt-1 text-on-surface">{{ usageStats ? formatNumber(usageStats.totalTokens) : '-' }}</p>
+          <p class="mt-2 text-xs text-on-surface-variant">{{ usageStats ? `${formatNumber(usageStats.requestCount)} 次请求` : '暂无统计' }}</p>
         </article>
       </div>
 
@@ -168,7 +177,7 @@ import AppIcon from '@/components/AppIcon.vue';
 import { apiGet, apiPost } from '@/lib/api';
 import { getRouteToken } from '@/lib/auth';
 import { formatDateTime, formatKeyValue, formatNumber, formatRelativeTime } from '@/lib/format';
-import type { LogLevel, ObservabilityEntriesResponse, ObservabilityLogEntry, ObservabilityLoggingConfig } from '@/lib/types';
+import type { LogLevel, ObservabilityEntriesResponse, ObservabilityLogEntry, ObservabilityLoggingConfig, TokenUsageStats } from '@/lib/types';
 
 const route = useRoute();
 const token = getRouteToken(route);
@@ -177,6 +186,7 @@ const levels: LogLevel[] = ['debug', 'info', 'warn', 'error'];
 
 const config = ref<ObservabilityLoggingConfig | null>(null);
 const entries = ref<ObservabilityLogEntry[]>([]);
+const usageStats = ref<TokenUsageStats | null>(null);
 const bufferTotal = ref(0);
 const loading = ref(false);
 const savingLevel = ref(false);
@@ -221,12 +231,13 @@ async function loadLogsPage() {
   }
   error.value = '';
 
-  const [configResult, entriesResult] = await Promise.all([
+  const [configResult, entriesResult, usageResult] = await Promise.all([
     apiGet<ObservabilityLoggingConfig>('/api/observability/logging/config', token),
     apiGet<ObservabilityEntriesResponse>('/api/observability/logging/entries', token, {
       limit: limit.value,
       level: levelFilter.value === 'all' ? undefined : levelFilter.value,
     }),
+    apiGet<TokenUsageStats>('/api/observability/usage', token),
   ]);
 
   if (configResult.error || entriesResult.error) {
@@ -237,6 +248,7 @@ async function loadLogsPage() {
   entries.value = entriesResult.data?.entries || [];
   bufferTotal.value = entriesResult.data?.total || 0;
   levelDraft.value = configResult.data?.level || levelDraft.value;
+  usageStats.value = usageResult.data ?? null;
   lastUpdatedAt.value = new Date();
   loading.value = false;
   initialLoad.value = false;
@@ -287,6 +299,7 @@ watch(autoRefresh, () => {
 
 onMounted(() => {
   loadLogsPage();
+  syncAutoRefresh();
 });
 
 onBeforeUnmount(() => {
