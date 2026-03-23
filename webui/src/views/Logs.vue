@@ -165,20 +165,15 @@
                   <div>
                     <p class="text-xs text-outline">总消耗</p>
                     <p class="mt-1 text-lg font-bold text-on-surface">{{ usageStats ? formatNumber(usageStats.totalTokens) : '-' }}</p>
+                    <p class="mt-1 text-[10px] text-outline">
+                      P {{ usageStats ? formatNumber(usageStats.promptTokens) : '-' }} / C {{ usageStats ? formatNumber(usageStats.completionTokens) : '-' }}
+                    </p>
                   </div>
                   <div>
                     <p class="text-xs text-outline">请求次数</p>
                     <p class="mt-1 text-lg font-bold text-on-surface">{{ usageStats ? formatNumber(usageStats.requestCount) : '-' }}</p>
                   </div>
                 </div>
-              </div>
-              <div class="rounded-xl bg-surface-container-low p-4">
-                <p class="text-xs text-outline">Prompt / Completion</p>
-                <p class="mt-1 text-sm font-bold text-on-surface">
-                  {{ usageStats ? formatNumber(usageStats.promptTokens) : '-' }}
-                  <span class="text-xs font-normal text-outline"> / </span>
-                  {{ usageStats ? formatNumber(usageStats.completionTokens) : '-' }}
-                </p>
               </div>
               <div class="rounded-xl bg-surface-container-low p-4">
                 <p class="text-xs text-outline">今日消耗</p>
