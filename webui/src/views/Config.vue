@@ -65,10 +65,6 @@
                 <span class="text-xs font-bold tracking-[0.08em] text-outline">端口</span>
                 <input v-model.number="configDraft.server!.apiPort" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none ring-0 transition focus:ring-2 focus:ring-primary/20" type="number" />
               </label>
-              <label class="space-y-1.5 md:col-span-2">
-                <span class="text-xs font-bold tracking-[0.08em] text-outline">访问 Token</span>
-                <input v-model="configDraft.server!.token" class="tech-text w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none ring-0 transition focus:ring-2 focus:ring-primary/20" type="text" />
-              </label>
               <div class="md:col-span-2 flex items-center justify-between rounded-lg bg-surface px-4 py-3">
                 <div>
                   <p class="text-sm font-medium text-on-surface">启用 API 服务</p>
@@ -480,7 +476,7 @@ function removeProvider(name: string) {
 function normalizeConfig(source: AppConfig): AppConfig {
   const next = structuredClone(source || {});
 
-  next.server ||= { host: '0.0.0.0', apiPort: 18792, apiEnabled: true, token: '' };
+  next.server ||= { host: '0.0.0.0', apiPort: 18792, apiEnabled: true };
   next.agent ||= { defaults: {} };
   next.agent.defaults ||= {};
   next.agent.defaults.memorySummary ||= { enabled: false, provider: '', model: '', compressRounds: 5 };

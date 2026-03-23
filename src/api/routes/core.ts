@@ -11,6 +11,7 @@ import { SessionNotFoundError, SessionValidationError } from '../../session/erro
 import type { SessionRoutingService } from '../../agent/infrastructure/session/SessionRoutingService.js';
 import type { AgentRoleService } from '../../agent/infrastructure/roles/AgentRoleService.js';
 import type { AgentRuntime } from '../../agent/index.js';
+import { preserveServerTokenInApiConfig, sanitizeConfigForApi } from '../configPayload.js';
 import { badRequest, notFound, serverError, unavailable, wrap } from './helpers.js';
 
 const WEBUI_CHANNEL = 'webui';
@@ -265,7 +266,7 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
   });
 
   app.get('/api/config', (req, res) => {
-    res.json(deps.getConfig());
+    res.json(sanitizeConfigForApi(deps.getConfig()));
   });
 
   app.put('/api/config', async (req, res) => {
@@ -275,7 +276,8 @@ export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
         return badRequest(res, 'config body must be an object', 'config');
       }
       deps.log.info('收到 API 配置更新请求');
-      await deps.updateConfig(() => newConfig as Config);
+      const currentConfig = deps.getConfig();
+      await deps.updateConfig(() => preserveServerTokenInApiConfig(newConfig, currentConfig) as Config);
       res.json({ success: true });
     } catch (error: unknown) {
       const issue = getConfigValidationIssue(error);

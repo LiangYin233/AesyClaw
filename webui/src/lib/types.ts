@@ -233,7 +233,6 @@ export interface AppConfig {
     host?: string;
     apiPort?: number;
     apiEnabled?: boolean;
-    token?: string;
   };
   agent?: {
     defaults?: {
