@@ -12,6 +12,11 @@ interface Md2ImgOptions {
   scale: number;
 }
 
+interface ConversationRoundSources {
+  currentRoundSources: string[];
+  lastCompletedRoundSources: string[];
+}
+
 function normalizeThinkingText(text: string): string {
   return text
     .replace(/\r\n/g, '\n')
@@ -45,6 +50,17 @@ function isMarkdown(text: string): boolean {
   return MD_PATTERN.test(text);
 }
 
+function getConversationKey(channel: string, chatId: string): string {
+  return `${channel}:${chatId}`;
+}
+
+function createConversationRoundSources(): ConversationRoundSources {
+  return {
+    currentRoundSources: [],
+    lastCompletedRoundSources: []
+  };
+}
+
 async function renderToImage(tempDir: string, text: string, scale: number): Promise<string> {
   const outputDir = path.join(tempDir, 'md2img');
   await fs.mkdir(outputDir, { recursive: true });
@@ -72,10 +88,57 @@ export default definePlugin<Md2ImgOptions>({
       minLength: ctx.options.minLength ?? 50,
       scale: Math.max(0.5, Math.min(3.0, ctx.options.scale ?? 1.0))
     };
+    const roundSources = new Map<string, ConversationRoundSources>();
+
+    const getRoundSources = (channel: string, chatId: string): ConversationRoundSources => {
+      const key = getConversationKey(channel, chatId);
+      let state = roundSources.get(key);
+      if (!state) {
+        state = createConversationRoundSources();
+        roundSources.set(key, state);
+      }
+      return state;
+    };
 
     log.info('Markdown 转图片插件已加载', {
       minLength: config.minLength,
       scale: config.scale
+    });
+
+    ctx.commands.register({
+      name: 'md2img_text',
+      description: '发送当前会话上一轮实际进入 md2img 转图的原始文本',
+      matcher: { type: 'exact', value: '/text' },
+      execute: async (message) => {
+        const state = getRoundSources(message.channel, message.chatId);
+        const sources = [...state.currentRoundSources];
+
+        if (sources.length === 0) {
+          await ctx.sendMessage({
+            channel: message.channel,
+            chatId: message.chatId,
+            content: '上一轮没有可恢复的 md2img 源文本',
+            messageType: message.messageType
+          }, { skipHooks: true });
+          return;
+        }
+
+        for (const source of sources) {
+          await ctx.sendMessage({
+            channel: message.channel,
+            chatId: message.chatId,
+            content: source,
+            messageType: message.messageType
+          }, { skipHooks: true });
+        }
+      }
+    });
+
+    ctx.hooks.messageIn.transform((message) => {
+      const state = getRoundSources(message.channel, message.chatId);
+      state.lastCompletedRoundSources = [...state.currentRoundSources];
+      state.currentRoundSources = [];
+      return message;
     });
 
     ctx.hooks.messageOut.transform(async (message) => {
@@ -118,6 +181,8 @@ export default definePlugin<Md2ImgOptions>({
         log.debug(`Converting markdown: ${markdownContent.length} chars`);
 
         const imagePath = await renderToImage(ctx.tempDir, markdownContent, config.scale);
+        const state = getRoundSources(baseMessage.channel, baseMessage.chatId);
+        state.currentRoundSources.push(baseMessage.content);
         const originalMedia = baseMessage.media && baseMessage.media.length > 0
           ? [...baseMessage.media]
           : undefined;
@@ -148,5 +213,9 @@ export default definePlugin<Md2ImgOptions>({
         return baseMessage;
       }
     });
+
+    return () => {
+      roundSources.clear();
+    };
   }
 });
