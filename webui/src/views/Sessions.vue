@@ -108,7 +108,6 @@
                         />
                       </th>
                       <th class="px-5 py-4 text-[11px] font-bold tracking-[0.08em]">会话标识</th>
-                      <th class="px-5 py-4 text-[11px] font-bold tracking-[0.08em]">渠道与路由</th>
                       <th class="px-5 py-4 text-[11px] font-bold tracking-[0.08em]">Agent</th>
                       <th class="px-5 py-4 text-[11px] font-bold tracking-[0.08em]">消息数</th>
                       <th class="px-5 py-4 text-[11px] font-bold tracking-[0.08em]">动作</th>
@@ -136,10 +135,6 @@
                           <span class="rounded-full bg-surface-container-low px-2 py-1">{{ session.channel || '-' }}</span>
                           <span v-if="session.uuid" class="tech-text rounded-full bg-surface-container-low px-2 py-1">{{ session.uuid }}</span>
                         </div>
-                      </td>
-                      <td class="px-5 py-4">
-                        <div class="tech-text text-xs text-on-surface-variant">chatId: {{ session.chatId || '-' }}</div>
-                        <div class="mt-2 text-xs text-on-surface-variant">{{ channelDescription(session.channel) }}</div>
                       </td>
                       <td class="px-5 py-4">
                         <span class="rounded-full bg-primary-fixed px-2.5 py-1 text-xs font-semibold text-on-primary-fixed">{{ session.agentName || 'main' }}</span>
