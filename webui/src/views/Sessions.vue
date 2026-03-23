@@ -131,7 +131,7 @@
                         />
                       </td>
                       <td class="px-5 py-4">
-                        <div class="tech-text text-xs text-on-surface">{{ session.key }}</div>
+                        <div class="tech-text break-all text-xs text-on-surface">{{ session.key }}</div>
                         <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-outline">
                           <span class="rounded-full bg-surface-container-low px-2 py-1">{{ session.channel || '-' }}</span>
                           <span v-if="session.uuid" class="tech-text rounded-full bg-surface-container-low px-2 py-1">{{ session.uuid }}</span>
