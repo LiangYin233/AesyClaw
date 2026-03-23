@@ -155,6 +155,43 @@
               </button>
             </div>
           </section>
+
+          <section class="hairline-card rounded-[1.6rem] p-5">
+            <p class="cn-kicker text-outline">用量统计</p>
+            <h2 class="cn-section-title mt-2 text-on-surface">Token 消耗</h2>
+            <div class="mt-4 space-y-4">
+              <div class="rounded-xl bg-surface-container-low p-4">
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <p class="text-xs text-outline">总消耗</p>
+                    <p class="mt-1 text-lg font-bold text-on-surface">{{ usageStats ? formatNumber(usageStats.totalTokens) : '-' }}</p>
+                  </div>
+                  <div>
+                    <p class="text-xs text-outline">请求次数</p>
+                    <p class="mt-1 text-lg font-bold text-on-surface">{{ usageStats ? formatNumber(usageStats.requestCount) : '-' }}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="rounded-xl bg-surface-container-low p-4">
+                <p class="text-xs text-outline">Prompt / Completion</p>
+                <p class="mt-1 text-sm font-bold text-on-surface">
+                  {{ usageStats ? formatNumber(usageStats.promptTokens) : '-' }}
+                  <span class="text-xs font-normal text-outline"> / </span>
+                  {{ usageStats ? formatNumber(usageStats.completionTokens) : '-' }}
+                </p>
+              </div>
+              <div v-if="usageStats?.daily?.length" class="rounded-xl bg-surface-container-low p-4">
+                <p class="mb-3 text-xs text-outline">近 {{ usageStats.daily.length }} 天趋势</p>
+                <div class="space-y-2">
+                  <div v-for="day in usageStats.daily.slice(0, 5)" :key="day.date" class="flex items-center justify-between text-xs">
+                    <span class="text-on-surface-variant">{{ day.date }}</span>
+                    <span class="tech-text font-bold text-on-surface">{{ formatNumber(day.totalTokens) }}</span>
+                  </div>
+                </div>
+              </div>
+              <p v-if="usageStats" class="text-[10px] text-outline">更新于 {{ formatRelativeTime(usageStats.lastUpdated) }}</p>
+            </div>
+          </section>
         </aside>
       </div>
     </div>
@@ -168,7 +205,7 @@ import AppIcon from '@/components/AppIcon.vue';
 import { apiGet, apiPost } from '@/lib/api';
 import { getRouteToken } from '@/lib/auth';
 import { formatDateTime, formatKeyValue, formatNumber, formatRelativeTime } from '@/lib/format';
-import type { LogLevel, ObservabilityEntriesResponse, ObservabilityLogEntry, ObservabilityLoggingConfig } from '@/lib/types';
+import type { LogLevel, ObservabilityEntriesResponse, ObservabilityLogEntry, ObservabilityLoggingConfig, TokenUsageStats } from '@/lib/types';
 
 const route = useRoute();
 const token = getRouteToken(route);
@@ -177,6 +214,7 @@ const levels: LogLevel[] = ['debug', 'info', 'warn', 'error'];
 
 const config = ref<ObservabilityLoggingConfig | null>(null);
 const entries = ref<ObservabilityLogEntry[]>([]);
+const usageStats = ref<TokenUsageStats | null>(null);
 const bufferTotal = ref(0);
 const loading = ref(false);
 const savingLevel = ref(false);
@@ -221,12 +259,13 @@ async function loadLogsPage() {
   }
   error.value = '';
 
-  const [configResult, entriesResult] = await Promise.all([
+  const [configResult, entriesResult, usageResult] = await Promise.all([
     apiGet<ObservabilityLoggingConfig>('/api/observability/logging/config', token),
     apiGet<ObservabilityEntriesResponse>('/api/observability/logging/entries', token, {
       limit: limit.value,
       level: levelFilter.value === 'all' ? undefined : levelFilter.value,
     }),
+    apiGet<TokenUsageStats>('/api/observability/usage', token),
   ]);
 
   if (configResult.error || entriesResult.error) {
@@ -237,6 +276,7 @@ async function loadLogsPage() {
   entries.value = entriesResult.data?.entries || [];
   bufferTotal.value = entriesResult.data?.total || 0;
   levelDraft.value = configResult.data?.level || levelDraft.value;
+  usageStats.value = usageResult.data ?? null;
   lastUpdatedAt.value = new Date();
   loading.value = false;
   initialLoad.value = false;
