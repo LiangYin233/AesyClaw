@@ -88,13 +88,9 @@ export class ExecutionEngine {
     toolContext: ToolContext,
     extra?: { signal?: AbortSignal; excludeTools?: string[] }
   ): Promise<string> {
-    const basePolicy = this.resolvePolicy(agentName, {
+    const policy = this.resolvePolicy(agentName, {
       excludeTools: extra?.excludeTools
     });
-    const policy: ExecutionPolicy = {
-      ...basePolicy,
-      skillsPrompt: ''
-    };
     return this.executeSubAgentTask(policy, task, toolContext, extra);
   }
 
@@ -110,8 +106,7 @@ export class ExecutionEngine {
     });
     const policy: ExecutionPolicy = {
       ...basePolicy,
-      systemPrompt,
-      skillsPrompt: ''
+      systemPrompt
     };
     return this.executeSubAgentTask(policy, task, toolContext, extra);
   }
