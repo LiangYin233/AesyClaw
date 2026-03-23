@@ -76,7 +76,7 @@
 
       <section>
         <label class="mb-3 block text-[10px] font-mono uppercase tracking-[0.2em] text-outline">技能边界</label>
-        <div ref="skillTriggerRef">
+        <div ref="skillTriggerRef" class="relative">
           <button
             class="flex w-full items-center justify-between rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition hover:border-primary/30"
             type="button"
@@ -87,37 +87,44 @@
             </span>
             <svg class="size-4 text-outline transition" :class="skillDropdownOpen ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" /></svg>
           </button>
-        </div>
-        <Teleport to="body">
-          <div v-if="skillDropdownOpen" ref="skillPanelRef" class="fixed z-[999] max-h-56 overflow-y-auto rounded-xl border border-outline-variant/20 bg-surface-container-lowest py-0 shadow-xl" :style="skillPanelStyle">
-            <div class="sticky top-0 z-10 flex items-center justify-between border-b border-outline-variant/15 bg-surface-container-lowest px-4 py-2">
-              <span class="text-[11px] font-bold tracking-[0.08em] text-outline">技能选择</span>
-              <div class="flex items-center gap-3 text-[11px] font-bold">
-                <button class="text-primary transition hover:opacity-80" type="button" @click="selectAllSkills">全选</button>
-                <button class="text-outline transition hover:text-on-surface" type="button" @click="clearSkills">清空</button>
+          <Teleport to="body">
+            <div
+              v-if="skillDropdownOpen"
+              ref="skillPanelRef"
+              class="fixed z-[999] overflow-hidden rounded-xl border border-outline-variant/20 bg-surface-container-lowest shadow-xl"
+              :style="skillPanelStyle"
+            >
+              <div class="flex items-center justify-between border-b border-outline-variant/15 px-4 py-2.5">
+                <span class="text-[11px] font-bold tracking-[0.08em] text-outline">技能选择</span>
+                <div class="flex items-center gap-3 text-[11px] font-bold">
+                  <button class="text-primary transition hover:opacity-80" type="button" @click="selectAllSkills">全选</button>
+                  <button class="text-outline transition hover:text-on-surface" type="button" @click="clearSkills">清空</button>
+                </div>
+              </div>
+              <div class="max-h-56 overflow-y-auto py-1">
+                <label
+                  v-for="skill in skills"
+                  :key="skill.name"
+                  class="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-surface-container-high"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="form.allowedSkills.includes(skill.name)"
+                    class="size-4 rounded border-outline-variant accent-primary"
+                    @change="toggleSkill(skill.name)"
+                  />
+                  <span class="text-on-surface">{{ skill.name }}</span>
+                </label>
+                <div v-if="!skills.length" class="px-4 py-3 text-xs text-outline">暂无可选技能</div>
               </div>
             </div>
-            <label
-              v-for="skill in skills"
-              :key="skill.name"
-              class="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-surface-container-high"
-            >
-              <input
-                type="checkbox"
-                :checked="form.allowedSkills.includes(skill.name)"
-                class="size-4 rounded border-outline-variant accent-primary"
-                @change="toggleSkill(skill.name)"
-              />
-              <span class="text-on-surface">{{ skill.name }}</span>
-            </label>
-            <div v-if="!skills.length" class="px-4 py-3 text-xs text-outline">暂无可选技能</div>
-          </div>
-        </Teleport>
+          </Teleport>
+        </div>
       </section>
 
       <section>
         <label class="mb-3 block text-[10px] font-mono uppercase tracking-[0.2em] text-outline">工具边界</label>
-        <div ref="toolTriggerRef">
+        <div ref="toolTriggerRef" class="relative">
           <button
             class="flex w-full items-center justify-between rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none transition hover:border-primary/30"
             type="button"
@@ -128,32 +135,39 @@
             </span>
             <svg class="size-4 text-outline transition" :class="toolDropdownOpen ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" /></svg>
           </button>
-        </div>
-        <Teleport to="body">
-          <div v-if="toolDropdownOpen" ref="toolPanelRef" class="fixed z-[999] max-h-56 overflow-y-auto rounded-xl border border-outline-variant/20 bg-surface-container-lowest py-0 shadow-xl" :style="toolPanelStyle">
-            <div class="sticky top-0 z-10 flex items-center justify-between border-b border-outline-variant/15 bg-surface-container-lowest px-4 py-2">
-              <span class="text-[11px] font-bold tracking-[0.08em] text-outline">工具选择</span>
-              <div class="flex items-center gap-3 text-[11px] font-bold">
-                <button class="text-primary transition hover:opacity-80" type="button" @click="selectAllTools">全选</button>
-                <button class="text-outline transition hover:text-on-surface" type="button" @click="clearTools">清空</button>
+          <Teleport to="body">
+            <div
+              v-if="toolDropdownOpen"
+              ref="toolPanelRef"
+              class="fixed z-[999] overflow-hidden rounded-xl border border-outline-variant/20 bg-surface-container-lowest shadow-xl"
+              :style="toolPanelStyle"
+            >
+              <div class="flex items-center justify-between border-b border-outline-variant/15 px-4 py-2.5">
+                <span class="text-[11px] font-bold tracking-[0.08em] text-outline">工具选择</span>
+                <div class="flex items-center gap-3 text-[11px] font-bold">
+                  <button class="text-primary transition hover:opacity-80" type="button" @click="selectAllTools">全选</button>
+                  <button class="text-outline transition hover:text-on-surface" type="button" @click="clearTools">清空</button>
+                </div>
+              </div>
+              <div class="max-h-56 overflow-y-auto py-1">
+                <label
+                  v-for="tool in tools"
+                  :key="tool.name"
+                  class="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-surface-container-high"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="form.allowedTools.includes(tool.name)"
+                    class="size-4 rounded border-outline-variant accent-primary"
+                    @change="toggleTool(tool.name)"
+                  />
+                  <span class="text-on-surface">{{ tool.name }}</span>
+                </label>
+                <div v-if="!tools.length" class="px-4 py-3 text-xs text-outline">暂无可选工具</div>
               </div>
             </div>
-            <label
-              v-for="tool in tools"
-              :key="tool.name"
-              class="flex cursor-pointer items-center gap-3 px-4 py-2.5 text-sm transition hover:bg-surface-container-high"
-            >
-              <input
-                type="checkbox"
-                :checked="form.allowedTools.includes(tool.name)"
-                class="size-4 rounded border-outline-variant accent-primary"
-                @change="toggleTool(tool.name)"
-              />
-              <span class="text-on-surface">{{ tool.name }}</span>
-            </label>
-            <div v-if="!tools.length" class="px-4 py-3 text-xs text-outline">暂无可选工具</div>
-          </div>
-        </Teleport>
+          </Teleport>
+        </div>
       </section>
     </div>
 
@@ -205,8 +219,8 @@ const skillPanelRef = useTemplateRef('skillPanelRef');
 const toolPanelRef = useTemplateRef('toolPanelRef');
 const skillPanelStyle = ref<Record<string, string>>({});
 const toolPanelStyle = ref<Record<string, string>>({});
-const skillNames = computed(() => props.skills.map((skill) => skill.name));
-const toolNames = computed(() => props.tools.map((tool) => tool.name));
+const skillNames = computed(() => props.skills.map((s) => s.name));
+const toolNames = computed(() => props.tools.map((t) => t.name));
 
 function toggleDropdown(type: 'skill' | 'tool') {
   if (type === 'skill') {
@@ -224,14 +238,23 @@ function positionPanel(type: 'skill' | 'tool') {
   const trigger = type === 'skill' ? skillTriggerRef.value : toolTriggerRef.value;
   if (!trigger) return;
   const rect = trigger.getBoundingClientRect();
-  const panelHeight = 192;
-  const spaceBelow = window.innerHeight - rect.bottom;
-  const showAbove = spaceBelow < panelHeight + 8;
-  const style = {
-    left: `${rect.left}px`,
-    width: `${rect.width}px`,
-    ...(showAbove ? { bottom: `${window.innerHeight - rect.top + 4}px` } : { top: `${rect.bottom + 4}px` }),
+  const panelWidth = rect.width;
+  const panelMaxHeight = 224;
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const spaceBelow = viewportHeight - rect.bottom;
+  const spaceAbove = rect.top;
+  const showAbove = spaceBelow < panelMaxHeight + 8 && spaceAbove > spaceBelow;
+  const hOffset = Math.max(8, Math.min(rect.left, viewportWidth - panelWidth - 8));
+  const style: Record<string, string> = {
+    left: `${hOffset}px`,
+    width: `${panelWidth}px`,
   };
+  if (showAbove) {
+    style.bottom = `${viewportHeight - rect.top + 4}px`;
+  } else {
+    style.top = `${rect.bottom + 4}px`;
+  }
   if (type === 'skill') skillPanelStyle.value = style;
   else toolPanelStyle.value = style;
 }
@@ -264,38 +287,36 @@ function clearTools() {
   props.form.allowedTools.splice(0, props.form.allowedTools.length);
 }
 
-function positionOpenPanels() {
-  if (skillDropdownOpen.value) {
-    positionPanel('skill');
-  }
-  if (toolDropdownOpen.value) {
-    positionPanel('tool');
-  }
-}
-
 function handleClickOutside(e: MouseEvent) {
   const target = e.target as Node;
-  const inSkillTrigger = skillTriggerRef.value?.contains(target);
-  const inToolTrigger = toolTriggerRef.value?.contains(target);
-  const inSkillPanel = skillPanelRef.value?.contains(target);
-  const inToolPanel = toolPanelRef.value?.contains(target);
-  if (!inSkillTrigger && !inSkillPanel) skillDropdownOpen.value = false;
-  if (!inToolTrigger && !inToolPanel) toolDropdownOpen.value = false;
+  if (!skillTriggerRef.value?.contains(target) && !skillPanelRef.value?.contains(target)) {
+    skillDropdownOpen.value = false;
+  }
+  if (!toolTriggerRef.value?.contains(target) && !toolPanelRef.value?.contains(target)) {
+    toolDropdownOpen.value = false;
+  }
 }
 
+let resizeObserver: ResizeObserver | null = null;
+
 function handleViewportChange() {
-  positionOpenPanels();
+  if (skillDropdownOpen.value) positionPanel('skill');
+  if (toolDropdownOpen.value) positionPanel('tool');
 }
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside);
   window.addEventListener('resize', handleViewportChange);
   window.addEventListener('scroll', handleViewportChange, true);
+  resizeObserver = new ResizeObserver(handleViewportChange);
+  if (skillTriggerRef.value) resizeObserver.observe(skillTriggerRef.value);
+  if (toolTriggerRef.value) resizeObserver.observe(toolTriggerRef.value);
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside);
   window.removeEventListener('resize', handleViewportChange);
   window.removeEventListener('scroll', handleViewportChange, true);
+  resizeObserver?.disconnect();
 });
 </script>
