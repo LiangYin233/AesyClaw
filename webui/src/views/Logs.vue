@@ -180,10 +180,16 @@
                   {{ usageStats ? formatNumber(usageStats.completionTokens) : '-' }}
                 </p>
               </div>
-              <div v-if="usageStats?.daily?.length" class="rounded-xl bg-surface-container-low p-4">
-                <p class="mb-3 text-xs text-outline">近 {{ Math.min(usageStats.daily.length, 7) }} 天趋势</p>
+              <div class="rounded-xl bg-surface-container-low p-4">
+                <p class="text-xs text-outline">今日消耗</p>
+                <p class="mt-1 text-sm font-bold text-on-surface">
+                  {{ todayStats ? formatNumber(todayStats.promptTokens) : '-' }}<span class="text-xs font-normal text-outline"> / </span>{{ todayStats ? formatNumber(todayStats.completionTokens) : '-' }}
+                </p>
+              </div>
+              <div v-if="pastWeekStats.length" class="rounded-xl bg-surface-container-low p-4">
+                <p class="mb-3 text-xs text-outline">近 {{ pastWeekStats.length }} 天趋势</p>
                 <div class="space-y-2">
-                  <div v-for="day in usageStats.daily.slice(0, 7)" :key="day.date" class="flex items-center justify-between text-xs">
+                  <div v-for="day in pastWeekStats" :key="day.date" class="flex items-center justify-between text-xs">
                     <span class="text-on-surface-variant">{{ day.date }}</span>
                     <span class="tech-text font-bold text-on-surface">
                       {{ formatNumber(day.promptTokens) }}<span class="text-outline font-normal"> / </span>{{ formatNumber(day.completionTokens) }}
@@ -239,6 +245,21 @@ const bufferUsagePercent = computed(() => {
 });
 const lastUpdatedLabel = computed(() => lastUpdatedAt.value ? formatRelativeTime(lastUpdatedAt.value) : '-');
 const lastUpdatedTime = computed(() => lastUpdatedAt.value ? formatDateTime(lastUpdatedAt.value) : '-');
+
+const todayDate = computed(() => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+});
+
+const todayStats = computed(() => {
+  if (!usageStats.value?.daily?.length) return null;
+  return usageStats.value.daily.find((day) => day.date === todayDate.value) || null;
+});
+
+const pastWeekStats = computed(() => {
+  if (!usageStats.value?.daily?.length) return [];
+  return usageStats.value.daily.filter((day) => day.date !== todayDate.value).slice(0, 7);
+});
 
 function levelLabel(level: LogLevel | 'all') {
   if (level === 'all') return '全部';
