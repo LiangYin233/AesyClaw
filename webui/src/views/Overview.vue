@@ -26,14 +26,14 @@
       </div>
 
       <div class="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <article class="rounded-2xl border-b-2 border-primary/20 bg-surface-container-lowest p-5 shadow-sm">
+        <article class="rounded-2xl bg-surface-container-lowest p-5 shadow-sm">
           <div class="mb-3 flex items-start justify-between">
             <AppIcon name="panel" class="text-primary" />
             <span class="rounded bg-primary-fixed px-2 py-0.5 text-[10px] font-bold text-on-primary-fixed">{{ status?.agentRunning ? '运行中' : '已停止' }}</span>
           </div>
           <p class="cn-kicker text-outline">当前版本</p>
           <p class="cn-metric mt-1 text-on-surface">{{ status?.version || '-' }}</p>
-          <p class="tech-text mt-2 text-xs text-on-surface-variant">运行时长：{{ status ? formatUptime(status.uptime) : '-' }}</p>
+          <p class="mt-2 text-xs text-on-surface-variant">运行时长：{{ status ? formatUptime(status.uptime) : '-' }}</p>
         </article>
 
         <article class="rounded-2xl bg-surface-container-lowest p-5 shadow-sm">
@@ -41,11 +41,11 @@
             <AppIcon name="sessions" class="text-tertiary" />
             <span class="rounded bg-tertiary-fixed px-2 py-0.5 text-[10px] font-bold text-on-tertiary-fixed">活跃</span>
           </div>
-          <p class="cn-kicker text-outline">会话负载</p>
+          <p class="cn-kicker text-outline">会话数量</p>
           <p class="cn-metric mt-1 text-on-surface">{{ sessions.length }} 个会话</p>
-          <div class="mt-3 flex gap-1">
-            <div v-for="item in 4" :key="item" class="h-1 flex-1 rounded-full" :class="item <= sessionLoadBars ? 'bg-primary' : 'bg-outline-variant/25'"></div>
-          </div>
+          <p class="mt-2 text-xs font-medium text-on-surface-variant">
+            消息总数 {{ totalMessages }}
+          </p>
         </article>
 
         <article class="rounded-2xl bg-surface-container-lowest p-5 shadow-sm">
@@ -82,8 +82,8 @@
             <AppIcon name="observability" class="text-outline" />
           </div>
           <p class="cn-kicker text-outline">Token 使用</p>
-          <p class="mt-1 font-headline text-xl font-extrabold text-on-surface">{{ usageStats ? formatNumber(usageStats.totalTokens) : '-' }}</p>
-          <p class="mt-2 font-mono text-xs text-on-surface-variant">{{ usageStats ? `${formatNumber(usageStats.requestCount)} 次请求` : '暂无统计' }}</p>
+          <p class="cn-metric mt-1 text-on-surface">{{ usageStats ? formatNumber(usageStats.totalTokens) : '-' }}</p>
+          <p class="mt-2 text-xs text-on-surface-variant">{{ usageStats ? `${formatNumber(usageStats.requestCount)} 次请求` : '暂无统计' }}</p>
         </article>
       </div>
 
@@ -92,7 +92,7 @@
           <h3 class="font-headline text-lg font-bold text-on-surface">运行事件流</h3>
           <router-link :to="{ path: '/observability/logs', query: token ? { token } : {} }" class="text-xs font-bold tracking-[0.08em] text-primary hover:underline">查看日志</router-link>
         </div>
-        <div class="scrollbar-hide flex items-center gap-4 overflow-x-auto pb-2">
+        <div class="flex items-center gap-4 overflow-x-auto pb-2">
           <template v-if="recentEvents.length > 0">
             <template v-for="(entry, index) in recentEvents" :key="entry.id">
               <div class="flex shrink-0 items-center gap-3 rounded-2xl border-l-4 bg-surface-container-low px-4 py-3" :class="eventBorderClass(entry.level)">
@@ -172,9 +172,9 @@
             <div class="absolute -bottom-5 -right-5 opacity-10">
               <AppIcon name="rocket" size="xl" class="size-28" />
             </div>
-            <p class="cn-kicker opacity-70">猜你在找</p>
-            <h4 class="mt-2 font-headline text-xl font-extrabold">从 Agent 开始配置更快</h4>
-            <p class="mt-2 text-sm leading-6 opacity-80">如果你准备调整角色能力、绑定技能或检查缺失资源，可以先进入 Agent 页面，这里会更集中也更直观。</p>
+            <p class="cn-kicker opacity-70">快速入口</p>
+            <h4 class="mt-2 font-headline text-xl font-extrabold">从 Agent 开始配置更高效</h4>
+            <p class="mt-2 text-sm leading-6 opacity-80">调整角色能力、绑定技能或检查资源，可先进入 Agent 页面操作。</p>
             <router-link :to="{ path: '/agents', query: token ? { token } : {} }" class="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-primary transition hover:bg-white/90">
               前往 Agent 页
               <AppIcon name="arrowRight" size="sm" />
@@ -209,16 +209,22 @@ const refreshing = ref(false);
 const error = ref('');
 
 const recentSessions = computed(() => [...sessions.value].sort((a, b) => b.messageCount - a.messageCount).slice(0, 6));
+const totalMessages = computed(() => sessions.value.reduce((sum, s) => sum + s.messageCount, 0));
 const missingAgentCount = computed(() => agents.value.filter((agent) => agent.missingSkills.length > 0 || agent.missingTools.length > 0).length);
 const readyAgents = computed(() => agents.value.length - missingAgentCount.value);
 const disconnectedServers = computed(() => servers.value.filter((server) => server.status !== 'connected').length);
-const recentEvents = computed(() => logs.value.slice(0, 4));
-const sessionLoadBars = computed(() => {
-  if (sessions.value.length >= 12) return 4;
-  if (sessions.value.length >= 8) return 3;
-  if (sessions.value.length >= 4) return 2;
-  return sessions.value.length > 0 ? 1 : 0;
-});
+const importantScopes = ['bootstrap', 'mcp', 'mcpruntime', 'channelmanager', 'channelruntime', 'pluginmanager', 'pluginruntimefactory', 'cron', 'cronservice'];
+const recentEvents = computed(() => logs.value
+  .filter((entry) => {
+    if (entry.level === 'warn' || entry.level === 'error') return true;
+    if (entry.level === 'info') {
+      const scope = entry.scope?.toLowerCase() || '';
+      return importantScopes.some((s) => scope.includes(s));
+    }
+    return false;
+  })
+  .slice(0, 4)
+);
 
 const criticalAlerts = computed(() => {
   const alerts: Array<{ title: string; description: string; icon: string; tone: string; action?: { label: string; path: string } }> = [];

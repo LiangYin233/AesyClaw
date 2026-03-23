@@ -30,7 +30,7 @@
           <p class="cn-metric mt-2 text-emerald-600">{{ enabledCount }}</p>
         </article>
         <article class="hairline-card rounded-2xl p-5">
-          <p class="cn-kicker text-outline">异常候选</p>
+          <p class="cn-kicker text-outline">已停用</p>
           <p class="cn-metric mt-2 text-error">{{ disabledCount }}</p>
         </article>
         <article class="hairline-card rounded-2xl p-5">
@@ -42,7 +42,7 @@
       <div class="flex flex-col gap-6 xl:flex-row">
         <section class="min-w-0 flex-1 space-y-4">
           <div class="flex items-center justify-between px-2">
-            <h2 class="cn-section-title text-on-surface">活跃市场</h2>
+            <h2 class="cn-section-title text-on-surface">插件列表</h2>
             <span class="tech-text text-xs text-on-surface-variant">{{ plugins.length }} 个插件</span>
           </div>
 
@@ -99,7 +99,7 @@
           <div class="sidebar-rail-scroll space-y-6">
             <section class="rounded-[1.6rem] bg-surface-container-low p-6">
               <div class="mb-6 flex items-center justify-between">
-                <h3 class="cn-section-title text-on-surface">Inspector</h3>
+                <h3 class="cn-section-title text-on-surface">检视面板</h3>
                 <AppIcon name="overview" size="sm" class="text-outline" />
               </div>
 

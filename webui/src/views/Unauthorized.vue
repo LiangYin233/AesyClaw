@@ -5,8 +5,8 @@
         <AppIcon name="warning" />
       </div>
       <p class="cn-kicker mt-6 text-outline">未授权</p>
-      <h1 class="mt-2 text-[2.2rem] font-extrabold text-on-surface">缺少访问 token</h1>
-      <p class="cn-body mt-4 text-sm text-on-surface-variant">当前控制台要求通过 `?token=` 访问后端 API。请使用带 token 的链接重新打开，例如 `http://localhost:3000/overview?token=你的token`。</p>
+      <h1 class="mt-2 text-[2.2rem] font-extrabold text-on-surface">未提供访问凭证</h1>
+      <p class="cn-body mt-4 text-sm text-on-surface-variant">请在浏览器地址栏中添加 `?token=你的凭证` 参数后重新访问。</p>
     </div>
   </div>
 </template>

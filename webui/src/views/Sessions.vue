@@ -5,7 +5,7 @@
         <div>
           <p class="cn-kicker text-outline">会话</p>
           <h1 class="cn-page-title mt-2 text-on-surface">会话总台</h1>
-          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">集中查看当前会话、消息负载与当前路由角色。桌面端优先高密度扫描，小屏自动退化为卡片列表和抽屉详情。</p>
+          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">集中查看当前会话、消息负载与当前路由角色。</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <button

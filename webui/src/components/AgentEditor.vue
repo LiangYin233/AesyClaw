@@ -44,7 +44,7 @@
 
       <section>
         <label class="mb-3 block text-[10px] font-mono uppercase tracking-[0.2em] text-outline">系统提示词</label>
-        <textarea v-model="form.systemPrompt" rows="8" class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-4 text-sm leading-6 outline-none transition focus:border-primary/40" placeholder="请为该 Agent 定义行为边界、沟通风格与约束。" />
+        <textarea v-model="form.systemPrompt" rows="8" class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-4 text-sm leading-6 outline-none transition focus:border-primary/40" placeholder="请输入系统提示词，定义 Agent 的行为方式。" />
       </section>
 
       <section>

@@ -5,7 +5,7 @@
         <div>
           <p class="cn-kicker text-outline">设置</p>
           <h1 class="cn-page-title mt-2 text-on-surface">系统配置</h1>
-          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">在这里统一调整服务参数、主 Agent、记忆策略和扩展模块配置，保存后会写回当前系统设置。</p>
+          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">在这里调整服务参数、主 Agent、记忆策略和扩展模块配置，保存后立即生效。</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <button
@@ -50,7 +50,7 @@
                 </div>
                 <div>
                   <h3 class="cn-section-title text-on-surface">服务设置</h3>
-                  <p class="mt-1 text-sm text-on-surface-variant">网关主机、端口与接口开关。</p>
+                  <p class="mt-1 text-sm text-on-surface-variant">服务地址、端口与 API 开关。</p>
                 </div>
               </div>
               <span class="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-bold tracking-[0.08em] text-emerald-700">已接入</span>
@@ -92,7 +92,7 @@
                   <p class="mt-1 text-sm text-on-surface-variant">默认角色的模型与能力参数。</p>
                 </div>
               </div>
-              <span class="rounded-full bg-orange-100 px-3 py-1 text-[10px] font-bold tracking-[0.08em] text-orange-700">部分变更需重载</span>
+              <span class="rounded-full bg-orange-100 px-3 py-1 text-[10px] font-bold tracking-[0.08em] text-orange-700">部分变更需重启生效</span>
             </div>
 
             <div class="space-y-6">

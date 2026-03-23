@@ -73,7 +73,7 @@
           </div>
           <p class="cn-kicker text-outline">近期操作</p>
           <p class="cn-metric mt-1 text-on-surface">{{ totalOperations }}</p>
-          <p class="mt-2 text-xs text-on-surface-variant">来自最近一轮内存维护与人工清理</p>
+          <p class="mt-2 text-xs text-on-surface-variant">来自最近一轮记忆维护与人工清理</p>
         </article>
       </div>
 
@@ -133,7 +133,7 @@
 
             <div v-else class="px-5 py-14 text-center">
               <p class="cn-section-title text-on-surface">当前没有可展示的记忆条目</p>
-              <p class="mt-2 text-sm text-on-surface-variant">等系统跑出摘要或长期事实后，这里会自动进入新的工作台视图。</p>
+              <p class="mt-2 text-sm text-on-surface-variant">待系统生成摘要或长期事实后，此处将自动更新。</p>
             </div>
           </section>
 

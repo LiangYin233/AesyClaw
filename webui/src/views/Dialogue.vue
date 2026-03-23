@@ -185,7 +185,7 @@
 
             <div v-else class="rounded-[1.4rem] bg-surface-container-low p-8 text-center">
               <p class="cn-section-title text-on-surface">准备开始新的对话</p>
-              <p class="cn-body mt-2 text-sm text-on-surface-variant">输入指令后会自动创建新的 WebUI 会话，你可以在这里持续追踪整轮对话内容。</p>
+              <p class="cn-body mt-2 text-sm text-on-surface-variant">输入消息后会自动创建新的 WebUI 会话，你可以在这里持续追踪整轮对话内容。</p>
             </div>
           </div>
         </div>
@@ -209,7 +209,7 @@
                 <textarea
                   v-model="draft"
                   class="min-h-[72px] w-full resize-none bg-transparent px-3 py-3 text-sm text-on-surface outline-none placeholder:text-outline md:min-h-[108px]"
-                  placeholder="输入指令..."
+                  placeholder="输入消息..."
                   @keydown="handleDraftKeydown"
                 ></textarea>
 
@@ -232,7 +232,7 @@
                     type="button"
                     @click="sendMessage"
                   >
-                    {{ sending ? '发送中...' : '发送指令' }}
+                    {{ sending ? '发送中...' : '发送消息' }}
                     <AppIcon name="arrowRight" size="sm" />
                   </button>
                 </div>

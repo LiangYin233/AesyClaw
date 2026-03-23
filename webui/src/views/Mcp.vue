@@ -6,7 +6,7 @@
           <header class="mb-8">
             <p class="cn-kicker text-outline">MCP</p>
             <h1 class="cn-page-title mt-2 text-on-surface">MCP 连接中心</h1>
-            <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">在这里查看 MCP 服务连接状态、暴露工具和相关日志，方便排查哪些服务可用、哪些服务异常。</p>
+            <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">在这里查看 MCP 服务连接状态、可用工具和相关日志，方便排查服务问题。</p>
           </header>
 
           <div v-if="error" class="mb-6 rounded-2xl border border-error/20 bg-error-container/60 px-5 py-4 text-sm text-on-error-container">
@@ -87,7 +87,7 @@
                 </div>
 
                 <div class="flex flex-col items-start gap-2 md:items-end">
-                  <p class="tech-text text-[11px]" :class="server.error ? 'text-error' : 'text-outline'">{{ server.error || `已连接：${server.connectedAt ? formatDateTime(server.connectedAt) : '未知'}` }}</p>
+                  <p class="tech-text text-[11px]" :class="server.error ? 'text-error' : 'text-outline'">{{ server.error || `已连接：${server.connectedAt ? formatDateTime(server.connectedAt) : '-'}` }}</p>
                   <div class="flex gap-2">
                     <button class="rounded-lg border border-outline-variant/20 px-3 py-2 text-xs font-semibold text-on-surface transition hover:bg-surface-container-high" type="button" @click="selectServer(server.name)">
                       检视
@@ -188,24 +188,6 @@
                 <p v-if="!tools.length" class="text-sm text-on-surface-variant">当前服务尚未暴露工具，或仍未连接成功。</p>
               </div>
             </section>
-
-            <section class="rounded-[1.6rem] bg-slate-950 p-5 text-slate-100 shadow-2xl shadow-slate-900/10">
-              <div class="mb-4 flex items-center justify-between">
-                <h3 class="cn-kicker text-slate-500">实时日志</h3>
-                <div class="flex gap-2">
-                  <span class="inline-block size-2 rounded-full bg-emerald-500"></span>
-                  <span class="inline-block size-2 rounded-full bg-slate-700"></span>
-                </div>
-              </div>
-              <div class="max-h-[22rem] space-y-2 overflow-y-auto pr-2">
-                <p v-for="entry in filteredLogs" :key="entry.id" class="tech-text text-[11px] leading-5 text-slate-300">
-                  <span class="text-slate-500">[{{ formatDateTime(entry.timestamp) }}]</span>
-                  <span class="ml-2" :class="entry.level === 'error' ? 'text-red-400' : entry.level === 'warn' ? 'text-amber-300' : 'text-sky-400'">{{ entry.level.toUpperCase() }}</span>
-                  <span class="ml-2">{{ entry.message }}</span>
-                </p>
-                <p v-if="!filteredLogs.length" class="text-sm text-slate-400">当前没有匹配到相关 MCP 日志。</p>
-              </div>
-            </section>
           </div>
         </aside>
       </div>
@@ -219,7 +201,7 @@ import AppIcon from '@/components/AppIcon.vue';
 import { apiDelete, apiGet, apiPost } from '@/lib/api';
 import { getRouteToken } from '@/lib/auth';
 import { formatDateTime, formatRelativeTime } from '@/lib/format';
-import type { MCPServerInfo, ObservabilityLogEntry, ToolInfo } from '@/lib/types';
+import type { MCPServerInfo, ToolInfo } from '@/lib/types';
 import { useRoute } from 'vue-router';
 
 type McpDraft = NonNullable<MCPServerInfo['config']>;
@@ -229,7 +211,6 @@ const token = getRouteToken(route);
 
 const servers = ref<MCPServerInfo[]>([]);
 const tools = ref<ToolInfo[]>([]);
-const logs = ref<ObservabilityLogEntry[]>([]);
 const selectedName = ref('');
 const draftName = ref('');
 const draft = ref<McpDraft>(createDraft());
@@ -244,14 +225,6 @@ const jsonError = ref('');
 const connectedCount = computed(() => servers.value.filter((server) => server.status === 'connected').length);
 const disconnectedCount = computed(() => servers.value.filter((server) => server.status !== 'connected').length);
 const totalTools = computed(() => servers.value.reduce((sum, server) => sum + server.toolCount, 0));
-const filteredLogs = computed(() => {
-  const keyword = selectedName.value.toLowerCase();
-  return logs.value.filter((entry) => (
-    entry.scope.toLowerCase().includes('mcp')
-    || entry.message.toLowerCase().includes('mcp')
-    || (keyword && entry.message.toLowerCase().includes(keyword))
-  )).slice(0, 20);
-});
 
 function createDraft(): McpDraft {
   return {
@@ -311,20 +284,16 @@ async function loadServers() {
   loading.value = true;
   error.value = '';
 
-  const [serversResult, logsResult] = await Promise.all([
-    apiGet<{ servers: MCPServerInfo[] }>('/api/mcp/servers', token),
-    apiGet<{ entries: ObservabilityLogEntry[] }>('/api/observability/logging/entries', token, { limit: 40 }),
-  ]);
+  const result = await apiGet<{ servers: MCPServerInfo[] }>('/api/mcp/servers', token);
   loading.value = false;
 
-  if (serversResult.error || !serversResult.data) {
-    error.value = serversResult.error || 'MCP 服务加载失败';
+  if (result.error || !result.data) {
+    error.value = result.error || 'MCP 服务加载失败';
     servers.value = [];
     return;
   }
 
-  servers.value = serversResult.data.servers;
-  logs.value = logsResult.data?.entries || [];
+  servers.value = result.data.servers;
 
   if (!servers.value.some((server) => server.name === selectedName.value)) {
     selectedName.value = servers.value[0]?.name || '';

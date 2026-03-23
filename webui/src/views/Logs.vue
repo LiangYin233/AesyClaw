@@ -5,7 +5,7 @@
         <div>
           <p class="cn-kicker text-outline">观测</p>
           <h1 class="cn-page-title mt-2 text-on-surface">日志观测面板</h1>
-          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">直接接入运行时日志缓冲区，支持等级筛选、缓冲占用查看和在线调整日志级别，便于快速定位链路问题。</p>
+          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">查看运行日志，支持等级筛选和实时调整日志级别，便于快速定位问题。</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <button
@@ -45,9 +45,9 @@
             <AppIcon name="panel" class="text-tertiary" />
             <span class="rounded-full bg-tertiary-fixed px-2 py-0.5 text-[10px] font-bold text-on-tertiary-fixed">{{ bufferUsagePercent }}</span>
           </div>
-          <p class="cn-kicker text-outline">缓冲占用</p>
+          <p class="cn-kicker text-outline">日志条目数</p>
           <p class="cn-metric mt-1 text-on-surface">{{ currentBufferSize }}</p>
-          <p class="tech-text mt-2 text-xs text-on-surface-variant">上限 {{ bufferCapacity }}</p>
+          <p class="tech-text mt-2 text-xs text-on-surface-variant">最大容量 {{ bufferCapacity }}</p>
         </article>
 
         <article class="hairline-card rounded-2xl p-5">

@@ -24,19 +24,19 @@
 
           <div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <article class="rounded-2xl bg-surface-container-low p-4">
-              <p class="tech-text text-[10px] tracking-[0.14em] text-outline">TOTAL SKILLS</p>
+              <p class="tech-text text-[10px] tracking-[0.14em] text-outline">技能总数</p>
               <p class="cn-metric mt-2 text-primary">{{ skills.length }}</p>
             </article>
             <article class="rounded-2xl bg-surface-container-low p-4">
-              <p class="tech-text text-[10px] tracking-[0.14em] text-outline">SYSTEM BUILT-IN</p>
+              <p class="tech-text text-[10px] tracking-[0.14em] text-outline">系统内建</p>
               <p class="cn-metric mt-2 text-on-surface">{{ builtinCount }}</p>
             </article>
             <article class="rounded-2xl bg-surface-container-low p-4">
-              <p class="tech-text text-[10px] tracking-[0.14em] text-outline">PROJECT CUSTOM</p>
+              <p class="tech-text text-[10px] tracking-[0.14em] text-outline">项目自定义</p>
               <p class="cn-metric mt-2 text-on-surface">{{ externalCount }}</p>
             </article>
             <article class="rounded-2xl bg-surface-container-low p-4">
-              <p class="tech-text text-[10px] tracking-[0.14em] text-outline">ENABLED</p>
+              <p class="tech-text text-[10px] tracking-[0.14em] text-outline">已启用</p>
               <p class="cn-metric mt-2 text-tertiary">{{ enabledCount }}</p>
             </article>
           </div>

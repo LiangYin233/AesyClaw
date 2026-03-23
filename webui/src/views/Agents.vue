@@ -126,7 +126,7 @@
               </div>
             </div>
 
-            <p class="mb-5 line-clamp-2 min-h-10 text-xs leading-5 text-on-surface-variant">{{ agent.description || '暂无描述，建议补充该角色的责任边界与使用场景。' }}</p>
+            <p class="mb-5 line-clamp-2 min-h-10 text-xs leading-5 text-on-surface-variant">{{ agent.description || '暂无描述' }}</p>
 
             <div class="mb-5 flex h-6 flex-wrap gap-2 overflow-hidden">
               <span v-for="skill in agent.allowedSkills.slice(0, 4)" :key="skill" class="rounded-md bg-surface-container-low px-2 py-1 text-[10px] font-bold text-on-surface-variant">{{ skill }}</span>

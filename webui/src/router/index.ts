@@ -60,7 +60,7 @@ const router = createRouter({
         { path: 'mcp', name: 'mcp', component: Mcp, meta: { title: 'MCP' } },
         { path: 'observability/logs', name: 'observability-logs', component: Logs, meta: { title: '观测' } },
         { path: 'settings/config', name: 'settings-config', component: Config, meta: { title: '设置' } },
-        { path: ':pathMatch(.*)*', name: 'placeholder', component: () => import('@/views/Placeholder.vue'), meta: { title: '控制台', description: '该路径已进入新版控制台，但模块内容尚未完全迁移。' } },
+        { path: ':pathMatch(.*)*', redirect: (to) => ({ path: '/overview', query: to.query, hash: to.hash }) },
       ],
     },
   ],
