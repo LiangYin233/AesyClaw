@@ -182,16 +182,12 @@
               </div>
               <div v-if="usageStats?.daily?.length" class="rounded-xl bg-surface-container-low p-4">
                 <p class="mb-3 text-xs text-outline">近 {{ Math.min(usageStats.daily.length, 7) }} 天趋势</p>
-                <div class="space-y-3">
-                  <div v-for="day in usageStats.daily.slice(0, 7)" :key="day.date" class="text-xs">
-                    <div class="flex items-center justify-between">
-                      <span class="text-on-surface-variant">{{ day.date }}</span>
-                      <span class="tech-text font-bold text-on-surface">{{ formatNumber(day.totalTokens) }}</span>
-                    </div>
-                    <div class="mt-1 flex items-center gap-2 text-[10px] text-outline">
-                      <span>P {{ formatNumber(day.promptTokens) }}</span>
-                      <span>C {{ formatNumber(day.completionTokens) }}</span>
-                    </div>
+                <div class="space-y-2">
+                  <div v-for="day in usageStats.daily.slice(0, 7)" :key="day.date" class="flex items-center justify-between text-xs">
+                    <span class="text-on-surface-variant">{{ day.date }}</span>
+                    <span class="tech-text font-bold text-on-surface">
+                      {{ formatNumber(day.promptTokens) }}<span class="text-outline font-normal"> / </span>{{ formatNumber(day.completionTokens) }}
+                    </span>
                   </div>
                 </div>
               </div>
