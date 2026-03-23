@@ -91,7 +91,7 @@
 
               <div class="flex gap-2 self-start">
                 <button class="rounded-xl border border-outline-variant/20 px-3 py-2 text-xs font-semibold text-on-surface transition hover:bg-surface-container-high" type="button" @click="selectedName = plugin.name">
-                  检视
+查看
                 </button>
                 <button class="rounded-xl border px-3 py-2 text-xs font-semibold transition" :class="plugin.enabled ? 'border-error/20 text-error hover:bg-error-container/60' : 'border-primary/20 text-primary hover:bg-primary-fixed/50'" type="button" @click="togglePlugin(plugin)">
                   {{ plugin.enabled ? '停用' : '启用' }}
@@ -117,7 +117,7 @@
                   </div>
                   <p class="mt-3 text-sm leading-6 text-on-surface-variant">
                     {{ selectedPlugin.kind === 'channel'
-                      ? `该渠道插件当前映射到 ${selectedPlugin.channelName || 'unknown'} 渠道，运行状态为 ${selectedPlugin.running ? '已启动' : '未启动'}。`
+                      ? `这个渠道插件目前连接到 ${selectedPlugin.channelName || 'unknown'}，运行状态为 ${selectedPlugin.running ? '已启动' : '未启动'}。`
                       : `该插件当前接入 ${selectedPlugin.toolsCount} 个工具，并可通过配置项参与消息链路与扩展动作。` }}
                   </p>
                   <div class="mt-4 h-1.5 overflow-hidden rounded-full bg-outline-variant/20">

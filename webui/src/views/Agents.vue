@@ -78,7 +78,7 @@
                 <div class="flex items-center gap-2">
                   <span class="font-mono text-[10px] text-outline">模型：{{ mainAgent.model || '-' }}</span>
                   <button class="rounded-lg border border-primary/15 bg-white px-4 py-2 text-xs font-bold text-primary transition hover:bg-primary hover:text-white" type="button" @click="selectAgent(mainAgent)">
-                    配置主角色
+                    编辑主角色
                   </button>
                 </div>
               </div>
@@ -141,7 +141,7 @@
             </div>
 
             <div class="flex items-center justify-between border-t border-outline-variant/10 pt-4">
-              <span class="font-mono text-[10px] text-outline">{{ agent.vision ? '视觉开启' : '纯文本' }}</span>
+              <span class="font-mono text-[10px] text-outline">{{ agent.vision ? '视觉开启' : '纯文本模式' }}</span>
               <span class="text-xs font-bold text-primary group-hover:underline">编辑边界</span>
             </div>
           </button>

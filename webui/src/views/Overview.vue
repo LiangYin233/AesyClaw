@@ -171,8 +171,8 @@
               <AppIcon name="rocket" size="xl" class="size-28" />
             </div>
             <p class="cn-kicker opacity-70">快速入口</p>
-            <h4 class="mt-2 font-headline text-xl font-extrabold">从 Agent 开始配置更高效</h4>
-            <p class="mt-2 text-sm leading-6 opacity-80">调整角色能力、绑定技能或检查资源，可先进入 Agent 页面操作。</p>
+            <h4 class="mt-2 font-headline text-xl font-extrabold">从主角色开始</h4>
+            <p class="mt-2 text-sm leading-6 opacity-80">配置模型与系统提示词，再绑定所需技能与工具。</p>
             <router-link :to="{ path: '/agents', query: token ? { token } : {} }" class="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-primary transition hover:bg-white/90">
               前往 Agent 页
               <AppIcon name="arrowRight" size="sm" />
@@ -230,7 +230,7 @@ const criticalAlerts = computed(() => {
   const missingAgent = agents.value.find((agent) => agent.missingSkills.length > 0 || agent.missingTools.length > 0);
   if (missingAgent) {
     alerts.push({
-      title: `Agent "${missingAgent.name}" 存在缺失资源`,
+      title: `Agent "${missingAgent.name}" 缺少必要的技能或工具`,
       description: `缺失技能 ${missingAgent.missingSkills.join('、') || '无'}；缺失工具 ${missingAgent.missingTools.join('、') || '无'}。建议先补齐再投入运行。`,
       icon: 'warning',
       tone: 'border-error bg-error-container/25 text-error',
@@ -241,8 +241,8 @@ const criticalAlerts = computed(() => {
   const failedServer = servers.value.find((server) => server.status !== 'connected');
   if (failedServer) {
     alerts.push({
-      title: `MCP 服务 "${failedServer.name}" 未连接`,
-      description: failedServer.error || '当前服务未处于 connected 状态，依赖它的工具调用可能会失败。',
+      title: `MCP 服务 "${failedServer.name}" 连接失败了`,
+      description: failedServer.error || '服务目前未连接，依赖它的工具可能无法使用。',
       icon: 'mcp',
       tone: 'border-tertiary bg-tertiary-fixed/20 text-tertiary',
       action: { label: '查看 MCP', path: '/mcp' },

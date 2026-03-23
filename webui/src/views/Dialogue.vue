@@ -404,7 +404,7 @@ function sessionStateLabel(session: Session) {
 }
 
 function sessionPreview(key: string) {
-  return sessionPreviews.value[key] || '等待读取更多上下文...';
+  return sessionPreviews.value[key] || '正在加载消息...';
 }
 
 function createDraftSessionKey() {

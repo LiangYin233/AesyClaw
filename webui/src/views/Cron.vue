@@ -309,9 +309,9 @@ function scheduleToken(schedule: CronJob['schedule']) {
 
 function scheduleSummary(schedule: CronJob['schedule']) {
   if (schedule.kind === 'cron') return '按 cron 表达式循环执行';
-  if (schedule.kind === 'interval') return `每 ${schedule.intervalMs || 0}ms 执行一次`;
-  if (schedule.kind === 'daily') return `每天 ${schedule.dailyAt || '--'} 执行`;
-  return '单次定时执行';
+  if (schedule.kind === 'interval') return '每隔一段时间执行';
+  if (schedule.kind === 'daily') return '每天定时执行';
+  return '只执行一次';
 }
 
 async function loadJobs() {
@@ -409,7 +409,7 @@ async function toggleJob(job: CronJob) {
 }
 
 async function deleteJob() {
-  if (!selectedId.value || !window.confirm(`确认删除任务 ${draft.value.name || selectedId.value} 吗？`)) {
+  if (!selectedId.value || !window.confirm(`确定要删除任务 "${draft.value.name || selectedId.value}" 吗？此操作不可撤销。`)) {
     return;
   }
 

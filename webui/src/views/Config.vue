@@ -192,7 +192,7 @@
             <div class="mb-6 flex items-center justify-between">
               <div>
                 <h3 class="cn-section-title text-on-surface">Provider 配置</h3>
-                <p class="mt-1 text-sm text-on-surface-variant">这里直接编辑底层模型提供商配置，主 Agent 与记忆模块可复用这些 provider 名称。</p>
+                <p class="mt-1 text-sm text-on-surface-variant">这里直接编辑模型提供商配置，主 Agent 与记忆模块可复用这些 provider 名称。</p>
               </div>
               <button
                 class="rounded-xl bg-surface-container-high px-4 py-2 text-sm font-semibold text-on-surface transition hover:bg-surface-container-highest"
@@ -356,7 +356,7 @@ function parseJsonObject(text: string, label: string): Record<string, unknown> {
   try {
     parsed = JSON.parse(trimmed);
   } catch {
-    throw new Error(`${label} 必须是合法 JSON`);
+    throw new Error(`${label} 必须是有效的 JSON 格式`);
   }
 
   if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
@@ -528,7 +528,7 @@ async function saveConfig() {
 
   config.value = normalizeConfig(configDraft.value);
   syncProviderEditors();
-  saveMessage.value = '配置已写回磁盘。部分模块可能需要重载后生效。';
+  saveMessage.value = '配置已保存。部分模块可能需要重启后生效。';
 }
 
 function goToLogs() {

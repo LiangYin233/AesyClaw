@@ -192,7 +192,7 @@
 
             <div v-else class="px-5 py-14 text-center">
               <p class="cn-section-title text-on-surface">当前没有活跃会话</p>
-              <p class="cn-body mt-2 text-sm text-on-surface-variant">你可以前往对话页新建一轮交互，或等待其他渠道写入新的会话上下文。</p>
+              <p class="cn-body mt-2 text-sm text-on-surface-variant">你可以前往对话页新建一轮对话，或等待其他渠道发来新的会话。</p>
               <button class="mt-5 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/20" type="button" @click="goToDialogue()">
                 <AppIcon name="rocket" size="sm" />
                 打开对话页
@@ -347,7 +347,7 @@ function goToDialogue(sessionKey?: string) {
 }
 
 async function deleteSingleSession(key: string) {
-  if (!window.confirm(`确认删除会话 ${key} 吗？此操作无法撤销。`)) {
+  if (!window.confirm(`确定要删除会话 "${key}" 吗？删除后无法恢复。`)) {
     return;
   }
 

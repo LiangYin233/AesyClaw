@@ -91,7 +91,7 @@
           <section class="hairline-card overflow-hidden rounded-[1.6rem]">
             <div class="flex items-center justify-between border-b border-outline-variant/18 px-5 py-4">
               <div>
-                <h2 class="cn-section-title text-on-surface">{{ activeTab === 'summary' ? '会话上下文摘要' : '长期事实总览' }}</h2>
+                <h2 class="cn-section-title text-on-surface">{{ activeTab === 'summary' ? '会话摘要' : '长期事实' }}</h2>
                 <p class="mt-1 text-sm text-on-surface-variant">
                   {{ activeTab === 'summary' ? '按会话聚合摘要、条目和更新时间。' : '按会话聚合事实数量、置信度和最近操作。' }}
                 </p>
@@ -245,7 +245,7 @@
                   <span class="ml-2 text-sky-400">{{ operation.action }}</span>
                   <span class="ml-2">{{ operation.reason || operation.actor }}</span>
                 </p>
-                <p v-if="!selectedOperations.length" class="text-sm text-slate-400">当前对象还没有可展示的维护操作记录。</p>
+                <p v-if="!selectedOperations.length" class="text-sm text-slate-400">暂无操作记录。</p>
               </div>
             </section>
           </div>
@@ -292,7 +292,7 @@ const latestSessionKey = computed(() => selectedItem.value?.sessions[0]?.session
 function memoryPreview(item: MemoryConversationItem) {
   return item.conversationSummary
     || item.sessions.find((session) => session.summary)?.summary
-    || '当前会话还没有生成可展示的摘要文本。';
+    || '暂无摘要。';
 }
 
 function factPreview(item: MemoryConversationItem) {

@@ -62,7 +62,7 @@
       </article>
 
       <div v-if="!detail.messages.length" class="rounded-2xl bg-surface-container-low px-4 py-5 text-sm text-on-surface-variant">
-        该会话暂时没有可显示的消息。
+        这条会话还没有消息。
       </div>
     </div>
   </div>

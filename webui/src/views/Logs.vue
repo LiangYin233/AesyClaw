@@ -126,7 +126,7 @@
 
           <div v-else class="flex h-[46rem] items-center justify-center px-5 text-center">
             <div>
-            <p class="cn-section-title text-on-surface">当前筛选条件下没有日志</p>
+            <p class="cn-section-title text-on-surface">没有符合条件的日志</p>
             <p class="cn-body mt-2 text-sm text-on-surface-variant">可以切换筛选等级或调高运行时日志等级，查看更多调试信息。</p>
             </div>
           </div>

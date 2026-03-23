@@ -327,7 +327,7 @@ function startCreate() {
 
 async function saveServer() {
   if (!draftName.value.trim()) {
-    error.value = '服务名不能为空';
+    error.value = '请填写服务名称';
     return;
   }
 
