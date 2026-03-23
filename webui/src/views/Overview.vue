@@ -122,7 +122,6 @@
                   <th class="px-5 py-4 text-left text-[11px] font-bold tracking-[0.08em] text-outline">会话</th>
                   <th class="px-5 py-4 text-left text-[11px] font-bold tracking-[0.08em] text-outline">Agent</th>
                   <th class="px-5 py-4 text-left text-[11px] font-bold tracking-[0.08em] text-outline">消息数</th>
-                  <th class="px-5 py-4 text-left text-[11px] font-bold tracking-[0.08em] text-outline">摘要</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-outline-variant/10">
@@ -140,10 +139,9 @@
                     <span class="rounded-lg bg-surface-container-high px-2 py-1 text-[11px] font-mono text-on-surface">{{ session.agentName || 'main' }}</span>
                   </td>
                   <td class="px-5 py-4 font-mono text-xs text-on-surface-variant">{{ formatNumber(session.messageCount) }}</td>
-                  <td class="px-5 py-4 text-on-surface-variant">{{ abbreviateText(session.key, 36) }}</td>
                 </tr>
                 <tr v-if="recentSessions.length === 0">
-                  <td colspan="4" class="px-5 py-8 text-center text-sm text-on-surface-variant">还没有可展示的会话记录。</td>
+                  <td colspan="3" class="px-5 py-8 text-center text-sm text-on-surface-variant">还没有可展示的会话记录。</td>
                 </tr>
               </tbody>
             </table>

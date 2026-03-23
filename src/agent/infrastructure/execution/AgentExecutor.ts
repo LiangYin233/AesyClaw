@@ -32,7 +32,8 @@ export class AgentExecutor {
     pluginManager?: PluginManager,
     visionSettings?: VisionSettings,
     visionProvider?: LLMProvider,
-    executionRegistry?: ExecutionRegistry
+    executionRegistry?: ExecutionRegistry,
+    includeRuntimeContext: boolean = true
   ) {
     if (!model?.trim()) {
       throw new Error('AgentExecutor requires an explicit model');
@@ -40,7 +41,7 @@ export class AgentExecutor {
 
     this.model = model;
     this.executionRegistry = executionRegistry ?? new ExecutionRegistry();
-    this.contextBuilder = new ContextBuilder(workspace, systemPrompt, skillsPrompt);
+    this.contextBuilder = new ContextBuilder(workspace, systemPrompt, skillsPrompt, includeRuntimeContext);
     this.toolLoopRunner = new ToolLoopRunner(provider, toolRegistry, pluginManager, visionSettings);
     this.visionProvider = visionProvider;
     this.visionModel = visionSettings?.visionModelName;

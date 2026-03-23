@@ -20,7 +20,12 @@ function buildAgentSystemPrompt(options: {
   workspace: string;
   context?: string;
   skillsPrompt?: string;
+  includeRuntimeContext?: boolean;
 }): string {
+  if (options.includeRuntimeContext === false) {
+    return options.basePrompt.trim();
+  }
+
   const sections = [
     options.basePrompt.trim(),
     `Workspace: ${options.workspace}`,
@@ -38,11 +43,18 @@ export class ContextBuilder {
   private currentChannel?: string;
   private currentChatId?: string;
   private currentMessageType?: 'private' | 'group';
+  private includeRuntimeContext: boolean;
 
-  constructor(workspace: string, systemPrompt?: string, skillsPrompt?: string) {
+  constructor(
+    workspace: string,
+    systemPrompt?: string,
+    skillsPrompt?: string,
+    includeRuntimeContext: boolean = true
+  ) {
     this.workspace = workspace;
     this.systemPrompt = systemPrompt || DEFAULT_SYSTEM_PROMPT;
     this.skillsPrompt = skillsPrompt || '';
+    this.includeRuntimeContext = includeRuntimeContext;
   }
 
   setSkillsPrompt(prompt: string): void {
@@ -103,7 +115,8 @@ export class ContextBuilder {
       basePrompt: prompt,
       workspace: this.workspace,
       context,
-      skillsPrompt: this.skillsPrompt
+      skillsPrompt: this.skillsPrompt,
+      includeRuntimeContext: this.includeRuntimeContext
     });
   }
 

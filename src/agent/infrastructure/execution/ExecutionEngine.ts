@@ -88,9 +88,13 @@ export class ExecutionEngine {
     toolContext: ToolContext,
     extra?: { signal?: AbortSignal; excludeTools?: string[] }
   ): Promise<string> {
-    const policy = this.resolvePolicy(agentName, {
+    const basePolicy = this.resolvePolicy(agentName, {
       excludeTools: extra?.excludeTools
     });
+    const policy: ExecutionPolicy = {
+      ...basePolicy,
+      skillsPrompt: ''
+    };
     return this.executeSubAgentTask(policy, task, toolContext, extra);
   }
 
@@ -106,7 +110,8 @@ export class ExecutionEngine {
     });
     const policy: ExecutionPolicy = {
       ...basePolicy,
-      systemPrompt
+      systemPrompt,
+      skillsPrompt: ''
     };
     return this.executeSubAgentTask(policy, task, toolContext, extra);
   }
@@ -115,9 +120,10 @@ export class ExecutionEngine {
     policy: ExecutionPolicy,
     task: string,
     toolContext: ToolContext,
-    extra?: { signal?: AbortSignal; excludeTools?: string[] }
+    extra?: { signal?: AbortSignal; excludeTools?: string[] },
+    options?: { includeRuntimeContext?: boolean }
   ): Promise<string> {
-    const executor = this.createExecutor(policy);
+    const executor = this.createExecutor(policy, options);
     executor.setCurrentContext(toolContext.channel, toolContext.chatId, toolContext.messageType);
     const messages = executor.buildMessages([], task);
     const signal = extra?.signal ?? toolContext.signal;
@@ -205,7 +211,10 @@ export class ExecutionEngine {
     };
   }
 
-  private createExecutor(policy: ExecutionPolicy): AgentExecutor {
+  private createExecutor(
+    policy: ExecutionPolicy,
+    options?: { includeRuntimeContext?: boolean }
+  ): AgentExecutor {
     this.log.debug(`正在创建执行器: 角色=${policy.roleName}, 模型=${policy.model}`);
 
     return new AgentExecutor(
@@ -219,7 +228,8 @@ export class ExecutionEngine {
       this.options.getPluginManager(),
       policy.visionSettings,
       policy.visionProvider,
-      this.options.executionRegistry
+      this.options.executionRegistry,
+      options?.includeRuntimeContext ?? true
     );
   }
 }
