@@ -25,10 +25,6 @@
               <p class="cn-kicker text-outline">工具总数</p>
               <p class="cn-metric mt-2 text-on-surface">{{ tools.length }}</p>
             </article>
-            <article class="hairline-card rounded-2xl p-5">
-              <p class="cn-kicker text-outline">有参数定义</p>
-              <p class="cn-metric mt-2 text-primary">{{ toolsWithParams }}</p>
-            </article>
           </div>
 
           <div class="hairline-card overflow-hidden rounded-[1.6rem]">
@@ -103,7 +99,6 @@ const loading = ref(false);
 const error = ref('');
 
 const selectedTool = computed(() => tools.value.find((tool) => tool.name === selectedName.value) || tools.value[0] || null);
-const toolsWithParams = computed(() => tools.value.filter((tool) => Object.keys(tool.parameters || {}).length > 0).length);
 const formattedParameters = computed(() => JSON.stringify(selectedTool.value?.parameters || {}, null, 2));
 
 async function loadTools() {
