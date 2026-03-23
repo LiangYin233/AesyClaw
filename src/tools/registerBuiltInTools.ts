@@ -28,6 +28,17 @@ export interface ToolIntegrationOptions {
       signal?: AbortSignal;
     }
   ) => Promise<Array<{ agentName: string; task: string; success: boolean; result?: string; error?: string }>>;
+  runTemporarySubAgentTask: (
+    baseAgentName: string | undefined,
+    task: string,
+    systemPrompt: string,
+    context?: {
+      channel?: string;
+      chatId?: string;
+      messageType?: 'private' | 'group';
+      signal?: AbortSignal;
+    }
+  ) => Promise<string>;
   agentRoleService: AgentRoleService;
   sessionManager: SessionManager;
   memoryService?: SessionMemoryService;
@@ -40,6 +51,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
     cronService,
     pluginManager,
     runSubAgentTasks,
+    runTemporarySubAgentTask,
     agentRoleService,
     sessionManager,
     memoryService
@@ -256,6 +268,49 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
       } catch (error) {
         log.error('call_agent 执行失败', {
           taskCount: rawTasks.length,
+          error: normalizeToolError(error)
+        });
+        return `Error: ${error instanceof Error ? error.message : String(error)}`;
+      }
+    }
+  }, 'built-in' as ToolSource);
+
+  toolRegistry.register({
+    name: 'call_temp_agent',
+    description: '当用户任务需要同时进行，或可以拆分出一个可独立编排的子任务时，基于当前 Agent 配置创建一次性临时 Agent 分身，并利用其并行执行该任务。该分身仅临时覆写 systemPrompt，不会写入配置。参数必须是 { task: string, systemPrompt: string }。',
+    parameters: {
+      type: 'object',
+      properties: {
+        task: {
+          type: 'string',
+          description: '交给临时 Agent 的任务描述。'
+        },
+        systemPrompt: {
+          type: 'string',
+          description: '本次临时 Agent 使用的 system prompt。'
+        }
+      },
+      required: ['task', 'systemPrompt']
+    },
+    execute: async (params: Record<string, any>, context?: ToolContext) => {
+      const task = String(params.task || '');
+      const systemPrompt = String(params.systemPrompt || '');
+      if (!task || !systemPrompt) {
+        return 'Error: call_temp_agent requires { task: string, systemPrompt: string }';
+      }
+
+      try {
+        return await runTemporarySubAgentTask(context?.agentName, task, systemPrompt, {
+          channel: context?.channel,
+          chatId: context?.chatId,
+          messageType: context?.messageType,
+          signal: context?.signal
+        });
+      } catch (error) {
+        log.error('call_temp_agent 执行失败', {
+          baseAgentName: context?.agentName,
+          channel: context?.channel,
+          chatId: context?.chatId,
           error: normalizeToolError(error)
         });
         return `Error: ${error instanceof Error ? error.message : String(error)}`;

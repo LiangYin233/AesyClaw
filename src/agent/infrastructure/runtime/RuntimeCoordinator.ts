@@ -9,6 +9,7 @@ import type { SessionRoutingService } from '../session/SessionRoutingService.js'
 import type { AgentRoleService } from '../roles/AgentRoleService.js';
 import type { VisionSettings } from '../../../types.js';
 import { logger } from '../../../observability/index.js';
+import { DEFAULT_SYSTEM_PROMPT } from '../../../config/schema/shared.js';
 import { AgentPipeline } from './AgentPipeline.js';
 import { SessionResolver } from '../session/SessionResolver.js';
 import { BackgroundTaskManager } from '../execution/BackgroundTaskManager.js';
@@ -82,7 +83,7 @@ export class RuntimeCoordinator {
 
     this.defaultProvider = options.provider;
     this.mainModel = options.model;
-    this.systemPrompt = options.systemPrompt || 'You are a helpful AI assistant.';
+    this.systemPrompt = options.systemPrompt || DEFAULT_SYSTEM_PROMPT;
     this.maxIterations = options.maxIterations ?? DEFAULT_MAX_ITERATIONS;
     this.memoryWindow = options.memoryWindow ?? DEFAULT_MEMORY_WINDOW;
     this.memoryService = options.memoryService;
@@ -243,6 +244,28 @@ export class RuntimeCoordinator {
     }
   ): Promise<string> {
     return this.executionRuntime.runSubAgentTask(agentName, task, {
+      ...this.toolContextBase,
+      channel: context?.channel,
+      chatId: context?.chatId,
+      messageType: context?.messageType,
+      signal: context?.signal
+    }, {
+      signal: context?.signal
+    });
+  }
+
+  async runTemporarySubAgentTask(
+    baseAgentName: string | undefined,
+    task: string,
+    systemPrompt: string,
+    context?: {
+      channel?: string;
+      chatId?: string;
+      messageType?: 'private' | 'group';
+      signal?: AbortSignal;
+    }
+  ): Promise<string> {
+    return this.executionRuntime.runTemporarySubAgentTask(baseAgentName, task, systemPrompt, {
       ...this.toolContextBase,
       channel: context?.channel,
       chatId: context?.chatId,

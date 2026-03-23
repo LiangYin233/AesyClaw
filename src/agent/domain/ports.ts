@@ -29,6 +29,17 @@ export interface AgentRuntimeDeps {
       signal?: AbortSignal;
     }
   ): Promise<string>;
+  runTemporarySubAgentTask?(
+    baseAgentName: string | undefined,
+    task: string,
+    systemPrompt: string,
+    context?: {
+      channel?: string;
+      chatId?: string;
+      messageType?: 'private' | 'group';
+      signal?: AbortSignal;
+    }
+  ): Promise<string>;
   runSubAgentTasks?(
     tasks: Array<{ agentName: string; task: string }>,
     context?: {

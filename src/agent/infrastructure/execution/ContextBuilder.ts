@@ -3,6 +3,7 @@ import fs from 'fs';
 import { extname } from 'path';
 import { isVisionableFile } from './ExecutionTypes.js';
 import { formatLocalClock, formatLocalDateTime, formatLocalTimestamp, getCurrentTimezone } from '../../../observability/logging.js';
+import { DEFAULT_SYSTEM_PROMPT } from '../../../config/schema/shared.js';
 
 const IMAGE_MIME_TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg',
@@ -40,7 +41,7 @@ export class ContextBuilder {
 
   constructor(workspace: string, systemPrompt?: string, skillsPrompt?: string) {
     this.workspace = workspace;
-    this.systemPrompt = systemPrompt || 'You are a helpful AI assistant.';
+    this.systemPrompt = systemPrompt || DEFAULT_SYSTEM_PROMPT;
     this.skillsPrompt = skillsPrompt || '';
   }
 

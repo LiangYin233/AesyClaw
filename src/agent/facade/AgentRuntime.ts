@@ -127,6 +127,24 @@ export class AgentRuntime {
     return this.deps.runSubAgentTask(agentName, task, context);
   }
 
+  async runTemporarySubAgentTask(
+    baseAgentName: string | undefined,
+    task: string,
+    systemPrompt: string,
+    context?: {
+      channel?: string;
+      chatId?: string;
+      messageType?: 'private' | 'group';
+      signal?: AbortSignal;
+    }
+  ): Promise<string> {
+    if (!this.deps.runTemporarySubAgentTask) {
+      throw new Error('Temporary sub-agent execution is not configured');
+    }
+
+    return this.deps.runTemporarySubAgentTask(baseAgentName, task, systemPrompt, context);
+  }
+
   async runSubAgentTasks(
     tasks: Array<{ agentName: string; task: string }>,
     context?: {

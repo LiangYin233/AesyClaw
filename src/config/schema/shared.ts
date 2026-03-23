@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const DEFAULT_SYSTEM_PROMPT = 'You are a helpful AI assistant.';
+export const DEFAULT_SYSTEM_PROMPT = 'You are a helpful AI assistant. Now is {{current_date}}. Running on {{os}}.';
 export const DEFAULT_PROVIDER_NAME = 'openai';
 export const DEFAULT_PROVIDER_API_BASE = 'https://api.openai.com/v1';
 export const DEFAULT_PROVIDER_TYPE = 'openai';

@@ -5,6 +5,7 @@ import { formatSkillsPrompt } from '../../../skills/promptFormatter.js';
 import { createProvider } from '../../../providers/index.js';
 import { logger } from '../../../observability/index.js';
 import type { LLMProvider } from '../../../providers/base.js';
+import { DEFAULT_SYSTEM_PROMPT } from '../../../config/schema/shared.js';
 
 export interface ResolvedAgentRole extends AgentRoleConfig {
   builtin: boolean;
@@ -152,7 +153,8 @@ export class AgentRoleService {
 
     return [
       '可调用的 Agent 角色：',
-      '当用户任务需要同时进行，或可以拆分为多个可独立编排的子任务时，可使用 call_agent({ items: [{ agentName, task }, ...] }) 一次并发委派多个 Agent，并等待全部完成后统一返回。',
+      '任务可并行处理或可拆分为独立子任务时，可使用 call_agent({ items: [{ agentName, task }, ...] }) 并发委派多个 Agent。',
+      '也可使用 call_temp_agent({ task, systemPrompt }) 基于当前 Agent 创建一次性临时分身，并行执行单个独立子任务；它只临时覆写 systemPrompt，不写入配置。',
       roleList
     ].join('\n');
   }
@@ -270,7 +272,7 @@ export class AgentRoleService {
     const normalized: AgentRoleConfig = {
       name,
       description: input.description?.trim() || '',
-      systemPrompt: input.systemPrompt || 'You are a helpful AI assistant.',
+      systemPrompt: input.systemPrompt || DEFAULT_SYSTEM_PROMPT,
       provider: input.provider.trim(),
       model: input.model.trim(),
       vision: input.vision === true,

@@ -40,7 +40,7 @@ export function createDefaultMainAgentRole(): z.output<typeof agentRoleConfigSch
   return agentRoleConfigSchema.parse({
     name: MAIN_AGENT_NAME,
     description: '内建主 Agent',
-    systemPrompt: 'You are a helpful AI assistant. Now is {{current_date}}. Running on {{os}} {{cwd}}.',
+    systemPrompt: DEFAULT_SYSTEM_PROMPT,
     provider: DEFAULT_PROVIDER_NAME,
     model: 'gpt-4o',
     vision: false,

@@ -38,20 +38,23 @@ export class SessionResolver {
       ? await this.memoryService.buildHistory(session, message)
       : await this.buildHistoryWithoutMemory(session, options.memoryWindow);
 
+    const agentName = this.sessionRouting.getConversationAgent(message.channel, message.chatId)
+      || this.agentRoleService?.getDefaultRoleName()
+      || 'main';
+
     return {
       request: message,
       sessionKey,
       channel: message.channel,
       chatId: message.chatId,
       messageType: message.messageType,
-      agentName: this.sessionRouting.getConversationAgent(message.channel, message.chatId)
-        || this.agentRoleService?.getDefaultRoleName()
-        || 'main',
+      agentName,
       session,
       history,
       suppressOutbound: options.suppressOutbound === true,
       toolContext: {
         ...options.toolContext,
+        agentName,
         sessionKey,
         channel: message.channel,
         chatId: message.chatId,

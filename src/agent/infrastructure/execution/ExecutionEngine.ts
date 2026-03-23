@@ -30,9 +30,7 @@ function buildOperationalPrompt(allowedToolNames: string[]): string {
     sections.push(
       [
         '沟通要求：',
-        '当任务需要搜索、读取资料、调用工具、执行多个步骤或预计耗时较长时，优先使用 send_msg_to_user 向用户发送简短步骤消息。',
-        '在关键阶段变化时继续用 send_msg_to_user 同步进度，例如“正在搜索资料”“正在整理大纲”“正在生成最终答案”。',
-        'send_msg_to_user 不仅可用于过程进度同步，也可用于向用户发送最终任务结果；需要主动分步发送结果时，优先使用该工具。'
+        '当任务涉及工具、多个步骤或耗时较长时，用 send_msg_to_user 向用户简短同步进度；需要主动分步发送结果时，也优先使用它。'
       ].join('\n')
     );
   }
@@ -41,11 +39,7 @@ function buildOperationalPrompt(allowedToolNames: string[]): string {
     sections.push(
       [
         '长期记忆要求：',
-        '当任务涉及用户偏好、固定习惯、长期项目背景、既有约定、历史决策、提醒偏好或任何“可能以前说过”的信息时，优先先用 memory_list 查询，再继续回答或规划。',
-        '不要因为自己“猜测用户应该是这样”而跳过记忆查询；拿不准时先查。',
-        '当用户明确说出新的长期有效信息，或你已从对话中确认稳定偏好、规则、约束、长期背景时，优先考虑用 memory_manage 写入或更新长期记忆。',
-        '当准备覆盖、归档、删除或合并已有长期记忆时，若需要追溯变化原因，先用 memory_history 查看最近操作记录。',
-        '一次性任务、临时状态、短期上下文不要写进长期记忆。'
+        '当任务涉及用户偏好、长期背景、既有约定或历史决策时，先用 memory_list 查询；确认新的长期信息后，再用 memory_manage 更新。一次性任务和短期上下文不要写入长期记忆。'
       ].join('\n')
     );
   }
@@ -97,10 +91,41 @@ export class ExecutionEngine {
     const policy = this.resolvePolicy(agentName, {
       excludeTools: extra?.excludeTools
     });
+    return this.executeSubAgentTask(policy, task, toolContext, extra);
+  }
+
+  async runTemporarySubAgentTask(
+    baseAgentName: string | undefined,
+    task: string,
+    systemPrompt: string,
+    toolContext: ToolContext,
+    extra?: { signal?: AbortSignal; excludeTools?: string[] }
+  ): Promise<string> {
+    const basePolicy = this.resolvePolicy(baseAgentName, {
+      excludeTools: extra?.excludeTools
+    });
+    const policy: ExecutionPolicy = {
+      ...basePolicy,
+      systemPrompt
+    };
+    return this.executeSubAgentTask(policy, task, toolContext, extra);
+  }
+
+  private async executeSubAgentTask(
+    policy: ExecutionPolicy,
+    task: string,
+    toolContext: ToolContext,
+    extra?: { signal?: AbortSignal; excludeTools?: string[] }
+  ): Promise<string> {
     const executor = this.createExecutor(policy);
     executor.setCurrentContext(toolContext.channel, toolContext.chatId, toolContext.messageType);
     const messages = executor.buildMessages([], task);
     const signal = extra?.signal ?? toolContext.signal;
+    const execToolContext: ToolContext = {
+      ...toolContext,
+      agentName: policy.roleName,
+      signal
+    };
 
     const initial = await executor.callLLM(messages, {
       allowTools: true,
@@ -119,8 +144,7 @@ export class ExecutionEngine {
     });
 
     const result = await executor.executeToolLoop(messages, {
-      ...toolContext,
-      signal
+      ...execToolContext
     }, {
       agentName: policy.roleName,
       allowTools: true,

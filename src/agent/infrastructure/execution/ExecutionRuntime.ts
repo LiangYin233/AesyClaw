@@ -21,7 +21,7 @@ interface FinalizeExecutionParams {
 
 export class ExecutionRuntime {
   private log = logger.child('ExecutionRuntime');
-  private readonly subAgentExcludedTools = ['send_msg_to_user', 'call_agent'];
+  private readonly subAgentExcludedTools = ['send_msg_to_user', 'call_agent', 'call_temp_agent'];
   private static readonly IMAGE_SUMMARY_PREFIX = '【图片概括】';
   private static readonly VISION_DISABLED_MESSAGE = '当前 Agent 未启用视觉识别，暂时无法读取图片内容。请先在 Agent 配置中开启 Vision 并配置视觉模型后重试。';
   private readonly registry: ExecutionRegistry;
@@ -247,6 +247,22 @@ export class ExecutionRuntime {
     extra?: { signal?: AbortSignal }
   ): Promise<string> {
     return this.engine.runSubAgentTask(agentName, task, {
+      ...toolContext,
+      signal: extra?.signal ?? toolContext.signal
+    }, {
+      signal: extra?.signal ?? toolContext.signal,
+      excludeTools: this.subAgentExcludedTools
+    });
+  }
+
+  async runTemporarySubAgentTask(
+    baseAgentName: string | undefined,
+    task: string,
+    systemPrompt: string,
+    toolContext: ExecutionContext['toolContext'],
+    extra?: { signal?: AbortSignal }
+  ): Promise<string> {
+    return this.engine.runTemporarySubAgentTask(baseAgentName, task, systemPrompt, {
       ...toolContext,
       signal: extra?.signal ?? toolContext.signal
     }, {

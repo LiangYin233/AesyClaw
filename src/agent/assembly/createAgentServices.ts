@@ -22,6 +22,17 @@ export interface RuntimeDelegate extends RuntimeLifecycle {
       signal?: AbortSignal;
     }
   ): Promise<string>;
+  runTemporarySubAgentTask?(
+    baseAgentName: string | undefined,
+    task: string,
+    systemPrompt: string,
+    context?: {
+      channel?: string;
+      chatId?: string;
+      messageType?: 'private' | 'group';
+      signal?: AbortSignal;
+    }
+  ): Promise<string>;
   runSubAgentTasks?(
     tasks: Array<{ agentName: string; task: string }>,
     context?: {
@@ -52,6 +63,7 @@ export function createAgentServices(delegate: RuntimeDelegate): AgentRuntimeServ
       handleInbound: (message, options) => delegate.handleInbound(message, options),
       handleDirect: (content, reference, options) => delegate.handleDirect(content, reference, options),
       runSubAgentTask: delegate.runSubAgentTask?.bind(delegate),
+      runTemporarySubAgentTask: delegate.runTemporarySubAgentTask?.bind(delegate),
       runSubAgentTasks: delegate.runSubAgentTasks?.bind(delegate),
       abortSession: delegate.abortSession?.bind(delegate),
       abortReference: delegate.abortReference?.bind(delegate),
