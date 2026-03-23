@@ -51,6 +51,135 @@ export class ChannelManager {
     return Array.from(this.#plugins.keys());
   }
 
+  async enableConfiguredChannel(name: string, config: any): Promise<boolean> {
+    const pluginName = `channel_${name}`;
+    const plugin = this.#plugins.get(pluginName);
+
+    if (!plugin) {
+      this.#log.warn('未找到渠道插件', { pluginName });
+      return false;
+    }
+
+    const existing = this.#channels.get(plugin.channelName);
+    if (existing) {
+      if (existing.isRunning()) {
+        return true;
+      }
+
+      try {
+        await this.#runtime.startAdapter(plugin.channelName);
+        this.#log.info('渠道已启动', { channel: plugin.channelName, pluginName });
+        return true;
+      } catch (error) {
+        this.#log.error('渠道启动失败', {
+          channel: plugin.channelName,
+          pluginName,
+          error: normalizeChannelError(error)
+        });
+        return false;
+      }
+    }
+
+    const channel = plugin.create(config, this.#workspace);
+    this.#channels.set(plugin.channelName, channel);
+    this.#runtime.registerAdapter(plugin.channelName, channel);
+
+    try {
+      await this.#runtime.startAdapter(plugin.channelName);
+      this.#log.info('渠道已创建并启动', { channel: plugin.channelName, pluginName });
+      return true;
+    } catch (error) {
+      this.#channels.delete(plugin.channelName);
+      this.#runtime.unregisterAdapter(plugin.channelName);
+      this.#log.error('渠道启用失败', {
+        channel: plugin.channelName,
+        pluginName,
+        error: normalizeChannelError(error)
+      });
+      return false;
+    }
+  }
+
+  async disableConfiguredChannel(name: string): Promise<boolean> {
+    const channel = this.#channels.get(name);
+    if (!channel) {
+      return true;
+    }
+
+    try {
+      await this.#runtime.stopAdapter(name);
+      this.#channels.delete(name);
+      this.#runtime.unregisterAdapter(name);
+      this.#log.info('渠道已停用', { channel: name });
+      return true;
+    } catch (error) {
+      this.#log.error('渠道停用失败', {
+        channel: name,
+        error: normalizeChannelError(error)
+      });
+      return false;
+    }
+  }
+
+  async reconfigureChannel(name: string, config: any): Promise<boolean> {
+    const pluginName = `channel_${name}`;
+    const plugin = this.#plugins.get(pluginName);
+
+    if (!plugin) {
+      this.#log.warn('未找到渠道插件', { pluginName });
+      return false;
+    }
+
+    const previousChannel = this.#channels.get(name);
+    if (!previousChannel) {
+      return config?.enabled ? this.enableConfiguredChannel(name, config) : true;
+    }
+
+    const wasRunning = previousChannel.isRunning();
+
+    try {
+      if (wasRunning) {
+        await this.#runtime.stopAdapter(name);
+      }
+      this.#channels.delete(name);
+      this.#runtime.unregisterAdapter(name);
+
+      if (!config?.enabled) {
+        this.#log.info('渠道配置已更新并停用', { channel: name, pluginName });
+        return true;
+      }
+
+      const nextChannel = plugin.create(config, this.#workspace);
+      this.#channels.set(name, nextChannel);
+      this.#runtime.registerAdapter(name, nextChannel);
+      await this.#runtime.startAdapter(name);
+      this.#log.info('渠道配置已重载', { channel: name, pluginName });
+      return true;
+    } catch (error) {
+      this.#channels.set(name, previousChannel);
+      this.#runtime.registerAdapter(name, previousChannel);
+
+      if (wasRunning) {
+        try {
+          await this.#runtime.startAdapter(name);
+        } catch (restoreError) {
+          this.#log.error('渠道配置回滚恢复失败', {
+            channel: name,
+            pluginName,
+            error: normalizeChannelError(restoreError)
+          });
+        }
+      }
+
+      this.#log.error('渠道配置重载失败', {
+        channel: name,
+        pluginName,
+        error: normalizeChannelError(error)
+      });
+      return false;
+    }
+  }
+
   createChannel(name: string, config: any): ChannelHandle | null {
     const pluginName = `channel_${name}`;
     const plugin = this.#plugins.get(pluginName);

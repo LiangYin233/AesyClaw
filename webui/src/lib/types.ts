@@ -153,6 +153,9 @@ export interface PluginInfo {
     options?: Record<string, unknown>;
   };
   toolsCount: number;
+  kind?: 'plugin' | 'channel';
+  channelName?: string;
+  running?: boolean;
 }
 
 export interface CronSchedule {

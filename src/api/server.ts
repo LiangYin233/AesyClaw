@@ -153,6 +153,7 @@ export class APIServer {
     registerSkillRoutes(this.app, this.skillManager);
     registerPluginRoutes(this.app, {
       pluginManager: this.pluginManager,
+      channelManager: this.channelManager,
       getConfig,
       updateConfig
     });

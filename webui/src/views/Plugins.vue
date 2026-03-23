@@ -61,8 +61,14 @@
                   <div class="flex flex-wrap items-center gap-3">
                     <h3 class="truncate text-lg font-bold text-on-surface">{{ plugin.name }}</h3>
                     <span class="rounded bg-surface-container-low px-2 py-0.5 text-[10px] font-bold text-outline">{{ plugin.version }}</span>
+                    <span v-if="plugin.kind === 'channel'" class="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-700">
+                      渠道
+                    </span>
                     <span class="rounded-full px-2 py-0.5 text-[10px] font-bold" :class="plugin.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-error-container text-on-error-container'">
                       {{ plugin.enabled ? '已启用' : '已停用' }}
+                    </span>
+                    <span v-if="plugin.kind === 'channel'" class="rounded-full px-2 py-0.5 text-[10px] font-bold" :class="plugin.running ? 'bg-primary-fixed/60 text-primary' : 'bg-surface-container-low text-outline'">
+                      {{ plugin.running ? '运行中' : '未运行' }}
                     </span>
                   </div>
                   <p class="mt-2 text-sm leading-6 text-on-surface-variant">{{ plugin.description || '当前插件没有提供描述信息。' }}</p>
@@ -110,7 +116,9 @@
                     <span class="text-xs font-bold tracking-[0.08em]">影响范围</span>
                   </div>
                   <p class="mt-3 text-sm leading-6 text-on-surface-variant">
-                    该插件当前接入 <span class="font-bold text-primary">{{ selectedPlugin.toolsCount }}</span> 个工具，并可通过配置项参与消息链路与扩展动作。
+                    {{ selectedPlugin.kind === 'channel'
+                      ? `该渠道插件当前映射到 ${selectedPlugin.channelName || 'unknown'} 渠道，运行状态为 ${selectedPlugin.running ? '已启动' : '未启动'}。`
+                      : `该插件当前接入 ${selectedPlugin.toolsCount} 个工具，并可通过配置项参与消息链路与扩展动作。` }}
                   </p>
                   <div class="mt-4 h-1.5 overflow-hidden rounded-full bg-outline-variant/20">
                     <div class="h-full rounded-full bg-primary" :style="{ width: `${impactWidth(selectedPlugin)}%` }"></div>
@@ -123,6 +131,7 @@
                     <div class="mt-3 flex flex-wrap gap-2">
                       <span class="rounded-lg bg-surface-container-lowest px-3 py-1.5 text-[11px] font-semibold text-on-surface">{{ selectedPlugin.enabled ? '运行中' : '已停用' }}</span>
                       <span class="rounded-lg bg-surface-container-lowest px-3 py-1.5 text-[11px] font-semibold text-on-surface">{{ selectedPlugin.version }}</span>
+                      <span v-if="selectedPlugin.kind === 'channel'" class="rounded-lg bg-surface-container-lowest px-3 py-1.5 text-[11px] font-semibold text-on-surface">{{ selectedPlugin.channelName }}</span>
                       <span class="rounded-lg bg-surface-container-lowest px-3 py-1.5 text-[11px] font-semibold text-on-surface">{{ selectedPlugin.toolsCount }} 个工具</span>
                     </div>
                   </div>
@@ -192,7 +201,9 @@ function syncDraft(plugin: PluginInfo | null) {
 }
 
 function impactWidth(plugin: PluginInfo) {
-  return Math.min(95, 24 + plugin.toolsCount * 8 + Object.keys(plugin.options || {}).length * 4);
+  const base = plugin.kind === 'channel' ? 36 : 24;
+  const toolWeight = plugin.kind === 'channel' ? 0 : plugin.toolsCount * 8;
+  return Math.min(95, base + toolWeight + Object.keys(plugin.options || {}).length * 4);
 }
 
 async function loadPlugins() {

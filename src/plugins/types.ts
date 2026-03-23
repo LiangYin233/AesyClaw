@@ -127,6 +127,9 @@ export interface PluginInfo {
   options?: PluginOptions;
   defaultConfig?: PluginDefaultConfig;
   toolsCount: number;
+  kind?: 'plugin' | 'channel';
+  channelName?: string;
+  running?: boolean;
 }
 
 export interface PluginManagerOptions {

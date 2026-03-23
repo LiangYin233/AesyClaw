@@ -89,7 +89,14 @@
           </button>
         </div>
         <Teleport to="body">
-          <div v-if="skillDropdownOpen" ref="skillPanelRef" class="fixed z-[999] max-h-48 overflow-y-auto rounded-xl border border-outline-variant/20 bg-surface-container-lowest py-1 shadow-xl" :style="skillPanelStyle">
+          <div v-if="skillDropdownOpen" ref="skillPanelRef" class="fixed z-[999] max-h-56 overflow-y-auto rounded-xl border border-outline-variant/20 bg-surface-container-lowest py-0 shadow-xl" :style="skillPanelStyle">
+            <div class="sticky top-0 z-10 flex items-center justify-between border-b border-outline-variant/15 bg-surface-container-lowest px-4 py-2">
+              <span class="text-[11px] font-bold tracking-[0.08em] text-outline">技能选择</span>
+              <div class="flex items-center gap-3 text-[11px] font-bold">
+                <button class="text-primary transition hover:opacity-80" type="button" @click="selectAllSkills">全选</button>
+                <button class="text-outline transition hover:text-on-surface" type="button" @click="clearSkills">清空</button>
+              </div>
+            </div>
             <label
               v-for="skill in skills"
               :key="skill.name"
@@ -123,7 +130,14 @@
           </button>
         </div>
         <Teleport to="body">
-          <div v-if="toolDropdownOpen" ref="toolPanelRef" class="fixed z-[999] max-h-48 overflow-y-auto rounded-xl border border-outline-variant/20 bg-surface-container-lowest py-1 shadow-xl" :style="toolPanelStyle">
+          <div v-if="toolDropdownOpen" ref="toolPanelRef" class="fixed z-[999] max-h-56 overflow-y-auto rounded-xl border border-outline-variant/20 bg-surface-container-lowest py-0 shadow-xl" :style="toolPanelStyle">
+            <div class="sticky top-0 z-10 flex items-center justify-between border-b border-outline-variant/15 bg-surface-container-lowest px-4 py-2">
+              <span class="text-[11px] font-bold tracking-[0.08em] text-outline">工具选择</span>
+              <div class="flex items-center gap-3 text-[11px] font-bold">
+                <button class="text-primary transition hover:opacity-80" type="button" @click="selectAllTools">全选</button>
+                <button class="text-outline transition hover:text-on-surface" type="button" @click="clearTools">清空</button>
+              </div>
+            </div>
             <label
               v-for="tool in tools"
               :key="tool.name"
@@ -164,7 +178,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue';
 import type { AgentRole, AgentRoleConfig, SkillInfo, ToolInfo } from '@/lib/types';
 
 const props = defineProps<{
@@ -187,8 +201,12 @@ const skillDropdownOpen = ref(false);
 const toolDropdownOpen = ref(false);
 const skillTriggerRef = useTemplateRef('skillTriggerRef');
 const toolTriggerRef = useTemplateRef('toolTriggerRef');
+const skillPanelRef = useTemplateRef('skillPanelRef');
+const toolPanelRef = useTemplateRef('toolPanelRef');
 const skillPanelStyle = ref<Record<string, string>>({});
 const toolPanelStyle = ref<Record<string, string>>({});
+const skillNames = computed(() => props.skills.map((skill) => skill.name));
+const toolNames = computed(() => props.tools.map((tool) => tool.name));
 
 function toggleDropdown(type: 'skill' | 'tool') {
   if (type === 'skill') {
@@ -224,20 +242,60 @@ function toggleSkill(name: string) {
   else props.form.allowedSkills.push(name);
 }
 
+function selectAllSkills() {
+  props.form.allowedSkills.splice(0, props.form.allowedSkills.length, ...skillNames.value);
+}
+
+function clearSkills() {
+  props.form.allowedSkills.splice(0, props.form.allowedSkills.length);
+}
+
 function toggleTool(name: string) {
   const idx = props.form.allowedTools.indexOf(name);
   if (idx >= 0) props.form.allowedTools.splice(idx, 1);
   else props.form.allowedTools.push(name);
 }
 
+function selectAllTools() {
+  props.form.allowedTools.splice(0, props.form.allowedTools.length, ...toolNames.value);
+}
+
+function clearTools() {
+  props.form.allowedTools.splice(0, props.form.allowedTools.length);
+}
+
+function positionOpenPanels() {
+  if (skillDropdownOpen.value) {
+    positionPanel('skill');
+  }
+  if (toolDropdownOpen.value) {
+    positionPanel('tool');
+  }
+}
+
 function handleClickOutside(e: MouseEvent) {
   const target = e.target as Node;
   const inSkillTrigger = skillTriggerRef.value?.contains(target);
   const inToolTrigger = toolTriggerRef.value?.contains(target);
-  if (!inSkillTrigger) skillDropdownOpen.value = false;
-  if (!inToolTrigger) toolDropdownOpen.value = false;
+  const inSkillPanel = skillPanelRef.value?.contains(target);
+  const inToolPanel = toolPanelRef.value?.contains(target);
+  if (!inSkillTrigger && !inSkillPanel) skillDropdownOpen.value = false;
+  if (!inToolTrigger && !inToolPanel) toolDropdownOpen.value = false;
 }
 
-onMounted(() => document.addEventListener('click', handleClickOutside));
-onBeforeUnmount(() => document.removeEventListener('click', handleClickOutside));
+function handleViewportChange() {
+  positionOpenPanels();
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside);
+  window.addEventListener('resize', handleViewportChange);
+  window.addEventListener('scroll', handleViewportChange, true);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleClickOutside);
+  window.removeEventListener('resize', handleViewportChange);
+  window.removeEventListener('scroll', handleViewportChange, true);
+});
 </script>
