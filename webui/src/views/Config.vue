@@ -5,7 +5,7 @@
         <div>
           <p class="cn-kicker text-outline">设置</p>
           <h1 class="cn-page-title mt-2 text-on-surface">系统配置</h1>
-          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">在这里调整服务参数、主 Agent、记忆策略和扩展模块配置，保存后立即生效。</p>
+          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">在这里调整服务参数、记忆策略和扩展模块配置，保存后立即生效。</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <button
@@ -80,64 +80,6 @@
                 <button class="relative h-5 w-10 rounded-full transition" :class="configDraft.server!.apiEnabled ? 'bg-primary-container' : 'bg-surface-container-high'" type="button" @click="configDraft.server!.apiEnabled = !configDraft.server!.apiEnabled">
                   <span class="absolute top-0.5 size-4 rounded-full bg-white transition" :class="configDraft.server!.apiEnabled ? 'right-0.5' : 'left-0.5'"></span>
                 </button>
-              </div>
-            </div>
-          </section>
-
-          <section v-if="configDraft" class="hairline-card rounded-2xl p-8">
-            <div class="mb-8 flex items-start justify-between gap-4">
-              <div class="flex items-center gap-4">
-                <div class="flex size-12 items-center justify-center rounded-lg bg-surface-container-low text-primary">
-                  <AppIcon name="agents" />
-                </div>
-                <div>
-                  <h3 class="cn-section-title text-on-surface">主 Agent</h3>
-                  <p class="mt-1 text-sm text-on-surface-variant">默认角色的模型与能力参数。</p>
-                </div>
-              </div>
-              <span class="rounded-full bg-orange-100 px-3 py-1 text-[10px] font-bold tracking-[0.08em] text-orange-700">部分变更需重启生效</span>
-            </div>
-
-            <div class="space-y-6">
-              <label class="space-y-1.5">
-                <span class="text-xs font-bold tracking-[0.08em] text-outline">模型</span>
-                <input v-model="mainRole.model" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" />
-              </label>
-
-              <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <label class="space-y-1.5">
-                  <span class="text-xs font-bold tracking-[0.08em] text-outline">Provider</span>
-                  <input v-model="mainRole.provider" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" />
-                </label>
-                <label class="space-y-1.5">
-                  <span class="text-xs font-bold tracking-[0.08em] text-outline">Vision Provider</span>
-                  <input v-model="mainRole.visionProvider" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" />
-                </label>
-                <label class="space-y-1.5">
-                  <span class="text-xs font-bold tracking-[0.08em] text-outline">Vision Model</span>
-                  <input v-model="mainRole.visionModel" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" />
-                </label>
-              </div>
-
-              <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div class="flex items-center justify-between rounded-lg bg-surface px-4 py-3">
-                  <div>
-                    <p class="text-sm font-medium text-on-surface">启用视觉</p>
-                    <p class="mt-1 text-xs text-on-surface-variant">允许视觉模型参与当前主角色。</p>
-                  </div>
-                  <button class="relative h-5 w-10 rounded-full transition" :class="mainRole.vision ? 'bg-primary-container' : 'bg-surface-container-high'" type="button" @click="mainRole.vision = !mainRole.vision">
-                    <span class="absolute top-0.5 size-4 rounded-full bg-white transition" :class="mainRole.vision ? 'right-0.5' : 'left-0.5'"></span>
-                  </button>
-                </div>
-                <div class="flex items-center justify-between rounded-lg bg-surface px-4 py-3">
-                  <div>
-                    <p class="text-sm font-medium text-on-surface">推理模式</p>
-                    <p class="mt-1 text-xs text-on-surface-variant">启用后允许更重的思考路径。</p>
-                  </div>
-                  <button class="relative h-5 w-10 rounded-full transition" :class="mainRole.reasoning ? 'bg-primary-container' : 'bg-surface-container-high'" type="button" @click="mainRole.reasoning = !mainRole.reasoning">
-                    <span class="absolute top-0.5 size-4 rounded-full bg-white transition" :class="mainRole.reasoning ? 'right-0.5' : 'left-0.5'"></span>
-                  </button>
-                </div>
               </div>
             </div>
           </section>
@@ -286,7 +228,7 @@ import { useRoute, useRouter } from 'vue-router';
 import AppIcon from '@/components/AppIcon.vue';
 import { apiGet, apiPut } from '@/lib/api';
 import { getRouteToken } from '@/lib/auth';
-import type { AppConfig, AgentRoleConfig, ProviderConfig } from '@/lib/types';
+import type { AppConfig, ProviderConfig } from '@/lib/types';
 
 const route = useRoute();
 const router = useRouter();
@@ -301,23 +243,6 @@ const configDraft = ref<AppConfig | null>(null);
 const providerHeadersDrafts = ref<Record<string, string>>({});
 const providerExtraBodyDrafts = ref<Record<string, string>>({});
 const providerJsonErrors = ref<Record<string, { headers?: string; extraBody?: string }>>({});
-
-const mainRole = computed<AgentRoleConfig>(() => {
-  const target = configDraft.value?.agents?.roles?.main as AgentRoleConfig | undefined;
-  return target || {
-    name: 'main',
-    description: '',
-    provider: '',
-    model: '',
-    systemPrompt: '',
-    vision: false,
-    reasoning: false,
-    visionProvider: '',
-    visionModel: '',
-    allowedSkills: [],
-    allowedTools: [],
-  };
-});
 
 const providerEntries = computed(() => Object.entries(configDraft.value?.providers || {}) as Array<[string, ProviderConfig]>);
 const hasProviderJsonErrors = computed(() => Object.values(providerJsonErrors.value).some((item) => Boolean(item?.headers || item?.extraBody)));
