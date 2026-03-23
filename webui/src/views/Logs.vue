@@ -99,9 +99,9 @@
             </div>
           </div>
 
-          <div v-if="loading" class="flex h-[56rem] items-center justify-center px-5 text-center text-sm text-on-surface-variant">正在拉取日志数据...</div>
+          <div v-if="loading" class="flex h-[50rem] items-center justify-center px-5 text-center text-sm text-on-surface-variant">正在拉取日志数据...</div>
 
-          <div v-else-if="entries.length" class="h-[56rem] overflow-y-auto divide-y divide-outline-variant/14">
+          <div v-else-if="entries.length" class="h-[50rem] overflow-y-auto divide-y divide-outline-variant/14">
             <article v-for="entry in entries" :key="entry.id" class="px-5 py-4 transition-colors hover:bg-surface-container-low/45">
               <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0 flex-1">
@@ -124,7 +124,7 @@
             </article>
           </div>
 
-          <div v-else class="flex h-[56rem] items-center justify-center px-5 text-center">
+          <div v-else class="flex h-[50rem] items-center justify-center px-5 text-center">
             <div>
             <p class="cn-section-title text-on-surface">当前筛选条件下没有日志</p>
             <p class="cn-body mt-2 text-sm text-on-surface-variant">可以切换筛选等级或调高运行时日志等级，查看更多调试信息。</p>
