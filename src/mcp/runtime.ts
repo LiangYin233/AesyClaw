@@ -7,7 +7,7 @@ import { clearMcpServerTools, syncMcpServerTools } from './toolSync.js';
 
 const log = logger.child('MCPRuntime');
 
-type ToolRegistryView = Pick<ToolRegistry, 'register' | 'list' | 'unregisterMany'>;
+type ToolRegistryView = Pick<ToolRegistry, 'register' | 'list' | 'unregisterMany' | 'getSource'>;
 
 export interface MCPRuntimeBinding {
   getMcpManager(): MCPClientManager | undefined;
@@ -50,6 +50,9 @@ export async function connectMcpServer(
   serverConfig: Config['mcp'][string]
 ): Promise<{ manager: MCPClientManager; toolsRegistered: number }> {
   const manager = ensureMcpManager(binding);
+  if (binding.toolRegistry) {
+    clearMcpServerTools(binding.toolRegistry, manager, serverName);
+  }
   await manager.connectOne(serverName, serverConfig);
 
   return {
@@ -65,15 +68,16 @@ export async function disconnectMcpServer(
   serverName: string
 ): Promise<{ manager: MCPClientManager | undefined; toolsRemoved: number }> {
   const manager = binding.getMcpManager();
+  const toolsRemoved = manager && binding.toolRegistry
+    ? clearMcpServerTools(binding.toolRegistry, manager, serverName)
+    : 0;
   if (manager) {
     await manager.disconnectOne(serverName);
   }
 
   return {
     manager,
-    toolsRemoved: binding.toolRegistry
-      ? clearMcpServerTools(binding.toolRegistry, serverName)
-      : 0
+    toolsRemoved
   };
 }
 
@@ -82,6 +86,9 @@ export async function reconnectMcpServer(
   serverName: string
 ): Promise<{ manager: MCPClientManager; toolsRegistered: number }> {
   const manager = ensureMcpManager(binding);
+  if (binding.toolRegistry) {
+    clearMcpServerTools(binding.toolRegistry, manager, serverName);
+  }
   await manager.reconnect(serverName);
 
   return {

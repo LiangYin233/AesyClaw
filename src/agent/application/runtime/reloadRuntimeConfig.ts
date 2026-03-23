@@ -19,7 +19,7 @@ export interface ReloadRuntimeConfigDeps {
   configStore: RuntimeConfigStore;
   agentRuntime: Pick<AgentRuntime, 'updateMainAgentRuntime' | 'updateMemorySettings'>;
   sessionRouting: Pick<SessionRoutingService, 'setContextMode'>;
-  toolRegistry: Pick<ToolRegistry, 'setDefaultTimeout' | 'register' | 'list' | 'unregisterMany'>;
+  toolRegistry: Pick<ToolRegistry, 'setDefaultTimeout' | 'register' | 'list' | 'unregisterMany' | 'getSource'>;
   apiServer?: Pick<APIServer, 'updateConfig'>;
   mcpManager: MCPClientManager | null;
   setMcpManager: (manager: MCPClientManager) => void;
@@ -31,7 +31,7 @@ export interface ReloadRuntimeConfigDeps {
   syncConfiguredMcpServers: (binding: {
     getMcpManager: () => MCPClientManager | undefined;
     setMcpManager: (manager: MCPClientManager) => void;
-    toolRegistry: Pick<ToolRegistry, 'register' | 'list' | 'unregisterMany'>;
+    toolRegistry: Pick<ToolRegistry, 'register' | 'list' | 'unregisterMany' | 'getSource'>;
   }, config: Config) => Promise<void>;
   logging: {
     configure: (config: { level?: 'debug' | 'info' | 'warn' | 'error' }) => void;

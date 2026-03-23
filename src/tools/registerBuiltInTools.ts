@@ -9,6 +9,7 @@ import type { AgentRoleService } from '../agent/infrastructure/roles/AgentRoleSe
 import type { SessionMemoryService } from '../agent/infrastructure/memory/SessionMemoryService.js';
 import type { SessionManager } from '../session/index.js';
 import { registerCronTools } from '../cron/CronTools.js';
+import { syncMcpServerTools } from '../mcp/toolSync.js';
 import { normalizeToolError } from './errors.js';
 import { logger } from '../observability/index.js';
 
@@ -423,17 +424,8 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
 export function registerMcpTools(toolRegistry: ToolRegistry, mcpManager: MCPClientManager): void {
   const log = logger.child('ToolIntegration');
 
-  mcpManager.onToolsLoaded((tools: ToolDefinition[]) => {
-    for (const tool of tools) {
-      const toolName = tool.name;
-      toolRegistry.register({
-        name: toolName,
-        description: tool.description,
-        parameters: tool.parameters,
-        execute: async (params: Record<string, any>) => mcpManager.callTool(toolName, params),
-        source: 'mcp' as ToolSource
-      }, 'mcp');
-    }
-    log.info('MCP 工具已注册', { toolCount: tools.length });
+  mcpManager.onToolsLoaded(async (serverName: string, _tools: ToolDefinition[]) => {
+    const toolCount = syncMcpServerTools(toolRegistry, mcpManager, serverName);
+    log.info('MCP 工具已注册', { server: serverName, toolCount });
   });
 }

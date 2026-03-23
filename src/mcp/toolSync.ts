@@ -3,19 +3,37 @@ import type { ToolRegistry } from '../tools/ToolRegistry.js';
 
 interface MCPToolSource {
   getToolsForServer(serverName: string): ToolDefinition[];
+  getRegisteredToolNamesForServer(serverName: string): string[];
+  getRegisteredServerForTool(toolName: string): string | undefined;
   callTool(name: string, args: Record<string, unknown>): Promise<string>;
 }
 
-function getToolPrefix(serverName: string): string {
-  return `mcp_${serverName}_`;
+type ToolRegistryView = Pick<ToolRegistry, 'register' | 'list' | 'unregisterMany' | 'getSource'>;
+
+function describeConflictSource(
+  toolRegistry: Pick<ToolRegistry, 'getSource'>,
+  mcpManager: MCPToolSource,
+  toolName: string
+): string {
+  const source = toolRegistry.getSource(toolName);
+  if (!source) {
+    return 'unknown';
+  }
+
+  if (source.source !== 'mcp') {
+    return source.source;
+  }
+
+  const owner = mcpManager.getRegisteredServerForTool(toolName);
+  return owner ? `mcp:${owner}` : 'mcp';
 }
 
-export function clearMcpServerTools(toolRegistry: Pick<ToolRegistry, 'list' | 'unregisterMany'>, serverName: string): number {
-  const prefix = getToolPrefix(serverName);
-  const toolNames = toolRegistry
-    .list()
-    .filter((tool) => tool.name.startsWith(prefix))
-    .map((tool) => tool.name);
+export function clearMcpServerTools(
+  toolRegistry: Pick<ToolRegistry, 'unregisterMany'>,
+  mcpManager: MCPToolSource,
+  serverName: string
+): number {
+  const toolNames = mcpManager.getRegisteredToolNamesForServer(serverName);
 
   if (toolNames.length === 0) {
     return 0;
@@ -25,13 +43,29 @@ export function clearMcpServerTools(toolRegistry: Pick<ToolRegistry, 'list' | 'u
 }
 
 export function syncMcpServerTools(
-  toolRegistry: Pick<ToolRegistry, 'register' | 'list' | 'unregisterMany'>,
+  toolRegistry: ToolRegistryView,
   mcpManager: MCPToolSource,
   serverName: string
 ): number {
-  clearMcpServerTools(toolRegistry, serverName);
-
   const tools = mcpManager.getToolsForServer(serverName);
+  const currentToolNames = new Set(mcpManager.getRegisteredToolNamesForServer(serverName));
+  const existingToolNames = new Set(toolRegistry.list().map((tool) => tool.name));
+  const conflicts: string[] = [];
+
+  for (const tool of tools) {
+    if (!existingToolNames.has(tool.name) || currentToolNames.has(tool.name)) {
+      continue;
+    }
+
+    conflicts.push(`${tool.name} (${describeConflictSource(toolRegistry, mcpManager, tool.name)})`);
+  }
+
+  if (conflicts.length > 0) {
+    throw new Error(`MCP server ${serverName} tool registration conflicts: ${conflicts.join(', ')}`);
+  }
+
+  clearMcpServerTools(toolRegistry, mcpManager, serverName);
+
   for (const tool of tools) {
     toolRegistry.register({
       name: tool.name,
