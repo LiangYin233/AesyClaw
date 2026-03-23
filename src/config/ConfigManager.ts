@@ -72,10 +72,9 @@ export class ConfigManager {
       return;
     }
 
-    this.unsubscribeLoader = ConfigLoader.onReload(async (nextConfig) => {
-      const previousConfig = this.currentConfig;
-      this.currentConfig = nextConfig;
+    this.unsubscribeLoader = ConfigLoader.onReload(async (previousConfig, nextConfig) => {
       await this.emitConfigChanged(previousConfig, nextConfig);
+      this.currentConfig = nextConfig;
     });
   }
 

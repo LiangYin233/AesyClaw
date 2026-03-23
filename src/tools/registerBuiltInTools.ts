@@ -58,6 +58,31 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
   } = options;
   const log = logger.child('ToolIntegration');
 
+  const throwIfAborted = (signal?: AbortSignal): void => {
+    if (!signal?.aborted) {
+      return;
+    }
+
+    const reason = signal.reason;
+    if (reason instanceof Error) {
+      throw reason;
+    }
+
+    const error = new Error(typeof reason === 'string' ? reason : 'Tool execution aborted');
+    error.name = 'AbortError';
+    throw error;
+  };
+
+  const rethrowAbortError = (error: unknown, signal?: AbortSignal): void => {
+    if (signal?.aborted) {
+      throw error;
+    }
+
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw error;
+    }
+  };
+
   registerCronTools(toolRegistry, cronService);
 
   const publishOutboundMessage = async (message: OutboundMessage): Promise<void> => {
@@ -117,6 +142,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
       const skillName = String(params.name);
       const files = await skillManager.listSkillFiles(skillName);
       if (!files) return `Skill "${skillName}" not found`;
+      if (typeof files === 'string') return files;
       if (files.length === 0) return `No files found in skill "${skillName}"`;
       return `Files in skill "${skillName}":\n${files.map((file) => `${file.name}${file.isDirectory ? '/' : ''}`).join('\n')}`;
     }
@@ -145,6 +171,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
       }
     },
     execute: async (params: Record<string, any>, context?: ToolContext) => {
+      throwIfAborted(context?.signal);
       const content = String(params.content ?? '');
       const media = Array.isArray(params.media)
         ? params.media.filter((item): item is string => typeof item === 'string')
@@ -175,10 +202,12 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
       };
 
       try {
+        throwIfAborted(context?.signal);
         await publishOutboundMessage(outboundMessage);
         if (context.sessionKey) {
           const historyEntry = buildHistoryEntry(content, media, files);
           if (historyEntry) {
+            throwIfAborted(context?.signal);
             await sessionManager.addMessage(context.sessionKey, 'assistant', historyEntry);
           }
         }
@@ -186,6 +215,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
         const attachmentInfo = attachmentCount > 0 ? ` (包含 ${attachmentCount} 个附件)` : '';
         return `消息已发送${attachmentInfo}`;
       } catch (error) {
+        rethrowAbortError(error, context?.signal);
         log.error('send_msg_to_user 执行失败', {
           channel: context.channel,
           chatId: context.chatId,
@@ -221,6 +251,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
       required: ['items']
     },
     execute: async (params: Record<string, any>, context?: ToolContext) => {
+      throwIfAborted(context?.signal);
       if (!Array.isArray(params.items) || params.items.length === 0) {
         return 'Error: call_agent requires { items: [{ agentName, task }, ...] }';
       }
@@ -266,6 +297,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
           results
         }, null, 2);
       } catch (error) {
+        rethrowAbortError(error, context?.signal);
         log.error('call_agent 执行失败', {
           taskCount: rawTasks.length,
           error: normalizeToolError(error)
@@ -293,6 +325,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
       required: ['task', 'systemPrompt']
     },
     execute: async (params: Record<string, any>, context?: ToolContext) => {
+      throwIfAborted(context?.signal);
       const task = String(params.task || '');
       const systemPrompt = String(params.systemPrompt || '');
       if (!task || !systemPrompt) {
@@ -307,6 +340,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
           signal: context?.signal
         });
       } catch (error) {
+        rethrowAbortError(error, context?.signal);
         log.error('call_temp_agent 执行失败', {
           baseAgentName: context?.agentName,
           channel: context?.channel,
@@ -327,6 +361,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
         properties: {}
       },
       execute: async (_params: Record<string, any>, context?: ToolContext) => {
+        throwIfAborted(context?.signal);
         if (!context?.channel || !context?.chatId) {
           return '错误：无法获取当前会话信息，此工具只能在用户会话中使用。';
         }
@@ -342,6 +377,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
             recentOperations: operations
           }, null, 2);
         } catch (error) {
+          rethrowAbortError(error, context?.signal);
           log.error('memory_list 执行失败', {
             channel: context.channel,
             chatId: context.chatId,
@@ -392,6 +428,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
         required: ['action']
       },
       execute: async (params: Record<string, any>, context?: ToolContext) => {
+        throwIfAborted(context?.signal);
         if (!context?.channel || !context?.chatId) {
           return '错误：无法获取当前会话信息，此工具只能在用户会话中使用。';
         }
@@ -421,6 +458,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
             results
           }, null, 2);
         } catch (error) {
+          rethrowAbortError(error, context?.signal);
           log.error('memory_manage 执行失败', {
             channel: context.channel,
             chatId: context.chatId,
@@ -444,6 +482,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
         }
       },
       execute: async (params: Record<string, any>, context?: ToolContext) => {
+        throwIfAborted(context?.signal);
         if (!context?.channel || !context?.chatId) {
           return '错误：无法获取当前会话信息，此工具只能在用户会话中使用。';
         }
@@ -456,6 +495,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
           const operations = await memoryService.listLongTermMemoryOperations(context.channel, context.chatId, limit);
           return JSON.stringify({ items: operations }, null, 2);
         } catch (error) {
+          rethrowAbortError(error, context?.signal);
           log.error('memory_history 执行失败', {
             channel: context.channel,
             chatId: context.chatId,

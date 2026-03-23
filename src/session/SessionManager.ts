@@ -278,9 +278,6 @@ export class SessionManager {
       timestamp
     };
 
-    session.messages.push(message);
-    session.updatedAt = updatedAt;
-
     if (session.id) {
       await this.db.transaction(async () => {
         await this.db.run(
@@ -290,14 +287,15 @@ export class SessionManager {
         await this.db.run(`UPDATE sessions SET updated_at = ? WHERE key = ?`, [timestamp, key]);
       });
     }
+
+    session.messages.push(message);
+    session.updatedAt = updatedAt;
   }
 
   async updateSummary(key: string, summary: string, summarizedMessageCount: number): Promise<void> {
     const session = await this.getOrCreate(key);
-    session.summary = summary;
-    session.summarizedMessageCount = summarizedMessageCount;
-    session.updatedAt = new Date();
-    const updatedAt = formatLocalTimestamp(session.updatedAt);
+    const nextUpdatedAt = new Date();
+    const updatedAt = formatLocalTimestamp(nextUpdatedAt);
 
     if (session.id) {
       await this.db.transaction(async () => {
@@ -316,6 +314,10 @@ export class SessionManager {
         );
       });
     }
+
+    session.summary = summary;
+    session.summarizedMessageCount = summarizedMessageCount;
+    session.updatedAt = nextUpdatedAt;
   }
 
   async getConversationMessages(channel: string, chatId: string): Promise<ConversationMessage[]> {

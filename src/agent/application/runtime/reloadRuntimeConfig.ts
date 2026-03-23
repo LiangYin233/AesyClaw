@@ -208,13 +208,6 @@ function buildReloadRules(deps: ReloadRuntimeConfigDeps): ReloadRule[] {
       }
     },
     {
-      key: 'api-server-config',
-      hasChanged: (currentConfig, nextConfig) => compare(currentConfig.server) !== compare(nextConfig.server),
-      apply: (ruleDeps, nextConfig) => {
-        ruleDeps.apiServer?.updateConfig(nextConfig);
-      }
-    },
-    {
       key: 'mcp-runtime',
       hasChanged: (currentConfig, nextConfig) => compare(currentConfig.mcp) !== compare(nextConfig.mcp),
       apply: async (ruleDeps, nextConfig) => {
@@ -237,10 +230,13 @@ export async function reloadRuntimeConfig(
   const startedAt = Date.now();
   const reloadRules = buildReloadRules(deps);
   const triggeredRules = reloadRules.filter((rule) => rule.hasChanged(input.previousConfig, input.currentConfig));
-
-  deps.configStore.setConfig(input.currentConfig);
+  const serverConfigChanged = compare(input.previousConfig.server) !== compare(input.currentConfig.server);
 
   if (triggeredRules.length === 0) {
+    deps.configStore.setConfig(input.currentConfig);
+    if (serverConfigChanged) {
+      deps.apiServer?.updateConfig(input.currentConfig);
+    }
     deps.logger.debug('配置热重载：未检测到需要更新的运行时规则');
     return;
   }
@@ -256,6 +252,11 @@ export async function reloadRuntimeConfig(
       ...(details || {})
     });
     await rule.apply(deps, input.currentConfig);
+  }
+
+  deps.configStore.setConfig(input.currentConfig);
+  if (serverConfigChanged) {
+    deps.apiServer?.updateConfig(input.currentConfig);
   }
 
   deps.logger.info('配置热重载完成', {

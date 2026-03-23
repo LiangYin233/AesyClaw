@@ -4,6 +4,8 @@ import { logger } from '../observability/index.js';
 import { formatLocalTimestamp } from '../observability/logging.js';
 import { CronStore } from './CronStore.js';
 
+const FAILED_JOB_RETRY_DELAY_MS = 60_000;
+
 export interface CronJob {
   id: string;
   name: string;
@@ -153,6 +155,7 @@ export class CronService {
     const now = Date.now();
     const toRemove: string[] = [];
     const toUpdate: CronJob[] = [];
+    const statusUpdates: Array<{ id: string; enabled: boolean; nextRunAtMs?: number }> = [];
 
     for (const job of this.jobs.values()) {
       if (job.enabled && job.nextRunAtMs && now >= job.nextRunAtMs) {
@@ -163,17 +166,40 @@ export class CronService {
           target: job.payload.target
         });
 
+        let executedSuccessfully = true;
+
         if (this.onJobExecute) {
           try {
             await this.onJobExecute(job);
             this.log.info('定时任务执行完成', { jobId: job.id, jobName: job.name });
           } catch (error: unknown) {
+            executedSuccessfully = false;
             this.log.error('定时任务执行失败', {
               jobId: job.id,
               jobName: job.name,
               error: normalizeCronError(error)
             });
           }
+        }
+
+        if (!executedSuccessfully) {
+          if (job.schedule.kind === 'once') {
+            job.enabled = false;
+            job.nextRunAtMs = undefined;
+            statusUpdates.push({ id: job.id, enabled: false, nextRunAtMs: undefined });
+            this.log.info('一次性定时任务执行失败，已保留并停用', {
+              jobId: job.id
+            });
+            continue;
+          }
+
+          job.nextRunAtMs = now + FAILED_JOB_RETRY_DELAY_MS;
+          toUpdate.push(job);
+          this.log.info('定时任务将在失败后重试', {
+            jobId: job.id,
+            retryAt: formatLocalTimestamp(new Date(job.nextRunAtMs))
+          });
+          continue;
         }
 
         job.lastRunAtMs = now;
@@ -199,6 +225,13 @@ export class CronService {
     if (toUpdate.length > 0) {
       this.store.batchUpdate(toUpdate).catch(err => this.log.error('批量更新任务失败', {
         count: toUpdate.length,
+        error: normalizeCronError(err)
+      }));
+    }
+
+    for (const update of statusUpdates) {
+      this.store.updateStatus(update.id, update.enabled, update.nextRunAtMs).catch(err => this.log.error('更新任务状态失败', {
+        jobId: update.id,
         error: normalizeCronError(err)
       }));
     }

@@ -7,6 +7,18 @@ export interface SessionReference {
   messageType?: 'private' | 'group';
 }
 
+export function deriveSessionReference(reference: string): SessionReference {
+  const parts = reference.split(':');
+  const channel = parts[0]?.trim();
+  const chatId = parts[1]?.trim();
+
+  return {
+    sessionKey: reference,
+    ...(channel ? { channel } : {}),
+    ...(chatId ? { chatId } : {})
+  };
+}
+
 export function bindSessionReference(
   message: InboundMessage,
   reference: SessionReference | string

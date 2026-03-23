@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn, execSync, ChildProcess } from 'child_process';
-import { bootstrap } from './bootstrap/index.js';
+import { bootstrap, StartupInterruptedError } from './bootstrap/index.js';
 import { ConfigLoader } from './config/loader.js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -35,6 +35,11 @@ interface ResolvedStartTarget {
 }
 
 type ChildProcessStdio = ['ignore', 'inherit', 'inherit'];
+
+interface ShutdownState {
+  gatewaySignalHandlersReady?: boolean;
+  shutdownRequested?: boolean;
+}
 
 function log(prefix: string, message: string) {
   console.log(`${prefix} ${message}`);
@@ -105,14 +110,14 @@ export function cleanupProcesses(): void {
 
 // 注册信号处理器
 export function shouldCliExitOnShutdown(mode: ServiceMode): boolean {
-  return mode === 'webui' || mode === 'all';
+  return mode === 'webui';
 }
 
 export function getChildProcessStdio(): ChildProcessStdio {
   return ['ignore', 'inherit', 'inherit'];
 }
 
-function setupSignalHandlers(mode: ServiceMode): void {
+function setupSignalHandlers(mode: ServiceMode, state: ShutdownState = {}): void {
   let shuttingDown = false;
 
   const handleShutdown = () => {
@@ -121,6 +126,7 @@ function setupSignalHandlers(mode: ServiceMode): void {
     }
 
     shuttingDown = true;
+    state.shutdownRequested = true;
     console.log(''); // 换行使输出更清晰
     cleanupProcesses();
 
@@ -203,7 +209,11 @@ export async function runStartupTasks(
 }
 
 async function startService(mode: ServiceMode): Promise<void> {
-  setupSignalHandlers(mode);
+  const shutdownState: ShutdownState = {
+    gatewaySignalHandlersReady: false,
+    shutdownRequested: false
+  };
+  setupSignalHandlers(mode, shutdownState);
 
   const targets = createStartTargets();
 
@@ -214,7 +224,12 @@ async function startService(mode: ServiceMode): Promise<void> {
   }
 
   if (mode === 'gateway' || mode === 'all') {
-    startupTasks.push(bootstrap());
+    startupTasks.push(bootstrap({
+      onSignalHandlersReady: () => {
+        shutdownState.gatewaySignalHandlersReady = true;
+      },
+      shouldAbortStartup: () => shutdownState.shutdownRequested === true
+    }));
   }
 
   await runStartupTasks(startupTasks);
@@ -251,7 +266,17 @@ async function main(): Promise<void> {
 
   // gateway 命令直接启动服务
   if (command === 'gateway') {
-    await bootstrap();
+    const shutdownState: ShutdownState = {
+      gatewaySignalHandlersReady: false,
+      shutdownRequested: false
+    };
+    setupSignalHandlers('gateway', shutdownState);
+    await bootstrap({
+      onSignalHandlersReady: () => {
+        shutdownState.gatewaySignalHandlersReady = true;
+      },
+      shouldAbortStartup: () => shutdownState.shutdownRequested === true
+    });
     return;
   }
 
@@ -287,6 +312,9 @@ async function main(): Promise<void> {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((err) => {
+    if (err instanceof StartupInterruptedError) {
+      process.exit(0);
+    }
     error(`Fatal error: ${err.message}`);
     console.error(err);
     process.exit(1);

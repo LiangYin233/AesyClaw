@@ -18,6 +18,16 @@ export class MCPClientManager {
   private log = logger.child('MCP');
   private static readonly DEFAULT_TIMEOUT = DEFAULT_MCP_TIMEOUT;
 
+  private createAbortError(reason: unknown): Error {
+    if (reason instanceof Error) {
+      return reason;
+    }
+
+    const error = new Error(typeof reason === 'string' ? reason : 'MCP tool call aborted');
+    error.name = 'AbortError';
+    return error;
+  }
+
   async connectAsync(config: MCPServersConfig): Promise<void> {
     const promises: Promise<void>[] = [];
 
@@ -148,7 +158,7 @@ export class MCPClientManager {
     this.log.info('MCP 工具已加载', { server: serverName, toolCount: tools.size });
   }
 
-  async callTool(name: string, args: Record<string, unknown>, timeout?: number): Promise<string> {
+  async callTool(name: string, args: Record<string, unknown>, signal?: AbortSignal, timeout?: number): Promise<string> {
     const serverName = this.registeredToolOwners.get(name);
     if (!serverName) {
       throw new Error(`MCP tool not registered: ${name}`);
@@ -177,16 +187,35 @@ export class MCPClientManager {
     }
 
     let timeoutId: NodeJS.Timeout | undefined;
+    let abortListener: (() => void) | undefined;
+    const abortPromise = new Promise<never>((_, reject) => {
+      if (!signal) {
+        return;
+      }
+
+      const onAbort = () => reject(this.createAbortError(signal.reason));
+      if (signal.aborted) {
+        onAbort();
+        return;
+      }
+
+      abortListener = onAbort;
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
     const response = await Promise.race<any>([
       client.callTool(
         { name, arguments: parsedArgs }
       ),
+      abortPromise,
       new Promise((_, reject) => {
         timeoutId = setTimeout(() => reject(new Error(`MCP tool call timeout after ${requestTimeout}ms`)), requestTimeout);
       })
     ]).finally(() => {
       if (timeoutId) {
         clearTimeout(timeoutId);
+      }
+      if (signal && abortListener) {
+        signal.removeEventListener('abort', abortListener);
       }
     });
 

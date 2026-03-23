@@ -5,7 +5,7 @@ interface MCPToolSource {
   getToolsForServer(serverName: string): ToolDefinition[];
   getRegisteredToolNamesForServer(serverName: string): string[];
   getRegisteredServerForTool(toolName: string): string | undefined;
-  callTool(name: string, args: Record<string, unknown>): Promise<string>;
+  callTool(name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<string>;
 }
 
 type ToolRegistryView = Pick<ToolRegistry, 'register' | 'list' | 'unregisterMany' | 'getSource'>;
@@ -71,7 +71,7 @@ export function syncMcpServerTools(
       name: tool.name,
       description: tool.description,
       parameters: tool.parameters,
-      execute: async (params: Record<string, unknown>) => mcpManager.callTool(tool.name, params)
+      execute: async (params: Record<string, unknown>, context) => mcpManager.callTool(tool.name, params, context?.signal)
     }, 'mcp');
   }
 

@@ -229,6 +229,9 @@ export class SkillManager {
     if (!skill) {
       return null;
     }
+    if (!skill.enabled) {
+      return `Skill "${skillName}" is disabled`;
+    }
 
     const targetFileName = this.sanitizeFileName(fileName || SKILL_ENTRY_FILE);
     if (!targetFileName) {
@@ -255,10 +258,13 @@ export class SkillManager {
     }
   }
 
-  async listSkillFiles(skillName: string): Promise<SkillFile[] | null> {
+  async listSkillFiles(skillName: string): Promise<SkillFile[] | string | null> {
     const skill = this.skills.get(skillName);
     if (!skill) {
       return null;
+    }
+    if (!skill.enabled) {
+      return `Skill "${skillName}" is disabled`;
     }
     return skill.files || [];
   }

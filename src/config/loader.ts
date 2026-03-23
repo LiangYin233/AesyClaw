@@ -65,13 +65,16 @@ function withGeneratedToken(config: Config): Config {
 
 export class ConfigLoader {
   private static readonly WATCH_DEBOUNCE_MS = 150;
+  private static readonly WATCH_RETRY_MS = 200;
+  private static readonly MAX_WATCH_RESTART_ATTEMPTS = 20;
   private static config: Config | null = null;
   private static configPath = join(process.cwd(), 'config.toml');
   private static watcher: fsWatcher | null = null;
   private static log = logger.child('ConfigLoader');
-  private static reloadListeners = new Set<(config: Config) => void | Promise<void>>();
+  private static reloadListeners = new Set<(previousConfig: Config | null, nextConfig: Config) => void | Promise<void>>();
   private static lastAppliedSignature: string | null = null;
   private static reloadTimer: NodeJS.Timeout | null = null;
+  private static watcherRestartTimer: NodeJS.Timeout | null = null;
 
   private static ensureConfigDirectory(): void {
     const dir = dirname(this.configPath);
@@ -93,16 +96,66 @@ export class ConfigLoader {
     }
   }
 
+  private static clearWatcherRestartTimer(): void {
+    if (this.watcherRestartTimer) {
+      clearTimeout(this.watcherRestartTimer);
+      this.watcherRestartTimer = null;
+    }
+  }
+
+  private static scheduleReload(): void {
+    this.clearReloadTimer();
+    this.reloadTimer = setTimeout(() => {
+      this.clearReloadTimer();
+      void this.reloadFromDisk();
+    }, this.WATCH_DEBOUNCE_MS);
+  }
+
+  private static scheduleWatcherRestart(attemptsRemaining = this.MAX_WATCH_RESTART_ATTEMPTS): void {
+    this.clearWatcherRestartTimer();
+    if (attemptsRemaining <= 0 || this.watcher) {
+      return;
+    }
+
+    this.watcherRestartTimer = setTimeout(() => {
+      this.watcherRestartTimer = null;
+
+      if (this.watcher) {
+        return;
+      }
+
+      if (!existsSync(this.configPath)) {
+        this.scheduleWatcherRestart(attemptsRemaining - 1);
+        return;
+      }
+
+      this.startWatching();
+      if (this.watcher) {
+        this.scheduleReload();
+      } else {
+        this.scheduleWatcherRestart(attemptsRemaining - 1);
+      }
+    }, this.WATCH_RETRY_MS);
+  }
+
   private static serializeConfig(config: Config): string {
     const serializable = stripUndefined(config) ?? {};
     return stringify(serializable as Record<string, unknown>);
   }
 
-  private static writeConfig(config: Config): Config {
+  private static persistConfig(config: Config): Config {
     this.ensureConfigDirectory();
-    const nextConfig = withGeneratedToken(config);
-    writeFileSync(this.configPath, this.serializeConfig(nextConfig), 'utf-8');
-    return this.applyConfigState(nextConfig);
+    writeFileSync(this.configPath, this.serializeConfig(config), 'utf-8');
+    return config;
+  }
+
+  private static restorePersistedConfig(config: Config | null): void {
+    if (!config) {
+      return;
+    }
+
+    this.ensureConfigDirectory();
+    writeFileSync(this.configPath, this.serializeConfig(config), 'utf-8');
   }
 
   private static readParsedConfig(): Config {
@@ -120,16 +173,36 @@ export class ConfigLoader {
   }
 
   static async save(config: unknown): Promise<void> {
-    const nextConfig = this.writeConfig(parseConfig(config));
-    await this.notifyReload(nextConfig);
+    const previousConfig = this.config ? cloneConfig(this.config) : null;
+    const nextConfig = withGeneratedToken(parseConfig(config));
+    const nextSignature = this.serializeConfig(nextConfig);
+    const previousSignature = this.lastAppliedSignature;
+    this.lastAppliedSignature = nextSignature;
+    this.persistConfig(nextConfig);
+    try {
+      await this.notifyReload(nextConfig);
+    } catch (error) {
+      this.lastAppliedSignature = previousSignature;
+      this.restorePersistedConfig(previousConfig);
+      throw error;
+    }
   }
 
   static async update(mutator: ConfigMutator): Promise<Config> {
     const currentConfig = cloneConfig(await this.load());
     const updatedConfig = await mutator(currentConfig);
-    const nextConfig = parseConfig(updatedConfig ?? currentConfig);
-    const savedConfig = this.writeConfig(nextConfig);
-    await this.notifyReload(savedConfig);
+    const nextConfig = withGeneratedToken(parseConfig(updatedConfig ?? currentConfig));
+    const previousConfig = this.config ? cloneConfig(this.config) : null;
+    const previousSignature = this.lastAppliedSignature;
+    this.lastAppliedSignature = this.serializeConfig(nextConfig);
+    const savedConfig = this.persistConfig(nextConfig);
+    try {
+      await this.notifyReload(savedConfig);
+    } catch (error) {
+      this.lastAppliedSignature = previousSignature;
+      this.restorePersistedConfig(previousConfig);
+      throw error;
+    }
     return savedConfig;
   }
 
@@ -144,14 +217,17 @@ export class ConfigLoader {
 
     if (!existsSync(this.configPath)) {
       const nextConfig = withGeneratedToken(createDefaultConfig());
-      this.writeConfig(nextConfig);
+      this.persistConfig(nextConfig);
+      this.applyConfigState(nextConfig);
       this.startWatching();
       return nextConfig;
     }
 
     const loadedConfig = this.readParsedConfig();
     if (!loadedConfig.server.token) {
-      this.writeConfig(loadedConfig);
+      const nextConfig = withGeneratedToken(loadedConfig);
+      this.persistConfig(nextConfig);
+      this.applyConfigState(nextConfig);
     } else {
       this.applyConfigState(loadedConfig);
     }
@@ -168,7 +244,7 @@ export class ConfigLoader {
     return this.config;
   }
 
-  static onReload(listener: (config: Config) => void | Promise<void>): () => void {
+  static onReload(listener: (previousConfig: Config | null, nextConfig: Config) => void | Promise<void>): () => void {
     this.reloadListeners.add(listener);
     return () => {
       this.reloadListeners.delete(listener);
@@ -176,10 +252,11 @@ export class ConfigLoader {
   }
 
   private static async notifyReload(config: Config): Promise<void> {
-    this.applyConfigState(config);
+    const previousConfig = this.config ? cloneConfig(this.config) : null;
     for (const listener of this.reloadListeners) {
-      await listener(config);
+      await listener(previousConfig, config);
     }
+    this.applyConfigState(config);
   }
 
   static async updatePluginConfig(name: string, enabled: boolean, options?: Record<string, any>): Promise<Config> {
@@ -203,15 +280,18 @@ export class ConfigLoader {
           return;
         }
 
+        if (eventType === 'rename') {
+          this.stopWatching();
+          this.scheduleWatcherRestart();
+          this.scheduleReload();
+          return;
+        }
+
         if (eventType !== 'change') {
           return;
         }
 
-        this.clearReloadTimer();
-        this.reloadTimer = setTimeout(() => {
-          this.clearReloadTimer();
-          void this.reloadFromDisk();
-        }, this.WATCH_DEBOUNCE_MS);
+        this.scheduleReload();
       });
       this.log.debug('已启动文件监视器');
     } catch (error) {
@@ -223,6 +303,7 @@ export class ConfigLoader {
 
   static stopWatching(): void {
     this.clearReloadTimer();
+    this.clearWatcherRestartTimer();
 
     if (this.watcher) {
       this.watcher.close();
@@ -233,7 +314,8 @@ export class ConfigLoader {
 
   private static async reloadFromDisk(): Promise<void> {
     try {
-      const nextConfig = this.readParsedConfig();
+      const parsedConfig = this.readParsedConfig();
+      const nextConfig = parsedConfig.server.token ? parsedConfig : withGeneratedToken(parsedConfig);
       const signature = this.serializeConfig(nextConfig);
 
       if (signature === this.lastAppliedSignature) {
@@ -243,6 +325,10 @@ export class ConfigLoader {
 
       this.log.info('配置已从磁盘重新加载');
       await this.notifyReload(nextConfig);
+
+      if (nextConfig !== parsedConfig) {
+        this.persistConfig(nextConfig);
+      }
     } catch (error) {
       this.log.warn('重新加载配置失败', {
         error: normalizeConfigError(error)

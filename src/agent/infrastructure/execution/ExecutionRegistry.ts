@@ -15,11 +15,22 @@ interface ExecutionEntry {
 export class ExecutionRegistry {
   private controllers = new Map<string, ExecutionEntry>();
 
+  private createAbortError(message: string): Error {
+    const error = new Error(message);
+    error.name = 'AbortError';
+    return error;
+  }
+
   begin(
     key: string,
     controller?: AbortController,
     metadata?: Omit<ForegroundExecutionHandle, 'sessionKey' | 'status'>
   ): AbortController {
+    const existing = this.controllers.get(key);
+    if (existing && !existing.controller.signal.aborted) {
+      existing.controller.abort(this.createAbortError(`Foreground execution superseded by newer run: ${key}`));
+    }
+
     const activeController = controller ?? new AbortController();
     this.controllers.set(key, {
       controller: activeController,

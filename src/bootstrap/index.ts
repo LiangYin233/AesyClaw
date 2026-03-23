@@ -9,7 +9,7 @@ import { createServices, type Services } from './factory/ServiceFactory.js';
 import { dispatchCronJob } from './app/cronDispatch.js';
 import { setupConfigReload } from './app/configReload.js';
 import { setupEventListeners } from './app/eventListeners.js';
-import { setupSignalHandlers } from './app/shutdown.js';
+import { setupSignalHandlers, shutdownServices } from './app/shutdown.js';
 import { EventBus } from '../events/EventBus.js';
 import type { AesyClawEvents } from '../events/events.js';
 
@@ -50,26 +50,34 @@ function ensureRuntimeDirectories(workspace: string, tempDir: string): void {
   }
 }
 
+export interface BootstrapOptions {
+  onSignalHandlersReady?: () => void;
+  shouldAbortStartup?: () => boolean;
+}
+
+export class StartupInterruptedError extends Error {
+  constructor() {
+    super('Startup interrupted by signal');
+    this.name = 'StartupInterruptedError';
+  }
+}
+
 async function startChannels(services: Services): Promise<void> {
   const { channelManager } = services;
   const startedAt = Date.now();
-  try {
-    await Promise.race([
-      channelManager.startAll(),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Channel start timeout')), CHANNEL_START_TIMEOUT)
-      )
-    ]);
-  } catch (error) {
-    log.error('渠道启动失败', { error });
-  }
+  await Promise.race([
+    channelManager.startAll(),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Channel start timeout')), CHANNEL_START_TIMEOUT)
+    )
+  ]);
   log.info('渠道启动完成', {
     channelCount: channelManager.getEnabledChannels().length,
     durationMs: Date.now() - startedAt
   });
 }
 
-export async function bootstrap(): Promise<void> {
+export async function bootstrap(options: BootstrapOptions = {}): Promise<void> {
   const startedAt = Date.now();
   const stopLagMonitor = startStartupLagMonitor();
   const eventBus = new EventBus<AesyClawEvents>();
@@ -90,57 +98,83 @@ export async function bootstrap(): Promise<void> {
   });
 
   let servicesRef: Services | undefined;
-  const onCronJob = async (job: CronJob): Promise<void> => {
-    if (!servicesRef) {
-      throw new Error('Services are not ready for cron dispatch');
+  let startupAbortCleanedUp = false;
+
+  try {
+    const onCronJob = async (job: CronJob): Promise<void> => {
+      if (!servicesRef) {
+        throw new Error('Services are not ready for cron dispatch');
+      }
+
+      await dispatchCronJob(servicesRef, workspace, job);
+    };
+
+    const servicesStartedAt = Date.now();
+    servicesRef = await createServices({
+      workspace,
+      tempDir,
+      config,
+      configManager,
+      eventBus,
+      port,
+      onCronJob
+    });
+    log.info('启动阶段完成', {
+      phase: 'services',
+      durationMs: Date.now() - servicesStartedAt
+    });
+
+    if (options.shouldAbortStartup?.()) {
+      await shutdownServices(servicesRef);
+      startupAbortCleanedUp = true;
+      throw new StartupInterruptedError();
     }
 
-    await dispatchCronJob(servicesRef, workspace, job);
-  };
+    const wiringStartedAt = Date.now();
+    setupConfigReload(servicesRef);
+    setupEventListeners(servicesRef);
+    setupSignalHandlers(servicesRef);
+    options.onSignalHandlersReady?.();
+    if (options.shouldAbortStartup?.()) {
+      await shutdownServices(servicesRef);
+      startupAbortCleanedUp = true;
+      throw new StartupInterruptedError();
+    }
+    log.info('启动阶段完成', {
+      phase: 'wiring',
+      durationMs: Date.now() - wiringStartedAt
+    });
 
-  const servicesStartedAt = Date.now();
-  servicesRef = await createServices({
-    workspace,
-    tempDir,
-    config,
-    configManager,
-    eventBus,
-    port,
-    onCronJob
-  });
-  log.info('启动阶段完成', {
-    phase: 'services',
-    durationMs: Date.now() - servicesStartedAt
-  });
+    const channelsStartedAt = Date.now();
+    await startChannels(servicesRef);
+    log.info('启动阶段完成', {
+      phase: 'channels',
+      durationMs: Date.now() - channelsStartedAt
+    });
 
-  const wiringStartedAt = Date.now();
-  setupConfigReload(servicesRef);
-  setupEventListeners(servicesRef);
-  setupSignalHandlers(servicesRef);
-  log.info('启动阶段完成', {
-    phase: 'wiring',
-    durationMs: Date.now() - wiringStartedAt
-  });
+    servicesRef.agentRuntime.start();
+    servicesRef.startPluginLoading();
 
-  const channelsStartedAt = Date.now();
-  await startChannels(servicesRef);
-  log.info('启动阶段完成', {
-    phase: 'channels',
-    durationMs: Date.now() - channelsStartedAt
-  });
-
-  servicesRef.agentRuntime.start();
-  servicesRef.startPluginLoading();
-
-  log.info('网关启动完成', {
-    durationMs: Date.now() - startedAt,
-    provider: mainAgent.provider.name,
-    model: mainAgent.role.model,
-    apiEnabled: servicesRef.apiServer !== undefined,
-    channelCount: servicesRef.channelManager.getEnabledChannels().length,
-    pluginCount: Object.keys(servicesRef.pluginManager.getPluginConfigs()).length,
-    skillCount: servicesRef.skillManager?.listSkills().length || 0
-  });
-
-  stopLagMonitor();
+    log.info('网关启动完成', {
+      durationMs: Date.now() - startedAt,
+      provider: mainAgent.provider.name,
+      model: mainAgent.role.model,
+      apiEnabled: servicesRef.apiServer !== undefined,
+      channelCount: servicesRef.channelManager.getEnabledChannels().length,
+      pluginCount: Object.keys(servicesRef.pluginManager.getPluginConfigs()).length,
+      skillCount: servicesRef.skillManager?.listSkills().length || 0
+    });
+  } catch (error) {
+    log.error('网关启动失败', { error });
+    if (servicesRef && !startupAbortCleanedUp) {
+      try {
+        await shutdownServices(servicesRef);
+      } catch (cleanupError) {
+        log.error('启动失败后的清理未完全成功', { error: cleanupError });
+      }
+    }
+    throw error;
+  } finally {
+    stopLagMonitor();
+  }
 }

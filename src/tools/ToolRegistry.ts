@@ -42,6 +42,19 @@ function createAbortError(message: string): Error {
   return error;
 }
 
+function throwIfAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) {
+    return;
+  }
+
+  const reason = signal.reason;
+  if (reason instanceof Error) {
+    throw reason;
+  }
+
+  throw createAbortError(typeof reason === 'string' ? reason : 'Tool execution aborted');
+}
+
 function mergeAbortSignals(signals: Array<AbortSignal | undefined>): {
   signal?: AbortSignal;
   cleanup: () => void;
@@ -235,6 +248,7 @@ export class ToolRegistry {
     };
 
     try {
+      throwIfAborted(mergedSignal);
       const result = await Promise.race([
         tool.execute(params, execContext),  // 执行工具
         new Promise<never>((_, reject) => {
@@ -259,6 +273,7 @@ export class ToolRegistry {
           mergedSignal.addEventListener('abort', onAbort, { once: true });
         })
       ]);
+      throwIfAborted(mergedSignal);
       return result;
     } catch (error) {
       throw error;
