@@ -111,6 +111,83 @@
             </section>
 
             <section class="hairline-card rounded-2xl p-8">
+              <h4 class="cn-section-title text-on-surface">记忆摘要</h4>
+              <div class="mt-5 space-y-4">
+                <div class="flex items-center justify-between rounded-lg bg-surface px-4 py-3">
+                  <div>
+                    <p class="text-sm font-medium text-on-surface">启用摘要</p>
+                    <p class="mt-1 text-xs text-on-surface-variant">自动生成会话摘要。</p>
+                  </div>
+                  <button class="relative h-5 w-10 rounded-full transition" :class="configDraft.agent!.defaults!.memorySummary!.enabled ? 'bg-primary-container' : 'bg-surface-container-high'" type="button" @click="configDraft.agent!.defaults!.memorySummary!.enabled = !configDraft.agent!.defaults!.memorySummary!.enabled">
+                    <span class="absolute top-0.5 size-4 rounded-full bg-white transition" :class="configDraft.agent!.defaults!.memorySummary!.enabled ? 'right-0.5' : 'left-0.5'"></span>
+                  </button>
+                </div>
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <label class="space-y-1.5">
+                    <span class="text-xs font-bold tracking-[0.08em] text-outline">Provider</span>
+                    <select v-model="configDraft.agent!.defaults!.memorySummary!.provider" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20">
+                      <option value="">请选择</option>
+                      <option v-for="name in providerNames" :key="name" :value="name">{{ name }}</option>
+                    </select>
+                  </label>
+                  <label class="space-y-1.5">
+                    <span class="text-xs font-bold tracking-[0.08em] text-outline">模型</span>
+                    <input v-model="configDraft.agent!.defaults!.memorySummary!.model" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" />
+                  </label>
+                </div>
+                <label class="space-y-1.5">
+                  <span class="text-xs font-bold tracking-[0.08em] text-outline">压缩轮次</span>
+                  <input v-model.number="configDraft.agent!.defaults!.memorySummary!.compressRounds" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="number" />
+                </label>
+              </div>
+            </section>
+
+            <section class="hairline-card rounded-2xl p-8">
+              <h4 class="cn-section-title text-on-surface">长期事实</h4>
+              <div class="mt-5 space-y-4">
+                <div class="flex items-center justify-between rounded-lg bg-surface px-4 py-3">
+                  <div>
+                    <p class="text-sm font-medium text-on-surface">启用事实</p>
+                    <p class="mt-1 text-xs text-on-surface-variant">存储和检索长期事实。</p>
+                  </div>
+                  <button class="relative h-5 w-10 rounded-full transition" :class="configDraft.agent!.defaults!.memoryFacts!.enabled ? 'bg-primary-container' : 'bg-surface-container-high'" type="button" @click="configDraft.agent!.defaults!.memoryFacts!.enabled = !configDraft.agent!.defaults!.memoryFacts!.enabled">
+                    <span class="absolute top-0.5 size-4 rounded-full bg-white transition" :class="configDraft.agent!.defaults!.memoryFacts!.enabled ? 'right-0.5' : 'left-0.5'"></span>
+                  </button>
+                </div>
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <label class="space-y-1.5">
+                    <span class="text-xs font-bold tracking-[0.08em] text-outline">Provider</span>
+                    <select v-model="configDraft.agent!.defaults!.memoryFacts!.provider" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20">
+                      <option value="">请选择</option>
+                      <option v-for="name in providerNames" :key="name" :value="name">{{ name }}</option>
+                    </select>
+                  </label>
+                  <label class="space-y-1.5">
+                    <span class="text-xs font-bold tracking-[0.08em] text-outline">模型</span>
+                    <input v-model="configDraft.agent!.defaults!.memoryFacts!.model" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" />
+                  </label>
+                </div>
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <label class="space-y-1.5">
+                    <span class="text-xs font-bold tracking-[0.08em] text-outline">检索 Provider</span>
+                    <select v-model="configDraft.agent!.defaults!.memoryFacts!.retrievalProvider" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20">
+                      <option value="">请选择</option>
+                      <option v-for="name in providerNames" :key="name" :value="name">{{ name }}</option>
+                    </select>
+                  </label>
+                  <label class="space-y-1.5">
+                    <span class="text-xs font-bold tracking-[0.08em] text-outline">检索模型</span>
+                    <input v-model="configDraft.agent!.defaults!.memoryFacts!.retrievalModel" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" />
+                  </label>
+                  <label class="space-y-1.5">
+                    <span class="text-xs font-bold tracking-[0.08em] text-outline">检索 TopK</span>
+                    <input v-model.number="configDraft.agent!.defaults!.memoryFacts!.retrievalTopK" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="number" />
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            <section class="hairline-card rounded-2xl p-8">
               <h4 class="cn-section-title text-on-surface">观测与超时</h4>
               <div class="mt-5 grid grid-cols-1 gap-4">
                 <label class="space-y-1.5">
@@ -245,6 +322,7 @@ const providerExtraBodyDrafts = ref<Record<string, string>>({});
 const providerJsonErrors = ref<Record<string, { headers?: string; extraBody?: string }>>({});
 
 const providerEntries = computed(() => Object.entries(configDraft.value?.providers || {}) as Array<[string, ProviderConfig]>);
+const providerNames = computed(() => Object.keys(configDraft.value?.providers || {}));
 const hasProviderJsonErrors = computed(() => Object.values(providerJsonErrors.value).some((item) => Boolean(item?.headers || item?.extraBody)));
 
 function createEmptyProvider(): ProviderConfig {
