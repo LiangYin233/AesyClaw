@@ -26,7 +26,7 @@
             <p class="mt-2 leading-6">{{ error }}</p>
           </div>
 
-          <div class="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div class="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             <article class="hairline-card rounded-2xl p-5">
               <p class="tech-text text-[10px] tracking-[0.14em] text-on-surface-variant">任务总数</p>
               <div class="mt-2 flex items-end gap-2">
@@ -45,12 +45,6 @@
               <p class="tech-text text-[10px] tracking-[0.14em] text-on-surface-variant">下次执行</p>
               <div class="mt-2 flex items-end gap-2">
                 <span class="cn-metric text-on-surface">{{ nextExecutionLabel }}</span>
-              </div>
-            </article>
-            <article class="hairline-card rounded-2xl p-5">
-              <p class="tech-text text-[10px] tracking-[0.14em] text-on-surface-variant">运行状态</p>
-              <div class="mt-2 flex items-end gap-2">
-                <span class="cn-metric text-tertiary">{{ jobs.length ? '稳定' : '空闲' }}</span>
               </div>
             </article>
           </div>
