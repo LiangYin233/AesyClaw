@@ -12,6 +12,14 @@
             class="rounded-xl bg-surface-container-high px-5 py-2.5 text-sm font-semibold text-on-surface transition hover:bg-surface-container-highest"
             type="button"
             :disabled="loading || saving"
+            @click="loadConfig"
+          >
+            重新拉取配置
+          </button>
+          <button
+            class="rounded-xl bg-surface-container-high px-5 py-2.5 text-sm font-semibold text-on-surface transition hover:bg-surface-container-highest"
+            type="button"
+            :disabled="loading || saving"
             @click="resetDraft"
           >
             放弃更改
@@ -40,8 +48,7 @@
         <button class="text-xs font-bold tracking-[0.08em] text-primary hover:underline" type="button" @click="goToLogs">查看观测</button>
       </div>
 
-      <div class="grid grid-cols-1 gap-8 xl:grid-cols-12">
-        <div class="space-y-8 xl:col-span-8">
+      <div class="space-y-8">
           <section v-if="configDraft" class="hairline-card rounded-2xl p-8">
             <div class="mb-8 flex items-start justify-between gap-4">
               <div class="flex items-center gap-4">
@@ -267,42 +274,7 @@
               </div>
             </div>
           </section>
-        </div>
 
-        <aside class="sidebar-rail-scroll min-w-0 space-y-8 xl:col-span-4">
-          <section class="rounded-2xl border border-white/20 bg-surface-container-lowest/80 p-6 shadow-xl shadow-blue-900/5 backdrop-blur-xl">
-            <h5 class="text-xs font-bold tracking-[0.2em] text-outline">配置健康</h5>
-            <div class="mt-6 space-y-4">
-              <div class="flex items-start gap-4">
-                <span class="mt-1 size-2 rounded-full" :class="serverHealthTone"></span>
-                <div>
-                  <p class="text-sm font-bold text-on-surface">端口配置检查</p>
-                  <p class="mt-1 text-xs text-on-surface-variant">当前网关监听 {{ configDraft?.server?.host || '-' }}:{{ configDraft?.server?.apiPort || '-' }}。</p>
-                </div>
-              </div>
-              <div class="flex items-start gap-4">
-                <span class="mt-1 size-2 rounded-full bg-emerald-500"></span>
-                <div>
-                  <p class="text-sm font-bold text-on-surface">Provider 结构</p>
-                  <p class="mt-1 text-xs text-on-surface-variant">检测到 {{ providerNames.length }} 个 provider，可直接复用在 Agent 与记忆配置中。</p>
-                </div>
-              </div>
-              <div class="flex items-start gap-4">
-                <span class="mt-1 size-2 rounded-full" :class="mcpNames.length ? 'bg-orange-500' : 'bg-slate-300'"></span>
-                <div>
-                  <p class="text-sm font-bold text-on-surface">MCP 扩展</p>
-                  <p class="mt-1 text-xs text-on-surface-variant">当前配置中有 {{ mcpNames.length }} 个 MCP 服务项，建议结合连接状态页继续检查。</p>
-                </div>
-              </div>
-            </div>
-            <div class="mt-8 border-t border-outline-variant/10 pt-6">
-              <button class="w-full rounded-lg bg-surface-container-high py-2 text-xs font-bold tracking-[0.12em] text-on-surface-variant transition hover:bg-surface-container-highest" type="button" @click="loadConfig">
-                重新拉取配置
-              </button>
-            </div>
-          </section>
-
-        </aside>
       </div>
     </div>
   </div>
@@ -347,10 +319,7 @@ const mainRole = computed<AgentRoleConfig>(() => {
   };
 });
 
-const providerNames = computed(() => Object.keys(configDraft.value?.providers || {}));
 const providerEntries = computed(() => Object.entries(configDraft.value?.providers || {}) as Array<[string, ProviderConfig]>);
-const mcpNames = computed(() => Object.keys(configDraft.value?.mcp || {}));
-const serverHealthTone = computed(() => (configDraft.value?.server?.apiEnabled ? 'bg-emerald-500' : 'bg-orange-500'));
 const hasProviderJsonErrors = computed(() => Object.values(providerJsonErrors.value).some((item) => Boolean(item?.headers || item?.extraBody)));
 
 function createEmptyProvider(): ProviderConfig {

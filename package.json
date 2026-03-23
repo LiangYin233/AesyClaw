@@ -16,7 +16,7 @@
     "status": "tsx src/cli.ts status",
     "dev": "tsx watch src/cli.ts gateway",
     "dev:webui": "cd webui && npm run dev",
-    "dev:all": "concurrently \"npm run dev\" \"npm run dev:webui\"",
+    "dev:all": "concurrently --raw \"npm run dev\" \"npm run dev:webui\"",
     "gateway": "tsx src/cli.ts gateway"
   },
   "author": "",
