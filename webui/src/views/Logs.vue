@@ -345,6 +345,7 @@ watch(autoRefresh, () => {
 
 onMounted(() => {
   loadLogsPage();
+  syncAutoRefresh();
 });
 
 onBeforeUnmount(() => {
