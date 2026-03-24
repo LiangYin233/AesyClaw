@@ -275,8 +275,6 @@ export class ToolRegistry {
       ]);
       throwIfAborted(mergedSignal);
       return result;
-    } catch (error) {
-      throw error;
     } finally {
       clearTimeout(timeoutId);
       cleanupMergedSignal();

@@ -26,6 +26,16 @@ interface FeishuConfig {
   groupAllowFrom?: string[];
 }
 
+export const defaultChannelConfig: FeishuConfig = {
+  appId: '',
+  appSecret: '',
+  verificationToken: '',
+  webhookPort: 3100,
+  webhookPath: '/feishu/webhook',
+  friendAllowFrom: [],
+  groupAllowFrom: []
+};
+
 interface TokenCache {
   token: string;
   expiresAt: number;

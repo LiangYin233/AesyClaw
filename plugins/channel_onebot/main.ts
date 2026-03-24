@@ -17,17 +17,24 @@ import { logger } from '../../src/observability/index.ts';
 
 const WEBSOCKET_ACTION_TIMEOUT = 10000;
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+const DEFAULT_MAX_RECONNECT_ATTEMPTS = 0;
+const DEFAULT_RECONNECT_BASE_DELAY = 1000;
+const DEFAULT_RECONNECT_MAX_DELAY = 30000;
+const DEFAULT_HEARTBEAT_INTERVAL = 30000;
 
 interface OneBotConfig {
   wsUrl: string;
   token?: string;
   friendAllowFrom?: string[];
   groupAllowFrom?: string[];
-  maxReconnectAttempts?: number;
-  reconnectBaseDelay?: number;
-  reconnectMaxDelay?: number;
-  heartbeatInterval?: number;
 }
+
+export const defaultChannelConfig: Partial<OneBotConfig> = {
+  wsUrl: '',
+  token: '',
+  friendAllowFrom: [],
+  groupAllowFrom: []
+};
 
 class OneBotAdapter implements ChannelAdapter {
   readonly name = 'onebot';
@@ -39,20 +46,13 @@ class OneBotAdapter implements ChannelAdapter {
   private running = false;
   private connectAttemptCounter = 0;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts: number;
-  private reconnectBaseDelay: number;
-  private reconnectMaxDelay: number;
   private heartbeatInterval?: NodeJS.Timeout;
   private heartbeatTimer?: NodeJS.Timeout;
   private isReconnecting = false;
   private pendingActions: Array<{ resolve: (value: unknown) => void; reject: (reason?: unknown) => void }> = [];
   private log = logger.child('OneBot');
 
-  constructor(private config: OneBotConfig) {
-    this.maxReconnectAttempts = config.maxReconnectAttempts ?? 0;
-    this.reconnectBaseDelay = config.reconnectBaseDelay ?? 1000;
-    this.reconnectMaxDelay = config.reconnectMaxDelay ?? 30000;
-  }
+  constructor(private config: OneBotConfig) {}
 
   capabilities(): ChannelCapabilityProfile {
     return {
@@ -451,13 +451,13 @@ class OneBotAdapter implements ChannelAdapter {
     this.flushPendingActions(true);
 
     const delay = Math.min(
-      this.reconnectBaseDelay * Math.pow(2, this.reconnectAttempts - 1),
-      this.reconnectMaxDelay
+      DEFAULT_RECONNECT_BASE_DELAY * Math.pow(2, this.reconnectAttempts - 1),
+      DEFAULT_RECONNECT_MAX_DELAY
     );
 
-    if (this.maxReconnectAttempts > 0 && this.reconnectAttempts > this.maxReconnectAttempts) {
+    if (DEFAULT_MAX_RECONNECT_ATTEMPTS > 0 && this.reconnectAttempts > DEFAULT_MAX_RECONNECT_ATTEMPTS) {
       this.log.error('已达到 OneBot 重连上限', {
-        maxReconnectAttempts: this.maxReconnectAttempts,
+        maxReconnectAttempts: DEFAULT_MAX_RECONNECT_ATTEMPTS,
         wsUrl: this.config.wsUrl
       });
       this.running = false;
@@ -467,7 +467,7 @@ class OneBotAdapter implements ChannelAdapter {
     this.log.warn('已计划 OneBot 重连', {
       delayMs: delay,
       attempts: this.reconnectAttempts,
-      maxReconnectAttempts: this.maxReconnectAttempts || undefined
+      maxReconnectAttempts: DEFAULT_MAX_RECONNECT_ATTEMPTS || undefined
     });
 
     setTimeout(() => {
@@ -480,7 +480,7 @@ class OneBotAdapter implements ChannelAdapter {
   }
 
   private startHeartbeat(): void {
-    const interval = this.config.heartbeatInterval ?? 30000;
+    const interval = DEFAULT_HEARTBEAT_INTERVAL;
     this.heartbeatTimer = setTimeout(() => {
       void this.sendHeartbeat();
       this.heartbeatInterval = setInterval(() => {

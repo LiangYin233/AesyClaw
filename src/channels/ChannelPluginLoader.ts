@@ -7,6 +7,11 @@ import { normalizeChannelError } from './errors.js';
 
 const log = logger.child('ChannelPluginLoader');
 
+type ChannelPluginModule = Record<string, unknown> & {
+  default?: unknown;
+  defaultChannelConfig?: Record<string, unknown>;
+};
+
 async function importChannelModule<T = unknown>(modulePath: string): Promise<T> {
   const tmpDir = join(process.cwd(), '.tmp', 'tsx');
   await mkdir(tmpDir, { recursive: true });
@@ -56,9 +61,12 @@ async function discoverChannelPluginEntries(workspace: string): Promise<string[]
   }
 }
 
-async function importChannelPlugin(mainPath: string): Promise<ChannelPluginDefinition | null> {
+async function importChannelPlugin(mainPath: string): Promise<{
+  plugin: ChannelPluginDefinition;
+  defaultConfig: Record<string, unknown>;
+} | null> {
   try {
-    const module = await importChannelModule<Record<string, unknown>>(mainPath);
+    const module = await importChannelModule<ChannelPluginModule>(mainPath);
     const plugin = module.default ?? module;
 
     if (!isChannelPluginDefinition(plugin)) {
@@ -69,7 +77,10 @@ async function importChannelPlugin(mainPath: string): Promise<ChannelPluginDefin
       return null;
     }
 
-    return plugin;
+    return {
+      plugin,
+      defaultConfig: module.defaultChannelConfig ? structuredClone(module.defaultChannelConfig) : {}
+    };
   } catch (error) {
     log.warn(`导入渠道插件失败: ${mainPath}`, {
       path: mainPath,
@@ -83,12 +94,13 @@ export async function loadExternalChannelPlugins(channelManager: ChannelManager,
   const entries = await discoverChannelPluginEntries(workspace);
 
   for (const mainPath of entries) {
-    const plugin = await importChannelPlugin(mainPath);
-    if (!plugin) {
+    const loaded = await importChannelPlugin(mainPath);
+    if (!loaded) {
       log.warn(`渠道插件无效，已跳过: ${mainPath}`);
       continue;
     }
 
-    channelManager.registerPlugin(plugin);
+    channelManager.registerPlugin(loaded.plugin);
+    channelManager.registerPluginDefaultConfig(loaded.plugin.pluginName, loaded.defaultConfig);
   }
 }

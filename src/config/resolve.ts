@@ -1,6 +1,6 @@
 import { createDefaultMainAgentRole, type AgentRoleConfig } from './schema/agent.js';
 import { parseModelRef } from './modelRef.js';
-import { getProviderModelConfig, type ProviderConfig } from './schema/providers.js';
+import { getProviderModelConfig } from './schema/providers.js';
 import { MAIN_AGENT_NAME } from './schema/shared.js';
 import type {
   ParsedConfig,

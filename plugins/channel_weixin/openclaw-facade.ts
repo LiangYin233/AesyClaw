@@ -4,6 +4,7 @@ import { basename, extname, join } from 'node:path';
 import qrcodeTerminal from 'qrcode-terminal';
 import { logger as baseLogger } from '../../src/observability/index.ts';
 import type { ResourceHandle } from '../../src/channels/core/types.ts';
+import type { WeixinMessageItem } from './message-mapping.ts';
 import { downloadMediaFromItem } from '@tencent-weixin/openclaw-weixin/src/media/media-download.ts';
 import { uploadBufferToCdn } from '@tencent-weixin/openclaw-weixin/src/cdn/cdn-upload.ts';
 import { aesEcbPaddedSize } from '@tencent-weixin/openclaw-weixin/src/cdn/aes-ecb.ts';
@@ -69,7 +70,7 @@ export interface WeixinFacade {
     text?: string;
   }): Promise<{ messageId: string }>;
   resolveInboundMedia(args: {
-    item: MessageItem;
+    item: WeixinMessageItem;
     outputDir: string;
     cdnBaseUrl: string;
   }): Promise<ResourceHandle | null>;
@@ -468,7 +469,7 @@ export function createWeixinFacade(logger?: LoggerLike): WeixinFacade {
 
     async resolveInboundMedia(args) {
       await mkdir(args.outputDir, { recursive: true });
-      const media = await downloadMediaFromItem(args.item, {
+      const media = await downloadMediaFromItem(args.item as MessageItem, {
         cdnBaseUrl: args.cdnBaseUrl,
         label: 'aesyclaw-weixin-inbound',
         log: (message) => log.info(message),

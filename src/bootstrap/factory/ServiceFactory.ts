@@ -440,8 +440,41 @@ async function createPluginRuntime(args: {
   };
 }
 
+async function applyDefaultChannelConfigs(
+  channelManager: ChannelManager,
+  configStore: RuntimeConfigStore,
+  configManager: ConfigManager
+): Promise<Config> {
+  const config = configStore.getConfig();
+  const missingPlugins = channelManager
+    .listPlugins()
+    .map((pluginName) => channelManager.getPlugin(pluginName))
+    .filter((plugin): plugin is NonNullable<typeof plugin> => Boolean(plugin))
+    .filter((plugin) => !config.channels[plugin.channelName]);
+
+  if (missingPlugins.length === 0) {
+    return config;
+  }
+
+  const nextConfig = await configManager.update((draft) => {
+    for (const plugin of missingPlugins) {
+      draft.channels[plugin.channelName] = {
+        ...channelManager.getPluginDefaultConfig(plugin.pluginName),
+        enabled: false
+      } as typeof draft.channels[string];
+    }
+  });
+
+  configStore.setConfig(nextConfig);
+  appLog.info('已应用默认渠道配置', {
+    channels: missingPlugins.map((plugin) => plugin.channelName)
+  });
+  return nextConfig;
+}
+
 async function createChannelManager(
-  config: Config,
+  configStore: RuntimeConfigStore,
+  configManager: ConfigManager,
   sessionManager: SessionManager,
   workspace: string,
   agentRuntime: AgentRuntime
@@ -451,6 +484,8 @@ async function createChannelManager(
     await agentRuntime.handleInbound(message);
   });
   await loadExternalChannelPlugins(channelManager, process.cwd());
+
+  const config = await applyDefaultChannelConfigs(channelManager, configStore, configManager);
 
   for (const [channelName, channelConfig] of Object.entries(config.channels as Record<string, { enabled?: boolean }>)) {
     if (!channelConfig?.enabled) {
@@ -493,7 +528,7 @@ async function createInfrastructure(args: {
       tempDir,
       toolRegistry
     }),
-    createChannelManager(config, sessionManager, workspace, agentRuntime)
+    createChannelManager(configStore, configManager, sessionManager, workspace, agentRuntime)
   ]);
   let mcpManager: MCPClientManager | undefined;
   mcpManager = startConfiguredMcpServers({

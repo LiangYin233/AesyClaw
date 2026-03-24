@@ -27,7 +27,10 @@ export function registerPluginRoutes(app: Express, deps: PluginRouteDeps): void 
       }
 
       const rawConfig = config.channels[plugin.channelName] as Record<string, unknown> | undefined;
-      const options = rawConfig ? { ...rawConfig } : {};
+      const defaultOptions = channelManager.getPluginDefaultConfig(plugin.pluginName);
+      const options = rawConfig
+        ? { ...rawConfig }
+        : defaultOptions;
       delete options.enabled;
 
       plugins.push({
@@ -39,7 +42,7 @@ export function registerPluginRoutes(app: Express, deps: PluginRouteDeps): void 
         options,
         defaultConfig: {
           enabled: false,
-          options: {}
+          options: defaultOptions
         },
         toolsCount: 0,
         kind: 'channel',

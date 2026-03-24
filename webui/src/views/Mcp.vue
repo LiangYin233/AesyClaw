@@ -1,7 +1,7 @@
 <template>
   <div class="p-5 md:p-8">
     <div class="mx-auto max-w-[1760px]">
-      <div class="flex flex-col gap-6 xl:flex-row">
+      <div class="flex min-h-[calc(100vh-8rem)] flex-col gap-6 xl:flex-row">
         <section class="min-w-0 flex-1">
           <header class="mb-8">
             <p class="cn-kicker text-outline">MCP</p>

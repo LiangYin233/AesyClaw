@@ -1,6 +1,5 @@
 import { mkdir, writeFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import { logger as baseLogger } from '../../src/observability/index.ts';
 import type { ChannelAdapter, AdapterRuntimeContext, ChannelSendContext } from '../../src/channels/core/adapter.ts';
 import type {
@@ -8,11 +7,10 @@ import type {
   AdapterSendResult,
   ChannelCapabilityProfile,
   ChannelMessage,
-  MessageSegment,
-  ResourceHandle
+  MessageSegment
 } from '../../src/channels/core/types.ts';
 import { createWeixinFacade, type WeixinFacade } from './openclaw-facade.ts';
-import { mapInboundWeixinMessage, fallbackResourceName, type WeixinMessageItem, type WeixinInboundMessage } from './message-mapping.ts';
+import { mapInboundWeixinMessage, type WeixinInboundMessage } from './message-mapping.ts';
 import { WeixinStateStore } from './state-store.ts';
 
 const DEFAULT_BASE_URL = 'https://ilinkai.weixin.qq.com';
@@ -57,19 +55,6 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
       reject(new Error('aborted'));
     }, { once: true });
   });
-}
-
-function resourceKindToSegmentType(kind: ResourceHandle['kind']): 'image' | 'file' | 'audio' | 'video' {
-  if (kind === 'audio') {
-    return 'audio';
-  }
-  if (kind === 'video') {
-    return 'video';
-  }
-  if (kind === 'image') {
-    return 'image';
-  }
-  return 'file';
 }
 
 function segmentText(segment: MessageSegment): string {
@@ -159,7 +144,7 @@ export class WeixinAdapter implements ChannelAdapter {
     const outputDir = join(this.stateStore.rootDir, 'inbound-media');
 
     return mapInboundWeixinMessage(rawEvent as WeixinInboundMessage, {
-      resolveMediaItem: async (item: WeixinMessageItem, index: number) => {
+      resolveMediaItem: async (item, _index: number) => {
         const resolved = await this.facade.resolveInboundMedia({
           item,
           outputDir,

@@ -20,14 +20,13 @@ export interface ChannelHandle {
 
 export class ChannelManager {
   #plugins = new Map<string, ChannelPluginDefinition>();
+  #pluginDefaultConfigs = new Map<string, Record<string, unknown>>();
   #channels = new Map<string, ChannelAdapter>();
   #runtime: ChannelRuntime;
-  #workspace: string;
   #log = logger.child('ChannelManager');
 
   constructor(db: Database, workspace?: string) {
     this.#runtime = new ChannelRuntime(db, workspace || process.cwd());
-    this.#workspace = workspace || process.cwd();
   }
 
   registerPlugin(plugin: ChannelPluginDefinition): void {
@@ -38,8 +37,13 @@ export class ChannelManager {
     this.#log.debug('渠道插件已注册', { pluginName: plugin.pluginName });
   }
 
+  registerPluginDefaultConfig(pluginName: string, config: Record<string, unknown>): void {
+    this.#pluginDefaultConfigs.set(pluginName, structuredClone(config));
+  }
+
   unregisterPlugin(pluginName: string): void {
     this.#plugins.delete(pluginName);
+    this.#pluginDefaultConfigs.delete(pluginName);
     this.#log.debug('渠道插件已注销', { pluginName });
   }
 
@@ -49,6 +53,11 @@ export class ChannelManager {
 
   listPlugins(): string[] {
     return Array.from(this.#plugins.keys());
+  }
+
+  getPluginDefaultConfig(pluginName: string): Record<string, unknown> {
+    const config = this.#pluginDefaultConfigs.get(pluginName);
+    return config ? structuredClone(config) : {};
   }
 
   async enableConfiguredChannel(name: string, config: any): Promise<boolean> {

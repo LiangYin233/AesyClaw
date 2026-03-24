@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { isEmbeddingCapableProvider } from '../providerCapabilities.js';
-import { parseModelRef, tryParseModelRef } from '../modelRef.js';
+import { parseModelRef } from '../modelRef.js';
 import { resolveConfig, type ResolvedConfig } from '../resolve.js';
 import {
   agentConfigSchema,

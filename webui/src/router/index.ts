@@ -14,9 +14,11 @@ import Cron from '@/views/Cron.vue';
 import Mcp from '@/views/Mcp.vue';
 import Unauthorized from '@/views/Unauthorized.vue';
 import { buildTokenQuery, getRouteToken } from '@/lib/auth';
+import { appScrollBehavior } from './scrollBehavior';
 
 const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior: appScrollBehavior,
   routes: [
     {
       path: '/unauthorized',
