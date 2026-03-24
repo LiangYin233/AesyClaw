@@ -98,7 +98,6 @@ export class WeixinAdapter implements ChannelAdapter {
 
   constructor(
     config: WeixinChannelConfig,
-    workspace: string,
     deps?: {
       facade?: WeixinFacade;
       logger?: LoggerLike;
@@ -109,7 +108,7 @@ export class WeixinAdapter implements ChannelAdapter {
       cdnBaseUrl: config.cdnBaseUrl?.trim() || DEFAULT_CDN_BASE_URL,
       qrCodeFile: config.qrCodeFile?.trim() || undefined
     };
-    this.stateStore = new WeixinStateStore(workspace);
+    this.stateStore = new WeixinStateStore();
     this.facade = deps?.facade || createWeixinFacade(deps?.logger);
     this.log = createLogger(deps?.logger);
   }

@@ -9,7 +9,7 @@ import type { DeliveryReceipt } from './core/types.js';
 export interface ChannelPluginDefinition {
   pluginName: string;
   channelName: string;
-  create: (config: any, workspace?: string) => ChannelAdapter;
+  create: (config: any) => ChannelAdapter;
 }
 
 export interface ChannelHandle {
@@ -80,7 +80,7 @@ export class ChannelManager {
       }
     }
 
-    const channel = plugin.create(config, this.#workspace);
+    const channel = plugin.create(config);
     this.#channels.set(plugin.channelName, channel);
     this.#runtime.registerAdapter(plugin.channelName, channel);
 
@@ -149,7 +149,7 @@ export class ChannelManager {
         return true;
       }
 
-      const nextChannel = plugin.create(config, this.#workspace);
+      const nextChannel = plugin.create(config);
       this.#channels.set(name, nextChannel);
       this.#runtime.registerAdapter(name, nextChannel);
       await this.#runtime.startAdapter(name);
@@ -189,7 +189,7 @@ export class ChannelManager {
       return null;
     }
 
-    const channel = plugin.create(config, this.#workspace);
+    const channel = plugin.create(config);
     this.#channels.set(plugin.channelName, channel);
     this.#runtime.registerAdapter(plugin.channelName, channel);
     this.#log.info('渠道已创建', { channel: plugin.channelName, pluginName });

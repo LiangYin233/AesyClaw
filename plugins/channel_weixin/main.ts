@@ -4,7 +4,7 @@ import { WeixinAdapter, type WeixinChannelConfig } from './adapter.ts';
 const plugin: ChannelPluginDefinition = {
   pluginName: 'channel_weixin',
   channelName: 'weixin',
-  create: (config: WeixinChannelConfig, workspace?: string) => new WeixinAdapter(config, workspace || process.cwd())
+  create: (config: WeixinChannelConfig) => new WeixinAdapter(config)
 };
 
 export default plugin;

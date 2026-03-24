@@ -24,8 +24,8 @@ export class WeixinStateStore {
   private readonly accountPath: string;
   private readonly syncCursorPath: string;
 
-  constructor(workspace: string) {
-    this.rootDir = join(workspace, '.aesyclaw', 'channels', 'weixin');
+  constructor() {
+    this.rootDir = join(process.cwd(), '.aesyclaw', 'channels', 'weixin');
     this.accountPath = join(this.rootDir, 'account.json');
     this.syncCursorPath = join(this.rootDir, 'sync-buf.json');
   }
