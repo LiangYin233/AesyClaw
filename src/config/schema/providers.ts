@@ -24,11 +24,10 @@ const providerBaseSchema = z.object({
   apiKey: z.string().optional(),
   apiBase: providerApiBaseSchema.optional(),
   headers: z.record(z.string(), z.string()).optional(),
-  extraBody: z.record(z.string(), z.unknown()).optional(),
-  models: z.record(z.string(), providerModelConfigSchema).optional()
+  extraBody: z.record(z.string(), z.unknown()).optional()
 });
 
-const PROVIDER_RESERVED_KEYS = new Set(['type', 'apiKey', 'apiBase', 'headers', 'extraBody', 'models']);
+const PROVIDER_RESERVED_KEYS = new Set(['type', 'apiKey', 'apiBase', 'headers', 'extraBody']);
 
 export const providerConfigSchema = providerBaseSchema.catchall(providerModelConfigSchema).transform((value) => {
   const modelsFromFlatEntries = Object.fromEntries(
@@ -41,10 +40,7 @@ export const providerConfigSchema = providerBaseSchema.catchall(providerModelCon
     apiBase: value.apiBase,
     headers: value.headers,
     extraBody: value.extraBody,
-    models: {
-      ...(value.models || {}),
-      ...modelsFromFlatEntries
-    }
+    models: modelsFromFlatEntries
   };
 });
 

@@ -13,7 +13,7 @@ export const agentRoleConfigSchema = z.object({
   model: z.string(),
   allowedSkills: z.array(z.string()).default(() => []),
   allowedTools: z.array(z.string()).default(() => [])
-});
+}).strict();
 
 export const contextModeSchema = z.enum(['session', 'channel']);
 
