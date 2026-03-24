@@ -117,7 +117,7 @@
                 </div>
                 <div class="min-w-0">
                   <h4 class="font-headline font-bold text-on-surface">{{ agent.name }}</h4>
-                  <span class="mt-1 block font-mono text-[10px] text-outline">{{ agent.provider }} · {{ agent.model }}</span>
+                  <span class="mt-1 block font-mono text-[10px] text-outline">{{ agent.model }}</span>
                 </div>
               </div>
               <div class="flex items-center gap-2">
@@ -209,13 +209,8 @@ const selectedAgent = ref<AgentRole | null>(null);
 const form = reactive<AgentRoleConfig>({
   name: '',
   description: '',
-  provider: '',
   model: '',
   systemPrompt: '',
-  vision: false,
-  reasoning: false,
-  visionProvider: '',
-  visionModel: '',
   allowedSkills: [],
   allowedTools: [],
 });
@@ -232,13 +227,8 @@ function createTemplate(): AgentRoleConfig {
   return {
     name: '',
     description: main?.description || '',
-    provider: main?.provider || providerOptions.value[0] || '',
     model: main?.model || '',
     systemPrompt: main?.systemPrompt || '',
-    vision: main?.vision ?? false,
-    reasoning: main?.reasoning ?? false,
-    visionProvider: main?.visionProvider || '',
-    visionModel: main?.visionModel || '',
     allowedSkills: [...(main?.allowedSkills || [])],
     allowedTools: [...(main?.allowedTools || [])],
   };
@@ -247,13 +237,8 @@ function createTemplate(): AgentRoleConfig {
 function applyForm(source: AgentRoleConfig) {
   form.name = source.name;
   form.description = source.description;
-  form.provider = source.provider;
   form.model = source.model;
   form.systemPrompt = source.systemPrompt;
-  form.vision = source.vision;
-  form.reasoning = source.reasoning;
-  form.visionProvider = source.visionProvider || '';
-  form.visionModel = source.visionModel || '';
   form.allowedSkills = [...source.allowedSkills];
   form.allowedTools = [...source.allowedTools];
 }
@@ -296,13 +281,8 @@ function selectAgent(agent: AgentRole) {
   applyForm({
     name: agent.name,
     description: agent.description || '',
-    provider: agent.provider,
     model: agent.model,
     systemPrompt: agent.systemPrompt,
-    vision: agent.vision,
-    reasoning: agent.reasoning,
-    visionProvider: agent.visionProvider || '',
-    visionModel: agent.visionModel || '',
     allowedSkills: [...agent.allowedSkills],
     allowedTools: [...agent.allowedTools],
   });
@@ -318,13 +298,8 @@ async function saveAgent() {
   const payload: AgentRoleConfig = {
     name: form.name.trim(),
     description: form.description.trim(),
-    provider: form.provider,
     model: form.model.trim(),
     systemPrompt: form.systemPrompt,
-    vision: form.vision,
-    reasoning: form.reasoning,
-    visionProvider: form.visionProvider?.trim() || '',
-    visionModel: form.visionModel?.trim() || '',
     allowedSkills: [...form.allowedSkills],
     allowedTools: [...form.allowedTools],
   };

@@ -1,4 +1,5 @@
 import type { VisionSettings } from '../types.js';
+import { tryParseModelRef } from './modelRef.js';
 import { isEmbeddingCapableProvider } from './providerCapabilities.js';
 import { resolveProviderSelection } from './resolve.js';
 import { MAIN_AGENT_NAME } from './schema/shared.js';
@@ -76,9 +77,11 @@ export function getMainAgentRole(source: ConfigSource): AgentRoleConfig {
 export function getMainAgentConfig(source: ConfigSource): ResolvedMainAgentConfig {
   const config = readConfig(source);
   const role = getMainAgentRole(config);
-  const provider = resolveProviderSelection(config, role.provider, role.model);
-  const visionProvider = role.vision && role.visionProvider && role.visionModel
-    ? resolveProviderSelection(config, role.visionProvider, role.visionModel)
+  const provider = resolveProviderSelection(config, role.model);
+  const directVision = provider.modelConfig?.supportsVision === true;
+  const fallbackModelRef = config.agent.defaults.visionFallbackModel.trim() || undefined;
+  const visionProvider = !directVision && fallbackModelRef
+    ? resolveProviderSelection(config, fallbackModelRef)
     : undefined;
 
   return {
@@ -87,10 +90,12 @@ export function getMainAgentConfig(source: ConfigSource): ResolvedMainAgentConfi
     maxIterations: config.agent.defaults.maxToolIterations,
     memoryWindow: config.agent.defaults.memoryWindow,
     visionSettings: {
-      enabled: role.vision,
-      reasoning: role.reasoning,
-      visionProviderName: role.visionProvider || undefined,
-      visionModelName: role.visionModel || undefined
+      enabled: directVision || !!visionProvider,
+      directVision,
+      reasoning: visionProvider?.modelConfig?.reasoning === true,
+      fallbackModelRef,
+      fallbackProviderName: visionProvider?.name,
+      fallbackModelName: visionProvider?.model
     },
     visionProvider
   };
@@ -101,34 +106,39 @@ export function getMemoryConfig(source: ConfigSource): ResolvedMemoryConfig {
   const defaults = config.agent.defaults;
   const summary = defaults.memorySummary;
   const facts = defaults.memoryFacts;
-  const maintenanceProvider = facts.provider.trim();
-  const maintenanceModel = facts.model.trim();
-  const recallProvider = facts.retrievalProvider.trim();
-  const recallModel = facts.retrievalModel.trim();
-  const recallProviderConfig = recallProvider ? config.providers[recallProvider] : undefined;
+  const summarySelection = tryParseModelRef(summary.model)
+    ? resolveProviderSelection(config, summary.model)
+    : undefined;
+  const maintenanceSelection = tryParseModelRef(facts.model)
+    ? resolveProviderSelection(config, facts.model)
+    : undefined;
+  const recallSelection = tryParseModelRef(facts.retrievalModel)
+    ? resolveProviderSelection(config, facts.retrievalModel)
+    : undefined;
+  const recallProviderConfig = recallSelection?.providerConfig;
 
   return {
     summary: {
-      enabled: summary.enabled && !!summary.provider.trim() && !!summary.model.trim(),
-      provider: summary.provider.trim() || undefined,
-      model: summary.model.trim() || undefined,
+      enabled: summary.enabled && !!summarySelection?.providerConfig && !!summarySelection.model,
+      provider: summarySelection?.name,
+      model: summarySelection?.model,
       compressRounds: summary.compressRounds
     },
     facts: {
       enabled: facts.enabled,
       maintenance: {
-        enabled: facts.enabled && !!maintenanceProvider && !!maintenanceModel,
-        provider: maintenanceProvider || undefined,
-        model: maintenanceModel || undefined,
-        providerConfig: maintenanceProvider ? config.providers[maintenanceProvider] : undefined
+        enabled: facts.enabled && !!maintenanceSelection?.providerConfig && !!maintenanceSelection.model,
+        provider: maintenanceSelection?.name,
+        model: maintenanceSelection?.model,
+        providerConfig: maintenanceSelection?.providerConfig
       },
       recall: {
         enabled: facts.enabled
-          && !!recallProvider
-          && !!recallModel
+          && !!recallSelection?.name
+          && !!recallSelection?.model
           && isEmbeddingCapableProvider(recallProviderConfig),
-        provider: recallProvider || undefined,
-        model: recallModel || undefined,
+        provider: recallSelection?.name,
+        model: recallSelection?.model,
         providerConfig: recallProviderConfig,
         threshold: facts.retrievalThreshold,
         topK: facts.retrievalTopK

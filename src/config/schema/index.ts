@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isEmbeddingCapableProvider } from '../providerCapabilities.js';
+import { parseModelRef, tryParseModelRef } from '../modelRef.js';
 import { resolveConfig, type ResolvedConfig } from '../resolve.js';
 import {
   agentConfigSchema,
@@ -21,7 +22,8 @@ import {
   createDefaultProviders,
   providerConfigSchema,
   providerTypeSchema,
-  type ProviderConfig
+  type ProviderConfig,
+  type ProviderModelConfig
 } from './providers.js';
 import { serverConfigSchema, type ServerConfig } from './server.js';
 import { HTTP_URL_PROTOCOL, withObjectInputDefault } from './shared.js';
@@ -86,28 +88,64 @@ const baseConfigSchema = z.object({
   observability: observabilityConfigSchema,
   tools: toolsConfigSchema
 }).superRefine((value, ctx) => {
-  const retrievalProvider = value.agent.defaults.memoryFacts.retrievalProvider.trim();
-  if (!retrievalProvider) {
-    return;
+  const validateModelReference = (fieldPath: Array<string | number>, rawRef?: string, options?: { embeddingOnly?: boolean }) => {
+    const trimmed = rawRef?.trim() || '';
+    if (!trimmed) {
+      return;
+    }
+
+    let parsed;
+    try {
+      parsed = parseModelRef(trimmed, fieldPath.join('.'));
+    } catch (error) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: fieldPath,
+        message: error instanceof Error ? error.message : 'Invalid model reference'
+      });
+      return;
+    }
+
+    const providerConfig = value.providers[parsed.providerName];
+    if (!providerConfig) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: fieldPath,
+        message: `provider not found for model reference: ${parsed.providerName}`
+      });
+      return;
+    }
+
+    if (!providerConfig.models?.[parsed.modelName]) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: fieldPath,
+        message: `model definition not found: ${parsed.providerName}/${parsed.modelName}`
+      });
+      return;
+    }
+
+    if (options?.embeddingOnly && !isEmbeddingCapableProvider(providerConfig)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: fieldPath,
+        message: `${fieldPath.join('.')} must reference a provider with type "openai"`
+      });
+    }
+  };
+
+  for (const [roleName, role] of Object.entries(value.agents.roles)) {
+    validateModelReference(['agents', 'roles', roleName, 'model'], role.model);
   }
 
-  const providerConfig = value.providers[retrievalProvider];
-  if (!providerConfig) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['agent', 'defaults', 'memoryFacts', 'retrievalProvider'],
-      message: `memoryFacts.retrievalProvider not found: ${retrievalProvider}`
-    });
-    return;
-  }
-
-  if (!isEmbeddingCapableProvider(providerConfig)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['agent', 'defaults', 'memoryFacts', 'retrievalProvider'],
-      message: 'memoryFacts.retrievalProvider must reference a provider with type "openai"'
-    });
-  }
+  validateModelReference(['agent', 'defaults', 'memorySummary', 'model'], value.agent.defaults.memorySummary.model);
+  validateModelReference(['agent', 'defaults', 'memoryFacts', 'model'], value.agent.defaults.memoryFacts.model);
+  validateModelReference(
+    ['agent', 'defaults', 'memoryFacts', 'retrievalModel'],
+    value.agent.defaults.memoryFacts.retrievalModel,
+    { embeddingOnly: true }
+  );
+  validateModelReference(['agent', 'defaults', 'visionFallbackModel'], value.agent.defaults.visionFallbackModel);
 });
 
 export type RawConfig = z.input<typeof baseConfigSchema>;
@@ -124,6 +162,7 @@ export type ResolvedProviderSelection = {
   name: string;
   model: string;
   providerConfig?: ProviderConfig;
+  modelConfig?: ProviderModelConfig;
 };
 export type ConfigValidationIssue = {
   message: string;

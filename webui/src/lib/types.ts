@@ -34,19 +34,17 @@ export interface SessionDetail extends Session {
 export interface AgentRoleConfig {
   name: string;
   description: string;
-  provider: string;
   model: string;
   systemPrompt: string;
-  vision: boolean;
-  reasoning: boolean;
-  visionProvider?: string;
-  visionModel?: string;
   allowedSkills: string[];
   allowedTools: string[];
 }
 
 export interface AgentRole extends AgentRoleConfig {
   builtin: boolean;
+  provider: string;
+  reasoning: boolean;
+  vision: boolean;
   availableSkills: string[];
   availableTools: string[];
   missingSkills: string[];
@@ -133,12 +131,19 @@ export interface ToolInfo {
 
 export type ProviderType = 'openai' | 'openai_responses' | 'anthropic';
 
+export interface ProviderModelConfig {
+  maxContextTokens?: number;
+  reasoning?: boolean;
+  supportsVision?: boolean;
+}
+
 export interface ProviderConfig {
   type: ProviderType;
   apiKey?: string;
   apiBase?: string;
   headers?: Record<string, string>;
   extraBody?: Record<string, unknown>;
+  models?: Record<string, ProviderModelConfig>;
 }
 
 export interface PluginInfo {
@@ -243,17 +248,15 @@ export interface AppConfig {
       memoryWindow?: number;
       maxSessions?: number;
       contextMode?: 'session' | 'channel';
+      visionFallbackModel?: string;
       memorySummary?: {
         enabled?: boolean;
-        provider?: string;
         model?: string;
         compressRounds?: number;
       };
       memoryFacts?: {
         enabled?: boolean;
-        provider?: string;
         model?: string;
-        retrievalProvider?: string;
         retrievalModel?: string;
         retrievalThreshold?: number;
         retrievalTopK?: number;

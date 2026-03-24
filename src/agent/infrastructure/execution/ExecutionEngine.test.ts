@@ -25,7 +25,6 @@ function createEngine() {
     getResolvedRole: (name?: string | null) => ({ ...role, name: name || role.name }),
     getDefaultRoleName: () => 'main',
     getAllowedToolNames: () => [],
-    getMaxContextTokensForRole: (name?: string | null) => name === 'planner' ? 16384 : 8192,
     getVisionSettingsForRole: () => undefined,
     buildSkillsPrompt: (name?: string | null) => `skills:${name || role.name}`,
     buildRoleDescriptionsPrompt: () => '',
@@ -63,7 +62,6 @@ test('runSubAgentTask keeps role skills prompt', async () => {
   assert.equal(capturedPolicies.length, 1);
   assert.equal(capturedPolicies[0]?.skillsPrompt, 'skills:worker');
   assert.equal(capturedPolicies[0]?.systemPrompt, 'role system prompt');
-  assert.equal(capturedPolicies[0]?.maxContextTokens, 8192);
 });
 
 test('runTemporarySubAgentTask keeps parent role skills prompt and overrides system prompt', async () => {
@@ -76,5 +74,4 @@ test('runTemporarySubAgentTask keeps parent role skills prompt and overrides sys
   assert.equal(capturedPolicies[0]?.roleName, 'planner');
   assert.equal(capturedPolicies[0]?.skillsPrompt, 'skills:planner');
   assert.equal(capturedPolicies[0]?.systemPrompt, 'temporary system prompt');
-  assert.equal(capturedPolicies[0]?.maxContextTokens, 16384);
 });

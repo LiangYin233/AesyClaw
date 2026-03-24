@@ -6,6 +6,7 @@ import { logger } from '../observability/index.js';
 import { normalizeConfigError } from './errors.js';
 import { parse, stringify } from 'smol-toml';
 import { createDefaultConfig, parseConfig } from './schema.js';
+import { providerReservedKeys } from './schema/providers.js';
 
 type fsWatcher = ReturnType<typeof watch>;
 type ConfigMutator = (config: Config) => void | Config | Promise<void | Config>;
@@ -139,8 +140,32 @@ export class ConfigLoader {
   }
 
   private static serializeConfig(config: Config): string {
-    const serializable = stripUndefined(config) ?? {};
+    const serializable = stripUndefined(this.expandProviderModelTables(config)) ?? {};
     return stringify(serializable as Record<string, unknown>);
+  }
+
+  private static expandProviderModelTables(config: Config): Config {
+    const next = structuredClone(config);
+
+    for (const provider of Object.values(next.providers || {})) {
+      const models = provider.models || {};
+
+      delete (provider as { models?: unknown }).models;
+      for (const [modelName, modelConfig] of Object.entries(models)) {
+        (provider as Record<string, unknown>)[modelName] = modelConfig;
+      }
+
+      for (const key of providerReservedKeys) {
+        if (key === 'models') {
+          continue;
+        }
+        if ((provider as Record<string, unknown>)[key] === undefined) {
+          delete (provider as Record<string, unknown>)[key];
+        }
+      }
+    }
+
+    return next;
   }
 
   private static persistConfig(config: Config): Config {

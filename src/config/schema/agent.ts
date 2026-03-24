@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { memoryFactsConfigSchema, memorySummaryConfigSchema } from './memory.js';
 import {
-  DEFAULT_PROVIDER_NAME,
   DEFAULT_SYSTEM_PROMPT,
   MAIN_AGENT_NAME,
   withObjectInputDefault
@@ -11,12 +10,7 @@ export const agentRoleConfigSchema = z.object({
   name: z.string(),
   description: z.string().default(''),
   systemPrompt: z.string().default(DEFAULT_SYSTEM_PROMPT),
-  provider: z.string().default(DEFAULT_PROVIDER_NAME),
   model: z.string(),
-  vision: z.boolean().default(false),
-  reasoning: z.boolean().default(false),
-  visionProvider: z.string().default(''),
-  visionModel: z.string().default(''),
   allowedSkills: z.array(z.string()).default(() => []),
   allowedTools: z.array(z.string()).default(() => [])
 });
@@ -28,6 +22,7 @@ export const agentDefaultsSchema = z.object({
   memoryWindow: z.number().int().finite().default(10),
   memorySummary: memorySummaryConfigSchema,
   memoryFacts: memoryFactsConfigSchema,
+  visionFallbackModel: z.string().default(''),
   contextMode: contextModeSchema.default('session'),
   maxSessions: z.number().int().finite().default(100)
 }).strict().prefault(() => ({}));
@@ -41,12 +36,7 @@ export function createDefaultMainAgentRole(): z.output<typeof agentRoleConfigSch
     name: MAIN_AGENT_NAME,
     description: '内建主 Agent',
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
-    provider: DEFAULT_PROVIDER_NAME,
-    model: 'gpt-4o',
-    vision: false,
-    reasoning: false,
-    visionProvider: '',
-    visionModel: '',
+    model: 'openai/gpt-4o',
     allowedSkills: [],
     allowedTools: []
   });

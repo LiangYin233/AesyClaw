@@ -85,7 +85,7 @@ export class ExecutionRuntime {
         });
       }
 
-      if (this.hasVisionInput(context.request) && !executor.needsVisionProvider(context.request.media, context.request.files)) {
+      if (this.hasVisionInput(context.request) && !executor.canHandleVision(context.request.media, context.request.files)) {
         this.log.warn('检测到图片输入，但当前 Agent 未启用视觉识别', {
           sessionKey: context.sessionKey,
           agent: policy.roleName,

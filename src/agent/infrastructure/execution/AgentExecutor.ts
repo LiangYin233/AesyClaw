@@ -17,6 +17,7 @@ export class AgentExecutor {
   private visionStrategy?: VisionStrategy;
   private visionProvider?: LLMProvider;
   private visionModel?: string;
+  private directVisionEnabled = false;
   private executionRegistry: ExecutionRegistry;
   private model: string;
   private log = logger.child('AgentExecutor');
@@ -45,14 +46,15 @@ export class AgentExecutor {
     this.contextBuilder = new ContextBuilder(workspace, systemPrompt, skillsPrompt, includeRuntimeContext);
     this.toolLoopRunner = new ToolLoopRunner(provider, toolRegistry, pluginManager, visionSettings, maxContextTokens);
     this.visionProvider = visionProvider;
-    this.visionModel = visionSettings?.visionModelName;
+    this.visionModel = visionSettings?.fallbackModelName;
+    this.directVisionEnabled = visionSettings?.directVision === true;
 
     this.syncStrategy = new SyncStrategy(this.toolLoopRunner, model);
-    if (visionProvider && visionSettings?.visionModelName) {
+    if (visionProvider && visionSettings?.fallbackModelName) {
       this.visionStrategy = new VisionStrategy(
         this.toolLoopRunner,
         visionProvider,
-        visionSettings.visionModelName,
+        visionSettings.fallbackModelName,
         visionSettings
       );
     }
@@ -161,11 +163,20 @@ export class AgentExecutor {
     if (model) this.model = model;
   }
 
-  needsVisionProvider(media?: string[], files?: InboundFile[]): boolean {
-    if (!this.visionStrategy) return false;
+  canHandleVision(media?: string[], files?: InboundFile[]): boolean {
     const hasMedia = media && media.length > 0;
     const hasVisionableFiles = files?.some(isVisionableFile) ?? false;
-    return hasMedia || hasVisionableFiles;
+    if (!hasMedia && !hasVisionableFiles) {
+      return true;
+    }
+
+    return this.directVisionEnabled || !!this.visionStrategy;
+  }
+
+  needsVisionProvider(media?: string[], files?: InboundFile[]): boolean {
+    const hasMedia = media && media.length > 0;
+    const hasVisionableFiles = files?.some(isVisionableFile) ?? false;
+    return !this.directVisionEnabled && !!this.visionStrategy && (hasMedia || hasVisionableFiles);
   }
 
   async summarizeVisionInput(messages: LLMMessage[], signal?: AbortSignal): Promise<string | undefined> {

@@ -185,7 +185,9 @@ export interface MCPServerInfo {
  */
 export interface VisionSettings {
   enabled: boolean;
+  directVision: boolean;
   reasoning: boolean;
-  visionProviderName?: string;
-  visionModelName?: string;
+  fallbackModelRef?: string;
+  fallbackProviderName?: string;
+  fallbackModelName?: string;
 }

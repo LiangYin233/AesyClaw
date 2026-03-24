@@ -130,18 +130,10 @@ export function createMemoryService(
   const summaryConfig = memoryConfig.summary;
   const sessionConfig = memoryConfig.session;
   const maintenanceSelection = memoryConfig.facts.maintenance.provider && memoryConfig.facts.maintenance.model
-    ? resolveProviderSelection(
-        config,
-        memoryConfig.facts.maintenance.provider,
-        memoryConfig.facts.maintenance.model
-      )
+    ? resolveProviderSelection(config, `${memoryConfig.facts.maintenance.provider}/${memoryConfig.facts.maintenance.model}`)
     : undefined;
   const recallSelection = memoryConfig.facts.recall.provider && memoryConfig.facts.recall.model
-    ? resolveProviderSelection(
-        config,
-        memoryConfig.facts.recall.provider,
-        memoryConfig.facts.recall.model
-      )
+    ? resolveProviderSelection(config, `${memoryConfig.facts.recall.provider}/${memoryConfig.facts.recall.model}`)
     : undefined;
 
   if (!summaryConfig.enabled && !memoryConfig.facts.enabled) {
@@ -149,7 +141,7 @@ export function createMemoryService(
   }
 
   if (!summaryConfig.enabled && config.agent.defaults.memorySummary.enabled) {
-    appLog.warn('会话摘要已启用，但未完整配置 memorySummary.provider/model；摘要压缩将被跳过');
+    appLog.warn('会话摘要已启用，但未完整配置 memorySummary.model；摘要压缩将被跳过');
   }
 
   const summaryRuntimeConfig = {
@@ -161,15 +153,15 @@ export function createMemoryService(
   };
 
   if (memoryConfig.facts.enabled && !memoryConfig.facts.maintenance.enabled) {
-    appLog.warn('长期记忆已启用，但未完整配置 memoryFacts.provider/model；后台自治维护将被跳过');
+    appLog.warn('长期记忆已启用，但未完整配置 memoryFacts.model；后台自治维护将被跳过');
   }
 
   if (
     memoryConfig.facts.enabled
     && !memoryConfig.facts.recall.enabled
-    && (config.agent.defaults.memoryFacts.retrievalProvider || config.agent.defaults.memoryFacts.retrievalModel)
+    && config.agent.defaults.memoryFacts.retrievalModel
   ) {
-    appLog.warn('长期记忆自动召回需要同时配置 memoryFacts.retrievalProvider 与 memoryFacts.retrievalModel；当前将保持禁用');
+    appLog.warn('长期记忆自动召回需要配置合法的 memoryFacts.retrievalModel；当前将保持禁用');
   }
 
   const longTermMemoryService = memoryConfig.facts.enabled
@@ -196,7 +188,7 @@ export function createMemoryService(
   return new SessionMemoryService(
     sessionManager,
     summaryConfig.enabled && summaryConfig.provider && summaryConfig.model
-      ? createOptionalProvider(resolveProviderSelection(config, summaryConfig.provider, summaryConfig.model), '记忆摘要')
+      ? createOptionalProvider(resolveProviderSelection(config, `${summaryConfig.provider}/${summaryConfig.model}`), '记忆摘要')
       : undefined,
     summaryRuntimeConfig,
     longTermMemoryService
@@ -232,7 +224,9 @@ async function createPersistenceServices(config: Config): Promise<{
 }
 
 function createRequiredProvider(config: Config, providerName?: string, modelName?: string) {
-  const resolved = resolveProviderSelection(config, providerName, modelName);
+  const resolved = providerName && modelName
+    ? resolveProviderSelection(config, providerName, modelName)
+    : resolveProviderSelection(config, modelName || providerName);
   if (!resolved.model) {
     throw new Error(`Model is required for provider "${resolved.name}"`);
   }
@@ -248,22 +242,20 @@ function createVisionProvider(config: Config, visionSettings: VisionSettings) {
     return undefined;
   }
 
-  if (!visionSettings.visionProviderName) {
-    appLog.warn('未配置视觉提供商', { provider: '', model: visionSettings.visionModelName });
+  if (!visionSettings.fallbackProviderName) {
     return undefined;
   }
-  if (!visionSettings.visionModelName) {
-    appLog.warn('未配置视觉模型', { provider: visionSettings.visionProviderName });
+  if (!visionSettings.fallbackModelName) {
     return undefined;
   }
 
-  const providerConfig = config.providers[visionSettings.visionProviderName];
+  const providerConfig = config.providers[visionSettings.fallbackProviderName];
   if (!providerConfig) {
-    appLog.warn('未找到视觉提供商', { provider: visionSettings.visionProviderName });
+    appLog.warn('未找到视觉回退提供商', { provider: visionSettings.fallbackProviderName });
     return undefined;
   }
 
-  return createProvider(visionSettings.visionProviderName, providerConfig);
+  return createProvider(visionSettings.fallbackProviderName, providerConfig);
 }
 
 async function createSkillManager(
@@ -312,7 +304,7 @@ async function createExecutionRuntime(args: {
     defaultTimeout: toolConfig.timeoutMs
   });
   const commandRegistry = new CommandRegistry();
-  const provider = createRequiredProvider(config, mainAgentConfig.role.provider, mainAgentConfig.role.model);
+  const provider = createRequiredProvider(config, undefined, mainAgentConfig.role.model);
   const visionSettings = mainAgentConfig.visionSettings;
   const visionProvider = createVisionProvider(config, visionSettings);
   const skillManager = await createSkillManager(config, workspace, updateConfig);

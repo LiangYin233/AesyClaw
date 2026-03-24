@@ -107,6 +107,10 @@
                   <span class="text-xs font-bold tracking-[0.08em] text-outline">最大工具迭代</span>
                   <input v-model.number="configDraft.agent!.defaults!.maxToolIterations" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="number" />
                 </label>
+                <label class="space-y-1.5">
+                  <span class="text-xs font-bold tracking-[0.08em] text-outline">视觉回退模型</span>
+                  <input v-model="configDraft.agent!.defaults!.visionFallbackModel" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" placeholder="provider/model" />
+                </label>
               </div>
             </section>
 
@@ -122,19 +126,10 @@
                     <span class="absolute top-0.5 size-4 rounded-full bg-white transition" :class="configDraft.agent!.defaults!.memorySummary!.enabled ? 'right-0.5' : 'left-0.5'"></span>
                   </button>
                 </div>
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <label class="space-y-1.5">
-                    <span class="text-xs font-bold tracking-[0.08em] text-outline">Provider</span>
-                    <select v-model="configDraft.agent!.defaults!.memorySummary!.provider" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20">
-                      <option value="">请选择</option>
-                      <option v-for="name in providerNames" :key="name" :value="name">{{ name }}</option>
-                    </select>
-                  </label>
-                  <label class="space-y-1.5">
-                    <span class="text-xs font-bold tracking-[0.08em] text-outline">模型</span>
-                    <input v-model="configDraft.agent!.defaults!.memorySummary!.model" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" />
-                  </label>
-                </div>
+                <label class="space-y-1.5">
+                  <span class="text-xs font-bold tracking-[0.08em] text-outline">模型</span>
+                  <input v-model="configDraft.agent!.defaults!.memorySummary!.model" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" placeholder="provider/model" />
+                </label>
                 <label class="space-y-1.5">
                   <span class="text-xs font-bold tracking-[0.08em] text-outline">压缩轮次</span>
                   <input v-model.number="configDraft.agent!.defaults!.memorySummary!.compressRounds" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="number" />
@@ -156,29 +151,15 @@
                 </div>
                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <label class="space-y-1.5">
-                    <span class="text-xs font-bold tracking-[0.08em] text-outline">Provider</span>
-                    <select v-model="configDraft.agent!.defaults!.memoryFacts!.provider" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20">
-                      <option value="">请选择</option>
-                      <option v-for="name in providerNames" :key="name" :value="name">{{ name }}</option>
-                    </select>
-                  </label>
-                  <label class="space-y-1.5">
-                    <span class="text-xs font-bold tracking-[0.08em] text-outline">模型</span>
-                    <input v-model="configDraft.agent!.defaults!.memoryFacts!.model" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" />
-                  </label>
-                </div>
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <label class="space-y-1.5">
-                    <span class="text-xs font-bold tracking-[0.08em] text-outline">检索 Provider</span>
-                    <select v-model="configDraft.agent!.defaults!.memoryFacts!.retrievalProvider" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20">
-                      <option value="">请选择</option>
-                      <option v-for="name in providerNames" :key="name" :value="name">{{ name }}</option>
-                    </select>
+                    <span class="text-xs font-bold tracking-[0.08em] text-outline">维护模型</span>
+                    <input v-model="configDraft.agent!.defaults!.memoryFacts!.model" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" placeholder="provider/model" />
                   </label>
                   <label class="space-y-1.5">
                     <span class="text-xs font-bold tracking-[0.08em] text-outline">检索模型</span>
-                    <input v-model="configDraft.agent!.defaults!.memoryFacts!.retrievalModel" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" />
+                    <input v-model="configDraft.agent!.defaults!.memoryFacts!.retrievalModel" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" placeholder="provider/model" />
                   </label>
+                </div>
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <label class="space-y-1.5">
                     <span class="text-xs font-bold tracking-[0.08em] text-outline">检索 TopK</span>
                     <input v-model.number="configDraft.agent!.defaults!.memoryFacts!.retrievalTopK" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="number" />
@@ -285,6 +266,16 @@
                     <p class="text-[11px] text-on-surface-variant">用于补充供应商私有请求体字段，需保持 JSON 对象格式。</p>
                     <p v-if="providerJsonErrors[providerName]?.extraBody" class="text-[11px] text-error">{{ providerJsonErrors[providerName]?.extraBody }}</p>
                   </label>
+                  <label class="space-y-1.5 xl:col-span-2">
+                    <span class="text-xs font-bold tracking-[0.08em] text-outline">模型能力 JSON</span>
+                    <textarea
+                      :value="providerModelsDrafts[providerName] || '{}'"
+                      class="tech-text min-h-[10rem] w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20"
+                      @input="updateProviderJsonDraft(providerName, 'models', ($event.target as HTMLTextAreaElement).value)"
+                    ></textarea>
+                    <p class="text-[11px] text-on-surface-variant">键为模型名，值为能力对象，例如 <code>{"qwen3.5-plus":{"supportsVision":true}}</code></p>
+                    <p v-if="providerJsonErrors[providerName]?.models" class="text-[11px] text-error">{{ providerJsonErrors[providerName]?.models }}</p>
+                  </label>
                 </div>
               </article>
 
@@ -305,7 +296,7 @@ import { useRoute, useRouter } from 'vue-router';
 import AppIcon from '@/components/AppIcon.vue';
 import { apiGet, apiPut } from '@/lib/api';
 import { getRouteToken } from '@/lib/auth';
-import type { AppConfig, ProviderConfig } from '@/lib/types';
+import type { AppConfig, ProviderConfig, ProviderModelConfig } from '@/lib/types';
 
 const route = useRoute();
 const router = useRouter();
@@ -319,7 +310,8 @@ const config = ref<AppConfig | null>(null);
 const configDraft = ref<AppConfig | null>(null);
 const providerHeadersDrafts = ref<Record<string, string>>({});
 const providerExtraBodyDrafts = ref<Record<string, string>>({});
-const providerJsonErrors = ref<Record<string, { headers?: string; extraBody?: string }>>({});
+const providerModelsDrafts = ref<Record<string, string>>({});
+const providerJsonErrors = ref<Record<string, { headers?: string; extraBody?: string; models?: string }>>({});
 
 const providerEntries = computed(() => Object.entries(configDraft.value?.providers || {}) as Array<[string, ProviderConfig]>);
 const providerNames = computed(() => Object.keys(configDraft.value?.providers || {}));
@@ -332,6 +324,7 @@ function createEmptyProvider(): ProviderConfig {
     apiBase: '',
     headers: {},
     extraBody: {},
+    models: {},
   };
 }
 
@@ -343,11 +336,13 @@ function syncProviderEditors() {
   const providers = configDraft.value?.providers || {};
   providerHeadersDrafts.value = {};
   providerExtraBodyDrafts.value = {};
+  providerModelsDrafts.value = {};
   providerJsonErrors.value = {};
 
   for (const [name, provider] of Object.entries(providers)) {
     providerHeadersDrafts.value[name] = formatJsonObject(provider.headers);
     providerExtraBodyDrafts.value[name] = formatJsonObject(provider.extraBody as Record<string, unknown> | undefined);
+    providerModelsDrafts.value[name] = formatJsonObject(provider.models as Record<string, unknown> | undefined);
   }
 }
 
@@ -369,13 +364,34 @@ function parseJsonObject(text: string, label: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
-function updateProviderJsonDraft(name: string, field: 'headers' | 'extraBody', value: string) {
+function normalizeProviderModels(parsed: Record<string, unknown>): Record<string, ProviderModelConfig> {
+  const next: Record<string, ProviderModelConfig> = {};
+
+  for (const [modelName, rawConfig] of Object.entries(parsed)) {
+    if (!rawConfig || Array.isArray(rawConfig) || typeof rawConfig !== 'object') {
+      throw new Error(`模型 ${modelName} 的能力配置必须是对象`);
+    }
+
+    const entry = rawConfig as Record<string, unknown>;
+    next[modelName] = {
+      maxContextTokens: typeof entry.maxContextTokens === 'number' ? entry.maxContextTokens : undefined,
+      reasoning: entry.reasoning === true,
+      supportsVision: entry.supportsVision === true,
+    };
+  }
+
+  return next;
+}
+
+function updateProviderJsonDraft(name: string, field: 'headers' | 'extraBody' | 'models', value: string) {
   if (!configDraft.value?.providers?.[name]) return;
 
   if (field === 'headers') {
     providerHeadersDrafts.value[name] = value;
-  } else {
+  } else if (field === 'extraBody') {
     providerExtraBodyDrafts.value[name] = value;
+  } else {
+    providerModelsDrafts.value[name] = value;
   }
 
   const nextErrors = { ...(providerJsonErrors.value[name] || {}) };
@@ -387,16 +403,21 @@ function updateProviderJsonDraft(name: string, field: 'headers' | 'extraBody', v
         Object.entries(parsed).map(([key, item]) => [key, String(item ?? '')])
       );
       delete nextErrors.headers;
-    } else {
+    } else if (field === 'extraBody') {
       configDraft.value.providers[name].extraBody = parsed;
       delete nextErrors.extraBody;
+    } else {
+      configDraft.value.providers[name].models = normalizeProviderModels(parsed);
+      delete nextErrors.models;
     }
   } catch (parseError) {
     const message = parseError instanceof Error ? parseError.message : 'JSON 解析失败';
     if (field === 'headers') {
       nextErrors.headers = message;
-    } else {
+    } else if (field === 'extraBody') {
       nextErrors.extraBody = message;
+    } else {
+      nextErrors.models = message;
     }
   }
 
@@ -451,12 +472,11 @@ function normalizeConfig(source: AppConfig): AppConfig {
   next.server ||= { host: '0.0.0.0', apiPort: 18792, apiEnabled: true };
   next.agent ||= { defaults: {} };
   next.agent.defaults ||= {};
-  next.agent.defaults.memorySummary ||= { enabled: false, provider: '', model: '', compressRounds: 5 };
+  next.agent.defaults.visionFallbackModel ||= '';
+  next.agent.defaults.memorySummary ||= { enabled: false, model: '', compressRounds: 5 };
   next.agent.defaults.memoryFacts ||= {
     enabled: false,
-    provider: '',
     model: '',
-    retrievalProvider: '',
     retrievalModel: '',
     retrievalThreshold: 0.59,
     retrievalTopK: 5,
@@ -466,13 +486,8 @@ function normalizeConfig(source: AppConfig): AppConfig {
   next.agents.roles.main ||= {
     name: 'main',
     description: '',
-    provider: '',
     model: '',
     systemPrompt: '',
-    vision: false,
-    reasoning: false,
-    visionProvider: '',
-    visionModel: '',
     allowedSkills: [],
     allowedTools: [],
   };

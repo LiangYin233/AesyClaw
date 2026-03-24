@@ -66,19 +66,19 @@ function createVisionProvider(
   config: Config,
   settings: VisionSettings
 ) {
-  if (!settings.enabled || !settings.visionProviderName || !settings.visionModelName) {
+  if (!settings.enabled || settings.directVision || !settings.fallbackProviderName || !settings.fallbackModelName) {
     return undefined;
   }
 
-  const providerConfig = config.providers[settings.visionProviderName];
+  const providerConfig = config.providers[settings.fallbackProviderName];
   if (!providerConfig) {
-    deps.logger.warn('配置热重载时未找到视觉提供商', {
-      provider: settings.visionProviderName
+    deps.logger.warn('配置热重载时未找到视觉回退提供商', {
+      provider: settings.fallbackProviderName
     });
     return undefined;
   }
 
-  return deps.createProvider(settings.visionProviderName, providerConfig);
+  return deps.createProvider(settings.fallbackProviderName, providerConfig);
 }
 
 function buildMainAgentComparable(deps: ReloadRuntimeConfigDeps, config: Config) {

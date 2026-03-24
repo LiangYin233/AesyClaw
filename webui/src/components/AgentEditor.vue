@@ -26,18 +26,9 @@
             <label class="mb-2 block text-xs font-semibold text-on-surface">描述</label>
             <input v-model="form.description" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none transition focus:border-primary/40" placeholder="用于说明该角色的职责" />
           </div>
-          <div class="grid gap-4 md:grid-cols-2">
-            <div>
-              <label class="mb-2 block text-xs font-semibold text-on-surface">Provider</label>
-              <select v-model="form.provider" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none transition focus:border-primary/40">
-                <option value="">请选择提供商</option>
-                <option v-for="option in providerOptions" :key="option" :value="option">{{ option }}</option>
-              </select>
-            </div>
-            <div>
-              <label class="mb-2 block text-xs font-semibold text-on-surface">Model</label>
-              <input v-model="form.model" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none transition focus:border-primary/40" placeholder="模型名称" />
-            </div>
+          <div>
+            <label class="mb-2 block text-xs font-semibold text-on-surface">Model</label>
+            <input v-model="form.model" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none transition focus:border-primary/40" placeholder="provider/model" />
           </div>
         </div>
       </section>
@@ -45,33 +36,6 @@
       <section>
         <label class="mb-3 block text-[10px] font-mono uppercase tracking-[0.2em] text-outline">系统提示词</label>
         <textarea v-model="form.systemPrompt" rows="8" class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-4 text-sm leading-6 outline-none transition focus:border-primary/40" placeholder="请输入系统提示词，定义 Agent 的行为方式。" />
-      </section>
-
-      <section>
-        <label class="mb-3 block text-[10px] font-mono uppercase tracking-[0.2em] text-outline">能力开关</label>
-        <div class="grid gap-3">
-          <label class="flex items-center gap-3 rounded-xl bg-surface-container-low px-4 py-3">
-            <input v-model="form.vision" type="checkbox" class="size-4 rounded border-outline-variant text-primary" />
-            <span class="text-sm font-medium text-on-surface">启用视觉识别</span>
-          </label>
-          <label class="flex items-center gap-3 rounded-xl bg-surface-container-low px-4 py-3">
-            <input v-model="form.reasoning" type="checkbox" class="size-4 rounded border-outline-variant text-primary" />
-            <span class="text-sm font-medium text-on-surface">启用推理模式</span>
-          </label>
-        </div>
-        <div class="mt-4 grid gap-4 md:grid-cols-2">
-          <div>
-            <label class="mb-2 block text-xs font-semibold text-on-surface">视觉提供商</label>
-            <select v-model="form.visionProvider" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none transition focus:border-primary/40">
-              <option value="">请选择视觉提供商</option>
-              <option v-for="option in providerOptions" :key="option" :value="option">{{ option }}</option>
-            </select>
-          </div>
-          <div>
-            <label class="mb-2 block text-xs font-semibold text-on-surface">视觉模型</label>
-            <input v-model="form.visionModel" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none transition focus:border-primary/40" placeholder="视觉模型名称" />
-          </div>
-        </div>
       </section>
 
       <section>

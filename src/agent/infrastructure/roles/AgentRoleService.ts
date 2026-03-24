@@ -1,4 +1,6 @@
 import type { AgentRoleConfig, Config, VisionSettings } from '../../../types.js';
+import { tryParseModelRef } from '../../../config/modelRef.js';
+import { resolveProviderSelection } from '../../../config/resolve.js';
 import type { ToolRegistry } from '../../../tools/ToolRegistry.js';
 import type { SkillManager } from '../../../skills/SkillManager.js';
 import { formatSkillsPrompt } from '../../../skills/promptFormatter.js';
@@ -9,6 +11,9 @@ import { DEFAULT_SYSTEM_PROMPT } from '../../../config/schema/shared.js';
 
 export interface ResolvedAgentRole extends AgentRoleConfig {
   builtin: boolean;
+  provider: string;
+  reasoning: boolean;
+  vision: boolean;
   availableSkills: string[];
   availableTools: string[];
   missingSkills: string[];
@@ -175,7 +180,7 @@ export class AgentRoleService {
       return undefined;
     }
 
-    return this.getConfig().providers[role.provider]?.models?.[role.model]?.maxContextTokens;
+    return this.resolveRoleModelSelection(roleName)?.modelConfig?.maxContextTokens;
   }
 
   createProviderForRole(roleName?: string | null): LLMProvider {
@@ -184,51 +189,49 @@ export class AgentRoleService {
       throw new Error(`Agent role not found: ${roleName}`);
     }
 
-    const providerConfig = this.getConfig().providers[role.provider];
+    const selection = this.resolveRoleModelSelection(roleName);
+    const providerConfig = selection?.providerConfig;
     if (!providerConfig) {
-      throw new Error(`Provider not found for agent role ${role.name}: ${role.provider}`);
+      throw new Error(`Provider not found for agent role ${role.name}: ${selection?.name || '(missing)'}`);
     }
 
-    return createProvider(role.provider, providerConfig);
+    return createProvider(selection!.name, providerConfig);
   }
 
   createVisionProviderForRole(roleName?: string | null): LLMProvider | undefined {
-    const role = this.getResolvedRole(roleName);
-    if (!role || !role.vision) {
-      return undefined;
-    }
-    if (!role.visionProvider) {
-      this.log.warn('角色未配置视觉提供商', { role: role.name });
-      return undefined;
-    }
-    if (!role.visionModel) {
-      this.log.warn('角色未配置视觉模型', { role: role.name });
+    const settings = this.getVisionSettingsForRole(roleName);
+    if (!settings || settings.directVision || !settings.fallbackProviderName) {
       return undefined;
     }
 
-    const providerConfig = this.getConfig().providers[role.visionProvider];
+    const providerConfig = this.getConfig().providers[settings.fallbackProviderName];
     if (!providerConfig) {
-      this.log.warn('未找到角色对应的视觉提供商', {
-        role: role.name,
-        provider: role.visionProvider
+      this.log.warn('未找到视觉回退提供商', {
+        role: roleName || MAIN_AGENT_NAME,
+        provider: settings.fallbackProviderName
       });
       return undefined;
     }
 
-    return createProvider(role.visionProvider, providerConfig);
+    return createProvider(settings.fallbackProviderName, providerConfig);
   }
 
   getVisionSettingsForRole(roleName?: string | null): VisionSettings | undefined {
-    const role = this.getResolvedRole(roleName);
-    if (!role) {
+    const selection = this.resolveRoleModelSelection(roleName);
+    if (!selection) {
       return undefined;
     }
 
+    const directVision = selection.modelConfig?.supportsVision === true;
+    const fallbackSelection = directVision ? undefined : this.resolveVisionFallbackSelection();
+
     return {
-      enabled: role.vision,
-      reasoning: role.reasoning,
-      visionProviderName: role.visionProvider || undefined,
-      visionModelName: role.visionModel || undefined
+      enabled: directVision || !!fallbackSelection,
+      directVision,
+      reasoning: fallbackSelection?.modelConfig?.reasoning === true,
+      fallbackModelRef: fallbackSelection ? `${fallbackSelection.name}/${fallbackSelection.model}` : undefined,
+      fallbackProviderName: fallbackSelection?.name,
+      fallbackModelName: fallbackSelection?.model
     };
   }
 
@@ -236,6 +239,8 @@ export class AgentRoleService {
     const availableSkillSet = new Set(this.getAvailableSkillNames());
     const availableToolSet = new Set(this.getAvailableToolNames());
     const pluginLoadingComplete = this.isPluginLoadingComplete();
+    const selection = resolveProviderSelection(this.getConfig(), role.model);
+    const hasVisionFallback = !!this.resolveVisionFallbackSelection();
 
     const availableSkills = role.allowedSkills.filter((name) => availableSkillSet.has(name));
     const missingSkills = role.allowedSkills.filter((name) => !availableSkillSet.has(name));
@@ -247,6 +252,9 @@ export class AgentRoleService {
     return {
       ...role,
       builtin,
+      provider: selection.name,
+      reasoning: selection.modelConfig?.reasoning === true,
+      vision: selection.modelConfig?.supportsVision === true || hasVisionFallback,
       availableSkills,
       availableTools,
       missingSkills,
@@ -272,27 +280,38 @@ export class AgentRoleService {
     if (!builtin && name === MAIN_AGENT_NAME) {
       throw new Error('Name "main" is reserved');
     }
-    if (!input.provider?.trim()) {
-      throw new Error('Agent role provider is required');
-    }
     if (!input.model?.trim()) {
       throw new Error('Agent role model is required');
     }
+    tryParseModelRef(input.model);
     const normalized: AgentRoleConfig = {
       name,
       description: input.description?.trim() || '',
       systemPrompt: input.systemPrompt || DEFAULT_SYSTEM_PROMPT,
-      provider: input.provider.trim(),
       model: input.model.trim(),
-      vision: input.vision === true,
-      reasoning: input.reasoning === true,
-      visionProvider: input.visionProvider?.trim() || '',
-      visionModel: input.visionModel?.trim() || '',
       allowedSkills: [...new Set((input.allowedSkills || []).map((item) => item.trim()).filter(Boolean))],
       allowedTools: [...new Set((input.allowedTools || []).map((item) => item.trim()).filter(Boolean))]
     };
 
     this.log.debug(`已规范化代理角色: ${normalized.name}`);
     return normalized;
+  }
+
+  private resolveRoleModelSelection(roleName?: string | null) {
+    const role = this.getResolvedRole(roleName);
+    if (!role) {
+      return undefined;
+    }
+
+    return resolveProviderSelection(this.getConfig(), role.model);
+  }
+
+  private resolveVisionFallbackSelection() {
+    const fallbackRef = this.getConfig().agent.defaults.visionFallbackModel?.trim();
+    if (!fallbackRef) {
+      return undefined;
+    }
+
+    return resolveProviderSelection(this.getConfig(), fallbackRef);
   }
 }
