@@ -68,6 +68,8 @@ export interface InboundFile {
   type?: 'audio' | 'video' | 'file' | 'image';  // 文件类型，用于插件识别
 }
 
+export type CompatInboundFile = InboundFile;
+
 /**
  * 插件处理意图 - 描述插件如何处理消息以及 Agent 应该如何响应
  */
@@ -104,6 +106,8 @@ export interface InboundMessage {
   platformMessageId?: string;
 }
 
+export type CompatInboundMessage = InboundMessage;
+
 export interface OutboundMessage {
   id?: string;
   channel: string;
@@ -123,6 +127,8 @@ export interface OutboundMessage {
   direction?: 'inbound' | 'outbound';
   platformMessageId?: string;
 }
+
+export type CompatOutboundMessage = OutboundMessage;
 
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';

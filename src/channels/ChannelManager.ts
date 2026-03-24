@@ -60,12 +60,11 @@ export class ChannelManager {
     return config ? structuredClone(config) : {};
   }
 
-  async enableConfiguredChannel(name: string, config: any): Promise<boolean> {
-    const pluginName = `channel_${name}`;
-    const plugin = this.#plugins.get(pluginName);
+  async enableChannel(channelName: string, config: any): Promise<boolean> {
+    const plugin = this.getPlugin(`channel_${channelName}`);
 
     if (!plugin) {
-      this.#log.warn('未找到渠道插件', { pluginName });
+      this.#log.warn('未找到渠道插件', { channelName });
       return false;
     }
 
@@ -77,12 +76,12 @@ export class ChannelManager {
 
       try {
         await this.#runtime.startAdapter(plugin.channelName);
-        this.#log.info('渠道已启动', { channel: plugin.channelName, pluginName });
+        this.#log.info('渠道已启动', { channelName: plugin.channelName, pluginName: plugin.pluginName });
         return true;
       } catch (error) {
         this.#log.error('渠道启动失败', {
-          channel: plugin.channelName,
-          pluginName,
+          channelName: plugin.channelName,
+          pluginName: plugin.pluginName,
           error: normalizeChannelError(error)
         });
         return false;
@@ -95,126 +94,97 @@ export class ChannelManager {
 
     try {
       await this.#runtime.startAdapter(plugin.channelName);
-      this.#log.info('渠道已创建并启动', { channel: plugin.channelName, pluginName });
+      this.#log.info('渠道已创建并启动', { channelName: plugin.channelName, pluginName: plugin.pluginName });
       return true;
     } catch (error) {
       this.#channels.delete(plugin.channelName);
       this.#runtime.unregisterAdapter(plugin.channelName);
       this.#log.error('渠道启用失败', {
-        channel: plugin.channelName,
-        pluginName,
-        error: normalizeChannelError(error)
+        channelName: plugin.channelName,
+        pluginName: plugin.pluginName,
+          error: normalizeChannelError(error)
       });
       return false;
     }
   }
 
-  async disableConfiguredChannel(name: string): Promise<boolean> {
-    const channel = this.#channels.get(name);
+  async disableChannel(channelName: string): Promise<boolean> {
+    const channel = this.#channels.get(channelName);
     if (!channel) {
       return true;
     }
 
     try {
-      await this.#runtime.stopAdapter(name);
-      this.#channels.delete(name);
-      this.#runtime.unregisterAdapter(name);
-      this.#log.info('渠道已停用', { channel: name });
+      await this.#runtime.stopAdapter(channelName);
+      this.#channels.delete(channelName);
+      this.#runtime.unregisterAdapter(channelName);
+      this.#log.info('渠道已停用', { channelName });
       return true;
     } catch (error) {
       this.#log.error('渠道停用失败', {
-        channel: name,
+        channelName,
         error: normalizeChannelError(error)
       });
       return false;
     }
   }
 
-  async reconfigureChannel(name: string, config: any): Promise<boolean> {
-    const pluginName = `channel_${name}`;
-    const plugin = this.#plugins.get(pluginName);
+  async reconfigureChannel(channelName: string, config: any): Promise<boolean> {
+    const plugin = this.getPlugin(`channel_${channelName}`);
 
     if (!plugin) {
-      this.#log.warn('未找到渠道插件', { pluginName });
+      this.#log.warn('未找到渠道插件', { channelName });
       return false;
     }
 
-    const previousChannel = this.#channels.get(name);
+    const previousChannel = this.#channels.get(channelName);
     if (!previousChannel) {
-      return config?.enabled ? this.enableConfiguredChannel(name, config) : true;
+      return config?.enabled ? this.enableChannel(channelName, config) : true;
     }
 
     const wasRunning = previousChannel.isRunning();
 
     try {
       if (wasRunning) {
-        await this.#runtime.stopAdapter(name);
+        await this.#runtime.stopAdapter(channelName);
       }
-      this.#channels.delete(name);
-      this.#runtime.unregisterAdapter(name);
+      this.#channels.delete(channelName);
+      this.#runtime.unregisterAdapter(channelName);
 
       if (!config?.enabled) {
-        this.#log.info('渠道配置已更新并停用', { channel: name, pluginName });
+        this.#log.info('渠道配置已更新并停用', { channelName, pluginName: plugin.pluginName });
         return true;
       }
 
       const nextChannel = plugin.create(config);
-      this.#channels.set(name, nextChannel);
-      this.#runtime.registerAdapter(name, nextChannel);
-      await this.#runtime.startAdapter(name);
-      this.#log.info('渠道配置已重载', { channel: name, pluginName });
+      this.#channels.set(channelName, nextChannel);
+      this.#runtime.registerAdapter(channelName, nextChannel);
+      await this.#runtime.startAdapter(channelName);
+      this.#log.info('渠道配置已重载', { channelName, pluginName: plugin.pluginName });
       return true;
     } catch (error) {
-      this.#channels.set(name, previousChannel);
-      this.#runtime.registerAdapter(name, previousChannel);
+      this.#channels.set(channelName, previousChannel);
+      this.#runtime.registerAdapter(channelName, previousChannel);
 
       if (wasRunning) {
         try {
-          await this.#runtime.startAdapter(name);
+          await this.#runtime.startAdapter(channelName);
         } catch (restoreError) {
           this.#log.error('渠道配置回滚恢复失败', {
-            channel: name,
-            pluginName,
+            channelName,
+            pluginName: plugin.pluginName,
             error: normalizeChannelError(restoreError)
           });
         }
       }
 
       this.#log.error('渠道配置重载失败', {
-        channel: name,
-        pluginName,
+        channelName,
+        pluginName: plugin.pluginName,
         error: normalizeChannelError(error)
       });
       return false;
     }
-  }
-
-  createChannel(name: string, config: any): ChannelHandle | null {
-    const pluginName = `channel_${name}`;
-    const plugin = this.#plugins.get(pluginName);
-
-    if (!plugin) {
-      this.#log.warn('未找到渠道插件', { pluginName });
-      return null;
-    }
-
-    const channel = plugin.create(config);
-    this.#channels.set(plugin.channelName, channel);
-    this.#runtime.registerAdapter(plugin.channelName, channel);
-    this.#log.info('渠道已创建', { channel: plugin.channelName, pluginName });
-    return this.get(plugin.channelName) || null;
-  }
-
-  register(channel: ChannelAdapter): void {
-    this.#channels.set(channel.name, channel);
-    this.#runtime.registerAdapter(channel.name, channel);
-    this.#log.debug('渠道已注册', { channel: channel.name });
-  }
-
-  unregister(name: string): void {
-    this.#channels.delete(name);
-    this.#runtime.unregisterAdapter(name);
-    this.#log.debug('渠道已注销', { channel: name });
   }
 
   setInboundHandler(handler: (message: InboundMessage) => Promise<void>): void {

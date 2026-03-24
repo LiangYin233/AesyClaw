@@ -1,7 +1,7 @@
-import { ConfigLoader } from './loader.js';
 import type { Config } from '../types.js';
 import type { EventBus } from '../events/EventBus.js';
 import type { AesyClawEvents } from '../events/events.js';
+import { ConfigRepository } from './ConfigRepository.js';
 
 type ConfigMutator = (config: Config) => void | Config | Promise<void | Config>;
 
@@ -9,11 +9,14 @@ export class ConfigManager {
   private currentConfig: Config | null = null;
   private unsubscribeLoader?: () => void;
 
-  constructor(private readonly eventBus?: EventBus<AesyClawEvents>) {}
+  constructor(
+    private readonly eventBus?: EventBus<AesyClawEvents>,
+    private readonly repository = new ConfigRepository()
+  ) {}
 
   async load(configPath?: string): Promise<Config> {
     this.ensureReloadBridge();
-    const config = await ConfigLoader.load(configPath);
+    const config = await this.repository.load(configPath);
     this.currentConfig = config;
     return config;
   }
@@ -28,8 +31,8 @@ export class ConfigManager {
 
   async save(config: unknown): Promise<Config> {
     this.ensureReloadBridge();
-    await ConfigLoader.save(config);
-    const nextConfig = ConfigLoader.get();
+    await this.repository.save(config);
+    const nextConfig = this.repository.get();
     this.currentConfig = nextConfig;
     return nextConfig;
   }
@@ -39,7 +42,7 @@ export class ConfigManager {
     if (!this.currentConfig) {
       await this.load();
     }
-    const nextConfig = await ConfigLoader.update(mutator);
+    const nextConfig = await this.repository.update(mutator);
     this.currentConfig = nextConfig;
     return nextConfig;
   }
@@ -72,7 +75,7 @@ export class ConfigManager {
       return;
     }
 
-    this.unsubscribeLoader = ConfigLoader.onReload(async (previousConfig, nextConfig) => {
+    this.unsubscribeLoader = this.repository.onReload(async (previousConfig, nextConfig) => {
       await this.emitConfigChanged(previousConfig, nextConfig);
       this.currentConfig = nextConfig;
     });

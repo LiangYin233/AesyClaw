@@ -5,7 +5,7 @@ import { basename } from 'path';
 import { randomUUID } from 'crypto';
 import type { ChannelPluginDefinition } from '../../src/channels/ChannelManager.ts';
 import type { AdapterRuntimeContext, ChannelAdapter, ChannelSendContext } from '../../src/channels/core/adapter.ts';
-import { projectMessage } from '../../src/channels/core/projection.ts';
+import { projectChannelMessage } from '../../src/channels/core/projection.ts';
 import type {
   AdapterInboundDraft,
   AdapterSendResult,
@@ -379,7 +379,7 @@ class FeishuAdapter implements ChannelAdapter {
           break;
         case 'quote':
           if (segment.message) {
-            const quoted = projectMessage(segment.message).content;
+            const quoted = projectChannelMessage(segment.message).content;
             textBuffer += quoted ? `【引用消息】\n${quoted}\n\n` : '【引用消息】\n';
           }
           break;

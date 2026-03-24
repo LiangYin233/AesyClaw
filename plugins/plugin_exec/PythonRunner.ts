@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import { platform } from 'os';
 import type { PythonExecOptions } from './config.ts';
+import { resolveRunnerLimits, truncateRunnerOutput } from './runnerShared.ts';
 
 interface LoggerLike {
   debug: (message: string, ...args: any[]) => void;
@@ -18,8 +19,9 @@ export class PythonRunner {
   constructor(options: PythonExecOptions, logger: LoggerLike) {
     this.options = options;
     this.log = logger;
-    this.timeout = options.timeout || 30000;
-    this.maxOutput = options.maxOutput || 10000;
+    const limits = resolveRunnerLimits(options, { timeout: 30000, maxOutput: 10000 });
+    this.timeout = limits.timeout;
+    this.maxOutput = limits.maxOutput;
 
     // 根据平台选择默认可执行文件
     const defaultExecutable = platform() === 'win32' ? 'python' : 'python3';
@@ -27,9 +29,7 @@ export class PythonRunner {
   }
 
   truncateOutput(output: string) {
-    if (!output) return '';
-    if (output.length <= this.maxOutput) return output;
-    return output.substring(0, this.maxOutput) + `\n[输出已截断，原始长度: ${output.length} 字符]`;
+    return truncateRunnerOutput(output, this.maxOutput);
   }
 
   async execute(code: string, cwd?: string, signal?: AbortSignal): Promise<string> {

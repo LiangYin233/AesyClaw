@@ -1,6 +1,7 @@
 import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
 import type { ShellExecOptions } from './config.ts';
+import { resolveRunnerLimits, truncateRunnerOutput } from './runnerShared.ts';
 
 const execAsync = promisify(execCallback);
 
@@ -19,14 +20,13 @@ export class ShellRunner {
   constructor(options: ShellExecOptions, logger: LoggerLike) {
     this.options = options;
     this.log = logger;
-    this.timeout = options.timeout || 30000;
-    this.maxOutput = options.maxOutput || 10000;
+    const limits = resolveRunnerLimits(options, { timeout: 30000, maxOutput: 10000 });
+    this.timeout = limits.timeout;
+    this.maxOutput = limits.maxOutput;
   }
 
   truncateOutput(output: string) {
-    if (!output) return '';
-    if (output.length <= this.maxOutput) return output;
-    return output.substring(0, this.maxOutput) + `\n[输出已截断，原始长度: ${output.length} 字符]`;
+    return truncateRunnerOutput(output, this.maxOutput);
   }
 
   async execute(command: string, cwd?: string, signal?: AbortSignal): Promise<string> {

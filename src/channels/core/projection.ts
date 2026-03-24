@@ -135,7 +135,7 @@ function mapCompatFiles(resources: ResourceHandle[]): ProjectedCompatFile[] {
   return files;
 }
 
-export function projectMessage(message: ChannelMessage): ProjectedMessageView {
+export function projectChannelMessage(message: ChannelMessage): ProjectedMessageView {
   const resourceBuckets = {
     images: [] as ResourceHandle[],
     files: [] as ResourceHandle[]

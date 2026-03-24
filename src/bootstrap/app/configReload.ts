@@ -9,7 +9,7 @@ import { logging, logger } from '../../observability/index.js';
 import { syncConfiguredMcpServers } from '../../mcp/runtime.js';
 import { createProvider } from '../../providers/index.js';
 import type { Services } from '../factory/ServiceFactory.js';
-import { createMemoryService } from '../factory/ServiceFactory.js';
+import { createMemoryService } from '../factory/createPersistenceServices.js';
 import { reloadRuntimeConfig as reloadRuntimeConfigUsecase } from '../../agent/application/index.js';
 
 const log = logger.child('Bootstrap');

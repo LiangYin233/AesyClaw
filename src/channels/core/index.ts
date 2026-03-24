@@ -1,6 +1,10 @@
 export * from './types.js';
 export * from './adapter.js';
-export { projectMessage } from './projection.js';
+export { projectChannelMessage } from './projection.js';
+export { mapChannelMessageToCompatInbound, mapCompatOutboundToChannelMessage } from './messageCompat.js';
+export { mapDraftToChannelMessage } from './messageMappers.js';
+export { processInboundMessage } from './inboundPipeline.js';
+export { prepareOutboundMessage } from './outboundPipeline.js';
 export { ResourceStore } from './resource-store.js';
 export { DeliveryQueue } from './delivery-queue.js';
 export { ChannelRuntime } from './runtime.js';

@@ -23,7 +23,7 @@ export interface ReloadRuntimeConfigDeps {
   sessionRouting: Pick<SessionRoutingService, 'setContextMode'>;
   toolRegistry: Pick<ToolRegistry, 'setDefaultTimeout' | 'register' | 'list' | 'unregisterMany' | 'getSource'>;
   apiServer?: Pick<APIServer, 'updateConfig'>;
-  channelManager: Pick<ChannelManager, 'getPlugin' | 'enableConfiguredChannel' | 'disableConfiguredChannel' | 'reconfigureChannel'>;
+  channelManager: Pick<ChannelManager, 'getPlugin' | 'enableChannel' | 'disableChannel' | 'reconfigureChannel'>;
   pluginManager: Pick<PluginManager, 'loadFromConfig'>;
   mcpManager: MCPClientManager | null;
   setMcpManager: (manager: MCPClientManager) => void;
@@ -252,10 +252,10 @@ function buildReloadRules(deps: ReloadRuntimeConfigDeps): ReloadRule[] {
 
           if (wasEnabled && !isEnabled) {
             action = 'disable';
-            success = await ruleDeps.channelManager.disableConfiguredChannel(channelName);
+            success = await ruleDeps.channelManager.disableChannel(channelName);
           } else if (!wasEnabled && isEnabled) {
             action = 'enable';
-            success = await ruleDeps.channelManager.enableConfiguredChannel(channelName, nextChannelConfig ?? { enabled: true });
+            success = await ruleDeps.channelManager.enableChannel(channelName, nextChannelConfig ?? { enabled: true });
           } else {
             action = 'reconfigure';
             success = await ruleDeps.channelManager.reconfigureChannel(channelName, nextChannelConfig ?? { enabled: true });

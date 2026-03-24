@@ -1,45 +1,27 @@
 import { join } from 'path';
 import { BuiltInCommands } from '../../agent/application/index.js';
-import {
-  AgentRuntime,
-  OutboundGateway,
-  createConfiguredAgentRuntime
-} from '../../agent/index.js';
-import { LongTermMemoryService } from '../../agent/infrastructure/memory/LongTermMemoryService.js';
-import { OpenAIEmbeddingsClient } from '../../agent/infrastructure/memory/OpenAIEmbeddingsClient.js';
-import { SessionMemoryService } from '../../agent/infrastructure/memory/SessionMemoryService.js';
-import { SessionRoutingService } from '../../agent/infrastructure/session/SessionRoutingService.js';
-import { AgentRoleService } from '../../agent/infrastructure/roles/AgentRoleService.js';
+import { AgentRuntime, OutboundGateway } from '../../agent/index.js';
+import type { SessionRoutingService } from '../../agent/infrastructure/session/SessionRoutingService.js';
 import { APIServer } from '../../api/index.js';
-import { mergeChannelConfigWithDefaults } from '../../channels/config.js';
 import { ChannelManager } from '../../channels/ChannelManager.js';
-import { loadExternalChannelPlugins } from '../../channels/ChannelPluginLoader.js';
 import { ConfigManager } from '../../config/ConfigManager.js';
 import { RuntimeConfigStore } from '../../config/RuntimeConfigStore.js';
-import {
-  getMainAgentConfig,
-  getMemoryConfig,
-  getSessionRuntimeConfig,
-  getToolRuntimeConfig,
-  listEmbeddingProviderNames,
-  resolveProviderSelection
-} from '../../config/index.js';
 import { CronService } from '../../cron/index.js';
 import { logging, logger, tokenUsage } from '../../observability/index.js';
-import { createProvider } from '../../providers/index.js';
 import type { LLMProvider } from '../../providers/base.js';
 import { LongTermMemoryStore, SessionManager } from '../../session/index.js';
 import { SkillManager } from '../../skills/index.js';
 import { ToolRegistry, registerBuiltInTools } from '../../tools/index.js';
-import { CommandRegistry } from '../../agent/application/index.js';
 import { MCPClientManager } from '../../mcp/index.js';
 import { startConfiguredMcpServers } from '../../mcp/runtime.js';
 import { PluginManager } from '../../plugins/index.js';
-import type { PluginConfigState } from '../../plugins/index.js';
-import type { Config, VisionSettings } from '../../types.js';
-import type { ResolvedProviderSelection } from '../../config/schema.js';
+import type { Config } from '../../types.js';
 import type { CronJob } from '../../cron/index.js';
-import { normalizeBootstrapError } from './errors.js';
+import { createChannelServices } from './createChannelServices.js';
+import { createCronService } from './createCronService.js';
+import { createExecutionRuntime } from './createExecutionRuntime.js';
+import { createPersistenceServices } from './createPersistenceServices.js';
+import { createPluginServices } from './createPluginServices.js';
 import { EventBus } from '../../events/EventBus.js';
 import type { AesyClawEvents } from '../../events/events.js';
 
@@ -88,430 +70,6 @@ export function bootstrapRuntimeConfig(config: Config): Config {
   return config;
 }
 
-function createOptionalProvider(resolved: ResolvedProviderSelection, label: string) {
-  if (!resolved.providerConfig) {
-    appLog.warn(`配置中未找到${label}提供商 "${resolved.name}"`);
-    return undefined;
-  }
-
-  return createProvider(resolved.name, resolved.providerConfig);
-}
-
-function createEmbeddingsClient(resolved: ResolvedProviderSelection | undefined): OpenAIEmbeddingsClient | undefined {
-  if (!resolved?.providerConfig) {
-    if (resolved?.name) {
-      appLog.warn('未找到 embeddings 提供商', { provider: resolved.name });
-    }
-    return undefined;
-  }
-
-  if (!listEmbeddingProviderNames({ [resolved.name]: resolved.providerConfig }).length) {
-    appLog.warn('embeddings 提供商必须为 openai 类型', {
-      provider: resolved.name,
-      type: resolved.providerConfig.type
-    });
-    return undefined;
-  }
-
-  return new OpenAIEmbeddingsClient({
-    apiKey: resolved.providerConfig.apiKey,
-    apiBase: resolved.providerConfig.apiBase,
-    headers: resolved.providerConfig.headers
-  });
-}
-
-export function createMemoryService(
-  config: Config,
-  sessionManager: SessionManager,
-  longTermMemoryStore: LongTermMemoryStore
-): SessionMemoryService | undefined {
-  const memoryConfig = getMemoryConfig(config);
-  const summaryConfig = memoryConfig.summary;
-  const sessionConfig = memoryConfig.session;
-  const maintenanceSelection = memoryConfig.facts.maintenance.provider && memoryConfig.facts.maintenance.model
-    ? resolveProviderSelection(config, `${memoryConfig.facts.maintenance.provider}/${memoryConfig.facts.maintenance.model}`)
-    : undefined;
-  const recallSelection = memoryConfig.facts.recall.provider && memoryConfig.facts.recall.model
-    ? resolveProviderSelection(config, `${memoryConfig.facts.recall.provider}/${memoryConfig.facts.recall.model}`)
-    : undefined;
-
-  if (!summaryConfig.enabled && !memoryConfig.facts.enabled) {
-    return undefined;
-  }
-
-  if (!summaryConfig.enabled && config.agent.defaults.memorySummary.enabled) {
-    appLog.warn('会话摘要已启用，但未完整配置 memorySummary.model；摘要压缩将被跳过');
-  }
-
-  const summaryRuntimeConfig = {
-    enabled: summaryConfig.enabled,
-    model: summaryConfig.model,
-    compressRounds: summaryConfig.compressRounds,
-    memoryWindow: sessionConfig.memoryWindow,
-    contextMode: sessionConfig.contextMode
-  };
-
-  if (memoryConfig.facts.enabled && !memoryConfig.facts.maintenance.enabled) {
-    appLog.warn('长期记忆已启用，但未完整配置 memoryFacts.model；后台自治维护将被跳过');
-  }
-
-  if (
-    memoryConfig.facts.enabled
-    && !memoryConfig.facts.recall.enabled
-    && config.agent.defaults.memoryFacts.retrievalModel
-  ) {
-    appLog.warn('长期记忆自动召回需要配置合法的 memoryFacts.retrievalModel；当前将保持禁用');
-  }
-
-  const longTermMemoryService = memoryConfig.facts.enabled
-    ? new LongTermMemoryService(
-        sessionManager,
-        longTermMemoryStore,
-        {
-          enabled: memoryConfig.facts.enabled,
-          model: memoryConfig.facts.maintenance.model,
-          retrievalProvider: memoryConfig.facts.recall.provider,
-          retrievalModel: memoryConfig.facts.recall.model,
-          retrievalThreshold: memoryConfig.facts.recall.threshold,
-          retrievalTopK: memoryConfig.facts.recall.topK
-        },
-        maintenanceSelection
-          ? createOptionalProvider(maintenanceSelection, '长期记忆')
-          : undefined,
-        recallSelection
-          ? createEmbeddingsClient(recallSelection)
-          : undefined
-      )
-    : undefined;
-
-  return new SessionMemoryService(
-    sessionManager,
-    summaryConfig.enabled && summaryConfig.provider && summaryConfig.model
-      ? createOptionalProvider(resolveProviderSelection(config, `${summaryConfig.provider}/${summaryConfig.model}`), '记忆摘要')
-      : undefined,
-    summaryRuntimeConfig,
-    longTermMemoryService
-  );
-}
-
-async function createPersistenceServices(config: Config): Promise<{
-  sessionManager: SessionManager;
-  longTermMemoryStore: LongTermMemoryStore;
-  memoryService?: SessionMemoryService;
-  sessionRouting: SessionRoutingService;
-}> {
-  const sessionConfig = getSessionRuntimeConfig(config);
-  const sessionManager = new SessionManager(
-    join(process.cwd(), '.aesyclaw', 'sessions'),
-    sessionConfig.maxSessions
-  );
-  await sessionManager.loadAll();
-  appLog.info(`会话管理器已就绪，已加载 ${sessionManager.count()} 个会话`);
-
-  const longTermMemoryStore = new LongTermMemoryStore(sessionManager.getDatabase());
-  const memoryService = createMemoryService(config, sessionManager, longTermMemoryStore);
-  if (memoryService) {
-    appLog.info('记忆服务已启用');
-  }
-
-  return {
-    sessionManager,
-    longTermMemoryStore,
-    memoryService,
-    sessionRouting: new SessionRoutingService(sessionManager, sessionConfig.contextMode)
-  };
-}
-
-function createRequiredProvider(config: Config, providerName?: string, modelName?: string) {
-  const resolved = providerName && modelName
-    ? resolveProviderSelection(config, providerName, modelName)
-    : resolveProviderSelection(config, modelName || providerName);
-  if (!resolved.model) {
-    throw new Error(`Model is required for provider "${resolved.name}"`);
-  }
-  if (!resolved.providerConfig) {
-    throw new Error(`Provider "${resolved.name}" not found in config`);
-  }
-
-  return createProvider(resolved.name, resolved.providerConfig);
-}
-
-function createVisionProvider(config: Config, visionSettings: VisionSettings) {
-  if (visionSettings.enabled === false) {
-    return undefined;
-  }
-
-  if (!visionSettings.fallbackProviderName) {
-    return undefined;
-  }
-  if (!visionSettings.fallbackModelName) {
-    return undefined;
-  }
-
-  const providerConfig = config.providers[visionSettings.fallbackProviderName];
-  if (!providerConfig) {
-    appLog.warn('未找到视觉回退提供商', { provider: visionSettings.fallbackProviderName });
-    return undefined;
-  }
-
-  return createProvider(visionSettings.fallbackProviderName, providerConfig);
-}
-
-async function createSkillManager(
-  config: Config,
-  workspace: string,
-  updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>
-): Promise<SkillManager> {
-  const skillManager = new SkillManager({
-    builtinSkillsDir: './skills',
-    externalSkillsDir: join(workspace, 'skills'),
-    updateConfig
-  });
-  skillManager.setConfig(config);
-  await skillManager.loadFromDirectory();
-  await skillManager.startWatching();
-  appLog.info('技能加载完成', { skillCount: skillManager.listSkills().length });
-  return skillManager;
-}
-
-async function createExecutionRuntime(args: {
-  getConfig: () => Config;
-  setConfig: (config: Config) => void;
-  updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>;
-  eventBus: EventBus<AesyClawEvents>;
-  outboundGateway: OutboundGateway;
-  workspace: string;
-  sessionManager: SessionManager;
-  sessionRouting: SessionRoutingService;
-  memoryService?: SessionMemoryService;
-}): Promise<{
-  provider?: ReturnType<typeof createRequiredProvider>;
-  toolRegistry: ToolRegistry;
-  commandRegistry: CommandRegistry;
-  skillManager: SkillManager;
-  agentRoleService: AgentRoleService;
-  agentRuntime: AgentRuntime;
-  visionSettings: VisionSettings;
-  visionProvider?: ReturnType<typeof createVisionProvider>;
-  setPluginManager: (pluginManager: PluginManager) => void;
-}> {
-  const { getConfig, setConfig, updateConfig, eventBus, outboundGateway, workspace, sessionManager, sessionRouting, memoryService } = args;
-  const config = getConfig();
-  const toolConfig = getToolRuntimeConfig(config);
-  const mainAgentConfig = getMainAgentConfig(config);
-  const toolRegistry = new ToolRegistry({
-    defaultTimeout: toolConfig.timeoutMs
-  });
-  const commandRegistry = new CommandRegistry();
-  const provider = mainAgentConfig.role.model.trim()
-    ? createRequiredProvider(config, undefined, mainAgentConfig.role.model)
-    : undefined;
-  const visionSettings = mainAgentConfig.visionSettings;
-  const visionProvider = createVisionProvider(config, visionSettings);
-  const skillManager = await createSkillManager(config, workspace, updateConfig);
-  const agentRoleService = new AgentRoleService(
-    getConfig,
-    setConfig,
-    updateConfig,
-    toolRegistry,
-    skillManager
-  );
-
-  let pluginManagerRef: PluginManager | undefined;
-  const agentRuntime = await createConfiguredAgentRuntime({
-    provider,
-    toolRegistry,
-    sessionManager,
-    commandRegistry,
-    sessionRouting,
-    outboundGateway,
-    workspace,
-    systemPrompt: mainAgentConfig.role.systemPrompt,
-    maxIterations: mainAgentConfig.maxIterations,
-    model: mainAgentConfig.role.model,
-    memoryWindow: mainAgentConfig.memoryWindow,
-    visionSettings,
-    visionProvider,
-    memoryService,
-    agentRoleService,
-    getPluginManager: () => pluginManagerRef,
-    eventBus
-  });
-
-  return {
-    provider,
-    toolRegistry,
-    commandRegistry,
-    skillManager,
-    agentRoleService,
-    agentRuntime,
-    visionSettings,
-    visionProvider,
-    setPluginManager(pluginManager: PluginManager) {
-      pluginManagerRef = pluginManager;
-    }
-  };
-}
-
-function normalizePluginConfigs(
-  configs: Record<string, { enabled?: boolean; options?: Record<string, any> }>
-): Record<string, PluginConfigState> {
-  return Object.fromEntries(
-    Object.entries(configs).map(([name, config]) => [
-      name,
-      {
-        enabled: config.enabled ?? false,
-        options: config.options
-      }
-    ])
-  );
-}
-
-async function createPluginRuntime(args: {
-  configStore: RuntimeConfigStore;
-  configManager: ConfigManager;
-  outboundGateway: OutboundGateway;
-  workspace: string;
-  tempDir: string;
-  toolRegistry: ToolRegistry;
-}): Promise<{
-  pluginManager: PluginManager;
-  startBackgroundLoading: () => void;
-  isBackgroundLoadingComplete: () => boolean;
-}> {
-  const { configStore, configManager, outboundGateway, workspace, tempDir, toolRegistry } = args;
-  let started = false;
-  let completed = false;
-
-  const pluginManager = new PluginManager({
-    getConfig: () => configStore.getConfig(),
-    workspace,
-    tempDir,
-    toolRegistry,
-    publishOutbound: async (message) => {
-      await outboundGateway.send(message);
-    },
-    logger
-  });
-
-  const config = configStore.getConfig();
-  pluginManager.setPluginConfigs(normalizePluginConfigs(config.plugins as Record<string, { enabled?: boolean; options?: Record<string, any> }>));
-
-  const startBackgroundLoading = () => {
-    if (started) {
-      return;
-    }
-    started = true;
-
-    void (async () => {
-      const startedAt = Date.now();
-      try {
-        const { pluginConfigs: newPluginConfigs, changed } = await pluginManager.applyDefaultConfigs();
-        if (changed) {
-          const nextConfig = await configManager.update((draft) => {
-            draft.plugins = newPluginConfigs as typeof draft.plugins;
-          });
-          configStore.setConfig(nextConfig);
-          pluginManager.setPluginConfigs(normalizePluginConfigs(nextConfig.plugins));
-          appLog.info('已应用默认插件配置');
-        }
-
-        const latestConfig = configStore.getConfig();
-        if (Object.keys(latestConfig.plugins).length > 0) {
-          await pluginManager.loadFromConfig(normalizePluginConfigs(latestConfig.plugins));
-        }
-
-        appLog.info('插件已在后台加载完成', {
-          durationMs: Date.now() - startedAt
-        });
-      } catch (error) {
-        appLog.error('后台加载插件失败', {
-          error: normalizeBootstrapError(error)
-        });
-      } finally {
-        completed = true;
-      }
-    })();
-  };
-
-  return {
-    pluginManager,
-    startBackgroundLoading,
-    isBackgroundLoadingComplete: () => completed
-  };
-}
-
-async function applyDefaultChannelConfigs(
-  channelManager: ChannelManager,
-  configStore: RuntimeConfigStore,
-  configManager: ConfigManager
-): Promise<Config> {
-  const config = configStore.getConfig();
-  const channelEntriesToUpdate = channelManager
-    .listPlugins()
-    .map((pluginName) => channelManager.getPlugin(pluginName))
-    .filter((plugin): plugin is NonNullable<typeof plugin> => Boolean(plugin))
-    .map((plugin) => {
-      const currentConfig = config.channels[plugin.channelName] as Record<string, unknown> | undefined;
-      const nextConfig = mergeChannelConfigWithDefaults(
-        channelManager.getPluginDefaultConfig(plugin.pluginName),
-        currentConfig
-      );
-
-      return {
-        plugin,
-        currentConfig,
-        nextConfig
-      };
-    })
-    .filter(({ currentConfig, nextConfig }) => JSON.stringify(currentConfig ?? {}) !== JSON.stringify(nextConfig));
-
-  if (channelEntriesToUpdate.length === 0) {
-    return config;
-  }
-
-  const nextConfig = await configManager.update((draft) => {
-    for (const { plugin, nextConfig: mergedChannelConfig } of channelEntriesToUpdate) {
-      draft.channels[plugin.channelName] = mergedChannelConfig as typeof draft.channels[string];
-    }
-  });
-
-  configStore.setConfig(nextConfig);
-  appLog.info('已应用默认渠道配置', {
-    channels: channelEntriesToUpdate.map(({ plugin }) => plugin.channelName)
-  });
-  return nextConfig;
-}
-
-async function createChannelManager(
-  configStore: RuntimeConfigStore,
-  configManager: ConfigManager,
-  sessionManager: SessionManager,
-  workspace: string,
-  agentRuntime: AgentRuntime
-): Promise<ChannelManager> {
-  const channelManager = new ChannelManager(sessionManager.getDatabase(), workspace);
-  channelManager.setInboundHandler(async (message) => {
-    await agentRuntime.handleInbound(message);
-  });
-  await loadExternalChannelPlugins(channelManager, process.cwd());
-
-  const config = await applyDefaultChannelConfigs(channelManager, configStore, configManager);
-
-  for (const [channelName, channelConfig] of Object.entries(config.channels as Record<string, { enabled?: boolean }>)) {
-    if (!channelConfig?.enabled) {
-      continue;
-    }
-
-    const channel = channelManager.createChannel(channelName, channelConfig);
-    if (!channel) {
-      appLog.warn(`未找到渠道插件: ${channelName}`);
-    }
-  }
-
-  return channelManager;
-}
-
 async function createInfrastructure(args: {
   configStore: RuntimeConfigStore;
   configManager: ConfigManager;
@@ -531,7 +89,7 @@ async function createInfrastructure(args: {
   const { configStore, configManager, outboundGateway, agentRuntime, workspace, tempDir, toolRegistry, sessionManager } = args;
   const config = configStore.getConfig();
   const [pluginRuntime, channelManager] = await Promise.all([
-    createPluginRuntime({
+    createPluginServices({
       configStore,
       configManager,
       outboundGateway,
@@ -539,7 +97,13 @@ async function createInfrastructure(args: {
       tempDir,
       toolRegistry
     }),
-    createChannelManager(configStore, configManager, sessionManager, workspace, agentRuntime)
+    createChannelServices({
+      configStore,
+      configManager,
+      sessionManager,
+      workspace,
+      agentRuntime
+    })
   ]);
   let mcpManager: MCPClientManager | undefined;
   mcpManager = startConfiguredMcpServers({
@@ -610,11 +174,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   log.info('命令注册表已初始化');
 
   const cronStartedAt = Date.now();
-  const cronService = new CronService(
-    join(process.cwd(), '.aesyclaw', 'cron-jobs.json'),
-    onCronJob || (async () => {})
-  );
-  await cronService.start();
+  const cronService = await createCronService(onCronJob);
   const cronMs = Date.now() - cronStartedAt;
   log.info('服务阶段完成', {
     phase: 'cron',

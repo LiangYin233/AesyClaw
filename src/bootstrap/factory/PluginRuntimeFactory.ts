@@ -1,5 +1,6 @@
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import type { OutboundGateway } from '../../agent/index.js';
+import type { Config } from '../../types.js';
 import { PluginManager } from '../../plugins/index.js';
 import type { PluginConfigState } from '../../plugins/index.js';
 import { ConfigLoader } from '../../config/loader.js';
@@ -35,8 +36,9 @@ export async function createPluginManager(args: {
   workspace: string;
   tempDir: string;
   toolRegistry: ToolRegistry;
+  updateConfig?: (mutator: Parameters<typeof ConfigLoader.update>[0]) => Promise<Config>;
 }): Promise<PluginRuntime> {
-  const { configStore, outboundGateway, workspace, tempDir, toolRegistry } = args;
+  const { configStore, outboundGateway, workspace, tempDir, toolRegistry, updateConfig } = args;
   let started = false;
   let completed = false;
 
@@ -65,7 +67,7 @@ export async function createPluginManager(args: {
       try {
         const { pluginConfigs: newPluginConfigs, changed } = await pluginManager.applyDefaultConfigs();
         if (changed) {
-          const nextConfig = await ConfigLoader.update((draft) => {
+          const nextConfig = await (updateConfig ?? ConfigLoader.update)((draft) => {
             draft.plugins = newPluginConfigs as typeof draft.plugins;
           });
           configStore.setConfig(nextConfig);

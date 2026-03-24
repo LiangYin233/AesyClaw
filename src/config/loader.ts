@@ -1,83 +1,19 @@
-import { existsSync, mkdirSync, readFileSync, watch, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { randomBytes } from 'crypto';
-import { basename, dirname, join } from 'path';
+import { dirname, join } from 'path';
 import type { Config } from '../types.js';
 import { logger } from '../observability/index.js';
+import { normalizeConfigInput } from './configNormalizer.js';
+import { serializeConfig } from './configSerializer.js';
+import { ConfigWatcher } from './configWatcher.js';
 import { normalizeConfigError } from './errors.js';
-import { parse, stringify } from 'smol-toml';
+import { parse } from 'smol-toml';
 import { createDefaultConfig, parseConfig } from './schema.js';
-import { providerReservedKeys } from './schema/providers.js';
 
-type fsWatcher = ReturnType<typeof watch>;
 type ConfigMutator = (config: Config) => void | Config | Promise<void | Config>;
-type SerializableValue = string | number | boolean | null | SerializableValue[] | { [key: string]: SerializableValue };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function stripUndefined(value: unknown): SerializableValue | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') {
-    return value as string | boolean | null;
-  }
-
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : undefined;
-  }
-
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => stripUndefined(item))
-      .filter((item): item is SerializableValue => item !== undefined);
-  }
-
-  if (!isRecord(value)) {
-    return undefined;
-  }
-
-  const result: Record<string, SerializableValue> = {};
-  for (const [key, nestedValue] of Object.entries(value)) {
-    const normalized = stripUndefined(nestedValue);
-    if (normalized !== undefined) {
-      result[key] = normalized;
-    }
-  }
-
-  return result;
-}
 
 function cloneConfig(config: Config): Config {
   return structuredClone(config);
-}
-
-function normalizeConfigInput(config: unknown): unknown {
-  if (!isRecord(config)) {
-    return config;
-  }
-
-  const next = structuredClone(config) as Record<string, unknown>;
-  const providers = next.providers;
-  if (!isRecord(providers)) {
-    return next;
-  }
-
-  for (const provider of Object.values(providers)) {
-    if (!isRecord(provider) || !isRecord(provider.models)) {
-      continue;
-    }
-
-    const models = provider.models;
-    delete provider.models;
-    for (const [modelName, modelConfig] of Object.entries(models)) {
-      provider[modelName] = modelConfig;
-    }
-  }
-
-  return next;
 }
 
 function withGeneratedToken(config: Config): Config {
@@ -96,12 +32,19 @@ export class ConfigLoader {
   private static readonly MAX_WATCH_RESTART_ATTEMPTS = 20;
   private static config: Config | null = null;
   private static configPath = join(process.cwd(), 'config.toml');
-  private static watcher: fsWatcher | null = null;
   private static log = logger.child('ConfigLoader');
   private static reloadListeners = new Set<(previousConfig: Config | null, nextConfig: Config) => void | Promise<void>>();
   private static lastAppliedSignature: string | null = null;
-  private static reloadTimer: NodeJS.Timeout | null = null;
-  private static watcherRestartTimer: NodeJS.Timeout | null = null;
+  private static watcher = new ConfigWatcher({
+    getConfigPath: () => this.configPath,
+    log: this.log,
+    onReloadRequested: () => {
+      void this.reloadFromDisk();
+    },
+    watchDebounceMs: this.WATCH_DEBOUNCE_MS,
+    watchRetryMs: this.WATCH_RETRY_MS,
+    maxWatchRestartAttempts: this.MAX_WATCH_RESTART_ATTEMPTS
+  });
 
   private static ensureConfigDirectory(): void {
     const dir = dirname(this.configPath);
@@ -112,91 +55,13 @@ export class ConfigLoader {
 
   private static applyConfigState(config: Config): Config {
     this.config = config;
-    this.lastAppliedSignature = this.serializeConfig(config);
+    this.lastAppliedSignature = serializeConfig(config);
     return config;
-  }
-
-  private static clearReloadTimer(): void {
-    if (this.reloadTimer) {
-      clearTimeout(this.reloadTimer);
-      this.reloadTimer = null;
-    }
-  }
-
-  private static clearWatcherRestartTimer(): void {
-    if (this.watcherRestartTimer) {
-      clearTimeout(this.watcherRestartTimer);
-      this.watcherRestartTimer = null;
-    }
-  }
-
-  private static scheduleReload(): void {
-    this.clearReloadTimer();
-    this.reloadTimer = setTimeout(() => {
-      this.clearReloadTimer();
-      void this.reloadFromDisk();
-    }, this.WATCH_DEBOUNCE_MS);
-  }
-
-  private static scheduleWatcherRestart(attemptsRemaining = this.MAX_WATCH_RESTART_ATTEMPTS): void {
-    this.clearWatcherRestartTimer();
-    if (attemptsRemaining <= 0 || this.watcher) {
-      return;
-    }
-
-    this.watcherRestartTimer = setTimeout(() => {
-      this.watcherRestartTimer = null;
-
-      if (this.watcher) {
-        return;
-      }
-
-      if (!existsSync(this.configPath)) {
-        this.scheduleWatcherRestart(attemptsRemaining - 1);
-        return;
-      }
-
-      this.startWatching();
-      if (this.watcher) {
-        this.scheduleReload();
-      } else {
-        this.scheduleWatcherRestart(attemptsRemaining - 1);
-      }
-    }, this.WATCH_RETRY_MS);
-  }
-
-  private static serializeConfig(config: Config): string {
-    const serializable = stripUndefined(this.expandProviderModelTables(config)) ?? {};
-    return stringify(serializable as Record<string, unknown>);
-  }
-
-  private static expandProviderModelTables(config: Config): Config {
-    const next = structuredClone(config);
-
-    for (const provider of Object.values(next.providers || {})) {
-      const models = provider.models || {};
-
-      delete (provider as { models?: unknown }).models;
-      for (const [modelName, modelConfig] of Object.entries(models)) {
-        (provider as Record<string, unknown>)[modelName] = modelConfig;
-      }
-
-      for (const key of providerReservedKeys) {
-        if (key === 'models') {
-          continue;
-        }
-        if ((provider as Record<string, unknown>)[key] === undefined) {
-          delete (provider as Record<string, unknown>)[key];
-        }
-      }
-    }
-
-    return next;
   }
 
   private static persistConfig(config: Config): Config {
     this.ensureConfigDirectory();
-    writeFileSync(this.configPath, this.serializeConfig(config), 'utf-8');
+    writeFileSync(this.configPath, serializeConfig(config), 'utf-8');
     return config;
   }
 
@@ -206,7 +71,7 @@ export class ConfigLoader {
     }
 
     this.ensureConfigDirectory();
-    writeFileSync(this.configPath, this.serializeConfig(config), 'utf-8');
+    writeFileSync(this.configPath, serializeConfig(config), 'utf-8');
   }
 
   private static readParsedConfig(): Config {
@@ -226,7 +91,7 @@ export class ConfigLoader {
   static async save(config: unknown): Promise<void> {
     const previousConfig = this.config ? cloneConfig(this.config) : null;
     const nextConfig = withGeneratedToken(parseConfig(normalizeConfigInput(config)));
-    const nextSignature = this.serializeConfig(nextConfig);
+    const nextSignature = serializeConfig(nextConfig);
     const previousSignature = this.lastAppliedSignature;
     this.lastAppliedSignature = nextSignature;
     this.persistConfig(nextConfig);
@@ -245,7 +110,7 @@ export class ConfigLoader {
     const nextConfig = withGeneratedToken(parseConfig(normalizeConfigInput(updatedConfig ?? currentConfig)));
     const previousConfig = this.config ? cloneConfig(this.config) : null;
     const previousSignature = this.lastAppliedSignature;
-    this.lastAppliedSignature = this.serializeConfig(nextConfig);
+    this.lastAppliedSignature = serializeConfig(nextConfig);
     const savedConfig = this.persistConfig(nextConfig);
     try {
       await this.notifyReload(savedConfig);
@@ -321,53 +186,18 @@ export class ConfigLoader {
   }
 
   static startWatching(): void {
-    if (this.watcher) {
-      return;
-    }
-
-    try {
-      this.watcher = watch(this.configPath, (eventType, filename) => {
-        if (!filename || basename(filename.toString()) !== basename(this.configPath)) {
-          return;
-        }
-
-        if (eventType === 'rename') {
-          this.stopWatching();
-          this.scheduleWatcherRestart();
-          this.scheduleReload();
-          return;
-        }
-
-        if (eventType !== 'change') {
-          return;
-        }
-
-        this.scheduleReload();
-      });
-      this.log.debug('已启动文件监视器');
-    } catch (error) {
-      this.log.warn('启动配置文件监视器失败', {
-        error: normalizeConfigError(error)
-      });
-    }
+    this.watcher.start();
   }
 
   static stopWatching(): void {
-    this.clearReloadTimer();
-    this.clearWatcherRestartTimer();
-
-    if (this.watcher) {
-      this.watcher.close();
-      this.watcher = null;
-      this.log.debug('已停止文件监视器');
-    }
+    this.watcher.stop();
   }
 
   private static async reloadFromDisk(): Promise<void> {
     try {
       const parsedConfig = this.readParsedConfig();
       const nextConfig = parsedConfig.server.token ? parsedConfig : withGeneratedToken(parsedConfig);
-      const signature = this.serializeConfig(nextConfig);
+      const signature = serializeConfig(nextConfig);
 
       if (signature === this.lastAppliedSignature) {
         this.log.debug('跳过冗余的配置重载通知');
