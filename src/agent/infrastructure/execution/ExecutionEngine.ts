@@ -10,8 +10,8 @@ import type { ExecutionContext, ExecutionPolicy } from './ExecutionTypes.js';
 import type { ExecutionRegistry } from './ExecutionRegistry.js';
 
 export interface ExecutionEngineOptions {
-  defaultProvider: LLMProvider;
-  mainModel: string;
+  defaultProvider?: LLMProvider;
+  mainModel?: string;
   defaultSystemPrompt: string;
   maxIterations: number;
   memoryWindow: number;
@@ -159,6 +159,13 @@ export class ExecutionEngine {
 
   private resolvePolicy(roleName?: string | null, extra?: { excludeTools?: string[] }): ExecutionPolicy {
     if (!this.agentRoleService) {
+      if (!this.options.mainModel?.trim()) {
+        throw new Error('Main agent model is not configured');
+      }
+      if (!this.options.defaultProvider) {
+        throw new Error('Main agent provider is not configured');
+      }
+
       const allowedToolNames = this.options.toolRegistry.getDefinitions().map((tool) => tool.name);
       return {
         roleName: 'main',

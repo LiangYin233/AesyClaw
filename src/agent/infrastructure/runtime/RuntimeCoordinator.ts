@@ -38,7 +38,7 @@ const DEFAULT_MAX_ITERATIONS = 40;
 const DEFAULT_MEMORY_WINDOW = 50;
 
 export interface RuntimeCoordinatorOptions {
-  provider: LLMProvider;
+  provider?: LLMProvider;
   toolRegistry: ToolRegistry;
   sessionManager: SessionManager;
   commandRegistry: CommandRegistry;
@@ -60,7 +60,7 @@ export interface RuntimeCoordinatorOptions {
 export class RuntimeCoordinator {
   private log = logger.child('RuntimeCoordinator');
   private running = false;
-  private defaultProvider: LLMProvider;
+  private defaultProvider?: LLMProvider;
   private mainModel: string;
   private systemPrompt: string;
   private maxIterations: number;
@@ -77,12 +77,12 @@ export class RuntimeCoordinator {
   private readonly runAgentTurnDeps: RunAgentTurnDeps;
 
   constructor(private options: RuntimeCoordinatorOptions) {
-    if (!options.model?.trim()) {
+    if (!options.model?.trim() && !options.agentRoleService) {
       throw new Error('RuntimeCoordinator requires an explicit model');
     }
 
     this.defaultProvider = options.provider;
-    this.mainModel = options.model;
+    this.mainModel = options.model?.trim() || '';
     this.systemPrompt = options.systemPrompt || DEFAULT_SYSTEM_PROMPT;
     this.maxIterations = options.maxIterations ?? DEFAULT_MAX_ITERATIONS;
     this.memoryWindow = options.memoryWindow ?? DEFAULT_MEMORY_WINDOW;
@@ -347,11 +347,8 @@ export class RuntimeCoordinator {
     if (options.provider) {
       this.defaultProvider = options.provider;
     }
-    if ('model' in options && !options.model?.trim()) {
-      throw new Error('Main agent runtime update requires an explicit model');
-    }
-    if (options.model) {
-      this.mainModel = options.model;
+    if ('model' in options) {
+      this.mainModel = options.model?.trim() || '';
     }
     if (options.systemPrompt !== undefined) {
       this.systemPrompt = options.systemPrompt;
@@ -389,7 +386,7 @@ export class RuntimeCoordinator {
 
     this.executionEngine.updateRuntime(runtimeUpdate);
     this.log.info('主运行时配置已更新', {
-      model: options.model || this.mainModel,
+      model: options.model ?? this.mainModel,
       maxIterations: options.maxIterations || this.maxIterations
     });
   }

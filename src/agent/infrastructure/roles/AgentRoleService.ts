@@ -188,6 +188,9 @@ export class AgentRoleService {
     if (!role) {
       throw new Error(`Agent role not found: ${roleName}`);
     }
+    if (!role.model?.trim()) {
+      throw new Error(`Agent role model is not configured: ${role.name}`);
+    }
 
     const selection = this.resolveRoleModelSelection(roleName);
     const providerConfig = selection?.providerConfig;

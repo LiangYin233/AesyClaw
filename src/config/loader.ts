@@ -54,6 +54,32 @@ function cloneConfig(config: Config): Config {
   return structuredClone(config);
 }
 
+function normalizeConfigInput(config: unknown): unknown {
+  if (!isRecord(config)) {
+    return config;
+  }
+
+  const next = structuredClone(config) as Record<string, unknown>;
+  const providers = next.providers;
+  if (!isRecord(providers)) {
+    return next;
+  }
+
+  for (const provider of Object.values(providers)) {
+    if (!isRecord(provider) || !isRecord(provider.models)) {
+      continue;
+    }
+
+    const models = provider.models;
+    delete provider.models;
+    for (const [modelName, modelConfig] of Object.entries(models)) {
+      provider[modelName] = modelConfig;
+    }
+  }
+
+  return next;
+}
+
 function withGeneratedToken(config: Config): Config {
   if (config.server.token) {
     return config;
@@ -199,7 +225,7 @@ export class ConfigLoader {
 
   static async save(config: unknown): Promise<void> {
     const previousConfig = this.config ? cloneConfig(this.config) : null;
-    const nextConfig = withGeneratedToken(parseConfig(config));
+    const nextConfig = withGeneratedToken(parseConfig(normalizeConfigInput(config)));
     const nextSignature = this.serializeConfig(nextConfig);
     const previousSignature = this.lastAppliedSignature;
     this.lastAppliedSignature = nextSignature;
@@ -216,7 +242,7 @@ export class ConfigLoader {
   static async update(mutator: ConfigMutator): Promise<Config> {
     const currentConfig = cloneConfig(await this.load());
     const updatedConfig = await mutator(currentConfig);
-    const nextConfig = withGeneratedToken(parseConfig(updatedConfig ?? currentConfig));
+    const nextConfig = withGeneratedToken(parseConfig(normalizeConfigInput(updatedConfig ?? currentConfig)));
     const previousConfig = this.config ? cloneConfig(this.config) : null;
     const previousSignature = this.lastAppliedSignature;
     this.lastAppliedSignature = this.serializeConfig(nextConfig);

@@ -1,7 +1,7 @@
 import { createDefaultMainAgentRole, type AgentRoleConfig } from './schema/agent.js';
 import { parseModelRef } from './modelRef.js';
-import { createDefaultProviders, getProviderModelConfig, type ProviderConfig } from './schema/providers.js';
-import { DEFAULT_PROVIDER_NAME, MAIN_AGENT_NAME } from './schema/shared.js';
+import { getProviderModelConfig, type ProviderConfig } from './schema/providers.js';
+import { MAIN_AGENT_NAME } from './schema/shared.js';
 import type {
   ParsedConfig,
   ProviderSelectionInput,
@@ -9,10 +9,6 @@ import type {
 } from './schema/index.js';
 
 export type ResolvedConfig = ParsedConfig;
-
-function ensureProviders(providers: Record<string, ProviderConfig>): Record<string, ProviderConfig> {
-  return Object.keys(providers).length > 0 ? providers : createDefaultProviders();
-}
 
 function normalizeRole(
   name: string,
@@ -25,7 +21,6 @@ function normalizeRole(
 }
 
 export function resolveConfig(config: ParsedConfig): ResolvedConfig {
-  const providers = ensureProviders(config.providers);
   const roles = Object.fromEntries(
     Object.entries(config.agents.roles).map(([name, role]) => [
       name,
@@ -39,7 +34,7 @@ export function resolveConfig(config: ParsedConfig): ResolvedConfig {
 
   return {
     ...config,
-    providers,
+    providers: config.providers,
     agent: {
       defaults: config.agent.defaults
     },
@@ -61,10 +56,6 @@ export function resolveProviderSelection(
     const parsed = parseModelRef(name);
     name = parsed.providerName;
     resolvedModel = parsed.modelName;
-  }
-
-  if (!name) {
-    name = DEFAULT_PROVIDER_NAME;
   }
 
   const providerConfig = config.providers[name];

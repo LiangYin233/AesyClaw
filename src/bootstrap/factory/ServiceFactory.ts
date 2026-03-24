@@ -21,7 +21,6 @@ import {
   getSessionRuntimeConfig,
   getToolRuntimeConfig,
   listEmbeddingProviderNames,
-  parseConfig,
   resolveProviderSelection
 } from '../../config/index.js';
 import { CronService } from '../../cron/index.js';
@@ -46,7 +45,7 @@ import type { AesyClawEvents } from '../../events/events.js';
 const appLog = logger.child('AesyClaw');
 
 export interface Services {
-  provider: LLMProvider;
+  provider?: LLMProvider;
   toolRegistry: ToolRegistry;
   sessionManager: SessionManager;
   longTermMemoryStore: LongTermMemoryStore;
@@ -77,16 +76,15 @@ export interface ServiceFactoryOptions {
   onCronJob?: (job: CronJob) => Promise<void>;
 }
 
-function bootstrapRuntimeConfig(config: Config): Config {
-  const resolved = parseConfig(config);
+export function bootstrapRuntimeConfig(config: Config): Config {
   logging.configure({
-    level: resolved.observability.level
+    level: config.observability.level
   });
   tokenUsage.configure({
     enabled: true,
     persistFile: join(process.cwd(), '.aesyclaw', 'token-usage.db')
   });
-  return resolved;
+  return config;
 }
 
 function createOptionalProvider(resolved: ResolvedProviderSelection, label: string) {
@@ -286,7 +284,7 @@ async function createExecutionRuntime(args: {
   sessionRouting: SessionRoutingService;
   memoryService?: SessionMemoryService;
 }): Promise<{
-  provider: ReturnType<typeof createRequiredProvider>;
+  provider?: ReturnType<typeof createRequiredProvider>;
   toolRegistry: ToolRegistry;
   commandRegistry: CommandRegistry;
   skillManager: SkillManager;
@@ -304,7 +302,9 @@ async function createExecutionRuntime(args: {
     defaultTimeout: toolConfig.timeoutMs
   });
   const commandRegistry = new CommandRegistry();
-  const provider = createRequiredProvider(config, undefined, mainAgentConfig.role.model);
+  const provider = mainAgentConfig.role.model.trim()
+    ? createRequiredProvider(config, undefined, mainAgentConfig.role.model)
+    : undefined;
   const visionSettings = mainAgentConfig.visionSettings;
   const visionProvider = createVisionProvider(config, visionSettings);
   const skillManager = await createSkillManager(config, workspace, updateConfig);

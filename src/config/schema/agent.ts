@@ -36,7 +36,7 @@ export function createDefaultMainAgentRole(): z.output<typeof agentRoleConfigSch
     name: MAIN_AGENT_NAME,
     description: '内建主 Agent',
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
-    model: 'openai/gpt-4o',
+    model: '',
     allowedSkills: [],
     allowedTools: []
   });
