@@ -5,15 +5,18 @@ import type { PluginManager } from '../../../plugins/index.js';
 import type { ExecutionResult, ExecutionOptions, VisionSettings } from './ExecutionTypes.js';
 import { normalizeExecutionError, isRetryableExecutionError } from './errors.js';
 import { logger, preview, tokenUsage } from '../../../observability/index.js';
+import { ContextBudgetManager } from './ContextBudgetManager.js';
 
 export class ToolLoopRunner {
   private log = logger.child('ToolLoopRunner');
+  private contextBudgetManager = new ContextBudgetManager();
 
   constructor(
     private provider: LLMProvider,
     private toolRegistry: ToolRegistry,
     private pluginManager?: PluginManager,
-    private visionSettings?: VisionSettings
+    private visionSettings?: VisionSettings,
+    private maxContextTokens?: number
   ) {}
 
   setProvider(provider: LLMProvider): void {
@@ -57,7 +60,10 @@ export class ToolLoopRunner {
     if (toolCallQueue.length === 0) {
       checkAbort();
       const tools = allowTools ? this.toolRegistry.getDefinitions() : [];
-      const response = await activeProvider.chat(messages, tools, options.model, {
+      const requestMessages = this.contextBudgetManager.fit(messages, tools, {
+        maxContextTokens: this.maxContextTokens
+      });
+      const response = await activeProvider.chat(requestMessages, tools, options.model, {
         signal: executionSignal,
         reasoning
       });
@@ -194,7 +200,10 @@ export class ToolLoopRunner {
       });
 
       const tools = allowTools ? this.toolRegistry.getDefinitions() : [];
-      const response = await activeProvider.chat(messages, tools, options.model, {
+      const requestMessages = this.contextBudgetManager.fit(messages, tools, {
+        maxContextTokens: this.maxContextTokens
+      });
+      const response = await activeProvider.chat(requestMessages, tools, options.model, {
         signal: executionSignal,
         reasoning
       });
@@ -266,7 +275,10 @@ export class ToolLoopRunner {
     options?: { allowTools?: boolean; reasoning?: boolean; signal?: AbortSignal; providerOverride?: LLMProvider }
   ): Promise<{ content: string; reasoning_content?: string; usage?: any; toolCalls: ToolCall[] }> {
     const tools = options?.allowTools !== false ? this.toolRegistry.getDefinitions() : [];
-    const response = await (options?.providerOverride ?? this.provider).chat(messages, tools, model, {
+    const requestMessages = this.contextBudgetManager.fit(messages, tools, {
+      maxContextTokens: this.maxContextTokens
+    });
+    const response = await (options?.providerOverride ?? this.provider).chat(requestMessages, tools, model, {
       reasoning: options?.reasoning,
       signal: options?.signal
     });

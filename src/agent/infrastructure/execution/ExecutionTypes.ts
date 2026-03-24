@@ -35,6 +35,7 @@ export interface ExecutionPolicy {
   roleName: string;
   provider: LLMProvider;
   model: string;
+  maxContextTokens?: number;
   systemPrompt: string;
   skillsPrompt: string;
   allowedToolNames: string[];

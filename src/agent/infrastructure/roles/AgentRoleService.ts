@@ -169,6 +169,15 @@ export class AgentRoleService {
     return role.availableTools.filter((name) => !excluded.has(name));
   }
 
+  getMaxContextTokensForRole(roleName?: string | null): number | undefined {
+    const role = this.getResolvedRole(roleName);
+    if (!role) {
+      return undefined;
+    }
+
+    return this.getConfig().providers[role.provider]?.models?.[role.model]?.maxContextTokens;
+  }
+
   createProviderForRole(roleName?: string | null): LLMProvider {
     const role = this.getResolvedRole(roleName);
     if (!role) {

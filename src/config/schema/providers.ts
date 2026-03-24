@@ -13,12 +13,17 @@ export const providerApiBaseSchema = z.union([
   z.url({ protocol: HTTP_URL_PROTOCOL })
 ]);
 
+const providerModelConfigSchema = z.object({
+  maxContextTokens: z.number().int().positive()
+});
+
 export const providerConfigSchema = z.object({
   type: providerTypeSchema,
   apiKey: z.string().optional(),
   apiBase: providerApiBaseSchema.optional(),
   headers: z.record(z.string(), z.string()).optional(),
-  extraBody: z.record(z.string(), z.unknown()).optional()
+  extraBody: z.record(z.string(), z.unknown()).optional(),
+  models: z.record(z.string(), providerModelConfigSchema).optional()
 });
 
 export type ProviderConfig = z.output<typeof providerConfigSchema>;

@@ -28,6 +28,7 @@ export class AgentExecutor {
     systemPrompt?: string,
     skillsPrompt?: string,
     model?: string,
+    maxContextTokens?: number,
     private maxIterations: number = 40,
     pluginManager?: PluginManager,
     visionSettings?: VisionSettings,
@@ -42,7 +43,7 @@ export class AgentExecutor {
     this.model = model;
     this.executionRegistry = executionRegistry ?? new ExecutionRegistry();
     this.contextBuilder = new ContextBuilder(workspace, systemPrompt, skillsPrompt, includeRuntimeContext);
-    this.toolLoopRunner = new ToolLoopRunner(provider, toolRegistry, pluginManager, visionSettings);
+    this.toolLoopRunner = new ToolLoopRunner(provider, toolRegistry, pluginManager, visionSettings, maxContextTokens);
     this.visionProvider = visionProvider;
     this.visionModel = visionSettings?.visionModelName;
 
