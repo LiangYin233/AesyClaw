@@ -22,6 +22,8 @@ export function setupConfigReload(services: Services): void {
       sessionRouting: services.sessionRouting,
       toolRegistry: services.toolRegistry,
       apiServer: services.apiServer,
+      channelManager: services.channelManager,
+      pluginManager: services.pluginManager,
       mcpManager: services.mcpManager,
       setMcpManager: (manager: NonNullable<typeof services.mcpManager>) => {
         services.mcpManager = manager;

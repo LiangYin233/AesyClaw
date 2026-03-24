@@ -1,4 +1,5 @@
 import type { Express } from 'express';
+import { mergeChannelConfigWithDefaults, stripChannelEnabled } from '../../channels/config.js';
 import type { ChannelManager } from '../../channels/ChannelManager.js';
 import type { PluginManager } from '../../plugins/index.js';
 import type { PluginInfo } from '../../plugins/types.js';
@@ -15,8 +16,15 @@ interface PluginRouteDeps {
 export function registerPluginRoutes(app: Express, deps: PluginRouteDeps): void {
   const { pluginManager, channelManager, getConfig, updateConfig } = deps;
 
+  const getMergedChannelConfig = (pluginName: string, channelName: string) => {
+    const rawConfig = getConfig().channels[channelName] as Record<string, unknown> | undefined;
+    return mergeChannelConfigWithDefaults(
+      channelManager.getPluginDefaultConfig(pluginName),
+      rawConfig
+    );
+  };
+
   const buildChannelPlugins = (): PluginInfo[] => {
-    const config = getConfig();
     const runtimeStatus = channelManager.getStatus();
     const plugins: PluginInfo[] = [];
 
@@ -26,19 +34,16 @@ export function registerPluginRoutes(app: Express, deps: PluginRouteDeps): void 
         continue;
       }
 
-      const rawConfig = config.channels[plugin.channelName] as Record<string, unknown> | undefined;
       const defaultOptions = channelManager.getPluginDefaultConfig(plugin.pluginName);
-      const options = rawConfig
-        ? { ...rawConfig }
-        : defaultOptions;
-      delete options.enabled;
+      const mergedConfig = getMergedChannelConfig(plugin.pluginName, plugin.channelName);
+      const options = stripChannelEnabled(mergedConfig);
 
       plugins.push({
         name: plugin.pluginName,
         version: 'channel',
         description: `渠道插件（${plugin.channelName}）`,
         author: 'AesyClaw',
-        enabled: Boolean(rawConfig?.enabled),
+        enabled: Boolean(mergedConfig.enabled),
         options,
         defaultConfig: {
           enabled: false,
@@ -78,8 +83,7 @@ export function registerPluginRoutes(app: Express, deps: PluginRouteDeps): void 
         : new Set<string>();
 
       if (pluginManager) {
-        const success = await pluginManager.enablePlugin(name, enabled);
-        if (success) {
+        if (knownPluginNames.has(name)) {
           await updateConfig((config) => {
             config.plugins[name] = {
               ...(config.plugins[name] || {}),
@@ -88,10 +92,6 @@ export function registerPluginRoutes(app: Express, deps: PluginRouteDeps): void 
           });
           return res.json({ success: true });
         }
-
-        if (knownPluginNames.has(name)) {
-          throw new Error(`Failed to ${enabled ? 'enable' : 'disable'} plugin ${name}`);
-        }
       }
 
       const channelPlugin = channelManager.getPlugin(name);
@@ -99,23 +99,15 @@ export function registerPluginRoutes(app: Express, deps: PluginRouteDeps): void 
         return notFound(res, 'Plugin', name);
       }
 
-      const currentChannelConfig = (getConfig().channels[channelPlugin.channelName] as Record<string, unknown> | undefined) ?? {};
-      const nextChannelConfig = {
-        ...currentChannelConfig,
-        enabled
-      };
-      const success = enabled
-        ? await channelManager.enableConfiguredChannel(channelPlugin.channelName, nextChannelConfig)
-        : await channelManager.disableConfiguredChannel(channelPlugin.channelName);
-      if (!success) {
-        throw new Error(`Failed to ${enabled ? 'enable' : 'disable'} channel plugin ${name}`);
-      }
-
       await updateConfig((config) => {
-        config.channels[channelPlugin.channelName] = {
-          ...((config.channels[channelPlugin.channelName] as Record<string, unknown> | undefined) ?? {}),
-          enabled
-        };
+        const currentChannelConfig = config.channels[channelPlugin.channelName] as Record<string, unknown> | undefined;
+        config.channels[channelPlugin.channelName] = mergeChannelConfigWithDefaults(
+          channelManager.getPluginDefaultConfig(channelPlugin.pluginName),
+          {
+            ...(currentChannelConfig ?? {}),
+            enabled
+          }
+        ) as typeof config.channels[string];
       });
       res.json({ success: true });
     } catch (error: unknown) {
@@ -135,8 +127,7 @@ export function registerPluginRoutes(app: Express, deps: PluginRouteDeps): void 
         : new Set<string>();
 
       if (pluginManager) {
-        const success = await pluginManager.updatePluginConfig(name, options);
-        if (success) {
+        if (knownPluginNames.has(name)) {
           const config = getConfig();
           const currentEnabled = config.plugins[name]?.enabled ?? true;
           await updateConfig((config) => {
@@ -148,10 +139,6 @@ export function registerPluginRoutes(app: Express, deps: PluginRouteDeps): void 
           });
           return res.json({ success: true });
         }
-
-        if (knownPluginNames.has(name)) {
-          throw new Error(`Failed to reconfigure plugin ${name}`);
-        }
       }
 
       const channelPlugin = channelManager.getPlugin(name);
@@ -159,23 +146,16 @@ export function registerPluginRoutes(app: Express, deps: PluginRouteDeps): void 
         return notFound(res, 'Plugin', name);
       }
 
-      const config = getConfig();
-      const currentChannelConfig = (config.channels[channelPlugin.channelName] as Record<string, unknown> | undefined) ?? {};
-      const currentEnabled = Boolean(currentChannelConfig.enabled);
-      const nextChannelConfig = {
-        ...options,
-        enabled: currentEnabled
-      };
-
-      if (currentEnabled) {
-        const success = await channelManager.reconfigureChannel(channelPlugin.channelName, nextChannelConfig);
-        if (!success) {
-          throw new Error(`Failed to reconfigure channel plugin ${name}`);
-        }
-      }
-
       await updateConfig((config) => {
-        config.channels[channelPlugin.channelName] = nextChannelConfig;
+        const currentChannelConfig = config.channels[channelPlugin.channelName] as Record<string, unknown> | undefined;
+        const currentEnabled = Boolean(currentChannelConfig?.enabled);
+        config.channels[channelPlugin.channelName] = mergeChannelConfigWithDefaults(
+          channelManager.getPluginDefaultConfig(channelPlugin.pluginName),
+          {
+            ...options,
+            enabled: currentEnabled
+          }
+        ) as typeof config.channels[string];
       });
       res.json({ success: true });
     } catch (error: unknown) {

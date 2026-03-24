@@ -245,8 +245,12 @@ export class PluginManager {
     }
   }
 
-  async applyDefaultConfigs(): Promise<Record<string, PluginConfigState>> {
+  async applyDefaultConfigs(): Promise<{
+    pluginConfigs: Record<string, PluginConfigState>;
+    changed: boolean;
+  }> {
     const discovered = await this.ensureDiscovered();
+    let changed = false;
 
     for (const discovery of discovered) {
       const existing = this.getExistingConfig(discovery.name);
@@ -254,13 +258,17 @@ export class PluginManager {
         continue;
       }
 
+      changed = true;
       this.pluginConfigs[discovery.name] = {
         enabled: discovery.definition.defaultConfig?.enabled ?? false,
         options: cloneOptions(discovery.definition.defaultConfig?.options)
       };
     }
 
-    return this.getPluginConfigs();
+    return {
+      pluginConfigs: this.getPluginConfigs(),
+      changed
+    };
   }
 
   async getAllPlugins(): Promise<PluginInfo[]> {

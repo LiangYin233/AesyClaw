@@ -63,8 +63,8 @@ export async function createPluginManager(args: {
     void (async () => {
       const startedAt = Date.now();
       try {
-        const newPluginConfigs = await pluginManager.applyDefaultConfigs();
-        if (Object.keys(newPluginConfigs).length > 0) {
+        const { pluginConfigs: newPluginConfigs, changed } = await pluginManager.applyDefaultConfigs();
+        if (changed) {
           const nextConfig = await ConfigLoader.update((draft) => {
             draft.plugins = newPluginConfigs as typeof draft.plugins;
           });

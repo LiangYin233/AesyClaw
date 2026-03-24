@@ -2,7 +2,9 @@ import type { Config, VisionSettings } from '../../../types.js';
 import type { RuntimeConfigStore } from '../../../config/RuntimeConfigStore.js';
 import type { ToolRegistry } from '../../../tools/ToolRegistry.js';
 import type { APIServer } from '../../../api/server.js';
+import type { ChannelManager } from '../../../channels/ChannelManager.js';
 import type { MCPClientManager } from '../../../mcp/MCPClient.js';
+import type { PluginManager, PluginConfigState } from '../../../plugins/index.js';
 import type { SessionManager } from '../../../session/SessionManager.js';
 import type { LongTermMemoryStore } from '../../../session/LongTermMemoryStore.js';
 import type { SkillManager } from '../../../skills/SkillManager.js';
@@ -21,6 +23,8 @@ export interface ReloadRuntimeConfigDeps {
   sessionRouting: Pick<SessionRoutingService, 'setContextMode'>;
   toolRegistry: Pick<ToolRegistry, 'setDefaultTimeout' | 'register' | 'list' | 'unregisterMany' | 'getSource'>;
   apiServer?: Pick<APIServer, 'updateConfig'>;
+  channelManager: Pick<ChannelManager, 'getPlugin' | 'enableConfiguredChannel' | 'disableConfiguredChannel' | 'reconfigureChannel'>;
+  pluginManager: Pick<PluginManager, 'loadFromConfig'>;
   mcpManager: MCPClientManager | null;
   setMcpManager: (manager: MCPClientManager) => void;
   sessionManager: SessionManager;
@@ -54,11 +58,25 @@ interface ReloadRule {
   key: string;
   hasChanged: (currentConfig: Config, nextConfig: Config) => boolean;
   describe?: (currentConfig: Config, nextConfig: Config) => Record<string, unknown> | undefined;
-  apply: (deps: ReloadRuntimeConfigDeps, nextConfig: Config) => Promise<void> | void;
+  apply: (deps: ReloadRuntimeConfigDeps, currentConfig: Config, nextConfig: Config) => Promise<void> | void;
 }
 
 function compare(value: unknown): string {
   return JSON.stringify(value ?? null);
+}
+
+function normalizePluginConfigs(
+  configs: Record<string, { enabled?: boolean; options?: Record<string, unknown> }>
+): Record<string, PluginConfigState> {
+  return Object.fromEntries(
+    Object.entries(configs).map(([name, config]) => [
+      name,
+      {
+        enabled: config.enabled ?? false,
+        options: config.options ? structuredClone(config.options) : undefined
+      }
+    ])
+  );
 }
 
 function createVisionProvider(
@@ -113,7 +131,7 @@ function buildReloadRules(deps: ReloadRuntimeConfigDeps): ReloadRule[] {
         fromLevel: deps.selectors.getObservabilityConfig(currentConfig).level,
         toLevel: deps.selectors.getObservabilityConfig(nextConfig).level
       }),
-      apply: (ruleDeps, nextConfig) => {
+      apply: (ruleDeps, _currentConfig, nextConfig) => {
         ruleDeps.logging.configure({
           level: ruleDeps.selectors.getObservabilityConfig(nextConfig).level
         });
@@ -135,7 +153,7 @@ function buildReloadRules(deps: ReloadRuntimeConfigDeps): ReloadRule[] {
           toMaxIterations: next.maxIterations
         };
       },
-      apply: (ruleDeps, nextConfig) => {
+      apply: (ruleDeps, _currentConfig, nextConfig) => {
         const next = ruleDeps.selectors.getMainAgentConfig(nextConfig);
         const runtimeUpdate: Parameters<typeof ruleDeps.agentRuntime.updateMainAgentRuntime>[0] = {
           model: next.role.model,
@@ -170,7 +188,7 @@ function buildReloadRules(deps: ReloadRuntimeConfigDeps): ReloadRule[] {
           toRecallTopK: next.facts.recall.topK
         };
       },
-      apply: (ruleDeps, nextConfig) => {
+      apply: (ruleDeps, _currentConfig, nextConfig) => {
         const memory = ruleDeps.selectors.getMemoryConfig(nextConfig);
         const memoryService = ruleDeps.createMemoryService(nextConfig, ruleDeps.sessionManager, ruleDeps.longTermMemoryStore);
         ruleDeps.agentRuntime.updateMemorySettings(memory.session.memoryWindow, memoryService as any);
@@ -184,7 +202,7 @@ function buildReloadRules(deps: ReloadRuntimeConfigDeps): ReloadRule[] {
         fromTimeoutMs: deps.selectors.getToolRuntimeConfig(currentConfig).timeoutMs,
         toTimeoutMs: deps.selectors.getToolRuntimeConfig(nextConfig).timeoutMs
       }),
-      apply: (ruleDeps, nextConfig) => {
+      apply: (ruleDeps, _currentConfig, nextConfig) => {
         ruleDeps.toolRegistry.setDefaultTimeout(ruleDeps.selectors.getToolRuntimeConfig(nextConfig).timeoutMs);
       }
     },
@@ -196,21 +214,79 @@ function buildReloadRules(deps: ReloadRuntimeConfigDeps): ReloadRule[] {
         fromContextMode: deps.selectors.getSessionRuntimeConfig(currentConfig).contextMode,
         toContextMode: deps.selectors.getSessionRuntimeConfig(nextConfig).contextMode
       }),
-      apply: (ruleDeps, nextConfig) => {
+      apply: (ruleDeps, _currentConfig, nextConfig) => {
         ruleDeps.sessionRouting.setContextMode(ruleDeps.selectors.getSessionRuntimeConfig(nextConfig).contextMode);
+      }
+    },
+    {
+      key: 'channels-runtime',
+      hasChanged: (currentConfig, nextConfig) => compare(currentConfig.channels) !== compare(nextConfig.channels),
+      apply: async (ruleDeps, currentConfig, nextConfig) => {
+        const channelNames = new Set([
+          ...Object.keys(currentConfig.channels),
+          ...Object.keys(nextConfig.channels)
+        ]);
+
+        for (const channelName of channelNames) {
+          const previousChannelConfig = currentConfig.channels[channelName] as Record<string, unknown> | undefined;
+          const nextChannelConfig = nextConfig.channels[channelName] as Record<string, unknown> | undefined;
+
+          if (compare(previousChannelConfig) === compare(nextChannelConfig)) {
+            continue;
+          }
+
+          if (!ruleDeps.channelManager.getPlugin(`channel_${channelName}`)) {
+            ruleDeps.logger.warn('配置热重载时未找到渠道插件', { channel: channelName });
+            continue;
+          }
+
+          const wasEnabled = Boolean(previousChannelConfig?.enabled);
+          const isEnabled = Boolean(nextChannelConfig?.enabled);
+
+          if (!wasEnabled && !isEnabled) {
+            continue;
+          }
+
+          let success = true;
+          let action = 'noop';
+
+          if (wasEnabled && !isEnabled) {
+            action = 'disable';
+            success = await ruleDeps.channelManager.disableConfiguredChannel(channelName);
+          } else if (!wasEnabled && isEnabled) {
+            action = 'enable';
+            success = await ruleDeps.channelManager.enableConfiguredChannel(channelName, nextChannelConfig ?? { enabled: true });
+          } else {
+            action = 'reconfigure';
+            success = await ruleDeps.channelManager.reconfigureChannel(channelName, nextChannelConfig ?? { enabled: true });
+          }
+
+          if (!success) {
+            throw new Error(`Failed to ${action} channel ${channelName} during config reload`);
+          }
+        }
+      }
+    },
+    {
+      key: 'plugins-runtime',
+      hasChanged: (currentConfig, nextConfig) => compare(currentConfig.plugins) !== compare(nextConfig.plugins),
+      apply: async (ruleDeps, _currentConfig, nextConfig) => {
+        await ruleDeps.pluginManager.loadFromConfig(
+          normalizePluginConfigs(nextConfig.plugins as Record<string, { enabled?: boolean; options?: Record<string, unknown> }>)
+        );
       }
     },
     {
       key: 'skill-config',
       hasChanged: (currentConfig, nextConfig) => compare(currentConfig.skills) !== compare(nextConfig.skills),
-      apply: (ruleDeps, nextConfig) => {
+      apply: (ruleDeps, _currentConfig, nextConfig) => {
         ruleDeps.skillManager?.applyConfig(nextConfig);
       }
     },
     {
       key: 'mcp-runtime',
       hasChanged: (currentConfig, nextConfig) => compare(currentConfig.mcp) !== compare(nextConfig.mcp),
-      apply: async (ruleDeps, nextConfig) => {
+      apply: async (ruleDeps, _currentConfig, nextConfig) => {
         await ruleDeps.syncConfiguredMcpServers({
           getMcpManager: () => ruleDeps.mcpManager ?? undefined,
           setMcpManager: (manager) => {
@@ -251,7 +327,7 @@ export async function reloadRuntimeConfig(
       rule: rule.key,
       ...(details || {})
     });
-    await rule.apply(deps, input.currentConfig);
+    await rule.apply(deps, input.previousConfig, input.currentConfig);
   }
 
   deps.configStore.setConfig(input.currentConfig);

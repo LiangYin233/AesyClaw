@@ -11,6 +11,7 @@ import { SessionMemoryService } from '../../agent/infrastructure/memory/SessionM
 import { SessionRoutingService } from '../../agent/infrastructure/session/SessionRoutingService.js';
 import { AgentRoleService } from '../../agent/infrastructure/roles/AgentRoleService.js';
 import { APIServer } from '../../api/index.js';
+import { mergeChannelConfigWithDefaults } from '../../channels/config.js';
 import { ChannelManager } from '../../channels/ChannelManager.js';
 import { loadExternalChannelPlugins } from '../../channels/ChannelPluginLoader.js';
 import { ConfigManager } from '../../config/ConfigManager.js';
@@ -405,8 +406,8 @@ async function createPluginRuntime(args: {
     void (async () => {
       const startedAt = Date.now();
       try {
-        const newPluginConfigs = await pluginManager.applyDefaultConfigs();
-        if (Object.keys(newPluginConfigs).length > 0) {
+        const { pluginConfigs: newPluginConfigs, changed } = await pluginManager.applyDefaultConfigs();
+        if (changed) {
           const nextConfig = await configManager.update((draft) => {
             draft.plugins = newPluginConfigs as typeof draft.plugins;
           });
@@ -446,28 +447,38 @@ async function applyDefaultChannelConfigs(
   configManager: ConfigManager
 ): Promise<Config> {
   const config = configStore.getConfig();
-  const missingPlugins = channelManager
+  const channelEntriesToUpdate = channelManager
     .listPlugins()
     .map((pluginName) => channelManager.getPlugin(pluginName))
     .filter((plugin): plugin is NonNullable<typeof plugin> => Boolean(plugin))
-    .filter((plugin) => !config.channels[plugin.channelName]);
+    .map((plugin) => {
+      const currentConfig = config.channels[plugin.channelName] as Record<string, unknown> | undefined;
+      const nextConfig = mergeChannelConfigWithDefaults(
+        channelManager.getPluginDefaultConfig(plugin.pluginName),
+        currentConfig
+      );
 
-  if (missingPlugins.length === 0) {
+      return {
+        plugin,
+        currentConfig,
+        nextConfig
+      };
+    })
+    .filter(({ currentConfig, nextConfig }) => JSON.stringify(currentConfig ?? {}) !== JSON.stringify(nextConfig));
+
+  if (channelEntriesToUpdate.length === 0) {
     return config;
   }
 
   const nextConfig = await configManager.update((draft) => {
-    for (const plugin of missingPlugins) {
-      draft.channels[plugin.channelName] = {
-        ...channelManager.getPluginDefaultConfig(plugin.pluginName),
-        enabled: false
-      } as typeof draft.channels[string];
+    for (const { plugin, nextConfig: mergedChannelConfig } of channelEntriesToUpdate) {
+      draft.channels[plugin.channelName] = mergedChannelConfig as typeof draft.channels[string];
     }
   });
 
   configStore.setConfig(nextConfig);
   appLog.info('已应用默认渠道配置', {
-    channels: missingPlugins.map((plugin) => plugin.channelName)
+    channels: channelEntriesToUpdate.map(({ plugin }) => plugin.channelName)
   });
   return nextConfig;
 }
