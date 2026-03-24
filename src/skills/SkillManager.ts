@@ -233,7 +233,7 @@ export class SkillManager {
       return `Skill "${skillName}" is disabled`;
     }
 
-    const targetFileName = this.sanitizeFileName(fileName || SKILL_ENTRY_FILE);
+    const targetFileName = this.normalizeSkillRelativePath(fileName || SKILL_ENTRY_FILE);
     if (!targetFileName) {
       return 'Invalid file name';
     }
@@ -466,18 +466,7 @@ export class SkillManager {
     const files: SkillFile[] = [];
 
     try {
-      const entries = await fs.readdir(skillPath, { withFileTypes: true });
-      for (const entry of entries) {
-        if (entry.name.startsWith('.')) {
-          continue;
-        }
-
-        files.push({
-          name: entry.name,
-          path: path.join(skillPath, entry.name),
-          isDirectory: entry.isDirectory()
-        });
-      }
+      await this.collectSkillFiles(skillPath, skillPath, files);
     } catch (error) {
       this.log.warn(`列出技能文件失败: ${skillPath}`, {
         path: skillPath,
@@ -486,6 +475,31 @@ export class SkillManager {
     }
 
     return files.sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  private async collectSkillFiles(skillRoot: string, currentDir: string, files: SkillFile[]): Promise<void> {
+    const entries = await fs.readdir(currentDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) {
+        continue;
+      }
+
+      const absolutePath = path.join(currentDir, entry.name);
+      files.push({
+        name: this.toSkillRelativePath(skillRoot, absolutePath),
+        path: absolutePath,
+        isDirectory: entry.isDirectory()
+      });
+
+      if (entry.isDirectory()) {
+        await this.collectSkillFiles(skillRoot, absolutePath, files);
+      }
+    }
+  }
+
+  private toSkillRelativePath(skillRoot: string, entryPath: string): string {
+    return path.relative(skillRoot, entryPath).split(path.sep).join('/');
   }
 
   private parseSkillFile(content: string): { description: string; metadata: Record<string, string> } {
@@ -535,12 +549,12 @@ export class SkillManager {
     return String(value);
   }
 
-  private sanitizeFileName(fileName: string): string {
-    const normalized = path.normalize(fileName);
-    if (normalized.startsWith('..') || path.isAbsolute(normalized)) {
+  private normalizeSkillRelativePath(fileName: string): string {
+    const normalized = path.normalize(fileName.replace(/\\/g, '/'));
+    if (!normalized || normalized === '.' || normalized.startsWith('..') || path.isAbsolute(normalized)) {
       return '';
     }
-    return normalized;
+    return normalized.split(path.sep).join('/');
   }
 
   private async syncDirectoryWatchers(): Promise<void> {
