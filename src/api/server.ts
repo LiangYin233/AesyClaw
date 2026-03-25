@@ -18,15 +18,9 @@ import { logger } from '../observability/index.js';
 import { accessLogMiddleware } from './middleware/access-log.js';
 import { apiErrorHandler } from './middleware/error-handler.js';
 import { requestIdMiddleware } from './middleware/request-id.js';
-import { registerCoreRoutes } from './routes/core.js';
-import { registerMemoryRoutes } from './routes/memory.js';
-import { registerPluginRoutes } from './routes/plugins.js';
-import { registerCronRoutes } from './routes/cron.js';
-import { registerMCPRoutes } from './routes/mcp.js';
-import { registerObservabilityRoutes } from './routes/observability.js';
-import { registerSkillRoutes } from './routes/skills.js';
 import type { LongTermMemoryStore } from '../session/LongTermMemoryStore.js';
 import type { AgentRoleService } from '../agent/infrastructure/roles/AgentRoleService.js';
+import { registerApiControllers } from '../features/registerApiControllers.js';
 
 const MAX_MESSAGE_LENGTH = 50000;
 
@@ -137,7 +131,10 @@ export class APIServer {
       this.mcpManager = manager;
     };
 
-    registerCoreRoutes(this.app, {
+    registerApiControllers({
+      app: this.app,
+      packageVersion,
+      maxMessageLength: MAX_MESSAGE_LENGTH,
       agentRuntime: this.agentRuntime,
       sessionManager: this.sessionManager,
       sessionRouting: this.sessionRouting,
@@ -146,32 +143,13 @@ export class APIServer {
       getConfig,
       updateConfig,
       toolRegistry: this.toolRegistry,
-      packageVersion,
-      maxMessageLength: MAX_MESSAGE_LENGTH,
-      log: this.log
-    });
-    registerMemoryRoutes(this.app, {
-      sessionManager: this.sessionManager,
       longTermMemoryStore: this.longTermMemoryStore,
-      log: this.log
-    });
-    registerSkillRoutes(this.app, this.skillManager);
-    registerPluginRoutes(this.app, {
       pluginManager: this.pluginManager,
-      channelManager: this.channelManager,
-      getConfig,
-      updateConfig
-    });
-    registerCronRoutes(this.app, this.cronService);
-    registerMCPRoutes(this.app, {
-      toolRegistry: this.toolRegistry,
-      getConfig,
-      updateConfig,
+      cronService: this.cronService,
       getMcpManager,
-      setMcpManager
-    });
-    registerObservabilityRoutes(this.app, {
-      updateConfig
+      setMcpManager,
+      skillManager: this.skillManager,
+      log: this.log
     });
   }
 

@@ -1,12 +1,12 @@
 import { randomUUID } from 'crypto';
-import type { AgentRuntime } from '../../agent/index.js';
 import { ValidationError } from '../../api/errors.js';
+import { ChatRepository } from './ChatRepository.js';
 
 const WEBUI_CHANNEL = 'webui';
 
 export class ChatApiService {
   constructor(
-    private readonly agentRuntime: Pick<AgentRuntime, 'handleDirect'>,
+    private readonly chatRepository: ChatRepository,
     private readonly maxMessageLength: number
   ) {}
 
@@ -26,7 +26,7 @@ export class ChatApiService {
     const resolvedChannel = channel || WEBUI_CHANNEL;
     const key = sessionKey || `${resolvedChannel}:${randomUUID()}`;
     const resolvedChatId = chatId || sessionKey || key;
-    const response = await this.agentRuntime.handleDirect(message, {
+    const response = await this.chatRepository.handleDirect(message, {
       sessionKey: key,
       channel: resolvedChannel,
       chatId: resolvedChatId,

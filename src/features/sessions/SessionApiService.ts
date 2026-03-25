@@ -1,14 +1,12 @@
-import type { AgentRoleService } from '../../agent/infrastructure/roles/AgentRoleService.js';
-import type { SessionRoutingService } from '../../agent/infrastructure/session/SessionRoutingService.js';
-import { SessionManager } from '../../session/SessionManager.js';
 import { SessionNotFoundError, SessionValidationError } from '../../session/errors.js';
 import { NotFoundError, ValidationError } from '../../api/errors.js';
+import { ConversationAgentRepository } from './ConversationAgentRepository.js';
+import { SessionsRepository } from './SessionsRepository.js';
 
 export class SessionApiService {
   constructor(
-    private readonly sessionManager: SessionManager,
-    private readonly sessionRouting: SessionRoutingService,
-    private readonly agentRoleService?: AgentRoleService
+    private readonly sessionsRepository: SessionsRepository,
+    private readonly conversationAgentRepository: ConversationAgentRepository
   ) {}
 
   async listSessions(): Promise<Array<{
@@ -19,13 +17,13 @@ export class SessionApiService {
     agentName: string;
     messageCount: number;
   }>> {
-    const sessions = this.sessionManager.list();
+    const sessions = this.sessionsRepository.list();
     return Promise.all(sessions.map(async (session) => ({
       key: session.key,
       channel: session.channel,
       chatId: session.chatId,
       uuid: session.uuid ?? null,
-      agentName: this.resolveAgentName(session.channel, session.chatId),
+      agentName: this.conversationAgentRepository.resolveConversationAgent(session.channel, session.chatId),
       messageCount: session.messages.length
     })));
   }
@@ -42,13 +40,13 @@ export class SessionApiService {
     this.validateSessionKey(key);
 
     try {
-      const session = await this.sessionManager.getExistingOrThrow(key);
+      const session = await this.sessionsRepository.getByKeyOrThrow(key);
       return {
         key: session.key,
         channel: session.channel,
         chatId: session.chatId,
         uuid: session.uuid ?? null,
-        agentName: this.resolveAgentName(session.channel, session.chatId),
+        agentName: this.conversationAgentRepository.resolveConversationAgent(session.channel, session.chatId),
         messageCount: session.messages.length,
         messages: session.messages
       };
@@ -64,7 +62,7 @@ export class SessionApiService {
     this.validateSessionKey(key);
 
     try {
-      await this.sessionManager.delete(key);
+      await this.sessionsRepository.deleteByKey(key);
       return { success: true };
     } catch (error) {
       if (error instanceof SessionNotFoundError) {
@@ -74,15 +72,9 @@ export class SessionApiService {
     }
   }
 
-  private resolveAgentName(channel: string, chatId: string): string {
-    return this.sessionRouting.getConversationAgent(channel, chatId)
-      || this.agentRoleService?.getDefaultRoleName()
-      || 'main';
-  }
-
   private validateSessionKey(key: string): void {
     try {
-      SessionManager.validateSessionKey(key);
+      this.sessionsRepository.validateKey(key);
     } catch (error) {
       if (error instanceof SessionValidationError) {
         throw new ValidationError(error.message, 'key', error.details);

@@ -1,17 +1,15 @@
-import type { ChannelManager } from '../../channels/ChannelManager.js';
-import type { Config } from '../../types.js';
 import { NotFoundError, ValidationError } from '../../api/errors.js';
+import { ChannelRepository } from './ChannelRepository.js';
 
 export class ChannelApiService {
   constructor(
-    private readonly channelManager: ChannelManager,
-    private readonly getConfig: () => Config,
+    private readonly channelRepository: ChannelRepository,
     private readonly maxMessageLength: number
   ) {}
 
   getChannelStatus(): Record<string, { running?: boolean; enabled?: boolean; connected?: boolean }> {
-    const runtimeStatus = this.channelManager.getStatus();
-    const configuredChannels = this.getConfig().channels;
+    const runtimeStatus = this.channelRepository.getRuntimeStatus();
+    const configuredChannels = this.channelRepository.getConfiguredChannels();
     const merged: Record<string, { running?: boolean; enabled?: boolean; connected?: boolean }> = {};
 
     for (const [name, config] of Object.entries(configuredChannels)) {
@@ -55,7 +53,7 @@ export class ChannelApiService {
       throw new ValidationError(`content too long (max ${this.maxMessageLength} characters)`, 'content');
     }
 
-    const channelInstance = this.channelManager.get(name);
+    const channelInstance = this.channelRepository.getChannel(name);
     if (!channelInstance) {
       throw new NotFoundError('Channel', name);
     }
