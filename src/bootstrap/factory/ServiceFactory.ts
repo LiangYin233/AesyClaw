@@ -15,10 +15,10 @@ import { PluginManager } from '../../plugins/index.js';
 import type { Config } from '../../types.js';
 import type { CronJob } from '../../cron/index.js';
 import { createApiServer } from './createApiServer.js';
-import { createCronService } from './createCronService.js';
 import { createExecutionRuntime } from './createExecutionRuntime.js';
 import { createInfrastructureServices } from './createInfrastructureServices.js';
-import { createPersistenceServices } from './createPersistenceServices.js';
+import { createCronRuntime } from '../../features/cron/createCronRuntime.js';
+import { createSessionRuntime } from '../../features/sessions/createSessionRuntime.js';
 import { registerRuntimeBindings } from './registerRuntimeBindings.js';
 import { runBootstrapPhase } from './runBootstrapPhase.js';
 import { EventBus } from '../../events/EventBus.js';
@@ -84,7 +84,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   const { result: persistence, durationMs: persistenceMs } = await runBootstrapPhase({
     phase: 'persistence',
     log,
-    task: () => createPersistenceServices(config)
+    task: () => createSessionRuntime(config)
   });
   const {
     sessionManager,
@@ -114,7 +114,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   const { result: cronService, durationMs: cronMs } = await runBootstrapPhase({
     phase: 'cron',
     log,
-    task: () => createCronService(onCronJob)
+    task: () => createCronRuntime(onCronJob)
   });
 
   const { result: infrastructure, durationMs: infrastructureMs } = await runBootstrapPhase({

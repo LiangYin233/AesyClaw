@@ -1,18 +1,18 @@
 import type { AgentRuntime, OutboundGateway } from '../../agent/index.js';
 import type { ConfigManager, RuntimeConfigStore } from '../../config/index.js';
+import { createChannelRuntime } from '../../features/channels/createChannelRuntime.js';
+import { createPluginRuntime } from '../../features/plugins/createPluginRuntime.js';
 import type { MCPClientManager } from '../../mcp/index.js';
 import { startConfiguredMcpServers } from '../../mcp/runtime.js';
 import type { PluginManager } from '../../plugins/index.js';
 import type { SessionManager } from '../../session/index.js';
 import type { ToolRegistry } from '../../tools/index.js';
-import { createChannelServices } from './createChannelServices.js';
-import { createPluginServices } from './createPluginServices.js';
 
 export interface InfrastructureServices {
   pluginManager: PluginManager;
   startPluginLoading: () => void;
   isPluginLoadingComplete: () => boolean;
-  channelManager: Awaited<ReturnType<typeof createChannelServices>>;
+  channelManager: Awaited<ReturnType<typeof createChannelRuntime>>;
   mcpManager: MCPClientManager | null;
 }
 
@@ -38,15 +38,15 @@ export async function createInfrastructureServices(args: {
   } = args;
 
   const [pluginRuntime, channelManager] = await Promise.all([
-    createPluginServices({
+    createPluginRuntime({
       configStore,
-      configManager,
       outboundGateway,
       workspace,
       tempDir,
-      toolRegistry
+      toolRegistry,
+      updateConfig: (mutator) => configManager.update(mutator)
     }),
-    createChannelServices({
+    createChannelRuntime({
       configStore,
       configManager,
       sessionManager,

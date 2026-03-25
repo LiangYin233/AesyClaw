@@ -2,9 +2,9 @@ import type { AgentRuntime } from '../../agent/index.js';
 import { ChannelManager } from '../../channels/ChannelManager.js';
 import { loadExternalChannelPlugins } from '../../channels/ChannelPluginLoader.js';
 import { mergeChannelConfigWithDefaults } from '../../channels/config.js';
-import { ConfigManager, RuntimeConfigStore } from '../../config/index.js';
+import type { ConfigManager, RuntimeConfigStore } from '../../config/index.js';
 import { logger } from '../../observability/index.js';
-import { SessionManager } from '../../session/index.js';
+import type { SessionManager } from '../../session/index.js';
 import type { Config } from '../../types.js';
 
 const appLog = logger.child('AesyClaw');
@@ -51,7 +51,7 @@ async function applyDefaultChannelConfigs(
   return nextConfig;
 }
 
-export async function createChannelServices(args: {
+export async function createChannelRuntime(args: {
   configStore: RuntimeConfigStore;
   configManager: ConfigManager;
   sessionManager: SessionManager;

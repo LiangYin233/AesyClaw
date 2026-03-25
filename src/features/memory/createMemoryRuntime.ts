@@ -1,19 +1,16 @@
-import { join } from 'path';
 import { LongTermMemoryService } from '../../agent/infrastructure/memory/LongTermMemoryService.js';
 import { OpenAIEmbeddingsClient } from '../../agent/infrastructure/memory/OpenAIEmbeddingsClient.js';
 import { SessionMemoryService } from '../../agent/infrastructure/memory/SessionMemoryService.js';
-import { SessionRoutingService } from '../../agent/infrastructure/session/SessionRoutingService.js';
 import {
   getMemoryConfig,
-  getSessionRuntimeConfig,
   listEmbeddingProviderNames,
   resolveProviderSelection
 } from '../../config/index.js';
+import type { ResolvedProviderSelection } from '../../config/schema.js';
 import { logger } from '../../observability/index.js';
 import { createProvider } from '../../providers/index.js';
 import { LongTermMemoryStore, SessionManager } from '../../session/index.js';
 import type { Config } from '../../types.js';
-import type { ResolvedProviderSelection } from '../../config/schema.js';
 
 const appLog = logger.child('AesyClaw');
 
@@ -49,7 +46,7 @@ function createEmbeddingsClient(resolved: ResolvedProviderSelection | undefined)
   });
 }
 
-export function createMemoryService(
+export function createMemoryRuntime(
   config: Config,
   sessionManager: SessionManager,
   longTermMemoryStore: LongTermMemoryStore
@@ -121,32 +118,4 @@ export function createMemoryService(
     summaryRuntimeConfig,
     longTermMemoryService
   );
-}
-
-export async function createPersistenceServices(config: Config): Promise<{
-  sessionManager: SessionManager;
-  longTermMemoryStore: LongTermMemoryStore;
-  memoryService?: SessionMemoryService;
-  sessionRouting: SessionRoutingService;
-}> {
-  const sessionConfig = getSessionRuntimeConfig(config);
-  const sessionManager = new SessionManager(
-    join(process.cwd(), '.aesyclaw', 'sessions'),
-    sessionConfig.maxSessions
-  );
-  await sessionManager.loadAll();
-  appLog.info(`会话管理器已就绪，已加载 ${sessionManager.count()} 个会话`);
-
-  const longTermMemoryStore = new LongTermMemoryStore(sessionManager.getDatabase());
-  const memoryService = createMemoryService(config, sessionManager, longTermMemoryStore);
-  if (memoryService) {
-    appLog.info('记忆服务已启用');
-  }
-
-  return {
-    sessionManager,
-    longTermMemoryStore,
-    memoryService,
-    sessionRouting: new SessionRoutingService(sessionManager, sessionConfig.contextMode)
-  };
 }

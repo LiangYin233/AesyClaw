@@ -9,8 +9,8 @@ import {
 import { logging, logger } from '../../observability/index.js';
 import { syncConfiguredMcpServers } from '../../mcp/runtime.js';
 import { createProvider } from '../../providers/index.js';
+import { createMemoryRuntime } from '../../features/memory/createMemoryRuntime.js';
 import type { Services } from '../factory/ServiceFactory.js';
-import { createMemoryService } from '../factory/createPersistenceServices.js';
 
 const log = logger.child('Bootstrap');
 
@@ -76,7 +76,7 @@ export function setupConfigReload(services: Services): void {
     memory: {
       applyConfig(config) {
         const memory = getMemoryConfig(config);
-        const memoryService = createMemoryService(config, services.sessionManager, services.longTermMemoryStore);
+        const memoryService = createMemoryRuntime(config, services.sessionManager, services.longTermMemoryStore);
         services.agentRuntime.updateMemorySettings(memory.session.memoryWindow, memoryService as any);
       }
     },
