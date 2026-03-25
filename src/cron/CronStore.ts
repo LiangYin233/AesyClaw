@@ -2,6 +2,8 @@ import sqlite3 from 'sqlite3';
 import { existsSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
 import { logger } from '../observability/index.js';
+import { runSqlMigrations } from '../db/MigrationRunner.js';
+import { cronMigrations } from '../db/migrations.js';
 import type { CronJob } from './CronService.js';
 
 type SQLiteParam = string | number | boolean | null | Buffer | Date | undefined;
@@ -34,27 +36,24 @@ export class CronStore {
    * 初始化数据库表
    */
   async initialize(): Promise<void> {
-    await this.run(`
-      CREATE TABLE IF NOT EXISTS cron_jobs (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        enabled INTEGER NOT NULL DEFAULT 1,
-        schedule_kind TEXT NOT NULL,
-        schedule_data TEXT NOT NULL,
-        payload TEXT NOT NULL,
-        next_run_at_ms INTEGER,
-        last_run_at_ms INTEGER,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-      )
-    `);
-
-    await this.run(`
-      CREATE INDEX IF NOT EXISTS idx_next_run
-      ON cron_jobs(enabled, next_run_at_ms)
-      WHERE enabled = 1 AND next_run_at_ms IS NOT NULL
-    `);
-
+    await runSqlMigrations({
+      scope: 'cron',
+      log: this.log,
+      migrations: cronMigrations,
+      execute: async (sql, params = []) => {
+        await this.run(sql, params);
+      },
+      queryAppliedVersions: async () => {
+        const rows = await this.getRows(
+          'SELECT version FROM schema_migrations WHERE scope = ? ORDER BY version',
+          ['cron']
+        ).catch(() => []);
+        return rows
+          .map((row) => row.version)
+          .filter((version): version is string => typeof version === 'string');
+      },
+      transaction: async <T>(operation: () => Promise<T>) => this.transaction(operation)
+    });
     this.ready = true;
     this.log.info('数据库初始化完成');
   }
@@ -142,19 +141,14 @@ export class CronStore {
    * 批量更新任务
    */
   async batchUpdate(jobs: CronJob[]): Promise<void> {
-    await this.run('BEGIN TRANSACTION');
-    try {
+    await this.transaction(async () => {
       for (const job of jobs) {
         await this.run(
           'UPDATE cron_jobs SET next_run_at_ms = ?, last_run_at_ms = ?, updated_at = ? WHERE id = ?',
           [job.nextRunAtMs ?? null, job.lastRunAtMs ?? null, Date.now(), job.id]
         );
       }
-      await this.run('COMMIT');
-    } catch (error) {
-      await this.run('ROLLBACK');
-      throw error;
-    }
+    });
   }
 
   /**
@@ -206,6 +200,18 @@ export class CronStore {
         else resolve((rows || []) as Record<string, unknown>[]);
       });
     });
+  }
+
+  private async transaction<T>(operation: () => Promise<T>): Promise<T> {
+    await this.run('BEGIN TRANSACTION');
+    try {
+      const result = await operation();
+      await this.run('COMMIT');
+      return result;
+    } catch (error) {
+      await this.run('ROLLBACK');
+      throw error;
+    }
   }
 
   /**

@@ -31,47 +31,6 @@ const LEVELS: Record<LogLevel, number> = {
   error: 3
 };
 
-const ANSI = {
-  reset: '\x1b[0m',
-  bold: '\x1b[1m',
-  dim: '\x1b[2m',
-  cyan: '\x1b[36m',
-  blue: '\x1b[34m',
-  brightBlue: '\x1b[94m',
-  yellow: '\x1b[33m',
-  brightYellow: '\x1b[93m',
-  red: '\x1b[31m'
-} as const;
-
-function shouldUseColor(): boolean {
-  if (process.env.NO_COLOR !== undefined) {
-    return false;
-  }
-
-  return !!process.stdout?.isTTY;
-}
-
-function colorize(text: string, color: string): string {
-  return `${color}${text}${ANSI.reset}`;
-}
-
-function colorizeWithEffects(text: string, ...effects: string[]): string {
-  return `${effects.join('')}${text}${ANSI.reset}`;
-}
-
-function levelColor(level: LogLevel): string {
-  switch (level) {
-    case 'debug':
-      return ANSI.cyan;
-    case 'info':
-      return ANSI.brightBlue;
-    case 'warn':
-      return ANSI.brightYellow;
-    case 'error':
-      return ANSI.red;
-  }
-}
-
 const DEFAULT_PREVIEW_LIMIT = 120;
 
 function normalizeSensitiveKey(key: string): string {
@@ -121,10 +80,6 @@ export function formatLocalClock(date: Date = new Date()): string {
 
 export function getCurrentTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'local';
-}
-
-function formatLocalTime(date: Date): string {
-  return `${padNumber(date.getHours())}:${padNumber(date.getMinutes())}:${padNumber(date.getSeconds())}.${padNumber(date.getMilliseconds(), 3)}`;
 }
 
 function collapseWhitespace(value: string): string {
@@ -192,25 +147,6 @@ function serializeFieldValue(value: unknown, key?: string): LogFieldValue | unde
     return preview(JSON.stringify(normalized));
   }
   return preview(String(value));
-}
-
-function formatFields(fields?: Record<string, LogFieldValue>): string {
-  if (!fields || Object.keys(fields).length === 0) {
-    return '';
-  }
-
-  return Object.entries(fields)
-    .map(([key, value]) => `${key}=${typeof value === 'string' ? JSON.stringify(value) : String(value)}`)
-    .join(' ');
-}
-
-function formatScopeSegment(scope: string): string {
-  if (!scope) {
-    return '';
-  }
-
-  const normalized = normalizeScope(scope);
-  return `[${normalized}]`;
 }
 
 function normalizeScope(scope: string): string {
@@ -356,28 +292,23 @@ class LoggingService {
     fields?: Record<string, LogFieldValue>;
     timestamp: Date;
   }): string {
-    const time = formatLocalTime(entry.timestamp);
-    const scope = formatScopeSegment(entry.scope);
-    const fields = formatFields(entry.fields);
-    const useColor = shouldUseColor();
-    const renderedTime = useColor ? colorize(time, ANSI.dim) : time;
-    const levelText = entry.level.toUpperCase().padEnd(5);
-    const renderedLevel = useColor
-      ? entry.level === 'info'
-        ? colorizeWithEffects(levelText, ANSI.dim, levelColor(entry.level))
-        : entry.level === 'warn'
-          ? colorizeWithEffects(levelText, ANSI.bold, levelColor(entry.level))
-          : colorize(levelText, levelColor(entry.level))
-      : levelText;
-    const renderedScope = scope
-      ? (useColor ? colorize(scope, ANSI.dim) : scope)
-      : '';
-    const renderedFields = useColor && fields ? colorize(fields, ANSI.dim) : fields;
-    const scopePart = renderedScope ? ` ${renderedScope}` : '';
+    const normalizedScope = normalizeScope(entry.scope);
+    const requestId = entry.fields?.request_id;
+    const payload: Record<string, unknown> = {
+      timestamp: formatLocalTimestamp(entry.timestamp),
+      level: entry.level,
+      scope: normalizedScope,
+      message: entry.message
+    };
 
-    return renderedFields
-      ? `${renderedTime} ${renderedLevel}${scopePart} ${entry.message} | ${renderedFields}`
-      : `${renderedTime} ${renderedLevel}${scopePart} ${entry.message}`;
+    if (typeof requestId === 'string') {
+      payload.request_id = requestId;
+    }
+    if (entry.fields && Object.keys(entry.fields).length > 0) {
+      payload.fields = entry.fields;
+    }
+
+    return JSON.stringify(payload);
   }
 }
 

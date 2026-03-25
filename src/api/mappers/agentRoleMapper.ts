@@ -1,8 +1,9 @@
 import type { AgentRoleConfig } from '../../types.js';
+import { ValidationError } from '../errors.js';
 
 export function parseAgentRoleInput(body: any, nameFromPath?: string): AgentRoleConfig {
   if (!body || typeof body !== 'object') {
-    throw new Error('Agent role payload must be an object');
+    throw new ValidationError('Agent role payload must be an object');
   }
 
   const name = String(nameFromPath || body.name || '').trim();
@@ -17,13 +18,13 @@ export function parseAgentRoleInput(body: any, nameFromPath?: string): AgentRole
     : [];
 
   if (!name) {
-    throw new Error('name is required');
+    throw new ValidationError('name is required', 'name');
   }
   if (!model) {
-    throw new Error('model is required');
+    throw new ValidationError('model is required', 'model');
   }
   if (!systemPrompt) {
-    throw new Error('systemPrompt is required');
+    throw new ValidationError('systemPrompt is required', 'systemPrompt');
   }
 
   return {

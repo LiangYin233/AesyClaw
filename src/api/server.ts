@@ -13,8 +13,11 @@ import type { SkillManager } from '../skills/SkillManager.js';
 import type { ToolRegistry } from '../tools/ToolRegistry.js';
 import type { SessionRoutingService } from '../agent/infrastructure/session/SessionRoutingService.js';
 import { ConfigManager, RuntimeConfigStore } from '../config/index.js';
-import { createErrorResponse } from './errors.js';
+import { UnauthorizedError } from './errors.js';
 import { logger } from '../observability/index.js';
+import { accessLogMiddleware } from './middleware/access-log.js';
+import { apiErrorHandler } from './middleware/error-handler.js';
+import { requestIdMiddleware } from './middleware/request-id.js';
 import { registerCoreRoutes } from './routes/core.js';
 import { registerMemoryRoutes } from './routes/memory.js';
 import { registerPluginRoutes } from './routes/plugins.js';
@@ -84,6 +87,7 @@ export class APIServer {
   async start(): Promise<void> {
     this.setupMiddleware();
     this.setupRoutes();
+    this.setupErrorHandling();
 
     return new Promise((resolve) => {
       this.server.listen(this.port, () => {
@@ -95,6 +99,8 @@ export class APIServer {
 
   private setupMiddleware(): void {
     const MAX_REQUEST_SIZE = 10 * 1024 * 1024;
+    this.app.use(requestIdMiddleware);
+    this.app.use(accessLogMiddleware);
     this.app.use(express.json({ limit: MAX_REQUEST_SIZE }));
     this.app.use(express.urlencoded({ extended: true, limit: MAX_REQUEST_SIZE }));
 
@@ -118,7 +124,7 @@ export class APIServer {
         return next();
       }
 
-      return res.status(401).json(createErrorResponse(new Error('Unauthorized: invalid or missing token')));
+      return next(new UnauthorizedError('Unauthorized: invalid or missing token'));
     });
   }
 
@@ -167,6 +173,10 @@ export class APIServer {
     registerObservabilityRoutes(this.app, {
       updateConfig
     });
+  }
+
+  private setupErrorHandling(): void {
+    this.app.use(apiErrorHandler);
   }
 
   async stop(): Promise<void> {

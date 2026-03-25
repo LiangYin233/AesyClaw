@@ -1,20 +1,25 @@
 import type { Express } from 'express';
-import { randomUUID } from 'crypto';
 import { getConfigValidationIssue } from '../../config/index.js';
-import { createErrorResponse, createValidationErrorResponse, normalizeApiError } from '../errors.js';
 import type { ChannelManager } from '../../channels/ChannelManager.js';
 import type { Config } from '../../types.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
 import { parseAgentRoleInput } from '../mappers/agentRoleMapper.js';
-import { SessionManager } from '../../session/SessionManager.js';
-import { SessionNotFoundError, SessionValidationError } from '../../session/errors.js';
 import type { SessionRoutingService } from '../../agent/infrastructure/session/SessionRoutingService.js';
 import type { AgentRoleService } from '../../agent/infrastructure/roles/AgentRoleService.js';
 import type { AgentRuntime } from '../../agent/index.js';
 import { preserveServerTokenInApiConfig, sanitizeConfigForApi } from '../configPayload.js';
-import { badRequest, notFound, serverError, unavailable, wrap } from './helpers.js';
-
-const WEBUI_CHANNEL = 'webui';
+import {
+  ConflictError,
+  NotFoundError,
+  ServiceUnavailableError,
+  ValidationError,
+  normalizeApiError
+} from '../errors.js';
+import { asyncHandler } from '../middleware/async-handler.js';
+import { ChatApiService } from '../../features/chat/ChatApiService.js';
+import { ChannelApiService } from '../../features/channels/ChannelApiService.js';
+import { SessionApiService } from '../../features/sessions/SessionApiService.js';
+import type { SessionManager } from '../../session/SessionManager.js';
 
 interface CoreRouteDeps {
   agentRuntime: Pick<AgentRuntime, 'handleDirect' | 'isRunning'>;
@@ -33,260 +38,157 @@ interface CoreRouteDeps {
   };
 }
 
+function toAgentRoleError(error: unknown, name?: string): Error {
+  const message = normalizeApiError(error);
+
+  if (message.includes('already exists')) {
+    return new ConflictError(message);
+  }
+  if (message.includes('not found')) {
+    return new NotFoundError('Agent role', name);
+  }
+
+  return new ValidationError(message);
+}
+
 export function registerCoreRoutes(app: Express, deps: CoreRouteDeps): void {
-  const getDefaultRoleName = () => deps.agentRoleService?.getDefaultRoleName() || 'main';
+  const sessionService = new SessionApiService(
+    deps.sessionManager,
+    deps.sessionRouting,
+    deps.agentRoleService
+  );
+  const chatService = new ChatApiService(deps.agentRuntime, deps.maxMessageLength);
+  const channelService = new ChannelApiService(
+    deps.channelManager,
+    deps.getConfig,
+    deps.maxMessageLength
+  );
 
-  const listSessions = async () => {
-    const sessions = deps.sessionManager.list();
-    return Promise.all(sessions.map(async (session) => ({
-      key: session.key,
-      channel: session.channel,
-      chatId: session.chatId,
-      uuid: session.uuid,
-      agentName: deps.sessionRouting.getConversationAgent(session.channel, session.chatId) || getDefaultRoleName(),
-      messageCount: session.messages.length
-    })));
-  };
-
-  const getSessionDetails = async (key: string) => {
-    const session = await deps.sessionManager.getExistingOrThrow(key);
-    return {
-      key: session.key,
-      channel: session.channel,
-      chatId: session.chatId,
-      uuid: session.uuid,
-      agentName: deps.sessionRouting.getConversationAgent(session.channel, session.chatId) || getDefaultRoleName(),
-      messageCount: session.messages.length,
-      messages: session.messages
-    };
-  };
-
-  const deleteSession = async (key: string): Promise<{ success: true }> => {
-    await deps.sessionManager.delete(key);
-    return { success: true };
-  };
-
-  const createChatResponse = async (request: {
-    sessionKey?: string;
-    message: string;
-    channel?: string;
-    chatId?: string;
-  }) => {
-    const resolvedChannel = request.channel?.trim() || WEBUI_CHANNEL;
-    const key = request.sessionKey || `${resolvedChannel}:${randomUUID()}`;
-    const resolvedChatId = request.chatId?.trim() || request.sessionKey || key;
-    const response = await deps.agentRuntime.handleDirect(request.message, {
-      sessionKey: key,
-      channel: resolvedChannel,
-      chatId: resolvedChatId,
-      messageType: 'private'
-    });
-
-    return {
-      success: true as const,
-      response
-    };
-  };
-
-  const getChannelStatus = () => {
-    const runtimeStatus = deps.channelManager.getStatus();
-    const configuredChannels = deps.getConfig().channels;
-    const merged: Record<string, { running?: boolean; enabled?: boolean; connected?: boolean }> = {};
-
-    for (const [name, config] of Object.entries(configuredChannels)) {
-      const status = runtimeStatus[name];
-      const running = status?.running ?? false;
-      merged[name] = {
-        running,
-        enabled: Boolean((config as Record<string, unknown>)?.enabled),
-        connected: running
-      };
-    }
-
-    for (const [name, status] of Object.entries(runtimeStatus)) {
-      merged[name] = {
-        enabled: merged[name]?.enabled ?? true,
-        running: status.running,
-        connected: status.running
-      };
-    }
-
-    merged[WEBUI_CHANNEL] = {
-      running: true,
-      enabled: true,
-      connected: true
-    };
-
-    return merged;
-  };
-
-  app.get('/api/status', (req, res) => {
+  app.get('/api/status', (_req, res) => {
     res.json({
       version: deps.packageVersion,
       uptime: process.uptime(),
-      channels: getChannelStatus(),
+      channels: channelService.getChannelStatus(),
       sessions: deps.sessionManager.count(),
       agentRunning: deps.agentRuntime.isRunning()
     });
   });
 
-  app.get('/api/sessions', async (req, res) => {
-    res.json({ sessions: await listSessions() });
-  });
+  app.get('/api/sessions', asyncHandler(async (_req, res) => {
+    res.json({ sessions: await sessionService.listSessions() });
+  }));
 
-  app.get('/api/sessions/:key', async (req, res) => {
-    try {
-      SessionManager.validateSessionKey(req.params.key);
-      res.json(await getSessionDetails(req.params.key));
-    } catch (error: unknown) {
-      if (error instanceof SessionValidationError) {
-        return badRequest(res, error.message, 'key');
-      }
-      if (error instanceof SessionNotFoundError) {
-        return res.status(404).json(createErrorResponse(error));
-      }
-      serverError(res, error);
-    }
-  });
+  app.get('/api/sessions/:key', asyncHandler(async (req, res) => {
+    res.json(await sessionService.getSessionDetails(String(req.params.key)));
+  }));
 
-  app.delete('/api/sessions/:key', async (req, res) => {
-    try {
-      SessionManager.validateSessionKey(req.params.key);
-      res.json(await deleteSession(req.params.key));
-    } catch (error: unknown) {
-      if (error instanceof SessionValidationError) {
-        return badRequest(res, error.message, 'key');
-      }
-      serverError(res, error);
-    }
-  });
+  app.delete('/api/sessions/:key', asyncHandler(async (req, res) => {
+    res.json(await sessionService.deleteSession(String(req.params.key)));
+  }));
 
-  app.get('/api/agents', async (req, res) => {
+  app.get('/api/agents', (_req, res) => {
     if (!deps.agentRoleService) {
       return res.json({ agents: [] });
     }
 
-    res.json({ agents: deps.agentRoleService.listResolvedRoles() });
+    return res.json({ agents: deps.agentRoleService.listResolvedRoles() });
   });
 
-  app.post('/api/agents', wrap(async (req, res) => {
-    if (!deps.agentRoleService) return unavailable(res, 'Agent role service unavailable');
+  app.post('/api/agents', asyncHandler(async (req, res) => {
+    if (!deps.agentRoleService) {
+      throw new ServiceUnavailableError('Agent role service unavailable');
+    }
+
     try {
       const agent = await deps.agentRoleService.createRole(parseAgentRoleInput(req.body));
       res.status(201).json({ agent });
-    } catch (error: unknown) {
-      res.status(400).json(createErrorResponse(error));
+    } catch (error) {
+      throw toAgentRoleError(error);
     }
   }));
 
-  app.put('/api/agents/:name', wrap(async (req, res) => {
-    if (!deps.agentRoleService) return unavailable(res, 'Agent role service unavailable');
+  app.put('/api/agents/:name', asyncHandler(async (req, res) => {
+    if (!deps.agentRoleService) {
+      throw new ServiceUnavailableError('Agent role service unavailable');
+    }
+
+    const name = String(req.params.name);
     try {
-      const name = String(req.params.name);
       const agent = await deps.agentRoleService.updateRole(name, parseAgentRoleInput(req.body, name));
       res.json({ agent });
-    } catch (error: unknown) {
-      res.status(400).json(createErrorResponse(error));
+    } catch (error) {
+      throw toAgentRoleError(error, name);
     }
   }));
 
-  app.delete('/api/agents/:name', wrap(async (req, res) => {
-    if (!deps.agentRoleService) return unavailable(res, 'Agent role service unavailable');
+  app.delete('/api/agents/:name', asyncHandler(async (req, res) => {
+    if (!deps.agentRoleService) {
+      throw new ServiceUnavailableError('Agent role service unavailable');
+    }
+
+    const name = String(req.params.name);
     try {
-      await deps.agentRoleService.deleteRole(String(req.params.name));
-      deps.sessionRouting.deleteAgentBindings(String(req.params.name));
+      await deps.agentRoleService.deleteRole(name);
+      deps.sessionRouting.deleteAgentBindings(name);
       res.json({ success: true });
-    } catch (error: unknown) {
-      res.status(400).json(createErrorResponse(error));
+    } catch (error) {
+      throw toAgentRoleError(error, name);
     }
   }));
 
-  app.post('/api/chat', async (req, res) => {
-    const { sessionKey, message, channel, chatId } = req.body;
-    if (!message || typeof message !== 'string') {
-      return res.status(400).json(createValidationErrorResponse('Message is required', 'message'));
-    }
-    if (channel !== undefined && typeof channel !== 'string') {
-      return res.status(400).json(createValidationErrorResponse('channel must be a string', 'channel'));
-    }
-    if (chatId !== undefined && typeof chatId !== 'string') {
-      return res.status(400).json(createValidationErrorResponse('chatId must be a string', 'chatId'));
-    }
-    if (message.length > deps.maxMessageLength) {
-      return res.status(400).json(
-        createValidationErrorResponse(`Message too long (max ${deps.maxMessageLength} characters)`, 'message')
-      );
-    }
+  app.post('/api/chat', asyncHandler(async (req, res) => {
+    const { sessionKey, message, channel, chatId } = req.body ?? {};
+    deps.log.info('收到 API 对话请求', {
+      request_id: req.requestId,
+      sessionKey: sessionKey || 'auto',
+      channel,
+      chatId
+    });
+    const response = await chatService.createChatResponse({ sessionKey, message, channel, chatId });
+    res.json(response);
+  }));
 
-    try {
-      deps.log.info('收到 API 对话请求', { sessionKey: sessionKey || 'auto', channel, chatId });
-      const response = await createChatResponse({ sessionKey, message, channel, chatId });
-      res.json(response);
-    } catch (error: unknown) {
-      deps.log.error(`对话请求失败: ${normalizeApiError(error)}`);
-      serverError(res, error);
-    }
+  app.get('/api/channels', (_req, res) => {
+    res.json(channelService.getChannelStatus());
   });
 
-  app.get('/api/channels', (req, res) => {
-    res.json(getChannelStatus());
-  });
+  app.post('/api/channels/:name/send', asyncHandler(async (req, res) => {
+    deps.log.info('收到 API 外发消息请求', {
+      request_id: req.requestId,
+      channel: String(req.params.name),
+      chatId: req.body?.chatId
+    });
+    res.json(await channelService.sendMessage(String(req.params.name), req.body ?? {}));
+  }));
 
-  app.post('/api/channels/:name/send', async (req, res) => {
-    const { chatId, content } = req.body;
-    if (!chatId || typeof chatId !== 'string') {
-      return res.status(400).json(createValidationErrorResponse('chatId is required and must be a string', 'chatId'));
-    }
-    if (!content || typeof content !== 'string') {
-      return res.status(400).json(createValidationErrorResponse('content is required and must be a string', 'content'));
-    }
-    if (content.length > deps.maxMessageLength) {
-      return res.status(400).json(
-        createValidationErrorResponse(`content too long (max ${deps.maxMessageLength} characters)`, 'content')
-      );
-    }
-
-    const channelInstance = deps.channelManager.get(req.params.name);
-    if (!channelInstance) {
-      return notFound(res, 'Channel', req.params.name);
-    }
-
-    try {
-      deps.log.info('收到 API 外发消息请求', { channel: req.params.name, chatId });
-      await channelInstance.send({ channel: req.params.name, chatId, content });
-      res.json({ success: true });
-    } catch (error: unknown) {
-      deps.log.error('API 外发消息失败', { channel: req.params.name, chatId, error: normalizeApiError(error) });
-      serverError(res, error);
-    }
-  });
-
-  app.get('/api/tools', (req, res) => {
+  app.get('/api/tools', (_req, res) => {
     res.json({ tools: deps.toolRegistry?.getDefinitions() ?? [] });
   });
 
-  app.get('/api/config', (req, res) => {
+  app.get('/api/config', (_req, res) => {
     res.json(sanitizeConfigForApi(deps.getConfig()));
   });
 
-  app.put('/api/config', async (req, res) => {
+  app.put('/api/config', asyncHandler(async (req, res) => {
+    const newConfig = req.body;
+    if (!newConfig || typeof newConfig !== 'object' || Array.isArray(newConfig)) {
+      throw new ValidationError('config body must be an object', 'config');
+    }
+
+    deps.log.info('收到 API 配置更新请求', {
+      request_id: req.requestId
+    });
+
     try {
-      const newConfig = req.body;
-      if (!newConfig || typeof newConfig !== 'object' || Array.isArray(newConfig)) {
-        return badRequest(res, 'config body must be an object', 'config');
-      }
-      deps.log.info('收到 API 配置更新请求');
       const currentConfig = deps.getConfig();
       await deps.updateConfig(() => preserveServerTokenInApiConfig(newConfig, currentConfig) as Config);
       res.json({ success: true });
-    } catch (error: unknown) {
+    } catch (error) {
       const issue = getConfigValidationIssue(error);
       if (issue) {
-        return badRequest(res, issue.message, issue.field);
+        throw new ValidationError(issue.message, issue.field);
       }
-
-      deps.log.error('API 配置更新失败', { error: normalizeApiError(error) });
-      serverError(res, error);
+      throw error;
     }
-  });
+  }));
 }
