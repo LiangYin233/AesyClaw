@@ -1,11 +1,16 @@
 import type { AgentRuntime } from '../../agent/index.js';
+import type { ChannelManager } from '../../channels/ChannelManager.js';
 import type { SessionManager } from '../../session/SessionManager.js';
 import type { ToolRegistry } from '../../tools/ToolRegistry.js';
+import type { Config } from '../../types.js';
+import { buildChannelStatusSnapshot, type ChannelStatusSnapshot } from '../shared/channelStatusSnapshot.js';
 
 export class SystemRepository {
   constructor(
     private readonly agentRuntime: Pick<AgentRuntime, 'isRunning'>,
     private readonly sessionManager: Pick<SessionManager, 'count'>,
+    private readonly channelManager: ChannelManager,
+    private readonly getConfig: () => Config,
     private readonly toolRegistry?: ToolRegistry
   ) {}
 
@@ -15,6 +20,13 @@ export class SystemRepository {
 
   getSessionCount(): number {
     return this.sessionManager.count();
+  }
+
+  getChannelStatus(): ChannelStatusSnapshot {
+    return buildChannelStatusSnapshot({
+      runtimeStatus: this.channelManager.getStatus(),
+      configuredChannels: this.getConfig().channels
+    });
   }
 
   getToolDefinitions(): ReturnType<ToolRegistry['getDefinitions']> | [] {

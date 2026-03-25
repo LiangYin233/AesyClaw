@@ -1,7 +1,7 @@
 import type { Express } from 'express';
-import { parseAgentRoleInput } from '../../api/mappers/agentRoleMapper.js';
 import { asyncHandler } from '../../api/middleware/async-handler.js';
 import { AgentApiService } from './AgentApiService.js';
+import { parseAgentRoleInput } from './agents.dto.js';
 
 export function registerAgentsController(app: Express, service: AgentApiService): void {
   app.get('/api/agents', (_req, res) => {

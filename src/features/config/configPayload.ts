@@ -1,4 +1,4 @@
-import type { Config } from '../types.js';
+import type { Config } from '../../types.js';
 
 export type ApiConfigPayload = Omit<Config, 'server'> & {
   server: Omit<Config['server'], 'token'>;

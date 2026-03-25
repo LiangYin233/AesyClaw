@@ -1,7 +1,7 @@
 import { NotFoundError, ValidationError } from '../../api/errors.js';
 import { ChannelRepository } from './ChannelRepository.js';
-import { buildChannelStatusSnapshot } from './channelStatus.js';
 import type { SendChannelMessageDto } from './channels.dto.js';
+import { buildChannelStatusSnapshot } from '../shared/channelStatusSnapshot.js';
 
 export class ChannelApiService {
   constructor(
@@ -10,7 +10,10 @@ export class ChannelApiService {
   ) {}
 
   getChannelStatus(): Record<string, { running?: boolean; enabled?: boolean; connected?: boolean }> {
-    return buildChannelStatusSnapshot(this.channelRepository);
+    return buildChannelStatusSnapshot({
+      runtimeStatus: this.channelRepository.getRuntimeStatus(),
+      configuredChannels: this.channelRepository.getConfiguredChannels()
+    });
   }
 
   async sendMessage(

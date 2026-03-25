@@ -1,4 +1,4 @@
-import { ChannelRepository } from './ChannelRepository.js';
+import type { Config } from '../../types.js';
 
 export type ChannelStatusSnapshot = Record<string, {
   running?: boolean;
@@ -6,9 +6,11 @@ export type ChannelStatusSnapshot = Record<string, {
   connected?: boolean;
 }>;
 
-export function buildChannelStatusSnapshot(channelRepository: ChannelRepository): ChannelStatusSnapshot {
-  const runtimeStatus = channelRepository.getRuntimeStatus();
-  const configuredChannels = channelRepository.getConfiguredChannels();
+export function buildChannelStatusSnapshot(args: {
+  runtimeStatus: Record<string, { running: boolean }>;
+  configuredChannels: Config['channels'];
+}): ChannelStatusSnapshot {
+  const { runtimeStatus, configuredChannels } = args;
   const snapshot: ChannelStatusSnapshot = {};
 
   for (const [name, config] of Object.entries(configuredChannels)) {

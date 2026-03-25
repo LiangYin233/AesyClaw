@@ -1,12 +1,9 @@
-import { ChannelRepository } from '../channels/ChannelRepository.js';
-import { buildChannelStatusSnapshot } from '../channels/channelStatus.js';
 import { SystemRepository } from './SystemRepository.js';
 
 export class SystemApiService {
   constructor(
     private readonly packageVersion: string,
-    private readonly systemRepository: SystemRepository,
-    private readonly channelRepository: ChannelRepository
+    private readonly systemRepository: SystemRepository
   ) {}
 
   getStatus(): {
@@ -19,7 +16,7 @@ export class SystemApiService {
     return {
       version: this.packageVersion,
       uptime: process.uptime(),
-      channels: buildChannelStatusSnapshot(this.channelRepository),
+      channels: this.systemRepository.getChannelStatus(),
       sessions: this.systemRepository.getSessionCount(),
       agentRunning: this.systemRepository.isAgentRunning()
     };

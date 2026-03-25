@@ -1,8 +1,8 @@
 import { getConfigValidationIssue } from '../../config/index.js';
-import { preserveServerTokenInApiConfig, sanitizeConfigForApi } from '../../api/configPayload.js';
 import { ValidationError } from '../../api/errors.js';
 import type { Config } from '../../types.js';
 import { ConfigRepository } from './ConfigRepository.js';
+import { preserveServerTokenInApiConfig, sanitizeConfigForApi } from './configPayload.js';
 
 export class ConfigApiService {
   constructor(private readonly configRepository: ConfigRepository) {}

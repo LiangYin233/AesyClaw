@@ -87,8 +87,13 @@ export function registerApiControllers(deps: ApiFeatureControllerDeps): void {
   const chatService = new ChatApiService(new ChatRepository(deps.agentRuntime), deps.maxMessageLength);
   const systemService = new SystemApiService(
     deps.packageVersion,
-    new SystemRepository(deps.agentRuntime, deps.sessionManager, deps.toolRegistry),
-    channelRepository
+    new SystemRepository(
+      deps.agentRuntime,
+      deps.sessionManager,
+      deps.channelManager,
+      deps.getConfig,
+      deps.toolRegistry
+    )
   );
   const agentService = new AgentApiService(
     new AgentRepository(deps.sessionRouting, deps.agentRoleService)
