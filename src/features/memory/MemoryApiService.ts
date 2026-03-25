@@ -1,5 +1,5 @@
-import type { LongTermMemoryOperation } from '../../session/LongTermMemoryStore.js';
-import { NotFoundError } from '../../api/errors.js';
+import type { LongTermMemoryOperation } from '../sessions/infrastructure/LongTermMemoryStore.js';
+import { NotFoundError } from '../../platform/errors/index.js';
 import { MemoryRepository } from './MemoryRepository.js';
 
 type MemoryItem = {

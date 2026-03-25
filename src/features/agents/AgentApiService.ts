@@ -2,13 +2,13 @@ import {
   ConflictError,
   NotFoundError,
   ValidationError,
-  normalizeApiError
-} from '../../api/errors.js';
+  normalizeErrorMessage
+} from '../../platform/errors/index.js';
 import type { AgentRoleConfig } from '../../types.js';
 import { AgentRepository } from './AgentRepository.js';
 
 function toAgentRoleError(error: unknown, name?: string): Error {
-  const message = normalizeApiError(error);
+  const message = normalizeErrorMessage(error);
 
   if (message.includes('already exists')) {
     return new ConflictError(message);

@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { logger as baseLogger } from '../../src/observability/index.ts';
+import { logger as baseLogger } from '../../src/platform/observability/index.ts';
 import type { ChannelAdapter, AdapterRuntimeContext, ChannelSendContext } from '../../src/channels/core/adapter.ts';
 import type {
   AdapterInboundDraft,

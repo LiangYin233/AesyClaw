@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { SessionReference } from '../../domain/session.js';
-import type { CronJob } from '../../../cron/index.js';
+import type { CronJob } from '../../../features/cron/index.js';
 
 const CRON_CHANNEL = 'cron';
 const CRON_SESSION_KEY_PREFIX = `${CRON_CHANNEL}:`;

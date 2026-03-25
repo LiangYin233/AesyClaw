@@ -2,9 +2,9 @@ import { createHash } from 'crypto';
 import { basename, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { copyFile, mkdir, readFile, stat, writeFile } from 'fs/promises';
-import { Database } from '../../db/index.js';
-import { logger } from '../../observability/index.js';
-import { formatLocalTimestamp } from '../../observability/logging.js';
+import { Database } from '../../platform/db/index.js';
+import { logger } from '../../platform/observability/index.js';
+import { formatLocalTimestamp } from '../../platform/observability/logging.js';
 import type { ChannelMessage, MessageSegment, ResourceHandle } from './types.js';
 
 type ResourceResolver = (resource: ResourceHandle, rawEvent?: unknown) => Promise<ResourceHandle | null>;

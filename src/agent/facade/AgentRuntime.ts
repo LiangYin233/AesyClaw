@@ -8,7 +8,7 @@ import {
 } from '../domain/session.js';
 import type { RuntimeLifecycle } from '../domain/runtime.js';
 import { SessionHandle } from './SessionHandle.js';
-import type { LLMProvider } from '../../providers/base.js';
+import type { LLMProvider } from '../../platform/providers/base.js';
 import type { SessionMemoryService } from '../infrastructure/memory/SessionMemoryService.js';
 import type { VisionSettings } from '../../types.js';
 

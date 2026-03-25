@@ -1,6 +1,6 @@
 import type { InboundMessage } from '../../../types.js';
-import type { LLMProvider } from '../../../providers/base.js';
-import type { Session, SessionManager, SessionMessage } from '../../../session/SessionManager.js';
+import type { LLMProvider } from '../../../platform/providers/base.js';
+import type { Session, SessionManager, SessionMessage } from '../../../features/sessions/application/SessionManager.js';
 import type { ContextMode } from '../../domain/context.js';
 import {
   type LongTermMemoryEntry,
@@ -8,8 +8,8 @@ import {
   type MemoryOperationActor,
   type MemoryOperationInput,
   type MemoryOperationResult
-} from '../../../session/LongTermMemoryStore.js';
-import { logger } from '../../../observability/index.js';
+} from '../../../features/sessions/infrastructure/LongTermMemoryStore.js';
+import { logger } from '../../../platform/observability/index.js';
 import { collectConversationRounds, sliceRecentConversationRounds } from './conversationRounds.js';
 import { LongTermMemoryService } from './LongTermMemoryService.js';
 

@@ -1,5 +1,5 @@
-import { formatLocalTimestamp } from '../../observability/logging.js';
-import { logger, type LogLevel } from '../../observability/index.js';
+import { formatLocalTimestamp } from '../../platform/observability/logging.js';
+import { logger, type LogLevel } from '../../platform/observability/index.js';
 import { ObservabilityRepository } from './ObservabilityRepository.js';
 
 const log = logger.child('ObservabilityAPI');

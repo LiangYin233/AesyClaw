@@ -5,11 +5,11 @@
         <div>
           <p class="cn-kicker text-outline">会话</p>
           <h1 class="cn-page-title mt-2 text-on-surface">会话总台</h1>
-          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">集中查看当前会话、消息负载与当前路由角色。</p>
+          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">优先处理会话列表、详情和删除动作，统计只作为当前工作区的辅助信息。</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <button
-            class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface shadow-sm transition-colors hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-60"
+            class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/16 bg-surface-container-lowest/80 px-4 py-2.5 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-60"
             type="button"
             :disabled="loading"
             @click="loadSessionsPage"
@@ -18,7 +18,7 @@
             刷新
           </button>
           <button
-            class="inline-flex items-center gap-2 rounded-xl border border-error/20 bg-error-container/70 px-4 py-2.5 text-sm font-semibold text-on-error-container transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            class="inline-flex items-center gap-2 rounded-xl border border-error/18 bg-error-container/70 px-4 py-2.5 text-sm font-semibold text-on-error-container transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             type="button"
             :disabled="!selectedKeys.length || deleting"
             @click="deleteSelectedSessions"
@@ -39,52 +39,35 @@
         </div>
       </div>
 
-      <div class="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <article class="hairline-card rounded-2xl p-5">
-          <div class="mb-3 flex items-start justify-between">
-            <AppIcon name="sessions" class="text-primary" />
-            <span class="rounded-full bg-primary-fixed px-2 py-0.5 text-[10px] font-bold text-on-primary-fixed">当前</span>
+      <section class="workspace-shell mb-6 rounded-[1.75rem] px-6 py-5">
+        <div class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <div class="workspace-kpi">
+            <span class="workspace-kpi-label">会话总数</span>
+            <span class="workspace-kpi-value">{{ sessions.length }}</span>
+            <span class="workspace-kpi-note">已选 {{ selectedKeys.length }} 个会话</span>
           </div>
-          <p class="cn-kicker text-outline">会话总数</p>
-          <p class="cn-metric mt-1 text-on-surface">{{ sessions.length }}</p>
-          <p class="tech-text mt-2 text-xs text-on-surface-variant">含所有渠道会话键与当前消息上下文</p>
-        </article>
-
-        <article class="hairline-card rounded-2xl p-5">
-          <div class="mb-3 flex items-start justify-between">
-            <AppIcon name="dialogue" class="text-tertiary" />
-            <span class="rounded-full bg-tertiary-fixed px-2 py-0.5 text-[10px] font-bold text-on-tertiary-fixed">高频</span>
+          <div class="workspace-kpi">
+            <span class="workspace-kpi-label">WebUI 来源</span>
+            <span class="workspace-kpi-value">{{ webuiSessionCount }}</span>
+            <span class="workspace-kpi-note">来自 `/dialogue` 的会话上下文</span>
           </div>
-          <p class="cn-kicker text-outline">WebUI 会话</p>
-          <p class="cn-metric mt-1 text-on-surface">{{ webuiSessionCount }}</p>
-          <p class="mt-2 text-xs text-on-surface-variant">直接来自 `/dialogue` 的交互上下文</p>
-        </article>
-
-        <article class="hairline-card rounded-2xl p-5">
-          <div class="mb-3 flex items-start justify-between">
-            <AppIcon name="panel" class="text-sky-600" />
-            <span class="rounded-full bg-surface-container-low px-2 py-0.5 text-[10px] font-bold text-outline">聚合</span>
+          <div class="workspace-kpi">
+            <span class="workspace-kpi-label">消息总量</span>
+            <span class="workspace-kpi-value">{{ totalMessages }}</span>
+            <span class="workspace-kpi-note">平均 {{ averageMessageCount }} 条 / 会话</span>
           </div>
-          <p class="cn-kicker text-outline">消息总量</p>
-          <p class="cn-metric mt-1 text-on-surface">{{ totalMessages }}</p>
-          <p class="mt-2 text-xs text-on-surface-variant">平均 {{ averageMessageCount }} 条 / 会话</p>
-        </article>
-
-        <article class="hairline-card rounded-2xl p-5">
-          <div class="mb-3 flex items-start justify-between">
-            <AppIcon name="agents" class="text-orange-600" />
-            <span class="rounded-full bg-surface-container-low px-2 py-0.5 text-[10px] font-bold text-outline">路由</span>
+          <div class="workspace-kpi">
+            <span class="workspace-kpi-label">活跃 Agent</span>
+            <span class="workspace-kpi-value">{{ activeAgentCount }}</span>
+            <span class="workspace-kpi-note">当前列表涉及的路由角色</span>
           </div>
-          <p class="cn-kicker text-outline">活跃 Agent</p>
-          <p class="cn-metric mt-1 text-on-surface">{{ activeAgentCount }}</p>
-          <p class="mt-2 text-xs text-on-surface-variant">当前列表里被路由到的角色数量</p>
-        </article>
-      </div>
+        </div>
+      </section>
 
       <div class="flex flex-col gap-6 2xl:flex-row">
         <section class="min-w-0 flex-1">
-          <div class="hairline-card overflow-hidden rounded-[1.6rem]">
-            <div class="flex flex-col gap-3 border-b border-outline-variant/20 px-5 py-4 md:flex-row md:items-center md:justify-between">
+          <div class="workspace-shell overflow-hidden rounded-[1.75rem]">
+            <div class="flex flex-col gap-3 border-b workspace-divider px-6 py-5 md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 class="cn-section-title text-on-surface">会话列表</h2>
                 <p class="mt-1 text-sm text-on-surface-variant">点击任意会话可查看完整消息流、当前路由角色或继续对话。</p>
@@ -92,14 +75,14 @@
               <p class="tech-text text-xs text-on-surface-variant">已选 {{ selectedKeys.length }} / {{ sessions.length }}</p>
             </div>
 
-            <div v-if="loading" class="px-5 py-12 text-center text-sm text-on-surface-variant">正在加载会话数据...</div>
+            <div v-if="loading" class="px-6 py-12 text-center text-sm text-on-surface-variant">正在加载会话数据...</div>
 
             <template v-else-if="sortedSessions.length">
               <div class="hidden overflow-x-auto lg:block">
                 <table class="min-w-full border-collapse text-left text-sm">
-                  <thead class="bg-surface-container-low/70 text-outline">
+                  <thead class="text-outline">
                     <tr>
-                      <th class="w-12 px-5 py-4">
+                      <th class="w-12 px-6 py-4">
                         <input
                           :checked="allSelected"
                           class="size-4 rounded border border-outline-variant/50 bg-transparent"
@@ -107,21 +90,21 @@
                           @change="handleToggleAll"
                         />
                       </th>
-                      <th class="px-5 py-4 text-[11px] font-bold tracking-[0.08em]">会话标识</th>
-                      <th class="px-5 py-4 text-[11px] font-bold tracking-[0.08em]">Agent</th>
-                      <th class="px-5 py-4 text-[11px] font-bold tracking-[0.08em]">消息数</th>
-                      <th class="px-5 py-4 text-[11px] font-bold tracking-[0.08em]">动作</th>
+                      <th class="px-6 py-4 text-[11px] font-bold tracking-[0.08em]">会话标识</th>
+                      <th class="px-6 py-4 text-[11px] font-bold tracking-[0.08em]">Agent</th>
+                      <th class="px-6 py-4 text-[11px] font-bold tracking-[0.08em]">消息数</th>
+                      <th class="px-6 py-4 text-[11px] font-bold tracking-[0.08em]">动作</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr
                       v-for="session in sortedSessions"
                       :key="session.key"
-                      class="cursor-pointer border-t border-outline-variant/14 transition-colors hover:bg-surface-container-low/55"
-                      :class="detail?.key === session.key ? 'bg-primary-fixed/55' : ''"
+                      class="cursor-pointer border-t border-outline-variant/12 transition-colors hover:bg-surface-container-low/28"
+                      :class="detail?.key === session.key ? 'bg-primary-fixed/35' : ''"
                       @click="openSession(session.key)"
                     >
-                      <td class="px-5 py-4" @click.stop>
+                      <td class="px-6 py-4" @click.stop>
                         <input
                           :checked="selectedSet.has(session.key)"
                           class="size-4 rounded border border-outline-variant/50 bg-transparent"
@@ -129,21 +112,21 @@
                           @change="handleToggleSelection(session.key, $event)"
                         />
                       </td>
-                      <td class="px-5 py-4">
+                      <td class="px-6 py-4">
                         <div class="tech-text break-all text-xs text-on-surface">{{ session.key }}</div>
                         <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-outline">
                           <span class="rounded-full bg-surface-container-low px-2 py-1">{{ session.channel || '-' }}</span>
                           <span v-if="session.uuid" class="tech-text rounded-full bg-surface-container-low px-2 py-1">{{ session.uuid }}</span>
                         </div>
                       </td>
-                      <td class="px-5 py-4">
-                        <span class="rounded-full bg-primary-fixed px-2.5 py-1 text-xs font-semibold text-on-primary-fixed">{{ session.agentName || 'main' }}</span>
+                      <td class="px-6 py-4">
+                        <span class="rounded-full bg-surface-container-low px-2.5 py-1 text-xs font-semibold text-on-surface">{{ session.agentName || 'main' }}</span>
                       </td>
-                      <td class="px-5 py-4">
+                      <td class="px-6 py-4">
                         <div class="cn-section-title text-base text-on-surface">{{ session.messageCount }}</div>
                         <div class="text-xs text-on-surface-variant">已记录消息</div>
                       </td>
-                      <td class="px-5 py-4">
+                      <td class="px-6 py-4">
                         <div class="flex flex-wrap gap-2">
                           <button class="rounded-lg border border-outline-variant/25 px-3 py-2 text-xs font-semibold text-on-surface transition hover:bg-surface-container-low" type="button" @click.stop="goToDialogue(session.key)">
                             继续对话
@@ -162,8 +145,8 @@
                 <article
                   v-for="session in sortedSessions"
                   :key="session.key"
-                  class="rounded-2xl border border-outline-variant/18 bg-surface-container-lowest p-4 transition-colors"
-                  :class="detail?.key === session.key ? 'border-primary/30 bg-primary-fixed/40' : ''"
+                  class="workspace-subtle rounded-2xl p-4 transition-colors"
+                  :class="detail?.key === session.key ? 'border-primary/24 bg-primary-fixed/28' : ''"
                 >
                   <div class="flex items-start gap-3">
                     <input
@@ -190,10 +173,10 @@
               </div>
             </template>
 
-            <div v-else class="px-5 py-14 text-center">
+            <div v-else class="px-6 py-14 text-center">
               <p class="cn-section-title text-on-surface">当前没有活跃会话</p>
               <p class="cn-body mt-2 text-sm text-on-surface-variant">你可以前往对话页新建一轮对话，或等待其他渠道发来新的会话。</p>
-              <button class="mt-5 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/20" type="button" @click="goToDialogue()">
+              <button class="mt-5 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white" type="button" @click="goToDialogue()">
                 <AppIcon name="rocket" size="sm" />
                 打开对话页
               </button>
@@ -203,7 +186,7 @@
 
         <aside class="hidden w-[430px] shrink-0 2xl:block">
           <div class="sidebar-rail-scroll-2xl">
-            <section class="hairline-card flex h-[calc(100vh-6rem)] min-h-[38rem] flex-col overflow-hidden rounded-[1.6rem] p-5">
+            <section class="workspace-shell flex h-[calc(100vh-6rem)] min-h-[38rem] flex-col overflow-hidden rounded-[1.75rem] p-5">
               <SessionDetailPanel
                 :detail="detail"
                 :detail-error="detailError"

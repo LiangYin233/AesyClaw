@@ -1,12 +1,12 @@
 import type { OutboundMessage, InboundMessage, LLMMessage, LLMResponse } from '../../../types.js';
 import type { PluginManager } from '../../../plugins/index.js';
-import type { SessionManager } from '../../../session/SessionManager.js';
+import type { SessionManager } from '../../../features/sessions/application/SessionManager.js';
 import type { SessionMemoryService } from '../memory/SessionMemoryService.js';
 import type { SessionRoutingService } from '../session/SessionRoutingService.js';
 import type { ExecutionContext } from './ExecutionTypes.js';
 import type { ExecutionEngine } from './ExecutionEngine.js';
 import type { ExecutionStatus } from '../../domain/execution.js';
-import { logger } from '../../../observability/index.js';
+import { logger } from '../../../platform/observability/index.js';
 import { BackgroundTaskManager } from './BackgroundTaskManager.js';
 import { ExecutionRegistry } from './ExecutionRegistry.js';
 

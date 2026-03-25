@@ -1,6 +1,6 @@
 import type { Config } from './schema.js';
-import type { EventBus } from '../events/EventBus.js';
-import type { AesyClawEvents } from '../events/events.js';
+import type { EventBus } from '../platform/events/EventBus.js';
+import type { AesyClawEvents } from '../platform/events/events.js';
 import { ConfigService } from './application/ConfigService.js';
 import type { ConfigMutator } from './application/ConfigMutationService.js';
 import type { ConfigReloadTargets } from './reload/ports/ReloadTargets.js';

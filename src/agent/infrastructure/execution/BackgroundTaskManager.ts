@@ -1,8 +1,8 @@
 import type { LLMMessage, LLMResponse, OutboundMessage } from '../../../types.js';
-import type { ToolContext } from '../../../tools/ToolRegistry.js';
-import { logger } from '../../../observability/index.js';
-import type { EventBus } from '../../../events/EventBus.js';
-import type { AesyClawEvents } from '../../../events/events.js';
+import type { ToolContext } from '../../../platform/tools/ToolRegistry.js';
+import { logger } from '../../../platform/observability/index.js';
+import type { EventBus } from '../../../platform/events/EventBus.js';
+import type { AesyClawEvents } from '../../../platform/events/events.js';
 
 export interface BackgroundTaskResult {
   content: string;

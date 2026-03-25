@@ -1,12 +1,12 @@
 import type { VisionSettings } from '../../../types.js';
-import type { LLMProvider } from '../../../providers/base.js';
+import type { LLMProvider } from '../../../platform/providers/base.js';
 import type { PluginManager } from '../../../plugins/index.js';
 import { resolveExecutionModel } from '../../../config/executionModel.js';
-import type { ToolRegistry, ToolContext } from '../../../tools/ToolRegistry.js';
+import type { ToolRegistry, ToolContext } from '../../../platform/tools/ToolRegistry.js';
 import type { AgentRoleService } from '../roles/AgentRoleService.js';
 import { AgentExecutor } from './AgentExecutor.js';
-import { ScopedToolRegistry } from '../../../tools/ScopedToolRegistry.js';
-import { logger } from '../../../observability/index.js';
+import { ScopedToolRegistry } from '../../../platform/tools/ScopedToolRegistry.js';
+import { logger } from '../../../platform/observability/index.js';
 import type { ExecutionContext, ExecutionPolicy } from './ExecutionTypes.js';
 import type { ExecutionRegistry } from './ExecutionRegistry.js';
 

@@ -1,15 +1,18 @@
 <template>
   <div class="min-h-screen bg-surface text-on-surface">
-    <header class="fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between border-b border-outline-variant/40 bg-surface-container-lowest/88 px-4 backdrop-blur-xl md:px-6">
+    <header class="fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between border-b border-outline-variant/25 bg-surface-container-lowest/84 px-4 backdrop-blur-xl md:px-6">
       <div class="flex items-center gap-4 md:gap-8">
-        <button class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-outline-variant/20 bg-surface-container-low text-on-surface md:hidden" type="button" @click="mobileMenuOpen = !mobileMenuOpen">
+        <button class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-outline-variant/16 bg-surface-container-lowest/80 text-on-surface md:hidden" type="button" @click="mobileMenuOpen = !mobileMenuOpen">
           <AppIcon name="menu" />
         </button>
-        <p class="font-headline text-lg font-black tracking-[0.04em] text-on-surface">AesyClaw</p>
+        <div>
+          <p class="font-headline text-lg font-black tracking-[0.04em] text-on-surface">AesyClaw</p>
+          <p class="hidden text-[11px] text-on-surface-variant md:block">Console workspace</p>
+        </div>
       </div>
 
       <div class="flex items-center gap-2 md:gap-3">
-        <button class="inline-flex h-10 items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-low px-3 text-xs font-semibold text-on-surface transition-colors hover:bg-surface-container" type="button" @click="toggleTheme">
+        <button class="inline-flex h-10 items-center gap-2 rounded-xl border border-outline-variant/16 bg-surface-container-lowest/80 px-3 text-xs font-semibold text-on-surface transition-colors hover:bg-surface-container-low" type="button" @click="toggleTheme">
           <AppIcon :name="isDark ? 'sun' : 'moon'" size="sm" />
           <span class="hidden sm:inline">{{ isDark ? '浅色' : '深色' }}</span>
         </button>
@@ -19,7 +22,7 @@
     <div v-if="mobileMenuOpen" class="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-[2px] md:hidden" @click="mobileMenuOpen = false"></div>
 
     <aside
-      class="fixed left-0 top-14 z-40 flex h-[calc(100vh-3.5rem)] w-72 flex-col overflow-y-auto border-r border-outline-variant/30 bg-surface-container-low px-4 py-4 transition-transform md:w-64"
+      class="fixed left-0 top-14 z-40 flex h-[calc(100vh-3.5rem)] w-72 flex-col overflow-y-auto border-r border-outline-variant/20 bg-surface-container-lowest/72 px-3 py-4 backdrop-blur-xl transition-transform md:w-64"
       :class="mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'"
     >
       <nav class="flex-1 space-y-1 pt-1">
@@ -27,8 +30,8 @@
           v-for="item in navItems"
           :key="item.path"
           :to="{ path: item.path, query: token ? { token } : {} }"
-          class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold tracking-[0.02em] transition-all"
-          :class="$route.path.startsWith(item.path) ? 'translate-x-1 bg-primary-fixed text-primary shadow-sm shadow-primary/10' : 'text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface'"
+          class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold tracking-[0.02em] transition-colors"
+          :class="$route.path.startsWith(item.path) ? 'bg-surface-container-low text-primary' : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'"
           @click="mobileMenuOpen = false"
         >
           <AppIcon :name="item.icon" />
@@ -36,14 +39,14 @@
         </router-link>
       </nav>
 
-      <div class="mt-6 rounded-2xl bg-surface-container-high p-4 shadow-sm">
+      <div class="mt-6 border-t border-outline-variant/18 px-2 pt-4">
         <p class="cn-kicker text-outline">运行摘要</p>
         <div class="mt-4 space-y-3 text-xs">
           <div class="flex items-center justify-between gap-3">
             <span class="text-on-surface-variant">Agent</span>
             <span
               class="rounded-full px-2 py-0.5 font-bold"
-              :class="runtimeStatus?.agentRunning ? 'bg-primary-fixed text-on-primary-fixed' : 'bg-error-container text-on-error-container'"
+              :class="runtimeStatus?.agentRunning ? 'bg-primary-fixed/70 text-on-primary-fixed' : 'bg-error-container/70 text-on-error-container'"
             >
               {{ runtimeStatus?.agentRunning ? '运行中' : '已停止' }}
             </span>

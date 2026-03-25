@@ -1,15 +1,17 @@
-import type { SessionManager } from '../../session/SessionManager.js';
+import type { Database } from '../../platform/db/index.js';
+import type { SessionManager } from '../sessions/application/SessionManager.js';
 import type {
   LongTermMemoryOperation,
   LongTermMemoryStore
-} from '../../session/LongTermMemoryStore.js';
+} from '../sessions/infrastructure/LongTermMemoryStore.js';
 
 const CRON_CHANNEL = 'cron';
 
 export class MemoryRepository {
   constructor(
     private readonly sessionManager: SessionManager,
-    private readonly longTermMemoryStore: LongTermMemoryStore
+    private readonly longTermMemoryStore: LongTermMemoryStore,
+    private readonly db: Database
   ) {}
 
   async listMemoryRows(): Promise<{
@@ -57,7 +59,7 @@ export class MemoryRepository {
       updated_at: string;
     }>;
   }> {
-    const db = this.sessionManager.getDatabase();
+    const db = this.db;
     await db.ready();
 
     const [sessionRows, entryRows, operationRows, conversationRows] = await Promise.all([
@@ -149,7 +151,7 @@ export class MemoryRepository {
   }
 
   async resolveConversationTarget(rawKey: string): Promise<{ channel: string; chatId: string } | null> {
-    const db = this.sessionManager.getDatabase();
+    const db = this.db;
     const sessionRow = await db.get<{
       key: string;
       channel: string;

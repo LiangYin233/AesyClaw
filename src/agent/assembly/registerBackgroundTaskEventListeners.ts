@@ -1,5 +1,5 @@
-import { logger } from '../../observability/index.js';
-import type { Services } from '../../bootstrap/factory/ServiceFactory.js';
+import { logger } from '../../platform/observability/index.js';
+import type { Services } from '../../app/bootstrap/factory/ServiceFactory.js';
 
 const log = logger.child('RuntimeEvents');
 

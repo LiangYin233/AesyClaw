@@ -13,7 +13,7 @@ import type {
   QuoteReference,
   ResourceHandle
 } from '../../src/channels/core/types.ts';
-import { logger } from '../../src/observability/index.ts';
+import { logger } from '../../src/platform/observability/index.ts';
 
 const WEBSOCKET_ACTION_TIMEOUT = 10000;
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;

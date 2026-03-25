@@ -1,1 +1,1 @@
-export { MCPClientManager } from './MCPClient.js';
+export { MCPClientManager } from '../features/mcp/infrastructure/MCPClientManager.js';

@@ -1,6 +1,6 @@
 import type { ContextMode } from '../../domain/context.js';
 import type { InboundMessage } from '../../../types.js';
-import type { SessionManager } from '../../../session/SessionManager.js';
+import type { SessionManager } from '../../../features/sessions/application/SessionManager.js';
 
 export interface SessionRoute {
   sessionKey: string;

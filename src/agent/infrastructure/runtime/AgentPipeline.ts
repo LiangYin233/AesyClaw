@@ -1,7 +1,7 @@
 import type { InboundMessage, OutboundMessage } from '../../../types.js';
 import type { PluginManager } from '../../../plugins/index.js';
 import type { CommandRegistry } from '../../application/index.js';
-import { logger } from '../../../observability/index.js';
+import { logger } from '../../../platform/observability/index.js';
 
 export type PipelineResult =
   | { type: 'continue'; message: InboundMessage }

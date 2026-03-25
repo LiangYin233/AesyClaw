@@ -1,12 +1,12 @@
 import type { AgentRoleConfig, Config, VisionSettings } from '../../../types.js';
 import { tryParseModelRef } from '../../../config/modelRef.js';
 import { resolveProviderSelection } from '../../../config/resolve.js';
-import type { ToolRegistry } from '../../../tools/ToolRegistry.js';
+import type { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
 import type { SkillManager } from '../../../skills/SkillManager.js';
 import { formatSkillsPrompt } from '../../../skills/promptFormatter.js';
-import { createProvider } from '../../../providers/index.js';
-import { logger } from '../../../observability/index.js';
-import type { LLMProvider } from '../../../providers/base.js';
+import { createProvider } from '../../../platform/providers/index.js';
+import { logger } from '../../../platform/observability/index.js';
+import type { LLMProvider } from '../../../platform/providers/base.js';
 import { DEFAULT_SYSTEM_PROMPT } from '../../../config/schema/shared.js';
 
 export interface ResolvedAgentRole extends AgentRoleConfig {

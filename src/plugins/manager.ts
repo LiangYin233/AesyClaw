@@ -2,7 +2,7 @@ import { readdir, stat } from 'fs/promises';
 import { join } from 'path';
 import { mkdir } from 'fs/promises';
 import type { InboundMessage, OutboundMessage } from '../types.js';
-import { logger as rootLogger } from '../observability/index.js';
+import { logger as rootLogger } from '../platform/observability/index.js';
 import { pathToFileURL } from 'url';
 import {
   createPluginInstance,

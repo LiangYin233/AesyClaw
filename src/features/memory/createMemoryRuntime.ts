@@ -7,9 +7,9 @@ import {
   resolveProviderSelection
 } from '../../config/index.js';
 import type { ResolvedProviderSelection } from '../../config/schema.js';
-import { logger } from '../../observability/index.js';
-import { createProvider } from '../../providers/index.js';
-import { LongTermMemoryStore, SessionManager } from '../../session/index.js';
+import { logger } from '../../platform/observability/index.js';
+import { createProvider } from '../../platform/providers/index.js';
+import { LongTermMemoryStore, SessionManager } from '../sessions/index.js';
 import type { Config } from '../../types.js';
 
 const appLog = logger.child('AesyClaw');

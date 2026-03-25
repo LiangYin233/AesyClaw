@@ -1,6 +1,6 @@
 import type { InboundMessage } from '../../../types.js';
 import type { CommandHandler, CommandDefinition, CommandMatcher } from './CommandHandler.js';
-import { logger } from '../../../observability/index.js';
+import { logger } from '../../../platform/observability/index.js';
 import { normalizeCommandError } from './errors.js';
 
 export class CommandRegistry {

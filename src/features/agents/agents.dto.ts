@@ -1,9 +1,9 @@
 import type { AgentRoleConfig } from '../../types.js';
-import { ValidationError } from '../../api/errors.js';
+import { RequestValidationError } from '../../platform/errors/boundary.js';
 
 export function parseAgentRoleInput(body: unknown, nameFromPath?: string): AgentRoleConfig {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    throw new ValidationError('Agent role payload must be an object');
+    throw new RequestValidationError('Agent role payload must be an object');
   }
 
   const payload = body as Record<string, unknown>;
@@ -19,13 +19,13 @@ export function parseAgentRoleInput(body: unknown, nameFromPath?: string): Agent
     : [];
 
   if (!name) {
-    throw new ValidationError('name is required', 'name');
+    throw new RequestValidationError('name is required', 'name');
   }
   if (!model) {
-    throw new ValidationError('model is required', 'model');
+    throw new RequestValidationError('model is required', 'model');
   }
   if (!systemPrompt) {
-    throw new ValidationError('systemPrompt is required', 'systemPrompt');
+    throw new RequestValidationError('systemPrompt is required', 'systemPrompt');
   }
 
   return {

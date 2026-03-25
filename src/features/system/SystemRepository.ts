@@ -1,9 +1,9 @@
 import type { AgentRuntime } from '../../agent/index.js';
 import type { ChannelManager } from '../../channels/ChannelManager.js';
-import type { SessionManager } from '../../session/SessionManager.js';
-import type { ToolRegistry } from '../../tools/ToolRegistry.js';
+import type { SessionManager } from '../sessions/application/SessionManager.js';
+import type { ToolRegistry } from '../../platform/tools/ToolRegistry.js';
 import type { Config } from '../../types.js';
-import { buildChannelStatusSnapshot, type ChannelStatusSnapshot } from '../shared/channelStatusSnapshot.js';
+import { buildChannelStatusSnapshot, type ChannelStatusSnapshot } from '../channels/application/channelStatusSnapshot.js';
 
 export class SystemRepository {
   constructor(

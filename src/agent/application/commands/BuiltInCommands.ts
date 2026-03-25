@@ -1,8 +1,8 @@
 import type { InboundMessage } from '../../../types.js';
-import type { SessionManager } from '../../../session/SessionManager.js';
+import type { SessionManager } from '../../../features/sessions/application/SessionManager.js';
 import type { AgentRoleService } from '../../infrastructure/roles/AgentRoleService.js';
 import type { SessionRoutingService } from '../../infrastructure/session/SessionRoutingService.js';
-import { logger } from '../../../observability/index.js';
+import { logger } from '../../../platform/observability/index.js';
 import { CommandHandler, type CommandDefinition } from './CommandHandler.js';
 
 interface AbortSessionPort {

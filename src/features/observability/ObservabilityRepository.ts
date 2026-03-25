@@ -1,4 +1,4 @@
-import { logging, tokenUsage, type LogLevel } from '../../observability/index.js';
+import { logging, tokenUsage, type LogLevel } from '../../platform/observability/index.js';
 import type { Config } from '../../types.js';
 
 export class ObservabilityRepository {

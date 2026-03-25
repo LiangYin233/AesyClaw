@@ -1,14 +1,14 @@
 import type { InboundMessage, OutboundMessage } from '../../../types.js';
-import type { LLMProvider } from '../../../providers/base.js';
+import type { LLMProvider } from '../../../platform/providers/base.js';
 import type { PluginManager } from '../../../plugins/index.js';
-import type { ToolRegistry, ToolContext } from '../../../tools/ToolRegistry.js';
-import type { SessionManager } from '../../../session/SessionManager.js';
+import type { ToolRegistry, ToolContext } from '../../../platform/tools/ToolRegistry.js';
+import type { SessionManager } from '../../../features/sessions/application/SessionManager.js';
 import type { CommandRegistry } from '../../application/index.js';
 import type { SessionMemoryService } from '../memory/SessionMemoryService.js';
 import type { SessionRoutingService } from '../session/SessionRoutingService.js';
 import type { AgentRoleService } from '../roles/AgentRoleService.js';
 import type { VisionSettings } from '../../../types.js';
-import { logger } from '../../../observability/index.js';
+import { logger } from '../../../platform/observability/index.js';
 import { DEFAULT_SYSTEM_PROMPT } from '../../../config/schema/shared.js';
 import { AgentPipeline } from './AgentPipeline.js';
 import { SessionResolver } from '../session/SessionResolver.js';
@@ -22,8 +22,8 @@ import {
   mapSessionReference,
   type SessionReference
 } from '../../domain/session.js';
-import type { EventBus } from '../../../events/EventBus.js';
-import type { AesyClawEvents } from '../../../events/events.js';
+import type { EventBus } from '../../../platform/events/EventBus.js';
+import type { AesyClawEvents } from '../../../platform/events/events.js';
 import { OutboundGateway } from '../../facade/OutboundGateway.js';
 import {
   handleDirectMessage,

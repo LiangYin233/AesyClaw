@@ -1,4 +1,4 @@
-import { logger, preview } from '../../../observability/index.js';
+import { logger, preview } from '../../../platform/observability/index.js';
 
 const DEFAULT_API_BASE = 'https://api.openai.com/v1';
 

@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import matter from 'gray-matter';
 import { normalizeSkillError } from './errors.js';
-import { logger } from '../observability/index.js';
+import { logger } from '../platform/observability/index.js';
 import type { Config } from '../types.js';
 import { formatSkillsPrompt } from './promptFormatter.js';
 

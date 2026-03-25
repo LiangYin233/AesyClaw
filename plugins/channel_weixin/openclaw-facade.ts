@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import qrcodeTerminal from 'qrcode-terminal';
-import { logger as baseLogger } from '../../src/observability/index.ts';
+import { logger as baseLogger } from '../../src/platform/observability/index.ts';
 import type { ResourceHandle } from '../../src/channels/core/types.ts';
 import type { WeixinMessageItem } from './message-mapping.ts';
 import { downloadMediaFromItem } from '@tencent-weixin/openclaw-weixin/src/media/media-download.ts';

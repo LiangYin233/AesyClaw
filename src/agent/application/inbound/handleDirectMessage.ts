@@ -1,4 +1,4 @@
-import type { ToolContext } from '../../../tools/ToolRegistry.js';
+import type { ToolContext } from '../../../platform/tools/ToolRegistry.js';
 import type { InboundMessage } from '../../../types.js';
 import { deriveSessionReference, type SessionReference } from '../../domain/session.js';
 import type {

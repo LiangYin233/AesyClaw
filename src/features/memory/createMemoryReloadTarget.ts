@@ -1,6 +1,6 @@
 import { getMemoryConfig } from '../../config/index.js';
 import type { ConfigReloadTargets } from '../../config/reload/ports/ReloadTargets.js';
-import type { Services } from '../../bootstrap/factory/ServiceFactory.js';
+import type { Services } from '../../app/bootstrap/factory/ServiceFactory.js';
 import { createMemoryRuntime } from './createMemoryRuntime.js';
 
 export function createMemoryReloadTarget(services: Services): NonNullable<ConfigReloadTargets['memory']> {

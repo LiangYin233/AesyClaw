@@ -1,5 +1,5 @@
 import type { Express } from 'express';
-import { asyncHandler } from '../../api/middleware/async-handler.js';
+import { asyncHandler } from '../../app/api/middleware/async-handler.js';
 import { ObservabilityApiService } from './ObservabilityApiService.js';
 import { parseLoggingEntriesQuery, parseLoggingLevelUpdate } from './observability.dto.js';
 

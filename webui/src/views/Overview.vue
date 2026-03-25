@@ -5,10 +5,10 @@
         <div>
           <p class="cn-kicker text-outline">总览</p>
           <h1 class="cn-page-title mt-2 text-on-surface">系统运行总览</h1>
-          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">这里会集中展示系统状态、活跃会话、Token 使用和关键风险，方便先快速了解当前整体运行情况。</p>
+          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">先看风险、事件和活跃会话，再决定是否进入 Agent、MCP 或日志页继续处理。</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
-          <button class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface shadow-sm transition-colors hover:bg-surface-container-high" type="button" :disabled="refreshing" @click="loadOverview">
+          <button class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/16 bg-surface-container-lowest/80 px-4 py-2.5 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-low" type="button" :disabled="refreshing" @click="loadOverview">
             <AppIcon name="refresh" size="sm" />
             刷新
           </button>
@@ -25,160 +25,189 @@
         </div>
       </div>
 
-      <div class="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <article class="rounded-2xl bg-surface-container-lowest p-5 shadow-sm">
-          <div class="mb-3 flex items-start justify-between">
-            <AppIcon name="panel" class="text-primary" />
-            <span class="rounded bg-primary-fixed px-2 py-0.5 text-[10px] font-bold text-on-primary-fixed">{{ status?.agentRunning ? '运行中' : '已停止' }}</span>
+      <section class="workspace-shell mb-8 rounded-[1.75rem] px-6 py-5">
+        <div class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <div class="workspace-kpi">
+            <span class="workspace-kpi-label">运行状态</span>
+            <div class="flex items-center gap-3">
+              <span class="workspace-kpi-value">{{ status?.agentRunning ? '运行中' : '已停止' }}</span>
+              <span
+                class="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                :class="status?.agentRunning ? 'bg-primary-fixed/75 text-on-primary-fixed' : 'bg-error-container/80 text-on-error-container'"
+              >
+                {{ status?.version || '-' }}
+              </span>
+            </div>
+            <span class="workspace-kpi-note">运行时长 {{ status ? formatUptime(status.uptime) : '-' }}</span>
           </div>
-          <p class="cn-kicker text-outline">当前版本</p>
-          <p class="cn-metric mt-1 text-on-surface">{{ status?.version || '-' }}</p>
-          <p class="mt-2 text-xs text-on-surface-variant">运行时长：{{ status ? formatUptime(status.uptime) : '-' }}</p>
-        </article>
-
-        <article class="rounded-2xl bg-surface-container-lowest p-5 shadow-sm">
-          <div class="mb-3 flex items-start justify-between">
-            <AppIcon name="sessions" class="text-tertiary" />
-            <span class="rounded bg-tertiary-fixed px-2 py-0.5 text-[10px] font-bold text-on-tertiary-fixed">活跃</span>
+          <div class="workspace-kpi">
+            <span class="workspace-kpi-label">会话负载</span>
+            <span class="workspace-kpi-value">{{ sessions.length }} 个会话</span>
+            <span class="workspace-kpi-note">累计消息 {{ formatNumber(totalMessages) }}</span>
           </div>
-          <p class="cn-kicker text-outline">会话数量</p>
-          <p class="cn-metric mt-1 text-on-surface">{{ sessions.length }} 个会话</p>
-          <p class="mt-2 text-xs font-medium text-on-surface-variant">
-            消息总数 {{ totalMessages }}
-          </p>
-        </article>
-
-        <article class="rounded-2xl bg-surface-container-lowest p-5 shadow-sm">
-          <div class="mb-3 flex items-start justify-between">
-            <AppIcon name="agents" class="text-sky-600" />
-            <span class="text-[10px] font-bold text-outline">{{ readyAgents }}/{{ agents.length || 0 }} 就绪</span>
+          <div class="workspace-kpi">
+            <span class="workspace-kpi-label">角色准备度</span>
+            <span class="workspace-kpi-value">{{ readyAgents }}/{{ agents.length || 0 }} 就绪</span>
+            <span class="workspace-kpi-note">{{ missingAgentCount }} 个角色需要补齐技能或工具</span>
           </div>
-          <p class="cn-kicker text-outline">Agent 集群</p>
-          <p class="cn-metric mt-1 text-on-surface">{{ agents.length }} 个角色</p>
-          <p class="mt-2 flex items-center gap-1 text-xs font-medium text-primary">
-            <span class="inline-block size-1.5 rounded-full bg-primary"></span>
-            {{ missingAgentCount }} 个角色需关注
-          </p>
-        </article>
-
-        <article class="rounded-2xl bg-surface-container-lowest p-5 shadow-sm">
-          <div class="mb-3 flex items-start justify-between">
-            <AppIcon name="mcp" :class="disconnectedServers > 0 ? 'text-orange-600' : 'text-emerald-600'" />
-            <span
-              class="rounded px-2 py-0.5 text-[10px] font-bold"
-              :class="disconnectedServers > 0 ? 'bg-error-container text-on-error-container' : 'bg-emerald-100 text-emerald-700'"
-            >{{ disconnectedServers > 0 ? `${disconnectedServers} 异常` : '正常' }}</span>
+          <div class="workspace-kpi">
+            <span class="workspace-kpi-label">系统依赖</span>
+            <span class="workspace-kpi-value">{{ servers.length }} 个 MCP 服务</span>
+            <span class="workspace-kpi-note">{{ disconnectedServers > 0 ? `${disconnectedServers} 个服务未连接` : '所有服务连接正常' }}</span>
           </div>
-          <p class="cn-kicker text-outline">MCP 服务</p>
-          <p class="cn-metric mt-1 text-on-surface">{{ servers.length }} 个服务</p>
-          <p class="mt-2 flex items-center gap-1 text-xs font-medium" :class="disconnectedServers > 0 ? 'text-error' : 'text-emerald-600'">
-            <AppIcon :name="disconnectedServers > 0 ? 'warning' : 'check'" size="sm" :class="disconnectedServers > 0 ? 'text-error' : 'text-emerald-600'" />
-            {{ disconnectedServers > 0 ? '存在未连接服务' : '运行正常' }}
-          </p>
-        </article>
-
-        <article class="rounded-2xl bg-surface-container-lowest p-5 shadow-sm">
-          <div class="mb-3 flex items-start justify-between">
-            <AppIcon name="observability" class="text-outline" />
-          </div>
-          <p class="cn-kicker text-outline">Token 使用</p>
-          <p class="cn-metric mt-1 text-on-surface">{{ usageStats ? formatNumber(usageStats.totalTokens) : '-' }}</p>
-          <p class="mt-2 text-xs text-on-surface-variant">{{ usageStats ? `${formatNumber(usageStats.requestCount)} 次请求` : '暂无统计' }}</p>
-        </article>
-      </div>
-
-      <section class="mb-8 rounded-2xl bg-surface-container-lowest p-6 shadow-sm">
-        <div class="mb-6 flex items-center justify-between gap-3">
-          <h3 class="font-headline text-lg font-bold text-on-surface">运行事件流</h3>
-          <router-link :to="{ path: '/observability/logs', query: token ? { token } : {} }" class="text-xs font-bold tracking-[0.08em] text-primary hover:underline">查看日志</router-link>
-        </div>
-        <div class="flex items-center gap-4 overflow-x-auto pb-2">
-          <template v-if="recentEvents.length > 0">
-            <template v-for="(entry, index) in recentEvents" :key="entry.id">
-              <div class="flex shrink-0 items-center gap-3 rounded-2xl border-l-4 bg-surface-container-low px-4 py-3" :class="eventBorderClass(entry.level)">
-                <AppIcon :name="eventIcon(entry.level)" class="text-primary" />
-                <div>
-                  <p class="text-xs font-bold text-on-surface">{{ eventTitle(entry) }}</p>
-                  <p class="tech-text mt-1 text-[10px] text-outline">{{ formatDateTime(entry.timestamp) }} · {{ levelLabel(entry.level) }}</p>
-                </div>
-              </div>
-              <div v-if="index < recentEvents.length - 1" class="h-px w-8 shrink-0 bg-outline-variant/30"></div>
-            </template>
-          </template>
-          <div v-else class="rounded-2xl bg-surface-container-low px-4 py-3 text-sm text-on-surface-variant">暂无可展示的运行事件。</div>
         </div>
       </section>
 
-      <div class="grid grid-cols-1 gap-8 xl:grid-cols-3">
-        <div class="space-y-4 xl:col-span-2">
-          <div class="flex items-center justify-between">
-            <h3 class="font-headline text-lg font-bold text-on-surface">最近活跃会话</h3>
-            <router-link :to="{ path: '/sessions', query: token ? { token } : {} }" class="text-xs font-bold tracking-[0.08em] text-primary hover:underline">查看全部</router-link>
+      <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.4fr)_22rem]">
+        <section class="workspace-shell overflow-hidden rounded-[1.75rem]">
+          <div class="border-b workspace-divider px-6 py-5">
+            <div class="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p class="cn-section-title text-on-surface">运行工作区</p>
+                <p class="mt-1 text-sm text-on-surface-variant">把需要优先处理的风险、关键事件和最新会话放在同一视图里。</p>
+              </div>
+              <router-link :to="{ path: '/observability/logs', query: token ? { token } : {} }" class="text-xs font-bold tracking-[0.08em] text-primary hover:underline">打开日志流</router-link>
+            </div>
           </div>
-          <div class="overflow-hidden rounded-2xl bg-surface-container-lowest shadow-sm">
-            <table class="w-full border-collapse text-left text-sm">
-              <thead>
-                <tr class="border-b border-outline-variant/10 bg-surface-container-low">
-                  <th class="px-5 py-4 text-left text-[11px] font-bold tracking-[0.08em] text-outline">会话</th>
-                  <th class="px-5 py-4 text-left text-[11px] font-bold tracking-[0.08em] text-outline">Agent</th>
-                  <th class="px-5 py-4 text-left text-[11px] font-bold tracking-[0.08em] text-outline">消息数</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-outline-variant/10">
-                <tr v-for="session in recentSessions" :key="session.key" class="cursor-pointer transition-colors hover:bg-surface-container-low/60" @click="openSession(session.key)">
-                  <td class="px-5 py-4">
-                    <div class="flex items-center gap-3">
-                      <span class="inline-block size-2 rounded-full" :class="session.messageCount > 0 ? 'bg-primary' : 'bg-outline-variant'"></span>
-                      <div>
-                        <p class="font-semibold text-on-surface">{{ session.chatId || session.key }}</p>
-                        <p class="mt-1 text-[11px] text-outline">渠道：{{ session.channel || '未知' }}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td class="px-5 py-4">
-                    <span class="rounded-lg bg-surface-container-high px-2 py-1 text-[11px] font-mono text-on-surface">{{ session.agentName || 'main' }}</span>
-                  </td>
-                  <td class="px-5 py-4 font-mono text-xs text-on-surface-variant">{{ formatNumber(session.messageCount) }}</td>
-                </tr>
-                <tr v-if="recentSessions.length === 0">
-                  <td colspan="3" class="px-5 py-8 text-center text-sm text-on-surface-variant">还没有可展示的会话记录。</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
 
-        <div class="space-y-4">
-          <h3 class="font-headline text-lg font-bold text-on-surface">关键关注项</h3>
-          <div class="space-y-3 rounded-2xl bg-surface-container-lowest p-4 shadow-sm">
-            <div v-for="alert in criticalAlerts" :key="alert.title" class="rounded-xl border-l-4 px-4 py-4" :class="alert.tone">
-              <div class="flex items-start gap-4">
-                <AppIcon :name="alert.icon" class="mt-0.5" />
-                <div class="min-w-0 flex-1">
-                  <p class="text-xs font-bold text-on-background">{{ alert.title }}</p>
-                  <p class="mt-1 text-[11px] leading-5 text-on-surface-variant">{{ alert.description }}</p>
-                  <button v-if="alert.action" class="mt-3 text-[11px] font-bold tracking-[0.08em] text-primary hover:underline" type="button" @click="goTo(alert.action.path)">
-                    {{ alert.action.label }}
-                  </button>
+          <div class="grid grid-cols-1 xl:grid-cols-[0.9fr_1.1fr]">
+            <section class="border-b workspace-divider px-6 py-5 xl:border-b-0 xl:border-r">
+              <div class="mb-4 flex items-center justify-between gap-3">
+                <h2 class="text-sm font-bold text-on-surface">关键关注项</h2>
+                <span class="text-[11px] text-outline">{{ criticalAlerts.length ? `${criticalAlerts.length} 项待处理` : '无高优先级风险' }}</span>
+              </div>
+              <div class="space-y-3">
+                <div v-for="alert in criticalAlerts" :key="alert.title" class="workspace-subtle rounded-2xl px-4 py-4">
+                  <div class="flex items-start gap-3">
+                    <AppIcon :name="alert.icon" class="mt-0.5 text-primary" />
+                    <div class="min-w-0 flex-1">
+                      <p class="text-sm font-semibold text-on-surface">{{ alert.title }}</p>
+                      <p class="mt-1 text-xs leading-6 text-on-surface-variant">{{ alert.description }}</p>
+                      <button v-if="alert.action" class="mt-3 text-[11px] font-bold tracking-[0.08em] text-primary hover:underline" type="button" @click="goTo(alert.action.path)">
+                        {{ alert.action.label }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="criticalAlerts.length === 0" class="workspace-subtle rounded-2xl px-4 py-4 text-sm text-on-surface-variant">
+                  当前没有高优先级风险，Agent、MCP 和日志状态都比较稳定。
                 </div>
               </div>
-            </div>
-            <div v-if="criticalAlerts.length === 0" class="rounded-xl bg-surface-container-low px-4 py-4 text-sm text-on-surface-variant">当前没有高优先级风险项，系统运行平稳。</div>
+            </section>
+
+            <section class="px-6 py-5">
+              <div class="mb-4 flex items-center justify-between gap-3">
+                <h2 class="text-sm font-bold text-on-surface">关键事件</h2>
+                <span class="text-[11px] text-outline">最近 {{ recentEvents.length }} 条</span>
+              </div>
+              <div class="space-y-3">
+                <div v-for="entry in recentEvents" :key="entry.id" class="workspace-subtle rounded-2xl px-4 py-4">
+                  <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="min-w-0 flex-1">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <span
+                          class="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                          :class="entry.level === 'error'
+                            ? 'bg-error-container text-on-error-container'
+                            : entry.level === 'warn'
+                              ? 'bg-tertiary-fixed text-on-tertiary-fixed'
+                              : 'bg-primary-fixed/75 text-on-primary-fixed'"
+                        >
+                          {{ levelLabel(entry.level) }}
+                        </span>
+                        <span class="tech-text text-[11px] text-outline">{{ entry.scope || 'root' }}</span>
+                      </div>
+                      <p class="mt-3 text-sm font-semibold text-on-surface">{{ eventTitle(entry) }}</p>
+                    </div>
+                    <div class="shrink-0 text-left sm:text-right">
+                      <p class="tech-text text-[11px] text-outline">{{ formatDateTime(entry.timestamp) }}</p>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="recentEvents.length === 0" class="workspace-subtle rounded-2xl px-4 py-4 text-sm text-on-surface-variant">
+                  暂无需要特别关注的事件。
+                </div>
+              </div>
+            </section>
           </div>
 
-          <div class="relative overflow-hidden rounded-2xl bg-primary p-6 text-white shadow-xl shadow-primary/20">
-            <div class="absolute -bottom-5 -right-5 opacity-10">
-              <AppIcon name="rocket" size="xl" class="size-28" />
+          <div class="border-t workspace-divider px-6 py-5">
+            <div class="mb-4 flex items-center justify-between">
+              <h2 class="text-sm font-bold text-on-surface">最近活跃会话</h2>
+              <router-link :to="{ path: '/sessions', query: token ? { token } : {} }" class="text-xs font-bold tracking-[0.08em] text-primary hover:underline">查看全部</router-link>
             </div>
-            <p class="cn-kicker opacity-70">快速入口</p>
-            <h4 class="mt-2 font-headline text-xl font-extrabold">从主角色开始</h4>
-            <p class="mt-2 text-sm leading-6 opacity-80">配置模型与系统提示词，再绑定所需技能与工具。</p>
-            <router-link :to="{ path: '/agents', query: token ? { token } : {} }" class="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-primary transition hover:bg-white/90">
-              前往 Agent 页
-              <AppIcon name="arrowRight" size="sm" />
-            </router-link>
+            <div class="overflow-hidden rounded-2xl">
+              <table class="w-full border-collapse text-left text-sm">
+                <thead>
+                  <tr class="border-b border-outline-variant/12 text-outline">
+                    <th class="px-0 py-3 text-left text-[11px] font-bold tracking-[0.08em]">会话</th>
+                    <th class="px-4 py-3 text-left text-[11px] font-bold tracking-[0.08em]">Agent</th>
+                    <th class="px-0 py-3 text-left text-[11px] font-bold tracking-[0.08em]">消息数</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant/10">
+                  <tr v-for="session in recentSessions" :key="session.key" class="cursor-pointer transition-colors hover:bg-surface-container-low/35" @click="openSession(session.key)">
+                    <td class="px-0 py-4">
+                      <div class="flex items-center gap-3">
+                        <span class="inline-block size-2 rounded-full" :class="session.messageCount > 0 ? 'bg-primary' : 'bg-outline-variant'"></span>
+                        <div class="min-w-0">
+                          <p class="truncate font-semibold text-on-surface">{{ session.chatId || session.key }}</p>
+                          <p class="mt-1 text-[11px] text-outline">渠道 {{ session.channel || '未知' }}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="px-4 py-4">
+                      <span class="rounded-full bg-surface-container-low px-2.5 py-1 text-[11px] font-mono text-on-surface">{{ session.agentName || 'main' }}</span>
+                    </td>
+                    <td class="px-0 py-4 font-mono text-xs text-on-surface-variant">{{ formatNumber(session.messageCount) }}</td>
+                  </tr>
+                  <tr v-if="recentSessions.length === 0">
+                    <td colspan="3" class="px-0 py-8 text-center text-sm text-on-surface-variant">还没有可展示的会话记录。</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        </section>
+
+        <aside class="space-y-4">
+          <section class="workspace-shell rounded-[1.6rem] px-5 py-5">
+            <p class="cn-kicker text-outline">状态摘要</p>
+            <div class="mt-4 space-y-4">
+              <div>
+                <p class="text-xs text-outline">版本</p>
+                <p class="mt-1 text-sm font-semibold text-on-surface">{{ status?.version || '-' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-outline">Token 总量</p>
+                <p class="mt-1 text-sm font-semibold text-on-surface">{{ usageStats ? formatNumber(usageStats.totalTokens) : '-' }}</p>
+                <p class="mt-1 text-[11px] text-on-surface-variant">{{ usageStats ? `${formatNumber(usageStats.requestCount)} 次请求` : '暂无统计' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-outline">MCP 连接</p>
+                <p class="mt-1 text-sm font-semibold text-on-surface">{{ disconnectedServers > 0 ? '需要处理异常连接' : '连接正常' }}</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="workspace-shell rounded-[1.6rem] px-5 py-5">
+            <p class="cn-kicker text-outline">常用入口</p>
+            <div class="mt-4 space-y-2">
+              <button class="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm text-on-surface transition hover:bg-surface-container-low" type="button" @click="goTo('/agents')">
+                <span>检查 Agent 配置</span>
+                <AppIcon name="arrowRight" size="sm" class="text-outline" />
+              </button>
+              <button class="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm text-on-surface transition hover:bg-surface-container-low" type="button" @click="goTo('/mcp')">
+                <span>检查 MCP 连接</span>
+                <AppIcon name="arrowRight" size="sm" class="text-outline" />
+              </button>
+              <button class="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm text-on-surface transition hover:bg-surface-container-low" type="button" @click="goTo('/observability/logs')">
+                <span>进入观测日志</span>
+                <AppIcon name="arrowRight" size="sm" class="text-outline" />
+              </button>
+            </div>
+          </section>
+        </aside>
       </div>
     </div>
   </div>
@@ -266,17 +295,6 @@ const criticalAlerts = computed(() => {
 function levelLabel(level: ObservabilityLogEntry['level']) {
   const map = { debug: '调试', info: '信息', warn: '警告', error: '错误' };
   return map[level] || level;
-}
-
-function eventBorderClass(level: ObservabilityLogEntry['level']) {
-  if (level === 'error') return 'border-error';
-  if (level === 'warn') return 'border-tertiary';
-  return 'border-primary';
-}
-
-function eventIcon(level: ObservabilityLogEntry['level']) {
-  if (level === 'error' || level === 'warn') return 'warning';
-  return 'refresh';
 }
 
 function eventTitle(entry: ObservabilityLogEntry) {

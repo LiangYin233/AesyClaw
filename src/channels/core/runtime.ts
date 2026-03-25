@@ -1,7 +1,7 @@
 import { join } from 'path';
 import { randomUUID } from 'crypto';
-import type { Database } from '../../db/index.js';
-import { logger } from '../../observability/index.js';
+import type { Database } from '../../platform/db/index.js';
+import { logger } from '../../platform/observability/index.js';
 import type { InboundMessage, OutboundMessage } from '../../types.js';
 import type { ChannelAdapter } from './adapter.js';
 import { DeliveryQueue } from './delivery-queue.js';

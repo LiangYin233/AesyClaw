@@ -5,11 +5,11 @@
         <div>
           <p class="cn-kicker text-outline">观测</p>
           <h1 class="cn-page-title mt-2 text-on-surface">日志观测面板</h1>
-          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">查看运行日志，支持等级筛选和实时调整日志级别，便于快速定位问题。</p>
+          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">先看日志流，再根据等级、缓冲区占用和 Token 统计判断是否需要调整运行级别。</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <button
-            class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface shadow-sm transition-colors hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-60"
+            class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/16 bg-surface-container-lowest/80 px-4 py-2.5 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-60"
             type="button"
             :disabled="loading"
             @click="loadLogsPage"
@@ -19,7 +19,7 @@
           </button>
           <button
             class="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition"
-            :class="autoRefresh ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'border border-outline-variant/20 bg-surface-container-lowest text-on-surface'"
+            :class="autoRefresh ? 'bg-primary text-white' : 'border border-outline-variant/16 bg-surface-container-lowest/80 text-on-surface'"
             type="button"
             @click="autoRefresh = !autoRefresh"
           >
@@ -39,48 +39,41 @@
         </div>
       </div>
 
-      <div class="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <article class="hairline-card rounded-2xl p-5">
-          <div class="mb-3 flex items-start justify-between">
-            <AppIcon name="panel" class="text-tertiary" />
-            <span class="rounded-full bg-tertiary-fixed px-2 py-0.5 text-[10px] font-bold text-on-tertiary-fixed">{{ bufferUsagePercent }}</span>
+      <section class="workspace-shell mb-6 rounded-[1.75rem] px-6 py-5">
+        <div class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <div class="workspace-kpi">
+            <span class="workspace-kpi-label">缓冲区占用</span>
+            <span class="workspace-kpi-value">{{ currentBufferSize }} / {{ bufferCapacity }}</span>
+            <span class="workspace-kpi-note">当前使用 {{ bufferUsagePercent }}</span>
           </div>
-          <p class="cn-kicker text-outline">日志条目数</p>
-          <p class="cn-metric mt-1 text-on-surface">{{ currentBufferSize }}</p>
-          <p class="tech-text mt-2 text-xs text-on-surface-variant">最大容量 {{ bufferCapacity }}</p>
-        </article>
-
-        <article class="hairline-card rounded-2xl p-5">
-          <div class="mb-3 flex items-start justify-between">
-            <AppIcon name="history" class="text-sky-600" />
-            <span class="rounded-full bg-surface-container-low px-2 py-0.5 text-[10px] font-bold text-outline">本次视图</span>
+          <div class="workspace-kpi">
+            <span class="workspace-kpi-label">当前视图</span>
+            <span class="workspace-kpi-value">{{ formatNumber(entries.length) }} 条</span>
+            <span class="workspace-kpi-note">{{ levelFilter === 'all' ? '全部等级' : `${levelLabel(levelFilter)} 级` }}</span>
           </div>
-          <p class="cn-kicker text-outline">已加载条目</p>
-          <p class="cn-metric mt-1 text-on-surface">{{ formatNumber(entries.length) }}</p>
-          <p class="mt-2 text-xs text-on-surface-variant">筛选条件：{{ levelFilter === 'all' ? '全部等级' : `${levelLabel(levelFilter)} 级` }}</p>
-        </article>
-
-        <article class="hairline-card rounded-2xl p-5">
-          <div class="mb-3 flex items-start justify-between">
-            <AppIcon name="refresh" class="text-orange-600" />
-            <span class="rounded-full bg-surface-container-low px-2 py-0.5 text-[10px] font-bold text-outline">{{ autoRefresh ? '10s' : '手动' }}</span>
+          <div class="workspace-kpi">
+            <span class="workspace-kpi-label">刷新状态</span>
+            <span class="workspace-kpi-value">{{ autoRefresh ? '自动刷新' : '手动刷新' }}</span>
+            <span class="workspace-kpi-note">{{ lastUpdatedLabel }} · {{ lastUpdatedTime }}</span>
           </div>
-          <p class="cn-kicker text-outline">最近刷新</p>
-          <p class="cn-metric mt-1 text-on-surface text-[1.5rem]">{{ lastUpdatedLabel }}</p>
-          <p class="tech-text mt-2 text-xs text-on-surface-variant">{{ lastUpdatedTime }}</p>
-        </article>
-      </div>
+          <div class="workspace-kpi">
+            <span class="workspace-kpi-label">运行日志等级</span>
+            <span class="workspace-kpi-value">{{ levelLabel(runtimeLevel) }}</span>
+            <span class="workspace-kpi-note">修改后会立即作用于运行时</span>
+          </div>
+        </div>
+      </section>
 
-      <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <section class="hairline-card overflow-hidden rounded-[1.6rem]">
-          <div class="flex flex-col gap-4 border-b border-outline-variant/18 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+      <div class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        <section class="workspace-shell overflow-hidden rounded-[1.75rem]">
+          <div class="flex flex-col gap-4 border-b workspace-divider px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 class="cn-section-title text-on-surface">实时日志流</h2>
-              <p class="mt-1 text-sm text-on-surface-variant">按时间倒序显示缓冲区中的最新日志，保留精确时间戳和字段摘要。</p>
+              <p class="mt-1 text-sm text-on-surface-variant">按时间倒序显示缓冲区中的最新日志，保留时间戳、scope 和字段摘要。</p>
             </div>
 
             <div class="flex flex-wrap gap-3">
-              <label class="flex items-center gap-2 rounded-xl border border-outline-variant/18 bg-surface-container-low px-3 py-2 text-sm text-on-surface">
+              <label class="flex items-center gap-2 rounded-xl border border-outline-variant/14 bg-surface-container-low/50 px-3 py-2 text-sm text-on-surface">
                 <span class="text-outline">筛选等级</span>
                 <select v-model="levelFilter" class="rounded-lg bg-surface-container-lowest px-2 py-1 outline-none">
                   <option value="all">全部</option>
@@ -88,7 +81,7 @@
                 </select>
               </label>
 
-              <label class="flex items-center gap-2 rounded-xl border border-outline-variant/18 bg-surface-container-low px-3 py-2 text-sm text-on-surface">
+              <label class="flex items-center gap-2 rounded-xl border border-outline-variant/14 bg-surface-container-low/50 px-3 py-2 text-sm text-on-surface">
                 <span class="text-outline">载入数量</span>
                 <select v-model.number="limit" class="rounded-lg bg-surface-container-lowest px-2 py-1 outline-none">
                   <option :value="100">100</option>
@@ -102,7 +95,7 @@
           <div v-if="loading" class="flex h-[46rem] items-center justify-center px-5 text-center text-sm text-on-surface-variant">正在拉取日志数据...</div>
 
           <div v-else-if="entries.length" class="h-[46rem] overflow-y-auto divide-y divide-outline-variant/14">
-            <article v-for="entry in entries" :key="entry.id" class="px-5 py-4 transition-colors hover:bg-surface-container-low/45">
+            <article v-for="entry in entries" :key="entry.id" class="px-6 py-4 transition-colors hover:bg-surface-container-low/28">
               <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0 flex-1">
                   <div class="flex flex-wrap items-center gap-2">
@@ -133,19 +126,19 @@
         </section>
 
         <aside class="space-y-6">
-          <section class="hairline-card rounded-[1.6rem] p-5">
+          <section class="workspace-shell rounded-[1.6rem] p-5">
             <p class="cn-kicker text-outline">运行控制</p>
             <h2 class="cn-section-title mt-2 text-on-surface">调整日志等级</h2>
             <p class="mt-2 text-sm text-on-surface-variant">更新后立即作用于内存日志服务，并尝试写回配置。</p>
             <div class="mt-4 space-y-3">
               <label class="block">
                 <span class="mb-2 block text-sm text-outline">目标等级</span>
-                <select v-model="levelDraft" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface outline-none">
+                <select v-model="levelDraft" class="w-full rounded-xl border border-outline-variant/16 bg-surface-container-lowest px-3 py-2.5 text-sm text-on-surface outline-none">
                   <option v-for="level in levels" :key="level" :value="level">{{ levelLabel(level) }}</option>
                 </select>
               </label>
               <button
-                class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+                class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
                 type="button"
                 :disabled="savingLevel || levelDraft === runtimeLevel"
                 @click="updateRuntimeLevel"
@@ -156,11 +149,11 @@
             </div>
           </section>
 
-          <section class="hairline-card rounded-[1.6rem] p-5">
+          <section class="workspace-shell rounded-[1.6rem] p-5">
             <p class="cn-kicker text-outline">用量统计</p>
             <h2 class="cn-section-title mt-2 text-on-surface">Token 消耗</h2>
             <div class="mt-4 space-y-4">
-              <div class="rounded-xl bg-surface-container-low p-4">
+              <div class="workspace-subtle rounded-xl p-4">
                 <div class="grid grid-cols-2 gap-4">
                   <div>
                     <p class="text-xs text-outline">总消耗</p>
@@ -175,13 +168,13 @@
                   </div>
                 </div>
               </div>
-              <div class="rounded-xl bg-surface-container-low p-4">
+              <div class="workspace-subtle rounded-xl p-4">
                 <p class="text-xs text-outline">今日消耗</p>
                 <p class="mt-1 text-sm font-bold text-on-surface">
                   {{ todayStats ? formatNumber(todayStats.promptTokens) : '-' }}<span class="text-xs font-normal text-outline"> / </span>{{ todayStats ? formatNumber(todayStats.completionTokens) : '-' }}
                 </p>
               </div>
-              <div v-if="pastWeekStats.length" class="rounded-xl bg-surface-container-low p-4">
+              <div v-if="pastWeekStats.length" class="workspace-subtle rounded-xl p-4">
                 <p class="mb-3 text-xs text-outline">近 {{ pastWeekStats.length }} 天趋势</p>
                 <div class="space-y-2">
                   <div v-for="day in pastWeekStats" :key="day.date" class="flex items-center justify-between text-xs">

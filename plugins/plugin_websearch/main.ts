@@ -1,5 +1,5 @@
 import { definePlugin } from '../../src/plugins/index.ts';
-import { preview } from '../../src/observability/index.ts';
+import { preview } from '../../src/platform/observability/index.ts';
 
 type TavilySearchDepth = 'basic' | 'advanced' | 'fast' | 'ultra-fast';
 

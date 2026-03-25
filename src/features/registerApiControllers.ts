@@ -1,28 +1,65 @@
 import type { ApiFeatureControllerDeps } from './featureDeps.js';
 import { registerAgentsFeature } from './agents/registerAgentsFeature.js';
-import { registerChannelsFeature } from './channels/registerChannelsFeature.js';
-import { registerChatFeature } from './chat/registerChatFeature.js';
-import { registerConfigFeature } from './config/registerConfigFeature.js';
-import { registerCronFeature } from './cron/registerCronFeature.js';
-import { registerMcpFeature } from './mcp/registerMcpFeature.js';
+import { registerChannelsFeature } from './channels/index.js';
+import { registerChatFeature } from './chat/index.js';
+import { registerConfigFeature } from './config/index.js';
+import { registerCronFeature } from './cron/index.js';
+import { registerMcpFeature } from './mcp/index.js';
 import { registerMemoryFeature } from './memory/registerMemoryFeature.js';
 import { registerObservabilityFeature } from './observability/registerObservabilityFeature.js';
-import { registerPluginsFeature } from './plugins/registerPluginsFeature.js';
-import { registerSessionsFeature } from './sessions/registerSessionsFeature.js';
+import { registerPluginsFeature } from './plugins/index.js';
+import { registerSessionsFeature } from './sessions/index.js';
 import { registerSkillsFeature } from './skills/registerSkillsFeature.js';
 import { registerSystemFeature } from './system/registerSystemFeature.js';
 
 export function registerApiControllers(deps: ApiFeatureControllerDeps): void {
   registerSystemFeature(deps);
-  registerSessionsFeature(deps);
+  registerSessionsFeature({
+    app: deps.app,
+    sessionManager: deps.sessionManager,
+    sessionRouting: deps.sessionRouting,
+    agentRoleService: deps.agentRoleService
+  });
   registerAgentsFeature(deps);
-  registerChatFeature(deps);
-  registerChannelsFeature(deps);
-  registerConfigFeature(deps);
+  registerChatFeature({
+    app: deps.app,
+    maxMessageLength: deps.maxMessageLength,
+    agentRuntime: deps.agentRuntime,
+    log: deps.log
+  });
+  registerChannelsFeature({
+    app: deps.app,
+    channelManager: deps.channelManager,
+    getConfig: deps.getConfig,
+    maxMessageLength: deps.maxMessageLength,
+    log: deps.log
+  });
+  registerConfigFeature({
+    app: deps.app,
+    log: deps.log,
+    getConfig: deps.getConfig,
+    updateConfig: deps.updateConfig
+  });
   registerMemoryFeature(deps);
   registerSkillsFeature(deps);
-  registerPluginsFeature(deps);
-  registerCronFeature(deps);
-  registerMcpFeature(deps);
+  registerPluginsFeature({
+    app: deps.app,
+    pluginManager: deps.pluginManager,
+    channelManager: deps.channelManager,
+    getConfig: deps.getConfig,
+    updateConfig: deps.updateConfig
+  });
+  registerCronFeature({
+    app: deps.app,
+    cronService: deps.cronService
+  });
+  registerMcpFeature({
+    app: deps.app,
+    toolRegistry: deps.toolRegistry,
+    getConfig: deps.getConfig,
+    updateConfig: deps.updateConfig,
+    getMcpManager: deps.getMcpManager,
+    setMcpManager: deps.setMcpManager
+  });
   registerObservabilityFeature(deps);
 }

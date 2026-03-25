@@ -105,9 +105,7 @@
     line-height: 1.6;
     letter-spacing: 0.01em;
     background:
-      radial-gradient(circle at top left, color-mix(in srgb, var(--color-primary) 10%, transparent), transparent 28%),
-      radial-gradient(circle at top right, color-mix(in srgb, var(--color-tertiary) 12%, transparent), transparent 24%),
-      linear-gradient(180deg, var(--color-surface) 0%, var(--color-surface-bright) 100%);
+      linear-gradient(180deg, color-mix(in srgb, var(--color-surface-container-lowest) 86%, var(--color-primary) 2%) 0%, var(--color-surface) 14%, var(--color-surface-bright) 100%);
   }
 
   * {
@@ -187,9 +185,53 @@
   }
 
   .hairline-card {
-    border: 1px solid color-mix(in srgb, var(--color-outline-variant) 28%, transparent);
-    background: color-mix(in srgb, var(--color-surface-container-lowest) 92%, transparent);
-    box-shadow: 0 20px 44px -30px color-mix(in srgb, var(--color-on-background) 20%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-outline-variant) 18%, transparent);
+    background: color-mix(in srgb, var(--color-surface-container-lowest) 76%, transparent);
+    box-shadow: 0 18px 36px -34px color-mix(in srgb, var(--color-on-background) 14%, transparent);
+  }
+
+  .workspace-shell {
+    border: 1px solid color-mix(in srgb, var(--color-outline-variant) 16%, transparent);
+    background: color-mix(in srgb, var(--color-surface-container-lowest) 70%, transparent);
+  }
+
+  .workspace-subtle {
+    border: 1px solid color-mix(in srgb, var(--color-outline-variant) 14%, transparent);
+    background: color-mix(in srgb, var(--color-surface-container-low) 58%, transparent);
+  }
+
+  .workspace-divider {
+    border-color: color-mix(in srgb, var(--color-outline-variant) 18%, transparent);
+  }
+
+  .workspace-kpi {
+    display: grid;
+    gap: 0.28rem;
+    align-content: start;
+  }
+
+  .workspace-kpi-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--color-outline);
+    text-transform: uppercase;
+  }
+
+  .workspace-kpi-value {
+    font-family: var(--font-headline);
+    font-size: clamp(1.05rem, 1.25vw, 1.4rem);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+    color: var(--color-on-surface);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .workspace-kpi-note {
+    font-size: 0.74rem;
+    line-height: 1.5;
+    color: var(--color-on-surface-variant);
   }
 
   .break-anywhere {

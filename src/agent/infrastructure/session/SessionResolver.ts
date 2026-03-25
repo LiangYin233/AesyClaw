@@ -1,6 +1,6 @@
 import type { InboundMessage } from '../../../types.js';
-import type { ToolContext } from '../../../tools/ToolRegistry.js';
-import type { SessionManager, SessionMessage } from '../../../session/SessionManager.js';
+import type { ToolContext } from '../../../platform/tools/ToolRegistry.js';
+import type { SessionManager, SessionMessage } from '../../../features/sessions/application/SessionManager.js';
 import type { SessionRoutingService } from './SessionRoutingService.js';
 import type { SessionMemoryService } from '../memory/SessionMemoryService.js';
 import type { AgentRoleService } from '../roles/AgentRoleService.js';

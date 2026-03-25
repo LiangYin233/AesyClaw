@@ -1,5 +1,5 @@
 import { getObservabilityConfig } from '../../config/index.js';
-import { logging } from '../../observability/index.js';
+import { logging } from '../../platform/observability/index.js';
 import type { ConfigReloadTargets } from '../../config/reload/ports/ReloadTargets.js';
 
 export function createObservabilityReloadTarget(): NonNullable<ConfigReloadTargets['observability']> {

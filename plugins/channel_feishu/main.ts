@@ -14,7 +14,7 @@ import type {
   MessageSegment,
   ResourceHandle
 } from '../../src/channels/core/types.ts';
-import { logger } from '../../src/observability/index.ts';
+import { logger } from '../../src/platform/observability/index.ts';
 
 interface FeishuConfig {
   appId: string;

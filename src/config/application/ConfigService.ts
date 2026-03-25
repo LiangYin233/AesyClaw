@@ -1,4 +1,4 @@
-import { logger } from '../../observability/index.js';
+import { logger } from '../../platform/observability/index.js';
 import type { Config } from '../schema.js';
 import { normalizeConfigError } from '../errors.js';
 import { ConfigFileStore } from '../infrastructure/file/ConfigFileStore.js';

@@ -1,6 +1,6 @@
 import type { Config, InboundMessage, OutboundMessage } from '../types.js';
-import type { Logger } from '../observability/index.js';
-import type { ToolRegistry } from '../tools/ToolRegistry.js';
+import type { Logger } from '../platform/observability/index.js';
+import type { ToolRegistry } from '../platform/tools/ToolRegistry.js';
 import type {
   AgentAfterPayload,
   AgentBeforePayload,

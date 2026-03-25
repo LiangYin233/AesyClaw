@@ -1,4 +1,4 @@
-import type { ToolContext } from '../../../tools/ToolRegistry.js';
+import type { ToolContext } from '../../../platform/tools/ToolRegistry.js';
 
 export interface RunSubAgentTasksInput {
   tasks: Array<{ agentName: string; task: string }>;

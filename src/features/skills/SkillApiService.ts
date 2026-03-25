@@ -1,4 +1,4 @@
-import { NotFoundError, ValidationError } from '../../api/errors.js';
+import { NotFoundError, ValidationError } from '../../platform/errors/index.js';
 import { SkillRepository } from './SkillRepository.js';
 
 export class SkillApiService {

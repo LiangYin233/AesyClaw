@@ -1,9 +1,9 @@
 import type { LLMMessage, InboundFile } from '../../../types.js';
-import type { LLMProvider } from '../../../providers/base.js';
-import type { ToolRegistry, ToolContext } from '../../../tools/ToolRegistry.js';
+import type { LLMProvider } from '../../../platform/providers/base.js';
+import type { ToolRegistry, ToolContext } from '../../../platform/tools/ToolRegistry.js';
 import type { PluginManager } from '../../../plugins/index.js';
 import { ContextBuilder } from './ContextBuilder.js';
-import { logger } from '../../../observability/index.js';
+import { logger } from '../../../platform/observability/index.js';
 import { ToolLoopRunner } from './ToolLoopRunner.js';
 import { SyncStrategy, BackgroundStrategy, VisionStrategy } from './ExecutionStrategies.js';
 import { ExecutionRegistry } from './ExecutionRegistry.js';

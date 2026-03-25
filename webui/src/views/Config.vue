@@ -9,7 +9,7 @@
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <button
-            class="rounded-xl bg-surface-container-high px-5 py-2.5 text-sm font-semibold text-on-surface transition hover:bg-surface-container-highest"
+            class="rounded-xl border border-outline-variant/16 bg-surface-container-lowest/80 px-5 py-2.5 text-sm font-semibold text-on-surface transition hover:bg-surface-container-low"
             type="button"
             :disabled="loading || saving"
             @click="loadConfig"
@@ -17,7 +17,7 @@
             重新拉取配置
           </button>
           <button
-            class="rounded-xl bg-surface-container-high px-5 py-2.5 text-sm font-semibold text-on-surface transition hover:bg-surface-container-highest"
+            class="rounded-xl border border-outline-variant/16 bg-surface-container-lowest/80 px-5 py-2.5 text-sm font-semibold text-on-surface transition hover:bg-surface-container-low"
             type="button"
             :disabled="loading || saving"
             @click="resetDraft"
@@ -25,7 +25,7 @@
             放弃更改
           </button>
           <button
-            class="rounded-xl bg-gradient-to-br from-primary to-primary-container px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            class="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             type="button"
             :disabled="loading || saving || !configDraft"
             @click="saveConfig"
@@ -40,7 +40,7 @@
         <p class="mt-2 leading-6">{{ error }}</p>
       </div>
 
-      <div v-if="saveMessage" class="mb-6 flex items-center justify-between rounded-r-xl border-l-4 border-primary bg-primary-fixed/30 p-4">
+      <div v-if="saveMessage" class="workspace-shell mb-6 flex items-center justify-between rounded-2xl px-4 py-4">
         <div class="flex items-center gap-3">
           <AppIcon name="overview" class="text-primary" />
           <p class="text-sm font-medium text-on-primary-fixed">{{ saveMessage }}</p>
@@ -54,18 +54,13 @@
       </datalist>
 
       <div class="space-y-8">
-        <section v-if="configDraft" class="hairline-card rounded-2xl p-8">
-          <div class="mb-8 flex items-start justify-between gap-4">
-            <div class="flex items-center gap-4">
-              <div class="flex size-12 items-center justify-center rounded-lg bg-surface-container-low text-primary">
-                <AppIcon name="panel" />
-              </div>
-              <div>
-                <h3 class="cn-section-title text-on-surface">服务设置</h3>
-                <p class="mt-1 text-sm text-on-surface-variant">服务地址、端口与 API 开关。</p>
-              </div>
+        <section v-if="configDraft" class="workspace-shell rounded-[1.75rem] p-8">
+          <div class="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p class="cn-section-title text-on-surface">服务设置</p>
+              <p class="mt-1 text-sm text-on-surface-variant">服务地址、端口与 API 开关。</p>
             </div>
-            <span class="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-bold tracking-[0.08em] text-emerald-700">已接入</span>
+            <span class="rounded-full bg-surface-container-low px-3 py-1 text-[10px] font-bold tracking-[0.08em] text-on-surface-variant">基础参数</span>
           </div>
 
           <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -77,7 +72,7 @@
               <span class="text-xs font-bold tracking-[0.08em] text-outline">端口</span>
               <input v-model.number="configDraft.server!.apiPort" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none ring-0 transition focus:ring-2 focus:ring-primary/20" type="number" />
             </label>
-            <div class="flex items-center justify-between rounded-lg bg-surface px-4 py-3 md:col-span-2">
+            <div class="workspace-subtle flex items-center justify-between rounded-lg px-4 py-3 md:col-span-2">
               <div>
                 <p class="text-sm font-medium text-on-surface">启用 API 服务</p>
                 <p class="mt-1 text-xs text-on-surface-variant">关闭后仅保留本地运行环境。</p>
@@ -90,7 +85,7 @@
         </section>
 
         <div v-if="configDraft" class="grid grid-cols-1 gap-8 md:grid-cols-2">
-          <section class="hairline-card rounded-2xl p-8">
+          <section class="workspace-shell rounded-[1.75rem] p-8">
             <h4 class="cn-section-title text-on-surface">主 Agent 与会话策略</h4>
             <div class="mt-5 grid grid-cols-1 gap-4">
               <label class="space-y-1.5">
@@ -124,10 +119,10 @@
             </div>
           </section>
 
-          <section class="hairline-card rounded-2xl p-8">
+          <section class="workspace-shell rounded-[1.75rem] p-8">
             <h4 class="cn-section-title text-on-surface">记忆摘要</h4>
             <div class="mt-5 space-y-4">
-              <div class="flex items-center justify-between rounded-lg bg-surface px-4 py-3">
+              <div class="workspace-subtle flex items-center justify-between rounded-lg px-4 py-3">
                 <div>
                   <p class="text-sm font-medium text-on-surface">启用摘要</p>
                   <p class="mt-1 text-xs text-on-surface-variant">自动生成会话摘要。</p>
@@ -147,10 +142,10 @@
             </div>
           </section>
 
-          <section class="hairline-card rounded-2xl p-8">
+          <section class="workspace-shell rounded-[1.75rem] p-8">
             <h4 class="cn-section-title text-on-surface">长期事实</h4>
             <div class="mt-5 space-y-4">
-              <div class="flex items-center justify-between rounded-lg bg-surface px-4 py-3">
+              <div class="workspace-subtle flex items-center justify-between rounded-lg px-4 py-3">
                 <div>
                   <p class="text-sm font-medium text-on-surface">启用事实</p>
                   <p class="mt-1 text-xs text-on-surface-variant">存储和检索长期事实。</p>
@@ -176,7 +171,7 @@
             </div>
           </section>
 
-          <section class="hairline-card rounded-2xl p-8">
+          <section class="workspace-shell rounded-[1.75rem] p-8">
             <h4 class="cn-section-title text-on-surface">观测与超时</h4>
             <div class="mt-5 grid grid-cols-1 gap-4">
               <label class="space-y-1.5">
@@ -196,16 +191,16 @@
           </section>
         </div>
 
-        <section v-if="configDraft" class="hairline-card rounded-2xl p-8">
+        <section v-if="configDraft" class="workspace-shell rounded-[1.75rem] p-8">
           <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <h3 class="cn-section-title text-on-surface">Provider 与模型</h3>
               <p class="mt-1 text-sm text-on-surface-variant">先配置 Provider，再为每个 Provider 添加模型能力。删除 Provider 会同时删除其模型，并清空相关模型引用。</p>
             </div>
             <div class="flex items-center gap-3">
-              <span class="rounded-full bg-surface-container-high px-3 py-1 text-[10px] font-bold tracking-[0.08em] text-on-surface-variant">已配置模型 {{ modelRefOptions.length }}</span>
+              <span class="rounded-full bg-surface-container-low px-3 py-1 text-[10px] font-bold tracking-[0.08em] text-on-surface-variant">已配置模型 {{ modelRefOptions.length }}</span>
               <button
-                class="rounded-xl bg-surface-container-high px-4 py-2 text-sm font-semibold text-on-surface transition hover:bg-surface-container-highest"
+                class="rounded-xl border border-outline-variant/16 bg-surface-container-lowest/80 px-4 py-2 text-sm font-semibold text-on-surface transition hover:bg-surface-container-low"
                 type="button"
                 @click="addProvider"
               >
@@ -218,7 +213,7 @@
             <article
               v-for="[providerName, provider] in providerEntries"
               :key="providerName"
-              class="rounded-2xl border border-outline-variant/12 bg-surface-container-lowest p-5"
+              class="workspace-subtle rounded-[1.5rem] p-5"
             >
               <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div class="grid min-w-0 flex-1 grid-cols-1 gap-4 md:grid-cols-2">
@@ -257,7 +252,7 @@
                 </button>
               </div>
 
-              <div class="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
+              <div class="mt-5 grid grid-cols-1 gap-4 border-t workspace-divider pt-5 xl:grid-cols-2">
                 <div class="space-y-1.5">
                   <span class="text-xs font-bold tracking-[0.08em] text-outline">Headers</span>
                   <KeyValueEditor :model-value="provider.headers || {}" @update:model-value="provider.headers = $event" />
@@ -274,14 +269,14 @@
                 </label>
               </div>
 
-              <div class="mt-6 rounded-2xl bg-surface p-4">
+              <div class="mt-6 border-t workspace-divider pt-6">
                 <div class="mb-4 flex items-center justify-between gap-3">
                   <div>
                     <h4 class="text-sm font-bold text-on-surface">模型列表</h4>
                     <p class="mt-1 text-xs text-on-surface-variant">在这里定义该 Provider 下可被引用的模型与能力开关。</p>
                   </div>
                   <button
-                    class="rounded-xl bg-surface-container-high px-4 py-2 text-sm font-semibold text-on-surface transition hover:bg-surface-container-highest"
+                    class="rounded-xl border border-outline-variant/16 bg-surface-container-lowest/80 px-4 py-2 text-sm font-semibold text-on-surface transition hover:bg-surface-container-low"
                     type="button"
                     @click="addModel(providerName)"
                   >
@@ -293,7 +288,7 @@
                   <div
                     v-for="[modelName, modelConfig] in Object.entries(provider.models || {})"
                     :key="`${providerName}/${modelName}`"
-                    class="grid grid-cols-1 gap-4 rounded-2xl border border-outline-variant/12 bg-surface-container-lowest p-4 lg:grid-cols-[minmax(0,1.2fr)_120px_130px_130px_auto]"
+                    class="workspace-subtle grid grid-cols-1 gap-4 rounded-2xl p-4 lg:grid-cols-[minmax(0,1.2fr)_120px_130px_130px_auto]"
                   >
                     <label class="space-y-1.5">
                       <span class="text-xs font-bold tracking-[0.08em] text-outline">模型名</span>
@@ -308,7 +303,7 @@
                       <span class="text-xs font-bold tracking-[0.08em] text-outline">Context</span>
                       <input v-model.number="modelConfig.maxContextTokens" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="number" min="1" placeholder="可选" />
                     </label>
-                    <div class="rounded-xl bg-surface-container-low px-3 py-3">
+                    <div class="rounded-xl bg-surface-container-low/70 px-3 py-3">
                       <div class="flex items-center justify-between gap-3">
                         <span class="text-xs font-bold tracking-[0.08em] text-outline">Reasoning</span>
                         <button class="relative h-5 w-10 rounded-full transition" :class="modelConfig.reasoning ? 'bg-primary-container' : 'bg-surface-container-high'" type="button" @click="modelConfig.reasoning = !modelConfig.reasoning">
@@ -316,7 +311,7 @@
                         </button>
                       </div>
                     </div>
-                    <div class="rounded-xl bg-surface-container-low px-3 py-3">
+                    <div class="rounded-xl bg-surface-container-low/70 px-3 py-3">
                       <div class="flex items-center justify-between gap-3">
                         <span class="text-xs font-bold tracking-[0.08em] text-outline">Vision</span>
                         <button class="relative h-5 w-10 rounded-full transition" :class="modelConfig.supportsVision ? 'bg-primary-container' : 'bg-surface-container-high'" type="button" @click="modelConfig.supportsVision = !modelConfig.supportsVision">
@@ -333,14 +328,14 @@
                     </button>
                   </div>
 
-                  <div v-if="!Object.keys(provider.models || {}).length" class="rounded-xl bg-surface-container-low px-4 py-4 text-sm text-on-surface-variant">
+                  <div v-if="!Object.keys(provider.models || {}).length" class="workspace-subtle rounded-xl px-4 py-4 text-sm text-on-surface-variant">
                     当前 Provider 还没有模型。添加模型后，这里的 `provider/model` 会出现在上方引用输入的候选列表中。
                   </div>
                 </div>
               </div>
             </article>
 
-            <div v-if="!providerEntries.length" class="rounded-2xl bg-surface-container-low px-4 py-5 text-sm text-on-surface-variant">
+            <div v-if="!providerEntries.length" class="workspace-subtle rounded-2xl px-4 py-5 text-sm text-on-surface-variant">
               当前没有 Provider。先创建 Provider 和模型，再回到上方选择主 Agent、视觉回退或记忆模型。
             </div>
           </div>
