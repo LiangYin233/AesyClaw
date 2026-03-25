@@ -195,6 +195,26 @@ const enabledCount = computed(() => plugins.value.filter((plugin) => plugin.enab
 const disabledCount = computed(() => plugins.value.filter((plugin) => !plugin.enabled).length);
 const totalTools = computed(() => plugins.value.reduce((sum, plugin) => sum + plugin.toolsCount, 0));
 
+function parseJsonObject(text: string, label: string): Record<string, unknown> {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return {};
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    throw new Error(`${label} 必须是有效的 JSON 格式`);
+  }
+
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+    throw new Error(`${label} 必须是 JSON 对象`);
+  }
+
+  return parsed as Record<string, unknown>;
+}
+
 function syncDraft(plugin: PluginInfo | null) {
   optionsDraft.value = JSON.stringify(plugin?.options || {}, null, 2);
   jsonError.value = '';
@@ -245,7 +265,7 @@ async function savePluginConfig() {
 
   try {
     jsonError.value = '';
-    const options = JSON.parse(optionsDraft.value) as Record<string, unknown>;
+    const options = parseJsonObject(optionsDraft.value, '插件配置');
     saving.value = true;
     const result = await apiPut<{ success: true }>(`/api/plugins/${encodeURIComponent(selectedPlugin.value.name)}/config`, token, {
       options,

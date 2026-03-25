@@ -226,6 +226,36 @@ const connectedCount = computed(() => servers.value.filter((server) => server.st
 const disconnectedCount = computed(() => servers.value.filter((server) => server.status !== 'connected').length);
 const totalTools = computed(() => servers.value.reduce((sum, server) => sum + server.toolCount, 0));
 
+function parseJsonObject(text: string, label: string): Record<string, unknown> {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return {};
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    throw new Error(`${label} 必须是有效的 JSON 格式`);
+  }
+
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+    throw new Error(`${label} 必须是 JSON 对象`);
+  }
+
+  return parsed as Record<string, unknown>;
+}
+
+function parseStringRecord(text: string, label: string): Record<string, string> {
+  const parsed = parseJsonObject(text, label);
+  for (const [key, value] of Object.entries(parsed)) {
+    if (typeof value !== 'string') {
+      throw new Error(`${label} 中的 "${key}" 必须是字符串`);
+    }
+  }
+  return parsed as Record<string, string>;
+}
+
 function createDraft(): McpDraft {
   return {
     enabled: true,
@@ -339,8 +369,8 @@ async function saveServer() {
         ? commandText.value.split('\n').map((line) => line.trim()).filter(Boolean)
         : undefined,
       url: draft.value.type === 'http' ? draft.value.url?.trim() : undefined,
-      environment: JSON.parse(environmentText.value || '{}') as Record<string, string>,
-      headers: JSON.parse(headersText.value || '{}') as Record<string, string>,
+      environment: parseStringRecord(environmentText.value, 'Environment'),
+      headers: parseStringRecord(headersText.value, 'Headers'),
     };
 
     saving.value = true;

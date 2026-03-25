@@ -63,7 +63,7 @@
             <p class="tech-text mb-2 flex items-center gap-1 text-[10px] text-outline">
               {{ session.agentName || 'main' }} · {{ session.channel || '-' }} · {{ session.messageCount }} 条消息
             </p>
-            <p class="line-clamp-1 text-[11px] italic text-on-surface-variant">{{ sessionPreview(session.key) }}</p>
+            <p class="line-clamp-1 text-[11px] italic text-on-surface-variant">{{ sessionPreview(session) }}</p>
           </button>
         </div>
 
@@ -332,6 +332,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppIcon from '@/components/AppIcon.vue';
+import { useLatestRequestGuard } from '@/composables/useLatestRequestGuard';
 import { apiDelete, apiGet, apiPost } from '@/lib/api';
 import { buildTokenQuery, getRouteToken } from '@/lib/auth';
 import { formatDateTime } from '@/lib/format';
@@ -354,6 +355,7 @@ const activeDetail = ref<SessionDetail | null>(null);
 const draftSessionKey = ref('');
 const sessionPreviews = ref<Record<string, string>>({});
 const sidebarVisible = ref(false);
+const detailRequestGuard = useLatestRequestGuard();
 
 const routeSessionKey = computed(() => {
   const raw = route.params.sessionKey;
@@ -367,7 +369,7 @@ const filteredSessions = computed(() => {
   return [...sessions.value]
     .filter((session) => {
       const matchesAgent = agentFilter.value === 'all' || (session.agentName || 'main') === agentFilter.value;
-      const haystack = [session.key, session.channel, session.chatId, session.agentName, sessionPreview(session.key)]
+      const haystack = [session.key, session.channel, session.chatId, session.agentName, sessionPreview(session)]
         .filter(Boolean)
         .join(' ')
         .toLowerCase();
@@ -403,8 +405,8 @@ function sessionStateLabel(session: Session) {
   return '空白';
 }
 
-function sessionPreview(key: string) {
-  return sessionPreviews.value[key] || '正在加载消息...';
+function sessionPreview(session: Session) {
+  return sessionPreviews.value[session.key] || (session.messageCount > 0 ? '暂无消息预览' : '暂无消息');
 }
 
 function createDraftSessionKey() {
@@ -424,9 +426,14 @@ async function loadSessions() {
 }
 
 async function loadSessionDetail(key: string) {
+  const requestId = detailRequestGuard.start();
   detailLoading.value = true;
   detailError.value = '';
   const result = await apiGet<SessionDetail>(`/api/sessions/${encodeURIComponent(key)}`, token);
+
+  if (!detailRequestGuard.isCurrent(requestId)) {
+    return;
+  }
 
   if (result.error || !result.data) {
     activeDetail.value = null;
@@ -445,8 +452,10 @@ async function loadSessionDetail(key: string) {
 
 async function syncRouteSession() {
   if (!routeSessionKey.value) {
+    detailRequestGuard.invalidate();
     activeDetail.value = null;
     detailError.value = '';
+    detailLoading.value = false;
     return;
   }
 
@@ -561,7 +570,7 @@ function handleDraftKeydown(event: KeyboardEvent) {
 }
 
 watch(() => route.params.sessionKey, () => {
-  syncRouteSession();
+  void syncRouteSession();
 });
 
 onMounted(async () => {

@@ -245,6 +245,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppIcon from '@/components/AppIcon.vue';
 import SessionDetailPanel from '@/components/SessionDetailPanel.vue';
+import { useLatestRequestGuard } from '@/composables/useLatestRequestGuard';
 import { apiDelete, apiGet } from '@/lib/api';
 import { getRouteToken } from '@/lib/auth';
 import { formatNumber } from '@/lib/format';
@@ -262,6 +263,7 @@ const detail = ref<SessionDetail | null>(null);
 const detailLoading = ref(false);
 const detailError = ref('');
 const selectedKeys = ref<string[]>([]);
+const detailRequestGuard = useLatestRequestGuard();
 
 const sortedSessions = computed(() => [...sessions.value].sort((a, b) => b.messageCount - a.messageCount || a.key.localeCompare(b.key)));
 const selectedSet = computed(() => new Set(selectedKeys.value));
@@ -298,12 +300,17 @@ async function loadSessionsPage() {
 }
 
 async function openSession(key: string, showLoading = true) {
+  const requestId = detailRequestGuard.start();
   if (showLoading) {
     detailLoading.value = true;
   }
   detailError.value = '';
 
   const result = await apiGet<SessionDetail>(`/api/sessions/${encodeURIComponent(key)}`, token);
+  if (!detailRequestGuard.isCurrent(requestId)) {
+    return;
+  }
+
   if (result.error || !result.data) {
     detail.value = null;
     detailError.value = result.error || '无法加载会话详情';
@@ -316,6 +323,7 @@ async function openSession(key: string, showLoading = true) {
 }
 
 function closeDetail() {
+  detailRequestGuard.invalidate();
   detail.value = null;
   detailError.value = '';
   detailLoading.value = false;

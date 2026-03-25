@@ -20,22 +20,22 @@
         <div class="grid gap-4">
           <div>
             <label class="mb-2 block text-xs font-semibold text-on-surface">名称</label>
-            <input v-model="form.name" :disabled="drawerMode === 'edit'" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-70" placeholder="agent 名称" />
+            <input :value="props.form.name" :disabled="drawerMode === 'edit'" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none transition focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-70" placeholder="agent 名称" @input="updateName(($event.target as HTMLInputElement).value)" />
           </div>
           <div>
             <label class="mb-2 block text-xs font-semibold text-on-surface">描述</label>
-            <input v-model="form.description" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none transition focus:border-primary/40" placeholder="用于说明该角色的职责" />
+            <input :value="props.form.description" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none transition focus:border-primary/40" placeholder="用于说明该角色的职责" @input="updateDescription(($event.target as HTMLInputElement).value)" />
           </div>
           <div>
             <label class="mb-2 block text-xs font-semibold text-on-surface">Model</label>
-            <input v-model="form.model" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none transition focus:border-primary/40" placeholder="provider/model" />
+            <input :value="props.form.model" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none transition focus:border-primary/40" placeholder="provider/model" @input="updateModel(($event.target as HTMLInputElement).value)" />
           </div>
         </div>
       </section>
 
       <section>
         <label class="mb-3 block text-[10px] font-mono uppercase tracking-[0.2em] text-outline">系统提示词</label>
-        <textarea v-model="form.systemPrompt" rows="8" class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-4 text-sm leading-6 outline-none transition focus:border-primary/40" placeholder="请输入系统提示词，定义 Agent 的行为方式。" />
+        <textarea :value="props.form.systemPrompt" rows="8" class="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-4 text-sm leading-6 outline-none transition focus:border-primary/40" placeholder="请输入系统提示词，定义 Agent 的行为方式。" @input="updateSystemPrompt(($event.target as HTMLTextAreaElement).value)" />
       </section>
 
       <section>
@@ -46,8 +46,8 @@
             type="button"
             @click="toggleDropdown('skill')"
           >
-            <span :class="form.allowedSkills.length ? '' : 'text-outline'">
-              {{ form.allowedSkills.length ? `已选 ${form.allowedSkills.length} 项` : '请选择技能' }}
+            <span :class="props.form.allowedSkills.length ? '' : 'text-outline'">
+              {{ props.form.allowedSkills.length ? `已选 ${props.form.allowedSkills.length} 项` : '请选择技能' }}
             </span>
             <svg class="size-4 text-outline transition" :class="skillDropdownOpen ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" /></svg>
           </button>
@@ -73,7 +73,7 @@
                 >
                   <input
                     type="checkbox"
-                    :checked="form.allowedSkills.includes(skill.name)"
+                    :checked="props.form.allowedSkills.includes(skill.name)"
                     class="size-4 rounded border-outline-variant accent-primary"
                     @change="toggleSkill(skill.name)"
                   />
@@ -94,8 +94,8 @@
             type="button"
             @click="toggleDropdown('tool')"
           >
-            <span :class="form.allowedTools.length ? '' : 'text-outline'">
-              {{ form.allowedTools.length ? `已选 ${form.allowedTools.length} 项` : '请选择工具' }}
+            <span :class="props.form.allowedTools.length ? '' : 'text-outline'">
+              {{ props.form.allowedTools.length ? `已选 ${props.form.allowedTools.length} 项` : '请选择工具' }}
             </span>
             <svg class="size-4 text-outline transition" :class="toolDropdownOpen ? 'rotate-180' : ''" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" /></svg>
           </button>
@@ -121,7 +121,7 @@
                 >
                   <input
                     type="checkbox"
-                    :checked="form.allowedTools.includes(tool.name)"
+                    :checked="props.form.allowedTools.includes(tool.name)"
                     class="size-4 rounded border-outline-variant accent-primary"
                     @change="toggleTool(tool.name)"
                   />
@@ -169,10 +169,11 @@ const props = defineProps<{
   tools: ToolInfo[];
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   close: [];
   save: [];
   delete: [];
+  'update:form': [AgentRoleConfig];
 }>();
 
 const skillDropdownOpen = ref(false);
@@ -185,6 +186,33 @@ const skillPanelStyle = ref<Record<string, string>>({});
 const toolPanelStyle = ref<Record<string, string>>({});
 const skillNames = computed(() => props.skills.map((s) => s.name));
 const toolNames = computed(() => props.tools.map((t) => t.name));
+
+function cloneForm(overrides: Partial<AgentRoleConfig> = {}): AgentRoleConfig {
+  return {
+    name: overrides.name ?? props.form.name,
+    description: overrides.description ?? props.form.description,
+    model: overrides.model ?? props.form.model,
+    systemPrompt: overrides.systemPrompt ?? props.form.systemPrompt,
+    allowedSkills: overrides.allowedSkills ? [...overrides.allowedSkills] : [...props.form.allowedSkills],
+    allowedTools: overrides.allowedTools ? [...overrides.allowedTools] : [...props.form.allowedTools],
+  };
+}
+
+function updateName(name: string) {
+  emit('update:form', cloneForm({ name }));
+}
+
+function updateDescription(description: string) {
+  emit('update:form', cloneForm({ description }));
+}
+
+function updateModel(model: string) {
+  emit('update:form', cloneForm({ model }));
+}
+
+function updateSystemPrompt(systemPrompt: string) {
+  emit('update:form', cloneForm({ systemPrompt }));
+}
 
 function toggleDropdown(type: 'skill' | 'tool') {
   if (type === 'skill') {
@@ -224,31 +252,33 @@ function positionPanel(type: 'skill' | 'tool') {
 }
 
 function toggleSkill(name: string) {
-  const idx = props.form.allowedSkills.indexOf(name);
-  if (idx >= 0) props.form.allowedSkills.splice(idx, 1);
-  else props.form.allowedSkills.push(name);
+  const nextSkills = props.form.allowedSkills.includes(name)
+    ? props.form.allowedSkills.filter((skill) => skill !== name)
+    : [...props.form.allowedSkills, name];
+  emit('update:form', cloneForm({ allowedSkills: nextSkills }));
 }
 
 function selectAllSkills() {
-  props.form.allowedSkills.splice(0, props.form.allowedSkills.length, ...skillNames.value);
+  emit('update:form', cloneForm({ allowedSkills: skillNames.value }));
 }
 
 function clearSkills() {
-  props.form.allowedSkills.splice(0, props.form.allowedSkills.length);
+  emit('update:form', cloneForm({ allowedSkills: [] }));
 }
 
 function toggleTool(name: string) {
-  const idx = props.form.allowedTools.indexOf(name);
-  if (idx >= 0) props.form.allowedTools.splice(idx, 1);
-  else props.form.allowedTools.push(name);
+  const nextTools = props.form.allowedTools.includes(name)
+    ? props.form.allowedTools.filter((tool) => tool !== name)
+    : [...props.form.allowedTools, name];
+  emit('update:form', cloneForm({ allowedTools: nextTools }));
 }
 
 function selectAllTools() {
-  props.form.allowedTools.splice(0, props.form.allowedTools.length, ...toolNames.value);
+  emit('update:form', cloneForm({ allowedTools: toolNames.value }));
 }
 
 function clearTools() {
-  props.form.allowedTools.splice(0, props.form.allowedTools.length);
+  emit('update:form', cloneForm({ allowedTools: [] }));
 }
 
 function handleClickOutside(e: MouseEvent) {
