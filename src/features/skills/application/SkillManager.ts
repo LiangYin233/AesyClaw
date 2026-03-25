@@ -6,7 +6,7 @@ import { normalizeSkillError } from './errors.js';
 import { logger } from '../../../platform/observability/index.js';
 import type { Config } from '../../../types.js';
 import { formatSkillsPrompt } from './promptFormatter.js';
-import type { SkillInfo, SkillReloadSummary, SkillSource } from '../domain/types.js';
+import type { SkillFile, SkillInfo, SkillReloadSummary, SkillSource } from '../domain/types.js';
 
 const SKILL_ENTRY_FILE = 'SKILL.md';
 const RELOAD_DEBOUNCE_MS = 250;
@@ -419,8 +419,8 @@ export class SkillManager {
     }
   }
 
-  private async getSkillFilesList(skillPath: string): Promise<SkillInfo['files']> {
-    const files: SkillInfo['files'] = [];
+  private async getSkillFilesList(skillPath: string): Promise<SkillFile[]> {
+    const files: SkillFile[] = [];
 
     try {
       await this.collectSkillFiles(skillPath, skillPath, files);
@@ -434,7 +434,7 @@ export class SkillManager {
     return files.sort((left, right) => left.name.localeCompare(right.name));
   }
 
-  private async collectSkillFiles(skillRoot: string, currentDir: string, files: SkillInfo['files']): Promise<void> {
+  private async collectSkillFiles(skillRoot: string, currentDir: string, files: SkillFile[]): Promise<void> {
     const entries = await fs.readdir(currentDir, { withFileTypes: true });
 
     for (const entry of entries) {

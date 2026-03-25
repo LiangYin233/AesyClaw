@@ -1,5 +1,5 @@
 import { platform } from 'os';
-import { definePlugin } from '../../src/plugins/index.ts';
+import { definePlugin } from '../../src/features/plugins/index.ts';
 import { preview } from '../../src/platform/observability/index.ts';
 import type { ToolContext } from '../../src/platform/tools/index.ts';
 import { loadConfig } from './config.ts';

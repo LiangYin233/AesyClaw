@@ -4,7 +4,7 @@ import { createWriteStream } from 'fs';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import { createHash } from 'crypto';
-import { definePlugin } from '../../src/plugins/index.ts';
+import { definePlugin } from '../../src/features/plugins/index.ts';
 import { preview } from '../../src/platform/observability/index.ts';
 import type { InboundFile, InboundMessage, ProcessingIntent } from '../../src/types.ts';
 
