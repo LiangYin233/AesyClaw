@@ -3,9 +3,9 @@ import { mkdirSync, existsSync } from 'fs';
 import { logger } from '../observability/index.js';
 import type { Config } from '../types.js';
 import type { CronJob } from '../cron/index.js';
+import { dispatchCronJob } from '../features/cron/dispatchCronJob.js';
 import { ConfigManager, getMainAgentConfig } from '../config/index.js';
 import { createServices, type Services } from './factory/ServiceFactory.js';
-import { dispatchCronJob } from './app/cronDispatch.js';
 import { setupConfigReload } from './app/configReload.js';
 import { setupEventListeners } from './app/eventListeners.js';
 import { setupSignalHandlers, shutdownServices } from './app/shutdown.js';
@@ -105,7 +105,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<void> {
         throw new Error('Services are not ready for cron dispatch');
       }
 
-      await dispatchCronJob(servicesRef, workspace, job);
+      await dispatchCronJob(servicesRef, job);
     };
 
     const servicesStartedAt = Date.now();

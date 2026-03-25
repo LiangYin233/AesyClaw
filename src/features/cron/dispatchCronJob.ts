@@ -1,11 +1,11 @@
-import { logger } from '../../observability/index.js';
-import type { Services } from '../factory/ServiceFactory.js';
-import type { CronJob } from '../../cron/index.js';
 import { dispatchCronJob as dispatchCronJobUsecase } from '../../agent/application/index.js';
+import type { CronJob } from '../../cron/index.js';
+import { logger } from '../../observability/index.js';
+import type { Services } from '../../bootstrap/factory/ServiceFactory.js';
 
 const log = logger.child('Bootstrap');
-export async function dispatchCronJob(services: Services, workspace: string, job: CronJob): Promise<void> {
-  void workspace;
+
+export async function dispatchCronJob(services: Services, job: CronJob): Promise<void> {
   await dispatchCronJobUsecase({
     handleDirect: (content, reference, options) => services.agentRuntime.handleDirect(content, reference, options),
     logInfo: (message, fields) => log.info(message, fields),
