@@ -1,4 +1,4 @@
-import { getConfigValidationIssue, parseMCPServerConfig } from '../../../config/index.js';
+import { getConfigValidationIssue, parseMCPServerConfig } from '../../../features/config/index.js';
 import type { Config } from '../../../types.js';
 import { RequestValidationError } from '../../../platform/errors/boundary.js';
 import { requireBoolean, requireObjectBody } from '../../shared/requestParsers.js';

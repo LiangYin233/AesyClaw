@@ -1,6 +1,6 @@
 import type { Express } from 'express';
-import type { ChannelManager } from '../../../channels/ChannelManager.js';
-import type { PluginManager } from '../../../plugins/index.js';
+import type { ChannelManager } from '../../channels/application/ChannelManager.js';
+import type { PluginManager } from '../application/PluginManager.js';
 import type { Config } from '../../../types.js';
 import { PluginsService } from '../application/PluginsService.js';
 import { PluginRepository } from '../infrastructure/PluginRepository.js';

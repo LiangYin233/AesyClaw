@@ -1,5 +1,5 @@
 import type { AgentRuntime } from '../../agent/index.js';
-import type { ChannelManager } from '../../channels/ChannelManager.js';
+import type { ChannelManager } from '../channels/application/ChannelManager.js';
 import type { SessionManager } from '../sessions/application/SessionManager.js';
 import type { ToolRegistry } from '../../platform/tools/ToolRegistry.js';
 import type { Config } from '../../types.js';

@@ -1,4 +1,4 @@
-import type { ChannelHandle, ChannelManager } from '../../../channels/ChannelManager.js';
+import type { ChannelHandle, ChannelManager } from '../application/ChannelManager.js';
 import type { Config } from '../../../types.js';
 
 export class ChannelRepository {

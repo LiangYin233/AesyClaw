@@ -1,8 +1,8 @@
 import { randomUUID } from 'crypto';
-import { logger } from '../../platform/observability/index.js';
-import { formatLocalTimestamp } from '../../platform/observability/logging.js';
-import { Database } from '../../platform/db/index.js';
-import type { AdapterSendResult, ChannelMessage, DeliveryReceipt } from './types.js';
+import { logger } from '../../../platform/observability/index.js';
+import { formatLocalTimestamp } from '../../../platform/observability/logging.js';
+import { Database } from '../../../platform/db/index.js';
+import type { AdapterSendResult, ChannelMessage, DeliveryReceipt } from '../domain/types.js';
 
 interface DeliveryJobRow {
   job_id: string;

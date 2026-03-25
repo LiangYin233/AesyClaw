@@ -4,7 +4,7 @@ import { logger } from '../../platform/observability/index.js';
 import type { Config } from '../../types.js';
 import type { CronJob } from '../../features/cron/index.js';
 import { dispatchCronJob } from '../../features/cron/index.js';
-import { ConfigManager, getMainAgentConfig } from '../../config/index.js';
+import { ConfigManager, getMainAgentConfig } from '../../features/config/index.js';
 import { createServices, type Services } from './factory/ServiceFactory.js';
 import { setupConfigReload } from './app/configReload.js';
 import { setupEventListeners } from './app/eventListeners.js';

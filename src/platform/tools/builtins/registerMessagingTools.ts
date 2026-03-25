@@ -1,6 +1,6 @@
 import type { SessionManager } from '../../../features/sessions/index.js';
 import type { OutboundMessage } from '../../../types.js';
-import type { PluginManager } from '../../../plugins/index.js';
+import type { PluginManager } from '../../../features/plugins/index.js';
 import type { ToolContext, ToolRegistry } from '../ToolRegistry.js';
 import { normalizeToolError } from '../errors.js';
 import {

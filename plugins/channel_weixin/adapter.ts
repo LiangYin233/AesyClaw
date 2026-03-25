@@ -1,14 +1,14 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { logger as baseLogger } from '../../src/platform/observability/index.ts';
-import type { ChannelAdapter, AdapterRuntimeContext, ChannelSendContext } from '../../src/channels/core/adapter.ts';
+import type { ChannelAdapter, AdapterRuntimeContext, ChannelSendContext } from '../../src/features/channels/domain/adapter.ts';
 import type {
   AdapterInboundDraft,
   AdapterSendResult,
   ChannelCapabilityProfile,
   ChannelMessage,
   MessageSegment
-} from '../../src/channels/core/types.ts';
+} from '../../src/features/channels/domain/types.ts';
 import { createWeixinFacade, type WeixinFacade } from './openclaw-facade.ts';
 import { mapInboundWeixinMessage, type WeixinInboundMessage } from './message-mapping.ts';
 import { WeixinStateStore } from './state-store.ts';

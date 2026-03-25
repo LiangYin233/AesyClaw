@@ -1,4 +1,4 @@
-import type { SkillManager } from '../../skills/SkillManager.js';
+import type { SkillManager } from './application/SkillManager.js';
 
 export class SkillRepository {
   constructor(private readonly skillManager: SkillManager) {}

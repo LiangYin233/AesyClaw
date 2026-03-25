@@ -1,4 +1,4 @@
-import type { ChannelPluginDefinition } from '../../src/channels/ChannelManager.ts';
+import type { ChannelPluginDefinition } from '../../src/features/channels/application/ChannelManager.ts';
 import { WeixinAdapter, type WeixinChannelConfig } from './adapter.ts';
 
 export const defaultChannelConfig: Partial<WeixinChannelConfig> = {};

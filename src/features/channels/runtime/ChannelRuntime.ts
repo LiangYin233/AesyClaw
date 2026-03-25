@@ -1,17 +1,17 @@
 import { join } from 'path';
 import { randomUUID } from 'crypto';
-import type { Database } from '../../platform/db/index.js';
-import { logger } from '../../platform/observability/index.js';
-import type { InboundMessage, OutboundMessage } from '../../types.js';
-import type { ChannelAdapter } from './adapter.js';
-import { DeliveryQueue } from './delivery-queue.js';
-import { projectChannelMessage } from './projection.js';
-import { ResourceStore } from './resource-store.js';
-import type { AdapterInboundDraft, ChannelMessage, DeliveryReceipt, MessageSegment, QuoteSegment } from './types.js';
-import { mapChannelMessageToCompatInbound, mapCompatOutboundToChannelMessage } from './messageCompat.js';
-import { mapDraftToChannelMessage } from './messageMappers.js';
-import { processInboundMessage } from './inboundPipeline.js';
-import { prepareOutboundMessage } from './outboundPipeline.js';
+import type { Database } from '../../../platform/db/index.js';
+import { logger } from '../../../platform/observability/index.js';
+import type { InboundMessage, OutboundMessage } from '../../../types.js';
+import type { ChannelAdapter } from '../domain/adapter.js';
+import { DeliveryQueue } from '../infrastructure/delivery-queue.js';
+import { projectChannelMessage } from '../domain/projection.js';
+import { ResourceStore } from '../infrastructure/resource-store.js';
+import type { AdapterInboundDraft, ChannelMessage, DeliveryReceipt, MessageSegment, QuoteSegment } from '../domain/types.js';
+import { mapChannelMessageToCompatInbound, mapCompatOutboundToChannelMessage } from '../domain/messageCompat.js';
+import { mapDraftToChannelMessage } from '../domain/messageMappers.js';
+import { processInboundMessage } from '../domain/inboundPipeline.js';
+import { prepareOutboundMessage } from '../domain/outboundPipeline.js';
 
 function isChannelMessage(value: OutboundMessage | ChannelMessage): value is ChannelMessage {
   return !!value && typeof value === 'object' && 'conversation' in value && 'segments' in value && 'timestamp' in value;

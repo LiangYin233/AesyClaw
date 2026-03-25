@@ -14,17 +14,17 @@ import {
   getToolRuntimeConfig,
   resolveExecutionModel,
   resolveProviderSelection
-} from '../../../config/index.js';
+} from '../../../features/config/index.js';
 import { logger } from '../../../platform/observability/index.js';
 import { createProvider } from '../../../platform/providers/index.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
 import { SessionManager } from '../../../features/sessions/index.js';
-import { SkillManager } from '../../../skills/index.js';
+import { SkillManager } from '../../../features/skills/index.js';
 import { ToolRegistry } from '../../../platform/tools/index.js';
 import type { Config, VisionSettings } from '../../../types.js';
 import { EventBus } from '../../../platform/events/EventBus.js';
 import type { AesyClawEvents } from '../../../platform/events/events.js';
-import { PluginManager } from '../../../plugins/index.js';
+import { PluginManager } from '../../../features/plugins/index.js';
 
 const appLog = logger.child('AesyClaw');
 

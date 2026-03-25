@@ -3,9 +3,9 @@ import http from 'http';
 import fs from 'fs';
 import { basename } from 'path';
 import { randomUUID } from 'crypto';
-import type { ChannelPluginDefinition } from '../../src/channels/ChannelManager.ts';
-import type { AdapterRuntimeContext, ChannelAdapter, ChannelSendContext } from '../../src/channels/core/adapter.ts';
-import { projectChannelMessage } from '../../src/channels/core/projection.ts';
+import type { ChannelPluginDefinition } from '../../src/features/channels/application/ChannelManager.ts';
+import type { AdapterRuntimeContext, ChannelAdapter, ChannelSendContext } from '../../src/features/channels/domain/adapter.ts';
+import { projectChannelMessage } from '../../src/features/channels/domain/projection.ts';
 import type {
   AdapterInboundDraft,
   AdapterSendResult,
@@ -13,7 +13,7 @@ import type {
   ChannelMessage,
   MessageSegment,
   ResourceHandle
-} from '../../src/channels/core/types.ts';
+} from '../../src/features/channels/domain/types.ts';
 import { logger } from '../../src/platform/observability/index.ts';
 
 interface FeishuConfig {

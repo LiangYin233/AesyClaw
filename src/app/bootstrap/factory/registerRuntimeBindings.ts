@@ -5,10 +5,10 @@ import type { SessionRoutingService } from '../../../agent/infrastructure/sessio
 import type { AgentRuntime } from '../../../agent/index.js';
 import type { CronRuntimeService } from '../../../features/cron/index.js';
 import type { MCPClientManager } from '../../../features/mcp/index.js';
-import type { PluginManager } from '../../../plugins/index.js';
+import type { PluginManager } from '../../../features/plugins/index.js';
 import { logger } from '../../../platform/observability/index.js';
 import type { SessionManager } from '../../../features/sessions/index.js';
-import type { SkillManager } from '../../../skills/index.js';
+import type { SkillManager } from '../../../features/skills/index.js';
 import { registerBuiltInTools } from '../../../platform/tools/index.js';
 import type { ToolRegistry } from '../../../platform/tools/index.js';
 

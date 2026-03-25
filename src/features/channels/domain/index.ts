@@ -5,6 +5,8 @@ export { mapChannelMessageToCompatInbound, mapCompatOutboundToChannelMessage } f
 export { mapDraftToChannelMessage } from './messageMappers.js';
 export { processInboundMessage } from './inboundPipeline.js';
 export { prepareOutboundMessage } from './outboundPipeline.js';
-export { ResourceStore } from './resource-store.js';
-export { DeliveryQueue } from './delivery-queue.js';
-export { ChannelRuntime } from './runtime.js';
+export { ResourceStore } from '../infrastructure/resource-store.js';
+export { DeliveryQueue } from '../infrastructure/delivery-queue.js';
+export { ChannelRuntime } from '../runtime/ChannelRuntime.js';
+export { normalizeChannelError } from './errors.js';
+export { mergeChannelConfigWithDefaults, stripChannelEnabled } from './config.js';

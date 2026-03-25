@@ -1,7 +1,7 @@
-import { mergeChannelConfigWithDefaults, stripChannelEnabled } from '../../../channels/config.js';
-import type { ChannelManager } from '../../../channels/ChannelManager.js';
-import type { PluginManager } from '../../../plugins/index.js';
-import type { PluginInfo } from '../../../plugins/types.js';
+import { mergeChannelConfigWithDefaults, stripChannelEnabled } from '../../channels/domain/config.js';
+import type { ChannelManager } from '../../channels/application/ChannelManager.js';
+import type { PluginManager } from '../application/PluginManager.js';
+import type { PluginInfo } from '../domain/types.js';
 import type { Config } from '../../../types.js';
 
 interface PluginRepositoryDeps {

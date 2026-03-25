@@ -1,4 +1,4 @@
-import type { SkillManager } from '../../../skills/index.js';
+import type { SkillManager } from '../../../features/skills/index.js';
 import type { ToolRegistry } from '../ToolRegistry.js';
 
 export function registerSkillTools(args: {

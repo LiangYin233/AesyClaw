@@ -1,9 +1,9 @@
 import { mkdir, readdir, stat } from 'fs/promises';
 import { join } from 'path';
-import { logger } from '../platform/observability/index.js';
+import { logger } from '../../../platform/observability/index.js';
 import type { ChannelManager, ChannelPluginDefinition } from './ChannelManager.js';
 import { pathToFileURL } from 'url';
-import { normalizeChannelError } from './errors.js';
+import { normalizeChannelError } from '../domain/errors.js';
 
 const log = logger.child('ChannelPluginLoader');
 

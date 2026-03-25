@@ -1,8 +1,8 @@
 import { readdir, stat } from 'fs/promises';
 import { join } from 'path';
 import { mkdir } from 'fs/promises';
-import type { InboundMessage, OutboundMessage } from '../types.js';
-import { logger as rootLogger } from '../platform/observability/index.js';
+import type { InboundMessage, OutboundMessage } from '../../../types.js';
+import { logger as rootLogger } from '../../../platform/observability/index.js';
 import { pathToFileURL } from 'url';
 import {
   createPluginInstance,
@@ -10,7 +10,7 @@ import {
   matchCommand,
   type DiscoveredPlugin,
   type PluginInstance
-} from './runtime.js';
+} from '../infrastructure/PluginRuntime.js';
 import type {
   AgentAfterPayload,
   AgentBeforePayload,
@@ -24,7 +24,7 @@ import type {
   PluginOptions,
   ToolAfterPayload,
   ToolBeforePayload
-} from './types.js';
+} from '../domain/types.js';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

@@ -1,6 +1,6 @@
-import type { Config, InboundMessage, OutboundMessage } from '../types.js';
-import type { Logger } from '../platform/observability/index.js';
-import type { ToolRegistry } from '../platform/tools/ToolRegistry.js';
+import type { Config, InboundMessage, OutboundMessage } from '../../../types.js';
+import type { Logger } from '../../../platform/observability/index.js';
+import type { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
 import type {
   AgentAfterPayload,
   AgentBeforePayload,
@@ -13,7 +13,7 @@ import type {
   SendMessageOptions,
   ToolAfterPayload,
   ToolBeforePayload
-} from './types.js';
+} from '../domain/types.js';
 
 export interface DiscoveredPlugin {
   name: string;

@@ -2,7 +2,7 @@ import {
   getMainAgentConfig,
   getToolRuntimeConfig,
   resolveExecutionModel
-} from '../../../config/index.js';
+} from '../../../features/config/index.js';
 import { logger } from '../../../platform/observability/index.js';
 import { createChannelsReloadTarget } from '../../../features/channels/index.js';
 import { createMcpReloadTarget } from '../../../features/mcp/index.js';

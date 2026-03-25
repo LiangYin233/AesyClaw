@@ -1,6 +1,6 @@
-import type { Logger } from '../platform/observability/index.js';
-import type { Tool, ToolContext, ToolRegistry } from '../platform/tools/ToolRegistry.js';
-import type { Config, InboundMessage, LLMMessage, LLMResponse, OutboundMessage, PluginErrorContext } from '../types.js';
+import type { Logger } from '../../../platform/observability/index.js';
+import type { Tool, ToolContext, ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
+import type { Config, InboundMessage, LLMMessage, LLMResponse, OutboundMessage, PluginErrorContext } from '../../../types.js';
 
 export type PluginOptions = Record<string, any>;
 

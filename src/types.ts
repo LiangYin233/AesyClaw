@@ -13,7 +13,7 @@
   ProviderConfig,
   ServerConfig,
   ToolsConfig,
-} from './config/schema.js';
+} from './features/config/schema.js';
 import type {
   ChannelConversation,
   ChannelSender,
@@ -27,7 +27,7 @@ import type {
   AdapterInboundDraft,
   AdapterSendResult,
   DeliveryReceipt
-} from './channels/core/types.js';
+} from './features/channels/domain/types.js';
 
 export type {
   AgentConfig,

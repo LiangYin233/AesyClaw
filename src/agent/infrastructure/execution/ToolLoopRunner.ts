@@ -1,7 +1,7 @@
 import type { LLMMessage, ToolCall } from '../../../types.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
 import type { ToolRegistry, ToolContext } from '../../../platform/tools/ToolRegistry.js';
-import type { PluginManager } from '../../../plugins/index.js';
+import type { PluginManager } from '../../../features/plugins/index.js';
 import type { ExecutionResult, ExecutionOptions, VisionSettings } from './ExecutionTypes.js';
 import { normalizeExecutionError, isRetryableExecutionError } from './errors.js';
 import { logger, preview, tokenUsage } from '../../../platform/observability/index.js';

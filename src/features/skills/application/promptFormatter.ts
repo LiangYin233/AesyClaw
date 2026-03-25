@@ -1,7 +1,4 @@
-export interface SkillPromptItem {
-  name: string;
-  description: string;
-}
+import type { SkillPromptItem } from '../domain/types.js';
 
 export function formatSkillsPrompt(skills: SkillPromptItem[]): string {
   if (skills.length === 0) {

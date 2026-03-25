@@ -1,5 +1,5 @@
 import type { ChannelAdapter } from './adapter.js';
-import type { InboundMessage } from '../../types.js';
+import type { InboundMessage } from '../../../types.js';
 import type { AdapterInboundDraft, ChannelMessage } from './types.js';
 import type { ProjectedMessageView } from './projection.js';
 

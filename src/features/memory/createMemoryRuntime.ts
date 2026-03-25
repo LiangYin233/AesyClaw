@@ -5,8 +5,8 @@ import {
   getMemoryConfig,
   listEmbeddingProviderNames,
   resolveProviderSelection
-} from '../../config/index.js';
-import type { ResolvedProviderSelection } from '../../config/schema.js';
+} from '../../features/config/index.js';
+import type { ResolvedProviderSelection } from '../../features/config/schema.js';
 import { logger } from '../../platform/observability/index.js';
 import { createProvider } from '../../platform/providers/index.js';
 import { LongTermMemoryStore, SessionManager } from '../sessions/index.js';

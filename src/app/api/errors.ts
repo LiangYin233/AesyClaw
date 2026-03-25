@@ -1,4 +1,4 @@
-import { getConfigValidationIssue } from '../../config/index.js';
+import { getConfigValidationIssue } from '../../features/config/index.js';
 import {
   AppError,
   BadRequestError,

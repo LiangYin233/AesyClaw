@@ -1,11 +1,11 @@
 import type { AgentRuntime, OutboundGateway } from '../../../agent/index.js';
-import type { ConfigManager, RuntimeConfigStore } from '../../../config/index.js';
+import type { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
 import { createChannelRuntime } from '../../../features/channels/index.js';
 import { createPluginRuntime } from '../../../features/plugins/index.js';
 import type { MCPClientManager } from '../../../features/mcp/index.js';
 import { startConfiguredMcpServers } from '../../../features/mcp/index.js';
 import type { Database } from '../../../platform/db/index.js';
-import type { PluginManager } from '../../../plugins/index.js';
+import type { PluginManager } from '../../../features/plugins/index.js';
 import type { ToolRegistry } from '../../../platform/tools/index.js';
 
 export interface InfrastructureServices {

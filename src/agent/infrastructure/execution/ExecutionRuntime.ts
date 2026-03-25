@@ -1,5 +1,5 @@
 import type { OutboundMessage, InboundMessage, LLMMessage, LLMResponse } from '../../../types.js';
-import type { PluginManager } from '../../../plugins/index.js';
+import type { PluginManager } from '../../../features/plugins/index.js';
 import type { SessionManager } from '../../../features/sessions/application/SessionManager.js';
 import type { SessionMemoryService } from '../memory/SessionMemoryService.js';
 import type { SessionRoutingService } from '../session/SessionRoutingService.js';

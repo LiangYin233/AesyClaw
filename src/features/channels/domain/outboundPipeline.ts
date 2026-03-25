@@ -1,4 +1,4 @@
-import type { OutboundMessage } from '../../types.js';
+import type { OutboundMessage } from '../../../types.js';
 import type { ChannelMessage } from './types.js';
 import type { ProjectedMessageView } from './projection.js';
 

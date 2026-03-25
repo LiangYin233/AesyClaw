@@ -1,5 +1,5 @@
 import type { Express } from 'express';
-import type { ChannelManager } from '../../../channels/ChannelManager.js';
+import type { ChannelManager } from '../application/ChannelManager.js';
 import type { Config } from '../../../types.js';
 import { registerChannelsController } from '../api/channels.controller.js';
 import { ChannelsService } from '../application/ChannelsService.js';

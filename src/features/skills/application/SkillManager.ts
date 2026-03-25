@@ -3,56 +3,13 @@ import fs from 'fs/promises';
 import path from 'path';
 import matter from 'gray-matter';
 import { normalizeSkillError } from './errors.js';
-import { logger } from '../platform/observability/index.js';
-import type { Config } from '../types.js';
+import { logger } from '../../../platform/observability/index.js';
+import type { Config } from '../../../types.js';
 import { formatSkillsPrompt } from './promptFormatter.js';
+import type { SkillInfo, SkillReloadSummary, SkillSource } from '../domain/types.js';
 
 const SKILL_ENTRY_FILE = 'SKILL.md';
 const RELOAD_DEBOUNCE_MS = 250;
-
-export type SkillSource = 'builtin' | 'external';
-
-export interface SkillFile {
-  name: string;
-  path: string;
-  isDirectory: boolean;
-}
-
-export interface SkillInfo {
-  name: string;
-  description: string;
-  path: string;
-  files?: SkillFile[];
-  content?: string;
-  enabled: boolean;
-  source: SkillSource;
-  builtin: boolean;
-  configurable: boolean;
-}
-
-export interface SkillContext {
-  message: string;
-  senderId: string;
-  chatId: string;
-  channel: string;
-  media?: string[];
-  sessionKey?: string;
-  raw?: any;
-}
-
-export interface SkillResult {
-  content: string;
-  media?: string[];
-  consumed?: boolean;
-}
-
-export interface SkillReloadSummary {
-  added: string[];
-  updated: string[];
-  removed: string[];
-  total: number;
-  cleanedAgentRefs: number;
-}
 
 interface SkillRootSpec {
   source: SkillSource;
@@ -258,7 +215,7 @@ export class SkillManager {
     }
   }
 
-  async listSkillFiles(skillName: string): Promise<SkillFile[] | string | null> {
+  async listSkillFiles(skillName: string): Promise<SkillInfo['files'] | string | null> {
     const skill = this.skills.get(skillName);
     if (!skill) {
       return null;
@@ -462,8 +419,8 @@ export class SkillManager {
     }
   }
 
-  private async getSkillFilesList(skillPath: string): Promise<SkillFile[]> {
-    const files: SkillFile[] = [];
+  private async getSkillFilesList(skillPath: string): Promise<SkillInfo['files']> {
+    const files: SkillInfo['files'] = [];
 
     try {
       await this.collectSkillFiles(skillPath, skillPath, files);
@@ -477,7 +434,7 @@ export class SkillManager {
     return files.sort((left, right) => left.name.localeCompare(right.name));
   }
 
-  private async collectSkillFiles(skillRoot: string, currentDir: string, files: SkillFile[]): Promise<void> {
+  private async collectSkillFiles(skillRoot: string, currentDir: string, files: SkillInfo['files']): Promise<void> {
     const entries = await fs.readdir(currentDir, { withFileTypes: true });
 
     for (const entry of entries) {

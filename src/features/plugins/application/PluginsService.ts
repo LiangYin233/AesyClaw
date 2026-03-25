@@ -1,5 +1,5 @@
 import { ResourceNotFoundError } from '../../../platform/errors/domain.js';
-import type { PluginInfo } from '../../../plugins/types.js';
+import type { PluginInfo } from '../domain/types.js';
 import { PluginRepository } from '../infrastructure/PluginRepository.js';
 
 export class PluginsService {

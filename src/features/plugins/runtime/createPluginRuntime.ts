@@ -1,9 +1,10 @@
 import type { OutboundGateway } from '../../../agent/index.js';
-import type { ConfigMutator, RuntimeConfigStore } from '../../../config/index.js';
+import type { ConfigMutator, RuntimeConfigStore } from '../../../features/config/index.js';
 import type { Config } from '../../../types.js';
 import type { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
 import { logger } from '../../../platform/observability/index.js';
-import { PluginManager, type PluginConfigState } from '../../../plugins/index.js';
+import { PluginManager } from '../application/PluginManager.js';
+import type { PluginConfigState } from '../domain/types.js';
 
 const log = logger.child('PluginRuntimeFactory');
 

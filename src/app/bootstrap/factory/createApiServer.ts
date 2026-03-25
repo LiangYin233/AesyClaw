@@ -2,14 +2,14 @@ import type { AgentRoleService } from '../../../agent/infrastructure/roles/Agent
 import type { SessionRoutingService } from '../../../agent/infrastructure/session/SessionRoutingService.js';
 import type { AgentRuntime } from '../../../agent/index.js';
 import { APIServer } from '../../api/index.js';
-import type { ChannelManager } from '../../../channels/ChannelManager.js';
-import type { ConfigManager, RuntimeConfigStore } from '../../../config/index.js';
+import type { ChannelManager } from '../../../features/channels/application/ChannelManager.js';
+import type { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
 import type { CronRuntimeService } from '../../../features/cron/index.js';
 import type { MCPClientManager } from '../../../features/mcp/index.js';
 import type { Database } from '../../../platform/db/index.js';
-import type { PluginManager } from '../../../plugins/index.js';
+import type { PluginManager } from '../../../features/plugins/index.js';
 import type { LongTermMemoryStore, SessionManager } from '../../../features/sessions/index.js';
-import type { SkillManager } from '../../../skills/index.js';
+import type { SkillManager } from '../../../features/skills/index.js';
 import type { ToolRegistry } from '../../../platform/tools/index.js';
 
 export async function createApiServer(args: {

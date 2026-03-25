@@ -1,9 +1,9 @@
 import type { AgentRuntime } from '../../../agent/index.js';
-import { ChannelManager } from '../../../channels/ChannelManager.js';
-import { loadExternalChannelPlugins } from '../../../channels/ChannelPluginLoader.js';
-import { mergeChannelConfigWithDefaults } from '../../../channels/config.js';
-import { ChannelRuntime } from '../../../channels/core/runtime.js';
-import type { ConfigManager, RuntimeConfigStore } from '../../../config/index.js';
+import { ChannelManager } from '../application/ChannelManager.js';
+import { loadExternalChannelPlugins } from '../application/ChannelPluginLoader.js';
+import { mergeChannelConfigWithDefaults } from '../domain/config.js';
+import { ChannelRuntime } from './ChannelRuntime.js';
+import type { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
 import type { Database } from '../../../platform/db/index.js';
 import { logger } from '../../../platform/observability/index.js';
 import type { Config } from '../../../types.js';

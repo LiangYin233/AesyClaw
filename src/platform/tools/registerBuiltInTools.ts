@@ -1,8 +1,8 @@
 import type { ToolRegistry } from './ToolRegistry.js';
-import type { SkillManager } from '../../skills/index.js';
+import type { SkillManager } from '../../features/skills/index.js';
 import type { CronRuntimeService } from '../../features/cron/index.js';
 import type { MCPClientManager } from '../../features/mcp/index.js';
-import type { PluginManager } from '../../plugins/index.js';
+import type { PluginManager } from '../../features/plugins/index.js';
 import type { ToolDefinition } from '../../types.js';
 import type { AgentRoleService } from '../../agent/infrastructure/roles/AgentRoleService.js';
 import type { SessionMemoryService } from '../../agent/infrastructure/memory/SessionMemoryService.js';

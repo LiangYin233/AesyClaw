@@ -1,9 +1,9 @@
-import { normalizeChannelError } from './errors.js';
-import type { InboundMessage, OutboundMessage } from '../types.js';
-import { logger } from '../platform/observability/index.js';
-import type { ChannelRuntime } from './core/runtime.js';
-import type { ChannelAdapter } from './core/adapter.js';
-import type { DeliveryReceipt } from './core/types.js';
+import { normalizeChannelError } from '../domain/errors.js';
+import type { InboundMessage, OutboundMessage } from '../../../types.js';
+import { logger } from '../../../platform/observability/index.js';
+import type { ChannelRuntime } from '../runtime/ChannelRuntime.js';
+import type { ChannelAdapter } from '../domain/adapter.js';
+import type { DeliveryReceipt } from '../domain/types.js';
 
 export interface ChannelPluginDefinition {
   pluginName: string;

@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import type { AdapterInboundDraft, ResourceHandle } from '../../src/channels/core/types.ts';
+import type { AdapterInboundDraft, ResourceHandle } from '../../src/features/channels/domain/types.ts';
 
 export interface WeixinMessageItem {
   type?: number;

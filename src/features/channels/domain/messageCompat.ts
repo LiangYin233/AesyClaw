@@ -1,6 +1,6 @@
 import { basename } from 'path';
 import { randomUUID } from 'crypto';
-import type { InboundMessage, OutboundMessage } from '../../types.js';
+import type { InboundMessage, OutboundMessage } from '../../../types.js';
 import type { ChannelMessage } from './types.js';
 import type { MessageSegment, ResourceHandle } from './types.js';
 import { projectChannelMessage } from './projection.js';

@@ -1,4 +1,4 @@
-import type { ConfigReloadTargets } from '../../../config/reload/ports/ReloadTargets.js';
+import type { ConfigReloadTargets } from '../../../features/config/reload/ports/ReloadTargets.js';
 import { syncConfiguredMcpServers } from '../index.js';
 import type { Services } from '../../../app/bootstrap/factory/ServiceFactory.js';
 

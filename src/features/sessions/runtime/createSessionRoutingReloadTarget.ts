@@ -1,5 +1,5 @@
-import { getSessionRuntimeConfig } from '../../../config/index.js';
-import type { ConfigReloadTargets } from '../../../config/reload/ports/ReloadTargets.js';
+import { getSessionRuntimeConfig } from '../../../features/config/index.js';
+import type { ConfigReloadTargets } from '../../../features/config/reload/ports/ReloadTargets.js';
 import type { Services } from '../../../app/bootstrap/factory/ServiceFactory.js';
 
 export function createSessionRoutingReloadTarget(services: Services): NonNullable<ConfigReloadTargets['sessionRouting']> {
