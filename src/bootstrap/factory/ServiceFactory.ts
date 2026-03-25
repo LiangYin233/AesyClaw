@@ -20,6 +20,7 @@ import { createExecutionRuntime } from './createExecutionRuntime.js';
 import { createInfrastructureServices } from './createInfrastructureServices.js';
 import { createPersistenceServices } from './createPersistenceServices.js';
 import { registerRuntimeBindings } from './registerRuntimeBindings.js';
+import { runBootstrapPhase } from './runBootstrapPhase.js';
 import { EventBus } from '../../events/EventBus.js';
 import type { AesyClawEvents } from '../../events/events.js';
 
@@ -80,69 +81,63 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   log.info('正在初始化服务');
   const outboundGateway = new OutboundGateway();
 
-  const persistenceStartedAt = Date.now();
+  const { result: persistence, durationMs: persistenceMs } = await runBootstrapPhase({
+    phase: 'persistence',
+    log,
+    task: () => createPersistenceServices(config)
+  });
   const {
     sessionManager,
     longTermMemoryStore,
     memoryService,
     sessionRouting
-  } = await createPersistenceServices(config);
-  const persistenceMs = Date.now() - persistenceStartedAt;
-  log.info('服务阶段完成', {
-    phase: 'persistence',
-    durationMs: persistenceMs
-  });
+  } = persistence;
 
-  const executionRuntimeStartedAt = Date.now();
-  const executionRuntime = await createExecutionRuntime({
-    getConfig: () => configStore.getConfig(),
-    setConfig: (nextConfig) => { configStore.setConfig(nextConfig); },
-    updateConfig: (mutator) => configManager.update(mutator),
-    eventBus,
-    outboundGateway,
-    workspace,
-    sessionManager,
-    sessionRouting,
-    memoryService
-  });
-  const executionRuntimeMs = Date.now() - executionRuntimeStartedAt;
-  log.info('服务阶段完成', {
+  const { result: executionRuntime, durationMs: executionRuntimeMs } = await runBootstrapPhase({
     phase: 'executionRuntime',
-    durationMs: executionRuntimeMs
+    log,
+    task: () => createExecutionRuntime({
+      getConfig: () => configStore.getConfig(),
+      setConfig: (nextConfig) => { configStore.setConfig(nextConfig); },
+      updateConfig: (mutator) => configManager.update(mutator),
+      eventBus,
+      outboundGateway,
+      workspace,
+      sessionManager,
+      sessionRouting,
+      memoryService
+    })
   });
 
   const { provider, toolRegistry, commandRegistry, skillManager, agentRoleService, agentRuntime, setPluginManager } = executionRuntime;
 
-  const cronStartedAt = Date.now();
-  const cronService = await createCronService(onCronJob);
-  const cronMs = Date.now() - cronStartedAt;
-  log.info('服务阶段完成', {
+  const { result: cronService, durationMs: cronMs } = await runBootstrapPhase({
     phase: 'cron',
-    durationMs: cronMs
+    log,
+    task: () => createCronService(onCronJob)
   });
 
-  const infrastructureStartedAt = Date.now();
+  const { result: infrastructure, durationMs: infrastructureMs } = await runBootstrapPhase({
+    phase: 'infrastructure',
+    log,
+    task: () => createInfrastructureServices({
+      configStore,
+      configManager,
+      outboundGateway,
+      agentRuntime,
+      workspace,
+      tempDir,
+      toolRegistry,
+      sessionManager
+    })
+  });
   const {
     pluginManager,
     startPluginLoading,
     isPluginLoadingComplete,
     channelManager,
     mcpManager
-  } = await createInfrastructureServices({
-    configStore,
-    configManager,
-    outboundGateway,
-    agentRuntime,
-    workspace,
-    tempDir,
-    toolRegistry,
-    sessionManager
-  });
-  const infrastructureMs = Date.now() - infrastructureStartedAt;
-  log.info('服务阶段完成', {
-    phase: 'infrastructure',
-    durationMs: infrastructureMs
-  });
+  } = infrastructure;
 
   registerRuntimeBindings({
     commandRegistry,
@@ -160,33 +155,31 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     memoryService
   });
 
-  const apiStartedAt = Date.now();
-  const apiServer = await createApiServer({
-    port,
-    agentRuntime,
-    sessionManager,
-    sessionRouting,
-    channelManager,
-    configStore,
-    configManager,
-    pluginManager,
-    cronService,
-    mcpManager,
-    skillManager,
-    toolRegistry,
-    longTermMemoryStore,
-    agentRoleService
+  const { result: apiServer, durationMs: apiMs } = await runBootstrapPhase({
+    phase: 'api',
+    log,
+    task: () => createApiServer({
+      port,
+      agentRuntime,
+      sessionManager,
+      sessionRouting,
+      channelManager,
+      configStore,
+      configManager,
+      pluginManager,
+      cronService,
+      mcpManager,
+      skillManager,
+      toolRegistry,
+      longTermMemoryStore,
+      agentRoleService
+    })
   });
   if (apiServer) {
     log.info(`API 服务已在端口 ${port} 启动`);
   } else {
     log.info('API 服务已在配置中禁用');
   }
-  const apiMs = Date.now() - apiStartedAt;
-  log.info('服务阶段完成', {
-    phase: 'api',
-    durationMs: apiMs
-  });
 
   log.info('所有服务初始化完成', {
     durationMs: Date.now() - startedAt,
