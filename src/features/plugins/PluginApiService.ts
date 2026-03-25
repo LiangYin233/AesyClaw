@@ -1,4 +1,4 @@
-import { NotFoundError, ValidationError } from '../../api/errors.js';
+import { NotFoundError } from '../../api/errors.js';
 import type { PluginInfo } from '../../plugins/types.js';
 import { PluginRepository } from './PluginRepository.js';
 
@@ -11,13 +11,8 @@ export class PluginApiService {
     };
   }
 
-  async togglePlugin(name: string, body: unknown): Promise<{ success: true }> {
-    const payload = this.requireBody(body);
-    if (typeof payload.enabled !== 'boolean') {
-      throw new ValidationError('enabled is required and must be a boolean', 'enabled');
-    }
-
-    const updated = await this.pluginRepository.setEnabled(name, payload.enabled);
+  async togglePlugin(name: string, enabled: boolean): Promise<{ success: true }> {
+    const updated = await this.pluginRepository.setEnabled(name, enabled);
     if (!updated) {
       throw new NotFoundError('Plugin', name);
     }
@@ -25,24 +20,12 @@ export class PluginApiService {
     return { success: true };
   }
 
-  async updatePluginConfig(name: string, body: unknown): Promise<{ success: true }> {
-    const payload = this.requireBody(body);
-    if (!payload.options || typeof payload.options !== 'object' || Array.isArray(payload.options)) {
-      throw new ValidationError('options is required and must be an object', 'options');
-    }
-
-    const updated = await this.pluginRepository.updateOptions(name, payload.options as Record<string, unknown>);
+  async updatePluginConfig(name: string, options: Record<string, unknown>): Promise<{ success: true }> {
+    const updated = await this.pluginRepository.updateOptions(name, options);
     if (!updated) {
       throw new NotFoundError('Plugin', name);
     }
 
     return { success: true };
-  }
-
-  private requireBody(body: unknown): Record<string, unknown> {
-    if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      throw new ValidationError('request body must be an object');
-    }
-    return body as Record<string, unknown>;
   }
 }

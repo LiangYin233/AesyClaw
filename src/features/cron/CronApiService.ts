@@ -1,9 +1,8 @@
 import { randomUUID } from 'crypto';
-import type { CronJob, CronPayload, CronSchedule } from '../../cron/index.js';
-import { NotFoundError, ValidationError } from '../../api/errors.js';
+import type { CronJob } from '../../cron/index.js';
+import { NotFoundError } from '../../api/errors.js';
 import { CronRepository } from './CronRepository.js';
-
-const VALID_SCHEDULE_KINDS = new Set<CronSchedule['kind']>(['once', 'interval', 'daily', 'cron']);
+import type { CreateCronJobDto, UpdateCronJobDto } from './cron.dto.js';
 
 export class CronApiService {
   constructor(private readonly cronRepository: CronRepository) {}
@@ -20,44 +19,35 @@ export class CronApiService {
     return { job };
   }
 
-  createJob(body: unknown): { success: true; job: CronJob } {
-    const payload = this.requireBody(body);
-    const name = this.requireString(payload.name, 'name', 'name is required and must be a string');
-    const schedule = this.requireSchedule(payload.schedule, true);
-    const jobPayload = this.requirePayload(payload.payload, true);
-    const enabled = payload.enabled !== false;
+  createJob(input: CreateCronJobDto): { success: true; job: CronJob } {
     const job = this.cronRepository.create({
       id: randomUUID().slice(0, 8),
-      name,
-      enabled,
-      schedule,
-      payload: jobPayload
+      name: input.name,
+      enabled: input.enabled,
+      schedule: input.schedule,
+      payload: input.payload
     });
 
     return { success: true, job };
   }
 
-  updateJob(id: string, body: unknown): { success: true; job: CronJob } {
+  updateJob(id: string, input: UpdateCronJobDto): { success: true; job: CronJob } {
     const existing = this.cronRepository.getById(id);
     if (!existing) {
       throw new NotFoundError('Cron job', id);
     }
 
-    const payload = this.requireBody(body);
-    if (payload.name !== undefined) {
-      existing.name = this.requireString(payload.name, 'name', 'name must be a string');
+    if (input.name !== undefined) {
+      existing.name = input.name;
     }
-    if (payload.schedule !== undefined) {
-      existing.schedule = this.requireSchedule(payload.schedule, false);
+    if (input.schedule !== undefined) {
+      existing.schedule = input.schedule;
     }
-    if (payload.payload !== undefined) {
-      existing.payload = this.requirePayload(payload.payload, false);
+    if (input.payload !== undefined) {
+      existing.payload = input.payload;
     }
-    if (payload.enabled !== undefined) {
-      if (typeof payload.enabled !== 'boolean') {
-        throw new ValidationError('enabled must be a boolean', 'enabled');
-      }
-      existing.enabled = payload.enabled;
+    if (input.enabled !== undefined) {
+      existing.enabled = input.enabled;
     }
 
     return { success: true, job: this.cronRepository.save(existing) };
@@ -71,64 +61,16 @@ export class CronApiService {
     return { success: true };
   }
 
-  toggleJob(id: string, body: unknown): { success: true; enabled: boolean } {
-    const payload = this.requireBody(body);
-    if (typeof payload.enabled !== 'boolean') {
-      throw new ValidationError('enabled is required and must be a boolean', 'enabled');
-    }
-
+  toggleJob(id: string, enabled: boolean): { success: true; enabled: boolean } {
     const job = this.cronRepository.getById(id);
     if (!job) {
       throw new NotFoundError('Cron job', id);
     }
 
-    this.cronRepository.setEnabled(id, payload.enabled);
+    this.cronRepository.setEnabled(id, enabled);
     return {
       success: true,
-      enabled: payload.enabled
+      enabled
     };
-  }
-
-  private requireBody(body: unknown): Record<string, unknown> {
-    if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      throw new ValidationError('request body must be an object');
-    }
-    return body as Record<string, unknown>;
-  }
-
-  private requireString(value: unknown, field: string, message: string): string {
-    if (typeof value !== 'string' || !value.trim()) {
-      throw new ValidationError(message, field);
-    }
-    return value;
-  }
-
-  private requireSchedule(value: unknown, strictKind: boolean): CronSchedule {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      throw new ValidationError(
-        strictKind ? 'schedule is required and must be an object' : 'schedule must be an object',
-        'schedule'
-      );
-    }
-
-    const schedule = value as CronSchedule;
-    if (!VALID_SCHEDULE_KINDS.has(schedule.kind)) {
-      throw new ValidationError(
-        'schedule.kind must be one of: once, interval, daily, cron',
-        'schedule.kind'
-      );
-    }
-
-    return schedule;
-  }
-
-  private requirePayload(value: unknown, required: boolean): CronPayload {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      throw new ValidationError(
-        required ? 'payload is required and must be an object' : 'payload must be an object',
-        'payload'
-      );
-    }
-    return value as CronPayload;
   }
 }

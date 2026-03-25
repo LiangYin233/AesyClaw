@@ -1,8 +1,7 @@
 import type { MCPClientManager } from '../../mcp/MCPClient.js';
 import type { Config, MCPServerInfo } from '../../types.js';
-import { getConfigValidationIssue, parseMCPServerConfig } from '../../config/index.js';
 import { formatLocalTimestamp } from '../../observability/logging.js';
-import { NotFoundError, ValidationError } from '../../api/errors.js';
+import { NotFoundError } from '../../api/errors.js';
 import { McpRepository } from './McpRepository.js';
 
 type SerializedMcpServer = MCPServerInfo;
@@ -49,18 +48,7 @@ export class McpApiService {
     };
   }
 
-  async createServer(name: string, body: unknown): Promise<{ success: true; server: unknown; toolsRegistered: number }> {
-    let config;
-    try {
-      config = parseMCPServerConfig(body);
-    } catch (error) {
-      const issue = getConfigValidationIssue(error);
-      if (issue) {
-        throw new ValidationError(issue.message, issue.field);
-      }
-      throw error;
-    }
-
+  async createServer(name: string, config: Config['mcp'][string]): Promise<{ success: true; server: unknown; toolsRegistered: number }> {
     const { manager, toolsRegistered } = await this.mcpRepository.connectServer(name, config);
 
     const nextConfig = await this.mcpRepository.saveConfig((currentConfig) => {
@@ -109,23 +97,18 @@ export class McpApiService {
     };
   }
 
-  async toggleServer(name: string, body: unknown): Promise<{ success: true; enabled: boolean; server: unknown }> {
-    const payload = this.requireBody(body);
-    if (typeof payload.enabled !== 'boolean') {
-      throw new ValidationError('enabled must be a boolean', 'enabled');
-    }
-
+  async toggleServer(name: string, enabled: boolean): Promise<{ success: true; enabled: boolean; server: unknown }> {
     const currentConfig = this.mcpRepository.getConfig();
     if (!currentConfig.mcp[name]) {
       throw new NotFoundError('MCP server in config', name);
     }
 
     const nextConfig = await this.mcpRepository.saveConfig((config) => {
-      config.mcp[name].enabled = payload.enabled as boolean;
+      config.mcp[name].enabled = enabled;
     });
 
     let server = this.mcpRepository.getManager()?.getServerStatus(name);
-    if (payload.enabled) {
+    if (enabled) {
       const { manager } = await this.mcpRepository.connectServer(name, nextConfig.mcp[name]);
       server = manager.getServerStatus(name);
     } else {
@@ -135,16 +118,9 @@ export class McpApiService {
 
     return {
       success: true,
-      enabled: payload.enabled,
+      enabled,
       server: serializeServerStatus(this.resolveConfiguredServer(nextConfig, this.mcpRepository.getManager(), name) ?? server)
     };
-  }
-
-  private requireBody(body: unknown): Record<string, unknown> {
-    if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      throw new ValidationError('request body must be an object');
-    }
-    return body as Record<string, unknown>;
   }
 
   private resolveConfiguredServer(

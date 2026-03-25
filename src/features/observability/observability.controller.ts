@@ -1,6 +1,7 @@
 import type { Express } from 'express';
 import { asyncHandler } from '../../api/middleware/async-handler.js';
 import { ObservabilityApiService } from './ObservabilityApiService.js';
+import { parseLoggingEntriesQuery, parseLoggingLevelUpdate } from './observability.dto.js';
 
 export function registerObservabilityController(app: Express, service: ObservabilityApiService): void {
   app.get('/api/observability/logging/config', (_req, res) => {
@@ -10,11 +11,11 @@ export function registerObservabilityController(app: Express, service: Observabi
   app.get('/api/observability/logging/entries', asyncHandler(async (req, res) => {
     const limitParam = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
     const levelParam = Array.isArray(req.query.level) ? req.query.level[0] : req.query.level;
-    res.json(service.getLoggingEntries({ limit: limitParam, level: levelParam }));
+    res.json(service.getLoggingEntries(parseLoggingEntriesQuery({ limit: limitParam, level: levelParam })));
   }));
 
   app.post('/api/observability/logging/level', asyncHandler(async (req, res) => {
-    res.json(await service.updateLoggingLevel(req.body));
+    res.json(await service.updateLoggingLevel(parseLoggingLevelUpdate(req.body).level));
   }));
 
   app.get('/api/observability/usage', (_req, res) => {

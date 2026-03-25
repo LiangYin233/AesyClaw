@@ -1,6 +1,7 @@
 import type { Express } from 'express';
 import { asyncHandler } from '../../api/middleware/async-handler.js';
 import { SkillApiService } from './SkillApiService.js';
+import { parseToggleSkill } from './skills.dto.js';
 
 export function registerSkillsController(app: Express, service: SkillApiService): void {
   app.get('/api/skills', (_req, res) => {
@@ -16,6 +17,6 @@ export function registerSkillsController(app: Express, service: SkillApiService)
   }));
 
   app.post('/api/skills/:name/toggle', asyncHandler(async (req, res) => {
-    res.json(await service.toggleSkill(String(req.params.name), req.body));
+    res.json(await service.toggleSkill(String(req.params.name), parseToggleSkill(req.body).enabled));
   }));
 }

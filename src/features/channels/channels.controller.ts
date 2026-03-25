@@ -1,6 +1,7 @@
 import type { Express } from 'express';
 import { asyncHandler } from '../../api/middleware/async-handler.js';
 import { ChannelApiService } from './ChannelApiService.js';
+import { parseSendChannelMessage } from './channels.dto.js';
 
 export function registerChannelsController(
   app: Express,
@@ -12,11 +13,12 @@ export function registerChannelsController(
   });
 
   app.post('/api/channels/:name/send', asyncHandler(async (req, res) => {
+    const request = parseSendChannelMessage(req.body);
     log.info('收到 API 外发消息请求', {
       request_id: req.requestId,
       channel: String(req.params.name),
-      chatId: req.body?.chatId
+      chatId: request.chatId
     });
-    res.json(await service.sendMessage(String(req.params.name), req.body ?? {}));
+    res.json(await service.sendMessage(String(req.params.name), request));
   }));
 }

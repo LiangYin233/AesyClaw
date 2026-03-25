@@ -1,7 +1,7 @@
 import type { Express } from 'express';
-import { ValidationError } from '../../api/errors.js';
 import { asyncHandler } from '../../api/middleware/async-handler.js';
 import { ConfigApiService } from './ConfigApiService.js';
+import { parseConfigUpdate } from './config.dto.js';
 
 export function registerConfigController(
   app: Express,
@@ -13,15 +13,10 @@ export function registerConfigController(
   });
 
   app.put('/api/config', asyncHandler(async (req, res) => {
-    const nextConfig = req.body;
-    if (!nextConfig || typeof nextConfig !== 'object' || Array.isArray(nextConfig)) {
-      throw new ValidationError('config body must be an object', 'config');
-    }
-
     log.info('收到 API 配置更新请求', {
       request_id: req.requestId
     });
 
-    res.json(await service.updateApiConfig(nextConfig as Record<string, unknown>));
+    res.json(await service.updateApiConfig(parseConfigUpdate(req.body)));
   }));
 }

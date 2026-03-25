@@ -21,12 +21,7 @@ export class SkillApiService {
     return { success: true, summary };
   }
 
-  async toggleSkill(name: string, body: unknown): Promise<{ success: true }> {
-    const payload = this.requireBody(body);
-    if (typeof payload.enabled !== 'boolean') {
-      throw new ValidationError('enabled must be a boolean', 'enabled');
-    }
-
+  async toggleSkill(name: string, enabled: boolean): Promise<{ success: true }> {
     const skill = this.skillRepository.getByName(name);
     if (!skill) {
       throw new NotFoundError('Skill', name);
@@ -35,18 +30,11 @@ export class SkillApiService {
       throw new ValidationError('built-in skill cannot be toggled', 'name');
     }
 
-    const success = await this.skillRepository.toggle(name, payload.enabled);
+    const success = await this.skillRepository.toggle(name, enabled);
     if (!success) {
       throw new NotFoundError('Skill', name);
     }
 
     return { success: true };
-  }
-
-  private requireBody(body: unknown): Record<string, unknown> {
-    if (!body || typeof body !== 'object' || Array.isArray(body)) {
-      throw new ValidationError('request body must be an object');
-    }
-    return body as Record<string, unknown>;
   }
 }

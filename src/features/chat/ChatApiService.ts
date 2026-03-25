@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { ValidationError } from '../../api/errors.js';
 import { ChatRepository } from './ChatRepository.js';
+import type { CreateChatRequestDto } from './chat.dto.js';
 
 const WEBUI_CHANNEL = 'webui';
 
@@ -10,19 +11,14 @@ export class ChatApiService {
     private readonly maxMessageLength: number
   ) {}
 
-  async createChatResponse(request: {
-    sessionKey?: string;
-    message: string;
-    channel?: string;
-    chatId?: string;
-  }): Promise<{
+  async createChatResponse(request: CreateChatRequestDto): Promise<{
     success: true;
     response: unknown;
   }> {
     const message = this.validateMessage(request.message);
-    const channel = this.validateOptionalString(request.channel, 'channel');
-    const chatId = this.validateOptionalString(request.chatId, 'chatId');
-    const sessionKey = this.validateOptionalString(request.sessionKey, 'sessionKey');
+    const channel = request.channel;
+    const chatId = request.chatId;
+    const sessionKey = request.sessionKey;
     const resolvedChannel = channel || WEBUI_CHANNEL;
     const key = sessionKey || `${resolvedChannel}:${randomUUID()}`;
     const resolvedChatId = chatId || sessionKey || key;
@@ -47,15 +43,5 @@ export class ChatApiService {
       throw new ValidationError(`Message too long (max ${this.maxMessageLength} characters)`, 'message');
     }
     return value;
-  }
-
-  private validateOptionalString(value: unknown, field: string): string | undefined {
-    if (value === undefined || value === null || value === '') {
-      return undefined;
-    }
-    if (typeof value !== 'string') {
-      throw new ValidationError(`${field} must be a string`, field);
-    }
-    return value.trim() || undefined;
   }
 }
