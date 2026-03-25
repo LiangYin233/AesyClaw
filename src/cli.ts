@@ -2,7 +2,7 @@
 
 import { spawn, execSync, ChildProcess } from 'child_process';
 import { bootstrap, StartupInterruptedError } from './bootstrap/index.js';
-import { ConfigLoader } from './config/loader.js';
+import { ConfigLoader } from './config/index.js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';

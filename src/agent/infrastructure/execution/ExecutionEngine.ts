@@ -1,6 +1,7 @@
 import type { VisionSettings } from '../../../types.js';
 import type { LLMProvider } from '../../../providers/base.js';
 import type { PluginManager } from '../../../plugins/index.js';
+import { resolveExecutionModel } from '../../../config/executionModel.js';
 import type { ToolRegistry, ToolContext } from '../../../tools/ToolRegistry.js';
 import type { AgentRoleService } from '../roles/AgentRoleService.js';
 import { AgentExecutor } from './AgentExecutor.js';
@@ -202,7 +203,7 @@ export class ExecutionEngine {
     return {
       roleName: resolvedRole.name,
       provider: this.agentRoleService.createProviderForRole(resolvedRole.name),
-      model: resolvedRole.model,
+      model: resolveExecutionModel(resolvedRole.model),
       maxContextTokens: this.agentRoleService.getMaxContextTokensForRole(resolvedRole.name),
       systemPrompt: resolvedRole.systemPrompt,
       skillsPrompt: auxiliaryPrompt,

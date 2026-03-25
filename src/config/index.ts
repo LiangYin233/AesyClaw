@@ -1,5 +1,7 @@
 export { ConfigLoader, getConfig } from './loader.js';
 export type { ConfigMutator } from './loader.js';
+export { ConfigManager } from './ConfigManager.js';
+export { RuntimeConfigStore } from './RuntimeConfigStore.js';
 export {
   DEFAULT_CONFIG,
   configSchema,
@@ -9,6 +11,7 @@ export {
   parseMCPServerConfig
 } from './schema.js';
 export { resolveConfig, resolveProviderSelection } from './resolve.js';
+export { resolveExecutionModel } from './executionModel.js';
 export {
   getMainAgentConfig,
   getMainAgentRole,

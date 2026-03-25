@@ -8,10 +8,11 @@ import { AgentRoleService } from '../../agent/infrastructure/roles/AgentRoleServ
 import { CommandRegistry } from '../../agent/application/index.js';
 import { SessionMemoryService } from '../../agent/infrastructure/memory/SessionMemoryService.js';
 import { SessionRoutingService } from '../../agent/infrastructure/session/SessionRoutingService.js';
-import { ConfigManager } from '../../config/ConfigManager.js';
 import {
+  ConfigManager,
   getMainAgentConfig,
   getToolRuntimeConfig,
+  resolveExecutionModel,
   resolveProviderSelection
 } from '../../config/index.js';
 import { logger } from '../../observability/index.js';
@@ -133,7 +134,7 @@ export async function createExecutionRuntime(args: {
     workspace,
     systemPrompt: mainAgentConfig.role.systemPrompt,
     maxIterations: mainAgentConfig.maxIterations,
-    model: mainAgentConfig.role.model,
+    model: resolveExecutionModel(mainAgentConfig.role.model),
     memoryWindow: mainAgentConfig.memoryWindow,
     visionSettings,
     visionProvider,

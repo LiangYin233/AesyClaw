@@ -1,50 +1,40 @@
-import type { Config } from '../types.js';
+import type { Config } from './schema.js';
 import type { EventBus } from '../events/EventBus.js';
 import type { AesyClawEvents } from '../events/events.js';
-import { ConfigRepository } from './ConfigRepository.js';
-
-type ConfigMutator = (config: Config) => void | Config | Promise<void | Config>;
+import { ConfigService } from './application/ConfigService.js';
+import type { ConfigMutator } from './application/ConfigMutationService.js';
+import type { ConfigReloadTargets } from './reload/ports/ReloadTargets.js';
+import { sharedConfigService } from './sharedService.js';
 
 export class ConfigManager {
-  private currentConfig: Config | null = null;
-  private unsubscribeLoader?: () => void;
+  private unsubscribeReload?: () => void;
 
   constructor(
     private readonly eventBus?: EventBus<AesyClawEvents>,
-    private readonly repository = new ConfigRepository()
+    private readonly service: ConfigService = sharedConfigService
   ) {}
 
   async load(configPath?: string): Promise<Config> {
     this.ensureReloadBridge();
-    const config = await this.repository.load(configPath);
-    this.currentConfig = config;
-    return config;
+    return this.service.load(configPath);
   }
 
   getConfig(): Config {
-    if (!this.currentConfig) {
-      throw new Error('Config has not been loaded');
-    }
+    return this.service.get();
+  }
 
-    return this.currentConfig;
+  getSnapshotStore() {
+    return this.service.getSnapshotStore();
   }
 
   async save(config: unknown): Promise<Config> {
     this.ensureReloadBridge();
-    await this.repository.save(config);
-    const nextConfig = this.repository.get();
-    this.currentConfig = nextConfig;
-    return nextConfig;
+    return this.service.save(config);
   }
 
   async update(mutator: ConfigMutator): Promise<Config> {
     this.ensureReloadBridge();
-    if (!this.currentConfig) {
-      await this.load();
-    }
-    const nextConfig = await this.repository.update(mutator);
-    this.currentConfig = nextConfig;
-    return nextConfig;
+    return this.service.update(mutator);
   }
 
   async updatePluginConfig(
@@ -62,33 +52,33 @@ export class ConfigManager {
   }
 
   setConfig(config: Config): void {
-    this.currentConfig = config;
+    this.service.setConfig(config);
+  }
+
+  setReloadTargets(targets: ConfigReloadTargets): void {
+    this.service.setReloadTargets(targets);
   }
 
   dispose(): void {
-    this.unsubscribeLoader?.();
-    this.unsubscribeLoader = undefined;
+    this.unsubscribeReload?.();
+    this.unsubscribeReload = undefined;
+    this.service.stopWatching();
   }
 
   private ensureReloadBridge(): void {
-    if (this.unsubscribeLoader) {
+    if (this.unsubscribeReload) {
       return;
     }
 
-    this.unsubscribeLoader = this.repository.onReload(async (previousConfig, nextConfig) => {
-      await this.emitConfigChanged(previousConfig, nextConfig);
-      this.currentConfig = nextConfig;
-    });
-  }
+    this.unsubscribeReload = this.service.onReload(async (previousConfig, currentConfig) => {
+      if (!this.eventBus || !previousConfig) {
+        return;
+      }
 
-  private async emitConfigChanged(previousConfig: Config | null, currentConfig: Config): Promise<void> {
-    if (!this.eventBus || !previousConfig) {
-      return;
-    }
-
-    await this.eventBus.emit('config.changed', {
-      previousConfig,
-      currentConfig
+      await this.eventBus.emit('config.changed', {
+        previousConfig,
+        currentConfig
+      });
     });
   }
 }

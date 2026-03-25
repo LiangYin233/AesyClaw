@@ -4,8 +4,7 @@ import { AgentRuntime, OutboundGateway } from '../../agent/index.js';
 import type { SessionRoutingService } from '../../agent/infrastructure/session/SessionRoutingService.js';
 import { APIServer } from '../../api/index.js';
 import { ChannelManager } from '../../channels/ChannelManager.js';
-import { ConfigManager } from '../../config/ConfigManager.js';
-import { RuntimeConfigStore } from '../../config/RuntimeConfigStore.js';
+import { ConfigManager, RuntimeConfigStore } from '../../config/index.js';
 import { CronService } from '../../cron/index.js';
 import { logging, logger, tokenUsage } from '../../observability/index.js';
 import type { LLMProvider } from '../../providers/base.js';
@@ -129,7 +128,9 @@ async function createInfrastructure(args: {
 export async function createServices(options: ServiceFactoryOptions): Promise<Services> {
   const { workspace, tempDir, port, onCronJob, configManager, eventBus } = options;
   const startedAt = Date.now();
-  const configStore = new RuntimeConfigStore(bootstrapRuntimeConfig(options.config));
+  const initialConfig = bootstrapRuntimeConfig(options.config);
+  configManager.setConfig(initialConfig);
+  const configStore = new RuntimeConfigStore(configManager.getSnapshotStore());
   const config = configStore.getConfig();
   const log = appLog;
 

@@ -27,8 +27,3 @@ export type {
   DispatchCronJobDeps,
   DispatchCronJobInput
 } from './runtime/dispatchCronJob.js';
-export { reloadRuntimeConfig } from './runtime/reloadRuntimeConfig.js';
-export type {
-  ReloadRuntimeConfigDeps,
-  ReloadRuntimeConfigInput
-} from './runtime/reloadRuntimeConfig.js';

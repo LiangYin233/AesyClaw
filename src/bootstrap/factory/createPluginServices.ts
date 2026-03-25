@@ -1,6 +1,5 @@
 import type { OutboundGateway } from '../../agent/index.js';
-import { ConfigManager } from '../../config/ConfigManager.js';
-import { RuntimeConfigStore } from '../../config/RuntimeConfigStore.js';
+import { ConfigManager, RuntimeConfigStore } from '../../config/index.js';
 import { ToolRegistry } from '../../tools/index.js';
 import { createPluginManager } from './PluginRuntimeFactory.js';
 

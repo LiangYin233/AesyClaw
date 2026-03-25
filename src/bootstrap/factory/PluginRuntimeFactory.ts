@@ -3,8 +3,8 @@ import type { OutboundGateway } from '../../agent/index.js';
 import type { Config } from '../../types.js';
 import { PluginManager } from '../../plugins/index.js';
 import type { PluginConfigState } from '../../plugins/index.js';
-import { ConfigLoader } from '../../config/loader.js';
-import { RuntimeConfigStore } from '../../config/RuntimeConfigStore.js';
+import { RuntimeConfigStore } from '../../config/index.js';
+import type { ConfigMutator } from '../../config/index.js';
 import { logger } from '../../observability/index.js';
 import { normalizeBootstrapError } from './errors.js';
 
@@ -36,7 +36,7 @@ export async function createPluginManager(args: {
   workspace: string;
   tempDir: string;
   toolRegistry: ToolRegistry;
-  updateConfig?: (mutator: Parameters<typeof ConfigLoader.update>[0]) => Promise<Config>;
+  updateConfig: (mutator: ConfigMutator) => Promise<Config>;
 }): Promise<PluginRuntime> {
   const { configStore, outboundGateway, workspace, tempDir, toolRegistry, updateConfig } = args;
   let started = false;
@@ -67,7 +67,7 @@ export async function createPluginManager(args: {
       try {
         const { pluginConfigs: newPluginConfigs, changed } = await pluginManager.applyDefaultConfigs();
         if (changed) {
-          const nextConfig = await (updateConfig ?? ConfigLoader.update)((draft) => {
+          const nextConfig = await updateConfig((draft) => {
             draft.plugins = newPluginConfigs as typeof draft.plugins;
           });
           configStore.setConfig(nextConfig);

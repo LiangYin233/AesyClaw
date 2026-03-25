@@ -1,4 +1,3 @@
-import { ConfigLoader } from '../../config/loader.js';
 import { logger, tokenUsage } from '../../observability/index.js';
 import type { Services } from '../factory/ServiceFactory.js';
 
@@ -41,9 +40,6 @@ export async function shutdownServices(services: Services): Promise<void> {
   await runStep('session manager', async () => {
     await sessionManager.close();
   });
-
-  ConfigLoader.stopWatching();
-
   if (cleanupErrors.length > 0) {
     throw cleanupErrors[0];
   }

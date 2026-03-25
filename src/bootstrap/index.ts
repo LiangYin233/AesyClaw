@@ -3,8 +3,7 @@ import { mkdirSync, existsSync } from 'fs';
 import { logger } from '../observability/index.js';
 import type { Config } from '../types.js';
 import type { CronJob } from '../cron/index.js';
-import { ConfigManager } from '../config/ConfigManager.js';
-import { getMainAgentConfig } from '../config/index.js';
+import { ConfigManager, getMainAgentConfig } from '../config/index.js';
 import { createServices, type Services } from './factory/ServiceFactory.js';
 import { dispatchCronJob } from './app/cronDispatch.js';
 import { setupConfigReload } from './app/configReload.js';
@@ -154,6 +153,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<void> {
 
     servicesRef.agentRuntime.start();
     servicesRef.startPluginLoading();
+    await servicesRef.cronService.start();
 
     log.info('网关启动完成', {
       durationMs: Date.now() - startedAt,
