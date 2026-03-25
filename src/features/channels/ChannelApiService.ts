@@ -1,5 +1,6 @@
 import { NotFoundError, ValidationError } from '../../api/errors.js';
 import { ChannelRepository } from './ChannelRepository.js';
+import { buildChannelStatusSnapshot } from './channelStatus.js';
 
 export class ChannelApiService {
   constructor(
@@ -8,35 +9,7 @@ export class ChannelApiService {
   ) {}
 
   getChannelStatus(): Record<string, { running?: boolean; enabled?: boolean; connected?: boolean }> {
-    const runtimeStatus = this.channelRepository.getRuntimeStatus();
-    const configuredChannels = this.channelRepository.getConfiguredChannels();
-    const merged: Record<string, { running?: boolean; enabled?: boolean; connected?: boolean }> = {};
-
-    for (const [name, config] of Object.entries(configuredChannels)) {
-      const status = runtimeStatus[name];
-      const running = status?.running ?? false;
-      merged[name] = {
-        running,
-        enabled: Boolean((config as Record<string, unknown>)?.enabled),
-        connected: running
-      };
-    }
-
-    for (const [name, status] of Object.entries(runtimeStatus)) {
-      merged[name] = {
-        enabled: merged[name]?.enabled ?? true,
-        running: status.running,
-        connected: status.running
-      };
-    }
-
-    merged.webui = {
-      running: true,
-      enabled: true,
-      connected: true
-    };
-
-    return merged;
+    return buildChannelStatusSnapshot(this.channelRepository);
   }
 
   async sendMessage(
