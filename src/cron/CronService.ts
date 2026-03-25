@@ -125,24 +125,11 @@ export class CronService {
   private scheduleNext(): void {
     const now = Date.now();
     let nearest = Infinity;
-    const rescheduledJobs: CronJob[] = [];
 
     for (const job of this.jobs.values()) {
-      if (this.shouldSkipCatchUp(job, now)) {
-        this.computeNextRun(job);
-        rescheduledJobs.push(job);
-      }
-
       if (job.enabled && job.nextRunAtMs && job.nextRunAtMs < nearest) {
         nearest = job.nextRunAtMs;
       }
-    }
-
-    if (rescheduledJobs.length > 0) {
-      this.store.batchUpdate(rescheduledJobs).catch(err => this.log.error('批量更新跳过补跑的任务失败', {
-        count: rescheduledJobs.length,
-        error: normalizeCronError(err)
-      }));
     }
 
     if (nearest === Infinity) {
@@ -162,13 +149,6 @@ export class CronService {
         this.scheduleNext(); // 确保任务链不中断
       }
     }, delay);
-  }
-
-  private shouldSkipCatchUp(job: CronJob, now: number): boolean {
-    return job.enabled
-      && (job.schedule.kind === 'daily' || job.schedule.kind === 'cron')
-      && typeof job.nextRunAtMs === 'number'
-      && job.nextRunAtMs <= now;
   }
 
   private async runDueJobs(): Promise<void> {

@@ -161,7 +161,8 @@ export class ConfigService {
 
   private async reloadFromDisk(): Promise<void> {
     try {
-      const parsedConfig = this.mutationService.parsePersisted(this.fileStore.read());
+      const raw = this.fileStore.read();
+      const parsedConfig = this.mutationService.parsePersisted(raw);
       const signature = this.mutationService.serialize(parsedConfig);
 
       if (signature === this.lastAppliedSignature) {
@@ -181,7 +182,8 @@ export class ConfigService {
         throw error;
       }
 
-      if (this.fileStore.read() !== signature) {
+      const currentRaw = this.fileStore.read();
+      if (currentRaw === raw && currentRaw !== signature) {
         this.fileStore.write(signature);
       }
     } catch (error) {
