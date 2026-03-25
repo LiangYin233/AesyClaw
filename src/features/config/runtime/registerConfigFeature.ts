@@ -2,7 +2,6 @@ import type { Express } from 'express';
 import type { Config } from '../../../types.js';
 import { registerConfigController } from '../api/config.controller.js';
 import { ConfigService } from '../application/ConfigService.js';
-import { ConfigRepository } from '../infrastructure/ConfigRepository.js';
 
 export interface ConfigFeatureDeps {
   app: Express;
@@ -16,7 +15,7 @@ export interface ConfigFeatureDeps {
 export function registerConfigFeature(deps: ConfigFeatureDeps): void {
   registerConfigController(
     deps.app,
-    new ConfigService(new ConfigRepository(deps.getConfig, deps.updateConfig)),
+    new ConfigService(),
     deps.log
   );
 }

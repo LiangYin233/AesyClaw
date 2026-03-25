@@ -1,8 +1,8 @@
 import type { Config } from '../schema.js';
-import { getMainAgentConfig } from '../projections/mainAgent.js';
-import { getMemoryConfig, getSessionRuntimeConfig } from '../projections/memory.js';
-import { getObservabilityConfig } from '../projections/observability.js';
-import { getToolRuntimeConfig } from '../projections/tools.js';
+import { getMainAgentConfig } from '../domain/mainAgent.js';
+import { getMemoryConfig, getSessionRuntimeConfig } from '../domain/memory.js';
+import { getObservabilityConfig } from '../domain/observability.js';
+import { getToolRuntimeConfig } from '../domain/tools.js';
 import type { ConfigReloadLogger, ConfigReloadTargets } from '../reload/ports/ReloadTargets.js';
 
 interface ReloadRule {

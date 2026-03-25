@@ -2,7 +2,7 @@ export {
   getMainAgentConfig,
   getMainAgentRole,
   type ResolvedMainAgentConfig
-} from './projections/mainAgent.js';
+} from './domain/mainAgent.js';
 export {
   getMemoryConfig,
   getMemoryRecallConfig,
@@ -11,6 +11,6 @@ export {
   type ResolvedMemoryConfig,
   type ResolvedMemoryRecallConfig,
   type ResolvedMemorySummaryConfig
-} from './projections/memory.js';
-export { getObservabilityConfig } from './projections/observability.js';
-export { getToolRuntimeConfig } from './projections/tools.js';
+} from './domain/memory.js';
+export { getObservabilityConfig } from './domain/observability.js';
+export { getToolRuntimeConfig } from './domain/tools.js';

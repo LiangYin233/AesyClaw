@@ -1,4 +1,4 @@
-import type { VisionSettings } from '../../types.js';
+import type { VisionSettings } from '../../../types.js';
 import { resolveProviderSelection } from '../resolve.js';
 import { MAIN_AGENT_NAME } from '../schema/shared.js';
 import type { AgentRoleConfig, ResolvedProviderSelection } from '../schema/index.js';
