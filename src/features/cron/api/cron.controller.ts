@@ -4,27 +4,27 @@ import { CronService } from '../application/CronService.js';
 import { parseCreateCronJob, parseToggleCronJob, parseUpdateCronJob } from './cron.dto.js';
 
 export function registerCronController(app: Express, service: CronService): void {
-  app.get('/api/cron', (_req, res) => {
-    res.json(service.listJobs());
-  });
+  app.get('/api/cron', asyncHandler(async (_req, res) => {
+    res.json(await service.listJobs());
+  }));
 
   app.get('/api/cron/:id', asyncHandler(async (req, res) => {
-    res.json(service.getJob(String(req.params.id)));
+    res.json(await service.getJob(String(req.params.id)));
   }));
 
   app.post('/api/cron', asyncHandler(async (req, res) => {
-    res.status(201).json(service.createJob(parseCreateCronJob(req.body)));
+    res.status(201).json(await service.createJob(parseCreateCronJob(req.body)));
   }));
 
   app.put('/api/cron/:id', asyncHandler(async (req, res) => {
-    res.json(service.updateJob(String(req.params.id), parseUpdateCronJob(req.body)));
+    res.json(await service.updateJob(String(req.params.id), parseUpdateCronJob(req.body)));
   }));
 
   app.delete('/api/cron/:id', asyncHandler(async (req, res) => {
-    res.json(service.deleteJob(String(req.params.id)));
+    res.json(await service.deleteJob(String(req.params.id)));
   }));
 
   app.post('/api/cron/:id/toggle', asyncHandler(async (req, res) => {
-    res.json(service.toggleJob(String(req.params.id), parseToggleCronJob(req.body).enabled));
+    res.json(await service.toggleJob(String(req.params.id), parseToggleCronJob(req.body).enabled));
   }));
 }

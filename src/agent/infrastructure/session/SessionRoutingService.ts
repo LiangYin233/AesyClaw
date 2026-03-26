@@ -16,35 +16,44 @@ export class SessionRoutingService {
     private contextMode: ContextMode = 'session'
   ) {}
 
-  resolve(msg: Pick<InboundMessage, 'channel' | 'chatId'> & { sessionKey?: string }): SessionRoute {
+  async resolve(msg: Pick<InboundMessage, 'channel' | 'chatId'> & { sessionKey?: string }): Promise<SessionRoute> {
     const channelChatKey = `${msg.channel}:${msg.chatId}`;
-    const sessionKey = msg.sessionKey || this.resolveSessionKey(msg.channel, msg.chatId, channelChatKey);
+    const sessionKey = msg.sessionKey || await this.resolveSessionKey(msg.channel, msg.chatId, channelChatKey);
     this.channelSessions.set(channelChatKey, sessionKey);
 
     return { sessionKey, channelChatKey };
   }
 
-  assignToMessage<T extends Pick<InboundMessage, 'channel' | 'chatId'> & { sessionKey?: string }>(msg: T): T {
-    const { sessionKey } = this.resolve(msg);
-    msg.sessionKey = sessionKey;
-    return msg;
-  }
-
   createNewSession(channel: string, chatId: string): string {
+    if (this.contextMode === 'channel') {
+      const sessionKey = this.buildChannelScopedSessionKey(channel, chatId);
+      this.channelSessions.set(`${channel}:${chatId}`, sessionKey);
+      return sessionKey;
+    }
+
     const sessionKey = this.sessionManager.createNewSession(channel, chatId);
     this.channelSessions.set(`${channel}:${chatId}`, sessionKey);
     return sessionKey;
   }
 
   switchSession(channel: string, chatId: string, sessionKey: string): void {
+    if (this.contextMode === 'channel') {
+      return;
+    }
     this.channelSessions.set(`${channel}:${chatId}`, sessionKey);
   }
 
   getActiveSession(channel: string, chatId: string): string | undefined {
+    if (this.contextMode === 'channel') {
+      return this.buildChannelScopedSessionKey(channel, chatId);
+    }
     return this.channelSessions.get(`${channel}:${chatId}`);
   }
 
   resolveByChannel(channel: string, chatId: string): string | undefined {
+    if (this.contextMode === 'channel') {
+      return this.buildChannelScopedSessionKey(channel, chatId);
+    }
     return this.getActiveSession(channel, chatId);
   }
 
@@ -54,6 +63,9 @@ export class SessionRoutingService {
 
   setContextMode(contextMode: ContextMode): void {
     this.contextMode = contextMode;
+    if (contextMode === 'channel') {
+      this.channelSessions.clear();
+    }
   }
 
   getConversationAgent(channel: string, chatId: string): string | undefined {
@@ -79,7 +91,37 @@ export class SessionRoutingService {
     return deleted;
   }
 
-  private resolveSessionKey(channel: string, chatId: string, channelChatKey: string): string {
-    return this.channelSessions.get(channelChatKey) || this.createNewSession(channel, chatId);
+  deleteSessionBinding(sessionKey: string, channel: string, chatId: string): void {
+    if (this.contextMode === 'channel') {
+      return;
+    }
+
+    const channelChatKey = `${channel}:${chatId}`;
+    if (this.channelSessions.get(channelChatKey) === sessionKey) {
+      this.channelSessions.delete(channelChatKey);
+    }
+  }
+
+  private async resolveSessionKey(channel: string, chatId: string, channelChatKey: string): Promise<string> {
+    if (this.contextMode === 'channel') {
+      return this.buildChannelScopedSessionKey(channel, chatId);
+    }
+
+    const currentSessionKey = this.channelSessions.get(channelChatKey);
+    if (!currentSessionKey) {
+      return this.createNewSession(channel, chatId);
+    }
+
+    const existingSession = await this.sessionManager.get(currentSessionKey);
+    if (existingSession) {
+      return currentSessionKey;
+    }
+
+    this.channelSessions.delete(channelChatKey);
+    return this.createNewSession(channel, chatId);
+  }
+
+  private buildChannelScopedSessionKey(channel: string, chatId: string): string {
+    return `${channel}:${chatId}`;
   }
 }

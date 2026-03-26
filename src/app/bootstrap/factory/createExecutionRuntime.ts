@@ -9,6 +9,7 @@ import { CommandRegistry } from '../../../agent/application/index.js';
 import { SessionMemoryService } from '../../../agent/infrastructure/memory/SessionMemoryService.js';
 import { SessionRoutingService } from '../../../agent/infrastructure/session/SessionRoutingService.js';
 import {
+  createVisionProviderFromSettings,
   ConfigManager,
   getMainAgentConfig,
   getToolRuntimeConfig,
@@ -42,27 +43,6 @@ function createRequiredProvider(config: Config, providerName?: string, modelName
   return createProvider(resolved.name, resolved.providerConfig);
 }
 
-function createVisionProvider(config: Config, visionSettings: VisionSettings): LLMProvider | undefined {
-  if (visionSettings.enabled === false) {
-    return undefined;
-  }
-
-  if (!visionSettings.fallbackProviderName) {
-    return undefined;
-  }
-  if (!visionSettings.fallbackModelName) {
-    return undefined;
-  }
-
-  const providerConfig = config.providers[visionSettings.fallbackProviderName];
-  if (!providerConfig) {
-    appLog.warn('未找到视觉回退提供商', { provider: visionSettings.fallbackProviderName });
-    return undefined;
-  }
-
-  return createProvider(visionSettings.fallbackProviderName, providerConfig);
-}
-
 async function createSkillManager(
   config: Config,
   workspace: string,
@@ -82,7 +62,6 @@ async function createSkillManager(
 
 export async function createExecutionRuntime(args: {
   getConfig: () => Config;
-  setConfig: (config: Config) => void;
   updateConfig: (mutator: Parameters<ConfigManager['update']>[0]) => Promise<Config>;
   eventBus: EventBus<AesyClawEvents>;
   outboundGateway: OutboundGateway;
@@ -101,7 +80,7 @@ export async function createExecutionRuntime(args: {
   visionProvider?: LLMProvider;
   setPluginManager: (pluginManager: PluginManager) => void;
 }> {
-  const { getConfig, setConfig, updateConfig, eventBus, outboundGateway, workspace, sessionManager, sessionRouting, memoryService } = args;
+  const { getConfig, updateConfig, eventBus, outboundGateway, workspace, sessionManager, sessionRouting, memoryService } = args;
   const config = getConfig();
   const toolConfig = getToolRuntimeConfig(config);
   const mainAgentConfig = getMainAgentConfig(config);
@@ -113,11 +92,14 @@ export async function createExecutionRuntime(args: {
     ? createRequiredProvider(config, undefined, mainAgentConfig.role.model)
     : undefined;
   const visionSettings = mainAgentConfig.visionSettings;
-  const visionProvider = createVisionProvider(config, visionSettings);
+  const visionProvider = createVisionProviderFromSettings(config, visionSettings, {
+    onMissingProvider: (providerName) => {
+      appLog.warn('未找到视觉回退提供商', { provider: providerName });
+    }
+  });
   const skillManager = await createSkillManager(config, workspace, updateConfig);
   const agentRoleService = new AgentRoleService(
     getConfig,
-    setConfig,
     updateConfig,
     toolRegistry,
     skillManager

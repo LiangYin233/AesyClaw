@@ -2,11 +2,13 @@ import { SessionNotFoundError, SessionValidationError } from '../domain/types.js
 import { DomainValidationError, ResourceNotFoundError } from '../../../platform/errors/domain.js';
 import { ConversationAgentGateway } from '../infrastructure/ConversationAgentGateway.js';
 import { SessionsRepository } from '../infrastructure/SessionsRepository.js';
+import type { SessionRoutingService } from '../../../agent/infrastructure/session/SessionRoutingService.js';
 
 export class SessionService {
   constructor(
     private readonly sessionsRepository: SessionsRepository,
-    private readonly conversationAgentGateway: ConversationAgentGateway
+    private readonly conversationAgentGateway: ConversationAgentGateway,
+    private readonly sessionRouting: SessionRoutingService
   ) {}
 
   async listSessions(): Promise<Array<{
@@ -62,7 +64,9 @@ export class SessionService {
     this.validateSessionKey(key);
 
     try {
+      const session = await this.sessionsRepository.getByKeyOrThrow(key);
       await this.sessionsRepository.deleteByKey(key);
+      this.sessionRouting.deleteSessionBinding(session.key, session.channel, session.chatId);
       return { success: true };
     } catch (error) {
       if (error instanceof SessionNotFoundError) {

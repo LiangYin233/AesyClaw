@@ -1,4 +1,5 @@
 import {
+  createVisionProviderFromSettings,
   getMainAgentConfig,
   getToolRuntimeConfig,
   resolveExecutionModel
@@ -16,22 +17,6 @@ import type { Services } from '../factory/ServiceFactory.js';
 
 const log = logger.child('Bootstrap');
 
-function createVisionProvider(config: Services['config'], settings: ReturnType<typeof getMainAgentConfig>['visionSettings']) {
-  if (!settings.enabled || settings.directVision || !settings.fallbackProviderName || !settings.fallbackModelName) {
-    return undefined;
-  }
-
-  const providerConfig = config.providers[settings.fallbackProviderName];
-  if (!providerConfig) {
-    log.warn('配置热重载时未找到视觉回退提供商', {
-      provider: settings.fallbackProviderName
-    });
-    return undefined;
-  }
-
-  return createProvider(settings.fallbackProviderName, providerConfig);
-}
-
 export function setupConfigReload(services: Services): void {
   services.configManager.setReloadTargets({
     observability: createObservabilityReloadTarget(),
@@ -43,7 +28,13 @@ export function setupConfigReload(services: Services): void {
           systemPrompt: next.role.systemPrompt,
           maxIterations: next.maxIterations,
           visionSettings: next.visionSettings,
-          visionProvider: createVisionProvider(config, next.visionSettings)
+          visionProvider: createVisionProviderFromSettings(config, next.visionSettings, {
+            onMissingProvider: (providerName) => {
+              log.warn('配置热重载时未找到视觉回退提供商', {
+                provider: providerName
+              });
+            }
+          })
         };
 
         if (next.provider.providerConfig) {

@@ -24,6 +24,7 @@ export {
 } from './domain/memory.js';
 export { getObservabilityConfig } from './domain/observability.js';
 export { getToolRuntimeConfig } from './domain/tools.js';
+export { createVisionProviderFromSettings } from './domain/vision.js';
 export { isEmbeddingCapableProvider, listEmbeddingProviderNames } from './schema/providers.js';
 export type {
   AgentConfig,

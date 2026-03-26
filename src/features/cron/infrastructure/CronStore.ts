@@ -13,6 +13,7 @@ export class CronStore {
   private db: sqlite3.Database;
   private log = logger.child('CronStore');
   private ready = false;
+  private initPromise?: Promise<void>;
 
   constructor(dbPath: string) {
     const dir = dirname(dbPath);
@@ -30,26 +31,36 @@ export class CronStore {
   }
 
   async initialize(): Promise<void> {
-    await runSqlMigrations({
-      scope: 'cron',
-      log: this.log,
-      migrations: cronMigrations,
-      execute: async (sql, params = []) => {
-        await this.run(sql, params);
-      },
-      queryAppliedVersions: async () => {
-        const rows = await this.getRows(
-          'SELECT version FROM schema_migrations WHERE scope = ? ORDER BY version',
-          ['cron']
-        ).catch(() => []);
-        return rows
-          .map((row) => row.version)
-          .filter((version): version is string => typeof version === 'string');
-      },
-      transaction: async <T>(operation: () => Promise<T>) => this.transaction(operation)
-    });
-    this.ready = true;
-    this.log.info('数据库初始化完成');
+    if (this.ready) {
+      return;
+    }
+
+    if (!this.initPromise) {
+      this.initPromise = (async () => {
+        await runSqlMigrations({
+          scope: 'cron',
+          log: this.log,
+          migrations: cronMigrations,
+          execute: async (sql, params = []) => {
+            await this.run(sql, params);
+          },
+          queryAppliedVersions: async () => {
+            const rows = await this.getRows(
+              'SELECT version FROM schema_migrations WHERE scope = ? ORDER BY version',
+              ['cron']
+            ).catch(() => []);
+            return rows
+              .map((row) => row.version)
+              .filter((version): version is string => typeof version === 'string');
+          },
+          transaction: async <T>(operation: () => Promise<T>) => this.transaction(operation)
+        });
+        this.ready = true;
+        this.log.info('数据库初始化完成');
+      })();
+    }
+
+    await this.initPromise;
   }
 
   async upsert(job: CronJob): Promise<void> {

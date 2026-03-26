@@ -153,7 +153,6 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<void> {
 
     servicesRef.agentRuntime.start();
     servicesRef.startPluginLoading();
-    await servicesRef.cronService.start();
 
     log.info('网关启动完成', {
       durationMs: Date.now() - startedAt,

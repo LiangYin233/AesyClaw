@@ -49,15 +49,14 @@ export class McpService {
   }
 
   async createServer(name: string, config: Config['mcp'][string]): Promise<{ success: true; server: unknown; toolsRegistered: number }> {
-    const { manager, toolsRegistered } = await this.mcpRepository.connectServer(name, config);
-
     const nextConfig = await this.mcpRepository.saveConfig((currentConfig) => {
       currentConfig.mcp[name] = config;
     });
+    const toolsRegistered = this.mcpRepository.getToolsForServer(name).length;
 
     return {
       success: true,
-      server: serializeServerStatus(this.resolveConfiguredServer(nextConfig, manager, name)),
+      server: serializeServerStatus(this.resolveConfiguredServer(nextConfig, this.mcpRepository.getManager(), name)),
       toolsRegistered
     };
   }
@@ -68,13 +67,12 @@ export class McpService {
       throw new ResourceNotFoundError('MCP manager', 'mcp');
     }
 
+    const toolsRemoved = this.mcpRepository.getToolsForServer(name).length;
     if (this.mcpRepository.getConfig().mcp[name]) {
       await this.mcpRepository.saveConfig((currentConfig) => {
         delete currentConfig.mcp[name];
       });
     }
-
-    const { toolsRemoved } = await this.mcpRepository.disconnectServer(name);
 
     return {
       success: true,
@@ -107,19 +105,10 @@ export class McpService {
       config.mcp[name].enabled = enabled;
     });
 
-    let server = this.mcpRepository.getManager()?.getServerStatus(name);
-    if (enabled) {
-      const { manager } = await this.mcpRepository.connectServer(name, nextConfig.mcp[name]);
-      server = manager.getServerStatus(name);
-    } else {
-      const result = await this.mcpRepository.disconnectServer(name);
-      server = result.manager?.getServerStatus(name) || this.mcpRepository.getManager()?.getServerStatus(name);
-    }
-
     return {
       success: true,
       enabled,
-      server: serializeServerStatus(this.resolveConfiguredServer(nextConfig, this.mcpRepository.getManager(), name) ?? server)
+      server: serializeServerStatus(this.resolveConfiguredServer(nextConfig, this.mcpRepository.getManager(), name))
     };
   }
 

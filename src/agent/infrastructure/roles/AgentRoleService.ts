@@ -28,7 +28,6 @@ export class AgentRoleService {
 
   constructor(
     private getConfig: () => Config,
-    private setConfig: (config: Config) => void,
     private updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>,
     private toolRegistry: Pick<ToolRegistry, 'getDefinitions'>,
     private skillManager?: SkillManager
@@ -80,10 +79,9 @@ export class AgentRoleService {
       throw new Error(`Agent role already exists: ${normalized.name}`);
     }
 
-    const nextConfig = await this.updateConfig((config) => {
+    await this.updateConfig((config) => {
       config.agents.roles[normalized.name] = normalized;
     });
-    this.setConfig(nextConfig);
     return this.resolveRole(normalized, false);
   }
 
@@ -100,10 +98,9 @@ export class AgentRoleService {
       name
     };
     const normalized = this.normalizeRoleConfig(merged, name === MAIN_AGENT_NAME);
-    const nextConfig = await this.updateConfig((draft) => {
+    await this.updateConfig((draft) => {
       draft.agents.roles[name] = normalized;
     });
-    this.setConfig(nextConfig);
     return this.resolveRole(normalized, name === MAIN_AGENT_NAME);
   }
 
@@ -117,10 +114,9 @@ export class AgentRoleService {
       throw new Error(`Agent role not found: ${name}`);
     }
 
-    const nextConfig = await this.updateConfig((draft) => {
+    await this.updateConfig((draft) => {
       delete draft.agents.roles[name];
     });
-    this.setConfig(nextConfig);
   }
 
   buildSkillsPrompt(roleName?: string | null): string {

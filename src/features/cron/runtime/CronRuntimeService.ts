@@ -13,6 +13,9 @@ export class CronRuntimeService {
   private store: CronStore;
   private onJobExecute?: (job: CronJob) => Promise<void>;
   private log = logger.child('Cron');
+  private readyPromise?: Promise<void>;
+  private ready = false;
+  private started = false;
 
   constructor(
     dbPath: string,
@@ -23,10 +26,11 @@ export class CronRuntimeService {
     this.onJobExecute = onJobExecute;
   }
 
-  addJob(job: CronJob): CronJob {
+  async addJob(job: CronJob): Promise<CronJob> {
+    await this.ensureReady();
     this.computeNextRun(job);
+    await this.store.upsert(job);
     this.jobs.set(job.id, job);
-    this.store.upsert(job).catch((err) => this.log.error('保存任务失败:', err));
     this.log.info('定时任务已创建', {
       jobId: job.id,
       jobName: job.name,
@@ -34,37 +38,78 @@ export class CronRuntimeService {
       nextRunAt: job.nextRunAtMs ? formatLocalTimestamp(new Date(job.nextRunAtMs)) : undefined,
       target: job.payload.target
     });
-    this.wakeUp();
+    if (this.started) {
+      this.wakeUp();
+    }
     return job;
   }
 
-  removeJob(id: string): boolean {
-    const result = this.jobs.delete(id);
-    this.store.delete(id).catch((err) => this.log.error('删除任务失败:', err));
-    if (result) this.log.info('定时任务已删除', { jobId: id });
-    return result;
+  async saveJob(job: CronJob): Promise<CronJob> {
+    await this.ensureReady();
+    this.computeNextRun(job);
+    await this.store.upsert(job);
+    this.jobs.set(job.id, job);
+    this.log.info('定时任务已更新', {
+      jobId: job.id,
+      jobName: job.name,
+      kind: job.schedule.kind,
+      nextRunAt: job.nextRunAtMs ? formatLocalTimestamp(new Date(job.nextRunAtMs)) : undefined,
+      target: job.payload.target
+    });
+    if (this.started) {
+      this.wakeUp();
+    }
+    return job;
   }
 
-  enableJob(id: string, enabled: boolean): void {
+  async removeJob(id: string): Promise<boolean> {
+    await this.ensureReady();
+    if (!this.jobs.has(id)) {
+      return false;
+    }
+
+    const removed = await this.store.delete(id);
+    if (!removed) {
+      return false;
+    }
+
+    this.jobs.delete(id);
+    if (this.started) {
+      this.wakeUp();
+    }
+    this.log.info('定时任务已删除', { jobId: id });
+    return true;
+  }
+
+  async enableJob(id: string, enabled: boolean): Promise<void> {
+    await this.ensureReady();
     const job = this.jobs.get(id);
-    if (job) {
-      job.enabled = enabled;
-      this.computeNextRun(job);
-      this.store.updateStatus(id, enabled, job.nextRunAtMs).catch((err) => this.log.error('更新任务状态失败:', err));
-      this.log.info('定时任务状态已更新', {
-        jobId: id,
-        enabled,
-        nextRunAt: job.nextRunAtMs ? formatLocalTimestamp(new Date(job.nextRunAtMs)) : undefined
-      });
+    if (!job) {
+      return;
+    }
+
+    const nextRunAtMs = this.computeNextRunForState(job, enabled);
+    await this.store.updateStatus(id, enabled, nextRunAtMs);
+
+    job.enabled = enabled;
+    job.nextRunAtMs = nextRunAtMs;
+    this.log.info('定时任务状态已更新', {
+      jobId: id,
+      enabled,
+      nextRunAt: job.nextRunAtMs ? formatLocalTimestamp(new Date(job.nextRunAtMs)) : undefined
+    });
+    if (this.started) {
       this.wakeUp();
     }
   }
 
-  getJob(id: string): CronJob | undefined {
+  async getJob(id: string): Promise<CronJob | undefined> {
+    await this.ensureReady();
     return this.jobs.get(id);
   }
 
-  listJobs(): CronJob[] {
+  async listJobs(): Promise<CronJob[]> {
+    await this.ensureReady();
     return Array.from(this.jobs.values()).map((job) => ({
       ...job,
       payload: { ...job.payload, detail: '[隐藏]' }
@@ -72,13 +117,18 @@ export class CronRuntimeService {
   }
 
   async start(): Promise<void> {
-    await this.store.initialize();
-    await this.load();
+    await this.ensureReady();
+    if (this.started) {
+      return;
+    }
+
+    this.started = true;
     this.scheduleNext();
     this.log.info('定时任务服务已启动', { jobCount: this.jobs.size });
   }
 
   stop(): void {
+    this.started = false;
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = undefined;
@@ -93,6 +143,37 @@ export class CronRuntimeService {
       this.timer = undefined;
     }
     this.scheduleNext();
+  }
+
+  private async ensureReady(): Promise<void> {
+    if (this.ready) {
+      return;
+    }
+
+    if (!this.readyPromise) {
+      this.readyPromise = (async () => {
+        await this.store.initialize();
+        await this.load();
+        this.ready = true;
+      })();
+    }
+
+    await this.readyPromise;
+  }
+
+  private computeNextRunForState(job: CronJob, enabled: boolean): number | undefined {
+    if (!enabled) {
+      return undefined;
+    }
+
+    const nextJob: CronJob = {
+      ...job,
+      enabled,
+      schedule: { ...job.schedule },
+      payload: { ...job.payload }
+    };
+    this.computeNextRun(nextJob);
+    return nextJob.nextRunAtMs;
   }
 
   private scheduleNext(): void {
@@ -188,25 +269,16 @@ export class CronRuntimeService {
 
     for (const id of toRemove) {
       this.jobs.delete(id);
-      this.store.delete(id).catch((err) => this.log.error('删除任务失败', {
-        jobId: id,
-        error: normalizeCronError(err)
-      }));
+      await this.store.delete(id);
       this.log.info('一次性定时任务已移除', { jobId: id });
     }
 
     if (toUpdate.length > 0) {
-      this.store.batchUpdate(toUpdate).catch((err) => this.log.error('批量更新任务失败', {
-        count: toUpdate.length,
-        error: normalizeCronError(err)
-      }));
+      await this.store.batchUpdate(toUpdate);
     }
 
     for (const update of statusUpdates) {
-      this.store.updateStatus(update.id, update.enabled, update.nextRunAtMs).catch((err) => this.log.error('更新任务状态失败', {
-        jobId: update.id,
-        error: normalizeCronError(err)
-      }));
+      await this.store.updateStatus(update.id, update.enabled, update.nextRunAtMs);
     }
   }
 

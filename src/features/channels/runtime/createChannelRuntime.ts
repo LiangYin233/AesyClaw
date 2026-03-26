@@ -45,7 +45,6 @@ async function applyDefaultChannelConfigs(
     }
   });
 
-  configStore.setConfig(nextConfig);
   appLog.info('已应用默认渠道配置', {
     channels: channelEntriesToUpdate.map(({ plugin }) => plugin.channelName)
   });

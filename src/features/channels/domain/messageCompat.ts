@@ -1,6 +1,7 @@
 import { basename } from 'path';
 import { randomUUID } from 'crypto';
 import type { InboundMessage, OutboundMessage } from '../../../types.js';
+import { createShortId } from '../../../platform/ids/index.js';
 import type { ChannelMessage } from './types.js';
 import type { MessageSegment, ResourceHandle } from './types.js';
 import { projectChannelMessage } from './projection.js';
@@ -34,7 +35,7 @@ function detectFileType(fileName: string): 'audio' | 'video' | 'image' | 'file' 
 }
 
 function makeResource(kind: ResourceHandle['kind'], input: string): ResourceHandle {
-  const resourceId = randomUUID().slice(0, 8);
+  const resourceId = createShortId();
   const fileName = basename(input.replace(/^file:\/\//, '')) || `${kind}-${resourceId}`;
   const isRemote = input.startsWith('http://') || input.startsWith('https://') || input.startsWith('file://');
 

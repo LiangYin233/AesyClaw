@@ -1,19 +1,6 @@
 import type { ConfigReloadTargets } from '../../../features/config/reload/ports/ReloadTargets.js';
 import type { Services } from '../../../app/bootstrap/factory/ServiceFactory.js';
-
-function normalizePluginConfigs(
-  configs: Record<string, { enabled?: boolean; options?: Record<string, unknown> }>
-) {
-  return Object.fromEntries(
-    Object.entries(configs).map(([name, config]) => [
-      name,
-      {
-        enabled: config.enabled ?? false,
-        options: config.options ? structuredClone(config.options) : undefined
-      }
-    ])
-  );
-}
+import { normalizePluginConfigs } from '../domain/config.js';
 
 export function createPluginsReloadTarget(services: Services): NonNullable<ConfigReloadTargets['plugins']> {
   return {

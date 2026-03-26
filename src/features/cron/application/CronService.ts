@@ -1,27 +1,27 @@
-import { randomUUID } from 'crypto';
 import type { CronJob } from '../index.js';
 import { ResourceNotFoundError } from '../../../platform/errors/domain.js';
+import { createShortId } from '../../../platform/ids/index.js';
 import { CronRepository } from '../infrastructure/CronRepository.js';
 import type { CreateCronJobDto, UpdateCronJobDto } from '../api/cron.dto.js';
 
 export class CronService {
   constructor(private readonly cronRepository: CronRepository) {}
 
-  listJobs(): { jobs: CronJob[] } {
-    return { jobs: this.cronRepository.list() };
+  async listJobs(): Promise<{ jobs: CronJob[] }> {
+    return { jobs: await this.cronRepository.list() };
   }
 
-  getJob(id: string): { job: CronJob } {
-    const job = this.cronRepository.getById(id);
+  async getJob(id: string): Promise<{ job: CronJob }> {
+    const job = await this.cronRepository.getById(id);
     if (!job) {
       throw new ResourceNotFoundError('Cron job', id);
     }
     return { job };
   }
 
-  createJob(input: CreateCronJobDto): { success: true; job: CronJob } {
-    const job = this.cronRepository.create({
-      id: randomUUID().slice(0, 8),
+  async createJob(input: CreateCronJobDto): Promise<{ success: true; job: CronJob }> {
+    const job = await this.cronRepository.create({
+      id: createShortId(),
       name: input.name,
       enabled: input.enabled,
       schedule: input.schedule,
@@ -31,43 +31,49 @@ export class CronService {
     return { success: true, job };
   }
 
-  updateJob(id: string, input: UpdateCronJobDto): { success: true; job: CronJob } {
-    const existing = this.cronRepository.getById(id);
+  async updateJob(id: string, input: UpdateCronJobDto): Promise<{ success: true; job: CronJob }> {
+    const existing = await this.cronRepository.getById(id);
     if (!existing) {
       throw new ResourceNotFoundError('Cron job', id);
     }
 
+    const nextJob: CronJob = {
+      ...existing,
+      schedule: { ...existing.schedule },
+      payload: { ...existing.payload }
+    };
+
     if (input.name !== undefined) {
-      existing.name = input.name;
+      nextJob.name = input.name;
     }
     if (input.schedule !== undefined) {
-      existing.schedule = input.schedule;
+      nextJob.schedule = input.schedule;
     }
     if (input.payload !== undefined) {
-      existing.payload = input.payload;
+      nextJob.payload = input.payload;
     }
     if (input.enabled !== undefined) {
-      existing.enabled = input.enabled;
+      nextJob.enabled = input.enabled;
     }
 
-    return { success: true, job: this.cronRepository.save(existing) };
+    return { success: true, job: await this.cronRepository.save(nextJob) };
   }
 
-  deleteJob(id: string): { success: true } {
-    const removed = this.cronRepository.delete(id);
+  async deleteJob(id: string): Promise<{ success: true }> {
+    const removed = await this.cronRepository.delete(id);
     if (!removed) {
       throw new ResourceNotFoundError('Cron job', id);
     }
     return { success: true };
   }
 
-  toggleJob(id: string, enabled: boolean): { success: true; enabled: boolean } {
-    const job = this.cronRepository.getById(id);
+  async toggleJob(id: string, enabled: boolean): Promise<{ success: true; enabled: boolean }> {
+    const job = await this.cronRepository.getById(id);
     if (!job) {
       throw new ResourceNotFoundError('Cron job', id);
     }
 
-    this.cronRepository.setEnabled(id, enabled);
+    await this.cronRepository.setEnabled(id, enabled);
     return {
       success: true,
       enabled

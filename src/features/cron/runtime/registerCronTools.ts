@@ -1,5 +1,5 @@
-import { randomUUID } from 'crypto';
 import type { ToolContext, ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
+import { createShortId } from '../../../platform/ids/index.js';
 import { formatLocalTimestamp } from '../../../platform/observability/logging.js';
 import type { CronJob, CronSchedule } from '../domain/cronTypes.js';
 import type { CronRuntimeService } from './CronRuntimeService.js';
@@ -107,7 +107,7 @@ export function registerCronTools(
       }
 
       const job: CronJob = {
-        id: randomUUID().slice(0, 8),
+        id: createShortId(),
         name: description,
         enabled: true,
         schedule,
@@ -123,7 +123,7 @@ export function registerCronTools(
         return JSON.stringify({ success: false, error: '无法计算下次执行时间，请检查 time 参数是否有效且未落在过去' });
       }
 
-      cronService.addJob(job);
+      await cronService.addJob(job);
 
       return JSON.stringify({
         success: true,
@@ -151,7 +151,7 @@ export function registerCronTools(
     },
     execute: async (params: Record<string, any>) => {
       const { id } = params;
-      const removed = cronService.removeJob(id);
+      const removed = await cronService.removeJob(id);
 
       if (removed) {
         return JSON.stringify({ success: true, message: `任务 ${id} 已删除` });
@@ -170,7 +170,7 @@ export function registerCronTools(
       properties: {}
     },
     execute: async () => {
-      const jobs = cronService.listJobs();
+      const jobs = await cronService.listJobs();
 
       return JSON.stringify({
         success: true,

@@ -75,6 +75,13 @@ export class BuiltInCommands extends CommandHandler {
   }
 
   private async handleNew(msg: InboundMessage): Promise<InboundMessage> {
+    if (this.sessionRouting.getContextMode() === 'channel') {
+      return {
+        ...msg,
+        content: '当前为 channel 上下文模式，整条会话共享同一个上下文，不能新建独立会话。'
+      };
+    }
+
     const newSessionKey = this.sessionRouting.createNewSession(msg.channel, msg.chatId);
     const uuid = newSessionKey.split(':')[2] || 'default';
 
@@ -88,6 +95,13 @@ export class BuiltInCommands extends CommandHandler {
   }
 
   private async handleList(msg: InboundMessage): Promise<InboundMessage> {
+    if (this.sessionRouting.getContextMode() === 'channel') {
+      return {
+        ...msg,
+        content: '当前为 channel 上下文模式，当前聊天固定使用单一会话，不支持列出或切换多会话。'
+      };
+    }
+
     const currentSessionKey = this.sessionRouting.getActiveSession(msg.channel, msg.chatId);
     const channelSessions = this.sessionManager.list()
       .filter(s => s.channel === msg.channel && s.chatId === msg.chatId)
@@ -112,6 +126,13 @@ export class BuiltInCommands extends CommandHandler {
   }
 
   private async handleSwitch(msg: InboundMessage, args: string[]): Promise<InboundMessage> {
+    if (this.sessionRouting.getContextMode() === 'channel') {
+      return {
+        ...msg,
+        content: '当前为 channel 上下文模式，不支持切换会话。'
+      };
+    }
+
     const targetIndex = parseInt(args[0], 10);
     const channelSessions = this.sessionManager.list()
       .filter(s => s.channel === msg.channel && s.chatId === msg.chatId)

@@ -100,7 +100,7 @@ export class SessionStore {
        VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(channel, chat_id) DO UPDATE SET
          summary = excluded.summary,
-         summarized_until_message_id = excluded.summarized_message_count,
+         summarized_until_message_id = excluded.summarized_until_message_id,
          updated_at = excluded.updated_at`,
       [channel, chatId, summary, summarizedUntilMessageId, updatedAt]
     );

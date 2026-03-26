@@ -1,39 +1,14 @@
 import type { OutboundGateway } from '../../../agent/index.js';
 import type { ConfigMutator, RuntimeConfigStore } from '../../../features/config/index.js';
 import type { Config } from '../../../types.js';
+import { normalizeErrorMessage } from '../../../platform/errors/index.js';
 import type { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
 import { logger } from '../../../platform/observability/index.js';
 import { PluginManager } from '../application/PluginManager.js';
+import { normalizePluginConfigs } from '../domain/config.js';
 import type { PluginConfigState } from '../domain/types.js';
 
 const log = logger.child('PluginRuntimeFactory');
-
-function normalizeRuntimeError(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (typeof error === 'string') {
-    return error;
-  }
-  if (error && typeof error === 'object' && 'message' in error) {
-    return String(error.message);
-  }
-  return String(error);
-}
-
-function normalizePluginConfigs(
-  configs: Record<string, { enabled?: boolean; options?: Record<string, any> }>
-): Record<string, PluginConfigState> {
-  return Object.fromEntries(
-    Object.entries(configs).map(([name, config]) => [
-      name,
-      {
-        enabled: config.enabled ?? false,
-        options: config.options
-      }
-    ])
-  );
-}
 
 export interface PluginRuntime {
   pluginManager: PluginManager;
@@ -65,7 +40,7 @@ export async function createPluginRuntime(args: {
   });
 
   const config = configStore.getConfig();
-  pluginManager.setPluginConfigs(normalizePluginConfigs(config.plugins as Record<string, { enabled?: boolean; options?: Record<string, any> }>));
+  pluginManager.setPluginConfigs(normalizePluginConfigs(config.plugins as Record<string, { enabled?: boolean; options?: Record<string, unknown> }>));
 
   const startBackgroundLoading = () => {
     if (started) {
@@ -81,7 +56,6 @@ export async function createPluginRuntime(args: {
           const nextConfig = await updateConfig((draft) => {
             draft.plugins = newPluginConfigs as typeof draft.plugins;
           });
-          configStore.setConfig(nextConfig);
           pluginManager.setPluginConfigs(normalizePluginConfigs(nextConfig.plugins));
           log.info('已应用默认插件配置');
         }
@@ -96,7 +70,7 @@ export async function createPluginRuntime(args: {
         });
       } catch (error) {
         log.error('后台加载插件失败', {
-          error: normalizeRuntimeError(error)
+          error: normalizeErrorMessage(error)
         });
       } finally {
         completed = true;

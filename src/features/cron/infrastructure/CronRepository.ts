@@ -3,29 +3,27 @@ import type { CronJob, CronRuntimeService } from '../index.js';
 export class CronRepository {
   constructor(private readonly cronService: CronRuntimeService) {}
 
-  list() {
+  async list(): Promise<CronJob[]> {
     return this.cronService.listJobs();
   }
 
-  getById(id: string): CronJob | undefined {
+  async getById(id: string): Promise<CronJob | undefined> {
     return this.cronService.getJob(id);
   }
 
-  create(job: CronJob): CronJob {
+  async create(job: CronJob): Promise<CronJob> {
     return this.cronService.addJob(job);
   }
 
-  save(job: CronJob): CronJob {
-    this.cronService.computeNextRun(job);
-    this.cronService.removeJob(job.id);
-    return this.cronService.addJob(job);
+  async save(job: CronJob): Promise<CronJob> {
+    return this.cronService.saveJob(job);
   }
 
-  delete(id: string): boolean {
+  async delete(id: string): Promise<boolean> {
     return this.cronService.removeJob(id);
   }
 
-  setEnabled(id: string, enabled: boolean): void {
-    this.cronService.enableJob(id, enabled);
+  async setEnabled(id: string, enabled: boolean): Promise<void> {
+    await this.cronService.enableJob(id, enabled);
   }
 }

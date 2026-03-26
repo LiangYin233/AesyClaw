@@ -23,6 +23,6 @@ export function registerSessionsFeature(deps: SessionsFeatureDeps): void {
 
   registerSessionsController(
     deps.app,
-    new SessionService(sessionsRepository, conversationAgentGateway)
+    new SessionService(sessionsRepository, conversationAgentGateway, deps.sessionRouting)
   );
 }

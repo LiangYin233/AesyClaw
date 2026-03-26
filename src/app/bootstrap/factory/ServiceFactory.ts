@@ -101,7 +101,6 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     log,
     task: () => createExecutionRuntime({
       getConfig: () => configStore.getConfig(),
-      setConfig: (nextConfig) => { configStore.setConfig(nextConfig); },
       updateConfig: (mutator) => configManager.update(mutator),
       eventBus,
       outboundGateway,
@@ -158,6 +157,14 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     memoryService
   });
 
+  const { durationMs: cronStartMs } = await runBootstrapPhase({
+    phase: 'cron.start',
+    log,
+    task: async () => {
+      await cronService.start();
+    }
+  });
+
   const { result: apiServer, durationMs: apiMs } = await runBootstrapPhase({
     phase: 'api',
     log,
@@ -190,6 +197,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     persistenceMs,
     executionRuntimeMs,
     cronMs,
+    cronStartMs,
     infrastructureMs,
     apiMs
   });

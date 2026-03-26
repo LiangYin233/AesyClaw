@@ -1,6 +1,6 @@
-import { randomUUID } from 'crypto';
 import type { SessionReference } from '../../domain/session.js';
 import type { CronJob } from '../../../features/cron/index.js';
+import { createShortId } from '../../../platform/ids/index.js';
 
 const CRON_CHANNEL = 'cron';
 const CRON_SESSION_KEY_PREFIX = `${CRON_CHANNEL}:`;
@@ -55,7 +55,7 @@ export async function dispatchCronJob(
     target: job.payload.target
   });
 
-  const sessionKey = `${CRON_SESSION_KEY_PREFIX}${job.id}:${randomUUID().slice(0, 8)}`;
+  const sessionKey = `${CRON_SESSION_KEY_PREFIX}${job.id}:${createShortId()}`;
   const target = job.payload.target;
 
   try {

@@ -28,7 +28,7 @@ export class SessionResolver {
   async resolve(message: InboundMessage, options: SessionResolverOptions): Promise<ExecutionContext> {
     let sessionKey = message.sessionKey;
     if (!sessionKey) {
-      const resolved = this.sessionRouting.resolve(message);
+      const resolved = await this.sessionRouting.resolve(message);
       sessionKey = resolved.sessionKey;
       message.sessionKey = resolved.sessionKey;
     }

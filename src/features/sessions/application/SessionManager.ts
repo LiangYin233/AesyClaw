@@ -1,6 +1,6 @@
-import { randomUUID } from 'crypto';
 import type { Database } from '../../../platform/db/index.js';
 import { logger } from '../../../platform/observability/index.js';
+import { createShortId } from '../../../platform/ids/index.js';
 import { formatLocalTimestamp } from '../../../platform/observability/logging.js';
 import { parseSessionKey, normalizeSessionError, SessionNotFoundError, SessionValidationError, type Session, type SessionMessage } from '../domain/types.js';
 import { SessionStore } from '../infrastructure/SessionStore.js';
@@ -39,7 +39,7 @@ export class SessionManager {
   }
 
   createNewSession(channel: string, chatId: string): string {
-    const uuid = randomUUID().substring(0, 8);
+    const uuid = createShortId();
     const key = this.createSessionKey(channel, chatId, uuid);
     return key;
   }
