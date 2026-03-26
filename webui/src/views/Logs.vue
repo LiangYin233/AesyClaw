@@ -57,8 +57,7 @@
           </div>
           <div class="workspace-kpi">
             <span class="workspace-kpi-label">运行日志等级</span>
-            <span class="workspace-kpi-value">{{ levelLabel(runtimeLevel) }}</span>
-            <span class="workspace-kpi-note">修改后会立即作用于运行时</span>
+<span class="workspace-kpi-value">{{ levelLabel(runtimeLevel) }}</span>
           </div>
         </div>
       </section>
@@ -156,9 +155,9 @@
                 <div class="grid grid-cols-2 gap-4">
                   <div>
                     <p class="text-xs text-outline">总消耗</p>
-                    <p class="mt-1 text-lg font-bold text-on-surface">{{ usageStats ? formatNumber(usageStats.totalTokens) : '-' }}</p>
-                    <p class="mt-1 text-[10px] text-outline">
-                      P {{ usageStats ? formatNumber(usageStats.promptTokens) : '-' }} / C {{ usageStats ? formatNumber(usageStats.completionTokens) : '-' }}
+                    <p class="mt-1 text-lg font-bold text-on-surface">{{ usageStats ? formatTokenShort(usageStats.totalTokens) : '-' }}</p>
+                    <p class="mt-1 whitespace-nowrap text-[10px] text-outline">
+                      P {{ usageStats ? formatTokenShort(usageStats.promptTokens) : '-' }} / C {{ usageStats ? formatTokenShort(usageStats.completionTokens) : '-' }}
                     </p>
                   </div>
                   <div>
@@ -169,8 +168,8 @@
               </div>
               <div class="workspace-subtle rounded-xl p-4">
                 <p class="text-xs text-outline">今日消耗</p>
-                <p class="mt-1 text-sm font-bold text-on-surface">
-                  {{ todayStats ? formatNumber(todayStats.promptTokens) : '-' }}<span class="text-xs font-normal text-outline"> / </span>{{ todayStats ? formatNumber(todayStats.completionTokens) : '-' }}
+<p class="mt-1 text-sm font-bold text-on-surface">
+                  {{ todayStats ? formatTokenShort(todayStats.promptTokens) : '-' }}<span class="text-xs font-normal text-outline"> / </span>{{ todayStats ? formatTokenShort(todayStats.completionTokens) : '-' }}
                 </p>
               </div>
               <div v-if="pastWeekStats.length" class="workspace-subtle rounded-xl p-4">
@@ -179,7 +178,7 @@
                   <div v-for="day in pastWeekStats" :key="day.date" class="flex items-center justify-between text-xs">
                     <span class="text-on-surface-variant">{{ day.date }}</span>
                     <span class="tech-text font-bold text-on-surface">
-                      {{ formatNumber(day.promptTokens) }}<span class="text-outline font-normal"> / </span>{{ formatNumber(day.completionTokens) }}
+                      {{ formatTokenShort(day.promptTokens) }}<span class="text-outline font-normal"> / </span>{{ formatTokenShort(day.completionTokens) }}
                     </span>
                   </div>
                 </div>
@@ -199,7 +198,7 @@ import { useRoute } from 'vue-router';
 import AppIcon from '@/components/AppIcon.vue';
 import { apiGet, apiPost } from '@/lib/api';
 import { getRouteToken } from '@/lib/auth';
-import { formatDateTime, formatKeyValue, formatNumber, formatRelativeTime } from '@/lib/format';
+import { formatDateTime, formatKeyValue, formatNumber, formatRelativeTime, formatTokenShort } from '@/lib/format';
 import type { LogLevel, ObservabilityEntriesResponse, ObservabilityLogEntry, ObservabilityLoggingConfig, TokenUsageStats } from '@/lib/types';
 
 const route = useRoute();

@@ -46,8 +46,7 @@ export class ProviderRuntime {
 
     const modelName = model;
     const providerLog = this.log.withFields({
-      provider: this.adapter.type,
-      model: modelName
+      'provider/model': `${this.adapter.type}/${modelName}`
     });
     const apiBase = this.config.apiBase || this.adapter.defaultApiBase;
     const context: ProviderLogContext = {
@@ -72,8 +71,7 @@ export class ProviderRuntime {
           ...(this.config.extraBody || {})
         };
         providerLog.debug('模型请求开始', {
-          attempt,
-          maxAttempts,
+          'attempt/Max': `${attempt}/${maxAttempts}`,
           method: request.method || 'POST',
           path: request.path,
           messageCount: messages.length,
@@ -109,9 +107,8 @@ export class ProviderRuntime {
         }
 
         providerLog.debug('模型请求完成', {
-          attempt,
-          status: response.status,
-          contentType: meta.contentType
+          'attempt/Max': `${attempt}/${maxAttempts}`,
+          status: response.status
         });
         return this.adapter.parseResponse(data, context);
       } catch (error: unknown) {
@@ -120,16 +117,14 @@ export class ProviderRuntime {
 
         if (attempt >= maxAttempts || !retryable) {
           providerLog.error('模型请求失败', {
-            attempt,
-            maxAttempts,
+            'attempt/Max': `${attempt}/${maxAttempts}`,
             error
           });
           throw error;
         }
 
         providerLog.warn('模型请求准备重试', {
-          attempt,
-          maxAttempts,
+          'attempt/Max': `${attempt}/${maxAttempts}`,
           error
         });
       }

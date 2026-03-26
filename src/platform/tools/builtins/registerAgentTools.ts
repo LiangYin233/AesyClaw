@@ -80,8 +80,7 @@ export function registerAgentTools(args: {
         const results = await runSubAgentTasks(rawTasks, {
           channel: context?.channel,
           chatId: context?.chatId,
-          messageType: context?.messageType,
-          signal: context?.signal
+          messageType: context?.messageType
         });
 
         return JSON.stringify({
@@ -126,8 +125,7 @@ export function registerAgentTools(args: {
         return await runTemporarySubAgentTask(context?.agentName, task, systemPrompt, {
           channel: context?.channel,
           chatId: context?.chatId,
-          messageType: context?.messageType,
-          signal: context?.signal
+          messageType: context?.messageType
         });
       } catch (error) {
         rethrowToolAbortError(error, context?.signal);

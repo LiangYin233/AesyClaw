@@ -36,7 +36,7 @@ export function registerMessagingTools(args: {
   sessionManager: SessionManager;
   log: BuiltInLogger;
 }): void {
-  const { toolRegistry, pluginManager, sessionManager } = args;
+  const { toolRegistry, pluginManager, sessionManager, log } = args;
 
   const publishOutboundMessage = async (message: OutboundMessage): Promise<void> => {
     await pluginManager.dispatchMessage(message);
@@ -74,6 +74,20 @@ export function registerMessagingTools(args: {
         ? params.files.filter((item): item is string => typeof item === 'string')
         : undefined;
 
+      log.debug('send_msg_to_user 开始执行', {
+        contentLength: content.length,
+        contentPreview: content.length > 50 ? content.substring(0, 50) + '...' : content,
+        mediaCount: media?.length || 0,
+        media,
+        filesCount: files?.length || 0,
+        files,
+        channel: context?.channel,
+        chatId: context?.chatId,
+        messageType: context?.messageType,
+        sessionKey: context?.sessionKey,
+        agentName: context?.agentName
+      });
+
       if (content.trim().length === 0 && (!media || media.length === 0) && (!files || files.length === 0)) {
         return '错误：content、media、files 至少需要提供一个。';
       }
@@ -94,7 +108,18 @@ export function registerMessagingTools(args: {
       try {
         requireSessionContext(context);
         throwIfToolAborted(context?.signal);
+        log.debug('send_msg_to_user 正在发送消息', {
+          channel: outboundMessage.channel,
+          chatId: outboundMessage.chatId,
+          messageType: outboundMessage.messageType,
+          hasMedia: !!outboundMessage.media,
+          hasFiles: !!outboundMessage.files
+        });
         await publishOutboundMessage(outboundMessage);
+        log.debug('send_msg_to_user 消息已发送，准备写入历史记录', {
+          sessionKey: context.sessionKey,
+          hasHistoryEntry: !!(content.trim() || media?.length || files?.length)
+        });
         if (context.sessionKey) {
           const historyEntry = buildHistoryEntry(content, media, files);
           if (historyEntry) {
@@ -104,8 +129,10 @@ export function registerMessagingTools(args: {
         }
         const attachmentCount = (media?.length || 0) + (files?.length || 0);
         const attachmentInfo = attachmentCount > 0 ? ` (包含 ${attachmentCount} 个附件)` : '';
+        log.debug('send_msg_to_user 执行完成', { attachmentCount });
         return `消息已发送${attachmentInfo}`;
       } catch (error) {
+        log.debug('send_msg_to_user 执行失败', { error });
         rethrowToolAbortError(error, context?.signal);
         return `发送失败：${formatToolError(error)}`;
       }
