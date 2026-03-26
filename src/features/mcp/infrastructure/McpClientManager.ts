@@ -33,22 +33,18 @@ export class McpClientManager {
 
     for (const [name, serverConfig] of Object.entries(config)) {
       if (serverConfig.enabled === false) {
-        this.log.debug('跳过已禁用的 MCP 服务器', { server: name });
         continue;
       }
 
-      const promise = this.connectOne(name, serverConfig).catch((error) => {
-        this.log.error(`MCP 服务器连接失败: ${name}`, { error });
+      const promise = this.connectOne(name, serverConfig).catch((_error) => {
       });
       promises.push(promise);
     }
 
     Promise.all(promises)
       .then(() => {
-        this.log.info('所有 MCP 服务器连接完成');
       })
-      .catch((error) => {
-        this.log.error('MCP 服务器连接流程失败', { error });
+      .catch((_error) => {
       });
   }
 
@@ -92,7 +88,6 @@ export class McpClientManager {
         args: command.slice(1),
         env
       });
-      this.log.info('正在连接 MCP 服务器', { server: name, transport: 'stdio' });
     } else if (transportType === 'http') {
       if (!config.url) {
         throw new Error(`MCP server ${name}: url is required for http type`);
@@ -108,7 +103,6 @@ export class McpClientManager {
       }
 
       transport = new SSEClientTransport(new URL(config.url), sseOptions);
-      this.log.info('正在连接 MCP 服务器', { server: name, transport: 'sse' });
     } else {
       throw new Error(`MCP server ${name}: invalid transport type ${transportType}`);
     }
@@ -119,7 +113,6 @@ export class McpClientManager {
           await client.connect(transport as never);
           this.clients.set(name, client);
           await this.loadTools(client, name);
-          this.log.debug('MCP transport connected', { server: name });
         })(),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error(`MCP server ${name} connection timeout after ${timeout}ms`)), timeout)
@@ -155,7 +148,6 @@ export class McpClientManager {
     }
 
     this.serverTools.set(serverName, tools);
-    this.log.info('MCP 工具已加载', { server: serverName, toolCount: tools.size });
   }
 
   async callTool(name: string, args: Record<string, unknown>, signal?: AbortSignal, timeout?: number): Promise<string> {
@@ -170,8 +162,6 @@ export class McpClientManager {
     }
 
     const requestTimeout = timeout ?? McpClientManager.DEFAULT_TIMEOUT;
-
-    this.log.debug('MCP tool started', { server: serverName, toolName: name, argKeys: Object.keys(args || {}) });
 
     let parsedArgs = args;
     if (typeof args === 'string') {
@@ -218,8 +208,6 @@ export class McpClientManager {
         signal.removeEventListener('abort', abortListener);
       }
     });
-
-    this.log.debug('MCP tool completed', { server: serverName, toolName: name, contentItems: response?.content?.length || 0 });
 
     const textParts = (response?.content || [])
       .filter((item: any) => item?.type === 'text' && typeof item?.text === 'string')
@@ -356,8 +344,6 @@ export class McpClientManager {
       info.error = undefined;
       info.connectedAt = new Date();
       info.toolCount = this.getServerToolCount(name);
-
-      this.log.info('MCP 服务器就绪', { server: name, toolCount: info.toolCount });
     } catch (error) {
       await this.cleanupServerConnection(name);
       const info = this.serverStatus.get(name)!;
@@ -370,7 +356,6 @@ export class McpClientManager {
   }
 
   async disconnectOne(name: string): Promise<void> {
-    const removedToolCount = this.getServerToolCount(name);
     await this.cleanupServerConnection(name);
 
     const info = this.serverStatus.get(name);
@@ -379,8 +364,6 @@ export class McpClientManager {
       info.toolCount = 0;
       info.error = undefined;
     }
-
-    this.log.info('MCP 服务器已断开连接', { server: name, removedToolCount });
   }
 
   async reconnect(name: string): Promise<void> {

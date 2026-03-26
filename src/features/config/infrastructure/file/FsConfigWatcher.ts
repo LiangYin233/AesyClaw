@@ -1,6 +1,5 @@
 import { existsSync, watch } from 'fs';
 import { basename } from 'path';
-import { normalizeConfigError } from '../../errors.js';
 
 type FsWatcher = ReturnType<typeof watch>;
 
@@ -47,11 +46,7 @@ export class FsConfigWatcher {
 
         this.scheduleReload();
       });
-      this.args.log.debug('已启动文件监视器');
-    } catch (error) {
-      this.args.log.warn('启动配置文件监视器失败', {
-        error: normalizeConfigError(error)
-      });
+    } catch {
     }
   }
 
@@ -62,7 +57,6 @@ export class FsConfigWatcher {
     if (this.watcher) {
       this.watcher.close();
       this.watcher = null;
-      this.args.log.debug('已停止文件监视器');
     }
   }
 

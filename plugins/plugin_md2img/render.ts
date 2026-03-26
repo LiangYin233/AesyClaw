@@ -118,15 +118,13 @@ if (process.argv[1] && process.argv[1].endsWith('render.ts')) {
     const scale = args[2] || '1.0';
 
     if (!markdownFile || !outputFile) {
-        console.error('Usage: tsx render.ts <markdown-file> <output-file> [scale]');
         process.exit(1);
     }
 
     const markdownText = fs.readFileSync(markdownFile, 'utf-8');
     renderMarkdownToImage(markdownText, outputFile, scale)
-        .then(() => console.log('Done:', outputFile))
-        .catch((err: unknown) => {
-            console.error('Error:', err);
+        .then(() => undefined)
+        .catch((_err: unknown) => {
             process.exit(1);
         });
 }

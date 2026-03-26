@@ -4,9 +4,6 @@ import { OpenAIChatAdapter } from './adapters/OpenAIChatAdapter.js';
 import { OpenAIResponsesAdapter } from './adapters/OpenAIResponsesAdapter.js';
 import { RuntimeBackedProvider } from './core/provider.js';
 import type { ProviderConfig } from '../../types.js';
-import { logger } from '../observability/index.js';
-
-const log = logger.child('Provider');
 
 type ProviderType = ProviderConfig['type'];
 
@@ -64,28 +61,18 @@ function getProviderSpec(type: ProviderType): ProviderSpec {
   }
 
   const available = Object.keys(PROVIDER_SPECS).join(', ');
-  log.error(`未知提供商类型: ${type}。可用类型: ${available}`);
   throw new Error(`Unknown provider type: ${type}. Available: ${available}`);
 }
 
-function createProviderInstance(type: ProviderType, config: ProviderConfig, instanceName: string): LLMProvider {
+function createProviderInstance(type: ProviderType, config: ProviderConfig, _instanceName: string): LLMProvider {
   const spec = getProviderSpec(type);
   const apiKey = config.apiKey;
   const apiBase = config.apiBase || spec.defaultApiBase;
   const headers = config.headers;
   const extraBody = config.extraBody;
-
-  log.info(`正在创建提供商: ${instanceName} (${spec.displayName})`, {
-    providerName: instanceName,
-    providerType: type
-  });
-  log.debug(`API Base: ${apiBase}`);
-  log.debug(`API Key: ${apiKey ? apiKey.substring(0, 10) + '...' : '(empty)'}`);
   if (headers) {
-    log.debug(`Custom headers: ${Object.keys(headers).join(', ')}`);
   }
   if (extraBody) {
-    log.debug(`Extra body: ${Object.keys(extraBody).join(', ')}`);
   }
 
   return spec.create(apiKey, apiBase, headers, extraBody);

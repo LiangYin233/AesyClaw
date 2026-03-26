@@ -83,7 +83,6 @@ export default definePlugin<Md2ImgOptions>({
     }
   },
   setup(ctx) {
-    const log = ctx.logger.child('md2img');
     const config: Md2ImgOptions = {
       minLength: ctx.options.minLength ?? 50,
       scale: Math.max(0.5, Math.min(3.0, ctx.options.scale ?? 1.0))
@@ -99,11 +98,6 @@ export default definePlugin<Md2ImgOptions>({
       }
       return state;
     };
-
-    log.info('Markdown 转图片插件已加载', {
-      minLength: config.minLength,
-      scale: config.scale
-    });
 
     ctx.commands.register({
       name: 'md2img_text',
@@ -157,17 +151,10 @@ export default definePlugin<Md2ImgOptions>({
         : message;
 
       if (!baseMessage.content || baseMessage.content.length < config.minLength) {
-        log.debug('Skipped: content too short', {
-          contentLength: baseMessage.content?.length || 0,
-          minLength: config.minLength
-        });
         return baseMessage;
       }
 
       if (!isMarkdown(baseMessage.content)) {
-        log.debug('Markdown rendering skipped: plain text', {
-          contentLength: baseMessage.content.length
-        });
         return baseMessage;
       }
 
@@ -177,8 +164,6 @@ export default definePlugin<Md2ImgOptions>({
           const thinkingBlock = `\n\n> ${mergedReasoning.replace(/\n/g, '\n> ')}\n`;
           markdownContent = thinkingBlock + markdownContent;
         }
-
-        log.debug(`Converting markdown: ${markdownContent.length} chars`);
 
         const imagePath = await renderToImage(ctx.tempDir, markdownContent, config.scale);
         const state = getRoundSources(baseMessage.channel, baseMessage.chatId);
@@ -195,21 +180,17 @@ export default definePlugin<Md2ImgOptions>({
               content: '',
               messageType: baseMessage.messageType,
               media: originalMedia
-            }, { skipHooks: true }).catch((error: unknown) => {
-              log.error('单独发送原始媒体失败', { error });
+            }, { skipHooks: true }).catch((_error: unknown) => {
             });
           });
         }
-
-        log.info('Markdown 已渲染为图片', { imagePath });
 
         return {
           ...baseMessage,
           content: '',
           media: [imagePath]
         };
-      } catch (error) {
-        log.error('转换失败', { error });
+      } catch {
         return baseMessage;
       }
     });

@@ -49,19 +49,11 @@ export class OpenAIEmbeddingsClient {
     const data = await this.requestEmbeddings(trimmedInputs, model, signal);
     const embeddings = (data.data || []).map((item) => item.embedding);
     if (embeddings.length !== trimmedInputs.length) {
-      this.log.error('OpenAI Embeddings 返回数量与请求不一致', {
-        expected: trimmedInputs.length,
-        actual: embeddings.length
-      });
       throw new Error('OpenAI Embeddings API returned an unexpected number of embeddings');
     }
 
-    return embeddings.map((embedding, index) => {
+    return embeddings.map((embedding, _index) => {
       if (!Array.isArray(embedding) || embedding.some((value) => typeof value !== 'number')) {
-        this.log.error('OpenAI Embeddings 响应缺少合法 embedding', {
-          index,
-          inputPreview: preview(trimmedInputs[index] || '')
-        });
         throw new Error('OpenAI Embeddings API returned an invalid embedding payload');
       }
       return embedding;

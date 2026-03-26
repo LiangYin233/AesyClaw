@@ -1,6 +1,5 @@
 import type { AgentRoleService } from '../../../agent/infrastructure/roles/AgentRoleService.js';
 import type { ToolContext, ToolRegistry } from '../ToolRegistry.js';
-import { normalizeToolError } from '../errors.js';
 import {
   type BuiltInLogger,
   formatToolError,
@@ -33,7 +32,7 @@ export function registerAgentTools(args: {
   agentRoleService: AgentRoleService;
   log: BuiltInLogger;
 }): void {
-  const { toolRegistry, runSubAgentTasks, runTemporarySubAgentTask, agentRoleService, log } = args;
+  const { toolRegistry, runSubAgentTasks, runTemporarySubAgentTask, agentRoleService } = args;
 
   toolRegistry.register({
     name: 'call_agent',
@@ -67,11 +66,6 @@ export function registerAgentTools(args: {
         task: String(item?.task || '')
       }));
 
-      log.info('call_agent 开始执行', {
-        taskCount: rawTasks.length,
-        agents: rawTasks.map((item) => item.agentName)
-      });
-
       const invalidTask = rawTasks.find((item) => !item.agentName || !item.task);
       if (invalidTask) {
         return 'Error: each items entry requires agentName and task';
@@ -90,12 +84,6 @@ export function registerAgentTools(args: {
           signal: context?.signal
         });
 
-        log.info('call_agent 执行完成', {
-          taskCount: results.length,
-          successCount: results.filter((item) => item.success).length,
-          failedCount: results.filter((item) => !item.success).length
-        });
-
         return JSON.stringify({
           total: results.length,
           success: results.filter((item) => item.success).length,
@@ -104,10 +92,6 @@ export function registerAgentTools(args: {
         }, null, 2);
       } catch (error) {
         rethrowToolAbortError(error, context?.signal);
-        log.error('call_agent 执行失败', {
-          taskCount: rawTasks.length,
-          error: normalizeToolError(error)
-        });
         return `Error: ${formatToolError(error)}`;
       }
     }
@@ -147,12 +131,6 @@ export function registerAgentTools(args: {
         });
       } catch (error) {
         rethrowToolAbortError(error, context?.signal);
-        log.error('call_temp_agent 执行失败', {
-          baseAgentName: context?.agentName,
-          channel: context?.channel,
-          chatId: context?.chatId,
-          error: normalizeToolError(error)
-        });
         return `Error: ${formatToolError(error)}`;
       }
     }

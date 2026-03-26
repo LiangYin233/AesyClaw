@@ -2,7 +2,6 @@ import { watch, type FSWatcher } from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
 import matter from 'gray-matter';
-import { normalizeSkillError } from './errors.js';
 import { logger } from '../../../platform/observability/index.js';
 import type { Config } from '../../../types.js';
 import { formatSkillsPrompt } from './promptFormatter.js';
@@ -64,22 +63,13 @@ export class SkillManager {
       await fs.mkdir(spec.dir, { recursive: true });
     }
 
-    this.log.info('正在加载技能目录', {
-      builtinDir: rootSpecs.find((spec) => spec.source === 'builtin')?.dir,
-      externalDir: rootSpecs.find((spec) => spec.source === 'external')?.dir
-    });
-
     try {
       this.skills = await this.scanAllSkillDirectories();
       if (this.config) {
         this.applyConfig(this.config);
       }
       await this.cleanupBuiltinSkillConfigEntries();
-      this.log.info(`已加载 ${this.skills.size} 个技能`);
-    } catch (error) {
-      this.log.warn('加载技能目录失败', {
-        error: normalizeSkillError(error)
-      });
+    } catch {
     }
   }
 
@@ -98,10 +88,6 @@ export class SkillManager {
     }
 
     await this.syncDirectoryWatchers();
-    this.log.info('技能目录监视器已启动', {
-      builtinDir: rootSpecs.find((spec) => spec.source === 'builtin')?.dir,
-      externalDir: rootSpecs.find((spec) => spec.source === 'external')?.dir
-    });
   }
 
   async stopWatching(): Promise<void> {
@@ -119,7 +105,6 @@ export class SkillManager {
       watcher.close();
     }
     this.dirWatchers.clear();
-    this.log.info('技能目录监视器已停止');
   }
 
   async reload(): Promise<SkillReloadSummary> {
@@ -176,7 +161,6 @@ export class SkillManager {
       config.skills[name] = { enabled };
     });
     this.applyConfig(nextConfig);
-    this.log.info(`已将技能 ${name} 的启用状态写入配置`);
 
     return true;
   }
@@ -207,10 +191,6 @@ export class SkillManager {
     try {
       return await fs.readFile(file.path, 'utf-8');
     } catch (error) {
-      this.log.error(`读取技能文件失败: ${file.path}`, {
-        path: file.path,
-        error: normalizeSkillError(error)
-      });
       return `Failed to read file: ${error}`;
     }
   }
@@ -251,18 +231,14 @@ export class SkillManager {
     return path.isAbsolute(dir) ? dir : path.resolve(process.cwd(), dir);
   }
 
-  private scheduleReload(reason: string): void {
+  private scheduleReload(_reason: string): void {
     if (this.reloadTimer) {
       clearTimeout(this.reloadTimer);
     }
 
     this.reloadTimer = setTimeout(() => {
       this.reloadTimer = null;
-      void this.reload().catch((error) => {
-        this.log.error('技能重载失败', {
-          reason,
-          error: normalizeSkillError(error)
-        });
+      void this.reload().catch((_error) => {
       });
     }, RELOAD_DEBOUNCE_MS);
   }
@@ -291,14 +267,6 @@ export class SkillManager {
       ...summary,
       cleanedAgentRefs
     };
-
-    this.log.info('技能已重载', {
-      added: result.added,
-      updated: result.updated,
-      removed: result.removed,
-      total: result.total,
-      cleanedAgentRefs: result.cleanedAgentRefs
-    });
     return result;
   }
 
@@ -351,12 +319,6 @@ export class SkillManager {
       const skillMap = await this.scanSkillDirectory(spec);
       for (const [name, skill] of skillMap.entries()) {
         if (merged.has(name)) {
-          const existing = merged.get(name)!;
-          this.log.warn('检测到重复 skill 名称，已保留优先项', {
-            skill: name,
-            keptSource: existing.source,
-            ignoredSource: skill.source
-          });
           continue;
         }
         merged.set(name, skill);
@@ -409,11 +371,6 @@ export class SkillManager {
       };
     } catch (error) {
       if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
-        this.log.warn(`加载技能失败: ${name}`, {
-          skill: name,
-          source,
-          error: normalizeSkillError(error)
-        });
       }
       return null;
     }
@@ -424,11 +381,7 @@ export class SkillManager {
 
     try {
       await this.collectSkillFiles(skillPath, skillPath, files);
-    } catch (error) {
-      this.log.warn(`列出技能文件失败: ${skillPath}`, {
-        path: skillPath,
-        error: normalizeSkillError(error)
-      });
+    } catch {
     }
 
     return files.sort((left, right) => left.name.localeCompare(right.name));
@@ -545,11 +498,7 @@ export class SkillManager {
           this.scheduleReload(filename ? `dir:${filename.toString()}` : `dir:${path.basename(dirPath)}`);
         });
         this.dirWatchers.set(dirPath, watcher);
-      } catch (error) {
-        this.log.warn('监视技能目录失败', {
-          path: dirPath,
-          error: normalizeSkillError(error)
-        });
+      } catch {
       }
     }
   }

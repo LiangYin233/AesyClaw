@@ -97,7 +97,6 @@ export class PythonRunner {
       });
 
       pythonProcess.on('error', (error: Error & NodeJS.ErrnoException) => {
-        this.log.error('Python 进程启动失败', { error: error.message });
 
         if (error.code === 'ENOENT') {
           finish('Python 未安装或不在 PATH 中。请确保已安装 Python 并添加到系统 PATH。');
@@ -113,19 +112,15 @@ export class PythonRunner {
         }
 
         if (timedOut) {
-          this.log.warn(`Python 执行超时，已超过 ${this.timeout}ms`);
           finish(`Python 超时: 执行时间超过 ${this.timeout}ms`);
           return;
         }
 
         if (code !== 0) {
-          this.log.debug(`Python exited with code ${code}`);
           const errorOutput = stderr || stdout || '未知错误';
           finish(`Python 执行错误:\n${this.truncateOutput(errorOutput)}`);
           return;
         }
-
-        this.log.debug('Python execution completed', { executable: this.executable });
         const output = stdout || '代码执行完成（无输出）';
         finish(this.truncateOutput(output));
       });

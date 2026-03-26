@@ -158,15 +158,11 @@ export async function createPluginInstance(options: CreatePluginInstanceOptions)
 export async function disposePluginInstance(
   instance: PluginInstance,
   toolRegistry: ToolRegistry,
-  logger: Logger
+  _logger: Logger
 ): Promise<void> {
   try {
     await instance.teardown?.();
-  } catch (error) {
-    logger.error('插件卸载清理失败', {
-      plugin: instance.name,
-      error
-    });
+  } catch {
   }
 
   if (instance.tools.length > 0) {

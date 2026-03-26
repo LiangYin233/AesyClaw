@@ -23,9 +23,7 @@ export class CronStore {
 
     this.db = new sqlite3.Database(dbPath, (err) => {
       if (err) {
-        this.log.error(`打开数据库失败: ${err.message}`);
       } else {
-        this.log.info(`数据库已打开: ${dbPath}`);
       }
     });
   }
@@ -56,7 +54,6 @@ export class CronStore {
           transaction: async <T>(operation: () => Promise<T>) => this.transaction(operation)
         });
         this.ready = true;
-        this.log.info('数据库初始化完成');
       })();
     }
 
@@ -190,10 +187,8 @@ export class CronStore {
     return new Promise((resolve, reject) => {
       this.db.close((err) => {
         if (err) {
-          this.log.error(`关闭数据库失败: ${err.message}`);
           reject(err);
         } else {
-          this.log.info('数据库已关闭');
           resolve();
         }
       });

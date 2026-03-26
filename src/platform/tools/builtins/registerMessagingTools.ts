@@ -2,7 +2,6 @@ import type { SessionManager } from '../../../features/sessions/index.js';
 import type { OutboundMessage } from '../../../types.js';
 import type { PluginManager } from '../../../features/plugins/index.js';
 import type { ToolContext, ToolRegistry } from '../ToolRegistry.js';
-import { normalizeToolError } from '../errors.js';
 import {
   type BuiltInLogger,
   formatToolError,
@@ -37,7 +36,7 @@ export function registerMessagingTools(args: {
   sessionManager: SessionManager;
   log: BuiltInLogger;
 }): void {
-  const { toolRegistry, pluginManager, sessionManager, log } = args;
+  const { toolRegistry, pluginManager, sessionManager } = args;
 
   const publishOutboundMessage = async (message: OutboundMessage): Promise<void> => {
     await pluginManager.dispatchMessage(message);
@@ -80,10 +79,6 @@ export function registerMessagingTools(args: {
       }
 
       if (!context?.chatId || !context?.channel) {
-        log.error('send_msg_to_user 缺少会话上下文', {
-          hasChannel: !!context?.channel,
-          hasChatId: !!context?.chatId
-        });
         return '错误：无法获取当前会话信息，此工具只能在用户会话中使用。';
       }
 
@@ -97,7 +92,7 @@ export function registerMessagingTools(args: {
       };
 
       try {
-        const { channel, chatId } = requireSessionContext(context);
+        requireSessionContext(context);
         throwIfToolAborted(context?.signal);
         await publishOutboundMessage(outboundMessage);
         if (context.sessionKey) {
@@ -109,18 +104,9 @@ export function registerMessagingTools(args: {
         }
         const attachmentCount = (media?.length || 0) + (files?.length || 0);
         const attachmentInfo = attachmentCount > 0 ? ` (包含 ${attachmentCount} 个附件)` : '';
-        log.debug('send_msg_to_user 执行完成', { channel, chatId, attachmentCount });
         return `消息已发送${attachmentInfo}`;
       } catch (error) {
         rethrowToolAbortError(error, context?.signal);
-        log.error('send_msg_to_user 执行失败', {
-          channel: context?.channel,
-          chatId: context?.chatId,
-          sessionKey: context?.sessionKey,
-          mediaCount: media?.length || 0,
-          fileCount: files?.length || 0,
-          error: normalizeToolError(error)
-        });
         return `发送失败：${formatToolError(error)}`;
       }
     }

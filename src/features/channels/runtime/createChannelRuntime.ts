@@ -5,10 +5,7 @@ import { mergeChannelConfigWithDefaults } from '../domain/config.js';
 import { ChannelRuntime } from './ChannelRuntime.js';
 import type { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
 import type { Database } from '../../../platform/db/index.js';
-import { logger } from '../../../platform/observability/index.js';
 import type { Config } from '../../../types.js';
-
-const appLog = logger.child('AesyClaw');
 
 async function applyDefaultChannelConfigs(
   channelManager: ChannelManager,
@@ -44,10 +41,6 @@ async function applyDefaultChannelConfigs(
       draft.channels[plugin.channelName] = mergedChannelConfig as typeof draft.channels[string];
     }
   });
-
-  appLog.info('已应用默认渠道配置', {
-    channels: channelEntriesToUpdate.map(({ plugin }) => plugin.channelName)
-  });
   return nextConfig;
 }
 
@@ -75,7 +68,6 @@ export async function createChannelRuntime(args: {
 
     const enabled = channelManager.registerConfiguredChannel(channelName, channelConfig);
     if (!enabled) {
-      appLog.warn(`未找到渠道插件: ${channelName}`);
     }
   }
 

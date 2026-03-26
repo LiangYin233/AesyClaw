@@ -9,14 +9,11 @@ import { PluginsService } from '../../../features/plugins/application/PluginsSer
 import type { PluginManager } from '../../../features/plugins/index.js';
 import { PluginRepository } from '../../../features/plugins/infrastructure/PluginRepository.js';
 import type { ChannelManager } from '../../../features/channels/application/ChannelManager.js';
-import { logger } from '../../../platform/observability/index.js';
 import type { Config } from '../../../types.js';
 import type { SessionManager } from '../../../features/sessions/index.js';
 import type { SkillManager } from '../../../features/skills/index.js';
 import { registerBuiltInTools } from '../../../platform/tools/index.js';
 import type { ToolRegistry } from '../../../platform/tools/index.js';
-
-const appLog = logger.child('AesyClaw');
 
 export function registerRuntimeBindings(args: {
   commandRegistry: CommandRegistry;
@@ -69,7 +66,6 @@ export function registerRuntimeBindings(args: {
     pluginsService
   );
   commandRegistry.registerHandler(builtInCommands);
-  appLog.info('命令注册表已初始化');
 
   setPluginManager(pluginManager);
   agentRoleService.setPluginLoadingStateResolver(isPluginLoadingComplete);

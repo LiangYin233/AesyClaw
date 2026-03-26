@@ -166,15 +166,7 @@ export class ResourceStore {
         sha256 = createHash('sha256').update(buffer).digest('hex');
         finalPath = targetPath;
       }
-    } catch (error) {
-      this.log.warn('资源本地化失败', {
-        channel,
-        conversationId,
-        messageId,
-        resourceId: resource.resourceId,
-        kind: resource.kind,
-        error: error instanceof Error ? error.message : String(error)
-      });
+    } catch {
     }
 
     const hydrated: ResourceHandle = {
@@ -242,12 +234,7 @@ export class ResourceStore {
         resourceId: resource.resourceId,
         kind: resource.kind
       };
-    } catch (error) {
-      this.log.warn('资源补全失败', {
-        resourceId: resource.resourceId,
-        kind: resource.kind,
-        error: error instanceof Error ? error.message : String(error)
-      });
+    } catch {
       return resource;
     }
   }

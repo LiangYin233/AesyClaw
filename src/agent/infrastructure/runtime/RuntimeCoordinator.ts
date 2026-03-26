@@ -8,7 +8,6 @@ import type { SessionMemoryService } from '../memory/SessionMemoryService.js';
 import type { SessionRoutingService } from '../session/SessionRoutingService.js';
 import type { AgentRoleService } from '../roles/AgentRoleService.js';
 import type { VisionSettings } from '../../../types.js';
-import { logger } from '../../../platform/observability/index.js';
 import { DEFAULT_SYSTEM_PROMPT } from '../../../features/config/schema/shared.js';
 import { AgentPipeline } from './AgentPipeline.js';
 import { SessionResolver } from '../session/SessionResolver.js';
@@ -58,7 +57,6 @@ export interface RuntimeCoordinatorOptions {
 }
 
 export class RuntimeCoordinator {
-  private log = logger.child('RuntimeCoordinator');
   private running = false;
   private defaultProvider?: LLMProvider;
   private mainModel: string;
@@ -129,14 +127,7 @@ export class RuntimeCoordinator {
       executeTurn: async (context) => this.executionRuntime.execute(context)
     };
     this.handleInboundMessageDeps = {
-      logInbound: (message) => {
-        this.log.info('收到入站消息', {
-          sessionKey: message.sessionKey,
-          channel: message.channel,
-          chatId: message.chatId,
-          messageType: message.messageType,
-          source: message.metadata?.directResponse ? 'direct' : message.metadata?.source || 'user'
-        });
+      logInbound: (_message) => {
       },
       processInbound: async ({ message, suppressOutbound }) => this.pipeline.process(message, {
         suppressOutbound,
@@ -153,13 +144,7 @@ export class RuntimeCoordinator {
         memoryWindow: this.memoryWindow
       }),
       runTurn: async (context) => runAgentTurn(this.runAgentTurnDeps, context),
-      logCompletion: (context) => {
-        this.log.info('入站消息处理完成', {
-          sessionKey: context.sessionKey,
-          channel: context.channel,
-          durationMs: undefined,
-          suppressOutbound: context.suppressOutbound
-        });
+      logCompletion: (_context) => {
       }
     };
     this.handleDirectMessageDeps = {
@@ -170,7 +155,6 @@ export class RuntimeCoordinator {
 
   start(): void {
     this.running = true;
-    this.log.info('运行时已启动');
   }
 
   stop(): void {
@@ -186,7 +170,6 @@ export class RuntimeCoordinator {
     message: InboundMessage,
     options?: { suppressOutbound?: boolean }
   ): Promise<string | undefined> {
-    const startedAt = Date.now();
     const result = await handleInboundMessage(this.handleInboundMessageDeps, {
       message,
       suppressOutbound: options?.suppressOutbound,
@@ -194,29 +177,12 @@ export class RuntimeCoordinator {
     });
 
     if (result.status === 'handled') {
-      this.log.info('入站消息已由处理流水线接管', {
-        sessionKey: message.sessionKey,
-        channel: message.channel,
-        durationMs: Date.now() - startedAt
-      });
       return undefined;
     }
 
     if (result.status === 'replied') {
-      this.log.info('入站消息已由处理流水线直接回复', {
-        sessionKey: message.sessionKey,
-        channel: message.channel,
-        durationMs: Date.now() - startedAt
-      });
       return result.content;
     }
-
-    this.log.info('入站消息处理完成', {
-      sessionKey: message.sessionKey,
-      channel: message.channel,
-      durationMs: Date.now() - startedAt,
-      suppressOutbound: options?.suppressOutbound === true
-    });
     return result.content;
   }
 
@@ -333,7 +299,6 @@ export class RuntimeCoordinator {
       defaultProvider: provider,
       mainModel: model || this.mainModel
     });
-    this.log.info('运行模型配置已更新', { model: model || this.mainModel });
   }
 
   updateMainAgentRuntime(options: {
@@ -385,10 +350,6 @@ export class RuntimeCoordinator {
     }
 
     this.executionEngine.updateRuntime(runtimeUpdate);
-    this.log.info('主运行时配置已更新', {
-      model: options.model ?? this.mainModel,
-      maxIterations: options.maxIterations || this.maxIterations
-    });
   }
 
   updateMemorySettings(memoryWindow: number, memoryService?: SessionMemoryService): void {
@@ -397,10 +358,6 @@ export class RuntimeCoordinator {
     this.sessionResolver.setMemoryService(memoryService);
     this.executionEngine.updateRuntime({ memoryWindow });
     this.executionRuntime.setMemoryService(memoryService);
-    this.log.info('记忆设置已更新', {
-      memoryWindow,
-      summaryEnabled: !!memoryService
-    });
   }
 
   bindMessageToSession(message: InboundMessage, reference: SessionReference | string): InboundMessage {

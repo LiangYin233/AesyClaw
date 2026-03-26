@@ -40,7 +40,6 @@ export class Database {
       },
       transaction: async <T>(operation: () => Promise<T>) => this.transaction(operation)
     });
-    this.log.info('数据表初始化完成');
   }
 
   async ready(): Promise<void> {
@@ -86,7 +85,6 @@ export class Database {
   close(): Promise<void> {
     return new Promise((resolve) => {
       this.db.close(() => {
-        this.log.info('数据库已关闭');
         resolve();
       });
     });
@@ -98,7 +96,6 @@ export class Database {
         this.db.run('BEGIN IMMEDIATE', (err: Error | null) => {
           if (err) {
             if (err.message && err.message.includes('cannot start a transaction')) {
-              this.log.debug('已在事务中，无需新建事务');
               Promise.resolve(fn()).then(resolve).catch(reject);
               return;
             }

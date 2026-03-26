@@ -13,7 +13,6 @@ import type {
   QuoteReference,
   ResourceHandle
 } from '../../src/features/channels/domain/types.ts';
-import { logger } from '../../src/platform/observability/index.ts';
 
 const WEBSOCKET_ACTION_TIMEOUT = 10000;
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
@@ -50,8 +49,6 @@ class OneBotAdapter implements ChannelAdapter {
   private heartbeatTimer?: NodeJS.Timeout;
   private isReconnecting = false;
   private pendingActions: Array<{ resolve: (value: unknown) => void; reject: (reason?: unknown) => void }> = [];
-  private log = logger.child('OneBot');
-
   constructor(private config: OneBotConfig) {}
 
   capabilities(): ChannelCapabilityProfile {
@@ -67,21 +64,15 @@ class OneBotAdapter implements ChannelAdapter {
 
   async start(ctx: AdapterRuntimeContext): Promise<void> {
     this.runtimeContext = ctx;
-    const startedAt = Date.now();
     await this.connectWebSocket();
     this.running = true;
     this.startHeartbeat();
-    this.log.info('OneBot 渠道已启动', {
-      wsUrl: this.config.wsUrl,
-      durationMs: Date.now() - startedAt
-    });
   }
 
   async stop(): Promise<void> {
     this.running = false;
     this.clearHeartbeat();
     this.ws?.close();
-    this.log.info('OneBot 渠道已停止');
   }
 
   isRunning(): boolean {
@@ -174,11 +165,7 @@ class OneBotAdapter implements ChannelAdapter {
         });
         const result = this.buildResourceFromResponse(resource, response, payload);
         return result ?? resource;
-      } catch (error) {
-        this.log.warn('OneBot 私聊文件 URL 获取失败', {
-          fileId,
-          error: error instanceof Error ? error.message : String(error)
-        });
+      } catch {
         return resource;
       }
     }
@@ -200,12 +187,7 @@ class OneBotAdapter implements ChannelAdapter {
         });
         const result = this.buildResourceFromResponse(resource, response, payload);
         return result ?? resource;
-      } catch (error) {
-        this.log.warn('OneBot 群聊文件 URL 获取失败', {
-          fileId,
-          groupId,
-          error: error instanceof Error ? error.message : String(error)
-        });
+      } catch {
         return resource;
       }
     }
@@ -236,13 +218,7 @@ class OneBotAdapter implements ChannelAdapter {
             remoteUrl
           };
         }
-      } catch (error) {
-        this.log.warn('消息文件 URL 获取失败', {
-          fileId,
-          messageType,
-          groupId,
-          error: error instanceof Error ? error.message : String(error)
-        });
+      } catch {
       }
     }
 
@@ -290,11 +266,7 @@ class OneBotAdapter implements ChannelAdapter {
         },
         rawEvent: payload
       };
-    } catch (error) {
-      this.log.warn('OneBot 引用消息获取失败', {
-        messageId: messageId.toString(),
-        error: error instanceof Error ? error.message : String(error)
-      });
+    } catch {
       return null;
     }
   }
@@ -342,14 +314,9 @@ class OneBotAdapter implements ChannelAdapter {
   }
 
   private async connectWebSocket(): Promise<void> {
-    const connectStartedAt = Date.now();
     return new Promise((resolve, reject) => {
-      const attemptId = ++this.connectAttemptCounter;
-      const parsedUrl = new URL(this.config.wsUrl);
-      const targetHost = parsedUrl.hostname;
-      const targetPort = parsedUrl.port || (parsedUrl.protocol === 'wss:' ? '443' : '80');
+      this.connectAttemptCounter += 1;
       const slowTimers: NodeJS.Timeout[] = [];
-      let currentStage = 'init';
 
       const clearSlowTimers = () => {
         for (const timer of slowTimers) {
@@ -360,14 +327,6 @@ class OneBotAdapter implements ChannelAdapter {
 
       const scheduleSlowLog = (delayMs: number) => {
         slowTimers.push(setTimeout(() => {
-          this.log.warn('OneBot 连接仍在等待', {
-            attemptId,
-            elapsedMs: Date.now() - connectStartedAt,
-            stage: currentStage,
-            host: targetHost,
-            port: targetPort,
-            reconnecting: this.isReconnecting
-          });
         }, delayMs));
       };
 
@@ -385,23 +344,13 @@ class OneBotAdapter implements ChannelAdapter {
       this.ws.on('open', async () => {
         this.reconnectAttempts = 0;
         this.isReconnecting = false;
-        currentStage = 'websocket_open';
 
         try {
           const res = await this.sendAction('get_login_info', {});
           this.selfId = res.data?.user_id?.toString();
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          this.log.warn('OneBot 登录信息不可用', { error: message });
+        } catch {
         } finally {
           clearSlowTimers();
-          this.log.info('OneBot 握手完成', {
-            attemptId,
-            wsUrl: this.config.wsUrl,
-            elapsedMs: Date.now() - connectStartedAt,
-            hasSelfId: !!this.selfId,
-            selfId: this.selfId
-          });
           this.flushPendingActions();
           resolve();
         }
@@ -411,10 +360,7 @@ class OneBotAdapter implements ChannelAdapter {
         try {
           const payload = JSON.parse(data.toString());
           this.handleOneBotEvent(payload);
-        } catch (error) {
-          this.log.error('解析 OneBot 消息失败', {
-            error: error instanceof Error ? error.message : String(error)
-          });
+        } catch {
         }
       });
 
@@ -426,14 +372,6 @@ class OneBotAdapter implements ChannelAdapter {
 
       this.ws.on('error', (error) => {
         clearSlowTimers();
-        this.log.error('OneBot WebSocket 出错', {
-          attemptId,
-          elapsedMs: Date.now() - connectStartedAt,
-          stage: currentStage,
-          host: targetHost,
-          port: targetPort,
-          error: error.message
-        });
         if (this.reconnectAttempts === 0 && !this.isReconnecting) {
           reject(error);
         }
@@ -456,25 +394,13 @@ class OneBotAdapter implements ChannelAdapter {
     );
 
     if (DEFAULT_MAX_RECONNECT_ATTEMPTS > 0 && this.reconnectAttempts > DEFAULT_MAX_RECONNECT_ATTEMPTS) {
-      this.log.error('已达到 OneBot 重连上限', {
-        maxReconnectAttempts: DEFAULT_MAX_RECONNECT_ATTEMPTS,
-        wsUrl: this.config.wsUrl
-      });
       this.running = false;
       return;
     }
 
-    this.log.warn('已计划 OneBot 重连', {
-      delayMs: delay,
-      attempts: this.reconnectAttempts,
-      maxReconnectAttempts: DEFAULT_MAX_RECONNECT_ATTEMPTS || undefined
-    });
-
     setTimeout(() => {
       this.connectWebSocket().then(() => {
-        this.log.info('OneBot 重连成功', { attempts: this.reconnectAttempts });
-      }).catch((err: Error) => {
-        this.log.error('OneBot 重连失败', { error: err.message, attempts: this.reconnectAttempts });
+      }).catch((_err: Error) => {
       });
     }, delay);
   }
@@ -566,8 +492,7 @@ class OneBotAdapter implements ChannelAdapter {
               settle(reject, new Error(`${errorMessage}${retcode}`));
             }
           }
-        } catch (error) {
-          this.log.debug('OneBot response parse skipped', { error });
+        } catch {
         }
       };
 
@@ -575,9 +500,9 @@ class OneBotAdapter implements ChannelAdapter {
 
       try {
         this.ws.send(message);
-      } catch (error) {
+      } catch {
         cleanup();
-        reject(error);
+        reject(new Error('WebSocket send failed'));
         return;
       }
 
@@ -608,14 +533,7 @@ class OneBotAdapter implements ChannelAdapter {
 
     try {
       await this.runtimeContext?.ingest(payload);
-    } catch (error) {
-      this.log.error('OneBot 文件通知分发失败', {
-        noticeType,
-        userId: payload.user_id?.toString(),
-        groupId: payload.group_id?.toString(),
-        fileName: payload.file?.name,
-        error: error instanceof Error ? error.message : String(error)
-      });
+    } catch {
     }
   }
 
@@ -705,29 +623,14 @@ class OneBotAdapter implements ChannelAdapter {
     const rawText = this.extractInboundRawText(payload);
 
     if (senderId && this.selfId && senderId === this.selfId) {
-      this.log.debug('OneBot self message ignored', {
-        messageId: payload.message_id?.toString(),
-        messageType: payload.message_type,
-        subType: payload.sub_type
-      });
       return true;
     }
 
     if (rawText.trim().length === 0) {
-      this.log.debug('OneBot empty message ignored', {
-        messageId: payload.message_id?.toString(),
-        messageType: payload.message_type,
-        subType: payload.sub_type,
-        senderId
-      });
       return true;
     }
 
     if (payload.sub_type === 'notice') {
-      this.log.debug('OneBot notice message ignored', {
-        messageId: payload.message_id?.toString(),
-        messageType: payload.message_type
-      });
       return true;
     }
 
@@ -783,10 +686,7 @@ class OneBotAdapter implements ChannelAdapter {
 
     try {
       await this.runtimeContext?.ingest(payload);
-    } catch (error) {
-      this.log.error('OneBot 入站消息分发失败', {
-        error: error instanceof Error ? error.message : String(error)
-      });
+    } catch {
     }
   }
 
@@ -1069,12 +969,6 @@ class OneBotAdapter implements ChannelAdapter {
     const expectedSha256 = await this.calculateFileSha256(filePath);
     const streamId = randomUUID();
 
-    this.log.info('OneBot 流式上传开始', {
-      fileName,
-      fileSize,
-      totalChunks
-    });
-
     const fd = await fs.promises.open(filePath, 'r');
     try {
       let chunkIndex = 0;
@@ -1119,12 +1013,6 @@ class OneBotAdapter implements ChannelAdapter {
       throw new Error(`Stream upload incomplete: ${JSON.stringify(result)}`);
     }
 
-    this.log.info('OneBot 流式上传完成', {
-      fileName,
-      fileSize,
-      filePath: result.file_path
-    });
-
     return result.file_path;
   }
 
@@ -1164,20 +1052,15 @@ class OneBotAdapter implements ChannelAdapter {
       try {
         await fs.promises.access(path);
       } catch {
-        this.log.warn(`文件不存在: ${filePath}`);
         return null;
       }
       const stats = await fs.promises.stat(path);
       if (stats.size > this.MAX_IMAGE_SIZE) {
-        this.log.warn(`图片过大: ${filePath} (${stats.size} 字节)`);
         return null;
       }
       const buffer = await fs.promises.readFile(path);
       return buffer.toString('base64');
-    } catch (error) {
-      this.log.warn(`图片转 base64 失败: ${filePath}`, {
-        error: error instanceof Error ? error.message : String(error)
-      });
+    } catch {
     }
     return null;
   }

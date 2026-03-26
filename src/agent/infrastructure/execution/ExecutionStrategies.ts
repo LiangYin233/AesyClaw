@@ -107,7 +107,6 @@ export class VisionStrategy implements ExecutionStrategy {
     toolContext: ToolContext,
     options: ExecutionOptions
   ): Promise<ExecutionResult> {
-    this.log.info(`正在使用视觉模型: ${this.visionModel}`);
 
     const visionMessages = this.buildVisionMessages(messages);
 

@@ -6,9 +6,9 @@ import type { SessionRoutingService } from '../session/SessionRoutingService.js'
 import type { ExecutionContext } from './ExecutionTypes.js';
 import type { ExecutionEngine } from './ExecutionEngine.js';
 import type { ExecutionStatus } from '../../domain/execution.js';
-import { logger } from '../../../platform/observability/index.js';
 import { BackgroundTaskManager } from './BackgroundTaskManager.js';
 import { ExecutionRegistry } from './ExecutionRegistry.js';
+import { logger } from '../../../platform/observability/index.js';
 
 interface FinalizeExecutionParams {
   sessionKey: string;
@@ -20,12 +20,12 @@ interface FinalizeExecutionParams {
 }
 
 export class ExecutionRuntime {
-  private log = logger.child('ExecutionRuntime');
   private readonly subAgentExcludedTools = ['send_msg_to_user', 'call_agent', 'call_temp_agent'];
   private static readonly IMAGE_SUMMARY_PREFIX = '【图片概括】';
   private static readonly VISION_DISABLED_MESSAGE = '当前 Agent 未启用视觉识别，暂时无法读取图片内容。请先在 Agent 配置中开启 Vision 并配置视觉模型后重试。';
   private readonly registry: ExecutionRegistry;
   private readonly backgroundTasks: BackgroundTaskManager;
+  private readonly log = logger.child('ExecutionRuntime');
 
   constructor(args: {
     engine: ExecutionEngine;
@@ -63,7 +63,6 @@ export class ExecutionRuntime {
   }
 
   async execute(context: ExecutionContext): Promise<string | undefined> {
-    const startedAt = Date.now();
     let requestPersisted = false;
     const ensureRequestPersisted = async (): Promise<void> => {
       if (requestPersisted) {
@@ -74,141 +73,57 @@ export class ExecutionRuntime {
       requestPersisted = true;
     };
 
-    try {
-      const { policy, executor, messages } = this.engine.prepare(context);
-      const pluginManager = this.getPluginManager();
+    const { policy, executor, messages } = this.engine.prepare(context);
+    const executionLog = this.log.withFields({
+      sessionKey: context.sessionKey,
+      channel: context.request.channel,
+      chatId: context.request.chatId,
+      agentName: policy.roleName
+    });
+    executionLog.debug('执行开始', {
+      source: context.toolContext.source || 'user'
+    });
+    const pluginManager = this.getPluginManager();
 
-      if (pluginManager) {
-        await pluginManager.runAgentBeforeTaps({
-          message: context.request,
-          messages
-        });
-      }
+    if (pluginManager) {
+      await pluginManager.runAgentBeforeTaps({
+        message: context.request,
+        messages
+      });
+    }
 
-      if (this.hasVisionInput(context.request) && !executor.canHandleVision(context.request.media, context.request.files)) {
-        this.log.warn('检测到图片输入，但当前 Agent 未启用视觉识别', {
-          sessionKey: context.sessionKey,
-          agent: policy.roleName,
-          channel: context.channel,
-          chatId: context.chatId
-        });
+    if (this.hasVisionInput(context.request) && !executor.canHandleVision(context.request.media, context.request.files)) {
+      executionLog.warn('检测到视觉输入，但当前未配置可用视觉模型，已跳过视觉执行');
 
-        await ensureRequestPersisted();
-        await this.finalize({
-          sessionKey: context.sessionKey,
-          request: context.request,
-          content: ExecutionRuntime.VISION_DISABLED_MESSAGE,
-          reasoning_content: undefined,
-          agentMode: false,
-          suppressOutbound: context.suppressOutbound
-        });
+      await ensureRequestPersisted();
+      await this.finalize({
+        sessionKey: context.sessionKey,
+        request: context.request,
+        content: ExecutionRuntime.VISION_DISABLED_MESSAGE,
+        reasoning_content: undefined,
+        agentMode: false,
+        suppressOutbound: context.suppressOutbound
+      });
 
-        return ExecutionRuntime.VISION_DISABLED_MESSAGE;
-      }
+      return ExecutionRuntime.VISION_DISABLED_MESSAGE;
+    }
 
-      const useVisionProvider = executor.needsVisionProvider(context.request.media, context.request.files);
-      if (useVisionProvider) {
-        const imageSummary = await executor.summarizeVisionInput(messages, context.toolContext.signal);
-        if (imageSummary) {
-          this.attachImageSummary(context.request, messages, imageSummary);
-        }
-
-        await ensureRequestPersisted();
-
-        this.log.info('正在使用视觉模型处理', {
-          sessionKey: context.sessionKey,
-          agent: policy.roleName,
-          channel: context.channel,
-          chatId: context.chatId
-        });
-
-        const result = await executor.executeWithVision(messages, context.toolContext, {
-          allowTools: true,
-          agentName: policy.roleName,
-          source: context.toolContext.source || 'user',
-          sessionKey: context.sessionKey
-        });
-
-        await this.finalize({
-          sessionKey: context.sessionKey,
-          request: context.request,
-          content: result.content,
-          reasoning_content: result.reasoning_content,
-          agentMode: result.agentMode,
-          suppressOutbound: context.suppressOutbound
-        });
-
-        this.log.info('请求已在前台完成', {
-          sessionKey: context.sessionKey,
-          channel: context.channel,
-          chatId: context.chatId,
-          agent: policy.roleName,
-          durationMs: Date.now() - startedAt
-        });
-        return result.content;
+    const useVisionProvider = executor.needsVisionProvider(context.request.media, context.request.files);
+    if (useVisionProvider) {
+      executionLog.info('视觉执行开始');
+      const imageSummary = await executor.summarizeVisionInput(messages, context.toolContext.signal);
+      if (imageSummary) {
+        this.attachImageSummary(context.request, messages, imageSummary);
       }
 
       await ensureRequestPersisted();
-      const result = await executor.executeWithBackground(messages, context.toolContext, {
+
+      const result = await executor.executeWithVision(messages, context.toolContext, {
         allowTools: true,
         agentName: policy.roleName,
         source: context.toolContext.source || 'user',
-        sessionKey: context.sessionKey,
-        onNeedsBackground: async (response, bgMessages, bgContext) => {
-          const taskHandle = await this.backgroundTasks.startTask(
-            executor,
-            context.sessionKey,
-            context.request.channel,
-            context.request.chatId,
-            context.request.messageType,
-            bgMessages,
-            bgContext,
-            response as LLMResponse,
-            {
-              onComplete: async (bgResult) => {
-                await this.finalize({
-                  sessionKey: context.sessionKey,
-                  request: context.request,
-                  content: bgResult.content,
-                  reasoning_content: bgResult.reasoning_content,
-                  agentMode: bgResult.agentMode,
-                  suppressOutbound: context.suppressOutbound
-                });
-
-                this.log.info('后台任务结果已发送', {
-                  sessionKey: context.sessionKey,
-                  agent: policy.roleName,
-                  channel: context.request.channel,
-                  chatId: context.request.chatId
-                });
-              },
-              onError: async (error) => {
-                await this.handleError(error, context.sessionKey);
-              }
-            }
-          );
-
-          this.log.info('后台任务已创建', {
-            sessionKey: context.sessionKey,
-            taskId: taskHandle.id,
-            agent: policy.roleName,
-            channel: context.request.channel,
-            chatId: context.request.chatId
-          });
-        }
+        sessionKey: context.sessionKey
       });
-
-      const backgroundResult = result as { needsBackground?: boolean; content: string };
-      if (backgroundResult.needsBackground) {
-        this.log.info('请求已转入后台处理', {
-          sessionKey: context.sessionKey,
-          channel: context.channel,
-          chatId: context.chatId,
-          agent: policy.roleName,
-          durationMs: Date.now() - startedAt
-        });
-        return result.content;
-      }
 
       await this.finalize({
         sessionKey: context.sessionKey,
@@ -218,26 +133,66 @@ export class ExecutionRuntime {
         agentMode: result.agentMode,
         suppressOutbound: context.suppressOutbound
       });
-
-      this.log.info('请求已在前台完成', {
-        sessionKey: context.sessionKey,
-        channel: context.channel,
-        chatId: context.chatId,
-        agent: policy.roleName,
-        durationMs: Date.now() - startedAt
+      executionLog.debug('视觉执行完成', {
+        agentMode: result.agentMode
       });
-
       return result.content;
-    } catch (error) {
-      this.log.error('请求执行失败', {
-        sessionKey: context.sessionKey,
-        channel: context.channel,
-        chatId: context.chatId,
-        durationMs: Date.now() - startedAt,
-        error
-      });
-      throw error;
     }
+
+    await ensureRequestPersisted();
+    const result = await executor.executeWithBackground(messages, context.toolContext, {
+      allowTools: true,
+      agentName: policy.roleName,
+      source: context.toolContext.source || 'user',
+      sessionKey: context.sessionKey,
+      onNeedsBackground: async (response, bgMessages, bgContext) => {
+        executionLog.info('执行已切换到后台任务');
+        await this.backgroundTasks.startTask(
+          executor,
+          context.sessionKey,
+          context.request.channel,
+          context.request.chatId,
+          context.request.messageType,
+          bgMessages,
+          bgContext,
+          response as LLMResponse,
+          {
+            onComplete: async (bgResult) => {
+              await this.finalize({
+                sessionKey: context.sessionKey,
+                request: context.request,
+                content: bgResult.content,
+                reasoning_content: bgResult.reasoning_content,
+                agentMode: bgResult.agentMode,
+                suppressOutbound: context.suppressOutbound
+              });
+            },
+            onError: async (error) => {
+              await this.handleError(error, context.sessionKey);
+            }
+          }
+        );
+      }
+    });
+
+    const backgroundResult = result as { needsBackground?: boolean; content: string };
+    if (backgroundResult.needsBackground) {
+      return result.content;
+    }
+
+    await this.finalize({
+      sessionKey: context.sessionKey,
+      request: context.request,
+      content: result.content,
+      reasoning_content: result.reasoning_content,
+      agentMode: result.agentMode,
+      suppressOutbound: context.suppressOutbound
+    });
+    executionLog.debug('执行完成', {
+      agentMode: result.agentMode
+    });
+
+    return result.content;
   }
 
   async runSubAgentTask(
@@ -367,15 +322,6 @@ export class ExecutionRuntime {
       await this.memoryService.maybeSummarizeSession(sessionKey);
       this.memoryService.enqueueLongTermMemoryMaintenance(sessionKey, request, content);
     }
-
-    this.log.info('执行结果已完成收尾', {
-      sessionKey,
-      channel: request.channel,
-      chatId: request.chatId,
-      messageType: request.messageType,
-      outboundSuppressed: suppressOutbound,
-      responseLength: content.length
-    });
   }
 
   private async handleError(error: unknown, sessionKey: string): Promise<void> {

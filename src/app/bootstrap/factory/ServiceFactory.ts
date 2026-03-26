@@ -73,19 +73,16 @@ export function bootstrapRuntimeConfig(config: Config): Config {
 
 export async function createServices(options: ServiceFactoryOptions): Promise<Services> {
   const { workspace, tempDir, port, onCronJob, configManager, eventBus } = options;
-  const startedAt = Date.now();
   const initialConfig = bootstrapRuntimeConfig(options.config);
   configManager.setConfig(initialConfig);
   const configStore = new RuntimeConfigStore(configManager.getSnapshotStore());
   const config = configStore.getConfig();
-  const log = appLog;
-
-  log.info('正在初始化服务');
+  const bootstrapLog = appLog.child('Bootstrap');
   const outboundGateway = new OutboundGateway();
 
-  const { result: persistence, durationMs: persistenceMs } = await runBootstrapPhase({
-    phase: 'persistence',
-    log,
+  const { result: persistence } = await runBootstrapPhase({
+    phase: '会话存储初始化',
+    log: bootstrapLog,
     task: () => createSessionRuntime(config)
   });
   const {
@@ -96,9 +93,9 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     sessionRouting
   } = persistence;
 
-  const { result: executionRuntime, durationMs: executionRuntimeMs } = await runBootstrapPhase({
-    phase: 'executionRuntime',
-    log,
+  const { result: executionRuntime } = await runBootstrapPhase({
+    phase: '执行运行时初始化',
+    log: bootstrapLog,
     task: () => createExecutionRuntime({
       getConfig: () => configStore.getConfig(),
       updateConfig: (mutator) => configManager.update(mutator),
@@ -113,15 +110,15 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
 
   const { provider, toolRegistry, commandRegistry, skillManager, agentRoleService, agentRuntime, setPluginManager } = executionRuntime;
 
-  const { result: cronService, durationMs: cronMs } = await runBootstrapPhase({
-    phase: 'cron',
-    log,
+  const { result: cronService } = await runBootstrapPhase({
+    phase: '定时任务运行时初始化',
+    log: bootstrapLog,
     task: () => createCronRuntime(onCronJob)
   });
 
-  const { result: infrastructure, durationMs: infrastructureMs } = await runBootstrapPhase({
-    phase: 'infrastructure',
-    log,
+  const { result: infrastructure } = await runBootstrapPhase({
+    phase: '基础设施服务初始化',
+    log: bootstrapLog,
     task: () => createInfrastructureServices({
       configStore,
       configManager,
@@ -160,17 +157,17 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     memoryService
   });
 
-  const { durationMs: cronStartMs } = await runBootstrapPhase({
-    phase: 'cron.start',
-    log,
+  await runBootstrapPhase({
+    phase: '定时任务启动',
+    log: bootstrapLog,
     task: async () => {
       await cronService.start();
     }
   });
 
-  const { result: apiServer, durationMs: apiMs } = await runBootstrapPhase({
-    phase: 'api',
-    log,
+  const { result: apiServer } = await runBootstrapPhase({
+    phase: 'API 服务初始化',
+    log: bootstrapLog,
     task: () => createApiServer({
       port,
       agentRuntime,
@@ -190,20 +187,8 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     })
   });
   if (apiServer) {
-    log.info(`API 服务已在端口 ${port} 启动`);
   } else {
-    log.info('API 服务已在配置中禁用');
   }
-
-  log.info('所有服务初始化完成', {
-    durationMs: Date.now() - startedAt,
-    persistenceMs,
-    executionRuntimeMs,
-    cronMs,
-    cronStartMs,
-    infrastructureMs,
-    apiMs
-  });
 
   return {
     provider,

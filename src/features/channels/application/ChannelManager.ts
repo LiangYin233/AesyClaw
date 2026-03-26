@@ -1,6 +1,4 @@
-import { normalizeChannelError } from '../domain/errors.js';
 import type { InboundMessage, OutboundMessage } from '../../../types.js';
-import { logger } from '../../../platform/observability/index.js';
 import type { ChannelRuntime } from '../runtime/ChannelRuntime.js';
 import type { ChannelAdapter } from '../domain/adapter.js';
 import type { DeliveryReceipt } from '../domain/types.js';
@@ -22,18 +20,13 @@ export class ChannelManager {
   #pluginDefaultConfigs = new Map<string, Record<string, unknown>>();
   #channels = new Map<string, ChannelAdapter>();
   #runtime: ChannelRuntime;
-  #log = logger.child('ChannelManager');
 
   constructor(runtime: ChannelRuntime) {
     this.#runtime = runtime;
   }
 
   registerPlugin(plugin: ChannelPluginDefinition): void {
-    if (this.#plugins.has(plugin.pluginName)) {
-      this.#log.warn('渠道插件重复注册，已覆盖', { pluginName: plugin.pluginName });
-    }
     this.#plugins.set(plugin.pluginName, plugin);
-    this.#log.debug('渠道插件已注册', { pluginName: plugin.pluginName });
   }
 
   registerPluginDefaultConfig(pluginName: string, config: Record<string, unknown>): void {
@@ -43,7 +36,6 @@ export class ChannelManager {
   unregisterPlugin(pluginName: string): void {
     this.#plugins.delete(pluginName);
     this.#pluginDefaultConfigs.delete(pluginName);
-    this.#log.debug('渠道插件已注销', { pluginName });
   }
 
   getPlugin(pluginName: string): ChannelPluginDefinition | undefined {
@@ -63,7 +55,6 @@ export class ChannelManager {
     const plugin = this.resolvePlugin(channelName);
 
     if (!plugin) {
-      this.#log.warn('未找到渠道插件', { channelName });
       return false;
     }
 
@@ -72,10 +63,6 @@ export class ChannelManager {
     }
 
     this.attachChannel(plugin, config);
-    this.#log.debug('渠道已按配置装配', {
-      channelName: plugin.channelName,
-      pluginName: plugin.pluginName
-    });
     return true;
   }
 
@@ -83,7 +70,6 @@ export class ChannelManager {
     const plugin = this.resolvePlugin(channelName);
 
     if (!plugin) {
-      this.#log.warn('未找到渠道插件', { channelName });
       return false;
     }
 
@@ -99,21 +85,11 @@ export class ChannelManager {
 
     try {
       await this.#runtime.startAdapter(plugin.channelName);
-      this.#log.info(created ? '渠道已创建并启动' : '渠道已启动', {
-        channelName: plugin.channelName,
-        pluginName: plugin.pluginName
-      });
       return true;
-    } catch (error) {
+    } catch {
       if (created) {
         this.detachChannel(plugin.channelName);
       }
-
-      this.#log.error(created ? '渠道启用失败' : '渠道启动失败', {
-        channelName: plugin.channelName,
-        pluginName: plugin.pluginName,
-        error: normalizeChannelError(error)
-      });
       return false;
     }
   }
@@ -128,13 +104,8 @@ export class ChannelManager {
       await this.#runtime.stopAdapter(channelName);
       this.#channels.delete(channelName);
       this.#runtime.unregisterAdapter(channelName);
-      this.#log.info('渠道已停用', { channelName });
       return true;
-    } catch (error) {
-      this.#log.error('渠道停用失败', {
-        channelName,
-        error: normalizeChannelError(error)
-      });
+    } catch {
       return false;
     }
   }
@@ -143,7 +114,6 @@ export class ChannelManager {
     const plugin = this.resolvePlugin(channelName);
 
     if (!plugin) {
-      this.#log.warn('未找到渠道插件', { channelName });
       return false;
     }
 
@@ -161,35 +131,21 @@ export class ChannelManager {
       this.detachChannel(channelName);
 
       if (!config?.enabled) {
-        this.#log.info('渠道配置已更新并停用', { channelName, pluginName: plugin.pluginName });
         return true;
       }
 
       this.attachChannel(plugin, config);
       await this.#runtime.startAdapter(channelName);
-      this.#log.info('渠道配置已重载', { channelName, pluginName: plugin.pluginName });
       return true;
-    } catch (error) {
+    } catch {
       this.#channels.set(channelName, previousChannel);
       this.#runtime.registerAdapter(channelName, previousChannel);
 
       if (wasRunning) {
         try {
           await this.#runtime.startAdapter(channelName);
-        } catch (restoreError) {
-          this.#log.error('渠道配置回滚恢复失败', {
-            channelName,
-            pluginName: plugin.pluginName,
-            error: normalizeChannelError(restoreError)
-          });
-        }
+        } catch {}
       }
-
-      this.#log.error('渠道配置重载失败', {
-        channelName,
-        pluginName: plugin.pluginName,
-        error: normalizeChannelError(error)
-      });
       return false;
     }
   }
@@ -217,69 +173,24 @@ export class ChannelManager {
 
   async startAll(): Promise<void> {
     const channels = Array.from(this.#channels.values());
-    const results = await Promise.allSettled(
+    await Promise.allSettled(
       channels.map(async (channel) => {
-        const startedAt = Date.now();
         await this.#runtime.startAdapter(channel.name);
-        return {
-          name: channel.name,
-          durationMs: Date.now() - startedAt
-        };
       })
     );
-
-    let started = 0;
-    let failed = 0;
-    for (const [index, result] of results.entries()) {
-      const channelName = channels[index]?.name || `#${index}`;
-      if (result.status === 'fulfilled') {
-        started++;
-        this.#log.info('渠道已启动', {
-          channel: result.value.name,
-          durationMs: result.value.durationMs
-        });
-        continue;
-      }
-      failed++;
-      this.#log.error('渠道启动失败', {
-        channel: channelName,
-        error: normalizeChannelError(result.reason)
-      });
-    }
-
-    this.#log.info('渠道启动完成', {
-      total: channels.length,
-      started,
-      failed
-    });
 
     await this.#runtime.start();
   }
 
   async stopAll(): Promise<void> {
-    let stopped = 0;
-    let failed = 0;
-
     for (const channel of this.#channels.values()) {
       try {
         await this.#runtime.stopAdapter(channel.name);
-        stopped++;
-      } catch (error) {
-        failed++;
-        this.#log.error('渠道停止失败', {
-          channel: channel.name,
-          error: normalizeChannelError(error)
-        });
+      } catch {
       }
     }
 
     this.#runtime.stop();
-
-    this.#log.info('渠道停止完成', {
-      total: this.#channels.size,
-      stopped,
-      failed
-    });
   }
 
   getEnabledChannels(): string[] {

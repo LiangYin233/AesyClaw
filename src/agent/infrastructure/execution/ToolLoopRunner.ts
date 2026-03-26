@@ -4,11 +4,10 @@ import type { ToolRegistry, ToolContext } from '../../../platform/tools/ToolRegi
 import type { PluginManager } from '../../../features/plugins/index.js';
 import type { ExecutionResult, ExecutionOptions, VisionSettings } from './ExecutionTypes.js';
 import { normalizeExecutionError, isRetryableExecutionError } from './errors.js';
-import { logger, preview, tokenUsage } from '../../../platform/observability/index.js';
+import { tokenUsage } from '../../../platform/observability/index.js';
 import { ContextBudgetManager } from './ContextBudgetManager.js';
 
 export class ToolLoopRunner {
-  private log = logger.child('ToolLoopRunner');
   private contextBudgetManager = new ContextBudgetManager();
 
   constructor(
@@ -38,15 +37,12 @@ export class ToolLoopRunner {
     const source = options.source ?? 'user';
     const initialToolCalls = options.initialToolCalls;
     const executionSignal = options.signal;
-    const agentLabel = options.agentName || 'main';
     const activeProvider = options.providerOverride ?? this.provider;
     const reasoning = options.reasoningOverride ?? this.visionSettings?.reasoning;
 
     let agentMode = !!initialToolCalls;
     let toolCallQueue = [...(initialToolCalls || [])];
     let iteration = 0;
-    const startedAt = Date.now();
-
     const checkAbort = () => {
       if (executionSignal?.aborted) {
         const reason = executionSignal.reason;
@@ -75,14 +71,6 @@ export class ToolLoopRunner {
 
       if (response.toolCalls.length === 0) {
         messages.push({ role: 'assistant', content: response.content || '' });
-        this.log.info('执行完成', {
-          agent: agentLabel,
-          iteration,
-          toolCount: toolsUsed.length,
-          durationMs: Date.now() - startedAt,
-          sessionKey: options.sessionKey,
-          finishReason: 'stop'
-        });
         return {
           content: response.content || '',
           reasoning_content: response.reasoning_content,
@@ -103,27 +91,16 @@ export class ToolLoopRunner {
     while (toolCallQueue.length > 0 && iteration < max) {
       iteration++;
       checkAbort();
-      const currentToolNames = toolCallQueue.map((toolCall) => toolCall.name).filter(Boolean);
-
       // 执行当前队列中的所有 toolCalls
       for (const toolCall of toolCallQueue) {
         checkAbort();
 
         const toolName = toolCall.name;
         if (!toolName) {
-          this.log.error('工具调用缺少名称', { iteration, sessionKey: options.sessionKey, toolCallPreview: preview(JSON.stringify(toolCall)) });
           continue;
         }
 
         toolsUsed.push(toolName);
-        const toolStartedAt = Date.now();
-        this.log.info('工具开始执行', {
-          agent: agentLabel,
-          toolName,
-          iteration,
-          sessionKey: options.sessionKey
-        });
-
         let toolArgs = toolCall.arguments || {};
         let result: string;
 
@@ -146,13 +123,6 @@ export class ToolLoopRunner {
           }
 
           result = await this.toolRegistry.execute(execToolName, toolArgs, execContext);
-          this.log.info('工具执行完成', {
-            agent: agentLabel,
-            toolName,
-            iteration,
-            durationMs: Date.now() - toolStartedAt,
-            sessionKey: options.sessionKey
-          });
 
           if (this.pluginManager) {
             const nextPayload = await this.pluginManager.runToolAfterHooks({
@@ -167,15 +137,6 @@ export class ToolLoopRunner {
           const message = normalizeExecutionError(error);
           const isRetryable = isRetryableExecutionError(error);
           result = `Error: ${message}${isRetryable ? ' (retryable)' : ''}`;
-          this.log.error('工具执行失败', {
-            agent: agentLabel,
-            toolName,
-            iteration,
-            durationMs: Date.now() - toolStartedAt,
-            retryable: isRetryable,
-            sessionKey: options.sessionKey,
-            error: message
-          });
 
           if (this.pluginManager) {
             await this.pluginManager.runErrorTaps(error, { type: 'tool', data: { toolName, toolArgs } });
@@ -192,12 +153,6 @@ export class ToolLoopRunner {
 
       // 执行完所有 toolCalls 后，继续调用 LLM
       checkAbort();
-      this.log.debug('LLM loop iteration', {
-        agent: agentLabel,
-        iteration,
-        currentTools: currentToolNames,
-        sessionKey: options.sessionKey
-      });
 
       const tools = allowTools ? this.toolRegistry.getDefinitions() : [];
       const requestMessages = this.contextBudgetManager.fit(messages, tools, {
@@ -222,14 +177,6 @@ export class ToolLoopRunner {
         toolCallQueue = response.toolCalls;
       } else {
         messages.push({ role: 'assistant', content: response.content || '' });
-        this.log.info('执行完成', {
-          agent: agentLabel,
-          iteration,
-          toolCount: toolsUsed.length,
-          durationMs: Date.now() - startedAt,
-          sessionKey: options.sessionKey,
-          finishReason: 'stop'
-        });
         return {
           content: response.content || '',
           reasoning_content: response.reasoning_content,
@@ -240,13 +187,6 @@ export class ToolLoopRunner {
     }
 
     if (toolCallQueue.length > 0) {
-      this.log.warn('已达到最大迭代次数', {
-        agent: agentLabel,
-        maxIterations: max,
-        toolCount: toolsUsed.length,
-        durationMs: Date.now() - startedAt,
-        sessionKey: options.sessionKey
-      });
       return { content: '已达到最大迭代次数', reasoning_content: undefined, toolsUsed, agentMode };
     }
 
@@ -255,14 +195,6 @@ export class ToolLoopRunner {
     const lastContent = typeof lastMessage?.content === 'string'
       ? lastMessage.content
       : lastMessage?.content?.find((c: any) => c.type === 'text')?.text || '';
-    this.log.info('执行完成', {
-      agent: agentLabel,
-      iteration,
-      toolCount: toolsUsed.length,
-      durationMs: Date.now() - startedAt,
-      sessionKey: options.sessionKey,
-      finishReason: 'final-message'
-    });
     return { content: lastContent, reasoning_content: undefined, toolsUsed, agentMode };
   }
 

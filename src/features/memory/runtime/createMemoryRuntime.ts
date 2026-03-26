@@ -7,16 +7,11 @@ import {
   resolveProviderSelection
 } from '../../config/index.js';
 import type { ResolvedProviderSelection } from '../../config/schema/index.js';
-import { logger } from '../../../platform/observability/index.js';
 import { createProvider } from '../../../platform/providers/index.js';
 import { LongTermMemoryStore, SessionManager } from '../../sessions/index.js';
 import type { Config } from '../../../types.js';
-
-const appLog = logger.child('AesyClaw');
-
-function createOptionalProvider(resolved: ResolvedProviderSelection, label: string) {
+function createOptionalProvider(resolved: ResolvedProviderSelection, _label: string) {
   if (!resolved.providerConfig) {
-    appLog.warn(`配置中未找到${label}提供商 "${resolved.name}"`);
     return undefined;
   }
 
@@ -26,16 +21,11 @@ function createOptionalProvider(resolved: ResolvedProviderSelection, label: stri
 function createEmbeddingsClient(resolved: ResolvedProviderSelection | undefined): OpenAIEmbeddingsClient | undefined {
   if (!resolved?.providerConfig) {
     if (resolved?.name) {
-      appLog.warn('未找到 embeddings 提供商', { provider: resolved.name });
     }
     return undefined;
   }
 
   if (!listEmbeddingProviderNames({ [resolved.name]: resolved.providerConfig }).length) {
-    appLog.warn('embeddings 提供商必须为 openai 类型', {
-      provider: resolved.name,
-      type: resolved.providerConfig.type
-    });
     return undefined;
   }
 
@@ -66,7 +56,6 @@ export function createMemoryRuntime(
   }
 
   if (!summaryConfig.enabled && config.agent.defaults.memorySummary.enabled) {
-    appLog.warn('会话摘要已启用，但未完整配置 memorySummary.model；摘要压缩将被跳过');
   }
 
   const summaryRuntimeConfig = {
@@ -78,7 +67,6 @@ export function createMemoryRuntime(
   };
 
   if (memoryConfig.facts.enabled && !memoryConfig.facts.maintenance.enabled) {
-    appLog.warn('长期记忆已启用，但未完整配置 memoryFacts.model；后台自治维护将被跳过');
   }
 
   if (
@@ -86,7 +74,6 @@ export function createMemoryRuntime(
     && !memoryConfig.facts.recall.enabled
     && config.agent.defaults.memoryFacts.retrievalModel
   ) {
-    appLog.warn('长期记忆自动召回需要配置合法的 memoryFacts.retrievalModel；当前将保持禁用');
   }
 
   const longTermMemoryService = memoryConfig.facts.enabled

@@ -1,6 +1,5 @@
 import type { SessionMemoryService } from '../../../agent/infrastructure/memory/SessionMemoryService.js';
 import type { ToolContext, ToolRegistry } from '../ToolRegistry.js';
-import { normalizeToolError } from '../errors.js';
 import {
   type BuiltInLogger,
   formatToolError,
@@ -14,7 +13,7 @@ export function registerMemoryTools(args: {
   memoryService?: SessionMemoryService;
   log: BuiltInLogger;
 }): void {
-  const { toolRegistry, memoryService, log } = args;
+  const { toolRegistry, memoryService } = args;
 
   if (!memoryService?.hasLongTermMemory()) {
     return;
@@ -43,11 +42,6 @@ export function registerMemoryTools(args: {
         }, null, 2);
       } catch (error) {
         rethrowToolAbortError(error, context?.signal);
-        log.error('memory_list 执行失败', {
-          channel: context?.channel,
-          chatId: context?.chatId,
-          error: normalizeToolError(error)
-        });
         return `Error: ${formatToolError(error)}`;
       }
     }
@@ -122,11 +116,6 @@ export function registerMemoryTools(args: {
         }, null, 2);
       } catch (error) {
         rethrowToolAbortError(error, context?.signal);
-        log.error('memory_manage 执行失败', {
-          channel: context?.channel,
-          chatId: context?.chatId,
-          error: normalizeToolError(error)
-        });
         return `Error: ${formatToolError(error)}`;
       }
     }
@@ -157,11 +146,6 @@ export function registerMemoryTools(args: {
         return JSON.stringify({ items: operations }, null, 2);
       } catch (error) {
         rethrowToolAbortError(error, context?.signal);
-        log.error('memory_history 执行失败', {
-          channel: context?.channel,
-          chatId: context?.chatId,
-          error: normalizeToolError(error)
-        });
         return `Error: ${formatToolError(error)}`;
       }
     }

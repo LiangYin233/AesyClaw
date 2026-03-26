@@ -1,4 +1,4 @@
-import { normalizeProviderError, isRetryableProviderError } from './errors.js';
+import { isRetryableProviderError } from './errors.js';
 import { logger, preview } from '../../observability/index.js';
 import type { LLMMessage, LLMResponse, ToolDefinition } from '../../../types.js';
 import type {
@@ -45,21 +45,16 @@ export class ProviderRuntime {
     }
 
     const modelName = model;
-    const apiBase = this.config.apiBase || this.adapter.defaultApiBase;
-    const startedAt = Date.now();
-    const context: ProviderLogContext = {
-      warn: (message, fields) => this.log.warn(message, fields)
-    };
-
-    this.log.debug('提供商请求已开始', {
-      providerType: this.adapter.type,
-      providerName: this.adapter.displayName,
-      model: modelName,
-      apiBase,
-      messageCount: messages.length,
-      toolCount: tools?.length || 0,
-      reasoning: options?.reasoning === true
+    const providerLog = this.log.withFields({
+      provider: this.adapter.type,
+      model: modelName
     });
+    const apiBase = this.config.apiBase || this.adapter.defaultApiBase;
+    const context: ProviderLogContext = {
+      warn: (message, fields) => {
+        providerLog.warn(message, fields);
+      }
+    };
 
     let lastError: unknown;
     const maxAttempts = 2;
@@ -76,6 +71,14 @@ export class ProviderRuntime {
           ...request.body,
           ...(this.config.extraBody || {})
         };
+        providerLog.debug('模型请求开始', {
+          attempt,
+          maxAttempts,
+          method: request.method || 'POST',
+          path: request.path,
+          messageCount: messages.length,
+          toolCount: tools?.length || 0
+        });
 
         const response = await fetch(url, {
           method: request.method || 'POST',
@@ -97,63 +100,37 @@ export class ProviderRuntime {
         const data = this.parseResponseBody(meta);
 
         if (!response.ok) {
-          this.log.error(`API 请求错误: ${response.status} ${response.statusText}`, {
-            status: response.status,
-            statusText: response.statusText,
-            response: data,
-            bodyPreview: data === undefined ? preview(rawText) : undefined
-          });
           throw new Error(this.adapter.extractErrorMessage(data) || `API Error: ${response.status} ${response.statusText}`);
         }
 
         const errorMessage = this.adapter.extractErrorMessage(data);
         if (errorMessage) {
-          this.log.error('响应错误', {
-            providerType: this.adapter.type,
-            response: data
-          });
           throw new Error(errorMessage);
         }
 
-        const parsed = this.adapter.parseResponse(data, context);
-        const durationMs = Date.now() - startedAt;
-
-        this.log.info('提供商请求完成', {
-          providerType: this.adapter.type,
-          model: modelName,
-          durationMs,
+        providerLog.debug('模型请求完成', {
           attempt,
-          finishReason: parsed.finishReason,
-          toolCallCount: parsed.toolCalls.length,
-          promptTokens: parsed.usage?.prompt_tokens,
-          completionTokens: parsed.usage?.completion_tokens,
-          totalTokens: parsed.usage?.total_tokens
+          status: response.status,
+          contentType: meta.contentType
         });
-
-        return parsed;
+        return this.adapter.parseResponse(data, context);
       } catch (error: unknown) {
         lastError = error;
         const retryable = shouldRetryProviderError(error, options?.signal);
-        const durationMs = Date.now() - startedAt;
-
-        this.log.error('提供商请求失败', {
-          providerType: this.adapter.type,
-          model: modelName,
-          durationMs,
-          attempt,
-          retryable,
-          error: normalizeProviderError(error)
-        });
 
         if (attempt >= maxAttempts || !retryable) {
+          providerLog.error('模型请求失败', {
+            attempt,
+            maxAttempts,
+            error
+          });
           throw error;
         }
 
-        this.log.warn('提供商请求准备重试', {
-          providerType: this.adapter.type,
-          model: modelName,
-          nextAttempt: attempt + 1,
-          maxAttempts
+        providerLog.warn('模型请求准备重试', {
+          attempt,
+          maxAttempts,
+          error
         });
       }
     }

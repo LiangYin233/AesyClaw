@@ -1,4 +1,3 @@
-import { preview } from '../../observability/index.js';
 import type { LLMMessage, LLMResponse, ToolCall, ToolDefinition } from '../../../types.js';
 import type {
   ProviderAdapter,
@@ -148,9 +147,6 @@ export class AnthropicMessagesAdapter implements ProviderAdapter {
     }
 
     if (options?.maxTokens === undefined && config.extraBody?.max_tokens === undefined) {
-      context.warn('Anthropic provider 未配置 max_tokens，API 可能会返回错误', {
-        model
-      });
     }
 
     return {
@@ -303,15 +299,12 @@ export class AnthropicMessagesAdapter implements ProviderAdapter {
     return blocks;
   }
 
-  private formatImageBlock(url: string, context: ProviderLogContext): AnthropicImageBlock | null {
+  private formatImageBlock(url: string, _context: ProviderLogContext): AnthropicImageBlock | null {
     const dataUrlMatch = url.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
     if (dataUrlMatch) {
       const mediaType = dataUrlMatch[1];
       const data = dataUrlMatch[2];
       if (!SUPPORTED_BASE64_IMAGE_TYPES.has(mediaType)) {
-        context.warn('Anthropic 图片 media type 不受支持，已跳过', {
-          mediaType
-        });
         return null;
       }
 
@@ -336,17 +329,12 @@ export class AnthropicMessagesAdapter implements ProviderAdapter {
 
   private normalizeToolInput(
     input: ToolCall['arguments'] | unknown,
-    toolName: string,
-    context: ProviderLogContext
+    _toolName: string,
+    _context: ProviderLogContext
   ): Record<string, unknown> {
     if (input && typeof input === 'object' && !Array.isArray(input)) {
       return input as Record<string, unknown>;
     }
-
-    context.warn('工具调用参数格式无效，已回退为空对象', {
-      toolName,
-      inputPreview: preview(typeof input === 'string' ? input : JSON.stringify(input))
-    });
     return {};
   }
 
@@ -379,7 +367,7 @@ export class AnthropicMessagesAdapter implements ProviderAdapter {
     return parts.join('\n');
   }
 
-  private extractToolCalls(response: AnthropicResponse, context: ProviderLogContext): ToolCall[] {
+  private extractToolCalls(response: AnthropicResponse, _context: ProviderLogContext): ToolCall[] {
     const toolCalls: ToolCall[] = [];
 
     for (const block of response.content || []) {
@@ -391,10 +379,6 @@ export class AnthropicMessagesAdapter implements ProviderAdapter {
       if (block.input && typeof block.input === 'object' && !Array.isArray(block.input)) {
         input = block.input as Record<string, unknown>;
       } else {
-        context.warn('Anthropic tool_use.input 格式无效，已回退为空对象', {
-          toolName: block.name,
-          inputPreview: preview(JSON.stringify(block.input))
-        });
         input = {};
       }
 

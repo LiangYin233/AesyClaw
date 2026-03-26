@@ -1,9 +1,7 @@
 import { CronExpressionParser } from 'cron-parser';
 import { logger } from '../../../platform/observability/index.js';
-import { formatLocalTimestamp } from '../../../platform/observability/logging.js';
 import type { CronJob } from '../domain/cronTypes.js';
 import { CronStore } from '../infrastructure/CronStore.js';
-import { normalizeCronError } from '../shared/errors.js';
 
 const FAILED_JOB_RETRY_DELAY_MS = 60_000;
 const MAX_CATCH_UP_DELAY_MS = 60_000;
@@ -32,13 +30,6 @@ export class CronRuntimeService {
     this.computeNextRun(job);
     await this.store.upsert(job);
     this.jobs.set(job.id, job);
-    this.log.info('定时任务已创建', {
-      jobId: job.id,
-      jobName: job.name,
-      kind: job.schedule.kind,
-      nextRunAt: job.nextRunAtMs ? formatLocalTimestamp(new Date(job.nextRunAtMs)) : undefined,
-      target: job.payload.target
-    });
     if (this.started) {
       this.wakeUp();
     }
@@ -50,13 +41,6 @@ export class CronRuntimeService {
     this.computeNextRun(job);
     await this.store.upsert(job);
     this.jobs.set(job.id, job);
-    this.log.info('定时任务已更新', {
-      jobId: job.id,
-      jobName: job.name,
-      kind: job.schedule.kind,
-      nextRunAt: job.nextRunAtMs ? formatLocalTimestamp(new Date(job.nextRunAtMs)) : undefined,
-      target: job.payload.target
-    });
     if (this.started) {
       this.wakeUp();
     }
@@ -78,7 +62,6 @@ export class CronRuntimeService {
     if (this.started) {
       this.wakeUp();
     }
-    this.log.info('定时任务已删除', { jobId: id });
     return true;
   }
 
@@ -94,11 +77,6 @@ export class CronRuntimeService {
 
     job.enabled = enabled;
     job.nextRunAtMs = nextRunAtMs;
-    this.log.info('定时任务状态已更新', {
-      jobId: id,
-      enabled,
-      nextRunAt: job.nextRunAtMs ? formatLocalTimestamp(new Date(job.nextRunAtMs)) : undefined
-    });
     if (this.started) {
       this.wakeUp();
     }
@@ -125,7 +103,6 @@ export class CronRuntimeService {
 
     this.started = true;
     this.scheduleNext();
-    this.log.info('定时任务服务已启动', { jobCount: this.jobs.size });
   }
 
   stop(): void {
@@ -134,8 +111,7 @@ export class CronRuntimeService {
       clearTimeout(this.timer);
       this.timer = undefined;
     }
-    this.store.close().catch((err) => this.log.error('关闭任务存储失败:', err));
-    this.log.info('定时任务服务已停止');
+    this.store.close().catch(() => {});
   }
 
   private wakeUp(): void {
@@ -196,10 +172,7 @@ export class CronRuntimeService {
     this.timer = setTimeout(async () => {
       try {
         await this.runDueJobs();
-      } catch (error) {
-        this.log.error('执行到期任务时出错', {
-          error: normalizeCronError(error)
-        });
+      } catch {
       } finally {
         this.scheduleNext();
       }
@@ -217,52 +190,26 @@ export class CronRuntimeService {
         const overdueMs = now - job.nextRunAtMs;
 
         if (overdueMs > MAX_CATCH_UP_DELAY_MS) {
-          this.log.info('定时任务已超过补跑窗口，跳过本次执行', {
-            jobId: job.id,
-            jobName: job.name,
-            overdueMs,
-            scheduledAt: formatLocalTimestamp(new Date(job.nextRunAtMs))
-          });
 
           if (job.schedule.kind === 'once') {
             job.enabled = false;
             job.nextRunAtMs = undefined;
             statusUpdates.push({ id: job.id, enabled: false, nextRunAtMs: undefined });
-            this.log.info('一次性定时任务因错过补跑窗口已停用', {
-              jobId: job.id
-            });
             continue;
           }
 
           this.computeNextRun(job);
           toUpdate.push(job);
-          this.log.info('循环定时任务已跳过过期执行并重新排期', {
-            jobId: job.id,
-            nextRunAt: job.nextRunAtMs ? formatLocalTimestamp(new Date(job.nextRunAtMs)) : undefined
-          });
           continue;
         }
-
-        this.log.info('定时任务执行中', {
-          jobId: job.id,
-          jobName: job.name,
-          kind: job.schedule.kind,
-          target: job.payload.target
-        });
 
         let executedSuccessfully = true;
 
         if (this.onJobExecute) {
           try {
             await this.onJobExecute(job);
-            this.log.info('定时任务执行完成', { jobId: job.id, jobName: job.name });
-          } catch (error: unknown) {
+          } catch {
             executedSuccessfully = false;
-            this.log.error('定时任务执行失败', {
-              jobId: job.id,
-              jobName: job.name,
-              error: normalizeCronError(error)
-            });
           }
         }
 
@@ -271,18 +218,11 @@ export class CronRuntimeService {
             job.enabled = false;
             job.nextRunAtMs = undefined;
             statusUpdates.push({ id: job.id, enabled: false, nextRunAtMs: undefined });
-            this.log.info('一次性定时任务执行失败，已保留并停用', {
-              jobId: job.id
-            });
             continue;
           }
 
           job.nextRunAtMs = now + FAILED_JOB_RETRY_DELAY_MS;
           toUpdate.push(job);
-          this.log.info('定时任务将在失败后重试', {
-            jobId: job.id,
-            retryAt: formatLocalTimestamp(new Date(job.nextRunAtMs))
-          });
           continue;
         }
 
@@ -300,7 +240,6 @@ export class CronRuntimeService {
     for (const id of toRemove) {
       this.jobs.delete(id);
       await this.store.delete(id);
-      this.log.info('一次性定时任务已移除', { jobId: id });
     }
 
     if (toUpdate.length > 0) {
@@ -320,7 +259,6 @@ export class CronRuntimeService {
         if (job.schedule.onceAt) {
           const atMs = new Date(job.schedule.onceAt).getTime();
           if (Number.isNaN(atMs)) {
-            this.log.warn(`无效的 onceAt 时间: ${job.schedule.onceAt}`);
             job.nextRunAtMs = undefined;
             break;
           }
@@ -343,7 +281,6 @@ export class CronRuntimeService {
           const minutes = parseInt(parts[1]);
 
           if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
-            this.log.warn(`无效的 dailyAt 时间: ${job.schedule.dailyAt}`);
             job.nextRunAtMs = undefined;
             break;
           }
@@ -368,7 +305,6 @@ export class CronRuntimeService {
             });
             job.nextRunAtMs = interval.next().getTime();
           } catch {
-            this.log.warn(`无效的 cron 表达式: ${job.schedule.cronExpr}`);
             job.nextRunAtMs = undefined;
           }
         } else {
@@ -384,10 +320,7 @@ export class CronRuntimeService {
       for (const job of jobs) {
         this.jobs.set(job.id, job);
       }
-    } catch (error) {
-      this.log.error('加载定时任务失败', {
-        error: normalizeCronError(error)
-      });
+    } catch {
     }
   }
 }

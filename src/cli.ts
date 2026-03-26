@@ -3,7 +3,6 @@
 import { spawn, execSync, ChildProcess } from 'child_process';
 import { bootstrap, StartupInterruptedError } from './app/bootstrap/index.js';
 import { defaultConfigService } from './features/config/index.js';
-import { logger } from './platform/observability/index.js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -40,8 +39,6 @@ interface ShutdownState {
   gatewaySignalHandlersReady?: boolean;
   shutdownRequested?: boolean;
 }
-
-const cliLog = logger.child('CLI');
 
 function createStartTargets(): Record<'webui', StartTarget> {
   return {
@@ -187,7 +184,6 @@ function startProcess(name: string, target: StartTarget): Promise<ChildProcess> 
     });
 
     child.once('error', (err) => {
-      cliLog.error(`Failed to start ${name}`, { detail: err.message });
       if (settled) return;
       settled = true;
       reject(err);
@@ -200,7 +196,6 @@ function startProcess(name: string, target: StartTarget): Promise<ChildProcess> 
       }
 
       if (code !== null && code !== 0 && !signal) {
-        cliLog.warn(`${name} exited with code ${code}`);
       }
     });
   });
@@ -315,7 +310,6 @@ async function main(): Promise<void> {
     }
       break;
     default:
-      cliLog.error(`Unknown command: ${command}`);
       showHelp();
       process.exit(1);
   }
@@ -326,10 +320,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     if (err instanceof StartupInterruptedError) {
       process.exit(0);
     }
-    cliLog.error('Fatal CLI error', {
-      detail: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack : undefined
-    });
     process.exit(1);
   });
 }

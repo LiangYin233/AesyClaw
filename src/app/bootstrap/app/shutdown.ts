@@ -1,13 +1,10 @@
-import { logger, tokenUsage } from '../../../platform/observability/index.js';
+import { tokenUsage } from '../../../platform/observability/index.js';
 import type { Services } from '../factory/ServiceFactory.js';
-
-const log = logger.child('Bootstrap');
 
 export async function shutdownServices(services: Services): Promise<void> {
   const cleanupErrors: unknown[] = [];
   const recordCleanupError = (step: string, error: unknown): void => {
     cleanupErrors.push(error);
-    log.error(`关闭步骤失败: ${step}`, { error });
   };
 
   const runStep = async (step: string, operation: () => Promise<void>): Promise<void> => {
@@ -54,15 +51,12 @@ export function setupSignalHandlers(services: Services): void {
     }
 
     shuttingDown = true;
-    log.info('正在关闭服务');
 
     let exitCode = 0;
     try {
       await shutdownServices(services);
-      log.info('所有服务已停止');
-    } catch (error) {
+    } catch {
       exitCode = 1;
-      log.error('服务关闭时发生错误', { error });
     }
 
     process.exit(exitCode);

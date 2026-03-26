@@ -144,13 +144,6 @@ export class LongTermMemoryService {
 
     if (!query) {
       if (hasMedia || hasFiles) {
-        this.log.debug('长期记忆自动召回已跳过：当前请求仅包含非文本内容，不会发送到 embeddings 模型', {
-          channel,
-          chatId,
-          threshold: this.config.retrievalThreshold,
-          mediaCount: request.media?.length || 0,
-          fileCount: request.files?.length || 0
-        });
       }
       return null;
     }
@@ -158,19 +151,11 @@ export class LongTermMemoryService {
     if (!this.canRunRecall()) {
       if (!this.missingRetrievalWarned && this.config.enabled) {
         this.missingRetrievalWarned = true;
-        this.log.warn('长期记忆自动召回未启用：缺少 retrievalProvider/retrievalModel 或 embeddings client');
       }
       return null;
     }
 
     if (hasMedia || hasFiles) {
-      this.log.debug('长期记忆自动召回将仅使用文本内容生成 query embedding，非文本内容不会发送到 embeddings 模型', {
-        channel,
-        chatId,
-        threshold: this.config.retrievalThreshold,
-        mediaCount: request.media?.length || 0,
-        fileCount: request.files?.length || 0
-      });
     }
 
     try {
@@ -182,11 +167,6 @@ export class LongTermMemoryService {
       );
 
       if (candidates.length === 0) {
-        this.log.debug('长期记忆自动召回未命中：当前聊天对象没有 active 长期记忆', {
-          channel,
-          chatId,
-          threshold: this.config.retrievalThreshold
-        });
         return null;
       }
 
@@ -213,23 +193,7 @@ export class LongTermMemoryService {
         }
       }
 
-      const rankedEvaluated = evaluated
-        .slice()
-        .sort((left, right) => right.similarity - left.similarity);
-
       if (scored.length === 0) {
-        this.log.debug('长期记忆自动召回未命中：没有记忆超过阈值', {
-          channel,
-          chatId,
-          threshold: this.config.retrievalThreshold,
-          candidateCount: preparedCandidates.length,
-          evaluatedCount: evaluated.length,
-          bestSimilarity: rankedEvaluated[0] ? roundSimilarity(rankedEvaluated[0].similarity) : null,
-          topResults: rankedEvaluated.slice(0, 3).map(({ entry, similarity }) => ({
-            entryId: entry.id,
-            similarity: roundSimilarity(similarity)
-          }))
-        });
         return null;
       }
 
@@ -246,33 +210,12 @@ export class LongTermMemoryService {
         })
         .slice(0, this.config.retrievalTopK);
 
-      this.log.info('长期记忆自动召回命中', {
-        channel,
-        chatId,
-        threshold: this.config.retrievalThreshold,
-        topK: this.config.retrievalTopK,
-        candidateCount: preparedCandidates.length,
-        evaluatedCount: evaluated.length,
-        matchedCount: scored.length,
-        injectedCount: selected.length,
-        entryIds: selected.map(({ entry }) => entry.id),
-        selectedResults: selected.map(({ entry, similarity }) => ({
-          entryId: entry.id,
-          similarity: roundSimilarity(similarity)
-        }))
-      });
-
       return [
         '相关长期记忆（自动召回）',
         ...selected.map(({ entry }) => `[${entry.kind}] ${entry.content}`),
         '仅在与当前请求直接相关时使用；若不相关请忽略。'
       ].join('\n');
-    } catch (error) {
-      this.log.warn('长期记忆自动召回失败，已跳过本轮注入', {
-        channel,
-        chatId,
-        error: error instanceof Error ? error.message : String(error)
-      });
+    } catch {
       return null;
     }
   }
@@ -297,8 +240,7 @@ export class LongTermMemoryService {
       .then(async () => {
         await this.maybeMaintain(sessionKey, queuedRequest, assistantContent);
       })
-      .catch((error) => {
-        this.log.warn('后台长期记忆维护失败', { sessionKey, error });
+      .catch((_error) => {
       });
 
     this.maintenanceQueue.set(sessionKey, task);
@@ -356,14 +298,12 @@ export class LongTermMemoryService {
     const hasFiles = Array.isArray(request.files) && request.files.length > 0;
 
     if (!hasText && hasMedia && !hasFiles) {
-      this.log.debug('跳过纯图片消息的长期记忆维护', { sessionKey, mediaCount: request.media?.length || 0 });
       return;
     }
 
     if (!this.canRunBackgroundMaintenance()) {
       if (!this.missingProviderWarned) {
         this.missingProviderWarned = true;
-        this.log.warn('长期记忆已启用，但未完整配置 provider/model，已跳过后台记忆维护');
       }
       return;
     }
@@ -387,13 +327,7 @@ export class LongTermMemoryService {
     }
 
     const limitedOperations = operations.slice(0, MAX_BACKGROUND_ACTIONS);
-    const results = await this.applyOperations(session.channel, session.chatId, limitedOperations, 'background');
-    this.log.info('长期记忆已自动维护', {
-      channel: session.channel,
-      chatId: session.chatId,
-      appliedCount: results.filter((result) => result.changed).length,
-      operationCount: limitedOperations.length
-    });
+    await this.applyOperations(session.channel, session.chatId, limitedOperations, 'background');
   }
 
   private buildMaintenancePrompt(
@@ -424,8 +358,7 @@ export class LongTermMemoryService {
     let parsed: unknown;
     try {
       parsed = JSON.parse(trimmed);
-    } catch (error) {
-      this.log.warn('长期记忆维护返回了无效 JSON，已忽略', { error, preview: trimmed.slice(0, 500) });
+    } catch {
       return [];
     }
 
@@ -477,14 +410,6 @@ export class LongTermMemoryService {
       return prepared;
     }
 
-    this.log.debug('长期记忆自动召回需要补全 embedding 缓存', {
-      provider: this.config.retrievalProvider,
-      model: this.config.retrievalModel,
-      missingCount: missing.length,
-      candidateCount: candidates.length,
-      entryIds: missing.map((item) => item.entry.id)
-    });
-
     try {
       const embeddings = await this.retrievalClient!.embedMany(
         missing.map((item) => item.entry.content),
@@ -506,14 +431,7 @@ export class LongTermMemoryService {
           embedding
         });
       }));
-    } catch (error) {
-      this.log.warn('长期记忆 embedding 批量补全失败，将仅使用已有缓存继续召回', {
-        provider: this.config.retrievalProvider,
-        model: this.config.retrievalModel,
-        missingCount: missing.length,
-        candidateCount: candidates.length,
-        error: error instanceof Error ? error.message : String(error)
-      });
+    } catch {
     }
 
     return prepared;
@@ -522,10 +440,6 @@ export class LongTermMemoryService {
 
 function hashMemoryContent(content: string): string {
   return createHash('sha256').update(content.trim()).digest('hex');
-}
-
-function roundSimilarity(value: number): number {
-  return Number(value.toFixed(4));
 }
 
 function cosineSimilarity(left: number[], right: number[]): number {

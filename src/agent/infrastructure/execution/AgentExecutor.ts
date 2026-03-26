@@ -3,7 +3,6 @@ import type { LLMProvider } from '../../../platform/providers/base.js';
 import type { ToolRegistry, ToolContext } from '../../../platform/tools/ToolRegistry.js';
 import type { PluginManager } from '../../../features/plugins/index.js';
 import { ContextBuilder } from './ContextBuilder.js';
-import { logger } from '../../../platform/observability/index.js';
 import { ToolLoopRunner } from './ToolLoopRunner.js';
 import { SyncStrategy, BackgroundStrategy, VisionStrategy } from './ExecutionStrategies.js';
 import { ExecutionRegistry } from './ExecutionRegistry.js';
@@ -20,8 +19,6 @@ export class AgentExecutor {
   private directVisionEnabled = false;
   private executionRegistry: ExecutionRegistry;
   private model: string;
-  private log = logger.child('AgentExecutor');
-
   constructor(
     provider: LLMProvider,
     toolRegistry: ToolRegistry,
@@ -210,11 +207,7 @@ export class AgentExecutor {
       });
 
       return response.content?.trim() || undefined;
-    } catch (error) {
-      this.log.warn('图片内容摘要生成失败', {
-        model: this.visionModel,
-        error: error instanceof Error ? error.message : String(error)
-      });
+    } catch {
       return undefined;
     }
   }
@@ -222,10 +215,7 @@ export class AgentExecutor {
   // === BackgroundTaskExecutor 接口方法 ===
 
   abort(sessionKey: string): void {
-    const aborted = this.executionRegistry.abort(sessionKey);
-    this.log.info(aborted
-      ? `已请求中止会话: ${sessionKey}`
-      : `会话当前没有运行中的任务: ${sessionKey}`);
+    this.executionRegistry.abort(sessionKey);
   }
 
   async executeToolLoop(

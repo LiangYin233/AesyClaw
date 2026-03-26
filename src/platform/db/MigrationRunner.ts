@@ -52,11 +52,5 @@ export async function runSqlMigrations(options: MigrationRunnerOptions): Promise
         [options.scope, migration.version, migration.description, new Date().toISOString()]
       );
     });
-
-    options.log.info('数据库迁移已应用', {
-      scope: options.scope,
-      version: migration.version,
-      description: migration.description
-    });
   }
 }

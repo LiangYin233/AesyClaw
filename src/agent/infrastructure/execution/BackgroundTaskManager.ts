@@ -101,6 +101,10 @@ export class BackgroundTaskManager {
   ): Promise<BackgroundTaskHandle> {
     const sessionTasks = this.getTasksBySession(sessionKey);
     if (sessionTasks.length >= this.maxConcurrentPerSession) {
+      this.log.withFields({ sessionKey, channel, chatId }).warn('后台任务因会话繁忙被拒绝', {
+        runningTasks: sessionTasks.length,
+        limit: this.maxConcurrentPerSession
+      });
       await this.sendBusyMessage(channel, chatId, messageType);
       throw new Error(`Session ${sessionKey} has too many concurrent tasks`);
     }
@@ -124,21 +128,12 @@ export class BackgroundTaskManager {
     };
 
     this.tasks.set(taskId, task);
-    this.log.info('后台任务已启动', {
-      taskId,
-      sessionKey,
-      channel,
-      chatId,
-      messageType
+    this.createTaskLogger(task).info('后台任务开始执行', {
+      messageCount: messages.length
     });
 
     // 后台执行完整的工具循环
-    this.executeTask(executor, task).catch(err => {
-      this.log.error('后台任务执行失败', {
-        taskId,
-        sessionKey,
-        error: err
-      });
+    this.executeTask(executor, task).catch((_err) => {
     });
 
     return this.toHandle(task);
@@ -151,6 +146,7 @@ export class BackgroundTaskManager {
     executor: BackgroundTaskExecutor,
     task: BackgroundTask
   ): Promise<void> {
+    const taskLog = this.createTaskLogger(task);
     try {
       // 提取第一次 toolCalls
       const initialToolCalls = task.initialResponse.toolCalls;
@@ -170,6 +166,10 @@ export class BackgroundTaskManager {
 
       task.result = result;
       task.status = 'completed';
+      taskLog.info('后台任务执行完成', {
+        toolCount: result.toolsUsed.length,
+        agentMode: result.agentMode
+      });
       await this.eventBus?.emit('background_task.completed', {
         sessionKey: task.sessionKey,
         taskId: task.id,
@@ -184,12 +184,14 @@ export class BackgroundTaskManager {
       task.error = normalizedError;
       if (normalizedError.message === 'Execution aborted' || normalizedError.name === 'AbortError') {
         task.status = 'aborted';
-        this.log.info('后台任务已中止', {
-          taskId: task.id,
-          sessionKey: task.sessionKey
+        taskLog.warn('后台任务已中止', {
+          error: normalizedError
         });
       } else {
         task.status = 'failed';
+        taskLog.error('后台任务执行失败', {
+          error: normalizedError
+        });
         await this.eventBus?.emit('background_task.failed', {
           sessionKey: task.sessionKey,
           taskId: task.id,
@@ -200,12 +202,6 @@ export class BackgroundTaskManager {
       await task.callbacks?.onError?.(normalizedError);
     } finally {
       this.tasks.delete(task.id);
-      this.log.info('后台任务已结束', {
-        taskId: task.id,
-        sessionKey: task.sessionKey,
-        status: task.status,
-        remainingTasks: this.tasks.size
-      });
     }
   }
 
@@ -215,12 +211,9 @@ export class BackgroundTaskManager {
   abortTask(sessionKey: string): boolean {
     const tasks = this.getTasksBySession(sessionKey);
     for (const task of tasks) {
+      this.createTaskLogger(task).warn('收到后台任务中止请求');
       task.abortController.abort();
       task.status = 'aborted';
-      this.log.info('已请求中止后台任务', {
-        taskId: task.id,
-        sessionKey
-      });
     }
     return tasks.length > 0;
   }
@@ -231,13 +224,9 @@ export class BackgroundTaskManager {
   abortTaskByChannel(channel: string, chatId: string): boolean {
     const tasks = this.getTasksByChannel(channel, chatId);
     for (const task of tasks) {
+      this.createTaskLogger(task).warn('收到后台任务中止请求');
       task.abortController.abort();
       task.status = 'aborted';
-      this.log.info('已请求中止后台任务', {
-        taskId: task.id,
-        channel,
-        chatId
-      });
     }
     return tasks.length > 0;
   }
@@ -307,6 +296,15 @@ export class BackgroundTaskManager {
    */
   getTaskCountBySession(sessionKey: string): number {
     return this.getTasksBySession(sessionKey).length;
+  }
+
+  private createTaskLogger(task: Pick<BackgroundTask, 'id' | 'sessionKey' | 'channel' | 'chatId'>) {
+    return this.log.withFields({
+      sessionKey: task.sessionKey,
+      channel: task.channel,
+      chatId: task.chatId,
+      taskId: task.id
+    });
   }
 
   private toHandle(task: BackgroundTask): BackgroundTaskHandle {

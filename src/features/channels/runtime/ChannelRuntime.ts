@@ -131,10 +131,6 @@ export class ChannelRuntime {
     });
 
     if (!this.inboundHandler) {
-      this.log.warn('未设置入站消息处理器', {
-        channel: inbound.channel,
-        chatId: inbound.chatId
-      });
       return;
     }
 
@@ -194,13 +190,7 @@ export class ChannelRuntime {
           ...segment,
           message: quotedDraft ? this.materializeDraft(message.channel, quotedDraft, 'inbound') : undefined
         } satisfies QuoteSegment);
-      } catch (error) {
-        this.log.warn('引用消息展开失败', {
-          channel: message.channel,
-          messageId: message.id,
-          platformMessageId: segment.reference.platformMessageId,
-          error: error instanceof Error ? error.message : String(error)
-        });
+      } catch {
         segments.push(segment);
       }
     }

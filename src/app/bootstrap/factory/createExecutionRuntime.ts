@@ -16,7 +16,6 @@ import {
   resolveExecutionModel,
   resolveProviderSelection
 } from '../../../features/config/index.js';
-import { logger } from '../../../platform/observability/index.js';
 import { createProvider } from '../../../platform/providers/index.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
 import { SessionManager } from '../../../features/sessions/index.js';
@@ -26,8 +25,6 @@ import type { Config, VisionSettings } from '../../../types.js';
 import { EventBus } from '../../../platform/events/EventBus.js';
 import type { AesyClawEvents } from '../../../platform/events/events.js';
 import { PluginManager } from '../../../features/plugins/index.js';
-
-const appLog = logger.child('AesyClaw');
 
 function createRequiredProvider(config: Config, providerName?: string, modelName?: string): LLMProvider {
   const resolved = providerName && modelName
@@ -56,7 +53,6 @@ async function createSkillManager(
   skillManager.setConfig(config);
   await skillManager.loadFromDirectory();
   await skillManager.startWatching();
-  appLog.info('技能加载完成', { skillCount: skillManager.listSkills().length });
   return skillManager;
 }
 
@@ -93,8 +89,7 @@ export async function createExecutionRuntime(args: {
     : undefined;
   const visionSettings = mainAgentConfig.visionSettings;
   const visionProvider = createVisionProviderFromSettings(config, visionSettings, {
-    onMissingProvider: (providerName) => {
-      appLog.warn('未找到视觉回退提供商', { provider: providerName });
+    onMissingProvider: (_providerName) => {
     }
   });
   const skillManager = await createSkillManager(config, workspace, updateConfig);

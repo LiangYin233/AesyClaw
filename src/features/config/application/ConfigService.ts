@@ -1,6 +1,5 @@
 import { logger } from '../../../platform/observability/index.js';
 import type { Config } from '../schema/index.js';
-import { normalizeConfigError } from '../errors.js';
 import { ConfigFileStore } from '../infrastructure/file/ConfigFileStore.js';
 import { FsConfigWatcher } from '../infrastructure/file/FsConfigWatcher.js';
 import { TomlConfigCodec } from '../infrastructure/codec/TomlConfigCodec.js';
@@ -189,11 +188,8 @@ export class ConfigService {
       const signature = this.mutationService.serialize(parsedConfig);
 
       if (signature === this.lastAppliedSignature) {
-        this.log.debug('跳过冗余的配置重载通知');
         return;
       }
-
-      this.log.info('配置已从磁盘重新加载');
       const previousConfig = this.snapshotStore ? structuredClone(this.snapshotStore.getConfig()) : null;
       const previousSignature = this.lastAppliedSignature;
       this.lastAppliedSignature = signature;
@@ -209,10 +205,7 @@ export class ConfigService {
       if (currentRaw === raw && currentRaw !== signature) {
         this.fileStore.write(signature);
       }
-    } catch (error) {
-      this.log.warn('重新加载配置失败', {
-        error: normalizeConfigError(error)
-      });
+    } catch {
     }
   }
 

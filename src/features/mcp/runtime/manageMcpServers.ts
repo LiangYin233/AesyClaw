@@ -1,11 +1,8 @@
 import type { Config } from '../../../types.js';
-import { logger } from '../../../platform/observability/index.js';
 import { registerMcpTools } from '../../../platform/tools/index.js';
 import type { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
 import { McpClientManager } from '../infrastructure/McpClientManager.js';
 import { clearMcpServerTools, syncMcpServerTools } from './syncMcpServerTools.js';
-
-const log = logger.child('MCPRuntime');
 
 type ToolRegistryView = Pick<ToolRegistry, 'register' | 'list' | 'unregisterMany' | 'getSource'>;
 
@@ -40,7 +37,6 @@ export function startConfiguredMcpServers(binding: McpRuntimeBinding, config: Co
 
   const manager = ensureMcpManager(binding);
   manager.connectAsync(config.mcp);
-  log.info('MCP 服务器正在后台连接');
   return manager;
 }
 

@@ -125,8 +125,6 @@ export class BuiltInCommands extends CommandHandler {
     const newSessionKey = this.sessionRouting.createNewSession(msg.channel, msg.chatId);
     const uuid = newSessionKey.split(':')[2] || 'default';
 
-    this.log.info(`已创建新会话: ${newSessionKey}`);
-
     return {
       ...msg,
       sessionKey: newSessionKey,
@@ -187,7 +185,6 @@ export class BuiltInCommands extends CommandHandler {
 
     const targetSession = channelSessions[targetIndex - 1];
     this.sessionRouting.switchSession(msg.channel, msg.chatId, targetSession.key);
-    this.log.info(`已切换到会话: ${targetSession.key}`);
 
     return {
       ...msg,

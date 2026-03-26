@@ -74,7 +74,6 @@ class FeishuAdapter implements ChannelAdapter {
     await this.refreshToken();
     this.startTokenRefreshTimer();
     this.running = true;
-    this.log.info('飞书渠道已启动');
   }
 
   async stop(): Promise<void> {
@@ -89,7 +88,6 @@ class FeishuAdapter implements ChannelAdapter {
       });
       this.webhookServer = undefined;
     }
-    this.log.info('飞书渠道已停止');
   }
 
   isRunning(): boolean {
@@ -176,19 +174,14 @@ class FeishuAdapter implements ChannelAdapter {
       const payload = req.body;
 
       if (payload.type === 'url_verification') {
-        this.log.debug('Feishu URL verification challenge received');
         return res.json({ challenge: payload.challenge });
       }
 
       if (payload.header?.token !== this.config.verificationToken) {
-        this.log.warn('飞书校验令牌无效');
         return res.status(401).json({ error: 'Invalid token' });
       }
 
-      void this.handleFeishuEvent(payload).catch((error) => {
-        this.log.error('飞书事件处理失败', {
-          error: error instanceof Error ? error.message : String(error)
-        });
+      void this.handleFeishuEvent(payload).catch((_error) => {
       });
 
       return res.json({ success: true });
@@ -198,7 +191,6 @@ class FeishuAdapter implements ChannelAdapter {
   private async startWebhookServer(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.webhookServer = this.app.listen(this.config.webhookPort, () => {
-        this.log.info('飞书回调服务监听中', { port: this.config.webhookPort });
         resolve();
       });
       this.webhookServer.on('error', reject);
@@ -241,10 +233,7 @@ class FeishuAdapter implements ChannelAdapter {
 
   private startTokenRefreshTimer(): void {
     this.tokenRefreshTimer = setInterval(() => {
-      void this.refreshToken().catch((error) => {
-        this.log.error('定时刷新令牌失败', {
-          error: error instanceof Error ? error.message : String(error)
-        });
+      void this.refreshToken().catch((_error) => {
       });
     }, 90 * 60 * 1000);
   }
@@ -252,7 +241,6 @@ class FeishuAdapter implements ChannelAdapter {
   private async handleFeishuEvent(payload: any): Promise<void> {
     const eventType = payload.header?.event_type;
     if (eventType !== 'im.message.receive_v1') {
-      this.log.debug('Unhandled Feishu event type', { eventType });
       return;
     }
 

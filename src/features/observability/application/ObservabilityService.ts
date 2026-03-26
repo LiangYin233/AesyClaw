@@ -1,8 +1,6 @@
 import { formatLocalTimestamp } from '../../../platform/observability/logging.js';
-import { logger, logging, tokenUsage, type LogLevel } from '../../../platform/observability/index.js';
+import { logging, tokenUsage, type LogLevel } from '../../../platform/observability/index.js';
 import type { Config } from '../../../types.js';
-
-const log = logger.child('ObservabilityAPI');
 
 export class ObservabilityService {
   constructor(
@@ -34,12 +32,8 @@ export class ObservabilityService {
       await this.updateConfig((config) => {
         config.observability.level = level;
       });
-      log.info('日志级别已更新', { level });
-    } catch (saveError) {
-      log.warn('日志级别已在内存更新，但写入配置失败', {
-        level,
-        error: saveError instanceof Error ? saveError.message : String(saveError)
-      });
+    } catch {
+      // Keep runtime level applied in memory even when persistence fails.
     }
 
     return { success: true, level: logging.getLevel() };

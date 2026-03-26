@@ -4,7 +4,6 @@ import {
   getToolRuntimeConfig,
   resolveExecutionModel
 } from '../../../features/config/index.js';
-import { logger } from '../../../platform/observability/index.js';
 import { createChannelsReloadTarget } from '../../../features/channels/index.js';
 import { createMcpReloadTarget } from '../../../features/mcp/index.js';
 import { createMemoryReloadTarget } from '../../../features/memory/index.js';
@@ -14,8 +13,6 @@ import { createSessionRoutingReloadTarget } from '../../../features/sessions/ind
 import { createSkillsReloadTarget } from '../../../features/skills/index.js';
 import { createProvider } from '../../../platform/providers/index.js';
 import type { Services } from '../factory/ServiceFactory.js';
-
-const log = logger.child('Bootstrap');
 
 export function setupConfigReload(services: Services): void {
   services.configManager.setReloadTargets({
@@ -29,10 +26,7 @@ export function setupConfigReload(services: Services): void {
           maxIterations: next.maxIterations,
           visionSettings: next.visionSettings,
           visionProvider: createVisionProviderFromSettings(config, next.visionSettings, {
-            onMissingProvider: (providerName) => {
-              log.warn('配置热重载时未找到视觉回退提供商', {
-                provider: providerName
-              });
+            onMissingProvider: (_providerName) => {
             }
           })
         };
@@ -40,7 +34,6 @@ export function setupConfigReload(services: Services): void {
         if (next.provider.providerConfig) {
           runtimeUpdate.provider = createProvider(next.provider.name, next.provider.providerConfig);
         } else {
-          log.warn('配置热重载时未找到主提供商', { provider: next.provider.name });
         }
 
         services.agentRuntime.updateMainAgentRuntime(runtimeUpdate);

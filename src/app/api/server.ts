@@ -16,7 +16,6 @@ import type { SessionRoutingService } from '../../agent/infrastructure/session/S
 import { ConfigManager, RuntimeConfigStore } from '../../features/config/index.js';
 import { UnauthorizedError } from './errors.js';
 import { logger } from '../../platform/observability/index.js';
-import { accessLogMiddleware } from './middleware/access-log.js';
 import { apiErrorHandler } from './middleware/error-handler.js';
 import { requestIdMiddleware } from './middleware/request-id.js';
 import type { LongTermMemoryStore } from '../../features/sessions/infrastructure/LongTermMemoryStore.js';
@@ -89,7 +88,6 @@ export class APIServer {
 
     return new Promise((resolve) => {
       this.server.listen(this.port, () => {
-        this.log.info(`API 服务已启动: http://localhost:${this.port}`);
         resolve();
       });
     });
@@ -98,7 +96,6 @@ export class APIServer {
   private setupMiddleware(): void {
     const MAX_REQUEST_SIZE = 10 * 1024 * 1024;
     this.app.use(requestIdMiddleware);
-    this.app.use(accessLogMiddleware);
     this.app.use(express.json({ limit: MAX_REQUEST_SIZE }));
     this.app.use(express.urlencoded({ extended: true, limit: MAX_REQUEST_SIZE }));
 
@@ -165,7 +162,6 @@ export class APIServer {
   async stop(): Promise<void> {
     return new Promise((resolve) => {
       this.server.close(() => {
-        this.log.info('API 服务已停止');
         resolve();
       });
     });
@@ -173,6 +169,5 @@ export class APIServer {
 
   updateConfig(config: Config): void {
     this.configStore.setConfig(config);
-    this.log.info('配置已更新');
   }
 }

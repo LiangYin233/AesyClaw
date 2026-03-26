@@ -114,7 +114,6 @@ export class ToolRegistry {
       return;
     }
     this.defaultTimeout = Math.floor(timeout);
-    this.log.info('默认工具超时已更新', { timeoutMs: this.defaultTimeout });
   }
 
   register(tool: Tool, source: ToolSource = 'built-in'): void {
@@ -130,7 +129,6 @@ export class ToolRegistry {
   unregister(name: string): void {
     this.tools.delete(name);
     this.toolSources.delete(name);
-    this.log.debug(`已注销工具: ${name}`);
   }
 
   /**
@@ -173,7 +171,6 @@ export class ToolRegistry {
       }
     }
     if (count > 0) {
-      this.log.debug(`已从来源 ${source} 注销 ${count} 个工具`);
     }
     return count;
   }
@@ -183,7 +180,6 @@ export class ToolRegistry {
    */
   setBlacklist(names: string[]): void {
     this.blacklist = new Set(names);
-    this.log.debug(`工具黑名单已设置: ${names.join(', ')}`);
   }
 
   /**
@@ -222,13 +218,17 @@ export class ToolRegistry {
     if (!tool) {
       throw new Error(`Tool not found: ${name}`);
     }
-
-    this.log.debug(`正在执行工具: ${name}, 来源: ${tool.source}, 参数键: ${Object.keys(params).join(', ')}`);
+    const toolLog = this.log.withFields({
+      toolName: name,
+      agentName: context?.agentName,
+      sessionKey: context?.sessionKey,
+      channel: context?.channel,
+      chatId: context?.chatId
+    });
 
     if (tool.validate) {
       const errors = tool.validate(params);  // 验证参数
       if (errors.length > 0) {
-        this.log.debug(`工具 ${name} 验证失败: ${errors.join(', ')}`);
         throw new Error(`Validation errors: ${errors.join(', ')}`);
       }
     }
@@ -237,7 +237,6 @@ export class ToolRegistry {
     const timeoutController = new AbortController();
     const timeoutId = setTimeout(() => {
       timeoutController.abort(createTimeoutError(tool.name, timeout));
-      this.log.warn(`工具 ${name} 执行超时，已超过 ${timeout}ms`);
     }, timeout);
 
     const { signal: mergedSignal, cleanup: cleanupMergedSignal } = mergeAbortSignals([context?.signal, timeoutController.signal]);
@@ -248,6 +247,9 @@ export class ToolRegistry {
     };
 
     try {
+      toolLog.debug('工具执行开始', {
+        source: context?.source
+      });
       throwIfAborted(mergedSignal);
       const result = await Promise.race([
         tool.execute(params, execContext),  // 执行工具
@@ -274,7 +276,20 @@ export class ToolRegistry {
         })
       ]);
       throwIfAborted(mergedSignal);
+      toolLog.debug('工具执行完成');
       return result;
+    } catch (error) {
+      const normalizedError = error instanceof Error ? error : new Error(String(error));
+      if (normalizedError.name === 'AbortError' || normalizedError.message.startsWith('Tool execution timeout:')) {
+        toolLog.warn('工具执行被中断', {
+          error: normalizedError
+        });
+      } else {
+        toolLog.error('工具执行失败', {
+          error: normalizedError
+        });
+      }
+      throw error;
     } finally {
       clearTimeout(timeoutId);
       cleanupMergedSignal();

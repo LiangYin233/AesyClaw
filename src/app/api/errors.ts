@@ -6,7 +6,6 @@ import {
   InternalServerError,
   NotFoundError,
   ServiceUnavailableError,
-  UnauthorizedError,
   ValidationError,
   normalizeErrorMessage
 } from '../../platform/errors/index.js';

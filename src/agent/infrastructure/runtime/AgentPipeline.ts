@@ -29,11 +29,6 @@ export class AgentPipeline {
 
     const builtInResult = await this.commandRegistry.execute(message);
     if (builtInResult !== null) {
-      this.log.info('内建命令已处理消息', {
-        channel: message.channel,
-        chatId: message.chatId,
-        suppressOutbound
-      });
       if (!suppressOutbound) {
         await sendOutbound({
           channel: builtInResult.channel,
@@ -51,11 +46,6 @@ export class AgentPipeline {
 
     const pluginCommandResult = await pluginManager.runCommands(message);
     if (pluginCommandResult !== null) {
-      this.log.info('插件命令已处理消息', {
-        channel: message.channel,
-        chatId: message.chatId,
-        suppressOutbound
-      });
       if (pluginCommandResult.type === 'reply' && !suppressOutbound) {
         await sendOutbound({
           channel: pluginCommandResult.message.channel,
@@ -72,20 +62,10 @@ export class AgentPipeline {
 
     const transformed = await pluginManager.runMessageInHooks(message);
     if (transformed === null) {
-      this.log.debug('插件已消费消息', {
-        channel: message.channel,
-        chatId: message.chatId
-      });
       return { type: 'handled' };
     }
 
     if (this.shouldSkipLLM(transformed)) {
-      this.log.info('插件已跳过 LLM 处理', {
-        channel: transformed.channel,
-        chatId: transformed.chatId,
-        reason: this.getSkipReason(transformed),
-        suppressOutbound
-      });
       if (!suppressOutbound) {
         await sendOutbound({
           channel: transformed.channel,
@@ -120,12 +100,6 @@ export class AgentPipeline {
     if (savedPaths.length === 0) {
       return message;
     }
-
-    this.log.debug('已附加保存的文件备注', {
-      channel: message.channel,
-      chatId: message.chatId,
-      fileCount: savedPaths.length
-    });
 
     const note = savedPaths.map((path) => `[文件已保存至: ${path}]`).join('\n');
     return {

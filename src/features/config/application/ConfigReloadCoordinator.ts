@@ -189,7 +189,6 @@ export class ConfigReloadCoordinator {
   }
 
   async reload(previousConfig: Config, currentConfig: Config): Promise<void> {
-    const startedAt = Date.now();
     const reloadRules = buildRules();
     const triggeredRules = reloadRules.filter((rule) => rule.hasChanged(previousConfig, currentConfig));
     const serverConfigChanged = compare(previousConfig.server) !== compare(currentConfig.server);
@@ -199,21 +198,12 @@ export class ConfigReloadCoordinator {
       if (serverConfigChanged) {
         await this.targets.api?.applyConfig(currentConfig);
       }
-      this.logger.debug('配置热重载：未检测到需要更新的运行时规则');
       return;
     }
 
-    this.logger.info('配置热重载：触发规则', {
-      rules: triggeredRules.map((rule) => rule.key)
-    });
-
     try {
       for (const rule of triggeredRules) {
-        const details = rule.describe?.(previousConfig, currentConfig);
-        this.logger.info('配置热重载：应用规则', {
-          rule: rule.key,
-          ...(details || {})
-        });
+        rule.describe?.(previousConfig, currentConfig);
         await rule.apply(this.targets, previousConfig, currentConfig);
         appliedRules.push(rule);
       }
@@ -222,18 +212,11 @@ export class ConfigReloadCoordinator {
         await this.targets.api?.applyConfig(currentConfig);
       }
     } catch (error) {
-      this.logger.warn('配置热重载失败，正在回滚运行时状态', {
-        error
-      });
 
       for (const rule of [...appliedRules].reverse()) {
         try {
           await rule.rollback(this.targets, previousConfig, currentConfig);
-        } catch (rollbackError) {
-          this.logger.warn('配置热重载回滚失败', {
-            rule: rule.key,
-            error: rollbackError
-          });
+        } catch {
         }
       }
 
@@ -243,10 +226,5 @@ export class ConfigReloadCoordinator {
 
       throw error;
     }
-
-    this.logger.info('配置热重载完成', {
-      rules: triggeredRules.map((rule) => rule.key),
-      durationMs: Date.now() - startedAt
-    });
   }
 }

@@ -347,7 +347,7 @@ async function sendMessageItems(args: {
 }
 
 export function createWeixinFacade(logger?: LoggerLike): WeixinFacade {
-  const log = createLogger(logger);
+  createLogger(logger);
 
   return {
     async startQrLogin(args) {
@@ -465,7 +465,6 @@ export function createWeixinFacade(logger?: LoggerLike): WeixinFacade {
           buildTextMessageItem(args.text)
         ]
       });
-      log.debug('微信文本已发送', { toUserId: args.toUserId });
       return result;
     },
 
@@ -521,8 +520,8 @@ export function createWeixinFacade(logger?: LoggerLike): WeixinFacade {
       const media = await downloadMediaFromItem(args.item as MessageItem, {
         cdnBaseUrl: args.cdnBaseUrl,
         label: 'aesyclaw-weixin-inbound',
-        log: (message) => log.info(message),
-        errLog: (message) => log.error(message),
+        log: () => {},
+        errLog: () => {},
         saveMedia: async (buffer, contentType, _subdir, _maxBytes, originalFilename) => {
           const name = originalFilename
             ? `${randomBytes(4).toString('hex')}-${originalFilename}`

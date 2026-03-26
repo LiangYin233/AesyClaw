@@ -220,7 +220,6 @@ export class ExecutionEngine {
     policy: ExecutionPolicy,
     options?: { includeRuntimeContext?: boolean }
   ): AgentExecutor {
-    this.log.debug(`正在创建执行器: 角色=${policy.roleName}, 模型=${policy.model}`);
 
     return new AgentExecutor(
       policy.provider,

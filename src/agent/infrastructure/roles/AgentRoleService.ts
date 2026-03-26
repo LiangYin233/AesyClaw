@@ -205,10 +205,6 @@ export class AgentRoleService {
 
     const providerConfig = this.getConfig().providers[settings.fallbackProviderName];
     if (!providerConfig) {
-      this.log.warn('未找到视觉回退提供商', {
-        role: roleName || MAIN_AGENT_NAME,
-        provider: settings.fallbackProviderName
-      });
       return undefined;
     }
 
@@ -291,8 +287,6 @@ export class AgentRoleService {
       allowedSkills: [...new Set((input.allowedSkills || []).map((item) => item.trim()).filter(Boolean))],
       allowedTools: [...new Set((input.allowedTools || []).map((item) => item.trim()).filter(Boolean))]
     };
-
-    this.log.debug(`已规范化代理角色: ${normalized.name}`);
     return normalized;
   }
 

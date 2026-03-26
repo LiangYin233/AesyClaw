@@ -1,4 +1,3 @@
-import { preview } from '../../observability/index.js';
 import type { LLMMessage, LLMResponse, ToolCall, ToolDefinition } from '../../../types.js';
 import type {
   ProviderAdapter,
@@ -117,7 +116,7 @@ export class OpenAIChatAdapter implements ProviderAdapter {
     };
   }
 
-  parseResponse(data: unknown, context: ProviderLogContext): LLMResponse {
+  parseResponse(data: unknown, _context: ProviderLogContext): LLMResponse {
     const response = isObject(data) ? data as OpenAIResponse : {};
     const choice = response.choices?.[0];
     const content = choice?.message?.content;
@@ -128,10 +127,6 @@ export class OpenAIChatAdapter implements ProviderAdapter {
       try {
         args = JSON.parse(toolCall.function.arguments);
       } catch {
-        context.warn('工具调用参数解析失败', {
-          toolName: toolCall.function.name,
-          argumentsPreview: preview(toolCall.function.arguments)
-        });
         args = {};
       }
 

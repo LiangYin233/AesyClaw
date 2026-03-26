@@ -211,14 +211,6 @@ export class DeliveryQueue {
           jobId
         ]
       );
-      this.log.warn('投递任务失败', {
-        jobId,
-        channel: job.channel,
-        attempts,
-        retryable,
-        errorCode: classification.code,
-        error: classification.message || this.errorMessage(error)
-      });
     } finally {
       this.inflight.delete(jobId);
     }

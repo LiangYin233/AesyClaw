@@ -1,10 +1,9 @@
 import { join } from 'path';
 import { mkdirSync, existsSync } from 'fs';
-import { logger } from '../../platform/observability/index.js';
 import type { Config } from '../../types.js';
 import type { CronJob } from '../../features/cron/index.js';
 import { dispatchCronJob } from '../../features/cron/index.js';
-import { ConfigManager, getMainAgentConfig } from '../../features/config/index.js';
+import { ConfigManager } from '../../features/config/index.js';
 import { createServices, type Services } from './factory/ServiceFactory.js';
 import { setupConfigReload } from './app/configReload.js';
 import { setupEventListeners } from './app/eventListeners.js';
@@ -12,7 +11,6 @@ import { setupSignalHandlers, shutdownServices } from './app/shutdown.js';
 import { EventBus } from '../../platform/events/EventBus.js';
 import type { AesyClawEvents } from '../../platform/events/events.js';
 
-const log = logger.child('Bootstrap');
 const CHANNEL_START_TIMEOUT = 30000;
 
 function startStartupLagMonitor(): () => void {
@@ -32,9 +30,6 @@ function startStartupLagMonitor(): () => void {
   return () => {
     clearInterval(timer);
     if (maxLagMs >= warnThresholdMs) {
-      log.info('启动阶段事件循环延迟较高', {
-        maxLagMs
-      });
     }
   };
 }
@@ -63,21 +58,15 @@ export class StartupInterruptedError extends Error {
 
 async function startChannels(services: Services): Promise<void> {
   const { channelManager } = services;
-  const startedAt = Date.now();
   await Promise.race([
     channelManager.startAll(),
     new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Channel start timeout')), CHANNEL_START_TIMEOUT)
     )
   ]);
-  log.info('渠道启动完成', {
-    channelCount: channelManager.getEnabledChannels().length,
-    durationMs: Date.now() - startedAt
-  });
 }
 
 export async function bootstrap(options: BootstrapOptions = {}): Promise<void> {
-  const startedAt = Date.now();
   const stopLagMonitor = startStartupLagMonitor();
   const eventBus = new EventBus<AesyClawEvents>();
   const configManager = new ConfigManager(eventBus);
@@ -85,16 +74,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<void> {
   const port = config.server.apiPort ?? 18792;
   const workspace = join(process.cwd(), 'workspace');
   const tempDir = join(process.cwd(), '.aesyclaw', 'temp');
-  const mainAgent = getMainAgentConfig(config);
-
   ensureRuntimeDirectories(workspace, tempDir);
-
-  log.info('网关启动中', {
-    workspace,
-    provider: mainAgent.provider.name,
-    model: mainAgent.role.model,
-    apiPort: port
-  });
 
   let servicesRef: Services | undefined;
   let startupAbortCleanedUp = false;
@@ -108,7 +88,6 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<void> {
       await dispatchCronJob(servicesRef, job);
     };
 
-    const servicesStartedAt = Date.now();
     servicesRef = await createServices({
       workspace,
       tempDir,
@@ -118,10 +97,6 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<void> {
       port,
       onCronJob
     });
-    log.info('启动阶段完成', {
-      phase: 'services',
-      durationMs: Date.now() - servicesStartedAt
-    });
 
     if (options.shouldAbortStartup?.()) {
       await shutdownServices(servicesRef);
@@ -129,7 +104,6 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<void> {
       throw new StartupInterruptedError();
     }
 
-    const wiringStartedAt = Date.now();
     setupConfigReload(servicesRef);
     setupEventListeners(servicesRef);
     setupSignalHandlers(servicesRef);
@@ -139,37 +113,16 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<void> {
       startupAbortCleanedUp = true;
       throw new StartupInterruptedError();
     }
-    log.info('启动阶段完成', {
-      phase: 'wiring',
-      durationMs: Date.now() - wiringStartedAt
-    });
 
-    const channelsStartedAt = Date.now();
     await startChannels(servicesRef);
-    log.info('启动阶段完成', {
-      phase: 'channels',
-      durationMs: Date.now() - channelsStartedAt
-    });
 
     servicesRef.agentRuntime.start();
     servicesRef.startPluginLoading();
-
-    log.info('网关启动完成', {
-      durationMs: Date.now() - startedAt,
-      provider: mainAgent.provider.name,
-      model: mainAgent.role.model,
-      apiEnabled: servicesRef.apiServer !== undefined,
-      channelCount: servicesRef.channelManager.getEnabledChannels().length,
-      pluginCount: Object.keys(servicesRef.pluginManager.getPluginConfigs()).length,
-      skillCount: servicesRef.skillManager?.listSkills().length || 0
-    });
   } catch (error) {
-    log.error('网关启动失败', { error });
     if (servicesRef && !startupAbortCleanedUp) {
       try {
         await shutdownServices(servicesRef);
-      } catch (cleanupError) {
-        log.error('启动失败后的清理未完全成功', { error: cleanupError });
+      } catch {
       }
     }
     throw error;

@@ -115,12 +115,8 @@ export class WeixinAdapter implements ChannelAdapter {
     this.supervisorAbort = new AbortController();
     this.supervisorTask = this.runSupervisor(this.supervisorAbort.signal).catch((error) => {
       if (!isAbortError(error)) {
-        this.log.error('微信渠道后台循环异常退出', {
-          error: error instanceof Error ? error.message : String(error)
-        });
       }
     });
-    this.log.info('微信渠道后台监督循环已启动');
   }
 
   async stop(): Promise<void> {
@@ -133,7 +129,6 @@ export class WeixinAdapter implements ChannelAdapter {
     }
     this.supervisorTask = undefined;
     this.supervisorAbort = undefined;
-    this.log.info('微信渠道已停止');
   }
 
   isRunning(): boolean {
@@ -265,10 +260,6 @@ export class WeixinAdapter implements ChannelAdapter {
         if (isAbortError(error) || signal.aborted) {
           return;
         }
-
-        this.log.warn('微信监督循环将重试', {
-          error: error instanceof Error ? error.message : String(error)
-        });
         await delay(DEFAULT_RETRY_DELAY_MS, signal).catch(() => {});
       }
     }
@@ -280,7 +271,6 @@ export class WeixinAdapter implements ChannelAdapter {
       signal
     });
     await this.outputQrCode(login.qrCodeAscii, login.qrCodeUrl);
-    this.log.info('微信渠道等待扫码授权', { qrCodeUrl: login.qrCodeUrl });
 
     const result = await this.facade.waitForQrLogin({
       baseUrl: this.config.baseUrl,
@@ -294,7 +284,6 @@ export class WeixinAdapter implements ChannelAdapter {
       contextTokens: {}
     });
     await this.stateStore.clearSyncCursor();
-    this.log.info('微信扫码登录成功', { userId: result.userId });
 
     return (await this.stateStore.loadAccount()) || { token: result.token };
   }
@@ -315,7 +304,6 @@ export class WeixinAdapter implements ChannelAdapter {
         });
 
         if (response.sessionExpired) {
-          this.log.warn('微信登录态失效，重新进入扫码流程');
           await this.stateStore.clearToken();
           await this.stateStore.clearSyncCursor();
           return false;
@@ -336,11 +324,6 @@ export class WeixinAdapter implements ChannelAdapter {
 
         consecutiveFailures += 1;
         const retryDelay = consecutiveFailures >= 3 ? DEFAULT_BACKOFF_DELAY_MS : DEFAULT_RETRY_DELAY_MS;
-        this.log.warn('微信长轮询失败，稍后重试', {
-          error: error instanceof Error ? error.message : String(error),
-          consecutiveFailures,
-          retryDelay
-        });
         await delay(retryDelay, signal).catch(() => {});
       }
     }
@@ -350,9 +333,7 @@ export class WeixinAdapter implements ChannelAdapter {
 
   private async outputQrCode(qrCodeAscii: string | undefined, qrCodeUrl: string): Promise<void> {
     if (qrCodeAscii) {
-      this.log.info(`微信登录二维码\n${qrCodeAscii}`);
     } else {
-      this.log.info(`微信登录二维码链接: ${qrCodeUrl}`);
     }
 
     if (!this.config.qrCodeFile) {

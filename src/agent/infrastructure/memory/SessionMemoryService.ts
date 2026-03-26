@@ -138,20 +138,12 @@ export class SessionMemoryService {
         async (summary, _pendingMessages, relativeSummaryCutoff, remainingRounds) => {
           const summarizedMessageCount = session.summarizedMessageCount + relativeSummaryCutoff;
           await this.sessionManager.updateSummary(sessionKey, summary, summarizedMessageCount);
-          this.log.info('会话摘要已更新', { sessionKey, summarizedMessageCount });
 
           if (remainingRounds > this.summaryConfig.memoryWindow) {
-            this.log.warn('摘要压缩轮数不足，无法收敛到 memoryWindow 内', {
-              sessionKey,
-              memoryWindow: this.summaryConfig.memoryWindow,
-              compressRounds: this.summaryConfig.compressRounds,
-              remainingRounds
-            });
           }
         }
       )).changed;
-    } catch (error) {
-      this.log.warn('会话摘要生成失败', { sessionKey, error });
+    } catch {
       return false;
     }
   }
@@ -232,19 +224,9 @@ export class SessionMemoryService {
             summary,
             summarizedUntilMessageId
           );
-          this.log.info('对话摘要已更新', {
-            channel: session.channel,
-            chatId: session.chatId,
-            summarizedUntilMessageId
-          });
         }
       )).changed;
-    } catch (error) {
-      this.log.warn('对话摘要生成失败', {
-        channel: session.channel,
-        chatId: session.chatId,
-        error
-      });
+    } catch {
       return false;
     }
   }

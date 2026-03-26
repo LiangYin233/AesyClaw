@@ -1,11 +1,7 @@
 import { mkdir, readdir, stat } from 'fs/promises';
 import { join } from 'path';
-import { logger } from '../../../platform/observability/index.js';
 import type { ChannelManager, ChannelPluginDefinition } from './ChannelManager.js';
 import { pathToFileURL } from 'url';
-import { normalizeChannelError } from '../domain/errors.js';
-
-const log = logger.child('ChannelPluginLoader');
 
 type ChannelPluginModule = Record<string, unknown> & {
   default?: unknown;
@@ -81,11 +77,7 @@ async function importChannelPlugin(mainPath: string): Promise<{
       plugin,
       defaultConfig: module.defaultChannelConfig ? structuredClone(module.defaultChannelConfig) : {}
     };
-  } catch (error) {
-    log.warn(`导入渠道插件失败: ${mainPath}`, {
-      path: mainPath,
-      error: normalizeChannelError(error)
-    });
+  } catch {
     return null;
   }
 }
@@ -96,7 +88,6 @@ export async function loadExternalChannelPlugins(channelManager: ChannelManager,
   for (const mainPath of entries) {
     const loaded = await importChannelPlugin(mainPath);
     if (!loaded) {
-      log.warn(`渠道插件无效，已跳过: ${mainPath}`);
       continue;
     }
 

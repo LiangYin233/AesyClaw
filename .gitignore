@@ -8,3 +8,4 @@ opencode.jsonc
 workspace/
 .tmp/
 .worktrees/
+.codex/

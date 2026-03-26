@@ -80,18 +80,11 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
 
   const skills = options.skillManager.listSkills();
   if (skills.length > 0) {
-    log.info('技能工具已注册', {
-      skillCount: skills.length,
-      skills: skills.map((skill) => skill.name)
-    });
   }
 }
 
 export function registerMcpTools(toolRegistry: ToolRegistry, mcpManager: McpClientManager): void {
-  const log = logger.child('ToolIntegration');
-
   mcpManager.onToolsLoaded(async (serverName: string, _tools: ToolDefinition[]) => {
-    const toolCount = syncMcpServerTools(toolRegistry, mcpManager, serverName);
-    log.info('MCP 工具已注册', { server: serverName, toolCount });
+    syncMcpServerTools(toolRegistry, mcpManager, serverName);
   });
 }

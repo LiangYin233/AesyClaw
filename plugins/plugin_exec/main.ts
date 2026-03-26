@@ -1,6 +1,5 @@
 import { platform } from 'os';
 import { definePlugin } from '../../src/features/plugins/index.ts';
-import { preview } from '../../src/platform/observability/index.ts';
 import type { ToolContext } from '../../src/platform/tools/index.ts';
 import { loadConfig } from './config.ts';
 import type { ExecPluginOptions } from './config.ts';
@@ -37,12 +36,6 @@ export default definePlugin<ExecPluginOptions>({
       maxOutput: config.shell.maxOutput
     }, log);
 
-    log.info('执行插件已加载', {
-      pythonExecutable: config.python.executable,
-      pythonTimeoutMs: config.python.timeout,
-      shellTimeoutMs: config.shell.timeout
-    });
-
     ctx.tools.register({
       name: 'python_exec',
       description: '执行本地 Python 代码。',
@@ -58,7 +51,6 @@ export default definePlugin<ExecPluginOptions>({
       },
       async execute(params: Record<string, any>, context?: ToolContext) {
         const { code } = params;
-        log.info('Python 执行开始', { cwd: context?.workspace });
         return pythonRunner.execute(code, context?.workspace, context?.signal);
       }
     });
@@ -78,10 +70,6 @@ export default definePlugin<ExecPluginOptions>({
       },
       async execute(params: Record<string, any>, context?: ToolContext) {
         const { command } = params;
-        log.info('Shell 执行开始', {
-          commandPreview: preview(command),
-          cwd: context?.workspace
-        });
         return shellRunner.execute(command, context?.workspace, context?.signal);
       }
     });

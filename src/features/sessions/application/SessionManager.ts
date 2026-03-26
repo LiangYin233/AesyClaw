@@ -2,7 +2,7 @@ import type { Database } from '../../../platform/db/index.js';
 import { logger } from '../../../platform/observability/index.js';
 import { createShortId } from '../../../platform/ids/index.js';
 import { formatLocalTimestamp } from '../../../platform/observability/logging.js';
-import { parseSessionKey, normalizeSessionError, SessionNotFoundError, SessionValidationError, type Session, type SessionMessage } from '../domain/types.js';
+import { parseSessionKey, SessionNotFoundError, type Session, type SessionMessage } from '../domain/types.js';
 import { SessionStore } from '../infrastructure/SessionStore.js';
 
 const DEFAULT_MAX_SESSIONS = 100;
@@ -122,11 +122,6 @@ export class SessionManager {
         updatedAt: new Date()
       };
       this.sessions.set(key, newSession);
-      this.log.info('会话已创建', {
-        sessionKey: key,
-        channel: parsed.channel,
-        chatId: parsed.chatId
-      });
 
       if (this.sessions.size >= this.maxSessions * SESSION_CLEANUP_THRESHOLD) {
         await this.cleanupOldSessions();
@@ -151,13 +146,9 @@ export class SessionManager {
         }
 
         if (oldSessions.length > 0) {
-          this.log.info(`已清理 ${oldSessions.length} 个旧会话 (上限: ${this.maxSessions})`);
         }
       }
-    } catch (error) {
-      this.log.warn('清理旧会话失败', {
-        error: normalizeSessionError(error)
-      });
+    } catch {
     }
   }
 
@@ -322,8 +313,6 @@ export class SessionManager {
         this.sessions.set(loadedKey, session);
       }
     }
-
-    this.log.info(`已从数据库加载 ${this.sessions.size} 个会话`);
   }
 
   async close(): Promise<void> {

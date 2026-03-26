@@ -355,7 +355,7 @@ export class OpenAIResponsesAdapter implements ProviderAdapter {
     return parts.join('\n');
   }
 
-  private extractToolCalls(response: ResponsesApiResponse, context: ProviderLogContext): ToolCall[] {
+  private extractToolCalls(response: ResponsesApiResponse, _context: ProviderLogContext): ToolCall[] {
     const toolCalls: ToolCall[] = [];
 
     for (const item of response.output || []) {
@@ -367,10 +367,6 @@ export class OpenAIResponsesAdapter implements ProviderAdapter {
       try {
         args = item.arguments ? JSON.parse(item.arguments) : {};
       } catch {
-        context.warn('工具调用参数解析失败', {
-          toolName: item.name,
-          argumentsPreview: preview(item.arguments ?? '')
-        });
         args = {};
       }
 

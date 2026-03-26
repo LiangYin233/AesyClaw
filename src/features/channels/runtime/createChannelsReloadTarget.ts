@@ -1,8 +1,5 @@
 import type { ConfigReloadTargets } from '../../../features/config/reload/ports/ReloadTargets.js';
 import type { Services } from '../../../app/bootstrap/factory/ServiceFactory.js';
-import { logger } from '../../../platform/observability/index.js';
-
-const log = logger.child('Bootstrap');
 
 export function createChannelsReloadTarget(services: Services): NonNullable<ConfigReloadTargets['channels']> {
   return {
@@ -21,7 +18,6 @@ export function createChannelsReloadTarget(services: Services): NonNullable<Conf
         }
 
         if (!services.channelManager.getPlugin(`channel_${channelName}`)) {
-          log.warn('配置热重载时未找到渠道插件', { channel: channelName });
           continue;
         }
 

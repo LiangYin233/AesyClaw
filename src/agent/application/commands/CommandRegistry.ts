@@ -1,7 +1,6 @@
 import type { InboundMessage } from '../../../types.js';
 import type { CommandHandler, CommandDefinition, CommandMatcher } from './CommandHandler.js';
 import { logger } from '../../../platform/observability/index.js';
-import { normalizeCommandError } from './errors.js';
 
 export class CommandRegistry {
   private commands: Map<string, CommandDefinition> = new Map();
@@ -20,14 +19,9 @@ export class CommandRegistry {
     for (const cmd of this.commands.values()) {
       const { matched, args } = this.matchCommand(content, cmd.matcher);
       if (matched) {
-        this.log.info(`正在执行命令: ${cmd.name}`);
         try {
           return await cmd.handler(msg, args);
         } catch (error) {
-          this.log.error(`命令 ${cmd.name} 执行失败`, {
-            command: cmd.name,
-            error: normalizeCommandError(error)
-          });
           return {
             ...msg,
             content: `命令执行失败: ${error instanceof Error ? error.message : String(error)}`
