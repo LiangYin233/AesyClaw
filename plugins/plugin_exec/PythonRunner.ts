@@ -47,7 +47,11 @@ export class PythonRunner {
       const pythonProcess = spawn(this.executable, ['-I', '-B', '-c', code], {
         cwd,
         shell: false,
-        windowsHide: true
+        windowsHide: true,
+        env: {
+          ...process.env,
+          PYTHONIOENCODING: 'utf-8'
+        }
       });
 
       const finish = (value: string) => {
@@ -89,11 +93,11 @@ export class PythonRunner {
       }
 
       pythonProcess.stdout.on('data', (data: Buffer | string) => {
-        stdout += data.toString();
+        stdout += typeof data === 'string' ? data : data.toString('utf8');
       });
 
       pythonProcess.stderr.on('data', (data: Buffer | string) => {
-        stderr += data.toString();
+        stderr += typeof data === 'string' ? data : data.toString('utf8');
       });
 
       pythonProcess.on('error', (error: Error & NodeJS.ErrnoException) => {
