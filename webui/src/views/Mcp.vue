@@ -6,7 +6,6 @@
           <header class="mb-8">
             <p class="cn-kicker text-outline">MCP</p>
             <h1 class="cn-page-title mt-2 text-on-surface">MCP 连接中心</h1>
-            <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">在这里查看 MCP 服务连接状态、可用工具和相关日志，方便排查服务问题。</p>
           </header>
 
           <div v-if="error" class="mb-6 rounded-2xl border border-error/20 bg-error-container/60 px-5 py-4 text-sm text-on-error-container">

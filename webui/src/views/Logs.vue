@@ -5,7 +5,6 @@
         <div>
           <p class="cn-kicker text-outline">观测</p>
           <h1 class="cn-page-title mt-2 text-on-surface">日志观测面板</h1>
-          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">先看日志流，再根据等级、缓冲区占用和 Token 统计判断是否需要调整运行级别。</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <button

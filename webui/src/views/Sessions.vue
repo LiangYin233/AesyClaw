@@ -5,7 +5,6 @@
         <div>
           <p class="cn-kicker text-outline">会话</p>
           <h1 class="cn-page-title mt-2 text-on-surface">会话总台</h1>
-          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">优先处理会话列表、详情和删除动作，统计只作为当前工作区的辅助信息。</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <button

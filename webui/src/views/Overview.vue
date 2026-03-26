@@ -5,7 +5,6 @@
         <div>
           <p class="cn-kicker text-outline">总览</p>
           <h1 class="cn-page-title mt-2 text-on-surface">系统运行总览</h1>
-          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">先看风险、事件和活跃会话，再决定是否进入 Agent、MCP 或日志页继续处理。</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <button class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/16 bg-surface-container-lowest/80 px-4 py-2.5 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-low" type="button" :disabled="refreshing" @click="loadOverview">

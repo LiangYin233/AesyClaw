@@ -7,7 +7,6 @@
         </button>
         <div>
           <p class="font-headline text-lg font-black tracking-[0.04em] text-on-surface">AesyClaw</p>
-          <p class="hidden text-[11px] text-on-surface-variant md:block">Console workspace</p>
         </div>
       </div>
 

@@ -7,7 +7,6 @@
             <div>
               <p class="cn-kicker text-outline">工具</p>
               <h1 class="cn-page-title mt-2 text-on-surface">工具目录</h1>
-              <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">集中查看当前可暴露给 Agent 的工具定义、参数结构和描述文案。</p>
             </div>
             <div class="flex flex-wrap gap-3">
               <button class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface shadow-sm transition hover:bg-surface-container-high" type="button" :disabled="loading" @click="loadTools">

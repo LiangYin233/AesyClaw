@@ -5,7 +5,6 @@
         <div>
           <p class="cn-kicker text-outline">设置</p>
           <h1 class="cn-page-title mt-2 text-on-surface">系统配置</h1>
-          <p class="cn-body mt-2 max-w-3xl text-sm text-on-surface-variant">在这里调整服务参数、主模型、记忆策略和 Provider/Model 配置，保存后立即生效。</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <button
@@ -91,7 +90,6 @@
               <label class="space-y-1.5">
                 <span class="text-xs font-bold tracking-[0.08em] text-outline">主 Agent 模型</span>
                 <input v-model="configDraft.agents!.roles!.main!.model" class="tech-text w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="text" list="configured-model-refs" placeholder="从下方已配置模型中选择" />
-                <p class="text-[11px] text-on-surface-variant">留空表示当前实例处于未配置模式，API 与 WebUI 仍可启动。</p>
               </label>
               <label class="space-y-1.5">
                 <span class="text-xs font-bold tracking-[0.08em] text-outline">视觉回退模型</span>
@@ -195,7 +193,6 @@
           <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <h3 class="cn-section-title text-on-surface">Provider 与模型</h3>
-              <p class="mt-1 text-sm text-on-surface-variant">先配置 Provider，再为每个 Provider 添加模型能力。删除 Provider 会同时删除其模型，并清空相关模型引用。</p>
             </div>
             <div class="flex items-center gap-3">
               <span class="rounded-full bg-surface-container-low px-3 py-1 text-[10px] font-bold tracking-[0.08em] text-on-surface-variant">已配置模型 {{ modelRefOptions.length }}</span>
