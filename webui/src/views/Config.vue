@@ -288,7 +288,7 @@
                   <div
                     v-for="[modelName, modelConfig] in Object.entries(provider.models || {})"
                     :key="`${providerName}/${modelName}`"
-                    class="workspace-subtle grid grid-cols-1 gap-4 rounded-2xl p-4 lg:grid-cols-[minmax(0,1.2fr)_120px_130px_130px_auto]"
+                    class="workspace-subtle grid grid-cols-1 gap-4 rounded-2xl p-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(120px,0.7fr)_minmax(140px,0.8fr)_minmax(140px,0.8fr)_auto]"
                   >
                     <label class="space-y-1.5">
                       <span class="text-xs font-bold tracking-[0.08em] text-outline">模型名</span>
@@ -303,24 +303,26 @@
                       <span class="text-xs font-bold tracking-[0.08em] text-outline">Context</span>
                       <input v-model.number="modelConfig.maxContextTokens" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="number" min="1" placeholder="可选" />
                     </label>
-                    <div class="rounded-xl bg-surface-container-low/70 px-3 py-3">
-                      <div class="flex items-center justify-between gap-3">
-                        <span class="text-xs font-bold tracking-[0.08em] text-outline">Reasoning</span>
+                    <label class="space-y-1.5">
+                      <span class="text-xs font-bold tracking-[0.08em] text-outline">Reasoning</span>
+                      <div class="flex min-h-[42px] items-center justify-between rounded-lg bg-surface-container-low px-3 py-2.5">
+                        <span class="text-xs font-medium text-on-surface-variant">{{ modelConfig.reasoning ? '已启用' : '未启用' }}</span>
                         <button class="relative h-5 w-10 rounded-full transition" :class="modelConfig.reasoning ? 'bg-primary-container' : 'bg-surface-container-high'" type="button" @click="modelConfig.reasoning = !modelConfig.reasoning">
                           <span class="absolute top-0.5 size-4 rounded-full bg-white transition" :class="modelConfig.reasoning ? 'right-0.5' : 'left-0.5'"></span>
                         </button>
                       </div>
-                    </div>
-                    <div class="rounded-xl bg-surface-container-low/70 px-3 py-3">
-                      <div class="flex items-center justify-between gap-3">
-                        <span class="text-xs font-bold tracking-[0.08em] text-outline">Vision</span>
+                    </label>
+                    <label class="space-y-1.5">
+                      <span class="text-xs font-bold tracking-[0.08em] text-outline">Vision</span>
+                      <div class="flex min-h-[42px] items-center justify-between rounded-lg bg-surface-container-low px-3 py-2.5">
+                        <span class="text-xs font-medium text-on-surface-variant">{{ modelConfig.supportsVision ? '已启用' : '未启用' }}</span>
                         <button class="relative h-5 w-10 rounded-full transition" :class="modelConfig.supportsVision ? 'bg-primary-container' : 'bg-surface-container-high'" type="button" @click="modelConfig.supportsVision = !modelConfig.supportsVision">
                           <span class="absolute top-0.5 size-4 rounded-full bg-white transition" :class="modelConfig.supportsVision ? 'right-0.5' : 'left-0.5'"></span>
                         </button>
                       </div>
-                    </div>
+                    </label>
                     <button
-                      class="rounded-xl border border-error/20 px-4 py-2 text-sm font-semibold text-error transition hover:bg-error-container/60"
+                      class="rounded-xl border border-error/20 px-4 py-2 text-sm font-semibold text-error transition hover:bg-error-container/60 lg:self-end"
                       type="button"
                       @click="removeModel(providerName, modelName)"
                     >

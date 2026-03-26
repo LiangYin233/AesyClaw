@@ -59,8 +59,28 @@ export class ChannelManager {
     return config ? structuredClone(config) : {};
   }
 
+  registerConfiguredChannel(channelName: string, config: any): boolean {
+    const plugin = this.resolvePlugin(channelName);
+
+    if (!plugin) {
+      this.#log.warn('未找到渠道插件', { channelName });
+      return false;
+    }
+
+    if (this.#channels.has(plugin.channelName)) {
+      return true;
+    }
+
+    this.attachChannel(plugin, config);
+    this.#log.debug('渠道已按配置装配', {
+      channelName: plugin.channelName,
+      pluginName: plugin.pluginName
+    });
+    return true;
+  }
+
   async enableChannel(channelName: string, config: any): Promise<boolean> {
-    const plugin = this.getPlugin(`channel_${channelName}`);
+    const plugin = this.resolvePlugin(channelName);
 
     if (!plugin) {
       this.#log.warn('未找到渠道插件', { channelName });
@@ -68,40 +88,31 @@ export class ChannelManager {
     }
 
     const existing = this.#channels.get(plugin.channelName);
-    if (existing) {
-      if (existing.isRunning()) {
-        return true;
-      }
-
-      try {
-        await this.#runtime.startAdapter(plugin.channelName);
-        this.#log.info('渠道已启动', { channelName: plugin.channelName, pluginName: plugin.pluginName });
-        return true;
-      } catch (error) {
-        this.#log.error('渠道启动失败', {
-          channelName: plugin.channelName,
-          pluginName: plugin.pluginName,
-          error: normalizeChannelError(error)
-        });
-        return false;
-      }
+    if (existing?.isRunning()) {
+      return true;
     }
 
-    const channel = plugin.create(config);
-    this.#channels.set(plugin.channelName, channel);
-    this.#runtime.registerAdapter(plugin.channelName, channel);
+    const created = !existing;
+    if (created) {
+      this.attachChannel(plugin, config);
+    }
 
     try {
       await this.#runtime.startAdapter(plugin.channelName);
-      this.#log.info('渠道已创建并启动', { channelName: plugin.channelName, pluginName: plugin.pluginName });
+      this.#log.info(created ? '渠道已创建并启动' : '渠道已启动', {
+        channelName: plugin.channelName,
+        pluginName: plugin.pluginName
+      });
       return true;
     } catch (error) {
-      this.#channels.delete(plugin.channelName);
-      this.#runtime.unregisterAdapter(plugin.channelName);
-      this.#log.error('渠道启用失败', {
+      if (created) {
+        this.detachChannel(plugin.channelName);
+      }
+
+      this.#log.error(created ? '渠道启用失败' : '渠道启动失败', {
         channelName: plugin.channelName,
         pluginName: plugin.pluginName,
-          error: normalizeChannelError(error)
+        error: normalizeChannelError(error)
       });
       return false;
     }
@@ -129,7 +140,7 @@ export class ChannelManager {
   }
 
   async reconfigureChannel(channelName: string, config: any): Promise<boolean> {
-    const plugin = this.getPlugin(`channel_${channelName}`);
+    const plugin = this.resolvePlugin(channelName);
 
     if (!plugin) {
       this.#log.warn('未找到渠道插件', { channelName });
@@ -147,17 +158,14 @@ export class ChannelManager {
       if (wasRunning) {
         await this.#runtime.stopAdapter(channelName);
       }
-      this.#channels.delete(channelName);
-      this.#runtime.unregisterAdapter(channelName);
+      this.detachChannel(channelName);
 
       if (!config?.enabled) {
         this.#log.info('渠道配置已更新并停用', { channelName, pluginName: plugin.pluginName });
         return true;
       }
 
-      const nextChannel = plugin.create(config);
-      this.#channels.set(channelName, nextChannel);
-      this.#runtime.registerAdapter(channelName, nextChannel);
+      this.attachChannel(plugin, config);
       await this.#runtime.startAdapter(channelName);
       this.#log.info('渠道配置已重载', { channelName, pluginName: plugin.pluginName });
       return true;
@@ -284,5 +292,21 @@ export class ChannelManager {
       status[name] = { running: channel.isRunning() };
     }
     return status;
+  }
+
+  private resolvePlugin(channelName: string): ChannelPluginDefinition | undefined {
+    return this.getPlugin(`channel_${channelName}`);
+  }
+
+  private attachChannel(plugin: ChannelPluginDefinition, config: any): ChannelAdapter {
+    const channel = plugin.create(config);
+    this.#channels.set(plugin.channelName, channel);
+    this.#runtime.registerAdapter(plugin.channelName, channel);
+    return channel;
+  }
+
+  private detachChannel(channelName: string): void {
+    this.#channels.delete(channelName);
+    this.#runtime.unregisterAdapter(channelName);
   }
 }

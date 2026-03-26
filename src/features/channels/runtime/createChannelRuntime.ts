@@ -73,7 +73,7 @@ export async function createChannelRuntime(args: {
       continue;
     }
 
-    const enabled = await channelManager.enableChannel(channelName, channelConfig);
+    const enabled = channelManager.registerConfiguredChannel(channelName, channelConfig);
     if (!enabled) {
       appLog.warn(`未找到渠道插件: ${channelName}`);
     }

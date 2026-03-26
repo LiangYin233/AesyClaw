@@ -27,16 +27,6 @@ npm run start:all
 - 后端：TypeScript + Node.js + Express + SQLite
 - 前端：Vue 3 + Tailwind CSS + Vite
 
-**核心模块**：
-- `agent/` — AI Agent 核心，包含执行引擎、命令注册、消息处理
-- `channels/` — 消息渠道适配器，支持 OneBot 和飞书
-- `plugins/` — 插件系统，生命周期钩子驱动
-- `skills/` — 技能管理，Prompt 模板
-- `session/` — 会话管理，SQLite 持久化
-- `mcp/` — MCP 客户端
-- `api/` — Express REST API
-- `webui/` — Vue 3 管理界面
-
 ## WebUI
 
 访问 `http://localhost:5173/?token=你的server.token`
