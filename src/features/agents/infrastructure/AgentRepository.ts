@@ -1,7 +1,7 @@
-import type { AgentRoleService } from '../../agent/infrastructure/roles/AgentRoleService.js';
-import type { SessionRoutingService } from '../../agent/infrastructure/session/SessionRoutingService.js';
-import type { AgentRoleConfig } from '../../types.js';
-import { ServiceUnavailableError } from '../../platform/errors/index.js';
+import type { AgentRoleService } from '../../../agent/infrastructure/roles/AgentRoleService.js';
+import type { SessionRoutingService } from '../../../agent/infrastructure/session/SessionRoutingService.js';
+import type { AgentRoleConfig } from '../../../types.js';
+import { ServiceUnavailableError } from '../../../platform/errors/index.js';
 
 export class AgentRepository {
   constructor(

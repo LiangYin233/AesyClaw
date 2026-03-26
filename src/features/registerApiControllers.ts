@@ -1,5 +1,5 @@
 import type { ApiFeatureControllerDeps } from './featureDeps.js';
-import { registerAgentsFeature } from './agents/registerAgentsFeature.js';
+import { registerAgentsFeature } from './agents/index.js';
 import { registerChannelsFeature } from './channels/index.js';
 import { registerChatFeature } from './chat/index.js';
 import { registerConfigFeature } from './config/index.js';
@@ -9,7 +9,7 @@ import { registerMemoryFeature } from './memory/index.js';
 import { registerObservabilityFeature } from './observability/index.js';
 import { registerPluginsFeature } from './plugins/index.js';
 import { registerSessionsFeature } from './sessions/index.js';
-import { registerSkillsFeature } from './skills/registerSkillsFeature.js';
+import { registerSkillsFeature } from './skills/index.js';
 import { registerSystemFeature } from './system/index.js';
 
 export function registerApiControllers(deps: ApiFeatureControllerDeps): void {

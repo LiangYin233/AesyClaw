@@ -1,5 +1,5 @@
-import type { AgentRoleConfig } from '../../types.js';
-import { RequestValidationError } from '../../platform/errors/boundary.js';
+import type { AgentRoleConfig } from '../../../types.js';
+import { RequestValidationError } from '../../../platform/errors/boundary.js';
 
 export function parseAgentRoleInput(body: unknown, nameFromPath?: string): AgentRoleConfig {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {

@@ -1,9 +1,9 @@
 import type { Express } from 'express';
-import { asyncHandler } from '../../app/api/middleware/async-handler.js';
-import { SkillApiService } from './SkillApiService.js';
+import { asyncHandler } from '../../../app/api/middleware/async-handler.js';
+import { SkillsService } from '../application/SkillsService.js';
 import { parseToggleSkill } from './skills.dto.js';
 
-export function registerSkillsController(app: Express, service: SkillApiService): void {
+export function registerSkillsController(app: Express, service: SkillsService): void {
   app.get('/api/skills', (_req, res) => {
     res.json(service.listSkills());
   });

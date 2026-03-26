@@ -1,7 +1,7 @@
-import { NotFoundError, ValidationError } from '../../platform/errors/index.js';
-import type { SkillManager } from './application/SkillManager.js';
+import { NotFoundError, ValidationError } from '../../../platform/errors/index.js';
+import type { SkillManager } from './SkillManager.js';
 
-export class SkillApiService {
+export class SkillsService {
   constructor(private readonly skillManager: SkillManager) {}
 
   listSkills(): { skills: ReturnType<SkillManager['listSkills']> } {

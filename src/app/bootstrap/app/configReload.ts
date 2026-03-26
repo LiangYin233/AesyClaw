@@ -11,7 +11,7 @@ import { createMemoryReloadTarget } from '../../../features/memory/index.js';
 import { createObservabilityReloadTarget } from '../../../features/observability/index.js';
 import { createPluginsReloadTarget } from '../../../features/plugins/index.js';
 import { createSessionRoutingReloadTarget } from '../../../features/sessions/index.js';
-import { createSkillsReloadTarget } from '../../../features/skills/createSkillsReloadTarget.js';
+import { createSkillsReloadTarget } from '../../../features/skills/index.js';
 import { createProvider } from '../../../platform/providers/index.js';
 import type { Services } from '../factory/ServiceFactory.js';
 

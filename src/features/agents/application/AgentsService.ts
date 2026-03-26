@@ -3,9 +3,9 @@ import {
   NotFoundError,
   ValidationError,
   normalizeErrorMessage
-} from '../../platform/errors/index.js';
-import type { AgentRoleConfig } from '../../types.js';
-import { AgentRepository } from './AgentRepository.js';
+} from '../../../platform/errors/index.js';
+import type { AgentRoleConfig } from '../../../types.js';
+import { AgentRepository } from '../infrastructure/AgentRepository.js';
 
 function toAgentRoleError(error: unknown, name?: string): Error {
   const message = normalizeErrorMessage(error);
@@ -20,7 +20,7 @@ function toAgentRoleError(error: unknown, name?: string): Error {
   return new ValidationError(message);
 }
 
-export class AgentApiService {
+export class AgentsService {
   constructor(private readonly agentRepository: AgentRepository) {}
 
   listAgents(): { agents: ReturnType<AgentRepository['list']> } {
