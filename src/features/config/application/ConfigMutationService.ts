@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto';
-import type { Config } from '../schema.js';
-import { createDefaultConfig } from '../schema.js';
+import type { Config } from '../schema/index.js';
+import { createDefaultConfig } from '../schema/index.js';
 import { TomlConfigCodec } from '../infrastructure/codec/TomlConfigCodec.js';
 
 export type ConfigMutator = (config: Config) => void | Config | Promise<void | Config>;

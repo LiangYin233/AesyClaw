@@ -46,6 +46,3 @@ export interface SkillPromptItem {
   name: string;
   description: string;
 }
-
-export { SkillManager } from '../application/SkillManager.js';
-export type { SkillManagerOptions } from '../application/SkillManager.js';

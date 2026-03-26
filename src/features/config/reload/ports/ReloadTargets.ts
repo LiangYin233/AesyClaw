@@ -1,4 +1,4 @@
-import type { Config } from '../../schema.js';
+import type { Config } from '../../schema/index.js';
 
 export interface ConfigReloadLogger {
   info(message: string, fields?: Record<string, unknown>): void;

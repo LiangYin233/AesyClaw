@@ -13,7 +13,7 @@
   ProviderConfig,
   ServerConfig,
   ToolsConfig,
-} from './features/config/schema.js';
+} from './features/config/schema/index.js';
 import type {
   ChannelConversation,
   ChannelSender,

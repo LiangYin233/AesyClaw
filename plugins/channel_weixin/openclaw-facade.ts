@@ -5,15 +5,17 @@ import qrcodeTerminal from 'qrcode-terminal';
 import { logger as baseLogger } from '../../src/platform/observability/index.ts';
 import type { ResourceHandle } from '../../src/features/channels/domain/types.ts';
 import type { WeixinMessageItem } from './message-mapping.ts';
+import type { GetUpdatesResp, MessageItem, WeixinMessage } from '@tencent-weixin/openclaw-weixin/src/api/types.ts';
+import { MessageItemType, MessageState, MessageType, UploadMediaType } from '@tencent-weixin/openclaw-weixin/src/api/types.ts';
 import { downloadMediaFromItem } from '@tencent-weixin/openclaw-weixin/src/media/media-download.ts';
 import { uploadBufferToCdn } from '@tencent-weixin/openclaw-weixin/src/cdn/cdn-upload.ts';
 import { aesEcbPaddedSize } from '@tencent-weixin/openclaw-weixin/src/cdn/aes-ecb.ts';
 import { getMimeFromFilename, getExtensionFromMime } from '@tencent-weixin/openclaw-weixin/src/media/mime.ts';
-import type { GetUpdatesResp, MessageItem, WeixinMessage } from '@tencent-weixin/openclaw-weixin/src/api/types.ts';
 
 const DEFAULT_LOGIN_BOT_TYPE = '3';
 const DEFAULT_LONG_POLL_TIMEOUT_MS = 35_000;
 const DEFAULT_API_TIMEOUT_MS = 15_000;
+const OUTBOUND_MEDIA_TEMP_DIR = join(process.cwd(), '.aesyclaw', 'channels', 'weixin', 'outbound-media');
 const WEIXIN_HEADER_AUTH_TYPE = 'ilink_bot_token';
 const WEIXIN_SESSION_EXPIRED_ERRCODE = -14;
 
@@ -74,6 +76,13 @@ export interface WeixinFacade {
     outputDir: string;
     cdnBaseUrl: string;
   }): Promise<ResourceHandle | null>;
+}
+
+interface UploadedMediaInfo {
+  downloadEncryptedQueryParam: string;
+  aesKeyHex: string;
+  fileSize: number;
+  fileSizeCiphertext: number;
 }
 
 function encodeWechatUin(): string {
@@ -138,78 +147,74 @@ async function postJson<T>(args: {
   }
 }
 
-function fileKindToUploadMediaType(kind: ResourceHandle['kind']): number {
-  if (kind === 'image') {
-    return 1;
+function isRemoteUrl(value: string): boolean {
+  return value.startsWith('http://') || value.startsWith('https://');
+}
+
+async function downloadRemoteMediaToTemp(url: string, outputDir: string): Promise<string> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`远程媒体下载失败: ${response.status} ${response.statusText}`);
   }
-  if (kind === 'video') {
-    return 2;
-  }
-  if (kind === 'audio') {
-    return 4;
-  }
-  return 3;
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const extension = getExtensionFromMime(response.headers.get('content-type') || 'application/octet-stream');
+  const targetPath = join(outputDir, `${randomBytes(8).toString('hex')}${extension}`);
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(targetPath, buffer);
+  return targetPath;
+}
+
+function buildCdnMedia(uploaded: UploadedMediaInfo): NonNullable<MessageItem['image_item']>['media'] {
+  return {
+    encrypt_query_param: uploaded.downloadEncryptedQueryParam,
+    aes_key: Buffer.from(uploaded.aesKeyHex, 'hex').toString('base64'),
+    encrypt_type: 1
+  };
+}
+
+function buildTextMessageItem(text: string): MessageItem {
+  return {
+    type: MessageItemType.TEXT,
+    text_item: {
+      text
+    }
+  };
 }
 
 function fileKindToMessageItem(args: {
   kind: ResourceHandle['kind'];
   fileName: string;
-  fileSize: number;
-  fileSizeCiphertext: number;
-  encryptQueryParam: string;
-  aesKeyHex: string;
+  uploaded: UploadedMediaInfo;
 }): MessageItem {
-  const baseMedia = {
-    encrypt_query_param: args.encryptQueryParam,
-    aes_key: Buffer.from(args.aesKeyHex).toString('base64'),
-    encrypt_type: 1
-  };
+  const baseMedia = buildCdnMedia(args.uploaded);
 
   if (args.kind === 'image') {
     return {
-      type: 2,
+      type: MessageItemType.IMAGE,
       image_item: {
         media: baseMedia,
-        mid_size: args.fileSizeCiphertext
+        mid_size: args.uploaded.fileSizeCiphertext
       }
     };
   }
 
   if (args.kind === 'video') {
     return {
-      type: 5,
+      type: MessageItemType.VIDEO,
       video_item: {
         media: baseMedia,
-        video_size: args.fileSizeCiphertext
-      }
-    };
-  }
-
-  if (args.kind === 'audio') {
-    const ext = extname(args.fileName).toLowerCase();
-    const encodeType = ext === '.mp3'
-      ? 7
-      : ext === '.ogg'
-        ? 8
-        : ext === '.wav'
-          ? 1
-          : 6;
-
-    return {
-      type: 3,
-      voice_item: {
-        media: baseMedia,
-        encode_type: encodeType
+        video_size: args.uploaded.fileSizeCiphertext
       }
     };
   }
 
   return {
-    type: 4,
+    type: MessageItemType.FILE,
     file_item: {
       media: baseMedia,
       file_name: args.fileName,
-      len: String(args.fileSize)
+      len: String(args.uploaded.fileSize)
     }
   };
 }
@@ -220,10 +225,8 @@ async function uploadMedia(args: {
   token: string;
   toUserId: string;
   filePath: string;
-  kind: ResourceHandle['kind'];
-}): Promise<{
-  item: MessageItem;
-}> {
+  mediaType: number;
+}): Promise<UploadedMediaInfo> {
   const fileBuffer = await readFile(args.filePath);
   const aesKey = randomBytes(16);
   const fileKey = randomBytes(16).toString('hex');
@@ -239,7 +242,7 @@ async function uploadMedia(args: {
     token: args.token,
     body: {
       filekey: fileKey,
-      media_type: fileKindToUploadMediaType(args.kind),
+      media_type: args.mediaType,
       to_user_id: args.toUserId,
       rawsize: fileBuffer.length,
       rawfilemd5: rawFileMd5,
@@ -263,14 +266,48 @@ async function uploadMedia(args: {
   });
 
   return {
-    item: fileKindToMessageItem({
-      kind: args.kind,
-      fileName: basename(args.filePath),
-      fileSize: fileBuffer.length,
-      fileSizeCiphertext: aesEcbPaddedSize(fileBuffer.length),
-      encryptQueryParam: uploaded.downloadParam,
-      aesKeyHex: aesKey.toString('hex')
-    })
+    downloadEncryptedQueryParam: uploaded.downloadParam,
+    aesKeyHex: aesKey.toString('hex'),
+    fileSize: fileBuffer.length,
+    fileSizeCiphertext: aesEcbPaddedSize(fileBuffer.length)
+  };
+}
+
+async function uploadAudioMedia(args: {
+  baseUrl: string;
+  cdnBaseUrl: string;
+  token: string;
+  toUserId: string;
+  filePath: string;
+}): Promise<MessageItem> {
+  const uploaded = await uploadMedia({
+    baseUrl: args.baseUrl,
+    cdnBaseUrl: args.cdnBaseUrl,
+    token: args.token,
+    toUserId: args.toUserId,
+    filePath: args.filePath,
+    mediaType: UploadMediaType.VOICE
+  });
+
+  const ext = extname(args.filePath).toLowerCase();
+  const encodeType = ext === '.mp3'
+    ? 7
+    : ext === '.ogg'
+      ? 8
+      : ext === '.wav'
+        ? 1
+        : 6;
+
+  return {
+    type: MessageItemType.VOICE,
+    voice_item: {
+      media: {
+        encrypt_query_param: uploaded.downloadEncryptedQueryParam,
+        aes_key: Buffer.from(uploaded.aesKeyHex, 'hex').toString('base64'),
+        encrypt_type: 1
+      },
+      encode_type: encodeType
+    }
   };
 }
 
@@ -297,8 +334,8 @@ async function sendMessageItems(args: {
           from_user_id: '',
           to_user_id: args.toUserId,
           client_id: lastMessageId,
-          message_type: 2,
-          message_state: 2,
+          message_type: MessageType.BOT,
+          message_state: MessageState.FINISH,
           context_token: args.contextToken,
           item_list: [item]
         }
@@ -425,12 +462,7 @@ export function createWeixinFacade(logger?: LoggerLike): WeixinFacade {
         toUserId: args.toUserId,
         contextToken: args.contextToken,
         items: [
-          {
-            type: 1,
-            text_item: {
-              text: args.text
-            }
-          }
+          buildTextMessageItem(args.text)
         ]
       });
       log.debug('微信文本已发送', { toUserId: args.toUserId });
@@ -438,25 +470,42 @@ export function createWeixinFacade(logger?: LoggerLike): WeixinFacade {
     },
 
     async sendMedia(args) {
-      const upload = await uploadMedia({
-        baseUrl: args.baseUrl,
-        cdnBaseUrl: args.cdnBaseUrl,
-        token: args.token,
-        toUserId: args.toUserId,
-        filePath: args.filePath,
-        kind: args.kind
-      });
+      const normalizedFilePath = isRemoteUrl(args.filePath)
+        ? await downloadRemoteMediaToTemp(args.filePath, OUTBOUND_MEDIA_TEMP_DIR)
+        : args.filePath;
 
       const items: MessageItem[] = [];
       if (args.text?.trim()) {
-        items.push({
-          type: 1,
-          text_item: {
-            text: args.text.trim()
-          }
-        });
+        items.push(buildTextMessageItem(args.text.trim()));
       }
-      items.push(upload.item);
+
+      if (args.kind === 'audio') {
+        items.push(await uploadAudioMedia({
+          baseUrl: args.baseUrl,
+          cdnBaseUrl: args.cdnBaseUrl,
+          token: args.token,
+          toUserId: args.toUserId,
+          filePath: normalizedFilePath
+        }));
+      } else {
+        const uploaded = await uploadMedia({
+          baseUrl: args.baseUrl,
+          cdnBaseUrl: args.cdnBaseUrl,
+          token: args.token,
+          toUserId: args.toUserId,
+          filePath: normalizedFilePath,
+          mediaType: args.kind === 'image'
+            ? UploadMediaType.IMAGE
+            : args.kind === 'video'
+              ? UploadMediaType.VIDEO
+              : UploadMediaType.FILE
+        });
+        items.push(fileKindToMessageItem({
+          kind: args.kind === 'file' ? 'file' : args.kind,
+          fileName: basename(normalizedFilePath),
+          uploaded
+        }));
+      }
 
       return sendMessageItems({
         baseUrl: args.baseUrl,

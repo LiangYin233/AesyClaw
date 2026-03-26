@@ -6,7 +6,9 @@ export function createObservabilityReloadTarget(): NonNullable<ConfigReloadTarge
   return {
     applyConfig(config) {
       logging.configure({
-        level: getObservabilityConfig(config).level
+        level: getObservabilityConfig(config).level,
+        bufferSize: getObservabilityConfig(config).bufferSize,
+        pretty: getObservabilityConfig(config).pretty
       });
     }
   };

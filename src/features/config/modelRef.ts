@@ -36,3 +36,8 @@ export function tryParseModelRef(value?: string | null): ParsedModelRef | undefi
 
   return parseModelRef(value);
 }
+
+export function resolveExecutionModel(modelRef: string): string {
+  const trimmed = modelRef.trim();
+  return tryParseModelRef(trimmed)?.modelName ?? trimmed;
+}

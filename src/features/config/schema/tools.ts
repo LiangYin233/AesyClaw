@@ -6,7 +6,9 @@ export const toolsConfigSchema = withObjectInputDefault({
 });
 
 export const observabilityConfigSchema = z.object({
-  level: z.enum(['debug', 'info', 'warn', 'error']).default('info')
+  level: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  bufferSize: z.number().int().positive().finite().default(1000),
+  pretty: z.boolean().default(true)
 }).strict().prefault(() => ({}));
 
 export type ToolsConfig = z.output<typeof toolsConfigSchema>;

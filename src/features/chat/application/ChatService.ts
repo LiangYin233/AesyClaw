@@ -1,13 +1,15 @@
 import { randomUUID } from 'crypto';
+import type { AgentRuntime } from '../../../agent/index.js';
 import { DomainValidationError } from '../../../platform/errors/domain.js';
-import { ChatGateway } from '../infrastructure/ChatGateway.js';
 import type { CreateChatRequestDto } from '../api/chat.dto.js';
 
 const WEBUI_CHANNEL = 'webui';
 
+type DirectChatHandler = Pick<AgentRuntime, 'handleDirect'>;
+
 export class ChatService {
   constructor(
-    private readonly chatGateway: ChatGateway,
+    private readonly directChatHandler: DirectChatHandler,
     private readonly maxMessageLength: number
   ) {}
 
@@ -22,7 +24,7 @@ export class ChatService {
     const resolvedChannel = channel || WEBUI_CHANNEL;
     const key = sessionKey || `${resolvedChannel}:${randomUUID()}`;
     const resolvedChatId = chatId || sessionKey || key;
-    const response = await this.chatGateway.handleDirect(message, {
+    const response = await this.directChatHandler.handleDirect(message, {
       sessionKey: key,
       channel: resolvedChannel,
       chatId: resolvedChatId,

@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { isEmbeddingCapableProvider } from '../providerCapabilities.js';
 import { parseModelRef } from '../modelRef.js';
 import { resolveConfig, type ResolvedConfig } from '../resolve.js';
 import {
@@ -20,6 +19,7 @@ import {
 } from './memory.js';
 import {
   createDefaultProviders,
+  isEmbeddingCapableProvider,
   providerConfigSchema,
   providerTypeSchema,
   type ProviderConfig,

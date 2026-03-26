@@ -1,5 +1,5 @@
 import { parse, stringify } from 'smol-toml';
-import { parseConfig, type Config } from '../../schema.js';
+import { parseConfig, type Config } from '../../schema/index.js';
 import { flattenProviderModelTables, toSerializableConfig } from './providerTableCodec.js';
 
 export class TomlConfigCodec {

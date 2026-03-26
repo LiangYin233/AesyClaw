@@ -1,4 +1,4 @@
-import type { Config } from '../schema.js';
+import type { Config } from '../schema/index.js';
 
 export type ConfigSource = Config | { getConfig(): Config };
 

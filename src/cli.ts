@@ -2,7 +2,8 @@
 
 import { spawn, execSync, ChildProcess } from 'child_process';
 import { bootstrap, StartupInterruptedError } from './app/bootstrap/index.js';
-import { ConfigLoader } from './features/config/index.js';
+import { defaultConfigService } from './features/config/index.js';
+import { logger } from './platform/observability/index.js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -31,7 +32,6 @@ interface StartTarget {
 interface ResolvedStartTarget {
   command: string;
   args: string[];
-  shell: boolean;
 }
 
 type ChildProcessStdio = ['ignore', 'inherit', 'inherit'];
@@ -41,12 +41,7 @@ interface ShutdownState {
   shutdownRequested?: boolean;
 }
 
-function log(prefix: string, message: string) {
-  console.log(`${prefix} ${message}`);
-}
-
-const warn = (msg: string) => log('[WARN]', msg);
-const error = (msg: string) => log('[ERROR]', msg);
+const cliLog = logger.child('CLI');
 
 function createStartTargets(): Record<'webui', StartTarget> {
   return {
@@ -58,12 +53,42 @@ function createStartTargets(): Record<'webui', StartTarget> {
   };
 }
 
-function resolveStartTarget(target: StartTarget): ResolvedStartTarget {
+export function buildHelpText(version: string): string {
+  return `
+AesyClaw CLI v${version}
+
+Usage: tsx src/cli.ts <command> [options]
+
+Commands:
+  gateway        Start gateway service directly (single process)
+  start [mode]   Start services in background (gateway|webui|all)
+  status         Show configured ports
+
+Examples:
+  tsx src/cli.ts gateway
+  tsx src/cli.ts start all
+  tsx src/cli.ts start gateway
+  tsx src/cli.ts status
+`;
+}
+
+function quoteWindowsArgument(value: string): string {
+  if (value.length === 0) {
+    return '""';
+  }
+
+  if (!/[ \t"]/u.test(value)) {
+    return value;
+  }
+
+  return `"${value.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/g, '$1$1')}"`;
+}
+
+export function resolveStartTarget(target: StartTarget): ResolvedStartTarget {
   if (process.platform !== 'win32') {
     return {
       command: target.file,
-      args: target.args,
-      shell: false
+      args: target.args
     };
   }
 
@@ -73,15 +98,17 @@ function resolveStartTarget(target: StartTarget): ResolvedStartTarget {
   if (!requiresShell) {
     return {
       command: target.file,
-      args: target.args,
-      shell: false
+      args: target.args
     };
   }
 
+  const shellCommand = [target.file, ...target.args]
+    .map(quoteWindowsArgument)
+    .join(' ');
+
   return {
-    command: target.file,
-    args: target.args,
-    shell: true
+    command: process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe',
+    args: ['/d', '/s', '/c', shellCommand]
   };
 }
 
@@ -145,7 +172,6 @@ function startProcess(name: string, target: StartTarget): Promise<ChildProcess> 
     const resolvedTarget = resolveStartTarget(target);
 
     const child = spawn(resolvedTarget.command, resolvedTarget.args, {
-      shell: resolvedTarget.shell,
       cwd: target.cwd || process.cwd(),
       env: process.env,
       stdio: getChildProcessStdio()
@@ -161,7 +187,7 @@ function startProcess(name: string, target: StartTarget): Promise<ChildProcess> 
     });
 
     child.once('error', (err) => {
-      error(`Failed to start ${name}: ${err.message}`);
+      cliLog.error(`Failed to start ${name}`, { detail: err.message });
       if (settled) return;
       settled = true;
       reject(err);
@@ -174,7 +200,7 @@ function startProcess(name: string, target: StartTarget): Promise<ChildProcess> 
       }
 
       if (code !== null && code !== 0 && !signal) {
-        warn(`${name} exited with code ${code}`);
+        cliLog.warn(`${name} exited with code ${code}`);
       }
     });
   });
@@ -241,22 +267,7 @@ function showHelp(): void {
     readFileSync(join(__dirname, '../package.json'), 'utf-8')
   );
 
-  console.log(`
-AesyClaw CLI v${packageJson.version}
-
-Usage: tsx src/cli.ts <command> [options]
-
-Commands:
-  gateway        Start gateway service directly (single process)
-  start [mode]   Start services in background (gateway|webui|all)
-  status         Show configured ports
-
-Examples:
-  tsx src/cli.ts gateway
-  tsx src/cli.ts start all
-  tsx src/cli.ts start gateway
-  tsx src/cli.ts status
-`);
+  console.log(buildHelpText(packageJson.version));
 }
 
 // 主函数
@@ -293,18 +304,18 @@ async function main(): Promise<void> {
       break;
     }
     case 'status': {
-      const config = await ConfigLoader.load();
+      const config = await defaultConfigService.load();
       const ports: Ports = {
         api: config.server.apiPort || 18792,
         webui: 5173
       };
       getStatus(ports);
-      ConfigLoader.stopWatching();
+      defaultConfigService.stopWatching();
       process.exit(0);
     }
       break;
     default:
-      error(`Unknown command: ${command}`);
+      cliLog.error(`Unknown command: ${command}`);
       showHelp();
       process.exit(1);
   }
@@ -315,8 +326,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     if (err instanceof StartupInterruptedError) {
       process.exit(0);
     }
-    error(`Fatal error: ${err.message}`);
-    console.error(err);
+    cliLog.error('Fatal CLI error', {
+      detail: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined
+    });
     process.exit(1);
   });
 }

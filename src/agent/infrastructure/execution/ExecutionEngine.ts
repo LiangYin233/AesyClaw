@@ -1,7 +1,7 @@
 import type { VisionSettings } from '../../../types.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
 import type { PluginManager } from '../../../features/plugins/index.js';
-import { resolveExecutionModel } from '../../../features/config/executionModel.js';
+import { resolveExecutionModel } from '../../../features/config/modelRef.js';
 import type { ToolRegistry, ToolContext } from '../../../platform/tools/ToolRegistry.js';
 import type { AgentRoleService } from '../roles/AgentRoleService.js';
 import { AgentExecutor } from './AgentExecutor.js';

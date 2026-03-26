@@ -1,7 +1,7 @@
 import { tryParseModelRef } from '../modelRef.js';
-import { isEmbeddingCapableProvider } from '../providerCapabilities.js';
 import { resolveProviderSelection } from '../resolve.js';
 import type { ContextMode, ProviderConfig } from '../schema/index.js';
+import { isEmbeddingCapableProvider } from '../schema/providers.js';
 import { readConfig, type ConfigSource } from './shared.js';
 
 export type ResolvedMemorySummaryConfig = {

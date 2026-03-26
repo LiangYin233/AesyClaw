@@ -1,3 +1,7 @@
+import pino, { type DestinationStream, type Logger as PinoLogger, type LoggerOptions } from 'pino';
+import pretty from 'pino-pretty';
+import { execFileSync } from 'child_process';
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 export type LogFieldValue = string | number | boolean | null;
 export type LogFields = Record<string, unknown>;
@@ -14,6 +18,7 @@ export interface LogEntry {
 export interface LoggingConfig {
   level: LogLevel;
   bufferSize: number;
+  pretty: boolean;
 }
 
 export interface Logger {
@@ -24,6 +29,10 @@ export interface Logger {
   error(message: string, fields?: LogFields): void;
 }
 
+export interface LoggingServiceOptions {
+  destination?: DestinationStream;
+}
+
 const LEVELS: Record<LogLevel, number> = {
   debug: 0,
   info: 1,
@@ -32,6 +41,54 @@ const LEVELS: Record<LogLevel, number> = {
 };
 
 const DEFAULT_PREVIEW_LIMIT = 120;
+const ANSI_RESET_FOREGROUND = '\u001B[39m';
+
+let windowsConsoleUtf8Initialized = false;
+
+function initializeWindowsConsoleUtf8(): void {
+  if (windowsConsoleUtf8Initialized || process.platform !== 'win32') {
+    return;
+  }
+  windowsConsoleUtf8Initialized = true;
+
+  try {
+    process.stdout?.setDefaultEncoding?.('utf8');
+    process.stderr?.setDefaultEncoding?.('utf8');
+  } catch {
+    // Ignore stream encoding failures and continue with the code-page fallback.
+  }
+
+  try {
+    const comspec = process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
+    execFileSync(comspec, ['/d', '/s', '/c', 'chcp 65001>nul'], {
+      stdio: 'ignore',
+      windowsHide: true
+    });
+  } catch {
+    // Best effort only. Some restricted environments block spawning cmd.exe.
+  }
+}
+
+function shouldColorizePrettyOutput(): boolean {
+  if (process.env.NO_COLOR) {
+    return false;
+  }
+
+  const stdout = process.stdout;
+  if (!stdout || !stdout.isTTY) {
+    return false;
+  }
+
+  if (typeof stdout.hasColors === 'function') {
+    try {
+      return stdout.hasColors();
+    } catch {
+      return false;
+    }
+  }
+
+  return process.env.TERM !== 'dumb';
+}
 
 function normalizeSensitiveKey(key: string): string {
   return key.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
@@ -101,7 +158,7 @@ export function preview(value: unknown, limit: number = DEFAULT_PREVIEW_LIMIT): 
     return compact;
   }
 
-  return `${compact.slice(0, Math.max(limit - 1, 1))}…`;
+  return `${compact.slice(0, Math.max(limit - 1, 1))}...`;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -164,6 +221,54 @@ function normalizeScope(scope: string): string {
   return scope;
 }
 
+function formatInlineFieldValue(value: unknown): string {
+  if (value === undefined || value === null) {
+    return String(value);
+  }
+
+  if (typeof value === 'string') {
+    return value.includes(' ') ? JSON.stringify(value) : value;
+  }
+
+  return String(value);
+}
+
+function formatInlineFields(fields?: Record<string, LogFieldValue>): string {
+  if (!fields) {
+    return '';
+  }
+
+  const entries = Object.entries(fields)
+    .filter(([key]) => key !== 'request_id')
+    .slice(0, 8)
+    .map(([key, value]) => `${key}=${formatInlineFieldValue(value)}`);
+
+  return entries.length > 0 ? entries.join(' ') : '';
+}
+
+function formatConsoleMessage(
+  level: LogLevel,
+  colorize: boolean,
+  scope: string,
+  requestId: string | undefined,
+  message: string,
+  fields?: Record<string, LogFieldValue>
+): string {
+  const scopeLabel = scope && scope !== 'root' ? `[${scope}]` : '';
+  const requestLabel = requestId ? `[req:${requestId}]` : '';
+  const fieldsLabel = formatInlineFields(fields);
+
+  const baseMessage = [scopeLabel, requestLabel, message, fieldsLabel]
+    .filter(Boolean)
+    .join(' ');
+
+  if (colorize && level === 'info') {
+    return `${ANSI_RESET_FOREGROUND}${baseMessage}`;
+  }
+
+  return baseMessage;
+}
+
 class LogBuffer {
   private entries: LogEntry[] = [];
   private sequence = 0;
@@ -199,14 +304,23 @@ class LogBuffer {
   }
 }
 
-class LoggingService {
+export class LoggingService {
   private config: LoggingConfig = {
     level: 'info',
-    bufferSize: 1000
+    bufferSize: 1000,
+    pretty: true
   };
   private buffer = new LogBuffer(this.config.bufferSize);
+  private defaultPrettyEmitter?: PinoLogger;
+  private defaultJsonEmitter?: PinoLogger;
+  private customEmitter?: PinoLogger;
 
-  readonly root: Logger = new ScopedLogger(this, '');
+  readonly root: Logger;
+
+  constructor(private readonly options: LoggingServiceOptions = {}) {
+    initializeWindowsConsoleUtf8();
+    this.root = new ScopedLogger(this, '');
+  }
 
   configure(partial: Partial<LoggingConfig>): void {
     this.config = {
@@ -214,10 +328,12 @@ class LoggingService {
       ...partial
     };
     this.buffer.setLimit(this.config.bufferSize);
+    this.syncEmitterLevels();
   }
 
   setLevel(level: LogLevel): void {
     this.config.level = level;
+    this.syncEmitterLevels();
   }
 
   getLevel(): LogLevel {
@@ -243,7 +359,8 @@ class LoggingService {
 
     const fields = this.normalizeFields(rawFields);
     const timestamp = new Date();
-    const line = this.formatLine({ level, scope, message, fields, timestamp });
+    const normalizedScope = normalizeScope(scope);
+    const requestId = typeof fields?.request_id === 'string' ? fields.request_id : undefined;
 
     this.buffer.add({
       timestamp: formatLocalTimestamp(timestamp),
@@ -253,15 +370,85 @@ class LoggingService {
       fields
     });
 
-    if (level === 'error') {
-      console.error(line);
+    const payload: Record<string, unknown> = {
+      scope: normalizedScope || 'root'
+    };
+
+    if (requestId) {
+      payload.request_id = requestId;
+    }
+    if (fields && Object.keys(fields).length > 0) {
+      payload.fields = fields;
+    }
+
+    if (this.config.pretty && !this.options.destination) {
+      this.getEmitter()[level](formatConsoleMessage(
+        level,
+        shouldColorizePrettyOutput(),
+        payload.scope as string,
+        requestId,
+        message,
+        fields
+      ));
       return;
     }
-    if (level === 'warn') {
-      console.warn(line);
-      return;
+
+    this.getEmitter()[level](payload, message);
+  }
+
+  private syncEmitterLevels(): void {
+    if (this.customEmitter) {
+      this.customEmitter.level = this.config.level;
     }
-    console.log(line);
+    if (this.defaultPrettyEmitter) {
+      this.defaultPrettyEmitter.level = this.config.level;
+    }
+    if (this.defaultJsonEmitter) {
+      this.defaultJsonEmitter.level = this.config.level;
+    }
+  }
+
+  private getEmitter(): PinoLogger {
+    if (this.options.destination) {
+      if (!this.customEmitter) {
+        this.customEmitter = this.createEmitter(this.options.destination);
+      }
+      return this.customEmitter;
+    }
+
+    if (this.config.pretty) {
+      if (!this.defaultPrettyEmitter) {
+        this.defaultPrettyEmitter = this.createEmitter(pretty({
+          colorize: shouldColorizePrettyOutput(),
+          crlf: process.platform === 'win32',
+          destination: process.stdout,
+          ignore: 'pid,hostname',
+          messageKey: 'message',
+          sync: true
+        }) as DestinationStream);
+      }
+      return this.defaultPrettyEmitter;
+    }
+
+    if (!this.defaultJsonEmitter) {
+      this.defaultJsonEmitter = this.createEmitter(process.stdout);
+    }
+    return this.defaultJsonEmitter;
+  }
+
+  private createEmitter(destination: DestinationStream): PinoLogger {
+    const options: LoggerOptions = {
+      level: this.config.level,
+      base: undefined,
+      messageKey: 'message',
+      errorKey: 'error',
+      formatters: {
+        level: (label) => ({ level: label })
+      },
+      timestamp: () => `,"time":"${formatLocalTimestamp()}"`
+    };
+
+    return pino(options, destination);
   }
 
   private normalizeFields(rawFields?: unknown): Record<string, LogFieldValue> | undefined {
@@ -283,32 +470,6 @@ class LoggingService {
     }
 
     return Object.keys(fields).length > 0 ? fields : undefined;
-  }
-
-  private formatLine(entry: {
-    level: LogLevel;
-    scope: string;
-    message: string;
-    fields?: Record<string, LogFieldValue>;
-    timestamp: Date;
-  }): string {
-    const normalizedScope = normalizeScope(entry.scope);
-    const requestId = entry.fields?.request_id;
-    const payload: Record<string, unknown> = {
-      timestamp: formatLocalTimestamp(entry.timestamp),
-      level: entry.level,
-      scope: normalizedScope,
-      message: entry.message
-    };
-
-    if (typeof requestId === 'string') {
-      payload.request_id = requestId;
-    }
-    if (entry.fields && Object.keys(entry.fields).length > 0) {
-      payload.fields = entry.fields;
-    }
-
-    return JSON.stringify(payload);
   }
 }
 

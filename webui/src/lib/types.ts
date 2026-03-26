@@ -81,6 +81,7 @@ export interface ObservabilityLogEntry {
 export interface ObservabilityLoggingConfig {
   level: LogLevel;
   bufferSize: number;
+  pretty: boolean;
 }
 
 export interface ObservabilityEntriesResponse {
@@ -284,6 +285,8 @@ export interface AppConfig {
   }>;
   observability?: {
     level?: LogLevel;
+    bufferSize?: number;
+    pretty?: boolean;
   };
   tools?: {
     timeoutMs?: number;

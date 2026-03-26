@@ -1,28 +1,28 @@
 import { NotFoundError, ValidationError } from '../../platform/errors/index.js';
-import { SkillRepository } from './SkillRepository.js';
+import type { SkillManager } from './application/SkillManager.js';
 
 export class SkillApiService {
-  constructor(private readonly skillRepository: SkillRepository) {}
+  constructor(private readonly skillManager: SkillManager) {}
 
-  listSkills(): { skills: ReturnType<SkillRepository['list']> } {
-    return { skills: this.skillRepository.list() };
+  listSkills(): { skills: ReturnType<SkillManager['listSkills']> } {
+    return { skills: this.skillManager.listSkills() };
   }
 
-  getSkill(name: string): { skill: NonNullable<ReturnType<SkillRepository['getByName']>> } {
-    const skill = this.skillRepository.getByName(name);
+  getSkill(name: string): { skill: NonNullable<ReturnType<SkillManager['getSkill']>> } {
+    const skill = this.skillManager.getSkill(name);
     if (!skill) {
       throw new NotFoundError('Skill', name);
     }
     return { skill };
   }
 
-  async reload(): Promise<{ success: true; summary: Awaited<ReturnType<SkillRepository['reload']>> }> {
-    const summary = await this.skillRepository.reload();
+  async reload(): Promise<{ success: true; summary: Awaited<ReturnType<SkillManager['reload']>> }> {
+    const summary = await this.skillManager.reload();
     return { success: true, summary };
   }
 
   async toggleSkill(name: string, enabled: boolean): Promise<{ success: true }> {
-    const skill = this.skillRepository.getByName(name);
+    const skill = this.skillManager.getSkill(name);
     if (!skill) {
       throw new NotFoundError('Skill', name);
     }
@@ -30,7 +30,7 @@ export class SkillApiService {
       throw new ValidationError('built-in skill cannot be toggled', 'name');
     }
 
-    const success = await this.skillRepository.toggle(name, enabled);
+    const success = await this.skillManager.toggleSkill(name, enabled);
     if (!success) {
       throw new NotFoundError('Skill', name);
     }

@@ -2,25 +2,30 @@ import type {
   Config,
   ToolsConfig,
   ObservabilityConfig
-} from './schema.js';
+} from './schema/index.js';
 import { ConfigSnapshotStore } from './infrastructure/runtime/ConfigSnapshotStore.js';
-import { ConfigQueryService } from './application/ConfigQueryService.js';
-import type {
-  ResolvedMainAgentConfig,
+import {
+  getMainAgentConfig,
+  type ResolvedMainAgentConfig
+} from './domain/mainAgent.js';
+import {
+  getMemoryConfig,
+  getMemoryRecallConfig,
+  getMemorySummaryConfig,
   ResolvedMemoryConfig,
   ResolvedMemoryRecallConfig,
   ResolvedMemorySummaryConfig
-} from './selectors.js';
+} from './domain/memory.js';
+import { getObservabilityConfig } from './domain/observability.js';
+import { getToolRuntimeConfig } from './domain/tools.js';
 
 export class RuntimeConfigStore {
   private readonly snapshotStore: ConfigSnapshotStore;
-  private readonly queryService: ConfigQueryService;
 
   constructor(source: Config | ConfigSnapshotStore) {
     this.snapshotStore = source instanceof ConfigSnapshotStore
       ? source
       : new ConfigSnapshotStore(source);
-    this.queryService = new ConfigQueryService(this.snapshotStore);
   }
 
   getSnapshotStore(): ConfigSnapshotStore {
@@ -36,26 +41,26 @@ export class RuntimeConfigStore {
   }
 
   getMainAgentConfig(): ResolvedMainAgentConfig {
-    return this.queryService.getMainAgentConfig();
+    return getMainAgentConfig(this.snapshotStore);
   }
 
   getMemoryConfig(): ResolvedMemoryConfig {
-    return this.queryService.getMemoryConfig();
+    return getMemoryConfig(this.snapshotStore);
   }
 
   getMemorySummaryConfig(): ResolvedMemorySummaryConfig {
-    return this.queryService.getMemorySummaryConfig();
+    return getMemorySummaryConfig(this.snapshotStore);
   }
 
   getMemoryRecallConfig(): ResolvedMemoryRecallConfig {
-    return this.queryService.getMemoryRecallConfig();
+    return getMemoryRecallConfig(this.snapshotStore);
   }
 
   getToolRuntimeConfig(): ToolsConfig {
-    return this.queryService.getToolRuntimeConfig();
+    return getToolRuntimeConfig(this.snapshotStore);
   }
 
   getObservabilityConfig(): ObservabilityConfig {
-    return this.queryService.getObservabilityConfig();
+    return getObservabilityConfig(this.snapshotStore);
   }
 }

@@ -1,35 +1,37 @@
 import { formatLocalTimestamp } from '../../platform/observability/logging.js';
-import { logger, type LogLevel } from '../../platform/observability/index.js';
-import { ObservabilityRepository } from './ObservabilityRepository.js';
+import { logger, logging, tokenUsage, type LogLevel } from '../../platform/observability/index.js';
+import type { Config } from '../../types.js';
 
 const log = logger.child('ObservabilityAPI');
 
 export class ObservabilityApiService {
-  constructor(private readonly observabilityRepository: ObservabilityRepository) {}
+  constructor(
+    private readonly updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>
+  ) {}
 
-  getLoggingConfig(): ReturnType<ObservabilityRepository['getLoggingConfig']> {
-    return this.observabilityRepository.getLoggingConfig();
+  getLoggingConfig(): ReturnType<typeof logging.getConfig> {
+    return logging.getConfig();
   }
 
   getLoggingEntries(query: { limit: number; level?: LogLevel }): {
-    entries: ReturnType<ObservabilityRepository['getLoggingEntries']>;
+    entries: ReturnType<typeof logging.getEntries>;
     total: number;
     bufferSize: number;
     level: LogLevel;
   } {
     return {
-      entries: this.observabilityRepository.getLoggingEntries(query),
-      total: this.observabilityRepository.getLoggingBufferSize(),
-      bufferSize: this.observabilityRepository.getLoggingConfig().bufferSize,
-      level: this.observabilityRepository.getCurrentLoggingLevel()
+      entries: logging.getEntries(query),
+      total: logging.getBufferSize(),
+      bufferSize: logging.getConfig().bufferSize,
+      level: logging.getLevel()
     };
   }
 
   async updateLoggingLevel(level: LogLevel): Promise<{ success: true; level: LogLevel }> {
-    this.observabilityRepository.setLoggingLevel(level);
+    logging.setLevel(level);
 
     try {
-      await this.observabilityRepository.updateConfig((config) => {
+      await this.updateConfig((config) => {
         config.observability.level = level;
       });
       log.info('日志级别已更新', { level });
@@ -40,11 +42,11 @@ export class ObservabilityApiService {
       });
     }
 
-    return { success: true, level: this.observabilityRepository.getCurrentLoggingLevel() };
+    return { success: true, level: logging.getLevel() };
   }
 
   getUsage(): Record<string, unknown> {
-    const stats = this.observabilityRepository.getUsageStats();
+    const stats = tokenUsage.getStats();
     return {
       ...stats,
       lastUpdated: formatLocalTimestamp(stats.lastUpdated),
@@ -56,7 +58,7 @@ export class ObservabilityApiService {
   }
 
   resetUsage(): { success: true } {
-    this.observabilityRepository.resetUsage();
+    tokenUsage.reset();
     return { success: true };
   }
 }

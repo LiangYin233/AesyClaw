@@ -1,5 +1,5 @@
 import { logger } from '../../../platform/observability/index.js';
-import type { Config } from '../schema.js';
+import type { Config } from '../schema/index.js';
 import { normalizeConfigError } from '../errors.js';
 import { ConfigFileStore } from '../infrastructure/file/ConfigFileStore.js';
 import { FsConfigWatcher } from '../infrastructure/file/FsConfigWatcher.js';

@@ -60,7 +60,9 @@ export interface ServiceFactoryOptions {
 
 export function bootstrapRuntimeConfig(config: Config): Config {
   logging.configure({
-    level: config.observability.level
+    level: config.observability.level,
+    bufferSize: config.observability.bufferSize,
+    pretty: config.observability.pretty
   });
   tokenUsage.configure({
     enabled: true,

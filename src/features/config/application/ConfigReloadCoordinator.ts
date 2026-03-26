@@ -1,4 +1,4 @@
-import type { Config } from '../schema.js';
+import type { Config } from '../schema/index.js';
 import { getMainAgentConfig } from '../domain/mainAgent.js';
 import { getMemoryConfig, getSessionRuntimeConfig } from '../domain/memory.js';
 import { getObservabilityConfig } from '../domain/observability.js';
@@ -47,7 +47,11 @@ function buildRules(): ReloadRule[] {
         compare(getObservabilityConfig(previousConfig)) !== compare(getObservabilityConfig(currentConfig)),
       describe: (previousConfig, currentConfig) => ({
         fromLevel: getObservabilityConfig(previousConfig).level,
-        toLevel: getObservabilityConfig(currentConfig).level
+        toLevel: getObservabilityConfig(currentConfig).level,
+        fromBufferSize: getObservabilityConfig(previousConfig).bufferSize,
+        toBufferSize: getObservabilityConfig(currentConfig).bufferSize,
+        fromPretty: getObservabilityConfig(previousConfig).pretty,
+        toPretty: getObservabilityConfig(currentConfig).pretty
       }),
       apply: async (targets, _previousConfig, currentConfig) => {
         await targets.observability?.applyConfig(currentConfig);

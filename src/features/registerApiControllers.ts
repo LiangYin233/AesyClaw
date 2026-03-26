@@ -36,9 +36,7 @@ export function registerApiControllers(deps: ApiFeatureControllerDeps): void {
   });
   registerConfigFeature({
     app: deps.app,
-    log: deps.log,
-    getConfig: deps.getConfig,
-    updateConfig: deps.updateConfig
+    log: deps.log
   });
   registerMemoryFeature(deps);
   registerSkillsFeature(deps);

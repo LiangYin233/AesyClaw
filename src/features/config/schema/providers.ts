@@ -43,6 +43,16 @@ export type ProviderConfig = z.output<typeof providerConfigSchema>;
 export type ProviderModelConfig = z.output<typeof providerModelConfigSchema>;
 export const providerReservedKeys = [...PROVIDER_RESERVED_KEYS];
 
+export function isEmbeddingCapableProvider(provider?: Pick<ProviderConfig, 'type'> | null): boolean {
+  return provider?.type === 'openai';
+}
+
+export function listEmbeddingProviderNames(providers: Record<string, ProviderConfig>): string[] {
+  return Object.entries(providers)
+    .filter(([, provider]) => isEmbeddingCapableProvider(provider))
+    .map(([name]) => name);
+}
+
 export function getProviderModelConfig(provider?: ProviderConfig, modelName?: string): ProviderModelConfig | undefined {
   if (!provider || !modelName) {
     return undefined;

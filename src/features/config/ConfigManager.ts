@@ -1,17 +1,18 @@
-import type { Config } from './schema.js';
+import type { Config } from './schema/index.js';
 import type { EventBus } from '../../platform/events/EventBus.js';
 import type { AesyClawEvents } from '../../platform/events/events.js';
 import { ConfigService } from './application/ConfigService.js';
 import type { ConfigMutator } from './application/ConfigMutationService.js';
 import type { ConfigReloadTargets } from './reload/ports/ReloadTargets.js';
-import { sharedConfigService } from './sharedService.js';
+
+export const defaultConfigService = new ConfigService();
 
 export class ConfigManager {
   private unsubscribeReload?: () => void;
 
   constructor(
     private readonly eventBus?: EventBus<AesyClawEvents>,
-    private readonly service: ConfigService = sharedConfigService
+    private readonly service: ConfigService = defaultConfigService
   ) {}
 
   async load(configPath?: string): Promise<Config> {
@@ -81,4 +82,8 @@ export class ConfigManager {
       });
     });
   }
+}
+
+export function getConfig(): Config {
+  return defaultConfigService.get();
 }

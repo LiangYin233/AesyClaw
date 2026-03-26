@@ -1,10 +1,26 @@
-import { SystemRepository } from './SystemRepository.js';
+import type { AgentRuntime } from '../../agent/index.js';
+import type { ChannelManager } from '../channels/application/ChannelManager.js';
+import { buildChannelStatusSnapshot, type ChannelStatusSnapshot } from '../channels/application/channelStatusSnapshot.js';
+import type { SessionManager } from '../sessions/application/SessionManager.js';
+import type { ToolRegistry } from '../../platform/tools/ToolRegistry.js';
+import type { Config } from '../../types.js';
 
 export class SystemApiService {
   constructor(
     private readonly packageVersion: string,
-    private readonly systemRepository: SystemRepository
+    private readonly agentRuntime: Pick<AgentRuntime, 'isRunning'>,
+    private readonly sessionManager: Pick<SessionManager, 'count'>,
+    private readonly channelManager: ChannelManager,
+    private readonly getConfig: () => Config,
+    private readonly toolRegistry?: ToolRegistry
   ) {}
+
+  private getChannelStatus(): ChannelStatusSnapshot {
+    return buildChannelStatusSnapshot({
+      runtimeStatus: this.channelManager.getStatus(),
+      configuredChannels: this.getConfig().channels
+    });
+  }
 
   getStatus(): {
     version: string;
@@ -16,17 +32,17 @@ export class SystemApiService {
     return {
       version: this.packageVersion,
       uptime: process.uptime(),
-      channels: this.systemRepository.getChannelStatus(),
-      sessions: this.systemRepository.getSessionCount(),
-      agentRunning: this.systemRepository.isAgentRunning()
+      channels: this.getChannelStatus(),
+      sessions: this.sessionManager.count(),
+      agentRunning: this.agentRuntime.isRunning()
     };
   }
 
   getTools(): {
-    tools: ReturnType<SystemRepository['getToolDefinitions']>;
+    tools: ReturnType<ToolRegistry['getDefinitions']> | [];
   } {
     return {
-      tools: this.systemRepository.getToolDefinitions()
+      tools: this.toolRegistry?.getDefinitions() ?? []
     };
   }
 }

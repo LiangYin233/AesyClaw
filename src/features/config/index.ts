@@ -1,6 +1,5 @@
-export { ConfigLoader, getConfig } from './loader.js';
-export type { ConfigMutator } from './loader.js';
-export { ConfigManager } from './ConfigManager.js';
+export { ConfigManager, defaultConfigService, getConfig, defaultConfigService as ConfigLoader } from './ConfigManager.js';
+export type { ConfigMutator } from './application/ConfigMutationService.js';
 export { RuntimeConfigStore } from './RuntimeConfigStore.js';
 export {
   DEFAULT_CONFIG,
@@ -9,20 +8,23 @@ export {
   getConfigValidationIssue,
   parseConfig,
   parseMCPServerConfig
-} from './schema.js';
+} from './schema/index.js';
 export { resolveConfig, resolveProviderSelection } from './resolve.js';
-export { resolveExecutionModel } from './executionModel.js';
+export { resolveExecutionModel } from './modelRef.js';
 export {
   getMainAgentConfig,
   getMainAgentRole,
+  type ResolvedMainAgentConfig
+} from './domain/mainAgent.js';
+export {
   getMemoryConfig,
   getMemoryRecallConfig,
   getMemorySummaryConfig,
-  getObservabilityConfig,
-  getSessionRuntimeConfig,
-  getToolRuntimeConfig
-} from './selectors.js';
-export { isEmbeddingCapableProvider, listEmbeddingProviderNames } from './providerCapabilities.js';
+  getSessionRuntimeConfig
+} from './domain/memory.js';
+export { getObservabilityConfig } from './domain/observability.js';
+export { getToolRuntimeConfig } from './domain/tools.js';
+export { isEmbeddingCapableProvider, listEmbeddingProviderNames } from './schema/providers.js';
 export type {
   AgentConfig,
   AgentRoleConfig,
@@ -45,13 +47,12 @@ export type {
   ServerConfig,
   SkillConfig,
   ToolsConfig,
-} from './schema.js';
+} from './schema/index.js';
 export type { ResolvedConfig } from './resolve.js';
 export type {
-  ResolvedMainAgentConfig,
   ResolvedMemoryConfig,
   ResolvedMemoryRecallConfig,
   ResolvedMemorySummaryConfig
-} from './selectors.js';
+} from './domain/memory.js';
 export { registerConfigFeature } from './runtime/registerConfigFeature.js';
 export type { ConfigFeatureDeps } from './runtime/registerConfigFeature.js';
