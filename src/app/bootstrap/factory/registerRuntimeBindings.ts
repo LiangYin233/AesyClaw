@@ -5,8 +5,12 @@ import type { SessionRoutingService } from '../../../agent/infrastructure/sessio
 import type { AgentRuntime } from '../../../agent/index.js';
 import type { CronRuntimeService } from '../../../features/cron/index.js';
 import type { McpClientManager } from '../../../features/mcp/index.js';
+import { PluginsService } from '../../../features/plugins/application/PluginsService.js';
 import type { PluginManager } from '../../../features/plugins/index.js';
+import { PluginRepository } from '../../../features/plugins/infrastructure/PluginRepository.js';
+import type { ChannelManager } from '../../../features/channels/application/ChannelManager.js';
 import { logger } from '../../../platform/observability/index.js';
+import type { Config } from '../../../types.js';
 import type { SessionManager } from '../../../features/sessions/index.js';
 import type { SkillManager } from '../../../features/skills/index.js';
 import { registerBuiltInTools } from '../../../platform/tools/index.js';
@@ -20,6 +24,9 @@ export function registerRuntimeBindings(args: {
   sessionRouting: SessionRoutingService;
   agentRoleService: AgentRoleService;
   agentRuntime: AgentRuntime;
+  channelManager: ChannelManager;
+  getConfig: () => Config;
+  updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>;
   setPluginManager: (pluginManager: PluginManager) => void;
   pluginManager: PluginManager;
   isPluginLoadingComplete: () => boolean;
@@ -35,6 +42,9 @@ export function registerRuntimeBindings(args: {
     sessionRouting,
     agentRoleService,
     agentRuntime,
+    channelManager,
+    getConfig,
+    updateConfig,
     setPluginManager,
     pluginManager,
     isPluginLoadingComplete,
@@ -45,11 +55,18 @@ export function registerRuntimeBindings(args: {
     memoryService
   } = args;
 
+  const pluginsService = new PluginsService(new PluginRepository({
+    pluginManager,
+    channelManager,
+    getConfig,
+    updateConfig
+  }));
   const builtInCommands = new BuiltInCommands(
     sessionManager,
     sessionRouting,
     agentRoleService,
-    agentRuntime
+    agentRuntime,
+    pluginsService
   );
   commandRegistry.registerHandler(builtInCommands);
   appLog.info('命令注册表已初始化');

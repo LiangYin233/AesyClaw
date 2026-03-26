@@ -6,6 +6,7 @@ import { CronStore } from '../infrastructure/CronStore.js';
 import { normalizeCronError } from '../shared/errors.js';
 
 const FAILED_JOB_RETRY_DELAY_MS = 60_000;
+const MAX_CATCH_UP_DELAY_MS = 60_000;
 
 export class CronRuntimeService {
   private jobs: Map<string, CronJob> = new Map();
@@ -213,6 +214,35 @@ export class CronRuntimeService {
 
     for (const job of this.jobs.values()) {
       if (job.enabled && job.nextRunAtMs && now >= job.nextRunAtMs) {
+        const overdueMs = now - job.nextRunAtMs;
+
+        if (overdueMs > MAX_CATCH_UP_DELAY_MS) {
+          this.log.info('定时任务已超过补跑窗口，跳过本次执行', {
+            jobId: job.id,
+            jobName: job.name,
+            overdueMs,
+            scheduledAt: formatLocalTimestamp(new Date(job.nextRunAtMs))
+          });
+
+          if (job.schedule.kind === 'once') {
+            job.enabled = false;
+            job.nextRunAtMs = undefined;
+            statusUpdates.push({ id: job.id, enabled: false, nextRunAtMs: undefined });
+            this.log.info('一次性定时任务因错过补跑窗口已停用', {
+              jobId: job.id
+            });
+            continue;
+          }
+
+          this.computeNextRun(job);
+          toUpdate.push(job);
+          this.log.info('循环定时任务已跳过过期执行并重新排期', {
+            jobId: job.id,
+            nextRunAt: job.nextRunAtMs ? formatLocalTimestamp(new Date(job.nextRunAtMs)) : undefined
+          });
+          continue;
+        }
+
         this.log.info('定时任务执行中', {
           jobId: job.id,
           jobName: job.name,
