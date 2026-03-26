@@ -1,11 +1,11 @@
-import { registerSystemController } from './system.controller.js';
-import { SystemApiService } from './SystemApiService.js';
-import type { ApiFeatureControllerDeps } from '../featureDeps.js';
+import { registerSystemController } from '../api/system.controller.js';
+import { SystemService } from '../application/SystemService.js';
+import type { ApiFeatureControllerDeps } from '../../featureDeps.js';
 
 export function registerSystemFeature(deps: ApiFeatureControllerDeps): void {
   registerSystemController(
     deps.app,
-    new SystemApiService(
+    new SystemService(
       deps.packageVersion,
       deps.agentRuntime,
       deps.sessionManager,

@@ -1,9 +1,9 @@
 import type { Express } from 'express';
-import { asyncHandler } from '../../app/api/middleware/async-handler.js';
-import { ObservabilityApiService } from './ObservabilityApiService.js';
+import { asyncHandler } from '../../../app/api/middleware/async-handler.js';
+import { ObservabilityService } from '../application/ObservabilityService.js';
 import { parseLoggingEntriesQuery, parseLoggingLevelUpdate } from './observability.dto.js';
 
-export function registerObservabilityController(app: Express, service: ObservabilityApiService): void {
+export function registerObservabilityController(app: Express, service: ObservabilityService): void {
   app.get('/api/observability/logging/config', (_req, res) => {
     res.json(service.getLoggingConfig());
   });

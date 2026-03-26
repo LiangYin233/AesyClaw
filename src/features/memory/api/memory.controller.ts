@@ -1,8 +1,8 @@
 import type { Express } from 'express';
-import { asyncHandler } from '../../app/api/middleware/async-handler.js';
-import { MemoryApiService } from './MemoryApiService.js';
+import { asyncHandler } from '../../../app/api/middleware/async-handler.js';
+import { MemoryService } from '../application/MemoryService.js';
 
-export function registerMemoryController(app: Express, service: MemoryApiService): void {
+export function registerMemoryController(app: Express, service: MemoryService): void {
   app.get('/api/memory', asyncHandler(async (_req, res) => {
     res.json(await service.listMemory());
   }));

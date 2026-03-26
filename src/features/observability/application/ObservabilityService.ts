@@ -1,10 +1,10 @@
-import { formatLocalTimestamp } from '../../platform/observability/logging.js';
-import { logger, logging, tokenUsage, type LogLevel } from '../../platform/observability/index.js';
-import type { Config } from '../../types.js';
+import { formatLocalTimestamp } from '../../../platform/observability/logging.js';
+import { logger, logging, tokenUsage, type LogLevel } from '../../../platform/observability/index.js';
+import type { Config } from '../../../types.js';
 
 const log = logger.child('ObservabilityAPI');
 
-export class ObservabilityApiService {
+export class ObservabilityService {
   constructor(
     private readonly updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>
   ) {}

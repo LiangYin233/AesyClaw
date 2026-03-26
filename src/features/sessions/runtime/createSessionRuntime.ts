@@ -5,7 +5,7 @@ import { Database } from '../../../platform/db/index.js';
 import { logger } from '../../../platform/observability/index.js';
 import { LongTermMemoryStore, SessionManager } from '../index.js';
 import type { Config } from '../../../types.js';
-import { createMemoryRuntime } from '../../memory/createMemoryRuntime.js';
+import { createMemoryRuntime } from '../../memory/index.js';
 
 const appLog = logger.child('AesyClaw');
 

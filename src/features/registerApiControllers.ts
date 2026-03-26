@@ -5,12 +5,12 @@ import { registerChatFeature } from './chat/index.js';
 import { registerConfigFeature } from './config/index.js';
 import { registerCronFeature } from './cron/index.js';
 import { registerMcpFeature } from './mcp/index.js';
-import { registerMemoryFeature } from './memory/registerMemoryFeature.js';
-import { registerObservabilityFeature } from './observability/registerObservabilityFeature.js';
+import { registerMemoryFeature } from './memory/index.js';
+import { registerObservabilityFeature } from './observability/index.js';
 import { registerPluginsFeature } from './plugins/index.js';
 import { registerSessionsFeature } from './sessions/index.js';
 import { registerSkillsFeature } from './skills/registerSkillsFeature.js';
-import { registerSystemFeature } from './system/registerSystemFeature.js';
+import { registerSystemFeature } from './system/index.js';
 
 export function registerApiControllers(deps: ApiFeatureControllerDeps): void {
   registerSystemFeature(deps);

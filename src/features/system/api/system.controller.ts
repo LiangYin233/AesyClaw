@@ -1,7 +1,7 @@
 import type { Express } from 'express';
-import { SystemApiService } from './SystemApiService.js';
+import { SystemService } from '../application/SystemService.js';
 
-export function registerSystemController(app: Express, service: SystemApiService): void {
+export function registerSystemController(app: Express, service: SystemService): void {
   app.get('/api/status', (_req, res) => {
     res.json(service.getStatus());
   });

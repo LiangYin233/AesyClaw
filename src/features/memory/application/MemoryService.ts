@@ -1,6 +1,6 @@
-import type { LongTermMemoryOperation } from '../sessions/infrastructure/LongTermMemoryStore.js';
-import { NotFoundError } from '../../platform/errors/index.js';
-import { MemoryRepository } from './MemoryRepository.js';
+import type { LongTermMemoryOperation } from '../../sessions/infrastructure/LongTermMemoryStore.js';
+import { NotFoundError } from '../../../platform/errors/index.js';
+import { MemoryRepository } from '../infrastructure/MemoryRepository.js';
 
 type MemoryItem = {
   key: string;
@@ -43,7 +43,7 @@ type MemoryItem = {
   updatedAt?: string;
 };
 
-export class MemoryApiService {
+export class MemoryService {
   constructor(private readonly repository: MemoryRepository) {}
 
   async listMemory(): Promise<{ items: MemoryItem[] }> {

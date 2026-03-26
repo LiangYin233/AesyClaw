@@ -1,16 +1,16 @@
-import { LongTermMemoryService } from '../../agent/infrastructure/memory/LongTermMemoryService.js';
-import { OpenAIEmbeddingsClient } from '../../agent/infrastructure/memory/OpenAIEmbeddingsClient.js';
-import { SessionMemoryService } from '../../agent/infrastructure/memory/SessionMemoryService.js';
+import { LongTermMemoryService } from '../../../agent/infrastructure/memory/LongTermMemoryService.js';
+import { OpenAIEmbeddingsClient } from '../../../agent/infrastructure/memory/OpenAIEmbeddingsClient.js';
+import { SessionMemoryService } from '../../../agent/infrastructure/memory/SessionMemoryService.js';
 import {
   getMemoryConfig,
   listEmbeddingProviderNames,
   resolveProviderSelection
-} from '../../features/config/index.js';
-import type { ResolvedProviderSelection } from '../../features/config/schema/index.js';
-import { logger } from '../../platform/observability/index.js';
-import { createProvider } from '../../platform/providers/index.js';
-import { LongTermMemoryStore, SessionManager } from '../sessions/index.js';
-import type { Config } from '../../types.js';
+} from '../../config/index.js';
+import type { ResolvedProviderSelection } from '../../config/schema/index.js';
+import { logger } from '../../../platform/observability/index.js';
+import { createProvider } from '../../../platform/providers/index.js';
+import { LongTermMemoryStore, SessionManager } from '../../sessions/index.js';
+import type { Config } from '../../../types.js';
 
 const appLog = logger.child('AesyClaw');
 
