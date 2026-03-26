@@ -9,7 +9,7 @@ import type { Config } from '../../types.js';
 import type { Database } from '../../platform/db/index.js';
 import type { PluginManager } from '../../features/plugins/index.js';
 import type { CronRuntimeService } from '../../features/cron/index.js';
-import type { MCPClientManager } from '../../features/mcp/index.js';
+import type { McpClientManager } from '../../features/mcp/index.js';
 import type { SkillManager } from '../../features/skills/application/SkillManager.js';
 import type { ToolRegistry } from '../../platform/tools/ToolRegistry.js';
 import type { SessionRoutingService } from '../../agent/infrastructure/session/SessionRoutingService.js';
@@ -42,7 +42,7 @@ export class APIServer {
   private configManager: ConfigManager;
   private pluginManager?: PluginManager;
   private cronService?: CronRuntimeService;
-  private mcpManager?: MCPClientManager;
+  private mcpManager?: McpClientManager;
   private skillManager?: SkillManager;
   private toolRegistry?: ToolRegistry;
   private longTermMemoryStore: LongTermMemoryStore;
@@ -59,7 +59,7 @@ export class APIServer {
     configManager: ConfigManager;
     pluginManager?: PluginManager;
     cronService?: CronRuntimeService;
-    mcpManager?: MCPClientManager;
+    mcpManager?: McpClientManager;
     skillManager?: SkillManager;
     toolRegistry?: ToolRegistry;
     longTermMemoryStore: LongTermMemoryStore;
@@ -131,7 +131,7 @@ export class APIServer {
     const updateConfig = (mutator: (config: Config) => void | Config | Promise<void | Config>) =>
       this.configManager.update(mutator);
     const getMcpManager = () => this.mcpManager;
-    const setMcpManager = (manager: MCPClientManager) => {
+    const setMcpManager = (manager: McpClientManager) => {
       this.mcpManager = manager;
     };
 

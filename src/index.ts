@@ -3,7 +3,7 @@ export { ChannelManager } from './features/channels/application/ChannelManager.j
 export { LLMProvider, createProvider } from './platform/providers/index.js';
 export { ToolRegistry } from './platform/tools/index.js';
 export type { Tool, ToolContext } from './platform/tools/index.js';
-export { MCPClientManager } from './features/mcp/index.js';
+export { McpClientManager } from './features/mcp/index.js';
 export type { MCPServerConfig, MCPServersConfig, MCPTransportType } from './types.js';
 export { AgentRuntime, SessionHandle } from './agent/index.js';
 export { SessionManager } from './features/sessions/index.js';

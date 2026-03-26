@@ -4,7 +4,7 @@ import type { SessionMemoryService } from '../../../agent/infrastructure/memory/
 import type { SessionRoutingService } from '../../../agent/infrastructure/session/SessionRoutingService.js';
 import type { AgentRuntime } from '../../../agent/index.js';
 import type { CronRuntimeService } from '../../../features/cron/index.js';
-import type { MCPClientManager } from '../../../features/mcp/index.js';
+import type { McpClientManager } from '../../../features/mcp/index.js';
 import type { PluginManager } from '../../../features/plugins/index.js';
 import { logger } from '../../../platform/observability/index.js';
 import type { SessionManager } from '../../../features/sessions/index.js';
@@ -26,7 +26,7 @@ export function registerRuntimeBindings(args: {
   toolRegistry: ToolRegistry;
   skillManager: SkillManager;
   cronService: CronRuntimeService;
-  mcpManager: MCPClientManager | null;
+  mcpManager: McpClientManager | null;
   memoryService?: SessionMemoryService;
 }): void {
   const {

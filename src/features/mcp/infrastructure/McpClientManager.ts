@@ -5,16 +5,16 @@ import type { ToolDefinition, MCPServersConfig, MCPServerConfig, MCPServerInfo }
 import { logger } from '../../../platform/observability/index.js';
 
 const DEFAULT_MCP_TIMEOUT = 120000;
-type MCPToolLoadCallback = (serverName: string, tools: ToolDefinition[]) => void | Promise<void>;
+type McpToolLoadCallback = (serverName: string, tools: ToolDefinition[]) => void | Promise<void>;
 
-export class MCPClientManager {
+export class McpClientManager {
   private clients: Map<string, Client> = new Map();
   private serverTools: Map<string, Map<string, ToolDefinition>> = new Map();
   private registeredTools: Map<string, ToolDefinition> = new Map();
   private registeredToolOwners: Map<string, string> = new Map();
   private registeredServerTools: Map<string, Set<string>> = new Map();
   private serverStatus: Map<string, MCPServerInfo> = new Map();
-  private toolLoadCallbacks: MCPToolLoadCallback[] = [];
+  private toolLoadCallbacks: McpToolLoadCallback[] = [];
   private log = logger.child('MCP');
   private static readonly DEFAULT_TIMEOUT = DEFAULT_MCP_TIMEOUT;
 
@@ -53,7 +53,7 @@ export class MCPClientManager {
   }
 
   private async connectServer(name: string, config: MCPServerConfig): Promise<void> {
-    const timeout = config.timeout ?? MCPClientManager.DEFAULT_TIMEOUT;
+    const timeout = config.timeout ?? McpClientManager.DEFAULT_TIMEOUT;
     const transportType = config.type || 'local';
 
     const client = new Client({
@@ -169,7 +169,7 @@ export class MCPClientManager {
       throw new Error(`MCP server not connected: ${serverName}`);
     }
 
-    const requestTimeout = timeout ?? MCPClientManager.DEFAULT_TIMEOUT;
+    const requestTimeout = timeout ?? McpClientManager.DEFAULT_TIMEOUT;
 
     this.log.debug('MCP tool started', { server: serverName, toolName: name, argKeys: Object.keys(args || {}) });
 
@@ -246,7 +246,7 @@ export class MCPClientManager {
     return Array.from(this.clients.keys());
   }
 
-  onToolsLoaded(callback: MCPToolLoadCallback): void {
+  onToolsLoaded(callback: McpToolLoadCallback): void {
     this.toolLoadCallbacks.push(callback);
   }
 

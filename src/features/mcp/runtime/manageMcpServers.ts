@@ -2,16 +2,16 @@ import type { Config } from '../../../types.js';
 import { logger } from '../../../platform/observability/index.js';
 import { registerMcpTools } from '../../../platform/tools/index.js';
 import type { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
-import { MCPClientManager } from '../infrastructure/MCPClientManager.js';
-import { clearMcpServerTools, syncMcpServerTools } from './toolSync.js';
+import { McpClientManager } from '../infrastructure/McpClientManager.js';
+import { clearMcpServerTools, syncMcpServerTools } from './syncMcpServerTools.js';
 
 const log = logger.child('MCPRuntime');
 
 type ToolRegistryView = Pick<ToolRegistry, 'register' | 'list' | 'unregisterMany' | 'getSource'>;
 
-export interface MCPRuntimeBinding {
-  getMcpManager(): MCPClientManager | undefined;
-  setMcpManager(manager: MCPClientManager): void;
+export interface McpRuntimeBinding {
+  getMcpManager(): McpClientManager | undefined;
+  setMcpManager(manager: McpClientManager): void;
   toolRegistry?: ToolRegistryView;
 }
 
@@ -19,13 +19,13 @@ function hasEnabledMcpServer(config: Config): boolean {
   return Object.values(config.mcp).some((server) => server.enabled !== false);
 }
 
-export function ensureMcpManager(binding: MCPRuntimeBinding): MCPClientManager {
+export function ensureMcpManager(binding: McpRuntimeBinding): McpClientManager {
   const existing = binding.getMcpManager();
   if (existing) {
     return existing;
   }
 
-  const manager = new MCPClientManager();
+  const manager = new McpClientManager();
   if (binding.toolRegistry) {
     registerMcpTools(binding.toolRegistry as ToolRegistry, manager);
   }
@@ -33,7 +33,7 @@ export function ensureMcpManager(binding: MCPRuntimeBinding): MCPClientManager {
   return manager;
 }
 
-export function startConfiguredMcpServers(binding: MCPRuntimeBinding, config: Config): MCPClientManager | null {
+export function startConfiguredMcpServers(binding: McpRuntimeBinding, config: Config): McpClientManager | null {
   if (!config.mcp || Object.keys(config.mcp).length === 0) {
     return null;
   }
@@ -45,10 +45,10 @@ export function startConfiguredMcpServers(binding: MCPRuntimeBinding, config: Co
 }
 
 export async function connectMcpServer(
-  binding: MCPRuntimeBinding,
+  binding: McpRuntimeBinding,
   serverName: string,
   serverConfig: Config['mcp'][string]
-): Promise<{ manager: MCPClientManager; toolsRegistered: number }> {
+): Promise<{ manager: McpClientManager; toolsRegistered: number }> {
   const manager = ensureMcpManager(binding);
   if (binding.toolRegistry) {
     clearMcpServerTools(binding.toolRegistry, manager, serverName);
@@ -64,9 +64,9 @@ export async function connectMcpServer(
 }
 
 export async function disconnectMcpServer(
-  binding: MCPRuntimeBinding,
+  binding: McpRuntimeBinding,
   serverName: string
-): Promise<{ manager: MCPClientManager | undefined; toolsRemoved: number }> {
+): Promise<{ manager: McpClientManager | undefined; toolsRemoved: number }> {
   const manager = binding.getMcpManager();
   const toolsRemoved = manager && binding.toolRegistry
     ? clearMcpServerTools(binding.toolRegistry, manager, serverName)
@@ -82,9 +82,9 @@ export async function disconnectMcpServer(
 }
 
 export async function reconnectMcpServer(
-  binding: MCPRuntimeBinding,
+  binding: McpRuntimeBinding,
   serverName: string
-): Promise<{ manager: MCPClientManager; toolsRegistered: number }> {
+): Promise<{ manager: McpClientManager; toolsRegistered: number }> {
   const manager = ensureMcpManager(binding);
   if (binding.toolRegistry) {
     clearMcpServerTools(binding.toolRegistry, manager, serverName);
@@ -99,7 +99,7 @@ export async function reconnectMcpServer(
   };
 }
 
-export async function syncConfiguredMcpServers(binding: MCPRuntimeBinding, config: Config): Promise<void> {
+export async function syncConfiguredMcpServers(binding: McpRuntimeBinding, config: Config): Promise<void> {
   const manager = hasEnabledMcpServer(config)
     ? ensureMcpManager(binding)
     : binding.getMcpManager();

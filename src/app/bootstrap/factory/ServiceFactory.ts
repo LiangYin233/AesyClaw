@@ -10,7 +10,7 @@ import type { LLMProvider } from '../../../platform/providers/base.js';
 import { LongTermMemoryStore, SessionManager } from '../../../features/sessions/index.js';
 import { SkillManager } from '../../../features/skills/index.js';
 import { ToolRegistry } from '../../../platform/tools/index.js';
-import { MCPClientManager } from '../../../features/mcp/index.js';
+import { McpClientManager } from '../../../features/mcp/index.js';
 import { PluginManager } from '../../../features/plugins/index.js';
 import type { Config } from '../../../types.js';
 import type { CronJob } from '../../../features/cron/index.js';
@@ -38,7 +38,7 @@ export interface Services {
   isPluginLoadingComplete: () => boolean;
   agentRuntime: AgentRuntime;
   cronService: CronRuntimeService;
-  mcpManager: MCPClientManager | null;
+  mcpManager: McpClientManager | null;
   skillManager: SkillManager | null;
   config: Config;
   configStore: RuntimeConfigStore;

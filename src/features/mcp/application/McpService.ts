@@ -1,4 +1,4 @@
-import type { MCPClientManager } from '../index.js';
+import type { McpClientManager } from '../index.js';
 import type { Config, MCPServerInfo } from '../../../types.js';
 import { formatLocalTimestamp } from '../../../platform/observability/logging.js';
 import { ResourceNotFoundError } from '../../../platform/errors/domain.js';
@@ -114,7 +114,7 @@ export class McpService {
 
   private resolveConfiguredServer(
     config: Config,
-    manager: MCPClientManager | undefined,
+    manager: McpClientManager | undefined,
     name: string
   ): SerializedMcpServer | null {
     const configuredServer = config.mcp[name];
@@ -138,7 +138,7 @@ export class McpService {
     };
   }
 
-  private listConfiguredServers(config: Config, manager: MCPClientManager | undefined): SerializedMcpServer[] {
+  private listConfiguredServers(config: Config, manager: McpClientManager | undefined): SerializedMcpServer[] {
     return Object.keys(config.mcp)
       .map((name) => this.resolveConfiguredServer(config, manager, name))
       .filter((server): server is SerializedMcpServer => server !== null);

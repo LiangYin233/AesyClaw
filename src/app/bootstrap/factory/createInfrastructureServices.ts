@@ -2,7 +2,7 @@ import type { AgentRuntime, OutboundGateway } from '../../../agent/index.js';
 import type { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
 import { createChannelRuntime } from '../../../features/channels/index.js';
 import { createPluginRuntime } from '../../../features/plugins/index.js';
-import type { MCPClientManager } from '../../../features/mcp/index.js';
+import type { McpClientManager } from '../../../features/mcp/index.js';
 import { startConfiguredMcpServers } from '../../../features/mcp/index.js';
 import type { Database } from '../../../platform/db/index.js';
 import type { PluginManager } from '../../../features/plugins/index.js';
@@ -13,7 +13,7 @@ export interface InfrastructureServices {
   startPluginLoading: () => void;
   isPluginLoadingComplete: () => boolean;
   channelManager: Awaited<ReturnType<typeof createChannelRuntime>>;
-  mcpManager: MCPClientManager | null;
+  mcpManager: McpClientManager | null;
 }
 
 export async function createInfrastructureServices(args: {
@@ -56,7 +56,7 @@ export async function createInfrastructureServices(args: {
   ]);
 
   const config = configStore.getConfig();
-  let mcpManager: MCPClientManager | undefined;
+  let mcpManager: McpClientManager | undefined;
   mcpManager = startConfiguredMcpServers({
     getMcpManager: () => mcpManager,
     setMcpManager: (manager) => {

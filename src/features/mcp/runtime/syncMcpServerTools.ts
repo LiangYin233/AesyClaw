@@ -1,7 +1,7 @@
 import type { ToolDefinition } from '../../../types.js';
 import type { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
 
-interface MCPToolSource {
+interface McpToolSource {
   getToolsForServer(serverName: string): ToolDefinition[];
   getRegisteredToolNamesForServer(serverName: string): string[];
   getRegisteredServerForTool(toolName: string): string | undefined;
@@ -12,7 +12,7 @@ type ToolRegistryView = Pick<ToolRegistry, 'register' | 'list' | 'unregisterMany
 
 function describeConflictSource(
   toolRegistry: Pick<ToolRegistry, 'getSource'>,
-  mcpManager: MCPToolSource,
+  mcpManager: McpToolSource,
   toolName: string
 ): string {
   const source = toolRegistry.getSource(toolName);
@@ -30,7 +30,7 @@ function describeConflictSource(
 
 export function clearMcpServerTools(
   toolRegistry: Pick<ToolRegistry, 'unregisterMany'>,
-  mcpManager: MCPToolSource,
+  mcpManager: McpToolSource,
   serverName: string
 ): number {
   const toolNames = mcpManager.getRegisteredToolNamesForServer(serverName);
@@ -44,7 +44,7 @@ export function clearMcpServerTools(
 
 export function syncMcpServerTools(
   toolRegistry: ToolRegistryView,
-  mcpManager: MCPToolSource,
+  mcpManager: McpToolSource,
   serverName: string
 ): number {
   const tools = mcpManager.getToolsForServer(serverName);

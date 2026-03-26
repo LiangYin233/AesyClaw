@@ -1,5 +1,5 @@
 import type { Express } from 'express';
-import type { MCPClientManager } from '../index.js';
+import type { McpClientManager } from '../index.js';
 import type { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
 import type { Config } from '../../../types.js';
 import { registerMcpController } from '../api/mcp.controller.js';
@@ -11,8 +11,8 @@ export interface McpFeatureDeps {
   toolRegistry?: ToolRegistry;
   getConfig: () => Config;
   updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>;
-  getMcpManager: () => MCPClientManager | undefined;
-  setMcpManager: (manager: MCPClientManager) => void;
+  getMcpManager: () => McpClientManager | undefined;
+  setMcpManager: (manager: McpClientManager) => void;
 }
 
 export function registerMcpFeature(deps: McpFeatureDeps): void {

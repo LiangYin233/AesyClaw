@@ -1,7 +1,7 @@
 export { registerMcpFeature } from './runtime/registerMcpFeature.js';
 export type { McpFeatureDeps } from './runtime/registerMcpFeature.js';
 export { createMcpReloadTarget } from './runtime/createMcpReloadTarget.js';
-export { MCPClientManager } from './infrastructure/MCPClientManager.js';
+export { McpClientManager } from './infrastructure/McpClientManager.js';
 export {
   connectMcpServer,
   disconnectMcpServer,
@@ -9,6 +9,6 @@ export {
   reconnectMcpServer,
   startConfiguredMcpServers,
   syncConfiguredMcpServers
-} from './runtime/mcpRuntime.js';
-export type { MCPRuntimeBinding } from './runtime/mcpRuntime.js';
-export { clearMcpServerTools, syncMcpServerTools } from './runtime/toolSync.js';
+} from './runtime/manageMcpServers.js';
+export type { McpRuntimeBinding } from './runtime/manageMcpServers.js';
+export { clearMcpServerTools, syncMcpServerTools } from './runtime/syncMcpServerTools.js';

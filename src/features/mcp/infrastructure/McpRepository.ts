@@ -1,4 +1,4 @@
-import type { MCPClientManager } from '../index.js';
+import type { McpClientManager } from '../index.js';
 import type { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
 import type { Config, MCPServerInfo } from '../../../types.js';
 import { connectMcpServer, disconnectMcpServer, reconnectMcpServer } from '../index.js';
@@ -7,8 +7,8 @@ interface McpRepositoryDeps {
   toolRegistry?: ToolRegistry;
   getConfig: () => Config;
   updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>;
-  getMcpManager: () => MCPClientManager | undefined;
-  setMcpManager: (manager: MCPClientManager) => void;
+  getMcpManager: () => McpClientManager | undefined;
+  setMcpManager: (manager: McpClientManager) => void;
 }
 
 export class McpRepository {
@@ -18,7 +18,7 @@ export class McpRepository {
     return this.deps.getConfig();
   }
 
-  getManager(): MCPClientManager | undefined {
+  getManager(): McpClientManager | undefined {
     return this.deps.getMcpManager();
   }
 

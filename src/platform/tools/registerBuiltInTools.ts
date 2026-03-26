@@ -1,7 +1,7 @@
 import type { ToolRegistry } from './ToolRegistry.js';
 import type { SkillManager } from '../../features/skills/index.js';
 import type { CronRuntimeService } from '../../features/cron/index.js';
-import type { MCPClientManager } from '../../features/mcp/index.js';
+import type { McpClientManager } from '../../features/mcp/index.js';
 import type { PluginManager } from '../../features/plugins/index.js';
 import type { ToolDefinition } from '../../types.js';
 import type { AgentRoleService } from '../../agent/infrastructure/roles/AgentRoleService.js';
@@ -21,7 +21,7 @@ export interface ToolIntegrationOptions {
   skillManager: SkillManager;
   cronService: CronRuntimeService;
   pluginManager: PluginManager;
-  mcpManager: MCPClientManager | null;
+  mcpManager: McpClientManager | null;
   runSubAgentTasks: (
     tasks: Array<{ agentName: string; task: string }>,
     context?: {
@@ -87,7 +87,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
   }
 }
 
-export function registerMcpTools(toolRegistry: ToolRegistry, mcpManager: MCPClientManager): void {
+export function registerMcpTools(toolRegistry: ToolRegistry, mcpManager: McpClientManager): void {
   const log = logger.child('ToolIntegration');
 
   mcpManager.onToolsLoaded(async (serverName: string, _tools: ToolDefinition[]) => {

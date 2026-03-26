@@ -5,7 +5,7 @@ import { APIServer } from '../../api/index.js';
 import type { ChannelManager } from '../../../features/channels/application/ChannelManager.js';
 import type { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
 import type { CronRuntimeService } from '../../../features/cron/index.js';
-import type { MCPClientManager } from '../../../features/mcp/index.js';
+import type { McpClientManager } from '../../../features/mcp/index.js';
 import type { Database } from '../../../platform/db/index.js';
 import type { PluginManager } from '../../../features/plugins/index.js';
 import type { LongTermMemoryStore, SessionManager } from '../../../features/sessions/index.js';
@@ -23,7 +23,7 @@ export async function createApiServer(args: {
   configManager: ConfigManager;
   pluginManager: PluginManager;
   cronService: CronRuntimeService;
-  mcpManager: MCPClientManager | null;
+  mcpManager: McpClientManager | null;
   skillManager: SkillManager;
   toolRegistry: ToolRegistry;
   longTermMemoryStore: LongTermMemoryStore;

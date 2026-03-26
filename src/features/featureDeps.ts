@@ -10,7 +10,7 @@ import type { SessionManager } from './sessions/application/SessionManager.js';
 import type { LongTermMemoryStore } from './sessions/infrastructure/LongTermMemoryStore.js';
 import type { PluginManager } from './plugins/index.js';
 import type { CronRuntimeService } from './cron/index.js';
-import type { MCPClientManager } from './mcp/index.js';
+import type { McpClientManager } from './mcp/index.js';
 import type { SkillManager } from './skills/application/SkillManager.js';
 
 export interface ApiFeatureControllerDeps {
@@ -29,8 +29,8 @@ export interface ApiFeatureControllerDeps {
   longTermMemoryStore: LongTermMemoryStore;
   pluginManager?: PluginManager;
   cronService?: CronRuntimeService;
-  getMcpManager: () => MCPClientManager | undefined;
-  setMcpManager: (manager: MCPClientManager) => void;
+  getMcpManager: () => McpClientManager | undefined;
+  setMcpManager: (manager: McpClientManager) => void;
   skillManager?: SkillManager;
   log: {
     info(message: string, ...args: any[]): void;
