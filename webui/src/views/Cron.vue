@@ -78,7 +78,7 @@
                       </div>
                       <div>
                         <p class="text-sm font-bold text-on-surface">{{ job.name }}</p>
-                        <p class="tech-text mt-1 text-[11px] text-on-surface-variant">TARGET: {{ job.payload.target || job.payload.channel || '-' }}</p>
+                        <p class="tech-text mt-1 text-[11px] text-on-surface-variant">TARGET: {{ job.payload.target || '-' }}</p>
                       </div>
                     </div>
                   </td>
@@ -191,16 +191,11 @@
                     <span class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">详细内容</span>
                     <textarea v-model="draft.payload.detail" class="min-h-28 w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none"></textarea>
                   </label>
-                  <div class="grid grid-cols-2 gap-3">
-                    <label>
-                      <span class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">渠道</span>
-                      <input v-model="draft.payload.channel" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none" type="text" placeholder="telegram" />
-                    </label>
-                    <label>
-                      <span class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">目标</span>
-                      <input v-model="draft.payload.target" class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none" type="text" placeholder="ops-room" />
-                    </label>
-                  </div>
+                  <label>
+                    <span class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">目标</span>
+                    <input v-model="draft.payload.target" class="tech-text w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none" type="text" placeholder="telegram:group:ops-room" />
+                    <p class="mt-2 ml-1 text-[11px] text-on-surface-variant">格式：`channel:private|group:chatId`。渠道已经包含在目标里，不再单独配置。</p>
+                  </label>
                 </div>
               </div>
 
@@ -232,6 +227,8 @@ import { getRouteToken } from '@/lib/auth';
 const route = useRoute();
 const token = getRouteToken(route);
 
+const CRON_TARGET_PATTERN = /^[^:]+:(private|group):.+$/;
+
 const jobs = ref<CronJob[]>([]);
 const selectedId = ref('');
 const loading = ref(false);
@@ -246,13 +243,11 @@ const enabledRate = computed(() => {
 });
 const nextExecutionLabel = computed(() => {
   const nextRun = [...jobs.value]
-    .filter((job) => typeof job.nextRunAtMs === 'number')
+    .filter((job) => job.enabled && typeof job.nextRunAtMs === 'number' && job.nextRunAtMs > Date.now())
     .sort((left, right) => (left.nextRunAtMs || 0) - (right.nextRunAtMs || 0))[0];
   if (!nextRun?.nextRunAtMs) return '--';
 
   const diff = nextRun.nextRunAtMs - Date.now();
-  if (diff < 0) return '已过期';
-
   const seconds = Math.round(diff / 1000);
   if (seconds < 60) return `${seconds}秒后`;
 
@@ -279,7 +274,6 @@ function createEmptyJob(): CronJob {
     payload: {
       description: '',
       detail: '',
-      channel: '',
       target: '',
     },
   };
@@ -365,6 +359,11 @@ async function saveJob() {
 
   if (!draft.value.payload.description.trim()) {
     error.value = '任务描述不能为空';
+    return;
+  }
+
+  if (draft.value.payload.target?.trim() && !CRON_TARGET_PATTERN.test(draft.value.payload.target.trim())) {
+    error.value = '目标格式必须为 channel:private|group:chatId';
     return;
   }
 

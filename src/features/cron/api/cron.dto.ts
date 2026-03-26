@@ -8,6 +8,7 @@ import {
 } from '../../shared/requestParsers.js';
 
 const VALID_SCHEDULE_KINDS = new Set<CronSchedule['kind']>(['once', 'interval', 'daily', 'cron']);
+const CRON_TARGET_PATTERN = /^[^:]+:(private|group):.+$/;
 
 export interface CreateCronJobDto {
   name: string;
@@ -75,10 +76,18 @@ function parseCronPayload(value: unknown, required: boolean): CronPayload {
     required ? 'payload is required and must be an object' : 'payload must be an object'
   );
 
+  const target = parseOptionalString(payload.target, 'payload.target');
+  if (target && !CRON_TARGET_PATTERN.test(target)) {
+    throw new RequestValidationError(
+      'payload.target must use format "channel:private|group:chatId"',
+      'payload.target'
+    );
+  }
+
   return {
     description: requireString(payload.description, 'payload.description', 'payload.description must be a string'),
     detail: requireString(payload.detail, 'payload.detail', 'payload.detail must be a string'),
     channel: parseOptionalString(payload.channel, 'payload.channel'),
-    target: parseOptionalString(payload.target, 'payload.target')
+    target
   };
 }
