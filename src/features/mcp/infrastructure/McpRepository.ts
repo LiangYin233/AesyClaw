@@ -8,7 +8,7 @@ interface McpRepositoryDeps {
   getConfig: () => Config;
   updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>;
   getMcpManager: () => McpClientManager | undefined;
-  setMcpManager: (manager: McpClientManager) => void;
+  setMcpManager: (manager: McpClientManager | undefined) => void;
 }
 
 export class McpRepository {

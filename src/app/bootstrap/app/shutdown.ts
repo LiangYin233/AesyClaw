@@ -15,7 +15,7 @@ export async function shutdownServices(services: Services): Promise<void> {
     }
   };
 
-  const { agentRuntime, apiServer, channelManager, sessionManager, cronService, skillManager, configManager } = services;
+  const { agentRuntime, apiServer, channelManager, sessionManager, cronService, skillManager, configManager, mcpManager } = services;
   agentRuntime.stop();
   configManager.dispose();
 
@@ -30,6 +30,9 @@ export async function shutdownServices(services: Services): Promise<void> {
   });
   await runStep('cron service', async () => {
     await Promise.resolve((cronService as any).stop?.());
+  });
+  await runStep('mcp manager', async () => {
+    await mcpManager?.close();
   });
   await runStep('token usage store', async () => {
     await tokenUsage.destroy();

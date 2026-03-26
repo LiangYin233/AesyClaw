@@ -62,11 +62,6 @@ export class McpService {
   }
 
   async deleteServer(name: string): Promise<{ success: true; message: string; toolsRemoved: number }> {
-    const manager = this.mcpRepository.getManager();
-    if (!manager) {
-      throw new ResourceNotFoundError('MCP manager', 'mcp');
-    }
-
     const toolsRemoved = this.mcpRepository.getToolsForServer(name).length;
     if (this.mcpRepository.getConfig().mcp[name]) {
       await this.mcpRepository.saveConfig((currentConfig) => {
@@ -82,12 +77,13 @@ export class McpService {
   }
 
   async reconnectServer(name: string): Promise<{ success: true; server: unknown }> {
-    const manager = this.mcpRepository.getManager();
-    if (!manager) {
-      throw new ResourceNotFoundError('MCP manager', 'mcp');
+    const currentConfig = this.mcpRepository.getConfig();
+    const serverConfig = currentConfig.mcp[name];
+    if (!serverConfig) {
+      throw new ResourceNotFoundError('MCP server in config', name);
     }
 
-    const result = await this.mcpRepository.reconnectServer(name);
+    const result = await this.mcpRepository.connectServer(name, serverConfig);
 
     return {
       success: true,

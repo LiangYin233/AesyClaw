@@ -8,7 +8,8 @@ export function createMcpReloadTarget(services: Services): NonNullable<ConfigRel
       await syncConfiguredMcpServers({
         getMcpManager: () => services.mcpManager ?? undefined,
         setMcpManager: (manager) => {
-          services.mcpManager = manager;
+          services.mcpManager = manager ?? null;
+          services.apiServer?.setMcpManager(manager);
         },
         toolRegistry: services.toolRegistry
       }, config);

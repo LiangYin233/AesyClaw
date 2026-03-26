@@ -30,7 +30,7 @@ export interface ApiFeatureControllerDeps {
   pluginManager?: PluginManager;
   cronService?: CronRuntimeService;
   getMcpManager: () => McpClientManager | undefined;
-  setMcpManager: (manager: McpClientManager) => void;
+  setMcpManager: (manager: McpClientManager | undefined) => void;
   skillManager?: SkillManager;
   log: {
     info(message: string, ...args: any[]): void;

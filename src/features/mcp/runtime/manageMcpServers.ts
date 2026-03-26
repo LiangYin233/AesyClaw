@@ -8,12 +8,16 @@ type ToolRegistryView = Pick<ToolRegistry, 'register' | 'list' | 'unregisterMany
 
 export interface McpRuntimeBinding {
   getMcpManager(): McpClientManager | undefined;
-  setMcpManager(manager: McpClientManager): void;
+  setMcpManager(manager: McpClientManager | undefined): void;
   toolRegistry?: ToolRegistryView;
 }
 
 function hasEnabledMcpServer(config: Config): boolean {
   return Object.values(config.mcp).some((server) => server.enabled !== false);
+}
+
+function serializeServerConfig(config: Config['mcp'][string]): string {
+  return JSON.stringify(config);
 }
 
 export function ensureMcpManager(binding: McpRuntimeBinding): McpClientManager {
@@ -31,7 +35,7 @@ export function ensureMcpManager(binding: McpRuntimeBinding): McpClientManager {
 }
 
 export function startConfiguredMcpServers(binding: McpRuntimeBinding, config: Config): McpClientManager | null {
-  if (!config.mcp || Object.keys(config.mcp).length === 0) {
+  if (!config.mcp || Object.keys(config.mcp).length === 0 || !hasEnabledMcpServer(config)) {
     return null;
   }
 
@@ -96,14 +100,16 @@ export async function reconnectMcpServer(
 }
 
 export async function syncConfiguredMcpServers(binding: McpRuntimeBinding, config: Config): Promise<void> {
-  const manager = hasEnabledMcpServer(config)
+  const enabledServerEntries = Object.entries(config.mcp).filter(([, serverConfig]) => serverConfig.enabled !== false);
+  const enabledServerNames = new Set(enabledServerEntries.map(([name]) => name));
+  const manager = enabledServerEntries.length > 0
     ? ensureMcpManager(binding)
     : binding.getMcpManager();
   const currentStatuses = manager?.getServerStatus();
+  const statusList = Array.isArray(currentStatuses) ? currentStatuses : [];
+  const currentStatusByName = new Map(statusList.map((server) => [server.name, server]));
   const currentNames = new Set(
-    Array.isArray(currentStatuses)
-      ? currentStatuses.map((server) => server.name)
-      : []
+    statusList.map((server) => server.name)
   );
 
   for (const name of currentNames) {
@@ -120,6 +126,19 @@ export async function syncConfiguredMcpServers(binding: McpRuntimeBinding, confi
       continue;
     }
 
+    const currentStatus = currentStatusByName.get(name);
+    const configChanged = !currentStatus || serializeServerConfig(currentStatus.config) !== serializeServerConfig(serverConfig);
+    const needsReconnect = !currentStatus || currentStatus.status !== 'connected' || configChanged;
+
+    if (!needsReconnect) {
+      continue;
+    }
+
     await connectMcpServer(binding, name, serverConfig);
+  }
+
+  if (enabledServerNames.size === 0 && manager) {
+    await manager.close();
+    binding.setMcpManager(undefined);
   }
 }

@@ -128,7 +128,7 @@ export class APIServer {
     const updateConfig = (mutator: (config: Config) => void | Config | Promise<void | Config>) =>
       this.configManager.update(mutator);
     const getMcpManager = () => this.mcpManager;
-    const setMcpManager = (manager: McpClientManager) => {
+    const setMcpManager = (manager: McpClientManager | undefined) => {
       this.mcpManager = manager;
     };
 
@@ -169,5 +169,9 @@ export class APIServer {
 
   updateConfig(config: Config): void {
     this.configStore.setConfig(config);
+  }
+
+  setMcpManager(manager: McpClientManager | undefined): void {
+    this.mcpManager = manager;
   }
 }
