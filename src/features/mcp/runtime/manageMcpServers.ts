@@ -3,6 +3,9 @@ import { registerMcpTools } from '../../../platform/tools/index.js';
 import type { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
 import { McpClientManager } from '../infrastructure/McpClientManager.js';
 import { clearMcpServerTools, syncMcpServerTools } from './syncMcpServerTools.js';
+import { logger } from '../../../platform/observability/index.js';
+
+const log = logger.child('MCP');
 
 type ToolRegistryView = Pick<ToolRegistry, 'register' | 'list' | 'unregisterMany' | 'getSource'>;
 
@@ -40,7 +43,11 @@ export function startConfiguredMcpServers(binding: McpRuntimeBinding, config: Co
   }
 
   const manager = ensureMcpManager(binding);
+  const enabledServers = Object.entries(config.mcp)
+    .filter(([, server]) => server.enabled !== false)
+    .map(([name]) => name);
   manager.connectAsync(config.mcp);
+  log.info('MCP 服务器已连接', { servers: enabledServers });
   return manager;
 }
 

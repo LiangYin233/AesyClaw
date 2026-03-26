@@ -75,10 +75,10 @@ export class ExecutionRuntime {
 
     const { policy, executor, messages } = this.engine.prepare(context);
     const executionLog = this.log.withFields({
-      sessionKey: context.sessionKey,
-      channel: context.request.channel,
-      chatId: context.request.chatId,
-      agentName: policy.roleName
+      ssn: context.sessionKey,
+      ch: context.request.channel,
+      chId: context.request.chatId,
+      agent: policy.roleName
     });
     executionLog.debug('执行开始', {
       source: context.toolContext.source || 'user'

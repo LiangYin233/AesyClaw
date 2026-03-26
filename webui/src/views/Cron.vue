@@ -77,7 +77,7 @@
                       </div>
                       <div>
                         <p class="text-sm font-bold text-on-surface">{{ job.name }}</p>
-                        <p class="tech-text mt-1 text-[11px] text-on-surface-variant">TARGET: {{ job.payload.target || '-' }}</p>
+                        <p class="tech-text mt-1 text-[11px] text-on-surface-variant">{{ job.payload.target || '-' }}</p>
                       </div>
                     </div>
                   </td>
@@ -158,7 +158,7 @@
 
                   <div v-if="draft.schedule.kind === 'once'">
                     <label class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">执行时间</label>
-                    <input v-model="draft.schedule.onceAt" class="tech-text w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none" type="datetime-local" />
+                    <input :value="toDatetimeLocal(draft.schedule.onceAt)" @input="draft.schedule.onceAt = fromDatetimeLocal(($event.target as HTMLInputElement).value)" class="tech-text w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none" type="datetime-local" />
                   </div>
                   <div v-else-if="draft.schedule.kind === 'interval'">
                     <label class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">间隔毫秒</label>
@@ -259,6 +259,30 @@ const nextExecutionLabel = computed(() => {
   const days = Math.round(hours / 24);
   return `${days}天后`;
 });
+
+function toDatetimeLocal(isoString: string | undefined): string {
+  if (!isoString) return '';
+  const match = isoString.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+  return match ? `${match[1]}T${match[2]}` : '';
+}
+
+function fromDatetimeLocal(localString: string): string {
+  if (!localString) return '';
+  const date = new Date(localString);
+  if (isNaN(date.getTime())) return localString;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const yyyy = date.getFullYear();
+  const mm = pad(date.getMonth() + 1);
+  const dd = pad(date.getDate());
+  const hh = pad(date.getHours());
+  const min = pad(date.getMinutes());
+  const offsetMin = date.getTimezoneOffset();
+  const sign = offsetMin <= 0 ? '+' : '-';
+  const abs = Math.abs(offsetMin);
+  const zh = pad(Math.floor(abs / 60));
+  const zm = pad(abs % 60);
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}${sign}${zh}:${zm}`;
+}
 
 function createEmptyJob(): CronJob {
   return {

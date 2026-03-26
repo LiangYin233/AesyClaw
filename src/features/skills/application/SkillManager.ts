@@ -69,6 +69,7 @@ export class SkillManager {
         this.applyConfig(this.config);
       }
       await this.cleanupBuiltinSkillConfigEntries();
+      this.log.info('Skills 加载完成', { count: this.skills.size, skills: Array.from(this.skills.keys()) });
     } catch {
     }
   }

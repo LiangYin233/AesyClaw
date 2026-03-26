@@ -4,6 +4,7 @@ import { resolveRunnerLimits, truncateRunnerOutput } from './runnerShared.ts';
 
 interface LoggerLike {
   debug: (message: string, ...args: any[]) => void;
+  info: (message: string, ...args: any[]) => void;
   warn: (message: string, ...args: any[]) => void;
   error: (message: string, ...args: any[]) => void;
 }
@@ -32,8 +33,11 @@ export class ShellRunner {
     }
 
     const isWindows = process.platform === 'win32';
-    const shell = isWindows ? 'cmd.exe' : '/bin/sh';
-    const shellArgs = isWindows ? ['/c', command] : ['-c', command];
+    const shell = isWindows ? 'powershell.exe' : '/bin/sh';
+    const encodedCommand = isWindows
+      ? `$OutputEncoding = [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ${command}`
+      : command;
+    const shellArgs = isWindows ? ['-NoProfile', '-Command', encodedCommand] : ['-c', command];
 
     return new Promise((resolve) => {
       let stdout = '';
@@ -41,6 +45,8 @@ export class ShellRunner {
       let settled = false;
       let aborted = false;
       let timedOut = false;
+
+      this.log.debug('shell_exec 执行命令', { command, cwd });
 
       const proc = spawn(shell, shellArgs, {
         cwd,
@@ -95,7 +101,7 @@ export class ShellRunner {
 
       proc.on('error', (error: Error & NodeJS.ErrnoException) => {
         if (error.code === 'ENOENT') {
-          finish(`命令执行错误: ${isWindows ? 'cmd.exe' : 'sh'} 未找到`);
+          finish(`命令执行错误: ${isWindows ? 'powershell.exe' : 'sh'} 未找到`);
         } else {
           finish(`命令执行错误: ${error.message}`);
         }
@@ -110,8 +116,9 @@ export class ShellRunner {
           finish(`命令超时: 执行时间超过 ${this.timeout}ms`);
           return;
         }
-        const output = stderr ? `[stderr]\n${stderr}\n[stdout]\n${stdout}` : stdout;
-        finish(this.truncateOutput(output));
+        const fullOutput = stderr ? `[stderr]\n${stderr}\n[stdout]\n${stdout}` : stdout;
+        this.log.debug('shell_exec 命令返回', { code, output: fullOutput });
+        finish(this.truncateOutput(fullOutput));
       });
     });
   }

@@ -115,6 +115,8 @@ export class ChannelRuntime {
       return;
     }
 
+    this.log.info('收到入站消息', { ch: channel, chId: draft.conversation.id });
+
     const inbound = await processInboundMessage({
       adapter,
       channelName: channel,
@@ -154,6 +156,10 @@ export class ChannelRuntime {
     if (outbound.segments.length === 0) {
       throw new Error('Outbound message rejected: empty payload');
     }
+
+    const hasFiles = outbound.segments.some(s => s.type === 'file' || s.type === 'audio' || s.type === 'video');
+    const hasMedia = outbound.segments.some(s => s.type === 'image');
+    this.log.info('发送出站消息', { ch: outbound.channel, chId: outbound.conversation.id, hasFiles, hasMedia });
 
     const idempotencyKey = (
       isChannelMessage(message)

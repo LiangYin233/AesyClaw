@@ -24,7 +24,7 @@ import { runBootstrapPhase } from './runBootstrapPhase.js';
 import { EventBus } from '../../../platform/events/EventBus.js';
 import type { AesyClawEvents } from '../../../platform/events/events.js';
 
-const appLog = logger.child('AesyClaw');
+const appLog = logger;
 
 export interface Services {
   provider?: LLMProvider;

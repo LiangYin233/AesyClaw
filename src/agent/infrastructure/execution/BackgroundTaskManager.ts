@@ -300,10 +300,10 @@ export class BackgroundTaskManager {
 
   private createTaskLogger(task: Pick<BackgroundTask, 'id' | 'sessionKey' | 'channel' | 'chatId'>) {
     return this.log.withFields({
-      sessionKey: task.sessionKey,
-      channel: task.channel,
-      chatId: task.chatId,
-      taskId: task.id
+      ssn: task.sessionKey,
+      ch: task.channel,
+      chId: task.chatId,
+      tskId: task.id
     });
   }
 

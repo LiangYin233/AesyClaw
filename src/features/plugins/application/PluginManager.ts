@@ -208,6 +208,7 @@ export class PluginManager {
   async loadFromConfig(configs: Record<string, PluginConfigState>): Promise<void> {
     this.setPluginConfigs(configs);
     const discovered = await this.ensureDiscovered();
+    const enabledPlugins: string[] = [];
 
     for (const discovery of discovered) {
       const { state } = this.getConfiguredState(discovery.name, discovery.definition);
@@ -215,11 +216,14 @@ export class PluginManager {
         if (!this.instances.has(discovery.name)) {
           await this.activate(discovery, state.options);
         }
+        enabledPlugins.push(discovery.name);
         continue;
       }
 
       await this.deactivate(discovery.name);
     }
+
+    this.log.info('插件加载完成', { count: enabledPlugins.length, plugins: enabledPlugins });
   }
 
   async applyDefaultConfigs(): Promise<{
