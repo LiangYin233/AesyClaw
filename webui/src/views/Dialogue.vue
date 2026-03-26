@@ -213,19 +213,7 @@
                   @keydown="handleDraftKeydown"
                 ></textarea>
 
-                <div class="flex items-center justify-between px-2 pb-2">
-                  <div class="flex items-center gap-1">
-                    <button class="rounded-lg p-2 text-outline transition hover:bg-surface-container-high" disabled type="button">
-                      <AppIcon name="memory" size="sm" />
-                    </button>
-                    <button class="rounded-lg p-2 text-outline transition hover:bg-surface-container-high" disabled type="button">
-                      <AppIcon name="tools" size="sm" />
-                    </button>
-                    <button class="rounded-lg p-2 text-outline transition hover:bg-surface-container-high" disabled type="button">
-                      <AppIcon name="plugins" size="sm" />
-                    </button>
-                  </div>
-
+                <div class="flex items-center justify-end px-2 pb-2">
                   <button
                     class="flex items-center gap-2 rounded-xl bg-gradient-to-br from-primary to-primary-container px-5 py-2 text-sm font-bold text-white shadow-md transition hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
                     :disabled="sending || !draft.trim()"
