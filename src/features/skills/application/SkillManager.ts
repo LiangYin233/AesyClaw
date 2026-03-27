@@ -70,7 +70,11 @@ export class SkillManager {
       }
       await this.cleanupBuiltinSkillConfigEntries();
       this.log.info('Skills 加载完成', { count: this.skills.size, skills: Array.from(this.skills.keys()) });
-    } catch {
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.log.error(`Skills 全量加载失败: ${reason}`, {
+        error
+      });
     }
   }
 
@@ -239,7 +243,10 @@ export class SkillManager {
 
     this.reloadTimer = setTimeout(() => {
       this.reloadTimer = null;
-      void this.reload().catch((_error) => {
+      void this.reload().catch((error) => {
+        this.log.error('Skills 热重载失败', {
+          error
+        });
       });
     }, RELOAD_DEBOUNCE_MS);
   }
@@ -372,6 +379,11 @@ export class SkillManager {
       };
     } catch (error) {
       if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+        this.log.warn(`Skill 目录加载失败: ${name}`, {
+          skillName: name,
+          skillPath,
+          error
+        });
       }
       return null;
     }
@@ -382,7 +394,11 @@ export class SkillManager {
 
     try {
       await this.collectSkillFiles(skillPath, skillPath, files);
-    } catch {
+    } catch (error) {
+      this.log.warn('Skill 文件清单收集失败', {
+        skillPath,
+        error
+      });
     }
 
     return files.sort((left, right) => left.name.localeCompare(right.name));
@@ -499,7 +515,11 @@ export class SkillManager {
           this.scheduleReload(filename ? `dir:${filename.toString()}` : `dir:${path.basename(dirPath)}`);
         });
         this.dirWatchers.set(dirPath, watcher);
-      } catch {
+      } catch (error) {
+        this.log.warn('Skill 目录监听失败', {
+          dirPath,
+          error
+        });
       }
     }
   }

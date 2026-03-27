@@ -91,7 +91,12 @@ export class PluginManager {
           return result
             ? { type: 'reply', message: result }
             : { type: 'handled' };
-        } catch {
+        } catch (error) {
+          this.log.warn(`插件命令执行失败: ${command.name}`, {
+            plugin: instance.name,
+            command: command.name,
+            error
+          });
         }
       }
     }
@@ -110,7 +115,12 @@ export class PluginManager {
             return null;
           }
           current = next;
-        } catch {
+        } catch (error) {
+          this.log.warn('插件 Hook 执行失败: messageIn', {
+            plugin: instance.name,
+            hook: 'messageIn',
+            error
+          });
         }
       }
     }
@@ -129,7 +139,12 @@ export class PluginManager {
             return null;
           }
           current = next;
-        } catch {
+        } catch (error) {
+          this.log.warn('插件 Hook 执行失败: messageOut', {
+            plugin: instance.name,
+            hook: 'messageOut',
+            error
+          });
         }
       }
     }
@@ -148,7 +163,13 @@ export class PluginManager {
             return current;
           }
           current = next;
-        } catch {
+        } catch (error) {
+          this.log.warn('插件 Hook 执行失败: toolBefore', {
+            plugin: instance.name,
+            hook: 'toolBefore',
+            toolName: payload.toolName,
+            error
+          });
         }
       }
     }
@@ -167,7 +188,13 @@ export class PluginManager {
             return current;
           }
           current = next;
-        } catch {
+        } catch (error) {
+          this.log.warn('插件 Hook 执行失败: toolAfter', {
+            plugin: instance.name,
+            hook: 'toolAfter',
+            toolName: payload.toolName,
+            error
+          });
         }
       }
     }
@@ -306,13 +333,22 @@ export class PluginManager {
 
       await this.activate(discovery, nextState.options);
       return true;
-    } catch {
+    } catch (error) {
+      this.log.warn(`插件启用状态更新失败: ${discovery.name}`, {
+        plugin: discovery.name,
+        enabled,
+        error
+      });
       this.pluginConfigs[key] = previousState;
 
       if (previousState.enabled) {
         try {
           await this.activate(discovery, previousState.options);
-        } catch {
+        } catch (rollbackError) {
+          this.log.error(`插件状态回滚失败: ${discovery.name}`, {
+            plugin: discovery.name,
+            error: rollbackError
+          });
         }
       }
 
@@ -346,13 +382,21 @@ export class PluginManager {
       await this.deactivate(discovery.name);
       await this.activate(discovery, nextState.options);
       return true;
-    } catch {
+    } catch (error) {
+      this.log.warn(`插件配置更新失败: ${discovery.name}`, {
+        plugin: discovery.name,
+        error
+      });
       this.pluginConfigs[key] = previousState;
 
       if (previousState.enabled) {
         try {
           await this.activate(discovery, previousState.options);
-        } catch {
+        } catch (rollbackError) {
+          this.log.error(`插件配置回滚失败: ${discovery.name}`, {
+            plugin: discovery.name,
+            error: rollbackError
+          });
         }
       }
 
@@ -393,7 +437,12 @@ export class PluginManager {
       for (const handler of handlers) {
         try {
           await handler(payload as never);
-        } catch {
+        } catch (error) {
+          this.log.warn(`插件 Tap 执行失败: ${String(hookName)}`, {
+            plugin: instance.name,
+            hook: String(hookName),
+            error
+          });
         }
       }
     }
@@ -486,11 +535,20 @@ export class PluginManager {
           if (sourceStat.isFile()) {
             entries.push({ name, sourcePath });
           }
-        } catch {
+        } catch (error) {
+          this.log.warn(`插件入口检查失败: ${name}`, {
+            plugin: name,
+            sourcePath,
+            error
+          });
           continue;
         }
       }
-    } catch {
+    } catch (error) {
+      this.log.warn('插件目录扫描失败', {
+        pluginsDir,
+        error
+      });
       this.discoveredPlugins = [];
       return this.discoveredPlugins;
     }
@@ -510,7 +568,12 @@ export class PluginManager {
           order,
           definition: plugin as Plugin
         });
-      } catch {
+      } catch (error) {
+        this.log.warn(`插件加载失败: ${entry.name}`, {
+          plugin: entry.name,
+          sourcePath: entry.sourcePath,
+          error
+        });
       }
     }
 

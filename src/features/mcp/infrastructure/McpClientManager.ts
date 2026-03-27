@@ -36,7 +36,11 @@ export class McpClientManager {
         continue;
       }
 
-      const promise = this.connectOne(name, serverConfig).catch((_error) => {
+      const promise = this.connectOne(name, serverConfig).catch((error) => {
+        this.log.error(`MCP server 异步连接失败: ${name}`, {
+          serverName: name,
+          error
+        });
       });
       promises.push(promise);
     }
@@ -44,7 +48,10 @@ export class McpClientManager {
     Promise.all(promises)
       .then(() => {
       })
-      .catch((_error) => {
+      .catch((error) => {
+        this.log.error('MCP 异步连接批处理失败', {
+          error
+        });
       });
   }
 

@@ -172,7 +172,10 @@ export class CronRuntimeService {
     this.timer = setTimeout(async () => {
       try {
         await this.runDueJobs();
-      } catch {
+      } catch (error) {
+        this.log.error('Cron 主循环执行失败', {
+          error
+        });
       } finally {
         this.scheduleNext();
       }
@@ -208,7 +211,12 @@ export class CronRuntimeService {
         if (this.onJobExecute) {
           try {
             await this.onJobExecute(job);
-          } catch {
+          } catch (error) {
+            this.log.warn(`Cron 任务执行失败并将重试: ${job.id}`, {
+              jobId: job.id,
+              jobName: job.name,
+              error
+            });
             executedSuccessfully = false;
           }
         }
@@ -304,7 +312,12 @@ export class CronRuntimeService {
               tz: job.schedule.tz
             });
             job.nextRunAtMs = interval.next().getTime();
-          } catch {
+          } catch (error) {
+            this.log.warn(`Cron 表达式解析失败: ${job.id}`, {
+              jobId: job.id,
+              cronExpr: job.schedule.cronExpr,
+              error
+            });
             job.nextRunAtMs = undefined;
           }
         } else {
@@ -320,7 +333,10 @@ export class CronRuntimeService {
       for (const job of jobs) {
         this.jobs.set(job.id, job);
       }
-    } catch {
+    } catch (error) {
+      this.log.error('Cron 任务加载失败', {
+        error
+      });
     }
   }
 }
