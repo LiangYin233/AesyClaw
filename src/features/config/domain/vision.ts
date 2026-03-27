@@ -11,7 +11,6 @@ export function createVisionProviderFromSettings(
 ): LLMProvider | undefined {
   if (
     visionSettings.enabled === false
-    || visionSettings.directVision
     || !visionSettings.fallbackProviderName
     || !visionSettings.fallbackModelName
   ) {

@@ -21,6 +21,8 @@ import type { LLMProvider } from '../../../platform/providers/base.js';
 import { SessionManager } from '../../../features/sessions/index.js';
 import { SkillManager } from '../../../features/skills/index.js';
 import { ToolRegistry } from '../../../platform/tools/index.js';
+import { DefinitionAugmentedToolRegistry } from '../../../platform/tools/DefinitionAugmentedToolRegistry.js';
+import { getAgentToolDefinitions } from '../../../platform/tools/builtins/registerAgentTools.js';
 import type { Config, VisionSettings } from '../../../types.js';
 import { EventBus } from '../../../platform/events/EventBus.js';
 import type { AesyClawEvents } from '../../../platform/events/events.js';
@@ -83,6 +85,10 @@ export async function createExecutionRuntime(args: {
   const toolRegistry = new ToolRegistry({
     defaultTimeout: toolConfig.timeoutMs
   });
+  const toolRegistryDefinitions = new DefinitionAugmentedToolRegistry(
+    toolRegistry,
+    getAgentToolDefinitions()
+  );
   const commandRegistry = new CommandRegistry();
   const provider = mainAgentConfig.role.model.trim()
     ? createRequiredProvider(config, undefined, mainAgentConfig.role.model)
@@ -96,14 +102,16 @@ export async function createExecutionRuntime(args: {
   const agentRoleService = new AgentRoleService(
     getConfig,
     updateConfig,
-    toolRegistry,
+    toolRegistryDefinitions,
     skillManager
   );
 
   let pluginManagerRef: PluginManager | undefined;
   const agentRuntime = await createConfiguredAgentRuntime({
+    getConfig,
     provider,
     toolRegistry,
+    toolRegistryDefinitions,
     sessionManager,
     commandRegistry,
     sessionRouting,

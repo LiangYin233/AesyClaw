@@ -76,10 +76,6 @@ export function registerRuntimeBindings(args: {
     cronService,
     pluginManager,
     mcpManager,
-    runSubAgentTasks: (tasks, context) => agentRuntime.runSubAgentTasks(tasks, context),
-    runTemporarySubAgentTask: (baseAgentName, task, systemPrompt, context) =>
-      agentRuntime.runTemporarySubAgentTask(baseAgentName, task, systemPrompt, context),
-    agentRoleService,
     sessionManager,
     memoryService
   });

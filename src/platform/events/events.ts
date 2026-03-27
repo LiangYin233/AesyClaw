@@ -5,17 +5,6 @@ export interface AesyClawEvents {
     previousConfig: Config;
     currentConfig: Config;
   };
-  'background_task.completed': {
-    sessionKey: string;
-    taskId: string;
-    channel: string;
-    chatId: string;
-  };
-  'background_task.failed': {
-    sessionKey: string;
-    taskId: string;
-    error: Error;
-  };
   'cron.job.executed': {
     jobId: string;
     jobName: string;

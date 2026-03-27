@@ -3,7 +3,6 @@ import type { ExecutionStatus } from '../domain/execution.js';
 import type { AgentRuntimeDeps } from '../domain/ports.js';
 import {
   bindSessionReference,
-  mapSessionReference,
   type SessionReference
 } from '../domain/session.js';
 import type { RuntimeLifecycle } from '../domain/runtime.js';
@@ -70,44 +69,19 @@ export class AgentRuntime {
   }
 
   abortReference(reference: SessionReference | string): boolean {
-    if (this.deps.abortReference) {
-      return this.deps.abortReference(reference);
-    }
-
-    if (!this.deps.abortSession) {
-      return false;
-    }
-
-    return mapSessionReference(reference, {
-      bySessionKey: (sessionKey) => this.deps.abortSession!(sessionKey),
-      byChannelChat: (channel, chatId) => this.deps.abortSession!(channel, chatId)
-    }) ?? false;
+    return this.deps.abortReference(reference);
   }
 
   abortSession(sessionKeyOrChannel: string, chatId?: string): boolean {
-    if (!this.deps.abortSession) {
-      return false;
-    }
-
     return this.deps.abortSession(sessionKeyOrChannel, chatId);
   }
 
   getStatusByReference(reference: SessionReference | string): ExecutionStatus | undefined {
-    if (this.deps.getStatusByReference) {
-      return this.deps.getStatusByReference(reference);
-    }
-
-    if (!this.deps.getExecutionStatus) {
-      return undefined;
-    }
-
-    return mapSessionReference(reference, {
-      bySessionKey: (sessionKey) => this.deps.getExecutionStatus!(sessionKey)
-    });
+    return this.deps.getStatusByReference(reference);
   }
 
   getExecutionStatus(sessionKey: string): ExecutionStatus | undefined {
-    return this.deps.getExecutionStatus?.(sessionKey);
+    return this.deps.getExecutionStatus(sessionKey);
   }
 
   async runSubAgentTask(
@@ -120,10 +94,6 @@ export class AgentRuntime {
       signal?: AbortSignal;
     }
   ): Promise<string> {
-    if (!this.deps.runSubAgentTask) {
-      throw new Error('Sub-agent execution is not configured');
-    }
-
     return this.deps.runSubAgentTask(agentName, task, context);
   }
 
@@ -138,11 +108,20 @@ export class AgentRuntime {
       signal?: AbortSignal;
     }
   ): Promise<string> {
-    if (!this.deps.runTemporarySubAgentTask) {
-      throw new Error('Temporary sub-agent execution is not configured');
-    }
-
     return this.deps.runTemporarySubAgentTask(baseAgentName, task, systemPrompt, context);
+  }
+
+  async runTemporarySubAgentTasks(
+    baseAgentName: string | undefined,
+    tasks: Array<{ task: string; systemPrompt: string }>,
+    context?: {
+      channel?: string;
+      chatId?: string;
+      messageType?: 'private' | 'group';
+      signal?: AbortSignal;
+    }
+  ): Promise<Array<{ task: string; success: boolean; result?: string; error?: string }>> {
+    return this.deps.runTemporarySubAgentTasks(baseAgentName, tasks, context);
   }
 
   async runSubAgentTasks(
@@ -154,15 +133,11 @@ export class AgentRuntime {
       signal?: AbortSignal;
     }
   ): Promise<Array<{ agentName: string; task: string; success: boolean; result?: string; error?: string }>> {
-    if (!this.deps.runSubAgentTasks) {
-      throw new Error('Sub-agent execution is not configured');
-    }
-
     return this.deps.runSubAgentTasks(tasks, context);
   }
 
   updateProvider(provider: LLMProvider, model?: string): void {
-    this.deps.updateProvider?.(provider, model);
+    this.deps.updateProvider(provider, model);
   }
 
   updateMainAgentRuntime(options: {
@@ -173,10 +148,10 @@ export class AgentRuntime {
     visionSettings?: VisionSettings;
     visionProvider?: LLMProvider;
   }): void {
-    this.deps.updateMainAgentRuntime?.(options);
+    this.deps.updateMainAgentRuntime(options);
   }
 
   updateMemorySettings(memoryWindow: number, memoryService?: SessionMemoryService): void {
-    this.deps.updateMemorySettings?.(memoryWindow, memoryService);
+    this.deps.updateMemorySettings(memoryWindow, memoryService);
   }
 }

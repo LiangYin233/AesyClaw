@@ -17,7 +17,7 @@ export interface Tool {
   parameters: Record<string, any>;
   execute: (params: Record<string, any>, context?: ToolContext) => Promise<string>;
   validate?: (params: Record<string, any>) => string[];
-  timeout?: number;
+  timeout?: number | false;
   source?: ToolSource;
 }
 
@@ -233,13 +233,23 @@ export class ToolRegistry {
       }
     }
 
-    const timeout = tool.timeout || this.defaultTimeout;  // 获取超时时间
-    const timeoutController = new AbortController();
-    const timeoutId = setTimeout(() => {
-      timeoutController.abort(createTimeoutError(tool.name, timeout));
-    }, timeout);
+    const timeout = tool.timeout === false
+      ? undefined
+      : tool.timeout;
+    const resolvedTimeout = typeof timeout === 'number' && Number.isFinite(timeout) && timeout > 0
+      ? timeout
+      : this.defaultTimeout;
+    const timeoutController = tool.timeout === false ? undefined : new AbortController();
+    const timeoutId = timeoutController
+      ? setTimeout(() => {
+        timeoutController.abort(createTimeoutError(tool.name, resolvedTimeout));
+      }, resolvedTimeout)
+      : undefined;
 
-    const { signal: mergedSignal, cleanup: cleanupMergedSignal } = mergeAbortSignals([context?.signal, timeoutController.signal]);
+    const { signal: mergedSignal, cleanup: cleanupMergedSignal } = mergeAbortSignals([
+      context?.signal,
+      timeoutController?.signal
+    ]);
     const execContext: ToolContext = {
       workspace: '',
       ...context,
@@ -291,7 +301,9 @@ export class ToolRegistry {
       }
       throw error;
     } finally {
-      clearTimeout(timeoutId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       cleanupMergedSignal();
     }
   }

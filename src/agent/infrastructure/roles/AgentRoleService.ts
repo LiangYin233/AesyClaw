@@ -155,7 +155,7 @@ export class AgentRoleService {
     return [
       '可调用的 Agent 角色：',
       '任务可并行处理或可拆分为独立子任务时，可使用 call_agent({ items: [{ agentName, task }, ...] }) 并发委派多个 Agent。',
-      '也可使用 call_temp_agent({ task, systemPrompt }) 基于当前 Agent 创建一次性临时分身，并行执行单个独立子任务；它只临时覆写 systemPrompt，不写入配置。',
+      '也可使用 call_temp_agent({ items: [{ task, systemPrompt }, ...] }) 基于当前 Agent 创建一个或多个一次性临时分身，并发执行独立子任务；它只临时覆写 systemPrompt，不写入配置。',
       roleList
     ].join('\n');
   }
@@ -199,7 +199,7 @@ export class AgentRoleService {
 
   createVisionProviderForRole(roleName?: string | null): LLMProvider | undefined {
     const settings = this.getVisionSettingsForRole(roleName);
-    if (!settings || settings.directVision || !settings.fallbackProviderName) {
+    if (!settings || !settings.fallbackProviderName || !settings.fallbackModelName) {
       return undefined;
     }
 
@@ -218,7 +218,7 @@ export class AgentRoleService {
     }
 
     const directVision = selection.modelConfig?.supportsVision === true;
-    const fallbackSelection = directVision ? undefined : this.resolveVisionFallbackSelection();
+    const fallbackSelection = this.resolveVisionFallbackSelection();
 
     return {
       enabled: directVision || !!fallbackSelection,

@@ -7,7 +7,7 @@ export type { VisionSettings } from '../../../types.js';
 
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
 
-export type ExecutionScope = 'chat' | 'session' | 'backgroundTask';
+export type ExecutionScope = 'chat' | 'session';
 
 export interface ExecutionHandle {
   sessionKey: string;
@@ -69,24 +69,8 @@ export interface ExecutionOptions {
   };
 }
 
-export interface BackgroundExecutionResult extends ExecutionResult {
-  needsBackground: boolean;
-  backgroundState?: {
-    messages: LLMMessage[];
-    toolContext: ToolContext;
-    startIndex: number;
-  };
-}
-
-export interface LLMCallOptions {
-  allowTools?: boolean;
-  maxIterations?: number;
-  reasoning?: boolean;
-  signal?: AbortSignal;
-}
-
 export interface ExecutionStrategy {
-  readonly name: 'sync' | 'background' | 'vision';
+  readonly name: 'sync';
 
   execute(
     messages: LLMMessage[],

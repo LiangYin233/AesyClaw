@@ -15,6 +15,15 @@ const IMAGE_MIME_TYPES: Record<string, string> = {
   '.svg': 'image/svg+xml'
 };
 
+export type VisionUserContent = string | Array<{
+  type: 'text' | 'image_url';
+  text?: string;
+  image_url?: {
+    url: string;
+    detail?: 'auto' | 'low' | 'high';
+  };
+}>;
+
 function buildAgentSystemPrompt(options: {
   basePrompt: string;
   workspace: string;
@@ -124,63 +133,77 @@ export class ContextBuilder {
     message: string,
     media?: string[],
     files?: InboundFile[]
-  ): string | Array<{ type: string; text?: string; image_url?: { url: string } }> {
-    const hasMedia = media && media.length > 0;
-    const hasVisionableFiles = files && files.some(isVisionableFile);
+  ): VisionUserContent {
+    return buildVisionUserContent(message, media, files);
+  }
+}
 
-    if (hasMedia || hasVisionableFiles) {
-      const content: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
-        { type: 'text', text: message }
-      ];
+export function buildVisionUserContent(
+  message: string,
+  media?: string[],
+  files?: InboundFile[]
+): VisionUserContent {
+  const hasMedia = media && media.length > 0;
+  const hasVisionableFiles = files && files.some(isVisionableFile);
 
-      // 添加图片 URL
-      if (media) {
-        for (const imageUrl of media) {
-          const resolvedUrl = this.resolveVisionImageUrl(imageUrl);
+  if (hasMedia || hasVisionableFiles) {
+    const content: Array<{
+      type: 'text' | 'image_url';
+      text?: string;
+      image_url?: {
+        url: string;
+        detail?: 'auto' | 'low' | 'high';
+      };
+    }> = [
+      { type: 'text', text: message }
+    ];
+
+    if (media) {
+      for (const imageUrl of media) {
+        const resolvedUrl = resolveVisionImageUrl(imageUrl);
+        if (resolvedUrl) {
+          content.push({ type: 'image_url', image_url: { url: resolvedUrl } });
+        }
+      }
+    }
+
+    if (files) {
+      for (const file of files) {
+        if (file.localPath && isVisionableFile(file)) {
+          const resolvedUrl = resolveVisionImageUrl(file.localPath);
           if (resolvedUrl) {
             content.push({ type: 'image_url', image_url: { url: resolvedUrl } });
           }
         }
       }
-
-      // 添加图片文件
-      if (files) {
-        for (const file of files) {
-          if (file.localPath && isVisionableFile(file)) {
-            const resolvedUrl = this.resolveVisionImageUrl(file.localPath);
-            if (resolvedUrl) {
-              content.push({ type: 'image_url', image_url: { url: resolvedUrl } });
-            }
-          }
-        }
-      }
-
-      return content;
     }
-    return message;
+
+    return content;
   }
 
-  private resolveVisionImageUrl(input: string): string | null {
-    if (!input) {
-      return null;
-    }
+  return message;
+}
 
-    if (input.startsWith('data:image/')) {
-      return input;
-    }
-
-    if (input.startsWith('http://') || input.startsWith('https://')) {
-      return input;
-    }
-
-    const localPath = input.startsWith('file://') ? input.slice(7) : input;
-    if (!fs.existsSync(localPath)) {
-      return null;
-    }
-
-    const ext = extname(localPath).toLowerCase();
-    const mimeType = IMAGE_MIME_TYPES[ext] || 'image/png';
-    const buffer = fs.readFileSync(localPath);
-    return `data:${mimeType};base64,${buffer.toString('base64')}`;
+export function resolveVisionImageUrl(input: string): string | null {
+  if (!input) {
+    return null;
   }
+
+  if (input.startsWith('data:image/')) {
+    return input;
+  }
+
+  if (input.startsWith('http://') || input.startsWith('https://')) {
+    return input;
+  }
+
+  const localPath = input.startsWith('file://') ? input.slice(7) : input;
+  if (!fs.existsSync(localPath)) {
+    return null;
+  }
+
+  const ext = extname(localPath).toLowerCase();
+  const mimeType = IMAGE_MIME_TYPES[ext] || 'image/png';
+  const buffer = fs.readFileSync(localPath);
+  return `data:${mimeType};base64,${buffer.toString('base64')}`;
 }

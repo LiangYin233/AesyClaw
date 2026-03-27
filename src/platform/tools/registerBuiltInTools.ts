@@ -4,14 +4,12 @@ import type { CronRuntimeService } from '../../features/cron/index.js';
 import type { McpClientManager } from '../../features/mcp/index.js';
 import type { PluginManager } from '../../features/plugins/index.js';
 import type { ToolDefinition } from '../../types.js';
-import type { AgentRoleService } from '../../agent/infrastructure/roles/AgentRoleService.js';
 import type { SessionMemoryService } from '../../agent/infrastructure/memory/SessionMemoryService.js';
 import type { SessionManager } from '../../features/sessions/index.js';
 import { registerCronTools } from '../../features/cron/index.js';
 import { syncMcpServerTools } from '../../features/mcp/index.js';
 import { logger } from '../observability/index.js';
 import type { BuiltInLogger } from './builtins/shared.js';
-import { registerAgentTools } from './builtins/registerAgentTools.js';
 import { registerMemoryTools } from './builtins/registerMemoryTools.js';
 import { registerMessagingTools } from './builtins/registerMessagingTools.js';
 import { registerSkillTools } from './builtins/registerSkillTools.js';
@@ -22,27 +20,6 @@ export interface ToolIntegrationOptions {
   cronService: CronRuntimeService;
   pluginManager: PluginManager;
   mcpManager: McpClientManager | null;
-  runSubAgentTasks: (
-    tasks: Array<{ agentName: string; task: string }>,
-    context?: {
-      channel?: string;
-      chatId?: string;
-      messageType?: 'private' | 'group';
-      signal?: AbortSignal;
-    }
-  ) => Promise<Array<{ agentName: string; task: string; success: boolean; result?: string; error?: string }>>;
-  runTemporarySubAgentTask: (
-    baseAgentName: string | undefined,
-    task: string,
-    systemPrompt: string,
-    context?: {
-      channel?: string;
-      chatId?: string;
-      messageType?: 'private' | 'group';
-      signal?: AbortSignal;
-    }
-  ) => Promise<string>;
-  agentRoleService: AgentRoleService;
   sessionManager: SessionManager;
   memoryService?: SessionMemoryService;
 }
@@ -64,23 +41,11 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
     log
   });
 
-  registerAgentTools({
-    toolRegistry: options.toolRegistry,
-    runSubAgentTasks: options.runSubAgentTasks,
-    runTemporarySubAgentTask: options.runTemporarySubAgentTask,
-    agentRoleService: options.agentRoleService,
-    log
-  });
-
   registerMemoryTools({
     toolRegistry: options.toolRegistry,
     memoryService: options.memoryService,
     log
   });
-
-  const skills = options.skillManager.listSkills();
-  if (skills.length > 0) {
-  }
 }
 
 export function registerMcpTools(toolRegistry: ToolRegistry, mcpManager: McpClientManager): void {

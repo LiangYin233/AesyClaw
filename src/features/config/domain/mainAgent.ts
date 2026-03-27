@@ -24,7 +24,7 @@ export function getMainAgentConfig(source: ConfigSource): ResolvedMainAgentConfi
   const provider = resolveProviderSelection(config, role.model);
   const directVision = provider.modelConfig?.supportsVision === true;
   const fallbackModelRef = config.agent.defaults.visionFallbackModel.trim() || undefined;
-  const visionProvider = !directVision && fallbackModelRef
+  const visionProvider = fallbackModelRef
     ? resolveProviderSelection(config, fallbackModelRef)
     : undefined;
 

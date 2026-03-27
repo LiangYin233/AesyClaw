@@ -15,11 +15,11 @@ export interface AgentRuntimeDeps {
     message: InboundMessage,
     options?: { suppressOutbound?: boolean }
   ): Promise<string | undefined>;
-  abortReference?(reference: SessionReference | string): boolean;
-  abortSession?(sessionKeyOrChannel: string, chatId?: string): boolean;
-  getStatusByReference?(reference: SessionReference | string): ExecutionStatus | undefined;
-  getExecutionStatus?(sessionKey: string): ExecutionStatus | undefined;
-  runSubAgentTask?(
+  abortReference(reference: SessionReference | string): boolean;
+  abortSession(sessionKeyOrChannel: string, chatId?: string): boolean;
+  getStatusByReference(reference: SessionReference | string): ExecutionStatus | undefined;
+  getExecutionStatus(sessionKey: string): ExecutionStatus | undefined;
+  runSubAgentTask(
     agentName: string,
     task: string,
     context?: {
@@ -29,7 +29,7 @@ export interface AgentRuntimeDeps {
       signal?: AbortSignal;
     }
   ): Promise<string>;
-  runTemporarySubAgentTask?(
+  runTemporarySubAgentTask(
     baseAgentName: string | undefined,
     task: string,
     systemPrompt: string,
@@ -40,7 +40,17 @@ export interface AgentRuntimeDeps {
       signal?: AbortSignal;
     }
   ): Promise<string>;
-  runSubAgentTasks?(
+  runTemporarySubAgentTasks(
+    baseAgentName: string | undefined,
+    tasks: Array<{ task: string; systemPrompt: string }>,
+    context?: {
+      channel?: string;
+      chatId?: string;
+      messageType?: 'private' | 'group';
+      signal?: AbortSignal;
+    }
+  ): Promise<Array<{ task: string; success: boolean; result?: string; error?: string }>>;
+  runSubAgentTasks(
     tasks: Array<{ agentName: string; task: string }>,
     context?: {
       channel?: string;
@@ -49,8 +59,8 @@ export interface AgentRuntimeDeps {
       signal?: AbortSignal;
     }
   ): Promise<Array<{ agentName: string; task: string; success: boolean; result?: string; error?: string }>>;
-  updateProvider?(provider: LLMProvider, model?: string): void;
-  updateMainAgentRuntime?(options: {
+  updateProvider(provider: LLMProvider, model?: string): void;
+  updateMainAgentRuntime(options: {
     provider?: LLMProvider;
     model?: string;
     systemPrompt?: string;
@@ -58,5 +68,5 @@ export interface AgentRuntimeDeps {
     visionSettings?: VisionSettings;
     visionProvider?: LLMProvider;
   }): void;
-  updateMemorySettings?(memoryWindow: number, memoryService?: SessionMemoryService): void;
+  updateMemorySettings(memoryWindow: number, memoryService?: SessionMemoryService): void;
 }

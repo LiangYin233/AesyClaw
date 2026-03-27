@@ -1,6 +1,6 @@
-export type ExecutionScope = 'chat' | 'session' | 'backgroundTask';
+export type ExecutionScope = 'chat' | 'session';
 
-export interface ForegroundExecutionHandle {
+export interface SessionExecutionHandle {
   sessionKey: string;
   status: 'running' | 'aborted';
   scope?: ExecutionScope;
@@ -9,17 +9,9 @@ export interface ForegroundExecutionHandle {
   startedAt?: Date;
 }
 
-export interface BackgroundTaskHandle {
-  id: string;
-  sessionKey: string;
-  status: 'pending' | 'running' | 'completed' | 'aborted' | 'failed';
-  createdAt: Date;
-}
-
 export interface ExecutionStatus {
   sessionKey: string;
-  foreground?: ForegroundExecutionHandle;
-  background: BackgroundTaskHandle[];
+  current?: SessionExecutionHandle;
   active: boolean;
   channel?: string;
   chatId?: string;

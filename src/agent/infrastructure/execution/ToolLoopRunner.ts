@@ -2,7 +2,7 @@ import type { LLMMessage, ToolCall } from '../../../types.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
 import type { ToolRegistry, ToolContext } from '../../../platform/tools/ToolRegistry.js';
 import type { PluginManager } from '../../../features/plugins/index.js';
-import type { ExecutionResult, ExecutionOptions, VisionSettings } from './ExecutionTypes.js';
+import type { ExecutionResult, ExecutionOptions } from './ExecutionTypes.js';
 import { normalizeExecutionError, isRetryableExecutionError } from './errors.js';
 import { tokenUsage } from '../../../platform/observability/index.js';
 import { ContextBudgetManager } from './ContextBudgetManager.js';
@@ -14,7 +14,6 @@ export class ToolLoopRunner {
     private provider: LLMProvider,
     private toolRegistry: ToolRegistry,
     private pluginManager?: PluginManager,
-    private visionSettings?: VisionSettings,
     private maxContextTokens?: number
   ) {}
 
@@ -27,8 +26,6 @@ export class ToolLoopRunner {
     toolContext: ToolContext,
     options: ExecutionOptions & {
       model: string;
-      providerOverride?: LLMProvider;
-      reasoningOverride?: boolean;
     }
   ): Promise<ExecutionResult> {
     const toolsUsed: string[] = [];
@@ -37,8 +34,7 @@ export class ToolLoopRunner {
     const source = options.source ?? 'user';
     const initialToolCalls = options.initialToolCalls;
     const executionSignal = options.signal;
-    const activeProvider = options.providerOverride ?? this.provider;
-    const reasoning = options.reasoningOverride ?? this.visionSettings?.reasoning;
+    const activeProvider = this.provider;
 
     let agentMode = !!initialToolCalls;
     let toolCallQueue = [...(initialToolCalls || [])];
@@ -61,7 +57,6 @@ export class ToolLoopRunner {
       });
       const response = await activeProvider.chat(requestMessages, tools, options.model, {
         signal: executionSignal,
-        reasoning
       });
 
       if (response.usage) {
@@ -159,8 +154,7 @@ export class ToolLoopRunner {
         maxContextTokens: this.maxContextTokens
       });
       const response = await activeProvider.chat(requestMessages, tools, options.model, {
-        signal: executionSignal,
-        reasoning
+        signal: executionSignal
       });
 
       if (response.usage) {
@@ -204,13 +198,13 @@ export class ToolLoopRunner {
   async callLLM(
     messages: LLMMessage[],
     model: string,
-    options?: { allowTools?: boolean; reasoning?: boolean; signal?: AbortSignal; providerOverride?: LLMProvider }
+    options?: { allowTools?: boolean; reasoning?: boolean; signal?: AbortSignal }
   ): Promise<{ content: string; reasoning_content?: string; usage?: any; toolCalls: ToolCall[] }> {
     const tools = options?.allowTools !== false ? this.toolRegistry.getDefinitions() : [];
     const requestMessages = this.contextBudgetManager.fit(messages, tools, {
       maxContextTokens: this.maxContextTokens
     });
-    const response = await (options?.providerOverride ?? this.provider).chat(requestMessages, tools, model, {
+    const response = await this.provider.chat(requestMessages, tools, model, {
       reasoning: options?.reasoning,
       signal: options?.signal
     });

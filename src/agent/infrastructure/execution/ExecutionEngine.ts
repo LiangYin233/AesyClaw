@@ -6,7 +6,6 @@ import type { ToolRegistry, ToolContext } from '../../../platform/tools/ToolRegi
 import type { AgentRoleService } from '../roles/AgentRoleService.js';
 import { AgentExecutor } from './AgentExecutor.js';
 import { ScopedToolRegistry } from '../../../platform/tools/ScopedToolRegistry.js';
-import { logger } from '../../../platform/observability/index.js';
 import type { ExecutionContext, ExecutionPolicy } from './ExecutionTypes.js';
 import type { ExecutionRegistry } from './ExecutionRegistry.js';
 
@@ -49,8 +48,6 @@ function buildOperationalPrompt(allowedToolNames: string[]): string {
 }
 
 export class ExecutionEngine {
-  private log = logger.child('ExecutionEngine');
-
   constructor(
     private options: ExecutionEngineOptions,
     private agentRoleService?: AgentRoleService
@@ -67,7 +64,6 @@ export class ExecutionEngine {
 
   prepare(context: ExecutionContext): {
     policy: ExecutionPolicy;
-    executor: AgentExecutor;
     messages: ReturnType<AgentExecutor['buildMessages']>;
   } {
     const policy = this.resolvePolicy(context.agentName);
@@ -80,28 +76,49 @@ export class ExecutionEngine {
       context.request.files
     );
 
-    return { policy, executor, messages };
+    return { policy, messages };
   }
 
-  async runSubAgentTask(
+  prepareSubAgentExecution(
     agentName: string,
     task: string,
     toolContext: ToolContext,
-    extra?: { signal?: AbortSignal; excludeTools?: string[] }
-  ): Promise<string> {
+    extra?: { excludeTools?: string[] },
+    options?: { includeRuntimeContext?: boolean }
+  ): {
+    policy: ExecutionPolicy;
+    messages: ReturnType<AgentExecutor['buildMessages']>;
+    toolContext: ToolContext;
+  } {
     const policy = this.resolvePolicy(agentName, {
       excludeTools: extra?.excludeTools
     });
-    return this.executeSubAgentTask(policy, task, toolContext, extra);
+    const executor = this.createExecutor(policy, options);
+    executor.setCurrentContext(toolContext.channel, toolContext.chatId, toolContext.messageType);
+    const messages = executor.buildMessages([], task);
+
+    return {
+      policy,
+      messages,
+      toolContext: {
+        ...toolContext,
+        agentName: policy.roleName
+      }
+    };
   }
 
-  async runTemporarySubAgentTask(
+  prepareTemporarySubAgentExecution(
     baseAgentName: string | undefined,
     task: string,
     systemPrompt: string,
     toolContext: ToolContext,
-    extra?: { signal?: AbortSignal; excludeTools?: string[] }
-  ): Promise<string> {
+    extra?: { excludeTools?: string[] },
+    options?: { includeRuntimeContext?: boolean }
+  ): {
+    policy: ExecutionPolicy;
+    messages: ReturnType<AgentExecutor['buildMessages']>;
+    toolContext: ToolContext;
+  } {
     const basePolicy = this.resolvePolicy(baseAgentName, {
       excludeTools: extra?.excludeTools
     });
@@ -109,53 +126,18 @@ export class ExecutionEngine {
       ...basePolicy,
       systemPrompt
     };
-    return this.executeSubAgentTask(policy, task, toolContext, extra);
-  }
-
-  private async executeSubAgentTask(
-    policy: ExecutionPolicy,
-    task: string,
-    toolContext: ToolContext,
-    extra?: { signal?: AbortSignal; excludeTools?: string[] },
-    options?: { includeRuntimeContext?: boolean }
-  ): Promise<string> {
     const executor = this.createExecutor(policy, options);
     executor.setCurrentContext(toolContext.channel, toolContext.chatId, toolContext.messageType);
     const messages = executor.buildMessages([], task);
-    const signal = extra?.signal ?? toolContext.signal;
-    const execToolContext: ToolContext = {
-      ...toolContext,
-      agentName: policy.roleName,
-      signal
+
+    return {
+      policy,
+      messages,
+      toolContext: {
+        ...toolContext,
+        agentName: policy.roleName
+      }
     };
-
-    const initial = await executor.callLLM(messages, {
-      allowTools: true,
-      reasoning: policy.visionSettings?.reasoning,
-      signal
-    });
-
-    if (initial.toolCalls.length === 0) {
-      return initial.content;
-    }
-
-    messages.push({
-      role: 'assistant',
-      content: initial.content || '',
-      toolCalls: initial.toolCalls
-    });
-
-    const result = await executor.executeToolLoop(messages, {
-      ...execToolContext
-    }, {
-      agentName: policy.roleName,
-      allowTools: true,
-      source: 'user',
-      initialToolCalls: initial.toolCalls,
-      signal
-    });
-
-    return result.content;
   }
 
   private resolvePolicy(roleName?: string | null, extra?: { excludeTools?: string[] }): ExecutionPolicy {
@@ -231,8 +213,6 @@ export class ExecutionEngine {
       policy.maxContextTokens,
       policy.maxIterations,
       this.options.getPluginManager(),
-      policy.visionSettings,
-      policy.visionProvider,
       this.options.executionRegistry,
       options?.includeRuntimeContext ?? true
     );

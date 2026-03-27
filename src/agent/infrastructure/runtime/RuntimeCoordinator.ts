@@ -1,4 +1,4 @@
-import type { InboundMessage, OutboundMessage } from '../../../types.js';
+import type { Config, InboundMessage, OutboundMessage } from '../../../types.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
 import type { PluginManager } from '../../../features/plugins/index.js';
 import type { ToolRegistry, ToolContext } from '../../../platform/tools/ToolRegistry.js';
@@ -11,10 +11,10 @@ import type { VisionSettings } from '../../../types.js';
 import { DEFAULT_SYSTEM_PROMPT } from '../../../features/config/schema/shared.js';
 import { AgentPipeline } from './AgentPipeline.js';
 import { SessionResolver } from '../session/SessionResolver.js';
-import { BackgroundTaskManager } from '../execution/BackgroundTaskManager.js';
 import { ExecutionEngine } from '../execution/ExecutionEngine.js';
 import { ExecutionRuntime } from '../execution/ExecutionRuntime.js';
 import { ExecutionRegistry } from '../execution/ExecutionRegistry.js';
+import { WorkerExecutionDelegateImpl } from '../worker/WorkerExecutionDelegate.js';
 import type { ExecutionStatus } from '../../domain/execution.js';
 import {
   bindSessionReference,
@@ -39,6 +39,7 @@ const DEFAULT_MEMORY_WINDOW = 50;
 export interface RuntimeCoordinatorOptions {
   provider?: LLMProvider;
   toolRegistry: ToolRegistry;
+  toolRegistryDefinitions?: Pick<ToolRegistry, 'getDefinitions' | 'execute'>;
   sessionManager: SessionManager;
   commandRegistry: CommandRegistry;
   sessionRouting: SessionRoutingService;
@@ -53,6 +54,7 @@ export interface RuntimeCoordinatorOptions {
   memoryService?: SessionMemoryService;
   agentRoleService?: AgentRoleService;
   getPluginManager: () => PluginManager | undefined;
+  getConfig: () => Config;
   eventBus?: EventBus<AesyClawEvents>;
 }
 
@@ -95,18 +97,21 @@ export class RuntimeCoordinator {
       options.memoryService,
       options.agentRoleService
     );
+    const toolRegistryDefinitions = options.toolRegistryDefinitions ?? options.toolRegistry;
     const executionRegistry = new ExecutionRegistry();
-    const backgroundTaskManager = new BackgroundTaskManager(
-      (message) => this.sendOutbound(message),
-      options.eventBus
-    );
+    const workerExecutionDelegate = new WorkerExecutionDelegateImpl({
+      getConfig: options.getConfig,
+      toolRegistry: options.toolRegistry,
+      getPluginManager: options.getPluginManager,
+      getAvailableToolDefinitions: () => toolRegistryDefinitions.getDefinitions()
+    });
     this.executionEngine = new ExecutionEngine({
       defaultProvider: options.provider,
       mainModel: this.mainModel,
       defaultSystemPrompt: this.systemPrompt,
       maxIterations: this.maxIterations,
       memoryWindow: this.memoryWindow,
-      toolRegistry: options.toolRegistry,
+      toolRegistry: toolRegistryDefinitions as ToolRegistry,
       workspace: options.workspace,
       getPluginManager: options.getPluginManager,
       visionSettings: options.visionSettings,
@@ -121,7 +126,7 @@ export class RuntimeCoordinator {
       getPluginManager: options.getPluginManager,
       sendOutbound: (message) => this.sendOutbound(message),
       executionRegistry,
-      backgroundTaskManager
+      workerExecutionDelegate
     });
     this.runAgentTurnDeps = {
       executeTurn: async (context) => this.executionRuntime.execute(context)
@@ -232,6 +237,27 @@ export class RuntimeCoordinator {
     }
   ): Promise<string> {
     return this.executionRuntime.runTemporarySubAgentTask(baseAgentName, task, systemPrompt, {
+      ...this.toolContextBase,
+      channel: context?.channel,
+      chatId: context?.chatId,
+      messageType: context?.messageType,
+      signal: context?.signal
+    }, {
+      signal: context?.signal
+    });
+  }
+
+  async runTemporarySubAgentTasks(
+    baseAgentName: string | undefined,
+    tasks: Array<{ task: string; systemPrompt: string }>,
+    context?: {
+      channel?: string;
+      chatId?: string;
+      messageType?: 'private' | 'group';
+      signal?: AbortSignal;
+    }
+  ): Promise<Array<{ task: string; success: boolean; result?: string; error?: string }>> {
+    return this.executionRuntime.runTemporarySubAgentTasks(baseAgentName, tasks, {
       ...this.toolContextBase,
       channel: context?.channel,
       chatId: context?.chatId,

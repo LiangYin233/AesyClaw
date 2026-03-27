@@ -6,9 +6,11 @@ import type { SessionRoutingService } from '../session/SessionRoutingService.js'
 import type { ExecutionContext } from './ExecutionTypes.js';
 import type { ExecutionEngine } from './ExecutionEngine.js';
 import type { ExecutionStatus } from '../../domain/execution.js';
-import { BackgroundTaskManager } from './BackgroundTaskManager.js';
 import { ExecutionRegistry } from './ExecutionRegistry.js';
 import { logger } from '../../../platform/observability/index.js';
+import type { ExecutionPolicy } from './ExecutionTypes.js';
+import type { WorkerExecutionDelegate } from '../worker/WorkerExecutionDelegate.js';
+import { buildVisionUserContent, type VisionUserContent } from './ContextBuilder.js';
 
 interface FinalizeExecutionParams {
   sessionKey: string;
@@ -17,14 +19,33 @@ interface FinalizeExecutionParams {
   reasoning_content?: string;
   agentMode: boolean;
   suppressOutbound?: boolean;
+  requestContentForMemory?: string;
 }
+
+type VisionPreparationResult =
+  | {
+      ok: true;
+      persistedUserContent: string;
+      currentTurnContent?: VisionUserContent;
+    }
+  | {
+      ok: false;
+      message: string;
+    };
 
 export class ExecutionRuntime {
   private readonly subAgentExcludedTools = ['send_msg_to_user', 'call_agent', 'call_temp_agent'];
-  private static readonly IMAGE_SUMMARY_PREFIX = '【图片概括】';
-  private static readonly VISION_DISABLED_MESSAGE = '当前 Agent 未启用视觉识别，暂时无法读取图片内容。请先在 Agent 配置中开启 Vision 并配置视觉模型后重试。';
+  private static readonly VISION_SUMMARY_REQUIRED_MESSAGE = '收到图片，但当前未配置可用的视觉回退摘要模型，无法继续处理。请先配置 visionFallbackModel 后重试。';
+  private static readonly VISION_SUMMARY_FAILED_MESSAGE = '收到图片，但生成图片摘要失败，已中止本次处理。请检查视觉回退模型配置或稍后重试。';
+  private static readonly IMAGE_SUMMARY_PREFIX = '图片摘要（供后续上下文使用）：';
+  private static readonly IMAGE_SUMMARY_SYSTEM_PROMPT = [
+    '角色: 图片内容摘要器',
+    '任务: 结合用户文字与图片内容，生成一段会写入会话上下文的纯文本摘要，供后续无图回合继续理解当前任务。',
+    '要求: 只描述图片中可确认的关键信息；不要臆测；如果有多张图，按要点概括差异与共同点；保留与用户当前任务直接相关的细节。',
+    '输出: 仅输出摘要正文，不要使用 Markdown 标题，不要输出多余前后缀。'
+  ].join('\n');
   private readonly registry: ExecutionRegistry;
-  private readonly backgroundTasks: BackgroundTaskManager;
+  private readonly workerExecutionDelegate: WorkerExecutionDelegate;
   private readonly log = logger.child('ExecutionRuntime');
 
   constructor(args: {
@@ -35,7 +56,7 @@ export class ExecutionRuntime {
     getPluginManager: () => PluginManager | undefined;
     sendOutbound: (message: OutboundMessage) => Promise<void>;
     executionRegistry?: ExecutionRegistry;
-    backgroundTaskManager?: BackgroundTaskManager;
+    workerExecutionDelegate: WorkerExecutionDelegate;
   }) {
     this.engine = args.engine;
     this.sessionRouting = args.sessionRouting;
@@ -44,7 +65,7 @@ export class ExecutionRuntime {
     this.getPluginManager = args.getPluginManager;
     this.sendOutbound = args.sendOutbound;
     this.registry = args.executionRegistry ?? new ExecutionRegistry();
-    this.backgroundTasks = args.backgroundTaskManager ?? new BackgroundTaskManager(args.sendOutbound);
+    this.workerExecutionDelegate = args.workerExecutionDelegate;
   }
 
   private engine: ExecutionEngine;
@@ -64,16 +85,17 @@ export class ExecutionRuntime {
 
   async execute(context: ExecutionContext): Promise<string | undefined> {
     let requestPersisted = false;
+    let persistedRequestContent = context.request.content;
     const ensureRequestPersisted = async (): Promise<void> => {
       if (requestPersisted) {
         return;
       }
 
-      await this.sessionManager.addMessage(context.sessionKey, 'user', context.request.content);
+      await this.sessionManager.addMessage(context.sessionKey, 'user', persistedRequestContent);
       requestPersisted = true;
     };
 
-    const { policy, executor, messages } = this.engine.prepare(context);
+    const { policy, messages } = this.engine.prepare(context);
     const executionLog = this.log.withFields({
       ssn: context.sessionKey,
       ch: context.request.channel,
@@ -83,6 +105,33 @@ export class ExecutionRuntime {
     executionLog.debug('执行开始', {
       source: context.toolContext.source || 'user'
     });
+
+    if (this.hasVisionInput(context.request)) {
+      const preparedVisionTurn = await this.prepareVisionTurn(context, policy, executionLog);
+      if (preparedVisionTurn.ok === false) {
+        const failureMessage = preparedVisionTurn.message;
+        executionLog.warn('检测到图片输入，但未能完成视觉摘要预处理');
+
+        await ensureRequestPersisted();
+        await this.finalize({
+          sessionKey: context.sessionKey,
+          request: context.request,
+          content: failureMessage,
+          reasoning_content: undefined,
+          agentMode: false,
+          suppressOutbound: context.suppressOutbound,
+          requestContentForMemory: persistedRequestContent
+        });
+
+        return failureMessage;
+      }
+
+      persistedRequestContent = preparedVisionTurn.persistedUserContent;
+      if (preparedVisionTurn.currentTurnContent !== undefined) {
+        this.replaceCurrentTurnContent(messages, preparedVisionTurn.currentTurnContent);
+      }
+    }
+
     const pluginManager = this.getPluginManager();
 
     if (pluginManager) {
@@ -92,93 +141,8 @@ export class ExecutionRuntime {
       });
     }
 
-    if (this.hasVisionInput(context.request) && !executor.canHandleVision(context.request.media, context.request.files)) {
-      executionLog.warn('检测到视觉输入，但当前未配置可用视觉模型，已跳过视觉执行');
-
-      await ensureRequestPersisted();
-      await this.finalize({
-        sessionKey: context.sessionKey,
-        request: context.request,
-        content: ExecutionRuntime.VISION_DISABLED_MESSAGE,
-        reasoning_content: undefined,
-        agentMode: false,
-        suppressOutbound: context.suppressOutbound
-      });
-
-      return ExecutionRuntime.VISION_DISABLED_MESSAGE;
-    }
-
-    const useVisionProvider = executor.needsVisionProvider(context.request.media, context.request.files);
-    if (useVisionProvider) {
-      executionLog.info('视觉执行开始');
-      const imageSummary = await executor.summarizeVisionInput(messages, context.toolContext.signal);
-      if (imageSummary) {
-        this.attachImageSummary(context.request, messages, imageSummary);
-      }
-
-      await ensureRequestPersisted();
-
-      const result = await executor.executeWithVision(messages, context.toolContext, {
-        allowTools: true,
-        agentName: policy.roleName,
-        source: context.toolContext.source || 'user',
-        sessionKey: context.sessionKey
-      });
-
-      await this.finalize({
-        sessionKey: context.sessionKey,
-        request: context.request,
-        content: result.content,
-        reasoning_content: result.reasoning_content,
-        agentMode: result.agentMode,
-        suppressOutbound: context.suppressOutbound
-      });
-      executionLog.debug('视觉执行完成', {
-        agentMode: result.agentMode
-      });
-      return result.content;
-    }
-
     await ensureRequestPersisted();
-    const result = await executor.executeWithBackground(messages, context.toolContext, {
-      allowTools: true,
-      agentName: policy.roleName,
-      source: context.toolContext.source || 'user',
-      sessionKey: context.sessionKey,
-      onNeedsBackground: async (response, bgMessages, bgContext) => {
-        executionLog.info('执行已切换到后台任务');
-        await this.backgroundTasks.startTask(
-          executor,
-          context.sessionKey,
-          context.request.channel,
-          context.request.chatId,
-          context.request.messageType,
-          bgMessages,
-          bgContext,
-          response as LLMResponse,
-          {
-            onComplete: async (bgResult) => {
-              await this.finalize({
-                sessionKey: context.sessionKey,
-                request: context.request,
-                content: bgResult.content,
-                reasoning_content: bgResult.reasoning_content,
-                agentMode: bgResult.agentMode,
-                suppressOutbound: context.suppressOutbound
-              });
-            },
-            onError: async (error) => {
-              await this.handleError(error, context.sessionKey);
-            }
-          }
-        );
-      }
-    });
-
-    const backgroundResult = result as { needsBackground?: boolean; content: string };
-    if (backgroundResult.needsBackground) {
-      return result.content;
-    }
+    const result = await this.executeWithWorker(policy, messages, context);
 
     await this.finalize({
       sessionKey: context.sessionKey,
@@ -186,7 +150,8 @@ export class ExecutionRuntime {
       content: result.content,
       reasoning_content: result.reasoning_content,
       agentMode: result.agentMode,
-      suppressOutbound: context.suppressOutbound
+      suppressOutbound: context.suppressOutbound,
+      requestContentForMemory: persistedRequestContent
     });
     executionLog.debug('执行完成', {
       agentMode: result.agentMode
@@ -201,13 +166,31 @@ export class ExecutionRuntime {
     toolContext: ExecutionContext['toolContext'],
     extra?: { signal?: AbortSignal }
   ): Promise<string> {
-    return this.engine.runSubAgentTask(agentName, task, {
-      ...toolContext,
-      signal: extra?.signal ?? toolContext.signal
-    }, {
-      signal: extra?.signal ?? toolContext.signal,
-      excludeTools: this.subAgentExcludedTools
+    const prepared = this.engine.prepareSubAgentExecution(
+      agentName,
+      task,
+      {
+        ...toolContext,
+        signal: extra?.signal ?? toolContext.signal
+      },
+      {
+        excludeTools: this.subAgentExcludedTools
+      }
+    );
+
+    const result = await this.workerExecutionDelegate.executeToolLoop({
+      policy: prepared.policy,
+      messages: prepared.messages,
+      toolContext: prepared.toolContext,
+      options: {
+        sessionKey: toolContext.sessionKey,
+        allowTools: true,
+        source: 'user',
+        signal: extra?.signal ?? toolContext.signal
+      }
     });
+
+    return result.content;
   }
 
   async runTemporarySubAgentTask(
@@ -217,13 +200,56 @@ export class ExecutionRuntime {
     toolContext: ExecutionContext['toolContext'],
     extra?: { signal?: AbortSignal }
   ): Promise<string> {
-    return this.engine.runTemporarySubAgentTask(baseAgentName, task, systemPrompt, {
-      ...toolContext,
-      signal: extra?.signal ?? toolContext.signal
-    }, {
-      signal: extra?.signal ?? toolContext.signal,
-      excludeTools: this.subAgentExcludedTools
+    const prepared = this.engine.prepareTemporarySubAgentExecution(
+      baseAgentName,
+      task,
+      systemPrompt,
+      {
+        ...toolContext,
+        signal: extra?.signal ?? toolContext.signal
+      },
+      {
+        excludeTools: this.subAgentExcludedTools
+      }
+    );
+
+    const result = await this.workerExecutionDelegate.executeToolLoop({
+      policy: prepared.policy,
+      messages: prepared.messages,
+      toolContext: prepared.toolContext,
+      options: {
+        sessionKey: toolContext.sessionKey,
+        allowTools: true,
+        source: 'user',
+        signal: extra?.signal ?? toolContext.signal
+      }
     });
+
+    return result.content;
+  }
+
+  async runTemporarySubAgentTasks(
+    baseAgentName: string | undefined,
+    tasks: Array<{ task: string; systemPrompt: string }>,
+    toolContext: ExecutionContext['toolContext'],
+    extra?: { signal?: AbortSignal }
+  ): Promise<Array<{ task: string; success: boolean; result?: string; error?: string }>> {
+    return Promise.all(tasks.map(async ({ task, systemPrompt }) => {
+      try {
+        const result = await this.runTemporarySubAgentTask(baseAgentName, task, systemPrompt, toolContext, extra);
+        return {
+          task,
+          success: true,
+          result
+        };
+      } catch (error) {
+        return {
+          task,
+          success: false,
+          error: error instanceof Error ? error.message : String(error)
+        };
+      }
+    }));
   }
 
   async runSubAgentTasks(
@@ -247,36 +273,86 @@ export class ExecutionRuntime {
   }
 
   abortBySessionKey(sessionKey: string): boolean {
-    return this.registry.abort(sessionKey) || this.backgroundTasks.abortTask(sessionKey);
+    const aborted = this.registry.abort(sessionKey);
+    if (aborted) {
+      this.workerExecutionDelegate.abort(sessionKey);
+    }
+    return aborted;
   }
 
   abortByChat(channel: string, chatId: string): boolean {
     const sessionKey = this.sessionRouting.resolveByChannel(channel, chatId);
-    const abortedForeground = sessionKey ? this.registry.abort(sessionKey) : false;
-    const abortedBackground = sessionKey
-      ? this.backgroundTasks.abortTask(sessionKey)
-      : this.backgroundTasks.abortTaskByChannel(channel, chatId);
+    if (!sessionKey) {
+      return false;
+    }
 
-    return abortedForeground || abortedBackground;
+    const aborted = this.registry.abort(sessionKey);
+    if (aborted) {
+      this.workerExecutionDelegate.abort(sessionKey);
+    }
+    return aborted;
   }
 
   getStatus(sessionKey: string): ExecutionStatus {
-    const foreground = this.registry.getHandle(sessionKey);
-    const background = this.backgroundTasks.getTasksBySessionHandle(sessionKey);
+    const current = this.registry.getHandle(sessionKey);
 
     return {
       sessionKey,
-      foreground,
-      background,
-      active: !!foreground || background.length > 0
+      current,
+      active: !!current,
+      channel: current?.channel,
+      chatId: current?.chatId
     };
   }
 
   stop(): void {
     for (const handle of this.registry.listHandles()) {
-      this.registry.abort(handle.sessionKey);
+      this.abortBySessionKey(handle.sessionKey);
     }
-    this.backgroundTasks.stop();
+  }
+
+  private async executeWithWorker(
+    policy: ExecutionPolicy,
+    messages: LLMMessage[],
+    context: ExecutionContext
+  ): Promise<{ content: string; reasoning_content?: string; agentMode: boolean }> {
+    const controller = context.toolContext.signal
+      ? undefined
+      : this.registry.begin(context.sessionKey, undefined, {
+          scope: 'session',
+          channel: context.request.channel,
+          chatId: context.request.chatId,
+          startedAt: new Date()
+        });
+    const signal = context.toolContext.signal ?? controller?.signal;
+
+    try {
+      this.log.withFields({
+        ssn: context.sessionKey,
+        ch: context.request.channel,
+        chId: context.request.chatId,
+        agent: policy.roleName
+      }).info('首轮消息已进入 worker 执行');
+
+      return await this.workerExecutionDelegate.executeToolLoop({
+        policy,
+        messages,
+        toolContext: {
+          ...context.toolContext,
+          signal
+        },
+        options: {
+          sessionKey: context.sessionKey,
+          allowTools: true,
+          source: context.toolContext.source || 'user',
+          signal
+        }
+      });
+    } finally {
+      if (controller) {
+        this.registry.end(context.sessionKey, controller);
+      }
+    }
   }
 
   private async finalize(params: FinalizeExecutionParams): Promise<void> {
@@ -286,7 +362,8 @@ export class ExecutionRuntime {
       content,
       reasoning_content,
       agentMode,
-      suppressOutbound = false
+      suppressOutbound = false,
+      requestContentForMemory
     } = params;
 
     if (content) {
@@ -320,52 +397,120 @@ export class ExecutionRuntime {
 
     if (this.memoryService) {
       await this.memoryService.maybeSummarizeSession(sessionKey);
-      this.memoryService.enqueueLongTermMemoryMaintenance(sessionKey, request, content);
+      this.memoryService.enqueueLongTermMemoryMaintenance(
+        sessionKey,
+        {
+          ...request,
+          content: requestContentForMemory ?? request.content
+        },
+        content
+      );
     }
   }
 
-  private async handleError(error: unknown, sessionKey: string): Promise<void> {
-    const pluginManager = this.getPluginManager();
-    if (pluginManager) {
-      await pluginManager.runErrorTaps(error, { type: 'agent', data: { sessionKey } });
+  private async prepareVisionTurn(
+    context: ExecutionContext,
+    policy: ExecutionPolicy,
+    executionLog: ReturnType<typeof this.log.withFields>
+  ): Promise<VisionPreparationResult> {
+    const fallbackModel = policy.visionSettings?.fallbackModelName;
+    const directVision = policy.visionSettings?.directVision === true;
+
+    if (!policy.visionProvider || !fallbackModel) {
+      executionLog.warn('检测到图片输入，但缺少视觉回退摘要模型配置', {
+        directVision
+      });
+      return {
+        ok: false,
+        message: ExecutionRuntime.VISION_SUMMARY_REQUIRED_MESSAGE
+      };
     }
+
+    try {
+      const response = await policy.visionProvider.chat(
+        [
+          {
+            role: 'system',
+            content: ExecutionRuntime.IMAGE_SUMMARY_SYSTEM_PROMPT
+          },
+          {
+            role: 'user',
+            content: buildVisionUserContent(
+              context.request.content,
+              context.request.media,
+              context.request.files
+            )
+          }
+        ],
+        undefined,
+        fallbackModel,
+        {
+          reasoning: policy.visionSettings?.reasoning
+        }
+      );
+      const imageSummary = response.content?.trim();
+      if (!imageSummary) {
+        executionLog.warn('视觉回退摘要模型返回了空摘要', {
+          directVision,
+          fallbackModel
+        });
+        return {
+          ok: false,
+          message: ExecutionRuntime.VISION_SUMMARY_FAILED_MESSAGE
+        };
+      }
+
+      const persistedUserContent = this.buildPersistedUserContent(context.request.content, imageSummary);
+      executionLog.info('图片摘要已生成并写入会话上下文', {
+        directVision,
+        fallbackModel,
+        currentTurnMode: directVision ? 'direct-vision' : 'summary-only'
+      });
+
+      return directVision
+        ? {
+            ok: true,
+            persistedUserContent
+          }
+        : {
+            ok: true,
+            persistedUserContent,
+            currentTurnContent: persistedUserContent
+          };
+    } catch (error) {
+      executionLog.warn('视觉回退摘要模型执行失败', {
+        directVision,
+        fallbackModel,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return {
+        ok: false,
+        message: ExecutionRuntime.VISION_SUMMARY_FAILED_MESSAGE
+      };
+    }
+  }
+
+  private buildPersistedUserContent(content: string, imageSummary: string): string {
+    const trimmedContent = content.trim();
+    const trimmedSummary = imageSummary.trim();
+    if (!trimmedContent) {
+      return `${ExecutionRuntime.IMAGE_SUMMARY_PREFIX}\n${trimmedSummary}`;
+    }
+
+    return `${trimmedContent}\n\n${ExecutionRuntime.IMAGE_SUMMARY_PREFIX}\n${trimmedSummary}`;
+  }
+
+  private replaceCurrentTurnContent(messages: LLMMessage[], content: VisionUserContent): void {
+    const currentMessage = messages[messages.length - 1];
+    if (currentMessage?.role !== 'user') {
+      return;
+    }
+
+    currentMessage.content = content;
   }
 
   private hasVisionInput(inbound: InboundMessage): boolean {
     return (Array.isArray(inbound.media) && inbound.media.length > 0)
       || (Array.isArray(inbound.files) && inbound.files.some((file) => file.type === 'image'));
-  }
-
-  private attachImageSummary(inbound: InboundMessage, messages: LLMMessage[], summary: string): void {
-    const summaryBlock = `${ExecutionRuntime.IMAGE_SUMMARY_PREFIX}\n${summary}`;
-    const currentContent = inbound.content?.trim() || '';
-    inbound.content = currentContent ? `${currentContent}\n\n${summaryBlock}` : summaryBlock;
-    inbound.metadata = {
-      ...(inbound.metadata || {}),
-      imageSummary: summary
-    };
-
-    const lastMessage = messages[messages.length - 1];
-    if (!lastMessage || lastMessage.role !== 'user') {
-      return;
-    }
-
-    if (Array.isArray(lastMessage.content)) {
-      const content = [...lastMessage.content];
-      const insertIndex = Math.max(1, content.findIndex((item: any) => item.type === 'image_url'));
-      const textSegment: { type: 'text'; text: string } = { type: 'text', text: `\n\n${summaryBlock}` };
-
-      if (insertIndex <= 0) {
-        content.push(textSegment);
-      } else {
-        content.splice(insertIndex, 0, textSegment);
-      }
-
-      lastMessage.content = content;
-      return;
-    }
-
-    const text = typeof lastMessage.content === 'string' ? lastMessage.content.trim() : '';
-    lastMessage.content = text ? `${text}\n\n${summaryBlock}` : summaryBlock;
   }
 }

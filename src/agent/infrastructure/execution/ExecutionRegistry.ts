@@ -1,7 +1,7 @@
-export interface ForegroundExecutionHandle {
+export interface ActiveExecutionHandle {
   sessionKey: string;
   status: 'running' | 'aborted';
-  scope?: 'chat' | 'session' | 'backgroundTask';
+  scope?: 'chat' | 'session';
   channel?: string;
   chatId?: string;
   startedAt?: Date;
@@ -9,7 +9,7 @@ export interface ForegroundExecutionHandle {
 
 interface ExecutionEntry {
   controller: AbortController;
-  handle: ForegroundExecutionHandle;
+  handle: ActiveExecutionHandle;
 }
 
 export class ExecutionRegistry {
@@ -24,11 +24,11 @@ export class ExecutionRegistry {
   begin(
     key: string,
     controller?: AbortController,
-    metadata?: Omit<ForegroundExecutionHandle, 'sessionKey' | 'status'>
+    metadata?: Omit<ActiveExecutionHandle, 'sessionKey' | 'status'>
   ): AbortController {
     const existing = this.controllers.get(key);
     if (existing && !existing.controller.signal.aborted) {
-      existing.controller.abort(this.createAbortError(`Foreground execution superseded by newer run: ${key}`));
+      existing.controller.abort(this.createAbortError(`Execution superseded by newer run: ${key}`));
     }
 
     const activeController = controller ?? new AbortController();
@@ -50,7 +50,7 @@ export class ExecutionRegistry {
     return this.controllers.get(key)?.controller;
   }
 
-  getHandle(key: string): ForegroundExecutionHandle | undefined {
+  getHandle(key: string): ActiveExecutionHandle | undefined {
     const entry = this.controllers.get(key);
     if (!entry) {
       return undefined;
@@ -62,10 +62,10 @@ export class ExecutionRegistry {
     };
   }
 
-  listHandles(): ForegroundExecutionHandle[] {
+  listHandles(): ActiveExecutionHandle[] {
     return Array.from(this.controllers.keys())
       .map((sessionKey) => this.getHandle(sessionKey))
-      .filter((handle): handle is ForegroundExecutionHandle => !!handle);
+      .filter((handle): handle is ActiveExecutionHandle => !!handle);
   }
 
   abort(key: string): boolean {
