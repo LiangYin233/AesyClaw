@@ -103,10 +103,6 @@
                 </select>
               </label>
               <label class="space-y-1.5">
-                <span class="text-xs font-bold tracking-[0.08em] text-outline">最大会话数</span>
-                <input v-model.number="configDraft.agent!.defaults!.maxSessions" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="number" />
-              </label>
-              <label class="space-y-1.5">
                 <span class="text-xs font-bold tracking-[0.08em] text-outline">记忆窗口</span>
                 <input v-model.number="configDraft.agent!.defaults!.memoryWindow" class="w-full rounded-lg bg-surface-container-low px-3 py-2.5 text-sm text-on-surface outline-none transition focus:ring-2 focus:ring-primary/20" type="number" />
               </label>

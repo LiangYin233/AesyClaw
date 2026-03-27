@@ -17,7 +17,7 @@ export async function createSessionRuntime(config: Config): Promise<{
   const dbPath = join(process.cwd(), '.aesyclaw', 'sessions', 'sessions.db');
   const db = new Database(dbPath);
 
-  const sessionManager = new SessionManager(db, sessionConfig.maxSessions);
+  const sessionManager = new SessionManager(db);
   await sessionManager.loadAll();
 
   const longTermMemoryStore = new LongTermMemoryStore(db);

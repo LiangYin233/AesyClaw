@@ -37,7 +37,6 @@ export type ResolvedMemoryConfig = {
   session: {
     memoryWindow: number;
     contextMode: ContextMode;
-    maxSessions: number;
   };
 };
 
@@ -86,8 +85,7 @@ export function getMemoryConfig(source: ConfigSource): ResolvedMemoryConfig {
     },
     session: {
       memoryWindow: defaults.memoryWindow,
-      contextMode: defaults.contextMode,
-      maxSessions: defaults.maxSessions
+      contextMode: defaults.contextMode
     }
   };
 }

@@ -5,8 +5,6 @@ import { formatLocalTimestamp } from '../../../platform/observability/logging.js
 import { parseSessionKey, SessionNotFoundError, type Session, type SessionMessage } from '../domain/types.js';
 import { SessionStore } from '../infrastructure/SessionStore.js';
 
-const DEFAULT_MAX_SESSIONS = 100;
-const SESSION_CLEANUP_THRESHOLD = 0.9;
 const SESSION_LOAD_BATCH_SIZE = 10;
 
 export { type Session, type SessionMessage };
@@ -14,12 +12,10 @@ export { type Session, type SessionMessage };
 export class SessionManager {
   private store: SessionStore;
   private sessions: Map<string, Session> = new Map();
-  private maxSessions: number;
   private sessionLocks: Map<string, Promise<Session>> = new Map();
   private log = logger.child('SessionManager');
 
-  constructor(db: Database, maxSessions: number = DEFAULT_MAX_SESSIONS) {
-    this.maxSessions = maxSessions;
+  constructor(db: Database) {
     this.store = new SessionStore(db);
   }
 
@@ -122,34 +118,11 @@ export class SessionManager {
         updatedAt: new Date()
       };
       this.sessions.set(key, newSession);
-
-      if (this.sessions.size >= this.maxSessions * SESSION_CLEANUP_THRESHOLD) {
-        await this.cleanupOldSessions();
-      }
       return newSession;
     }
 
     this.sessions.set(key, session);
     return session;
-  }
-
-  private async cleanupOldSessions(): Promise<void> {
-    try {
-      const totalCount = await this.store.countSessions();
-
-      if (totalCount > this.maxSessions) {
-        const toDelete = totalCount - this.maxSessions;
-        const oldSessions = await this.store.findOldestSessions(toDelete);
-
-        for (const session of oldSessions) {
-          await this.delete(session.key);
-        }
-
-        if (oldSessions.length > 0) {
-        }
-      }
-    } catch {
-    }
   }
 
   private mapRowToSession(
@@ -300,7 +273,7 @@ export class SessionManager {
   async loadAll(): Promise<void> {
     await this.store.ready();
 
-    const sessions = await this.store.loadAllSessions(this.maxSessions);
+    const sessions = await this.store.loadAllSessions();
 
     const batchSize = SESSION_LOAD_BATCH_SIZE;
     for (let i = 0; i < sessions.length; i += batchSize) {

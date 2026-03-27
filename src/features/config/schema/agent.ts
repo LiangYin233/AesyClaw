@@ -23,8 +23,7 @@ export const agentDefaultsSchema = z.object({
   memorySummary: memorySummaryConfigSchema,
   memoryFacts: memoryFactsConfigSchema,
   visionFallbackModel: z.string().default(''),
-  contextMode: contextModeSchema.default('session'),
-  maxSessions: z.number().int().finite().default(100)
+  contextMode: contextModeSchema.default('session')
 }).strict().prefault(() => ({}));
 
 export const agentConfigSchema = withObjectInputDefault({

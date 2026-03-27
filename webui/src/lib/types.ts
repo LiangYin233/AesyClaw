@@ -247,7 +247,6 @@ export interface AppConfig {
     defaults?: {
       maxToolIterations?: number;
       memoryWindow?: number;
-      maxSessions?: number;
       contextMode?: 'session' | 'channel';
       visionFallbackModel?: string;
       memorySummary?: {

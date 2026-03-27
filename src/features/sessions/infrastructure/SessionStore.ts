@@ -28,11 +28,8 @@ export class SessionStore {
     return { messages, memory };
   }
 
-  async loadAllSessions(limit: number): Promise<DBSession[]> {
-    return this.db.all<DBSession>(
-      `SELECT * FROM sessions ORDER BY datetime(updated_at) DESC LIMIT ?`,
-      [limit]
-    );
+  async loadAllSessions(): Promise<DBSession[]> {
+    return this.db.all<DBSession>(`SELECT * FROM sessions ORDER BY datetime(updated_at) DESC`);
   }
 
   async addMessage(sessionId: number, role: string, content: string, timestamp: string, key: string): Promise<void> {
@@ -128,18 +125,6 @@ export class SessionStore {
 
   async deleteSession(key: string): Promise<void> {
     await this.db.run(`DELETE FROM sessions WHERE key = ?`, [key]);
-  }
-
-  async countSessions(): Promise<number> {
-    const result = await this.db.get<{ count: number }>('SELECT COUNT(*) as count FROM sessions');
-    return result?.count ?? 0;
-  }
-
-  async findOldestSessions(limit: number): Promise<DBSession[]> {
-    return this.db.all<DBSession>(
-      `SELECT key FROM sessions ORDER BY datetime(updated_at) ASC LIMIT ?`,
-      [limit]
-    );
   }
 
   async close(): Promise<void> {
