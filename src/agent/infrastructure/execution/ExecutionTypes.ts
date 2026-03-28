@@ -1,7 +1,7 @@
 import type { InboundFile, InboundMessage, ToolCall, VisionSettings } from '../../../types.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
 import type { ToolContext, ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
-import type { Session, SessionMessage } from '../../../features/sessions/domain/types.js';
+import type { Session, SessionMessage } from '../../domain/sessionTypes.js';
 
 export type { VisionSettings } from '../../../types.js';
 

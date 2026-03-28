@@ -7,7 +7,7 @@ export { McpClientManager } from './features/mcp/index.js';
 export type { MCPServerConfig, MCPServersConfig, MCPTransportType } from './types.js';
 export { AgentRuntime } from './agent/index.js';
 export { SessionManager } from './agent/infrastructure/session/SessionManager.js';
-export type { Session, SessionMessage } from './features/sessions/domain/types.js';
+export type { Session, SessionMessage } from './agent/domain/sessionTypes.js';
 export { PluginManager } from './features/plugins/index.js';
 export type { Plugin, PluginContext } from './features/plugins/index.js';
 export { CronRuntimeService as CronService } from './features/cron/index.js';

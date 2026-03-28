@@ -19,7 +19,7 @@ import {
   DomainValidationError,
   ResourceNotFoundError
 } from '../platform/errors/domain.js';
-import { SessionNotFoundError, SessionValidationError } from '../features/sessions/domain/types.js';
+import { SessionNotFoundError, SessionValidationError } from '../agent/domain/sessionTypes.js';
 
 export {
   AppError,

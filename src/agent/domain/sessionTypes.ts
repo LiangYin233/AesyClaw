@@ -31,6 +31,23 @@ export interface Session {
   updatedAt: Date;
 }
 
+export class SessionValidationError extends Error {
+  constructor(
+    message: string,
+    public readonly details?: unknown
+  ) {
+    super(message);
+    this.name = 'SessionValidationError';
+  }
+}
+
+export class SessionNotFoundError extends Error {
+  constructor(sessionKey: string) {
+    super(`Session with id "${sessionKey}" not found`);
+    this.name = 'SessionNotFoundError';
+  }
+}
+
 export function parseSessionKey(key: string): { channel: string; chatId: string; uuid?: string } {
   const parts = key.split(':');
   const channel = parts[0]?.trim();
@@ -50,22 +67,3 @@ export function parseSessionKey(key: string): { channel: string; chatId: string;
 
   return { channel, chatId };
 }
-
-export class SessionValidationError extends Error {
-  constructor(
-    message: string,
-    public readonly details?: unknown
-  ) {
-    super(message);
-    this.name = 'SessionValidationError';
-  }
-}
-
-export class SessionNotFoundError extends Error {
-  constructor(sessionKey: string) {
-    super(`Session with id "${sessionKey}" not found`);
-    this.name = 'SessionNotFoundError';
-  }
-}
-
-
