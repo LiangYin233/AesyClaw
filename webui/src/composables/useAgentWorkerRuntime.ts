@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted, shallowRef } from 'vue';
+import { onBeforeUnmount, onMounted, readonly, shallowRef } from 'vue';
 import { rpcCall, rpcOnConnectionStateChange, rpcSubscribe } from '@/lib/rpc';
 import type { WorkerRuntimeSnapshot } from '@/lib/types';
 
@@ -89,10 +89,10 @@ export function useAgentWorkerRuntime(token: string | null) {
   });
 
   return {
-    snapshot,
-    loading,
-    error,
-    abortingSessionKey,
+    snapshot: readonly(snapshot),
+    loading: readonly(loading),
+    error: readonly(error),
+    abortingSessionKey: readonly(abortingSessionKey),
     loadWorkerRuntime,
     abortSession
   };
