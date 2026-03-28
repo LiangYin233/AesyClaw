@@ -1,7 +1,7 @@
 import type { InboundMessage } from '../../../types.js';
 import type { ToolContext } from '../../../platform/tools/ToolRegistry.js';
 import type { SessionManager, SessionMessage } from '../../../features/sessions/application/SessionManager.js';
-import type { SessionRoutingService } from './SessionRoutingService.js';
+import type { ISessionRouting } from '../../domain/session.js';
 import type { SessionMemoryService } from '../memory/SessionMemoryService.js';
 import type { AgentRoleService } from '../roles/AgentRoleService.js';
 import type { ExecutionContext } from '../execution/ExecutionTypes.js';
@@ -16,7 +16,7 @@ export interface SessionResolverOptions {
 export class SessionResolver {
   constructor(
     private sessionManager: SessionManager,
-    private sessionRouting: SessionRoutingService,
+    private sessionRouting: ISessionRouting,
     private memoryService?: SessionMemoryService,
     private agentRoleService?: AgentRoleService
   ) {}

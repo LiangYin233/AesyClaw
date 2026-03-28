@@ -2,7 +2,7 @@ import type { OutboundMessage, InboundMessage, LLMMessage, LLMResponse } from '.
 import type { PluginManager } from '../../../features/plugins/index.js';
 import type { SessionManager } from '../../../features/sessions/application/SessionManager.js';
 import type { SessionMemoryService } from '../memory/SessionMemoryService.js';
-import type { SessionRoutingService } from '../session/SessionRoutingService.js';
+import type { ISessionRouting } from '../../domain/session.js';
 import type { ExecutionContext } from './ExecutionTypes.js';
 import type { ExecutionEngine } from './ExecutionEngine.js';
 import type { ExecutionStatus } from '../../domain/execution.js';
@@ -54,7 +54,7 @@ export class ExecutionRuntime {
 
   constructor(args: {
     engine: ExecutionEngine;
-    sessionRouting: SessionRoutingService;
+    sessionRouting: ISessionRouting;
     sessionManager: SessionManager;
     memoryService?: SessionMemoryService;
     getPluginManager: () => PluginManager | undefined;
@@ -73,7 +73,7 @@ export class ExecutionRuntime {
   }
 
   private engine: ExecutionEngine;
-  private sessionRouting: SessionRoutingService;
+  private sessionRouting: ISessionRouting;
   private sessionManager: SessionManager;
   private memoryService?: SessionMemoryService;
   private getPluginManager: () => PluginManager | undefined;

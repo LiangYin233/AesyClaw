@@ -5,7 +5,7 @@ import type { ToolRegistry, ToolContext } from '../../../platform/tools/ToolRegi
 import type { SessionManager } from '../../../features/sessions/application/SessionManager.js';
 import type { CommandRegistry } from '../../application/index.js';
 import type { SessionMemoryService } from '../memory/SessionMemoryService.js';
-import type { SessionRoutingService } from '../session/SessionRoutingService.js';
+import type { ISessionRouting } from '../../domain/session.js';
 import type { AgentRoleService } from '../roles/AgentRoleService.js';
 import type { VisionSettings } from '../../../types.js';
 import { DEFAULT_SYSTEM_PROMPT } from '../../../features/config/schema/shared.js';
@@ -39,7 +39,7 @@ export interface RuntimeCoordinatorOptions {
   toolRegistryDefinitions?: Pick<ToolRegistry, 'getDefinitions' | 'execute'>;
   sessionManager: SessionManager;
   commandRegistry: CommandRegistry;
-  sessionRouting: SessionRoutingService;
+  sessionRouting: ISessionRouting;
   outboundGateway: OutboundGateway;
   workspace: string;
   systemPrompt?: string;
