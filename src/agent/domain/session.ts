@@ -1,3 +1,4 @@
+import type { ContextMode } from '../../features/config/schema/index.js';
 import type { InboundMessage } from '../../types.js';
 
 export interface SessionReference {
@@ -60,4 +61,28 @@ export function mapSessionReference<T>(
   }
 
   return undefined;
+}
+
+export interface SessionRoute {
+  sessionKey: string;
+  channelChatKey: string;
+}
+
+export interface ISessionRouting {
+  resolve(msg: Pick<InboundMessage, 'channel' | 'chatId'> & { sessionKey?: string }): Promise<SessionRoute>;
+  createNewSession(channel: string, chatId: string): string;
+  switchSession(channel: string, chatId: string, sessionKey: string): void;
+  getActiveSession(channel: string, chatId: string): string | undefined;
+  resolveByChannel(channel: string, chatId: string): string | undefined;
+  getContextMode(): ContextMode;
+  setContextMode(contextMode: ContextMode): void;
+  getConversationAgent(channel: string, chatId: string): string | undefined;
+  setConversationAgent(channel: string, chatId: string, agentName: string): void;
+  clearConversationAgent(channel: string, chatId: string): void;
+  deleteAgentBindings(agentName: string): number;
+  deleteSessionBinding(sessionKey: string, channel: string, chatId: string): void;
+}
+
+export interface SessionRoutingFactory {
+  create(sessionManager: unknown, contextMode?: ContextMode): ISessionRouting;
 }
