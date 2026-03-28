@@ -215,24 +215,6 @@ async function loadSkills() {
   syncSkills(result.data.skills);
 }
 
-async function loadSkillDetail(name: string) {
-  if (!name) {
-    selectedSkill.value = null;
-    return;
-  }
-
-  detailLoading.value = true;
-  const result = await rpcCall<{ skill: SkillInfo }>('skills.get', token, { name });
-  detailLoading.value = false;
-
-  if (result.error || !result.data) {
-    error.value = result.error || '技能详情加载失败';
-    return;
-  }
-
-  selectedSkill.value = result.data.skill;
-}
-
 function selectSkill(name: string) {
   selectedName.value = name;
 }
@@ -337,7 +319,6 @@ watch(selectedName, (name) => {
     return;
   }
 
-  void loadSkillDetail(name);
   bindSkillDetailSubscription(name);
 }, { immediate: true });
 

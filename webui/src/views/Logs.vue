@@ -244,26 +244,18 @@ async function loadLogsPage() {
   loading.value = true;
   error.value = '';
 
-  const [configResult, entriesResult, usageResult] = await Promise.all([
+  const [configResult, usageResult] = await Promise.all([
     rpcCall<ObservabilityLoggingConfig>('observability.getLoggingConfig', token),
-    rpcCall<ObservabilityEntriesResponse>('observability.getLoggingEntries', token, {
-      limit: limit.value,
-      level: levelFilter.value === 'all' ? undefined : levelFilter.value,
-    }),
     rpcCall<TokenUsageStats>('observability.getUsage', token),
   ]);
 
-  if (configResult.error || entriesResult.error) {
-    error.value = configResult.error || entriesResult.error || '加载失败';
+  if (configResult.error) {
+    error.value = configResult.error || '加载失败';
   }
 
   config.value = configResult.data;
-  entries.value = entriesResult.data?.entries || [];
-  bufferTotal.value = entriesResult.data?.total || 0;
   levelDraft.value = configResult.data?.level || levelDraft.value;
   usageStats.value = usageResult.data ?? null;
-  lastUpdatedAt.value = new Date();
-  loading.value = false;
 }
 
 async function updateRuntimeLevel() {
@@ -295,6 +287,7 @@ function stopSubscriptions() {
 
 function bindSubscriptions() {
   stopSubscriptions();
+  loading.value = true;
 
   stopLogsSubscription = rpcSubscribe<ObservabilityEntriesResponse>(
     'observability.logs',
@@ -341,7 +334,6 @@ function bindSubscriptions() {
 }
 
 watch([levelFilter, limit], () => {
-  void loadLogsPage();
   bindSubscriptions();
 });
 
