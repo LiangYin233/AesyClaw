@@ -10,13 +10,13 @@ import { fileURLToPath, pathToFileURL } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// 子进程列表
+// 当前命令行工具拉起的子进程列表。
 const childProcesses: ChildProcess[] = [];
 
-// 服务模式类型
+// 命令行工具支持的启动模式。
 type ServiceMode = 'gateway' | 'webui' | 'all';
 
-// 端口配置类型
+// `status` 命令展示的端口信息。
 interface Ports {
   api: number;
   webui: number;
@@ -109,7 +109,7 @@ export function resolveStartTarget(target: StartTarget): ResolvedStartTarget {
   };
 }
 
-// 清理所有子进程
+// 关闭当前命令行工具管理的所有子进程。
 export function cleanupProcesses(): void {
   if (childProcesses.length === 0) return;
 
@@ -118,21 +118,21 @@ export function cleanupProcesses(): void {
 
     try {
       if (process.platform === 'win32') {
-        // Windows: 使用 taskkill 杀掉进程树
+        // Windows 下直接终止整个进程树，避免残留子进程。
         execSync(`taskkill /pid ${child.pid} /T /F`, { stdio: 'ignore' });
       } else {
-        // Unix: 发送 SIGTERM 信号
+        // 其他平台先发送 SIGTERM，交给子进程自行收尾。
         process.kill(child.pid, 'SIGTERM');
       }
     } catch {
-      // 进程可能已经退出，忽略错误
+      // 进程可能已提前退出，这里按幂等清理处理。
     }
   }
 
   childProcesses.length = 0;
 }
 
-// 注册信号处理器
+// `webui` 模式下由命令行工具负责退出；其他模式交给主服务接管生命周期。
 export function shouldCliExitOnShutdown(mode: ServiceMode): boolean {
   return mode === 'webui';
 }
@@ -163,7 +163,7 @@ function setupSignalHandlers(mode: ServiceMode, state: ShutdownState = {}): void
   process.on('SIGTERM', handleShutdown);
 }
 
-// 启动进程
+// 启动一个外部进程，并在成功后纳入统一清理列表。
 function startProcess(name: string, target: StartTarget): Promise<ChildProcess> {
   return new Promise((resolve, reject) => {
     const resolvedTarget = resolveStartTarget(target);
@@ -201,7 +201,7 @@ function startProcess(name: string, target: StartTarget): Promise<ChildProcess> 
   });
 }
 
-// 获取服务状态
+// 输出当前配置中的服务端口。
 function getStatus(ports: Ports): void {
   console.log('\nAesyClaw Services Status\n');
 
@@ -216,7 +216,7 @@ function getStatus(ports: Ports): void {
   console.log('');
 }
 
-// 启动服务
+// 等待一组启动任务完成；只要有一项失败就触发统一清理。
 export async function runStartupTasks(
   startupTasks: Array<Promise<unknown>>,
   cleanup: () => void = cleanupProcesses
@@ -256,7 +256,7 @@ async function startService(mode: ServiceMode): Promise<void> {
   await runStartupTasks(startupTasks);
 }
 
-// 显示帮助信息
+// 输出命令行帮助文本。
 function showHelp(): void {
   const packageJson = JSON.parse(
     readFileSync(join(__dirname, '../package.json'), 'utf-8')
@@ -265,12 +265,12 @@ function showHelp(): void {
   console.log(buildHelpText(packageJson.version));
 }
 
-// 主函数
+// 命令行主入口。
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const command = args[0] || 'status';
 
-  // gateway 命令直接启动服务
+  // `gateway` 直接进入主服务，不再额外派生子进程。
   if (command === 'gateway') {
     const shutdownState: ShutdownState = {
       gatewaySignalHandlersReady: false,
@@ -286,7 +286,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  // help 命令不需要加载配置
+  // 帮助命令不依赖运行时配置。
   if (command === 'help' || command === '--help' || command === '-h') {
     showHelp();
     process.exit(0);

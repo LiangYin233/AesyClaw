@@ -343,7 +343,7 @@ export class WorkerRuntimeRegistry {
       try {
         await listener();
       } catch {
-        // Ignore listener failures to avoid breaking runtime tracking.
+        // 监听器失败不应影响运行态主流程。
       }
     }
   }

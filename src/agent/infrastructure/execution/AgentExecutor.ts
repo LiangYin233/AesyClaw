@@ -40,7 +40,7 @@ export class AgentExecutor {
   }
 
   /**
-   * 同步执行
+   * 按同步策略执行一轮 Agent 推理。
    */
   async execute(
     messages: LLMMessage[],
@@ -73,12 +73,16 @@ export class AgentExecutor {
     if (model) this.model = model;
   }
 
-  // === BackgroundTaskExecutor 接口方法 ===
-
+  /**
+   * 中止指定 session 的执行。
+   */
   abort(sessionKey: string): void {
     this.executionRegistry.abort(sessionKey);
   }
 
+  /**
+   * 直接运行工具循环，并复用当前执行控制逻辑。
+   */
   async executeToolLoop(
     messages: LLMMessage[],
     toolContext: ToolContext,
@@ -99,6 +103,9 @@ export class AgentExecutor {
     );
   }
 
+  /**
+   * 为同一 session 复用中止控制，避免并发执行彼此失联。
+   */
   private async runWithExecutionControl<T>(
     options: ExecutionOptions | undefined,
     execute: (executionOptions: ExecutionOptions) => Promise<T>

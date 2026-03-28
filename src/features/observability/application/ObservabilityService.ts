@@ -33,7 +33,7 @@ export class ObservabilityService {
         config.observability.level = level;
       });
     } catch {
-      // Keep runtime level applied in memory even when persistence fails.
+      // 配置持久化失败时，仍保留内存中的实时日志等级。
     }
 
     return { success: true, level: logging.getLevel() };

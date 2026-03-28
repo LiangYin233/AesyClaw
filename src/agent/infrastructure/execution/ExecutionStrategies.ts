@@ -3,7 +3,10 @@ import type { ToolContext } from '../../../platform/tools/ToolRegistry.js';
 import type { ExecutionStrategy, ExecutionResult, ExecutionOptions } from './ExecutionTypes.js';
 import type { ToolLoopRunner } from './ToolLoopRunner.js';
 
-// SyncStrategy
+/**
+ * 同步执行策略。
+ * 直接复用 ToolLoopRunner 完成当前轮次执行。
+ */
 export class SyncStrategy implements ExecutionStrategy {
   readonly name = 'sync' as const;
 

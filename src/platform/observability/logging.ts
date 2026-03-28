@@ -105,7 +105,7 @@ function initializeWindowsConsoleUtf8(): void {
     process.stdout?.setDefaultEncoding?.('utf8');
     process.stderr?.setDefaultEncoding?.('utf8');
   } catch {
-    // Ignore stream encoding failures and continue with the code-page fallback.
+    // 设置默认编码失败时，继续尝试代码页兜底。
   }
 
   try {
@@ -115,7 +115,7 @@ function initializeWindowsConsoleUtf8(): void {
       windowsHide: true
     });
   } catch {
-    // Best effort only. Some restricted environments block spawning cmd.exe.
+    // 这里只做尽力处理；受限环境可能禁止拉起 cmd.exe。
   }
 }
 
@@ -560,7 +560,7 @@ export class LoggingService {
       try {
         await listener(entry);
       } catch {
-        // Ignore listener failures to avoid breaking logging.
+        // 监听器失败不应影响日志主链路。
       }
     }
   }

@@ -263,7 +263,7 @@ export class ChannelManager {
       try {
         await listener(event);
       } catch {
-        // Ignore listener failures to avoid breaking channel lifecycle.
+        // 监听器失败不应打断渠道生命周期。
       }
     }
   }

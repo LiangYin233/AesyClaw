@@ -328,7 +328,7 @@ export class SessionManager {
       try {
         await listener(event);
       } catch {
-        // Ignore listener failures to avoid breaking session lifecycle.
+        // 监听器失败不应打断 session 生命周期。
       }
     }
   }

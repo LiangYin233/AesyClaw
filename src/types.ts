@@ -64,21 +64,22 @@ export type {
 export interface InboundFile {
   name: string;
   url: string;
-  localPath?: string;  // Channel 下载后的本地路径
-  type?: 'audio' | 'video' | 'file' | 'image';  // 文件类型，用于插件识别
+  localPath?: string; // Channel 下载后的本地路径。
+  type?: 'audio' | 'video' | 'file' | 'image'; // 文件类型，供插件识别。
 }
 
 export type CompatInboundFile = InboundFile;
 
 /**
- * 插件处理意图 - 描述插件如何处理消息以及 Agent 应该如何响应
+ * 插件处理意图。
+ * 用于描述插件已处理到哪一步，以及 Agent 后续应如何接管。
  */
 export type ProcessingIntent =
-  | { type: 'continue' }                    // 继续 LLM 处理（默认）
-  | { type: 'reply', reason: string }       // 直接回复，跳过 LLM
-  | { type: 'handled', reason: string }     // 插件已完全处理（已调用 LLM）
-  | { type: 'status', reason: string }      // 状态提示消息
-  | { type: 'error', reason: string };      // 错误消息
+  | { type: 'continue' } // 继续交给 LLM 处理。
+  | { type: 'reply', reason: string } // 直接回复，跳过 LLM。
+  | { type: 'handled', reason: string } // 插件已完整处理当前消息。
+  | { type: 'status', reason: string } // 输出状态提示。
+  | { type: 'error', reason: string }; // 输出错误提示。
 
 export interface InboundMessage {
   id?: string;
@@ -89,12 +90,12 @@ export interface InboundMessage {
   rawEvent?: any;
   timestamp: Date;
   messageId?: string;
-  media?: string[];       // 图片 URL，发送给 LLM
-  files?: InboundFile[];  // 非图片文件，保存到本地
+  media?: string[]; // 图片 URL，会传给 LLM。
+  files?: InboundFile[]; // 非图片文件，按本地文件处理。
   sessionKey?: string;
   messageType?: 'private' | 'group';
 
-  // 处理意图：描述插件如何处理消息以及 Agent 应该如何响应
+  // 标记插件处理结果，供 Agent 决定后续执行路径。
   intent?: ProcessingIntent;
 
   metadata?: Record<string, any>;
@@ -187,7 +188,8 @@ export interface MCPServerInfo {
 }
 
 /**
- * 视觉配置 - 用于 Agent 执行时的视觉模型路由
+ * 视觉模型配置。
+ * 用于决定是否直连视觉模型，以及摘要回退时走哪个模型。
  */
 export interface VisionSettings {
   enabled: boolean;

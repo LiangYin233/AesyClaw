@@ -21,6 +21,9 @@ export class ToolLoopRunner {
     this.provider = provider;
   }
 
+  /**
+   * 在同一轮对话中循环执行 LLM 与工具调用，直到拿到最终回复或达到上限。
+   */
   async run(
     messages: LLMMessage[],
     toolContext: ToolContext,
@@ -86,7 +89,7 @@ export class ToolLoopRunner {
     while (toolCallQueue.length > 0 && iteration < max) {
       iteration++;
       checkAbort();
-      // 执行当前队列中的所有 toolCalls
+      // 依次执行当前批次的工具调用，并把结果回写到消息流。
       for (const toolCall of toolCallQueue) {
         checkAbort();
 
@@ -146,7 +149,7 @@ export class ToolLoopRunner {
         });
       }
 
-      // 执行完所有 toolCalls 后，继续调用 LLM
+      // 当前批次工具执行完后，再次请求 LLM 决定是否继续调用工具。
       checkAbort();
 
       const tools = allowTools ? this.toolRegistry.getDefinitions() : [];
@@ -184,7 +187,6 @@ export class ToolLoopRunner {
       return { content: '已达到最大迭代次数', reasoning_content: undefined, toolsUsed, agentMode };
     }
 
-    // 正常结束
     const lastMessage = messages[messages.length - 1];
     const lastContent = typeof lastMessage?.content === 'string'
       ? lastMessage.content
@@ -193,7 +195,7 @@ export class ToolLoopRunner {
   }
 
   /**
-   * 纯 LLM 调用（无工具）
+   * 发起一次不进入工具循环的纯 LLM 调用。
    */
   async callLLM(
     messages: LLMMessage[],

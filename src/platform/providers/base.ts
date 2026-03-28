@@ -1,15 +1,12 @@
 import type { LLMMessage, LLMResponse, ToolDefinition } from '../../types.js';
 
 /**
- * Abstract base class for LLM providers
- * Implement this class to add support for different LLM APIs
+ * LLM 接入层抽象基类。
+ * 各模型适配器统一实现该接口。
  */
 export abstract class LLMProvider {
   /**
-   * @param apiKey - API key for authentication
-   * @param apiBase - Base URL for API endpoints
-   * @param headers - Additional HTTP headers
-   * @param extraBody - Additional body parameters for API requests
+   * 初始化接入层基础配置。
    */
   constructor(
     _apiKey?: string,
@@ -19,12 +16,7 @@ export abstract class LLMProvider {
   ) {}
 
   /**
-   * Send a chat completion request to the LLM
-   * @param messages - Conversation history
-   * @param tools - Available tools/function calling definitions
-   * @param model - Model identifier to use
-   * @param options - Optional request parameters
-   * @returns LLM response with content and/or tool calls
+   * 发送一次 LLM 对话请求。
    */
   abstract chat(
     messages: LLMMessage[],
@@ -37,5 +29,4 @@ export abstract class LLMProvider {
       signal?: AbortSignal;
     }
   ): Promise<LLMResponse>;
-
 }

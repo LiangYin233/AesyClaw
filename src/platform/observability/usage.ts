@@ -415,7 +415,7 @@ export class TokenUsageTracker {
       try {
         await this.run('ROLLBACK');
       } catch {
-        // Ignore rollback errors and preserve dirty state for retry.
+        // 回滚失败时保留脏状态，等待后续重试。
       }
       this.log.error('保存令牌用量失败', {
         persistFile: this.config.persistFile,
@@ -492,7 +492,7 @@ export class TokenUsageTracker {
       try {
         await listener(snapshot);
       } catch {
-        // Ignore listener failures to avoid breaking usage tracking.
+        // 监听器失败不应影响用量统计主流程。
       }
     }
   }

@@ -132,7 +132,7 @@ export class ToolRegistry {
   }
 
   /**
-   * 批量注销工具
+   * 批量注销工具。
    */
   unregisterMany(names: string[]): number {
     let count = 0;
@@ -176,21 +176,21 @@ export class ToolRegistry {
   }
 
   /**
-   * 设置工具黑名单
+   * 设置工具黑名单。
    */
   setBlacklist(names: string[]): void {
     this.blacklist = new Set(names);
   }
 
   /**
-   * 获取当前黑名单
+   * 获取当前黑名单。
    */
   getBlacklist(): string[] {
     return Array.from(this.blacklist);
   }
 
   /**
-   * 检查工具是否在黑名单中
+   * 检查工具是否在黑名单中。
    */
   isBlacklisted(name: string): boolean {
     return this.blacklist.has(name);
@@ -207,14 +207,14 @@ export class ToolRegistry {
   }
 
   /**
-   * 获取所有工具列表
+   * 返回当前已注册的全部工具。
    */
   list(): Tool[] {
     return Array.from(this.tools.values());
   }
 
   async execute(name: string, params: Record<string, any>, context?: ToolContext): Promise<string> {
-    const tool = this.tools.get(name);  // 根据名称获取工具
+    const tool = this.tools.get(name);
     if (!tool) {
       throw new Error(`Tool not found: ${name}`);
     }
@@ -227,7 +227,7 @@ export class ToolRegistry {
     });
 
     if (tool.validate) {
-      const errors = tool.validate(params);  // 验证参数
+      const errors = tool.validate(params);
       if (errors.length > 0) {
         throw new Error(`Validation errors: ${errors.join(', ')}`);
       }
@@ -262,7 +262,7 @@ export class ToolRegistry {
       });
       throwIfAborted(mergedSignal);
       const result = await Promise.race([
-        tool.execute(params, execContext),  // 执行工具
+        tool.execute(params, execContext),
         new Promise<never>((_, reject) => {
           if (!mergedSignal) {
             return;

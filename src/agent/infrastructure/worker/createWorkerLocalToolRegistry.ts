@@ -80,7 +80,7 @@ export async function createWorkerLocalToolRegistry(
         await mcpManager.connectOne(serverName, serverConfig);
         syncMcpServerTools(toolRegistry, mcpManager, serverName);
       } catch {
-        // Fall back to parent bridge when worker-local MCP init fails.
+        // worker 内初始化 MCP 失败时，后续改走父进程桥接路径。
       }
     }
   }
