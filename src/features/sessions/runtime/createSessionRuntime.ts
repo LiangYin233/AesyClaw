@@ -1,5 +1,5 @@
 import { join } from 'path';
-import { SessionRoutingService } from '../../../agent/infrastructure/session/SessionRoutingService.js';
+import { SessionRoutingService } from '../infrastructure/SessionRoutingService.js';
 import { getSessionRuntimeConfig } from '../../../features/config/index.js';
 import { Database } from '../../../platform/db/index.js';
 import { LongTermMemoryStore, SessionManager } from '../index.js';

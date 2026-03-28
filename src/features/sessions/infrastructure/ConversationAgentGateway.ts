@@ -1,9 +1,9 @@
+import type { ISessionRouting } from '../../../agent/domain/session.js';
 import type { AgentRoleService } from '../../../agent/infrastructure/roles/AgentRoleService.js';
-import type { SessionRoutingService } from '../../../agent/infrastructure/session/SessionRoutingService.js';
 
 export class ConversationAgentGateway {
   constructor(
-    private readonly sessionRouting: SessionRoutingService,
+    private readonly sessionRouting: ISessionRouting,
     private readonly agentRoleService?: AgentRoleService
   ) {}
 
