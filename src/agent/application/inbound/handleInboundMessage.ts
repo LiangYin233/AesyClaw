@@ -21,7 +21,6 @@ export interface HandleInboundMessageResult {
 }
 
 export interface HandleInboundMessageDeps {
-  logInbound: (message: InboundMessage) => void;
   processInbound: (input: {
     message: InboundMessage;
     suppressOutbound?: boolean;
@@ -32,15 +31,12 @@ export interface HandleInboundMessageDeps {
     toolContextBase: ToolContext;
   }) => Promise<AgentTurnContext>;
   runTurn: (context: AgentTurnContext) => Promise<string | undefined>;
-  logCompletion: (context: AgentTurnContext) => void;
 }
 
 export async function handleInboundMessage(
   deps: HandleInboundMessageDeps,
   input: HandleInboundMessageInput
 ): Promise<HandleInboundMessageResult> {
-  deps.logInbound(input.message);
-
   const preprocessed = await deps.processInbound({
     message: input.message,
     suppressOutbound: input.suppressOutbound
@@ -64,7 +60,6 @@ export async function handleInboundMessage(
   });
 
   const content = await deps.runTurn(context);
-  deps.logCompletion(context);
 
   return {
     status: 'executed',

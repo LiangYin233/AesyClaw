@@ -10,7 +10,7 @@ export class CronRuntimeService {
   private jobs: Map<string, CronJob> = new Map();
   private timer?: NodeJS.Timeout;
   private store: CronStore;
-  private onJobExecute?: (job: CronJob) => Promise<void>;
+  private onJobExecute: (job: CronJob) => Promise<void>;
   private log = logger.child('Cron');
   private readyPromise?: Promise<void>;
   private ready = false;
@@ -18,7 +18,7 @@ export class CronRuntimeService {
 
   constructor(
     dbPath: string,
-    onJobExecute?: (job: CronJob) => Promise<void>
+    onJobExecute: (job: CronJob) => Promise<void>
   ) {
     const actualDbPath = dbPath.replace(/\.json$/, '.db');
     this.store = new CronStore(actualDbPath);
@@ -208,17 +208,15 @@ export class CronRuntimeService {
 
         let executedSuccessfully = true;
 
-        if (this.onJobExecute) {
-          try {
-            await this.onJobExecute(job);
-          } catch (error) {
-            this.log.warn(`Cron 任务执行失败并将重试: ${job.id}`, {
-              jobId: job.id,
-              jobName: job.name,
-              error
-            });
-            executedSuccessfully = false;
-          }
+        try {
+          await this.onJobExecute(job);
+        } catch (error) {
+          this.log.warn(`Cron 任务执行失败并将重试: ${job.id}`, {
+            jobId: job.id,
+            jobName: job.name,
+            error
+          });
+          executedSuccessfully = false;
         }
 
         if (!executedSuccessfully) {

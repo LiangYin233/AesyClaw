@@ -11,7 +11,7 @@ export class ConfigManager {
   private unsubscribeReload?: () => void;
 
   constructor(
-    private readonly eventBus?: EventBus<AesyClawEvents>,
+    private readonly eventBus: EventBus<AesyClawEvents>,
     private readonly service: ConfigService = defaultConfigService
   ) {}
 
@@ -72,7 +72,7 @@ export class ConfigManager {
     }
 
     this.unsubscribeReload = this.service.onReload(async (previousConfig, currentConfig) => {
-      if (!this.eventBus || !previousConfig) {
+      if (!previousConfig) {
         return;
       }
 

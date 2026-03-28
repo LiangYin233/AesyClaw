@@ -5,41 +5,31 @@ import {
   bindSessionReference,
   type SessionReference
 } from '../domain/session.js';
-import type { RuntimeLifecycle } from '../domain/runtime.js';
 import { SessionHandle } from './SessionHandle.js';
 import type { LLMProvider } from '../../platform/providers/base.js';
 import type { SessionMemoryService } from '../infrastructure/memory/SessionMemoryService.js';
 import type { VisionSettings } from '../../types.js';
 
 export class AgentRuntime {
-  private running = false;
-
   constructor(
     private readonly deps: AgentRuntimeDeps,
-    private readonly lifecycle?: RuntimeLifecycle
+    private readonly lifecycle: {
+      start(): void;
+      stop(): void;
+      isRunning(): boolean;
+    }
   ) {}
 
   start(): void {
-    if (this.lifecycle) {
-      this.lifecycle.start();
-      return;
-    }
-    this.running = true;
+    this.lifecycle.start();
   }
 
   stop(): void {
-    if (this.lifecycle) {
-      this.lifecycle.stop();
-      return;
-    }
-    this.running = false;
+    this.lifecycle.stop();
   }
 
   isRunning(): boolean {
-    if (this.lifecycle) {
-      return this.lifecycle.isRunning();
-    }
-    return this.running;
+    return this.lifecycle.isRunning();
   }
 
   session(reference: SessionReference | string): SessionHandle {

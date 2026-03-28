@@ -560,10 +560,12 @@ export function registerWebSocketHandlers(args: RegisterWebSocketHandlersArgs): 
   cleanups.push(tokenUsage.onChange(() => {
     server.publish('observability.usage');
   }));
-  cleanups.push(skillManager?.onChange(() => {
-    server.publish('skills.list');
-    server.publish('skills.detail');
-  }) ?? (() => {}));
+  if (skillManager) {
+    cleanups.push(skillManager.onChange(() => {
+      server.publish('skills.list');
+      server.publish('skills.detail');
+    }));
+  }
   cleanups.push(agentRuntime.onWorkerRuntimeChange(() => {
     server.publish('agents.workerRuntime');
   }));

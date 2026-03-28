@@ -24,8 +24,6 @@ import { ToolRegistry } from '../../../platform/tools/index.js';
 import { DefinitionAugmentedToolRegistry } from '../../../platform/tools/DefinitionAugmentedToolRegistry.js';
 import { getAgentToolDefinitions } from '../../../platform/tools/builtins/registerAgentTools.js';
 import type { Config, VisionSettings } from '../../../types.js';
-import { EventBus } from '../../../platform/events/EventBus.js';
-import type { AesyClawEvents } from '../../../platform/events/events.js';
 import { PluginManager } from '../../../features/plugins/index.js';
 
 function createRequiredProvider(config: Config, providerName?: string, modelName?: string): LLMProvider {
@@ -61,7 +59,6 @@ async function createSkillManager(
 export async function createExecutionRuntime(args: {
   getConfig: () => Config;
   updateConfig: (mutator: Parameters<ConfigManager['update']>[0]) => Promise<Config>;
-  eventBus: EventBus<AesyClawEvents>;
   outboundGateway: OutboundGateway;
   workspace: string;
   sessionManager: SessionManager;
@@ -78,7 +75,7 @@ export async function createExecutionRuntime(args: {
   visionProvider?: LLMProvider;
   setPluginManager: (pluginManager: PluginManager) => void;
 }> {
-  const { getConfig, updateConfig, eventBus, outboundGateway, workspace, sessionManager, sessionRouting, memoryService } = args;
+  const { getConfig, updateConfig, outboundGateway, workspace, sessionManager, sessionRouting, memoryService } = args;
   const config = getConfig();
   const toolConfig = getToolRuntimeConfig(config);
   const mainAgentConfig = getMainAgentConfig(config);
@@ -94,10 +91,7 @@ export async function createExecutionRuntime(args: {
     ? createRequiredProvider(config, undefined, mainAgentConfig.role.model)
     : undefined;
   const visionSettings = mainAgentConfig.visionSettings;
-  const visionProvider = createVisionProviderFromSettings(config, visionSettings, {
-    onMissingProvider: (_providerName) => {
-    }
-  });
+  const visionProvider = createVisionProviderFromSettings(config, visionSettings);
   const skillManager = await createSkillManager(config, workspace, updateConfig);
   const agentRoleService = new AgentRoleService(
     getConfig,
@@ -126,7 +120,6 @@ export async function createExecutionRuntime(args: {
     memoryService,
     agentRoleService,
     getPluginManager: () => pluginManagerRef,
-    eventBus
   });
 
   return {

@@ -62,13 +62,7 @@ export async function createWorkerLocalToolRegistry(
           longTermMemoryStore.applyOperation(channel, chatId, operation, actor)
         )
       )
-    } as never,
-    log: {
-      debug: () => {},
-      info: () => {},
-      warn: () => {},
-      error: () => {}
-    }
+    } as never
   });
 
   const enabledMcpServers = Object.entries(config.mcp || {}).filter(([, server]) => server.enabled !== false);

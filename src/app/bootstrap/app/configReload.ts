@@ -25,15 +25,11 @@ export function setupConfigReload(services: Services): void {
           systemPrompt: next.role.systemPrompt,
           maxIterations: next.maxIterations,
           visionSettings: next.visionSettings,
-          visionProvider: createVisionProviderFromSettings(config, next.visionSettings, {
-            onMissingProvider: (_providerName) => {
-            }
-          })
+          visionProvider: createVisionProviderFromSettings(config, next.visionSettings)
         };
 
         if (next.provider.providerConfig) {
           runtimeUpdate.provider = createProvider(next.provider.name, next.provider.providerConfig);
-        } else {
         }
 
         services.agentRuntime.updateMainAgentRuntime(runtimeUpdate);

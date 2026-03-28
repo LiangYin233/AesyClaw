@@ -22,8 +22,6 @@ import {
   mapSessionReference,
   type SessionReference
 } from '../../domain/session.js';
-import type { EventBus } from '../../../platform/events/EventBus.js';
-import type { AesyClawEvents } from '../../../platform/events/events.js';
 import { OutboundGateway } from '../../facade/OutboundGateway.js';
 import {
   handleDirectMessage,
@@ -56,7 +54,6 @@ export interface RuntimeCoordinatorOptions {
   agentRoleService?: AgentRoleService;
   getPluginManager: () => PluginManager | undefined;
   getConfig: () => Config;
-  eventBus?: EventBus<AesyClawEvents>;
 }
 
 /**
@@ -141,8 +138,6 @@ export class RuntimeCoordinator {
       executeTurn: async (context) => this.executionRuntime.execute(context)
     };
     this.handleInboundMessageDeps = {
-      logInbound: (_message) => {
-      },
       // 前置命令、插件和普通 Agent turn 仍先经过统一 pipeline 分流。
       processInbound: async ({ message, suppressOutbound }) => this.pipeline.process(message, {
         suppressOutbound,
@@ -158,9 +153,7 @@ export class RuntimeCoordinator {
         suppressOutbound,
         memoryWindow: this.memoryWindow
       }),
-      runTurn: async (context) => runAgentTurn(this.runAgentTurnDeps, context),
-      logCompletion: (_context) => {
-      }
+      runTurn: async (context) => runAgentTurn(this.runAgentTurnDeps, context)
     };
     this.handleDirectMessageDeps = {
       bindMessageToSession: (message, reference) => this.bindMessageToSession(message, reference),

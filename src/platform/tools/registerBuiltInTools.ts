@@ -43,8 +43,7 @@ export function registerBuiltInTools(options: ToolIntegrationOptions): void {
 
   registerMemoryTools({
     toolRegistry: options.toolRegistry,
-    memoryService: options.memoryService,
-    log
+    memoryService: options.memoryService
   });
 }
 

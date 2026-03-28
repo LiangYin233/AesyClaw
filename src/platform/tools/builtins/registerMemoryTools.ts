@@ -1,7 +1,6 @@
 import type { SessionMemoryService } from '../../../agent/infrastructure/memory/SessionMemoryService.js';
 import type { ToolContext, ToolRegistry } from '../ToolRegistry.js';
 import {
-  type BuiltInLogger,
   formatToolError,
   requireSessionContext,
   rethrowToolAbortError,
@@ -11,7 +10,6 @@ import {
 export function registerMemoryTools(args: {
   toolRegistry: ToolRegistry;
   memoryService?: SessionMemoryService;
-  log: BuiltInLogger;
 }): void {
   const { toolRegistry, memoryService } = args;
 

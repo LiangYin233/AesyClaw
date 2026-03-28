@@ -55,7 +55,7 @@ export interface ServiceFactoryOptions {
   configManager: ConfigManager;
   eventBus: EventBus<AesyClawEvents>;
   port: number;
-  onCronJob?: (job: CronJob) => Promise<void>;
+  onCronJob: (job: CronJob) => Promise<void>;
 }
 
 export function bootstrapRuntimeConfig(config: Config): Config {
@@ -99,7 +99,6 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     task: () => createExecutionRuntime({
       getConfig: () => configStore.getConfig(),
       updateConfig: (mutator) => configManager.update(mutator),
-      eventBus,
       outboundGateway,
       workspace,
       sessionManager,
