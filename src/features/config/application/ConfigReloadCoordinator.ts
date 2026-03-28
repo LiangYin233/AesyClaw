@@ -194,8 +194,14 @@ export class ConfigReloadCoordinator {
     const serverConfigChanged = compare(previousConfig.server) !== compare(currentConfig.server);
     const appliedRules: ReloadRule[] = [];
 
+    this.logger.info('Config reload triggered', {
+      changedKeys: triggeredRules.map((r) => r.key),
+      serverConfigChanged
+    });
+
     if (triggeredRules.length === 0) {
       if (serverConfigChanged) {
+        this.logger.info('Reloading server config');
         await this.targets.api?.applyConfig(currentConfig);
       }
       return;
@@ -203,15 +209,25 @@ export class ConfigReloadCoordinator {
 
     try {
       for (const rule of triggeredRules) {
-        rule.describe?.(previousConfig, currentConfig);
+        const description = rule.describe?.(previousConfig, currentConfig);
+        this.logger.info(`Applying config change: ${rule.key}`, { details: description });
         await rule.apply(this.targets, previousConfig, currentConfig);
         appliedRules.push(rule);
       }
 
       if (serverConfigChanged) {
+        this.logger.info('Reloading server config');
         await this.targets.api?.applyConfig(currentConfig);
       }
+
+      this.logger.info('Config reload completed', {
+        reloadedKeys: appliedRules.map((r) => r.key)
+      });
     } catch (error) {
+      this.logger.warn('Config reload failed, rolling back', {
+        error: error instanceof Error ? error.message : String(error),
+        rolledBackKeys: appliedRules.map((r) => r.key)
+      });
 
       for (const rule of [...appliedRules].reverse()) {
         try {

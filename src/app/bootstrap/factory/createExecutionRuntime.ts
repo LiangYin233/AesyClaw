@@ -7,7 +7,7 @@ import {
 import { AgentRoleService } from '../../../agent/infrastructure/roles/AgentRoleService.js';
 import { CommandRegistry } from '../../../agent/application/index.js';
 import { SessionMemoryService } from '../../../agent/infrastructure/memory/SessionMemoryService.js';
-import { SessionRoutingService } from '../../../agent/infrastructure/session/SessionRoutingService.js';
+import type { ISessionRouting } from '../../../agent/domain/session.js';
 import {
   createVisionProviderFromSettings,
   ConfigManager,
@@ -62,7 +62,7 @@ export async function createExecutionRuntime(args: {
   outboundGateway: OutboundGateway;
   workspace: string;
   sessionManager: SessionManager;
-  sessionRouting: SessionRoutingService;
+  sessionRouting: ISessionRouting;
   memoryService?: SessionMemoryService;
 }): Promise<{
   provider?: LLMProvider;

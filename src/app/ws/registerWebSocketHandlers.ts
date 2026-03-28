@@ -1,7 +1,7 @@
 import type { Config } from '../../types.js';
 import type { AgentRuntime } from '../../agent/index.js';
 import type { AgentRoleService } from '../../agent/infrastructure/roles/AgentRoleService.js';
-import type { SessionRoutingService } from '../../agent/infrastructure/session/SessionRoutingService.js';
+import type { ISessionRouting } from '../../agent/domain/session.js';
 import type { ChannelManager } from '../../features/channels/application/ChannelManager.js';
 import type { ConfigManager, RuntimeConfigStore } from '../../features/config/index.js';
 import type { Database } from '../../platform/db/index.js';
@@ -61,7 +61,7 @@ interface RegisterWebSocketHandlersArgs {
   agentRuntime: WorkerCapableAgentRuntime;
   db: Database;
   sessionManager: SessionManager;
-  sessionRouting: SessionRoutingService;
+  sessionRouting: ISessionRouting;
   agentRoleService?: AgentRoleService;
   channelManager: ChannelManager;
   configStore: RuntimeConfigStore;

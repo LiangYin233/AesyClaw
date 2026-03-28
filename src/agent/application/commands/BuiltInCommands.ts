@@ -4,7 +4,7 @@ import { PluginsService } from '../../../features/plugins/application/PluginsSer
 import type { PluginInfo } from '../../../features/plugins/domain/types.js';
 import type { SessionManager } from '../../../features/sessions/application/SessionManager.js';
 import type { AgentRoleService } from '../../infrastructure/roles/AgentRoleService.js';
-import type { SessionRoutingService } from '../../infrastructure/session/SessionRoutingService.js';
+import type { ISessionRouting } from '../../domain/session.js';
 import { logger } from '../../../platform/observability/index.js';
 import { CommandHandler, type CommandDefinition } from './CommandHandler.js';
 
@@ -17,7 +17,7 @@ export class BuiltInCommands extends CommandHandler {
 
   constructor(
     private sessionManager: SessionManager,
-    private sessionRouting: SessionRoutingService,
+    private sessionRouting: ISessionRouting,
     private agentRoleService: AgentRoleService,
     private agent: AbortSessionPort,
     private pluginsService: PluginsService

@@ -11,7 +11,7 @@ import type { CronRuntimeService } from '../../features/cron/index.js';
 import type { McpClientManager } from '../../features/mcp/index.js';
 import type { SkillManager } from '../../features/skills/application/SkillManager.js';
 import type { ToolRegistry } from '../../platform/tools/ToolRegistry.js';
-import type { SessionRoutingService } from '../../agent/infrastructure/session/SessionRoutingService.js';
+import type { ISessionRouting } from '../../agent/domain/session.js';
 import { ConfigManager, RuntimeConfigStore } from '../../features/config/index.js';
 import { logger } from '../../platform/observability/index.js';
 import type { LongTermMemoryStore } from '../../features/sessions/infrastructure/LongTermMemoryStore.js';
@@ -40,7 +40,7 @@ export class WebServer {
   private agentRuntime: AgentRuntime;
   private db: Database;
   private sessionManager: SessionManager;
-  private sessionRouting: SessionRoutingService;
+  private sessionRouting: ISessionRouting;
   private channelManager: ChannelManager;
   private configStore: RuntimeConfigStore;
   private configManager: ConfigManager;
@@ -60,7 +60,7 @@ export class WebServer {
     agentRuntime: AgentRuntime;
     db: Database;
     sessionManager: SessionManager;
-    sessionRouting: SessionRoutingService;
+    sessionRouting: ISessionRouting;
     channelManager: ChannelManager;
     configStore: RuntimeConfigStore;
     configManager: ConfigManager;

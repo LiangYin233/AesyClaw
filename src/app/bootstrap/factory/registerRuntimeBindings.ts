@@ -1,7 +1,7 @@
 import { BuiltInCommands, type CommandRegistry } from '../../../agent/application/index.js';
 import type { AgentRoleService } from '../../../agent/infrastructure/roles/AgentRoleService.js';
 import type { SessionMemoryService } from '../../../agent/infrastructure/memory/SessionMemoryService.js';
-import type { SessionRoutingService } from '../../../agent/infrastructure/session/SessionRoutingService.js';
+import type { ISessionRouting } from '../../../agent/domain/session.js';
 import type { AgentRuntime } from '../../../agent/index.js';
 import { registerCronTools } from '../../../features/cron/index.js';
 import type { CronRuntimeService } from '../../../features/cron/index.js';
@@ -20,7 +20,7 @@ import type { ToolRegistry } from '../../../platform/tools/index.js';
 export function registerRuntimeBindings(args: {
   commandRegistry: CommandRegistry;
   sessionManager: SessionManager;
-  sessionRouting: SessionRoutingService;
+  sessionRouting: ISessionRouting;
   agentRoleService: AgentRoleService;
   agentRuntime: AgentRuntime;
   channelManager: ChannelManager;
