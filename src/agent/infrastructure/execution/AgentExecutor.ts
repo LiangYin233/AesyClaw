@@ -4,14 +4,12 @@ import type { ToolRegistry, ToolContext } from '../../../platform/tools/ToolRegi
 import type { PluginManager } from '../../../features/plugins/index.js';
 import { ContextBuilder } from './ContextBuilder.js';
 import { ToolLoopRunner } from './ToolLoopRunner.js';
-import { SyncStrategy } from './ExecutionStrategies.js';
 import { ExecutionRegistry } from './ExecutionRegistry.js';
 import type { ExecutionResult, ExecutionOptions } from './ExecutionTypes.js';
 
 export class AgentExecutor {
   private contextBuilder: ContextBuilder;
   private toolLoopRunner: ToolLoopRunner;
-  private syncStrategy: SyncStrategy;
   private executionRegistry: ExecutionRegistry;
   private model: string;
   constructor(
@@ -35,8 +33,6 @@ export class AgentExecutor {
     this.executionRegistry = executionRegistry ?? new ExecutionRegistry();
     this.contextBuilder = new ContextBuilder(workspace, systemPrompt, skillsPrompt, includeRuntimeContext);
     this.toolLoopRunner = new ToolLoopRunner(provider, toolRegistry, pluginManager, maxContextTokens);
-
-    this.syncStrategy = new SyncStrategy(this.toolLoopRunner, model);
   }
 
   /**
@@ -47,13 +43,11 @@ export class AgentExecutor {
     toolContext: ToolContext,
     options?: ExecutionOptions
   ): Promise<ExecutionResult> {
-    return this.runWithExecutionControl(options, (executionOptions) =>
-      this.syncStrategy.execute(messages, toolContext, {
-        allowTools: true,
-        maxIterations: this.maxIterations,
-        ...executionOptions
-      })
-    );
+    return this.executeToolLoop(messages, toolContext, {
+      allowTools: true,
+      maxIterations: this.maxIterations,
+      ...(options || {})
+    });
   }
 
   buildMessages(history: any[], currentMessage: string, media?: string[], files?: InboundFile[]): LLMMessage[] {

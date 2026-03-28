@@ -57,7 +57,7 @@
           <div class="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <p class="cn-section-title text-on-surface">服务设置</p>
-              <p class="mt-1 text-sm text-on-surface-variant">服务地址、端口与 API 开关。</p>
+              <p class="mt-1 text-sm text-on-surface-variant">服务地址、端口与远程访问开关。</p>
             </div>
             <span class="rounded-full bg-surface-container-low px-3 py-1 text-[10px] font-bold tracking-[0.08em] text-on-surface-variant">基础参数</span>
           </div>
@@ -73,7 +73,7 @@
             </label>
             <div class="workspace-subtle flex items-center justify-between rounded-lg px-4 py-3 md:col-span-2">
               <div>
-                <p class="text-sm font-medium text-on-surface">启用 API 服务</p>
+                <p class="text-sm font-medium text-on-surface">启用远程访问</p>
                 <p class="mt-1 text-xs text-on-surface-variant">关闭后仅保留本地运行环境。</p>
               </div>
               <button class="relative h-5 w-10 rounded-full transition" :class="configDraft.server!.apiEnabled ? 'bg-primary-container' : 'bg-surface-container-high'" type="button" @click="configDraft.server!.apiEnabled = !configDraft.server!.apiEnabled">

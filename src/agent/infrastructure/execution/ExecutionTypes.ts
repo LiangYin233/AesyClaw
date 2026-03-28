@@ -69,16 +69,6 @@ export interface ExecutionOptions {
   };
 }
 
-export interface ExecutionStrategy {
-  readonly name: 'sync';
-
-  execute(
-    messages: LLMMessage[],
-    toolContext: ToolContext,
-    options: ExecutionOptions
-  ): Promise<ExecutionResult>;
-}
-
 export function isVisionableFile(file: InboundFile): boolean {
   return file.type === 'image' || IMAGE_EXTENSIONS.some((ext) => file.name?.toLowerCase().endsWith(ext));
 }

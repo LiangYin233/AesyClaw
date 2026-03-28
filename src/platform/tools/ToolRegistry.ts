@@ -170,8 +170,6 @@ export class ToolRegistry {
         count++;
       }
     }
-    if (count > 0) {
-    }
     return count;
   }
 
