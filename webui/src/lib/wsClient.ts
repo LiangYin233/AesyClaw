@@ -43,6 +43,42 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function isWsErrorPayload(value: unknown): value is WsErrorPayload {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    (value.code === undefined || typeof value.code === 'string') &&
+    (value.message === undefined || typeof value.message === 'string')
+  );
+}
+
+function isWsResponseMessage(value: unknown): value is WsResponseMessage {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    (typeof value.id === 'string' || typeof value.id === 'number' || value.id === null) &&
+    typeof value.ok === 'boolean' &&
+    (value.error === undefined || isWsErrorPayload(value.error))
+  );
+}
+
+function isWsEventMessage(value: unknown): value is WsEventMessage {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    value.type === 'event' &&
+    typeof value.subscriptionId === 'string' &&
+    typeof value.topic === 'string' &&
+    'data' in value
+  );
+}
+
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -76,14 +112,11 @@ export class WebSocketApiClient {
 
   async call<T>(method: string, params?: unknown, timeoutMs = DEFAULT_RPC_TIMEOUT_MS): Promise<T> {
     await this.ensureConnected();
-
-    const result = await this.sendRequest<T>({
+    return this.sendRequest<T>({
       type: 'rpc',
       method,
       params
     }, timeoutMs);
-
-    return result;
   }
 
   subscribe<T>(
@@ -130,10 +163,6 @@ export class WebSocketApiClient {
     }
   }
 
-  private buildUrl(): string {
-    return resolveWebSocketUrl(this.token);
-  }
-
   private async ensureConnected(): Promise<void> {
     if (this.socket?.readyState === WebSocket.OPEN) {
       return;
@@ -145,7 +174,7 @@ export class WebSocketApiClient {
 
     this.manuallyClosed = false;
     this.connectPromise = new Promise<void>((resolve, reject) => {
-      const socketUrl = this.buildUrl();
+      const socketUrl = resolveWebSocketUrl(this.token);
       const socket = new WebSocket(socketUrl);
       let settled = false;
 
@@ -243,8 +272,8 @@ export class WebSocketApiClient {
       return;
     }
 
-    if (isRecord(payload) && payload.type === 'event') {
-      const eventMessage = payload as WsEventMessage;
+    if (isWsEventMessage(payload)) {
+      const eventMessage = payload;
       for (const subscription of this.subscriptions.values()) {
         if (subscription.serverSubscriptionId === eventMessage.subscriptionId) {
           subscription.handler(eventMessage.data as never);
@@ -253,11 +282,11 @@ export class WebSocketApiClient {
       return;
     }
 
-    if (!isRecord(payload) || !('id' in payload)) {
+    if (!isWsResponseMessage(payload)) {
       return;
     }
 
-    const response = payload as WsResponseMessage;
+    const response = payload;
     const requestId = response.id === null ? null : String(response.id);
     if (!requestId) {
       return;
@@ -321,10 +350,7 @@ export class WebSocketApiClient {
     const current = this.subscriptions.get(subscription.localId);
     if (!current) {
       if (result.subscriptionId) {
-        void this.sendRequest({
-          type: 'unsubscribe',
-          subscriptionId: result.subscriptionId
-        }, DEFAULT_RPC_TIMEOUT_MS).catch(() => undefined);
+        this.unsubscribeServerSubscription(result.subscriptionId);
       }
       return;
     }
@@ -340,11 +366,15 @@ export class WebSocketApiClient {
 
     this.subscriptions.delete(localId);
     if (subscription.serverSubscriptionId) {
-      void this.sendRequest({
-        type: 'unsubscribe',
-        subscriptionId: subscription.serverSubscriptionId
-      }, DEFAULT_RPC_TIMEOUT_MS).catch(() => undefined);
+      this.unsubscribeServerSubscription(subscription.serverSubscriptionId);
     }
+  }
+
+  private unsubscribeServerSubscription(subscriptionId: string): void {
+    void this.sendRequest({
+      type: 'unsubscribe',
+      subscriptionId
+    }, DEFAULT_RPC_TIMEOUT_MS).catch(() => undefined);
   }
 
   private async resubscribeAll(): Promise<void> {

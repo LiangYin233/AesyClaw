@@ -237,9 +237,7 @@ export class ChannelManager {
 
   onStatusChange(listener: ChannelManagerListener): () => void {
     this.#listeners.add(listener);
-    return () => {
-      this.#listeners.delete(listener);
-    };
+    return () => this.#listeners.delete(listener);
   }
 
   private resolvePlugin(channelName: string): ChannelPluginDefinition | undefined {

@@ -508,9 +508,7 @@ export class LoggingService {
 
   onEntry(listener: LogEntryListener): () => void {
     this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return () => this.listeners.delete(listener);
   }
 
   write(level: LogLevel, scope: string, message: string, rawFields?: LogFields): void {

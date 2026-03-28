@@ -149,9 +149,7 @@ export class SkillManager {
 
   onChange(listener: () => void | Promise<void>): () => void {
     this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return () => this.listeners.delete(listener);
   }
 
   async toggleSkill(name: string, enabled: boolean): Promise<boolean> {

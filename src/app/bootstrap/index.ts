@@ -13,6 +13,10 @@ import type { AesyClawEvents } from '../../platform/events/events.js';
 
 const CHANNEL_START_TIMEOUT = 30000;
 
+/**
+ * 启动阶段的轻量事件循环卡顿探针。
+ * 当前只做采样与保留扩展点，不额外输出日志。
+ */
 function startStartupLagMonitor(): () => void {
   const intervalMs = 250;
   const warnThresholdMs = 200;
@@ -34,6 +38,9 @@ function startStartupLagMonitor(): () => void {
   };
 }
 
+/**
+ * 启动前确保运行目录存在，避免后续服务各自兜底创建。
+ */
 function ensureRuntimeDirectories(workspace: string, tempDir: string): void {
   if (!existsSync(workspace)) {
     mkdirSync(workspace, { recursive: true });
@@ -60,12 +67,16 @@ async function startChannels(services: Services): Promise<void> {
   const { channelManager } = services;
   await Promise.race([
     channelManager.startAll(),
+    // 渠道启动可能依赖外部网络，超时后直接打断整个启动流程。
     new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Channel start timeout')), CHANNEL_START_TIMEOUT)
     )
   ]);
 }
 
+/**
+ * 按固定顺序完成核心服务装配、事件接线、渠道启动与运行时拉起。
+ */
 export async function bootstrap(options: BootstrapOptions = {}): Promise<void> {
   const stopLagMonitor = startStartupLagMonitor();
   const eventBus = new EventBus<AesyClawEvents>();
@@ -116,6 +127,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<void> {
 
     await startChannels(servicesRef);
 
+    // 渠道就绪后再开放 agent runtime，避免启动期消息早于下游依赖准备完成。
     servicesRef.agentRuntime.start();
     servicesRef.startPluginLoading();
   } catch (error) {

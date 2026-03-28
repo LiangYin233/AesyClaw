@@ -33,6 +33,10 @@ type VisionPreparationResult =
       message: string;
     };
 
+/**
+ * 承接单次 agent turn 的主执行流程。
+ * 这里负责首轮准备、视觉摘要预处理、worker 执行、结果落库与出站收尾。
+ */
 export class ExecutionRuntime {
   private readonly subAgentExcludedTools = ['send_msg_to_user', 'call_agent', 'call_temp_agent'];
   private static readonly VISION_SUMMARY_REQUIRED_MESSAGE = '收到图片，但当前未配置可用的视觉回退摘要模型，无法继续处理。请先配置 visionFallbackModel 后重试。';
@@ -86,6 +90,7 @@ export class ExecutionRuntime {
   async execute(context: ExecutionContext): Promise<string | undefined> {
     let requestPersisted = false;
     let persistedRequestContent = context.request.content;
+    // 用户消息只落库一次；视觉预处理可能会改写入库内容，因此延迟到准备完成后再写。
     const ensureRequestPersisted = async (): Promise<void> => {
       if (requestPersisted) {
         return;
@@ -107,6 +112,7 @@ export class ExecutionRuntime {
     });
 
     if (this.hasVisionInput(context.request)) {
+      // 无论当前模型是否直接看图，都先生成一份摘要写入会话上下文，供后续无图回合理解。
       const preparedVisionTurn = await this.prepareVisionTurn(context, policy, executionLog);
       if (preparedVisionTurn.ok === false) {
         const failureMessage = preparedVisionTurn.message;
@@ -316,6 +322,7 @@ export class ExecutionRuntime {
     messages: LLMMessage[],
     context: ExecutionContext
   ): Promise<{ content: string; reasoning_content?: string; agentMode: boolean }> {
+    // 主 turn 统一登记为 session 级执行句柄，便于后续按 session 中止当前 worker。
     const controller = context.toolContext.signal
       ? undefined
       : this.registry.begin(context.sessionKey, undefined, {
@@ -335,6 +342,7 @@ export class ExecutionRuntime {
           signal
         },
         onSpawn: ({ executionId, childPid }) => {
+          // 首轮消息也直接进入 worker，这里只保留一条入口级进度日志。
           this.log.withFields({
             ssn: context.sessionKey,
             ch: context.request.channel,
@@ -390,6 +398,7 @@ export class ExecutionRuntime {
     }
 
     if (!suppressOutbound) {
+      // 对话内工具消息与最终出站仍由宿主发送，worker 不直接触碰底层消息通道。
       await this.sendOutbound({
         channel: request.channel,
         chatId: request.chatId,
@@ -431,6 +440,7 @@ export class ExecutionRuntime {
     }
 
     try {
+      // 图片摘要始终走视觉回退模型生成；是否把原图直接送进当前轮模型，由 directVision 决定。
       const response = await policy.visionProvider.chat(
         [
           {
@@ -471,6 +481,7 @@ export class ExecutionRuntime {
         currentTurnMode: directVision ? 'direct-vision' : 'summary-only'
       });
 
+      // 视觉模型保留原图直发，只把摘要补进历史；非视觉模型则把摘要后的文本替换当前轮输入。
       return directVision
         ? {
             ok: true,

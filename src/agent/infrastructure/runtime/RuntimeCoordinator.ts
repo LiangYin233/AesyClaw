@@ -59,6 +59,10 @@ export interface RuntimeCoordinatorOptions {
   eventBus?: EventBus<AesyClawEvents>;
 }
 
+/**
+ * 运行时总装配器。
+ * 负责把 session 解析、执行引擎、worker delegate 和对外入口收拢成统一门面。
+ */
 export class RuntimeCoordinator {
   private running = false;
   private defaultProvider?: LLMProvider;
@@ -102,6 +106,7 @@ export class RuntimeCoordinator {
     const toolRegistryDefinitions = options.toolRegistryDefinitions ?? options.toolRegistry;
     const executionRegistry = new ExecutionRegistry();
     this.workerRuntimeRegistry = new WorkerRuntimeRegistry();
+    // 主执行、子 Agent、临时 Agent 统一复用同一个 worker delegate 与运行态注册表。
     const workerExecutionDelegate = new WorkerExecutionDelegateImpl({
       getConfig: options.getConfig,
       toolRegistry: options.toolRegistry,
@@ -138,6 +143,7 @@ export class RuntimeCoordinator {
     this.handleInboundMessageDeps = {
       logInbound: (_message) => {
       },
+      // 前置命令、插件和普通 Agent turn 仍先经过统一 pipeline 分流。
       processInbound: async ({ message, suppressOutbound }) => this.pipeline.process(message, {
         suppressOutbound,
         sendOutbound: async (outbound) => this.sendOutbound(outbound)
@@ -405,6 +411,7 @@ export class RuntimeCoordinator {
   private async sendOutbound(message: OutboundMessage): Promise<void> {
     const pluginManager = this.options.getPluginManager();
     if (pluginManager) {
+      // 若插件接管发送能力，优先走插件侧派发；否则回退到默认 outbound gateway。
       await pluginManager.dispatchMessage(message);
       return;
     }

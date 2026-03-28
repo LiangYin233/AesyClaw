@@ -26,6 +26,10 @@ import { createWorkerLoggedProvider } from './workerLogging.js';
 
 const SUB_AGENT_EXCLUDED_TOOLS = ['send_msg_to_user', 'call_agent', 'call_temp_agent'];
 
+/**
+ * worker 内部的轻量工具注册表。
+ * 优先本地执行，可用时完全绕开父进程；命不中时再桥接回宿主。
+ */
 class WorkerToolRegistry {
   private pending = new Map<string, { resolve: (value: string) => void; reject: (error: Error) => void }>();
 
@@ -84,6 +88,7 @@ class WorkerToolRegistry {
     const requestId = randomUUID();
     const { signal: _signal, ...serializableContext } = context || { workspace: '' };
     return await new Promise((resolve, reject) => {
+      // 桥接消息只传可序列化上下文，AbortSignal 仍由父子进程各自维护。
       emitWorkerToolActivity({
         sessionKey: context?.sessionKey || activeSessionKey,
         executionId: activeExecutionId,
@@ -238,6 +243,7 @@ async function runWorkerSubAgentTask(
   task: string,
   toolContext: ToolContext
 ): Promise<string> {
+  // 子 Agent 在 worker 内直接派生新的 nested worker，不再回主进程编排。
   const prepared = executionEngine.prepareSubAgentExecution(
     agentName,
     task,
@@ -343,6 +349,7 @@ async function runWorkerTemporarySubAgentTask(
   systemPrompt: string,
   toolContext: ToolContext
 ): Promise<string> {
+  // 临时 Agent 与子 Agent 共用同一条执行模型，只是角色来源不同。
   const prepared = executionEngine.prepareTemporarySubAgentExecution(
     baseAgentName,
     task,
@@ -544,6 +551,7 @@ async function startExecution(message: Extract<ParentToWorkerMessage, { type: 's
     });
   }
   if (message.config.agent?.defaults && message.config.agents?.roles) {
+    // 只有本地具备 agent 角色与默认配置时，worker 才能独立完成嵌套编排。
     const executionToolRegistry = createWorkerExecutionRegistry(activeRegistry, message.policy.availableToolDefinitions);
     const agentRoleService = new AgentRoleService(
       () => message.config,
@@ -582,6 +590,7 @@ async function startExecution(message: Extract<ParentToWorkerMessage, { type: 's
     }, agentRoleService);
     registerAgentTools({
       toolRegistry: localRuntime.toolRegistry,
+      // `call_agent` 与 `call_temp_agent` 最终都在这里并发派生 nested worker。
       runSubAgentTasks: async (tasks, context) => Promise.all(tasks.map(async ({ agentName, task }) => {
         try {
           const result = await runWorkerSubAgentTask(
@@ -708,6 +717,7 @@ process.on('message', async (message: ParentToWorkerMessage) => {
     }
 
     if (message.type === 'abort_execution') {
+      // worker 内只处理中止当前执行，不负责决定更高层 session 路由。
       emitWorkerLog('warn', 'worker 收到中止指令', {
         mode: 'worker'
       });

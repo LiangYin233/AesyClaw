@@ -65,6 +65,10 @@ function writeHandshakeError(socket: IncomingMessage['socket'], statusCode: numb
   socket.destroy();
 }
 
+/**
+ * 统一承载 WebUI 的 WebSocket RPC 与订阅协议。
+ * 连接建立后，所有查询、写操作和实时推送都从这里进出。
+ */
 export class WebSocketApiServer {
   private readonly wss = new WebSocketServer({ noServer: true });
   private readonly rpcHandlers = new Map<string, RpcHandler>();
@@ -127,6 +131,10 @@ export class WebSocketApiServer {
     });
   }
 
+  /**
+   * 只接管约定好的 `/ws` 路径，并在 upgrade 阶段完成 token 校验。
+   * 未通过校验的请求直接按普通 HTTP 错误返回，不进入 WebSocket 生命周期。
+   */
   private handleUpgrade(request: IncomingMessage, socket: IncomingMessage['socket'], head: Buffer): void {
     const requestUrl = new URL(request.url || '/', 'http://localhost');
     if (requestUrl.pathname !== this.options.path) {
@@ -147,6 +155,10 @@ export class WebSocketApiServer {
     });
   }
 
+  /**
+   * 每条连接都维护独立的订阅集合与心跳状态。
+   * 心跳超时后直接终止连接，避免失活订阅长期残留。
+   */
   private handleConnection(ws: WebSocket, request: IncomingMessage): void {
     const token = (request as IncomingMessage & { authToken?: string }).authToken;
     const connectionId = randomUUID();
@@ -291,6 +303,7 @@ export class WebSocketApiServer {
     };
     connection.subscriptions.set(subscriptionId, subscription);
 
+    // 先确认订阅已注册成功，再推送首个快照，避免前端拿到无法续订的孤立事件。
     this.sendMessage(connection.ws, {
       id: message.id,
       ok: true,
@@ -341,6 +354,7 @@ export class WebSocketApiServer {
       throw new NotFoundError('WebSocket topic', subscription.topic);
     }
 
+    // 订阅统一推送最新快照，不承担事件回放职责。
     const data = await resolvedDefinition.getSnapshot(subscription.params, connection.context);
     const event: EventMessage = {
       type: 'event',

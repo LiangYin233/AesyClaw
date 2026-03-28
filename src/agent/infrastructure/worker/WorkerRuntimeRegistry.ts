@@ -106,6 +106,10 @@ function isTerminalStatus(status: WorkerRuntimeNodeStatus): boolean {
   return status === 'completed' || status === 'failed';
 }
 
+/**
+ * 聚合 session 级 worker 运行态。
+ * 内部按平铺节点记录，输出时再组装成前端需要的执行树。
+ */
 export class WorkerRuntimeRegistry {
   private readonly sessions = new Map<string, WorkerRuntimeSessionRecord>();
   private readonly listeners = new Set<WorkerRuntimeListener>();
@@ -114,9 +118,7 @@ export class WorkerRuntimeRegistry {
 
   onChange(listener: WorkerRuntimeListener): () => void {
     this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return () => this.listeners.delete(listener);
   }
 
   record(input: WorkerRuntimeLifecycleInput): void {
@@ -142,6 +144,7 @@ export class WorkerRuntimeRegistry {
       currentToolName: terminal ? undefined : existing?.currentToolName,
       currentToolMode: terminal ? undefined : existing?.currentToolMode,
       currentToolStartedAt: terminal ? undefined : existing?.currentToolStartedAt,
+      // 终态时把当前活动中的 tool/LLM 收拢为“最近一次完成”，避免 UI 丢失最后执行痕迹。
       lastToolName: terminal ? (existing?.currentToolName ?? existing?.lastToolName) : existing?.lastToolName,
       lastToolMode: terminal
         ? (existing?.currentToolName ? existing.currentToolMode : existing?.lastToolMode)
@@ -182,6 +185,7 @@ export class WorkerRuntimeRegistry {
 
     session.nodes.set(input.executionId, {
       ...existing,
+      // active=false 时把当前 tool 转存为最近完成的 tool，便于界面展示最后一步。
       currentToolName: input.active ? input.toolName : undefined,
       currentToolMode: input.active ? input.toolMode : undefined,
       currentToolStartedAt: input.active ? timestamp : undefined,
@@ -205,6 +209,7 @@ export class WorkerRuntimeRegistry {
 
     session.nodes.set(input.executionId, {
       ...existing,
+      // LLM 状态与 tool 一样保留最近完成记录，避免结束后直接回到“空白”。
       currentLlmRequestId: input.active ? input.requestId : undefined,
       currentLlmModel: input.active ? input.model : undefined,
       currentLlmStartedAt: input.active ? timestamp : undefined,
@@ -297,6 +302,7 @@ export class WorkerRuntimeRegistry {
     const totalWorkerCount = nodes.length;
     const activeWorkerCount = nodes.filter((node) => ACTIVE_STATUSES.has(node.status)).length;
     const rootRecord = session.rootExecutionId ? session.nodes.get(session.rootExecutionId) : undefined;
+    // 优先沿用主 worker 状态；缺失时再按当前活跃情况回退，避免孤儿子节点导致状态误判。
     const status = rootRecord?.status
       ?? (activeWorkerCount > 0 ? 'running' : nodes[0]?.status ?? 'completed');
 
@@ -332,6 +338,7 @@ export class WorkerRuntimeRegistry {
         continue;
       }
 
+      // 只清理已无活跃 worker 且超出保留窗口的 session，便于短时间内查看刚结束的执行链。
       if (now - updatedAt > this.retentionMs) {
         this.sessions.delete(sessionKey);
       }

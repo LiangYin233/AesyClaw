@@ -76,12 +76,18 @@ interface RegisterWebSocketHandlersArgs {
   eventBus: EventBus<AesyClawEvents>;
 }
 
+/**
+ * WebSocket 入参允许为空或非对象，这里统一压成普通对象，避免各 handler 重复判空。
+ */
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as Record<string, unknown>
     : {};
 }
 
+/**
+ * 某些能力按配置延迟装配，真正调用前再做依赖守卫，错误语义会更明确。
+ */
 function requireService<T>(service: T | undefined, name: string): T {
   if (!service) {
     throw new DependencyUnavailableError(`${name} is unavailable`);
@@ -90,6 +96,9 @@ function requireService<T>(service: T | undefined, name: string): T {
   return service;
 }
 
+/**
+ * 详情订阅在目标已删除时不抛错，而是返回 `null`，方便前端直接清空当前视图。
+ */
 async function getSessionDetailSnapshot(
   sessionService: SessionService,
   key: string
@@ -132,6 +141,9 @@ async function getMcpDetailSnapshot(
   }
 }
 
+/**
+ * 集中注册 WebSocket RPC、订阅，以及运行时事件到 topic 推送的映射关系。
+ */
 export function registerWebSocketHandlers(args: RegisterWebSocketHandlersArgs): () => void {
   const {
     server,
@@ -159,6 +171,7 @@ export function registerWebSocketHandlers(args: RegisterWebSocketHandlersArgs): 
   const updateConfig = (mutator: (config: Config) => void | Config | Promise<void | Config>) =>
     configManager.update(mutator);
 
+  // 各 feature service 继续复用原有业务层，这里只负责 transport 装配。
   const systemService = new SystemService(packageVersion, agentRuntime, sessionManager, channelManager, getConfig, toolRegistry);
   const agentsService = new AgentsService(new AgentRepository(sessionRouting, agentRoleService));
   const agentWorkersService = new AgentWorkersService({
@@ -190,6 +203,7 @@ export function registerWebSocketHandlers(args: RegisterWebSocketHandlersArgs): 
   const cronApiService = cronService ? new CronService(new CronRepository(cronService)) : undefined;
   const skillsService = skillManager ? new SkillsService(skillManager) : undefined;
 
+  // RPC 负责显式查询和写操作，变更后按需触发订阅快照刷新。
   server.registerRpc('system.getStatus', () => systemService.getStatus());
   server.registerRpc('system.getTools', () => systemService.getTools());
 
@@ -463,6 +477,7 @@ export function registerWebSocketHandlers(args: RegisterWebSocketHandlersArgs): 
   server.registerRpc('observability.getUsage', () => observabilityService.getUsage());
   server.registerRpc('observability.resetUsage', () => observabilityService.resetUsage());
 
+  // 订阅只暴露“当前最新状态”，不额外维护历史事件流。
   server.registerSubscription('system.status', {
     getSnapshot: () => systemService.getStatus()
   });
@@ -538,6 +553,7 @@ export function registerWebSocketHandlers(args: RegisterWebSocketHandlersArgs): 
 
   const cleanups: Array<() => void> = [];
 
+  // 把内部事件源桥接到对应 topic，前端依靠订阅自动收敛到最新快照。
   cleanups.push(logging.onEntry(() => {
     server.publish('observability.logs');
   }));

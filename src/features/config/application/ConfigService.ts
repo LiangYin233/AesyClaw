@@ -150,9 +150,7 @@ export class ConfigService {
 
   onReload(listener: ReloadListener): () => void {
     this.reloadListeners.add(listener);
-    return () => {
-      this.reloadListeners.delete(listener);
-    };
+    return () => this.reloadListeners.delete(listener);
   }
 
   startWatching(): void {

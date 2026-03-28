@@ -66,6 +66,10 @@ interface WorkerLifecycleRelayTarget {
   onLifecycle?: (message: WorkerLifecycleMessage) => void;
 }
 
+/**
+ * 把 worker 内上报的工具活动同步回宿主侧运行态。
+ * 缺失 sessionKey 时沿用父执行上下文补齐。
+ */
 export function relayWorkerToolActivity(
   target: WorkerToolActivityRelayTarget,
   message: WorkerToolActivityMessage,
@@ -173,6 +177,9 @@ export interface WorkerExecutionDelegate {
   abort(sessionKey: string): void;
 }
 
+/**
+ * 统一负责宿主侧 worker 进程管理、桥接工具执行和运行态回传。
+ */
 export class WorkerExecutionDelegateImpl implements WorkerExecutionDelegate {
   private readonly log = logger.child('WorkerBackgroundExecution');
   private readonly workerEntryPath = resolveWorkerEntryPath();
@@ -228,6 +235,7 @@ export class WorkerExecutionDelegateImpl implements WorkerExecutionDelegate {
     child.channel?.unref?.();
 
     this.trackWorker(sessionKey, child);
+    // 子进程一创建就先登记为 spawned，方便前端第一时间看到执行节点出现。
     this.args.runtimeRegistry?.record({
       sessionKey,
       executionId,
@@ -259,6 +267,7 @@ export class WorkerExecutionDelegateImpl implements WorkerExecutionDelegate {
       };
 
       const handleAbort = () => {
+        // 中止请求先发给 worker，再主动杀进程，避免卡在长时间无响应的本地工具里。
         this.args.runtimeRegistry?.record({
           sessionKey,
           executionId,
@@ -334,6 +343,7 @@ export class WorkerExecutionDelegateImpl implements WorkerExecutionDelegate {
           }
 
           if (message.type === 'tool_request') {
+            // host-bound 工具仍由父进程执行，worker 只保留窄桥接能力。
             await this.handleToolRequest(child, message);
             return;
           }
@@ -482,6 +492,7 @@ export class WorkerExecutionDelegateImpl implements WorkerExecutionDelegate {
     const pluginManager = this.args.getPluginManager();
 
     if (pluginManager) {
+      // 桥接路径保持和主进程本地工具一致的 hook 语义，避免行为分叉。
       const nextPayload = await pluginManager.runToolBeforeHooks({
         toolName: message.toolName,
         params: toolArgs,
