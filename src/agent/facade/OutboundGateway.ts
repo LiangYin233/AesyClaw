@@ -1,5 +1,11 @@
 import type { OutboundMessage } from '../../types.js';
-import { OutboundDispatcherNotConfiguredError } from '../domain/errors.js';
+
+export class OutboundDispatcherNotConfiguredError extends Error {
+  constructor() {
+    super('Outbound dispatcher not configured');
+    this.name = 'OutboundDispatcherNotConfiguredError';
+  }
+}
 
 export class OutboundGateway {
   private dispatcher?: (message: OutboundMessage) => Promise<void>;

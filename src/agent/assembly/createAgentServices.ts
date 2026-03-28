@@ -1,6 +1,11 @@
 import type { AgentRuntimeDeps } from '../domain/ports.js';
-import type { RuntimeLifecycle } from '../domain/runtime.js';
 import type { SessionReference } from '../domain/session.js';
+
+interface RuntimeLifecycle {
+  start(): void;
+  stop(): void;
+  isRunning(): boolean;
+}
 
 export interface RuntimeDelegate extends RuntimeLifecycle {
   handleInbound(
