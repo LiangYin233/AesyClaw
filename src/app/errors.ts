@@ -6,8 +6,7 @@ import {
   InternalServerError,
   NotFoundError,
   ServiceUnavailableError,
-  ValidationError,
-  normalizeErrorMessage
+  ValidationError
 } from '../platform/errors/index.js';
 import {
   BoundaryError,
@@ -49,10 +48,6 @@ export class ApiNotFoundError extends NotFoundError {
   constructor(resource: string, id?: string) {
     super(resource, id);
   }
-}
-
-export function normalizeApiError(error: unknown): string {
-  return normalizeErrorMessage(error);
 }
 
 function toValidationError(error: SessionValidationError): ValidationError {

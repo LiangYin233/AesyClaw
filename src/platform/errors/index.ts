@@ -65,3 +65,25 @@ export function normalizeErrorMessage(error: unknown): string {
   }
   return String(error);
 }
+
+const RETRYABLE_STATUS_CODES = [408, 429, 500, 502, 503, 504];
+const RETRYABLE_NETWORK_PATTERNS = [
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'network',
+  'timeout',
+  'ECONNRESET',
+  'socket'
+];
+
+export function isRetryableError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  if (RETRYABLE_NETWORK_PATTERNS.some((pattern) => error.message.includes(pattern))) {
+    return true;
+  }
+  const statusMatch = error.message.match(/\b(40[八九]|5\d{2})\b/);
+  return !!statusMatch && RETRYABLE_STATUS_CODES.includes(parseInt(statusMatch[1], 10));
+}

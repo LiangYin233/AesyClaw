@@ -68,4 +68,4 @@ export class SessionNotFoundError extends Error {
   }
 }
 
-export { normalizeErrorMessage as normalizeSessionError } from '../../../platform/errors/index.js';
+
