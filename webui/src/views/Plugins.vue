@@ -46,7 +46,7 @@
             :class="selectedName === plugin.name ? 'bg-primary-fixed/25 ring-1 ring-primary/15' : 'bg-surface-container-lowest ring-1 ring-outline-variant/10 hover:shadow-md'"
           >
             <div class="flex flex-col gap-5 rounded-[1.4rem] p-5 md:flex-row md:items-start md:gap-6">
-              <button class="flex min-w-0 flex-1 items-start gap-5 text-left" type="button" @click="selectedName = plugin.name">
+              <button class="flex min-w-0 flex-1 items-start gap-5 text-left" type="button" @click="selectPlugin(plugin.name)">
                 <div class="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary-fixed text-primary">
                   <AppIcon name="plugins" />
                 </div>
@@ -83,7 +83,7 @@
               </button>
 
               <div class="flex gap-2 self-start">
-                <button class="rounded-xl border border-outline-variant/20 px-3 py-2 text-xs font-semibold text-on-surface transition hover:bg-surface-container-high" type="button" @click="selectedName = plugin.name">
+                <button class="rounded-xl border border-outline-variant/20 px-3 py-2 text-xs font-semibold text-on-surface transition hover:bg-surface-container-high" type="button" @click="selectPlugin(plugin.name)">
 查看
                 </button>
                 <button class="rounded-xl border px-3 py-2 text-xs font-semibold transition" :class="plugin.enabled ? 'border-error/20 text-error hover:bg-error-container/60' : 'border-primary/20 text-primary hover:bg-primary-fixed/50'" type="button" @click="togglePlugin(plugin)">
