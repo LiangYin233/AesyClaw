@@ -37,7 +37,6 @@ export async function createWorkerLocalToolRegistry(
 
   registerSkillTools({
     toolRegistry,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     skillManager: skillManager as any
   });
 

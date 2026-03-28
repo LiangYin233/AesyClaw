@@ -189,7 +189,6 @@
                   <label>
                     <span class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">目标</span>
                     <input v-model="draft.payload.target" class="tech-text w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none" type="text" placeholder="telegram:group:ops-room" />
-                    <p class="mt-2 ml-1 text-[11px] text-on-surface-variant">格式：`channel:private|group:chatId`。渠道已经包含在目标里，不再单独配置。</p>
                   </label>
                 </div>
               </div>

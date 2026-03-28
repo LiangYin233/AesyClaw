@@ -47,7 +47,6 @@
           <div class="flex flex-col gap-4 border-b workspace-divider px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 class="cn-section-title text-on-surface">实时日志流</h2>
-              <p class="mt-1 text-sm text-on-surface-variant">按时间倒序显示缓冲区中的最新日志，保留时间戳、scope 和字段摘要。</p>
             </div>
 
             <div class="flex flex-wrap gap-3">

@@ -58,3 +58,16 @@ export function rpcSubscribe<T>(
     return () => undefined;
   }
 }
+
+export function rpcOnConnectionStateChange(
+  token: string | null,
+  handler: (state: 'connecting' | 'connected' | 'reconnecting' | 'disconnected') => void
+): () => void {
+  try {
+    const client = getClient(token);
+    return client.onConnectionStateChange(handler);
+  } catch {
+    handler('disconnected');
+    return () => undefined;
+  }
+}

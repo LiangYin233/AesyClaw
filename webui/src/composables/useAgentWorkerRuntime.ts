@@ -1,5 +1,5 @@
 import { onBeforeUnmount, onMounted, shallowRef } from 'vue';
-import { rpcCall, rpcSubscribe } from '@/lib/rpc';
+import { rpcCall, rpcOnConnectionStateChange, rpcSubscribe } from '@/lib/rpc';
 import type { WorkerRuntimeSnapshot } from '@/lib/types';
 
 export function useAgentWorkerRuntime(token: string | null) {
@@ -8,6 +8,7 @@ export function useAgentWorkerRuntime(token: string | null) {
   const error = shallowRef('');
   const abortingSessionKey = shallowRef('');
   let stopSubscription: (() => void) | null = null;
+  let stopConnectionStateListener: (() => void) | null = null;
 
   async function loadWorkerRuntime() {
     loading.value = true;
@@ -58,14 +59,33 @@ export function useAgentWorkerRuntime(token: string | null) {
     );
   }
 
+  function startConnectionStateTracking() {
+    stopConnectionStateListener?.();
+    stopConnectionStateListener = rpcOnConnectionStateChange(token, (state) => {
+      if (state === 'connected') {
+        error.value = '';
+        return;
+      }
+
+      snapshot.value = null;
+      loading.value = false;
+      error.value = state === 'reconnecting'
+        ? 'WebSocket 已断开，正在重连，当前运行摘要已失效。'
+        : 'WebSocket 已断开，当前运行摘要已失效。';
+    });
+  }
+
   onMounted(() => {
     void loadWorkerRuntime();
+    startConnectionStateTracking();
     startSubscription();
   });
 
   onBeforeUnmount(() => {
     stopSubscription?.();
     stopSubscription = null;
+    stopConnectionStateListener?.();
+    stopConnectionStateListener = null;
   });
 
   return {

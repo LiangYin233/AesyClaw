@@ -29,6 +29,8 @@ type PendingRequest = {
 };
 
 type SubscriptionHandler<T> = (data: T) => void;
+type ConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
+type ConnectionStateListener = (state: ConnectionState) => void;
 
 interface LocalSubscription<T = unknown> {
   localId: string;
@@ -107,6 +109,8 @@ export class WebSocketApiClient {
   private manuallyClosed = false;
   private pendingRequests = new Map<string, PendingRequest>();
   private subscriptions = new Map<string, LocalSubscription>();
+  private connectionState: ConnectionState = 'disconnected';
+  private connectionStateListeners = new Set<ConnectionStateListener>();
 
   constructor(private readonly token: string) {}
 
@@ -146,6 +150,14 @@ export class WebSocketApiClient {
     };
   }
 
+  onConnectionStateChange(listener: ConnectionStateListener): () => void {
+    this.connectionStateListeners.add(listener);
+    listener(this.connectionState);
+    return () => {
+      this.connectionStateListeners.delete(listener);
+    };
+  }
+
   shutdown(): void {
     this.manuallyClosed = true;
     if (this.reconnectTimer !== null) {
@@ -161,6 +173,8 @@ export class WebSocketApiClient {
       this.socket.close();
       this.socket = null;
     }
+
+    this.setConnectionState('disconnected');
   }
 
   private async ensureConnected(): Promise<void> {
@@ -173,6 +187,7 @@ export class WebSocketApiClient {
     }
 
     this.manuallyClosed = false;
+    this.setConnectionState(this.subscriptions.size > 0 ? 'reconnecting' : 'connecting');
     this.connectPromise = new Promise<void>((resolve, reject) => {
       const socketUrl = resolveWebSocketUrl(this.token);
       const socket = new WebSocket(socketUrl);
@@ -194,6 +209,7 @@ export class WebSocketApiClient {
         cleanup();
         this.socket = socket;
         this.reconnectDelayMs = 1000;
+        this.setConnectionState('connected');
         this.attachSocket(socket);
         this.connectPromise = null;
         resolve();
@@ -250,6 +266,7 @@ export class WebSocketApiClient {
       this.connectPromise = null;
       this.clearServerSubscriptionIds();
       this.rejectPendingRequests(new Error('WebSocket 连接已断开'));
+      this.setConnectionState(!this.manuallyClosed && this.subscriptions.size > 0 ? 'reconnecting' : 'disconnected');
 
       if (!this.manuallyClosed && this.subscriptions.size > 0) {
         this.scheduleReconnect();
@@ -408,6 +425,7 @@ export class WebSocketApiClient {
       return;
     }
 
+    this.setConnectionState('reconnecting');
     this.reconnectTimer = window.setTimeout(() => {
       this.reconnectTimer = null;
       void this.ensureConnected().catch(() => {
@@ -416,5 +434,16 @@ export class WebSocketApiClient {
     }, this.reconnectDelayMs);
 
     this.reconnectDelayMs = Math.min(this.reconnectDelayMs * 2, MAX_RECONNECT_DELAY_MS);
+  }
+
+  private setConnectionState(state: ConnectionState): void {
+    if (this.connectionState === state) {
+      return;
+    }
+
+    this.connectionState = state;
+    for (const listener of this.connectionStateListeners) {
+      listener(state);
+    }
   }
 }
