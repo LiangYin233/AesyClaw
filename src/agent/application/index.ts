@@ -14,14 +14,6 @@ export type {
   HandleDirectMessageDeps,
   HandleDirectMessageInput
 } from './inbound/handleDirectMessage.js';
-export { runAgentTurn } from './turn/runAgentTurn.js';
-export type { RunAgentTurnDeps } from './turn/runAgentTurn.js';
-export { runSubAgentTasks } from './turn/runSubAgentTasks.js';
-export type {
-  RunSubAgentTasksDeps,
-  RunSubAgentTasksInput,
-  RunSubAgentTasksResult
-} from './turn/runSubAgentTasks.js';
 export { dispatchCronJob } from './runtime/dispatchCronJob.js';
 export type {
   DispatchCronJobDeps,

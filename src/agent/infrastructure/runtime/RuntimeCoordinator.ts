@@ -26,10 +26,8 @@ import { OutboundGateway } from '../../facade/OutboundGateway.js';
 import {
   handleDirectMessage,
   handleInboundMessage,
-  runAgentTurn,
   type HandleDirectMessageDeps,
-  type HandleInboundMessageDeps,
-  type RunAgentTurnDeps
+  type HandleInboundMessageDeps
 } from '../../application/index.js';
 
 const DEFAULT_MAX_ITERATIONS = 40;
@@ -77,7 +75,6 @@ export class RuntimeCoordinator {
   private readonly toolContextBase: ToolContext;
   private readonly handleInboundMessageDeps: HandleInboundMessageDeps;
   private readonly handleDirectMessageDeps: HandleDirectMessageDeps;
-  private readonly runAgentTurnDeps: RunAgentTurnDeps;
 
   constructor(private options: RuntimeCoordinatorOptions) {
     if (!options.model?.trim() && !options.agentRoleService) {
@@ -134,9 +131,6 @@ export class RuntimeCoordinator {
       executionRegistry,
       workerExecutionDelegate
     });
-    this.runAgentTurnDeps = {
-      executeTurn: async (context) => this.executionRuntime.execute(context)
-    };
     this.handleInboundMessageDeps = {
       // 前置命令、插件和普通 Agent turn 仍先经过统一 pipeline 分流。
       processInbound: async ({ message, suppressOutbound }) => this.pipeline.process(message, {
@@ -153,7 +147,7 @@ export class RuntimeCoordinator {
         suppressOutbound,
         memoryWindow: this.memoryWindow
       }),
-      runTurn: async (context) => runAgentTurn(this.runAgentTurnDeps, context)
+      runTurn: async (context) => this.executionRuntime.execute(context)
     };
     this.handleDirectMessageDeps = {
       bindMessageToSession: (message, reference) => this.bindMessageToSession(message, reference),
