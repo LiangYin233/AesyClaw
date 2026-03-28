@@ -5,7 +5,6 @@ import {
   bindSessionReference,
   type SessionReference
 } from '../domain/session.js';
-import { SessionHandle } from './SessionHandle.js';
 import type { LLMProvider } from '../../platform/providers/base.js';
 import type { SessionMemoryService } from '../infrastructure/memory/SessionMemoryService.js';
 import type { VisionSettings } from '../../types.js';
@@ -30,10 +29,6 @@ export class AgentRuntime {
 
   isRunning(): boolean {
     return this.lifecycle.isRunning();
-  }
-
-  session(reference: SessionReference | string): SessionHandle {
-    return new SessionHandle(this, reference);
   }
 
   bindMessageToSession(

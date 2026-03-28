@@ -1,4 +1,4 @@
-export { AgentRuntime, OutboundGateway, SessionHandle } from './facade/index.js';
+export { AgentRuntime, OutboundGateway } from './facade/index.js';
 export {
   createAgentRuntime,
   createConfiguredAgentRuntime
