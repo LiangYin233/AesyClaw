@@ -1,6 +1,6 @@
 import { CronExpressionParser } from 'cron-parser';
 import { logger } from '../../../platform/observability/index.js';
-import type { CronJob } from '../domain/cronTypes.js';
+import type { CronJob } from '../index.js';
 import { CronStore } from '../infrastructure/CronStore.js';
 
 const FAILED_JOB_RETRY_DELAY_MS = 60_000;

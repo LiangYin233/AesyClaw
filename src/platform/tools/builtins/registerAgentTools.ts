@@ -1,4 +1,3 @@
-import type { AgentRoleService } from '../../../agent/infrastructure/roles/AgentRoleService.js';
 import type { ToolContext, ToolRegistry } from '../ToolRegistry.js';
 import type { ToolDefinition } from '../../../types.js';
 import {
@@ -7,6 +6,10 @@ import {
   rethrowToolAbortError,
   throwIfToolAborted
 } from './shared.js';
+
+interface AgentRoleResolver {
+  getResolvedRole(agentName: string): { name: string; description?: string } | null | undefined;
+}
 
 export function getAgentToolDefinitions(): ToolDefinition[] {
   return [
@@ -84,7 +87,7 @@ export function registerAgentTools(args: {
       signal?: AbortSignal;
     }
   ) => Promise<Array<{ task: string; success: boolean; result?: string; error?: string }>>;
-  agentRoleService: AgentRoleService;
+  agentRoleService: AgentRoleResolver;
   log: BuiltInLogger;
 }): void {
   const { toolRegistry, runSubAgentTasks, runTemporarySubAgentTasks, agentRoleService, log } = args;

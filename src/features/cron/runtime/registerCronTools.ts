@@ -1,7 +1,7 @@
 import type { ToolContext, ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
 import { createShortId } from '../../../platform/ids/index.js';
 import { formatLocalTimestamp } from '../../../platform/observability/logging.js';
-import type { CronJob, CronSchedule } from '../domain/cronTypes.js';
+import type { CronJob, CronSchedule } from '../index.js';
 import type { CronRuntimeService } from './CronRuntimeService.js';
 
 function parseInterval(str: string): number | null {

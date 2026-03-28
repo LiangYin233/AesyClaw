@@ -1,5 +1,5 @@
 import type { SessionReference } from '../../domain/session.js';
-import type { CronJob } from '../../../features/cron/index.js';
+import type { CronJob } from '../../domain/cron.js';
 import { createShortId } from '../../../platform/ids/index.js';
 
 const CRON_CHANNEL = 'cron';

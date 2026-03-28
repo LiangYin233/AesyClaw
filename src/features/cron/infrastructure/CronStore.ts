@@ -4,7 +4,7 @@ import { dirname } from 'path';
 import { logger } from '../../../platform/observability/index.js';
 import { runSqlMigrations } from '../../../platform/db/MigrationRunner.js';
 import { cronMigrations } from '../../../platform/db/migrations.js';
-import type { CronJob } from '../domain/cronTypes.js';
+import type { CronJob } from '../index.js';
 
 type SQLiteParam = string | number | boolean | null | Buffer | Date | undefined;
 type SQLiteParams = SQLiteParam[];

@@ -1,13 +1,3 @@
-export interface CronJob {
-  id: string;
-  name: string;
-  enabled: boolean;
-  schedule: CronSchedule;
-  payload: CronPayload;
-  nextRunAtMs?: number;
-  lastRunAtMs?: number;
-}
-
 export interface CronSchedule {
   kind: 'once' | 'interval' | 'daily' | 'cron';
   onceAt?: string;
@@ -22,4 +12,14 @@ export interface CronPayload {
   detail: string;
   channel?: string;
   target?: string;
+}
+
+export interface CronJob {
+  id: string;
+  name: string;
+  enabled: boolean;
+  schedule: CronSchedule;
+  payload: CronPayload;
+  nextRunAtMs?: number;
+  lastRunAtMs?: number;
 }
