@@ -38,7 +38,7 @@
                   :key="tool.name"
                   class="cursor-pointer transition hover:bg-surface-container-low/50"
                   :class="selectedName === tool.name ? 'bg-primary-fixed/35' : ''"
-                  @click="selectedName = tool.name"
+                  @click="selectTool(tool.name)"
                 >
                   <td class="px-6 py-5">
                     <p class="tech-text text-xs font-bold text-on-surface">{{ tool.name }}</p>
@@ -78,74 +78,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import AppIcon from '@/components/AppIcon.vue';
-import { rpcCall, rpcSubscribe } from '@/lib/rpc';
 import { getRouteToken } from '@/lib/auth';
-import type { ToolInfo } from '@/lib/types';
+import { useToolsState } from '@/composables/useToolsState';
 import { useRoute } from 'vue-router';
 
 const route = useRoute();
 const token = getRouteToken(route);
 
-const tools = ref<ToolInfo[]>([]);
-const selectedName = ref('');
-const loading = ref(false);
-const error = ref('');
-let stopToolsSubscription: (() => void) | null = null;
-
-const selectedTool = computed(() => tools.value.find((tool) => tool.name === selectedName.value) || tools.value[0] || null);
-const formattedParameters = computed(() => JSON.stringify(selectedTool.value?.parameters || {}, null, 2));
-
-async function loadTools() {
-  loading.value = true;
-  error.value = '';
-
-  const result = await rpcCall<{ tools: ToolInfo[] }>('system.getTools', token);
-  loading.value = false;
-
-  if (result.error || !result.data) {
-    error.value = result.error || '工具加载失败';
-    tools.value = [];
-    return;
-  }
-
-  tools.value = result.data.tools;
-  if (!tools.value.some((tool) => tool.name === selectedName.value)) {
-    selectedName.value = tools.value[0]?.name || '';
-  }
-}
-
-function bindSubscription() {
-  stopToolsSubscription?.();
-  stopToolsSubscription = rpcSubscribe<{ tools: ToolInfo[] }>(
-    'system.tools',
-    token,
-    undefined,
-    (data) => {
-      tools.value = data.tools;
-      if (!data.tools.some((tool) => tool.name === selectedName.value)) {
-        selectedName.value = data.tools[0]?.name || '';
-      }
-      loading.value = false;
-      error.value = '';
-    },
-    {
-      onError: (message) => {
-        error.value = message;
-        loading.value = false;
-      }
-    }
-  );
-}
-
-onMounted(() => {
-  void loadTools();
-  bindSubscription();
-});
-
-onBeforeUnmount(() => {
-  stopToolsSubscription?.();
-  stopToolsSubscription = null;
-});
+const {
+  tools,
+  selectedName,
+  selectedTool,
+  formattedParameters,
+  error,
+  selectTool
+} = useToolsState(token);
 </script>

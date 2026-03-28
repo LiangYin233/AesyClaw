@@ -22,7 +22,7 @@
         <div class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
           <div class="workspace-kpi">
             <span class="workspace-kpi-label">缓冲区占用</span>
-            <span class="workspace-kpi-value">{{ currentBufferSize }} / {{ bufferCapacity }}</span>
+            <span class="workspace-kpi-value">{{ formattedCurrentBufferSize }} / {{ formattedBufferCapacity }}</span>
             <span class="workspace-kpi-note">当前使用 {{ bufferUsagePercent }}</span>
           </div>
           <div class="workspace-kpi">
@@ -172,177 +172,40 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import AppIcon from '@/components/AppIcon.vue';
-import { rpcCall, rpcSubscribe } from '@/lib/rpc';
 import { getRouteToken } from '@/lib/auth';
+import { useLogsState } from '@/composables/useLogsState';
 import { formatDateTime, formatKeyValue, formatNumber, formatRelativeTime, formatTokenShort } from '@/lib/format';
-import type { LogLevel, ObservabilityEntriesResponse, ObservabilityLogEntry, ObservabilityLoggingConfig, TokenUsageStats } from '@/lib/types';
 
 const route = useRoute();
 const token = getRouteToken(route);
 
-const levels: LogLevel[] = ['debug', 'info', 'warn', 'error'];
+const {
+  levels,
+  entries,
+  usageStats,
+  loading,
+  savingLevel,
+  error,
+  levelFilter,
+  levelDraft,
+  limit,
+  lastUpdatedAt,
+  runtimeLevel,
+  currentBufferSize,
+  bufferCapacity,
+  bufferUsagePercent,
+  todayStats,
+  pastWeekStats,
+  levelLabel,
+  levelBadgeClass,
+  updateRuntimeLevel
+} = useLogsState(token);
 
-const config = ref<ObservabilityLoggingConfig | null>(null);
-const entries = ref<ObservabilityLogEntry[]>([]);
-const usageStats = ref<TokenUsageStats | null>(null);
-const bufferTotal = ref(0);
-const loading = ref(false);
-const savingLevel = ref(false);
-const error = ref('');
-const levelFilter = ref<'all' | LogLevel>('all');
-const levelDraft = ref<LogLevel>('info');
-const limit = ref(200);
-const lastUpdatedAt = ref<Date | null>(null);
-let stopLogsSubscription: (() => void) | null = null;
-let stopUsageSubscription: (() => void) | null = null;
-
-const runtimeLevel = computed<LogLevel>(() => config.value?.level || 'info');
-const currentBufferSize = computed(() => formatNumber(bufferTotal.value));
-const bufferCapacity = computed(() => formatNumber(config.value?.bufferSize || 0));
-const bufferUsagePercent = computed(() => {
-  const capacity = config.value?.bufferSize || 0;
-  if (!capacity) return '0%';
-  return `${Math.min(100, Math.round((bufferTotal.value / capacity) * 100))}%`;
-});
+const formattedCurrentBufferSize = computed(() => formatNumber(currentBufferSize.value));
+const formattedBufferCapacity = computed(() => formatNumber(bufferCapacity.value));
 const lastUpdatedLabel = computed(() => lastUpdatedAt.value ? formatRelativeTime(lastUpdatedAt.value) : '-');
 const lastUpdatedTime = computed(() => lastUpdatedAt.value ? formatDateTime(lastUpdatedAt.value) : '-');
-
-const todayDate = computed(() => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-});
-
-const todayStats = computed(() => {
-  if (!usageStats.value?.daily?.length) return null;
-  return usageStats.value.daily.find((day) => day.date === todayDate.value) || null;
-});
-
-const pastWeekStats = computed(() => {
-  if (!usageStats.value?.daily?.length) return [];
-  return usageStats.value.daily.filter((day) => day.date !== todayDate.value).slice(0, 7);
-});
-
-function levelLabel(level: LogLevel | 'all') {
-  if (level === 'all') return '全部';
-  if (level === 'debug') return '调试';
-  if (level === 'info') return '信息';
-  if (level === 'warn') return '警告';
-  return '错误';
-}
-
-function levelBadgeClass(level: LogLevel) {
-  if (level === 'debug') return 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300';
-  if (level === 'info') return 'bg-primary-fixed text-on-primary-fixed';
-  if (level === 'warn') return 'bg-tertiary-fixed text-on-tertiary-fixed';
-  return 'bg-error-container text-on-error-container';
-}
-
-async function loadLogsPage() {
-  loading.value = true;
-  error.value = '';
-
-  const [configResult, usageResult] = await Promise.all([
-    rpcCall<ObservabilityLoggingConfig>('observability.getLoggingConfig', token),
-    rpcCall<TokenUsageStats>('observability.getUsage', token),
-  ]);
-
-  if (configResult.error) {
-    error.value = configResult.error || '加载失败';
-  }
-
-  config.value = configResult.data;
-  levelDraft.value = configResult.data?.level || levelDraft.value;
-  usageStats.value = usageResult.data ?? null;
-}
-
-async function updateRuntimeLevel() {
-  savingLevel.value = true;
-  const result = await rpcCall<{ success: true; level: LogLevel }>('observability.setLogLevel', token, {
-    level: levelDraft.value,
-  });
-  savingLevel.value = false;
-
-  if (result.error) {
-    error.value = result.error;
-    return;
-  }
-
-  if (config.value) {
-    config.value = {
-      ...config.value,
-      level: result.data?.level || levelDraft.value,
-    };
-  }
-}
-
-function stopSubscriptions() {
-  stopLogsSubscription?.();
-  stopLogsSubscription = null;
-  stopUsageSubscription?.();
-  stopUsageSubscription = null;
-}
-
-function bindSubscriptions() {
-  stopSubscriptions();
-  loading.value = true;
-
-  stopLogsSubscription = rpcSubscribe<ObservabilityEntriesResponse>(
-    'observability.logs',
-    token,
-    {
-      limit: limit.value,
-      level: levelFilter.value === 'all' ? undefined : levelFilter.value
-    },
-    (data) => {
-      entries.value = data.entries;
-      bufferTotal.value = data.total;
-      config.value = {
-        level: data.level,
-        bufferSize: data.bufferSize,
-        pretty: config.value?.pretty ?? true
-      };
-      levelDraft.value = data.level;
-      lastUpdatedAt.value = new Date();
-      loading.value = false;
-      error.value = '';
-    },
-    {
-      onError: (message) => {
-        error.value = message;
-        loading.value = false;
-      }
-    }
-  );
-
-  stopUsageSubscription = rpcSubscribe<TokenUsageStats>(
-    'observability.usage',
-    token,
-    undefined,
-    (data) => {
-      usageStats.value = data;
-      lastUpdatedAt.value = new Date();
-    },
-    {
-      onError: (message) => {
-        error.value = message;
-      }
-    }
-  );
-}
-
-watch([levelFilter, limit], () => {
-  bindSubscriptions();
-});
-
-onMounted(() => {
-  void loadLogsPage();
-  bindSubscriptions();
-});
-
-onBeforeUnmount(() => {
-  stopSubscriptions();
-});
 </script>
