@@ -15,3 +15,5 @@ export type {
   MemoryOperationResult
 } from './infrastructure/LongTermMemoryStore.js';
 export { SessionNotFoundError, SessionValidationError } from './domain/types.js';
+export { SessionRoutingService } from './infrastructure/SessionRoutingService.js';
+export type { SessionRoute } from './infrastructure/SessionRoutingService.js';
