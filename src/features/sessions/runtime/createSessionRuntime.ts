@@ -2,7 +2,8 @@ import { join } from 'path';
 import { SessionRoutingService } from '../infrastructure/SessionRoutingService.js';
 import { getSessionRuntimeConfig } from '../../../features/config/index.js';
 import { Database } from '../../../platform/db/index.js';
-import { LongTermMemoryStore, SessionManager } from '../index.js';
+import { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
+import { LongTermMemoryStore } from '../../../agent/infrastructure/memory/LongTermMemoryStore.js';
 import type { Config } from '../../../types.js';
 import { createMemoryRuntime } from '../../memory/index.js';
 

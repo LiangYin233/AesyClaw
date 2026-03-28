@@ -7,7 +7,8 @@ import { ConfigManager, RuntimeConfigStore } from '../../../features/config/inde
 import { CronRuntimeService } from '../../../features/cron/index.js';
 import { logging, logger, tokenUsage } from '../../../platform/observability/index.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
-import { LongTermMemoryStore, SessionManager } from '../../../features/sessions/index.js';
+import { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
+import { LongTermMemoryStore } from '../../../agent/infrastructure/memory/LongTermMemoryStore.js';
 import { SkillManager } from '../../../features/skills/index.js';
 import { ToolRegistry } from '../../../platform/tools/index.js';
 import { McpClientManager } from '../../../features/mcp/index.js';

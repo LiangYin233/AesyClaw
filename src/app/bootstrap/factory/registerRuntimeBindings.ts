@@ -12,7 +12,7 @@ import type { PluginManager } from '../../../features/plugins/index.js';
 import { PluginRepository } from '../../../features/plugins/infrastructure/PluginRepository.js';
 import type { ChannelManager } from '../../../features/channels/application/ChannelManager.js';
 import type { Config } from '../../../types.js';
-import type { SessionManager } from '../../../features/sessions/index.js';
+import type { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
 import type { SkillManager } from '../../../features/skills/index.js';
 import { registerBuiltInTools } from '../../../platform/tools/index.js';
 import type { ToolRegistry } from '../../../platform/tools/index.js';

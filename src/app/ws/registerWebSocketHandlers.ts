@@ -6,8 +6,8 @@ import type { ChannelManager } from '../../features/channels/application/Channel
 import type { ConfigManager, RuntimeConfigStore } from '../../features/config/index.js';
 import type { Database } from '../../platform/db/index.js';
 import type { ToolRegistry } from '../../platform/tools/ToolRegistry.js';
-import type { SessionManager } from '../../features/sessions/application/SessionManager.js';
-import type { LongTermMemoryStore } from '../../features/sessions/infrastructure/LongTermMemoryStore.js';
+import type { SessionManager } from '../../agent/infrastructure/session/SessionManager.js';
+import type { LongTermMemoryStore } from '../../agent/infrastructure/memory/LongTermMemoryStore.js';
 import type { PluginManager } from '../../features/plugins/index.js';
 import type { CronRuntimeService } from '../../features/cron/index.js';
 import type { McpClientManager } from '../../features/mcp/index.js';

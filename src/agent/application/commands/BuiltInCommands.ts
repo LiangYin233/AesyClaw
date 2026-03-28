@@ -2,7 +2,7 @@ import type { InboundMessage } from '../../../types.js';
 import { ResourceNotFoundError } from '../../../platform/errors/domain.js';
 import { PluginsService } from '../../../features/plugins/application/PluginsService.js';
 import type { PluginInfo } from '../../../features/plugins/domain/types.js';
-import type { SessionManager } from '../../../features/sessions/application/SessionManager.js';
+import type { SessionManager } from '../../infrastructure/session/SessionManager.js';
 import type { AgentRoleService } from '../../infrastructure/roles/AgentRoleService.js';
 import type { ISessionRouting } from '../../domain/session.js';
 import { logger } from '../../../platform/observability/index.js';

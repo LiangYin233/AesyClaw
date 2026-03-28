@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import type { InboundMessage } from '../../../types.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
-import type { SessionManager } from '../../../features/sessions/application/SessionManager.js';
+import type { SessionManager } from '../session/SessionManager.js';
 import {
   LongTermMemoryStore,
   type LongTermMemoryEntry,
@@ -11,7 +11,7 @@ import {
   type MemoryOperationActor,
   type MemoryOperationInput,
   type MemoryOperationResult
-} from '../../../features/sessions/infrastructure/LongTermMemoryStore.js';
+} from './LongTermMemoryStore.js';
 import { logger } from '../../../platform/observability/index.js';
 import { OpenAIEmbeddingsClient } from './OpenAIEmbeddingsClient.js';
 

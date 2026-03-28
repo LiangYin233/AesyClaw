@@ -18,7 +18,7 @@ import {
 } from '../../../features/config/index.js';
 import { createProvider } from '../../../platform/providers/index.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
-import { SessionManager } from '../../../features/sessions/index.js';
+import { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
 import { SkillManager } from '../../../features/skills/index.js';
 import { ToolRegistry } from '../../../platform/tools/index.js';
 import { DefinitionAugmentedToolRegistry } from '../../../platform/tools/DefinitionAugmentedToolRegistry.js';

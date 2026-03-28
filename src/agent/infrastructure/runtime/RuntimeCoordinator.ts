@@ -2,7 +2,7 @@ import type { Config, InboundMessage, OutboundMessage } from '../../../types.js'
 import type { LLMProvider } from '../../../platform/providers/base.js';
 import type { PluginManager } from '../../../features/plugins/index.js';
 import type { ToolRegistry, ToolContext } from '../../../platform/tools/ToolRegistry.js';
-import type { SessionManager } from '../../../features/sessions/application/SessionManager.js';
+import type { SessionManager } from '../session/SessionManager.js';
 import type { CommandRegistry } from '../../application/index.js';
 import type { SessionMemoryService } from '../memory/SessionMemoryService.js';
 import type { ISessionRouting } from '../../domain/session.js';

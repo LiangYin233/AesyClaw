@@ -2,7 +2,7 @@ import type { Database } from '../../../platform/db/index.js';
 import { logger } from '../../../platform/observability/index.js';
 import { createShortId } from '../../../platform/ids/index.js';
 import { formatLocalTimestamp } from '../../../platform/observability/logging.js';
-import { parseSessionKey, SessionNotFoundError, type Session, type SessionMessage } from '../../features/sessions/domain/types.js';
+import { parseSessionKey, SessionNotFoundError, type Session, type SessionMessage } from '../../../features/sessions/domain/types.js';
 import { SessionStore } from './SessionStore.js';
 
 const SESSION_LOAD_BATCH_SIZE = 10;
