@@ -11,7 +11,7 @@
             :to="{ path: '/agents/runtime', query: token ? { token } : {} }"
             class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/14 bg-surface-container-lowest px-5 py-2.5 text-sm font-bold text-on-surface shadow-sm transition hover:bg-surface-container-low"
           >
-            <AppIcon name="history" size="sm" />
+            <AppIcon name="deployed" size="sm" />
             查看执行链
           </router-link>
           <button class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-primary to-primary-container px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/10 transition hover:scale-[1.01]" type="button" @click="openCreateDrawer">

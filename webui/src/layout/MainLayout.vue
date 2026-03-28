@@ -97,7 +97,7 @@ const navItems = [
   { label: '会话', path: '/sessions', icon: 'sessions', matchPrefixes: ['/sessions'] },
   { label: '记忆', path: '/memory', icon: 'memory', matchPrefixes: ['/memory'] },
   { label: 'Agent', path: '/agents', icon: 'agents', matchPrefixes: ['/agents'], matchExact: true },
-  { label: '执行链', path: '/agents/runtime', icon: 'history', matchPrefixes: ['/agents/runtime'] },
+  { label: '执行链', path: '/agents/runtime', icon: 'deployed', matchPrefixes: ['/agents/runtime'] },
   { label: '技能', path: '/skills', icon: 'skills', matchPrefixes: ['/skills'] },
   { label: '工具', path: '/tools', icon: 'tools', matchPrefixes: ['/tools'] },
   { label: '插件', path: '/plugins', icon: 'plugins', matchPrefixes: ['/plugins'] },
