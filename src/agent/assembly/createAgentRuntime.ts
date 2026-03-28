@@ -5,7 +5,7 @@ export interface CreateAgentRuntimeInput {
   delegate: RuntimeDelegate;
 }
 
-export function createAgentRuntime(input: CreateAgentRuntimeInput): AgentRuntime {
+async function createAgentRuntime(input: CreateAgentRuntimeInput): Promise<AgentRuntime> {
   const services = createAgentServices(input.delegate);
   return new AgentRuntime(services.facadeDeps, services.delegate);
 }
