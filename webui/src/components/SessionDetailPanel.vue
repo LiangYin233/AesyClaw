@@ -47,7 +47,7 @@
     <div class="mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
       <article
         v-for="(message, index) in detail.messages"
-        :key="`${detail.key}-${index}`"
+        :key="buildSessionMessageKey(detail.key, message, index)"
         class="mb-3 rounded-2xl border border-outline-variant/16 bg-surface-container-lowest p-4"
       >
         <div class="flex items-center justify-between gap-3">
@@ -79,6 +79,7 @@
 <script setup lang="ts">
 import AppIcon from '@/components/AppIcon.vue';
 import { formatDateTime, formatRelativeTime } from '@/lib/format';
+import { buildSessionMessageKey } from '@/lib/sessionMessages';
 import type { SessionDetail } from '@/lib/types';
 
 defineProps<{

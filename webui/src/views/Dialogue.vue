@@ -137,7 +137,7 @@
 
               <article
                 v-for="(message, index) in displayMessages"
-                :key="`${resolvedSessionKey || 'draft'}-${index}`"
+                :key="buildSessionMessageKey(resolvedSessionKey || 'draft', message, index)"
                 class="flex flex-col gap-3"
                 :class="message.role === 'user' ? 'items-end' : message.role === 'system' ? 'items-center' : 'items-start'"
               >
@@ -309,6 +309,7 @@ import { useLatestRequestGuard } from '@/composables/useLatestRequestGuard';
 import { rpcCall, rpcSubscribe } from '@/lib/rpc';
 import { buildTokenQuery, getRouteToken } from '@/lib/auth';
 import { formatDateTime } from '@/lib/format';
+import { buildSessionMessageKey } from '@/lib/sessionMessages';
 import type { Session, SessionDetail, SessionMessage } from '@/lib/types';
 
 const route = useRoute();
