@@ -4,19 +4,11 @@ import { createWriteStream } from 'fs';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import { createHash } from 'crypto';
-import { definePlugin } from '../../src/features/plugins/index.ts';
 import type { InboundFile, InboundMessage, ProcessingIntent } from '../../src/types.ts';
 
 const Intent = {
   error: (reason: string): Extract<ProcessingIntent, { type: 'error' }> => ({ type: 'error', reason })
 };
-
-interface SpeechToTextOptions {
-  provider: string;
-  model: string;
-  downloadTimeout: number;
-  transcriptionTimeout: number;
-}
 
 interface SpeechRuntimeConfig {
   apiKey: string;
@@ -221,7 +213,7 @@ function resolveAudioMimeType(audioPath: string): string {
   }
 }
 
-export default definePlugin<SpeechToTextOptions>({
+export default {
   name: 'plugin_speech_to_text',
   version: '1.0.0',
   author: 'aesyclaw_official',
@@ -352,4 +344,4 @@ export default definePlugin<SpeechToTextOptions>({
       await fs.rm(downloadDir, { recursive: true, force: true }).catch(() => undefined);
     };
   }
-});
+};

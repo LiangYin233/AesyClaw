@@ -1,5 +1,3 @@
-import { definePlugin } from '../../src/features/plugins/index.ts';
-
 type TavilySearchDepth = 'basic' | 'advanced' | 'fast' | 'ultra-fast';
 
 interface TavilySearchResult {
@@ -42,7 +40,7 @@ async function fetchTavily(endpoint: string, body: Record<string, any>, apiKey: 
   return response.json() as Promise<TavilyResponse>;
 }
 
-export default definePlugin<WebsearchOptions>({
+export default {
   name: 'plugin_websearch',
   version: '1.0.0',
   author: 'aesyclaw_official',
@@ -200,4 +198,4 @@ export default definePlugin<WebsearchOptions>({
       }
     });
   }
-});
+};

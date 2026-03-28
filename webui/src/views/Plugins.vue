@@ -113,9 +113,7 @@
                       ? `这个渠道插件目前连接到 ${selectedPlugin.channelName || 'unknown'}，运行状态为 ${selectedPlugin.running ? '已启动' : '未启动'}。`
                       : `该插件当前接入 ${selectedPlugin.toolsCount} 个工具，并可通过配置项参与消息链路与扩展动作。` }}
                   </p>
-                  <div class="mt-4 h-1.5 overflow-hidden rounded-full bg-outline-variant/20">
-                    <div class="h-full rounded-full bg-primary" :style="{ width: `${impactWidth(selectedPlugin)}%` }"></div>
-                  </div>
+
                 </div>
 
                 <div class="mt-6 space-y-4">
@@ -214,11 +212,7 @@ function syncDraft(plugin: PluginInfo | null) {
   jsonError.value = '';
 }
 
-function impactWidth(plugin: PluginInfo) {
-  const base = plugin.kind === 'channel' ? 36 : 24;
-  const toolWeight = plugin.kind === 'channel' ? 0 : plugin.toolsCount * 8;
-  return Math.min(95, base + toolWeight + Object.keys(plugin.options || {}).length * 4);
-}
+
 
 async function loadPlugins() {
   loading.value = true;

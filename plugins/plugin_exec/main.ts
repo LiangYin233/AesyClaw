@@ -1,12 +1,10 @@
 import { platform } from 'os';
-import { definePlugin } from '../../src/features/plugins/index.ts';
 import type { ToolContext } from '../../src/platform/tools/index.ts';
 import { loadConfig } from './config.ts';
-import type { ExecPluginOptions } from './config.ts';
 import { PythonRunner } from './PythonRunner.ts';
 import { ShellRunner } from './ShellRunner.ts';
 
-export default definePlugin<ExecPluginOptions>({
+export default {
   name: 'plugin_exec',
   version: '1.0.0',
   author: 'aesyclaw_official',
@@ -74,4 +72,4 @@ export default definePlugin<ExecPluginOptions>({
       }
     });
   }
-});
+};
