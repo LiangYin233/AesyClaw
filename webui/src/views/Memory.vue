@@ -245,98 +245,37 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppIcon from '@/components/AppIcon.vue';
-import { rpcCall, rpcSubscribe } from '@/lib/rpc';
 import { getRouteToken } from '@/lib/auth';
+import { useMemoryState } from '@/composables/useMemoryState';
 import { abbreviateText, formatDateTime, formatRelativeTime } from '@/lib/format';
-import type { MemoryConversationItem, MemoryOperation } from '@/lib/types';
 
 const route = useRoute();
 const router = useRouter();
 const token = getRouteToken(route);
 
-const items = ref<MemoryConversationItem[]>([]);
-const loading = ref(false);
-const deleting = ref(false);
-const error = ref('');
-const activeTab = ref<'summary' | 'facts'>('summary');
-const selectedKey = ref('');
-let stopMemorySubscription: (() => void) | null = null;
-
-const filteredItems = computed(() => items.value.filter((item) => (
-  activeTab.value === 'summary'
-    ? Boolean(item.summaryCount || item.conversationSummary || item.sessions.some((session) => session.summary))
-    : item.entries.length > 0
-)));
-const selectedItem = computed(() => filteredItems.value.find((item) => item.key === selectedKey.value) || filteredItems.value[0] || null);
-const selectedEntries = computed(() => [...(selectedItem.value?.entries || [])].sort((left, right) => right.confidence - left.confidence));
-const selectedOperations = computed<MemoryOperation[]>(() => (selectedItem.value?.recentOperations || []).slice(0, 12));
-const totalFacts = computed(() => items.value.reduce((sum, item) => sum + item.entries.length, 0));
-const totalSummaries = computed(() => items.value.reduce((sum, item) => sum + item.summaryCount, 0));
-const totalSessions = computed(() => items.value.reduce((sum, item) => sum + item.sessionCount, 0));
-const totalOperations = computed(() => items.value.reduce((sum, item) => sum + item.recentOperations.length, 0));
-const latestSessionKey = computed(() => selectedItem.value?.sessions[0]?.sessionKey || '');
-
-function memoryPreview(item: MemoryConversationItem) {
-  return item.conversationSummary
-    || item.sessions.find((session) => session.summary)?.summary
-    || '暂无摘要。';
-}
-
-function factPreview(item: MemoryConversationItem) {
-  return item.entries[0]?.content || '当前会话还没有长期事实。';
-}
-
-async function loadMemory() {
-  loading.value = true;
-  error.value = '';
-
-  const result = await rpcCall<{ items: MemoryConversationItem[] }>('memory.list', token);
-  if (result.error || !result.data) {
-    error.value = result.error || '记忆加载失败';
-    items.value = [];
-    loading.value = false;
-    return;
-  }
-
-  items.value = result.data.items;
-  if (!items.value.some((item) => item.key === selectedKey.value)) {
-    selectedKey.value = items.value[0]?.key || '';
-  }
-  loading.value = false;
-}
-
-async function clearSelected() {
-  if (!selectedItem.value || !window.confirm(`确认清空 ${selectedItem.value.chatId || selectedItem.value.key} 的全部记忆吗？`)) {
-    return;
-  }
-
-  deleting.value = true;
-  const result = await rpcCall<{ success: true }>('memory.deleteOne', token, { key: selectedItem.value.key });
-  deleting.value = false;
-
-  if (result.error) {
-    error.value = result.error;
-    return;
-  }
-}
-
-async function clearAll() {
-  if (!items.value.length || !window.confirm('确认清空全部会话摘要和长期记忆吗？这个操作不可撤销。')) {
-    return;
-  }
-
-  deleting.value = true;
-  const result = await rpcCall<{ success: true }>('memory.deleteAll', token);
-  deleting.value = false;
-
-  if (result.error) {
-    error.value = result.error;
-    return;
-  }
-}
+const {
+  items,
+  loading,
+  deleting,
+  error,
+  activeTab,
+  selectedKey,
+  filteredItems,
+  selectedItem,
+  selectedEntries,
+  selectedOperations,
+  totalFacts,
+  totalSummaries,
+  totalSessions,
+  totalOperations,
+  latestSessionKey,
+  memoryPreview,
+  factPreview,
+  clearSelected,
+  clearAll
+} = useMemoryState(token);
 
 function openDialogue(sessionKey?: string) {
   const target = sessionKey || latestSessionKey.value;
@@ -349,45 +288,4 @@ function openDialogue(sessionKey?: string) {
     query: token ? { token } : {},
   });
 }
-
-function bindSubscription() {
-  stopMemorySubscription?.();
-  stopMemorySubscription = rpcSubscribe<{ items: MemoryConversationItem[] }>(
-    'memory.list',
-    token,
-    undefined,
-    (data) => {
-      items.value = data.items;
-      loading.value = false;
-      error.value = '';
-    },
-    {
-      onError: (message) => {
-        error.value = message;
-        loading.value = false;
-      }
-    }
-  );
-}
-
-watch(filteredItems, (nextItems) => {
-  if (!nextItems.length) {
-    selectedKey.value = '';
-    return;
-  }
-
-  if (!nextItems.some((item) => item.key === selectedKey.value)) {
-    selectedKey.value = nextItems[0].key;
-  }
-}, { immediate: true });
-
-onMounted(() => {
-  void loadMemory();
-  bindSubscription();
-});
-
-onBeforeUnmount(() => {
-  stopMemorySubscription?.();
-  stopMemorySubscription = null;
-});
 </script>
