@@ -112,14 +112,6 @@
               >
                 查看会话列表
               </button>
-              <button
-                v-if="resolvedSessionKey"
-                class="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white shadow-lg shadow-primary/15 transition hover:opacity-90"
-                type="button"
-                @click="reloadCurrentSession"
-              >
-                刷新当前会话
-              </button>
             </div>
           </div>
         </header>
@@ -272,13 +264,6 @@
               </span>
               <AppIcon name="arrowRight" size="sm" class="text-outline" />
             </button>
-            <button class="flex w-full items-center justify-between rounded-xl bg-surface-container-lowest p-3 text-xs font-medium transition hover:bg-white" type="button" @click="reloadCurrentSession">
-              <span class="flex items-center gap-3">
-                <AppIcon name="history" size="sm" class="text-outline" />
-                刷新消息流
-              </span>
-              <AppIcon name="arrowRight" size="sm" class="text-outline" />
-            </button>
             <button class="flex w-full items-center justify-between rounded-xl bg-surface-container-lowest p-3 text-xs font-medium transition hover:bg-white" type="button" @click="goToMemory">
               <span class="flex items-center gap-3">
                 <AppIcon name="memory" size="sm" class="text-outline" />
@@ -317,11 +302,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppIcon from '@/components/AppIcon.vue';
 import { useLatestRequestGuard } from '@/composables/useLatestRequestGuard';
-import { apiDelete, apiGet, apiPost } from '@/lib/api';
+import { rpcCall, rpcSubscribe } from '@/lib/rpc';
 import { buildTokenQuery, getRouteToken } from '@/lib/auth';
 import { formatDateTime } from '@/lib/format';
 import type { Session, SessionDetail, SessionMessage } from '@/lib/types';
@@ -344,6 +329,8 @@ const draftSessionKey = ref('');
 const sessionPreviews = ref<Record<string, string>>({});
 const sidebarVisible = ref(false);
 const detailRequestGuard = useLatestRequestGuard();
+let stopSessionsSubscription: (() => void) | null = null;
+let stopDetailSubscription: (() => void) | null = null;
 
 const routeSessionKey = computed(() => {
   const raw = route.params.sessionKey;
@@ -406,7 +393,7 @@ function createDraftSessionKey() {
 
 async function loadSessions() {
   sessionsLoading.value = true;
-  const sessionsResult = await apiGet<{ sessions: Session[] }>('/api/sessions', token);
+  const sessionsResult = await rpcCall<{ sessions: Session[] }>('sessions.list', token);
 
   sessions.value = sessionsResult.data?.sessions || [];
 
@@ -417,7 +404,7 @@ async function loadSessionDetail(key: string) {
   const requestId = detailRequestGuard.start();
   detailLoading.value = true;
   detailError.value = '';
-  const result = await apiGet<SessionDetail>(`/api/sessions/${encodeURIComponent(key)}`, token);
+  const result = await rpcCall<SessionDetail>('sessions.getDetail', token, { key });
 
   if (!detailRequestGuard.isCurrent(requestId)) {
     return;
@@ -450,6 +437,60 @@ async function syncRouteSession() {
   await loadSessionDetail(routeSessionKey.value);
 }
 
+function bindSessionsSubscription() {
+  stopSessionsSubscription?.();
+  stopSessionsSubscription = rpcSubscribe<{ sessions: Session[] }>(
+    'sessions.list',
+    token,
+    undefined,
+    (data) => {
+      sessions.value = data.sessions;
+      if (resolvedSessionKey.value && !data.sessions.some((session) => session.key === resolvedSessionKey.value)) {
+        activeDetail.value = null;
+        detailError.value = '会话已不存在';
+        detailLoading.value = false;
+      }
+    }
+  );
+}
+
+function bindDetailSubscription(sessionKey: string) {
+  stopDetailSubscription?.();
+  stopDetailSubscription = null;
+
+  if (!sessionKey) {
+    return;
+  }
+
+  stopDetailSubscription = rpcSubscribe<SessionDetail | null>(
+    'sessions.detail',
+    token,
+    { key: sessionKey },
+    (data) => {
+      if (!data) {
+        activeDetail.value = null;
+        detailError.value = '会话已不存在';
+        detailLoading.value = false;
+        return;
+      }
+
+      activeDetail.value = data;
+      detailError.value = '';
+      detailLoading.value = false;
+      sessionPreviews.value = {
+        ...sessionPreviews.value,
+        [sessionKey]: data.messages[data.messages.length - 1]?.content || sessionPreviews.value[sessionKey] || '暂无消息预览'
+      };
+    },
+    {
+      onError: (message) => {
+        detailError.value = message;
+        detailLoading.value = false;
+      }
+    }
+  );
+}
+
 async function openSession(key: string) {
   sidebarVisible.value = false;
   await router.push({
@@ -466,7 +507,7 @@ async function sendMessage() {
   sending.value = true;
   detailError.value = '';
 
-  const result = await apiPost<{ success: true; response: string }>('/api/chat', token, {
+  const result = await rpcCall<{ success: true; response: string }>('chat.createResponse', token, {
     sessionKey,
     message,
     channel: 'webui',
@@ -488,13 +529,6 @@ async function sendMessage() {
       query: buildTokenQuery(route.query, token),
     });
   }
-
-  await Promise.all([loadSessions(), loadSessionDetail(sessionKey)]);
-}
-
-async function reloadCurrentSession() {
-  if (!resolvedSessionKey.value) return;
-  await Promise.all([loadSessions(), loadSessionDetail(resolvedSessionKey.value)]);
 }
 
 async function deleteCurrentSession() {
@@ -502,7 +536,7 @@ async function deleteCurrentSession() {
   if (!window.confirm(`确认删除会话 ${resolvedSessionKey.value} 吗？`)) return;
 
   deleting.value = true;
-  const result = await apiDelete<{ success: true }>(`/api/sessions/${encodeURIComponent(resolvedSessionKey.value)}`, token);
+  const result = await rpcCall<{ success: true }>('sessions.delete', token, { key: resolvedSessionKey.value });
   deleting.value = false;
 
   if (result.error) {
@@ -515,7 +549,6 @@ async function deleteCurrentSession() {
     path: '/dialogue',
     query: buildTokenQuery(route.query, token),
   });
-  await loadSessions();
 }
 
 function startFreshDialogue() {
@@ -559,10 +592,20 @@ function handleDraftKeydown(event: KeyboardEvent) {
 
 watch(() => route.params.sessionKey, () => {
   void syncRouteSession();
+  bindDetailSubscription(resolvedSessionKey.value);
 });
 
 onMounted(async () => {
   await loadSessions();
   await syncRouteSession();
+  bindSessionsSubscription();
+  bindDetailSubscription(resolvedSessionKey.value);
+});
+
+onBeforeUnmount(() => {
+  stopSessionsSubscription?.();
+  stopSessionsSubscription = null;
+  stopDetailSubscription?.();
+  stopDetailSubscription = null;
 });
 </script>

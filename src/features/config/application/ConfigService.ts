@@ -7,7 +7,7 @@ import { ConfigSnapshotStore } from '../infrastructure/runtime/ConfigSnapshotSto
 import { ConfigMutationService, type ConfigMutator } from './ConfigMutationService.js';
 import { ConfigReloadCoordinator } from './ConfigReloadCoordinator.js';
 import type { ConfigReloadTargets } from '../reload/ports/ReloadTargets.js';
-import { sanitizeConfigForApi, preserveServerTokenInApiConfig } from '../api/configPayload.js';
+import { sanitizePublicConfig, preserveServerTokenInPublicConfig } from '../contracts/publicConfig.js';
 import { getConfigValidationIssue } from '../index.js';
 import { DomainValidationError } from '../../../platform/errors/domain.js';
 
@@ -128,15 +128,15 @@ export class ConfigService {
     return nextConfig;
   }
 
-  getApiConfig(): ReturnType<typeof sanitizeConfigForApi> {
-    return sanitizeConfigForApi(this.get());
+  getPublicConfig(): ReturnType<typeof sanitizePublicConfig> {
+    return sanitizePublicConfig(this.get());
   }
 
-  async updateApiConfig(nextConfig: Record<string, unknown>): Promise<{ success: true }> {
+  async updatePublicConfig(nextConfig: Record<string, unknown>): Promise<{ success: true }> {
     try {
       const currentConfig = this.get();
       await this.update(
-        () => preserveServerTokenInApiConfig(nextConfig, currentConfig) as Config
+        () => preserveServerTokenInPublicConfig(nextConfig, currentConfig) as Config
       );
       return { success: true };
     } catch (error) {

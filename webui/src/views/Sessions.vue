@@ -8,15 +8,6 @@
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <button
-            class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/16 bg-surface-container-lowest/80 px-4 py-2.5 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-60"
-            type="button"
-            :disabled="loading"
-            @click="loadSessionsPage"
-          >
-            <AppIcon name="refresh" size="sm" />
-            刷新
-          </button>
-          <button
             class="inline-flex items-center gap-2 rounded-xl border border-error/18 bg-error-container/70 px-4 py-2.5 text-sm font-semibold text-on-error-container transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             type="button"
             :disabled="!selectedKeys.length || deleting"
@@ -223,12 +214,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppIcon from '@/components/AppIcon.vue';
 import SessionDetailPanel from '@/components/SessionDetailPanel.vue';
 import { useLatestRequestGuard } from '@/composables/useLatestRequestGuard';
-import { apiDelete, apiGet } from '@/lib/api';
+import { rpcCall, rpcSubscribe } from '@/lib/rpc';
 import { getRouteToken } from '@/lib/auth';
 import { formatNumber } from '@/lib/format';
 import type { Session, SessionDetail } from '@/lib/types';
@@ -246,6 +237,8 @@ const detailLoading = ref(false);
 const detailError = ref('');
 const selectedKeys = ref<string[]>([]);
 const detailRequestGuard = useLatestRequestGuard();
+let stopSessionsSubscription: (() => void) | null = null;
+let stopDetailSubscription: (() => void) | null = null;
 
 const sortedSessions = computed(() => [...sessions.value].sort((a, b) => b.messageCount - a.messageCount || a.key.localeCompare(b.key)));
 const selectedSet = computed(() => new Set(selectedKeys.value));
@@ -263,7 +256,7 @@ async function loadSessionsPage() {
   loading.value = true;
   error.value = '';
 
-  const sessionsResult = await apiGet<{ sessions: Session[] }>('/api/sessions', token);
+  const sessionsResult = await rpcCall<{ sessions: Session[] }>('sessions.list', token);
 
   if (sessionsResult.error) {
     error.value = sessionsResult.error || '加载失败';
@@ -288,7 +281,7 @@ async function openSession(key: string, showLoading = true) {
   }
   detailError.value = '';
 
-  const result = await apiGet<SessionDetail>(`/api/sessions/${encodeURIComponent(key)}`, token);
+  const result = await rpcCall<SessionDetail>('sessions.getDetail', token, { key });
   if (!detailRequestGuard.isCurrent(requestId)) {
     return;
   }
@@ -306,9 +299,65 @@ async function openSession(key: string, showLoading = true) {
 
 function closeDetail() {
   detailRequestGuard.invalidate();
+  stopDetailSubscription?.();
+  stopDetailSubscription = null;
   detail.value = null;
   detailError.value = '';
   detailLoading.value = false;
+}
+
+function bindSessionsSubscription() {
+  stopSessionsSubscription?.();
+  stopSessionsSubscription = rpcSubscribe<{ sessions: Session[] }>(
+    'sessions.list',
+    token,
+    undefined,
+    (data) => {
+      sessions.value = data.sessions;
+      selectedKeys.value = selectedKeys.value.filter((key) => data.sessions.some((session) => session.key === key));
+      if (detail.value && !data.sessions.some((session) => session.key === detail.value?.key)) {
+        closeDetail();
+      }
+      loading.value = false;
+    },
+    {
+      onError: (message) => {
+        error.value = message;
+        loading.value = false;
+      }
+    }
+  );
+}
+
+function bindDetailSubscription(sessionKey: string | null) {
+  stopDetailSubscription?.();
+  stopDetailSubscription = null;
+
+  if (!sessionKey) {
+    return;
+  }
+
+  stopDetailSubscription = rpcSubscribe<SessionDetail | null>(
+    'sessions.detail',
+    token,
+    { key: sessionKey },
+    (data) => {
+      if (!data) {
+        closeDetail();
+        return;
+      }
+
+      detail.value = data;
+      detailError.value = '';
+      detailLoading.value = false;
+    },
+    {
+      onError: (message) => {
+        detailError.value = message;
+        detailLoading.value = false;
+      }
+    }
+  );
 }
 
 function channelDescription(channel?: string) {
@@ -342,7 +391,7 @@ async function deleteSingleSession(key: string) {
   }
 
   deleting.value = true;
-  const result = await apiDelete<{ success: true }>(`/api/sessions/${encodeURIComponent(key)}`, token);
+  const result = await rpcCall<{ success: true }>('sessions.delete', token, { key });
   deleting.value = false;
 
   if (result.error) {
@@ -355,7 +404,6 @@ async function deleteSingleSession(key: string) {
   }
 
   selectedKeys.value = selectedKeys.value.filter((item) => item !== key);
-  await loadSessionsPage();
 }
 
 async function deleteSelectedSessions() {
@@ -368,14 +416,13 @@ async function deleteSelectedSessions() {
   }
 
   deleting.value = true;
-  const results = await Promise.all(selectedKeys.value.map((key) => apiDelete<{ success: true }>(`/api/sessions/${encodeURIComponent(key)}`, token)));
+  const results = await Promise.all(selectedKeys.value.map((key) => rpcCall<{ success: true }>('sessions.delete', token, { key })));
   deleting.value = false;
 
   const failed = results.find((result) => result.error);
   error.value = failed?.error || '';
   closeDetail();
   selectedKeys.value = [];
-  await loadSessionsPage();
 }
 
 function handleDeleteDetailSession() {
@@ -385,6 +432,18 @@ function handleDeleteDetailSession() {
 }
 
 onMounted(() => {
-  loadSessionsPage();
+  void loadSessionsPage();
+  bindSessionsSubscription();
+});
+
+watch(() => detail.value?.key || null, (sessionKey) => {
+  bindDetailSubscription(sessionKey);
+});
+
+onBeforeUnmount(() => {
+  stopSessionsSubscription?.();
+  stopSessionsSubscription = null;
+  stopDetailSubscription?.();
+  stopDetailSubscription = null;
 });
 </script>

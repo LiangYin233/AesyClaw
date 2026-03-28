@@ -327,19 +327,23 @@ export class ExecutionRuntime {
     const signal = context.toolContext.signal ?? controller?.signal;
 
     try {
-      this.log.withFields({
-        ssn: context.sessionKey,
-        ch: context.request.channel,
-        chId: context.request.chatId,
-        agent: policy.roleName
-      }).info('首轮消息已进入 worker 执行');
-
       return await this.workerExecutionDelegate.executeToolLoop({
         policy,
         messages,
         toolContext: {
           ...context.toolContext,
           signal
+        },
+        onSpawn: ({ executionId, childPid }) => {
+          this.log.withFields({
+            ssn: context.sessionKey,
+            ch: context.request.channel,
+            chId: context.request.chatId,
+            agent: policy.roleName,
+            executionId,
+            childPid: childPid ?? null,
+            model: policy.model
+          }).info('首轮消息已进入 worker 执行');
         },
         options: {
           sessionKey: context.sessionKey,

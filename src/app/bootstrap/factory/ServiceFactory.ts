@@ -1,7 +1,7 @@
 import { join } from 'path';
 import { AgentRuntime, OutboundGateway } from '../../../agent/index.js';
 import type { SessionRoutingService } from '../../../agent/infrastructure/session/SessionRoutingService.js';
-import { APIServer } from '../../api/index.js';
+import { WebServer } from '../../server/index.js';
 import { ChannelManager } from '../../../features/channels/application/ChannelManager.js';
 import { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
 import { CronRuntimeService } from '../../../features/cron/index.js';
@@ -14,7 +14,7 @@ import { McpClientManager } from '../../../features/mcp/index.js';
 import { PluginManager } from '../../../features/plugins/index.js';
 import type { Config } from '../../../types.js';
 import type { CronJob } from '../../../features/cron/index.js';
-import { createApiServer } from './createApiServer.js';
+import { createWebServer } from './createWebServer.js';
 import { createExecutionRuntime } from './createExecutionRuntime.js';
 import { createInfrastructureServices } from './createInfrastructureServices.js';
 import { createCronRuntime } from '../../../features/cron/index.js';
@@ -45,7 +45,7 @@ export interface Services {
   configManager: ConfigManager;
   eventBus: EventBus<AesyClawEvents>;
   workspace: string;
-  apiServer?: APIServer;
+  webServer?: WebServer;
 }
 
 export interface ServiceFactoryOptions {
@@ -165,10 +165,10 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     }
   });
 
-  const { result: apiServer } = await runBootstrapPhase({
-    phase: 'API 服务初始化',
+  const { result: webServer } = await runBootstrapPhase({
+    phase: 'WebSocket 服务初始化',
     log: bootstrapLog,
-    task: () => createApiServer({
+    task: () => createWebServer({
       port,
       agentRuntime,
       db,
@@ -183,12 +183,10 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
       skillManager,
       toolRegistry,
       longTermMemoryStore,
-      agentRoleService
+      agentRoleService,
+      eventBus
     })
   });
-  if (apiServer) {
-  } else {
-  }
 
   return {
     provider,
@@ -209,6 +207,6 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     configManager,
     eventBus,
     workspace,
-    apiServer
+    webServer
   };
 }

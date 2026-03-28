@@ -1,6 +1,6 @@
 import { DomainValidationError, ResourceNotFoundError } from '../../../platform/errors/domain.js';
 import { ChannelRepository } from '../infrastructure/ChannelRepository.js';
-import type { SendChannelMessageDto } from '../api/channels.dto.js';
+import type { SendChannelMessageDto } from '../contracts/channels.dto.js';
 import { buildChannelStatusSnapshot } from './channelStatusSnapshot.js';
 
 export class ChannelsService {

@@ -2,7 +2,7 @@ import type { CronJob } from '../index.js';
 import { ResourceNotFoundError } from '../../../platform/errors/domain.js';
 import { createShortId } from '../../../platform/ids/index.js';
 import { CronRepository } from '../infrastructure/CronRepository.js';
-import type { CreateCronJobDto, UpdateCronJobDto } from '../api/cron.dto.js';
+import type { CreateCronJobDto, UpdateCronJobDto } from '../contracts/cron.dto.js';
 
 export class CronService {
   constructor(private readonly cronRepository: CronRepository) {}

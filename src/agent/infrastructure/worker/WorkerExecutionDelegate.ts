@@ -12,12 +12,17 @@ import type {
   AbortWorkerExecutionMessage,
   ParentToWorkerMessage,
   StartWorkerExecutionMessage,
+  WorkerLlmActivityMessage,
+  WorkerLifecycleMessage,
   WorkerLogMessage,
+  WorkerToolActivityMessage,
   WorkerToParentMessage,
   WorkerToolRequestMessage,
   WorkerToolResponseMessage,
   WorkerPolicySnapshot
 } from './protocol.js';
+import { WorkerRuntimeRegistry } from './WorkerRuntimeRegistry.js';
+import { prepareWorkerLogMessage } from './workerLogging.js';
 
 function resolveWorkerEntryPath(): string {
   const currentFile = fileURLToPath(import.meta.url);
@@ -44,6 +49,104 @@ function createPolicySnapshot(policy: ExecutionPolicy): WorkerPolicySnapshot {
     toolDefinitions: policy.toolRegistryView.getDefinitions(),
     availableToolDefinitions: policy.toolRegistryView.getDefinitions()
   };
+}
+
+interface WorkerToolActivityRelayTarget {
+  runtimeRegistry?: Pick<WorkerRuntimeRegistry, 'recordToolActivity'>;
+  onToolActivity?: (message: WorkerToolActivityMessage) => void;
+}
+
+interface WorkerLlmActivityRelayTarget {
+  runtimeRegistry?: Pick<WorkerRuntimeRegistry, 'recordLlmActivity'>;
+  onLlmActivity?: (message: WorkerLlmActivityMessage) => void;
+}
+
+interface WorkerLifecycleRelayTarget {
+  runtimeRegistry?: Pick<WorkerRuntimeRegistry, 'record'>;
+  onLifecycle?: (message: WorkerLifecycleMessage) => void;
+}
+
+export function relayWorkerToolActivity(
+  target: WorkerToolActivityRelayTarget,
+  message: WorkerToolActivityMessage,
+  fallbackSessionKey: string
+): void {
+  const nextMessage = message.sessionKey
+    ? message
+    : {
+      ...message,
+      sessionKey: fallbackSessionKey
+    };
+
+  target.runtimeRegistry?.recordToolActivity({
+    sessionKey: nextMessage.sessionKey,
+    executionId: nextMessage.executionId,
+    toolName: nextMessage.toolName,
+    toolMode: nextMessage.toolMode,
+    active: nextMessage.active,
+    timestamp: nextMessage.timestamp
+  });
+  target.onToolActivity?.(nextMessage);
+}
+
+export function relayWorkerLlmActivity(
+  target: WorkerLlmActivityRelayTarget,
+  message: WorkerLlmActivityMessage,
+  fallbackSessionKey: string
+): void {
+  const nextMessage = message.sessionKey
+    ? message
+    : {
+      ...message,
+      sessionKey: fallbackSessionKey
+    };
+
+  target.runtimeRegistry?.recordLlmActivity({
+    sessionKey: nextMessage.sessionKey,
+    executionId: nextMessage.executionId,
+    requestId: nextMessage.requestId,
+    model: nextMessage.model,
+    active: nextMessage.active,
+    timestamp: nextMessage.timestamp
+  });
+  target.onLlmActivity?.(nextMessage);
+}
+
+export function relayWorkerLifecycle(
+  target: WorkerLifecycleRelayTarget,
+  message: WorkerLifecycleMessage,
+  inheritedFields: {
+    sessionKey: string;
+    agentName: string;
+    model: string;
+    channel?: string;
+    chatId?: string;
+  }
+): void {
+  const nextMessage: WorkerLifecycleMessage = {
+    ...message,
+    sessionKey: message.sessionKey || inheritedFields.sessionKey,
+    agentName: message.agentName || inheritedFields.agentName,
+    model: message.model || inheritedFields.model,
+    channel: message.channel || inheritedFields.channel,
+    chatId: message.chatId || inheritedFields.chatId
+  };
+
+  target.runtimeRegistry?.record({
+    sessionKey: nextMessage.sessionKey,
+    executionId: nextMessage.executionId,
+    parentExecutionId: nextMessage.parentExecutionId,
+    kind: nextMessage.kind,
+    event: nextMessage.event,
+    agentName: nextMessage.agentName,
+    model: nextMessage.model,
+    childPid: nextMessage.childPid,
+    channel: nextMessage.channel,
+    chatId: nextMessage.chatId,
+    error: nextMessage.error,
+    timestamp: nextMessage.timestamp
+  });
+  target.onLifecycle?.(nextMessage);
 }
 
 export interface WorkerExecutionDelegate {
@@ -80,6 +183,11 @@ export class WorkerExecutionDelegateImpl implements WorkerExecutionDelegate {
     toolRegistry: ToolRegistry;
     getPluginManager: () => PluginManager | undefined;
     getAvailableToolDefinitions?: () => ToolDefinition[];
+    runtimeRegistry?: WorkerRuntimeRegistry;
+    onToolActivity?: (message: WorkerToolActivityMessage) => void;
+    onLlmActivity?: (message: WorkerLlmActivityMessage) => void;
+    onLifecycle?: (message: WorkerLifecycleMessage) => void;
+    onLogEvent?: (message: WorkerLogMessage) => void;
   }) {}
 
   async executeToolLoop(input: {
@@ -120,14 +228,27 @@ export class WorkerExecutionDelegateImpl implements WorkerExecutionDelegate {
     child.channel?.unref?.();
 
     this.trackWorker(sessionKey, child);
-    this.log.info('已启动后台 worker 执行', {
-      ...baseLogFields,
-      childPid: child.pid ?? null
+    this.args.runtimeRegistry?.record({
+      sessionKey,
+      executionId,
+      kind: 'root',
+      event: 'spawned',
+      agentName: input.policy.roleName,
+      model: input.policy.model,
+      childPid: child.pid ?? null,
+      channel: input.toolContext.channel,
+      chatId: input.toolContext.chatId
     });
     input.onSpawn?.({
       executionId,
       childPid: child.pid ?? null
     });
+    if (!input.onSpawn) {
+      this.log.info('已启动后台 worker 执行', {
+        ...baseLogFields,
+        childPid: child.pid ?? null
+      });
+    }
 
     return await new Promise((resolve, reject) => {
       let settled = false;
@@ -138,6 +259,17 @@ export class WorkerExecutionDelegateImpl implements WorkerExecutionDelegate {
       };
 
       const handleAbort = () => {
+        this.args.runtimeRegistry?.record({
+          sessionKey,
+          executionId,
+          kind: 'root',
+          event: 'aborting',
+          agentName: input.policy.roleName,
+          model: input.policy.model,
+          childPid: child.pid ?? null,
+          channel: input.toolContext.channel,
+          chatId: input.toolContext.chatId
+        });
         this.log.warn('收到 worker 中止请求，准备结束当前执行', {
           ...baseLogFields,
           childPid: child.pid ?? null
@@ -158,11 +290,46 @@ export class WorkerExecutionDelegateImpl implements WorkerExecutionDelegate {
         }
 
         try {
+          if (message.type === 'worker_lifecycle') {
+            relayWorkerLifecycle({
+              runtimeRegistry: this.args.runtimeRegistry,
+              onLifecycle: this.args.onLifecycle
+            }, message, {
+              sessionKey,
+              agentName: input.policy.roleName,
+              model: input.policy.model,
+              channel: input.toolContext.channel,
+              chatId: input.toolContext.chatId
+            });
+            return;
+          }
+
+          if (message.type === 'worker_tool_activity') {
+            relayWorkerToolActivity({
+              runtimeRegistry: this.args.runtimeRegistry,
+              onToolActivity: this.args.onToolActivity
+            }, message, sessionKey);
+            return;
+          }
+
+          if (message.type === 'worker_llm_activity') {
+            relayWorkerLlmActivity({
+              runtimeRegistry: this.args.runtimeRegistry,
+              onLlmActivity: this.args.onLlmActivity
+            }, message, sessionKey);
+            return;
+          }
+
           if (message.type === 'log_event') {
-            this.forwardWorkerLog(message, {
+            const preparedMessage = prepareWorkerLogMessage(message, {
               ...baseLogFields,
               childPid: child.pid ?? null
             });
+            if (this.args.onLogEvent) {
+              this.args.onLogEvent(preparedMessage);
+              return;
+            }
+            this.forwardWorkerLog(preparedMessage);
             return;
           }
 
@@ -215,6 +382,18 @@ export class WorkerExecutionDelegateImpl implements WorkerExecutionDelegate {
         settled = true;
         cleanup();
         this.closeChild(child);
+        this.args.runtimeRegistry?.record({
+          sessionKey,
+          executionId,
+          kind: 'root',
+          event: 'failed',
+          agentName: input.policy.roleName,
+          model: input.policy.model,
+          childPid: child.pid ?? null,
+          channel: input.toolContext.channel,
+          chatId: input.toolContext.chatId,
+          error: error.message
+        });
         this.log.warn('后台 worker 启动失败', {
           ...baseLogFields,
           childPid: child.pid ?? null,
@@ -230,6 +409,18 @@ export class WorkerExecutionDelegateImpl implements WorkerExecutionDelegate {
         settled = true;
         cleanup();
         this.closeChild(child);
+        this.args.runtimeRegistry?.record({
+          sessionKey,
+          executionId,
+          kind: 'root',
+          event: 'failed',
+          agentName: input.policy.roleName,
+          model: input.policy.model,
+          childPid: child.pid ?? null,
+          channel: input.toolContext.channel,
+          chatId: input.toolContext.chatId,
+          error: `Worker exited before completion (code=${code ?? 'null'}, signal=${signal ?? 'null'})`
+        });
         this.log.warn('子 worker 提前退出', {
           ...baseLogFields,
           childPid: child.pid ?? null,
@@ -279,6 +470,10 @@ export class WorkerExecutionDelegateImpl implements WorkerExecutionDelegate {
     }
 
     this.activeWorkers.delete(sessionKey);
+  }
+
+  snapshot() {
+    return this.args.runtimeRegistry?.snapshot();
   }
 
   private async handleToolRequest(child: ChildProcess, message: WorkerToolRequestMessage): Promise<void> {
@@ -346,11 +541,8 @@ export class WorkerExecutionDelegateImpl implements WorkerExecutionDelegate {
     }
   }
 
-  private forwardWorkerLog(message: WorkerLogMessage, inheritedFields: Record<string, unknown>): void {
-    const target = logger.child(message.scope).withFields({
-      ...inheritedFields,
-      ...(message.fields || {})
-    });
+  private forwardWorkerLog(message: WorkerLogMessage): void {
+    const target = logger.child(message.scope).withFields(message.fields || {});
 
     if (message.level === 'debug') {
       target.debug(message.message);
@@ -369,7 +561,6 @@ export class WorkerExecutionDelegateImpl implements WorkerExecutionDelegate {
 
     target.info(message.message);
   }
-
   private trackWorker(sessionKey: string, child: ChildProcess): void {
     const workers = this.activeWorkers.get(sessionKey) ?? new Set<ChildProcess>();
     workers.add(child);

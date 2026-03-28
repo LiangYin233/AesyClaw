@@ -55,6 +55,8 @@ export interface RuntimeDelegate extends RuntimeLifecycle {
   abortSession(sessionKeyOrChannel: string, chatId?: string): boolean;
   abortReference(reference: SessionReference | string): ReturnType<AgentRuntimeDeps['abortReference']>;
   getExecutionStatus(sessionKey: string): ReturnType<AgentRuntimeDeps['getExecutionStatus']>;
+  getWorkerRuntimeSnapshot(): ReturnType<AgentRuntimeDeps['getWorkerRuntimeSnapshot']>;
+  onWorkerRuntimeChange(listener: () => void | Promise<void>): ReturnType<AgentRuntimeDeps['onWorkerRuntimeChange']>;
   getStatusByReference(reference: SessionReference | string): ReturnType<AgentRuntimeDeps['getStatusByReference']>;
   updateProvider: AgentRuntimeDeps['updateProvider'];
   updateMainAgentRuntime: AgentRuntimeDeps['updateMainAgentRuntime'];
@@ -79,6 +81,8 @@ export function createAgentServices(delegate: RuntimeDelegate): AgentRuntimeServ
       abortSession: delegate.abortSession.bind(delegate),
       abortReference: delegate.abortReference.bind(delegate),
       getExecutionStatus: delegate.getExecutionStatus.bind(delegate),
+      getWorkerRuntimeSnapshot: delegate.getWorkerRuntimeSnapshot.bind(delegate),
+      onWorkerRuntimeChange: delegate.onWorkerRuntimeChange.bind(delegate),
       getStatusByReference: delegate.getStatusByReference.bind(delegate),
       updateProvider: delegate.updateProvider.bind(delegate),
       updateMainAgentRuntime: delegate.updateMainAgentRuntime.bind(delegate),

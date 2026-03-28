@@ -44,9 +44,6 @@
           <div class="mb-4 flex items-center justify-between px-2">
             <h2 class="cn-section-title text-on-surface">已注册节点</h2>
             <div class="flex gap-3">
-              <button class="rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-2 text-sm font-semibold text-on-surface transition hover:bg-surface-container-high" type="button" :disabled="loading" @click="loadServers">
-                刷新
-              </button>
               <button class="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-white transition hover:opacity-90" type="button" @click="startCreate">
                 连接新服务
               </button>
@@ -195,9 +192,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppIcon from '@/components/AppIcon.vue';
-import { apiDelete, apiGet, apiPost } from '@/lib/api';
+import { rpcCall, rpcSubscribe } from '@/lib/rpc';
 import { getRouteToken } from '@/lib/auth';
 import { formatDateTime, formatRelativeTime } from '@/lib/format';
 import type { MCPServerInfo, ToolInfo } from '@/lib/types';
@@ -220,6 +217,9 @@ const loading = ref(false);
 const saving = ref(false);
 const error = ref('');
 const jsonError = ref('');
+const isCreating = ref(false);
+let stopServersSubscription: (() => void) | null = null;
+let stopDetailSubscription: (() => void) | null = null;
 
 const connectedCount = computed(() => servers.value.filter((server) => server.status === 'connected').length);
 const disconnectedCount = computed(() => servers.value.filter((server) => server.status !== 'connected').length);
@@ -313,7 +313,7 @@ async function loadServers() {
   loading.value = true;
   error.value = '';
 
-  const result = await apiGet<{ servers: MCPServerInfo[] }>('/api/mcp/servers', token);
+  const result = await rpcCall<{ servers: MCPServerInfo[] }>('mcp.list', token);
   loading.value = false;
 
   if (result.error || !result.data) {
@@ -322,33 +322,37 @@ async function loadServers() {
     return;
   }
 
-  servers.value = result.data.servers;
-
-  if (!servers.value.some((server) => server.name === selectedName.value)) {
-    selectedName.value = servers.value[0]?.name || '';
-  }
-  await selectServer(selectedName.value);
+  syncServers(result.data.servers);
 }
 
-async function selectServer(name: string) {
-  if (!name) {
+function syncServers(nextServers: MCPServerInfo[]) {
+  servers.value = nextServers;
+
+  if (selectedName.value) {
+    if (nextServers.some((server) => server.name === selectedName.value)) {
+      return;
+    }
+    selectedName.value = '';
+  }
+
+  if (!nextServers.length) {
     tools.value = [];
     syncDraft(null);
     return;
   }
 
-  selectedName.value = name;
-  const result = await apiGet<{ server: MCPServerInfo; tools: ToolInfo[] }>(`/api/mcp/servers/${encodeURIComponent(name)}`, token);
-  if (result.error || !result.data) {
-    error.value = result.error || 'MCP 详情加载失败';
-    return;
+  if (!isCreating.value) {
+    selectedName.value = nextServers[0].name;
   }
+}
 
-  tools.value = result.data.tools || [];
-  syncDraft(result.data.server);
+function selectServer(name: string) {
+  selectedName.value = name;
+  isCreating.value = false;
 }
 
 function startCreate() {
+  isCreating.value = true;
   selectedName.value = '';
   tools.value = [];
   syncDraft(null);
@@ -373,7 +377,10 @@ async function saveServer() {
     };
 
     saving.value = true;
-    const result = await apiPost<{ success: true }>('/api/mcp/servers/' + encodeURIComponent(draftName.value.trim()), token, payload);
+    const result = await rpcCall<{ success: true }>('mcp.create', token, {
+      name: draftName.value.trim(),
+      config: payload
+    });
     saving.value = false;
 
     if (result.error) {
@@ -381,21 +388,19 @@ async function saveServer() {
       return;
     }
 
+    isCreating.value = false;
     selectedName.value = draftName.value.trim();
-    await loadServers();
   } catch (parseError) {
     jsonError.value = parseError instanceof Error ? parseError.message : 'JSON 解析失败';
   }
 }
 
 async function reconnectServer(name: string) {
-  const result = await apiPost<{ success: true }>(`/api/mcp/servers/${encodeURIComponent(name)}/reconnect`, token);
+  const result = await rpcCall<{ success: true }>('mcp.reconnect', token, { name });
   if (result.error) {
     error.value = result.error;
     return;
   }
-
-  await loadServers();
 }
 
 async function deleteServer() {
@@ -404,7 +409,7 @@ async function deleteServer() {
   }
 
   saving.value = true;
-  const result = await apiDelete<{ success: true }>(`/api/mcp/servers/${encodeURIComponent(selectedName.value)}`, token);
+  const result = await rpcCall<{ success: true }>('mcp.delete', token, { name: selectedName.value });
   saving.value = false;
 
   if (result.error) {
@@ -412,15 +417,88 @@ async function deleteServer() {
     return;
   }
 
+  isCreating.value = false;
   startCreate();
-  await loadServers();
 }
 
 watch(selectedName, (name) => {
   if (!name) {
     syncDraft(null);
+    tools.value = [];
+    return;
+  }
+
+  const selected = servers.value.find((server) => server.name === name) || null;
+  if (selected) {
+    syncDraft(selected);
   }
 });
 
-onMounted(loadServers);
+function bindServersSubscription() {
+  stopServersSubscription?.();
+  stopServersSubscription = rpcSubscribe<{ servers: MCPServerInfo[] }>(
+    'mcp.list',
+    token,
+    undefined,
+    (data) => {
+      syncServers(data.servers);
+      loading.value = false;
+      error.value = '';
+    },
+    {
+      onError: (message) => {
+        error.value = message;
+        loading.value = false;
+      }
+    }
+  );
+}
+
+function bindDetailSubscription(name: string) {
+  stopDetailSubscription?.();
+  stopDetailSubscription = null;
+
+  if (!name) {
+    return;
+  }
+
+  stopDetailSubscription = rpcSubscribe<{ server: MCPServerInfo; tools: ToolInfo[] } | null>(
+    'mcp.detail',
+    token,
+    { name },
+    (data) => {
+      if (!data?.server) {
+        if (selectedName.value === name) {
+          startCreate();
+        }
+        return;
+      }
+
+      tools.value = data.tools || [];
+      syncDraft(data.server);
+      error.value = '';
+    },
+    {
+      onError: (message) => {
+        error.value = message;
+      }
+    }
+  );
+}
+
+watch(selectedName, (name) => {
+  bindDetailSubscription(name);
+}, { immediate: true });
+
+onMounted(() => {
+  void loadServers();
+  bindServersSubscription();
+});
+
+onBeforeUnmount(() => {
+  stopServersSubscription?.();
+  stopServersSubscription = null;
+  stopDetailSubscription?.();
+  stopDetailSubscription = null;
+});
 </script>

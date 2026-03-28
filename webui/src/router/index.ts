@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import MainLayout from '@/layout/MainLayout.vue';
 import Overview from '@/views/Overview.vue';
 import Agents from '@/views/Agents.vue';
+import AgentRuntime from '@/views/AgentRuntime.vue';
 import Sessions from '@/views/Sessions.vue';
 import Logs from '@/views/Logs.vue';
 import Dialogue from '@/views/Dialogue.vue';
@@ -55,6 +56,7 @@ const router = createRouter({
         { path: 'sessions', name: 'sessions', component: Sessions, meta: { title: '会话' } },
         { path: 'memory', name: 'memory', component: Memory, meta: { title: '记忆' } },
         { path: 'agents', name: 'agents', component: Agents, meta: { title: 'Agent' } },
+        { path: 'agents/runtime', name: 'agents-runtime', component: AgentRuntime, meta: { title: '执行链' } },
         { path: 'skills', name: 'skills', component: Skills, meta: { title: '技能' } },
         { path: 'tools', name: 'tools', component: Tools, meta: { title: '工具' } },
         { path: 'plugins', name: 'plugins', component: Plugins, meta: { title: '插件' } },

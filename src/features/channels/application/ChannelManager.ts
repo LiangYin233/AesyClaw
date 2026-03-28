@@ -15,11 +15,19 @@ export interface ChannelHandle {
   isRunning(): boolean;
 }
 
+export interface ChannelManagerEvent {
+  type: 'registered' | 'enabled' | 'disabled' | 'reconfigured' | 'started_all' | 'stopped_all';
+  channelName?: string;
+}
+
+type ChannelManagerListener = (event: ChannelManagerEvent) => void | Promise<void>;
+
 export class ChannelManager {
   #plugins = new Map<string, ChannelPluginDefinition>();
   #pluginDefaultConfigs = new Map<string, Record<string, unknown>>();
   #channels = new Map<string, ChannelAdapter>();
   #runtime: ChannelRuntime;
+  #listeners = new Set<ChannelManagerListener>();
 
   constructor(runtime: ChannelRuntime) {
     this.#runtime = runtime;
@@ -63,6 +71,10 @@ export class ChannelManager {
     }
 
     this.attachChannel(plugin, config);
+    void this.notifyListeners({
+      type: 'registered',
+      channelName: plugin.channelName
+    });
     return true;
   }
 
@@ -85,6 +97,10 @@ export class ChannelManager {
 
     try {
       await this.#runtime.startAdapter(plugin.channelName);
+      void this.notifyListeners({
+        type: 'enabled',
+        channelName: plugin.channelName
+      });
       return true;
     } catch {
       if (created) {
@@ -104,6 +120,10 @@ export class ChannelManager {
       await this.#runtime.stopAdapter(channelName);
       this.#channels.delete(channelName);
       this.#runtime.unregisterAdapter(channelName);
+      void this.notifyListeners({
+        type: 'disabled',
+        channelName
+      });
       return true;
     } catch {
       return false;
@@ -136,6 +156,10 @@ export class ChannelManager {
 
       this.attachChannel(plugin, config);
       await this.#runtime.startAdapter(channelName);
+      void this.notifyListeners({
+        type: 'reconfigured',
+        channelName
+      });
       return true;
     } catch {
       this.#channels.set(channelName, previousChannel);
@@ -180,6 +204,9 @@ export class ChannelManager {
     );
 
     await this.#runtime.start();
+    void this.notifyListeners({
+      type: 'started_all'
+    });
   }
 
   async stopAll(): Promise<void> {
@@ -191,6 +218,9 @@ export class ChannelManager {
     }
 
     this.#runtime.stop();
+    void this.notifyListeners({
+      type: 'stopped_all'
+    });
   }
 
   getEnabledChannels(): string[] {
@@ -203,6 +233,13 @@ export class ChannelManager {
       status[name] = { running: channel.isRunning() };
     }
     return status;
+  }
+
+  onStatusChange(listener: ChannelManagerListener): () => void {
+    this.#listeners.add(listener);
+    return () => {
+      this.#listeners.delete(listener);
+    };
   }
 
   private resolvePlugin(channelName: string): ChannelPluginDefinition | undefined {
@@ -219,5 +256,15 @@ export class ChannelManager {
   private detachChannel(channelName: string): void {
     this.#channels.delete(channelName);
     this.#runtime.unregisterAdapter(channelName);
+  }
+
+  private async notifyListeners(event: ChannelManagerEvent): Promise<void> {
+    for (const listener of this.#listeners) {
+      try {
+        await listener(event);
+      } catch {
+        // Ignore listener failures to avoid breaking channel lifecycle.
+      }
+    }
   }
 }

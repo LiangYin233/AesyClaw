@@ -7,10 +7,6 @@
           <h1 class="cn-page-title mt-2 text-on-surface">记忆管理台</h1>
         </div>
         <div class="flex flex-wrap items-center gap-3">
-          <button class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface shadow-sm transition hover:bg-surface-container-high" type="button" :disabled="loading" @click="loadMemory">
-            <AppIcon name="refresh" size="sm" />
-            刷新
-          </button>
           <button class="inline-flex items-center gap-2 rounded-xl border border-error/20 bg-error-container/70 px-4 py-2.5 text-sm font-semibold text-on-error-container transition hover:opacity-90" type="button" :disabled="!selectedItem || deleting" @click="clearSelected">
             <AppIcon name="delete" size="sm" />
             清空当前会话记忆
@@ -182,10 +178,6 @@
             <section class="rounded-[1.6rem] bg-surface-container-low p-6">
               <h3 class="cn-kicker text-outline">维护动作</h3>
               <div class="mt-5 space-y-3">
-                <button class="flex w-full items-center justify-between rounded-xl bg-surface-container-lowest px-4 py-3 text-left text-sm font-semibold text-on-surface transition hover:bg-surface-container-high" type="button" @click="loadMemory">
-                  <span>刷新记忆索引</span>
-                  <AppIcon name="refresh" size="sm" class="text-primary" />
-                </button>
                 <button class="flex w-full items-center justify-between rounded-xl bg-surface-container-lowest px-4 py-3 text-left text-sm font-semibold text-on-surface transition hover:bg-surface-container-high" type="button" :disabled="!latestSessionKey" @click="openDialogue">
                   <span>进入最近会话</span>
                   <AppIcon name="arrowRight" size="sm" class="text-primary" />
@@ -253,10 +245,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppIcon from '@/components/AppIcon.vue';
-import { apiDelete, apiGet } from '@/lib/api';
+import { rpcCall, rpcSubscribe } from '@/lib/rpc';
 import { getRouteToken } from '@/lib/auth';
 import { abbreviateText, formatDateTime, formatRelativeTime } from '@/lib/format';
 import type { MemoryConversationItem, MemoryOperation } from '@/lib/types';
@@ -271,6 +263,7 @@ const deleting = ref(false);
 const error = ref('');
 const activeTab = ref<'summary' | 'facts'>('summary');
 const selectedKey = ref('');
+let stopMemorySubscription: (() => void) | null = null;
 
 const filteredItems = computed(() => items.value.filter((item) => (
   activeTab.value === 'summary'
@@ -300,7 +293,7 @@ async function loadMemory() {
   loading.value = true;
   error.value = '';
 
-  const result = await apiGet<{ items: MemoryConversationItem[] }>('/api/memory', token);
+  const result = await rpcCall<{ items: MemoryConversationItem[] }>('memory.list', token);
   if (result.error || !result.data) {
     error.value = result.error || '记忆加载失败';
     items.value = [];
@@ -321,15 +314,13 @@ async function clearSelected() {
   }
 
   deleting.value = true;
-  const result = await apiDelete<{ success: true }>(`/api/memory/${encodeURIComponent(selectedItem.value.key)}`, token);
+  const result = await rpcCall<{ success: true }>('memory.deleteOne', token, { key: selectedItem.value.key });
   deleting.value = false;
 
   if (result.error) {
     error.value = result.error;
     return;
   }
-
-  await loadMemory();
 }
 
 async function clearAll() {
@@ -338,15 +329,13 @@ async function clearAll() {
   }
 
   deleting.value = true;
-  const result = await apiDelete<{ success: true }>('/api/memory', token);
+  const result = await rpcCall<{ success: true }>('memory.deleteAll', token);
   deleting.value = false;
 
   if (result.error) {
     error.value = result.error;
     return;
   }
-
-  await loadMemory();
 }
 
 function openDialogue(sessionKey?: string) {
@@ -361,5 +350,44 @@ function openDialogue(sessionKey?: string) {
   });
 }
 
-onMounted(loadMemory);
+function bindSubscription() {
+  stopMemorySubscription?.();
+  stopMemorySubscription = rpcSubscribe<{ items: MemoryConversationItem[] }>(
+    'memory.list',
+    token,
+    undefined,
+    (data) => {
+      items.value = data.items;
+      loading.value = false;
+      error.value = '';
+    },
+    {
+      onError: (message) => {
+        error.value = message;
+        loading.value = false;
+      }
+    }
+  );
+}
+
+watch(filteredItems, (nextItems) => {
+  if (!nextItems.length) {
+    selectedKey.value = '';
+    return;
+  }
+
+  if (!nextItems.some((item) => item.key === selectedKey.value)) {
+    selectedKey.value = nextItems[0].key;
+  }
+}, { immediate: true });
+
+onMounted(() => {
+  void loadMemory();
+  bindSubscription();
+});
+
+onBeforeUnmount(() => {
+  stopMemorySubscription?.();
+  stopMemorySubscription = null;
+});
 </script>

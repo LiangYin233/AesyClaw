@@ -1,5 +1,5 @@
 import type { InboundMessage } from '../../types.js';
-import type { ExecutionStatus } from '../domain/execution.js';
+import type { ExecutionStatus, WorkerRuntimeSnapshot } from '../domain/execution.js';
 import type { AgentRuntimeDeps } from '../domain/ports.js';
 import {
   bindSessionReference,
@@ -82,6 +82,14 @@ export class AgentRuntime {
 
   getExecutionStatus(sessionKey: string): ExecutionStatus | undefined {
     return this.deps.getExecutionStatus(sessionKey);
+  }
+
+  getWorkerRuntimeSnapshot(): WorkerRuntimeSnapshot {
+    return this.deps.getWorkerRuntimeSnapshot();
+  }
+
+  onWorkerRuntimeChange(listener: () => void | Promise<void>): () => void {
+    return this.deps.onWorkerRuntimeChange(listener);
   }
 
   async runSubAgentTask(

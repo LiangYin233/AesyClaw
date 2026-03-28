@@ -15,7 +15,8 @@ import { ExecutionEngine } from '../execution/ExecutionEngine.js';
 import { ExecutionRuntime } from '../execution/ExecutionRuntime.js';
 import { ExecutionRegistry } from '../execution/ExecutionRegistry.js';
 import { WorkerExecutionDelegateImpl } from '../worker/WorkerExecutionDelegate.js';
-import type { ExecutionStatus } from '../../domain/execution.js';
+import { WorkerRuntimeRegistry } from '../worker/WorkerRuntimeRegistry.js';
+import type { ExecutionStatus, WorkerRuntimeSnapshot } from '../../domain/execution.js';
 import {
   bindSessionReference,
   mapSessionReference,
@@ -71,6 +72,7 @@ export class RuntimeCoordinator {
   private readonly sessionResolver: SessionResolver;
   private readonly executionEngine: ExecutionEngine;
   private readonly executionRuntime: ExecutionRuntime;
+  private readonly workerRuntimeRegistry: WorkerRuntimeRegistry;
   private readonly toolContextBase: ToolContext;
   private readonly handleInboundMessageDeps: HandleInboundMessageDeps;
   private readonly handleDirectMessageDeps: HandleDirectMessageDeps;
@@ -99,11 +101,13 @@ export class RuntimeCoordinator {
     );
     const toolRegistryDefinitions = options.toolRegistryDefinitions ?? options.toolRegistry;
     const executionRegistry = new ExecutionRegistry();
+    this.workerRuntimeRegistry = new WorkerRuntimeRegistry();
     const workerExecutionDelegate = new WorkerExecutionDelegateImpl({
       getConfig: options.getConfig,
       toolRegistry: options.toolRegistry,
       getPluginManager: options.getPluginManager,
-      getAvailableToolDefinitions: () => toolRegistryDefinitions.getDefinitions()
+      getAvailableToolDefinitions: () => toolRegistryDefinitions.getDefinitions(),
+      runtimeRegistry: this.workerRuntimeRegistry
     });
     this.executionEngine = new ExecutionEngine({
       defaultProvider: options.provider,
@@ -304,6 +308,14 @@ export class RuntimeCoordinator {
 
   getExecutionStatus(sessionKey: string): ExecutionStatus {
     return this.executionRuntime.getStatus(sessionKey);
+  }
+
+  getWorkerRuntimeSnapshot(): WorkerRuntimeSnapshot {
+    return this.workerRuntimeRegistry.snapshot();
+  }
+
+  onWorkerRuntimeChange(listener: () => void | Promise<void>): () => void {
+    return this.workerRuntimeRegistry.onChange(listener);
   }
 
   getStatusByReference(reference: SessionReference | string): ExecutionStatus | undefined {

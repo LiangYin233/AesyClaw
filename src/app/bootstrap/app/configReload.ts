@@ -52,7 +52,7 @@ export function setupConfigReload(services: Services): void {
     mcp: createMcpReloadTarget(services),
     api: {
       applyConfig(config) {
-        services.apiServer?.updateConfig(config);
+        services.webServer?.updateConfig(config);
       }
     }
   });

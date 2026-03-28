@@ -1,5 +1,3 @@
-export { registerSessionsFeature } from './runtime/registerSessionsFeature.js';
-export type { SessionsFeatureDeps } from './runtime/registerSessionsFeature.js';
 export { createSessionRuntime } from './runtime/createSessionRuntime.js';
 export { createSessionRoutingReloadTarget } from './runtime/createSessionRoutingReloadTarget.js';
 export { SessionManager } from './application/SessionManager.js';

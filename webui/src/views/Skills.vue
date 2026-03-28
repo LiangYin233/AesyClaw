@@ -11,7 +11,7 @@
             <div class="flex flex-wrap gap-3">
               <button class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface shadow-sm transition hover:bg-surface-container-high" type="button" :disabled="loading || reloading" @click="reloadSkills">
                 <AppIcon name="refresh" size="sm" />
-                {{ reloading ? '重载中...' : '重载技能' }}
+                {{ reloading ? '扫描中...' : '重新扫描技能目录' }}
               </button>
             </div>
           </header>
@@ -175,9 +175,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppIcon from '@/components/AppIcon.vue';
-import { apiGet, apiPost } from '@/lib/api';
+import { rpcCall, rpcSubscribe } from '@/lib/rpc';
 import { getRouteToken } from '@/lib/auth';
 import type { SkillInfo } from '@/lib/types';
 import { useRoute } from 'vue-router';
@@ -192,6 +192,8 @@ const loading = ref(false);
 const detailLoading = ref(false);
 const reloading = ref(false);
 const error = ref('');
+let stopSkillsSubscription: (() => void) | null = null;
+let stopSkillDetailSubscription: (() => void) | null = null;
 
 const builtinCount = computed(() => skills.value.filter((skill) => skill.builtin).length);
 const externalCount = computed(() => skills.value.filter((skill) => !skill.builtin).length);
@@ -201,7 +203,7 @@ async function loadSkills() {
   loading.value = true;
   error.value = '';
 
-  const result = await apiGet<{ skills: SkillInfo[] }>('/api/skills', token);
+  const result = await rpcCall<{ skills: SkillInfo[] }>('skills.list', token);
   loading.value = false;
 
   if (result.error || !result.data) {
@@ -210,11 +212,7 @@ async function loadSkills() {
     return;
   }
 
-  skills.value = result.data.skills;
-  if (!skills.value.some((skill) => skill.name === selectedName.value)) {
-    selectedName.value = skills.value[0]?.name || '';
-  }
-  await loadSkillDetail(selectedName.value);
+  syncSkills(result.data.skills);
 }
 
 async function loadSkillDetail(name: string) {
@@ -224,7 +222,7 @@ async function loadSkillDetail(name: string) {
   }
 
   detailLoading.value = true;
-  const result = await apiGet<{ skill: SkillInfo }>(`/api/skills/${encodeURIComponent(name)}`, token);
+  const result = await rpcCall<{ skill: SkillInfo }>('skills.get', token, { name });
   detailLoading.value = false;
 
   if (result.error || !result.data) {
@@ -235,22 +233,29 @@ async function loadSkillDetail(name: string) {
   selectedSkill.value = result.data.skill;
 }
 
-async function selectSkill(name: string) {
+function selectSkill(name: string) {
   selectedName.value = name;
-  await loadSkillDetail(name);
+}
+
+function syncSkills(nextSkills: SkillInfo[]) {
+  skills.value = nextSkills;
+
+  if (selectedName.value && nextSkills.some((skill) => skill.name === selectedName.value)) {
+    return;
+  }
+
+  selectedName.value = nextSkills[0]?.name || '';
 }
 
 async function reloadSkills() {
   reloading.value = true;
-  const result = await apiPost<{ success: true }>('/api/skills/reload', token);
+  const result = await rpcCall<{ success: true }>('skills.reload', token);
   reloading.value = false;
 
   if (result.error) {
     error.value = result.error;
     return;
   }
-
-  await loadSkills();
 }
 
 async function toggleSkill(skill: SkillInfo) {
@@ -258,7 +263,8 @@ async function toggleSkill(skill: SkillInfo) {
     return;
   }
 
-  const result = await apiPost<{ success: true }>(`/api/skills/${encodeURIComponent(skill.name)}/toggle`, token, {
+  const result = await rpcCall<{ success: true }>('skills.toggle', token, {
+    name: skill.name,
     enabled: !skill.enabled,
   });
 
@@ -266,9 +272,84 @@ async function toggleSkill(skill: SkillInfo) {
     error.value = result.error;
     return;
   }
-
-  await loadSkills();
 }
 
-onMounted(loadSkills);
+function bindSkillsSubscription() {
+  stopSkillsSubscription?.();
+  stopSkillsSubscription = rpcSubscribe<{ skills: SkillInfo[] }>(
+    'skills.list',
+    token,
+    undefined,
+    (data) => {
+      syncSkills(data.skills);
+      loading.value = false;
+      error.value = '';
+    },
+    {
+      onError: (message) => {
+        error.value = message;
+        loading.value = false;
+      }
+    }
+  );
+}
+
+function bindSkillDetailSubscription(name: string) {
+  stopSkillDetailSubscription?.();
+  stopSkillDetailSubscription = null;
+
+  if (!name) {
+    selectedSkill.value = null;
+    detailLoading.value = false;
+    return;
+  }
+
+  detailLoading.value = true;
+  stopSkillDetailSubscription = rpcSubscribe<{ skill: SkillInfo } | null>(
+    'skills.detail',
+    token,
+    { name },
+    (data) => {
+      if (!data?.skill) {
+        if (selectedName.value === name) {
+          selectedName.value = skills.value[0]?.name || '';
+        }
+        return;
+      }
+
+      selectedSkill.value = data.skill;
+      detailLoading.value = false;
+      error.value = '';
+    },
+    {
+      onError: (message) => {
+        error.value = message;
+        detailLoading.value = false;
+      }
+    }
+  );
+}
+
+watch(selectedName, (name) => {
+  if (!name) {
+    selectedSkill.value = null;
+    detailLoading.value = false;
+    return;
+  }
+
+  void loadSkillDetail(name);
+  bindSkillDetailSubscription(name);
+}, { immediate: true });
+
+onMounted(() => {
+  void loadSkills();
+  bindSkillsSubscription();
+});
+
+onBeforeUnmount(() => {
+  stopSkillsSubscription?.();
+  stopSkillsSubscription = null;
+  stopSkillDetailSubscription?.();
+  stopSkillDetailSubscription = null;
+});
 </script>

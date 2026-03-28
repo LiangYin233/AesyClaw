@@ -6,12 +6,6 @@
           <p class="cn-kicker text-outline">插件</p>
           <h1 class="cn-page-title mt-2 text-on-surface">插件中心</h1>
         </div>
-        <div class="flex flex-wrap items-center gap-3">
-          <button class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface shadow-sm transition hover:bg-surface-container-high" type="button" :disabled="loading" @click="loadPlugins">
-            <AppIcon name="refresh" size="sm" />
-            刷新
-          </button>
-        </div>
       </header>
 
       <div v-if="error" class="mb-6 rounded-2xl border border-error/20 bg-error-container/60 px-5 py-4 text-sm text-on-error-container">
@@ -171,9 +165,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppIcon from '@/components/AppIcon.vue';
-import { apiGet, apiPost, apiPut } from '@/lib/api';
+import { rpcCall, rpcSubscribe } from '@/lib/rpc';
 import { getRouteToken } from '@/lib/auth';
 import type { PluginInfo } from '@/lib/types';
 import { useRoute } from 'vue-router';
@@ -188,6 +182,7 @@ const loading = ref(false);
 const saving = ref(false);
 const error = ref('');
 const jsonError = ref('');
+let stopPluginsSubscription: (() => void) | null = null;
 
 const selectedPlugin = computed(() => plugins.value.find((plugin) => plugin.name === selectedName.value) || plugins.value[0] || null);
 const enabledCount = computed(() => plugins.value.filter((plugin) => plugin.enabled).length);
@@ -229,7 +224,7 @@ async function loadPlugins() {
   loading.value = true;
   error.value = '';
 
-  const result = await apiGet<{ plugins: PluginInfo[] }>('/api/plugins', token);
+  const result = await rpcCall<{ plugins: PluginInfo[] }>('plugins.list', token);
   loading.value = false;
 
   if (result.error || !result.data) {
@@ -245,7 +240,8 @@ async function loadPlugins() {
 }
 
 async function togglePlugin(plugin: PluginInfo) {
-  const result = await apiPost<{ success: true }>(`/api/plugins/${encodeURIComponent(plugin.name)}/toggle`, token, {
+  const result = await rpcCall<{ success: true }>('plugins.toggle', token, {
+    name: plugin.name,
     enabled: !plugin.enabled,
   });
 
@@ -253,8 +249,6 @@ async function togglePlugin(plugin: PluginInfo) {
     error.value = result.error;
     return;
   }
-
-  await loadPlugins();
 }
 
 async function savePluginConfig() {
@@ -266,7 +260,8 @@ async function savePluginConfig() {
     jsonError.value = '';
     const options = parseJsonObject(optionsDraft.value, '插件配置');
     saving.value = true;
-    const result = await apiPut<{ success: true }>(`/api/plugins/${encodeURIComponent(selectedPlugin.value.name)}/config`, token, {
+    const result = await rpcCall<{ success: true }>('plugins.updateConfig', token, {
+      name: selectedPlugin.value.name,
       options,
     });
     saving.value = false;
@@ -275,8 +270,6 @@ async function savePluginConfig() {
       error.value = result.error;
       return;
     }
-
-    await loadPlugins();
   } catch (parseError) {
     jsonError.value = parseError instanceof Error ? parseError.message : 'JSON 解析失败';
   }
@@ -286,5 +279,36 @@ watch(selectedPlugin, (plugin) => {
   syncDraft(plugin);
 }, { immediate: true });
 
-onMounted(loadPlugins);
+function bindSubscription() {
+  stopPluginsSubscription?.();
+  stopPluginsSubscription = rpcSubscribe<{ plugins: PluginInfo[] }>(
+    'plugins.list',
+    token,
+    undefined,
+    (data) => {
+      plugins.value = data.plugins;
+      if (!data.plugins.some((plugin) => plugin.name === selectedName.value)) {
+        selectedName.value = data.plugins[0]?.name || '';
+      }
+      loading.value = false;
+      error.value = '';
+    },
+    {
+      onError: (message) => {
+        error.value = message;
+        loading.value = false;
+      }
+    }
+  );
+}
+
+onMounted(() => {
+  void loadPlugins();
+  bindSubscription();
+});
+
+onBeforeUnmount(() => {
+  stopPluginsSubscription?.();
+  stopPluginsSubscription = null;
+});
 </script>

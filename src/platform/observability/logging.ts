@@ -34,6 +34,8 @@ export interface LoggingServiceOptions {
   colorize?: boolean;
 }
 
+type LogEntryListener = (entry: LogEntry) => void | Promise<void>;
+
 interface NormalizedLogEvent {
   timestamp: Date;
   level: LogLevel;
@@ -467,6 +469,7 @@ export class LoggingService {
     pretty: true
   };
   private buffer = new LogBuffer(this.config.bufferSize);
+  private listeners = new Set<LogEntryListener>();
 
   readonly root: Logger;
 
@@ -503,6 +506,13 @@ export class LoggingService {
     return this.buffer.size();
   }
 
+  onEntry(listener: LogEntryListener): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
   write(level: LogLevel, scope: string, message: string, rawFields?: LogFields): void {
     if (LEVELS[level] < LEVELS[this.config.level]) {
       return;
@@ -522,22 +532,37 @@ export class LoggingService {
       fields
     };
 
-    this.buffer.add({
+    const entry = {
       timestamp: formatLocalTimestamp(timestamp),
       level,
       scope,
       message,
       fields
-    });
+    };
+    this.buffer.add(entry);
 
     this.emit(this.config.pretty
       ? formatPrettyLine(event, shouldColorizePrettyOutput(this.options.colorize))
       : formatJsonLine(event));
+    void this.notifyListeners({
+      ...entry,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    });
   }
 
   private emit(line: string): void {
     const destination = this.options.destination || process.stdout;
     destination.write(`${line}${process.platform === 'win32' ? '\r\n' : '\n'}`);
+  }
+
+  private async notifyListeners(entry: LogEntry): Promise<void> {
+    for (const listener of this.listeners) {
+      try {
+        await listener(entry);
+      } catch {
+        // Ignore listener failures to avoid breaking logging.
+      }
+    }
   }
 }
 

@@ -9,7 +9,7 @@ export function createMcpReloadTarget(services: Services): NonNullable<ConfigRel
         getMcpManager: () => services.mcpManager ?? undefined,
         setMcpManager: (manager) => {
           services.mcpManager = manager ?? null;
-          services.apiServer?.setMcpManager(manager);
+          services.webServer?.setMcpManager(manager);
         },
         toolRegistry: services.toolRegistry
       }, config);

@@ -7,12 +7,20 @@ import { SessionStore } from '../infrastructure/SessionStore.js';
 
 const SESSION_LOAD_BATCH_SIZE = 10;
 
+export interface SessionManagerEvent {
+  type: 'created' | 'message_added' | 'summary_updated' | 'deleted';
+  sessionKey: string;
+}
+
+type SessionManagerListener = (event: SessionManagerEvent) => void | Promise<void>;
+
 export { type Session, type SessionMessage };
 
 export class SessionManager {
   private store: SessionStore;
   private sessions: Map<string, Session> = new Map();
   private sessionLocks: Map<string, Promise<Session>> = new Map();
+  private listeners = new Set<SessionManagerListener>();
   private log = logger.child('SessionManager');
 
   constructor(db: Database) {
@@ -92,6 +100,13 @@ export class SessionManager {
     return session;
   }
 
+  onChange(listener: SessionManagerListener): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
   private async doGetOrCreate(key: string): Promise<Session> {
     const existing = this.sessions.get(key);
     if (existing) {
@@ -118,6 +133,10 @@ export class SessionManager {
         updatedAt: new Date()
       };
       this.sessions.set(key, newSession);
+      void this.notifyListeners({
+        type: 'created',
+        sessionKey: key
+      });
       return newSession;
     }
 
@@ -178,6 +197,10 @@ export class SessionManager {
 
     session.messages.push(message);
     session.updatedAt = updatedAt;
+    void this.notifyListeners({
+      type: 'message_added',
+      sessionKey: key
+    });
   }
 
   async updateSummary(key: string, summary: string, summarizedMessageCount: number): Promise<void> {
@@ -192,6 +215,10 @@ export class SessionManager {
     session.summary = summary;
     session.summarizedMessageCount = summarizedMessageCount;
     session.updatedAt = nextUpdatedAt;
+    void this.notifyListeners({
+      type: 'summary_updated',
+      sessionKey: key
+    });
   }
 
   async getConversationMessages(channel: string, chatId: string): Promise<{ id: number; sessionId: number; sessionKey: string; role: 'user' | 'assistant' | 'system'; content: string; timestamp?: string }[]> {
@@ -264,6 +291,10 @@ export class SessionManager {
   async delete(key: string): Promise<void> {
     this.sessions.delete(key);
     await this.store.deleteSession(key);
+    void this.notifyListeners({
+      type: 'deleted',
+      sessionKey: key
+    });
   }
 
   count(): number {
@@ -290,5 +321,15 @@ export class SessionManager {
 
   async close(): Promise<void> {
     await this.store.close();
+  }
+
+  private async notifyListeners(event: SessionManagerEvent): Promise<void> {
+    for (const listener of this.listeners) {
+      try {
+        await listener(event);
+      } catch {
+        // Ignore listener failures to avoid breaking session lifecycle.
+      }
+    }
   }
 }

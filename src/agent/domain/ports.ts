@@ -1,5 +1,5 @@
 import type { InboundMessage } from '../../types.js';
-import type { ExecutionStatus } from './execution.js';
+import type { ExecutionStatus, WorkerRuntimeSnapshot } from './execution.js';
 import type { SessionReference } from './session.js';
 import type { LLMProvider } from '../../platform/providers/base.js';
 import type { SessionMemoryService } from '../infrastructure/memory/SessionMemoryService.js';
@@ -19,6 +19,8 @@ export interface AgentRuntimeDeps {
   abortSession(sessionKeyOrChannel: string, chatId?: string): boolean;
   getStatusByReference(reference: SessionReference | string): ExecutionStatus | undefined;
   getExecutionStatus(sessionKey: string): ExecutionStatus | undefined;
+  getWorkerRuntimeSnapshot(): WorkerRuntimeSnapshot;
+  onWorkerRuntimeChange(listener: () => void | Promise<void>): () => void;
   runSubAgentTask(
     agentName: string,
     task: string,

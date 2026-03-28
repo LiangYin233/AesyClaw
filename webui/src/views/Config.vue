@@ -345,7 +345,7 @@ import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppIcon from '@/components/AppIcon.vue';
 import KeyValueEditor from '@/components/config/KeyValueEditor.vue';
-import { apiGet, apiPut } from '@/lib/api';
+import { rpcCall } from '@/lib/rpc';
 import { getRouteToken } from '@/lib/auth';
 import type { AppConfig, ProviderConfig, ProviderModelConfig } from '@/lib/types';
 
@@ -616,7 +616,7 @@ async function loadConfig() {
   error.value = '';
   saveMessage.value = '';
 
-  const result = await apiGet<AppConfig>('/api/config', token);
+  const result = await rpcCall<AppConfig>('config.get', token);
   if (result.error || !result.data) {
     error.value = result.error || '配置加载失败';
     loading.value = false;
@@ -650,7 +650,7 @@ async function saveConfig() {
 
   saving.value = true;
   error.value = '';
-  const result = await apiPut<{ success: true }>('/api/config', token, configDraft.value);
+  const result = await rpcCall<{ success: true }>('config.update', token, configDraft.value);
   saving.value = false;
 
   if (result.error) {

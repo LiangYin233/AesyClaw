@@ -30,7 +30,7 @@
           :key="item.path"
           :to="{ path: item.path, query: token ? { token } : {} }"
           class="group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold tracking-[0.02em] transition-colors"
-          :class="$route.path.startsWith(item.path) ? 'bg-surface-container-low text-primary' : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'"
+          :class="isNavActive(item) ? 'bg-surface-container-low text-primary' : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface'"
           @click="mobileMenuOpen = false"
         >
           <AppIcon :name="item.icon" />
@@ -80,7 +80,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import AppIcon from '@/components/AppIcon.vue';
-import { apiGet } from '@/lib/api';
+import { rpcCall, rpcSubscribe } from '@/lib/rpc';
 import { getRouteToken } from '@/lib/auth';
 import { formatNumber, formatUptime } from '@/lib/format';
 import type { StatusResponse } from '@/lib/types';
@@ -89,21 +89,22 @@ const route = useRoute();
 const mobileMenuOpen = ref(false);
 const isDark = ref(false);
 const runtimeStatus = ref<StatusResponse | null>(null);
-let runtimeTimer: number | null = null;
+let stopStatusSubscription: (() => void) | null = null;
 
 const navItems = [
-  { label: '总览', path: '/overview', icon: 'overview' },
-  { label: '对话', path: '/dialogue', icon: 'dialogue' },
-  { label: '会话', path: '/sessions', icon: 'sessions' },
-  { label: '记忆', path: '/memory', icon: 'memory' },
-  { label: 'Agent', path: '/agents', icon: 'agents' },
-  { label: '技能', path: '/skills', icon: 'skills' },
-  { label: '工具', path: '/tools', icon: 'tools' },
-  { label: '插件', path: '/plugins', icon: 'plugins' },
-  { label: '定时任务', path: '/cron', icon: 'cron' },
-  { label: 'MCP', path: '/mcp', icon: 'mcp' },
-  { label: '观测', path: '/observability/logs', icon: 'observability' },
-  { label: '设置', path: '/settings/config', icon: 'settings' },
+  { label: '总览', path: '/overview', icon: 'overview', matchPrefixes: ['/overview'] },
+  { label: '对话', path: '/dialogue', icon: 'dialogue', matchPrefixes: ['/dialogue'] },
+  { label: '会话', path: '/sessions', icon: 'sessions', matchPrefixes: ['/sessions'] },
+  { label: '记忆', path: '/memory', icon: 'memory', matchPrefixes: ['/memory'] },
+  { label: 'Agent', path: '/agents', icon: 'agents', matchPrefixes: ['/agents'], matchExact: true },
+  { label: '执行链', path: '/agents/runtime', icon: 'history', matchPrefixes: ['/agents/runtime'] },
+  { label: '技能', path: '/skills', icon: 'skills', matchPrefixes: ['/skills'] },
+  { label: '工具', path: '/tools', icon: 'tools', matchPrefixes: ['/tools'] },
+  { label: '插件', path: '/plugins', icon: 'plugins', matchPrefixes: ['/plugins'] },
+  { label: '定时任务', path: '/cron', icon: 'cron', matchPrefixes: ['/cron'] },
+  { label: 'MCP', path: '/mcp', icon: 'mcp', matchPrefixes: ['/mcp'] },
+  { label: '观测', path: '/observability/logs', icon: 'observability', matchPrefixes: ['/observability/logs'] },
+  { label: '设置', path: '/settings/config', icon: 'settings', matchPrefixes: ['/settings/config'] },
 ];
 
 const token = computed(() => getRouteToken(route));
@@ -113,11 +114,38 @@ const sessionCountLabel = computed(() => formatNumber(runtimeStatus.value?.sessi
 const uptimeLabel = computed(() => runtimeStatus.value ? formatUptime(runtimeStatus.value.uptime) : '-');
 const connectedChannelLabel = computed(() => `${connectedChannelCount.value}/${enabledChannelCount.value || 0}`);
 
+function isNavActive(item: { path: string; matchPrefixes?: string[]; matchExact?: boolean }) {
+  if (item.matchExact) {
+    return route.path === item.path;
+  }
+
+  const prefixes = item.matchPrefixes?.length ? item.matchPrefixes : [item.path];
+  return prefixes.some((prefix) => route.path.startsWith(prefix));
+}
+
 async function loadRuntimeSummary() {
-  const result = await apiGet<StatusResponse>('/api/status', token.value);
+  const result = await rpcCall<StatusResponse>('system.getStatus', token.value);
   if (result.data) {
     runtimeStatus.value = result.data;
   }
+}
+
+function bindRuntimeSubscription() {
+  stopStatusSubscription?.();
+  stopStatusSubscription = null;
+
+  if (!token.value) {
+    return;
+  }
+
+  stopStatusSubscription = rpcSubscribe<StatusResponse>(
+    'system.status',
+    token.value,
+    undefined,
+    (data) => {
+      runtimeStatus.value = data;
+    }
+  );
 }
 
 function toggleTheme() {
@@ -131,20 +159,18 @@ onMounted(() => {
   isDark.value = stored === 'dark';
   document.documentElement.classList.toggle('dark', isDark.value);
 
-  loadRuntimeSummary();
-  runtimeTimer = window.setInterval(() => {
-    loadRuntimeSummary();
-  }, 15000);
+  void loadRuntimeSummary();
+  bindRuntimeSubscription();
 });
 
 watch(token, () => {
-  loadRuntimeSummary();
+  void loadRuntimeSummary();
+  bindRuntimeSubscription();
 });
 
 onBeforeUnmount(() => {
-  if (runtimeTimer) {
-    window.clearInterval(runtimeTimer);
-  }
+  stopStatusSubscription?.();
+  stopStatusSubscription = null;
 });
 </script>
 

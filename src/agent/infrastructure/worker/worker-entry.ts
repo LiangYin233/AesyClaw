@@ -12,8 +12,17 @@ import { AgentRoleService } from '../roles/AgentRoleService.js';
 import { ExecutionEngine } from '../execution/ExecutionEngine.js';
 import { ExecutionRegistry } from '../execution/ExecutionRegistry.js';
 import { WorkerExecutionDelegateImpl } from './WorkerExecutionDelegate.js';
-import type { ParentToWorkerMessage, WorkerLogMessage, WorkerToolResponseMessage, WorkerToParentMessage } from './protocol.js';
+import type {
+  ParentToWorkerMessage,
+  WorkerLlmActivityMessage,
+  WorkerLifecycleMessage,
+  WorkerLogMessage,
+  WorkerToolActivityMessage,
+  WorkerToolResponseMessage,
+  WorkerToParentMessage
+} from './protocol.js';
 import { createWorkerLocalToolRegistry } from './createWorkerLocalToolRegistry.js';
+import { createWorkerLoggedProvider } from './workerLogging.js';
 
 const SUB_AGENT_EXCLUDED_TOOLS = ['send_msg_to_user', 'call_agent', 'call_temp_agent'];
 
@@ -48,7 +57,22 @@ class WorkerToolRegistry {
         toolName: name,
         mode: 'local'
       });
-      return this.executeLocal(name, params, context);
+      emitWorkerToolActivity({
+        sessionKey: context?.sessionKey || activeSessionKey,
+        executionId: activeExecutionId,
+        toolName: name,
+        toolMode: 'local',
+        active: true
+      });
+      try {
+        return await this.executeLocal(name, params, context);
+      } finally {
+        emitWorkerToolActivity({
+          sessionKey: context?.sessionKey || activeSessionKey,
+          executionId: activeExecutionId,
+          active: false
+        });
+      }
     }
 
     this.reportLog?.('debug', 'worker 工具回退父进程桥接', {
@@ -60,6 +84,13 @@ class WorkerToolRegistry {
     const requestId = randomUUID();
     const { signal: _signal, ...serializableContext } = context || { workspace: '' };
     return await new Promise((resolve, reject) => {
+      emitWorkerToolActivity({
+        sessionKey: context?.sessionKey || activeSessionKey,
+        executionId: activeExecutionId,
+        toolName: name,
+        toolMode: 'bridge',
+        active: true
+      });
       this.pending.set(requestId, { resolve, reject });
       this.sendMessage({
         type: 'tool_request',
@@ -107,6 +138,11 @@ class WorkerToolRegistry {
       return;
     }
     this.pending.delete(response.requestId);
+    emitWorkerToolActivity({
+      sessionKey: activeSessionKey,
+      executionId: response.executionId,
+      active: false
+    });
     if (response.ok) {
       pending.resolve(response.result || '');
       return;
@@ -119,10 +155,18 @@ class WorkerToolRegistry {
       pending.reject(error);
     }
     this.pending.clear();
+    if (activeExecutionId) {
+      emitWorkerToolActivity({
+        sessionKey: activeSessionKey,
+        executionId: activeExecutionId,
+        active: false
+      });
+    }
   }
 }
 
 let activeExecutionId = '';
+let activeSessionKey = '';
 let abortController: AbortController | undefined;
 let activeRegistry: WorkerToolRegistry | undefined;
 
@@ -142,6 +186,30 @@ function emitWorkerLog(level: LogLevel, message: string, fields?: Record<string,
     fields
   };
   sendToParent(payload);
+}
+
+function emitWorkerLifecycle(input: Omit<WorkerLifecycleMessage, 'type' | 'timestamp'>): void {
+  sendToParent({
+    type: 'worker_lifecycle',
+    ...input,
+    timestamp: new Date().toISOString()
+  });
+}
+
+function emitWorkerToolActivity(input: Omit<WorkerToolActivityMessage, 'type' | 'timestamp'>): void {
+  sendToParent({
+    type: 'worker_tool_activity',
+    ...input,
+    timestamp: new Date().toISOString()
+  });
+}
+
+function emitWorkerLlmActivity(input: Omit<WorkerLlmActivityMessage, 'type' | 'timestamp'>): void {
+  sendToParent({
+    type: 'worker_llm_activity',
+    ...input,
+    timestamp: new Date().toISOString()
+  });
 }
 
 function createBuiltInLogger(baseFields: Record<string, unknown>): BuiltInLogger {
@@ -189,6 +257,18 @@ async function runWorkerSubAgentTask(
       onSpawn: (meta) => {
         childExecutionId = meta.executionId;
         childPid = meta.childPid;
+        emitWorkerLifecycle({
+          sessionKey: toolContext.sessionKey || '',
+          executionId: childExecutionId,
+          parentExecutionId: activeExecutionId,
+          kind: 'sub-agent',
+          event: 'spawned',
+          agentName,
+          model: prepared.policy.model,
+          childPid,
+          channel: toolContext.channel,
+          chatId: toolContext.chatId
+        });
         emitWorkerLog('info', '准备派生子 Agent', {
           sessionKey: toolContext.sessionKey,
           agentName,
@@ -212,6 +292,20 @@ async function runWorkerSubAgentTask(
       childExecutionId,
       childPid
     });
+    if (childExecutionId) {
+      emitWorkerLifecycle({
+        sessionKey: toolContext.sessionKey || '',
+        executionId: childExecutionId,
+        parentExecutionId: activeExecutionId,
+        kind: 'sub-agent',
+        event: 'completed',
+        agentName,
+        model: prepared.policy.model,
+        childPid,
+        channel: toolContext.channel,
+        chatId: toolContext.chatId
+      });
+    }
     return result.content;
   } catch (error) {
     emitWorkerLog('warn', '子 Agent 执行失败', {
@@ -222,6 +316,21 @@ async function runWorkerSubAgentTask(
       childPid,
       error: error instanceof Error ? error.message : String(error)
     });
+    if (childExecutionId) {
+      emitWorkerLifecycle({
+        sessionKey: toolContext.sessionKey || '',
+        executionId: childExecutionId,
+        parentExecutionId: activeExecutionId,
+        kind: 'sub-agent',
+        event: 'failed',
+        agentName,
+        model: prepared.policy.model,
+        childPid,
+        channel: toolContext.channel,
+        chatId: toolContext.chatId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
     throw error;
   }
 }
@@ -254,6 +363,18 @@ async function runWorkerTemporarySubAgentTask(
       onSpawn: (meta) => {
         childExecutionId = meta.executionId;
         childPid = meta.childPid;
+        emitWorkerLifecycle({
+          sessionKey: toolContext.sessionKey || '',
+          executionId: childExecutionId,
+          parentExecutionId: activeExecutionId,
+          kind: 'temp-agent',
+          event: 'spawned',
+          agentName: baseAgentName,
+          model: prepared.policy.model,
+          childPid,
+          channel: toolContext.channel,
+          chatId: toolContext.chatId
+        });
         emitWorkerLog('info', '准备派生临时 Agent', {
           sessionKey: toolContext.sessionKey,
           agentName: baseAgentName,
@@ -277,6 +398,20 @@ async function runWorkerTemporarySubAgentTask(
       childExecutionId,
       childPid
     });
+    if (childExecutionId) {
+      emitWorkerLifecycle({
+        sessionKey: toolContext.sessionKey || '',
+        executionId: childExecutionId,
+        parentExecutionId: activeExecutionId,
+        kind: 'temp-agent',
+        event: 'completed',
+        agentName: baseAgentName,
+        model: prepared.policy.model,
+        childPid,
+        channel: toolContext.channel,
+        chatId: toolContext.chatId
+      });
+    }
     return result.content;
   } catch (error) {
     emitWorkerLog('warn', '临时 Agent 执行失败', {
@@ -287,6 +422,21 @@ async function runWorkerTemporarySubAgentTask(
       childPid,
       error: error instanceof Error ? error.message : String(error)
     });
+    if (childExecutionId) {
+      emitWorkerLifecycle({
+        sessionKey: toolContext.sessionKey || '',
+        executionId: childExecutionId,
+        parentExecutionId: activeExecutionId,
+        kind: 'temp-agent',
+        event: 'failed',
+        agentName: baseAgentName,
+        model: prepared.policy.model,
+        childPid,
+        channel: toolContext.channel,
+        chatId: toolContext.chatId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
     throw error;
   }
 }
@@ -326,13 +476,25 @@ async function runWorkerTemporarySubAgentTasks(
 
 async function startExecution(message: Extract<ParentToWorkerMessage, { type: 'start_execution' }>): Promise<void> {
   activeExecutionId = message.executionId;
+  activeSessionKey = message.options?.sessionKey || message.toolContext.sessionKey || message.executionId;
   abortController = new AbortController();
   emitWorkerLog('info', 'worker 开始执行', {
-    sessionKey: message.options?.sessionKey || message.toolContext.sessionKey,
+    sessionKey: activeSessionKey,
     agentName: message.policy.roleName,
     model: message.policy.model,
     childPid: process.pid,
     mode: 'worker'
+  });
+  emitWorkerLifecycle({
+    sessionKey: activeSessionKey,
+    executionId: message.executionId,
+    kind: 'root',
+    event: 'started',
+    agentName: message.policy.roleName,
+    model: message.policy.model,
+    childPid: process.pid,
+    channel: message.toolContext.channel,
+    chatId: message.toolContext.chatId
   });
 
   const configuredRoleModel = message.config.agents?.roles?.[message.policy.roleName]?.model?.trim();
@@ -341,7 +503,23 @@ async function startExecution(message: Extract<ParentToWorkerMessage, { type: 's
     throw new Error(`Provider config not found for model ${message.policy.model}`);
   }
 
-  const provider = createProvider(resolved.name, resolved.providerConfig);
+  const provider = createWorkerLoggedProvider(
+    createProvider(resolved.name, resolved.providerConfig),
+    {
+      sessionKey: activeSessionKey,
+      executionId: activeExecutionId,
+      agentName: message.policy.roleName,
+      model: message.policy.model,
+      childPid: process.pid
+    },
+    emitWorkerLog,
+    (activity) => {
+      emitWorkerLlmActivity({
+        ...activity,
+        sessionKey: activity.sessionKey || activeSessionKey
+      });
+    }
+  );
   const localRuntime = await createWorkerLocalToolRegistry(message.config, message.toolContext.workspace);
   activeRegistry = new WorkerToolRegistry(
     sendToParent,
@@ -352,14 +530,14 @@ async function startExecution(message: Extract<ParentToWorkerMessage, { type: 's
     emitWorkerLog
   );
   emitWorkerLog('info', 'worker 本地运行时初始化完成', {
-    sessionKey: message.options?.sessionKey || message.toolContext.sessionKey,
+    sessionKey: activeSessionKey,
     agentName: message.policy.roleName,
     childPid: process.pid,
     mode: 'worker'
   });
   if (localRuntime.pluginManager) {
-    emitWorkerLog('debug', 'worker 本地插件 hooks 已启用', {
-      sessionKey: message.options?.sessionKey || message.toolContext.sessionKey,
+      emitWorkerLog('debug', 'worker 本地插件 hooks 已启用', {
+      sessionKey: activeSessionKey,
       agentName: message.policy.roleName,
       childPid: process.pid,
       mode: 'worker'
@@ -379,7 +557,19 @@ async function startExecution(message: Extract<ParentToWorkerMessage, { type: 's
       getConfig: () => message.config,
       toolRegistry: executionToolRegistry as ToolRegistry,
       getPluginManager: () => undefined,
-      getAvailableToolDefinitions: () => message.policy.availableToolDefinitions
+      getAvailableToolDefinitions: () => message.policy.availableToolDefinitions,
+      onToolActivity: (toolMessage) => {
+        emitWorkerToolActivity(toolMessage);
+      },
+      onLlmActivity: (llmMessage) => {
+        emitWorkerLlmActivity(llmMessage);
+      },
+      onLifecycle: (lifecycleMessage) => {
+        sendToParent(lifecycleMessage);
+      },
+      onLogEvent: (logMessage) => {
+        sendToParent(logMessage);
+      }
     });
     const executionEngine = new ExecutionEngine({
       defaultSystemPrompt: message.policy.systemPrompt,
@@ -390,13 +580,6 @@ async function startExecution(message: Extract<ParentToWorkerMessage, { type: 's
       getPluginManager: () => undefined,
       executionRegistry: new ExecutionRegistry()
     }, agentRoleService);
-    emitWorkerLog('info', '检测到本地 Agent 编排能力', {
-      sessionKey: message.options?.sessionKey || message.toolContext.sessionKey,
-      agentName: message.policy.roleName,
-      childPid: process.pid,
-      mode: 'worker'
-    });
-
     registerAgentTools({
       toolRegistry: localRuntime.toolRegistry,
       runSubAgentTasks: async (tasks, context) => Promise.all(tasks.map(async ({ agentName, task }) => {
@@ -411,7 +594,7 @@ async function startExecution(message: Extract<ParentToWorkerMessage, { type: 's
               channel: context?.channel,
               chatId: context?.chatId,
               messageType: context?.messageType,
-              sessionKey: message.options?.sessionKey || message.toolContext.sessionKey,
+              sessionKey: activeSessionKey,
               signal: context?.signal ?? abortController?.signal,
               source: 'user'
             }
@@ -442,20 +625,20 @@ async function startExecution(message: Extract<ParentToWorkerMessage, { type: 's
           channel: context?.channel,
           chatId: context?.chatId,
           messageType: context?.messageType,
-          sessionKey: message.options?.sessionKey || message.toolContext.sessionKey,
+          sessionKey: activeSessionKey,
           signal: context?.signal ?? abortController?.signal,
           source: 'user'
         }
       ),
       agentRoleService,
       log: createBuiltInLogger({
-        sessionKey: message.options?.sessionKey || message.toolContext.sessionKey,
+        sessionKey: activeSessionKey,
         childPid: process.pid
       })
     });
   } else {
     emitWorkerLog('warn', 'worker 未启用本地 Agent 编排，保留桥接路径', {
-      sessionKey: message.options?.sessionKey || message.toolContext.sessionKey,
+      sessionKey: activeSessionKey,
       agentName: message.policy.roleName,
       childPid: process.pid,
       mode: 'bridge'
@@ -486,12 +669,23 @@ async function startExecution(message: Extract<ParentToWorkerMessage, { type: 's
   );
 
   emitWorkerLog('info', '主 worker 执行完成', {
-    sessionKey: message.options?.sessionKey || message.toolContext.sessionKey,
+    sessionKey: activeSessionKey,
     agentName: message.policy.roleName,
     childPid: process.pid,
     mode: 'worker',
     agentMode: result.agentMode,
     toolsUsed: result.toolsUsed.length
+  });
+  emitWorkerLifecycle({
+    sessionKey: activeSessionKey,
+    executionId: message.executionId,
+    kind: 'root',
+    event: 'completed',
+    agentName: message.policy.roleName,
+    model: message.policy.model,
+    childPid: process.pid,
+    channel: message.toolContext.channel,
+    chatId: message.toolContext.chatId
   });
 
   sendToParent({
@@ -517,6 +711,13 @@ process.on('message', async (message: ParentToWorkerMessage) => {
       emitWorkerLog('warn', 'worker 收到中止指令', {
         mode: 'worker'
       });
+      emitWorkerLifecycle({
+        sessionKey: activeSessionKey,
+        executionId: message.executionId,
+        kind: 'root',
+        event: 'aborting',
+        childPid: process.pid
+      });
       abortController?.abort(new Error(`Execution aborted: ${message.executionId}`));
     }
   } catch (error) {
@@ -524,6 +725,16 @@ process.on('message', async (message: ParentToWorkerMessage) => {
       mode: 'worker',
       error
     });
+    if (activeExecutionId) {
+      emitWorkerLifecycle({
+        sessionKey: activeSessionKey,
+        executionId: activeExecutionId || (message.type === 'abort_execution' ? message.executionId : ''),
+        kind: 'root',
+        event: 'failed',
+        childPid: process.pid,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
     activeRegistry?.rejectAll(error instanceof Error ? error : new Error(String(error)));
     sendToParent({
       type: 'execution_error',

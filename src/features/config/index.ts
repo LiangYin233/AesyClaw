@@ -55,5 +55,3 @@ export type {
   ResolvedMemoryRecallConfig,
   ResolvedMemorySummaryConfig
 } from './domain/memory.js';
-export { registerConfigFeature } from './runtime/registerConfigFeature.js';
-export type { ConfigFeatureDeps } from './runtime/registerConfigFeature.js';

@@ -1,6 +1,11 @@
 import type { Config, LLMMessage, ToolCall, ToolDefinition } from '../../../types.js';
 import type { LogLevel } from '../../../platform/observability/index.js';
 import type { ToolContext } from '../../../platform/tools/ToolRegistry.js';
+import type {
+  WorkerRuntimeEventKind,
+  WorkerRuntimeNodeKind,
+  WorkerRuntimeToolMode
+} from '../../domain/execution.js';
 
 export interface WorkerPolicySnapshot {
   roleName: string;
@@ -73,6 +78,42 @@ export interface WorkerLogMessage {
   fields?: Record<string, unknown>;
 }
 
+export interface WorkerLifecycleMessage {
+  type: 'worker_lifecycle';
+  sessionKey: string;
+  executionId: string;
+  parentExecutionId?: string;
+  kind: WorkerRuntimeNodeKind;
+  event: WorkerRuntimeEventKind;
+  agentName?: string;
+  model?: string;
+  childPid?: number | null;
+  channel?: string;
+  chatId?: string;
+  error?: string;
+  timestamp?: string;
+}
+
+export interface WorkerToolActivityMessage {
+  type: 'worker_tool_activity';
+  sessionKey: string;
+  executionId: string;
+  toolName?: string;
+  toolMode?: WorkerRuntimeToolMode;
+  active: boolean;
+  timestamp?: string;
+}
+
+export interface WorkerLlmActivityMessage {
+  type: 'worker_llm_activity';
+  sessionKey: string;
+  executionId: string;
+  requestId?: string;
+  model?: string;
+  active: boolean;
+  timestamp?: string;
+}
+
 export interface AbortWorkerExecutionMessage {
   type: 'abort_execution';
   executionId: string;
@@ -86,5 +127,8 @@ export type ParentToWorkerMessage =
 export type WorkerToParentMessage =
   | WorkerToolRequestMessage
   | WorkerLogMessage
+  | WorkerLifecycleMessage
+  | WorkerToolActivityMessage
+  | WorkerLlmActivityMessage
   | WorkerFinalResultMessage
   | WorkerErrorMessage;

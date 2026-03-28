@@ -30,6 +30,8 @@ export interface UsageConfig {
   flushIntervalMs: number;
 }
 
+type TokenUsageListener = (stats: TokenUsage) => void | Promise<void>;
+
 type PersistedTokenUsage = {
   prompt_tokens: number;
   completion_tokens: number;
@@ -112,6 +114,7 @@ export class TokenUsageTracker {
   private db?: SQLiteDatabase;
   private dbPath?: string;
   private ready: Promise<void> = Promise.resolve();
+  private listeners = new Set<TokenUsageListener>();
 
   constructor() {
     this.saveInterval = setInterval(() => {
@@ -201,6 +204,7 @@ export class TokenUsageTracker {
     this.dailyStats.set(dayKey, daily);
     this.dirty = true;
     this.dirtyDailyKeys.add(dayKey);
+    void this.notifyListeners();
   }
 
   getStats(): TokenUsage {
@@ -214,12 +218,20 @@ export class TokenUsageTracker {
     return { ...this.config };
   }
 
+  onChange(listener: TokenUsageListener): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
   reset(): void {
     this.stats = { ...DEFAULT_STATS, lastUpdated: new Date() };
     this.dailyStats.clear();
     this.dirty = true;
     this.dirtyDailyKeys.clear();
     this.resetPending = true;
+    void this.notifyListeners();
     void this.flushIfDirty().then(() => {
       this.log.info('令牌用量已重置');
     });
@@ -332,6 +344,7 @@ export class TokenUsageTracker {
       requestCount: this.stats.requestCount,
       dailyBuckets: this.dailyStats.size
     });
+    void this.notifyListeners();
   }
 
   private async flushIfDirty(): Promise<void> {
@@ -471,6 +484,17 @@ export class TokenUsageTracker {
         resolve((rows as T[]) || []);
       });
     });
+  }
+
+  private async notifyListeners(): Promise<void> {
+    const snapshot = this.getStats();
+    for (const listener of this.listeners) {
+      try {
+        await listener(snapshot);
+      } catch {
+        // Ignore listener failures to avoid breaking usage tracking.
+      }
+    }
   }
 }
 

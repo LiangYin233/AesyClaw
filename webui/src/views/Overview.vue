@@ -6,12 +6,6 @@
           <p class="cn-kicker text-outline">总览</p>
           <h1 class="cn-page-title mt-2 text-on-surface">系统运行总览</h1>
         </div>
-        <div class="flex flex-wrap items-center gap-3">
-          <button class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/16 bg-surface-container-lowest/80 px-4 py-2.5 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-low" type="button" :disabled="refreshing" @click="loadOverview">
-            <AppIcon name="refresh" size="sm" />
-            刷新
-          </button>
-        </div>
       </div>
 
       <div v-if="error" class="mb-8 rounded-2xl border border-error/20 bg-error-container/50 px-5 py-4 text-sm text-on-error-container">
@@ -213,10 +207,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppIcon from '@/components/AppIcon.vue';
-import { apiGet } from '@/lib/api';
+import { rpcCall, rpcSubscribe } from '@/lib/rpc';
 import { getRouteToken } from '@/lib/auth';
 import { abbreviateText, formatDateTime, formatNumber, formatUptime } from '@/lib/format';
 import type { AgentRole, MCPServerInfo, ObservabilityLogEntry, Session, StatusResponse, TokenUsageStats } from '@/lib/types';
@@ -231,8 +225,13 @@ const sessions = ref<Session[]>([]);
 const agents = ref<AgentRole[]>([]);
 const servers = ref<MCPServerInfo[]>([]);
 const logs = ref<ObservabilityLogEntry[]>([]);
-const refreshing = ref(false);
 const error = ref('');
+let stopStatusSubscription: (() => void) | null = null;
+let stopUsageSubscription: (() => void) | null = null;
+let stopSessionsSubscription: (() => void) | null = null;
+let stopAgentsSubscription: (() => void) | null = null;
+let stopServersSubscription: (() => void) | null = null;
+let stopLogsSubscription: (() => void) | null = null;
 
 const recentSessions = computed(() => [...sessions.value].sort((a, b) => b.messageCount - a.messageCount).slice(0, 6));
 const totalMessages = computed(() => sessions.value.reduce((sum, s) => sum + s.messageCount, 0));
@@ -301,16 +300,15 @@ function eventTitle(entry: ObservabilityLogEntry) {
 }
 
 async function loadOverview() {
-  refreshing.value = true;
   error.value = '';
 
   const [statusResult, usageResult, sessionsResult, agentsResult, serversResult, logsResult] = await Promise.all([
-    apiGet<StatusResponse>('/api/status', token),
-    apiGet<TokenUsageStats>('/api/observability/usage', token),
-    apiGet<{ sessions: Session[] }>('/api/sessions', token),
-    apiGet<{ agents: AgentRole[] }>('/api/agents', token),
-    apiGet<{ servers: MCPServerInfo[] }>('/api/mcp/servers', token),
-    apiGet<{ entries: ObservabilityLogEntry[] }>('/api/observability/logging/entries', token, { limit: 12 }),
+    rpcCall<StatusResponse>('system.getStatus', token),
+    rpcCall<TokenUsageStats>('observability.getUsage', token),
+    rpcCall<{ sessions: Session[] }>('sessions.list', token),
+    rpcCall<{ agents: AgentRole[] }>('agents.list', token),
+    rpcCall<{ servers: MCPServerInfo[] }>('mcp.list', token),
+    rpcCall<{ entries: ObservabilityLogEntry[] }>('observability.getLoggingEntries', token, { limit: 12 }),
   ]);
 
   if (statusResult.error) {
@@ -323,7 +321,85 @@ async function loadOverview() {
   agents.value = agentsResult.data?.agents || [];
   servers.value = serversResult.data?.servers || [];
   logs.value = logsResult.data?.entries || [];
-  refreshing.value = false;
+}
+
+function stopSubscriptions() {
+  stopStatusSubscription?.();
+  stopStatusSubscription = null;
+  stopUsageSubscription?.();
+  stopUsageSubscription = null;
+  stopSessionsSubscription?.();
+  stopSessionsSubscription = null;
+  stopAgentsSubscription?.();
+  stopAgentsSubscription = null;
+  stopServersSubscription?.();
+  stopServersSubscription = null;
+  stopLogsSubscription?.();
+  stopLogsSubscription = null;
+}
+
+function bindSubscriptions() {
+  stopSubscriptions();
+
+  stopStatusSubscription = rpcSubscribe<StatusResponse>(
+    'system.status',
+    token,
+    undefined,
+    (data) => {
+      status.value = data;
+      error.value = '';
+    },
+    {
+      onError: (message) => {
+        error.value = message;
+      }
+    }
+  );
+
+  stopUsageSubscription = rpcSubscribe<TokenUsageStats>(
+    'observability.usage',
+    token,
+    undefined,
+    (data) => {
+      usageStats.value = data;
+    }
+  );
+
+  stopSessionsSubscription = rpcSubscribe<{ sessions: Session[] }>(
+    'sessions.list',
+    token,
+    undefined,
+    (data) => {
+      sessions.value = data.sessions;
+    }
+  );
+
+  stopAgentsSubscription = rpcSubscribe<{ agents: AgentRole[] }>(
+    'agents.list',
+    token,
+    undefined,
+    (data) => {
+      agents.value = data.agents;
+    }
+  );
+
+  stopServersSubscription = rpcSubscribe<{ servers: MCPServerInfo[] }>(
+    'mcp.list',
+    token,
+    undefined,
+    (data) => {
+      servers.value = data.servers;
+    }
+  );
+
+  stopLogsSubscription = rpcSubscribe<{ entries: ObservabilityLogEntry[] }>(
+    'observability.logs',
+    token,
+    { limit: 12 },
+    (data) => {
+      logs.value = data.entries;
+    }
+  );
 }
 
 function openSession(sessionKey: string) {
@@ -336,5 +412,10 @@ function goTo(path: string) {
 
 onMounted(() => {
   void loadOverview();
+  bindSubscriptions();
+});
+
+onBeforeUnmount(() => {
+  stopSubscriptions();
 });
 </script>

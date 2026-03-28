@@ -8,12 +8,6 @@
               <p class="cn-kicker text-outline">工具</p>
               <h1 class="cn-page-title mt-2 text-on-surface">工具目录</h1>
             </div>
-            <div class="flex flex-wrap gap-3">
-              <button class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface shadow-sm transition hover:bg-surface-container-high" type="button" :disabled="loading" @click="loadTools">
-                <AppIcon name="refresh" size="sm" />
-                刷新
-              </button>
-            </div>
           </header>
 
           <div v-if="error" class="mb-6 rounded-2xl border border-error/20 bg-error-container/60 px-5 py-4 text-sm text-on-error-container">
@@ -84,9 +78,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import AppIcon from '@/components/AppIcon.vue';
-import { apiGet } from '@/lib/api';
+import { rpcCall, rpcSubscribe } from '@/lib/rpc';
 import { getRouteToken } from '@/lib/auth';
 import type { ToolInfo } from '@/lib/types';
 import { useRoute } from 'vue-router';
@@ -98,6 +92,7 @@ const tools = ref<ToolInfo[]>([]);
 const selectedName = ref('');
 const loading = ref(false);
 const error = ref('');
+let stopToolsSubscription: (() => void) | null = null;
 
 const selectedTool = computed(() => tools.value.find((tool) => tool.name === selectedName.value) || tools.value[0] || null);
 const formattedParameters = computed(() => JSON.stringify(selectedTool.value?.parameters || {}, null, 2));
@@ -106,7 +101,7 @@ async function loadTools() {
   loading.value = true;
   error.value = '';
 
-  const result = await apiGet<{ tools: ToolInfo[] }>('/api/tools', token);
+  const result = await rpcCall<{ tools: ToolInfo[] }>('system.getTools', token);
   loading.value = false;
 
   if (result.error || !result.data) {
@@ -121,5 +116,36 @@ async function loadTools() {
   }
 }
 
-onMounted(loadTools);
+function bindSubscription() {
+  stopToolsSubscription?.();
+  stopToolsSubscription = rpcSubscribe<{ tools: ToolInfo[] }>(
+    'system.tools',
+    token,
+    undefined,
+    (data) => {
+      tools.value = data.tools;
+      if (!data.tools.some((tool) => tool.name === selectedName.value)) {
+        selectedName.value = data.tools[0]?.name || '';
+      }
+      loading.value = false;
+      error.value = '';
+    },
+    {
+      onError: (message) => {
+        error.value = message;
+        loading.value = false;
+      }
+    }
+  );
+}
+
+onMounted(() => {
+  void loadTools();
+  bindSubscription();
+});
+
+onBeforeUnmount(() => {
+  stopToolsSubscription?.();
+  stopToolsSubscription = null;
+});
 </script>

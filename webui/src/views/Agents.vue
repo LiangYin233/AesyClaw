@@ -7,10 +7,13 @@
           <h1 class="cn-page-title mt-2 text-on-surface">Agent 编排中心</h1>
         </div>
         <div class="flex flex-wrap items-center gap-3">
-          <button class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface shadow-sm transition-colors hover:bg-surface-container-high" type="button" :disabled="loading" @click="loadAgentsPage">
-            <AppIcon name="refresh" size="sm" />
-            刷新
-          </button>
+          <router-link
+            :to="{ path: '/agents/runtime', query: token ? { token } : {} }"
+            class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/14 bg-surface-container-lowest px-5 py-2.5 text-sm font-bold text-on-surface shadow-sm transition hover:bg-surface-container-low"
+          >
+            <AppIcon name="history" size="sm" />
+            查看执行链
+          </router-link>
           <button class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-primary to-primary-container px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/10 transition hover:scale-[1.01]" type="button" @click="openCreateDrawer">
             <AppIcon name="plus" size="sm" />
             新建 Agent
@@ -186,11 +189,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import AgentEditor from '@/components/AgentEditor.vue';
 import AppIcon from '@/components/AppIcon.vue';
-import { apiDelete, apiGet, apiPost, apiPut } from '@/lib/api';
+import { rpcCall, rpcSubscribe } from '@/lib/rpc';
 import { getRouteToken } from '@/lib/auth';
 import type { AgentRole, AgentRoleConfig, AppConfig, SkillInfo, ToolInfo } from '@/lib/types';
 
@@ -206,6 +209,10 @@ const loading = ref(false);
 const saving = ref(false);
 const drawerMode = ref<'create' | 'edit' | null>(null);
 const selectedAgent = ref<AgentRole | null>(null);
+let stopAgentsSubscription: (() => void) | null = null;
+let stopConfigSubscription: (() => void) | null = null;
+let stopSkillsSubscription: (() => void) | null = null;
+let stopToolsSubscription: (() => void) | null = null;
 
 const form = reactive<AgentRoleConfig>({
   name: '',
@@ -249,10 +256,10 @@ async function loadAgentsPage() {
   error.value = '';
 
   const [agentsResult, configResult, skillsResult, toolsResult] = await Promise.all([
-    apiGet<{ agents: AgentRole[] }>('/api/agents', token),
-    apiGet<AppConfig>('/api/config', token),
-    apiGet<{ skills: SkillInfo[] }>('/api/skills', token),
-    apiGet<{ tools: ToolInfo[] }>('/api/tools', token),
+    rpcCall<{ agents: AgentRole[] }>('agents.list', token),
+    rpcCall<AppConfig>('config.get', token),
+    rpcCall<{ skills: SkillInfo[] }>('skills.list', token),
+    rpcCall<{ tools: ToolInfo[] }>('system.getTools', token),
   ]);
 
   if (agentsResult.error) {
@@ -306,8 +313,11 @@ async function saveAgent() {
   };
 
   const result = drawerMode.value === 'edit' && selectedAgent.value
-    ? await apiPut<{ agent: AgentRole }>(`/api/agents/${selectedAgent.value.name}`, token, payload)
-    : await apiPost<{ agent: AgentRole }>('/api/agents', token, payload);
+    ? await rpcCall<{ agent: AgentRole }>('agents.update', token, {
+      ...payload,
+      name: selectedAgent.value.name
+    })
+    : await rpcCall<{ agent: AgentRole }>('agents.create', token, payload);
 
   saving.value = false;
 
@@ -316,7 +326,6 @@ async function saveAgent() {
     return;
   }
 
-  await loadAgentsPage();
   if (result.data?.agent) {
     selectAgent(result.data.agent);
   } else {
@@ -335,7 +344,7 @@ async function deleteAgent() {
   }
 
   saving.value = true;
-  const result = await apiDelete<{ success: boolean }>(`/api/agents/${selectedAgent.value.name}`, token);
+  const result = await rpcCall<{ success: boolean }>('agents.delete', token, { name: selectedAgent.value.name });
   saving.value = false;
 
   if (result.error) {
@@ -344,7 +353,6 @@ async function deleteAgent() {
   }
 
   resetSelection();
-  await loadAgentsPage();
 }
 
 function agentStatusLabel(agent: AgentRole) {
@@ -369,7 +377,99 @@ function agentVisualTone(agent: AgentRole) {
   return { icon: 'robot', iconBg: 'bg-surface-container-high', iconText: 'text-on-surface-variant' };
 }
 
+watch([agents, selectedAgent], ([nextAgents, currentSelected]) => {
+  if (!currentSelected) {
+    if (drawerMode.value !== 'create') {
+      applyForm(createTemplate());
+    }
+    return;
+  }
+
+  const latest = nextAgents.find((agent) => agent.name === currentSelected.name);
+  if (!latest) {
+    resetSelection();
+    applyForm(createTemplate());
+    return;
+  }
+
+  selectedAgent.value = latest;
+  if (drawerMode.value === 'edit') {
+    applyForm({
+      name: latest.name,
+      description: latest.description || '',
+      model: latest.model,
+      systemPrompt: latest.systemPrompt,
+      allowedSkills: [...latest.allowedSkills],
+      allowedTools: [...latest.allowedTools],
+    });
+  }
+});
+
+function stopSubscriptions() {
+  stopAgentsSubscription?.();
+  stopAgentsSubscription = null;
+  stopConfigSubscription?.();
+  stopConfigSubscription = null;
+  stopSkillsSubscription?.();
+  stopSkillsSubscription = null;
+  stopToolsSubscription?.();
+  stopToolsSubscription = null;
+}
+
+function bindSubscriptions() {
+  stopSubscriptions();
+
+  stopAgentsSubscription = rpcSubscribe<{ agents: AgentRole[] }>(
+    'agents.list',
+    token,
+    undefined,
+    (data) => {
+      agents.value = data.agents;
+      loading.value = false;
+      error.value = '';
+    },
+    {
+      onError: (message) => {
+        error.value = message;
+        loading.value = false;
+      }
+    }
+  );
+
+  stopConfigSubscription = rpcSubscribe<AppConfig>(
+    'config.state',
+    token,
+    undefined,
+    (data) => {
+      config.value = data;
+    }
+  );
+
+  stopSkillsSubscription = rpcSubscribe<{ skills: SkillInfo[] }>(
+    'skills.list',
+    token,
+    undefined,
+    (data) => {
+      skills.value = data.skills;
+    }
+  );
+
+  stopToolsSubscription = rpcSubscribe<{ tools: ToolInfo[] }>(
+    'system.tools',
+    token,
+    undefined,
+    (data) => {
+      tools.value = data.tools;
+    }
+  );
+}
+
 onMounted(() => {
   void loadAgentsPage();
+  bindSubscriptions();
+});
+
+onBeforeUnmount(() => {
+  stopSubscriptions();
 });
 </script>

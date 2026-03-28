@@ -16,8 +16,6 @@ export default defineConfig(() => {
       port: 5173,
       strictPort: true,
       hmr: {
-        host: 'localhost',
-        port: 5173,
         overlay: true,
       },
       watch: {
@@ -25,9 +23,10 @@ export default defineConfig(() => {
         interval: 300,
       },
       proxy: {
-        '/api': {
-          target: 'http://127.0.0.1:18792',
+        '/ws': {
+          target: 'ws://127.0.0.1:18792',
           changeOrigin: true,
+          ws: true,
         },
       },
     },

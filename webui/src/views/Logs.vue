@@ -6,26 +6,6 @@
           <p class="cn-kicker text-outline">观测</p>
           <h1 class="cn-page-title mt-2 text-on-surface">日志观测面板</h1>
         </div>
-        <div class="flex flex-wrap items-center gap-3">
-          <button
-            class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/16 bg-surface-container-lowest/80 px-4 py-2.5 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-60"
-            type="button"
-            :disabled="loading"
-            @click="loadLogsPage"
-          >
-            <AppIcon name="refresh" size="sm" />
-            刷新
-          </button>
-          <button
-            class="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition"
-            :class="autoRefresh ? 'bg-primary text-white' : 'border border-outline-variant/16 bg-surface-container-lowest/80 text-on-surface'"
-            type="button"
-            @click="autoRefresh = !autoRefresh"
-          >
-            <AppIcon name="history" size="sm" />
-            {{ autoRefresh ? '自动刷新中' : '开启自动刷新' }}
-          </button>
-        </div>
       </header>
 
       <div v-if="error" class="mb-6 rounded-2xl border border-error/20 bg-error-container/60 px-5 py-4 text-sm text-on-error-container">
@@ -51,8 +31,8 @@
             <span class="workspace-kpi-note">{{ levelFilter === 'all' ? '全部等级' : `${levelLabel(levelFilter)} 级` }}</span>
           </div>
           <div class="workspace-kpi">
-            <span class="workspace-kpi-label">刷新状态</span>
-            <span class="workspace-kpi-value">{{ autoRefresh ? '自动刷新' : '手动刷新' }}</span>
+            <span class="workspace-kpi-label">更新状态</span>
+            <span class="workspace-kpi-value">实时订阅</span>
             <span class="workspace-kpi-note">{{ lastUpdatedLabel }} · {{ lastUpdatedTime }}</span>
           </div>
           <div class="workspace-kpi">
@@ -196,7 +176,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import AppIcon from '@/components/AppIcon.vue';
-import { apiGet, apiPost } from '@/lib/api';
+import { rpcCall, rpcSubscribe } from '@/lib/rpc';
 import { getRouteToken } from '@/lib/auth';
 import { formatDateTime, formatKeyValue, formatNumber, formatRelativeTime, formatTokenShort } from '@/lib/format';
 import type { LogLevel, ObservabilityEntriesResponse, ObservabilityLogEntry, ObservabilityLoggingConfig, TokenUsageStats } from '@/lib/types';
@@ -213,13 +193,12 @@ const bufferTotal = ref(0);
 const loading = ref(false);
 const savingLevel = ref(false);
 const error = ref('');
-const autoRefresh = ref(true);
-const initialLoad = ref(true);
 const levelFilter = ref<'all' | LogLevel>('all');
 const levelDraft = ref<LogLevel>('info');
 const limit = ref(200);
 const lastUpdatedAt = ref<Date | null>(null);
-let refreshTimer: number | null = null;
+let stopLogsSubscription: (() => void) | null = null;
+let stopUsageSubscription: (() => void) | null = null;
 
 const runtimeLevel = computed<LogLevel>(() => config.value?.level || 'info');
 const currentBufferSize = computed(() => formatNumber(bufferTotal.value));
@@ -263,18 +242,16 @@ function levelBadgeClass(level: LogLevel) {
 }
 
 async function loadLogsPage() {
-  if (initialLoad.value) {
-    loading.value = true;
-  }
+  loading.value = true;
   error.value = '';
 
   const [configResult, entriesResult, usageResult] = await Promise.all([
-    apiGet<ObservabilityLoggingConfig>('/api/observability/logging/config', token),
-    apiGet<ObservabilityEntriesResponse>('/api/observability/logging/entries', token, {
+    rpcCall<ObservabilityLoggingConfig>('observability.getLoggingConfig', token),
+    rpcCall<ObservabilityEntriesResponse>('observability.getLoggingEntries', token, {
       limit: limit.value,
       level: levelFilter.value === 'all' ? undefined : levelFilter.value,
     }),
-    apiGet<TokenUsageStats>('/api/observability/usage', token),
+    rpcCall<TokenUsageStats>('observability.getUsage', token),
   ]);
 
   if (configResult.error || entriesResult.error) {
@@ -288,12 +265,11 @@ async function loadLogsPage() {
   usageStats.value = usageResult.data ?? null;
   lastUpdatedAt.value = new Date();
   loading.value = false;
-  initialLoad.value = false;
 }
 
 async function updateRuntimeLevel() {
   savingLevel.value = true;
-  const result = await apiPost<{ success: true; level: LogLevel }>('/api/observability/logging/level', token, {
+  const result = await rpcCall<{ success: true; level: LogLevel }>('observability.setLogLevel', token, {
     level: levelDraft.value,
   });
   savingLevel.value = false;
@@ -309,39 +285,73 @@ async function updateRuntimeLevel() {
       level: result.data?.level || levelDraft.value,
     };
   }
-
-  await loadLogsPage();
 }
 
-function syncAutoRefresh() {
-  if (refreshTimer) {
-    window.clearInterval(refreshTimer);
-    refreshTimer = null;
-  }
+function stopSubscriptions() {
+  stopLogsSubscription?.();
+  stopLogsSubscription = null;
+  stopUsageSubscription?.();
+  stopUsageSubscription = null;
+}
 
-  if (autoRefresh.value) {
-    refreshTimer = window.setInterval(() => {
-      loadLogsPage();
-    }, 10000);
-  }
+function bindSubscriptions() {
+  stopSubscriptions();
+
+  stopLogsSubscription = rpcSubscribe<ObservabilityEntriesResponse>(
+    'observability.logs',
+    token,
+    {
+      limit: limit.value,
+      level: levelFilter.value === 'all' ? undefined : levelFilter.value
+    },
+    (data) => {
+      entries.value = data.entries;
+      bufferTotal.value = data.total;
+      config.value = {
+        level: data.level,
+        bufferSize: data.bufferSize,
+        pretty: config.value?.pretty ?? true
+      };
+      levelDraft.value = data.level;
+      lastUpdatedAt.value = new Date();
+      loading.value = false;
+      error.value = '';
+    },
+    {
+      onError: (message) => {
+        error.value = message;
+        loading.value = false;
+      }
+    }
+  );
+
+  stopUsageSubscription = rpcSubscribe<TokenUsageStats>(
+    'observability.usage',
+    token,
+    undefined,
+    (data) => {
+      usageStats.value = data;
+      lastUpdatedAt.value = new Date();
+    },
+    {
+      onError: (message) => {
+        error.value = message;
+      }
+    }
+  );
 }
 
 watch([levelFilter, limit], () => {
-  loadLogsPage();
-});
-
-watch(autoRefresh, () => {
-  syncAutoRefresh();
+  void loadLogsPage();
+  bindSubscriptions();
 });
 
 onMounted(() => {
-  loadLogsPage();
-  syncAutoRefresh();
+  void loadLogsPage();
+  bindSubscriptions();
 });
 
 onBeforeUnmount(() => {
-  if (refreshTimer) {
-    window.clearInterval(refreshTimer);
-  }
+  stopSubscriptions();
 });
 </script>

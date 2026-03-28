@@ -9,10 +9,6 @@
               <h1 class="cn-page-title mt-2 text-on-surface">Cron 调度台</h1>
             </div>
             <div class="flex flex-wrap gap-3">
-              <button class="inline-flex items-center gap-2 rounded-xl border border-outline-variant/20 bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface shadow-sm transition hover:bg-surface-container-high" type="button" :disabled="loading" @click="loadJobs">
-                <AppIcon name="refresh" size="sm" />
-                刷新
-              </button>
               <button class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-primary to-primary-container px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:opacity-90" type="button" @click="startCreate">
                 <AppIcon name="plus" size="sm" />
                 新建任务
@@ -215,9 +211,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import AppIcon from '@/components/AppIcon.vue';
-import { apiDelete, apiGet, apiPost, apiPut } from '@/lib/api';
+import { rpcCall, rpcSubscribe } from '@/lib/rpc';
 import { formatDateTime } from '@/lib/format';
 import type { CronJob } from '@/lib/types';
 import { useRoute } from 'vue-router';
@@ -234,6 +230,8 @@ const loading = ref(false);
 const saving = ref(false);
 const error = ref('');
 const draft = ref<CronJob>(createEmptyJob());
+const isCreating = ref(false);
+let stopJobsSubscription: (() => void) | null = null;
 
 const enabledCount = computed(() => jobs.value.filter((job) => job.enabled).length);
 const enabledRate = computed(() => {
@@ -335,7 +333,7 @@ async function loadJobs() {
   loading.value = true;
   error.value = '';
 
-  const result = await apiGet<{ jobs: CronJob[] }>('/api/cron', token);
+  const result = await rpcCall<{ jobs: CronJob[] }>('cron.list', token);
   loading.value = false;
 
   if (result.error || !result.data) {
@@ -344,32 +342,46 @@ async function loadJobs() {
     return;
   }
 
-  jobs.value = result.data.jobs;
-  if (selectedId.value && jobs.value.some((job) => job.id === selectedId.value)) {
-    await selectJob(selectedId.value);
+  syncJobs(result.data.jobs);
+}
+
+function syncJobs(nextJobs: CronJob[]) {
+  jobs.value = nextJobs;
+
+  if (selectedId.value) {
+    const selected = nextJobs.find((job) => job.id === selectedId.value);
+    if (selected) {
+      draft.value = normalizeDraft(selected);
+      isCreating.value = false;
+      return;
+    }
+    selectedId.value = '';
+  }
+
+  if (!nextJobs.length) {
+    draft.value = createEmptyJob();
     return;
   }
 
-  if (!selectedId.value && jobs.value[0]) {
-    await selectJob(jobs.value[0].id);
-  } else if (!jobs.value.length) {
-    draft.value = createEmptyJob();
+  if (!isCreating.value) {
+    selectedId.value = nextJobs[0].id;
+    draft.value = normalizeDraft(nextJobs[0]);
   }
 }
 
-async function selectJob(id: string) {
-  selectedId.value = id;
-
-  const result = await apiGet<{ job: CronJob }>(`/api/cron/${encodeURIComponent(id)}`, token);
-  if (result.error || !result.data) {
-    error.value = result.error || '任务详情加载失败';
+function selectJob(id: string) {
+  const selected = jobs.value.find((job) => job.id === id);
+  if (!selected) {
     return;
   }
 
-  draft.value = normalizeDraft(result.data.job);
+  isCreating.value = false;
+  selectedId.value = id;
+  draft.value = normalizeDraft(selected);
 }
 
 function startCreate() {
+  isCreating.value = true;
   selectedId.value = '';
   draft.value = createEmptyJob();
 }
@@ -401,8 +413,11 @@ async function saveJob() {
   };
 
   const result = selectedId.value
-    ? await apiPut<{ success: true; job: CronJob }>(`/api/cron/${encodeURIComponent(selectedId.value)}`, token, payload)
-    : await apiPost<{ success: true; job: CronJob }>('/api/cron', token, payload);
+    ? await rpcCall<{ success: true; job: CronJob }>('cron.update', token, {
+      ...payload,
+      id: selectedId.value
+    })
+    : await rpcCall<{ success: true; job: CronJob }>('cron.create', token, payload);
 
   saving.value = false;
 
@@ -412,13 +427,15 @@ async function saveJob() {
   }
 
   if (result.data?.job?.id) {
+    isCreating.value = false;
     selectedId.value = result.data.job.id;
+    draft.value = normalizeDraft(result.data.job);
   }
-  await loadJobs();
 }
 
 async function toggleJob(job: CronJob) {
-  const result = await apiPost<{ success: true }>(`/api/cron/${encodeURIComponent(job.id)}/toggle`, token, {
+  const result = await rpcCall<{ success: true }>('cron.toggle', token, {
+    id: job.id,
     enabled: !job.enabled,
   });
 
@@ -426,8 +443,6 @@ async function toggleJob(job: CronJob) {
     error.value = result.error;
     return;
   }
-
-  await loadJobs();
 }
 
 async function deleteJob() {
@@ -436,7 +451,7 @@ async function deleteJob() {
   }
 
   saving.value = true;
-  const result = await apiDelete<{ success: true }>(`/api/cron/${encodeURIComponent(selectedId.value)}`, token);
+  const result = await rpcCall<{ success: true }>('cron.delete', token, { id: selectedId.value });
   saving.value = false;
 
   if (result.error) {
@@ -444,10 +459,38 @@ async function deleteJob() {
     return;
   }
 
+  isCreating.value = false;
   selectedId.value = '';
   draft.value = createEmptyJob();
-  await loadJobs();
 }
 
-onMounted(loadJobs);
+function bindSubscription() {
+  stopJobsSubscription?.();
+  stopJobsSubscription = rpcSubscribe<{ jobs: CronJob[] }>(
+    'cron.list',
+    token,
+    undefined,
+    (data) => {
+      syncJobs(data.jobs);
+      loading.value = false;
+      error.value = '';
+    },
+    {
+      onError: (message) => {
+        error.value = message;
+        loading.value = false;
+      }
+    }
+  );
+}
+
+onMounted(() => {
+  void loadJobs();
+  bindSubscription();
+});
+
+onBeforeUnmount(() => {
+  stopJobsSubscription?.();
+  stopJobsSubscription = null;
+});
 </script>

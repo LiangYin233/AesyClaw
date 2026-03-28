@@ -33,6 +33,7 @@ export class SkillManager {
   private reloadTimer: NodeJS.Timeout | null = null;
   private reloadPromise: Promise<SkillReloadSummary> | null = null;
   private pendingReload = false;
+  private listeners = new Set<() => void | Promise<void>>();
 
   constructor(options?: SkillManagerOptions) {
     if (options?.builtinSkillsDir) {
@@ -55,6 +56,7 @@ export class SkillManager {
         ? true
         : (config.skills?.[skill.name]?.enabled ?? true);
     }
+    void this.notifyListeners();
   }
 
   async loadFromDirectory(): Promise<void> {
@@ -70,6 +72,7 @@ export class SkillManager {
       }
       await this.cleanupBuiltinSkillConfigEntries();
       this.log.info('Skills 加载完成', { count: this.skills.size, skills: Array.from(this.skills.keys()) });
+      await this.notifyListeners();
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       this.log.error(`Skills 全量加载失败: ${reason}`, {
@@ -144,6 +147,13 @@ export class SkillManager {
     return Array.from(this.skills.values());
   }
 
+  onChange(listener: () => void | Promise<void>): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
   async toggleSkill(name: string, enabled: boolean): Promise<boolean> {
     const skill = this.skills.get(name);
     if (!skill) {
@@ -166,6 +176,7 @@ export class SkillManager {
       config.skills[name] = { enabled };
     });
     this.applyConfig(nextConfig);
+    await this.notifyListeners();
 
     return true;
   }
@@ -275,6 +286,7 @@ export class SkillManager {
       ...summary,
       cleanedAgentRefs
     };
+    await this.notifyListeners();
     return result;
   }
 
@@ -579,5 +591,11 @@ export class SkillManager {
       }
     });
     this.applyConfig(nextConfig);
+  }
+
+  private async notifyListeners(): Promise<void> {
+    for (const listener of this.listeners) {
+      await listener();
+    }
   }
 }

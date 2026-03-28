@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { AgentRuntime } from '../../../agent/index.js';
 import { DomainValidationError } from '../../../platform/errors/domain.js';
-import type { CreateChatRequestDto } from '../api/chat.dto.js';
+import type { CreateChatRequestDto } from '../contracts/chat.dto.js';
 
 const WEBUI_CHANNEL = 'webui';
 

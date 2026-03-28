@@ -1,5 +1,3 @@
-export { registerCronFeature } from './runtime/registerCronFeature.js';
-export type { CronFeatureDeps } from './runtime/registerCronFeature.js';
 export { createCronRuntime } from './runtime/createCronRuntime.js';
 export { registerCronEventListeners } from './runtime/registerCronEventListeners.js';
 export { dispatchCronJob } from './runtime/dispatchCronJob.js';

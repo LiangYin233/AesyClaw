@@ -15,15 +15,15 @@ export async function shutdownServices(services: Services): Promise<void> {
     }
   };
 
-  const { agentRuntime, apiServer, channelManager, sessionManager, cronService, skillManager, configManager, mcpManager } = services;
+  const { agentRuntime, webServer, channelManager, sessionManager, cronService, skillManager, configManager, mcpManager } = services;
   agentRuntime.stop();
   configManager.dispose();
 
   await runStep('skill watchers', async () => {
     await skillManager?.stopWatching();
   });
-  await runStep('api server', async () => {
-    await apiServer?.stop();
+  await runStep('web server', async () => {
+    await webServer?.stop();
   });
   await runStep('channel manager', async () => {
     await channelManager.stopAll();
