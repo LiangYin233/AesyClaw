@@ -341,7 +341,7 @@ const activeSessionKey = computed(() => resolvedSessionKey.value || '');
 const visibleAgentFilters = computed(() => [...new Set(sessions.value.map((session) => session.agentName || 'main'))].slice(0, 6));
 const filteredSessions = computed(() => {
   const query = sessionFilter.value.trim().toLowerCase();
-  return [...sessions.value]
+  return sessions.value
     .filter((session) => {
       const matchesAgent = agentFilter.value === 'all' || (session.agentName || 'main') === agentFilter.value;
       const haystack = [session.key, session.channel, session.chatId, session.agentName, sessionPreview(session)]
@@ -349,8 +349,7 @@ const filteredSessions = computed(() => {
         .join(' ')
         .toLowerCase();
       return matchesAgent && (!query || haystack.includes(query));
-    })
-    .sort((a, b) => b.messageCount - a.messageCount || a.key.localeCompare(b.key));
+    });
 });
 const displayMessages = computed<SessionMessage[]>(() => activeDetail.value?.messages || []);
 const headerTitle = computed(() => {

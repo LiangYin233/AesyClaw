@@ -240,7 +240,7 @@ const detailRequestGuard = useLatestRequestGuard();
 let stopSessionsSubscription: (() => void) | null = null;
 let stopDetailSubscription: (() => void) | null = null;
 
-const sortedSessions = computed(() => [...sessions.value].sort((a, b) => b.messageCount - a.messageCount || a.key.localeCompare(b.key)));
+const sortedSessions = computed(() => sessions.value);
 const selectedSet = computed(() => new Set(selectedKeys.value));
 const allSelected = computed(() => sortedSessions.value.length > 0 && sortedSessions.value.every((session) => selectedSet.value.has(session.key)));
 const totalMessages = computed(() => formatNumber(sessions.value.reduce((sum, session) => sum + session.messageCount, 0)));

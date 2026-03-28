@@ -19,6 +19,7 @@ export interface Session {
   uuid?: string;
   agentName?: string;
   messageCount: number;
+  updatedAt?: string;
 }
 
 export interface SessionMessage {

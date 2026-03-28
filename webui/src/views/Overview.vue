@@ -57,7 +57,6 @@
             <div class="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p class="cn-section-title text-on-surface">运行工作区</p>
-                <p class="mt-1 text-sm text-on-surface-variant">把需要优先处理的风险、关键事件和最新会话放在同一视图里。</p>
               </div>
               <router-link :to="{ path: '/observability/logs', query: token ? { token } : {} }" class="text-xs font-bold tracking-[0.08em] text-primary hover:underline">打开日志流</router-link>
             </div>
@@ -83,7 +82,7 @@
                   </div>
                 </div>
                 <div v-if="criticalAlerts.length === 0" class="workspace-subtle rounded-2xl px-4 py-4 text-sm text-on-surface-variant">
-                  当前没有高优先级风险，Agent、MCP 和日志状态都比较稳定。
+                  当前没有高优先级风险。
                 </div>
               </div>
             </section>
@@ -233,7 +232,7 @@ let stopAgentsSubscription: (() => void) | null = null;
 let stopServersSubscription: (() => void) | null = null;
 let stopLogsSubscription: (() => void) | null = null;
 
-const recentSessions = computed(() => [...sessions.value].sort((a, b) => b.messageCount - a.messageCount).slice(0, 6));
+const recentSessions = computed(() => sessions.value.slice(0, 6));
 const totalMessages = computed(() => sessions.value.reduce((sum, s) => sum + s.messageCount, 0));
 const missingAgentCount = computed(() => agents.value.filter((agent) => agent.missingSkills.length > 0 || agent.missingTools.length > 0).length);
 const readyAgents = computed(() => agents.value.length - missingAgentCount.value);
