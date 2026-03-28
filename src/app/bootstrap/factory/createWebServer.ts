@@ -1,7 +1,7 @@
 import type { AgentRoleService } from '../../../agent/infrastructure/roles/AgentRoleService.js';
 import type { SessionRoutingService } from '../../../agent/infrastructure/session/SessionRoutingService.js';
 import type { AgentRuntime } from '../../../agent/index.js';
-import { WebServer } from '../../server/index.js';
+import { WebServer } from '../../ws/WebServer.js';
 import type { ChannelManager } from '../../../features/channels/application/ChannelManager.js';
 import type { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
 import type { CronRuntimeService } from '../../../features/cron/index.js';

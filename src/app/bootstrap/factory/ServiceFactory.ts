@@ -1,7 +1,7 @@
 import { join } from 'path';
 import { AgentRuntime, OutboundGateway } from '../../../agent/index.js';
 import type { SessionRoutingService } from '../../../agent/infrastructure/session/SessionRoutingService.js';
-import { WebServer } from '../../server/index.js';
+import { WebServer } from '../../ws/WebServer.js';
 import { ChannelManager } from '../../../features/channels/application/ChannelManager.js';
 import { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
 import { CronRuntimeService } from '../../../features/cron/index.js';

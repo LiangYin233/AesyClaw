@@ -1,9 +1,18 @@
-import type { SkillManager } from '../../../features/skills/index.js';
 import type { ToolRegistry } from '../ToolRegistry.js';
+
+interface SkillFile {
+  name: string;
+  isDirectory: boolean;
+}
+
+export interface SkillToolService {
+  readSkillFile(name: string, file?: string): Promise<string | null>;
+  listSkillFiles(name: string): Promise<SkillFile[] | string[] | null>;
+}
 
 export function registerSkillTools(args: {
   toolRegistry: ToolRegistry;
-  skillManager: SkillManager;
+  skillManager: SkillToolService;
 }): void {
   const { toolRegistry, skillManager } = args;
 
@@ -42,7 +51,8 @@ export function registerSkillTools(args: {
       if (!files) return `Skill "${skillName}" not found`;
       if (typeof files === 'string') return files;
       if (files.length === 0) return `No files found in skill "${skillName}"`;
-      return `Files in skill "${skillName}":\n${files.map((file) => `${file.name}${file.isDirectory ? '/' : ''}`).join('\n')}`;
+      const fileList = files as SkillFile[];
+      return `Files in skill "${skillName}":\n${fileList.map((file) => `${file.name}${file.isDirectory ? '/' : ''}`).join('\n')}`;
     }
   }, 'built-in');
 }

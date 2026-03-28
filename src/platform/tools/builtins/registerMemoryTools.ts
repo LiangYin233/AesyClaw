@@ -1,4 +1,3 @@
-import type { SessionMemoryService } from '../../../agent/infrastructure/memory/SessionMemoryService.js';
 import type { ToolContext, ToolRegistry } from '../ToolRegistry.js';
 import {
   formatToolError,
@@ -7,9 +6,21 @@ import {
   throwIfToolAborted
 } from './shared.js';
 
+export interface MemoryToolService {
+  hasLongTermMemory(): boolean;
+  listLongTermMemory(channel: string, chatId: string): Promise<{ entries: unknown[] }>;
+  listLongTermMemoryOperations(channel: string, chatId: string, limit: number): Promise<unknown>;
+  applyLongTermMemoryOperations(
+    channel: string,
+    chatId: string,
+    operations: unknown[],
+    source: string
+  ): Promise<unknown>;
+}
+
 export function registerMemoryTools(args: {
   toolRegistry: ToolRegistry;
-  memoryService?: SessionMemoryService;
+  memoryService?: MemoryToolService;
 }): void {
   const { toolRegistry, memoryService } = args;
 

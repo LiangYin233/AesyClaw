@@ -1,15 +1,21 @@
-import type { AgentRuntime } from '../../../agent/index.js';
 import type { ChannelManager } from '../../channels/application/ChannelManager.js';
 import { buildChannelStatusSnapshot, type ChannelStatusSnapshot } from '../../channels/application/channelStatusSnapshot.js';
-import type { SessionManager } from '../../sessions/application/SessionManager.js';
 import type { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
 import type { Config } from '../../../types.js';
+
+interface AgentStatusChecker {
+  isRunning(): boolean;
+}
+
+interface SessionCounter {
+  count(): number;
+}
 
 export class SystemService {
   constructor(
     private readonly packageVersion: string,
-    private readonly agentRuntime: Pick<AgentRuntime, 'isRunning'>,
-    private readonly sessionManager: Pick<SessionManager, 'count'>,
+    private readonly agentRuntime: AgentStatusChecker,
+    private readonly sessionManager: SessionCounter,
     private readonly channelManager: ChannelManager,
     private readonly getConfig: () => Config,
     private readonly toolRegistry?: ToolRegistry

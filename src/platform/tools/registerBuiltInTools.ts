@@ -1,11 +1,5 @@
 import type { ToolRegistry } from './ToolRegistry.js';
-import type { SkillManager } from '../../features/skills/index.js';
-import type { CronRuntimeService } from '../../features/cron/index.js';
-import type { McpClientManager } from '../../features/mcp/index.js';
-import type { PluginManager } from '../../features/plugins/index.js';
 import type { ToolDefinition } from '../../types.js';
-import type { SessionMemoryService } from '../../agent/infrastructure/memory/SessionMemoryService.js';
-import type { SessionManager } from '../../features/sessions/index.js';
 import { registerCronTools } from '../../features/cron/index.js';
 import { syncMcpServerTools } from '../../features/mcp/index.js';
 import { logger } from '../observability/index.js';
@@ -14,41 +8,49 @@ import { registerMemoryTools } from './builtins/registerMemoryTools.js';
 import { registerMessagingTools } from './builtins/registerMessagingTools.js';
 import { registerSkillTools } from './builtins/registerSkillTools.js';
 
-export interface ToolIntegrationOptions {
+export function registerBuiltInTools(options: {
   toolRegistry: ToolRegistry;
-  skillManager: SkillManager;
-  cronService: CronRuntimeService;
-  pluginManager: PluginManager;
-  mcpManager: McpClientManager | null;
-  sessionManager: SessionManager;
-  memoryService?: SessionMemoryService;
-}
-
-export function registerBuiltInTools(options: ToolIntegrationOptions): void {
+  skillManager: object;
+  cronService: object;
+  pluginManager: object;
+  mcpManager: object | null;
+  sessionManager: object;
+  memoryService?: object;
+}): void {
   const log: BuiltInLogger = logger.child('ToolIntegration');
 
-  registerCronTools(options.toolRegistry, options.cronService);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  registerCronTools(options.toolRegistry, options.cronService as any);
 
   registerSkillTools({
     toolRegistry: options.toolRegistry,
-    skillManager: options.skillManager
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    skillManager: options.skillManager as any
   });
 
   registerMessagingTools({
     toolRegistry: options.toolRegistry,
-    pluginManager: options.pluginManager,
-    sessionManager: options.sessionManager,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    pluginManager: options.pluginManager as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    sessionManager: options.sessionManager as any,
     log
   });
 
   registerMemoryTools({
     toolRegistry: options.toolRegistry,
-    memoryService: options.memoryService
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    memoryService: options.memoryService as any
   });
 }
 
-export function registerMcpTools(toolRegistry: ToolRegistry, mcpManager: McpClientManager): void {
-  mcpManager.onToolsLoaded(async (serverName: string, _tools: ToolDefinition[]) => {
-    syncMcpServerTools(toolRegistry, mcpManager, serverName);
+export function registerMcpTools(
+  toolRegistry: ToolRegistry,
+  mcpManager: object
+): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const manager = mcpManager as any;
+  manager.onToolsLoaded(async (serverName: string, _tools: ToolDefinition[]) => {
+    syncMcpServerTools(toolRegistry, manager, serverName);
   });
 }

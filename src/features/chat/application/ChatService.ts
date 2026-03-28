@@ -1,11 +1,16 @@
 import { randomUUID } from 'crypto';
-import type { AgentRuntime } from '../../../agent/index.js';
 import { DomainValidationError } from '../../../platform/errors/domain.js';
 import type { CreateChatRequestDto } from '../contracts/chat.dto.js';
 
 const WEBUI_CHANNEL = 'webui';
 
-type DirectChatHandler = Pick<AgentRuntime, 'handleDirect'>;
+interface DirectChatHandler {
+  handleDirect(
+    content: string,
+    reference: { sessionKey?: string; channel?: string; chatId?: string; messageType?: string } | string,
+    options?: { suppressOutbound?: boolean }
+  ): Promise<unknown>;
+}
 
 export class ChatService {
   constructor(

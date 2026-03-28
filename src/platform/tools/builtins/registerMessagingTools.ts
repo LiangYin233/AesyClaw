@@ -1,6 +1,4 @@
-import type { SessionManager } from '../../../features/sessions/index.js';
 import type { OutboundMessage } from '../../../types.js';
-import type { PluginManager } from '../../../features/plugins/index.js';
 import type { ToolContext, ToolRegistry } from '../ToolRegistry.js';
 import {
   type BuiltInLogger,
@@ -9,6 +7,14 @@ import {
   rethrowToolAbortError,
   throwIfToolAborted
 } from './shared.js';
+
+export interface MessagingPluginManager {
+  dispatchMessage(message: OutboundMessage): Promise<void>;
+}
+
+export interface MessagingSessionManager {
+  addMessage(sessionKey: string, role: string, content: string): Promise<void>;
+}
 
 function buildHistoryEntry(content: string, media?: string[], files?: string[]): string {
   const trimmed = content.trim();
@@ -32,8 +38,8 @@ function buildHistoryEntry(content: string, media?: string[], files?: string[]):
 
 export function registerMessagingTools(args: {
   toolRegistry: ToolRegistry;
-  pluginManager: PluginManager;
-  sessionManager: SessionManager;
+  pluginManager: MessagingPluginManager;
+  sessionManager: MessagingSessionManager;
   log: BuiltInLogger;
 }): void {
   const { toolRegistry, pluginManager, sessionManager } = args;

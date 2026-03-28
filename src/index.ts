@@ -12,7 +12,7 @@ export { PluginManager } from './features/plugins/index.js';
 export type { Plugin, PluginContext } from './features/plugins/index.js';
 export { CronRuntimeService as CronService } from './features/cron/index.js';
 export type { CronJob, CronSchedule, CronPayload } from './features/cron/index.js';
-export { WebServer } from './app/server/index.js';
+export { WebServer } from './app/ws/WebServer.js';
 export { ConfigLoader } from './features/config/index.js';
 export { configSchema } from './features/config/index.js';
 export { logger, logging, preview, tokenUsage } from './platform/observability/index.js';

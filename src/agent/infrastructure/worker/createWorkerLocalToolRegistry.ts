@@ -37,7 +37,8 @@ export async function createWorkerLocalToolRegistry(
 
   registerSkillTools({
     toolRegistry,
-    skillManager
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    skillManager: skillManager as any
   });
 
   const memoryDatabase = new Database(join(process.cwd(), '.aesyclaw', 'sessions', 'sessions.db'));

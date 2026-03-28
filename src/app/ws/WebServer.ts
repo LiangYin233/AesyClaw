@@ -19,7 +19,7 @@ import type { AgentRoleService } from '../../agent/infrastructure/roles/AgentRol
 import type { EventBus } from '../../platform/events/EventBus.js';
 import type { AesyClawEvents } from '../../platform/events/events.js';
 import { WebSocketApiServer } from '../ws/WebSocketApiServer.js';
-import { registerWebSocketHandlers } from '../../features/registerWebSocketHandlers.js';
+import { registerWebSocketHandlers } from '../ws/registerWebSocketHandlers.js';
 
 const MAX_MESSAGE_LENGTH = 50000;
 

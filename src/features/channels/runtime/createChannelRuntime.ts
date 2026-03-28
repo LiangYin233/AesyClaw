@@ -1,4 +1,3 @@
-import type { AgentRuntime } from '../../../agent/index.js';
 import { ChannelManager } from '../application/ChannelManager.js';
 import { loadExternalChannelPlugins } from '../application/ChannelPluginLoader.js';
 import { mergeChannelConfigWithDefaults } from '../domain/config.js';
@@ -6,6 +5,10 @@ import { ChannelRuntime } from './ChannelRuntime.js';
 import type { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
 import type { Database } from '../../../platform/db/index.js';
 import type { Config } from '../../../types.js';
+
+interface InboundHandler {
+  handleInbound(message: unknown, options?: { suppressOutbound?: boolean }): Promise<unknown>;
+}
 
 async function applyDefaultChannelConfigs(
   channelManager: ChannelManager,
@@ -49,7 +52,7 @@ export async function createChannelRuntime(args: {
   configManager: ConfigManager;
   db: Database;
   workspace: string;
-  agentRuntime: AgentRuntime;
+  agentRuntime: InboundHandler;
 }): Promise<ChannelManager> {
   const { configStore, configManager, db, workspace, agentRuntime } = args;
   const runtime = new ChannelRuntime(db, workspace);
