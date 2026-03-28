@@ -1,4 +1,4 @@
-import { readdir, stat } from 'fs/promises';
+import { readdir, readFile, stat } from 'fs/promises';
 import { join } from 'path';
 import { mkdir } from 'fs/promises';
 import type { InboundMessage, OutboundMessage } from '../../../types.js';
@@ -529,7 +529,27 @@ export class PluginManager {
         .sort((left, right) => left.localeCompare(right));
 
       for (const name of pluginDirs) {
-        const sourcePath = join(pluginsDir, name, 'main.ts');
+        const pluginDir = join(pluginsDir, name);
+        let sourcePath: string | undefined;
+
+        try {
+          const packageJsonPath = join(pluginDir, 'package.json');
+          const packageStat = await stat(packageJsonPath);
+          if (packageStat.isFile()) {
+            const packageContent = await readFile(packageJsonPath, 'utf-8');
+            const packageJson = JSON.parse(packageContent) as { main?: string };
+            if (packageJson.main) {
+              sourcePath = join(pluginDir, packageJson.main);
+            }
+          }
+        } catch {
+          // package.json not found or invalid, will try main.ts fallback
+        }
+
+        if (!sourcePath) {
+          sourcePath = join(pluginDir, 'main.ts');
+        }
+
         try {
           const sourceStat = await stat(sourcePath);
           if (sourceStat.isFile()) {

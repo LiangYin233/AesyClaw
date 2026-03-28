@@ -1,0 +1,9 @@
+{
+  "name": "@aesyclaw/channel-onebot",
+  "version": "2026.3.26",
+  "type": "module",
+  "main": "main.ts",
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}

@@ -1,11 +1,11 @@
 {
-  "name": "aesyclaw-channel-weixin",
-  "version": "1.0.0",
-  "description": "AesyClaw 微信渠道插件",
-  "main": "main.ts",
+  "name": "@aesyclaw/channel-weixin",
+  "version": "2026.3.26",
   "type": "module",
+  "main": "main.ts",
   "dependencies": {
     "@tencent-weixin/openclaw-weixin": "^1.0.2",
+    "qrcode-terminal": "^0.12.0",
     "silk-wasm": "^3.7.1"
   }
 }

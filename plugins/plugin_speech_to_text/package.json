@@ -1,5 +1,5 @@
 {
-  "name": "@aesyclaw/plugin-exec",
+  "name": "@aesyclaw/plugin-speech-to-text",
   "version": "2026.3.26",
   "type": "module",
   "main": "main.ts"
