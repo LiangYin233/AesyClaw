@@ -1,7 +1,5 @@
 import type { ToolRegistry } from './ToolRegistry.js';
 import type { ToolDefinition } from '../../types.js';
-import { registerCronTools } from '../../features/cron/index.js';
-import { syncMcpServerTools } from '../../features/mcp/index.js';
 import { logger } from '../observability/index.js';
 import type { BuiltInLogger } from './builtins/shared.js';
 import { registerMemoryTools } from './builtins/registerMemoryTools.js';
@@ -16,10 +14,14 @@ export function registerBuiltInTools(options: {
   mcpManager: object | null;
   sessionManager: object;
   memoryService?: object;
+  registerCronTools?: (registry: ToolRegistry, service: object) => void;
+  syncMcpTools?: (registry: ToolRegistry, manager: object, serverName: string) => void;
 }): void {
   const log: BuiltInLogger = logger.child('ToolIntegration');
 
-  registerCronTools(options.toolRegistry, options.cronService as any);
+  if (options.registerCronTools) {
+    options.registerCronTools(options.toolRegistry, options.cronService);
+  }
 
   registerSkillTools({
     toolRegistry: options.toolRegistry,
@@ -41,10 +43,12 @@ export function registerBuiltInTools(options: {
 
 export function registerMcpTools(
   toolRegistry: ToolRegistry,
-  mcpManager: object
+  mcpManager: object,
+  syncMcpTools?: (registry: ToolRegistry, manager: object, serverName: string) => void
 ): void {
+  if (!syncMcpTools) return;
   const manager = mcpManager as any;
   manager.onToolsLoaded(async (serverName: string, _tools: ToolDefinition[]) => {
-    syncMcpServerTools(toolRegistry, manager, serverName);
+    syncMcpTools(toolRegistry, manager, serverName);
   });
 }

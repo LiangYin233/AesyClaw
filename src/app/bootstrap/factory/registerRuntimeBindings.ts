@@ -3,7 +3,9 @@ import type { AgentRoleService } from '../../../agent/infrastructure/roles/Agent
 import type { SessionMemoryService } from '../../../agent/infrastructure/memory/SessionMemoryService.js';
 import type { SessionRoutingService } from '../../../agent/infrastructure/session/SessionRoutingService.js';
 import type { AgentRuntime } from '../../../agent/index.js';
+import { registerCronTools } from '../../../features/cron/index.js';
 import type { CronRuntimeService } from '../../../features/cron/index.js';
+import { syncMcpServerTools } from '../../../features/mcp/index.js';
 import type { McpClientManager } from '../../../features/mcp/index.js';
 import { PluginsService } from '../../../features/plugins/application/PluginsService.js';
 import type { PluginManager } from '../../../features/plugins/index.js';
@@ -77,6 +79,8 @@ export function registerRuntimeBindings(args: {
     pluginManager,
     mcpManager,
     sessionManager,
-    memoryService
+    memoryService,
+    registerCronTools: (registry, service) => registerCronTools(registry, service as any),
+    syncMcpTools: (registry, manager, serverName) => syncMcpServerTools(registry, manager as any, serverName)
   });
 }
