@@ -1,4 +1,4 @@
-import { SessionManager } from '../application/SessionManager.js';
+import { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
 import { SessionValidationError } from '../domain/types.js';
 
 export class SessionsRepository {

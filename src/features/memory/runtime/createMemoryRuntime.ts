@@ -1,6 +1,8 @@
 import { LongTermMemoryService } from '../../../agent/infrastructure/memory/LongTermMemoryService.js';
 import { OpenAIEmbeddingsClient } from '../../../agent/infrastructure/memory/OpenAIEmbeddingsClient.js';
 import { SessionMemoryService } from '../../../agent/infrastructure/memory/SessionMemoryService.js';
+import { LongTermMemoryStore } from '../../../agent/infrastructure/memory/LongTermMemoryStore.js';
+import { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
 import {
   getMemoryConfig,
   listEmbeddingProviderNames,
@@ -8,7 +10,6 @@ import {
 } from '../../config/index.js';
 import type { ResolvedProviderSelection } from '../../config/schema/index.js';
 import { createProvider } from '../../../platform/providers/index.js';
-import { LongTermMemoryStore, SessionManager } from '../../sessions/index.js';
 import type { Config } from '../../../types.js';
 function createOptionalProvider(resolved: ResolvedProviderSelection, _label: string) {
   if (!resolved.providerConfig) {

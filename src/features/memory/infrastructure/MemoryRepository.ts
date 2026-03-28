@@ -1,9 +1,9 @@
 import type { Database } from '../../../platform/db/index.js';
-import type { SessionManager } from '../../sessions/application/SessionManager.js';
+import type { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
 import type {
   LongTermMemoryOperation,
   LongTermMemoryStore
-} from '../../sessions/infrastructure/LongTermMemoryStore.js';
+} from '../../../agent/infrastructure/memory/LongTermMemoryStore.js';
 
 const CRON_CHANNEL = 'cron';
 

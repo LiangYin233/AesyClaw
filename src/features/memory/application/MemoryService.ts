@@ -1,4 +1,4 @@
-import type { LongTermMemoryOperation } from '../../sessions/infrastructure/LongTermMemoryStore.js';
+import type { LongTermMemoryOperation } from '../../../agent/infrastructure/memory/LongTermMemoryStore.js';
 import { NotFoundError } from '../../../platform/errors/index.js';
 import { MemoryRepository } from '../infrastructure/MemoryRepository.js';
 
