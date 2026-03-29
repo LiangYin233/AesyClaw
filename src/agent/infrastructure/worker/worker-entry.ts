@@ -7,6 +7,7 @@ import type { ToolContext, ToolRegistry } from '../../../platform/tools/ToolRegi
 import type { BuiltInLogger } from '../../../platform/tools/builtins/shared.js';
 import { registerAgentTools } from '../../../platform/tools/builtins/registerAgentTools.js';
 import type { AgentRoleService } from '../../../platform/context/AgentContext.js';
+import type { SkillManager } from '../../../features/skills/index.js';
 import { ExecutionEngine } from '../execution/ExecutionEngine.js';
 import { ExecutionRegistry } from '../execution/ExecutionRegistry.js';
 import { WorkerExecutionDelegateImpl } from './WorkerExecutionDelegate.js';
@@ -50,14 +51,14 @@ function resolveProviderSelection(
   };
 }
 
-function createAgentRoleServiceImpl(
+async function createAgentRoleServiceImpl(
   getConfig: () => Config,
   updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>,
   toolRegistry: Pick<ToolRegistry, 'getDefinitions'>,
-  skillManager?: unknown
-): AgentRoleService {
-  const { AgentRoleServiceImpl } = require('../../../features/agents/infrastructure/AgentRoleService.js');
-  return new AgentRoleServiceImpl(getConfig, updateConfig, toolRegistry, skillManager);
+  skillManager?: SkillManager
+): Promise<AgentRoleService> {
+  const { AgentRoleService } = await import('../../../features/agents/infrastructure/AgentRoleService.js');
+  return new AgentRoleService(getConfig, updateConfig, toolRegistry, skillManager);
 }
 
 /**
@@ -590,7 +591,7 @@ async function startExecution(message: Extract<ParentToWorkerMessage, { type: 's
 if (message.config.agent?.defaults && message.config.agents?.roles) {
     // 只有本地具备 agent 角色与默认配置时，worker 才能独立完成嵌套编排。
     const executionToolRegistry = createWorkerExecutionRegistry(activeRegistry, message.policy.availableToolDefinitions);
-    const agentRoleService = createAgentRoleServiceImpl(
+    const agentRoleService = await createAgentRoleServiceImpl(
       () => message.config,
       async () => message.config,
       {
