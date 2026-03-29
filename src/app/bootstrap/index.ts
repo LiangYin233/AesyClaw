@@ -1,4 +1,3 @@
-import { join } from 'path';
 import { mkdirSync, existsSync } from 'fs';
 import type { Config } from '../../types.js';
 import type { CronJob } from '../../features/cron/index.js';
@@ -10,6 +9,7 @@ import { setupEventListeners } from './app/eventListeners.js';
 import { setupSignalHandlers, shutdownServices } from './app/shutdown.js';
 import { EventBus } from '../../platform/events/EventBus.js';
 import type { AesyClawEvents } from '../../platform/events/events.js';
+import { dirPaths } from '../../platform/utils/paths.js';
 
 const CHANNEL_START_TIMEOUT = 30000;
 
@@ -57,8 +57,8 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<void> {
   const configManager = new ConfigManager(eventBus);
   const config = await configManager.load() as Config;
   const port = config.server.apiPort ?? 18792;
-  const workspace = join(process.cwd(), 'workspace');
-  const tempDir = join(process.cwd(), '.aesyclaw', 'temp');
+  const workspace = dirPaths.workspace();
+  const tempDir = dirPaths.temp();
   ensureRuntimeDirectories(workspace, tempDir);
 
   let servicesRef: Services | undefined;

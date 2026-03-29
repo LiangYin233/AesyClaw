@@ -1,10 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { dirname, join } from 'path';
+import { dirname } from 'path';
+import { filePaths } from '../../../../platform/utils/paths.js';
 
 export class ConfigFileStore {
   private configPath: string;
 
-  constructor(configPath = join(process.cwd(), 'config.toml')) {
+  constructor(configPath = filePaths.config()) {
     this.configPath = configPath;
   }
 

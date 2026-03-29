@@ -2,6 +2,7 @@ import sqlite3, { Database as SQLiteDatabase } from 'sqlite3';
 import { dirname } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { formatLocalTimestamp, logger } from './logging.js';
+import { filePaths } from '../utils/paths.js';
 
 const RECENT_DAILY_USAGE_DAYS = 7;
 const SQLITE_LOCAL_TIMESTAMP_EXPRESSION = `STRFTIME('%Y-%m-%dT%H:%M:%f', 'now', 'localtime')`;
@@ -102,7 +103,7 @@ export class TokenUsageTracker {
   private log = logger.child('Usage');
   private config: UsageConfig = {
     enabled: true,
-    persistFile: 'token-usage.db',
+    persistFile: filePaths.tokenUsageDb(),
     flushIntervalMs: 30000
   };
   private stats: TokenUsage = { ...DEFAULT_STATS };

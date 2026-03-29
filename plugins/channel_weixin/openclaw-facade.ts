@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import qrcodeTerminal from 'qrcode-terminal';
 import { logger as baseLogger } from '../../src/platform/observability/index.ts';
+import { channelPaths } from '../../src/platform/utils/paths.ts';
 import type { ResourceHandle } from '../../src/features/channels/domain/types.ts';
 import type { WeixinMessageItem } from './message-mapping.ts';
 import type { GetUpdatesResp, MessageItem, WeixinMessage } from '@tencent-weixin/openclaw-weixin/src/api/types.ts';
@@ -15,7 +16,7 @@ import { getMimeFromFilename, getExtensionFromMime } from '@tencent-weixin/openc
 const DEFAULT_LOGIN_BOT_TYPE = '3';
 const DEFAULT_LONG_POLL_TIMEOUT_MS = 35_000;
 const DEFAULT_API_TIMEOUT_MS = 15_000;
-const OUTBOUND_MEDIA_TEMP_DIR = join(process.cwd(), '.aesyclaw', 'channels', 'weixin', 'outbound-media');
+const OUTBOUND_MEDIA_TEMP_DIR = channelPaths.weixin.outboundMedia();
 const WEIXIN_HEADER_AUTH_TYPE = 'ilink_bot_token';
 const WEIXIN_SESSION_EXPIRED_ERRCODE = -14;
 

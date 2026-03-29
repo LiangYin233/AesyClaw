@@ -1,4 +1,3 @@
-import { join } from 'path';
 import { randomUUID } from 'crypto';
 import type { Database } from '../../../platform/db/index.js';
 import { logger } from '../../../platform/observability/index.js';
@@ -12,6 +11,7 @@ import { mapChannelMessageToCompatInbound, mapCompatOutboundToChannelMessage } f
 import { mapDraftToChannelMessage } from '../domain/messageMappers.js';
 import { processInboundMessage } from '../domain/inboundPipeline.js';
 import { prepareOutboundMessage } from '../domain/outboundPipeline.js';
+import { dirPaths } from '../../../platform/utils/paths.js';
 
 function isChannelMessage(value: OutboundMessage | ChannelMessage): value is ChannelMessage {
   return !!value && typeof value === 'object' && 'conversation' in value && 'segments' in value && 'timestamp' in value;
@@ -29,7 +29,7 @@ export class ChannelRuntime {
     db: Database,
     private workspace: string
   ) {
-    const assetsRoot = join(process.cwd(), '.aesyclaw', 'channel-assets');
+    const assetsRoot = dirPaths.channelAssets();
     this.resourceStore = new ResourceStore(db, assetsRoot);
     this.deliveryQueue = new DeliveryQueue(db);
   }

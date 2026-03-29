@@ -4,14 +4,13 @@ import { LongTermMemoryStore } from '../../features/memory/infrastructure/LongTe
 import { SessionRoutingService } from '../../features/sessions/infrastructure/SessionRoutingService.js';
 import type { SessionContext } from '../../platform/context/index.js';
 import type { Config } from '../../types.js';
-import { join } from 'path';
+import { filePaths } from '../../platform/utils/paths.js';
 
 export async function createSessionContext(config: Config): Promise<SessionContext & {
   sessionManager: SessionManager;
   longTermMemoryStore: LongTermMemoryStore;
 }> {
-  const dbPath = join(process.cwd(), '.aesyclaw', 'sessions', 'sessions.db');
-  const db = new Database(dbPath);
+  const db = new Database(filePaths.sessionsDb());
   
   const sessionManager = new SessionManager(db);
   await sessionManager.loadAll();

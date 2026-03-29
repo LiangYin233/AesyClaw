@@ -11,6 +11,7 @@ import { normalizePluginConfigs } from '../../features/plugins/domain/config.js'
 import { logger } from '../../platform/observability/index.js';
 import { registerMemoryTools } from '../../platform/tools/builtins/registerMemoryTools.js';
 import { registerSkillTools } from '../../platform/tools/builtins/registerSkillTools.js';
+import { filePaths, dirPaths } from '../../platform/utils/paths.js';
 
 export interface WorkerLocalToolRuntime {
   toolRegistry: ToolRegistry;
@@ -39,7 +40,7 @@ export async function createWorkerLocalToolRegistry(
     skillManager: skillManager as any
   });
 
-  const memoryDatabase = new Database(join(process.cwd(), '.aesyclaw', 'sessions', 'sessions.db'));
+  const memoryDatabase = new Database(filePaths.sessionsDb());
   await memoryDatabase.ready();
   const longTermMemoryStore = new LongTermMemoryStore(memoryDatabase);
 
@@ -86,7 +87,7 @@ export async function createWorkerLocalToolRegistry(
     pluginManager = new PluginManager({
       getConfig: () => config,
       workspace: resolvedWorkspace,
-      tempDir: join(process.cwd(), '.tmp', 'worker'),
+      tempDir: dirPaths.temp(),
       toolRegistry,
       publishOutbound: async () => {},
       logger

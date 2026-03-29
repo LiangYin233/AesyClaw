@@ -1,4 +1,3 @@
-import { join } from 'path';
 import { AgentRuntime, OutboundGateway } from '../../../agent/index.js';
 import type { ISessionRouting } from '../../../agent/domain/session.js';
 import { WebServer } from '../../ws/WebServer.js';
@@ -6,6 +5,7 @@ import { ChannelManager } from '../../../features/channels/application/ChannelMa
 import { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
 import { CronRuntimeService } from '../../../features/cron/index.js';
 import { logging, logger, tokenUsage } from '../../../platform/observability/index.js';
+import { filePaths } from '../../../platform/utils/paths.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
 import { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
 import { LongTermMemoryStore } from '../../../features/memory/infrastructure/LongTermMemoryStore.js';
@@ -68,7 +68,7 @@ export function bootstrapRuntimeConfig(config: Config): Config {
   });
   tokenUsage.configure({
     enabled: true,
-    persistFile: join(process.cwd(), '.aesyclaw', 'token-usage.db')
+    persistFile: filePaths.tokenUsageDb()
   });
   return config;
 }

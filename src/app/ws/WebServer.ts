@@ -1,6 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'http';
 import { readFileSync } from 'fs';
-import { join } from 'path';
 import type { AgentRuntime } from '../../agent/index.js';
 import type { SessionManager } from '../../agent/infrastructure/session/SessionManager.js';
 import type { ChannelManager } from '../../features/channels/application/ChannelManager.js';
@@ -20,10 +19,11 @@ import type { EventBus } from '../../platform/events/EventBus.js';
 import type { AesyClawEvents } from '../../platform/events/events.js';
 import { WebSocketApiServer } from '../ws/WebSocketApiServer.js';
 import { registerWebSocketHandlers } from '../ws/registerWebSocketHandlers.js';
+import { filePaths } from '../../platform/utils/paths.js';
 
 const MAX_MESSAGE_LENGTH = 50000;
 
-const packageJson = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8'));
+const packageJson = JSON.parse(readFileSync(filePaths.packageJson(), 'utf-8'));
 const packageVersion = packageJson.version;
 
 /**

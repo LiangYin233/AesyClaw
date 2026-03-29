@@ -9,12 +9,6 @@ type ChannelPluginModule = Record<string, unknown> & {
 };
 
 async function importChannelModule<T = unknown>(modulePath: string): Promise<T> {
-  const tmpDir = join(process.cwd(), '.tmp', 'tsx');
-  await mkdir(tmpDir, { recursive: true });
-  process.env.TMPDIR = tmpDir;
-  process.env.TEMP = tmpDir;
-  process.env.TMP = tmpDir;
-
   const { tsImport } = await import('tsx/esm/api');
   return tsImport(pathToFileURL(modulePath).href, { parentURL: import.meta.url }) as Promise<T>;
 }

@@ -1,9 +1,9 @@
-import { join } from 'path';
 import { CronRuntimeService, type CronJob } from '../index.js';
+import { filePaths } from '../../../platform/utils/paths.js';
 
 export async function createCronRuntime(onCronJob: (job: CronJob) => Promise<void>): Promise<CronRuntimeService> {
   return new CronRuntimeService(
-    join(process.cwd(), '.aesyclaw', 'cron-jobs.json'),
+    filePaths.cronJobs(),
     onCronJob
   );
 }

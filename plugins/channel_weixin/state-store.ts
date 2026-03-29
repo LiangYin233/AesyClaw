@@ -1,5 +1,6 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { channelPaths } from '../../src/platform/utils/paths.js';
 
 export interface WeixinAccountState {
   token?: string;
@@ -25,7 +26,7 @@ export class WeixinStateStore {
   private readonly syncCursorPath: string;
 
   constructor() {
-    this.rootDir = join(process.cwd(), '.aesyclaw', 'channels', 'weixin');
+    this.rootDir = channelPaths.weixin.root();
     this.accountPath = join(this.rootDir, 'account.json');
     this.syncCursorPath = join(this.rootDir, 'sync-buf.json');
   }

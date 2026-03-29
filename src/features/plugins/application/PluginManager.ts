@@ -1,9 +1,9 @@
 import { readdir, readFile, stat } from 'fs/promises';
 import { join } from 'path';
-import { mkdir } from 'fs/promises';
 import type { InboundMessage, OutboundMessage } from '../../../types.js';
 import { logger as rootLogger } from '../../../platform/observability/index.js';
 import { pathToFileURL } from 'url';
+import { paths } from '../../../platform/utils/paths.js';
 import {
   createPluginInstance,
   disposePluginInstance,
@@ -56,12 +56,6 @@ function isPluginDefinition(value: unknown): value is PluginDefinition {
 }
 
 async function importPluginModule<T = unknown>(modulePath: string): Promise<T> {
-  const tmpDir = join(process.cwd(), '.tmp', 'tsx');
-  await mkdir(tmpDir, { recursive: true });
-  process.env.TMPDIR = tmpDir;
-  process.env.TEMP = tmpDir;
-  process.env.TMP = tmpDir;
-
   const { tsImport } = await import('tsx/esm/api');
   return tsImport(pathToFileURL(modulePath).href, { parentURL: import.meta.url }) as Promise<T>;
 }
@@ -518,7 +512,7 @@ export class PluginManager {
       return this.discoveredPlugins;
     }
 
-    const pluginsDir = join(process.cwd(), 'plugins');
+    const pluginsDir = paths.plugins();
     let entries: Array<{ name: string; sourcePath: string }> = [];
 
     try {
