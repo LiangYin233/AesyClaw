@@ -197,7 +197,7 @@ function fileKindToMessageItem(args: {
       type: MessageItemType.IMAGE,
       image_item: {
         media: baseMedia,
-        mid_size: args.uploaded.fileSizeCiphertext
+        mid_size: args.uploaded.fileSize
       }
     };
   }
@@ -207,7 +207,7 @@ function fileKindToMessageItem(args: {
       type: MessageItemType.VIDEO,
       video_item: {
         media: baseMedia,
-        video_size: args.uploaded.fileSizeCiphertext
+        video_size: args.uploaded.fileSize
       }
     };
   }
