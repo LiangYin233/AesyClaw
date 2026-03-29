@@ -281,7 +281,7 @@ class WeixinAdapter implements ChannelAdapter {
 
   private async processInboundMessage(msg: any): Promise<void> {
     if (!msg.from_user_id || !msg.to_user_id) {
-      this.log.warn(`processInboundMessage: missing from_user_id or to_user_id, msg=${JSON.stringify(msg).substring(0, 200)}`);
+      this.log.warn(`processInboundMessage: missing fields from=${msg.from_user_id} to=${msg.to_user_id} msgId=${msg.message_id} items=${msg.item_list?.length}`);
       return;
     }
 
