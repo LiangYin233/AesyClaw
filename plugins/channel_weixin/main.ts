@@ -61,6 +61,7 @@ class WeixinAdapter implements ChannelAdapter {
   }
 
   async start(ctx: AdapterRuntimeContext): Promise<void> {
+    this.log.info('Weixin adapter start() called');
     this.runtimeContext = ctx;
     await this.loadState();
 
@@ -69,9 +70,14 @@ class WeixinAdapter implements ChannelAdapter {
       await this.performQrLogin();
     }
 
+    this.log.info(`Weixin adapter starting: token=${!!this.config.token} userId=${this.config.userId || 'unknown'}`);
     this.running = true;
     this.abortController = new AbortController();
-    void this.runLongPoll();
+    this.log.debug('Starting long poll loop...');
+    void this.runLongPoll().catch(err => {
+      this.log.error(`runLongPoll crashed: ${err}`);
+    });
+    this.log.debug('Long poll loop started');
   }
 
   async stop(): Promise<void> {
@@ -86,7 +92,12 @@ class WeixinAdapter implements ChannelAdapter {
 
   async decodeInbound(rawEvent: any): Promise<AdapterInboundDraft | null> {
     const msg = rawEvent?.weixinMessage;
-    if (!msg || !msg.from_user_id || !msg.to_user_id) {
+    if (!msg) {
+      this.log.debug(`decodeInbound: no weixinMessage in rawEvent`);
+      return null;
+    }
+    if (!msg.from_user_id || !msg.to_user_id) {
+      this.log.debug(`decodeInbound: missing from_user_id or to_user_id`);
       return null;
     }
 
@@ -95,6 +106,7 @@ class WeixinAdapter implements ChannelAdapter {
     const isSelf = senderId === this.config.userId;
 
     if (isSelf) {
+      this.log.debug(`decodeInbound: isSelf=true, skipping`);
       return null;
     }
 
@@ -109,6 +121,7 @@ class WeixinAdapter implements ChannelAdapter {
     }
 
     if (segments.length === 0) {
+      this.log.debug(`decodeInbound: no segments decoded from item_list`);
       return null;
     }
 
@@ -118,6 +131,8 @@ class WeixinAdapter implements ChannelAdapter {
       this.config.contextTokens[conversationId] = contextToken;
       void this.saveState();
     }
+
+    this.log.debug(`decodeInbound: success from=${senderId} conv=${conversationId} segments=${segments.length}`);
 
     return {
       conversation: {
@@ -244,9 +259,14 @@ class WeixinAdapter implements ChannelAdapter {
           continue;
         }
 
+        if (result.messages.length > 0) {
+          this.log.debug(`getUpdates: ${result.messages.length} messages, syncCursor=${syncCursor.substring(0, 20)}...`);
+        }
+
         syncCursor = result.nextSyncCursor;
 
         for (const msg of result.messages) {
+          this.log.debug(`Processing msg: from=${msg.from_user_id} to=${msg.to_user_id} items=${msg.item_list?.length}`);
           await this.processInboundMessage(msg);
         }
       } catch (err) {
@@ -261,11 +281,16 @@ class WeixinAdapter implements ChannelAdapter {
 
   private async processInboundMessage(msg: any): Promise<void> {
     if (!msg.from_user_id || !msg.to_user_id) {
+      this.log.warn(`processInboundMessage: missing from_user_id or to_user_id, msg=${JSON.stringify(msg).substring(0, 200)}`);
       return;
     }
 
     const draft = await this.decodeInbound({ weixinMessage: msg });
-    if (draft && this.runtimeContext) {
+    if (!draft) {
+      this.log.warn(`decodeInbound returned null for msg from=${msg.from_user_id}`);
+      return;
+    }
+    if (this.runtimeContext) {
       await this.runtimeContext.ingest({ weixinMessage: msg });
     }
   }
