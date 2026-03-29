@@ -1,36 +1,18 @@
-import { join } from 'path';
+import type { SessionContext, SessionManager } from '../../../platform/context/index.js';
 import { SessionRoutingService } from '../infrastructure/SessionRoutingService.js';
-import { getSessionRuntimeConfig } from '../../../features/config/index.js';
-import { Database } from '../../../platform/db/index.js';
-import { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
-import { LongTermMemoryStore } from '../../../agent/infrastructure/memory/LongTermMemoryStore.js';
 import type { Config } from '../../../types.js';
 import { createMemoryRuntime } from '../../memory/index.js';
 
-export async function createSessionRuntime(config: Config): Promise<{
-  db: Database;
-  sessionManager: SessionManager;
-  longTermMemoryStore: LongTermMemoryStore;
-  memoryService?: ReturnType<typeof createMemoryRuntime>;
+export async function createSessionRuntime(context: SessionContext, config: Config): Promise<{
   sessionRouting: SessionRoutingService;
+  memoryService: ReturnType<typeof createMemoryRuntime>;
 }> {
-  const sessionConfig = getSessionRuntimeConfig(config);
-  const dbPath = join(process.cwd(), '.aesyclaw', 'sessions', 'sessions.db');
-  const db = new Database(dbPath);
+  const contextMode = config.agent.defaults.contextMode;
 
-  const sessionManager = new SessionManager(db);
-  await sessionManager.loadAll();
-
-  const longTermMemoryStore = new LongTermMemoryStore(db);
-  const memoryService = createMemoryRuntime(config, sessionManager, longTermMemoryStore);
-  if (memoryService) {
-  }
+  const memoryService = createMemoryRuntime(config, context.sessionManager, context.longTermMemoryStore);
 
   return {
-    db,
-    sessionManager,
-    longTermMemoryStore,
-    memoryService,
-    sessionRouting: new SessionRoutingService(sessionManager, sessionConfig.contextMode)
+    sessionRouting: new SessionRoutingService(context.sessionManager as unknown as SessionManager, contextMode),
+    memoryService
   };
 }

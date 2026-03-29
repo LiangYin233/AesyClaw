@@ -1,11 +1,14 @@
-import { getSessionRuntimeConfig } from '../../../features/config/index.js';
-import type { ConfigReloadTargets } from '../../../features/config/reload/ports/ReloadTargets.js';
 import type { Services } from '../../../app/bootstrap/factory/ServiceFactory.js';
+import type { Config } from '../../../types.js';
 
-export function createSessionRoutingReloadTarget(services: Services): NonNullable<ConfigReloadTargets['sessionRouting']> {
+interface SessionRoutingReloadHandler {
+  applyConfig(config: Config): void;
+}
+
+export function createSessionRoutingReloadTarget(services: Services): SessionRoutingReloadHandler {
   return {
     applyConfig(config) {
-      services.sessionRouting.setContextMode(getSessionRuntimeConfig(config).contextMode);
+      services.sessionRouting.setContextMode(config.agent.defaults.contextMode);
     }
   };
 }

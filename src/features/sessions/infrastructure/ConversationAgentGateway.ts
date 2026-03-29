@@ -1,5 +1,5 @@
-import type { ISessionRouting } from '../../../agent/domain/session.js';
-import type { AgentRoleService } from '../../../agent/infrastructure/roles/AgentRoleService.js';
+import type { ISessionRouting } from '../../../platform/context/index.js';
+import type { AgentRoleService } from '../../../platform/context/AgentContext.js';
 
 export class ConversationAgentGateway {
   constructor(

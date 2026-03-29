@@ -1,7 +1,11 @@
-import type { ConfigReloadTargets } from '../../../features/config/reload/ports/ReloadTargets.js';
 import type { Services } from '../../../app/bootstrap/factory/ServiceFactory.js';
+import type { Config } from '../../../types.js';
 
-export function createChannelsReloadTarget(services: Services): NonNullable<ConfigReloadTargets['channels']> {
+interface ChannelsReloadHandler {
+  applyDiff(previousConfig: Config, currentConfig: Config): Promise<void>;
+}
+
+export function createChannelsReloadTarget(services: Services): ChannelsReloadHandler {
   return {
     async applyDiff(previousConfig, currentConfig) {
       const channelNames = new Set([

@@ -8,7 +8,7 @@ import { CronRuntimeService } from '../../../features/cron/index.js';
 import { logging, logger, tokenUsage } from '../../../platform/observability/index.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
 import { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
-import { LongTermMemoryStore } from '../../../agent/infrastructure/memory/LongTermMemoryStore.js';
+import { LongTermMemoryStore } from '../../../features/memory/infrastructure/LongTermMemoryStore.js';
 import { SkillManager } from '../../../features/skills/index.js';
 import { ToolRegistry } from '../../../platform/tools/index.js';
 import { McpClientManager } from '../../../features/mcp/index.js';
@@ -24,6 +24,7 @@ import { registerRuntimeBindings } from './registerRuntimeBindings.js';
 import { runBootstrapPhase } from './runBootstrapPhase.js';
 import { EventBus } from '../../../platform/events/EventBus.js';
 import type { AesyClawEvents } from '../../../platform/events/events.js';
+import { createSessionContext } from '../../assembly/createSessionContext.js';
 
 const appLog = logger;
 
@@ -81,18 +82,24 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   const bootstrapLog = appLog.child('Bootstrap');
   const outboundGateway = new OutboundGateway();
 
-  const { result: persistence } = await runBootstrapPhase({
+  const { result: sessionContext } = await runBootstrapPhase({
     phase: '会话存储初始化',
     log: bootstrapLog,
-    task: () => createSessionRuntime(config)
+    task: () => createSessionContext(config)
   });
   const {
     db,
     sessionManager,
     longTermMemoryStore,
-    memoryService,
     sessionRouting
-  } = persistence;
+  } = sessionContext;
+
+  const { result: sessionRuntime } = await runBootstrapPhase({
+    phase: '会话运行时初始化',
+    log: bootstrapLog,
+    task: () => createSessionRuntime(sessionContext, config)
+  });
+  const { memoryService } = sessionRuntime;
 
   const { result: executionRuntime } = await runBootstrapPhase({
     phase: '执行运行时初始化',

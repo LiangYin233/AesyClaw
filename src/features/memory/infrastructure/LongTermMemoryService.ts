@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import type { InboundMessage } from '../../../types.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
-import type { SessionManager } from '../session/SessionManager.js';
+import type { SessionManager } from '../../../platform/context/SessionContext.js';
 import {
   LongTermMemoryStore,
   type LongTermMemoryEntry,

@@ -1,5 +1,5 @@
-import type { AgentRoleService } from '../../../agent/infrastructure/roles/AgentRoleService.js';
-import type { ISessionRouting } from '../../../agent/domain/session.js';
+import type { AgentRoleService } from '../../../platform/context/AgentContext.js';
+import type { ISessionRouting } from '../../../platform/context/SessionContext.js';
 import type { AgentRoleConfig } from '../../../types.js';
 import { ServiceUnavailableError } from '../../../platform/errors/index.js';
 

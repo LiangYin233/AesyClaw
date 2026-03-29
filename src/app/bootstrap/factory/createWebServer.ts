@@ -1,4 +1,4 @@
-import type { AgentRoleService } from '../../../agent/infrastructure/roles/AgentRoleService.js';
+import type { AgentRoleService } from '../../../features/agents/infrastructure/AgentRoleService.js';
 import type { ISessionRouting } from '../../../agent/domain/session.js';
 import type { AgentRuntime } from '../../../agent/index.js';
 import { WebServer } from '../../ws/WebServer.js';
@@ -8,7 +8,7 @@ import type { CronRuntimeService } from '../../../features/cron/index.js';
 import type { McpClientManager } from '../../../features/mcp/index.js';
 import type { Database } from '../../../platform/db/index.js';
 import type { PluginManager } from '../../../features/plugins/index.js';
-import type { LongTermMemoryStore } from '../../../agent/infrastructure/memory/LongTermMemoryStore.js';
+import type { LongTermMemoryStore } from '../../../features/memory/infrastructure/LongTermMemoryStore.js';
 import type { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
 import type { SkillManager } from '../../../features/skills/index.js';
 import type { ToolRegistry } from '../../../platform/tools/index.js';

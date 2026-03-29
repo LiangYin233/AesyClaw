@@ -1,14 +1,13 @@
 import type { Config, InboundMessage, OutboundMessage } from '../../../types.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
-import type { PluginManager } from '../../../features/plugins/index.js';
 import type { ToolRegistry, ToolContext } from '../../../platform/tools/ToolRegistry.js';
 import type { SessionManager } from '../session/SessionManager.js';
 import type { CommandRegistry } from '../../application/index.js';
-import type { SessionMemoryService } from '../memory/SessionMemoryService.js';
 import type { ISessionRouting } from '../../domain/session.js';
-import type { AgentRoleService } from '../roles/AgentRoleService.js';
 import type { VisionSettings } from '../../../types.js';
-import { DEFAULT_SYSTEM_PROMPT } from '../../../features/config/schema/shared.js';
+import type { MemoryService } from '../../../platform/context/MemoryContext.js';
+import type { AgentRoleService } from '../../../platform/context/AgentContext.js';
+import type { PluginManager } from '../../../platform/context/PluginContext.js';
 import { AgentPipeline } from './AgentPipeline.js';
 import { SessionResolver } from '../session/SessionResolver.js';
 import { ExecutionEngine } from '../execution/ExecutionEngine.js';
@@ -32,6 +31,7 @@ import {
 
 const DEFAULT_MAX_ITERATIONS = 40;
 const DEFAULT_MEMORY_WINDOW = 50;
+const DEFAULT_SYSTEM_PROMPT = 'You are a helpful AI assistant. Now is {{current_date}}. Running on {{os}}.';
 
 export interface RuntimeCoordinatorOptions {
   provider?: LLMProvider;
@@ -48,7 +48,7 @@ export interface RuntimeCoordinatorOptions {
   memoryWindow?: number;
   visionSettings?: VisionSettings;
   visionProvider?: LLMProvider;
-  memoryService?: SessionMemoryService;
+  memoryService?: MemoryService;
   agentRoleService?: AgentRoleService;
   getPluginManager: () => PluginManager | undefined;
   getConfig: () => Config;
@@ -65,7 +65,7 @@ export class RuntimeCoordinator {
   private systemPrompt: string;
   private maxIterations: number;
   private memoryWindow: number;
-  private memoryService?: SessionMemoryService;
+  private memoryService?: MemoryService;
   private agentRoleService?: AgentRoleService;
   private readonly pipeline: AgentPipeline;
   private readonly sessionResolver: SessionResolver;
@@ -125,7 +125,7 @@ export class RuntimeCoordinator {
       engine: this.executionEngine,
       sessionRouting: options.sessionRouting,
       sessionManager: options.sessionManager,
-      memoryService: options.memoryService,
+      memoryService: options.memoryService as any,
       getPluginManager: options.getPluginManager,
       sendOutbound: (message) => this.sendOutbound(message),
       executionRegistry,
@@ -383,12 +383,12 @@ export class RuntimeCoordinator {
     this.executionEngine.updateRuntime(runtimeUpdate);
   }
 
-  updateMemorySettings(memoryWindow: number, memoryService?: SessionMemoryService): void {
+  updateMemorySettings(memoryWindow: number, memoryService?: MemoryService): void {
     this.memoryWindow = memoryWindow;
     this.memoryService = memoryService;
     this.sessionResolver.setMemoryService(memoryService);
     this.executionEngine.updateRuntime({ memoryWindow });
-    this.executionRuntime.setMemoryService(memoryService);
+    this.executionRuntime.setMemoryService(memoryService as any);
   }
 
   bindMessageToSession(message: InboundMessage, reference: SessionReference | string): InboundMessage {

@@ -1,10 +1,12 @@
-import type { OutboundGateway } from '../../../agent/index.js';
-import type { ConfigMutator, RuntimeConfigStore } from '../../../features/config/index.js';
+import type { OutboundGateway } from '../../../platform/context/WorkerContext.js';
+import type { ConfigAccessor } from '../../../platform/context/index.js';
 import type { Config } from '../../../types.js';
 import { logger } from '../../../platform/observability/index.js';
 import type { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
 import { PluginManager } from '../application/PluginManager.js';
 import { normalizePluginConfigs } from '../domain/config.js';
+
+type ConfigMutator = (config: Config) => void | Config | Promise<void | Config>;
 
 export interface PluginRuntime {
   pluginManager: PluginManager;
@@ -13,7 +15,7 @@ export interface PluginRuntime {
 }
 
 export async function createPluginRuntime(args: {
-  configStore: RuntimeConfigStore;
+  configStore: ConfigAccessor;
   outboundGateway: OutboundGateway;
   workspace: string;
   tempDir: string;

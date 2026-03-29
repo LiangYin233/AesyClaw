@@ -1,5 +1,4 @@
-import { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
-import { SessionValidationError } from '../domain/types.js';
+import { SessionManager, SessionValidationError, parseSessionKey } from '../../../platform/context/index.js';
 
 export class SessionsRepository {
   constructor(private readonly sessionManager: SessionManager) {}
@@ -22,7 +21,7 @@ export class SessionsRepository {
 
   validateKey(key: string): void {
     try {
-      SessionManager.validateSessionKey(key);
+      parseSessionKey(key);
     } catch (error) {
       if (error instanceof SessionValidationError) {
         throw error;

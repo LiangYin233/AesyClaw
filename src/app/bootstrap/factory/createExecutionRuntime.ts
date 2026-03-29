@@ -4,9 +4,9 @@ import {
   OutboundGateway,
   createConfiguredAgentRuntime
 } from '../../../agent/index.js';
-import { AgentRoleService } from '../../../agent/infrastructure/roles/AgentRoleService.js';
+import { AgentRoleService } from '../../../features/agents/infrastructure/AgentRoleService.js';
 import { CommandRegistry } from '../../../agent/application/index.js';
-import { SessionMemoryService } from '../../../agent/infrastructure/memory/SessionMemoryService.js';
+import { SessionMemoryService } from '../../../features/memory/infrastructure/SessionMemoryService.js';
 import type { ISessionRouting } from '../../../agent/domain/session.js';
 import {
   createVisionProviderFromSettings,

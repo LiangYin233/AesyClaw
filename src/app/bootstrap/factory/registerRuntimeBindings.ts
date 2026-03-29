@@ -1,6 +1,6 @@
 import { BuiltInCommands, type CommandRegistry } from '../../../agent/application/index.js';
-import type { AgentRoleService } from '../../../agent/infrastructure/roles/AgentRoleService.js';
-import type { SessionMemoryService } from '../../../agent/infrastructure/memory/SessionMemoryService.js';
+import type { AgentRoleService } from '../../../features/agents/infrastructure/AgentRoleService.js';
+import type { SessionMemoryService } from '../../../features/memory/infrastructure/SessionMemoryService.js';
 import type { ISessionRouting } from '../../../agent/domain/session.js';
 import type { AgentRuntime } from '../../../agent/index.js';
 import { registerCronTools } from '../../../features/cron/index.js';

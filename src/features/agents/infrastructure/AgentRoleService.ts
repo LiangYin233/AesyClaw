@@ -1,13 +1,10 @@
 import type { AgentRoleConfig, Config, VisionSettings } from '../../../types.js';
-import { tryParseModelRef } from '../../../features/config/modelRef.js';
-import { resolveProviderSelection } from '../../../features/config/resolve.js';
+import type { ProviderModelConfig } from '../../config/schema/providers.js';
 import type { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
-import type { SkillManager } from '../../../features/skills/application/SkillManager.js';
-import { formatSkillsPrompt } from '../../../features/skills/application/promptFormatter.js';
+import type { SkillManager } from '../../skills/application/SkillManager.js';
 import { createProvider } from '../../../platform/providers/index.js';
 import { logger } from '../../../platform/observability/index.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
-import { DEFAULT_SYSTEM_PROMPT } from '../../../features/config/schema/shared.js';
 
 export interface ResolvedAgentRole extends AgentRoleConfig {
   builtin: boolean;
@@ -22,6 +19,18 @@ export interface ResolvedAgentRole extends AgentRoleConfig {
 
 const MAIN_AGENT_NAME = 'main';
 
+interface ParsedModelRef {
+  providerName: string;
+  modelName: string;
+}
+
+interface ResolvedProviderSelection {
+  name: string;
+  model: string;
+  providerConfig: Config['providers'][string] | undefined;
+  modelConfig: Config['providers'][string]['models'][string] | undefined;
+}
+
 export class AgentRoleService {
   private log = logger.child('AgentRoleService');
   private isPluginLoadingComplete: () => boolean = () => true;
@@ -30,7 +39,40 @@ export class AgentRoleService {
     private getConfig: () => Config,
     private updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>,
     private toolRegistry: Pick<ToolRegistry, 'getDefinitions'>,
-    private skillManager?: SkillManager
+    private skillManager?: SkillManager,
+    private tryParseModelRef: (value?: string | null) => ParsedModelRef | undefined = (value) => {
+      if (!value?.trim()) return undefined;
+      const trimmed = value.trim();
+      const slashIndex = trimmed.indexOf('/');
+      if (slashIndex <= 0 || slashIndex === trimmed.length - 1) return undefined;
+      const providerName = trimmed.slice(0, slashIndex).trim();
+      const modelName = trimmed.slice(slashIndex + 1).trim();
+      if (!providerName || !modelName) return undefined;
+      return { providerName, modelName };
+    },
+    private resolveProviderSelection: (config: Config, providerNameOrModelRef?: string, modelName?: string) => ResolvedProviderSelection = (config, providerNameOrModelRef, modelName) => {
+      let name = (providerNameOrModelRef || '').trim();
+      let resolvedModel = modelName?.trim() || '';
+      if (!resolvedModel && name.includes('/')) {
+        const slashIndex = name.indexOf('/');
+        const providerName = name.slice(0, slashIndex).trim();
+        resolvedModel = name.slice(slashIndex + 1).trim();
+        name = providerName;
+      }
+      const providerConfig = config.providers[name];
+      return {
+        name,
+        model: resolvedModel,
+        providerConfig,
+        modelConfig: providerConfig?.models?.[resolvedModel]
+      };
+    },
+    private formatSkillsPrompt: (skills: Array<{ name: string; description?: string }>) => string = (skills) => {
+      if (skills.length === 0) return '';
+      const lines = skills.map((skill) => `## ${skill.name}\n${skill.description || ''}`).filter((s) => s.trim());
+      return lines.length > 0 ? `\n\nAvailable Skills:\n${lines.join('\n')}\n` : '';
+    },
+    private defaultSystemPrompt: string = 'You are a helpful AI assistant. Now is {{current_date}}. Running on {{os}}.'
   ) {}
 
   getMainAgentName(): string {
@@ -134,7 +176,7 @@ export class AgentRoleService {
       return '';
     }
 
-    return formatSkillsPrompt(skills);
+    return this.formatSkillsPrompt(skills);
   }
 
   buildRoleDescriptionsPrompt(roleName?: string | null): string {
@@ -176,7 +218,7 @@ export class AgentRoleService {
       return undefined;
     }
 
-    return this.resolveRoleModelSelection(roleName)?.modelConfig?.maxContextTokens;
+    return (this.resolveRoleModelSelection(roleName)?.modelConfig as ProviderModelConfig | undefined)?.maxContextTokens;
   }
 
   createProviderForRole(roleName?: string | null): LLMProvider {
@@ -217,13 +259,13 @@ export class AgentRoleService {
       return undefined;
     }
 
-    const directVision = selection.modelConfig?.supportsVision === true;
+    const directVision = (selection.modelConfig as ProviderModelConfig | undefined)?.supportsVision === true;
     const fallbackSelection = this.resolveVisionFallbackSelection();
 
     return {
       enabled: directVision || !!fallbackSelection,
       directVision,
-      reasoning: fallbackSelection?.modelConfig?.reasoning === true,
+      reasoning: (fallbackSelection?.modelConfig as ProviderModelConfig | undefined)?.reasoning === true,
       fallbackModelRef: fallbackSelection ? `${fallbackSelection.name}/${fallbackSelection.model}` : undefined,
       fallbackProviderName: fallbackSelection?.name,
       fallbackModelName: fallbackSelection?.model
@@ -234,7 +276,7 @@ export class AgentRoleService {
     const availableSkillSet = new Set(this.getAvailableSkillNames());
     const availableToolSet = new Set(this.getAvailableToolNames());
     const pluginLoadingComplete = this.isPluginLoadingComplete();
-    const selection = resolveProviderSelection(this.getConfig(), role.model);
+    const selection = this.resolveProviderSelection(this.getConfig(), role.model);
     const hasVisionFallback = !!this.resolveVisionFallbackSelection();
 
     const availableSkills = role.allowedSkills.filter((name) => availableSkillSet.has(name));
@@ -248,8 +290,8 @@ export class AgentRoleService {
       ...role,
       builtin,
       provider: selection.name,
-      reasoning: selection.modelConfig?.reasoning === true,
-      vision: selection.modelConfig?.supportsVision === true || hasVisionFallback,
+      reasoning: (selection.modelConfig as ProviderModelConfig | undefined)?.reasoning === true,
+      vision: (selection.modelConfig as ProviderModelConfig | undefined)?.supportsVision === true || hasVisionFallback,
       availableSkills,
       availableTools,
       missingSkills,
@@ -278,11 +320,11 @@ export class AgentRoleService {
     if (!input.model?.trim()) {
       throw new Error('Agent role model is required');
     }
-    tryParseModelRef(input.model);
+    this.tryParseModelRef(input.model);
     const normalized: AgentRoleConfig = {
       name,
       description: input.description?.trim() || '',
-      systemPrompt: input.systemPrompt || DEFAULT_SYSTEM_PROMPT,
+      systemPrompt: input.systemPrompt || this.defaultSystemPrompt,
       model: input.model.trim(),
       allowedSkills: [...new Set((input.allowedSkills || []).map((item) => item.trim()).filter(Boolean))],
       allowedTools: [...new Set((input.allowedTools || []).map((item) => item.trim()).filter(Boolean))]
@@ -296,7 +338,7 @@ export class AgentRoleService {
       return undefined;
     }
 
-    return resolveProviderSelection(this.getConfig(), role.model);
+    return this.resolveProviderSelection(this.getConfig(), role.model);
   }
 
   private resolveVisionFallbackSelection() {
@@ -305,6 +347,6 @@ export class AgentRoleService {
       return undefined;
     }
 
-    return resolveProviderSelection(this.getConfig(), fallbackRef);
+    return this.resolveProviderSelection(this.getConfig(), fallbackRef);
   }
 }

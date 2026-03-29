@@ -1,38 +1,16 @@
 import { type Database, type DBMemoryEmbedding, type DBMemoryEntry, type DBMemoryOperation } from '../../../platform/db/index.js';
 import { formatLocalTimestamp } from '../../../platform/observability/logging.js';
+import type {
+  MemoryEntryKind,
+  MemoryEntryStatus,
+  MemoryOperationAction,
+  MemoryOperationActor,
+  LongTermMemoryEntry,
+  LongTermMemoryOperation
+} from '../../../platform/context/MemoryTypes.js';
 
-export type MemoryEntryKind = 'profile' | 'preference' | 'project' | 'rule' | 'context' | 'other';
-export type MemoryEntryStatus = 'active' | 'archived' | 'deleted';
-export type MemoryOperationAction = 'create' | 'update' | 'merge' | 'archive' | 'delete';
-export type MemoryOperationActor = 'background' | 'tool' | 'api' | 'migration';
-
-export interface LongTermMemoryEntry {
-  id: number;
-  channel: string;
-  chatId: string;
-  kind: MemoryEntryKind;
-  content: string;
-  status: MemoryEntryStatus;
-  confidence: number;
-  confirmations: number;
-  createdAt?: string;
-  updatedAt?: string;
-  lastSeenAt?: string;
-}
-
-export interface LongTermMemoryOperation {
-  id: number;
-  channel: string;
-  chatId: string;
-  entryId?: number;
-  action: MemoryOperationAction;
-  actor: MemoryOperationActor;
-  reason?: string;
-  before?: unknown;
-  after?: unknown;
-  evidence?: string[];
-  createdAt?: string;
-}
+export type { MemoryEntryKind, MemoryEntryStatus, MemoryOperationAction, MemoryOperationActor } from '../../../platform/context/MemoryTypes.js';
+export type { LongTermMemoryEntry, LongTermMemoryOperation, MemoryOperationInput, MemoryOperationResult } from '../../../platform/context/MemoryTypes.js';
 
 export interface LongTermMemoryEmbedding {
   entryId: number;
@@ -47,22 +25,6 @@ export interface LongTermMemoryEmbedding {
 export interface LongTermMemoryEntryWithEmbedding {
   entry: LongTermMemoryEntry;
   embedding?: LongTermMemoryEmbedding;
-}
-
-export interface MemoryOperationInput {
-  action: MemoryOperationAction;
-  entryId?: number;
-  sourceIds?: number[];
-  kind?: MemoryEntryKind;
-  content?: string;
-  reason?: string;
-  evidence?: string[];
-}
-
-export interface MemoryOperationResult {
-  action: MemoryOperationAction;
-  entry?: LongTermMemoryEntry;
-  changed: boolean;
 }
 
 const DEFAULT_KINDS: MemoryEntryKind[] = ['profile', 'preference', 'project', 'rule', 'context', 'other'];

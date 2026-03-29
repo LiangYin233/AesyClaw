@@ -1,16 +1,16 @@
 import { join } from 'path';
-import { SkillManager } from '../../../features/skills/index.js';
-import type { Config } from '../../../types.js';
-import { Database } from '../../../platform/db/index.js';
-import { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
-import { LongTermMemoryStore, type MemoryOperationActor, type MemoryOperationInput } from '../memory/LongTermMemoryStore.js';
-import { McpClientManager } from '../../../features/mcp/index.js';
-import { syncMcpServerTools } from '../../../features/mcp/index.js';
-import { PluginManager } from '../../../features/plugins/index.js';
-import { normalizePluginConfigs } from '../../../features/plugins/domain/config.js';
-import { logger } from '../../../platform/observability/index.js';
-import { registerMemoryTools } from '../../../platform/tools/builtins/registerMemoryTools.js';
-import { registerSkillTools } from '../../../platform/tools/builtins/registerSkillTools.js';
+import { SkillManager } from '../../features/skills/index.js';
+import type { Config } from '../../types.js';
+import { Database } from '../../platform/db/index.js';
+import { ToolRegistry } from '../../platform/tools/ToolRegistry.js';
+import { LongTermMemoryStore, type MemoryOperationActor, type MemoryOperationInput } from '../../features/memory/infrastructure/LongTermMemoryStore.js';
+import { McpClientManager } from '../../features/mcp/index.js';
+import { syncMcpServerTools } from '../../features/mcp/index.js';
+import { PluginManager } from '../../features/plugins/index.js';
+import { normalizePluginConfigs } from '../../features/plugins/domain/config.js';
+import { logger } from '../../platform/observability/index.js';
+import { registerMemoryTools } from '../../platform/tools/builtins/registerMemoryTools.js';
+import { registerSkillTools } from '../../platform/tools/builtins/registerSkillTools.js';
 
 export interface WorkerLocalToolRuntime {
   toolRegistry: ToolRegistry;

@@ -3,7 +3,6 @@ import { spawn, type ChildProcess } from 'child_process';
 import { dirname, extname, join } from 'path';
 import { fileURLToPath } from 'url';
 import type { Config } from '../../../types.js';
-import type { PluginManager } from '../../../features/plugins/index.js';
 import type { ToolContext, ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
 import type { ToolDefinition } from '../../../types.js';
 import { logger } from '../../../platform/observability/index.js';
@@ -23,6 +22,7 @@ import type {
 } from './protocol.js';
 import { WorkerRuntimeRegistry } from './WorkerRuntimeRegistry.js';
 import { prepareWorkerLogMessage } from './workerLogging.js';
+import type { PluginManager } from '../../../platform/context/PluginContext.js';
 
 function resolveWorkerEntryPath(): string {
   const currentFile = fileURLToPath(import.meta.url);

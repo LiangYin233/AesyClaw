@@ -1,8 +1,12 @@
-import type { ConfigReloadTargets } from '../../../features/config/reload/ports/ReloadTargets.js';
 import { syncConfiguredMcpServers } from '../index.js';
 import type { Services } from '../../../app/bootstrap/factory/ServiceFactory.js';
+import type { Config } from '../../../types.js';
 
-export function createMcpReloadTarget(services: Services): NonNullable<ConfigReloadTargets['mcp']> {
+interface McpReloadHandler {
+  applyConfig(config: Config): Promise<void>;
+}
+
+export function createMcpReloadTarget(services: Services): McpReloadHandler {
   return {
     async applyConfig(config) {
       await syncConfiguredMcpServers({

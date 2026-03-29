@@ -6,8 +6,8 @@ import {
   type SessionReference
 } from '../domain/session.js';
 import type { LLMProvider } from '../../platform/providers/base.js';
-import type { SessionMemoryService } from '../infrastructure/memory/SessionMemoryService.js';
 import type { VisionSettings } from '../../types.js';
+import type { MemoryService } from '../../platform/context/MemoryContext.js';
 
 export class AgentRuntime {
   constructor(
@@ -144,7 +144,7 @@ export class AgentRuntime {
     this.deps.updateMainAgentRuntime(options);
   }
 
-  updateMemorySettings(memoryWindow: number, memoryService?: SessionMemoryService): void {
+  updateMemorySettings(memoryWindow: number, memoryService?: MemoryService): void {
     this.deps.updateMemorySettings(memoryWindow, memoryService);
   }
 }

@@ -2,8 +2,8 @@ import type { InboundMessage } from '../../types.js';
 import type { ExecutionStatus, WorkerRuntimeSnapshot } from './execution.js';
 import type { SessionReference } from './session.js';
 import type { LLMProvider } from '../../platform/providers/base.js';
-import type { SessionMemoryService } from '../infrastructure/memory/SessionMemoryService.js';
 import type { VisionSettings } from '../../types.js';
+import type { MemoryService } from '../../platform/context/MemoryContext.js';
 
 export interface AgentRuntimeDeps {
   handleDirect(
@@ -70,5 +70,5 @@ export interface AgentRuntimeDeps {
     visionSettings?: VisionSettings;
     visionProvider?: LLMProvider;
   }): void;
-  updateMemorySettings(memoryWindow: number, memoryService?: SessionMemoryService): void;
+  updateMemorySettings(memoryWindow: number, memoryService?: MemoryService): void;
 }

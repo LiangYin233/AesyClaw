@@ -1,17 +1,16 @@
 import { randomUUID } from 'crypto';
-import type { ToolDefinition } from '../../../types.js';
+import type { ToolDefinition, Config } from '../../../types.js';
 import type { LogLevel } from '../../../platform/observability/index.js';
 import { createProvider } from '../../../platform/providers/index.js';
-import { resolveProviderSelection } from '../../../features/config/index.js';
 import { ToolLoopRunner } from '../execution/ToolLoopRunner.js';
 import type { ToolContext, ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
-import type { PluginManager } from '../../../features/plugins/index.js';
 import type { BuiltInLogger } from '../../../platform/tools/builtins/shared.js';
 import { registerAgentTools } from '../../../platform/tools/builtins/registerAgentTools.js';
-import { AgentRoleService } from '../roles/AgentRoleService.js';
+import type { AgentRoleService } from '../../../platform/context/AgentContext.js';
 import { ExecutionEngine } from '../execution/ExecutionEngine.js';
 import { ExecutionRegistry } from '../execution/ExecutionRegistry.js';
 import { WorkerExecutionDelegateImpl } from './WorkerExecutionDelegate.js';
+import { tryParseModelRef } from '../../../platform/utils/modelRef.js';
 import type {
   ParentToWorkerMessage,
   WorkerLlmActivityMessage,
@@ -21,10 +20,45 @@ import type {
   WorkerToolResponseMessage,
   WorkerToParentMessage
 } from './protocol.js';
-import { createWorkerLocalToolRegistry } from './createWorkerLocalToolRegistry.js';
+import { createWorkerLocalToolRegistry } from '../../../app/assembly/createWorkerLocalToolRegistry.js';
 import { createWorkerLoggedProvider } from './workerLogging.js';
 
 const SUB_AGENT_EXCLUDED_TOOLS = ['send_msg_to_user', 'call_agent', 'call_temp_agent'];
+
+function resolveProviderSelection(
+  config: { providers: Config['providers'] },
+  providerNameOrModelRef?: string,
+  modelName?: string
+): { name: string; model: string; providerConfig: Config['providers'][string] | undefined; modelConfig: Config['providers'][string]['models'][string] | undefined } {
+  let name = (providerNameOrModelRef || '').trim();
+  let resolvedModel = modelName?.trim() || '';
+
+  if (!resolvedModel && name.includes('/')) {
+    const parsed = tryParseModelRef(name);
+    if (parsed) {
+      name = parsed.providerName;
+      resolvedModel = parsed.modelName;
+    }
+  }
+
+  const providerConfig = config.providers[name];
+  return {
+    name,
+    model: resolvedModel,
+    providerConfig,
+    modelConfig: providerConfig?.models?.[resolvedModel]
+  };
+}
+
+function createAgentRoleServiceImpl(
+  getConfig: () => Config,
+  updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>,
+  toolRegistry: Pick<ToolRegistry, 'getDefinitions'>,
+  skillManager?: unknown
+): AgentRoleService {
+  const { AgentRoleServiceImpl } = require('../../../features/agents/infrastructure/AgentRoleService.js');
+  return new AgentRoleServiceImpl(getConfig, updateConfig, toolRegistry, skillManager);
+}
 
 /**
  * worker 内部的轻量工具注册表。
@@ -41,7 +75,10 @@ class WorkerToolRegistry {
       get(name: string): unknown;
       execute(name: string, params: Record<string, unknown>, context?: ToolContext): Promise<string>;
     },
-    private readonly pluginManager?: PluginManager,
+    private readonly pluginManager?: {
+      runToolBeforeHooks(input: { toolName: string; params: Record<string, unknown>; context?: ToolContext }): Promise<{ params: Record<string, unknown>; context?: ToolContext }>;
+      runToolAfterHooks(input: { toolName: string; params: Record<string, unknown>; result: string; context?: ToolContext }): Promise<{ result: string }>;
+    },
     private readonly reportLog?: (level: LogLevel, message: string, fields?: Record<string, unknown>) => void
   ) {}
 
@@ -550,10 +587,10 @@ async function startExecution(message: Extract<ParentToWorkerMessage, { type: 's
       mode: 'worker'
     });
   }
-  if (message.config.agent?.defaults && message.config.agents?.roles) {
+if (message.config.agent?.defaults && message.config.agents?.roles) {
     // 只有本地具备 agent 角色与默认配置时，worker 才能独立完成嵌套编排。
     const executionToolRegistry = createWorkerExecutionRegistry(activeRegistry, message.policy.availableToolDefinitions);
-    const agentRoleService = new AgentRoleService(
+    const agentRoleService = createAgentRoleServiceImpl(
       () => message.config,
       async () => message.config,
       {

@@ -1,7 +1,7 @@
 import type { InboundMessage } from '../../../types.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
-import type { Session, SessionManager, SessionMessage } from '../session/SessionManager.js';
-import type { ContextMode } from '../../../features/config/schema/index.js';
+import type { Session, SessionManager, SessionMessage } from '../../../platform/context/SessionContext.js';
+import type { ContextMode } from '../../config/schema/index.js';
 import {
   type LongTermMemoryEntry,
   type LongTermMemoryOperation,

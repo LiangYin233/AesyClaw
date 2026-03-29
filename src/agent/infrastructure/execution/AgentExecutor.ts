@@ -1,11 +1,11 @@
 import type { LLMMessage, InboundFile } from '../../../types.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
 import type { ToolRegistry, ToolContext } from '../../../platform/tools/ToolRegistry.js';
-import type { PluginManager } from '../../../features/plugins/index.js';
 import { ContextBuilder } from './ContextBuilder.js';
 import { ToolLoopRunner } from './ToolLoopRunner.js';
 import { ExecutionRegistry } from './ExecutionRegistry.js';
 import type { ExecutionResult, ExecutionOptions } from './ExecutionTypes.js';
+import type { PluginManager } from '../../../platform/context/PluginContext.js';
 
 export class AgentExecutor {
   private contextBuilder: ContextBuilder;

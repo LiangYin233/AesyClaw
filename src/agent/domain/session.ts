@@ -1,4 +1,3 @@
-import type { ContextMode } from '../../features/config/schema/index.js';
 import type { InboundMessage } from '../../types.js';
 
 export interface SessionReference {
@@ -74,8 +73,8 @@ export interface ISessionRouting {
   switchSession(channel: string, chatId: string, sessionKey: string): void;
   getActiveSession(channel: string, chatId: string): string | undefined;
   resolveByChannel(channel: string, chatId: string): string | undefined;
-  getContextMode(): ContextMode;
-  setContextMode(contextMode: ContextMode): void;
+  getContextMode(): string;
+  setContextMode(contextMode: string): void;
   getConversationAgent(channel: string, chatId: string): string | undefined;
   setConversationAgent(channel: string, chatId: string, agentName: string): void;
   clearConversationAgent(channel: string, chatId: string): void;
@@ -84,5 +83,5 @@ export interface ISessionRouting {
 }
 
 export interface SessionRoutingFactory {
-  create(sessionManager: unknown, contextMode?: ContextMode): ISessionRouting;
+  create(sessionManager: unknown, contextMode?: string): ISessionRouting;
 }

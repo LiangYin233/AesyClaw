@@ -1,7 +1,5 @@
 import type { OutboundMessage, InboundMessage, LLMMessage, LLMResponse } from '../../../types.js';
-import type { PluginManager } from '../../../features/plugins/index.js';
 import type { SessionManager } from '../session/SessionManager.js';
-import type { SessionMemoryService } from '../memory/SessionMemoryService.js';
 import type { ISessionRouting } from '../../domain/session.js';
 import type { ExecutionContext } from './ExecutionTypes.js';
 import type { ExecutionEngine } from './ExecutionEngine.js';
@@ -11,6 +9,21 @@ import { logger } from '../../../platform/observability/index.js';
 import type { ExecutionPolicy } from './ExecutionTypes.js';
 import type { WorkerExecutionDelegate } from '../worker/WorkerExecutionDelegate.js';
 import { buildVisionUserContent, type VisionUserContent } from './ContextBuilder.js';
+import type { ToolContext } from '../../../platform/tools/ToolRegistry.js';
+
+interface PluginManager {
+  runAgentBeforeTaps(input: { message: InboundMessage; messages: LLMMessage[] }): Promise<void>;
+  runAgentAfterTaps(input: { message: InboundMessage; response: LLMResponse }): Promise<void>;
+}
+
+interface SessionMemoryService {
+  maybeSummarizeSession(sessionKey: string): Promise<boolean>;
+  enqueueLongTermMemoryMaintenance(
+    sessionKey: string,
+    request: Pick<InboundMessage, 'content' | 'media' | 'files'>,
+    assistantContent: string
+  ): void;
+}
 
 interface FinalizeExecutionParams {
   sessionKey: string;

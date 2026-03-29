@@ -3,7 +3,7 @@ import fs from 'fs';
 import { extname } from 'path';
 import { isVisionableFile } from './ExecutionTypes.js';
 import { formatLocalClock, formatLocalDateTime, formatLocalTimestamp, getCurrentTimezone } from '../../../platform/observability/logging.js';
-import { DEFAULT_SYSTEM_PROMPT } from '../../../features/config/schema/shared.js';
+const DEFAULT_SYSTEM_PROMPT = 'You are a helpful AI assistant. Now is {{current_date}}. Running on {{os}}.';
 
 const IMAGE_MIME_TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg',

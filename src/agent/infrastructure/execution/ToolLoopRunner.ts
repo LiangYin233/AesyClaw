@@ -1,11 +1,11 @@
 import type { LLMMessage, ToolCall } from '../../../types.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
 import type { ToolRegistry, ToolContext } from '../../../platform/tools/ToolRegistry.js';
-import type { PluginManager } from '../../../features/plugins/index.js';
 import type { ExecutionResult, ExecutionOptions } from './ExecutionTypes.js';
 import { normalizeErrorMessage, isRetryableError as isRetryableExecutionError } from '../../../platform/errors/index.js';
 import { tokenUsage } from '../../../platform/observability/index.js';
 import { ContextBudgetManager } from './ContextBudgetManager.js';
+import type { PluginManager } from '../../../platform/context/PluginContext.js';
 
 export class ToolLoopRunner {
   private contextBudgetManager = new ContextBudgetManager();

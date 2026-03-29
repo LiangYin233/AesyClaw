@@ -1,18 +1,14 @@
-import { LongTermMemoryService } from '../infrastructure/LongTermMemoryService.js';
-import { OpenAIEmbeddingsClient } from '../infrastructure/OpenAIEmbeddingsClient.js';
-import { SessionMemoryService } from '../infrastructure/SessionMemoryService.js';
-import type { SessionManager, LongTermMemoryStore } from '../../../platform/context/index.js';
-import {
-  getMemoryConfig,
-  listEmbeddingProviderNames,
-  resolveProviderSelection
-} from '../../config/index.js';
-import type { ResolvedProviderSelection } from '../../config/schema/index.js';
-import { createProvider } from '../../../platform/providers/index.js';
-import type { Config } from '../../../types.js';
+import { LongTermMemoryService } from '../../features/memory/infrastructure/LongTermMemoryService.js';
+import { OpenAIEmbeddingsClient } from '../../features/memory/infrastructure/OpenAIEmbeddingsClient.js';
+import { SessionMemoryService } from '../../features/memory/infrastructure/SessionMemoryService.js';
+import type { MemoryContext, SessionManager, LongTermMemoryStore } from '../../platform/context/index.js';
+import type { Config } from '../../types.js';
+import { getMemoryConfig, listEmbeddingProviderNames, resolveProviderSelection } from '../../features/config/index.js';
+import type { ResolvedProviderSelection } from '../../features/config/schema/index.js';
+import { createProvider } from '../../platform/providers/index.js';
 
-function createOptionalProvider(resolved: ResolvedProviderSelection, _label: string) {
-  if (!resolved.providerConfig) {
+function createOptionalProvider(resolved: ResolvedProviderSelection | undefined, label: string) {
+  if (!resolved?.providerConfig) {
     return undefined;
   }
 
@@ -21,8 +17,6 @@ function createOptionalProvider(resolved: ResolvedProviderSelection, _label: str
 
 function createEmbeddingsClient(resolved: ResolvedProviderSelection | undefined): OpenAIEmbeddingsClient | undefined {
   if (!resolved?.providerConfig) {
-    if (resolved?.name) {
-    }
     return undefined;
   }
 
@@ -37,45 +31,21 @@ function createEmbeddingsClient(resolved: ResolvedProviderSelection | undefined)
   });
 }
 
-export function createMemoryRuntime(
+export function createMemoryContext(
   config: Config,
   sessionManager: SessionManager,
   longTermMemoryStore: LongTermMemoryStore
-): SessionMemoryService | undefined {
+): MemoryContext {
   const memoryConfig = getMemoryConfig(config);
   const summaryConfig = memoryConfig.summary;
   const sessionConfig = memoryConfig.session;
+
   const maintenanceSelection = memoryConfig.facts.maintenance.provider && memoryConfig.facts.maintenance.model
     ? resolveProviderSelection(config, `${memoryConfig.facts.maintenance.provider}/${memoryConfig.facts.maintenance.model}`)
     : undefined;
   const recallSelection = memoryConfig.facts.recall.provider && memoryConfig.facts.recall.model
     ? resolveProviderSelection(config, `${memoryConfig.facts.recall.provider}/${memoryConfig.facts.recall.model}`)
     : undefined;
-
-  if (!summaryConfig.enabled && !memoryConfig.facts.enabled) {
-    return undefined;
-  }
-
-  if (!summaryConfig.enabled && config.agent.defaults.memorySummary.enabled) {
-  }
-
-  const summaryRuntimeConfig = {
-    enabled: summaryConfig.enabled,
-    model: summaryConfig.model,
-    compressRounds: summaryConfig.compressRounds,
-    memoryWindow: sessionConfig.memoryWindow,
-    contextMode: sessionConfig.contextMode
-  };
-
-  if (memoryConfig.facts.enabled && !memoryConfig.facts.maintenance.enabled) {
-  }
-
-  if (
-    memoryConfig.facts.enabled
-    && !memoryConfig.facts.recall.enabled
-    && config.agent.defaults.memoryFacts.retrievalModel
-  ) {
-  }
 
   const longTermMemoryService = memoryConfig.facts.enabled
     ? new LongTermMemoryService(
@@ -98,12 +68,20 @@ export function createMemoryRuntime(
       )
     : undefined;
 
-  return new SessionMemoryService(
+  const memoryService = new SessionMemoryService(
     sessionManager as any,
     summaryConfig.enabled && summaryConfig.provider && summaryConfig.model
       ? createOptionalProvider(resolveProviderSelection(config, `${summaryConfig.provider}/${summaryConfig.model}`), '记忆摘要')
       : undefined,
-    summaryRuntimeConfig,
+    {
+      enabled: summaryConfig.enabled,
+      model: summaryConfig.model,
+      compressRounds: summaryConfig.compressRounds,
+      memoryWindow: sessionConfig.memoryWindow,
+      contextMode: sessionConfig.contextMode
+    },
     longTermMemoryService
   );
+
+  return { memoryService: memoryService as unknown as MemoryContext['memoryService'] };
 }

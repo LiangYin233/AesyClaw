@@ -1,4 +1,4 @@
-import type { WorkerRuntimeSnapshot } from '../../../agent/domain/execution.js';
+import type { WorkerRuntimeSnapshot } from '../../../platform/context/WorkerContext.js';
 
 export class AgentWorkersService {
   constructor(

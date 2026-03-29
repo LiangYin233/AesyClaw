@@ -1,8 +1,7 @@
-import { SessionNotFoundError, SessionValidationError } from '../domain/types.js';
+import { SessionNotFoundError, SessionValidationError, type ISessionRouting } from '../../../platform/context/index.js';
 import { DomainValidationError, ResourceNotFoundError } from '../../../platform/errors/domain.js';
 import { ConversationAgentGateway } from '../infrastructure/ConversationAgentGateway.js';
 import { SessionsRepository } from '../infrastructure/SessionsRepository.js';
-import type { ISessionRouting } from '../../../agent/domain/session.js';
 
 type SessionListItem = {
   key: string;

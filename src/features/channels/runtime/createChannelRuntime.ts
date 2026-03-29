@@ -2,9 +2,17 @@ import { ChannelManager } from '../application/ChannelManager.js';
 import { loadExternalChannelPlugins } from '../application/ChannelPluginLoader.js';
 import { mergeChannelConfigWithDefaults } from '../domain/config.js';
 import { ChannelRuntime } from './ChannelRuntime.js';
-import type { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
+import type { ConfigAccessor } from '../../../platform/context/index.js';
 import type { Database } from '../../../platform/db/index.js';
 import type { Config } from '../../../types.js';
+
+interface ConfigUpdater {
+  update(mutator: (config: Config) => void | Config | Promise<void | Config>): Promise<Config>;
+}
+
+interface ConfigManager extends ConfigAccessor {
+  update: ConfigUpdater['update'];
+}
 
 interface InboundHandler {
   handleInbound(message: unknown, options?: { suppressOutbound?: boolean }): Promise<unknown>;
@@ -12,7 +20,7 @@ interface InboundHandler {
 
 async function applyDefaultChannelConfigs(
   channelManager: ChannelManager,
-  configStore: RuntimeConfigStore,
+  configStore: ConfigAccessor,
   configManager: ConfigManager
 ): Promise<Config> {
   const config = configStore.getConfig();
@@ -39,7 +47,7 @@ async function applyDefaultChannelConfigs(
     return config;
   }
 
-  const nextConfig = await configManager.update((draft) => {
+  const nextConfig = await configManager.update((draft: Config) => {
     for (const { plugin, nextConfig: mergedChannelConfig } of channelEntriesToUpdate) {
       draft.channels[plugin.channelName] = mergedChannelConfig as typeof draft.channels[string];
     }
@@ -48,7 +56,7 @@ async function applyDefaultChannelConfigs(
 }
 
 export async function createChannelRuntime(args: {
-  configStore: RuntimeConfigStore;
+  configStore: ConfigAccessor;
   configManager: ConfigManager;
   db: Database;
   workspace: string;

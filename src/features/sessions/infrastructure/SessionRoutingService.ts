@@ -1,7 +1,5 @@
-import type { ContextMode } from '../../../features/config/schema/index.js';
 import type { InboundMessage } from '../../../types.js';
-import type { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
-import type { ISessionRouting } from '../../../agent/domain/session.js';
+import type { SessionManager, ISessionRouting } from '../../../platform/context/index.js';
 
 export interface SessionRoute {
   sessionKey: string;
@@ -14,7 +12,7 @@ export class SessionRoutingService implements ISessionRouting {
 
   constructor(
     private sessionManager: SessionManager,
-    private contextMode: ContextMode = 'session'
+    private contextMode: string = 'session'
   ) {}
 
   async resolve(msg: Pick<InboundMessage, 'channel' | 'chatId'> & { sessionKey?: string }): Promise<SessionRoute> {
@@ -58,11 +56,11 @@ export class SessionRoutingService implements ISessionRouting {
     return this.getActiveSession(channel, chatId);
   }
 
-  getContextMode(): ContextMode {
+  getContextMode(): string {
     return this.contextMode;
   }
 
-  setContextMode(contextMode: ContextMode): void {
+  setContextMode(contextMode: string): void {
     this.contextMode = contextMode;
     if (contextMode === 'channel') {
       this.channelSessions.clear();
