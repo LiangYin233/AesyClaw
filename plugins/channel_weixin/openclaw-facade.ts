@@ -5,7 +5,6 @@ import qrcodeTerminal from 'qrcode-terminal';
 import { logger as baseLogger } from '../../src/platform/observability/index.ts';
 import { channelPaths } from '../../src/platform/utils/paths.ts';
 import type { ResourceHandle } from '../../src/features/channels/domain/types.ts';
-import type { WeixinMessageItem } from './message-mapping.ts';
 import type { GetUpdatesResp, MessageItem, WeixinMessage } from '@tencent-weixin/openclaw-weixin/src/api/types.ts';
 import { MessageItemType, MessageState, MessageType, UploadMediaType } from '@tencent-weixin/openclaw-weixin/src/api/types.ts';
 import { downloadMediaFromItem } from '@tencent-weixin/openclaw-weixin/src/media/media-download.ts';
@@ -19,6 +18,8 @@ const DEFAULT_API_TIMEOUT_MS = 15_000;
 const OUTBOUND_MEDIA_TEMP_DIR = channelPaths.weixin.outboundMedia();
 const WEIXIN_HEADER_AUTH_TYPE = 'ilink_bot_token';
 const WEIXIN_SESSION_EXPIRED_ERRCODE = -14;
+const DEFAULT_BASE_URL = 'https://ilinkai.weixin.qq.com';
+const CDN_BASE_URL = 'https://novac2c.cdn.weixin.qq.com/c2c';
 
 type LoggerLike = {
   info: (message: string, ...args: any[]) => void;
@@ -73,7 +74,7 @@ export interface WeixinFacade {
     text?: string;
   }): Promise<{ messageId: string }>;
   resolveInboundMedia(args: {
-    item: WeixinMessageItem;
+    item: MessageItem;
     outputDir: string;
     cdnBaseUrl: string;
   }): Promise<ResourceHandle | null>;
@@ -110,44 +111,6 @@ function buildHeaders(body: string, token?: string): Record<string, string> {
   return headers;
 }
 
-async function postJson<T>(args: {
-  baseUrl: string;
-  endpoint: string;
-  body: Record<string, unknown>;
-  token?: string;
-  timeoutMs?: number;
-  signal?: AbortSignal;
-}): Promise<T> {
-  const payload = JSON.stringify({
-    ...args.body,
-    base_info: {
-      channel_version: 'aesyclaw-weixin'
-    }
-  });
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(new Error('timeout')), args.timeoutMs ?? DEFAULT_API_TIMEOUT_MS);
-  const onAbort = () => controller.abort(args.signal?.reason);
-  args.signal?.addEventListener('abort', onAbort, { once: true });
-
-  try {
-    const url = new URL(args.endpoint, args.baseUrl.endsWith('/') ? args.baseUrl : `${args.baseUrl}/`);
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: buildHeaders(payload, args.token),
-      body: payload,
-      signal: controller.signal
-    });
-    const raw = await response.text();
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${raw}`);
-    }
-    return JSON.parse(raw) as T;
-  } finally {
-    clearTimeout(timeout);
-    args.signal?.removeEventListener('abort', onAbort);
-  }
-}
-
 async function apiFetch(args: {
   baseUrl: string;
   endpoint: string;
@@ -155,6 +118,7 @@ async function apiFetch(args: {
   token?: string;
   timeoutMs?: number;
   signal?: AbortSignal;
+  label: string;
 }): Promise<string> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), args.timeoutMs ?? DEFAULT_API_TIMEOUT_MS);
@@ -162,7 +126,8 @@ async function apiFetch(args: {
   args.signal?.addEventListener('abort', onAbort, { once: true });
 
   try {
-    const url = new URL(args.endpoint, args.baseUrl.endsWith('/') ? args.baseUrl : `${args.baseUrl}/`);
+    const base = args.baseUrl.endsWith('/') ? args.baseUrl : `${args.baseUrl}/`;
+    const url = new URL(args.endpoint, base);
     const response = await fetch(url, {
       method: 'POST',
       headers: buildHeaders(args.body, args.token),
@@ -171,7 +136,7 @@ async function apiFetch(args: {
     });
     const raw = await response.text();
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${raw}`);
+      throw new Error(`${args.label} ${response.status}: ${raw}`);
     }
     return raw;
   } finally {
@@ -252,6 +217,75 @@ function fileKindToMessageItem(args: {
   };
 }
 
+async function getUploadUrl(args: {
+  baseUrl: string;
+  token: string;
+  filekey: string;
+  mediaType: number;
+  toUserId: string;
+  rawsize: number;
+  rawfilemd5: string;
+  filesize: number;
+  noNeedThumb: boolean;
+  aeskeyHex: string;
+}): Promise<{ uploadParam?: string; thumbUploadParam?: string }> {
+  const body = JSON.stringify({
+    filekey: args.filekey,
+    media_type: args.mediaType,
+    to_user_id: args.toUserId,
+    rawsize: args.rawsize,
+    rawfilemd5: args.rawfilemd5,
+    filesize: args.filesize,
+    no_need_thumb: args.noNeedThumb,
+    aeskey: args.aeskeyHex,
+    base_info: {
+      channel_version: 'aesyclaw-weixin'
+    }
+  });
+
+  const raw = await apiFetch({
+    baseUrl: args.baseUrl,
+    endpoint: 'ilink/bot/getuploadurl',
+    body,
+    token: args.token,
+    label: 'getUploadUrl'
+  });
+
+  return JSON.parse(raw);
+}
+
+async function sendMessage(args: {
+  baseUrl: string;
+  token: string;
+  toUserId: string;
+  clientId: string;
+  contextToken: string;
+  item: MessageItem;
+}): Promise<void> {
+  const body = JSON.stringify({
+    msg: {
+      from_user_id: '',
+      to_user_id: args.toUserId,
+      client_id: args.clientId,
+      message_type: MessageType.BOT,
+      message_state: MessageState.FINISH,
+      context_token: args.contextToken,
+      item_list: [args.item]
+    },
+    base_info: {
+      channel_version: 'aesyclaw-weixin'
+    }
+  });
+
+  await apiFetch({
+    baseUrl: args.baseUrl,
+    endpoint: 'ilink/bot/sendmessage',
+    body,
+    token: args.token,
+    label: 'sendMessage'
+  });
+}
+
 async function uploadMedia(args: {
   baseUrl: string;
   cdnBaseUrl: string;
@@ -267,26 +301,20 @@ async function uploadMedia(args: {
   const rawsize = fileBuffer.length;
   const filesize = aesEcbPaddedSize(rawsize);
 
-  const uploadUrlResp = await postJson<{
-    upload_param?: string;
-    thumb_upload_param?: string;
-  }>({
+  const uploadUrlResp = await getUploadUrl({
     baseUrl: args.baseUrl,
-    endpoint: 'ilink/bot/getuploadurl',
     token: args.token,
-    body: {
-      filekey: fileKey,
-      media_type: args.mediaType,
-      to_user_id: args.toUserId,
-      rawsize,
-      rawfilemd5: rawFileMd5,
-      filesize,
-      no_need_thumb: true,
-      aeskey: aesKey.toString('hex')
-    }
+    filekey: fileKey,
+    mediaType: args.mediaType,
+    toUserId: args.toUserId,
+    rawsize,
+    rawfilemd5: rawFileMd5,
+    filesize,
+    noNeedThumb: true,
+    aeskeyHex: aesKey.toString('hex')
   });
 
-  const uploadParam = uploadUrlResp.upload_param;
+  const uploadParam = uploadUrlResp.uploadParam;
   if (!uploadParam) {
     throw new Error(`uploadMedia: getUploadUrl returned no upload_param`);
   }
@@ -360,26 +388,13 @@ async function sendMessageItems(args: {
   let lastClientId = '';
   for (const item of args.items) {
     lastClientId = generateClientId();
-    const body = JSON.stringify({
-      msg: {
-        from_user_id: '',
-        to_user_id: args.toUserId,
-        client_id: lastClientId,
-        message_type: MessageType.BOT,
-        message_state: MessageState.FINISH,
-        context_token: args.contextToken,
-        item_list: [item]
-      },
-      base_info: {
-        channel_version: 'aesyclaw-weixin'
-      }
-    });
-
-    await apiFetch({
+    await sendMessage({
       baseUrl: args.baseUrl,
-      endpoint: 'ilink/bot/sendmessage',
-      body,
-      token: args.token
+      token: args.token,
+      toUserId: args.toUserId,
+      clientId: lastClientId,
+      contextToken: args.contextToken,
+      item
     });
   }
 
@@ -391,7 +406,9 @@ export function createWeixinFacade(logger?: LoggerLike): WeixinFacade {
 
   return {
     async startQrLogin(args) {
-      const response = await fetch(new URL(`ilink/bot/get_bot_qrcode?bot_type=${encodeURIComponent(DEFAULT_LOGIN_BOT_TYPE)}`, args.baseUrl.endsWith('/') ? args.baseUrl : `${args.baseUrl}/`), {
+      const baseUrl = args.baseUrl.endsWith('/') ? args.baseUrl : `${args.baseUrl}/`;
+      const url = new URL(`ilink/bot/get_bot_qrcode?bot_type=${encodeURIComponent(DEFAULT_LOGIN_BOT_TYPE)}`, baseUrl);
+      const response = await fetch(url, {
         signal: args.signal
       });
       const raw = await response.text();
@@ -425,7 +442,8 @@ export function createWeixinFacade(logger?: LoggerLike): WeixinFacade {
 
     async waitForQrLogin(args) {
       while (!args.signal?.aborted) {
-        const url = new URL(`ilink/bot/get_qrcode_status?qrcode=${encodeURIComponent(args.sessionKey)}`, args.baseUrl.endsWith('/') ? args.baseUrl : `${args.baseUrl}/`);
+        const baseUrl = args.baseUrl.endsWith('/') ? args.baseUrl : `${args.baseUrl}/`;
+        const url = new URL(`ilink/bot/get_qrcode_status?qrcode=${encodeURIComponent(args.sessionKey)}`, baseUrl);
         const response = await fetch(url, {
           headers: {
             'iLink-App-ClientVersion': '1'
@@ -465,16 +483,24 @@ export function createWeixinFacade(logger?: LoggerLike): WeixinFacade {
     },
 
     async getUpdates(args) {
-      const response = await postJson<GetUpdatesResp>({
+      const body = JSON.stringify({
+        get_updates_buf: args.syncCursor,
+        base_info: {
+          channel_version: 'aesyclaw-weixin'
+        }
+      });
+
+      const raw = await apiFetch({
         baseUrl: args.baseUrl,
         endpoint: 'ilink/bot/getupdates',
+        body,
         token: args.token,
         timeoutMs: args.timeoutMs ?? DEFAULT_LONG_POLL_TIMEOUT_MS,
         signal: args.signal,
-        body: {
-          get_updates_buf: args.syncCursor
-        }
+        label: 'getUpdates'
       });
+
+      const response = JSON.parse(raw) as GetUpdatesResp;
 
       if (response.errcode === WEIXIN_SESSION_EXPIRED_ERRCODE || response.ret === WEIXIN_SESSION_EXPIRED_ERRCODE) {
         return {
