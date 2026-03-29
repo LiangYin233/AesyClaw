@@ -167,11 +167,18 @@ async function downloadRemoteMediaToTemp(url: string, outputDir: string): Promis
 }
 
 function buildCdnMedia(uploaded: UploadedMediaInfo): NonNullable<MessageItem['image_item']>['media'] {
-  return {
+  const media = {
     encrypt_query_param: uploaded.downloadEncryptedQueryParam,
     aes_key: Buffer.from(uploaded.aesKeyHex, 'hex').toString('base64'),
     encrypt_type: 1
   };
+  console.log('[DEBUG] buildCdnMedia:', JSON.stringify({
+    encrypt_query_param: uploaded.downloadEncryptedQueryParam.substring(0, 50) + '...',
+    aes_key_len: media.aes_key.length,
+    fileSize: uploaded.fileSize,
+    fileSizeCiphertext: uploaded.fileSizeCiphertext
+  }));
+  return media;
 }
 
 function buildTextMessageItem(text: string): MessageItem {
@@ -195,7 +202,7 @@ function fileKindToMessageItem(args: {
       type: MessageItemType.IMAGE,
       image_item: {
         media: baseMedia,
-        mid_size: args.uploaded.fileSize
+        mid_size: args.uploaded.fileSizeCiphertext
       }
     };
   }
@@ -205,7 +212,7 @@ function fileKindToMessageItem(args: {
       type: MessageItemType.VIDEO,
       video_item: {
         media: baseMedia,
-        video_size: args.uploaded.fileSize
+        video_size: args.uploaded.fileSizeCiphertext
       }
     };
   }
@@ -276,12 +283,19 @@ async function uploadMedia(args: {
     aeskey: aesKey
   });
 
-  return {
+  const result = {
     downloadEncryptedQueryParam: uploaded.downloadParam,
     aesKeyHex: aesKey.toString('hex'),
     fileSize: fileBuffer.length,
     fileSizeCiphertext: aesEcbPaddedSize(fileBuffer.length)
   };
+  console.log('[DEBUG] uploadMedia result:', JSON.stringify({
+    downloadEncryptedQueryParam: result.downloadEncryptedQueryParam.substring(0, 50) + '...',
+    aesKeyHex: result.aesKeyHex,
+    fileSize: result.fileSize,
+    fileSizeCiphertext: result.fileSizeCiphertext
+  }));
+  return result;
 }
 
 async function uploadAudioMedia(args: {
@@ -336,22 +350,25 @@ async function sendMessageItems(args: {
   let lastMessageId = messageIdFromResponse();
   for (const item of args.items) {
     lastMessageId = messageIdFromResponse();
+    const reqBody = {
+      msg: {
+        from_user_id: '',
+        to_user_id: args.toUserId,
+        client_id: lastMessageId,
+        message_type: MessageType.BOT,
+        message_state: MessageState.FINISH,
+        context_token: args.contextToken,
+        item_list: [item]
+      }
+    };
+    console.log('[DEBUG] sendMessageItems request:', JSON.stringify(reqBody, null, 2));
     const resp = await postJson<Record<string, unknown>>({
       baseUrl: args.baseUrl,
       endpoint: 'ilink/bot/sendmessage',
       token: args.token,
-      body: {
-        msg: {
-          from_user_id: '',
-          to_user_id: args.toUserId,
-          client_id: lastMessageId,
-          message_type: MessageType.BOT,
-          message_state: MessageState.FINISH,
-          context_token: args.contextToken,
-          item_list: [item]
-        }
-      }
+      body: reqBody
     });
+    console.log('[DEBUG] sendMessageItems response:', JSON.stringify(resp));
     if (resp.ret !== undefined && resp.ret !== 0) {
       throw new Error(`sendMessageItems failed: ret=${resp.ret} errcode=${resp.errcode} errmsg=${resp.errmsg}`);
     }
