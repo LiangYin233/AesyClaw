@@ -1,5 +1,5 @@
 import { logger } from '../../../platform/observability/index.js';
-import { createShortId } from '../../../platform/ids/index.js';
+import { createShortId } from '../../../platform/utils/createShortId.js';
 import type { CronJob } from '../index.js';
 import type { Services } from '../../../app/bootstrap/factory/ServiceFactory.js';
 

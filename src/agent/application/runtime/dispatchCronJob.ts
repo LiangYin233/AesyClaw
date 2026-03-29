@@ -1,6 +1,6 @@
 import type { SessionReference } from '../../domain/session.js';
 import type { CronJob } from '../../domain/cron.js';
-import { createShortId } from '../../../platform/ids/index.js';
+import { createShortId } from '../../../platform/utils/createShortId.js';
 
 const CRON_CHANNEL = 'cron';
 const CRON_SESSION_KEY_PREFIX = `${CRON_CHANNEL}:`;

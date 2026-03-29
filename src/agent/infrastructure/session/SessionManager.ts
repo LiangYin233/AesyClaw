@@ -1,6 +1,6 @@
 import type { Database } from '../../../platform/db/index.js';
 import { logger } from '../../../platform/observability/index.js';
-import { createShortId } from '../../../platform/ids/index.js';
+import { createShortId } from '../../../platform/utils/createShortId.js';
 import { formatLocalTimestamp } from '../../../platform/observability/logging.js';
 import { parseSessionKey, SessionNotFoundError, type Session, type SessionMessage } from '../../domain/sessionTypes.js';
 import { SessionStore } from './SessionStore.js';
