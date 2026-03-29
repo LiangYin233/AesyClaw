@@ -148,6 +148,38 @@ async function postJson<T>(args: {
   }
 }
 
+async function apiFetch(args: {
+  baseUrl: string;
+  endpoint: string;
+  body: string;
+  token?: string;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}): Promise<string> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), args.timeoutMs ?? DEFAULT_API_TIMEOUT_MS);
+  const onAbort = () => controller.abort(args.signal?.reason);
+  args.signal?.addEventListener('abort', onAbort, { once: true });
+
+  try {
+    const url = new URL(args.endpoint, args.baseUrl.endsWith('/') ? args.baseUrl : `${args.baseUrl}/`);
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: buildHeaders(args.body, args.token),
+      body: args.body,
+      signal: controller.signal
+    });
+    const raw = await response.text();
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${raw}`);
+    }
+    return raw;
+  } finally {
+    clearTimeout(timeout);
+    args.signal?.removeEventListener('abort', onAbort);
+  }
+}
+
 function isRemoteUrl(value: string): boolean {
   return value.startsWith('http://') || value.startsWith('https://');
 }
@@ -232,12 +264,12 @@ async function uploadMedia(args: {
   const aesKey = randomBytes(16);
   const fileKey = randomBytes(16).toString('hex');
   const rawFileMd5 = createHash('md5').update(fileBuffer).digest('hex');
-  const uploadUrl = await postJson<{
-    upload_full_url?: string;
+  const rawsize = fileBuffer.length;
+  const filesize = aesEcbPaddedSize(rawsize);
+
+  const uploadUrlResp = await postJson<{
     upload_param?: string;
-    ret?: number;
-    errcode?: number;
-    errmsg?: string;
+    thumb_upload_param?: string;
   }>({
     baseUrl: args.baseUrl,
     endpoint: 'ilink/bot/getuploadurl',
@@ -246,31 +278,20 @@ async function uploadMedia(args: {
       filekey: fileKey,
       media_type: args.mediaType,
       to_user_id: args.toUserId,
-      rawsize: fileBuffer.length,
+      rawsize,
       rawfilemd5: rawFileMd5,
-      filesize: aesEcbPaddedSize(fileBuffer.length),
-      thumb_rawsize: undefined,
-      thumb_rawfilemd5: undefined,
-      thumb_filesize: undefined,
+      filesize,
       no_need_thumb: true,
       aeskey: aesKey.toString('hex')
     }
   });
 
-  if ((uploadUrl.ret !== undefined && uploadUrl.ret !== 0) || (uploadUrl.errcode !== undefined && uploadUrl.errcode !== 0)) {
-    throw new Error(uploadUrl.errmsg || `微信媒体上传初始化失败: ret=${uploadUrl.ret ?? 0}, errcode=${uploadUrl.errcode ?? 0}`);
-  }
-
-  let uploadParam = uploadUrl.upload_param;
-  if (!uploadParam && uploadUrl.upload_full_url) {
-    const parsed = new URL(uploadUrl.upload_full_url);
-    uploadParam = parsed.searchParams.get('encrypted_query_param') || '';
-  }
+  const uploadParam = uploadUrlResp.upload_param;
   if (!uploadParam) {
-    throw new Error(`微信媒体上传初始化失败: upload_param missing`);
+    throw new Error(`uploadMedia: getUploadUrl returned no upload_param`);
   }
 
-  const uploaded = await uploadBufferToCdn({
+  const { downloadParam } = await uploadBufferToCdn({
     buf: fileBuffer,
     uploadParam,
     filekey: fileKey,
@@ -280,10 +301,10 @@ async function uploadMedia(args: {
   });
 
   return {
-    downloadEncryptedQueryParam: uploaded.downloadParam,
+    downloadEncryptedQueryParam: downloadParam,
     aesKeyHex: aesKey.toString('hex'),
-    fileSize: fileBuffer.length,
-    fileSizeCiphertext: aesEcbPaddedSize(fileBuffer.length)
+    fileSize: rawsize,
+    fileSizeCiphertext: filesize
   };
 }
 
@@ -325,7 +346,7 @@ async function uploadAudioMedia(args: {
   };
 }
 
-function messageIdFromResponse(): string {
+function generateClientId(): string {
   return randomBytes(8).toString('hex');
 }
 
@@ -336,34 +357,33 @@ async function sendMessageItems(args: {
   contextToken: string;
   items: MessageItem[];
 }): Promise<{ messageId: string }> {
-  let lastMessageId = messageIdFromResponse();
+  let lastClientId = '';
   for (const item of args.items) {
-    lastMessageId = messageIdFromResponse();
-    const resp = await postJson<Record<string, unknown>>({
-      baseUrl: args.baseUrl,
-      endpoint: 'ilink/bot/sendmessage',
-      token: args.token,
-      body: {
-        msg: {
-          from_user_id: '',
-          to_user_id: args.toUserId,
-          client_id: lastMessageId,
-          message_type: MessageType.BOT,
-          message_state: MessageState.FINISH,
-          context_token: args.contextToken,
-          item_list: [item]
-        }
+    lastClientId = generateClientId();
+    const body = JSON.stringify({
+      msg: {
+        from_user_id: '',
+        to_user_id: args.toUserId,
+        client_id: lastClientId,
+        message_type: MessageType.BOT,
+        message_state: MessageState.FINISH,
+        context_token: args.contextToken,
+        item_list: [item]
+      },
+      base_info: {
+        channel_version: 'aesyclaw-weixin'
       }
     });
-    if (resp.ret !== undefined && resp.ret !== 0) {
-      throw new Error(`sendMessageItems failed: ret=${resp.ret} errcode=${resp.errcode} errmsg=${resp.errmsg}`);
-    }
-    if (resp.errcode !== undefined && resp.errcode !== 0) {
-      throw new Error(`sendMessageItems failed: errcode=${resp.errcode} errmsg=${resp.errmsg}`);
-    }
+
+    await apiFetch({
+      baseUrl: args.baseUrl,
+      endpoint: 'ilink/bot/sendmessage',
+      body,
+      token: args.token
+    });
   }
 
-  return { messageId: lastMessageId };
+  return { messageId: lastClientId };
 }
 
 export function createWeixinFacade(logger?: LoggerLike): WeixinFacade {
