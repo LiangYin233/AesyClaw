@@ -235,6 +235,7 @@ async function uploadMedia(args: {
   const fileKey = randomBytes(16).toString('hex');
   const rawFileMd5 = createHash('md5').update(fileBuffer).digest('hex');
   const uploadUrl = await postJson<{
+    upload_full_url?: string;
     upload_param?: string;
     ret?: number;
     errcode?: number;
@@ -255,13 +256,22 @@ async function uploadMedia(args: {
     }
   });
 
-  if ((uploadUrl.ret !== undefined && uploadUrl.ret !== 0) || (uploadUrl.errcode !== undefined && uploadUrl.errcode !== 0) || !uploadUrl.upload_param) {
+  if ((uploadUrl.ret !== undefined && uploadUrl.ret !== 0) || (uploadUrl.errcode !== undefined && uploadUrl.errcode !== 0)) {
     throw new Error(uploadUrl.errmsg || `微信媒体上传初始化失败: ret=${uploadUrl.ret ?? 0}, errcode=${uploadUrl.errcode ?? 0}`);
+  }
+
+  let uploadParam = uploadUrl.upload_param;
+  if (!uploadParam && uploadUrl.upload_full_url) {
+    const parsed = new URL(uploadUrl.upload_full_url);
+    uploadParam = parsed.searchParams.get('encrypted_query_param') || '';
+  }
+  if (!uploadParam) {
+    throw new Error(`微信媒体上传初始化失败: upload_param missing`);
   }
 
   const uploaded = await uploadBufferToCdn({
     buf: fileBuffer,
-    uploadParam: uploadUrl.upload_param,
+    uploadParam,
     filekey: fileKey,
     cdnBaseUrl: args.cdnBaseUrl,
     label: 'weixin-media-upload',
