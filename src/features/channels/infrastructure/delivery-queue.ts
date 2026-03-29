@@ -192,6 +192,7 @@ export class DeliveryQueue {
       );
     } catch (error) {
       const classification = this.classifier(job, error);
+      this.log.error(`Delivery failed for job=${jobId} channel=${job.channel} conversationId=${job.conversationId} attempts=${attempts}: ${classification.message || this.errorMessage(error)}`);
       const retryable = classification.retryable && attempts < (this.options.maxAttempts ?? 3);
       const nextRetryAt = retryable
         ? formatLocalTimestamp(new Date(Date.now() + Math.min(30_000, 1000 * Math.pow(2, attempts - 1))))
