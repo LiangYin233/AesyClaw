@@ -249,6 +249,9 @@ async function uploadMedia(args: {
       rawsize: fileBuffer.length,
       rawfilemd5: rawFileMd5,
       filesize: aesEcbPaddedSize(fileBuffer.length),
+      thumb_rawsize: undefined,
+      thumb_rawfilemd5: undefined,
+      thumb_filesize: undefined,
       no_need_thumb: true,
       aeskey: aesKey.toString('hex')
     }
