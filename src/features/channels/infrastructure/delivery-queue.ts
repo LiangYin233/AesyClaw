@@ -114,7 +114,6 @@ export class DeliveryQueue {
     payload: ChannelMessage;
     idempotencyKey?: string;
   }): Promise<DeliveryReceipt> {
-    this.log.info(`dispatch called: channel=${args.channel} conversationId=${args.conversationId}`);
     const idempotencyKey = args.idempotencyKey || randomUUID();
     const existing = await this.db.get<DeliveryJobRow>(
       `SELECT * FROM channel_delivery_jobs WHERE idempotency_key = ?`,
@@ -133,9 +132,6 @@ export class DeliveryQueue {
          ) VALUES (?, ?, ?, ?, ?, 'queued', 0, 0, NULL, NULL, NULL, NULL, ?, ?)`,
         [jobId, idempotencyKey, args.channel, args.conversationId, JSON.stringify(serializeMessage(args.payload)), now, now]
       );
-      this.log.info(`dispatch: created new job=${jobId}`);
-    } else {
-      this.log.info(`dispatch: found existing job=${jobId} status=${existing?.status}`);
     }
 
     await this.processJob(jobId);
@@ -162,14 +158,11 @@ export class DeliveryQueue {
   }
 
   private async processJob(jobId: string): Promise<void> {
-    this.log.info(`processJob: jobId=${jobId} running=${this.running}`);
     if (!this.running || this.inflight.has(jobId)) {
-      this.log.info(`processJob: skipped - running=${this.running} inflight=${this.inflight.has(jobId)}`);
       return;
     }
 
     const row = await this.db.get<DeliveryJobRow>(`SELECT * FROM channel_delivery_jobs WHERE job_id = ?`, [jobId]);
-    this.log.info(`processJob: row status=${row?.status}`);
     if (!row || row.status === 'sent') {
       return;
     }
@@ -199,7 +192,6 @@ export class DeliveryQueue {
       );
     } catch (error) {
       const classification = this.classifier(job, error);
-      this.log.error(`Delivery failed for job=${jobId} channel=${job.channel} conversationId=${job.conversationId} attempts=${attempts}: ${classification.message || this.errorMessage(error)}`);
       const retryable = classification.retryable && attempts < (this.options.maxAttempts ?? 3);
       const nextRetryAt = retryable
         ? formatLocalTimestamp(new Date(Date.now() + Math.min(30_000, 1000 * Math.pow(2, attempts - 1))))

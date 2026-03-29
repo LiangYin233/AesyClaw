@@ -138,8 +138,6 @@ async function postJson<T>(args: {
       signal: controller.signal
     });
     const raw = await response.text();
-    const log = createLogger();
-    log.info(`postJson ${args.endpoint}: status=${response.status} body=${raw.slice(0, 300)}`);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${raw}`);
     }
@@ -335,11 +333,9 @@ async function sendMessageItems(args: {
   contextToken: string;
   items: MessageItem[];
 }): Promise<{ messageId: string }> {
-  const log = createLogger();
   let lastMessageId = messageIdFromResponse();
   for (const item of args.items) {
     lastMessageId = messageIdFromResponse();
-    log.info(`sendMessageItems: to=${args.toUserId} client_id=${lastMessageId} item_type=${item.type}`);
     const resp = await postJson<Record<string, unknown>>({
       baseUrl: args.baseUrl,
       endpoint: 'ilink/bot/sendmessage',
@@ -356,7 +352,6 @@ async function sendMessageItems(args: {
         }
       }
     });
-    log.info(`sendMessageItems response: ${JSON.stringify(resp).slice(0, 200)}`);
     if (resp.ret !== undefined && resp.ret !== 0) {
       throw new Error(`sendMessageItems failed: ret=${resp.ret} errcode=${resp.errcode} errmsg=${resp.errmsg}`);
     }
@@ -491,9 +486,6 @@ export function createWeixinFacade(logger?: LoggerLike): WeixinFacade {
     },
 
     async sendMedia(args) {
-      const log = createLogger();
-      log.info(`sendMedia start: kind=${args.kind} filePath=${args.filePath} text=${args.text?.slice(0, 50)} contextToken=${args.contextToken ? 'present' : 'MISSING'}`);
-
       if (!args.contextToken?.trim()) {
         throw new Error(`sendMedia failed: contextToken is missing for toUserId=${args.toUserId}`);
       }
@@ -501,7 +493,6 @@ export function createWeixinFacade(logger?: LoggerLike): WeixinFacade {
       const normalizedFilePath = isRemoteUrl(args.filePath)
         ? await downloadRemoteMediaToTemp(args.filePath, OUTBOUND_MEDIA_TEMP_DIR)
         : args.filePath;
-      log.info(`normalizedFilePath=${normalizedFilePath}`);
 
       const items: MessageItem[] = [];
       if (args.text?.trim()) {
@@ -529,7 +520,6 @@ export function createWeixinFacade(logger?: LoggerLike): WeixinFacade {
               ? UploadMediaType.VIDEO
               : UploadMediaType.FILE
         });
-        log.info(`uploadMedia complete: downloadParam=${uploaded.downloadEncryptedQueryParam.slice(0, 20)}...`);
         items.push(fileKindToMessageItem({
           kind: args.kind === 'file' ? 'file' : args.kind,
           fileName: basename(normalizedFilePath),
@@ -537,15 +527,13 @@ export function createWeixinFacade(logger?: LoggerLike): WeixinFacade {
         }));
       }
 
-      const result = await sendMessageItems({
+      return sendMessageItems({
         baseUrl: args.baseUrl,
         token: args.token,
         toUserId: args.toUserId,
         contextToken: args.contextToken,
         items
       });
-      log.info(`sendMedia complete: messageId=${result.messageId}`);
-      return result;
     },
 
     async resolveInboundMedia(args) {
