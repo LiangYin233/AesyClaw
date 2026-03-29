@@ -1,5 +1,5 @@
 // src/platform/context/MemoryContext.ts
-import type { Session, SessionMessage } from '../../agent/infrastructure/session/SessionManager.js';
+import type { Session, SessionMessage } from './SessionContext.js';
 import type { InboundMessage } from '../../types.js';
 import type { LongTermMemoryEntry, LongTermMemoryOperation, MemoryOperationInput, MemoryOperationActor, MemoryOperationResult } from './MemoryTypes.js';
 
