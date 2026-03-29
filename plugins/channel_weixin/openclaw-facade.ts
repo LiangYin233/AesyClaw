@@ -347,6 +347,12 @@ async function sendMessageItems(args: {
       }
     });
     log.debug(`sendMessageItems response: ${JSON.stringify(resp).slice(0, 200)}`);
+    if (resp.ret !== undefined && resp.ret !== 0) {
+      throw new Error(`sendMessageItems failed: ret=${resp.ret} errcode=${resp.errcode} errmsg=${resp.errmsg}`);
+    }
+    if (resp.errcode !== undefined && resp.errcode !== 0) {
+      throw new Error(`sendMessageItems failed: errcode=${resp.errcode} errmsg=${resp.errmsg}`);
+    }
   }
 
   return { messageId: lastMessageId };
@@ -476,7 +482,11 @@ export function createWeixinFacade(logger?: LoggerLike): WeixinFacade {
 
     async sendMedia(args) {
       const log = createLogger();
-      log.debug(`sendMedia start: kind=${args.kind} filePath=${args.filePath} text=${args.text?.slice(0, 50)}`);
+      log.debug(`sendMedia start: kind=${args.kind} filePath=${args.filePath} text=${args.text?.slice(0, 50)} contextToken=${args.contextToken ? 'present' : 'MISSING'}`);
+
+      if (!args.contextToken?.trim()) {
+        throw new Error(`sendMedia failed: contextToken is missing for toUserId=${args.toUserId}`);
+      }
 
       const normalizedFilePath = isRemoteUrl(args.filePath)
         ? await downloadRemoteMediaToTemp(args.filePath, OUTBOUND_MEDIA_TEMP_DIR)
