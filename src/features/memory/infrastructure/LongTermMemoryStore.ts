@@ -6,7 +6,9 @@ import type {
   MemoryOperationAction,
   MemoryOperationActor,
   LongTermMemoryEntry,
-  LongTermMemoryOperation
+  LongTermMemoryOperation,
+  MemoryOperationInput,
+  MemoryOperationResult
 } from '../../../platform/context/MemoryTypes.js';
 
 export type { MemoryEntryKind, MemoryEntryStatus, MemoryOperationAction, MemoryOperationActor } from '../../../platform/context/MemoryTypes.js';
