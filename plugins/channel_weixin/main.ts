@@ -276,7 +276,24 @@ class WeixinAdapter implements ChannelAdapter {
       signal: this.abortController?.signal
     });
 
+    const qrCodePath = join(channelPaths.weixin.root(), 'weixin-qrcode.png');
+    await mkdir(channelPaths.weixin.root(), { recursive: true });
+
+    if (startResult.qrCodeUrl.startsWith('data:')) {
+      const base64Data = startResult.qrCodeUrl.replace(/^data:image\/\w+;base64,/, '');
+      const qrImageBuffer = Buffer.from(base64Data, 'base64');
+      await writeFile(qrCodePath, qrImageBuffer);
+    } else if (startResult.qrCodeUrl.startsWith('http')) {
+      const response = await fetch(startResult.qrCodeUrl);
+      const arrayBuffer = await response.arrayBuffer();
+      await writeFile(qrCodePath, Buffer.from(arrayBuffer));
+    }
+
     this.log.info('\n=== 微信扫码登录 ===');
+    this.log.info(`二维码已保存至: ${qrCodePath}`);
+    if (startResult.qrCodeAscii) {
+      this.log.info(`\n${startResult.qrCodeAscii}\n`);
+    }
     this.log.info('请使用微信扫描二维码完成登录\n');
 
     const loginResult = await this.facade.waitForQrLogin({
@@ -289,6 +306,11 @@ class WeixinAdapter implements ChannelAdapter {
     this.config.userId = loginResult.userId;
     this.config.contextTokens = {};
     await this.saveState();
+
+    try {
+      await writeFile(qrCodePath, '');
+    } catch {
+    }
 
     this.log.info('微信登录成功！');
   }
