@@ -188,7 +188,7 @@
                   </label>
                   <label>
                     <span class="mb-1 ml-1 block text-[10px] font-bold tracking-[0.12em] text-on-surface-variant">目标</span>
-                    <input v-model="draft.payload.target" class="tech-text w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none" type="text" placeholder="telegram:group:ops-room" />
+                    <input v-model="draft.payload.target" class="tech-text w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none" type="text" placeholder="channel:type:chatid" />
                   </label>
                 </div>
               </div>
