@@ -3,17 +3,10 @@ import http from 'http';
 import fs from 'fs';
 import { basename } from 'path';
 import { randomUUID } from 'crypto';
-import type { ChannelPluginDefinition } from '../../src/features/channels/application/ChannelManager.ts';
-import type { AdapterRuntimeContext, ChannelAdapter, ChannelSendContext } from '../../src/features/channels/domain/adapter.ts';
-import { projectChannelMessage } from '../../src/features/channels/domain/projection.ts';
-import type {
-  AdapterInboundDraft,
-  AdapterSendResult,
-  ChannelCapabilityProfile,
-  ChannelMessage,
-  MessageSegment,
-  ResourceHandle
-} from '../../src/features/channels/domain/types.ts';
+import { BaseChannelAdapter } from '../../src/features/channels/adapter/BaseChannelAdapter.js';
+import type { AdapterContext, SendResult } from '../../src/features/channels/protocol/adapter-interface.js';
+import type { UnifiedMessage } from '../../src/features/channels/protocol/unified-message.js';
+import type { ImageAttachment, FileAttachment } from '../../src/features/channels/protocol/attachment.js';
 import { logger } from '../../src/platform/observability/index.ts';
 
 interface FeishuConfig {
@@ -41,34 +34,22 @@ interface TokenCache {
   expiresAt: number;
 }
 
-class FeishuAdapter implements ChannelAdapter {
+class FeishuAdapter extends BaseChannelAdapter {
   private static readonly FEISHU_API_BASE = 'https://open.feishu.cn';
   readonly name = 'feishu';
-  private runtimeContext?: AdapterRuntimeContext;
   private webhookServer?: http.Server;
-  private app: express.Application;
+  private app: any;
   private tokenCache?: TokenCache;
   private tokenRefreshTimer?: NodeJS.Timeout;
   private running = false;
   private log = logger.child('Feishu');
 
   constructor(private config: FeishuConfig) {
+    super();
     this.app = express();
   }
 
-  capabilities(): ChannelCapabilityProfile {
-    return {
-      supportsImages: true,
-      supportsFiles: true,
-      supportsAudio: true,
-      supportsVideo: true,
-      supportsQuotes: false,
-      supportsMentions: false
-    };
-  }
-
-  async start(ctx: AdapterRuntimeContext): Promise<void> {
-    this.runtimeContext = ctx;
+  protected async onStart(): Promise<void> {
     this.setupWebhookRoutes();
     await this.startWebhookServer();
     await this.refreshToken();
@@ -76,7 +57,7 @@ class FeishuAdapter implements ChannelAdapter {
     this.running = true;
   }
 
-  async stop(): Promise<void> {
+  protected async onStop(): Promise<void> {
     this.running = false;
     if (this.tokenRefreshTimer) {
       clearInterval(this.tokenRefreshTimer);
@@ -90,11 +71,8 @@ class FeishuAdapter implements ChannelAdapter {
     }
   }
 
-  isRunning(): boolean {
-    return this.running;
-  }
-
-  async decodeInbound(event: any): Promise<AdapterInboundDraft | null> {
+  protected async parsePlatformEvent(rawEvent: unknown): Promise<UnifiedMessage | null> {
+    const event = rawEvent as any;
     const sender = event?.sender?.sender_id?.open_id;
     const message = event?.message;
     const messageType = message?.chat_type === 'p2p' ? 'private' : 'group';
@@ -104,67 +82,62 @@ class FeishuAdapter implements ChannelAdapter {
       return null;
     }
 
+    const { text, images, files } = await this.parseMessageContent(message?.message_type, message?.content);
+
     return {
-      conversation: {
-        id: chatId,
-        type: messageType
-      },
-      sender: {
-        id: sender,
-        displayName: event.sender?.sender_id?.user_id || event.sender?.sender_id?.union_id
-      },
+      id: message?.message_id || `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      channel: 'feishu',
+      direction: 'inbound',
+      chatId,
+      chatType: messageType,
+      senderId: sender,
+      senderName: event.sender?.sender_id?.user_id || event.sender?.sender_id?.union_id,
+      text,
+      images,
+      files,
       timestamp: message?.create_time ? new Date(Number(message.create_time)) : new Date(),
-      platformMessageId: message?.message_id,
-      segments: await this.decodeMessageContent(message?.message_type, message?.content),
-      metadata: {
-        source: 'user'
-      },
-      rawEvent: event
+      raw: event
     };
   }
 
-  async send(message: ChannelMessage, _context: ChannelSendContext): Promise<AdapterSendResult> {
+  protected async sendToPlatform(message: UnifiedMessage): Promise<SendResult> {
     const token = await this.getValidToken();
-    const receiveIdType = message.conversation.type === 'group' ? 'chat_id' : 'open_id';
+    const receiveIdType = message.chatType === 'group' ? 'chat_id' : 'open_id';
     const url = `${FeishuAdapter.FEISHU_API_BASE}/open-apis/im/v1/messages?receive_id_type=${receiveIdType}`;
+    
     const parts = await this.formatOutboundMessages(message);
     let platformMessageId: string | undefined;
 
     for (const part of parts) {
-      const requestBody = {
-        receive_id: message.conversation.id,
-        msg_type: part.msgType,
-        content: JSON.stringify(part.content),
-        uuid: randomUUID()
-      };
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json; charset=utf-8'
+          },
+          body: JSON.stringify({
+            receive_id: message.chatId,
+            msg_type: part.msgType,
+            content: JSON.stringify(part.content),
+            uuid: randomUUID()
+          })
+        });
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json; charset=utf-8'
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      const result: any = await response.json();
-      if (result.code !== 0) {
-        throw new Error(`Feishu API error (${result.code}): ${result.msg}`);
+        const result: any = await response.json();
+        if (result.code !== 0) {
+          throw new Error(`Feishu API error (${result.code}): ${result.msg}`);
+        }
+        platformMessageId = result.data?.message_id || platformMessageId;
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error)
+        };
       }
-      platformMessageId = result.data?.message_id || platformMessageId;
     }
 
-    return { platformMessageId };
-  }
-
-  classifyError(error: unknown): { retryable: boolean; code: string; message?: string } {
-    const message = error instanceof Error ? error.message : String(error);
-    const retryable = /timeout|network|ECONN|HTTP 5\d\d|temporarily/i.test(message);
-    return {
-      retryable,
-      code: retryable ? 'transport_error' : 'send_failed',
-      message
-    };
+    return { success: true, messageId: platformMessageId };
   }
 
   private setupWebhookRoutes(): void {
@@ -181,7 +154,8 @@ class FeishuAdapter implements ChannelAdapter {
         return res.status(401).json({ error: 'Invalid token' });
       }
 
-      void this.handleFeishuEvent(payload).catch((_error) => {
+      void this.handleFeishuEvent(payload).catch(() => {
+        // 忽略错误
       });
 
       return res.json({ success: true });
@@ -193,7 +167,9 @@ class FeishuAdapter implements ChannelAdapter {
       this.webhookServer = this.app.listen(this.config.webhookPort, () => {
         resolve();
       });
-      this.webhookServer.on('error', reject);
+      if (this.webhookServer) {
+        this.webhookServer.on('error', reject);
+      }
     });
   }
 
@@ -233,7 +209,8 @@ class FeishuAdapter implements ChannelAdapter {
 
   private startTokenRefreshTimer(): void {
     this.tokenRefreshTimer = setInterval(() => {
-      void this.refreshToken().catch((_error) => {
+      void this.refreshToken().catch(() => {
+        // 忽略错误
       });
     }, 90 * 60 * 1000);
   }
@@ -244,7 +221,7 @@ class FeishuAdapter implements ChannelAdapter {
       return;
     }
 
-    await this.runtimeContext?.ingest(payload.event);
+    void (this as any).context?.reportIncoming(payload.event);
   }
 
   private isAllowed(senderId: string, messageType: 'private' | 'group'): boolean {
@@ -257,45 +234,68 @@ class FeishuAdapter implements ChannelAdapter {
     return !list || list.length === 0 ? true : list.includes(senderId);
   }
 
-  private async decodeMessageContent(messageType: string, content: string): Promise<MessageSegment[]> {
+  private async parseMessageContent(messageType: string, content: string): Promise<{ text: string; images: ImageAttachment[]; files: FileAttachment[] }> {
+    const images: ImageAttachment[] = [];
+    const files: FileAttachment[] = [];
+
     if (!content) {
-      return [];
+      return { text: '', images, files };
     }
 
     let parsed: any;
     try {
       parsed = JSON.parse(content);
     } catch {
-      return [{ type: 'text', text: content }];
+      return { text: content, images, files };
     }
 
     switch (messageType) {
       case 'text':
-        return [{ type: 'text', text: parsed.text || '' }];
+        return { text: parsed.text || '', images, files };
       case 'post':
-        return [{ type: 'text', text: this.extractPostText(parsed) }];
+        return { text: this.extractPostText(parsed), images, files };
       case 'image':
-        return parsed.image_key ? [{
-          type: 'image',
-          resource: await this.buildResource('image', parsed.image_key, parsed.file_name || `${parsed.image_key}.png`)
-        }] : [];
+        if (parsed.image_key) {
+          images.push({
+            id: randomUUID().slice(0, 8),
+            type: 'image',
+            name: parsed.file_name || `${parsed.image_key}.png`,
+            url: await this.getResourceUrl(parsed.image_key, 'image')
+          });
+        }
+        return { text: '', images, files };
       case 'audio':
-        return parsed.file_key ? [{
-          type: 'audio',
-          resource: await this.buildResource('audio', parsed.file_key, parsed.file_name || 'voice.amr')
-        }] : [];
+        if (parsed.file_key) {
+          files.push({
+            id: randomUUID().slice(0, 8),
+            type: 'audio',
+            name: parsed.file_name || 'voice.amr',
+            url: await this.getResourceUrl(parsed.file_key, 'file')
+          });
+        }
+        return { text: '', images, files };
       case 'media':
-        return parsed.file_key ? [{
-          type: 'video',
-          resource: await this.buildResource('video', parsed.file_key, parsed.file_name || 'video.mp4')
-        }] : [];
+        if (parsed.file_key) {
+          files.push({
+            id: randomUUID().slice(0, 8),
+            type: 'video',
+            name: parsed.file_name || 'video.mp4',
+            url: await this.getResourceUrl(parsed.file_key, 'file')
+          });
+        }
+        return { text: '', images, files };
       case 'file':
-        return parsed.file_key ? [{
-          type: 'file',
-          resource: await this.buildResource('file', parsed.file_key, parsed.file_name || 'file')
-        }] : [];
+        if (parsed.file_key) {
+          files.push({
+            id: randomUUID().slice(0, 8),
+            type: 'file',
+            name: parsed.file_name || 'file',
+            url: await this.getResourceUrl(parsed.file_key, 'file')
+          });
+        }
+        return { text: '', images, files };
       default:
-        return [{ type: 'unsupported', originalType: messageType, text: `[${messageType}]` }];
+        return { text: `[${messageType}]`, images, files };
     }
   }
 
@@ -325,17 +325,6 @@ class FeishuAdapter implements ChannelAdapter {
     }
   }
 
-  private async buildResource(kind: ResourceHandle['kind'], fileKey: string, originalName: string): Promise<ResourceHandle> {
-    const remoteUrl = await this.getResourceUrl(fileKey, kind === 'image' ? 'image' : 'file');
-    return {
-      resourceId: randomUUID().slice(0, 8),
-      kind,
-      originalName,
-      remoteUrl,
-      platformFileId: fileKey
-    };
-  }
-
   private async getResourceUrl(fileKey: string, type: 'image' | 'file'): Promise<string> {
     const token = await this.getValidToken();
     const endpoint = type === 'image'
@@ -345,7 +334,7 @@ class FeishuAdapter implements ChannelAdapter {
     return `${FeishuAdapter.FEISHU_API_BASE}${endpoint}?access_token=${token}`;
   }
 
-  private async formatOutboundMessages(message: ChannelMessage): Promise<Array<{ msgType: string; content: Record<string, string> }>> {
+  private async formatOutboundMessages(message: UnifiedMessage): Promise<Array<{ msgType: string; content: Record<string, string> }>> {
     const parts: Array<{ msgType: string; content: Record<string, string> }> = [];
     let textBuffer = '';
 
@@ -357,67 +346,54 @@ class FeishuAdapter implements ChannelAdapter {
       textBuffer = '';
     };
 
-    for (const segment of message.segments) {
-      switch (segment.type) {
-        case 'text':
-          textBuffer += segment.text;
-          break;
-        case 'mention':
-          textBuffer += segment.display ? `@${segment.display}` : `@${segment.userId}`;
-          break;
-        case 'quote':
-          if (segment.message) {
-            const quoted = projectChannelMessage(segment.message).content;
-            textBuffer += quoted ? `【引用消息】\n${quoted}\n\n` : '【引用消息】\n';
-          }
-          break;
-        case 'image': {
-          flushText();
-          const imagePath = this.requireLocalPath(segment.resource);
-          const imageKey = await this.uploadImage(imagePath);
-          parts.push({ msgType: 'image', content: { image_key: imageKey } });
-          break;
-        }
-        case 'file':
-        case 'audio':
-        case 'video': {
-          flushText();
-          const filePath = this.requireLocalPath(segment.resource);
-          const fileKey = await this.uploadFile(filePath);
-          parts.push({ msgType: 'file', content: { file_key: fileKey } });
-          break;
-        }
-        case 'unsupported':
-          if (segment.text) {
-            textBuffer += segment.text;
-          }
-          break;
-        default:
-          break;
-      }
+    // 处理文本
+    if (message.text) {
+      textBuffer += message.text;
     }
 
     flushText();
+
+    // 处理图片
+    for (const image of message.images) {
+      try {
+        const imageKey = await this.uploadImage(image.url);
+        parts.push({ msgType: 'image', content: { image_key: imageKey } });
+      } catch (error) {
+        this.log.error('Failed to upload image: ' + (error instanceof Error ? error.message : String(error)));
+      }
+    }
+
+    // 处理文件
+    for (const file of message.files) {
+      try {
+        const fileKey = await this.uploadFile(file.url);
+        parts.push({ msgType: 'file', content: { file_key: fileKey } });
+      } catch (error) {
+        this.log.error('Failed to upload file: ' + (error instanceof Error ? error.message : String(error)));
+      }
+    }
+
     return parts.length > 0 ? parts : [{ msgType: 'text', content: { text: '[空消息]' } }];
   }
 
-  private requireLocalPath(resource: ResourceHandle): string {
-    const localPath = resource.localPath || (resource.remoteUrl?.startsWith('file://') ? resource.remoteUrl.substring(7) : undefined);
-    if (!localPath || !fs.existsSync(localPath)) {
-      throw new Error(`Resource local path missing: ${resource.originalName}`);
-    }
-    return localPath;
-  }
-
-  private async uploadImage(imagePath: string): Promise<string> {
+  private async uploadImage(imageUrl: string): Promise<string> {
     const token = await this.getValidToken();
-    const buffer = fs.readFileSync(imagePath);
+    
+    // 如果 URL 是本地路径，读取文件
+    let buffer: Buffer;
+    if (!imageUrl.startsWith('http')) {
+      buffer = fs.readFileSync(imageUrl);
+    } else {
+      const response = await fetch(imageUrl);
+      buffer = Buffer.from(await response.arrayBuffer());
+    }
+
     const FormData = (await import('form-data')).default;
     const form = new FormData();
     form.append('image_type', 'message');
     form.append('image', buffer, {
-      filename: basename(imagePath),
-      contentType: this.getImageContentType(imagePath)
+      filename: basename(imageUrl),
+      contentType: this.getImageContentType(imageUrl)
     });
 
     return new Promise((resolve, reject) => {
@@ -455,23 +431,29 @@ class FeishuAdapter implements ChannelAdapter {
               reject(new Error(`Failed to parse response: ${parseError.message}`));
             }
           });
-          res.on('error', (responseError) => {
-            reject(new Error(`Response error: ${responseError.message}`));
-          });
         }
       );
     });
   }
 
-  private async uploadFile(filePath: string): Promise<string> {
+  private async uploadFile(fileUrl: string): Promise<string> {
     const token = await this.getValidToken();
-    const buffer = fs.readFileSync(filePath);
+    
+    // 如果 URL 是本地路径，读取文件
+    let buffer: Buffer;
+    if (!fileUrl.startsWith('http')) {
+      buffer = fs.readFileSync(fileUrl);
+    } else {
+      const response = await fetch(fileUrl);
+      buffer = Buffer.from(await response.arrayBuffer());
+    }
+
     const FormData = (await import('form-data')).default;
     const form = new FormData();
     form.append('file_type', 'stream');
-    form.append('file_name', basename(filePath));
+    form.append('file_name', basename(fileUrl));
     form.append('file', buffer, {
-      filename: basename(filePath),
+      filename: basename(fileUrl),
       contentType: 'application/octet-stream'
     });
 
@@ -510,9 +492,6 @@ class FeishuAdapter implements ChannelAdapter {
               reject(new Error(`Failed to parse response: ${parseError.message}`));
             }
           });
-          res.on('error', (responseError) => {
-            reject(new Error(`Response error: ${responseError.message}`));
-          });
         }
       );
     });
@@ -538,10 +517,5 @@ class FeishuAdapter implements ChannelAdapter {
   }
 }
 
-const plugin: ChannelPluginDefinition = {
-  pluginName: 'channel_feishu',
-  channelName: 'feishu',
-  create: (config) => new FeishuAdapter(config)
-};
-
-export default plugin;
+// 导出适配器实例
+export default new FeishuAdapter(defaultChannelConfig);

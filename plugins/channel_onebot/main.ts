@@ -2,17 +2,10 @@ import WebSocket from 'ws';
 import fs from 'fs';
 import { basename } from 'path';
 import { createHash, randomUUID } from 'crypto';
-import type { ChannelPluginDefinition } from '../../src/features/channels/application/ChannelManager.ts';
-import type { AdapterRuntimeContext, ChannelAdapter, ChannelSendContext } from '../../src/features/channels/domain/adapter.ts';
-import type {
-  AdapterInboundDraft,
-  AdapterSendResult,
-  ChannelMessage,
-  ChannelCapabilityProfile,
-  MessageSegment,
-  QuoteReference,
-  ResourceHandle
-} from '../../src/features/channels/domain/types.ts';
+import { BaseChannelAdapter } from '../../src/features/channels/adapter/BaseChannelAdapter.js';
+import type { AdapterContext, SendResult } from '../../src/features/channels/protocol/adapter-interface.js';
+import type { UnifiedMessage } from '../../src/features/channels/protocol/unified-message.js';
+import type { ImageAttachment, FileAttachment } from '../../src/features/channels/protocol/attachment.js';
 
 const WEBSOCKET_ACTION_TIMEOUT = 10000;
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
@@ -35,305 +28,321 @@ export const defaultChannelConfig: Partial<OneBotConfig> = {
   groupAllowFrom: []
 };
 
-class OneBotAdapter implements ChannelAdapter {
+class OneBotAdapter extends BaseChannelAdapter {
   readonly name = 'onebot';
   private readonly FILE_UPLOAD_CHUNK_SIZE = 64 * 1024;
   private readonly FILE_UPLOAD_RETENTION_MS = 30 * 1000;
   private ws?: WebSocket;
-  private runtimeContext?: AdapterRuntimeContext;
   private selfId?: string;
-  private running = false;
-  private connectAttemptCounter = 0;
   private reconnectAttempts = 0;
   private heartbeatInterval?: NodeJS.Timeout;
   private heartbeatTimer?: NodeJS.Timeout;
   private isReconnecting = false;
+  private running = false;
   private pendingActions: Array<{ resolve: (value: unknown) => void; reject: (reason?: unknown) => void }> = [];
-  constructor(private config: OneBotConfig) {}
 
-  capabilities(): ChannelCapabilityProfile {
-    return {
-      supportsMentions: true,
-      supportsQuotes: true,
-      supportsImages: true,
-      supportsFiles: true,
-      supportsAudio: true,
-      supportsVideo: true
-    };
+  constructor(private config: OneBotConfig) {
+    super();
   }
 
-  async start(ctx: AdapterRuntimeContext): Promise<void> {
-    this.runtimeContext = ctx;
+  protected async onStart(): Promise<void> {
     await this.connectWebSocket();
     this.running = true;
     this.startHeartbeat();
   }
 
-  async stop(): Promise<void> {
+  protected async onStop(): Promise<void> {
     this.running = false;
     this.clearHeartbeat();
     this.ws?.close();
   }
 
-  isRunning(): boolean {
-    return this.running;
-  }
-
-  async decodeInbound(rawEvent: any): Promise<AdapterInboundDraft | null> {
+  protected async parsePlatformEvent(rawEvent: unknown): Promise<UnifiedMessage | null> {
     if (!rawEvent || typeof rawEvent !== 'object') {
       return null;
     }
 
-    if (rawEvent.post_type === 'notice') {
-      return this.decodeNoticeInbound(rawEvent);
+    const event = rawEvent as any;
+
+    // 处理通知类型
+    if (event.post_type === 'notice') {
+      return this.parseNoticeEvent(event);
     }
 
-    if (rawEvent.post_type !== 'message') {
+    // 只处理消息类型
+    if (event.post_type !== 'message') {
       return null;
     }
 
-    if (this.shouldIgnoreMessageEvent(rawEvent)) {
+    // 忽略自己的消息和无效消息
+    if (this.shouldIgnoreMessage(event)) {
       return null;
     }
 
-    const messageType = rawEvent.message_type === 'group' ? 'group' : 'private';
-    const senderId = rawEvent.user_id?.toString();
+    const messageType = event.message_type === 'group' ? 'group' : 'private';
+    const senderId = event.user_id?.toString();
     const chatId = messageType === 'private'
-      ? rawEvent.user_id?.toString()
-      : rawEvent.group_id?.toString();
+      ? event.user_id?.toString()
+      : event.group_id?.toString();
 
     if (!senderId || !chatId || !this.isAllowed(senderId, messageType)) {
       return null;
     }
 
+    // 解析消息内容
+    const { text, images, files } = this.parseMessageContent(event.message);
+
     return {
-      conversation: {
-        id: chatId,
-        type: messageType
-      },
-      sender: {
-        id: senderId,
-        displayName: rawEvent.sender?.card || rawEvent.sender?.nickname,
-        isSelf: this.selfId ? senderId === this.selfId : false
-      },
-      timestamp: rawEvent.time ? new Date(rawEvent.time * 1000) : new Date(),
-      platformMessageId: rawEvent.message_id?.toString(),
-      segments: this.decodeSegments(rawEvent.message),
-      metadata: {
-        source: 'user'
-      },
-      rawEvent
+      id: event.message_id?.toString() || `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      channel: 'onebot',
+      direction: 'inbound',
+      chatId,
+      chatType: messageType,
+      senderId,
+      senderName: event.sender?.card || event.sender?.nickname,
+      isSelf: this.selfId ? senderId === this.selfId : false,
+      text,
+      images,
+      files,
+      timestamp: event.time ? new Date(event.time * 1000) : new Date(),
+      raw: event
     };
   }
 
-  private buildResourceFromResponse(
-    resource: ResourceHandle,
-    response: any,
-    payload: Record<string, any>
-  ): ResourceHandle | null {
-    const remoteUrl = response?.data?.url || response?.url;
-    if (typeof remoteUrl !== 'string' || remoteUrl.length === 0) {
-      return null;
-    }
-
-    return {
-      ...resource,
-      originalName: payload.file?.name || resource.originalName,
-      remoteUrl,
-      size: typeof payload.file?.size === 'number' ? payload.file.size : resource.size
-    };
-  }
-
-  async resolveResource(resource: ResourceHandle, rawEvent?: unknown): Promise<ResourceHandle | null> {
-    if (resource.localPath || resource.remoteUrl || !resource.platformFileId || !rawEvent || typeof rawEvent !== 'object') {
-      return resource;
-    }
-
-    const payload = rawEvent as Record<string, any>;
-    const noticeType = payload.notice_type;
-
-    if (noticeType === 'offline_file') {
-      const fileId = payload.file?.id;
-
-      if (typeof fileId !== 'string') {
-        return resource;
-      }
-
-      try {
-        const response = await this.sendAction('get_private_file_url', {
-          file_id: fileId
-        });
-        const result = this.buildResourceFromResponse(resource, response, payload);
-        return result ?? resource;
-      } catch {
-        return resource;
-      }
-    }
-
-    if (noticeType === 'group_upload') {
-      const fileId = payload.file?.id;
-      const busid = payload.file?.busid;
-      const groupId = payload.group_id;
-
-      if (typeof fileId !== 'string' || (typeof busid !== 'number' && typeof busid !== 'string') || (!groupId && groupId !== 0)) {
-        return resource;
-      }
-
-      try {
-        const response = await this.sendAction('get_group_file_url', {
-          group_id: groupId,
-          file_id: fileId,
-          busid
-        });
-        const result = this.buildResourceFromResponse(resource, response, payload);
-        return result ?? resource;
-      } catch {
-        return resource;
-      }
-    }
-
-    // 处理 message 类型中的文件 segment
-    if (payload.post_type === 'message' && resource.platformFileId) {
-      const fileId = resource.platformFileId;
-      const messageType = payload.message_type;
-      const groupId = payload.group_id;
-
-      try {
-        let response;
-        if (messageType === 'group' && groupId) {
-          response = await this.sendAction('get_group_file_url', {
-            group_id: groupId,
-            file_id: fileId
-          });
-        } else {
-          response = await this.sendAction('get_private_file_url', {
-            file_id: fileId
-          });
-        }
-
-        const remoteUrl = response?.data?.url || response?.url;
-        if (typeof remoteUrl === 'string' && remoteUrl.length > 0) {
-          return {
-            ...resource,
-            remoteUrl
-          };
-        }
-      } catch {
-      }
-    }
-
-    return resource;
-  }
-
-  async fetchQuotedMessage(reference: QuoteReference): Promise<AdapterInboundDraft | null> {
-    const messageId = reference.platformMessageId || reference.messageId;
-    if (!messageId) {
-      return null;
-    }
-
-    try {
-      const response = await this.sendAction('get_msg', { message_id: messageId });
-      const payload = response?.data;
-      if (!payload) {
-        return null;
-      }
-
-      const messageType = payload.message_type === 'group' ? 'group' : 'private';
-      const senderId = payload.user_id?.toString();
-      const chatId = messageType === 'private'
-        ? payload.user_id?.toString()
-        : payload.group_id?.toString();
-
-      if (!senderId || !chatId) {
-        return null;
-      }
-
-      return {
-        conversation: {
-          id: chatId,
-          type: messageType
-        },
-        sender: {
-          id: senderId,
-          displayName: payload.sender?.card || payload.sender?.nickname,
-          isSelf: this.selfId ? senderId === this.selfId : false
-        },
-        timestamp: payload.time ? new Date(payload.time * 1000) : new Date(),
-        platformMessageId: payload.message_id?.toString(),
-        segments: this.decodeSegments(payload.message),
-        metadata: {
-          source: 'quote'
-        },
-        rawEvent: payload
-      };
-    } catch {
-      return null;
-    }
-  }
-
-  async send(message: ChannelMessage, _context: ChannelSendContext): Promise<AdapterSendResult> {
-    const isGroup = message.conversation.type === 'group';
-    const numericChatId = parseInt(message.conversation.id, 10);
+  protected async sendToPlatform(message: UnifiedMessage): Promise<SendResult> {
+    const isGroup = message.chatType === 'group';
+    const numericChatId = parseInt(message.chatId, 10);
     if (Number.isNaN(numericChatId)) {
-      throw new Error(`Invalid chatId: must be numeric, got ${message.conversation.id}`);
+      throw new Error(`Invalid chatId: must be numeric, got ${message.chatId}`);
     }
 
-    const outbound = await this.buildOutbound(message);
-    if (outbound.inlineSegments.length === 0 && outbound.filePaths.length === 0) {
-      throw new Error('Outbound message rejected: empty payload');
+    const messageChain: any[] = [];
+
+    // 处理回复
+    if (message.replyTo) {
+      messageChain.push({ type: 'reply', data: { id: message.replyTo } });
+    }
+
+    // 处理文本
+    if (message.text) {
+      messageChain.push({ type: 'text', data: { text: message.text } });
+    }
+
+    // 处理图片
+    for (const image of message.images) {
+      const imageSegment = await this.createImageSegment(image);
+      if (imageSegment) {
+        messageChain.push(imageSegment);
+      }
+    }
+
+    // 处理文件
+    for (const file of message.files) {
+      if (file.url) {
+        await this.uploadFile(numericChatId, isGroup, file.url);
+      }
+    }
+
+    if (messageChain.length === 0 && message.files.length === 0) {
+      return { success: false, error: 'Empty message' };
     }
 
     let platformMessageId: string | undefined;
 
-    if (outbound.inlineSegments.length > 0) {
+    // 发送消息链
+    if (messageChain.length > 0) {
       const action = isGroup ? 'send_group_msg' : 'send_private_msg';
       const params = isGroup
-        ? { group_id: numericChatId, message: outbound.inlineSegments }
-        : { user_id: numericChatId, message: outbound.inlineSegments };
-      const response = await this.sendAction(action, params);
-      platformMessageId = response?.data?.message_id?.toString();
+        ? { group_id: numericChatId, message: messageChain }
+        : { user_id: numericChatId, message: messageChain };
+      
+      try {
+        const response = await this.sendAction(action, params);
+        platformMessageId = response?.data?.message_id?.toString();
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error)
+        };
+      }
     }
 
-    for (const filePath of outbound.filePaths) {
-      await this.uploadFile(numericChatId, isGroup, filePath);
-    }
-
-    return {
-      platformMessageId
-    };
+    return { success: true, messageId: platformMessageId };
   }
 
-  classifyError(error: unknown): { retryable: boolean; code: string; message?: string } {
-    const message = error instanceof Error ? error.message : String(error);
-    const retryable = /timeout|WebSocket not connected|ECONN|socket|network|temporarily/i.test(message);
-    return {
-      retryable,
-      code: retryable ? 'transport_error' : 'send_failed',
-      message
-    };
+  private parseMessageContent(message: any): { text: string; images: ImageAttachment[]; files: FileAttachment[] } {
+    const images: ImageAttachment[] = [];
+    const files: FileAttachment[] = [];
+    let text = '';
+
+    if (typeof message === 'string') {
+      text = message;
+    } else if (Array.isArray(message)) {
+      for (const seg of message) {
+        if (!seg || typeof seg !== 'object') continue;
+
+        const type = seg.type;
+        const data = seg.data || {};
+
+        switch (type) {
+          case 'text':
+            text += data.text || '';
+            break;
+          case 'image':
+            images.push({
+              id: randomUUID().slice(0, 8),
+              type: 'image',
+              name: data.file || data.url || 'image.png',
+              url: data.url || ''
+            });
+            break;
+          case 'file':
+            files.push({
+              id: randomUUID().slice(0, 8),
+              type: 'file',
+              name: data.name || data.file || 'file',
+              url: data.path || ''
+            });
+            break;
+          case 'record':
+            files.push({
+              id: randomUUID().slice(0, 8),
+              type: 'audio',
+              name: data.file || 'voice.amr',
+              url: data.path || ''
+            });
+            break;
+          case 'video':
+            files.push({
+              id: randomUUID().slice(0, 8),
+              type: 'video',
+              name: data.file || 'video.mp4',
+              url: data.path || ''
+            });
+            break;
+          case 'at':
+            text += `[@${data.qq}]`;
+            break;
+        }
+      }
+    }
+
+    return { text, images, files };
+  }
+
+  private parseNoticeEvent(event: any): UnifiedMessage | null {
+    const noticeType = event.notice_type;
+    const senderId = event.user_id?.toString();
+
+    if (noticeType === 'offline_file') {
+      if (!senderId || !this.isAllowed(senderId, 'private')) {
+        return null;
+      }
+
+      return {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        channel: 'onebot',
+        direction: 'inbound',
+        chatId: senderId,
+        chatType: 'private',
+        senderId,
+        text: `[文件: ${event.file?.name || 'file'}]`,
+        images: [],
+        files: [{
+          id: randomUUID().slice(0, 8),
+          type: 'file',
+          name: event.file?.name || 'file',
+          url: event.file?.url || ''
+        }],
+        timestamp: event.time ? new Date(event.time * 1000) : new Date(),
+        raw: event
+      };
+    }
+
+    if (noticeType === 'group_upload') {
+      const groupId = event.group_id?.toString();
+
+      if (!senderId || !groupId || !this.isAllowed(senderId, 'group')) {
+        return null;
+      }
+
+      return {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        channel: 'onebot',
+        direction: 'inbound',
+        chatId: groupId,
+        chatType: 'group',
+        senderId,
+        text: `[文件: ${event.file?.name || 'file'}]`,
+        images: [],
+        files: [{
+          id: randomUUID().slice(0, 8),
+          type: 'file',
+          name: event.file?.name || 'file',
+          url: '' // 需要通过 API 获取下载链接
+        }],
+        timestamp: event.time ? new Date(event.time * 1000) : new Date(),
+        raw: event
+      };
+    }
+
+    return null;
+  }
+
+  private shouldIgnoreMessage(event: any): boolean {
+    const senderId = event.user_id?.toString();
+
+    // 忽略自己的消息
+    if (senderId && this.selfId && senderId === this.selfId) {
+      return true;
+    }
+
+    // 忽略通知类型消息
+    if (event.sub_type === 'notice') {
+      return true;
+    }
+
+    return false;
+  }
+
+  private async createImageSegment(image: ImageAttachment): Promise<any | null> {
+    // 如果 URL 是本地路径，转换为 base64
+    if (image.url && !image.url.startsWith('http')) {
+      try {
+        const buffer = await fs.promises.readFile(image.url);
+        const base64 = buffer.toString('base64');
+        return { type: 'image', data: { file: `base64://${base64}` } };
+      } catch {
+        return null;
+      }
+    }
+
+    // 远程 URL 直接使用
+    if (image.url) {
+      return { type: 'image', data: { file: image.url } };
+    }
+
+    return null;
+  }
+
+  private isAllowed(senderId: string, messageType: 'private' | 'group'): boolean {
+    if (messageType === 'group') {
+      const groupAllowFrom = this.config.groupAllowFrom;
+      if (!groupAllowFrom || groupAllowFrom.length === 0) {
+        return true;
+      }
+      return groupAllowFrom.includes(senderId);
+    }
+
+    const friendAllowFrom = this.config.friendAllowFrom;
+    if (!friendAllowFrom || friendAllowFrom.length === 0) {
+      return true;
+    }
+    return friendAllowFrom.includes(senderId);
   }
 
   private async connectWebSocket(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.connectAttemptCounter += 1;
-      const slowTimers: NodeJS.Timeout[] = [];
-
-      const clearSlowTimers = () => {
-        for (const timer of slowTimers) {
-          clearTimeout(timer);
-        }
-        slowTimers.length = 0;
-      };
-
-      const scheduleSlowLog = (delayMs: number) => {
-        slowTimers.push(setTimeout(() => {
-        }, delayMs));
-      };
-
-      scheduleSlowLog(1000);
-      scheduleSlowLog(5000);
-      scheduleSlowLog(15000);
-
       const headers: Record<string, string> = {};
       if (this.config.token) {
         headers.Authorization = `Bearer ${this.config.token}`;
@@ -349,11 +358,11 @@ class OneBotAdapter implements ChannelAdapter {
           const res = await this.sendAction('get_login_info', {});
           this.selfId = res.data?.user_id?.toString();
         } catch {
-        } finally {
-          clearSlowTimers();
-          this.flushPendingActions();
-          resolve();
+          // 忽略错误
         }
+
+        this.flushPendingActions();
+        resolve();
       });
 
       this.ws.on('message', (data) => {
@@ -361,17 +370,16 @@ class OneBotAdapter implements ChannelAdapter {
           const payload = JSON.parse(data.toString());
           this.handleOneBotEvent(payload);
         } catch {
+          // 忽略解析错误
         }
       });
 
       this.ws.on('close', () => {
-        clearSlowTimers();
         this.clearHeartbeat();
         this.handleDisconnect();
       });
 
       this.ws.on('error', (error) => {
-        clearSlowTimers();
         if (this.reconnectAttempts === 0 && !this.isReconnecting) {
           reject(error);
         }
@@ -399,20 +407,19 @@ class OneBotAdapter implements ChannelAdapter {
     }
 
     setTimeout(() => {
-      this.connectWebSocket().then(() => {
-      }).catch((_err: Error) => {
+      this.connectWebSocket().catch(() => {
+        // 重连失败会继续触发断开处理
       });
     }, delay);
   }
 
   private startHeartbeat(): void {
-    const interval = DEFAULT_HEARTBEAT_INTERVAL;
     this.heartbeatTimer = setTimeout(() => {
       void this.sendHeartbeat();
       this.heartbeatInterval = setInterval(() => {
         void this.sendHeartbeat();
-      }, interval);
-    }, interval);
+      }, DEFAULT_HEARTBEAT_INTERVAL);
+    }, DEFAULT_HEARTBEAT_INTERVAL);
   }
 
   private clearHeartbeat(): void {
@@ -434,6 +441,7 @@ class OneBotAdapter implements ChannelAdapter {
     try {
       await this.sendAction('get_status', {});
     } catch {
+      // 忽略心跳错误
     }
   }
 
@@ -493,6 +501,7 @@ class OneBotAdapter implements ChannelAdapter {
             }
           }
         } catch {
+          // 忽略解析错误
         }
       };
 
@@ -515,437 +524,14 @@ class OneBotAdapter implements ChannelAdapter {
   private handleOneBotEvent(payload: any): void {
     const postType = payload.post_type;
 
-    if (postType === 'message') {
-      void this.handleMessageEvent(payload);
-      return;
+    if (postType === 'message' || postType === 'notice') {
+      // 使用基类提供的 context 属性
+      void (this as any).context?.reportIncoming(payload);
     }
-
-    if (postType === 'notice') {
-      void this.handleNoticeEvent(payload);
-    }
-  }
-
-  private async handleNoticeEvent(payload: any): Promise<void> {
-    const noticeType = payload.notice_type;
-    if (noticeType !== 'offline_file' && noticeType !== 'group_upload') {
-      return;
-    }
-
-    try {
-      await this.runtimeContext?.ingest(payload);
-    } catch {
-    }
-  }
-
-  private decodeNoticeInbound(payload: any): AdapterInboundDraft | null {
-    const noticeType = payload.notice_type;
-    const senderId = payload.user_id?.toString();
-
-    if (noticeType === 'offline_file') {
-      if (!senderId || !this.isAllowed(senderId, 'private')) {
-        return null;
-      }
-
-      return {
-        conversation: {
-          id: senderId,
-          type: 'private'
-        },
-        sender: {
-          id: senderId,
-          isSelf: this.selfId ? senderId === this.selfId : false
-        },
-        timestamp: payload.time ? new Date(payload.time * 1000) : new Date(),
-        segments: [
-          {
-            type: 'file',
-            resource: {
-              resourceId: randomUUID().slice(0, 8),
-              kind: 'file',
-              originalName: payload.file?.name || 'file',
-              remoteUrl: typeof payload.file?.url === 'string' ? payload.file.url : undefined,
-              size: typeof payload.file?.size === 'number' ? payload.file.size : undefined,
-              platformFileId: typeof payload.file?.url === 'string' ? undefined : payload.file?.name
-            }
-          }
-        ],
-        metadata: {
-          source: 'user',
-          noticeType
-        },
-        rawEvent: payload
-      };
-    }
-
-    if (noticeType === 'group_upload') {
-      const groupId = payload.group_id?.toString();
-      const fileId = payload.file?.id;
-
-      if (!senderId || !groupId || typeof fileId !== 'string' || !this.isAllowed(senderId, 'group')) {
-        return null;
-      }
-
-      return {
-        conversation: {
-          id: groupId,
-          type: 'group'
-        },
-        sender: {
-          id: senderId,
-          isSelf: this.selfId ? senderId === this.selfId : false
-        },
-        timestamp: payload.time ? new Date(payload.time * 1000) : new Date(),
-        segments: [
-          {
-            type: 'file',
-            resource: {
-              resourceId: randomUUID().slice(0, 8),
-              kind: 'file',
-              originalName: payload.file?.name || 'file',
-              size: typeof payload.file?.size === 'number' ? payload.file.size : undefined,
-              platformFileId: fileId
-            }
-          }
-        ],
-        metadata: {
-          source: 'user',
-          noticeType
-        },
-        rawEvent: payload
-      };
-    }
-
-    return null;
-  }
-
-  private shouldIgnoreMessageEvent(payload: any): boolean {
-    const senderId = payload.user_id?.toString();
-    const rawText = this.extractInboundRawText(payload);
-
-    if (senderId && this.selfId && senderId === this.selfId) {
-      return true;
-    }
-
-    if (rawText.trim().length === 0) {
-      return true;
-    }
-
-    if (payload.sub_type === 'notice') {
-      return true;
-    }
-
-    return false;
-  }
-
-  private extractInboundRawText(payload: any): string {
-    if (typeof payload?.raw_message === 'string') {
-      return payload.raw_message;
-    }
-
-    if (typeof payload?.message === 'string') {
-      return payload.message;
-    }
-
-    if (!Array.isArray(payload?.message)) {
-      return '';
-    }
-
-    return payload.message.map((segment: any) => {
-      if (!segment || typeof segment !== 'object') {
-        return String(segment ?? '');
-      }
-
-      const type = segment.type;
-      const data = segment.data || {};
-
-      switch (type) {
-        case 'text':
-          return data.text || '';
-        case 'file':
-          return `[file:${data.name || data.file || ''}]`;
-        case 'image':
-          return `[image:${data.file || data.url || ''}]`;
-        case 'record':
-          return `[record:${data.file || data.url || ''}]`;
-        case 'video':
-          return `[video:${data.file || data.url || ''}]`;
-        case 'reply':
-          return `[reply:${data.id || ''}]`;
-        case 'at':
-          return `[@${data.qq || ''}]`;
-        default:
-          return `[${type}]`;
-      }
-    }).join('');
-  }
-
-  private async handleMessageEvent(payload: any): Promise<void> {
-    if (this.shouldIgnoreMessageEvent(payload)) {
-      return;
-    }
-
-    try {
-      await this.runtimeContext?.ingest(payload);
-    } catch {
-    }
-  }
-
-  private isAllowed(senderId: string, messageType?: 'private' | 'group'): boolean {
-    if (messageType === 'group') {
-      const groupAllowFrom = this.config.groupAllowFrom;
-      if (!groupAllowFrom || groupAllowFrom.length === 0) {
-        return true;
-      }
-      return groupAllowFrom.includes(senderId);
-    }
-
-    const friendAllowFrom = this.config.friendAllowFrom;
-    if (!friendAllowFrom || friendAllowFrom.length === 0) {
-      return true;
-    }
-    return friendAllowFrom.includes(senderId);
-  }
-
-  private decodeSegments(message: any): MessageSegment[] {
-    if (!message) {
-      return [];
-    }
-
-    if (typeof message === 'string') {
-      return [{ type: 'text', text: message }];
-    }
-
-    if (!Array.isArray(message)) {
-      return [{ type: 'unsupported', originalType: typeof message, text: String(message) }];
-    }
-
-    return message.map((seg) => this.decodeSegment(seg)).filter((segment): segment is MessageSegment => !!segment);
-  }
-
-  private decodeSegment(seg: any): MessageSegment | null {
-    if (!seg || typeof seg !== 'object') {
-      return { type: 'text', text: String(seg ?? '') };
-    }
-
-    const type = seg.type;
-    const data = seg.data || {};
-
-    switch (type) {
-      case 'text':
-        return { type: 'text', text: data.text || '' };
-      case 'at':
-        return {
-          type: 'mention',
-          userId: data.qq?.toString() || 'unknown',
-          display: data.qq === 'all' ? '全体成员' : data.qq?.toString()
-        };
-      case 'reply':
-        return {
-          type: 'quote',
-          reference: { platformMessageId: data.id?.toString() }
-        };
-      case 'image':
-        return { type: 'image', resource: this.buildMediaResource('image', data) };
-      case 'record':
-        return { type: 'audio', resource: this.buildMediaResource('audio', data) };
-      case 'video':
-        return { type: 'video', resource: this.buildMediaResource('video', data) };
-      case 'file':
-        return { type: 'file', resource: this.buildFileResource(data) };
-      case 'face':
-        return { type: 'unsupported', originalType: 'face', text: `[表情:${data.id}]` };
-      case 'rich':
-        return { type: 'unsupported', originalType: 'rich', text: `[富文本:${data.id || ''}]` };
-      default:
-        return { type: 'unsupported', originalType: type, text: `[${type}]` };
-    }
-  }
-
-  private buildResource(kind: ResourceHandle['kind'], fileOrUrl: string, preferredUrl?: string): ResourceHandle {
-    const resourceId = randomUUID().slice(0, 8);
-    const fileName = basename((preferredUrl || fileOrUrl || `${kind}-${resourceId}`).replace(/^file:\/\//, '')) || `${kind}-${resourceId}`;
-    const localPath = this.normalizeLocalFile(fileOrUrl);
-    const remoteUrl = preferredUrl || this.normalizeRemoteUrl(fileOrUrl);
-
-    return {
-      resourceId,
-      kind,
-      originalName: fileName,
-      remoteUrl,
-      localPath,
-      platformFileId: fileOrUrl && !remoteUrl && !localPath ? fileOrUrl : undefined
-    };
-  }
-
-  private buildFileResource(data: Record<string, any>): ResourceHandle {
-    const resourceId = randomUUID().slice(0, 8);
-    const originalName = data.name || basename(data.file || data.url || `file-${resourceId}`);
-    const remoteUrl = this.normalizeRemoteUrl(data.url);
-    const localPath = this.normalizeLocalFile(data.path);
-    const platformFileId = data.file_id || data.file_unique ||
-      (!remoteUrl && !localPath && data.file && data.file !== 'empty' ? data.file : undefined);
-
-    let size: number | undefined;
-    if (typeof data.file_size === 'number') {
-      size = data.file_size;
-    } else if (typeof data.file_size === 'string' && data.file_size !== 'empty' && data.file_size.length > 0) {
-      size = parseInt(data.file_size);
-      if (isNaN(size)) size = undefined;
-    }
-
-    return {
-      resourceId,
-      kind: 'file',
-      originalName,
-      remoteUrl,
-      localPath,
-      platformFileId,
-      size
-    };
-  }
-
-  private buildMediaResource(kind: ResourceHandle['kind'], data: Record<string, any>): ResourceHandle {
-    const resourceId = randomUUID().slice(0, 8);
-    const originalName = data.name || basename(data.file || data.url || `${kind}-${resourceId}`);
-    const remoteUrl = this.normalizeRemoteUrl(data.url);
-    const localPath = this.normalizeLocalFile(data.path);
-    const platformFileId = data.file_id || data.file_unique ||
-      (!remoteUrl && !localPath && data.file ? data.file : undefined);
-
-    let size: number | undefined;
-    if (typeof data.file_size === 'number') {
-      size = data.file_size;
-    } else if (typeof data.file_size === 'string' && data.file_size.length > 0) {
-      size = parseInt(data.file_size);
-      if (isNaN(size)) size = undefined;
-    }
-
-    return {
-      resourceId,
-      kind,
-      originalName,
-      remoteUrl,
-      localPath,
-      platformFileId,
-      size
-    };
-  }
-
-  private normalizeRemoteUrl(value?: string): string | undefined {
-    if (!value) {
-      return undefined;
-    }
-    if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('file://')) {
-      return value;
-    }
-    return undefined;
-  }
-
-  private normalizeLocalFile(value?: string): string | undefined {
-    if (!value) {
-      return undefined;
-    }
-    if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('base64://')) {
-      return undefined;
-    }
-
-    if (value.startsWith('file://')) {
-      return value.substring(7);
-    }
-
-    const isWindowsAbsolute = /^[A-Za-z]:[\\/]/.test(value);
-    const isUnixAbsolute = value.startsWith('/');
-    const isUncPath = value.startsWith('\\\\');
-    const isExplicitRelative = value.startsWith('./')
-      || value.startsWith('../')
-      || value.startsWith('.\\')
-      || value.startsWith('..\\');
-
-    if (!isWindowsAbsolute && !isUnixAbsolute && !isUncPath && !isExplicitRelative) {
-      return undefined;
-    }
-
-    return value;
-  }
-
-  private async buildOutbound(message: ChannelMessage): Promise<{ inlineSegments: any[]; filePaths: string[] }> {
-    const inlineSegments: any[] = [];
-    const filePaths: string[] = [];
-
-    for (const segment of message.segments) {
-      switch (segment.type) {
-        case 'quote': {
-          const replyId = segment.reference.platformMessageId || segment.reference.messageId;
-          if (replyId) {
-            inlineSegments.push({ type: 'reply', data: { id: replyId } });
-          }
-          break;
-        }
-        case 'text':
-          if (segment.text) {
-            inlineSegments.push({ type: 'text', data: { text: segment.text } });
-          }
-          break;
-        case 'mention':
-          inlineSegments.push({ type: 'at', data: { qq: segment.userId === 'all' ? 'all' : segment.userId } });
-          break;
-        case 'image': {
-          const image = await this.resourceToImageSegment(segment.resource);
-          if (image) {
-            inlineSegments.push(image);
-          }
-          break;
-        }
-        case 'file':
-        case 'audio':
-        case 'video': {
-          const filePath = this.resourceToLocalPath(segment.resource);
-          if (filePath) {
-            filePaths.push(filePath);
-          }
-          break;
-        }
-        case 'unsupported':
-          if (segment.text) {
-            inlineSegments.push({ type: 'text', data: { text: segment.text } });
-          }
-          break;
-        default:
-          break;
-      }
-    }
-
-    return { inlineSegments, filePaths };
-  }
-
-  private async resourceToImageSegment(resource: ResourceHandle): Promise<any | null> {
-    const localPath = this.resourceToLocalPath(resource);
-    if (localPath) {
-      const base64 = await this.imageToBase64(localPath);
-      if (base64) {
-        return { type: 'image', data: { file: `base64://${base64}` } };
-      }
-    }
-
-    if (resource.remoteUrl) {
-      return { type: 'image', data: { file: resource.remoteUrl } };
-    }
-
-    return null;
-  }
-
-  private resourceToLocalPath(resource: ResourceHandle): string | undefined {
-    if (resource.localPath) {
-      return this.normalizeLocalPath(resource.localPath);
-    }
-    if (resource.remoteUrl?.startsWith('file://')) {
-      return this.normalizeLocalPath(resource.remoteUrl);
-    }
-    return undefined;
   }
 
   private async uploadFile(chatId: number, isGroup: boolean, filePath: string): Promise<void> {
-    const normalizedPath = this.normalizeLocalPath(filePath);
+    const normalizedPath = filePath.startsWith('file://') ? filePath.substring(7) : filePath;
 
     if (!fs.existsSync(normalizedPath)) {
       throw new Error(`File not found: ${filePath}`);
@@ -1039,37 +625,7 @@ class OneBotAdapter implements ChannelAdapter {
 
     return hash.digest('hex');
   }
-
-  private readonly MAX_IMAGE_SIZE = MAX_IMAGE_SIZE;
-
-  private normalizeLocalPath(filePath: string): string {
-    return filePath.startsWith('file://') ? filePath.substring(7) : filePath;
-  }
-
-  private async imageToBase64(filePath: string): Promise<string | null> {
-    try {
-      const path = this.normalizeLocalPath(filePath);
-      try {
-        await fs.promises.access(path);
-      } catch {
-        return null;
-      }
-      const stats = await fs.promises.stat(path);
-      if (stats.size > this.MAX_IMAGE_SIZE) {
-        return null;
-      }
-      const buffer = await fs.promises.readFile(path);
-      return buffer.toString('base64');
-    } catch {
-    }
-    return null;
-  }
 }
 
-const plugin: ChannelPluginDefinition = {
-  pluginName: 'channel_onebot',
-  channelName: 'onebot',
-  create: (config) => new OneBotAdapter(config)
-};
-
-export default plugin;
+// 导出适配器实例
+export default new OneBotAdapter(defaultChannelConfig as OneBotConfig);
