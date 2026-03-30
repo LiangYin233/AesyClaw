@@ -48,6 +48,25 @@ export interface ConfigChangeHandler {
 }
 
 /**
+ * 转换插件配置格式
+ * 兼容旧格式 {enabled, options} 和新格式 {isEnabled, settings}
+ */
+function convertPluginConfig(entry: unknown): { isEnabled: boolean; settings?: Record<string, unknown> } {
+  if (!entry || typeof entry !== 'object') {
+    return { isEnabled: false };
+  }
+  
+  const e = entry as Record<string, unknown>;
+  const isEnabled = (e.isEnabled as boolean | undefined) ?? (e.enabled as boolean | undefined) ?? false;
+  const settings = (e.settings ?? e.options) as Record<string, unknown> | undefined;
+  
+  return {
+    isEnabled,
+    settings: settings ? { ...settings } : undefined
+  };
+}
+
+/**
  * 设置插件系统
  * 
  * 创建但不立即加载插件，调用 startLoading() 后会在后台异步加载
@@ -68,7 +87,7 @@ export async function setupPlugins(deps: RuntimeDependencies): Promise<PluginSys
   const coordinator = new PluginCoordinator(coordinatorDeps);
   
   // 创建管理服务
-  const adminService = new PluginAdminService(coordinator);
+  const adminService = new PluginAdminService(coordinator, deps.updateConfig);
 
   let started = false;
   let completed = false;
@@ -99,10 +118,7 @@ export async function setupPlugins(deps: RuntimeDependencies): Promise<PluginSys
         const pluginConfigs: PluginConfigs = {};
         
         for (const [name, entry] of Object.entries(currentConfig.plugins ?? {})) {
-          pluginConfigs[name] = {
-            isEnabled: entry.enabled ?? false,
-            settings: entry.options ? { ...entry.options } : undefined
-          };
+          pluginConfigs[name] = convertPluginConfig(entry);
         }
 
         if (Object.keys(pluginConfigs).length > 0) {
@@ -139,10 +155,7 @@ export function createConfigChangeHandler(system: PluginSystem): ConfigChangeHan
       const pluginConfigs: PluginConfigs = {};
       
       for (const [name, entry] of Object.entries(config.plugins ?? {})) {
-        pluginConfigs[name] = {
-          isEnabled: entry.enabled ?? false,
-          settings: entry.options ? { ...entry.options } : undefined
-        };
+        pluginConfigs[name] = convertPluginConfig(entry);
       }
 
       await system.coordinator.load(pluginConfigs);

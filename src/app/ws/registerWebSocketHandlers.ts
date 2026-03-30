@@ -138,8 +138,8 @@ export function registerWebSocketHandlers(args: RegisterWebSocketHandlersArgs): 
     sessionRouting
   );
   const chatService = new ChatService(agentRuntime, maxMessageLength);
-  // 直接使用 ChannelManager，无需额外的 Service 和 Repository
-  const pluginsService = pluginManager ? new PluginAdminService(pluginManager) : undefined;
+  // 直接使用 ChannelManager，无需额外�?Service �?Repository
+  const pluginsService = pluginManager ? new PluginAdminService(pluginManager, updateConfig) : undefined;
   const observabilityService = new ObservabilityService(updateConfig);
   const memoryService = new MemoryService(new MemoryRepository(sessionManager, longTermMemoryStore, db));
   const mcpService = new McpService(new McpRepository({

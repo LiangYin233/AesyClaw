@@ -50,7 +50,7 @@ export function registerRuntimeBindings(args: {
     memoryService
   } = args;
 
-  const pluginsService = new PluginAdminService(pluginManager);
+  const pluginsService = new PluginAdminService(pluginManager, _updateConfig);
   const builtInCommands = new BuiltInCommands(
     sessionManager,
     sessionRouting,
