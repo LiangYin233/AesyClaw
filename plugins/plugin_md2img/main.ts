@@ -134,14 +134,14 @@ export default {
       }
     });
 
-    ctx.hooks.messageIn.transform((message) => {
+    ctx.hooks.incomingMessage.transform((message) => {
       const state = getRoundSources(message.channel, message.chatId);
       state.lastCompletedRoundSources = [...state.currentRoundSources];
       state.currentRoundSources = [];
       return message;
     });
 
-    ctx.hooks.messageOut.transform(async (message) => {
+    ctx.hooks.outgoingMessage.transform(async (message) => {
       const config = getConfig();
 
       // 检查 channel 是否在排除列表中

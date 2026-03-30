@@ -277,7 +277,7 @@ export default {
       }
     });
 
-    ctx.hooks.messageIn.transform(async (message) => {
+    ctx.hooks.incomingMessage.transform(async (message) => {
       try {
         const config = getConfig();
         const source = findAudioSource(message);
