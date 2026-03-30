@@ -345,7 +345,7 @@ export class PluginCoordinator {
       const config = this.pluginConfigs[found.name];
       
       return {
-        name: found.manifest.name,
+        name: found.name,
         version: found.manifest.version,
         description: found.manifest.description,
         author: found.manifest.author,
