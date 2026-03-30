@@ -55,15 +55,15 @@ export default {
     }
   },
   setup(ctx) {
-    const config: WebsearchOptions = {
-      apiKey: ctx.options.apiKey || process.env.TAVILY_API_KEY || '',
-      maxResults: ctx.options.maxResults || 5,
-      searchDepth: ctx.options.searchDepth || 'basic'
+    // 获取配置的工具函数，每次调用都会读取最新配置
+    const getConfig = (): WebsearchOptions => {
+      const opts = ctx.getOptions();
+      return {
+        apiKey: opts.apiKey || process.env.TAVILY_API_KEY || '',
+        maxResults: opts.maxResults || 5,
+        searchDepth: opts.searchDepth || 'basic'
+      };
     };
-
-    if (!config.apiKey) {
-    } else {
-    }
 
     ctx.tools.register({
       name: 'web_search',
@@ -88,6 +88,7 @@ export default {
         required: ['query']
       },
       async execute(params: Record<string, any>) {
+        const config = getConfig();
         const { query, max_results, search_depth } = params;
 
         if (!query || typeof query !== 'string') {
@@ -151,6 +152,7 @@ export default {
         required: ['urls']
       },
       async execute(params: Record<string, any>) {
+        const config = getConfig();
         let { urls, query, extract_depth, format } = params;
 
         if (!config.apiKey) {

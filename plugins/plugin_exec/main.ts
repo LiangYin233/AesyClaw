@@ -23,16 +23,17 @@ export default {
   },
   setup(ctx) {
     const log = ctx.logger.child('exec');
-    const config = loadConfig(ctx.options);
-    const pythonRunner = new PythonRunner({
-      executable: config.python.executable,
-      timeout: config.python.timeout,
-      maxOutput: config.python.maxOutput
-    }, log);
-    const shellRunner = new ShellRunner({
-      timeout: config.shell.timeout,
-      maxOutput: config.shell.maxOutput
-    }, log);
+    // 获取配置的工具函数，每次调用都会读取最新配置
+    const getPythonOptions = () => {
+      const opts = ctx.getOptions();
+      return loadConfig(opts).python;
+    };
+    const getShellOptions = () => {
+      const opts = ctx.getOptions();
+      return loadConfig(opts).shell;
+    };
+    const pythonRunner = new PythonRunner(getPythonOptions, log);
+    const shellRunner = new ShellRunner(getShellOptions, log);
 
     ctx.tools.register({
       name: 'python_exec',

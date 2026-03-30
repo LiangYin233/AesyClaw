@@ -229,22 +229,22 @@ export default {
     }
   },
   async setup(ctx) {
-    const providerName = ctx.options.provider || 'openai';
-    const providerConfig = ctx.config.providers?.[providerName];
-    const config: SpeechRuntimeConfig = {
-      apiKey: providerConfig?.apiKey || '',
-      apiBase: providerConfig?.apiBase || 'https://api.openai.com/v1',
-      model: ctx.options.model || 'whisper-1',
-      downloadTimeout: ctx.options.downloadTimeout || 30000,
-      transcriptionTimeout: ctx.options.transcriptionTimeout || 60000
+    // 获取配置的工具函数，每次调用都会读取最新配置
+    const getConfig = (): SpeechRuntimeConfig => {
+      const opts = ctx.getOptions();
+      const providerName = opts.provider || 'openai';
+      const providerConfig = ctx.config.providers?.[providerName];
+      return {
+        apiKey: providerConfig?.apiKey || '',
+        apiBase: providerConfig?.apiBase || 'https://api.openai.com/v1',
+        model: opts.model || 'whisper-1',
+        downloadTimeout: opts.downloadTimeout || 30000,
+        transcriptionTimeout: opts.transcriptionTimeout || 60000
+      };
     };
     const downloadDir = join(ctx.tempDir, 'speech_to_text');
 
     await fs.mkdir(downloadDir, { recursive: true }).catch(() => undefined);
-
-    if (!providerConfig?.apiKey) {
-    } else {
-    }
 
     ctx.tools.register({
       name: 'transcribe_audio',
@@ -260,6 +260,7 @@ export default {
         required: ['file_path']
       },
       async execute(params: Record<string, any>) {
+        const config = getConfig();
         const filePath = String(params.file_path || '');
         try {
           await fs.access(filePath);
@@ -278,6 +279,7 @@ export default {
 
     ctx.hooks.messageIn.transform(async (message) => {
       try {
+        const config = getConfig();
         const source = findAudioSource(message);
         if (!source) {
           if (message.content === '[语音]') {

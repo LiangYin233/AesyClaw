@@ -10,32 +10,35 @@ interface LoggerLike {
 }
 
 export class PythonRunner {
-  options: PythonExecOptions;
+  getOptions: () => PythonExecOptions;
   log: LoggerLike;
-  timeout: number;
-  maxOutput: number;
-  executable: string;
 
-  constructor(options: PythonExecOptions, logger: LoggerLike) {
-    this.options = options;
+  constructor(getOptions: () => PythonExecOptions, logger: LoggerLike) {
+    this.getOptions = getOptions;
     this.log = logger;
-    const limits = resolveRunnerLimits(options, { timeout: 30000, maxOutput: 10000 });
-    this.timeout = limits.timeout;
-    this.maxOutput = limits.maxOutput;
-
-    // 根据平台选择默认可执行文件
-    const defaultExecutable = platform() === 'win32' ? 'python' : 'python3';
-    this.executable = options.executable || defaultExecutable;
   }
 
-  truncateOutput(output: string) {
-    return truncateRunnerOutput(output, this.maxOutput);
+  private getConfig(): { executable: string; timeout: number; maxOutput: number } {
+    const options = this.getOptions();
+    const limits = resolveRunnerLimits(options, { timeout: 30000, maxOutput: 10000 });
+    const defaultExecutable = platform() === 'win32' ? 'python' : 'python3';
+    return {
+      executable: options.executable || defaultExecutable,
+      timeout: limits.timeout,
+      maxOutput: limits.maxOutput
+    };
+  }
+
+  truncateOutput(output: string, maxOutput: number) {
+    return truncateRunnerOutput(output, maxOutput);
   }
 
   async execute(code: string, cwd?: string, signal?: AbortSignal): Promise<string> {
     if (typeof code !== 'string') {
       return 'Python 执行错误: code 参数必须是字符串';
     }
+
+    const config = this.getConfig();
 
     return new Promise((resolve) => {
       let stdout = '';
@@ -44,7 +47,7 @@ export class PythonRunner {
       let aborted = false;
       let settled = false;
 
-      const pythonProcess = spawn(this.executable, ['-I', '-B', '-c', code], {
+      const pythonProcess = spawn(config.executable, ['-I', '-B', '-c', code], {
         cwd,
         shell: false,
         windowsHide: true,
@@ -82,7 +85,7 @@ export class PythonRunner {
             pythonProcess.kill('SIGKILL');
           }
         }, 1000);
-      }, this.timeout);
+      }, config.timeout);
 
       if (signal) {
         if (signal.aborted) {
@@ -116,17 +119,17 @@ export class PythonRunner {
         }
 
         if (timedOut) {
-          finish(`Python 超时: 执行时间超过 ${this.timeout}ms`);
+          finish(`Python 超时: 执行时间超过 ${config.timeout}ms`);
           return;
         }
 
         if (code !== 0) {
           const errorOutput = stderr || stdout || '未知错误';
-          finish(`Python 执行错误:\n${this.truncateOutput(errorOutput)}`);
+          finish(`Python 执行错误:\n${this.truncateOutput(errorOutput, config.maxOutput)}`);
           return;
         }
         const output = stdout || '代码执行完成（无输出）';
-        finish(this.truncateOutput(output));
+        finish(this.truncateOutput(output, config.maxOutput));
       });
     });
   }

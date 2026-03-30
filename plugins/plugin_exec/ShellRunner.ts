@@ -10,21 +10,25 @@ interface LoggerLike {
 }
 
 export class ShellRunner {
-  options: ShellExecOptions;
+  getOptions: () => ShellExecOptions;
   log: LoggerLike;
-  timeout: number;
-  maxOutput: number;
 
-  constructor(options: ShellExecOptions, logger: LoggerLike) {
-    this.options = options;
+  constructor(getOptions: () => ShellExecOptions, logger: LoggerLike) {
+    this.getOptions = getOptions;
     this.log = logger;
-    const limits = resolveRunnerLimits(options, { timeout: 30000, maxOutput: 10000 });
-    this.timeout = limits.timeout;
-    this.maxOutput = limits.maxOutput;
   }
 
-  truncateOutput(output: string) {
-    return truncateRunnerOutput(output, this.maxOutput);
+  private getConfig(): { timeout: number; maxOutput: number } {
+    const options = this.getOptions();
+    const limits = resolveRunnerLimits(options, { timeout: 30000, maxOutput: 10000 });
+    return {
+      timeout: limits.timeout,
+      maxOutput: limits.maxOutput
+    };
+  }
+
+  truncateOutput(output: string, maxOutput: number) {
+    return truncateRunnerOutput(output, maxOutput);
   }
 
   async execute(command: string, cwd?: string, signal?: AbortSignal): Promise<string> {
@@ -32,6 +36,7 @@ export class ShellRunner {
       return '错误: command 参数必须是非空字符串';
     }
 
+    const config = this.getConfig();
     const isWindows = process.platform === 'win32';
     const shell = isWindows ? 'powershell.exe' : '/bin/sh';
     const encodedCommand = isWindows
@@ -81,7 +86,7 @@ export class ShellRunner {
         setTimeout(() => {
           if (!proc.killed) proc.kill('SIGKILL');
         }, 1000);
-      }, this.timeout);
+      }, config.timeout);
 
       if (signal) {
         if (signal.aborted) {
@@ -113,12 +118,12 @@ export class ShellRunner {
           return;
         }
         if (timedOut) {
-          finish(`命令超时: 执行时间超过 ${this.timeout}ms`);
+          finish(`命令超时: 执行时间超过 ${config.timeout}ms`);
           return;
         }
         const fullOutput = stderr ? `[stderr]\n${stderr}\n[stdout]\n${stdout}` : stdout;
         this.log.debug('shell_exec 命令返回', { code, output: fullOutput });
-        finish(this.truncateOutput(fullOutput));
+        finish(this.truncateOutput(fullOutput, config.maxOutput));
       });
     });
   }

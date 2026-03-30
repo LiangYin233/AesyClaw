@@ -9,6 +9,7 @@ const THINK_TAG_PATTERN = /<think>([\s\S]*?)<\/think>|<thinking>([\s\S]*?)<\/thi
 interface Md2ImgOptions {
   minLength: number;
   scale: number;
+  excludedChannels: string[];
 }
 
 interface ConversationRoundSources {
@@ -78,13 +79,19 @@ export default {
     enabled: false,
     options: {
       minLength: 50,
-      scale: 1.0
+      scale: 1.0,
+      excludedChannels: []
     }
   },
   setup(ctx) {
-    const config: Md2ImgOptions = {
-      minLength: ctx.options.minLength ?? 50,
-      scale: Math.max(0.5, Math.min(3.0, ctx.options.scale ?? 1.0))
+    // 获取配置的工具函数，每次调用都会读取最新配置
+    const getConfig = (): Md2ImgOptions => {
+      const opts = ctx.getOptions();
+      return {
+        minLength: opts.minLength ?? 50,
+        scale: Math.max(0.5, Math.min(3.0, opts.scale ?? 1.0)),
+        excludedChannels: opts.excludedChannels ?? []
+      };
     };
     const roundSources = new Map<string, ConversationRoundSources>();
 
@@ -135,6 +142,24 @@ export default {
     });
 
     ctx.hooks.messageOut.transform(async (message) => {
+      const config = getConfig();
+
+      // 检查 channel 是否在排除列表中
+      // 支持两种格式:
+      // - "channelName" - 排除整个 channel (如 "onebot")
+      // - "channelName:chatId" - 排除特定聊天 (如 "onebot:123456")
+      const isExcluded = config.excludedChannels.some((excluded) => {
+        // 精确匹配 channel:chatId 格式
+        if (excluded.includes(':')) {
+          return excluded === `${message.channel}:${message.chatId}`;
+        }
+        // 只匹配 channel 名称
+        return excluded === message.channel;
+      });
+      if (isExcluded) {
+        return message;
+      }
+
       const extracted = extractThinkingTags(message.content || '');
       const mergedReasoning = [message.reasoning_content, extracted.reasoning]
         .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
