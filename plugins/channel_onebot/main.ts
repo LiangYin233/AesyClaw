@@ -3,12 +3,11 @@ import fs from 'fs';
 import { basename } from 'path';
 import { createHash, randomUUID } from 'crypto';
 import { BaseChannelAdapter } from '../../src/features/channels/adapter/BaseChannelAdapter.js';
-import type { AdapterContext, SendResult } from '../../src/features/channels/protocol/adapter-interface.js';
+import type { SendResult } from '../../src/features/channels/protocol/adapter-interface.js';
 import type { UnifiedMessage } from '../../src/features/channels/protocol/unified-message.js';
 import type { ImageAttachment, FileAttachment } from '../../src/features/channels/protocol/attachment.js';
 
 const WEBSOCKET_ACTION_TIMEOUT = 10000;
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 const DEFAULT_MAX_RECONNECT_ATTEMPTS = 0;
 const DEFAULT_RECONNECT_BASE_DELAY = 1000;
 const DEFAULT_RECONNECT_MAX_DELAY = 30000;

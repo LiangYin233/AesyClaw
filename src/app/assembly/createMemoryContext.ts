@@ -7,7 +7,7 @@ import { getMemoryConfig, listEmbeddingProviderNames, resolveProviderSelection }
 import type { ResolvedProviderSelection } from '../../features/config/schema/index.js';
 import { createProvider } from '../../platform/providers/index.js';
 
-function createOptionalProvider(resolved: ResolvedProviderSelection | undefined, label: string) {
+function createOptionalProvider(resolved: ResolvedProviderSelection | undefined, _label: string) {
   if (!resolved?.providerConfig) {
     return undefined;
   }

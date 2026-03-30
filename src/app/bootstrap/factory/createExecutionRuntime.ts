@@ -24,7 +24,7 @@ import { ToolRegistry } from '../../../platform/tools/index.js';
 import { DefinitionAugmentedToolRegistry } from '../../../platform/tools/DefinitionAugmentedToolRegistry.js';
 import { getAgentToolDefinitions } from '../../../platform/tools/builtins/registerAgentTools.js';
 import type { Config, VisionSettings } from '../../../types.js';
-import { PluginManager } from '../../../features/plugins/index.js';
+import type { PluginCoordinator } from '../../../features/plugins/index.js';
 
 function createRequiredProvider(config: Config, providerName?: string, modelName?: string): LLMProvider {
   const resolved = providerName && modelName
@@ -73,7 +73,7 @@ export async function createExecutionRuntime(args: {
   agentRuntime: AgentRuntime;
   visionSettings: VisionSettings;
   visionProvider?: LLMProvider;
-  setPluginManager: (pluginManager: PluginManager) => void;
+  setPluginManager: (pluginManager: PluginCoordinator) => void;
 }> {
   const { getConfig, updateConfig, outboundGateway, workspace, sessionManager, sessionRouting, memoryService } = args;
   const config = getConfig();
@@ -100,7 +100,7 @@ export async function createExecutionRuntime(args: {
     skillManager
   );
 
-  let pluginManagerRef: PluginManager | undefined;
+  let pluginManagerRef: PluginCoordinator | undefined;
   const agentRuntime = await createConfiguredAgentRuntime({
     getConfig,
     provider,
@@ -131,7 +131,7 @@ export async function createExecutionRuntime(args: {
     agentRuntime,
     visionSettings,
     visionProvider,
-    setPluginManager(pluginManager: PluginManager) {
+    setPluginManager(pluginManager: PluginCoordinator) {
       pluginManagerRef = pluginManager;
     }
   };

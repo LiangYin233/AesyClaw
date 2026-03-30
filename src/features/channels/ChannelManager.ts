@@ -6,7 +6,7 @@
 
 import { ChannelRuntime, createChannelRuntime, RuntimeOptions, IncomingMessageHandler } from './core/ChannelRuntime.js';
 import { ChannelAdapter } from './protocol/adapter-interface.js';
-import { UnifiedMessage, createOutboundMessage, createTextMessage, createImageMessage } from './protocol/unified-message.js';
+import { UnifiedMessage, createOutboundMessage, createImageMessage } from './protocol/unified-message.js';
 import { ImageAttachment, FileAttachment } from './protocol/attachment.js';
 import { readdir } from 'fs/promises';
 import { join } from 'path';

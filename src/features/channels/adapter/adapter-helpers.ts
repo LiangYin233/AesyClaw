@@ -198,6 +198,7 @@ export function sanitizeText(text: string): string {
   return text
     .replace(/\r\n/g, '\n')      // Windows 换行符 → Unix
     .replace(/\r/g, '\n')        // 旧 Mac 换行符 → Unix
+    // eslint-disable-next-line no-control-regex
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')  // 移除控制字符（保留 \t \n）
     .replace(/\n{3,}/g, '\n\n')  // 3+ 个换行 → 2 个
     .replace(/[ \t]+/g, ' ')     // 多个空格/制表符 → 1 个空格
@@ -217,9 +218,4 @@ export function extractUrls(text: string): string[] {
   return text.match(urlRegex) || [];
 }
 
-/**
- * 转义正则表达式特殊字符
- */
-function escapeRegExp(string: string): string {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+

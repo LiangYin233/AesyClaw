@@ -12,7 +12,7 @@ import { LongTermMemoryStore } from '../../../features/memory/infrastructure/Lon
 import { SkillManager } from '../../../features/skills/index.js';
 import { ToolRegistry } from '../../../platform/tools/index.js';
 import { McpClientManager } from '../../../features/mcp/index.js';
-import { PluginManager } from '../../../features/plugins/index.js';
+import { PluginCoordinator } from '../../../features/plugins/index.js';
 import type { Config } from '../../../types.js';
 import type { CronJob } from '../../../features/cron/index.js';
 import { createWebServer } from './createWebServer.js';
@@ -35,7 +35,7 @@ export interface Services {
   longTermMemoryStore: LongTermMemoryStore;
   sessionRouting: ISessionRouting;
   channelManager: ChannelManager;
-  pluginManager: PluginManager;
+  pluginManager: PluginCoordinator;
   startPluginLoading: () => void;
   isPluginLoadingComplete: () => boolean;
   agentRuntime: AgentRuntime;

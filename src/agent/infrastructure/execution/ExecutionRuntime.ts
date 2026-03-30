@@ -9,7 +9,6 @@ import { logger } from '../../../platform/observability/index.js';
 import type { ExecutionPolicy } from './ExecutionTypes.js';
 import type { WorkerExecutionDelegate } from '../worker/WorkerExecutionDelegate.js';
 import { buildVisionUserContent, type VisionUserContent } from './ContextBuilder.js';
-import type { ToolContext } from '../../../platform/tools/ToolRegistry.js';
 
 interface PluginManager {
   runAgentBeforeTaps(input: { message: InboundMessage; messages: LLMMessage[] }): Promise<void>;

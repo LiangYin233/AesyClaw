@@ -6,17 +6,31 @@ import { ToolRegistry } from '../../platform/tools/ToolRegistry.js';
 import { LongTermMemoryStore, type MemoryOperationActor, type MemoryOperationInput } from '../../features/memory/infrastructure/LongTermMemoryStore.js';
 import { McpClientManager } from '../../features/mcp/index.js';
 import { syncMcpServerTools } from '../../features/mcp/index.js';
-import { PluginManager } from '../../features/plugins/index.js';
-import { normalizePluginConfigs } from '../../features/plugins/domain/config.js';
+import { PluginCoordinator } from '../../features/plugins/index.js';
 import { logger } from '../../platform/observability/index.js';
 import { registerMemoryTools } from '../../platform/tools/builtins/registerMemoryTools.js';
 import { registerSkillTools } from '../../platform/tools/builtins/registerSkillTools.js';
 import { filePaths, dirPaths } from '../../platform/utils/paths.js';
+import { paths } from '../../platform/utils/paths.js';
 
 export interface WorkerLocalToolRuntime {
   toolRegistry: ToolRegistry;
   skillManager: SkillManager;
-  pluginManager?: PluginManager;
+  pluginManager?: PluginCoordinator;
+}
+
+function normalizePluginConfigs(
+  configs: Record<string, { enabled?: boolean; options?: Record<string, unknown> }>
+): Record<string, { isEnabled: boolean; settings?: Record<string, unknown> }> {
+  return Object.fromEntries(
+    Object.entries(configs).map(([name, config]) => [
+      name,
+      {
+        isEnabled: config.enabled ?? false,
+        settings: config.options ? { ...config.options } : undefined
+      }
+    ])
+  );
 }
 
 export async function createWorkerLocalToolRegistry(
@@ -82,19 +96,20 @@ export async function createWorkerLocalToolRegistry(
   const pluginConfigs = normalizePluginConfigs(
     (config.plugins || {}) as Record<string, { enabled?: boolean; options?: Record<string, unknown> }>
   );
-  let pluginManager: PluginManager | undefined;
+  let pluginManager: PluginCoordinator | undefined;
   if (Object.keys(pluginConfigs).length > 0) {
-    pluginManager = new PluginManager({
+    pluginManager = new PluginCoordinator({
       getConfig: () => config,
       workspace: resolvedWorkspace,
       tempDir: dirPaths.temp(),
+      pluginsDir: paths.plugins(),
       toolRegistry,
-      publishOutbound: async () => {},
+      outboundPublisher: async () => {},
       logger
     });
 
-    pluginManager.setPluginConfigs(pluginConfigs);
-    await pluginManager.loadFromConfig(pluginConfigs);
+    pluginManager.setConfigs(pluginConfigs);
+    await pluginManager.load(pluginConfigs);
   }
 
   return {

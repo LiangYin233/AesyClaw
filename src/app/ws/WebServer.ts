@@ -5,7 +5,7 @@ import type { SessionManager } from '../../agent/infrastructure/session/SessionM
 import type { ChannelManager } from '../../features/channels/ChannelManager.js';
 import type { Config } from '../../types.js';
 import type { Database } from '../../platform/db/index.js';
-import type { PluginManager } from '../../features/plugins/index.js';
+import type { PluginCoordinator } from '../../features/plugins/index.js';
 import type { CronRuntimeService } from '../../features/cron/index.js';
 import type { McpClientManager } from '../../features/mcp/index.js';
 import type { SkillManager } from '../../features/skills/application/SkillManager.js';
@@ -44,7 +44,7 @@ export class WebServer {
   private channelManager: ChannelManager;
   private configStore: RuntimeConfigStore;
   private configManager: ConfigManager;
-  private pluginManager?: PluginManager;
+  private pluginManager?: PluginCoordinator;
   private cronService?: CronRuntimeService;
   private mcpManager?: McpClientManager;
   private skillManager?: SkillManager;
@@ -64,7 +64,7 @@ export class WebServer {
     channelManager: ChannelManager;
     configStore: RuntimeConfigStore;
     configManager: ConfigManager;
-    pluginManager?: PluginManager;
+    pluginManager?: PluginCoordinator;
     cronService?: CronRuntimeService;
     mcpManager?: McpClientManager;
     skillManager?: SkillManager;

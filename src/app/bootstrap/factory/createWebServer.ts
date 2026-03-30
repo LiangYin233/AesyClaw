@@ -7,7 +7,7 @@ import type { ConfigManager, RuntimeConfigStore } from '../../../features/config
 import type { CronRuntimeService } from '../../../features/cron/index.js';
 import type { McpClientManager } from '../../../features/mcp/index.js';
 import type { Database } from '../../../platform/db/index.js';
-import type { PluginManager } from '../../../features/plugins/index.js';
+import type { PluginCoordinator } from '../../../features/plugins/index.js';
 import type { LongTermMemoryStore } from '../../../features/memory/infrastructure/LongTermMemoryStore.js';
 import type { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
 import type { SkillManager } from '../../../features/skills/index.js';
@@ -24,7 +24,7 @@ export async function createWebServer(args: {
   channelManager: ChannelManager;
   configStore: RuntimeConfigStore;
   configManager: ConfigManager;
-  pluginManager: PluginManager;
+  pluginManager: PluginCoordinator;
   cronService: CronRuntimeService;
   mcpManager: McpClientManager | null;
   skillManager: SkillManager;

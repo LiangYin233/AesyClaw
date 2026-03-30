@@ -8,7 +8,7 @@ import {
 import { createMcpReloadTarget } from '../../../features/mcp/index.js';
 import { createMemoryReloadTarget } from '../../../features/memory/index.js';
 import { createObservabilityReloadTarget } from '../../../features/observability/index.js';
-import { createPluginsReloadTarget } from '../../../features/plugins/index.js';
+
 import { createSessionRoutingReloadTarget } from '../../../features/sessions/index.js';
 import { createSkillsReloadTarget } from '../../../features/skills/index.js';
 import { createProvider } from '../../../platform/providers/index.js';
@@ -49,7 +49,20 @@ export function setupConfigReload(services: Services): void {
         // For dynamic reload, you would restart the channel here
       }
     },
-    plugins: createPluginsReloadTarget(services),
+    plugins: {
+      applyConfig: async (config) => {
+        const pluginConfigs: Record<string, { isEnabled: boolean; settings?: Record<string, unknown> }> = {};
+
+        for (const [name, entry] of Object.entries(config.plugins ?? {})) {
+          pluginConfigs[name] = {
+            isEnabled: entry.enabled ?? false,
+            settings: entry.options ? { ...entry.options } : undefined
+          };
+        }
+
+        await services.pluginManager.load(pluginConfigs);
+      }
+    },
     skills: createSkillsReloadTarget(services),
     mcp: createMcpReloadTarget(services),
     api: {

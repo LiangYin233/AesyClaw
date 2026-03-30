@@ -7,8 +7,8 @@
 
 import { ChannelAdapter, AdapterContext, SendResult } from '../protocol/adapter-interface.js';
 import { UnifiedMessage } from '../protocol/unified-message.js';
-import { ImageAttachment, FileAttachment, FileType } from '../protocol/attachment.js';
-import { mkdir, writeFile, readFile } from 'fs/promises';
+import { FileType } from '../protocol/attachment.js';
+import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 
 /**

@@ -1,15 +1,17 @@
 import type { AgentRuntime, OutboundGateway } from '../../../agent/index.js';
 import type { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
 import { ChannelManager } from '../../../features/channels/ChannelManager.js';
-import { createPluginRuntime } from '../../../features/plugins/index.js';
+import { setupPlugins } from '../../../features/plugins/index.js';
 import type { McpClientManager } from '../../../features/mcp/index.js';
 import { startConfiguredMcpServers } from '../../../features/mcp/index.js';
 import type { Database } from '../../../platform/db/index.js';
-import type { PluginManager } from '../../../features/plugins/index.js';
+import type { PluginCoordinator } from '../../../features/plugins/index.js';
 import type { ToolRegistry } from '../../../platform/tools/index.js';
+import { logger } from '../../../platform/observability/index.js';
+import { paths } from '../../../platform/utils/paths.js';
 
 export interface InfrastructureServices {
-  pluginManager: PluginManager;
+  pluginManager: PluginCoordinator;
   startPluginLoading: () => void;
   isPluginLoadingComplete: () => boolean;
   channelManager: ChannelManager;
@@ -34,16 +36,18 @@ export async function createInfrastructureServices(args: {
     workspace,
     tempDir,
     toolRegistry,
-    db
+    db: _db
   } = args;
 
-  const pluginRuntime = await createPluginRuntime({
-    configStore,
-    outboundGateway,
+  const pluginSystem = await setupPlugins({
     workspace,
     tempDir,
+    pluginsDir: paths.plugins(),
+    getConfig: () => configStore.getConfig(),
     toolRegistry,
-    updateConfig: (mutator) => configManager.update(mutator)
+    outboundPublisher: async (message) => outboundGateway.send(message),
+    updateConfig: async (mutator: (config: import('../../../types.js').Config) => import('../../../types.js').Config | void) => configManager.update(mutator),
+    logger
   });
 
   // 使用新的 ChannelManager
@@ -99,9 +103,9 @@ export async function createInfrastructureServices(args: {
   });
 
   return {
-    pluginManager: pluginRuntime.pluginManager,
-    startPluginLoading: pluginRuntime.startBackgroundLoading,
-    isPluginLoadingComplete: pluginRuntime.isBackgroundLoadingComplete,
+    pluginManager: pluginSystem.coordinator,
+    startPluginLoading: pluginSystem.startLoading,
+    isPluginLoadingComplete: pluginSystem.isReady,
     channelManager,
     mcpManager: mcpManager ?? null
   };

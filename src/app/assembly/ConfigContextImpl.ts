@@ -1,5 +1,5 @@
 // src/app/assembly/ConfigContextImpl.ts
-import type { ConfigContext, ConfigAccessor, ConfigMutator } from '../../platform/context/ConfigContext.js';
+import type { ConfigContext } from '../../platform/context/ConfigContext.js';
 import type { Config } from '../../types.js';
 
 export function createConfigContext(

@@ -3,8 +3,6 @@ import type { Config } from '../../../types.js';
 import { RequestValidationError } from '../../../platform/errors/boundary.js';
 import { requireBoolean, requireObjectBody } from '../../shared/requestParsers.js';
 
-const HTTP_URL_PROTOCOL = 'http:';
-
 const mcpTransportTypeSchema = z.enum(['local', 'http']);
 
 const mcpServerConfigSchema = z.object({
@@ -26,8 +24,6 @@ const mcpServerConfigSchema = z.object({
 }, {
   message: 'Invalid MCP server configuration'
 });
-
-type MCPServerConfig = z.output<typeof mcpServerConfigSchema>;
 
 function getConfigValidationIssue(error: unknown): { message: string; field?: string } | null {
   if (!(error instanceof z.ZodError)) {

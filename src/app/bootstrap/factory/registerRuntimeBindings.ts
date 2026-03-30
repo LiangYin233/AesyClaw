@@ -7,9 +7,8 @@ import { registerCronTools } from '../../../features/cron/index.js';
 import type { CronRuntimeService } from '../../../features/cron/index.js';
 import { syncMcpServerTools } from '../../../features/mcp/index.js';
 import type { McpClientManager } from '../../../features/mcp/index.js';
-import { PluginsService } from '../../../features/plugins/application/PluginsService.js';
-import type { PluginManager } from '../../../features/plugins/index.js';
-import { PluginRepository } from '../../../features/plugins/infrastructure/PluginRepository.js';
+import { PluginAdminService } from '../../../features/plugins/index.js';
+import type { PluginCoordinator } from '../../../features/plugins/index.js';
 import type { Config } from '../../../types.js';
 import type { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
 import type { SkillManager } from '../../../features/skills/index.js';
@@ -24,8 +23,8 @@ export function registerRuntimeBindings(args: {
   agentRuntime: AgentRuntime;
   getConfig: () => Config;
   updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>;
-  setPluginManager: (pluginManager: PluginManager) => void;
-  pluginManager: PluginManager;
+  setPluginManager: (pluginManager: PluginCoordinator) => void;
+  pluginManager: PluginCoordinator;
   isPluginLoadingComplete: () => boolean;
   toolRegistry: ToolRegistry;
   skillManager: SkillManager;
@@ -39,8 +38,8 @@ export function registerRuntimeBindings(args: {
     sessionRouting,
     agentRoleService,
     agentRuntime,
-    getConfig,
-    updateConfig,
+    getConfig: _getConfig,
+    updateConfig: _updateConfig,
     setPluginManager,
     pluginManager,
     isPluginLoadingComplete,
@@ -51,17 +50,13 @@ export function registerRuntimeBindings(args: {
     memoryService
   } = args;
 
-  const pluginsService = new PluginsService(new PluginRepository({
-    pluginManager,
-    getConfig,
-    updateConfig
-  }));
+  const pluginsService = new PluginAdminService(pluginManager);
   const builtInCommands = new BuiltInCommands(
     sessionManager,
     sessionRouting,
     agentRoleService,
     agentRuntime,
-    pluginsService
+    pluginsService as any
   );
   commandRegistry.registerHandler(builtInCommands);
 

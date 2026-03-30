@@ -8,7 +8,7 @@ import type { Database } from '../../platform/db/index.js';
 import type { ToolRegistry } from '../../platform/tools/ToolRegistry.js';
 import type { SessionManager } from '../../agent/infrastructure/session/SessionManager.js';
 import type { LongTermMemoryStore } from '../../features/memory/infrastructure/LongTermMemoryStore.js';
-import type { PluginManager } from '../../features/plugins/index.js';
+import type { PluginCoordinator } from '../../features/plugins/index.js';
 import type { CronRuntimeService } from '../../features/cron/index.js';
 import type { McpClientManager } from '../../features/mcp/index.js';
 import type { SkillManager } from '../../features/skills/application/SkillManager.js';
@@ -34,9 +34,8 @@ import { MemoryService } from '../../features/memory/application/MemoryService.j
 import { MemoryRepository } from '../../features/memory/infrastructure/MemoryRepository.js';
 import { ObservabilityService } from '../../features/observability/application/ObservabilityService.js';
 import { parseLoggingEntriesQuery, parseLoggingLevelUpdate } from '../../features/observability/contracts/observability.dto.js';
-import { PluginRepository } from '../../features/plugins/infrastructure/PluginRepository.js';
-import { PluginsService } from '../../features/plugins/application/PluginsService.js';
-import { parsePluginConfigUpdate, parseTogglePlugin } from '../../features/plugins/contracts/plugins.dto.js';
+import { PluginAdminService } from '../../features/plugins/index.js';
+import { parsePluginConfigUpdate, parseTogglePlugin } from '../../features/plugins/index.js';
 import { SessionService } from '../../features/sessions/application/SessionService.js';
 import { ConversationAgentGateway } from '../../features/sessions/infrastructure/ConversationAgentGateway.js';
 import { SessionsRepository } from '../../features/sessions/infrastructure/SessionsRepository.js';
@@ -65,7 +64,7 @@ interface RegisterWebSocketHandlersArgs {
   configManager: ConfigManager;
   toolRegistry?: ToolRegistry;
   longTermMemoryStore: LongTermMemoryStore;
-  pluginManager?: PluginManager;
+  pluginManager?: PluginCoordinator;
   cronService?: CronRuntimeService;
   getMcpManager: () => McpClientManager | undefined;
   setMcpManager: (manager: McpClientManager | undefined) => void;
@@ -140,11 +139,7 @@ export function registerWebSocketHandlers(args: RegisterWebSocketHandlersArgs): 
   );
   const chatService = new ChatService(agentRuntime, maxMessageLength);
   // 直接使用 ChannelManager，无需额外的 Service 和 Repository
-  const pluginsService = new PluginsService(new PluginRepository({
-    pluginManager,
-    getConfig,
-    updateConfig
-  }));
+  const pluginsService = pluginManager ? new PluginAdminService(pluginManager) : undefined;
   const observabilityService = new ObservabilityService(updateConfig);
   const memoryService = new MemoryService(new MemoryRepository(sessionManager, longTermMemoryStore, db));
   const mcpService = new McpService(new McpRepository({
@@ -258,18 +253,18 @@ export function registerWebSocketHandlers(args: RegisterWebSocketHandlersArgs): 
     return result;
   });
 
-  server.registerRpc('plugins.list', async () => pluginsService.listPlugins());
+  server.registerRpc('plugins.list', async () => requireService(pluginsService, 'Plugins service').listPlugins());
   server.registerRpc('plugins.toggle', async (params) => {
     const payload = asRecord(params);
     const name = requiredString(payload, 'name');
-    const result = await pluginsService.togglePlugin(name, parseTogglePlugin(payload).enabled);
+    const result = await requireService(pluginsService, 'Plugins service').togglePlugin(name, { enabled: parseTogglePlugin(payload).enabled });
     server.publish('plugins.list');
     return result;
   });
   server.registerRpc('plugins.updateConfig', async (params) => {
     const payload = asRecord(params);
     const name = requiredString(payload, 'name');
-    const result = await pluginsService.updatePluginConfig(name, parsePluginConfigUpdate(payload).options);
+    const result = await requireService(pluginsService, 'Plugins service').updatePluginConfig(name, { settings: parsePluginConfigUpdate(payload).settings });
     server.publish('plugins.list');
     return result;
   });
@@ -384,7 +379,7 @@ export function registerWebSocketHandlers(args: RegisterWebSocketHandlersArgs): 
     }
   });
   server.registerSubscription('plugins.list', {
-    getSnapshot: async () => pluginsService.listPlugins()
+    getSnapshot: async () => requireService(pluginsService, 'Plugins service').listPlugins()
   });
   server.registerSubscription('cron.list', {
     getSnapshot: async () => requireService(cronApiService, 'Cron service').listJobs()
