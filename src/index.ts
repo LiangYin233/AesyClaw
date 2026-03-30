@@ -1,5 +1,5 @@
 export * from './types.js';
-export { ChannelManager } from './features/channels/application/ChannelManager.js';
+export { ChannelManager } from './features/channels/ChannelManager.js';
 export { LLMProvider, createProvider } from './platform/providers/index.js';
 export { ToolRegistry } from './platform/tools/index.js';
 export type { Tool, ToolContext } from './platform/tools/index.js';

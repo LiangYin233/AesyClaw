@@ -1,12 +1,9 @@
-import { mergeChannelConfigWithDefaults, stripChannelEnabled } from '../../channels/domain/config.js';
-import type { ChannelManager } from '../../channels/application/ChannelManager.js';
 import type { PluginManager } from '../application/PluginManager.js';
 import type { PluginInfo } from '../domain/types.js';
 import type { Config } from '../../../types.js';
 
 interface PluginRepositoryDeps {
   pluginManager?: PluginManager;
-  channelManager: ChannelManager;
   getConfig: () => Config;
   updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>;
 }
@@ -16,7 +13,7 @@ export class PluginRepository {
 
   async listAll(): Promise<PluginInfo[]> {
     const plugins = this.deps.pluginManager ? await this.deps.pluginManager.getAllPlugins() : [];
-    return [...plugins, ...this.buildChannelPlugins()].sort((left, right) => left.name.localeCompare(right.name));
+    return [...plugins].sort((left, right) => left.name.localeCompare(right.name));
   }
 
   async setEnabled(name: string, enabled: boolean): Promise<boolean> {
@@ -31,23 +28,8 @@ export class PluginRepository {
       return true;
     }
 
-    const channelPlugin = this.deps.channelManager.getPlugin(name);
-    if (!channelPlugin) {
-      return false;
-    }
-
-    await this.deps.updateConfig((config) => {
-      const currentChannelConfig = config.channels[channelPlugin.channelName] as Record<string, unknown> | undefined;
-      config.channels[channelPlugin.channelName] = mergeChannelConfigWithDefaults(
-        this.deps.channelManager.getPluginDefaultConfig(channelPlugin.pluginName),
-        {
-          ...(currentChannelConfig ?? {}),
-          enabled
-        }
-      ) as typeof config.channels[string];
-    });
-
-    return true;
+    // 通道插件现在由 ChannelManager 直接管理，不在此处处理
+    return false;
   }
 
   async updateOptions(name: string, options: Record<string, unknown>): Promise<boolean> {
@@ -65,24 +47,8 @@ export class PluginRepository {
       return true;
     }
 
-    const channelPlugin = this.deps.channelManager.getPlugin(name);
-    if (!channelPlugin) {
-      return false;
-    }
-
-    await this.deps.updateConfig((config) => {
-      const currentChannelConfig = config.channels[channelPlugin.channelName] as Record<string, unknown> | undefined;
-      const currentEnabled = Boolean(currentChannelConfig?.enabled);
-      config.channels[channelPlugin.channelName] = mergeChannelConfigWithDefaults(
-        this.deps.channelManager.getPluginDefaultConfig(channelPlugin.pluginName),
-        {
-          ...options,
-          enabled: currentEnabled
-        }
-      ) as typeof config.channels[string];
-    });
-
-    return true;
+    // 通道插件现在由 ChannelManager 直接管理，不在此处处理
+    return false;
   }
 
   private async getKnownPluginNames(): Promise<Set<string>> {
@@ -90,41 +56,5 @@ export class PluginRepository {
       return new Set<string>();
     }
     return new Set((await this.deps.pluginManager.getAllPlugins()).map((plugin) => plugin.name));
-  }
-
-  private buildChannelPlugins(): PluginInfo[] {
-    const runtimeStatus = this.deps.channelManager.getStatus();
-    const plugins: PluginInfo[] = [];
-
-    for (const pluginName of this.deps.channelManager.listPlugins().sort((left, right) => left.localeCompare(right))) {
-      const plugin = this.deps.channelManager.getPlugin(pluginName);
-      if (!plugin) {
-        continue;
-      }
-
-      const defaultOptions = this.deps.channelManager.getPluginDefaultConfig(plugin.pluginName);
-      const rawConfig = this.deps.getConfig().channels[plugin.channelName] as Record<string, unknown> | undefined;
-      const mergedConfig = mergeChannelConfigWithDefaults(defaultOptions, rawConfig);
-      const options = stripChannelEnabled(mergedConfig);
-
-      plugins.push({
-        name: plugin.pluginName,
-        version: 'channel',
-        description: `渠道插件（${plugin.channelName}）`,
-        author: 'AesyClaw',
-        enabled: Boolean(mergedConfig.enabled),
-        options,
-        defaultConfig: {
-          enabled: false,
-          options: defaultOptions
-        },
-        toolsCount: 0,
-        kind: 'channel',
-        channelName: plugin.channelName,
-        running: runtimeStatus[plugin.channelName]?.running ?? false
-      });
-    }
-
-    return plugins;
   }
 }

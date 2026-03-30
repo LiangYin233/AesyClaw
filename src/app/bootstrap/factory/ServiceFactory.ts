@@ -1,7 +1,7 @@
 import { AgentRuntime, OutboundGateway } from '../../../agent/index.js';
 import type { ISessionRouting } from '../../../agent/domain/session.js';
 import { WebServer } from '../../ws/WebServer.js';
-import { ChannelManager } from '../../../features/channels/application/ChannelManager.js';
+import { ChannelManager } from '../../../features/channels/ChannelManager.js';
 import { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
 import { CronRuntimeService } from '../../../features/cron/index.js';
 import { logging, logger, tokenUsage } from '../../../platform/observability/index.js';
@@ -151,7 +151,6 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     sessionRouting,
     agentRoleService,
     agentRuntime,
-    channelManager,
     getConfig: () => configStore.getConfig(),
     updateConfig: (mutator) => configManager.update(mutator),
     setPluginManager,

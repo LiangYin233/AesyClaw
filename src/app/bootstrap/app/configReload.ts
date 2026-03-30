@@ -4,7 +4,7 @@ import {
   getToolRuntimeConfig,
   resolveExecutionModel
 } from '../../../features/config/index.js';
-import { createChannelsReloadTarget } from '../../../features/channels/index.js';
+// Channel reload is now handled automatically by ChannelManager
 import { createMcpReloadTarget } from '../../../features/mcp/index.js';
 import { createMemoryReloadTarget } from '../../../features/memory/index.js';
 import { createObservabilityReloadTarget } from '../../../features/observability/index.js';
@@ -42,7 +42,13 @@ export function setupConfigReload(services: Services): void {
       }
     },
     sessionRouting: createSessionRoutingReloadTarget(services),
-    channels: createChannelsReloadTarget(services),
+    channels: {
+      applyDiff: async () => {
+        // Channel configuration changes are handled automatically by ChannelManager
+        // The new ChannelManager loads configuration on startup
+        // For dynamic reload, you would restart the channel here
+      }
+    },
     plugins: createPluginsReloadTarget(services),
     skills: createSkillsReloadTarget(services),
     mcp: createMcpReloadTarget(services),

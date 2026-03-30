@@ -15,19 +15,10 @@
   ToolsConfig,
 } from './features/config/schema/index.js';
 import type {
-  ChannelConversation,
-  ChannelSender,
-  MessageProjection,
-  MessageSegment,
-  ResourceHandle,
-  ResourceKind,
-  QuoteReference,
-  ChannelMessage,
-  ChannelCapabilityProfile,
-  AdapterInboundDraft,
-  AdapterSendResult,
-  DeliveryReceipt
-} from './features/channels/domain/types.js';
+  UnifiedMessage,
+  ImageAttachment,
+  FileAttachment
+} from './features/channels/index.js';
 
 export type {
   AgentConfig,
@@ -47,18 +38,9 @@ export type {
 };
 
 export type {
-  ResourceHandle,
-  ResourceKind,
-  ChannelConversation,
-  ChannelSender,
-  QuoteReference,
-  MessageSegment,
-  MessageProjection,
-  ChannelMessage,
-  ChannelCapabilityProfile,
-  AdapterInboundDraft,
-  AdapterSendResult,
-  DeliveryReceipt
+  UnifiedMessage,
+  ImageAttachment,
+  FileAttachment
 };
 
 export interface InboundFile {
@@ -97,12 +79,6 @@ export interface InboundMessage {
   intent?: ProcessingIntent;
 
   metadata?: Record<string, any>;
-  segments?: MessageSegment[];
-  projection?: MessageProjection;
-  conversation?: ChannelConversation;
-  sender?: ChannelSender;
-  direction?: 'inbound' | 'outbound';
-  platformMessageId?: string;
 }
 
 export interface OutboundMessage {
@@ -117,12 +93,6 @@ export interface OutboundMessage {
   metadata?: Record<string, any>;
   messageType?: 'private' | 'group';
   idempotencyKey?: string;
-  segments?: MessageSegment[];
-  projection?: MessageProjection;
-  conversation?: ChannelConversation;
-  sender?: ChannelSender;
-  direction?: 'inbound' | 'outbound';
-  platformMessageId?: string;
 }
 
 export interface LLMMessage {

@@ -47,11 +47,14 @@ export interface CreatePluginInstanceOptions {
   discovery: DiscoveredPlugin;
   options?: PluginOptions;
   getConfig: () => Config;
+  /** 获取当前插件的最新配置选项 */
+  getPluginOptions: () => PluginOptions | undefined;
   workspace: string;
   tempDir: string;
   logger: Logger;
   toolRegistry: ToolRegistry;
   dispatchMessage(message: OutboundMessage, options?: SendMessageOptions): Promise<void>;
+  getAllCommands?: () => PluginCommand[];
 }
 
 function cloneOptions<T extends PluginOptions | undefined>(options: T): T {
@@ -74,7 +77,7 @@ function createHookState(): PluginHookState {
 }
 
 export async function createPluginInstance(options: CreatePluginInstanceOptions): Promise<PluginInstance> {
-  const { discovery, getConfig, workspace, tempDir, logger, dispatchMessage, toolRegistry } = options;
+  const { discovery, getConfig, getPluginOptions, workspace, tempDir, logger, dispatchMessage, toolRegistry, getAllCommands } = options;
   const pluginOptions = cloneOptions(options.options) ?? {};
   const commands: PluginCommand[] = [];
   const tools: PluginInstance['tools'] = [];
@@ -83,6 +86,14 @@ export async function createPluginInstance(options: CreatePluginInstanceOptions)
   const context: PluginContext = {
     config: Object.freeze(structuredClone(getConfig())),
     options: Object.freeze(pluginOptions),
+    getOptions: () => {
+      // 动态获取最新配置，合并默认值
+      const latestOptions = getPluginOptions();
+      if (!latestOptions) {
+        return pluginOptions;
+      }
+      return { ...pluginOptions, ...latestOptions };
+    },
     workspace,
     tempDir,
     logger: logger.child(discovery.definition.name),
@@ -133,6 +144,9 @@ export async function createPluginInstance(options: CreatePluginInstanceOptions)
           hooks.error.push(handler);
         }
       }
+    },
+    getPluginCommands() {
+      return getAllCommands ? getAllCommands() : [];
     }
   };
 

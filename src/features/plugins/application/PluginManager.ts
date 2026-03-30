@@ -15,6 +15,7 @@ import type {
   AgentAfterPayload,
   AgentBeforePayload,
   Plugin,
+  PluginCommand,
   PluginCommandExecutionResult,
   PluginConfigState,
   PluginDefinition,
@@ -293,6 +294,14 @@ export class PluginManager {
     });
   }
 
+  getAllCommands(): PluginCommand[] {
+    const allCommands: PluginCommand[] = [];
+    for (const instance of this.getActiveInstances()) {
+      allCommands.push(...instance.commands);
+    }
+    return allCommands;
+  }
+
   async enablePlugin(name: string, enabled: boolean): Promise<boolean> {
     const discovery = await this.findDiscoveredPlugin(name);
     if (!discovery) {
@@ -462,15 +471,28 @@ export class PluginManager {
 
   private getConfiguredState(name: string, definition: PluginDefinition): { key: string; state: PluginConfigState } {
     const existing = this.getExistingConfig(name);
+    const defaultOptions = cloneOptions(definition.defaultConfig?.options);
+
     if (existing) {
-      return existing;
+      // 合并用户配置和默认配置：用户值优先，缺失的用默认值填充
+      const mergedOptions = existing.state.options
+        ? { ...defaultOptions, ...existing.state.options }
+        : defaultOptions;
+
+      return {
+        key: existing.key,
+        state: {
+          enabled: existing.state.enabled,
+          options: mergedOptions
+        }
+      };
     }
 
     return {
       key: name,
       state: {
         enabled: definition.defaultConfig?.enabled ?? false,
-        options: cloneOptions(definition.defaultConfig?.options)
+        options: defaultOptions
       }
     };
   }
@@ -482,11 +504,17 @@ export class PluginManager {
       discovery,
       options,
       getConfig: this.options.getConfig,
+      getPluginOptions: () => {
+        // 动态获取当前插件的最新配置
+        const { state } = this.getConfiguredState(discovery.name, discovery.definition);
+        return state.options;
+      },
       workspace: this.options.workspace,
       tempDir: this.options.tempDir,
       logger: this.log,
       toolRegistry: this.options.toolRegistry,
-      dispatchMessage: (message, sendOptions) => this.dispatchMessage(message, sendOptions)
+      dispatchMessage: (message, sendOptions) => this.dispatchMessage(message, sendOptions),
+      getAllCommands: () => this.getAllCommands()
     });
 
     this.instances.set(discovery.name, instance);

@@ -10,7 +10,6 @@ import type { McpClientManager } from '../../../features/mcp/index.js';
 import { PluginsService } from '../../../features/plugins/application/PluginsService.js';
 import type { PluginManager } from '../../../features/plugins/index.js';
 import { PluginRepository } from '../../../features/plugins/infrastructure/PluginRepository.js';
-import type { ChannelManager } from '../../../features/channels/application/ChannelManager.js';
 import type { Config } from '../../../types.js';
 import type { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
 import type { SkillManager } from '../../../features/skills/index.js';
@@ -23,7 +22,6 @@ export function registerRuntimeBindings(args: {
   sessionRouting: ISessionRouting;
   agentRoleService: AgentRoleService;
   agentRuntime: AgentRuntime;
-  channelManager: ChannelManager;
   getConfig: () => Config;
   updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>;
   setPluginManager: (pluginManager: PluginManager) => void;
@@ -41,7 +39,6 @@ export function registerRuntimeBindings(args: {
     sessionRouting,
     agentRoleService,
     agentRuntime,
-    channelManager,
     getConfig,
     updateConfig,
     setPluginManager,
@@ -56,7 +53,6 @@ export function registerRuntimeBindings(args: {
 
   const pluginsService = new PluginsService(new PluginRepository({
     pluginManager,
-    channelManager,
     getConfig,
     updateConfig
   }));

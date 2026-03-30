@@ -85,7 +85,10 @@ export interface SendMessageOptions {
 
 export interface PluginContext<TOptions extends PluginOptions = PluginOptions> {
   config: Readonly<Config>;
+  /** @deprecated 使用 getOptions() 代替，以获取最新配置 */
   options: Readonly<TOptions>;
+  /** 动态获取最新配置选项 */
+  getOptions(): TOptions;
   workspace: string;
   tempDir: string;
   logger: Logger;
@@ -93,6 +96,7 @@ export interface PluginContext<TOptions extends PluginOptions = PluginOptions> {
   tools: PluginToolRegistryApi;
   commands: PluginCommandRegistryApi;
   hooks: PluginHooks;
+  getPluginCommands(): PluginCommand[];
 }
 
 export type PluginTeardown = () => Promise<void> | void;

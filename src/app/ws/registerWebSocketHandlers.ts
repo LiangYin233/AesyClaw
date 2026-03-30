@@ -2,7 +2,7 @@ import type { Config } from '../../types.js';
 import type { AgentRuntime } from '../../agent/index.js';
 import type { AgentRoleService } from '../../features/agents/infrastructure/AgentRoleService.js';
 import type { ISessionRouting } from '../../agent/domain/session.js';
-import type { ChannelManager } from '../../features/channels/application/ChannelManager.js';
+import type { ChannelManager } from '../../features/channels/ChannelManager.js';
 import type { ConfigManager, RuntimeConfigStore } from '../../features/config/index.js';
 import type { Database } from '../../platform/db/index.js';
 import type { ToolRegistry } from '../../platform/tools/ToolRegistry.js';
@@ -19,9 +19,6 @@ import { AgentRepository } from '../../features/agents/infrastructure/AgentRepos
 import { AgentsService } from '../../features/agents/application/AgentsService.js';
 import { AgentWorkersService } from '../../features/agents/application/AgentWorkersService.js';
 import { parseAgentRoleInput } from '../../features/agents/contracts/agents.dto.js';
-import { ChannelsService } from '../../features/channels/application/ChannelsService.js';
-import { ChannelRepository } from '../../features/channels/infrastructure/ChannelRepository.js';
-import { parseSendChannelMessage } from '../../features/channels/contracts/channels.dto.js';
 import { ChatService } from '../../features/chat/application/ChatService.js';
 import { parseCreateChatRequest } from '../../features/chat/contracts/chat.dto.js';
 import { getConfigValidationIssue } from '../../features/config/index.js';
@@ -130,7 +127,7 @@ export function registerWebSocketHandlers(args: RegisterWebSocketHandlersArgs): 
   const updateConfig = (mutator: (config: Config) => void | Config | Promise<void | Config>) =>
     configManager.update(mutator);
 
-  const systemService = new SystemService(packageVersion, agentRuntime, sessionManager, channelManager, getConfig, toolRegistry);
+  const systemService = new SystemService(packageVersion, agentRuntime, sessionManager, channelManager, toolRegistry);
   const agentsService = new AgentsService(new AgentRepository(sessionRouting, agentRoleService));
   const agentWorkersService = new AgentWorkersService({
     getSnapshot: () => agentRuntime.getWorkerRuntimeSnapshot(),
@@ -142,10 +139,9 @@ export function registerWebSocketHandlers(args: RegisterWebSocketHandlersArgs): 
     sessionRouting
   );
   const chatService = new ChatService(agentRuntime, maxMessageLength);
-  const channelsService = new ChannelsService(new ChannelRepository(channelManager, getConfig), maxMessageLength);
+  // 直接使用 ChannelManager，无需额外的 Service 和 Repository
   const pluginsService = new PluginsService(new PluginRepository({
     pluginManager,
-    channelManager,
     getConfig,
     updateConfig
   }));
@@ -194,10 +190,25 @@ export function registerWebSocketHandlers(args: RegisterWebSocketHandlersArgs): 
 
   server.registerRpc('chat.createResponse', async (params) => chatService.createChatResponse(parseCreateChatRequest(params)));
 
-  server.registerRpc('channels.getStatus', () => channelsService.getChannelStatus());
-  server.registerRpc('channels.sendMessage', (params) => {
+  server.registerRpc('channels.getStatus', () => {
+    const status = channelManager.getStatus();
+    const result: Record<string, { running?: boolean; enabled?: boolean; connected?: boolean }> = {};
+    for (const s of status) {
+      result[s.name] = {
+        running: s.connected,
+        enabled: s.connected,
+        connected: s.connected
+      };
+    }
+    return result;
+  });
+  server.registerRpc('channels.sendMessage', async (params) => {
     const payload = asRecord(params);
-    return channelsService.sendMessage(requiredString(payload, 'name'), parseSendChannelMessage(payload));
+    const name = requiredString(payload, 'name');
+    const chatId = requiredString(payload, 'chatId');
+    const content = requiredString(payload, 'content');
+    const success = await channelManager.sendText(name, chatId, content);
+    return { success };
   });
 
   server.registerRpc('config.get', () => sanitizePublicConfig(getConfig()));
@@ -427,7 +438,8 @@ export function registerWebSocketHandlers(args: RegisterWebSocketHandlersArgs): 
     server.publish('memory.list');
     server.publish('sessions.detail', { match: (params) => requiredString(params, 'key') === event.sessionKey });
   }));
-  cleanups.push(channelManager.onStatusChange(() => { server.publish('system.status'); }));
+  channelManager.on('adapter:started', () => { server.publish('system.status'); });
+  channelManager.on('adapter:stopped', () => { server.publish('system.status'); });
   cleanups.push(eventBus.on('config.changed', () => {
     for (const t of ['system.status', 'agents.list', 'config.state', 'skills.list', 'skills.detail', 'plugins.list', 'mcp.list']) server.publish(t);
   }));

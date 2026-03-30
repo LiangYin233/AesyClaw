@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'http';
 import { readFileSync } from 'fs';
 import type { AgentRuntime } from '../../agent/index.js';
 import type { SessionManager } from '../../agent/infrastructure/session/SessionManager.js';
-import type { ChannelManager } from '../../features/channels/application/ChannelManager.js';
+import type { ChannelManager } from '../../features/channels/ChannelManager.js';
 import type { Config } from '../../types.js';
 import type { Database } from '../../platform/db/index.js';
 import type { PluginManager } from '../../features/plugins/index.js';
