@@ -2,11 +2,10 @@
 **/dist/
 config.toml
 opencode.json
-opencode.jsonc
 .aesyclaw/
 .claude/
 workspace/
 .tmp/
 .worktrees/
-.codex/
+.trae/
 docs/

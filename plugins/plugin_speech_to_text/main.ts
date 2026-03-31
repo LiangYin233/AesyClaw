@@ -80,7 +80,7 @@ function findAudioSource(message: InboundMessage): { localPath?: string; remoteU
     };
   }
 
-  const projectedAudio = message.projection?.nonVisionFiles.find((resource) => resource.kind === 'audio');
+  const projectedAudio = (message as { projection?: { nonVisionFiles: Array<{ kind: string; localPath?: string; remoteUrl?: string }> } }).projection?.nonVisionFiles.find((resource) => resource.kind === 'audio');
   if (projectedAudio) {
     return {
       localPath: projectedAudio.localPath,
