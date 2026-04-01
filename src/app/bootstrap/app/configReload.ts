@@ -45,6 +45,8 @@ export function setupConfigReload(services: Services): void {
     sessionRouting: createSessionRoutingReloadTarget(services),
     channels: {
       applyDiff: async (oldConfig, newConfig) => {
+        services.channelManager.setChannelConfigs(newConfig?.channels ?? {});
+
         const oldChannels = oldConfig?.channels ?? {};
         const newChannels = newConfig?.channels ?? {};
 

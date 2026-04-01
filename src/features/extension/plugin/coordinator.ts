@@ -115,10 +115,15 @@ export class PluginCoordinator {
 
     for (const found of discovered) {
       const config = configs[found.name];
+      const isRunning = this.plugins.has(found.name);
       
       if (config?.isEnabled) {
-        await this.enable(found.name, config.settings);
-      } else {
+        if (isRunning) {
+          await this.reload(found.name, config.settings ?? {});
+        } else {
+          await this.enable(found.name, config.settings);
+        }
+      } else if (isRunning) {
         await this.disable(found.name);
       }
     }
