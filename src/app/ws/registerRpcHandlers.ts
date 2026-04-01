@@ -160,7 +160,7 @@ export function registerRpcHandlers(context: RegisterRpcHandlersContext): void {
     const status = channelManager.getStatus();
     const result: Record<string, { running?: boolean; enabled?: boolean; connected?: boolean }> = {};
     for (const s of status) {
-      result[s.name] = { running: s.connected, enabled: s.connected, connected: s.connected };
+      result[s.name] = { running: s.connected, enabled: s.enabled, connected: s.connected };
     }
     return result;
   });

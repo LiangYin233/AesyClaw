@@ -33,7 +33,7 @@ export async function createWebServer(args: {
   longTermMemoryStore: LongTermMemoryStore;
   agentRoleService: AgentRoleService;
   eventBus: EventBus<AesyClawEvents>;
-}): Promise<WebServer> {
+}): Promise<WebServer | undefined> {
   const {
     port,
     agentRuntime,
@@ -52,6 +52,10 @@ export async function createWebServer(args: {
     agentRoleService,
     eventBus
   } = args;
+
+  if (configStore.getConfig().server.apiEnabled === false) {
+    return undefined;
+  }
 
   const webServer = new WebServer({
     port,

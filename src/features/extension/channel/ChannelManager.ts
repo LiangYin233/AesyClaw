@@ -27,7 +27,9 @@ export interface ManagerOptions extends RuntimeOptions {
 export interface ChannelStatus {
   /** 通道名称 */
   name: string;
-  /** 是否已连接 */
+  /** 是否已启用（配置中 enabled=true） */
+  enabled: boolean;
+  /** 是否已连接（运行中） */
   connected: boolean;
 }
 
@@ -377,7 +379,9 @@ export class ChannelManager {
   getStatus(): ChannelStatus[] {
     const status: ChannelStatus[] = [];
     for (const [name, connected] of this.runtime.getAdapterStatus()) {
-      status.push({ name, connected });
+      const config = this.channelConfigs.get(name);
+      const enabled = Boolean(config?.enabled);
+      status.push({ name, enabled, connected });
     }
     return status;
   }
