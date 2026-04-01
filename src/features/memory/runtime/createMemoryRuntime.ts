@@ -29,7 +29,7 @@ function createEmbeddingsClient(resolved: ResolvedProviderSelection | undefined)
   });
 }
 
-function resolveProviderFromConfig(
+function _resolveProviderFromConfig(
   config: import('../../../types.js').Config,
   provider: string | undefined,
   model: string | undefined
