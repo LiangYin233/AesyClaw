@@ -1,7 +1,7 @@
 import { getMemoryConfig } from '../../../features/config/index.js';
 import type { ConfigSource } from '../../../features/config/domain/shared.js';
 import type { ConfigReloadTargets } from '../../config/reload/ports/ReloadTargets.js';
-import type { Services } from '../../../app/bootstrap/factory/ServiceFactory.js';
+import type { Services } from '../../../app/bootstrap/factory/service-interfaces.js';
 import { createMemoryRuntime } from './createMemoryRuntime.js';
 
 function toConfigSource(config: import('../../../types.js').Config): ConfigSource {

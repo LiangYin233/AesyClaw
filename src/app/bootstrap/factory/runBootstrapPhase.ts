@@ -1,27 +1,15 @@
-export async function runBootstrapPhase<T>(args: {
-  phase: string;
-  log: {
-    info(message: string, fields: Record<string, unknown>): void;
-    error(message: string, fields: Record<string, unknown>): void;
-  };
-  task: () => Promise<T>;
-}): Promise<{ result: T; durationMs: number }> {
-  args.log.info(`${args.phase} 开始`, {});
-  const startedAt = Date.now();
-  try {
-    const result = await args.task();
-    const durationMs = Date.now() - startedAt;
-    args.log.info(`${args.phase} 完成`, {
-      durationMs
-    });
+import type { BootstrapPhaseOptions } from './service-interfaces.js';
 
-    return { result, durationMs };
+export async function runBootstrapPhase<T>(options: BootstrapPhaseOptions<T>): Promise<{ result: T }> {
+  const { phase, log, task } = options;
+  log.info(`开始: ${phase}`);
+  const startTime = Date.now();
+  try {
+    const result = await task();
+    log.info(`完成: ${phase} (${Date.now() - startTime}ms)`);
+    return { result };
   } catch (error) {
-    const durationMs = Date.now() - startedAt;
-    args.log.error(`${args.phase} 失败`, {
-      durationMs,
-      error: error instanceof Error ? error : new Error(String(error))
-    });
+    log.error(`失败: ${phase}`, { error });
     throw error;
   }
 }

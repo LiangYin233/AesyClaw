@@ -4,18 +4,15 @@ import type { CronJob } from '../../features/cron/index.js';
 import { dispatchCronJob } from '../../features/cron/index.js';
 import { ConfigManager } from '../../features/config/index.js';
 import { createServices, type Services } from './factory/ServiceFactory.js';
-import { setupConfigReload } from './app/configReload.js';
-import { setupEventListeners } from './app/eventListeners.js';
-import { setupSignalHandlers, shutdownServices } from './app/shutdown.js';
+import { setupConfigReload } from './configReload.js';
+import { setupEventListeners } from './eventListeners.js';
+import { setupSignalHandlers, shutdownServices } from './shutdown.js';
 import { EventBus } from '../../platform/events/EventBus.js';
 import type { AesyClawEvents } from '../../platform/events/events.js';
 import { dirPaths } from '../../platform/utils/paths.js';
 
 const CHANNEL_START_TIMEOUT = 30000;
 
-/**
- * 启动前确保运行目录存在，避免后续服务各自兜底创建。
- */
 function ensureRuntimeDirectories(workspace: string, tempDir: string): void {
   if (!existsSync(workspace)) {
     mkdirSync(workspace, { recursive: true });
@@ -42,16 +39,12 @@ async function startChannels(services: Services): Promise<void> {
   const { channelManager } = services;
   await Promise.race([
     channelManager.startAll(),
-    // 渠道启动可能依赖外部网络，超时后直接打断整个启动流程。
     new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Channel start timeout')), CHANNEL_START_TIMEOUT)
     )
   ]);
 }
 
-/**
- * 按固定顺序完成核心服务装配、事件接线、渠道启动与运行时拉起。
- */
 export async function bootstrap(options: BootstrapOptions = {}): Promise<void> {
   const eventBus = new EventBus<AesyClawEvents>();
   const configManager = new ConfigManager(eventBus);
@@ -101,7 +94,6 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<void> {
 
     await startChannels(servicesRef);
 
-    // 渠道就绪后再开放 agent runtime，避免启动期消息早于下游依赖准备完成。
     servicesRef.agentRuntime.start();
     servicesRef.startPluginLoading();
   } catch (error) {

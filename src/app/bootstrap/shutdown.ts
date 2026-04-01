@@ -1,5 +1,5 @@
-import { tokenUsage } from '../../../platform/observability/index.js';
-import type { Services } from '../factory/ServiceFactory.js';
+import { tokenUsage } from '../../platform/observability/index.js';
+import type { Services } from './factory/service-interfaces.js';
 
 export async function shutdownServices(services: Services): Promise<void> {
   const cleanupErrors: unknown[] = [];

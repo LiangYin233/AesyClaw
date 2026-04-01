@@ -26,11 +26,6 @@ const MAX_MESSAGE_LENGTH = 50000;
 const packageJson = JSON.parse(readFileSync(filePaths.packageJson(), 'utf-8'));
 const packageVersion = packageJson.version;
 
-/**
- * 当前 HTTP 层只承担两件事：
- * 1. 承载 `/ws` upgrade
- * 2. 对其余请求统一返回 404
- */
 export class WebServer {
   private server = createServer((req, res) => {
     this.handleRequest(req, res);
@@ -92,7 +87,6 @@ export class WebServer {
   }
 
   async start(): Promise<void> {
-    // 先挂载 WebSocket 入口，再开始监听端口，避免启动窗口内丢失 upgrade 请求。
     this.setupWebSocketServer();
 
     return new Promise((resolve) => {
@@ -103,7 +97,6 @@ export class WebServer {
   }
 
   async stop(): Promise<void> {
-    // 先断开订阅桥接，再关闭 WebSocket 与底层 server，避免停机阶段继续推送事件。
     this.wsCleanup?.();
     this.wsCleanup = undefined;
 
@@ -135,7 +128,6 @@ export class WebServer {
       log: logger.child('WebSocket')
     });
 
-    // handler 注册与 WebSocket server 生命周期绑定，关闭时一起清理事件监听。
     this.wsCleanup = registerWebSocketHandlers({
       server: this.wsApiServer,
       packageVersion,
@@ -162,7 +154,6 @@ export class WebServer {
   }
 
   private handleRequest(_req: IncomingMessage, res: ServerResponse): void {
-    // WebUI 正式接口已全部迁到 WebSocket，这里不再保留旧 API 路由。
     res.statusCode = 404;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.end(JSON.stringify({

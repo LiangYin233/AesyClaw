@@ -1,19 +1,20 @@
-import type { AgentRoleService } from '../../../features/agents/infrastructure/AgentRoleService.js';
-import type { ISessionRouting } from '../../../agent/domain/session.js';
 import type { AgentRuntime } from '../../../agent/index.js';
-import { WebServer } from '../../ws/WebServer.js';
+import type { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
 import type { ChannelManager } from '../../../features/extension/channel/ChannelManager.js';
-import type { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
-import type { CronRuntimeService } from '../../../features/cron/index.js';
-import type { McpClientManager } from '../../../features/mcp/index.js';
+import type { Config } from '../../../types.js';
 import type { Database } from '../../../platform/db/index.js';
 import type { PluginCoordinator } from '../../../features/extension/plugin/index.js';
+import type { CronRuntimeService } from '../../../features/cron/index.js';
+import type { McpClientManager } from '../../../features/mcp/index.js';
+import type { SkillManager } from '../../../features/skills/application/SkillManager.js';
+import type { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
+import type { ISessionRouting } from '../../../agent/domain/session.js';
+import { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
 import type { LongTermMemoryStore } from '../../../features/memory/infrastructure/LongTermMemoryStore.js';
-import type { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
-import type { SkillManager } from '../../../features/skills/index.js';
-import type { ToolRegistry } from '../../../platform/tools/index.js';
+import type { AgentRoleService } from '../../../features/agents/infrastructure/AgentRoleService.js';
 import type { EventBus } from '../../../platform/events/EventBus.js';
 import type { AesyClawEvents } from '../../../platform/events/events.js';
+import { WebServer } from '../../ws/WebServer.js';
 
 export async function createWebServer(args: {
   port: number;
@@ -27,12 +28,12 @@ export async function createWebServer(args: {
   pluginManager: PluginCoordinator;
   cronService: CronRuntimeService;
   mcpManager: McpClientManager | null;
-  skillManager: SkillManager;
+  skillManager: SkillManager | null;
   toolRegistry: ToolRegistry;
   longTermMemoryStore: LongTermMemoryStore;
   agentRoleService: AgentRoleService;
   eventBus: EventBus<AesyClawEvents>;
-}): Promise<WebServer | undefined> {
+}): Promise<WebServer> {
   const {
     port,
     agentRuntime,
@@ -52,10 +53,6 @@ export async function createWebServer(args: {
     eventBus
   } = args;
 
-  if (configStore.getConfig().server.apiEnabled === false) {
-    return undefined;
-  }
-
   const webServer = new WebServer({
     port,
     agentRuntime,
@@ -68,7 +65,7 @@ export async function createWebServer(args: {
     pluginManager,
     cronService,
     mcpManager: mcpManager ?? undefined,
-    skillManager,
+    skillManager: skillManager ?? undefined,
     toolRegistry,
     longTermMemoryStore,
     agentRoleService,
@@ -76,5 +73,6 @@ export async function createWebServer(args: {
   });
 
   await webServer.start();
+
   return webServer;
 }

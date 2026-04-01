@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn, execSync, ChildProcess } from 'child_process';
-import { bootstrap, StartupInterruptedError } from './app/bootstrap/index.js';
+import { bootstrap, StartupInterruptedError } from './app/index.js';
 import { defaultConfigService } from './features/config/index.js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';

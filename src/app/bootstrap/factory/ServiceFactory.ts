@@ -1,5 +1,4 @@
 import { AgentRuntime, OutboundGateway } from '../../../agent/index.js';
-import type { ISessionRouting } from '../../../agent/domain/session.js';
 import { WebServer } from '../../ws/WebServer.js';
 import { ChannelManager } from '../../../features/extension/channel/ChannelManager.js';
 import { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
@@ -21,45 +20,16 @@ import { createExecutionRuntime } from './createExecutionRuntime.js';
 import { createInfrastructureServices } from './createInfrastructureServices.js';
 import { createCronRuntime } from '../../../features/cron/index.js';
 import { createSessionRuntime } from '../../../features/sessions/index.js';
-import { registerRuntimeBindings } from './registerRuntimeBindings.js';
 import { runBootstrapPhase } from './runBootstrapPhase.js';
 import { EventBus } from '../../../platform/events/EventBus.js';
 import type { AesyClawEvents } from '../../../platform/events/events.js';
 import { createSessionContext } from '../../assembly/createSessionContext.js';
+import type { Services, ServiceFactoryOptions } from './service-interfaces.js';
+import { registerRuntimeBindings } from './registerRuntimeBindings.js';
+
+export type { Services, ServiceFactoryOptions } from './service-interfaces.js';
 
 const appLog = logger;
-
-export interface Services {
-  provider?: LLMProvider;
-  toolRegistry: ToolRegistry;
-  sessionManager: SessionManager;
-  longTermMemoryStore: LongTermMemoryStore;
-  sessionRouting: ISessionRouting;
-  channelManager: ChannelManager;
-  pluginManager: PluginCoordinator;
-  startPluginLoading: () => void;
-  isPluginLoadingComplete: () => boolean;
-  agentRuntime: AgentRuntime;
-  cronService: CronRuntimeService;
-  mcpManager: McpClientManager | null;
-  skillManager: SkillManager | null;
-  config: Config;
-  configStore: RuntimeConfigStore;
-  configManager: ConfigManager;
-  eventBus: EventBus<AesyClawEvents>;
-  workspace: string;
-  webServer?: WebServer;
-}
-
-export interface ServiceFactoryOptions {
-  workspace: string;
-  tempDir: string;
-  config: Config;
-  configManager: ConfigManager;
-  eventBus: EventBus<AesyClawEvents>;
-  port: number;
-  onCronJob: (job: CronJob) => Promise<void>;
-}
 
 export function bootstrapRuntimeConfig(config: Config): Config {
   logging.configure({
@@ -236,3 +206,4 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     webServer
   };
 }
+
