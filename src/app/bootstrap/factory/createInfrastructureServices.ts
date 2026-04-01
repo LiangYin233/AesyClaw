@@ -97,8 +97,6 @@ export async function createInfrastructureServices(args: {
     }
   });
 
-  await channelManager.startAll();
-
   let mcpManager: McpClientManager | undefined;
   mcpManager = startConfiguredMcpServers({
     getMcpManager: () => mcpManager,

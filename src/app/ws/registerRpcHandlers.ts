@@ -204,14 +204,73 @@ export function registerRpcHandlers(context: RegisterRpcHandlersContext): void {
     return result;
   });
 
-  server.registerRpc('plugins.list', async () => requireService(pluginsService, 'Plugins service').listPlugins());
+  server.registerRpc('plugins.list', async () => {
+    const { plugins } = await requireService(pluginsService, 'Plugins service').listPlugins();
+    const channelStatuses = channelManager.getStatus();
+    const configChannels = configManager.getConfig().channels || {};
+    
+    const channelPlugins = channelStatuses.map(status => {
+      const config = configChannels[status.name] || {};
+      return {
+        name: status.name,
+        version: '1.0.0',
+        description: `Channel adapter: ${status.name}`,
+        author: 'aesyclaw_official',
+        enabled: status.enabled,
+        settings: config,
+        defaultSettings: {},
+        defaultEnabled: true,
+        toolCount: 0,
+        kind: 'channel' as const,
+        channelName: status.name,
+        running: status.connected
+      };
+    });
+    
+    return { plugins: [...plugins, ...channelPlugins] };
+  });
   server.registerRpc('plugins.toggle', async (params) => {
-    const result = await requireService(pluginsService, 'Plugins service').togglePlugin(requiredString(params, 'name'), { enabled: parseTogglePlugin(params).enabled });
+    const name = requiredString(params, 'name');
+    const { enabled } = parseTogglePlugin(params);
+    
+    const channelStatuses = channelManager.getStatus();
+    const isChannel = channelStatuses.some(c => c.name === name);
+    
+    let result;
+    if (isChannel) {
+      await configManager.update((draft) => {
+        if (!draft.channels) draft.channels = {};
+        if (!draft.channels[name]) draft.channels[name] = {};
+        draft.channels[name].enabled = enabled;
+      });
+      result = { success: true };
+    } else {
+      result = await requireService(pluginsService, 'Plugins service').togglePlugin(name, { enabled });
+    }
+    
     server.publish('plugins.list');
     return result;
   });
+  
   server.registerRpc('plugins.updateConfig', async (params) => {
-    const result = await requireService(pluginsService, 'Plugins service').updatePluginConfig(requiredString(params, 'name'), { settings: parsePluginConfigUpdate(params).settings });
+    const name = requiredString(params, 'name');
+    const { settings } = parsePluginConfigUpdate(params);
+    
+    const channelStatuses = channelManager.getStatus();
+    const isChannel = channelStatuses.some(c => c.name === name);
+    
+    let result;
+    if (isChannel) {
+      await configManager.update((draft) => {
+        if (!draft.channels) draft.channels = {};
+        if (!draft.channels[name]) draft.channels[name] = {};
+        draft.channels[name].settings = settings;
+      });
+      result = { success: true };
+    } else {
+      result = await requireService(pluginsService, 'Plugins service').updatePluginConfig(name, { settings });
+    }
+    
     server.publish('plugins.list');
     return result;
   });

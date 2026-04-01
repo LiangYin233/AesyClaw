@@ -130,7 +130,33 @@ export function registerSubscriptions(context: RegisterSubscriptionsContext): vo
       return getSkillDetailSnapshot(requireService(skillsService, 'Skill manager'), name);
     }
   });
-  server.registerSubscription('plugins.list', { getSnapshot: async () => requireService(pluginsService, 'Plugins service').listPlugins() });
+  server.registerSubscription('plugins.list', {
+    getSnapshot: async () => {
+      const { plugins } = await requireService(pluginsService, 'Plugins service').listPlugins();
+      const channelStatuses = context.channelManager.getStatus();
+      const configChannels = context.configManager.getConfig().channels || {};
+      
+      const channelPlugins = channelStatuses.map(status => {
+        const config = configChannels[status.name] || {};
+        return {
+          name: status.name,
+          version: '1.0.0',
+          description: `Channel adapter: ${status.name}`,
+          author: 'aesyclaw_official',
+          enabled: status.enabled,
+          settings: config,
+          defaultSettings: {},
+          defaultEnabled: true,
+          toolCount: 0,
+          kind: 'channel' as const,
+          channelName: status.name,
+          running: status.connected
+        };
+      });
+      
+      return { plugins: [...plugins, ...channelPlugins] };
+    }
+  });
   server.registerSubscription('cron.list', { getSnapshot: async () => requireService(cronApiService, 'Cron service').listJobs() });
   server.registerSubscription('mcp.list', { getSnapshot: () => mcpService.listServers() });
   server.registerSubscription('mcp.detail', {

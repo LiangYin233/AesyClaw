@@ -374,15 +374,26 @@ export class ChannelManager {
   /**
    * 获取通道状态
    * 
-   * @returns 通道状态列表
+   * @returns 通道状态列表（包括已配置但未启动的通道）
    */
   getStatus(): ChannelStatus[] {
     const status: ChannelStatus[] = [];
-    for (const [name, connected] of this.runtime.getAdapterStatus()) {
+    const runningAdapters = this.runtime.getAdapterStatus();
+    
+    for (const [name, connected] of runningAdapters) {
       const config = this.channelConfigs.get(name);
       const enabled = Boolean(config?.enabled);
       status.push({ name, enabled, connected });
     }
+    
+    for (const [name] of this.channelConfigs) {
+      if (!runningAdapters.has(name)) {
+        const config = this.channelConfigs.get(name);
+        const enabled = Boolean(config?.enabled);
+        status.push({ name, enabled, connected: false });
+      }
+    }
+    
     return status;
   }
   

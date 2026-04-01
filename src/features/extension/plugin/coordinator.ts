@@ -137,7 +137,7 @@ export class PluginCoordinator {
   /**
    * 启用单个插件
    */
-  async enable(name: string, options?: PluginSettings): Promise<void> {
+  async enable(name: string, settings?: PluginSettings): Promise<void> {
     if (this.plugins.has(name)) {
       return;
     }
@@ -149,7 +149,7 @@ export class PluginCoordinator {
 
     const mergedSettings: PluginSettings = {
       ...found.manifest.defaultSettings,
-      ...options
+      ...settings
     };
 
     // 启动插件
@@ -197,7 +197,7 @@ export class PluginCoordinator {
   /**
    * 重新加载插件（配置变更后）
    */
-  async reload(name: string, options: PluginSettings): Promise<void> {
+  async reload(name: string, settings: PluginSettings): Promise<void> {
     const plugin = this.plugins.get(name);
     if (!plugin) {
       throw new Error(`插件未运行: ${name}`);
@@ -207,7 +207,7 @@ export class PluginCoordinator {
 
     try {
       await this.disable(name);
-      await this.enable(name, options);
+      await this.enable(name, settings);
     } catch (error) {
       this.logger.warn(`插件重载失败，回滚到之前状态`, { plugin: name, error: error instanceof Error ? error.message : String(error) });
       try {
