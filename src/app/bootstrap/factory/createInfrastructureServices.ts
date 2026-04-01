@@ -1,19 +1,19 @@
 import type { AgentRuntime, OutboundGateway } from '../../../agent/index.js';
 import type { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
 import { ChannelManager } from '../../../features/extension/channel/ChannelManager.js';
-import { setupPlugins } from '../../../features/extension/plugin/index.js';
 import type { McpClientManager } from '../../../features/mcp/index.js';
 import { startConfiguredMcpServers } from '../../../features/mcp/index.js';
 import type { Database } from '../../../platform/db/index.js';
 import type { PluginCoordinator } from '../../../features/extension/plugin/index.js';
+import type { PluginSystem } from '../../../features/extension/plugin/runtime.js';
 import type { ToolRegistry } from '../../../platform/tools/index.js';
 import { logger } from '../../../platform/observability/index.js';
-import { paths } from '../../../platform/utils/paths.js';
 
 export interface InfrastructureServices {
   pluginManager: PluginCoordinator;
   startPluginLoading: () => void;
   isPluginLoadingComplete: () => boolean;
+  pluginCoordinatorReady: Promise<void>;
   channelManager: ChannelManager;
   mcpManager: McpClientManager | null;
 }
@@ -27,6 +27,7 @@ export async function createInfrastructureServices(args: {
   tempDir: string;
   toolRegistry: ToolRegistry;
   db: Database;
+  pluginSystem: PluginSystem;
 }): Promise<InfrastructureServices> {
   const {
     configStore,
@@ -34,57 +35,62 @@ export async function createInfrastructureServices(args: {
     outboundGateway,
     agentRuntime,
     workspace,
-    tempDir,
     toolRegistry,
-    db: _db
+    pluginSystem
   } = args;
 
-  const pluginSystem = await setupPlugins({
-    workspace,
-    tempDir,
-    pluginsDir: paths.plugins(),
-    getConfig: () => configStore.getConfig(),
-    toolRegistry,
-    outboundPublisher: async (message) => outboundGateway.send(message),
-    updateConfig: async (mutator: (config: import('../../../types.js').Config) => import('../../../types.js').Config | void) => configManager.update(mutator),
-    logger
-  });
-
-  // 使用新的 ChannelManager
   const channelManager = new ChannelManager({
     workspace,
     assetsRoot: `${workspace}/assets`,
     enableQueue: true
   });
 
-  // 加载适配器
   await channelManager.loadAdapters();
 
-  // 设置入站消息处理器
   channelManager.onMessage(async (message) => {
-    // 转换为旧的 InboundMessage 格式供 agentRuntime 使用
-    const inboundMessage = {
-      id: message.id,
-      channel: message.channel,
-      senderId: message.senderId,
-      chatId: message.chatId,
-      content: message.text,
-      timestamp: message.timestamp,
-      messageId: message.id,
-      media: message.images.map(img => img.url),
-      files: message.files.map(file => ({
-        name: file.name,
-        url: file.url,
-        type: file.type
-      })),
-      messageType: message.chatType,
-      metadata: message.metadata
-    };
+    try {
+      const inboundMessage: {
+        id?: string;
+        channel: string;
+        senderId: string;
+        chatId: string;
+        content: string;
+        timestamp: Date;
+        messageId?: string;
+        media?: string[];
+        files?: Array<{ name: string; url: string; localPath?: string; type?: 'audio' | 'video' | 'file' | 'image' }>;
+        messageType?: 'private' | 'group';
+        metadata?: Record<string, unknown>;
+      } = {
+        id: message.id,
+        channel: message.channel,
+        senderId: message.senderId,
+        chatId: message.chatId,
+        content: message.text,
+        timestamp: message.timestamp,
+        messageId: message.id,
+        media: message.images.map(img => img.url),
+        files: message.files.map(file => ({
+          name: file.name,
+          url: file.url,
+          type: file.type as 'audio' | 'video' | 'file' | 'image'
+        })),
+        messageType: message.chatType === 'private' ? 'private' : 'group',
+        metadata: message.metadata
+      };
 
-    await agentRuntime.handleInbound(inboundMessage);
+      const processedMessage = await pluginSystem.coordinator.transformIncomingMessage(inboundMessage);
+
+      if (processedMessage === null) {
+        return;
+      }
+
+      await agentRuntime.handleInbound(processedMessage);
+    } catch (error) {
+      logger.error('处理入站消息失败', { error });
+    }
   });
 
-  // 启动所有通道
   await channelManager.startAll();
 
   const config = configStore.getConfig();
@@ -97,7 +103,6 @@ export async function createInfrastructureServices(args: {
     toolRegistry
   }, config) ?? undefined;
 
-  // 设置出站网关的发送器
   outboundGateway.setDispatcher(async (message) => {
     await channelManager.dispatch(message);
   });
@@ -106,6 +111,7 @@ export async function createInfrastructureServices(args: {
     pluginManager: pluginSystem.coordinator,
     startPluginLoading: pluginSystem.startLoading,
     isPluginLoadingComplete: pluginSystem.isReady,
+    pluginCoordinatorReady: pluginSystem.coordinatorReady,
     channelManager,
     mcpManager: mcpManager ?? null
   };

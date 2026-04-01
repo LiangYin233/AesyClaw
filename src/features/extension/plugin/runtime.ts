@@ -21,7 +21,7 @@ export interface RuntimeDependencies {
   tempDir: string;
   pluginsDir: string;
   getConfig: () => Config;
-  toolRegistry: ToolRegistry;
+  toolRegistry?: ToolRegistry;
   outboundPublisher: (message: OutboundMessage) => Promise<void>;
   updateConfig: (mutator: (config: Config) => Config | void) => Promise<Config>;
   logger: Logger;
@@ -40,6 +40,9 @@ export interface PluginSystem {
 
   /** 检查后台加载是否完成 */
   isReady(): boolean;
+
+  /** 等待协调器就绪的 Promise */
+  coordinatorReady: Promise<void>;
 }
 
 /** 配置重载处理器 */
@@ -73,6 +76,13 @@ export async function setupPlugins(deps: RuntimeDependencies): Promise<PluginSys
 
   let started = false;
   let completed = false;
+  let resolveReady: (() => void) | undefined;
+  let rejectReady: ((error: unknown) => void) | undefined;
+
+  const coordinatorReady = new Promise<void>((resolve, reject) => {
+    resolveReady = resolve;
+    rejectReady = reject;
+  });
 
   /**
    * 后台加载插件
@@ -103,13 +113,15 @@ export async function setupPlugins(deps: RuntimeDependencies): Promise<PluginSys
           await coordinator.load(pluginConfigs);
         }
 
-        deps.logger.info(`插件系统初始化完成`, { 
+        deps.logger.info(`插件系统初始化完成`, {
           enabled: coordinator.list().then(list => list.filter(p => p.isEnabled).length)
         });
       } catch (error) {
         deps.logger.error(`插件系统初始化失败`, { error });
+        rejectReady?.(error);
       } finally {
         completed = true;
+        resolveReady?.();
       }
     })();
   }
@@ -118,7 +130,8 @@ export async function setupPlugins(deps: RuntimeDependencies): Promise<PluginSys
     coordinator,
     adminService,
     startLoading,
-    isReady: () => completed
+    isReady: () => completed,
+    coordinatorReady
   };
 }
 

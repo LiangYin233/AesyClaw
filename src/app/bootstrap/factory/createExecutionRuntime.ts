@@ -64,6 +64,7 @@ export async function createExecutionRuntime(args: {
   sessionManager: SessionManager;
   sessionRouting: ISessionRouting;
   memoryService?: SessionMemoryService;
+  pluginCoordinatorReady?: Promise<PluginCoordinator>;
 }): Promise<{
   provider?: LLMProvider;
   toolRegistry: ToolRegistry;
@@ -101,6 +102,15 @@ export async function createExecutionRuntime(args: {
   );
 
   let pluginManagerRef: PluginCoordinator | undefined;
+  const getPluginManager = async (): Promise<PluginCoordinator | undefined> => {
+    if (pluginManagerRef) {
+      return pluginManagerRef;
+    }
+    if (args.pluginCoordinatorReady) {
+      return args.pluginCoordinatorReady;
+    }
+    return undefined;
+  };
   const agentRuntime = await createConfiguredAgentRuntime({
     getConfig,
     provider,
@@ -119,7 +129,7 @@ export async function createExecutionRuntime(args: {
     visionProvider,
     memoryService,
     agentRoleService,
-    getPluginManager: () => pluginManagerRef,
+    getPluginManager,
   });
 
   return {

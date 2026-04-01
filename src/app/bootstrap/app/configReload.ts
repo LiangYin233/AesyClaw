@@ -13,6 +13,7 @@ import { createSessionRoutingReloadTarget } from '../../../features/sessions/ind
 import { createSkillsReloadTarget } from '../../../features/skills/index.js';
 import { createProvider } from '../../../platform/providers/index.js';
 import { normalizePluginConfigs } from '../../../features/extension/plugin/core/types.js';
+import { logger } from '../../../platform/observability/index.js';
 import type { Services } from '../factory/ServiceFactory.js';
 
 export function setupConfigReload(services: Services): void {
@@ -44,10 +45,42 @@ export function setupConfigReload(services: Services): void {
     },
     sessionRouting: createSessionRoutingReloadTarget(services),
     channels: {
-      applyDiff: async () => {
-        // Channel configuration changes are handled automatically by ChannelManager
-        // The new ChannelManager loads configuration on startup
-        // For dynamic reload, you would restart the channel here
+      applyDiff: async (oldConfig, newConfig) => {
+        const oldChannels = oldConfig?.channels ?? {};
+        const newChannels = newConfig?.channels ?? {};
+
+        const oldChannelNames = new Set(Object.keys(oldChannels));
+        const newChannelNames = new Set(Object.keys(newChannels));
+
+        for (const name of oldChannelNames) {
+          const oldEntry = oldChannels[name] as { enabled?: boolean } | undefined;
+          const newEntry = newChannels[name] as { enabled?: boolean } | undefined;
+          const wasEnabled = oldEntry?.enabled ?? false;
+          const shouldBeEnabled = newEntry?.enabled ?? false;
+
+          if (wasEnabled && !shouldBeEnabled) {
+            try {
+              await services.channelManager.stopChannel(name);
+            } catch (error) {
+              logger.warn(`停止渠道失败: ${name}`, { error });
+            }
+          }
+        }
+
+        for (const name of newChannelNames) {
+          const oldEntry = oldChannels[name] as { enabled?: boolean } | undefined;
+          const newEntry = newChannels[name] as { enabled?: boolean } | undefined;
+          const wasEnabled = oldEntry?.enabled ?? false;
+          const shouldBeEnabled = newEntry?.enabled ?? false;
+
+          if (!wasEnabled && shouldBeEnabled) {
+            try {
+              await services.channelManager.startChannel(name);
+            } catch (error) {
+              logger.warn(`启动渠道失败: ${name}`, { error });
+            }
+          }
+        }
       }
     },
     plugins: {

@@ -5,7 +5,7 @@ import { ChannelManager } from '../../../features/extension/channel/ChannelManag
 import { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
 import { CronRuntimeService } from '../../../features/cron/index.js';
 import { logging, logger, tokenUsage } from '../../../platform/observability/index.js';
-import { filePaths } from '../../../platform/utils/paths.js';
+import { filePaths, dirPaths } from '../../../platform/utils/paths.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
 import { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
 import { LongTermMemoryStore } from '../../../features/memory/infrastructure/LongTermMemoryStore.js';
@@ -13,6 +13,7 @@ import { SkillManager } from '../../../features/skills/index.js';
 import { ToolRegistry } from '../../../platform/tools/index.js';
 import { McpClientManager } from '../../../features/mcp/index.js';
 import { PluginCoordinator } from '../../../features/extension/plugin/index.js';
+import { setupPlugins } from '../../../features/extension/plugin/index.js';
 import type { Config } from '../../../types.js';
 import type { CronJob } from '../../../features/cron/index.js';
 import { createWebServer } from './createWebServer.js';
@@ -101,27 +102,45 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
   });
   const { memoryService } = sessionRuntime;
 
-  const { result: executionRuntime } = await runBootstrapPhase({
-    phase: '执行运行时初始化',
-    log: bootstrapLog,
-    task: () => createExecutionRuntime({
-      getConfig: () => configStore.getConfig(),
-      updateConfig: (mutator) => configManager.update(mutator),
-      outboundGateway,
-      workspace,
-      sessionManager,
-      sessionRouting,
-      memoryService
-    })
-  });
-
-  const { provider, toolRegistry, commandRegistry, skillManager, agentRoleService, agentRuntime, setPluginManager } = executionRuntime;
-
   const { result: cronService } = await runBootstrapPhase({
     phase: '定时任务运行时初始化',
     log: bootstrapLog,
     task: () => createCronRuntime(onCronJob)
   });
+
+  const pluginSystemPromise = setupPlugins({
+    workspace,
+    tempDir,
+    pluginsDir: dirPaths.plugins(),
+    getConfig: () => configStore.getConfig(),
+    outboundPublisher: async () => {},
+    updateConfig: async (mutator: (config: Config) => Config | void) => configManager.update(mutator),
+    logger: bootstrapLog
+  });
+
+  const { result: executionRuntime } = await runBootstrapPhase({
+    phase: '执行运行时初始化',
+    log: bootstrapLog,
+    task: async () => {
+      const ps = await pluginSystemPromise;
+      return createExecutionRuntime({
+        getConfig: () => configStore.getConfig(),
+        updateConfig: (mutator) => configManager.update(mutator),
+        outboundGateway,
+        workspace,
+        sessionManager,
+        sessionRouting,
+        memoryService,
+        pluginCoordinatorReady: ps.coordinatorReady.then(() => ps.coordinator)
+      });
+    }
+  });
+
+  const { provider, toolRegistry, commandRegistry, skillManager, agentRoleService, agentRuntime, setPluginManager } = executionRuntime;
+
+  const pluginSystem = await pluginSystemPromise;
+
+  pluginSystem.coordinator.setToolRegistry(toolRegistry);
 
   const { result: infrastructure } = await runBootstrapPhase({
     phase: '基础设施服务初始化',
@@ -134,7 +153,8 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
       workspace,
       tempDir,
       toolRegistry,
-      db
+      db,
+      pluginSystem
     })
   });
   const {

@@ -41,7 +41,7 @@ export interface CoordinatorDependencies {
   tempDir: string;
   pluginsDir: string;
   getConfig: () => Config;
-  toolRegistry: ToolRegistry;
+  toolRegistry?: ToolRegistry;
   outboundPublisher: (message: OutboundMessage) => Promise<void>;
   logger: Logger;
 }
@@ -54,6 +54,15 @@ export class PluginCoordinator {
 
   constructor(private readonly deps: CoordinatorDependencies) {
     this.logger = deps.logger.child('PluginCoordinator');
+  }
+
+  /**
+   * 设置工具注册表
+   * 
+   * 如果初始化时未提供，可在后续调用此方法设置
+   */
+  setToolRegistry(toolRegistry: ToolRegistry): void {
+    this.deps.toolRegistry = toolRegistry;
   }
 
   // ========== 插件生命周期 ==========
@@ -128,8 +137,10 @@ export class PluginCoordinator {
     });
 
     // 注册工具到 ToolRegistry
-    for (const tool of plugin.tools) {
-      this.deps.toolRegistry.register(tool, 'plugin');
+    if (this.deps.toolRegistry) {
+      for (const tool of plugin.tools) {
+        this.deps.toolRegistry.register(tool, 'plugin');
+      }
     }
 
     this.plugins.set(name, plugin);
@@ -146,7 +157,7 @@ export class PluginCoordinator {
     }
 
     // 注销工具
-    if (plugin.tools.length > 0) {
+    if (this.deps.toolRegistry && plugin.tools.length > 0) {
       this.deps.toolRegistry.unregisterMany(plugin.tools.map(t => t.name));
     }
 
