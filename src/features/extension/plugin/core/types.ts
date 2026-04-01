@@ -8,9 +8,9 @@
  * - 命令和钩子处理器类型
  */
 
-import type { InboundMessage, OutboundMessage, PluginErrorContext, Config, LLMResponse } from '../../../types.js';
-import type { Tool, ToolContext } from '../../../platform/tools/ToolRegistry.js';
-import type { Logger } from '../../../platform/observability/index.js';
+import type { InboundMessage, OutboundMessage, PluginErrorContext, Config, LLMResponse } from '../../../../types.js';
+import type { Tool, ToolContext } from '../../../../platform/tools/ToolRegistry.js';
+import type { Logger } from '../../../../platform/observability/index.js';
 
 // ========== 基础类型 ==========
 
@@ -206,4 +206,34 @@ export interface PluginMetadata {
   defaultSettings?: PluginSettings;
   defaultEnabled?: boolean;
   toolCount: number;
+}
+
+// ========== 配置转换函数 ==========
+
+type RawPluginConfigEntry = { enabled?: boolean; options?: Record<string, unknown> } | { isEnabled?: boolean; settings?: Record<string, unknown> } | unknown;
+
+export function normalizePluginConfigs(rawConfigs: Record<string, RawPluginConfigEntry> | undefined): PluginConfigs {
+  if (!rawConfigs) {
+    return {};
+  }
+
+  const result: PluginConfigs = {};
+
+  for (const [name, entry] of Object.entries(rawConfigs)) {
+    if (!entry || typeof entry !== 'object') {
+      result[name] = { isEnabled: false };
+      continue;
+    }
+
+    const e = entry as Record<string, unknown>;
+    const isEnabled = (e.isEnabled as boolean | undefined) ?? (e.enabled as boolean | undefined) ?? false;
+    const settings = (e.settings ?? e.options) as Record<string, unknown> | undefined;
+
+    result[name] = {
+      isEnabled,
+      settings: settings ? { ...settings } : undefined
+    };
+  }
+
+  return result;
 }

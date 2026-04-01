@@ -6,7 +6,7 @@
  * - 观察钩子（只读，并行执行）
  */
 
-import type { LLMResponse } from '../../../types.js';
+import type { LLMResponse } from '../../../../types.js';
 import type { 
   RunningPlugin, 
   ToolCallInfo, 
@@ -14,7 +14,7 @@ import type {
   TransformHandler,
   ObserverHandler 
 } from './types.js';
-import type { Logger } from '../../../platform/observability/index.js';
+import type { Logger } from '../../../../platform/observability/index.js';
 
 /**
  * 执行转换钩子链

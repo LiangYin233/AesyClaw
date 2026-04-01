@@ -2,10 +2,10 @@ import WebSocket from 'ws';
 import fs from 'fs';
 import { basename } from 'path';
 import { createHash, randomUUID } from 'crypto';
-import { BaseChannelAdapter } from '../../src/features/channels/adapter/BaseChannelAdapter.js';
-import type { SendResult } from '../../src/features/channels/protocol/adapter-interface.js';
-import type { UnifiedMessage } from '../../src/features/channels/protocol/unified-message.js';
-import type { ImageAttachment, FileAttachment } from '../../src/features/channels/protocol/attachment.js';
+import { BaseChannelAdapter } from '../../src/features/extension/channel/adapter/BaseChannelAdapter.js';
+import type { SendResult } from '../../src/features/extension/channel/protocol/adapter-interface.js';
+import type { UnifiedMessage } from '../../src/features/extension/channel/protocol/unified-message.js';
+import type { ImageAttachment, FileAttachment } from '../../src/features/extension/channel/protocol/attachment.js';
 
 const WEBSOCKET_ACTION_TIMEOUT = 10000;
 const DEFAULT_MAX_RECONNECT_ATTEMPTS = 0;

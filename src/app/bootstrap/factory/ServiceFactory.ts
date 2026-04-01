@@ -1,7 +1,7 @@
 import { AgentRuntime, OutboundGateway } from '../../../agent/index.js';
 import type { ISessionRouting } from '../../../agent/domain/session.js';
 import { WebServer } from '../../ws/WebServer.js';
-import { ChannelManager } from '../../../features/channels/ChannelManager.js';
+import { ChannelManager } from '../../../features/extension/channel/ChannelManager.js';
 import { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
 import { CronRuntimeService } from '../../../features/cron/index.js';
 import { logging, logger, tokenUsage } from '../../../platform/observability/index.js';
@@ -12,7 +12,7 @@ import { LongTermMemoryStore } from '../../../features/memory/infrastructure/Lon
 import { SkillManager } from '../../../features/skills/index.js';
 import { ToolRegistry } from '../../../platform/tools/index.js';
 import { McpClientManager } from '../../../features/mcp/index.js';
-import { PluginCoordinator } from '../../../features/plugins/index.js';
+import { PluginCoordinator } from '../../../features/extension/plugin/index.js';
 import type { Config } from '../../../types.js';
 import type { CronJob } from '../../../features/cron/index.js';
 import { createWebServer } from './createWebServer.js';

@@ -20,9 +20,9 @@ import type {
   PluginHookRegistry,
   SendOptions
 } from './types.js';
-import type { Config, OutboundMessage } from '../../../types.js';
-import type { Tool } from '../../../platform/tools/ToolRegistry.js';
-import type { Logger } from '../../../platform/observability/index.js';
+import type { Config, OutboundMessage } from '../../../../types.js';
+import type { Tool } from '../../../../platform/tools/ToolRegistry.js';
+import type { Logger } from '../../../../platform/observability/index.js';
 
 /** 加载器依赖 */
 export interface LoaderDependencies {

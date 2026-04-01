@@ -8,5 +8,5 @@
  * 在 features 内部，channel 和 plugin 两套逻辑统一通过 extension 模块管理
  */
 
-export * from '../channels/index.js';
-export * from '../plugins/index.js';
+export * from './channel/index.js';
+export * from './plugin/index.js';

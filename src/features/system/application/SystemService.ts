@@ -1,4 +1,4 @@
-import type { ChannelManager } from '../../channels/ChannelManager.js';
+import type { ChannelManager } from '../../extension/channel/ChannelManager.js';
 import type { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
 
 interface AgentStatusChecker {

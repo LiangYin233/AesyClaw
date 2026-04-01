@@ -2,12 +2,12 @@ import type { AgentRoleService } from '../../../features/agents/infrastructure/A
 import type { ISessionRouting } from '../../../agent/domain/session.js';
 import type { AgentRuntime } from '../../../agent/index.js';
 import { WebServer } from '../../ws/WebServer.js';
-import type { ChannelManager } from '../../../features/channels/ChannelManager.js';
+import type { ChannelManager } from '../../../features/extension/channel/ChannelManager.js';
 import type { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
 import type { CronRuntimeService } from '../../../features/cron/index.js';
 import type { McpClientManager } from '../../../features/mcp/index.js';
 import type { Database } from '../../../platform/db/index.js';
-import type { PluginCoordinator } from '../../../features/plugins/index.js';
+import type { PluginCoordinator } from '../../../features/extension/plugin/index.js';
 import type { LongTermMemoryStore } from '../../../features/memory/infrastructure/LongTermMemoryStore.js';
 import type { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
 import type { SkillManager } from '../../../features/skills/index.js';

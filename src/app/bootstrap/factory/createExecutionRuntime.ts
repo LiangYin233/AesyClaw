@@ -24,7 +24,7 @@ import { ToolRegistry } from '../../../platform/tools/index.js';
 import { DefinitionAugmentedToolRegistry } from '../../../platform/tools/DefinitionAugmentedToolRegistry.js';
 import { getAgentToolDefinitions } from '../../../platform/tools/builtins/registerAgentTools.js';
 import type { Config, VisionSettings } from '../../../types.js';
-import type { PluginCoordinator } from '../../../features/plugins/index.js';
+import type { PluginCoordinator } from '../../../features/extension/plugin/index.js';
 
 function createRequiredProvider(config: Config, providerName?: string, modelName?: string): LLMProvider {
   const resolved = providerName && modelName

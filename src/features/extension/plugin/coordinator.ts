@@ -8,9 +8,9 @@
  * - 工具注册/注销
  */
 
-import type { InboundMessage, OutboundMessage, PluginErrorContext, Config, LLMResponse } from '../../types.js';
-import type { ToolRegistry } from '../../platform/tools/ToolRegistry.js';
-import type { Logger } from '../../platform/observability/index.js';
+import type { InboundMessage, OutboundMessage, PluginErrorContext, Config, LLMResponse } from '../../../types.js';
+import type { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
+import type { Logger } from '../../../platform/observability/index.js';
 import type {
   FoundPlugin,
   RunningPlugin,
@@ -399,7 +399,7 @@ export class PluginCoordinator {
   /**
    * Worker 兼容：执行工具调用前钩子
    */
-  async runToolBeforeHooks(input: { toolName: string; params: Record<string, unknown>; context?: import('../../platform/tools/ToolRegistry.js').ToolContext }): Promise<{ params: Record<string, unknown>; context?: import('../../platform/tools/ToolRegistry.js').ToolContext }> {
+  async runToolBeforeHooks(input: { toolName: string; params: Record<string, unknown>; context?: import('../../../platform/tools/ToolRegistry.js').ToolContext }): Promise<{ params: Record<string, unknown>; context?: import('../../../platform/tools/ToolRegistry.js').ToolContext }> {
     const info: ToolCallInfo = {
       toolName: input.toolName,
       params: input.params,
@@ -415,7 +415,7 @@ export class PluginCoordinator {
   /**
    * Worker 兼容：执行工具调用后钩子
    */
-  async runToolAfterHooks(input: { toolName: string; params: Record<string, unknown>; result: string; context?: import('../../platform/tools/ToolRegistry.js').ToolContext }): Promise<{ result: string }> {
+  async runToolAfterHooks(input: { toolName: string; params: Record<string, unknown>; result: string; context?: import('../../../platform/tools/ToolRegistry.js').ToolContext }): Promise<{ result: string }> {
     const info: ToolCallInfo = {
       toolName: input.toolName,
       params: input.params,

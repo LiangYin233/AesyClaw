@@ -7,10 +7,11 @@
  * 3. 配置重载处理
  */
 
-import type { OutboundMessage, Config } from '../../types.js';
-import type { ToolRegistry } from '../../platform/tools/ToolRegistry.js';
-import type { Logger } from '../../platform/observability/index.js';
+import type { OutboundMessage, Config } from '../../../types.js';
+import type { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
+import type { Logger } from '../../../platform/observability/index.js';
 import type { PluginConfigs } from './core/types.js';
+import { normalizePluginConfigs } from './core/types.js';
 import { PluginCoordinator, type CoordinatorDependencies } from './coordinator.js';
 import { PluginAdminService } from './service.js';
 
@@ -45,25 +46,6 @@ export interface PluginSystem {
 export interface ConfigChangeHandler {
   /** 应用新配置 */
   applyConfig(config: Config): Promise<void>;
-}
-
-/**
- * 转换插件配置格式
- * 兼容旧格式 {enabled, options} 和新格式 {isEnabled, settings}
- */
-function convertPluginConfig(entry: unknown): { isEnabled: boolean; settings?: Record<string, unknown> } {
-  if (!entry || typeof entry !== 'object') {
-    return { isEnabled: false };
-  }
-  
-  const e = entry as Record<string, unknown>;
-  const isEnabled = (e.isEnabled as boolean | undefined) ?? (e.enabled as boolean | undefined) ?? false;
-  const settings = (e.settings ?? e.options) as Record<string, unknown> | undefined;
-  
-  return {
-    isEnabled,
-    settings: settings ? { ...settings } : undefined
-  };
 }
 
 /**
@@ -115,11 +97,7 @@ export async function setupPlugins(deps: RuntimeDependencies): Promise<PluginSys
 
         // 2. 加载当前配置
         const currentConfig = deps.getConfig();
-        const pluginConfigs: PluginConfigs = {};
-        
-        for (const [name, entry] of Object.entries(currentConfig.plugins ?? {})) {
-          pluginConfigs[name] = convertPluginConfig(entry);
-        }
+        const pluginConfigs = normalizePluginConfigs(currentConfig.plugins);
 
         if (Object.keys(pluginConfigs).length > 0) {
           await coordinator.load(pluginConfigs);
@@ -152,12 +130,7 @@ export async function setupPlugins(deps: RuntimeDependencies): Promise<PluginSys
 export function createConfigChangeHandler(system: PluginSystem): ConfigChangeHandler {
   return {
     async applyConfig(config: Config): Promise<void> {
-      const pluginConfigs: PluginConfigs = {};
-      
-      for (const [name, entry] of Object.entries(config.plugins ?? {})) {
-        pluginConfigs[name] = convertPluginConfig(entry);
-      }
-
+      const pluginConfigs = normalizePluginConfigs(config.plugins);
       await system.coordinator.load(pluginConfigs);
     }
   };

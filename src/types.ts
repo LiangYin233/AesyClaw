@@ -18,7 +18,7 @@ import type {
   UnifiedMessage,
   ImageAttachment,
   FileAttachment
-} from './features/channels/index.js';
+} from './features/extension/channel/index.js';
 
 export type {
   AgentConfig,

@@ -12,6 +12,7 @@ import { createObservabilityReloadTarget } from '../../../features/observability
 import { createSessionRoutingReloadTarget } from '../../../features/sessions/index.js';
 import { createSkillsReloadTarget } from '../../../features/skills/index.js';
 import { createProvider } from '../../../platform/providers/index.js';
+import { normalizePluginConfigs } from '../../../features/extension/plugin/core/types.js';
 import type { Services } from '../factory/ServiceFactory.js';
 
 export function setupConfigReload(services: Services): void {
@@ -51,15 +52,7 @@ export function setupConfigReload(services: Services): void {
     },
     plugins: {
       applyConfig: async (config) => {
-        const pluginConfigs: Record<string, { isEnabled: boolean; settings?: Record<string, unknown> }> = {};
-
-        for (const [name, entry] of Object.entries(config.plugins ?? {})) {
-          pluginConfigs[name] = {
-            isEnabled: entry.enabled ?? false,
-            settings: entry.options ? { ...entry.options } : undefined
-          };
-        }
-
+        const pluginConfigs = normalizePluginConfigs(config.plugins);
         await services.pluginManager.load(pluginConfigs);
       }
     },

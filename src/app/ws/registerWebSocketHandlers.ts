@@ -2,13 +2,13 @@ import type { Config } from '../../types.js';
 import type { AgentRuntime } from '../../agent/index.js';
 import type { AgentRoleService } from '../../features/agents/infrastructure/AgentRoleService.js';
 import type { ISessionRouting } from '../../agent/domain/session.js';
-import type { ChannelManager } from '../../features/channels/ChannelManager.js';
+import type { ChannelManager } from '../../features/extension/channel/ChannelManager.js';
 import type { ConfigManager, RuntimeConfigStore } from '../../features/config/index.js';
 import type { Database } from '../../platform/db/index.js';
 import type { ToolRegistry } from '../../platform/tools/ToolRegistry.js';
 import type { SessionManager } from '../../agent/infrastructure/session/SessionManager.js';
 import type { LongTermMemoryStore } from '../../features/memory/infrastructure/LongTermMemoryStore.js';
-import type { PluginCoordinator } from '../../features/plugins/index.js';
+import type { PluginCoordinator } from '../../features/extension/plugin/index.js';
 import type { CronRuntimeService } from '../../features/cron/index.js';
 import type { McpClientManager } from '../../features/mcp/index.js';
 import type { SkillManager } from '../../features/skills/application/SkillManager.js';
@@ -34,8 +34,8 @@ import { MemoryService } from '../../features/memory/application/MemoryService.j
 import { MemoryRepository } from '../../features/memory/infrastructure/MemoryRepository.js';
 import { ObservabilityService } from '../../features/observability/application/ObservabilityService.js';
 import { parseLoggingEntriesQuery, parseLoggingLevelUpdate } from '../../features/observability/contracts/observability.dto.js';
-import { PluginAdminService } from '../../features/plugins/index.js';
-import { parsePluginConfigUpdate, parseTogglePlugin } from '../../features/plugins/index.js';
+import { PluginAdminService } from '../../features/extension/plugin/index.js';
+import { parsePluginConfigUpdate, parseTogglePlugin } from '../../features/extension/plugin/index.js';
 import { SessionService } from '../../features/sessions/application/SessionService.js';
 import { ConversationAgentGateway } from '../../features/sessions/infrastructure/ConversationAgentGateway.js';
 import { SessionsRepository } from '../../features/sessions/infrastructure/SessionsRepository.js';
@@ -138,7 +138,7 @@ export function registerWebSocketHandlers(args: RegisterWebSocketHandlersArgs): 
     sessionRouting
   );
   const chatService = new ChatService(agentRuntime, maxMessageLength);
-  // 直接使用 ChannelManager，无需额外�?Service �?Repository
+  // 直接使用 ChannelManager，无需额外�?Service �?Repository
   const pluginsService = pluginManager ? new PluginAdminService(pluginManager, updateConfig) : undefined;
   const observabilityService = new ObservabilityService(updateConfig);
   const memoryService = new MemoryService(new MemoryRepository(sessionManager, longTermMemoryStore, db));

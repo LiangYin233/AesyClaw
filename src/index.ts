@@ -1,5 +1,5 @@
 export * from './types.js';
-export { ChannelManager } from './features/channels/ChannelManager.js';
+export { ChannelManager } from './features/extension/channel/ChannelManager.js';
 export { LLMProvider, createProvider } from './platform/providers/index.js';
 export { ToolRegistry } from './platform/tools/index.js';
 export type { Tool, ToolContext } from './platform/tools/index.js';
@@ -8,8 +8,8 @@ export type { MCPServerConfig, MCPServersConfig, MCPTransportType } from './type
 export { AgentRuntime } from './agent/index.js';
 export { SessionManager } from './agent/infrastructure/session/SessionManager.js';
 export type { Session, SessionMessage } from './agent/domain/sessionTypes.js';
-export { PluginCoordinator } from './features/plugins/index.js';
-export type { PluginManifest, PluginAPI } from './features/plugins/index.js';
+export { PluginCoordinator } from './features/extension/plugin/index.js';
+export type { PluginManifest, PluginAPI } from './features/extension/plugin/index.js';
 export { CronRuntimeService as CronService } from './features/cron/index.js';
 export type { CronJob, CronSchedule, CronPayload } from './features/cron/index.js';
 export { WebServer } from './app/ws/WebServer.js';

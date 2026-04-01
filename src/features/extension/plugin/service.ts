@@ -7,7 +7,7 @@
  * - 更新插件配置
  */
 
-import type { Config } from '../../types.js';
+import type { Config } from '../../../types.js';
 import type { PluginCoordinator } from './coordinator.js';
 import type { PluginMetadata, PluginSettings, PluginConfigs } from './core/types.js';
 
