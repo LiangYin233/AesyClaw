@@ -1,9 +1,0 @@
-{
-  "name": "@aesyclaw/channel-feishu",
-  "version": "2026.3.26",
-  "type": "module",
-  "main": "main.ts",
-  "dependencies": {
-    "express": "^5.2.1"
-  }
-}
