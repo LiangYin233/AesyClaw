@@ -39,12 +39,18 @@ class DiscordAdapter extends BaseChannelAdapter {
   private rest?: REST;
   private running = false;
   private log = logger.child('Discord');
+  private config: DiscordConfig = { ...defaultChannelConfig };
 
-  constructor(private config: DiscordConfig) {
+  constructor() {
     super();
   }
 
   protected async onStart(): Promise<void> {
+    const channelConfig = this.context?.config as unknown as Partial<DiscordConfig> | undefined;
+    if (channelConfig) {
+      this.config = { ...defaultChannelConfig, ...channelConfig };
+    }
+
     if (!this.config.botToken || this.config.botToken.trim() === '') {
       throw new Error('Discord bot token is not configured. Please set channel.discord.botToken in config.toml');
     }
@@ -351,4 +357,4 @@ class DiscordAdapter extends BaseChannelAdapter {
 }
 
 // 导出适配器实例
-export default new DiscordAdapter(defaultChannelConfig);
+export default new DiscordAdapter();

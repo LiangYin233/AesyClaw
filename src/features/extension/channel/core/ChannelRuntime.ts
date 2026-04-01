@@ -34,6 +34,7 @@ export type IncomingMessageHandler = (message: UnifiedMessage) => Promise<void> 
  */
 export class ChannelRuntime extends EventEmitter {
   private adapters = new Map<string, ChannelAdapter>();
+  private runningAdapters = new Map<string, boolean>();
   private options: Required<RuntimeOptions>;
   private handler?: IncomingMessageHandler;
   private queue: MessageQueue;
@@ -82,22 +83,25 @@ export class ChannelRuntime extends EventEmitter {
   
   /**
    * 启动适配器
-   * 
+   *
    * @param name - 适配器名称
+   * @param config - 通道配置（从 config.toml 读取）
    */
-  async startAdapter(name: string): Promise<void> {
+  async startAdapter(name: string, config?: Record<string, unknown>): Promise<void> {
     const adapter = this.adapters.get(name);
     if (!adapter) {
       throw new Error(`Adapter not found: ${name}`);
     }
-    
+
     const context: AdapterContext = {
       workspace: this.options.workspace,
       assetsRoot: this.options.assetsRoot,
+      config,
       reportIncoming: (message) => this.handleIncomingMessage(name, message)
     };
-    
+
     await adapter.start(context);
+    this.runningAdapters.set(name, true);
     this.emit('adapter:started', name);
   }
   
@@ -111,8 +115,9 @@ export class ChannelRuntime extends EventEmitter {
     if (!adapter) {
       return;
     }
-    
+
     await adapter.stop();
+    this.runningAdapters.set(name, false);
     this.emit('adapter:stopped', name);
   }
   
@@ -174,11 +179,7 @@ export class ChannelRuntime extends EventEmitter {
    * @returns 适配器名称到运行状态的映射
    */
   getAdapterStatus(): Map<string, boolean> {
-    const status = new Map<string, boolean>();
-    for (const [name, adapter] of this.adapters) {
-      status.set(name, adapter.stop.length === 0); // 简化判断
-    }
-    return status;
+    return new Map(this.runningAdapters);
   }
   
   /**

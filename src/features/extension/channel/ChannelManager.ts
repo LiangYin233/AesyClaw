@@ -1,6 +1,6 @@
 /**
  * 通道管理器
- * 
+ *
  * 高层 API，供应用层使用。
  */
 
@@ -75,6 +75,7 @@ export interface SendImageOptions {
 export class ChannelManager {
   private runtime: ChannelRuntime;
   private options: Required<ManagerOptions>;
+  private channelConfigs: Map<string, Record<string, unknown>> = new Map();
   
   /**
    * 创建通道管理器
@@ -122,17 +123,17 @@ export class ChannelManager {
           
           if (this.isValidAdapter(adapter)) {
             this.runtime.registerAdapter(adapter);
-            console.log(`[Channels] Registered adapter: ${adapter.name}`);
+            console.log(`[ChannelManager] Registered adapter: ${adapter.name}`);
             count++;
           } else {
-            console.warn(`[Channels] Invalid adapter: ${entry.name}`);
+            console.warn(`[ChannelManager] Invalid adapter: ${entry.name}`);
           }
         } catch (error) {
-          console.warn(`[Channels] Failed to load adapter ${entry.name}:`, error);
+          console.warn(`[ChannelManager] Failed to load adapter ${entry.name}:`, error);
         }
       }
     } catch (error) {
-      console.warn(`[Channels] Failed to read adapter directory: ${error}`);
+      console.warn(`[ChannelManager] Failed to read adapter directory:`, error);
     }
     
     return count;
@@ -149,21 +150,34 @@ export class ChannelManager {
   
   /**
    * 注销适配器
-   * 
+   *
    * @param name - 适配器名称
    * @returns 是否成功注销
    */
   unregisterAdapter(name: string): boolean {
     return this.runtime.unregisterAdapter(name);
   }
-  
+
+  /**
+   * 设置通道配置
+   *
+   * @param configs - 通道配置映射（从 config.toml 读取）
+   */
+  setChannelConfigs(configs: Record<string, Record<string, unknown>>): void {
+    this.channelConfigs.clear();
+    for (const [name, config] of Object.entries(configs)) {
+      this.channelConfigs.set(name, config);
+    }
+  }
+
   /**
    * 启动指定通道
-   * 
+   *
    * @param name - 通道名称
    */
   async startChannel(name: string): Promise<void> {
-    await this.runtime.startAdapter(name);
+    const config = this.channelConfigs.get(name);
+    await this.runtime.startAdapter(name, config);
   }
   
   /**

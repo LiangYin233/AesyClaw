@@ -122,11 +122,30 @@ export async function scanPlugins(pluginsDir: string, logger: Logger): Promise<F
 }
 
 /**
- * 使用 tsx 动态导入 TypeScript 模块
+ * 插件加载超时时间（毫秒）
  */
-async function importPluginModule<T = unknown>(modulePath: string): Promise<T> {
+const PLUGIN_LOAD_TIMEOUT_MS = 30000;
+
+/**
+ * 使用 tsx 动态导入 TypeScript 模块（带超时控制）
+ *
+ * @param modulePath - 模块路径
+ * @param timeoutMs - 超时时间（毫秒），默认 30000
+ * @returns 导入的模块
+ * @throws TimeoutError - 加载超时
+ */
+async function importPluginModule<T = unknown>(modulePath: string, timeoutMs = PLUGIN_LOAD_TIMEOUT_MS): Promise<T> {
   const { tsImport } = await import('tsx/esm/api');
-  return tsImport(pathToFileURL(modulePath).href, { parentURL: import.meta.url }) as Promise<T>;
+
+  const importPromise = tsImport(pathToFileURL(modulePath).href, { parentURL: import.meta.url }) as Promise<T>;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(`插件加载超时: ${modulePath} (${timeoutMs}ms)`));
+    }, timeoutMs);
+  });
+
+  return Promise.race([importPromise, timeoutPromise]);
 }
 
 /**

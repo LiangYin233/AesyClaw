@@ -1,4 +1,4 @@
-import { getObservabilityConfig } from '../../config/index.js';
+import { getObservabilityConfig } from '../../../platform/context/index.js';
 import { logging } from '../../../platform/observability/index.js';
 import type { ConfigReloadTargets } from '../../config/reload/ports/ReloadTargets.js';
 

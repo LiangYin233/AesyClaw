@@ -1,9 +1,8 @@
 import {
   createVisionProviderFromSettings,
-  getMainAgentConfig,
-  getToolRuntimeConfig,
   resolveExecutionModel
 } from '../../../features/config/index.js';
+import { getMainAgentConfig, getToolRuntimeConfig } from '../../../platform/context/index.js';
 // Channel reload is now handled automatically by ChannelManager
 import { createMcpReloadTarget } from '../../../features/mcp/index.js';
 import { createMemoryReloadTarget } from '../../../features/memory/index.js';

@@ -3,7 +3,7 @@ import { OpenAIEmbeddingsClient } from '../../features/memory/infrastructure/Ope
 import { SessionMemoryService } from '../../features/memory/infrastructure/SessionMemoryService.js';
 import type { MemoryContext, SessionManager, LongTermMemoryStore } from '../../platform/context/index.js';
 import type { Config } from '../../types.js';
-import { getMemoryConfig, listEmbeddingProviderNames, resolveProviderSelection } from '../../features/config/index.js';
+import { getMemoryConfig, listEmbeddingProviderNames, resolveProviderSelection } from '../../platform/context/index.js';
 import type { ResolvedProviderSelection } from '../../features/config/schema/index.js';
 import { createProvider } from '../../platform/providers/index.js';
 

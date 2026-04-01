@@ -11,11 +11,10 @@ import type { ISessionRouting } from '../../../agent/domain/session.js';
 import {
   createVisionProviderFromSettings,
   ConfigManager,
-  getMainAgentConfig,
-  getToolRuntimeConfig,
   resolveExecutionModel,
   resolveProviderSelection
 } from '../../../features/config/index.js';
+import { getMainAgentConfig, getToolRuntimeConfig } from '../../../platform/context/index.js';
 import { createProvider } from '../../../platform/providers/index.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
 import { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';

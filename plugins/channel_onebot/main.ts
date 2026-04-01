@@ -6,9 +6,10 @@ import { BaseChannelAdapter } from '../../src/features/extension/channel/adapter
 import type { SendResult } from '../../src/features/extension/channel/protocol/adapter-interface.js';
 import type { UnifiedMessage } from '../../src/features/extension/channel/protocol/unified-message.js';
 import type { ImageAttachment, FileAttachment } from '../../src/features/extension/channel/protocol/attachment.js';
+import { logger } from '../../src/platform/observability/index.js';
 
 const WEBSOCKET_ACTION_TIMEOUT = 10000;
-const DEFAULT_MAX_RECONNECT_ATTEMPTS = 0;
+const DEFAULT_MAX_RECONNECT_ATTEMPTS = 5;
 const DEFAULT_RECONNECT_BASE_DELAY = 1000;
 const DEFAULT_RECONNECT_MAX_DELAY = 30000;
 const DEFAULT_HEARTBEAT_INTERVAL = 30000;
@@ -39,12 +40,19 @@ class OneBotAdapter extends BaseChannelAdapter {
   private isReconnecting = false;
   private running = false;
   private pendingActions: Array<{ resolve: (value: unknown) => void; reject: (reason?: unknown) => void }> = [];
+  private readonly log = logger.child('OneBot');
+  private config: Partial<OneBotConfig> = { ...defaultChannelConfig };
 
-  constructor(private config: OneBotConfig) {
+  constructor() {
     super();
   }
 
   protected async onStart(): Promise<void> {
+    const channelConfig = this.context?.config as unknown as Partial<OneBotConfig> | undefined;
+    if (channelConfig) {
+      this.config = { ...defaultChannelConfig, ...channelConfig };
+    }
+
     await this.connectWebSocket();
     this.running = true;
     this.startHeartbeat();
@@ -356,8 +364,8 @@ class OneBotAdapter extends BaseChannelAdapter {
         try {
           const res = await this.sendAction('get_login_info', {});
           this.selfId = res.data?.user_id?.toString();
-        } catch {
-          // 忽略错误
+        } catch (error) {
+          this.log.warn('Failed to get login info', { error });
         }
 
         this.flushPendingActions();
@@ -368,8 +376,8 @@ class OneBotAdapter extends BaseChannelAdapter {
         try {
           const payload = JSON.parse(data.toString());
           this.handleOneBotEvent(payload);
-        } catch {
-          // 忽略解析错误
+        } catch (error) {
+          this.log.warn('Failed to parse WebSocket message', { error });
         }
       });
 
@@ -627,4 +635,4 @@ class OneBotAdapter extends BaseChannelAdapter {
 }
 
 // 导出适配器实例
-export default new OneBotAdapter(defaultChannelConfig as OneBotConfig);
+export default new OneBotAdapter();

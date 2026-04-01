@@ -6,8 +6,8 @@ import {
   getMemoryConfig,
   listEmbeddingProviderNames,
   resolveProviderSelection
-} from '../../config/index.js';
-import type { ResolvedProviderSelection } from '../../config/schema/index.js';
+} from '../../../platform/context/index.js';
+import type { ResolvedProviderSelection } from '../../../features/config/schema/index.js';
 import { createProvider } from '../../../platform/providers/index.js';
 import type { Config } from '../../../types.js';
 

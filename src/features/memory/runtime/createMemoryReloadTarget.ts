@@ -1,4 +1,4 @@
-import { getMemoryConfig } from '../../config/index.js';
+import { getMemoryConfig } from '../../../platform/context/index.js';
 import type { ConfigReloadTargets } from '../../config/reload/ports/ReloadTargets.js';
 import type { Services } from '../../../app/bootstrap/factory/ServiceFactory.js';
 import { createMemoryRuntime } from './createMemoryRuntime.js';

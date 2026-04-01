@@ -69,16 +69,30 @@ export class PluginCoordinator {
 
   /**
    * 扫描并发现所有插件
-   * 
-   * 只会执行一次，结果会缓存
+   *
+   * @param forceRefresh - 是否强制重新扫描，忽略缓存
+   * @returns 发现的所有插件列表
    */
-  async discover(): Promise<FoundPlugin[]> {
-    if (this.discoveredPlugins) {
+  async discover(forceRefresh = false): Promise<FoundPlugin[]> {
+    if (!forceRefresh && this.discoveredPlugins) {
       return this.discoveredPlugins;
     }
 
     this.discoveredPlugins = await scanPlugins(this.deps.pluginsDir, this.logger);
     return this.discoveredPlugins;
+  }
+
+  /**
+   * 刷新插件列表
+   *
+   * 清空已加载的插件缓存并重新扫描插件目录
+   * 用于运行时新增插件后刷新插件列表
+   *
+   * @returns 刷新后的插件列表
+   */
+  async refreshPlugins(): Promise<FoundPlugin[]> {
+    this.plugins.clear();
+    return this.discover(true);
   }
 
   /**

@@ -8,6 +8,7 @@ import type { PluginCoordinator } from '../../../features/extension/plugin/index
 import type { PluginSystem } from '../../../features/extension/plugin/runtime.js';
 import type { ToolRegistry } from '../../../platform/tools/index.js';
 import { logger } from '../../../platform/observability/index.js';
+import { dirPaths } from '../../../platform/utils/paths.js';
 
 export interface InfrastructureServices {
   pluginManager: PluginCoordinator;
@@ -42,10 +43,14 @@ export async function createInfrastructureServices(args: {
   const channelManager = new ChannelManager({
     workspace,
     assetsRoot: `${workspace}/assets`,
-    enableQueue: true
+    enableQueue: true,
+    adapterDir: dirPaths.plugins()
   });
 
   await channelManager.loadAdapters();
+
+  const config = configStore.getConfig();
+  channelManager.setChannelConfigs(config.channels || {});
 
   channelManager.onMessage(async (message) => {
     try {
@@ -93,7 +98,6 @@ export async function createInfrastructureServices(args: {
 
   await channelManager.startAll();
 
-  const config = configStore.getConfig();
   let mcpManager: McpClientManager | undefined;
   mcpManager = startConfiguredMcpServers({
     getMcpManager: () => mcpManager,

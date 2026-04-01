@@ -16,7 +16,11 @@ export interface AdapterContext {
   workspace: string;
   /** 资源存储目录 */
   assetsRoot: string;
-  /** 
+  /**
+   * 通道配置（从 config.toml 读取）
+   */
+  config?: Record<string, unknown>;
+  /**
    * 上报入站消息（适配器调用）
    * 框架会自动处理资源下载、格式转换等
    */
