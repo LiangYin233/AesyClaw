@@ -2,20 +2,16 @@ import { LongTermMemoryService } from '../infrastructure/LongTermMemoryService.j
 import { OpenAIEmbeddingsClient } from '../infrastructure/OpenAIEmbeddingsClient.js';
 import { SessionMemoryService } from '../infrastructure/SessionMemoryService.js';
 import type { SessionManager, LongTermMemoryStore } from '../../../platform/context/index.js';
-import {
-  getMemoryConfig,
-  listEmbeddingProviderNames,
-  resolveProviderSelection
-} from '../../../platform/context/index.js';
+import { listEmbeddingProviderNames } from '../../../platform/context/index.js';
+import { getMemoryConfig } from '../../../features/config/index.js';
+import type { ConfigSource } from '../../../features/config/domain/shared.js';
 import type { ResolvedProviderSelection } from '../../../features/config/schema/index.js';
 import { createProvider } from '../../../platform/providers/index.js';
-import type { Config } from '../../../types.js';
 
-function createOptionalProvider(resolved: ResolvedProviderSelection, _label: string) {
-  if (!resolved.providerConfig) {
+function createOptionalProvider(resolved: ResolvedProviderSelection | undefined, _label: string) {
+  if (!resolved?.providerConfig) {
     return undefined;
   }
-
   return createProvider(resolved.name, resolved.providerConfig);
 }
 
@@ -23,11 +19,9 @@ function createEmbeddingsClient(resolved: ResolvedProviderSelection | undefined)
   if (!resolved?.providerConfig) {
     return undefined;
   }
-
   if (!listEmbeddingProviderNames({ [resolved.name]: resolved.providerConfig }).length) {
     return undefined;
   }
-
   return new OpenAIEmbeddingsClient({
     apiKey: resolved.providerConfig.apiKey,
     apiBase: resolved.providerConfig.apiBase,
@@ -35,61 +29,66 @@ function createEmbeddingsClient(resolved: ResolvedProviderSelection | undefined)
   });
 }
 
+function resolveProviderFromConfig(
+  config: import('../../../types.js').Config,
+  provider: string | undefined,
+  model: string | undefined
+): ResolvedProviderSelection | undefined {
+  if (!provider || !model) {
+    return undefined;
+  }
+  return { name: provider, model, providerConfig: config.providers[provider] };
+}
+
 export function createMemoryRuntime(
-  config: Config,
+  source: ConfigSource,
   sessionManager: SessionManager,
   longTermMemoryStore: LongTermMemoryStore
 ): SessionMemoryService | undefined {
-  const memoryConfig = getMemoryConfig(config);
-  const summaryConfig = memoryConfig.summary;
-  const sessionConfig = memoryConfig.session;
-  const maintenanceSelection = memoryConfig.facts.maintenance.provider && memoryConfig.facts.maintenance.model
-    ? resolveProviderSelection(config, `${memoryConfig.facts.maintenance.provider}/${memoryConfig.facts.maintenance.model}`)
-    : undefined;
-  const recallSelection = memoryConfig.facts.recall.provider && memoryConfig.facts.recall.model
-    ? resolveProviderSelection(config, `${memoryConfig.facts.recall.provider}/${memoryConfig.facts.recall.model}`)
-    : undefined;
+  const memoryConfig = getMemoryConfig(source);
+  const { summary, facts, session } = memoryConfig;
 
-  if (!summaryConfig.enabled && !memoryConfig.facts.enabled) {
+  if (!summary.enabled && !facts.enabled) {
     return undefined;
   }
 
-  if (!summaryConfig.enabled && config.agent.defaults.memorySummary.enabled) {
-  }
-
   const summaryRuntimeConfig = {
-    enabled: summaryConfig.enabled,
-    model: summaryConfig.model,
-    compressRounds: summaryConfig.compressRounds,
-    memoryWindow: sessionConfig.memoryWindow,
-    contextMode: sessionConfig.contextMode
+    enabled: summary.enabled,
+    model: summary.model,
+    compressRounds: summary.compressRounds,
+    memoryWindow: session.memoryWindow,
+    contextMode: session.contextMode
   };
 
-  const longTermMemoryService = memoryConfig.facts.enabled
+  const maintenanceProvider = summary.provider && summary.model
+    ? { name: summary.provider, model: summary.model, providerConfig: summary.provider ? memoryConfig.facts.maintenance.providerConfig : undefined }
+    : undefined;
+
+  const recallProvider = facts.recall.provider && facts.recall.model
+    ? { name: facts.recall.provider, model: facts.recall.model, providerConfig: facts.recall.providerConfig }
+    : undefined;
+
+  const longTermMemoryService = facts.enabled
     ? new LongTermMemoryService(
         sessionManager as any,
         longTermMemoryStore as any,
         {
-          enabled: memoryConfig.facts.enabled,
-          model: memoryConfig.facts.maintenance.model,
-          retrievalProvider: memoryConfig.facts.recall.provider,
-          retrievalModel: memoryConfig.facts.recall.model,
-          retrievalThreshold: memoryConfig.facts.recall.threshold,
-          retrievalTopK: memoryConfig.facts.recall.topK
+          enabled: facts.enabled,
+          model: facts.maintenance.model,
+          retrievalProvider: facts.recall.provider,
+          retrievalModel: facts.recall.model,
+          retrievalThreshold: facts.recall.threshold,
+          retrievalTopK: facts.recall.topK
         },
-        maintenanceSelection
-          ? createOptionalProvider(maintenanceSelection, '长期记忆')
-          : undefined,
-        recallSelection
-          ? createEmbeddingsClient(recallSelection)
-          : undefined
+        maintenanceProvider ? createOptionalProvider(maintenanceProvider, '长期记忆') : undefined,
+        recallProvider ? createEmbeddingsClient(recallProvider) : undefined
       )
     : undefined;
 
   return new SessionMemoryService(
     sessionManager as any,
-    summaryConfig.enabled && summaryConfig.provider && summaryConfig.model
-      ? createOptionalProvider(resolveProviderSelection(config, `${summaryConfig.provider}/${summaryConfig.model}`), '记忆摘要')
+    summary.enabled && summary.provider && summary.model
+      ? createOptionalProvider(maintenanceProvider, '记忆摘要')
       : undefined,
     summaryRuntimeConfig,
     longTermMemoryService

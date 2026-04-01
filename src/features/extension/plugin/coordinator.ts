@@ -316,13 +316,17 @@ export class PluginCoordinator {
   // ========== 命令系统 ==========
 
   /**
-   * 执行命令
-   * 
+   * 执行插件命令
+   *
    * 按顺序尝试所有插件的命令，第一个匹配的命令执行后即返回
    */
-  async executeCommand(message: InboundMessage): Promise<CommandResult | null> {
-    const content = message.content.trim();
-    
+  async _executePluginCommands(message: InboundMessage): Promise<CommandResult | null> {
+    const content = message.content?.trim() ?? '';
+
+    if (!content) {
+      return null;
+    }
+
     // 按 order 排序
     const sortedPlugins = Array.from(this.plugins.values())
       .sort((a, b) => a.order - b.order);
@@ -332,23 +336,23 @@ export class PluginCoordinator {
         if (!command.pattern) continue;
 
         const { matched, args } = matchCommand(content, command.pattern);
-        
+
         if (!matched) continue;
 
         try {
           const result = await command.execute(message, args);
-          
+
           if (result) {
             return result;
           }
-          
+
           // 返回 null 表示已处理
           return { resultType: 'handled' };
         } catch (error) {
-          this.logger.warn(`命令执行失败`, { 
-            plugin: plugin.name, 
-            command: command.commandName, 
-            error 
+          this.logger.warn(`命令执行失败`, {
+            plugin: plugin.name,
+            command: command.commandName,
+            error
           });
         }
       }
@@ -477,7 +481,7 @@ export class PluginCoordinator {
   }
 
   async runCommands(message: InboundMessage): Promise<{ type: 'reply'; message: InboundMessage } | { type: 'handled' } | null> {
-    const result = await this.executeCommand(message);
+    const result = await this._executePluginCommands(message);
     if (!result) {
       return null;
     }
@@ -485,6 +489,17 @@ export class PluginCoordinator {
       return { type: 'handled' };
     }
     return { type: 'reply', message: result.message };
+  }
+
+  async executeCommand(message: InboundMessage): Promise<{ resultType: 'modified'; message: InboundMessage } | { resultType: 'handled' } | null> {
+    const result = await this._executePluginCommands(message);
+    if (!result) {
+      return null;
+    }
+    if (result.resultType === 'handled') {
+      return { resultType: 'handled' };
+    }
+    return { resultType: 'modified', message: result.message };
   }
 
   async runMessageInHooks(message: InboundMessage): Promise<InboundMessage | null> {

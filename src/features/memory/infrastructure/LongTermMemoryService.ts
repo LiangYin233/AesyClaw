@@ -138,7 +138,7 @@ export class LongTermMemoryService {
     chatId: string,
     request: Pick<InboundMessage, 'content'> & Partial<Pick<InboundMessage, 'media' | 'files'>>
   ): Promise<string | null> {
-    const query = request.content.trim();
+    const query = request.content?.trim() ?? '';
     const _hasMedia = Array.isArray(request.media) && request.media.length > 0;
     const _hasFiles = Array.isArray(request.files) && request.files.length > 0;
 

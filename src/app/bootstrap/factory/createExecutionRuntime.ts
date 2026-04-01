@@ -14,7 +14,7 @@ import {
   resolveExecutionModel,
   resolveProviderSelection
 } from '../../../features/config/index.js';
-import { getMainAgentConfig, getToolRuntimeConfig } from '../../../platform/context/index.js';
+import { getMainAgentConfig, getToolRuntimeConfig, type PluginManager } from '../../../platform/context/index.js';
 import { createProvider } from '../../../platform/providers/index.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
 import { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
@@ -101,14 +101,8 @@ export async function createExecutionRuntime(args: {
   );
 
   let pluginManagerRef: PluginCoordinator | undefined;
-  const getPluginManager = async (): Promise<PluginCoordinator | undefined> => {
-    if (pluginManagerRef) {
-      return pluginManagerRef;
-    }
-    if (args.pluginCoordinatorReady) {
-      return args.pluginCoordinatorReady;
-    }
-    return undefined;
+  const getPluginManager = (): PluginManager | undefined => {
+    return pluginManagerRef;
   };
   const agentRuntime = await createConfiguredAgentRuntime({
     getConfig,

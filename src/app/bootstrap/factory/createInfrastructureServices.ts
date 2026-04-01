@@ -71,7 +71,7 @@ export async function createInfrastructureServices(args: {
         channel: message.channel,
         senderId: message.senderId,
         chatId: message.chatId,
-        content: message.text,
+        content: message.text ?? '',
         timestamp: message.timestamp,
         messageId: message.id,
         media: message.images?.map(img => img.url),
