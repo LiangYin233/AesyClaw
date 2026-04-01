@@ -124,17 +124,17 @@ export class ChannelManager {
           
           if (this.isValidAdapter(adapter)) {
             this.runtime.registerAdapter(adapter);
-            logger.info(`通道适配器已注册`, { adapter: adapter.name });
+            logger.debug(`通道适配器已注册`, { adapter: adapter.name });
             count++;
           } else {
-            console.warn(`[ChannelManager] Invalid adapter: ${entry.name}`);
+            logger.warn(`无效的适配器`, { adapter: entry.name });
           }
         } catch (error) {
-          console.warn(`[ChannelManager] Failed to load adapter ${entry.name}:`, error);
+          logger.warn(`加载适配器失败`, { adapter: entry.name, error: error instanceof Error ? error.message : String(error) });
         }
       }
     } catch (error) {
-      console.warn(`[ChannelManager] Failed to read adapter directory:`, error);
+      logger.warn(`读取适配器目录失败`, { error: error instanceof Error ? error.message : String(error) });
     }
     
     return count;

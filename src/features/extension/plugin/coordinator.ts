@@ -122,11 +122,6 @@ export class PluginCoordinator {
         await this.disable(found.name);
       }
     }
-
-    this.logger.info(`插件加载完成`, { 
-      enabled: this.plugins.size, 
-      total: discovered.length 
-    });
   }
 
   /**
@@ -207,12 +202,11 @@ export class PluginCoordinator {
       await this.disable(name);
       await this.enable(name, settings);
     } catch (error) {
-      // 回滚
-      this.logger.warn(`插件重载失败，回滚到之前状态`, { plugin: name, error });
+      this.logger.warn(`插件重载失败，回滚到之前状态`, { plugin: name, error: error instanceof Error ? error.message : String(error) });
       try {
         await this.enable(name, previousSettings);
       } catch (rollbackError) {
-        this.logger.error(`插件回滚失败`, { plugin: name, error: rollbackError });
+        this.logger.error(`插件回滚失败`, { plugin: name, error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError) });
       }
       throw error;
     }
@@ -361,7 +355,7 @@ export class PluginCoordinator {
           this.logger.warn(`命令执行失败`, {
             plugin: plugin.name,
             command: command.commandName,
-            error
+            error: error instanceof Error ? error.message : String(error)
           });
         }
       }

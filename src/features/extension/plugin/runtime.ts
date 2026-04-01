@@ -112,11 +112,9 @@ export async function setupPlugins(deps: RuntimeDependencies): Promise<PluginSys
           await coordinator.load(pluginConfigs);
         }
 
-        deps.logger.info(`插件系统初始化完成`, {
-          enabled: coordinator.list().then(list => list.filter(p => p.isEnabled).length)
-        });
+        deps.logger.debug(`插件系统初始化完成`);
       } catch (error) {
-        deps.logger.error(`插件系统初始化失败`, { error });
+        deps.logger.error(`插件系统初始化失败`, { error: error instanceof Error ? error.message : String(error) });
         rejectReady?.(error);
       } finally {
         completed = true;

@@ -54,11 +54,10 @@ export async function runTransformChain<T>(
         
         current = result;
       } catch (error) {
-        // 记录错误但继续执行
         logger.warn(`钩子执行失败`, { 
           plugin: plugin.name, 
           hook: hookName, 
-          error 
+          error: error instanceof Error ? error.message : String(error)
         });
       }
     }
@@ -94,7 +93,7 @@ export async function runAfterToolChain(
         logger.warn(`工具后钩子执行失败`, { 
           plugin: plugin.name, 
           hook: 'afterToolCall', 
-          error 
+          error: error instanceof Error ? error.message : String(error)
         });
       }
     }
@@ -137,7 +136,7 @@ export async function runObservers<T>(
         logger.warn(`观察钩子执行失败`, { 
           plugin, 
           hook: hookName, 
-          error 
+          error: error instanceof Error ? error.message : String(error)
         });
       }
     })
@@ -169,7 +168,7 @@ export async function runAgentCompleteObservers(
         logger.warn(`Agent完成钩子执行失败`, { 
           plugin, 
           hook: 'agentComplete', 
-          error 
+          error: error instanceof Error ? error.message : String(error)
         });
       }
     })

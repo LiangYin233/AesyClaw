@@ -1,4 +1,5 @@
 import type { OutboundMessage } from '../../types.js';
+import { logger } from '../../platform/observability/index.js';
 
 export class OutboundGateway {
   private dispatcher?: (message: OutboundMessage) => Promise<void>;
@@ -22,8 +23,9 @@ export class OutboundGateway {
     }
     try {
       await this.dispatcher(message);
+      logger.debug(`消息发送成功`, { messageId: message.id, chatId: message.chatId });
     } catch (error) {
-      console.error('消息发送失败', { error, messageId: message.id });
+      logger.error(`消息发送失败`, { error: error instanceof Error ? error.message : String(error), messageId: message.id });
     }
   }
 }

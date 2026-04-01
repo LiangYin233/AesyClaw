@@ -97,9 +97,9 @@ export class ChannelRuntime extends EventEmitter {
     const enabled = config?.enabled === true;
     if (!enabled) {
       if (config === undefined) {
-        logger.info(`跳过未配置的通道`, { channel: name });
+        logger.debug(`跳过未配置的通道`, { channel: name });
       } else {
-        logger.info(`跳过禁用的通道`, { channel: name });
+        logger.debug(`跳过禁用的通道`, { channel: name });
       }
       return;
     }

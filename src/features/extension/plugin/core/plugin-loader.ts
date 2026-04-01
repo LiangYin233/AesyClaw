@@ -87,7 +87,7 @@ export async function scanPlugins(pluginsDir: string, logger: Logger): Promise<F
         const entryStat = await stat(entryPath);
         if (!entryStat.isFile()) continue;
       } catch {
-        logger.warn(`插件入口文件不存在: ${name}`, { plugin: name, entryPath });
+        logger.warn(`插件入口文件不存在`, { plugin: name, entryPath });
         continue;
       }
       
@@ -97,7 +97,7 @@ export async function scanPlugins(pluginsDir: string, logger: Logger): Promise<F
         const manifest = (module.default ?? module) as unknown;
         
         if (!isValidManifest(manifest)) {
-          logger.warn(`无效的插件清单: ${name}`, { plugin: name });
+          logger.warn(`无效的插件清单`, { plugin: name });
           continue;
         }
         
@@ -108,16 +108,16 @@ export async function scanPlugins(pluginsDir: string, logger: Logger): Promise<F
           manifest
         });
         
-        logger.debug(`发现插件: ${name}`, { plugin: name, version: manifest.version });
+        logger.debug(`发现插件`, { plugin: name, version: manifest.version });
       } catch (error) {
-        logger.warn(`加载插件失败: ${name}`, { plugin: name, error });
+        logger.warn(`加载插件失败`, { plugin: name, error: error instanceof Error ? error.message : String(error) });
       }
     }
   } catch (error) {
-    logger.error(`扫描插件目录失败`, { pluginsDir, error });
+    logger.error(`扫描插件目录失败`, { pluginsDir, error: error instanceof Error ? error.message : String(error) });
   }
   
-  logger.info(`插件扫描完成`, { count: found.length, plugins: found.map(p => p.name) });
+  logger.debug(`插件扫描完成`, { count: found.length, plugins: found.map(p => p.name) });
   return found;
 }
 
@@ -283,9 +283,8 @@ export async function stopPlugin(plugin: RunningPlugin, logger: Logger): Promise
     if (plugin.cleanup) {
       await plugin.cleanup();
     }
-    logger.info(`插件已停止`, { plugin: plugin.name });
+    logger.debug(`插件已停止`, { plugin: plugin.name });
   } catch (error) {
-    logger.warn(`插件清理失败`, { plugin: plugin.name, error });
-    // 忽略清理错误
+    logger.warn(`插件清理失败`, { plugin: plugin.name, error: error instanceof Error ? error.message : String(error) });
   }
 }

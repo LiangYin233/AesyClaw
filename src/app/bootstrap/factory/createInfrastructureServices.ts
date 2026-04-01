@@ -92,7 +92,7 @@ export async function createInfrastructureServices(args: {
 
       await agentRuntime.handleInbound(processedMessage);
     } catch (error) {
-      logger.error('处理入站消息失败', { error });
+      logger.error('处理入站消息失败', { error: error instanceof Error ? error.message : String(error) });
     }
   });
 

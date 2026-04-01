@@ -10,6 +10,7 @@ import { UnifiedMessage } from '../protocol/unified-message.js';
 import { FileType } from '../protocol/attachment.js';
 import { mkdir, writeFile } from 'fs/promises';
 import { join } from 'path';
+import { logger } from '../../../../platform/observability/index.js';
 
 /**
  * 适配器配置选项
@@ -291,8 +292,7 @@ export abstract class BaseChannelAdapter implements ChannelAdapter {
         try {
           image.url = await this.downloadResource(image.url, filename);
         } catch (error) {
-          // 下载失败保留原 URL，让后续处理决定
-          console.warn(`[${this.name}] Failed to download image: ${image.url}`, error);
+          logger.warn(`下载图片失败`, { adapter: this.name, url: image.url, error: error instanceof Error ? error.message : String(error) });
         }
       }
     }
@@ -303,7 +303,7 @@ export abstract class BaseChannelAdapter implements ChannelAdapter {
         try {
           file.url = await this.downloadResource(file.url, filename);
         } catch (error) {
-          console.warn(`[${this.name}] Failed to download file: ${file.url}`, error);
+          logger.warn(`下载文件失败`, { adapter: this.name, url: file.url, error: error instanceof Error ? error.message : String(error) });
         }
       }
     }

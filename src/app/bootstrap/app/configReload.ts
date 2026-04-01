@@ -61,7 +61,7 @@ export function setupConfigReload(services: Services): void {
             try {
               await services.channelManager.stopChannel(name);
             } catch (error) {
-              logger.warn(`停止渠道失败: ${name}`, { error });
+              logger.warn(`停止渠道失败`, { channel: name, error: error instanceof Error ? error.message : String(error) });
             }
           }
         }
@@ -76,7 +76,7 @@ export function setupConfigReload(services: Services): void {
             try {
               await services.channelManager.startChannel(name);
             } catch (error) {
-              logger.warn(`启动渠道失败: ${name}`, { error });
+              logger.warn(`启动渠道失败`, { channel: name, error: error instanceof Error ? error.message : String(error) });
             }
           }
         }
