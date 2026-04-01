@@ -111,6 +111,10 @@ export async function createInfrastructureServices(args: {
     await channelManager.dispatch(message);
   });
 
+  pluginSystem.coordinator.setOutboundPublisher(async (message) => {
+    await outboundGateway.send(message);
+  });
+
   return {
     pluginManager: pluginSystem.coordinator,
     startPluginLoading: pluginSystem.startLoading,

@@ -65,6 +65,15 @@ export class PluginCoordinator {
     this.deps.toolRegistry = toolRegistry;
   }
 
+  /**
+   * 设置消息发布器
+   * 
+   * 用于在插件系统初始化后设置真正的消息发送处理器
+   */
+  setOutboundPublisher(publisher: (message: OutboundMessage) => Promise<void>): void {
+    this.deps.outboundPublisher = publisher;
+  }
+
   // ========== 插件生命周期 ==========
 
   /**
