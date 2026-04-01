@@ -1,12 +1,10 @@
 import type { Config } from '../../types.js';
-import type { AgentRuntime } from '../../agent/index.js';
+import type { RuntimeCoordinator, ISessionRouting, SessionManager } from '../../agent/index.js';
 import type { AgentRoleService } from '../../features/agents/infrastructure/AgentRoleService.js';
-import type { ISessionRouting } from '../../agent/domain/session.js';
 import type { ChannelManager } from '../../features/extension/channel/ChannelManager.js';
 import type { ConfigManager, RuntimeConfigStore } from '../../features/config/index.js';
 import type { Database } from '../../platform/db/index.js';
 import type { ToolRegistry } from '../../platform/tools/ToolRegistry.js';
-import type { SessionManager } from '../../agent/infrastructure/session/SessionManager.js';
 import type { LongTermMemoryStore } from '../../features/memory/infrastructure/LongTermMemoryStore.js';
 import type { PluginCoordinator } from '../../features/extension/plugin/index.js';
 import type { CronRuntimeService } from '../../features/cron/index.js';
@@ -42,7 +40,7 @@ import { parseConfigUpdate } from '../../features/config/contracts/config.dto.js
 import { getConfigValidationIssue } from '../../features/config/index.js';
 import { DomainValidationError, DependencyUnavailableError } from '../../platform/errors/domain.js';
 
-type WorkerCapableAgentRuntime = Pick<AgentRuntime, 'handleDirect' | 'isRunning' | 'abortSession' | 'getWorkerRuntimeSnapshot' | 'onWorkerRuntimeChange'>;
+type WorkerCapableAgentRuntime = Pick<RuntimeCoordinator, 'handleDirect' | 'isRunning' | 'abortSession' | 'getWorkerRuntimeSnapshot' | 'onWorkerRuntimeChange'>;
 
 export interface RegisterRpcHandlersContext {
   server: WebSocketApiServer;

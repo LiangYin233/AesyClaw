@@ -1,5 +1,5 @@
 import { syncConfiguredMcpServers } from '../index.js';
-import type { Services } from '../../../app/bootstrap/factory/service-interfaces.js';
+import type { Services } from '../../../app/bootstrap/factory/runtimeServiceTypes.js';
 import type { Config } from '../../../types.js';
 
 interface McpReloadHandler {

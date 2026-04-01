@@ -1,9 +1,7 @@
-import type { AgentRuntime } from '../../../agent/index.js';
-import { BuiltInCommands } from '../../../agent/application/index.js';
-import type { ISessionRouting } from '../../../agent/domain/session.js';
+import type { RuntimeCoordinator, ISessionRouting, SessionManager } from '../../../agent/index.js';
+import { BuiltInCommands } from '../../../agent/index.js';
 import { registerBuiltInTools } from '../../../platform/tools/index.js';
 import type { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
-import type { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
 import { PluginCoordinator } from '../../../features/extension/plugin/index.js';
 import { PluginAdminService } from '../../../features/extension/plugin/index.js';
 import { SkillManager } from '../../../features/skills/index.js';
@@ -18,7 +16,7 @@ export interface RegisterRuntimeBindingsArgs {
   sessionManager: SessionManager;
   sessionRouting: ISessionRouting;
   agentRoleService: any;
-  agentRuntime: AgentRuntime;
+  agentRuntime: RuntimeCoordinator;
   getConfig: () => Config;
   updateConfig: (mutator: (config: Config) => void | Config | Promise<void | Config>) => Promise<Config>;
   setPluginManager: (pluginManager: PluginCoordinator) => void;

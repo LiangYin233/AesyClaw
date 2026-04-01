@@ -1,13 +1,13 @@
 import { join } from 'path';
 import {
-  AgentRuntime,
+  RuntimeCoordinator,
   OutboundGateway,
-  createConfiguredAgentRuntime
+  createConfiguredAgentRuntime,
+  CommandRegistry
 } from '../../../agent/index.js';
 import { AgentRoleService } from '../../../features/agents/infrastructure/AgentRoleService.js';
-import { CommandRegistry } from '../../../agent/application/index.js';
 import { SessionMemoryService } from '../../../features/memory/infrastructure/SessionMemoryService.js';
-import type { ISessionRouting } from '../../../agent/domain/session.js';
+import type { ISessionRouting } from '../../../agent/index.js';
 import {
   createVisionProviderFromSettings,
   ConfigManager,
@@ -70,7 +70,7 @@ export async function createExecutionRuntime(args: {
   commandRegistry: CommandRegistry;
   skillManager: SkillManager;
   agentRoleService: AgentRoleService;
-  agentRuntime: AgentRuntime;
+  agentRuntime: RuntimeCoordinator;
   visionSettings: VisionSettings;
   visionProvider?: LLMProvider;
   setPluginManager: (pluginManager: PluginCoordinator) => void;

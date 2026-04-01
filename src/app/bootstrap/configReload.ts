@@ -13,7 +13,7 @@ import { normalizePluginConfigs } from '../../features/extension/plugin/core/typ
 import type { ChannelManager } from '../../features/extension/channel/ChannelManager.js';
 import { logger } from '../../platform/observability/index.js';
 import type { Config } from '../../types.js';
-import type { Services } from './factory/service-interfaces.js';
+import type { Services } from './factory/runtimeServiceTypes.js';
 
 interface ChannelConfig {
   enabled?: boolean;

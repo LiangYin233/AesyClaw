@@ -1,4 +1,4 @@
-import type { BootstrapPhaseOptions } from './service-interfaces.js';
+import type { BootstrapPhaseOptions } from './runtimeServiceTypes.js';
 
 export async function runBootstrapPhase<T>(options: BootstrapPhaseOptions<T>): Promise<{ result: T }> {
   const { phase, log, task } = options;

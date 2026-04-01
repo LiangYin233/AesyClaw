@@ -1,4 +1,4 @@
-import { AgentRuntime, OutboundGateway } from '../../../agent/index.js';
+import { RuntimeCoordinator, OutboundGateway } from '../../../agent/index.js';
 import { WebServer } from '../../ws/WebServer.js';
 import { ChannelManager } from '../../../features/extension/channel/ChannelManager.js';
 import { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
@@ -24,10 +24,10 @@ import { runBootstrapPhase } from './runBootstrapPhase.js';
 import { EventBus } from '../../../platform/events/EventBus.js';
 import type { AesyClawEvents } from '../../../platform/events/events.js';
 import { createSessionContext } from '../../assembly/createSessionContext.js';
-import type { Services, ServiceFactoryOptions } from './service-interfaces.js';
+import type { Services, ServiceFactoryOptions } from './runtimeServiceTypes.js';
 import { registerRuntimeBindings } from './registerRuntimeBindings.js';
 
-export type { Services, ServiceFactoryOptions } from './service-interfaces.js';
+export type { Services, ServiceFactoryOptions } from './runtimeServiceTypes.js';
 
 const appLog = logger;
 

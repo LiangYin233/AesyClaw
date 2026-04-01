@@ -1,7 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'http';
 import { readFileSync } from 'fs';
-import type { AgentRuntime } from '../../agent/index.js';
-import type { SessionManager } from '../../agent/infrastructure/session/SessionManager.js';
+import type { RuntimeCoordinator, SessionManager } from '../../agent/index.js';
 import type { ChannelManager } from '../../features/extension/channel/ChannelManager.js';
 import type { Config } from '../../types.js';
 import type { Database } from '../../platform/db/index.js';
@@ -32,7 +31,7 @@ export class WebServer {
   });
   private log = logger.child('WebServer');
   private port: number;
-  private agentRuntime: AgentRuntime;
+  private agentRuntime: RuntimeCoordinator;
   private db: Database;
   private sessionManager: SessionManager;
   private sessionRouting: ISessionRouting;
@@ -52,7 +51,7 @@ export class WebServer {
 
   constructor(options: {
     port: number;
-    agentRuntime: AgentRuntime;
+    agentRuntime: RuntimeCoordinator;
     db: Database;
     sessionManager: SessionManager;
     sessionRouting: ISessionRouting;

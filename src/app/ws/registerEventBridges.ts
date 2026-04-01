@@ -1,6 +1,5 @@
-import type { AgentRuntime } from '../../agent/index.js';
+import type { RuntimeCoordinator, SessionManager } from '../../agent/index.js';
 import type { ChannelManager } from '../../features/extension/channel/ChannelManager.js';
-import type { SessionManager } from '../../agent/infrastructure/session/SessionManager.js';
 import type { PluginCoordinator } from '../../features/extension/plugin/index.js';
 import type { SkillManager } from '../../features/skills/application/SkillManager.js';
 import type { McpClientManager } from '../../features/mcp/index.js';
@@ -9,7 +8,7 @@ import type { EventBus } from '../../platform/events/EventBus.js';
 import type { AesyClawEvents } from '../../platform/events/events.js';
 import { logging, tokenUsage } from '../../platform/observability/index.js';
 
-type WorkerCapableAgentRuntime = Pick<AgentRuntime, 'handleDirect' | 'isRunning' | 'abortSession' | 'getWorkerRuntimeSnapshot' | 'onWorkerRuntimeChange'>;
+type WorkerCapableAgentRuntime = Pick<RuntimeCoordinator, 'handleDirect' | 'isRunning' | 'abortSession' | 'getWorkerRuntimeSnapshot' | 'onWorkerRuntimeChange'>;
 
 export interface RegisterEventBridgesContext {
   server: WebSocketApiServer;

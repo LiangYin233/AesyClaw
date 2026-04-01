@@ -4,7 +4,7 @@ import type { ToolRegistry, ToolContext } from '../../../platform/tools/ToolRegi
 import { ContextBuilder } from './ContextBuilder.js';
 import { ToolLoopRunner } from './ToolLoopRunner.js';
 import { ExecutionRegistry } from './ExecutionRegistry.js';
-import type { ExecutionResult, ExecutionOptions } from './ExecutionTypes.js';
+import type { ExecutionOptions } from './ExecutionTypes.js';
 import type { PluginManager } from '../../../platform/context/PluginContext.js';
 
 export class AgentExecutor {
@@ -33,21 +33,6 @@ export class AgentExecutor {
     this.executionRegistry = executionRegistry ?? new ExecutionRegistry();
     this.contextBuilder = new ContextBuilder(workspace, systemPrompt, skillsPrompt, includeRuntimeContext);
     this.toolLoopRunner = new ToolLoopRunner(provider, toolRegistry, pluginManager, maxContextTokens);
-  }
-
-  /**
-   * 按同步策略执行一轮 Agent 推理。
-   */
-  async execute(
-    messages: LLMMessage[],
-    toolContext: ToolContext,
-    options?: ExecutionOptions
-  ): Promise<ExecutionResult> {
-    return this.executeToolLoop(messages, toolContext, {
-      allowTools: true,
-      maxIterations: this.maxIterations,
-      ...(options || {})
-    });
   }
 
   buildMessages(history: any[], currentMessage: string, media?: string[], files?: InboundFile[]): LLMMessage[] {

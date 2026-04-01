@@ -1,5 +1,5 @@
-import type { OutboundMessage } from '../../types.js';
-import { logger } from '../../platform/observability/index.js';
+import type { OutboundMessage } from '../../../types.js';
+import { logger } from '../../../platform/observability/index.js';
 
 export class OutboundGateway {
   private dispatcher?: (message: OutboundMessage) => Promise<void>;

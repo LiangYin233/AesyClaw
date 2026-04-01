@@ -300,15 +300,7 @@ export class ExecutionRuntime {
 
   abortByChat(channel: string, chatId: string): boolean {
     const sessionKey = this.sessionRouting.resolveByChannel(channel, chatId);
-    if (!sessionKey) {
-      return false;
-    }
-
-    const aborted = this.registry.abort(sessionKey);
-    if (aborted) {
-      this.workerExecutionDelegate.abort(sessionKey);
-    }
-    return aborted;
+    return sessionKey ? this.abortBySessionKey(sessionKey) : false;
   }
 
   getStatus(sessionKey: string): ExecutionStatus {

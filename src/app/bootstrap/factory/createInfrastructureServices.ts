@@ -1,4 +1,5 @@
-import type { AgentRuntime, OutboundGateway } from '../../../agent/index.js';
+import type { RuntimeCoordinator, OutboundGateway } from '../../../agent/index.js';
+import type { OutboundMessage } from '../../../types.js';
 import type { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
 import { ChannelManager } from '../../../features/extension/channel/ChannelManager.js';
 import type { McpClientManager } from '../../../features/mcp/index.js';
@@ -23,7 +24,7 @@ export async function createInfrastructureServices(args: {
   configStore: RuntimeConfigStore;
   configManager: ConfigManager;
   outboundGateway: OutboundGateway;
-  agentRuntime: AgentRuntime;
+  agentRuntime: RuntimeCoordinator;
   workspace: string;
   tempDir: string;
   toolRegistry: ToolRegistry;
@@ -107,7 +108,7 @@ export async function createInfrastructureServices(args: {
     toolRegistry
   }, config) ?? undefined;
 
-  outboundGateway.setDispatcher(async (message) => {
+  outboundGateway.setDispatcher(async (message: OutboundMessage) => {
     await channelManager.dispatch(message);
   });
 

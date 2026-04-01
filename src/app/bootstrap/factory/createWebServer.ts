@@ -1,5 +1,4 @@
-import type { AgentRuntime } from '../../../agent/index.js';
-import type { SessionManager } from '../../../agent/infrastructure/session/SessionManager.js';
+import type { RuntimeCoordinator, SessionManager, ISessionRouting } from '../../../agent/index.js';
 import type { ChannelManager } from '../../../features/extension/channel/ChannelManager.js';
 import type { Config } from '../../../types.js';
 import type { Database } from '../../../platform/db/index.js';
@@ -8,7 +7,6 @@ import type { CronRuntimeService } from '../../../features/cron/index.js';
 import type { McpClientManager } from '../../../features/mcp/index.js';
 import type { SkillManager } from '../../../features/skills/application/SkillManager.js';
 import type { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
-import type { ISessionRouting } from '../../../agent/domain/session.js';
 import { ConfigManager, RuntimeConfigStore } from '../../../features/config/index.js';
 import type { LongTermMemoryStore } from '../../../features/memory/infrastructure/LongTermMemoryStore.js';
 import type { AgentRoleService } from '../../../features/agents/infrastructure/AgentRoleService.js';
@@ -18,7 +16,7 @@ import { WebServer } from '../../ws/WebServer.js';
 
 export async function createWebServer(args: {
   port: number;
-  agentRuntime: AgentRuntime;
+  agentRuntime: RuntimeCoordinator;
   db: Database;
   sessionManager: SessionManager;
   sessionRouting: ISessionRouting;

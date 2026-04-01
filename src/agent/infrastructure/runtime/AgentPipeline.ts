@@ -86,13 +86,6 @@ export class AgentPipeline {
     return !!message.intent && message.intent.type !== 'continue';
   }
 
-  private getSkipReason(message: InboundMessage): string {
-    if (message.intent && message.intent.type !== 'continue') {
-      return `${message.intent.type}: ${message.intent.reason}`;
-    }
-    return 'unknown';
-  }
-
   private attachSavedFileNotes(message: InboundMessage): InboundMessage {
     if (!message.files || message.files.length === 0) {
       return message;

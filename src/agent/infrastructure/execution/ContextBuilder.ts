@@ -24,27 +24,6 @@ export type VisionUserContent = string | Array<{
   };
 }>;
 
-function buildAgentSystemPrompt(options: {
-  basePrompt: string;
-  workspace: string;
-  context?: string;
-  skillsPrompt?: string;
-  includeRuntimeContext?: boolean;
-}): string {
-  if (options.includeRuntimeContext === false) {
-    return options.basePrompt.trim();
-  }
-
-  const sections = [
-    options.basePrompt.trim(),
-    `Workspace: ${options.workspace}`,
-    options.context ? `Context: ${options.context}` : '',
-    options.skillsPrompt?.trim() || ''
-  ].filter(Boolean);
-
-  return sections.join('\n');
-}
-
 export class ContextBuilder {
   private workspace: string;
   private systemPrompt: string;
@@ -108,7 +87,7 @@ export class ContextBuilder {
 
   private buildSystemPrompt(): string {
     const now = new Date();
-    const prompt = this.systemPrompt
+    const basePrompt = this.systemPrompt
       .replace(/\{\{\s*current_time\s*\}\}/g, formatLocalTimestamp(now))
       .replace(/\{\{\s*current_date\s*\}\}/g, formatLocalDateTime(now))
       .replace(/\{\{\s*current_hour\s*\}\}/g, formatLocalClock(now))
@@ -116,17 +95,22 @@ export class ContextBuilder {
       .replace(/\{\{\s*cwd\s*\}\}/g, this.workspace)
       .replace(/\{\{\s*os\s*\}\}/g, process.platform);
 
+    if (this.includeRuntimeContext === false) {
+      return basePrompt.trim();
+    }
+
     const context = this.currentChannel && this.currentChatId && this.currentMessageType
       ? `${this.currentChannel}:${this.currentMessageType}:${this.currentChatId}`
       : undefined;
 
-    return buildAgentSystemPrompt({
-      basePrompt: prompt,
-      workspace: this.workspace,
-      context,
-      skillsPrompt: this.skillsPrompt,
-      includeRuntimeContext: this.includeRuntimeContext
-    });
+    const sections = [
+      basePrompt.trim(),
+      `Workspace: ${this.workspace}`,
+      context ? `Context: ${context}` : '',
+      this.skillsPrompt?.trim() || ''
+    ].filter(Boolean);
+
+    return sections.join('\n');
   }
 
   private buildUserContent(

@@ -12,10 +12,6 @@ interface ExecutionEntry {
   handle: ActiveExecutionHandle;
 }
 
-/**
- * 维护 session 级当前执行句柄。
- * 同一 session 新执行开始时，会主动中止旧执行，避免并发主 turn 互相覆盖。
- */
 export class ExecutionRegistry {
   private controllers = new Map<string, ExecutionEntry>();
 
@@ -32,7 +28,6 @@ export class ExecutionRegistry {
   ): AbortController {
     const existing = this.controllers.get(key);
     if (existing && !existing.controller.signal.aborted) {
-      // 同一 session 只保留最新一次主执行。
       existing.controller.abort(this.createAbortError(`Execution superseded by newer run: ${key}`));
     }
 
@@ -49,10 +44,6 @@ export class ExecutionRegistry {
       }
     });
     return activeController;
-  }
-
-  get(key: string): AbortController | undefined {
-    return this.controllers.get(key)?.controller;
   }
 
   getHandle(key: string): ActiveExecutionHandle | undefined {
@@ -89,7 +80,6 @@ export class ExecutionRegistry {
       return;
     }
 
-    // 仅移除当前这一轮持有的句柄，避免旧执行 finally 误删新执行记录。
     if (!controller || current.controller === controller) {
       this.controllers.delete(key);
     }

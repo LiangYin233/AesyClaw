@@ -15,13 +15,14 @@ import { ExecutionRuntime } from '../execution/ExecutionRuntime.js';
 import { ExecutionRegistry } from '../execution/ExecutionRegistry.js';
 import { WorkerExecutionDelegateImpl } from '../worker/WorkerExecutionDelegate.js';
 import { WorkerRuntimeRegistry } from '../worker/WorkerRuntimeRegistry.js';
+import type { AgentRuntimeDeps } from '../../domain/ports.js';
 import type { ExecutionStatus, WorkerRuntimeSnapshot } from '../../domain/execution.js';
 import {
   bindSessionReference,
   mapSessionReference,
   type SessionReference
 } from '../../domain/session.js';
-import { OutboundGateway } from '../../facade/OutboundGateway.js';
+import { OutboundGateway } from '../messaging/OutboundGateway.js';
 import {
   handleDirectMessage,
   handleInboundMessage,
@@ -56,9 +57,9 @@ export interface RuntimeCoordinatorOptions {
 
 /**
  * 运行时总装配器。
- * 负责把 session 解析、执行引擎、worker delegate 和对外入口收拢成统一门面。
+ * 直接实现 AgentRuntimeDeps 接口，无需额外的门面层。
  */
-export class RuntimeCoordinator {
+export class RuntimeCoordinator implements AgentRuntimeDeps {
   private running = false;
   private defaultProvider?: LLMProvider;
   private mainModel: string;
@@ -406,3 +407,6 @@ export class RuntimeCoordinator {
     await this.options.outboundGateway.send(message);
   }
 }
+
+export { OutboundGateway };
+

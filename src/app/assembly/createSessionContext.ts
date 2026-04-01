@@ -1,5 +1,5 @@
 import { Database } from '../../platform/db/index.js';
-import { SessionManager } from '../../agent/infrastructure/session/SessionManager.js';
+import { SessionManager } from '../../agent/index.js';
 import { LongTermMemoryStore } from '../../features/memory/infrastructure/LongTermMemoryStore.js';
 import { SessionRoutingService } from '../../features/sessions/infrastructure/SessionRoutingService.js';
 import type { SessionContext } from '../../platform/context/index.js';

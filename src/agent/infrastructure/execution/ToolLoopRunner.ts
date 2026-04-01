@@ -1,4 +1,4 @@
-import type { LLMMessage, ToolCall } from '../../../types.js';
+import type { LLMMessage } from '../../../types.js';
 import type { LLMProvider } from '../../../platform/providers/base.js';
 import type { ToolRegistry, ToolContext } from '../../../platform/tools/ToolRegistry.js';
 import type { ExecutionResult, ExecutionOptions } from './ExecutionTypes.js';
@@ -192,29 +192,5 @@ export class ToolLoopRunner {
       ? lastMessage.content
       : lastMessage?.content?.find((c: any) => c.type === 'text')?.text || '';
     return { content: lastContent, reasoning_content: undefined, toolsUsed, agentMode };
-  }
-
-  /**
-   * 发起一次不进入工具循环的纯 LLM 调用。
-   */
-  async callLLM(
-    messages: LLMMessage[],
-    model: string,
-    options?: { allowTools?: boolean; reasoning?: boolean; signal?: AbortSignal }
-  ): Promise<{ content: string; reasoning_content?: string; usage?: any; toolCalls: ToolCall[] }> {
-    const tools = options?.allowTools !== false ? this.toolRegistry.getDefinitions() : [];
-    const requestMessages = this.contextBudgetManager.fit(messages, tools, {
-      maxContextTokens: this.maxContextTokens
-    });
-    const response = await this.provider.chat(requestMessages, tools, model, {
-      reasoning: options?.reasoning,
-      signal: options?.signal
-    });
-    return {
-      content: response.content || '',
-      reasoning_content: response.reasoning_content,
-      usage: response.usage,
-      toolCalls: response.toolCalls
-    };
   }
 }
