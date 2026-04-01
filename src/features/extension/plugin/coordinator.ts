@@ -108,6 +108,10 @@ export class PluginCoordinator {
    * 根据配置加载插件
    * 
    * 根据配置启用或禁用插件
+   * 配置逻辑：
+   * - 配置存在且 enabled 有值 → 使用配置值
+   * - 配置存在但 enabled 无值 → 使用 manifest.defaultEnabled
+   * - 配置不存在 → 使用 manifest.defaultEnabled
    */
   async load(configs: PluginConfigs): Promise<void> {
     this.pluginConfigs = configs;
@@ -116,12 +120,13 @@ export class PluginCoordinator {
     for (const found of discovered) {
       const config = configs[found.name];
       const isRunning = this.plugins.has(found.name);
+      const shouldEnable = config?.enabled ?? found.manifest.defaultEnabled ?? false;
       
-      if (config?.isEnabled) {
+      if (shouldEnable) {
         if (isRunning) {
-          await this.reload(found.name, config.settings ?? {});
+          await this.reload(found.name, config.options ?? {});
         } else {
-          await this.enable(found.name, config.settings);
+          await this.enable(found.name, config.options);
         }
       } else if (isRunning) {
         await this.disable(found.name);
@@ -386,8 +391,8 @@ export class PluginCoordinator {
         version: found.manifest.version,
         description: found.manifest.description,
         author: found.manifest.author,
-        isEnabled: running !== undefined,
-        settings: config?.settings ?? found.manifest.defaultSettings,
+        enabled: running !== undefined,
+        settings: config?.options ?? found.manifest.defaultSettings,
         defaultSettings: found.manifest.defaultSettings,
         defaultEnabled: found.manifest.defaultEnabled,
         toolCount: running?.tools.length ?? found.manifest.advertisedToolCount ?? 0

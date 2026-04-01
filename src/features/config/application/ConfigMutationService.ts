@@ -5,8 +5,64 @@ import { TomlConfigCodec } from '../infrastructure/codec/TomlConfigCodec.js';
 
 export type ConfigMutator = (config: Config) => void | Config | Promise<void | Config>;
 
+export type ConfigSectionPath = readonly string[];
+
+export interface DefaultConfigItem<T = unknown> {
+  path: ConfigSectionPath;
+  defaultValue: T;
+}
+
 function cloneConfig(config: Config): Config {
-  return structuredClone(config);
+  try {
+    return structuredClone(config);
+  } catch {
+    return JSON.parse(JSON.stringify(config)) as Config;
+  }
+}
+
+function getValueByPath(obj: Record<string, unknown>, path: string[]): unknown {
+  let current: unknown = obj;
+  for (const key of path) {
+    if (current === null || current === undefined || typeof current !== 'object') {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
+}
+
+function setValueByPath(obj: Record<string, unknown>, path: string[], value: unknown): void {
+  if (path.length === 0) {
+    return;
+  }
+  
+  let current: Record<string, unknown> = obj;
+  for (let i = 0; i < path.length - 1; i++) {
+    const key = path[i];
+    if (!(key in current) || typeof current[key] !== 'object' || current[key] === null) {
+      current[key] = {};
+    }
+    current = current[key] as Record<string, unknown>;
+  }
+  
+  current[path[path.length - 1]] = value;
+}
+
+export function applyDefaultsIfAbsent(
+  currentConfig: Config,
+  defaultItems: DefaultConfigItem[]
+): Config {
+  const draft = cloneConfig(currentConfig) as unknown as Record<string, unknown>;
+  
+  for (const item of defaultItems) {
+    const existingValue = getValueByPath(draft, [...item.path]);
+    
+    if (existingValue === undefined) {
+      setValueByPath(draft, [...item.path], item.defaultValue);
+    }
+  }
+  
+  return draft as Config;
 }
 
 export class ConfigMutationService {

@@ -46,13 +46,11 @@ export default {
   author: 'aesyclaw_official',
   description: '使用 Tavily 进行网页搜索',
   toolsCount: 2,
-  defaultConfig: {
-    enabled: false,
-    options: {
-      apiKey: '',
-      maxResults: 5,
-      searchDepth: 'basic'
-    }
+  defaultEnabled: false,
+  defaultSettings: {
+    apiKey: '',
+    maxResults: 5,
+    searchDepth: 'basic'
   },
   setup(ctx) {
     // 获取配置的工具函数，每次调用都会读取最新配置

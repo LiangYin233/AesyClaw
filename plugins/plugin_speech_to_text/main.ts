@@ -219,14 +219,12 @@ export default {
   author: 'aesyclaw_official',
   description: '转写语音为文本。',
   toolsCount: 1,
-  defaultConfig: {
-    enabled: false,
-    options: {
-      provider: 'openai',
-      model: 'whisper-1',
-      downloadTimeout: 30000,
-      transcriptionTimeout: 60000
-    }
+  defaultEnabled: false,
+  defaultSettings: {
+    provider: 'openai',
+    model: 'whisper-1',
+    downloadTimeout: 30000,
+    transcriptionTimeout: 60000
   },
   async setup(ctx) {
     // 获取配置的工具函数，每次调用都会读取最新配置

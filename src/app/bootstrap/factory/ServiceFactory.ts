@@ -85,6 +85,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     getConfig: () => configManager.getConfig(),
     outboundPublisher: async () => {},
     updateConfig: async (mutator: (config: Config) => Config | void) => configManager.update(mutator),
+    applyDefaults: (getDefaultItems) => configManager.applyDefaults(getDefaultItems),
     logger: bootstrapLog
   });
 

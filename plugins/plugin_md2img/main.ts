@@ -75,13 +75,11 @@ export default {
   author: 'aesyclaw_official',
   description: '将 Markdown 自动转换为图片',
   toolsCount: 0,
-  defaultConfig: {
-    enabled: false,
-    options: {
-      minLength: 50,
-      scale: 1.0,
-      excludedChannels: []
-    }
+  defaultEnabled: false,
+  defaultSettings: {
+    minLength: 50,
+    scale: 1.0,
+    excludedChannels: []
   },
   setup(ctx) {
     // 获取配置的工具函数，每次调用都会读取最新配置

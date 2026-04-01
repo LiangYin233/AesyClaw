@@ -4,7 +4,7 @@ import { ConfigFileStore } from '../infrastructure/file/ConfigFileStore.js';
 import { FsConfigWatcher } from '../infrastructure/file/FsConfigWatcher.js';
 import { TomlConfigCodec } from '../infrastructure/codec/TomlConfigCodec.js';
 import { ConfigSnapshotStore } from '../infrastructure/runtime/ConfigSnapshotStore.js';
-import { ConfigMutationService, type ConfigMutator } from './ConfigMutationService.js';
+import { ConfigMutationService, type ConfigMutator, applyDefaultsIfAbsent, type DefaultConfigItem } from './ConfigMutationService.js';
 import { ConfigReloadCoordinator } from './ConfigReloadCoordinator.js';
 import type { ConfigReloadTargets } from '../reload/ports/ReloadTargets.js';
 import { sanitizePublicConfig, preserveServerTokenInPublicConfig } from '../contracts/publicConfig.js';
@@ -124,6 +124,21 @@ export class ConfigService {
 
   async update(mutator: ConfigMutator): Promise<Config> {
     const nextConfig = await this.mutationService.applyUpdate(this.get(), mutator);
+    await this.persistAndApply(nextConfig);
+    return nextConfig;
+  }
+
+  async applyDefaults(
+    getDefaultItems: (config: Config) => DefaultConfigItem[]
+  ): Promise<Config> {
+    const currentConfig = this.get();
+    const defaultItems = getDefaultItems(currentConfig);
+    const nextConfig = applyDefaultsIfAbsent(currentConfig, defaultItems);
+    
+    if (nextConfig === currentConfig) {
+      return currentConfig;
+    }
+    
     await this.persistAndApply(nextConfig);
     return nextConfig;
   }

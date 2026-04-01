@@ -2,7 +2,7 @@ import type { Config } from './schema/index.js';
 import type { EventBus } from '../../platform/events/EventBus.js';
 import type { AesyClawEvents } from '../../platform/events/events.js';
 import { ConfigService } from './application/ConfigService.js';
-import type { ConfigMutator } from './application/ConfigMutationService.js';
+import type { ConfigMutator, DefaultConfigItem } from './application/ConfigMutationService.js';
 import type { ConfigReloadTargets } from './reload/ports/ReloadTargets.js';
 
 export const defaultConfigService = new ConfigService();
@@ -36,6 +36,13 @@ export class ConfigManager {
   async update(mutator: ConfigMutator): Promise<Config> {
     this.ensureReloadBridge();
     return this.service.update(mutator);
+  }
+
+  async applyDefaults(
+    getDefaultItems: (config: Config) => DefaultConfigItem[]
+  ): Promise<Config> {
+    this.ensureReloadBridge();
+    return this.service.applyDefaults(getDefaultItems);
   }
 
   async updatePluginConfig(

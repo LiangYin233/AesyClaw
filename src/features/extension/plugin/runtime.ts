@@ -23,6 +23,7 @@ export interface RuntimeDependencies {
   toolRegistry?: ToolRegistry;
   outboundPublisher: (message: OutboundMessage) => Promise<void>;
   updateConfig: (mutator: (config: Config) => Config | void) => Promise<Config>;
+  applyDefaults: (getDefaultItems: (config: Config) => Array<{ path: readonly string[]; defaultValue: unknown }>) => Promise<Config>;
   logger: Logger;
 }
 
@@ -94,17 +95,42 @@ export async function setupPlugins(deps: RuntimeDependencies): Promise<PluginSys
 
     void (async () => {
       try {
-        // 1. 应用默认配置
-        const { configs: defaultConfigs, changed } = await adminService.applyDefaultConfigs();
+        // 1. 发现所有插件
+        const discovered = await coordinator.discover();
 
-        if (changed) {
-          // 持久化默认配置
-          await deps.updateConfig((draft) => {
-            draft.plugins = defaultConfigs as Record<string, { enabled?: boolean; options?: Record<string, unknown> }>;
-          });
-        }
+        // 2. 应用默认配置（生成默认配置项函数）
+        await deps.applyDefaults((config) => {
+          const defaultItems: Array<{ path: readonly string[]; defaultValue: unknown }> = [];
+          
+          for (const found of discovered) {
+            const existingPlugin = config.plugins?.[found.name];
+            
+            // 添加 enabled（如果不存在）
+            if (existingPlugin?.enabled === undefined) {
+              defaultItems.push({
+                path: ['plugins', found.name, 'enabled'],
+                defaultValue: found.manifest.defaultEnabled ?? false
+              });
+            }
+            
+            // 添加 options 中的默认值（只补全不覆盖）
+            if (found.manifest.defaultSettings) {
+              for (const [key, value] of Object.entries(found.manifest.defaultSettings)) {
+                const existingValue = existingPlugin?.options?.[key];
+                if (existingValue === undefined) {
+                  defaultItems.push({
+                    path: ['plugins', found.name, 'options', key],
+                    defaultValue: value
+                  });
+                }
+              }
+            }
+          }
+          
+          return defaultItems;
+        });
 
-        // 2. 加载当前配置
+        // 3. 加载当前配置
         const currentConfig = deps.getConfig();
         const pluginConfigs = normalizePluginConfigs(currentConfig.plugins);
 

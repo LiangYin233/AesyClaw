@@ -1,5 +1,6 @@
 export { ConfigManager, defaultConfigService, getConfig, defaultConfigService as ConfigLoader } from './ConfigManager.js';
-export type { ConfigMutator } from './application/ConfigMutationService.js';
+export type { ConfigMutator, DefaultConfigItem, ConfigSectionPath } from './application/ConfigMutationService.js';
+export { applyDefaultsIfAbsent } from './application/ConfigMutationService.js';
 export { RuntimeConfigStore } from './RuntimeConfigStore.js';
 export {
   DEFAULT_CONFIG,

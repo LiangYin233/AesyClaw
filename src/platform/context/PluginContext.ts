@@ -49,20 +49,23 @@ export interface PluginDefaultConfig<TOptions extends PluginOptions = PluginOpti
   options?: TOptions;
 }
 
-/** 插件信息（旧版兼容） */
+/** 插件信息（对外展示） */
 export interface PluginInfo {
   name: string;
   version: string;
   description?: string;
   author?: string;
   enabled: boolean;
-  options?: PluginOptions;
-  defaultConfig?: PluginDefaultConfig;
-  toolsCount: number;
+  settings?: PluginSettings;
+  defaultSettings?: PluginDefaultConfig;
+  toolCount: number;
   kind?: 'plugin' | 'channel';
   channelName?: string;
   running?: boolean;
 }
+
+/** 插件设置类型别名 */
+type PluginSettings = Record<string, unknown>;
 
 /** 插件管理器接口 */
 export interface PluginManager {

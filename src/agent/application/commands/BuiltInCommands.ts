@@ -244,7 +244,7 @@ export class BuiltInCommands extends CommandHandler {
       for (const plugin of plugins) {
         const detail = plugin.kind === 'channel'
           ? `渠道=${plugin.channelName || '-'} | 运行=${plugin.running ? '是' : '否'}`
-          : `版本=${plugin.version} | tools=${plugin.toolsCount}`;
+          : `版本=${plugin.version} | tools=${plugin.toolCount}`;
         lines.push(`- ${plugin.name} [${this.getPluginKindLabel(plugin)}] ${plugin.enabled ? '已启用' : '已停用'} | ${detail}`);
       }
     }
@@ -279,8 +279,8 @@ export class BuiltInCommands extends CommandHandler {
       `描述：${plugin.description || '无描述'}`,
       `作者：${plugin.author || '未知'}`,
       `版本：${plugin.version}`,
-      `工具数：${plugin.toolsCount}`,
-      `当前选项：${this.formatPluginOptions(plugin.options)}`
+      `工具数：${plugin.toolCount}`,
+      `当前选项：${this.formatPluginOptions(plugin.settings)}`
     ];
 
     if (plugin.kind === 'channel') {
@@ -363,7 +363,7 @@ export class BuiltInCommands extends CommandHandler {
     return plugin.kind === 'channel' ? '渠道插件' : '普通插件';
   }
 
-  private formatPluginOptions(options: PluginInfo['options']): string {
+  private formatPluginOptions(options: PluginInfo['settings']): string {
     if (!options || Object.keys(options).length === 0) {
       return '无';
     }

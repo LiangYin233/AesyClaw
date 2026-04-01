@@ -188,8 +188,8 @@ export interface RunningPlugin {
 
 /** 插件配置状态 */
 export interface PluginConfigEntry {
-  isEnabled: boolean;
-  settings?: PluginSettings;
+  enabled?: boolean;
+  options?: PluginSettings;
 }
 
 /** 插件配置集合 */
@@ -201,7 +201,7 @@ export interface PluginMetadata {
   version: string;
   description?: string;
   author?: string;
-  isEnabled: boolean;
+  enabled: boolean;
   settings?: PluginSettings;
   defaultSettings?: PluginSettings;
   defaultEnabled?: boolean;
@@ -221,17 +221,16 @@ export function normalizePluginConfigs(rawConfigs: Record<string, RawPluginConfi
 
   for (const [name, entry] of Object.entries(rawConfigs)) {
     if (!entry || typeof entry !== 'object') {
-      result[name] = { isEnabled: false };
       continue;
     }
 
     const e = entry as Record<string, unknown>;
-    const isEnabled = (e.isEnabled as boolean | undefined) ?? (e.enabled as boolean | undefined) ?? false;
-    const settings = (e.settings ?? e.options) as Record<string, unknown> | undefined;
+    const enabled = (e.enabled as boolean | undefined) ?? (e.isEnabled as boolean | undefined);
+    const options = (e.options ?? e.settings) as Record<string, unknown> | undefined;
 
     result[name] = {
-      isEnabled,
-      settings: settings ? { ...settings } : undefined
+      enabled,
+      options: options ? { ...options } : undefined
     };
   }
 

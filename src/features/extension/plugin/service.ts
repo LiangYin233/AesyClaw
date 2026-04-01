@@ -26,6 +26,7 @@ export interface ToggleRequest {
 
 /** 更新配置请求 */
 export interface UpdateConfigRequest {
+  enabled?: boolean;
   settings: PluginSettings;
 }
 
@@ -76,8 +77,8 @@ export class PluginAdminService {
     const newConfigs: PluginConfigs = {
       ...currentConfigs,
       [name]: {
-        isEnabled: request.enabled,
-        settings: currentConfigs[name]?.settings ?? plugin.settings
+        enabled: request.enabled,
+        options: currentConfigs[name]?.options ?? plugin.settings
       }
     };
     this.coordinator.setConfigs(newConfigs);
@@ -96,8 +97,8 @@ export class PluginAdminService {
           draft.plugins = {};
         }
         draft.plugins[name] = {
-          isEnabled: request.enabled,
-          settings: currentConfigs[name]?.settings ?? plugin.settings
+          enabled: request.enabled,
+          options: currentConfigs[name]?.options ?? plugin.settings
         };
       });
     }
@@ -108,6 +109,10 @@ export class PluginAdminService {
   /**
    * 更新插件配置
    * 
+   * 配置逻辑：
+   * - 配置缺失 → 补全（使用默认值或请求中的值）
+   * - 配置存在 → 忽略（不更新）
+   * 
    * @throws ResourceNotFoundError 如果插件不存在
    */
   async updatePluginConfig(name: string, request: UpdateConfigRequest): Promise<UpdateConfigResponse> {
@@ -117,21 +122,23 @@ export class PluginAdminService {
       throw new ResourceNotFoundError('Plugin', name);
     }
 
-    // 更新协调器内部配置状态
     const currentConfigs = this.coordinator.getConfigs();
-    const newConfigs: PluginConfigs = {
+    const existingConfig = currentConfigs[name];
+
+    // 配置已存在，忽略更新
+    if (existingConfig) {
+      return { success: true };
+    }
+
+    // 配置缺失，补全默认值
+    const newConfig: PluginConfigs = {
       ...currentConfigs,
       [name]: {
-        isEnabled: currentConfigs[name]?.isEnabled ?? plugin.isEnabled,
-        settings: request.settings
+        enabled: request.enabled ?? plugin.defaultEnabled ?? false,
+        options: request.settings
       }
     };
-    this.coordinator.setConfigs(newConfigs);
-
-    // 如果插件已启用，重载配置
-    if (plugin.isEnabled) {
-      await this.coordinator.reload(name, request.settings);
-    }
+    this.coordinator.setConfigs(newConfig);
 
     // 持久化配置到文件
     if (this.updateConfig) {
@@ -140,48 +147,12 @@ export class PluginAdminService {
           draft.plugins = {};
         }
         draft.plugins[name] = {
-          isEnabled: currentConfigs[name]?.isEnabled ?? plugin.isEnabled,
-          settings: request.settings
+          enabled: request.enabled ?? plugin.defaultEnabled ?? false,
+          options: request.settings
         };
       });
     }
 
     return { success: true };
-  }
-
-  /**
-   * 应用默认配置
-   * 
-   * 为尚未配置的插件添加默认配置
-   * 
-   * @returns 是否需要更新配置
-   */
-  async applyDefaultConfigs(): Promise<{ configs: PluginConfigs; changed: boolean }> {
-    // 使用 discover() 获取所有发现的插件，而不是 list()
-    const discovered = await this.coordinator.discover();
-    const currentConfigs = this.coordinator.getConfigs();
-    let changed = false;
-
-    const newConfigs: PluginConfigs = { ...currentConfigs };
-
-    for (const found of discovered) {
-      if (newConfigs[found.name]) {
-        // 已有配置，跳过
-        continue;
-      }
-
-      // 添加默认配置
-      changed = true;
-      newConfigs[found.name] = {
-        isEnabled: found.manifest.defaultEnabled ?? false,
-        settings: found.manifest.defaultSettings ? { ...found.manifest.defaultSettings } : undefined
-      };
-    }
-
-    if (changed) {
-      this.coordinator.setConfigs(newConfigs);
-    }
-
-    return { configs: newConfigs, changed };
   }
 }
