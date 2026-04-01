@@ -11,6 +11,7 @@ import { ImageAttachment, FileAttachment } from './protocol/attachment.js';
 import { readdir } from 'fs/promises';
 import { join } from 'path';
 import { pathToFileURL } from 'url';
+import { logger } from '../../../platform/observability/index.js';
 
 /**
  * 管理器选项
@@ -123,7 +124,7 @@ export class ChannelManager {
           
           if (this.isValidAdapter(adapter)) {
             this.runtime.registerAdapter(adapter);
-            console.log(`[ChannelManager] Registered adapter: ${adapter.name}`);
+            logger.info(`通道适配器已注册`, { adapter: adapter.name });
             count++;
           } else {
             console.warn(`[ChannelManager] Invalid adapter: ${entry.name}`);

@@ -6,6 +6,12 @@ export function getMainAgentConfig(config: Config) {
   const mainAgent = config.agents.roles[MAIN_AGENT_NAME];
   const defaults = config.agent.defaults;
   const provider = resolveProviderSelection(config, mainAgent?.model || '');
+  const directVision = provider.modelConfig?.supportsVision === true;
+  const fallbackModelRef = defaults.visionFallbackModel?.trim() || undefined;
+  const visionProvider = fallbackModelRef
+    ? resolveProviderSelection(config, fallbackModelRef)
+    : undefined;
+
   return {
     role: {
       name: mainAgent?.name ?? MAIN_AGENT_NAME,
@@ -19,11 +25,14 @@ export function getMainAgentConfig(config: Config) {
     maxIterations: defaults.maxToolIterations,
     memoryWindow: defaults.memoryWindow,
     visionSettings: {
-      enabled: !!defaults.visionFallbackModel,
-      directVision: provider.modelConfig?.supportsVision ?? false,
-      reasoning: provider.modelConfig?.reasoning ?? false,
-      fallbackModelRef: defaults.visionFallbackModel || undefined
-    }
+      enabled: directVision || !!visionProvider,
+      directVision,
+      reasoning: visionProvider?.modelConfig?.reasoning === true,
+      fallbackModelRef,
+      fallbackProviderName: visionProvider?.name,
+      fallbackModelName: visionProvider?.model
+    },
+    visionProvider
   };
 }
 

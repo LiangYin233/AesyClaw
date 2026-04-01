@@ -44,23 +44,25 @@ export class AgentPipeline {
       return { type: 'continue', message };
     }
 
-    const pluginCommandResult = await pluginManager.runCommands(message);
+    const pluginCommandResult = await pluginManager.executeCommand(message);
     if (pluginCommandResult !== null) {
-      if (pluginCommandResult.type === 'reply' && !suppressOutbound) {
+      if (pluginCommandResult.resultType === 'modified') {
+        message = pluginCommandResult.message;
+      }
+      if (!suppressOutbound && pluginCommandResult.resultType === 'modified') {
         await sendOutbound({
-          channel: pluginCommandResult.message.channel,
-          chatId: pluginCommandResult.message.chatId,
-          content: pluginCommandResult.message.content,
-          messageType: pluginCommandResult.message.messageType
+          channel: message.channel,
+          chatId: message.chatId,
+          content: message.content,
+          messageType: message.messageType
         });
       }
-
-      return pluginCommandResult.type === 'reply'
-        ? { type: 'reply', content: pluginCommandResult.message.content }
+      return pluginCommandResult.resultType === 'modified'
+        ? { type: 'reply', content: message.content }
         : { type: 'handled' };
     }
 
-    const transformed = await pluginManager.runMessageInHooks(message);
+    const transformed = await pluginManager.transformIncomingMessage(message);
     if (transformed === null) {
       return { type: 'handled' };
     }

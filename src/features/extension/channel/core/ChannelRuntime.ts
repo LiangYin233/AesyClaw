@@ -11,6 +11,7 @@ import { ChannelAdapter, AdapterContext, SendResult } from '../protocol/adapter-
 import { UnifiedMessage } from '../protocol/unified-message.js';
 import { MessageQueue } from './MessageQueue.js';
 import { EventEmitter } from 'events';
+import { logger } from '../../../../platform/observability/index.js';
 
 /**
  * 运行时选项
@@ -91,6 +92,16 @@ export class ChannelRuntime extends EventEmitter {
     const adapter = this.adapters.get(name);
     if (!adapter) {
       throw new Error(`Adapter not found: ${name}`);
+    }
+
+    const enabled = config?.enabled === true;
+    if (!enabled) {
+      if (config === undefined) {
+        logger.info(`跳过未配置的通道`, { channel: name });
+      } else {
+        logger.info(`跳过禁用的通道`, { channel: name });
+      }
+      return;
     }
 
     const context: AdapterContext = {

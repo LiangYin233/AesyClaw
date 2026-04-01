@@ -449,4 +449,45 @@ export class PluginCoordinator {
     const result = await this.afterToolCall(info, input.result);
     return { result };
   }
+
+  // ========== PluginManager 接口实现 ==========
+
+  async runAgentBeforeTaps(input: { message: InboundMessage; messages: unknown[] }): Promise<void> {
+    const context: AgentContext = {
+      message: input.message,
+      messages: input.messages as any
+    };
+    await this.onAgentStart(context);
+  }
+
+  async runAgentAfterTaps(input: { message: InboundMessage; response: unknown }): Promise<void> {
+    const context: AgentContext = {
+      message: input.message,
+      messages: []
+    };
+    await this.onAgentComplete(context, input.response as LLMResponse);
+  }
+
+  async runErrorTaps(error: unknown, context: PluginErrorContext): Promise<void> {
+    await this.onError(error instanceof Error ? error : new Error(String(error)), context);
+  }
+
+  async dispatchMessage(message: OutboundMessage, options?: { skipHooks?: boolean }): Promise<void> {
+    await this.sendWithHooks(message, options);
+  }
+
+  async runCommands(message: InboundMessage): Promise<{ type: 'reply'; message: InboundMessage } | { type: 'handled' } | null> {
+    const result = await this.executeCommand(message);
+    if (!result) {
+      return null;
+    }
+    if (result.resultType === 'handled') {
+      return { type: 'handled' };
+    }
+    return { type: 'reply', message: result.message };
+  }
+
+  async runMessageInHooks(message: InboundMessage): Promise<InboundMessage | null> {
+    return this.transformIncomingMessage(message);
+  }
 }

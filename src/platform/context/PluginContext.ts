@@ -72,8 +72,8 @@ export interface PluginManager {
   runToolAfterHooks(input: ToolAfterPayload): Promise<{ result: string }>;
   runErrorTaps(error: unknown, context: PluginErrorContext): Promise<void>;
   dispatchMessage(message: OutboundMessage, options?: { skipHooks?: boolean }): Promise<void>;
-  runCommands(message: InboundMessage): Promise<{ type: 'reply'; message: InboundMessage } | { type: 'handled' } | null>;
-  runMessageInHooks(message: InboundMessage): Promise<InboundMessage | null>;
+  executeCommand(message: InboundMessage): Promise<{ resultType: 'modified'; message: InboundMessage } | { resultType: 'handled' } | null>;
+  transformIncomingMessage(message: InboundMessage): Promise<InboundMessage | null>;
 }
 
 /** 插件服务接口 */

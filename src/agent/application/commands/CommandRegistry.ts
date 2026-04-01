@@ -14,7 +14,11 @@ export class CommandRegistry {
   }
 
   async execute(msg: InboundMessage): Promise<InboundMessage | null> {
-    const content = msg.content.trim();
+    const content = msg.content?.trim() ?? '';
+
+    if (!content) {
+      return null;
+    }
 
     for (const cmd of this.commands.values()) {
       const { matched, args } = this.matchCommand(content, cmd.matcher);

@@ -74,8 +74,8 @@ export async function createInfrastructureServices(args: {
         content: message.text,
         timestamp: message.timestamp,
         messageId: message.id,
-        media: message.images.map(img => img.url),
-        files: message.files.map(file => ({
+        media: message.images?.map(img => img.url),
+        files: message.files?.map(file => ({
           name: file.name,
           url: file.url,
           type: file.type as 'audio' | 'video' | 'file' | 'image'
