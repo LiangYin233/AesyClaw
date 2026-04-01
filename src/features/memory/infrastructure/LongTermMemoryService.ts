@@ -139,12 +139,10 @@ export class LongTermMemoryService {
     request: Pick<InboundMessage, 'content'> & Partial<Pick<InboundMessage, 'media' | 'files'>>
   ): Promise<string | null> {
     const query = request.content.trim();
-    const hasMedia = Array.isArray(request.media) && request.media.length > 0;
-    const hasFiles = Array.isArray(request.files) && request.files.length > 0;
+    const _hasMedia = Array.isArray(request.media) && request.media.length > 0;
+    const _hasFiles = Array.isArray(request.files) && request.files.length > 0;
 
     if (!query) {
-      if (hasMedia || hasFiles) {
-      }
       return null;
     }
 
@@ -153,9 +151,6 @@ export class LongTermMemoryService {
         this.missingRetrievalWarned = true;
       }
       return null;
-    }
-
-    if (hasMedia || hasFiles) {
     }
 
     try {

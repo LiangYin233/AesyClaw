@@ -21,8 +21,6 @@ function createOptionalProvider(resolved: ResolvedProviderSelection, _label: str
 
 function createEmbeddingsClient(resolved: ResolvedProviderSelection | undefined): OpenAIEmbeddingsClient | undefined {
   if (!resolved?.providerConfig) {
-    if (resolved?.name) {
-    }
     return undefined;
   }
 
@@ -66,16 +64,6 @@ export function createMemoryRuntime(
     memoryWindow: sessionConfig.memoryWindow,
     contextMode: sessionConfig.contextMode
   };
-
-  if (memoryConfig.facts.enabled && !memoryConfig.facts.maintenance.enabled) {
-  }
-
-  if (
-    memoryConfig.facts.enabled
-    && !memoryConfig.facts.recall.enabled
-    && config.agent.defaults.memoryFacts.retrievalModel
-  ) {
-  }
 
   const longTermMemoryService = memoryConfig.facts.enabled
     ? new LongTermMemoryService(

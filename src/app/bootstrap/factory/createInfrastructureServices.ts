@@ -31,7 +31,7 @@ export async function createInfrastructureServices(args: {
 }): Promise<InfrastructureServices> {
   const {
     configStore,
-    configManager,
+    configManager: _configManager,
     outboundGateway,
     agentRuntime,
     workspace,

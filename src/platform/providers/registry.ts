@@ -70,10 +70,6 @@ function createProviderInstance(type: ProviderType, config: ProviderConfig, _ins
   const apiBase = config.apiBase || spec.defaultApiBase;
   const headers = config.headers;
   const extraBody = config.extraBody;
-  if (headers) {
-  }
-  if (extraBody) {
-  }
 
   return spec.create(apiKey, apiBase, headers, extraBody);
 }

@@ -6,7 +6,7 @@ import { ToolRegistry } from '../../platform/tools/ToolRegistry.js';
 import { LongTermMemoryStore, type MemoryOperationActor, type MemoryOperationInput } from '../../features/memory/infrastructure/LongTermMemoryStore.js';
 import { McpClientManager } from '../../features/mcp/index.js';
 import { syncMcpServerTools } from '../../features/mcp/index.js';
-import { PluginCoordinator, type PluginConfigs } from '../../features/extension/plugin/index.js';
+import { PluginCoordinator } from '../../features/extension/plugin/index.js';
 import { normalizePluginConfigs } from '../../features/extension/plugin/core/types.js';
 import { logger } from '../../platform/observability/index.js';
 import { registerMemoryTools } from '../../platform/tools/builtins/registerMemoryTools.js';

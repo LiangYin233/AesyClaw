@@ -10,7 +10,6 @@
 import type { OutboundMessage, Config } from '../../../types.js';
 import type { ToolRegistry } from '../../../platform/tools/ToolRegistry.js';
 import type { Logger } from '../../../platform/observability/index.js';
-import type { PluginConfigs } from './core/types.js';
 import { normalizePluginConfigs } from './core/types.js';
 import { PluginCoordinator, type CoordinatorDependencies } from './coordinator.js';
 import { PluginAdminService } from './service.js';
