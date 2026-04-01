@@ -214,18 +214,19 @@ export class ChannelRuntime extends EventEmitter {
    * @param message - 消息
    */
   private async handleIncomingMessage(channel: string, message: UnifiedMessage): Promise<void> {
-    // 补充通道信息
-    message.channel = channel;
-    message.direction = 'inbound';
+    const enrichedMessage: UnifiedMessage = {
+      ...message,
+      channel,
+      direction: 'inbound'
+    };
     
-    this.emit('message:received', message);
+    this.emit('message:received', enrichedMessage);
     
-    // 交给 Agent 处理
     if (this.handler) {
       try {
-        await this.handler(message);
+        await this.handler(enrichedMessage);
       } catch (error) {
-        this.emit('handler:error', message, error);
+        this.emit('handler:error', enrichedMessage, error);
       }
     }
   }

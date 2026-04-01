@@ -176,38 +176,172 @@ class OneBotChannelAdapter extends BaseChannelAdapter {
   protected async sendToPlatform(message: UnifiedMessage): Promise<SendResult> {
     try {
       const isGroup = message.chatType === 'group';
+      const targetId = message.chatId;
       
-      const obMessage = await this.buildOneBotMessage(message);
+      // 检查是否有文件需要处理
+      const hasFiles = (message.files && message.files.length > 0);
       
-      const payload: Record<string, unknown> = {
-        message: obMessage
-      };
-
-      if (isGroup) {
-        payload.group_id = message.chatId;
-      } else {
-        payload.user_id = message.chatId;
-      }
-
-      const response = await this.callApi(
-        isGroup ? 'send_group_msg' : 'send_private_msg',
-        payload
-      ) as { message_id: number };
-
-      if (response && typeof response === 'object' && 'message_id' in response) {
+      if (hasFiles) {
+        // 文件需要分开发送
+        let lastMessageId: string | undefined;
+        
+        // 先发送文本和图片
+        const textAndImages = await this.buildOneBotMessage({
+          ...message,
+          files: []
+        });
+        
+        if (textAndImages.length > 0) {
+          lastMessageId = await this.sendOneBotMessage(isGroup, targetId, textAndImages);
+        }
+        
+        // 再发送每个文件
+        for (const file of message.files || []) {
+          const fileMessageId = await this.uploadAndSendFile(isGroup, targetId, file);
+          if (fileMessageId) lastMessageId = fileMessageId;
+        }
+        
         return {
           success: true,
-          messageId: response.message_id.toString()
+          messageId: lastMessageId
         };
       }
-
-      return { success: true };
+      
+      // 无文件，普通发送
+      const obMessage = await this.buildOneBotMessage(message);
+      const messageId = await this.sendOneBotMessage(isGroup, targetId, obMessage);
+      
+      return { success: true, messageId };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      return {
-        success: false,
-        error: errorMessage
-      };
+      return { success: false, error: errorMessage };
+    }
+  }
+  
+  private async sendOneBotMessage(isGroup: boolean, targetId: string, obMessage: (string | OneBotMessageSegment)[]): Promise<string | undefined> {
+    const payload: Record<string, unknown> = {
+      message: obMessage
+    };
+
+    if (isGroup) {
+      payload.group_id = targetId;
+    } else {
+      payload.user_id = targetId;
+    }
+
+    const response = await this.callApi(
+      isGroup ? 'send_group_msg' : 'send_private_msg',
+      payload
+    ) as { message_id: number };
+
+    if (response && typeof response === 'object' && 'message_id' in response) {
+      return response.message_id.toString();
+    }
+    return undefined;
+  }
+  
+  private async uploadAndSendFile(isGroup: boolean, targetId: string, file: { url: string; name?: string; type?: string }): Promise<string | undefined> {
+    try {
+      const fileName = file.name || this.generateFileName(file.url);
+      
+      let fileType = 'file';
+      if (file.type === 'image') fileType = 'image';
+      else if (file.type === 'audio') fileType = 'record';
+      else if (file.type === 'video') fileType = 'video';
+      
+      const fileId = await this.uploadFileStream(file.url, fileName, fileType);
+      
+      if (!fileId) {
+        this.log.error('Stream API 上传失败，无法发送文件');
+        return undefined;
+      }
+      
+      const obMessage = [{ type: fileType, data: { file: fileId } }];
+      return await this.sendOneBotMessage(isGroup, targetId, obMessage);
+    } catch (error) {
+      this.log.error('发送文件失败', { error: error instanceof Error ? error.message : String(error), file: file.url });
+      return undefined;
+    }
+  }
+  
+  private async uploadFileStream(fileUrl: string, fileName: string, fileType: string): Promise<string | undefined> {
+    try {
+      const response = await fetch(fileUrl);
+      if (!response.ok) {
+        throw new Error(`下载文件失败: ${response.status}`);
+      }
+      
+      const fileContent = new Uint8Array(await response.arrayBuffer());
+      this.log.debug('Stream API 开始上传文件', { fileName, fileSize: fileContent.length });
+      
+      const initResponse = await this.callApi('upload_file_stream', {
+        file_name: fileName,
+        file_size: fileContent.length,
+        file_type: this.getOneBotFileType(fileType),
+        stream: true
+      });
+      
+      if (!initResponse || typeof initResponse !== 'object') {
+        this.log.warn('Stream API 初始化失败');
+        return undefined;
+      }
+      
+      const initData = initResponse as { file_id?: string };
+      if (!initData.file_id) {
+        this.log.warn('Stream API 未返回 file_id');
+        return undefined;
+      }
+      
+      this.log.debug('Stream API 初始化成功', { fileId: initData.file_id });
+      
+      const chunkSize = 64 * 1024;
+      let uploadedSize = 0;
+      
+      for (let i = 0; i < fileContent.length; i += chunkSize) {
+        const chunk = fileContent.slice(i, Math.min(i + chunkSize, fileContent.length));
+        const isLast = (i + chunkSize >= fileContent.length);
+        const chunkBase64 = Buffer.from(chunk).toString('base64');
+        
+        await this.callApi('upload_file_stream', {
+          file_id: initData.file_id,
+          file_size: fileContent.length,
+          offset: uploadedSize,
+          data: chunkBase64,
+          is_last: isLast
+        });
+        
+        uploadedSize += chunk.length;
+        
+        if (!isLast) {
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+      }
+      
+      this.log.debug('Stream API 上传完成', { fileId: initData.file_id, totalSize: uploadedSize });
+      return initData.file_id;
+    } catch (error) {
+      this.log.error('Stream API 上传失败', { error: error instanceof Error ? error.message : String(error) });
+      return undefined;
+    }
+  }
+  
+  private getOneBotFileType(fileType: string): number {
+    const typeMap: Record<string, number> = {
+      'image': 1,
+      'record': 2,
+      'video': 4,
+      'file': 6
+    };
+    return typeMap[fileType] || 6;
+  }
+  
+  private generateFileName(url: string): string {
+    try {
+      const parsed = new URL(url);
+      const pathParts = parsed.pathname.split('/');
+      return pathParts[pathParts.length - 1] || 'file';
+    } catch {
+      return 'file';
     }
   }
 

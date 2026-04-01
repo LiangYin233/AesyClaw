@@ -283,7 +283,10 @@ class DiscordAdapter extends BaseChannelAdapter {
       if (!message.author || message.author.bot) return;
 
       if (!this.shouldIgnoreMessage(message)) {
-        void (this as any).context?.reportIncoming(message);
+        const unifiedMessage = await this.parsePlatformEvent(message);
+        if (unifiedMessage) {
+          void (this as any).context?.reportIncoming(unifiedMessage);
+        }
       }
     });
 
