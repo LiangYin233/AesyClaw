@@ -112,7 +112,7 @@ export async function createServices(options: ServiceFactoryOptions): Promise<Se
     workspace,
     tempDir,
     pluginsDir: dirPaths.plugins(),
-    getConfig: () => configStore.getConfig(),
+    getConfig: () => configManager.getConfig(),
     outboundPublisher: async () => {},
     updateConfig: async (mutator: (config: Config) => Config | void) => configManager.update(mutator),
     logger: bootstrapLog

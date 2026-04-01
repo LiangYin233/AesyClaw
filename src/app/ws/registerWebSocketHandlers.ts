@@ -269,6 +269,24 @@ export function registerWebSocketHandlers(args: RegisterWebSocketHandlersArgs): 
     return result;
   });
 
+  server.registerRpc('extensions.list', async () => requireService(pluginsService, 'Plugins service').listPlugins());
+  server.registerRpc('extensions.toggle', async (params) => {
+    const payload = asRecord(params);
+    const name = requiredString(payload, 'name');
+    const result = await requireService(pluginsService, 'Plugins service').togglePlugin(name, { enabled: parseTogglePlugin(payload).enabled });
+    server.publish('extensions.list');
+    server.publish('plugins.list');
+    return result;
+  });
+  server.registerRpc('extensions.updateConfig', async (params) => {
+    const payload = asRecord(params);
+    const name = requiredString(payload, 'name');
+    const result = await requireService(pluginsService, 'Plugins service').updatePluginConfig(name, { settings: parsePluginConfigUpdate(payload).settings });
+    server.publish('extensions.list');
+    server.publish('plugins.list');
+    return result;
+  });
+
   server.registerRpc('cron.list', async () => requireService(cronApiService, 'Cron service').listJobs());
   server.registerRpc('cron.get', (params) => requireService(cronApiService, 'Cron service').getJob(requiredString(params, 'id')));
   server.registerRpc('cron.create', async (params) => {

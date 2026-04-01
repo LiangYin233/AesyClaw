@@ -9,16 +9,28 @@ export class OutboundDispatcherNotConfiguredError extends Error {
 
 export class OutboundGateway {
   private dispatcher?: (message: OutboundMessage) => Promise<void>;
+  private pendingDispatcher: Promise<(message: OutboundMessage) => Promise<void>>;
+  private resolvePending!: (d: (message: OutboundMessage) => Promise<void>) => void;
+
+  constructor() {
+    this.pendingDispatcher = new Promise((resolve) => {
+      this.resolvePending = resolve;
+    });
+  }
 
   setDispatcher(dispatcher: (message: OutboundMessage) => Promise<void>): void {
     this.dispatcher = dispatcher;
+    this.resolvePending(dispatcher);
   }
 
   async send(message: OutboundMessage): Promise<void> {
     if (!this.dispatcher) {
-      throw new OutboundDispatcherNotConfiguredError();
+      this.dispatcher = await this.pendingDispatcher;
     }
-
-    await this.dispatcher(message);
+    try {
+      await this.dispatcher(message);
+    } catch (error) {
+      console.error('消息发送失败', { error, messageId: message.id });
+    }
   }
 }
