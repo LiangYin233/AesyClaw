@@ -157,9 +157,6 @@ export interface PluginManifest {
   /** 默认设置 */
   defaultSettings?: PluginSettings;
   
-  /** 声明的工具数量（用于UI展示） */
-  advertisedToolCount?: number;
-  
   /** 初始化函数（插件入口） */
   setup(api: PluginAPI): Promise<void | CleanupFunction> | void | CleanupFunction;
 }
@@ -189,7 +186,7 @@ export interface RunningPlugin {
 /** 插件配置状态 */
 export interface PluginConfigEntry {
   enabled?: boolean;
-  options?: PluginSettings;
+  settings?: PluginSettings;
 }
 
 /** 插件配置集合 */
@@ -210,7 +207,7 @@ export interface PluginMetadata {
 
 // ========== 配置转换函数 ==========
 
-type RawPluginConfigEntry = { enabled?: boolean; options?: Record<string, unknown> } | { isEnabled?: boolean; settings?: Record<string, unknown> } | unknown;
+type RawPluginConfigEntry = { enabled?: boolean; settings?: Record<string, unknown> } | unknown;
 
 export function normalizePluginConfigs(rawConfigs: Record<string, RawPluginConfigEntry> | undefined): PluginConfigs {
   if (!rawConfigs) {
@@ -225,12 +222,12 @@ export function normalizePluginConfigs(rawConfigs: Record<string, RawPluginConfi
     }
 
     const e = entry as Record<string, unknown>;
-    const enabled = (e.enabled as boolean | undefined) ?? (e.isEnabled as boolean | undefined);
-    const options = (e.options ?? e.settings) as Record<string, unknown> | undefined;
+    const enabled = e.enabled as boolean | undefined;
+    const settings = e.settings as Record<string, unknown> | undefined;
 
     result[name] = {
       enabled,
-      options: options ? { ...options } : undefined
+      settings: settings ? { ...settings } : undefined
     };
   }
 

@@ -74,17 +74,17 @@ export default {
   version: '1.0.0',
   author: 'aesyclaw_official',
   description: '将 Markdown 自动转换为图片',
-  toolsCount: 0,
   defaultEnabled: false,
   defaultSettings: {
     minLength: 50,
     scale: 1.0,
     excludedChannels: []
   },
-  setup(ctx) {
-    // 获取配置的工具函数，每次调用都会读取最新配置
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setup(ctx: any) {
+    // 获取配置的工具函数
     const getConfig = (): Md2ImgOptions => {
-      const opts = ctx.getOptions();
+      const opts = ctx.settings;
       return {
         minLength: opts.minLength ?? 50,
         scale: Math.max(0.5, Math.min(3.0, opts.scale ?? 1.0)),
@@ -107,7 +107,8 @@ export default {
       name: 'md2img_text',
       description: '发送当前会话上一轮实际进入 md2img 转图的原始文本',
       matcher: { type: 'exact', value: '/text' },
-      execute: async (message) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      execute: async (message: any) => {
         const state = getRoundSources(message.channel, message.chatId);
         const sources = [...state.currentRoundSources];
 
@@ -132,14 +133,16 @@ export default {
       }
     });
 
-    ctx.hooks.incomingMessage.transform((message) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ctx.hooks.incomingMessage.transform((message: any) => {
       const state = getRoundSources(message.channel, message.chatId);
       state.lastCompletedRoundSources = [...state.currentRoundSources];
       state.currentRoundSources = [];
       return message;
     });
 
-    ctx.hooks.outgoingMessage.transform(async (message) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ctx.hooks.outgoingMessage.transform(async (message: any) => {
       const config = getConfig();
 
       // 检查 channel 是否在排除列表中

@@ -40,13 +40,12 @@ export interface PluginErrorPayload {
   context: PluginErrorContext;
 }
 
-/** 插件选项（旧版兼容） */
+/** 插件选项 */
 export type PluginOptions = Record<string, any>;
 
-/** 插件默认配置（旧版兼容） */
+/** 插件默认配置 */
 export interface PluginDefaultConfig<TOptions extends PluginOptions = PluginOptions> {
-  enabled?: boolean;
-  options?: TOptions;
+  settings?: TOptions;
 }
 
 /** 插件信息（对外展示） */
@@ -56,8 +55,9 @@ export interface PluginInfo {
   description?: string;
   author?: string;
   enabled: boolean;
-  settings?: PluginSettings;
-  defaultSettings?: PluginDefaultConfig;
+  settings?: Record<string, unknown>;
+  defaultSettings?: Record<string, unknown>;
+  defaultEnabled?: boolean;
   toolCount: number;
   kind?: 'plugin' | 'channel';
   channelName?: string;

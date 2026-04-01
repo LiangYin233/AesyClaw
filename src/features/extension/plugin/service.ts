@@ -78,7 +78,7 @@ export class PluginAdminService {
       ...currentConfigs,
       [name]: {
         enabled: request.enabled,
-        options: currentConfigs[name]?.options ?? plugin.settings
+        settings: currentConfigs[name]?.settings ?? plugin.settings
       }
     };
     this.coordinator.setConfigs(newConfigs);
@@ -98,7 +98,7 @@ export class PluginAdminService {
         }
         draft.plugins[name] = {
           enabled: request.enabled,
-          options: currentConfigs[name]?.options ?? plugin.settings
+          settings: currentConfigs[name]?.settings ?? plugin.settings
         };
       });
     }
@@ -110,8 +110,8 @@ export class PluginAdminService {
    * 更新插件配置
    * 
    * 配置逻辑：
-   * - 配置缺失 → 补全（使用默认值或请求中的值）
-   * - 配置存在 → 忽略（不更新）
+   * - 配置缺失 → 补全（使用请求中的值）
+   * - 配置存在 → 合并更新
    * 
    * @throws ResourceNotFoundError 如果插件不存在
    */
@@ -125,30 +125,26 @@ export class PluginAdminService {
     const currentConfigs = this.coordinator.getConfigs();
     const existingConfig = currentConfigs[name];
 
-    // 配置已存在，忽略更新
-    if (existingConfig) {
-      return { success: true };
-    }
-
-    // 配置缺失，补全默认值
     const newConfig: PluginConfigs = {
       ...currentConfigs,
       [name]: {
-        enabled: request.enabled ?? plugin.defaultEnabled ?? false,
-        options: request.settings
+        enabled: existingConfig?.enabled ?? request.enabled ?? plugin.defaultEnabled ?? false,
+        settings: {
+          ...existingConfig?.settings,
+          ...request.settings
+        }
       }
     };
     this.coordinator.setConfigs(newConfig);
 
-    // 持久化配置到文件
     if (this.updateConfig) {
       await this.updateConfig((draft) => {
         if (!draft.plugins) {
           draft.plugins = {};
         }
         draft.plugins[name] = {
-          enabled: request.enabled ?? plugin.defaultEnabled ?? false,
-          options: request.settings
+          enabled: newConfig[name].enabled,
+          settings: newConfig[name].settings
         };
       });
     }

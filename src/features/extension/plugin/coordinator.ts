@@ -124,9 +124,9 @@ export class PluginCoordinator {
       
       if (shouldEnable) {
         if (isRunning) {
-          await this.reload(found.name, config.options ?? {});
+          await this.reload(found.name, config.settings ?? {});
         } else {
-          await this.enable(found.name, config.options);
+          await this.enable(found.name, config.settings);
         }
       } else if (isRunning) {
         await this.disable(found.name);
@@ -137,8 +137,7 @@ export class PluginCoordinator {
   /**
    * 启用单个插件
    */
-  async enable(name: string, settings?: PluginSettings): Promise<void> {
-    // 已启用则跳过
+  async enable(name: string, options?: PluginSettings): Promise<void> {
     if (this.plugins.has(name)) {
       return;
     }
@@ -148,10 +147,9 @@ export class PluginCoordinator {
       throw new Error(`插件未找到: ${name}`);
     }
 
-    // 合并默认设置和用户设置
     const mergedSettings: PluginSettings = {
       ...found.manifest.defaultSettings,
-      ...settings
+      ...options
     };
 
     // 启动插件
@@ -199,18 +197,17 @@ export class PluginCoordinator {
   /**
    * 重新加载插件（配置变更后）
    */
-  async reload(name: string, settings: PluginSettings): Promise<void> {
+  async reload(name: string, options: PluginSettings): Promise<void> {
     const plugin = this.plugins.get(name);
     if (!plugin) {
       throw new Error(`插件未运行: ${name}`);
     }
 
-    // 保存当前状态以便回滚
     const previousSettings = { ...plugin.settings };
 
     try {
       await this.disable(name);
-      await this.enable(name, settings);
+      await this.enable(name, options);
     } catch (error) {
       this.logger.warn(`插件重载失败，回滚到之前状态`, { plugin: name, error: error instanceof Error ? error.message : String(error) });
       try {
@@ -392,10 +389,10 @@ export class PluginCoordinator {
         description: found.manifest.description,
         author: found.manifest.author,
         enabled: running !== undefined,
-        settings: config?.options ?? found.manifest.defaultSettings,
+        settings: config?.settings ?? found.manifest.defaultSettings,
         defaultSettings: found.manifest.defaultSettings,
         defaultEnabled: found.manifest.defaultEnabled,
-        toolCount: running?.tools.length ?? found.manifest.advertisedToolCount ?? 0
+        toolCount: running?.tools.length ?? 0
       };
     });
   }

@@ -207,12 +207,10 @@ export interface PluginInfo {
   description?: string;
   author?: string;
   enabled: boolean;
-  options?: Record<string, unknown>;
-  defaultConfig?: {
-    enabled?: boolean;
-    options?: Record<string, unknown>;
-  };
-  toolsCount: number;
+  settings?: Record<string, unknown>;
+  defaultSettings?: Record<string, unknown>;
+  defaultEnabled?: boolean;
+  toolCount: number;
   kind?: 'plugin' | 'channel';
   channelName?: string;
   running?: boolean;

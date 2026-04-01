@@ -35,14 +35,14 @@ export function usePluginsState(token: string | null) {
   const selectedPlugin = computed(() => plugins.value.find((plugin) => plugin.name === selectedName.value) || plugins.value[0] || null);
   const enabledCount = computed(() => plugins.value.filter((plugin) => plugin.enabled).length);
   const disabledCount = computed(() => plugins.value.filter((plugin) => !plugin.enabled).length);
-  const totalTools = computed(() => plugins.value.reduce((sum, plugin) => sum + plugin.toolsCount, 0));
+  const totalTools = computed(() => plugins.value.reduce((sum, plugin) => sum + plugin.toolCount, 0));
 
   function selectPlugin(name: string) {
     selectedName.value = name;
   }
 
   function syncDraft(plugin: PluginInfo | null) {
-    optionsDraft.value = JSON.stringify(plugin?.options || {}, null, 2);
+    optionsDraft.value = JSON.stringify(plugin?.settings || {}, null, 2);
     jsonError.value = '';
   }
 
@@ -64,11 +64,11 @@ export function usePluginsState(token: string | null) {
 
     try {
       jsonError.value = '';
-      const options = parseJsonObject(optionsDraft.value, '插件配置');
+      const settings = parseJsonObject(optionsDraft.value, '插件配置');
       saving.value = true;
       const result = await rpcCall<{ success: true }>('plugins.updateConfig', token, {
         name: selectedPlugin.value.name,
-        options
+        settings
       });
       saving.value = false;
 

@@ -105,7 +105,6 @@ export async function setupPlugins(deps: RuntimeDependencies): Promise<PluginSys
           for (const found of discovered) {
             const existingPlugin = config.plugins?.[found.name];
             
-            // 添加 enabled（如果不存在）
             if (existingPlugin?.enabled === undefined) {
               defaultItems.push({
                 path: ['plugins', found.name, 'enabled'],
@@ -113,13 +112,12 @@ export async function setupPlugins(deps: RuntimeDependencies): Promise<PluginSys
               });
             }
             
-            // 添加 options 中的默认值（只补全不覆盖）
             if (found.manifest.defaultSettings) {
               for (const [key, value] of Object.entries(found.manifest.defaultSettings)) {
-                const existingValue = existingPlugin?.options?.[key];
+                const existingValue = existingPlugin?.settings?.[key];
                 if (existingValue === undefined) {
                   defaultItems.push({
-                    path: ['plugins', found.name, 'options', key],
+                    path: ['plugins', found.name, 'settings', key],
                     defaultValue: value
                   });
                 }

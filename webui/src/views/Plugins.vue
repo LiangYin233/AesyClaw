@@ -68,7 +68,7 @@
                   <div class="mt-4 flex flex-wrap gap-6">
                     <div>
                       <p class="text-[10px] font-bold tracking-[0.08em] text-outline">工具数</p>
-                      <p class="tech-text mt-1 text-xs text-on-surface">{{ plugin.toolsCount }}</p>
+                      <p class="tech-text mt-1 text-xs text-on-surface">{{ plugin.toolCount }}</p>
                     </div>
                     <div>
                       <p class="text-[10px] font-bold tracking-[0.08em] text-outline">作者</p>
@@ -76,7 +76,7 @@
                     </div>
                     <div>
                       <p class="text-[10px] font-bold tracking-[0.08em] text-outline">配置键</p>
-                      <p class="tech-text mt-1 text-xs text-on-surface">{{ Object.keys(plugin.options || {}).length }}</p>
+                      <p class="tech-text mt-1 text-xs text-on-surface">{{ Object.keys(plugin.settings || {}).length }}</p>
                     </div>
                   </div>
                 </div>
@@ -111,7 +111,7 @@
                   <p class="mt-3 text-sm leading-6 text-on-surface-variant">
                     {{ selectedPlugin.kind === 'channel'
                       ? `这个渠道插件目前连接到 ${selectedPlugin.channelName || 'unknown'}，运行状态为 ${selectedPlugin.running ? '已启动' : '未启动'}。`
-                      : `该插件当前接入 ${selectedPlugin.toolsCount} 个工具，并可通过配置项参与消息链路与扩展动作。` }}
+                      : `该插件当前接入 ${selectedPlugin.toolCount} 个工具，并可通过配置项参与消息链路与扩展动作。` }}
                   </p>
 
                 </div>
@@ -123,7 +123,7 @@
                       <span class="rounded-lg bg-surface-container-lowest px-3 py-1.5 text-[11px] font-semibold text-on-surface">{{ selectedPlugin.enabled ? '运行中' : '已停用' }}</span>
                       <span class="rounded-lg bg-surface-container-lowest px-3 py-1.5 text-[11px] font-semibold text-on-surface">{{ selectedPlugin.version }}</span>
                       <span v-if="selectedPlugin.kind === 'channel'" class="rounded-lg bg-surface-container-lowest px-3 py-1.5 text-[11px] font-semibold text-on-surface">{{ selectedPlugin.channelName }}</span>
-                      <span class="rounded-lg bg-surface-container-lowest px-3 py-1.5 text-[11px] font-semibold text-on-surface">{{ selectedPlugin.toolsCount }} 个工具</span>
+                      <span class="rounded-lg bg-surface-container-lowest px-3 py-1.5 text-[11px] font-semibold text-on-surface">{{ selectedPlugin.toolCount }} 个工具</span>
                     </div>
                   </div>
 
@@ -147,7 +147,7 @@
                     <div class="mt-3 space-y-2">
                       <p class="tech-text break-anywhere text-[11px] text-slate-300">author = {{ selectedPlugin.author || 'unknown' }}</p>
                       <p class="tech-text text-[11px] text-slate-300">enabled = {{ String(selectedPlugin.enabled) }}</p>
-                      <p class="tech-text text-[11px] text-slate-300">options_keys = {{ Object.keys(selectedPlugin.options || {}).length }}</p>
+                      <p class="tech-text text-[11px] text-slate-300">settings_keys = {{ Object.keys(selectedPlugin.settings || {}).length }}</p>
                     </div>
                   </div>
                 </div>

@@ -218,7 +218,6 @@ export default {
   version: '1.0.0',
   author: 'aesyclaw_official',
   description: '转写语音为文本。',
-  toolsCount: 1,
   defaultEnabled: false,
   defaultSettings: {
     provider: 'openai',
@@ -226,10 +225,11 @@ export default {
     downloadTimeout: 30000,
     transcriptionTimeout: 60000
   },
-  async setup(ctx) {
-    // 获取配置的工具函数，每次调用都会读取最新配置
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async setup(ctx: any) {
+    // 获取配置的工具函数
     const getConfig = (): SpeechRuntimeConfig => {
-      const opts = ctx.getOptions();
+      const opts = ctx.settings;
       const providerName = opts.provider || 'openai';
       const providerConfig = ctx.config.providers?.[providerName];
       return {
@@ -275,7 +275,8 @@ export default {
       }
     });
 
-    ctx.hooks.incomingMessage.transform(async (message) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ctx.hooks.incomingMessage.transform(async (message: any) => {
       try {
         const config = getConfig();
         const source = findAudioSource(message);

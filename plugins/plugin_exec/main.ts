@@ -9,7 +9,6 @@ export default {
   version: '1.0.0',
   author: 'aesyclaw_official',
   description: '执行 Python 或 Shell。',
-  toolsCount: 2,
   defaultConfig: {
     enabled: false,
     options: {
@@ -21,15 +20,16 @@ export default {
       shell: {}
     }
   },
-  setup(ctx) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setup(ctx: any) {
     const log = ctx.logger.child('exec');
-    // 获取配置的工具函数，每次调用都会读取最新配置
+    // 获取配置的工具函数
     const getPythonOptions = () => {
-      const opts = ctx.getOptions();
+      const opts = ctx.settings;
       return loadConfig(opts).python;
     };
     const getShellOptions = () => {
-      const opts = ctx.getOptions();
+      const opts = ctx.settings;
       return loadConfig(opts).shell;
     };
     const pythonRunner = new PythonRunner(getPythonOptions, log);

@@ -39,7 +39,7 @@ const channelConfigSchema = z.record(z.string(), z.unknown());
 
 const pluginConfigSchema = z.object({
   enabled: z.boolean().optional(),
-  options: z.record(z.string(), z.unknown()).optional()
+  settings: z.record(z.string(), z.unknown()).optional()
 }).catchall(z.unknown());
 
 const skillConfigSchema = z.object({

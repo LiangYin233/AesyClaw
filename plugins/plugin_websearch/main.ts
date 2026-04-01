@@ -45,17 +45,17 @@ export default {
   version: '1.0.0',
   author: 'aesyclaw_official',
   description: '使用 Tavily 进行网页搜索',
-  toolsCount: 2,
   defaultEnabled: false,
   defaultSettings: {
     apiKey: '',
     maxResults: 5,
     searchDepth: 'basic'
   },
-  setup(ctx) {
-    // 获取配置的工具函数，每次调用都会读取最新配置
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setup(ctx: any) {
+    // 获取配置的工具函数
     const getConfig = (): WebsearchOptions => {
-      const opts = ctx.getOptions();
+      const opts = ctx.settings;
       return {
         apiKey: opts.apiKey || process.env.TAVILY_API_KEY || '',
         maxResults: opts.maxResults || 5,

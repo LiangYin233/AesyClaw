@@ -29,11 +29,11 @@ export function parsePluginConfigUpdate(body: unknown): { settings: Record<strin
     throw new Error('请求体必须是对象');
   }
 
-  const { options } = body as Record<string, unknown>;
+  const { settings } = body as Record<string, unknown>;
 
-  if (!options || typeof options !== 'object' || Array.isArray(options)) {
-    throw new Error('options 必须是对象');
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+    throw new Error('settings 必须是对象');
   }
 
-  return { settings: options as Record<string, unknown> };
+  return { settings: settings as Record<string, unknown> };
 }
