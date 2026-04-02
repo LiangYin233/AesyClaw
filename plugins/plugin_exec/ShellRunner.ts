@@ -39,10 +39,16 @@ export class ShellRunner {
     const config = this.getConfig();
     const isWindows = process.platform === 'win32';
     const shell = isWindows ? 'powershell.exe' : '/bin/sh';
-    const encodedCommand = isWindows
-      ? `$OutputEncoding = [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ${command}`
-      : command;
-    const shellArgs = isWindows ? ['-NoProfile', '-Command', encodedCommand] : ['-c', command];
+    
+    let shellArgs: string[];
+    if (isWindows) {
+      const cmd = `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ${command}`;
+      shellArgs = ['-NoProfile', '-Command', '-', '-EncodedCommand'];
+      const encodedCommand = Buffer.from(cmd, 'utf16le').toString('base64');
+      shellArgs = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encodedCommand];
+    } else {
+      shellArgs = ['-c', command];
+    }
 
     return new Promise((resolve) => {
       let stdout = '';
@@ -56,12 +62,7 @@ export class ShellRunner {
       const proc = spawn(shell, shellArgs, {
         cwd,
         shell: false,
-        windowsHide: true,
-        env: {
-          ...process.env,
-          LANG: 'en_US.UTF-8',
-          LC_ALL: 'en_US.UTF-8'
-        }
+        windowsHide: true
       });
 
       const finish = (value: string) => {

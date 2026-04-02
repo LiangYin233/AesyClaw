@@ -147,8 +147,63 @@ class OneBotChannelAdapter extends BaseChannelAdapter {
       : event.message;
 
     const images = this.extractImagesFromEvent(event.message);
-    const files = this.extractFilesFromEvent(event.message);
+    const files = await this.extractFilesFromEvent(event.message, event);
     const mentions = this.extractMentionIds(event.message);
+    
+    let replyTo: string | undefined;
+    let replyToText: string | undefined;
+    let replyImages: ImageAttachment[] = [];
+    let replyFiles: FileAttachment[] = [];
+    
+    if (Array.isArray(event.message)) {
+      const replySeg = event.message.find(seg => seg.type === 'reply');
+      if (replySeg) {
+        const replyData = replySeg.data as { id?: number | string; text?: string;qq?: string | number};
+        if (replyData?.id) {
+          const replyId = typeof replyData.id === 'number' ? replyData.id.toString() : replyData.id.toString();
+          replyTo = `onebot_${replyId}`;
+          replyToText = replyData.text as string | undefined;
+          
+          try {
+            this.log.debug('获取引用消息', { replyId });
+            const msgResult = await this.callApi('get_msg', { message_id: parseInt(replyId, 10) }) as Record<string, unknown>;
+            this.log.debug('引用消息响应', { result: JSON.stringify(msgResult).substring(0, 500) });
+            
+            const message = msgResult['message'];
+            
+            if (Array.isArray(message)) {
+              const originalImages = this.extractImagesFromEvent(message);
+              const originalFiles = await this.extractFilesFromEvent(message, msgResult as unknown as OneBotEvent);
+              const originalText = this.parseMessageChain(message);
+              
+              if (!replyToText && originalText) {
+                replyToText = originalText;
+              }
+              if (originalImages.length > 0) {
+                replyImages = originalImages;
+                this.log.debug('引用消息有图片', { count: originalImages.length });
+              }
+              if (originalFiles.length > 0) {
+                replyFiles = originalFiles;
+                this.log.debug('引用消息有文件', { count: originalFiles.length });
+              }
+            } else if (!replyToText && typeof message === 'string') {
+              replyToText = message;
+            } else if (!replyToText && msgResult['raw_message']) {
+              replyToText = msgResult['raw_message'] as string;
+            } else {
+              this.log.debug('引用消息未获取到内容', { replyId });
+            }
+          } catch (error) {
+            this.log.warn('获取引用消息失败', { error: error instanceof Error ? error.message : String(error) });
+          }
+        }
+      }
+    }
+
+    if (Array.isArray(event.message) && event.message.length === 0) {
+      return null;
+    }
 
     return createInboundMessage({
       id: this.generateMessageId(event.message_id),
@@ -163,6 +218,10 @@ class OneBotChannelAdapter extends BaseChannelAdapter {
       files,
       timestamp: new Date(event.time * 1000),
       raw: event,
+      replyTo,
+      replyToText,
+      replyImages,
+      replyFiles,
       metadata: {
         mentions,
         subType: event.sub_type,
@@ -178,24 +237,26 @@ class OneBotChannelAdapter extends BaseChannelAdapter {
       const isGroup = message.chatType === 'group';
       const targetId = message.chatId;
       
-      // 检查是否有文件需要处理
+      const hasImages = (message.images && message.images.length > 0);
       const hasFiles = (message.files && message.files.length > 0);
       
-      if (hasFiles) {
-        // 文件需要分开发送
+      if (hasImages || hasFiles) {
         let lastMessageId: string | undefined;
         
-        // 先发送文本和图片
-        const textAndImages = await this.buildOneBotMessage({
-          ...message,
-          files: []
-        });
-        
-        if (textAndImages.length > 0) {
-          lastMessageId = await this.sendOneBotMessage(isGroup, targetId, textAndImages);
+        if (message.text) {
+          const textSeg = [{ type: 'text' as const, data: { text: message.text } }];
+          lastMessageId = await this.sendOneBotMessage(isGroup, targetId, textSeg);
         }
         
-        // 再发送每个文件
+        for (const image of message.images || []) {
+          const filePath = await this.uploadFileStream(image.url, image.name || 'image.png');
+          if (filePath) {
+            const seg = [{ type: 'image' as const, data: { file: filePath } }];
+            const msgId = await this.sendOneBotMessage(isGroup, targetId, seg);
+            if (msgId) lastMessageId = msgId;
+          }
+        }
+        
         for (const file of message.files || []) {
           const fileMessageId = await this.uploadAndSendFile(isGroup, targetId, file);
           if (fileMessageId) lastMessageId = fileMessageId;
@@ -207,7 +268,6 @@ class OneBotChannelAdapter extends BaseChannelAdapter {
         };
       }
       
-      // 无文件，普通发送
       const obMessage = await this.buildOneBotMessage(message);
       const messageId = await this.sendOneBotMessage(isGroup, targetId, obMessage);
       
@@ -246,17 +306,17 @@ class OneBotChannelAdapter extends BaseChannelAdapter {
       
       let fileType = 'file';
       if (file.type === 'image') fileType = 'image';
-      else if (file.type === 'audio') fileType = 'record';
+      else if (file.type === 'audio') fileType = 'audio';
       else if (file.type === 'video') fileType = 'video';
       
-      const fileId = await this.uploadFileStream(file.url, fileName, fileType);
+      const filePath = await this.uploadFileStream(file.url, fileName);
       
-      if (!fileId) {
+      if (!filePath) {
         this.log.error('Stream API 上传失败，无法发送文件');
         return undefined;
       }
       
-      const obMessage = [{ type: fileType, data: { file: fileId } }];
+      const obMessage = [{ type: fileType, data: { file: filePath } }];
       return await this.sendOneBotMessage(isGroup, targetId, obMessage);
     } catch (error) {
       this.log.error('发送文件失败', { error: error instanceof Error ? error.message : String(error), file: file.url });
@@ -264,75 +324,113 @@ class OneBotChannelAdapter extends BaseChannelAdapter {
     }
   }
   
-  private async uploadFileStream(fileUrl: string, fileName: string, fileType: string): Promise<string | undefined> {
+  private generateStreamId(): string {
+    return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+  }
+  
+  private async calculateSha256(data: Uint8Array): Promise<string> {
+    const buffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  
+  private async readFileContent(filePath: string): Promise<Uint8Array> {
     try {
-      const response = await fetch(fileUrl);
-      if (!response.ok) {
-        throw new Error(`下载文件失败: ${response.status}`);
+      const response = await fetch(filePath);
+      if (response.ok) {
+        return new Uint8Array(await response.arrayBuffer());
+      }
+    } catch {
+    }
+    
+    const { readFile } = await import('fs/promises');
+    const buffer = await readFile(filePath);
+    return new Uint8Array(buffer);
+  }
+  
+  private async uploadFileStream(fileUrl: string, fileName: string): Promise<string | undefined> {
+    try {
+      let fileContent: Uint8Array;
+      
+      if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
+        const response = await fetch(fileUrl);
+        if (!response.ok) {
+          throw new Error(`下载文件失败: ${response.status}`);
+        }
+        fileContent = new Uint8Array(await response.arrayBuffer());
+      } else {
+        fileContent = await this.readFileContent(fileUrl);
       }
       
-      const fileContent = new Uint8Array(await response.arrayBuffer());
-      this.log.debug('Stream API 开始上传文件', { fileName, fileSize: fileContent.length });
+      const fileSize = fileContent.length;
+      const sha256Hash = await this.calculateSha256(fileContent);
       
-      const initResponse = await this.callApi('upload_file_stream', {
-        file_name: fileName,
-        file_size: fileContent.length,
-        file_type: this.getOneBotFileType(fileType),
-        stream: true
+      const justFileName = fileName.split(/[/\\]/).pop() || fileName;
+      this.log.debug('Stream API 开始上传文件', { fileName: justFileName, fileSize, sha256: sha256Hash.substring(0, 16) + '...' });
+      
+      const streamId = this.generateStreamId();
+      const chunkSize = 64 * 1024;
+      const totalChunks = Math.ceil(fileSize / chunkSize);
+      
+      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+        const start = chunkIndex * chunkSize;
+        const end = Math.min(start + chunkSize, fileSize);
+        const chunkData = fileContent.slice(start, end);
+        const chunkBase64 = Buffer.from(chunkData).toString('base64');
+        
+        const params = {
+          stream_id: streamId,
+          chunk_data: chunkBase64,
+          chunk_index: chunkIndex,
+          total_chunks: totalChunks,
+          file_size: fileSize,
+          expected_sha256: sha256Hash,
+          filename: justFileName,
+          file_retention: 30 * 1000
+        };
+        
+        const result = await this.callApi('upload_file_stream', params);
+        
+        if (!result || typeof result !== 'object') {
+          throw new Error('Stream API 响应无效');
+        }
+        
+        const data = result as { status?: string; data?: { received_chunks?: number; total_chunks?: number } };
+        this.log.debug(`分片 ${chunkIndex + 1}/${totalChunks} 上传成功`);
+      }
+      
+      const completeResult = await this.callApi('upload_file_stream', {
+        stream_id: streamId,
+        is_complete: true
       });
       
-      if (!initResponse || typeof initResponse !== 'object') {
-        this.log.warn('Stream API 初始化失败');
-        return undefined;
+      if (!completeResult || typeof completeResult !== 'object') {
+        throw new Error('文件合并响应无效');
       }
       
-      const initData = initResponse as { file_id?: string };
-      if (!initData.file_id) {
-        this.log.warn('Stream API 未返回 file_id');
-        return undefined;
+      const responseData = completeResult as {
+        data?: Record<string, unknown>;
+        file_path?: string;
+      };
+      
+      const filePath = responseData.file_path 
+        || (responseData.data as { file_path?: string })?.file_path
+        || (responseData.data as { file_path_1?: string })?.file_path_1
+        || (responseData.data as { file_path_2?: string })?.file_path_2
+        || (responseData.data as { temp_file?: string })?.temp_file
+        || (responseData.data as { local_file?: string })?.local_file;
+      
+      if (filePath) {
+        return filePath;
       }
       
-      this.log.debug('Stream API 初始化成功', { fileId: initData.file_id });
-      
-      const chunkSize = 64 * 1024;
-      let uploadedSize = 0;
-      
-      for (let i = 0; i < fileContent.length; i += chunkSize) {
-        const chunk = fileContent.slice(i, Math.min(i + chunkSize, fileContent.length));
-        const isLast = (i + chunkSize >= fileContent.length);
-        const chunkBase64 = Buffer.from(chunk).toString('base64');
-        
-        await this.callApi('upload_file_stream', {
-          file_id: initData.file_id,
-          file_size: fileContent.length,
-          offset: uploadedSize,
-          data: chunkBase64,
-          is_last: isLast
-        });
-        
-        uploadedSize += chunk.length;
-        
-        if (!isLast) {
-          await new Promise(resolve => setTimeout(resolve, 10));
-        }
-      }
-      
-      this.log.debug('Stream API 上传完成', { fileId: initData.file_id, totalSize: uploadedSize });
-      return initData.file_id;
+      this.log.warn('文件上传完成但未返回路径');
+      return undefined;
     } catch (error) {
       this.log.error('Stream API 上传失败', { error: error instanceof Error ? error.message : String(error) });
       return undefined;
     }
-  }
-  
-  private getOneBotFileType(fileType: string): number {
-    const typeMap: Record<string, number> = {
-      'image': 1,
-      'record': 2,
-      'video': 4,
-      'file': 6
-    };
-    return typeMap[fileType] || 6;
   }
   
   private generateFileName(url: string): string {
@@ -434,6 +532,7 @@ class OneBotChannelAdapter extends BaseChannelAdapter {
       this.pendingRequests.set(echo, {
         resolve: (value) => {
           clearTimeout(timeout);
+          this.log.debug('OneBot API 响应', { action, echo, response: JSON.stringify(value).substring(0, 500) });
           resolve(value);
         },
         reject: (error) => {
@@ -502,7 +601,7 @@ class OneBotChannelAdapter extends BaseChannelAdapter {
     return images;
   }
 
-  private extractFilesFromEvent(message: string | OneBotMessageSegment[]): FileAttachment[] {
+  private async extractFilesFromEvent(message: string | OneBotMessageSegment[], event: OneBotEvent): Promise<FileAttachment[]> {
     const files: FileAttachment[] = [];
     
     if (!Array.isArray(message)) return files;
@@ -510,23 +609,86 @@ class OneBotChannelAdapter extends BaseChannelAdapter {
     for (const seg of message) {
       if (seg.type === 'record' || seg.type === 'video' || seg.type === 'file') {
         const data = seg.data as Record<string, unknown>;
-        const file = typeof data.file === 'string' ? data.file : String(data.file || '');
-        const name = typeof data.name === 'string' ? data.name : file.split('/').pop() || 'file';
+        const fileId = typeof data.file_id === 'string' ? data.file_id : '';
+        const fileUrl = typeof data.file === 'string' ? data.file : '';
+        const name = typeof data.name === 'string' ? data.name : fileUrl.split('/').pop() || fileId.split('/').pop() || 'file';
         
         let type: 'file' | 'audio' | 'video' = 'file';
         if (seg.type === 'record') type = 'audio';
         else if (seg.type === 'video') type = 'video';
         
+        let url = fileUrl;
+        
+        if (fileId) {
+          try {
+            url = await this.downloadFile(fileId, name, event);
+          } catch (error) {
+            this.log.warn('下载文件失败，使用原始 URL', { fileId, error: error instanceof Error ? error.message : String(error) });
+          }
+        }
+        
         files.push({
           id: `file_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
           type,
           name,
-          url: file
+          url
         });
       }
     }
     
     return files;
+  }
+  
+  private async downloadFile(fileId: string, fileName: string, event: OneBotEvent): Promise<string> {
+    const isGroup = event.message_type === 'group';
+    
+    this.log.debug('获取文件直链', { fileId, fileName, isGroup });
+    
+    const urlParams: Record<string, unknown> = { file_id: fileId };
+    if (isGroup && event.group_id) {
+      urlParams.group_id = event.group_id;
+    }
+    
+    const action = isGroup ? 'get_group_file_url' : 'get_private_file_url';
+    const urlResult = await this.callApi(action, urlParams);
+    
+    this.log.debug('直链响应原始', { fileId, result: JSON.stringify(urlResult) });
+    
+    let fileUrl: string | undefined;
+    if (urlResult && typeof urlResult === 'object') {
+      const result = urlResult as Record<string, unknown>;
+      fileUrl = result.url as string | undefined;
+    }
+    
+    if (fileUrl) {
+      this.log.debug('获取到直链，下载文件', { fileId, urlLength: fileUrl.length });
+      
+      const response = await fetch(fileUrl);
+      if (!response.ok) {
+        throw new Error(`下载失败: ${response.status}`);
+      }
+      
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const filePath = await this.saveToChannelAssets(fileName, buffer);
+      this.log.debug('文件已下载 (HTTP)', { fileId, filePath, size: buffer.length });
+      return filePath;
+    }
+    
+    throw new Error('获取文件直链失败');
+  }
+  
+  private async saveToChannelAssets(fileName: string, buffer: Buffer): Promise<string> {
+    const { join } = await import('path');
+    const { writeFile, mkdir, access, constants } = await import('fs/promises');
+    
+    const assetsDir = join(process.cwd(), '.aesyclaw', 'channel-assets', 'onebot');
+    await mkdir(assetsDir, { recursive: true });
+    
+    const uniqueName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}_${fileName}`;
+    const filePath = join(assetsDir, uniqueName);
+    
+    await writeFile(filePath, buffer);
+    return filePath;
   }
 
   private extractMentionIds(message: string | OneBotMessageSegment[]): string[] {

@@ -63,6 +63,10 @@ export interface UnifiedMessage {
   replyTo?: string;
   /** 被回复的消息内容（如果有） */
   replyToText?: string;
+  /** 被回复的消息中的图片（如果有） */
+  replyImages?: ImageAttachment[];
+  /** 被回复的消息中的文件（如果有） */
+  replyFiles?: FileAttachment[];
 
   // === 元数据 ===
   /** 时间戳 */
@@ -127,8 +131,20 @@ export function createOutboundMessage(options: CreateOutboundMessageOptions): Un
  * 适配器使用此函数创建入站消息
  */
 export function createInboundMessage(options: Omit<UnifiedMessage, 'direction'>): UnifiedMessage {
+  let text = options.text || '';
+  
+  if (options.replyToText) {
+    text = `[引用: ${options.replyToText}]\n${text}`;
+  }
+  
+  const images = [...(options.images || []), ...(options.replyImages || [])];
+  const files = [...(options.files || []), ...(options.replyFiles || [])];
+  
   return {
     ...options,
+    text,
+    images,
+    files,
     direction: 'inbound'
   };
 }

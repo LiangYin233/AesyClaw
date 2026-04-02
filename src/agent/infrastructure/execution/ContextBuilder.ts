@@ -129,8 +129,9 @@ export function buildVisionUserContent(
 ): VisionUserContent {
   const hasMedia = media && media.length > 0;
   const hasVisionableFiles = files && files.some(isVisionableFile);
+  const hasNonVisionableFiles = files && files.some(f => !isVisionableFile(f));
 
-  if (hasMedia || hasVisionableFiles) {
+  if (hasMedia || hasVisionableFiles || hasNonVisionableFiles) {
     const content: Array<{
       type: 'text' | 'image_url';
       text?: string;
@@ -138,9 +139,9 @@ export function buildVisionUserContent(
         url: string;
         detail?: 'auto' | 'low' | 'high';
       };
-    }> = [
-      { type: 'text', text: message }
-    ];
+    }> = [];
+
+    const textParts: string[] = [message];
 
     if (media) {
       for (const imageUrl of media) {
@@ -153,14 +154,28 @@ export function buildVisionUserContent(
 
     if (files) {
       for (const file of files) {
-        if (file.localPath && isVisionableFile(file)) {
-          const resolvedUrl = resolveVisionImageUrl(file.localPath);
-          if (resolvedUrl) {
-            content.push({ type: 'image_url', image_url: { url: resolvedUrl } });
+        if (isVisionableFile(file)) {
+          if (file.localPath) {
+            const resolvedUrl = resolveVisionImageUrl(file.localPath);
+            if (resolvedUrl) {
+              content.push({ type: 'image_url', image_url: { url: resolvedUrl } });
+            }
+          } else if (file.url) {
+            const resolvedUrl = resolveVisionImageUrl(file.url);
+            if (resolvedUrl) {
+              content.push({ type: 'image_url', image_url: { url: resolvedUrl } });
+            }
+          }
+        } else {
+          const filePath = file.localPath || file.url;
+          if (filePath) {
+            textParts.push(`[文件: ${file.name || 'unnamed'} - ${filePath}]`);
           }
         }
       }
     }
+
+    content.unshift({ type: 'text', text: textParts.filter(Boolean).join('\n') });
 
     return content;
   }

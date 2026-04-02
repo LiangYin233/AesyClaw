@@ -15,6 +15,7 @@ import {
 } from 'discord.js';
 import { BaseChannelAdapter } from '../../src/features/extension/channel/adapter/BaseChannelAdapter.js';
 import type { SendResult } from '../../src/features/extension/channel/protocol/adapter-interface.js';
+import { createInboundMessage } from '../../src/features/extension/channel/protocol/unified-message.js';
 import type { UnifiedMessage } from '../../src/features/extension/channel/protocol/unified-message.js';
 import type { ImageAttachment, FileAttachment } from '../../src/features/extension/channel/protocol/attachment.js';
 import { logger } from '../../src/platform/observability/index.ts';
@@ -132,11 +133,47 @@ class DiscordAdapter extends BaseChannelAdapter {
     };
 
     const { text, images, files } = await this.parseMessageContent(message);
+    
+    let replyTo: string | undefined;
+    let replyToText: string | undefined;
+    let replyImages: ImageAttachment[] = [];
+    let replyFiles: FileAttachment[] = [];
+    
+    if (message.reference && message.reference.messageId) {
+      replyTo = `discord_${message.reference.messageId}`;
+      replyToText = message.reference.content;
+      
+      try {
+        const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
+        if (repliedMessage) {
+          replyToText = repliedMessage.content || '[图片/文件消息]';
+          
+          for (const attachment of repliedMessage.attachments.values()) {
+            if (attachment.contentType?.startsWith('image/')) {
+              replyImages.push({
+                id: attachment.id,
+                type: 'image',
+                name: attachment.name || 'image.png',
+                url: attachment.url
+              });
+            } else {
+              replyFiles.push({
+                id: attachment.id,
+                type: 'file',
+                name: attachment.name || 'file',
+                url: attachment.url
+              });
+            }
+          }
+        }
+      } catch (error) {
+        this.log.warn('获取引用消息失败', { error: error instanceof Error ? error.message : String(error) });
+      }
+    }
 
-    return {
+    return createInboundMessage({
       id: message.id,
       channel: 'discord',
-      direction: 'inbound',
       chatId: conversation.id,
       chatType: conversation.type,
       senderId: sender.id,
@@ -146,8 +183,12 @@ class DiscordAdapter extends BaseChannelAdapter {
       images,
       files,
       timestamp: message.createdAt,
-      raw: message
-    };
+      raw: message,
+      replyTo,
+      replyToText,
+      replyImages,
+      replyFiles
+    });
   }
 
   protected async sendToPlatform(message: UnifiedMessage): Promise<SendResult> {
