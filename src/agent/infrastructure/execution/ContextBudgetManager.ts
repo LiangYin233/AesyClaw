@@ -68,7 +68,7 @@ export class ContextBudgetManager {
     return this.estimateMessagesTokens(messages) + this.estimateToolsTokens(tools);
   }
 
-  private estimateMessagesTokens(messages: LLMMessage[]): number {
+  estimateMessagesTokens(messages: LLMMessage[]): number {
     return messages.reduce((total, message) => total + this.estimateMessageTokens(message), 0);
   }
 

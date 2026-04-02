@@ -104,24 +104,7 @@ export class SessionService {
 
   private estimateTokenCount(messages: LLMMessage[]): number {
     const budgetManager = new ContextBudgetManager();
-    return budgetManager.fit(messages, [], {}).reduce((total, msg) => {
-      let count = 8;
-      if (msg.name) count += Math.ceil(msg.name.length / 4);
-      if (msg.toolCallId) count += Math.ceil(msg.toolCallId.length / 4);
-      if (typeof msg.content === 'string') {
-        count += Math.ceil(msg.content.length / 4);
-      } else if (Array.isArray(msg.content)) {
-        for (const item of msg.content) {
-          if (item.type === 'text' && item.text) {
-            count += Math.ceil(item.text.length / 4);
-          }
-        }
-      }
-      if (msg.toolCalls) {
-        count += Math.ceil(JSON.stringify(msg.toolCalls).length / 4) + 32;
-      }
-      return total + count;
-    }, 0);
+    return budgetManager.estimateMessagesTokens(messages);
   }
 
   async deleteSession(key: string): Promise<{ success: true }> {
