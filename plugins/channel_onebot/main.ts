@@ -661,104 +661,62 @@ class OneBotChannelAdapter extends BaseChannelAdapter {
   }
   
   private async downloadVoice(filePath: string, fileName: string): Promise<string> {
-    this.log.debug('========== 语音下载开始 ==========', { filePath, fileName });
-    
     const justFileName = fileName.split(/[/\\]/).pop() || fileName;
     const outputName = justFileName.replace(/\.[^.]+$/, '.mp3');
     
     try {
-      this.log.debug('发送 download_file_record_stream 请求', { file: filePath, out_format: 'mp3' });
-      
       const result = await this.callApi('download_file_record_stream', {
         file: filePath,
         out_format: 'mp3',
         chunk_size: 65536
       }) as Record<string, unknown>;
       
-      console.log('========== download_file_record_stream 完整响应 ==========');
-      console.log(JSON.stringify(result, null, 2));
-      console.log('=======================================================');
-      
       if (!result || typeof result !== 'object') {
-        throw new Error('响应无效: ' + JSON.stringify(result));
+        throw new Error('响应无效');
       }
       
       const dataObj = result.data as Record<string, unknown> | undefined;
       const dataType = result.data_type as string | undefined;
       
       if (dataType === 'file_info') {
-        const file = result.file as string | undefined;
         const fileUrl = result.url as string | undefined;
         
-        this.log.debug('file_info 详情', { file, fileUrl, resultKeys: Object.keys(result) });
-        
         if (fileUrl && fileUrl.startsWith('http')) {
-          this.log.debug('获取到 URL，下载文件', { fileUrl });
           const response = await fetch(fileUrl);
           if (!response.ok) {
             throw new Error(`下载失败: ${response.status}`);
           }
           const buffer = Buffer.from(await response.arrayBuffer());
-          const savedPath = await this.saveToChannelAssets(outputName, buffer);
-          this.log.debug('========== 语音下载成功 (URL) ==========', { 
-            filePath, 
-            savedPath, 
-            size: buffer.length 
-          });
-          return savedPath;
+          return await this.saveToChannelAssets(outputName, buffer);
         }
         
-        if (dataObj?.file && typeof dataObj.file === 'string') {
-          const tempFile = dataObj.file as string;
-          this.log.debug('从 data.file 获取临时路径', { tempFile });
-          
-          if (tempFile.startsWith('http')) {
-            const response = await fetch(tempFile);
-            if (!response.ok) {
-              throw new Error(`下载失败: ${response.status}`);
-            }
-            const buffer = Buffer.from(await response.arrayBuffer());
-            const savedPath = await this.saveToChannelAssets(outputName, buffer);
-            return savedPath;
-          }
-        }
-      }
-      
-      const file = result.file as string | undefined;
-      const fileUrl = result.url as string | undefined;
-      const status = result.status as string | undefined;
-      const retcode = result.retcode as number | undefined;
-      
-      this.log.debug('响应解析结果', { status, retcode, file, fileUrl, hasData: !!dataObj, dataKeys: dataObj ? Object.keys(dataObj) : [] });
-      
-      if (status === 'ok' && dataObj?.file) {
-        const tempFile = dataObj.file as string;
-        this.log.debug('获取到临时文件路径', { tempFile });
-        
-        if (tempFile.startsWith('http')) {
+        const tempFile = dataObj?.file as string | undefined;
+        if (tempFile?.startsWith('http')) {
           const response = await fetch(tempFile);
           if (!response.ok) {
             throw new Error(`下载失败: ${response.status}`);
           }
           const buffer = Buffer.from(await response.arrayBuffer());
-          const savedPath = await this.saveToChannelAssets(outputName, buffer);
-          this.log.debug('========== 语音下载成功 ==========', { 
-            filePath, 
-            savedPath, 
-            size: buffer.length 
-          });
-          return savedPath;
+          return await this.saveToChannelAssets(outputName, buffer);
         }
       }
       
-      this.log.debug('无法获取有效文件路径，保留原始路径');
+      const status = result.status as string | undefined;
+      const file = dataObj?.file as string | undefined;
+      
+      if (status === 'ok' && file?.startsWith('http')) {
+        const response = await fetch(file);
+        if (!response.ok) {
+          throw new Error(`下载失败: ${response.status}`);
+        }
+        const buffer = Buffer.from(await response.arrayBuffer());
+        return await this.saveToChannelAssets(outputName, buffer);
+      }
+      
       return filePath;
       
     } catch (error) {
-      this.log.error('========== 语音下载失败 ==========', { 
-        filePath, 
-        error: error instanceof Error ? error.message : String(error)
-      });
+      this.log.warn('语音下载失败', { filePath, error: error instanceof Error ? error.message : String(error) });
       return filePath;
     }
   }

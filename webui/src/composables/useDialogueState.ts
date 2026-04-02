@@ -21,13 +21,16 @@ export function useDialogueState(token: string | null, currentSessionKey: Comput
   const visibleAgentFilters = computed(() => [...new Set(sessions.value.map((session) => session.agentName || 'main'))].slice(0, 6));
   const headerTitle = computed(() => activeDetail.value ? sessionTitle(activeDetail.value) : '新建对话');
   const contextWidth = computed(() => {
-    const messages = activeDetail.value?.messageCount || 0;
-    const percent = Math.min(92, Math.max(18, messages * 8));
-    return `${percent}%`;
+    const tokenCount = activeDetail.value?.tokenCount || 0;
+    const maxContext = activeDetail.value?.maxContextTokens || 128000;
+    const percent = Math.min(92, Math.max(0, (tokenCount / maxContext) * 100));
+    return `${percent.toFixed(1)}%`;
   });
   const contextLabel = computed(() => {
-    const messages = activeDetail.value?.messageCount || 0;
-    return `${Math.min(100, messages * 4)}% / 128k`;
+    const tokenCount = activeDetail.value?.tokenCount || 0;
+    const maxContext = activeDetail.value?.maxContextTokens || 128000;
+    const maxFormatted = maxContext >= 1000 ? `${(maxContext / 1000).toFixed(0)}k` : String(maxContext);
+    return `${(tokenCount / 1000).toFixed(1)}k / ${maxFormatted}`;
   });
   const draftChannelLabel = computed(() => 'webui');
   const draftChatIdLabel = computed(() => draftSessionKey.value || '创建后生成');

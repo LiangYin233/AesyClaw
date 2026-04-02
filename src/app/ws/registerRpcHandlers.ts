@@ -113,7 +113,8 @@ export function registerRpcHandlers(context: RegisterRpcHandlersContext): void {
   const sessionService = new SessionService(
     new SessionsRepository(sessionManager),
     new ConversationAgentGateway(sessionRouting, agentRoleService),
-    sessionRouting
+    sessionRouting,
+    () => agentRoleService
   );
   const chatService = new ChatService(agentRuntime, maxMessageLength);
   const pluginsService = pluginManager ? new PluginAdminService(pluginManager, updateConfig) : undefined;

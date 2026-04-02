@@ -109,7 +109,8 @@ export function registerSubscriptions(context: RegisterSubscriptionsContext): vo
   const sessionService = new SessionService(
     new SessionsRepository(sessionManager),
     new ConversationAgentGateway(sessionRouting, agentRoleService),
-    sessionRouting
+    sessionRouting,
+    () => agentRoleService
   );
   const memoryService = new MemoryService(new MemoryRepository(sessionManager, longTermMemoryStore, db));
   const observabilityService = new ObservabilityService(configManager.update.bind(configManager));

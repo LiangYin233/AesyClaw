@@ -30,6 +30,8 @@ export interface SessionMessage {
 
 export interface SessionDetail extends Session {
   messages: SessionMessage[];
+  tokenCount?: number;
+  maxContextTokens?: number;
 }
 
 export interface AgentRoleConfig {
