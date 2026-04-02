@@ -1,0 +1,204 @@
+import Anthropic from '@anthropic-ai/sdk';
+import {
+  ILLMProvider,
+  LLMProviderType,
+  LLMMode,
+  StandardMessage,
+  StandardResponse,
+  ToolCall,
+  TokenUsage,
+  LLMProviderConfig,
+  MessageRole,
+} from '../types';
+import { ToolDefinition } from '../../../platform/tools/types';
+import { logger } from '../../../platform/observability/logger';
+
+type AnthropicContentBlock = 
+  | { type: 'text'; text: string }
+  | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
+  | { type: 'tool_result'; tool_use_id: string; content: string };
+
+interface AnthropicMessage {
+  role: 'user' | 'assistant';
+  content: string | AnthropicContentBlock[];
+}
+
+export class AnthropicAdapter implements ILLMProvider {
+  readonly providerType = LLMProviderType.Anthropic;
+  readonly supportedModes: LLMMode[] = [LLMMode.Chat];
+
+  private client: Anthropic;
+  private model: string;
+  private maxTokens: number;
+  private temperature: number;
+
+  constructor(config: LLMProviderConfig) {
+    const apiKey = config.apiKey || process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      throw new Error('Anthropic API key is required. Set ANTHROPIC_API_KEY environment variable.');
+    }
+
+    this.client = new Anthropic({
+      apiKey,
+      baseURL: config.baseUrl,
+      timeout: config.timeout || 60000,
+    });
+
+    this.model = config.model || 'claude-sonnet-4-20250514';
+    this.maxTokens = config.maxTokens || 4096;
+    this.temperature = config.temperature ?? 0.7;
+
+    logger.info(
+      { provider: this.providerType, model: this.model, maxTokens: this.maxTokens },
+      '🤖 Anthropic Claude Adapter 已初始化'
+    );
+  }
+
+  validateConfig(): boolean {
+    return !!process.env.ANTHROPIC_API_KEY || true;
+  }
+
+  async generate(
+    messages: StandardMessage[],
+    tools?: ToolDefinition[]
+  ): Promise<StandardResponse> {
+    const anthropicMessages = this.convertMessages(messages);
+    const anthropicTools = tools?.map(tool => ({
+      name: tool.name,
+      description: tool.description,
+      input_schema: tool.parameters,
+    }));
+
+    logger.debug(
+      { 
+        messageCount: messages.length, 
+        hasTools: !!tools, 
+        toolCount: tools?.length || 0 
+      },
+      '📤 发送请求到 Anthropic Claude API'
+    );
+
+    try {
+      const response = await this.client.messages.create({
+        model: this.model,
+        messages: anthropicMessages,
+        tools: anthropicTools,
+        max_tokens: this.maxTokens,
+        temperature: this.temperature,
+      });
+
+      const toolCalls: ToolCall[] = [];
+      const contentBlocks = response.content;
+      let text = '';
+
+      for (const block of contentBlocks) {
+        if (block.type === 'text') {
+          text += block.text;
+        } else if (block.type === 'tool_use') {
+          toolCalls.push({
+            id: block.id,
+            name: block.name,
+            arguments: block.input as Record<string, unknown>,
+          });
+        }
+      }
+
+      const tokenUsage: TokenUsage | undefined = response.usage ? {
+        promptTokens: response.usage.input_tokens,
+        completionTokens: response.usage.output_tokens,
+        totalTokens: response.usage.input_tokens + response.usage.output_tokens,
+      } : undefined;
+
+      let finishReason: StandardResponse['finishReason'] = 'stop';
+      if (response.stop_reason === 'end_turn') {
+        finishReason = 'stop';
+      } else if (response.stop_reason === 'tool_use') {
+        finishReason = 'tool_calls';
+      } else if (response.stop_reason === 'max_tokens') {
+        finishReason = 'length';
+      } else if (response.stop_reason === 'stop_sequence') {
+        finishReason = 'stop';
+      }
+
+      logger.info(
+        { 
+          finishReason, 
+          hasContent: !!text, 
+          toolCallCount: toolCalls.length,
+          tokenUsage,
+        },
+        '📥 收到 Anthropic Claude 响应'
+      );
+
+      return {
+        text: text.trim(),
+        toolCalls,
+        tokenUsage,
+        finishReason,
+        rawResponse: response,
+      };
+    } catch (error) {
+      logger.error({ error }, '❌ Anthropic Claude API 调用失败');
+      throw error;
+    }
+  }
+
+  private convertMessages(messages: StandardMessage[]): AnthropicMessage[] {
+    const result: AnthropicMessage[] = [];
+    let currentUserContent: AnthropicContentBlock[] = [];
+
+    for (const msg of messages) {
+      if (msg.role === MessageRole.System) {
+        if (currentUserContent.length > 0) {
+          result.push({ role: 'user', content: currentUserContent });
+          currentUserContent = [];
+        }
+        result.push({
+          role: 'user',
+          content: `<system>\n${msg.content}\n</system>`,
+        });
+      } else if (msg.role === MessageRole.User) {
+        currentUserContent.push({
+          type: 'text',
+          text: msg.content,
+        });
+      } else if (msg.role === MessageRole.Assistant) {
+        if (currentUserContent.length > 0) {
+          result.push({ role: 'user', content: currentUserContent });
+          currentUserContent = [];
+        }
+
+        const assistantContent: AnthropicContentBlock[] = [];
+        if (msg.content) {
+          assistantContent.push({ type: 'text', text: msg.content });
+        }
+        if (msg.toolCalls && msg.toolCalls.length > 0) {
+          for (const tc of msg.toolCalls) {
+            assistantContent.push({
+              type: 'tool_use',
+              id: tc.id,
+              name: tc.name,
+              input: tc.arguments,
+            });
+          }
+        }
+
+        if (assistantContent.length > 0) {
+          result.push({ role: 'assistant', content: assistantContent });
+        }
+      } else if (msg.role === MessageRole.Tool) {
+        currentUserContent.push({
+          type: 'tool_result',
+          tool_use_id: msg.toolCallId!,
+          content: msg.content,
+        });
+      }
+    }
+
+    if (currentUserContent.length > 0) {
+      result.push({ role: 'user', content: currentUserContent });
+    }
+
+    return result;
+  }
+}

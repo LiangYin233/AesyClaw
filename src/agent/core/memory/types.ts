@@ -1,0 +1,84 @@
+import { StandardMessage } from '../../llm/types';
+
+export enum CompressionPhase {
+  Idle = 'idle',
+  Monitoring = 'monitoring',
+  SieveProcess = 'sieve_process',
+  LLMDrivenSummarization = 'llm_driven_summarization',
+  Reassembly = 'reassembly',
+  Truncation = 'truncation',
+}
+
+export interface MemoryConfig {
+  maxContextTokens: number;
+  compressionThreshold: number;
+  dangerThreshold: number;
+  summarizerModel?: string;
+  summarizerApiKey?: string;
+}
+
+export interface TokenBudget {
+  currentTokens: number;
+  maxTokens: number;
+  usagePercentage: number;
+  needsCompression: boolean;
+}
+
+export interface MessageZone {
+  zone: 'sacred' | 'compressible';
+  messages: StandardMessage[];
+}
+
+export interface CompressionResult {
+  originalTokens: number;
+  compressedTokens: number;
+  compressionRatio: number;
+  originalMessages: StandardMessage[];
+  compressedMessages: StandardMessage[];
+  summaryMessage?: StandardMessage;
+  timestamp: Date;
+}
+
+export interface TruncationResult {
+  originalLength: number;
+  truncatedLength: number;
+  preservedHead: string;
+  preservedTail: string;
+  warningMessage: string;
+  wasTruncated: boolean;
+}
+
+export interface MemoryStats {
+  totalMessages: number;
+  totalTokens: number;
+  sacredMessages: number;
+  compressibleMessages: number;
+  compressionCount: number;
+  lastCompressionTime?: Date;
+  currentPhase: CompressionPhase;
+}
+
+export interface MemoryEvent {
+  type: 'message_added' | 'compressed' | 'truncated' | 'reset';
+  timestamp: Date;
+  details: {
+    messageCount?: number;
+    tokenCount?: number;
+    compressionRatio?: number;
+    truncationDetails?: TruncationResult;
+  };
+}
+
+export const DEFAULT_MEMORY_CONFIG: MemoryConfig = {
+  maxContextTokens: 128000,
+  compressionThreshold: 80000,
+  dangerThreshold: 30000,
+  summarizerModel: 'claude-3-haiku-20240307',
+};
+
+export function createMemoryConfig(partial?: Partial<MemoryConfig>): MemoryConfig {
+  return {
+    ...DEFAULT_MEMORY_CONFIG,
+    ...partial,
+  };
+}

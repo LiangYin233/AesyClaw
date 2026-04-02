@@ -21,6 +21,7 @@ export interface IChannelContext {
   inbound: IUnifiedMessage;
   outbound: IOutboundMessage;
   createdAt: number;
+  state?: Record<string, unknown>;
 }
 
 export type MiddlewareFunc = (

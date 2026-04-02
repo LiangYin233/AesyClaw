@@ -1,0 +1,193 @@
+import { sqliteManager } from '../sqlite-manager.js';
+import { logger } from '../../../platform/observability/logger.js';
+
+export interface CronJobRecord {
+  id: string;
+  chatId: string;
+  name: string;
+  cronExpression: string;
+  command: string;
+  enabled: boolean;
+  createdAt: string;
+  lastRunAt?: string;
+  nextRunAt?: string;
+  runCount: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface CreateCronJobInput {
+  id: string;
+  chatId: string;
+  name: string;
+  cronExpression: string;
+  command: string;
+  nextRunAt?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export class CronJobRepository {
+  create(input: CreateCronJobInput): CronJobRecord {
+    const db = sqliteManager.getDatabase();
+    const metadata = JSON.stringify(input.metadata || {});
+
+    const stmt = db.prepare(`
+      INSERT INTO cron_jobs (id, chat_id, name, cron_expression, command, next_run_at, metadata)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    stmt.run(
+      input.id,
+      input.chatId,
+      input.name,
+      input.cronExpression,
+      input.command,
+      input.nextRunAt || null,
+      metadata
+    );
+
+    logger.info({ id: input.id, chatId: input.chatId }, 'Cron job created');
+    return this.findById(input.id)!;
+  }
+
+  findById(id: string): CronJobRecord | null {
+    const db = sqliteManager.getDatabase();
+    const stmt = db.prepare('SELECT * FROM cron_jobs WHERE id = ?');
+    const row = stmt.get(id) as any;
+
+    if (!row) return null;
+
+    return this.mapRowToRecord(row);
+  }
+
+  findByChatId(chatId: string): CronJobRecord[] {
+    const db = sqliteManager.getDatabase();
+    const stmt = db.prepare('SELECT * FROM cron_jobs WHERE chat_id = ? ORDER BY created_at DESC');
+    const rows = stmt.all(chatId) as any[];
+
+    return rows.map(row => this.mapRowToRecord(row));
+  }
+
+  findEnabled(): CronJobRecord[] {
+    const db = sqliteManager.getDatabase();
+    const stmt = db.prepare('SELECT * FROM cron_jobs WHERE enabled = 1 ORDER BY next_run_at ASC');
+    const rows = stmt.all() as any[];
+
+    return rows.map(row => this.mapRowToRecord(row));
+  }
+
+  findDueJobs(): CronJobRecord[] {
+    const db = sqliteManager.getDatabase();
+    const now = new Date().toISOString();
+    const stmt = db.prepare(`
+      SELECT * FROM cron_jobs 
+      WHERE enabled = 1 AND next_run_at IS NOT NULL AND next_run_at <= ?
+      ORDER BY next_run_at ASC
+    `);
+    const rows = stmt.all(now) as any[];
+
+    return rows.map(row => this.mapRowToRecord(row));
+  }
+
+  update(id: string, updates: Partial<Omit<CronJobRecord, 'id' | 'createdAt'>>): CronJobRecord | null {
+    const db = sqliteManager.getDatabase();
+    const fields: string[] = [];
+    const values: any[] = [];
+
+    if (updates.name !== undefined) {
+      fields.push('name = ?');
+      values.push(updates.name);
+    }
+    if (updates.cronExpression !== undefined) {
+      fields.push('cron_expression = ?');
+      values.push(updates.cronExpression);
+    }
+    if (updates.command !== undefined) {
+      fields.push('command = ?');
+      values.push(updates.command);
+    }
+    if (updates.enabled !== undefined) {
+      fields.push('enabled = ?');
+      values.push(updates.enabled ? 1 : 0);
+    }
+    if (updates.lastRunAt !== undefined) {
+      fields.push('last_run_at = ?');
+      values.push(updates.lastRunAt);
+    }
+    if (updates.nextRunAt !== undefined) {
+      fields.push('next_run_at = ?');
+      values.push(updates.nextRunAt);
+    }
+    if (updates.metadata !== undefined) {
+      fields.push('metadata = ?');
+      values.push(JSON.stringify(updates.metadata));
+    }
+
+    if (fields.length === 0) return this.findById(id);
+
+    values.push(id);
+    const stmt = db.prepare(`UPDATE cron_jobs SET ${fields.join(', ')} WHERE id = ?`);
+    const result = stmt.run(...values);
+
+    if (result.changes === 0) return null;
+
+    logger.info({ id }, 'Cron job updated');
+    return this.findById(id);
+  }
+
+  delete(id: string): boolean {
+    const db = sqliteManager.getDatabase();
+    const stmt = db.prepare('DELETE FROM cron_jobs WHERE id = ?');
+    const result = stmt.run(id);
+
+    if (result.changes > 0) {
+      logger.info({ id }, 'Cron job deleted');
+      return true;
+    }
+    return false;
+  }
+
+  deleteByChatId(chatId: string): number {
+    const db = sqliteManager.getDatabase();
+    const stmt = db.prepare('DELETE FROM cron_jobs WHERE chat_id = ?');
+    const result = stmt.run(chatId);
+
+    if (result.changes > 0) {
+      logger.info({ chatId, count: result.changes }, 'Cron jobs deleted for chat');
+    }
+    return result.changes;
+  }
+
+  incrementRunCount(id: string): void {
+    const db = sqliteManager.getDatabase();
+    const stmt = db.prepare(`
+      UPDATE cron_jobs 
+      SET run_count = run_count + 1, last_run_at = datetime('now')
+      WHERE id = ?
+    `);
+    stmt.run(id);
+  }
+
+  setNextRunTime(id: string, nextRunAt: string): void {
+    const db = sqliteManager.getDatabase();
+    const stmt = db.prepare('UPDATE cron_jobs SET next_run_at = ? WHERE id = ?');
+    stmt.run(nextRunAt, id);
+  }
+
+  private mapRowToRecord(row: any): CronJobRecord {
+    return {
+      id: row.id,
+      chatId: row.chat_id,
+      name: row.name,
+      cronExpression: row.cron_expression,
+      command: row.command,
+      enabled: row.enabled === 1,
+      createdAt: row.created_at,
+      lastRunAt: row.last_run_at,
+      nextRunAt: row.next_run_at,
+      runCount: row.run_count,
+      metadata: JSON.parse(row.metadata || '{}'),
+    };
+  }
+}
+
+export const cronJobRepository = new CronJobRepository();
