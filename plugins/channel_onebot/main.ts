@@ -146,7 +146,7 @@ class OneBotChannelAdapter extends BaseChannelAdapter {
       ? this.parseMessageChain(event.message)
       : event.message;
 
-    const images = this.extractImagesFromEvent(event.message);
+    const images = await this.extractImagesFromEvent(event.message);
     const files = await this.extractFilesFromEvent(event.message, event);
     const mentions = this.extractMentionIds(event.message);
     
@@ -167,12 +167,17 @@ class OneBotChannelAdapter extends BaseChannelAdapter {
           try {
             this.log.debug('获取引用消息', { replyId });
             const msgResult = await this.callApi('get_msg', { message_id: parseInt(replyId, 10) }) as Record<string, unknown>;
+            
+            if (msgResult.status !== 'ok') {
+              throw new Error(`get_msg API调用失败: retcode=${msgResult.retcode}`);
+            }
+            
             this.log.debug('引用消息响应', { result: JSON.stringify(msgResult).substring(0, 500) });
             
             const message = msgResult['message'];
             
             if (Array.isArray(message)) {
-              const originalImages = this.extractImagesFromEvent(message);
+              const originalImages = await this.extractImagesFromEvent(message);
               const originalFiles = await this.extractFilesFromEvent(message, msgResult as unknown as OneBotEvent);
               const originalText = this.parseMessageChain(message);
               
@@ -306,7 +311,7 @@ class OneBotChannelAdapter extends BaseChannelAdapter {
       
       let fileType = 'file';
       if (file.type === 'image') fileType = 'image';
-      else if (file.type === 'audio') fileType = 'audio';
+      else if (file.type === 'audio') fileType = 'record';
       else if (file.type === 'video') fileType = 'video';
       
       const filePath = await this.uploadFileStream(file.url, fileName);
@@ -580,7 +585,7 @@ class OneBotChannelAdapter extends BaseChannelAdapter {
       .join('');
   }
 
-  private extractImagesFromEvent(message: string | OneBotMessageSegment[]): ImageAttachment[] {
+  private async extractImagesFromEvent(message: string | OneBotMessageSegment[]): Promise<ImageAttachment[]> {
     const images: ImageAttachment[] = [];
     
     if (!Array.isArray(message)) return images;
@@ -588,13 +593,23 @@ class OneBotChannelAdapter extends BaseChannelAdapter {
     for (const seg of message) {
       if (seg.type === 'image') {
         const data = seg.data as Record<string, unknown>;
-        const file = typeof data.file === 'string' ? data.file : String(data.file || '');
+        const url = typeof data.url === 'string' ? data.url : '';
+        const fileId = typeof data.file_id === 'string' ? data.file_id : '';
+        const file = typeof data.file === 'string' ? data.file : '';
+        
+        const resolvedUrl = url || file || fileId;
+        const name = file.split('/').pop() || fileId.split('/').pop() || 'image.png';
+        
+        if (!resolvedUrl) continue;
+        
         images.push({
           id: `img_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
           type: 'image',
-          name: file.split('/').pop() || 'image.png',
-          url: file
+          name,
+          url: resolvedUrl
         });
+        
+        this.log.debug('解析图片', { url: resolvedUrl, name });
       }
     }
     
@@ -610,16 +625,22 @@ class OneBotChannelAdapter extends BaseChannelAdapter {
       if (seg.type === 'record' || seg.type === 'video' || seg.type === 'file') {
         const data = seg.data as Record<string, unknown>;
         const fileId = typeof data.file_id === 'string' ? data.file_id : '';
-        const fileUrl = typeof data.file === 'string' ? data.file : '';
-        const name = typeof data.name === 'string' ? data.name : fileUrl.split('/').pop() || fileId.split('/').pop() || 'file';
+        const filePath = typeof data.file === 'string' ? data.file : '';
+        const name = typeof data.name === 'string' ? data.name : filePath.split('/').pop() || fileId.split('/').pop() || 'file';
         
         let type: 'file' | 'audio' | 'video' = 'file';
         if (seg.type === 'record') type = 'audio';
         else if (seg.type === 'video') type = 'video';
         
-        let url = fileUrl;
+        let url = filePath;
         
-        if (fileId) {
+        if (seg.type === 'record' && filePath) {
+          try {
+            url = await this.downloadVoice(filePath, name);
+          } catch (error) {
+            this.log.warn('下载语音失败，使用原始路径', { filePath, error: error instanceof Error ? error.message : String(error) });
+          }
+        } else if (fileId) {
           try {
             url = await this.downloadFile(fileId, name, event);
           } catch (error) {
@@ -639,6 +660,109 @@ class OneBotChannelAdapter extends BaseChannelAdapter {
     return files;
   }
   
+  private async downloadVoice(filePath: string, fileName: string): Promise<string> {
+    this.log.debug('========== 语音下载开始 ==========', { filePath, fileName });
+    
+    const justFileName = fileName.split(/[/\\]/).pop() || fileName;
+    const outputName = justFileName.replace(/\.[^.]+$/, '.mp3');
+    
+    try {
+      this.log.debug('发送 download_file_record_stream 请求', { file: filePath, out_format: 'mp3' });
+      
+      const result = await this.callApi('download_file_record_stream', {
+        file: filePath,
+        out_format: 'mp3',
+        chunk_size: 65536
+      }) as Record<string, unknown>;
+      
+      console.log('========== download_file_record_stream 完整响应 ==========');
+      console.log(JSON.stringify(result, null, 2));
+      console.log('=======================================================');
+      
+      if (!result || typeof result !== 'object') {
+        throw new Error('响应无效: ' + JSON.stringify(result));
+      }
+      
+      const dataObj = result.data as Record<string, unknown> | undefined;
+      const dataType = result.data_type as string | undefined;
+      
+      if (dataType === 'file_info') {
+        const file = result.file as string | undefined;
+        const fileUrl = result.url as string | undefined;
+        
+        this.log.debug('file_info 详情', { file, fileUrl, resultKeys: Object.keys(result) });
+        
+        if (fileUrl && fileUrl.startsWith('http')) {
+          this.log.debug('获取到 URL，下载文件', { fileUrl });
+          const response = await fetch(fileUrl);
+          if (!response.ok) {
+            throw new Error(`下载失败: ${response.status}`);
+          }
+          const buffer = Buffer.from(await response.arrayBuffer());
+          const savedPath = await this.saveToChannelAssets(outputName, buffer);
+          this.log.debug('========== 语音下载成功 (URL) ==========', { 
+            filePath, 
+            savedPath, 
+            size: buffer.length 
+          });
+          return savedPath;
+        }
+        
+        if (dataObj?.file && typeof dataObj.file === 'string') {
+          const tempFile = dataObj.file as string;
+          this.log.debug('从 data.file 获取临时路径', { tempFile });
+          
+          if (tempFile.startsWith('http')) {
+            const response = await fetch(tempFile);
+            if (!response.ok) {
+              throw new Error(`下载失败: ${response.status}`);
+            }
+            const buffer = Buffer.from(await response.arrayBuffer());
+            const savedPath = await this.saveToChannelAssets(outputName, buffer);
+            return savedPath;
+          }
+        }
+      }
+      
+      const file = result.file as string | undefined;
+      const fileUrl = result.url as string | undefined;
+      const status = result.status as string | undefined;
+      const retcode = result.retcode as number | undefined;
+      
+      this.log.debug('响应解析结果', { status, retcode, file, fileUrl, hasData: !!dataObj, dataKeys: dataObj ? Object.keys(dataObj) : [] });
+      
+      if (status === 'ok' && dataObj?.file) {
+        const tempFile = dataObj.file as string;
+        this.log.debug('获取到临时文件路径', { tempFile });
+        
+        if (tempFile.startsWith('http')) {
+          const response = await fetch(tempFile);
+          if (!response.ok) {
+            throw new Error(`下载失败: ${response.status}`);
+          }
+          const buffer = Buffer.from(await response.arrayBuffer());
+          const savedPath = await this.saveToChannelAssets(outputName, buffer);
+          this.log.debug('========== 语音下载成功 ==========', { 
+            filePath, 
+            savedPath, 
+            size: buffer.length 
+          });
+          return savedPath;
+        }
+      }
+      
+      this.log.debug('无法获取有效文件路径，保留原始路径');
+      return filePath;
+      
+    } catch (error) {
+      this.log.error('========== 语音下载失败 ==========', { 
+        filePath, 
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return filePath;
+    }
+  }
+
   private async downloadFile(fileId: string, fileName: string, event: OneBotEvent): Promise<string> {
     const isGroup = event.message_type === 'group';
     

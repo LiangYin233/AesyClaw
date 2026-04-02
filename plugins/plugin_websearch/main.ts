@@ -51,7 +51,7 @@ export default {
     maxResults: 5,
     searchDepth: 'basic'
   },
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   setup(ctx: any) {
     // 获取配置的工具函数
     const getConfig = (): WebsearchOptions => {

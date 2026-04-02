@@ -43,7 +43,6 @@ export class ShellRunner {
     let shellArgs: string[];
     if (isWindows) {
       const cmd = `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ${command}`;
-      shellArgs = ['-NoProfile', '-Command', '-', '-EncodedCommand'];
       const encodedCommand = Buffer.from(cmd, 'utf16le').toString('base64');
       shellArgs = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encodedCommand];
     } else {

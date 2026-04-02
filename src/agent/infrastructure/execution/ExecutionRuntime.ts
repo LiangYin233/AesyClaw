@@ -53,7 +53,7 @@ export class ExecutionRuntime {
   private readonly subAgentExcludedTools = ['send_msg_to_user', 'call_agent', 'call_temp_agent'];
   private static readonly VISION_SUMMARY_REQUIRED_MESSAGE = '收到图片，但当前未配置可用的视觉回退摘要模型，无法继续处理。请先配置 visionFallbackModel 后重试。';
   private static readonly VISION_SUMMARY_FAILED_MESSAGE = '收到图片，但生成图片摘要失败，已中止本次处理。请检查视觉回退模型配置或稍后重试。';
-  private static readonly IMAGE_SUMMARY_PREFIX = '图片摘要（供后续上下文使用）：';
+  private static readonly IMAGE_SUMMARY_PREFIX = '图片摘要：';
   private static readonly IMAGE_SUMMARY_SYSTEM_PROMPT = [
     '角色: 图片内容摘要器',
     '任务: 结合用户文字与图片内容，生成一段会写入会话上下文的纯文本摘要，供后续无图回合继续理解当前任务。',

@@ -137,14 +137,9 @@ export function createInboundMessage(options: Omit<UnifiedMessage, 'direction'>)
     text = `[引用: ${options.replyToText}]\n${text}`;
   }
   
-  const images = [...(options.images || []), ...(options.replyImages || [])];
-  const files = [...(options.files || []), ...(options.replyFiles || [])];
-  
   return {
     ...options,
     text,
-    images,
-    files,
     direction: 'inbound'
   };
 }

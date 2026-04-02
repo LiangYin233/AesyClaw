@@ -225,7 +225,7 @@ export default {
     downloadTimeout: 30000,
     transcriptionTimeout: 60000
   },
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   async setup(ctx: any) {
     // 获取配置的工具函数
     const getConfig = (): SpeechRuntimeConfig => {
@@ -275,7 +275,7 @@ export default {
       }
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     ctx.hooks.incomingMessage.transform(async (message: any) => {
       try {
         const config = getConfig();

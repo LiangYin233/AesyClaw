@@ -80,7 +80,7 @@ export default {
     scale: 1.0,
     excludedChannels: []
   },
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   setup(ctx: any) {
     // 获取配置的工具函数
     const getConfig = (): Md2ImgOptions => {
@@ -107,7 +107,7 @@ export default {
       name: 'md2img_text',
       description: '发送当前会话上一轮实际进入 md2img 转图的原始文本',
       matcher: { type: 'exact', value: '/text' },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       execute: async (message: any) => {
         const state = getRoundSources(message.channel, message.chatId);
         const sources = [...state.currentRoundSources];
@@ -133,7 +133,7 @@ export default {
       }
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     ctx.hooks.incomingMessage.transform((message: any) => {
       const state = getRoundSources(message.channel, message.chatId);
       state.lastCompletedRoundSources = [...state.currentRoundSources];
@@ -141,7 +141,7 @@ export default {
       return message;
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     ctx.hooks.outgoingMessage.transform(async (message: any) => {
       const config = getConfig();
 

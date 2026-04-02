@@ -20,7 +20,7 @@ export default {
       shell: {}
     }
   },
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   setup(ctx: any) {
     const log = ctx.logger.child('exec');
     // 获取配置的工具函数
