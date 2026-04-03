@@ -148,12 +148,11 @@ export class AnthropicAdapter implements ILLMProvider {
       if (msg.role === MessageRole.System) {
         if (currentUserContent.length > 0) {
           result.push({ role: 'user', content: currentUserContent });
-          currentUserContent = [];
         }
-        result.push({
-          role: 'user',
-          content: `<system>\n${msg.content}\n</system>`,
-        });
+        currentUserContent = [{
+          type: 'text' as const,
+          text: `<system>\n${msg.content}\n</system>`,
+        }];
       } else if (msg.role === MessageRole.User) {
         currentUserContent.push({
           type: 'text',

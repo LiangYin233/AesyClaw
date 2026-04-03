@@ -404,7 +404,11 @@ export class SessionMemoryManager {
       const prev = this.messages[i - 1];
       const curr = this.messages[i];
       
-      if (prev.role === MessageRole.User && curr.role === MessageRole.Tool) {
+      if (curr.role === MessageRole.Tool && prev.role !== MessageRole.Assistant) {
+        return false;
+      }
+      
+      if (curr.role === MessageRole.Assistant && prev.role === MessageRole.Tool) {
         return false;
       }
     }

@@ -8,6 +8,12 @@ import { AgentManager } from '../../agent/core/engine';
 import { authMiddleware } from './auth';
 import type { ApiError, SessionInfo, CronJobInfo, ToolInfo, MCPStatus } from './types';
 
+const ID_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/;
+
+function isValidId(id: string): boolean {
+  return ID_PATTERN.test(id);
+}
+
 export function createWebUIRouter(): Router {
   const router = Router();
   const sessionRepo = new SessionRepository();
@@ -37,11 +43,10 @@ export function createWebUIRouter(): Router {
         let memoryStats;
 
         if (agent) {
-          const stats = agent.getMemoryStats();
           const budget = agent.getTokenBudget();
           tokenUsage = {
-            promptTokens: Math.floor(budget.currentTokens * 0.5),
-            completionTokens: Math.floor(budget.currentTokens * 0.3),
+            promptTokens: budget.currentTokens,
+            completionTokens: 0,
             totalTokens: budget.currentTokens,
           };
           memoryStats = {
@@ -73,6 +78,13 @@ export function createWebUIRouter(): Router {
   router.delete('/sessions/:chatId', (req, res) => {
     try {
       const { chatId } = req.params;
+      
+      if (!isValidId(chatId)) {
+        const err: ApiError = { error: 'Invalid chat ID format', code: 'VALIDATION_ERROR' };
+        res.status(400).json(err);
+        return;
+      }
+      
       agentManager.removeAgent(chatId);
       sessionRepo.delete(chatId);
       res.json({ success: true, chatId });
@@ -86,6 +98,13 @@ export function createWebUIRouter(): Router {
   router.post('/sessions/:chatId/clear', (req, res) => {
     try {
       const { chatId } = req.params;
+      
+      if (!isValidId(chatId)) {
+        const err: ApiError = { error: 'Invalid chat ID format', code: 'VALIDATION_ERROR' };
+        res.status(400).json(err);
+        return;
+      }
+      
       const agent = agentManager.getOrCreate(chatId);
       agent.clearHistory();
       res.json({ success: true, chatId });
@@ -99,6 +118,13 @@ export function createWebUIRouter(): Router {
   router.get('/sessions/:chatId/memory', (req, res) => {
     try {
       const { chatId } = req.params;
+      
+      if (!isValidId(chatId)) {
+        const err: ApiError = { error: 'Invalid chat ID format', code: 'VALIDATION_ERROR' };
+        res.status(400).json(err);
+        return;
+      }
+      
       const agent = agentManager.getOrCreate(chatId);
       const memoryStats = agent.getMemoryStats();
       const tokenBudget = agent.getTokenBudget();
@@ -199,6 +225,13 @@ export function createWebUIRouter(): Router {
   router.delete('/cron/:id', (req, res) => {
     try {
       const { id } = req.params;
+      
+      if (!isValidId(id)) {
+        const err: ApiError = { error: 'Invalid cron job ID format', code: 'VALIDATION_ERROR' };
+        res.status(400).json(err);
+        return;
+      }
+      
       cronJobRepo.delete(id);
       res.json({ success: true, id });
     } catch (error) {
@@ -211,6 +244,13 @@ export function createWebUIRouter(): Router {
   router.patch('/cron/:id/toggle', (req, res) => {
     try {
       const { id } = req.params;
+      
+      if (!isValidId(id)) {
+        const err: ApiError = { error: 'Invalid cron job ID format', code: 'VALIDATION_ERROR' };
+        res.status(400).json(err);
+        return;
+      }
+      
       const job = cronJobRepo.findById(id);
       if (!job) {
         const err: ApiError = { error: 'Cron job not found', code: 'NOT_FOUND' };

@@ -257,17 +257,31 @@ export class ConfigManager {
   }
 
   private mergeConfig(current: FullConfig, updates: Partial<FullConfig>): FullConfig {
-    return {
-      ...current,
-      ...updates,
-      server: { ...current.server, ...updates.server },
-      providers: { ...current.providers, ...updates.providers },
-      agent: { ...current.agent, ...updates.agent },
-      memory: { ...current.memory, ...updates.memory },
-      channels: updates.channels ? { ...current.channels, ...updates.channels } : current.channels,
-      mcp: updates.mcp ? { ...current.mcp, ...updates.mcp } : current.mcp,
-      plugins: updates.plugins ? { ...current.plugins, ...updates.plugins } : current.plugins,
-    };
+    const result = { ...current };
+    
+    if (updates.server) {
+      result.server = { ...current.server, ...updates.server };
+    }
+    if (updates.providers) {
+      result.providers = { ...current.providers, ...updates.providers };
+    }
+    if (updates.agent) {
+      result.agent = { ...current.agent, ...updates.agent };
+    }
+    if (updates.memory) {
+      result.memory = { ...current.memory, ...updates.memory };
+    }
+    if (updates.channels !== undefined) {
+      result.channels = updates.channels ? { ...current.channels, ...updates.channels } : current.channels;
+    }
+    if (updates.mcp !== undefined) {
+      result.mcp = updates.mcp ? { ...current.mcp, ...updates.mcp } : current.mcp;
+    }
+    if (updates.plugins !== undefined) {
+      result.plugins = updates.plugins ? { ...current.plugins, ...updates.plugins } : current.plugins;
+    }
+    
+    return result;
   }
 
   private saveToDisk(): void {

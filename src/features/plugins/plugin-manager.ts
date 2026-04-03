@@ -347,6 +347,7 @@ export class PluginManager {
         entry => entry.isDirectory() && entry.name.startsWith('plugin_')
       );
 
+      let foundInScan = false;
       for (const dir of pluginDirs) {
         const pluginDir = path.join(this.pluginsDir, dir.name);
         const packageJsonPath = path.join(pluginDir, 'package.json');
@@ -355,14 +356,24 @@ export class PluginManager {
           const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
           const pkgName = packageJson.name || dir.name;
 
-          this.pluginPaths.set(pkgName, { dir: pluginDir, packageJson });
+          if (!this.pluginPaths.has(pkgName)) {
+            this.pluginPaths.set(pkgName, { dir: pluginDir, packageJson });
+          }
 
           const configName = pkgName.replace('@aesyclaw/plugin-', '').replace('plugin-', '');
           if (configName === normalizedName || pkgName === normalizedName) {
             pluginInfo = { dir: pluginDir, packageJson };
+            foundInScan = true;
             break;
           }
         }
+      }
+
+      if (!foundInScan && !pluginInfo) {
+        return {
+          success: false,
+          message: `未找到插件 "${normalizedName}"，请确认插件已存在于 plugins/ 目录`,
+        };
       }
     }
 

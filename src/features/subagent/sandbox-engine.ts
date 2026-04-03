@@ -158,8 +158,6 @@ export class SandboxEngine {
           lastAssistantMessage = response.text;
           break;
         }
-
-        step++;
       }
 
       if (!lastAssistantMessage) {

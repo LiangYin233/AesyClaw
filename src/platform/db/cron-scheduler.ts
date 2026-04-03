@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { cronJobRepository, type CronJobRecord } from './repositories/cron-job-repository.js';
 import { logger } from '../observability/logger.js';
 import { eventBus, SystemEvents } from '../events/index.js';
+import type { SystemEvent } from '../events/index.js';
 
 export interface CronJobExecutor {
   (job: CronJobRecord): Promise<void>;
@@ -109,7 +110,7 @@ export class CronJobScheduler {
   private running: boolean = false;
   private executor: CronJobExecutor | null = null;
   private nextTimeoutId: NodeJS.Timeout | null = null;
-  private eventSubscriptionIds: string[] = [];
+  private eventSubscriptions: Map<SystemEvent, string> = new Map();
 
   private constructor() {
     this.taskQueue = new PriorityQueue<ScheduledTask>((a, b) => a.executeAt - b.executeAt);
@@ -135,25 +136,29 @@ export class CronJobScheduler {
     this.running = true;
     logger.info({}, '🚀 CronJobScheduler started (Event-Driven Mode)');
 
-    this.eventSubscriptionIds.push(
+    this.eventSubscriptions.set(
+      SystemEvents.CRON_JOB_CREATED,
       eventBus.on(SystemEvents.CRON_JOB_CREATED, (payload: any) => {
         this.scheduleTask(payload.job);
       })
     );
 
-    this.eventSubscriptionIds.push(
+    this.eventSubscriptions.set(
+      SystemEvents.CRON_JOB_UPDATED,
       eventBus.on(SystemEvents.CRON_JOB_UPDATED, (payload: any) => {
         this.rescheduleTask(payload.job);
       })
     );
 
-    this.eventSubscriptionIds.push(
+    this.eventSubscriptions.set(
+      SystemEvents.CRON_JOB_DELETED,
       eventBus.on(SystemEvents.CRON_JOB_DELETED, (payload: any) => {
         this.cancelTask(payload.jobId);
       })
     );
 
-    this.eventSubscriptionIds.push(
+    this.eventSubscriptions.set(
+      SystemEvents.CRON_JOB_TOGGLED,
       eventBus.on(SystemEvents.CRON_JOB_TOGGLED, (payload: any) => {
         if (payload.enabled) {
           this.scheduleTask(payload.job);
@@ -181,13 +186,10 @@ export class CronJobScheduler {
 
     this.taskQueue = new PriorityQueue<ScheduledTask>((a, b) => a.executeAt - b.executeAt);
 
-    for (const subId of this.eventSubscriptionIds) {
-      eventBus.off(SystemEvents.CRON_JOB_CREATED, subId);
-      eventBus.off(SystemEvents.CRON_JOB_UPDATED, subId);
-      eventBus.off(SystemEvents.CRON_JOB_DELETED, subId);
-      eventBus.off(SystemEvents.CRON_JOB_TOGGLED, subId);
+    for (const [event, subId] of this.eventSubscriptions) {
+      eventBus.off(event, subId);
     }
-    this.eventSubscriptionIds = [];
+    this.eventSubscriptions.clear();
 
     this.running = false;
     logger.info({}, '🛑 CronJobScheduler stopped');
@@ -317,7 +319,8 @@ export class CronJobScheduler {
 
   private async executeJob(job: CronJobRecord): Promise<void> {
     if (!this.executor) {
-      logger.warn({}, 'No executor set for CronJobScheduler');
+      logger.error({ jobId: job.id, jobName: job.name }, '❌ 无法执行定时任务：执行器未设置');
+      cronJobRepository.incrementErrorCount(job.id);
       return;
     }
 

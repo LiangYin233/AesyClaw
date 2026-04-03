@@ -153,9 +153,10 @@ export class WebSocketHandler {
       } as any;
       this.sendToClient(ws, finalTrace);
 
-      const chunks = result.finalText.split('');
-      for (let i = 0; i < chunks.length; i += 10) {
-        const chunk = chunks.slice(i, i + 10).join('');
+      const text = result.finalText;
+      const chunkSize = 100;
+      for (let i = 0; i < text.length; i += chunkSize) {
+        const chunk = text.slice(i, i + chunkSize);
         const streamPayload: WebSocketMessage = {
           type: 'chat_stream',
           chatId,

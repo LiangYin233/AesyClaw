@@ -107,8 +107,15 @@ export class SkillManager {
         systemDir,
         { recursive: true },
         (eventType, filename) => {
-          if (filename && (filename.endsWith('SKILL.md') || fs.existsSync(path.join(systemDir, filename)))) {
-            this.handleFileChange();
+          try {
+            if (!filename) return;
+            
+            const fullPath = path.join(systemDir, filename);
+            if (filename.endsWith('SKILL.md') || fs.existsSync(fullPath)) {
+              this.handleFileChange();
+            }
+          } catch (error) {
+            logger.debug({ eventType, filename, error }, 'Error handling file watcher event');
           }
         }
       );

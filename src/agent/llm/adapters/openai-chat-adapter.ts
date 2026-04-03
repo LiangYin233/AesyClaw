@@ -159,10 +159,14 @@ export class OpenAIChatAdapter implements ILLMProvider {
 
         result.push(assistantMsg);
       } else if (msg.role === MessageRole.Tool) {
+        if (!msg.toolCallId) {
+          logger.warn({ msgRole: msg.role }, 'Tool message missing toolCallId, skipping');
+          continue;
+        }
         result.push({
           role: 'tool',
           content: msg.content,
-          tool_call_id: msg.toolCallId!,
+          tool_call_id: msg.toolCallId,
         });
       }
     }

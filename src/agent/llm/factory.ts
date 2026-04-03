@@ -137,28 +137,34 @@ export class LLMSession {
   }
 
   async generate(prompt: string): Promise<StandardResponse> {
+    const userMessageIndex = this.messages.length;
     this.addMessage({
       role: MessageRole.User,
       content: prompt,
     });
 
-    const response = await this.adapter.generate(this.messages, this.tools);
+    try {
+      const response = await this.adapter.generate(this.messages, this.tools);
 
-    if (response.text) {
-      this.addMessage({
-        role: MessageRole.Assistant,
-        content: response.text,
-        toolCalls: response.toolCalls,
-      });
+      if (response.text) {
+        this.addMessage({
+          role: MessageRole.Assistant,
+          content: response.text,
+          toolCalls: response.toolCalls,
+        });
+      }
+
+      if (response.tokenUsage) {
+        this.totalTokenUsage.promptTokens += response.tokenUsage.promptTokens;
+        this.totalTokenUsage.completionTokens += response.tokenUsage.completionTokens;
+        this.totalTokenUsage.totalTokens += response.tokenUsage.totalTokens;
+      }
+
+      return response;
+    } catch (error) {
+      this.messages.splice(userMessageIndex);
+      throw error;
     }
-
-    if (response.tokenUsage) {
-      this.totalTokenUsage.promptTokens += response.tokenUsage.promptTokens;
-      this.totalTokenUsage.completionTokens += response.tokenUsage.completionTokens;
-      this.totalTokenUsage.totalTokens += response.tokenUsage.totalTokens;
-    }
-
-    return response;
   }
 
   addToolResult(toolCallId: string, toolName: string, result: string): void {

@@ -174,6 +174,17 @@ export class CronJobRepository {
     stmt.run(id);
   }
 
+  incrementErrorCount(id: string): void {
+    const db = sqliteManager.getDatabase();
+    const stmt = db.prepare(`
+      UPDATE cron_jobs 
+      SET last_run_at = datetime('now'),
+          metadata = JSON_SET(COALESCE(metadata, '{}'), '$.lastError', datetime('now'))
+      WHERE id = ?
+    `);
+    stmt.run(id);
+  }
+
   setNextRunTime(id: string, nextRunAt: string): void {
     const db = sqliteManager.getDatabase();
     const stmt = db.prepare('UPDATE cron_jobs SET next_run_at = ? WHERE id = ?');
