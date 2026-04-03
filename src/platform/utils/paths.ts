@@ -6,6 +6,8 @@ const AESYCCLAW_DIR_NAME = '.aesyclaw';
 const DEFAULT_CONFIG_FILE = 'config.toml';
 const DEFAULT_DATA_FILE = 'aesyclaw.db';
 const DEFAULT_LOG_FILE = 'aesyclaw.log';
+const DEFAULT_SYSTEM_SKILLS_DIR = 'skills';
+const DEFAULT_USER_SKILLS_DIR = 'skills';
 
 export class PathResolver {
   private static instance: PathResolver;
@@ -13,6 +15,8 @@ export class PathResolver {
   private configDir: string;
   private dataDir: string;
   private logDir: string;
+  private systemSkillsDir: string;
+  private userSkillsDir: string;
   private initialized: boolean = false;
 
   private constructor() {
@@ -20,6 +24,16 @@ export class PathResolver {
     this.configDir = path.join(this.basePath, 'config');
     this.dataDir = path.join(this.basePath, 'data');
     this.logDir = path.join(this.basePath, 'logs');
+    this.systemSkillsDir = this.resolveSystemSkillsDir();
+    this.userSkillsDir = this.resolveUserSkillsDir();
+  }
+
+  private resolveSystemSkillsDir(): string {
+    return path.resolve(process.cwd(), DEFAULT_SYSTEM_SKILLS_DIR);
+  }
+
+  private resolveUserSkillsDir(): string {
+    return path.join(this.basePath, DEFAULT_USER_SKILLS_DIR);
   }
 
   static getInstance(): PathResolver {
@@ -44,6 +58,7 @@ export class PathResolver {
       this.ensureDirectoryExists(this.configDir);
       this.ensureDirectoryExists(this.dataDir);
       this.ensureDirectoryExists(this.logDir);
+      this.ensureDirectoryExists(this.userSkillsDir);
 
       this.initialized = true;
       logger.info({
@@ -51,6 +66,8 @@ export class PathResolver {
         configDir: this.configDir,
         dataDir: this.dataDir,
         logDir: this.logDir,
+        systemSkillsDir: this.systemSkillsDir,
+        userSkillsDir: this.userSkillsDir,
       }, 'PathResolver initialized');
     } catch (error) {
       logger.error({ error }, 'Failed to initialize PathResolver');
@@ -97,6 +114,14 @@ export class PathResolver {
     const tempDir = path.join(this.basePath, 'temp');
     this.ensureDirectoryExists(tempDir);
     return tempDir;
+  }
+
+  getSystemSkillsDir(): string {
+    return this.systemSkillsDir;
+  }
+
+  getUserSkillsDir(): string {
+    return this.userSkillsDir;
   }
 
   isInitialized(): boolean {

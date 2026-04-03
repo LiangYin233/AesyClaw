@@ -8,6 +8,7 @@ import { McpClientManager } from './platform/tools/mcp/mcp-client-manager.js';
 import { PluginManager } from './features/plugins/plugin-manager.js';
 import { ChannelPipeline } from './agent/core/pipeline.js';
 import { configInjectionMiddleware } from './middlewares/config.middleware.js';
+import { skillManager, loadSkillTool, SkillManager } from './features/skills/index.js';
 
 export interface BootstrapOptions {
   skipDb?: boolean;
@@ -15,6 +16,7 @@ export interface BootstrapOptions {
   skipWebUI?: boolean;
   skipPlugins?: boolean;
   skipMCP?: boolean;
+  skipSkills?: boolean;
   webUIPort?: number;
 }
 
@@ -50,15 +52,22 @@ export class Bootstrap {
         sqliteManager.initialize();
       }
 
-      logger.info({}, '[4/7] Initializing core components...');
+      logger.info({}, '[4/8] Initializing core components...');
       this.toolRegistry = ToolRegistry.getInstance();
       this.pipeline = new ChannelPipeline();
 
-      logger.info({}, '[5/7] Mounting ConfigInjectionMiddleware...');
+      if (!options.skipSkills) {
+        logger.info({}, '[5/8] Initializing SkillManager...');
+        await skillManager.initialize();
+        this.toolRegistry.register(loadSkillTool);
+        logger.info(skillManager.getStats(), '✅ Skills system loaded');
+      }
+
+      logger.info({}, '[6/8] Mounting ConfigInjectionMiddleware...');
       this.pipeline.use(configInjectionMiddleware.getMiddleware());
 
       if (!options.skipPlugins) {
-        logger.info({}, '[6/7] Loading plugins...');
+        logger.info({}, '[7/8] Loading plugins...');
         this.pluginManager = PluginManager.getInstance(this.toolRegistry, this.pipeline);
         const config = configManager.getConfig();
         if (config?.plugins?.plugins) {
@@ -67,7 +76,7 @@ export class Bootstrap {
       }
 
       if (!options.skipMCP) {
-        logger.info({}, '[7/7] Connecting MCP servers...');
+        logger.info({}, '[8/8] Connecting MCP servers...');
         this.mcpManager = McpClientManager.getInstance(this.toolRegistry);
         const config = configManager.getConfig();
         if (config?.mcp?.servers) {
@@ -111,7 +120,7 @@ export class Bootstrap {
       if (this.pluginManager) {
         this.pluginManager.shutdown();
         PluginManager.resetInstance();
-        logger.info({}, '[2/4] Plugin Manager stopped');
+        logger.info({}, '[2/5] Plugin Manager stopped');
       }
     } catch (error) {
       logger.error({ error }, 'Error stopping Plugin Manager');
@@ -121,7 +130,7 @@ export class Bootstrap {
       if (this.webUIAdapter) {
         await this.webUIAdapter.stop();
         this.webUIAdapter = null;
-        logger.info({}, '[3/4] WebUIAdapter stopped');
+        logger.info({}, '[3/5] WebUIAdapter stopped');
       }
     } catch (error) {
       logger.error({ error }, 'Error stopping WebUIAdapter');
@@ -129,9 +138,16 @@ export class Bootstrap {
 
     try {
       sqliteManager.close();
-      logger.info({}, '[4/4] SQLiteManager closed');
+      logger.info({}, '[4/5] SQLiteManager closed');
     } catch (error) {
       logger.error({ error }, 'Error closing SQLiteManager');
+    }
+
+    try {
+      SkillManager.resetInstance();
+      logger.info({}, '[5/5] SkillManager stopped');
+    } catch (error) {
+      logger.error({ error }, 'Error stopping SkillManager');
     }
 
     this.toolRegistry = null;
@@ -170,6 +186,11 @@ export class Bootstrap {
     toolRegistry: {
       totalTools: number;
     };
+    skills: {
+      total: number;
+      system: number;
+      user: number;
+    };
     mcpServers: number;
     plugins: number;
     webUI?: {
@@ -179,6 +200,7 @@ export class Bootstrap {
     };
   } {
     const toolStats = this.toolRegistry?.getStats() || { totalTools: 0 };
+    const skillStats = skillManager.isInitialized() ? skillManager.getStats() : { total: 0, system: 0, user: 0 };
     const mcpServers = this.mcpManager?.getConnectedServers() || [];
     const plugins = this.pluginManager?.getLoadedPlugins() || [];
 
@@ -190,6 +212,7 @@ export class Bootstrap {
       toolRegistry: {
         totalTools: toolStats.totalTools,
       },
+      skills: skillStats,
       mcpServers: mcpServers.filter(s => s.connected).length,
       plugins: plugins.length,
       webUI: this.webUIAdapter ? {
