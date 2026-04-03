@@ -23,7 +23,6 @@ export class OpenAICompletionAdapter implements ILLMProvider {
   private client: OpenAI;
   private model: string;
   private maxTokens: number;
-  private temperature: number;
 
   constructor(config: LLMProviderConfig) {
     const apiKey = config.apiKey;
@@ -39,7 +38,6 @@ export class OpenAICompletionAdapter implements ILLMProvider {
 
     this.model = config.model || 'gpt-3.5-turbo-instruct';
     this.maxTokens = config.maxTokens || 2048;
-    this.temperature = config.temperature ?? 0.7;
 
     logger.info(
       { provider: this.providerType, model: this.model, maxTokens: this.maxTokens },
@@ -67,7 +65,6 @@ export class OpenAICompletionAdapter implements ILLMProvider {
         model: this.model,
         prompt,
         max_tokens: this.maxTokens,
-        temperature: this.temperature,
         stop: ['</tool_call>', '\n\n\n'],
       });
 

@@ -30,7 +30,6 @@ export class AnthropicAdapter implements ILLMProvider {
   private client: Anthropic;
   private model: string;
   private maxTokens: number;
-  private temperature: number;
 
   constructor(config: LLMProviderConfig) {
     const apiKey = config.apiKey;
@@ -46,7 +45,6 @@ export class AnthropicAdapter implements ILLMProvider {
 
     this.model = config.model || 'claude-sonnet-4-20250514';
     this.maxTokens = config.maxTokens || 4096;
-    this.temperature = config.temperature ?? 0.7;
 
     logger.info(
       { provider: this.providerType, model: this.model, maxTokens: this.maxTokens },
@@ -84,7 +82,6 @@ export class AnthropicAdapter implements ILLMProvider {
         messages: anthropicMessages,
         tools: anthropicTools,
         max_tokens: this.maxTokens,
-        temperature: this.temperature,
       });
 
       const toolCalls: ToolCall[] = [];
