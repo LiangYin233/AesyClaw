@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "chcp 65001 && tsx watch src/index.ts",
+    "dev": "concurrently -n backend,webui -c blue.bold,green.bold \"yarn dev:backend\" \"yarn dev:webui\"",
+    "dev:backend": "chcp 65001 && tsx watch src/index.ts",
+    "dev:webui": "cd webui && yarn dev",
     "start": "tsx src/index.ts",
     "build": "tsc",
-    "dev:webui": "cd webui && yarn dev",
     "build:webui": "cd webui && yarn build"
   },
   "dependencies": {
@@ -30,6 +31,7 @@
     "@types/node": "^25.5.0",
     "@types/node-cron": "^3.0.11",
     "@types/ws": "^8.5.12",
+    "concurrently": "^9.2.1",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2"
   }

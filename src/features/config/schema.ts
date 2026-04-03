@@ -27,7 +27,7 @@ export const ProvidersConfigSchema = z.object({
   deepseek: ProviderCredentialSchema.optional(),
 });
 
-export type providersConfig = z.infer<typeof ProvidersConfigSchema>;
+export type ProvidersConfig = z.infer<typeof ProvidersConfigSchema>;
 
 export const OneBotConfigSchema = z.object({
   enabled: z.boolean().default(false),

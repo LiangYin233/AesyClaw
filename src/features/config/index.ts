@@ -17,7 +17,7 @@ export {
   DEFAULT_CONFIG,
   type FullConfig,
   type ServerConfig,
-  type providersConfig,
+  type ProvidersConfig,
   type ChannelsConfig,
   type AgentConfig,
   type MemoryConfig,
