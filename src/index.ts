@@ -1,76 +1,13 @@
-import { z } from 'zod';
 import { ChannelPipeline } from './agent/core/pipeline';
 import { IUnifiedMessage, MiddlewareFunc } from './agent/core/types';
 import { AgentManager } from './agent/core/engine';
-import { ToolRegistry, BuiltInToolExecutor } from './platform/tools/registry';
-import { ITool, ToolExecuteContext, zodToToolParameters } from './platform/tools/types';
+import { ToolRegistry } from './platform/tools/registry';
+import { ITool } from './platform/tools/types';
 import { LLMProviderType } from './agent/llm/types';
 import { logger } from './platform/observability/logger';
 import { Bootstrap, bootstrap } from './bootstrap';
 
-class CalculatorTool implements ITool {
-  readonly name = 'calculator';
-  readonly description = 'Perform mathematical calculations. Use this when you need to compute numerical results.';
-  readonly parametersSchema = z.object({
-    expression: z.string().describe('The mathematical expression to evaluate'),
-  });
-
-  getDefinition() {
-    return {
-      name: this.name,
-      description: this.description,
-      parameters: zodToToolParameters(this.parametersSchema),
-    };
-  }
-
-  async execute(args: unknown, context: ToolExecuteContext) {
-    return BuiltInToolExecutor.executeCalculator(args as { expression: string }, context);
-  }
-}
-
-class CurrentTimeTool implements ITool {
-  readonly name = 'current_time';
-  readonly description = 'Get the current date and time.';
-  readonly parametersSchema = z.object({});
-
-  getDefinition() {
-    return {
-      name: this.name,
-      description: this.description,
-      parameters: zodToToolParameters(this.parametersSchema),
-    };
-  }
-
-  async execute(args: Record<string, unknown>, context: ToolExecuteContext) {
-    return BuiltInToolExecutor.executeCurrentTime(args, context);
-  }
-}
-
-class WebSearchTool implements ITool {
-  readonly name = 'web_search';
-  readonly description = 'Search the web for information.';
-  readonly parametersSchema = z.object({
-    query: z.string().describe('The search query'),
-    maxResults: z.number().optional().describe('Maximum number of results'),
-  });
-
-  getDefinition() {
-    return {
-      name: this.name,
-      description: this.description,
-      parameters: zodToToolParameters(this.parametersSchema),
-    };
-  }
-
-  async execute(args: unknown, context: ToolExecuteContext) {
-    return BuiltInToolExecutor.executeWebSearch(args as { query: string; maxResults?: number }, context);
-  }
-}
-
 const toolRegistry = ToolRegistry.getInstance();
-toolRegistry.register(new CalculatorTool());
-toolRegistry.register(new CurrentTimeTool());
-toolRegistry.register(new WebSearchTool());
 logger.info('🔧 工具注册完成');
 
 const loggingMiddleware: MiddlewareFunc = async (ctx, next) => {

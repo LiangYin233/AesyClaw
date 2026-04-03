@@ -125,25 +125,4 @@ function convertProperty(prop: Record<string, unknown>): ToolParameterProperty {
   return result;
 }
 
-export const BuiltInTools = {
-  calculator: {
-    name: 'calculator',
-    description: 'Perform mathematical calculations. Use this when you need to compute numerical results.',
-    parametersSchema: z.object({
-      expression: z.string().describe('The mathematical expression to evaluate (e.g., "2 + 2", "sqrt(16)", "10 * 5")'),
-    }),
-  },
-  currentTime: {
-    name: 'current_time',
-    description: 'Get the current date and time. Useful for time-related queries.',
-    parametersSchema: z.object({}),
-  },
-  search: {
-    name: 'web_search',
-    description: 'Search the web for information. Use this when you need to find up-to-date information.',
-    parametersSchema: z.object({
-      query: z.string().describe('The search query to look up'),
-      maxResults: z.number().optional().describe('Maximum number of results to return'),
-    }),
-  },
-} as const;
+export const BuiltInTools = {} as const;

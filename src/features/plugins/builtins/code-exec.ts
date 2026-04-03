@@ -2,7 +2,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { z } from 'zod';
 import { IPlugin } from '../types';
-import { ITool, ToolExecutionResult, ToolParameters } from '../../../platform/tools/types';
+import { ITool, ToolExecutionResult } from '../../../platform/tools/types';
 
 const execAsync = promisify(exec);
 
@@ -29,7 +29,7 @@ class RunPythonCodeTool implements ITool {
     };
   }
 
-  async execute(args: unknown, context: any): Promise<ToolExecutionResult> {
+  async execute(args: unknown, _context: any): Promise<ToolExecutionResult> {
     const { code, timeout = 30 } = args as { code: string; timeout?: number };
 
     try {
@@ -88,7 +88,7 @@ class RunShellCommandTool implements ITool {
     };
   }
 
-  async execute(args: unknown, context: any): Promise<ToolExecutionResult> {
+  async execute(args: unknown, _context: any): Promise<ToolExecutionResult> {
     const { command, timeout = 30, cwd } = args as {
       command: string;
       timeout?: number;
@@ -124,107 +124,13 @@ class RunShellCommandTool implements ITool {
   }
 }
 
-class ReadFileTool implements ITool {
-  readonly name = 'read_file';
-  readonly description = 'Read the contents of a file from the filesystem.';
-  readonly parametersSchema = z.object({
-    path: z.string().describe('The file path to read'),
-    encoding: z.string().optional().default('utf-8').describe('File encoding'),
-  });
-
-  getDefinition() {
-    return {
-      name: this.name,
-      description: this.description,
-      parameters: {
-        type: 'object' as const,
-        properties: {
-          path: { type: 'string' as const, description: 'The file path to read' },
-          encoding: { type: 'string' as const, description: 'File encoding' },
-        },
-        required: ['path'],
-      },
-    };
-  }
-
-  async execute(args: unknown, context: any): Promise<ToolExecutionResult> {
-    const fs = require('fs/promises');
-    const { path, encoding = 'utf-8' } = args as { path: string; encoding?: string };
-
-    try {
-      const content = await fs.readFile(path, encoding);
-      return {
-        success: true,
-        content: content.slice(0, 10000),
-      };
-    } catch (error) {
-      return {
-        success: false,
-        content: '',
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-}
-
-class WriteFileTool implements ITool {
-  readonly name = 'write_file';
-  readonly description = 'Write content to a file in the filesystem.';
-  readonly parametersSchema = z.object({
-    path: z.string().describe('The file path to write'),
-    content: z.string().describe('The content to write'),
-    encoding: z.string().optional().default('utf-8').describe('File encoding'),
-  });
-
-  getDefinition() {
-    return {
-      name: this.name,
-      description: this.description,
-      parameters: {
-        type: 'object' as const,
-        properties: {
-          path: { type: 'string' as const, description: 'The file path to write' },
-          content: { type: 'string' as const, description: 'The content to write' },
-          encoding: { type: 'string' as const, description: 'File encoding' },
-        },
-        required: ['path', 'content'],
-      },
-    };
-  }
-
-  async execute(args: unknown, context: any): Promise<ToolExecutionResult> {
-    const fs = require('fs/promises');
-    const { path, content, encoding = 'utf-8' } = args as {
-      path: string;
-      content: string;
-      encoding?: string;
-    };
-
-    try {
-      await fs.writeFile(path, content, encoding);
-      return {
-        success: true,
-        content: `File written successfully: ${path}`,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        content: '',
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-}
-
 export const CodeExecPlugin: IPlugin = {
   name: 'code-exec',
-  description: 'Code execution plugin providing Python, shell commands, and file operations',
+  description: 'Code execution plugin providing Python and shell command execution',
   version: '1.0.0',
 
   tools: [
     new RunPythonCodeTool(),
     new RunShellCommandTool(),
-    new ReadFileTool(),
-    new WriteFileTool(),
   ],
 };
