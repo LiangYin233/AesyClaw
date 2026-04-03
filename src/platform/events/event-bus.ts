@@ -22,11 +22,11 @@ export class EventBus {
   }
 
   on<T = unknown>(event: string, handler: EventHandler<T>): string {
-    return this.addSubscription(event, handler, false);
+    return this.addSubscription(event, handler as EventHandler<unknown>, false);
   }
 
   once<T = unknown>(event: string, handler: EventHandler<T>): string {
-    return this.addSubscription(event, handler, true);
+    return this.addSubscription(event, handler as EventHandler<unknown>, true);
   }
 
   off(event: string, subscriptionId?: string): void {

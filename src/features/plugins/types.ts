@@ -1,4 +1,3 @@
-import type { Logger } from '../../platform/observability/logger.js';
 import type { ToolRegistry } from '../../platform/tools/registry.js';
 import type { SkillManager } from '../skills/skill-manager.js';
 import type { StandardMessage } from '../../agent/llm/types.js';
@@ -26,8 +25,15 @@ export interface PluginToolDefinition {
   ) => Promise<{ success: boolean; content: string; error?: string }>;
 }
 
+export interface PluginLogger {
+  info: (msg: string, data?: Record<string, unknown>) => void;
+  warn: (msg: string, data?: Record<string, unknown>) => void;
+  error: (msg: string, data?: Record<string, unknown>) => void;
+  debug: (msg: string, data?: Record<string, unknown>) => void;
+}
+
 export interface PluginContext {
-  logger: Logger;
+  logger: PluginLogger;
   config: Record<string, unknown>;
   toolRegistry: ToolRegistry;
   skillManager?: SkillManager;
@@ -118,3 +124,19 @@ export interface PluginInfo {
 }
 
 export type HookName = keyof PluginHooks;
+
+export type HookPayloadMap = {
+  onMessageReceive: HookPayloadMessageReceive;
+  beforeLLMRequest: HookPayloadBeforeLLMRequest;
+  beforeToolCall: HookPayloadToolCall;
+  afterToolCall: HookPayloadAfterToolCall;
+  onMessageSend: HookPayloadMessageSend;
+};
+
+export type HookResultMap = {
+  onMessageReceive: HookPayloadMessageReceive['message'] | null;
+  beforeLLMRequest: void;
+  beforeToolCall: { success: boolean; content: string; error?: string } | null;
+  afterToolCall: HookPayloadAfterToolCall['result'];
+  onMessageSend: HookPayloadMessageSend['message'] | null;
+};

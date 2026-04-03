@@ -1,6 +1,5 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { fileURLToPath } from 'url';
 import { logger } from '../../platform/observability/logger.js';
 import { ToolRegistry } from '../../platform/tools/registry.js';
 import {
@@ -14,13 +13,12 @@ import {
   HookPayloadToolCall,
   HookPayloadAfterToolCall,
   HookPayloadMessageSend,
+  HookPayloadMap,
+  HookResultMap,
 } from './types.js';
 import type { PluginConfig } from '../config/schema.js';
 import { CommandRegistry } from '../commands/command-registry.js';
 import { configManager } from '../config/config-manager.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 export class PluginManager {
   private static instance: PluginManager;
@@ -34,7 +32,7 @@ export class PluginManager {
 
   private constructor(toolRegistry: ToolRegistry) {
     this.toolRegistry = toolRegistry;
-    this.pluginsDir = path.resolve(__dirname, '../../../plugins');
+    this.pluginsDir = path.resolve(process.cwd(), 'plugins');
   }
 
   static getInstance(toolRegistry: ToolRegistry): PluginManager {
@@ -236,8 +234,8 @@ export class PluginManager {
 
   async dispatchHook<K extends HookName>(
     hookName: K,
-    payload: Parameters<PluginHooks[K]>[0] extends undefined ? undefined : Parameters<PluginHooks[K]>[0]
-  ): Promise<ReturnType<NonNullable<PluginHooks[K]>>> {
+    payload: HookPayloadMap[K] | undefined
+  ): Promise<HookResultMap[K]> {
     let result: any = payload;
 
     for (const [, plugin] of this.loadedPlugins) {
@@ -409,6 +407,7 @@ export class PluginManager {
         message: `✅ 插件 "${normalizedName}" 已开启`,
       };
     } catch (error) {
+      this.pluginPaths.delete(normalizedName);
       logger.error({ pluginName: normalizedName, error }, '❌ Failed to enable plugin');
       return {
         success: false,

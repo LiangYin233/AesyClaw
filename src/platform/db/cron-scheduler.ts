@@ -69,6 +69,10 @@ class PriorityQueue<T> {
     return removed;
   }
 
+  getAll(): readonly T[] {
+    return this.heap;
+  }
+
   private bubbleUp(index: number): void {
     while (index > 0) {
       const parentIndex = Math.floor((index - 1) / 2);
@@ -169,7 +173,7 @@ export class CronJobScheduler {
       this.nextTimeoutId = null;
     }
 
-    for (const task of this.taskQueue.heap) {
+    for (const task of this.taskQueue.getAll()) {
       if (task.timeoutId) {
         clearTimeout(task.timeoutId);
       }
