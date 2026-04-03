@@ -216,6 +216,34 @@ export class SkillManager {
       user: this.countBySource('user'),
     };
   }
+
+  getSkillDescriptionsForRole(allowedSkillIds: string[]): string | null {
+    if (allowedSkillIds.length === 0) {
+      return null;
+    }
+
+    const lines: string[] = [];
+
+    for (const skillId of allowedSkillIds) {
+      const skill = this.routes.get(skillId);
+      if (skill) {
+        lines.push(`- **${skill.name}**: ${skill.shortDescription}`);
+      }
+    }
+
+    if (lines.length === 0) {
+      return null;
+    }
+
+    lines.push('');
+    lines.push('使用 `load_skill(skill_name)` 加载技能并获取详细文档。');
+
+    return lines.join('\n');
+  }
+
+  getSkillNames(): string[] {
+    return Array.from(this.routes.keys());
+  }
 }
 
 export const skillManager = SkillManager.getInstance();

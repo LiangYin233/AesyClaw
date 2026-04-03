@@ -11,6 +11,8 @@ import { TokenBudgetCalculator } from './token-budget-calculator';
 import { MessageTrimmer } from './message-trimmer';
 import { LosslessSummarizer } from './lossless-summarizer';
 import { logger } from '../../../platform/observability/logger';
+import { roleManager, DEFAULT_ROLE_ID } from '../../../features/roles';
+import { skillManager } from '../../../features/skills';
 
 export class SessionMemoryManager {
   readonly chatId: string;
@@ -23,6 +25,7 @@ export class SessionMemoryManager {
   private compressionCount: number = 0;
   private lastCompressionTime?: Date;
   private eventListeners: Array<(event: MemoryEvent) => void> = [];
+  private activeRoleId: string = DEFAULT_ROLE_ID;
 
   constructor(chatId: string, config?: Partial<MemoryConfig>) {
     this.chatId = chatId;
@@ -194,12 +197,106 @@ export class SessionMemoryManager {
     }
   }
 
+  getActiveRoleId(): string {
+    return this.activeRoleId;
+  }
+
+  setActiveRole(roleId: string): boolean {
+    const role = roleManager.getRole(roleId);
+    if (!role) {
+      logger.warn({ chatId: this.chatId, roleId }, '⚠️ 尝试切换到不存在的角色');
+      return false;
+    }
+
+    const previousRoleId = this.activeRoleId;
+    this.activeRoleId = roleId;
+
+    logger.info(
+      { chatId: this.chatId, previousRoleId, newRoleId: roleId, roleName: role.name },
+      '🔄 角色已切换'
+    );
+
+    return true;
+  }
+
+  async rebuildSystemContext(): Promise<void> {
+    const roleConfig = roleManager.getRoleConfig(this.activeRoleId);
+
+    let systemPrompt = roleConfig.system_prompt;
+
+    if (roleConfig.allowed_skills.length > 0) {
+      const skillDescriptions = skillManager.getSkillDescriptionsForRole(roleConfig.allowed_skills);
+      if (skillDescriptions) {
+        systemPrompt += '\n\n## 可用技能 (SOP)\n' + skillDescriptions;
+      }
+    }
+
+    if (this.messages.length > 0 && this.messages[0].role === MessageRole.System) {
+      this.messages[0] = {
+        role: MessageRole.System,
+        content: systemPrompt,
+      };
+    } else {
+      this.messages.unshift({
+        role: MessageRole.System,
+        content: systemPrompt,
+      });
+    }
+
+    logger.info(
+      { chatId: this.chatId, roleId: this.activeRoleId, roleName: roleConfig.name },
+      '🧠 系统上下文已重建'
+    );
+  }
+
+  async switchRole(roleId: string): Promise<{ success: boolean; message: string }> {
+    const role = roleManager.getRole(roleId);
+    if (!role) {
+      const availableRoles = roleManager.getRolesList();
+      const roleNames = availableRoles.map(r => r.name).join(', ');
+      return {
+        success: false,
+        message: `角色 "${roleId}" 不存在。可用角色: ${roleNames}`,
+      };
+    }
+
+    if (!this.setActiveRole(roleId)) {
+      return { success: false, message: `切换到角色 "${roleId}" 失败` };
+    }
+
+    await this.rebuildSystemContext();
+
+    const roleConfig = roleManager.getRoleConfig(roleId);
+    const allowedTools = roleConfig.allowed_tools.includes('*')
+      ? '所有工具'
+      : roleConfig.allowed_tools.join(', ');
+
+    return {
+      success: true,
+      message: `✅ 已成功切换至角色：${roleConfig.name}\n可用工具: ${allowedTools}`,
+    };
+  }
+
+  getRoleInfo(): { roleId: string; roleName: string; allowedTools: string[] } {
+    const roleConfig = roleManager.getRoleConfig(this.activeRoleId);
+    return {
+      roleId: this.activeRoleId,
+      roleName: roleConfig.name,
+      allowedTools: roleConfig.allowed_tools,
+    };
+  }
+
   clear(): void {
     this.messages = [];
     this.calculator.clearCache();
     this.compressionCount = 0;
     this.lastCompressionTime = undefined;
     this.currentPhase = CompressionPhase.Idle;
+    this.activeRoleId = DEFAULT_ROLE_ID;
+    
+    this.rebuildSystemContext().catch(err => {
+      logger.error({ chatId: this.chatId, error: err }, '❌ 重建系统上下文失败');
+    });
     
     logger.debug({ chatId: this.chatId }, '🗑️ 会话记忆已清空');
     

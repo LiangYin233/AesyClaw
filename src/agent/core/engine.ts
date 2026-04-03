@@ -17,6 +17,7 @@ import {
 } from '../../platform/tools/types';
 import { logger } from '../../platform/observability/logger';
 import { pluginManager } from '../../features/plugins/plugin-manager.js';
+import { roleManager } from '../../features/roles/role-manager.js';
 import {
   SessionMemoryManager,
   MemoryManagerFactory,
@@ -99,12 +100,23 @@ export class AgentEngine {
 
   private getSession(): LLMSession {
     if (!this.session) {
-      this.session = createLLMSession(this.config.llm, this.config.tools);
+      const filteredTools = this.getFilteredTools();
+      this.session = createLLMSession(this.config.llm, filteredTools);
       
       const messages = this.memory.getMessagesForLLM();
       for (const msg of messages) {
         this.session.addMessage(msg);
       }
+
+      logger.debug(
+        { 
+          chatId: this.chatId,
+          totalTools: this.toolRegistry.getAllToolDefinitions().length,
+          filteredTools: filteredTools.length,
+          roleId: this.memory.getActiveRoleId()
+        },
+        '🔒 LLM Session created with role-filtered tools'
+      );
     }
     return this.session;
   }
@@ -140,9 +152,11 @@ export class AgentEngine {
           `🔄 开始第 ${step} 步推理`
         );
 
+        const filteredTools = this.getFilteredTools();
+
         await pluginManager.dispatchBeforeLLMRequest({
           messages: this.memory.getMessages(),
-          tools: this.toolRegistry.getAllToolDefinitions(),
+          tools: filteredTools,
         });
 
         const response = await session.generate(userInput);
@@ -165,6 +179,24 @@ export class AgentEngine {
           }));
 
           for (const toolRequest of toolRequests) {
+            const roleId = this.memory.getActiveRoleId();
+            if (!roleManager.isToolAllowed(roleId, toolRequest.name)) {
+              logger.warn(
+                { toolName: toolRequest.name, roleId },
+                '🚫 工具被角色权限拦截'
+              );
+
+              const toolMessage: StandardMessage = {
+                role: MessageRole.Tool,
+                content: `[权限拒绝] 角色 "${roleId}" 不允许使用工具 "${toolRequest.name}"。`,
+                toolCallId: toolRequest.id,
+                name: toolRequest.name,
+              };
+              this.memory.addMessage(toolMessage);
+              session.addToolResult(toolRequest.id, toolRequest.name, toolMessage.content);
+              continue;
+            }
+
             let toolResult = await pluginManager.dispatchBeforeToolCall({
               id: toolRequest.id,
               name: toolRequest.name,
@@ -288,12 +320,6 @@ export class AgentEngine {
 
   clearHistory(): void {
     this.memory.clear();
-    if (this.config.systemPrompt) {
-      this.memory.addMessage({
-        role: MessageRole.System,
-        content: this.config.systemPrompt,
-      });
-    }
     this.session = null;
     logger.debug({ chatId: this.chatId }, '🗑️ Agent 历史已清空');
   }
@@ -312,6 +338,25 @@ export class AgentEngine {
 
   getMemoryCompressionPhase() {
     return this.memory.getCurrentPhase();
+  }
+
+  private getFilteredTools(): ToolDefinition[] {
+    const roleId = this.memory.getActiveRoleId();
+    const allToolDefs = this.toolRegistry.getAllToolDefinitions();
+    const toolNames = allToolDefs.map(t => t.name);
+    const allowedToolNames = roleManager.getAllowedTools(roleId, toolNames);
+
+    return allToolDefs.filter(tool => allowedToolNames.includes(tool.name));
+  }
+
+  updateModel(model: string): void {
+    this.config.llm.model = model;
+    this.session = null;
+    logger.info({ chatId: this.chatId, model }, '🔄 Agent 模型已更新');
+  }
+
+  getCurrentRoleId(): string {
+    return this.memory.getActiveRoleId();
   }
 }
 

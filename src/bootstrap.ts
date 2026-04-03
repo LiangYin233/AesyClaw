@@ -11,6 +11,8 @@ import { configInjectionMiddleware } from './middlewares/config.middleware.js';
 import { skillManager, loadSkillTool, SkillManager } from './features/skills/index.js';
 import { cronJobScheduler, initializePromptExecutor } from './features/cron/index.js';
 import { commandMiddleware, registerSystemCommands } from './features/commands/index.js';
+import { roleManager } from './features/roles/role-manager.js';
+import { subAgentTools } from './features/subagent/index.js';
 
 export interface BootstrapOptions {
   skipDb?: boolean;
@@ -20,6 +22,8 @@ export interface BootstrapOptions {
   skipMCP?: boolean;
   skipSkills?: boolean;
   skipCron?: boolean;
+  skipRoles?: boolean;
+  skipSubAgents?: boolean;
   webUIPort?: number;
 }
 
@@ -59,22 +63,36 @@ export class Bootstrap {
       this.pipeline = new ChannelPipeline();
 
       if (!options.skipSkills) {
-        logger.info({}, '[5/10] Initializing SkillManager...');
+        logger.info({}, '[5/11] Initializing SkillManager...');
         await skillManager.initialize();
         this.toolRegistry.register(loadSkillTool);
         logger.info(skillManager.getStats(), '✅ Skills system loaded');
       }
 
-      logger.info({}, '[6/10] Mounting ConfigInjectionMiddleware...');
+      if (!options.skipRoles) {
+        logger.info({}, '[6/11] Initializing RoleManager...');
+        await roleManager.initialize();
+        logger.info({ roleCount: roleManager.getAllRoles().length }, '✅ Role system loaded');
+      }
+
+      if (!options.skipSubAgents) {
+        logger.info({}, '[7/12] Registering SubAgent tools...');
+        for (const tool of subAgentTools) {
+          this.toolRegistry.register(tool as any);
+        }
+        logger.info({ toolCount: subAgentTools.length }, '✅ SubAgent tools registered');
+      }
+
+      logger.info({}, '[8/12] Mounting ConfigInjectionMiddleware...');
       this.pipeline.use(configInjectionMiddleware.getMiddleware());
 
-      logger.info({}, '[7/10] Registering system commands...');
+      logger.info({}, '[9/12] Registering system commands...');
       registerSystemCommands();
       this.pipeline.use(commandMiddleware);
       logger.info({}, '✅ Command system initialized');
 
       if (!options.skipPlugins) {
-        logger.info({}, '[8/10] Initializing and loading plugins...');
+        logger.info({}, '[10/12] Initializing and loading plugins...');
         await pluginManager.initialize();
         const config = configManager.getConfig();
         if (config?.plugins?.plugins) {
@@ -84,7 +102,7 @@ export class Bootstrap {
       }
 
       if (!options.skipCron) {
-        logger.info({}, '[9/10] Initializing Cron system with PromptExecutor...');
+        logger.info({}, '[11/12] Initializing Cron system with PromptExecutor...');
         await initializePromptExecutor();
         cronJobScheduler.start();
         const status = cronJobScheduler.isRunning();
@@ -92,7 +110,7 @@ export class Bootstrap {
       }
 
       if (!options.skipMCP) {
-        logger.info({}, '[10/10] Connecting MCP servers...');
+        logger.info({}, '[12/12] Connecting MCP servers...');
         this.mcpManager = McpClientManager.getInstance(this.toolRegistry);
         const config = configManager.getConfig();
         if (config?.mcp?.servers) {
@@ -165,9 +183,16 @@ export class Bootstrap {
 
     try {
       SkillManager.resetInstance();
-      logger.info({}, '[6/6] SkillManager stopped');
+      logger.info({}, '[6/7] SkillManager stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping SkillManager');
+    }
+
+    try {
+      roleManager.shutdown();
+      logger.info({}, '[7/7] RoleManager stopped');
+    } catch (error) {
+      logger.error({ error }, 'Error stopping RoleManager');
     }
 
     this.toolRegistry = null;
@@ -210,6 +235,9 @@ export class Bootstrap {
       system: number;
       user: number;
     };
+    roles: {
+      total: number;
+    };
     mcpServers: number;
     plugins: number;
     cron: {
@@ -226,6 +254,7 @@ export class Bootstrap {
     const skillStats = skillManager.isInitialized() ? skillManager.getStats() : { total: 0, system: 0, user: 0 };
     const mcpServers = this.mcpManager?.getConnectedServers() || [];
     const plugins = pluginManager?.getLoadedPlugins() || [];
+    const roleStats = roleManager.isInitialized() ? { total: roleManager.getAllRoles().length } : { total: 0 };
 
     return {
       initialized: this.initialized,
@@ -236,6 +265,7 @@ export class Bootstrap {
         totalTools: toolStats.totalTools,
       },
       skills: skillStats,
+      roles: roleStats,
       mcpServers: mcpServers.filter(s => s.connected).length,
       plugins: plugins.length,
       cron: {

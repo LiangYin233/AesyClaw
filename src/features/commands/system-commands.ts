@@ -3,6 +3,8 @@ import { commandRegistry } from './command-registry.js';
 import { AgentManager } from '../../agent/core/engine.js';
 import { logger } from '../../platform/observability/logger.js';
 import { pluginManager } from '../plugins/plugin-manager.js';
+import { roleManager } from '../roles/role-manager.js';
+import { MemoryManagerFactory } from '../../agent/core/memory/session-memory-manager.js';
 
 function formatPluginList(): string {
   const plugins = commandRegistry.getPluginCommands();
@@ -186,6 +188,153 @@ export const systemCommands: CommandDefinition[] = [
           return {
             success: false,
             message: `未知子命令: ${subCommand || '(无)'}\n\n可用子命令:\n  /session new   - 创建新会话\n  /session clear - 清除当前会话历史`,
+          };
+        }
+      }
+    },
+  },
+  {
+    name: 'role',
+    description: '角色管理命令',
+    usage: '/role <list|info|switch> [args...]',
+    category: 'system',
+    aliases: ['roles'],
+    execute: async (ctx: CommandContext): Promise<CommandResult> => {
+      const subCommand = ctx.args[0]?.toLowerCase();
+
+      switch (subCommand) {
+        case 'list': {
+          const roles = roleManager.getRolesList();
+          let output = '🎭 可用角色列表：\n\n';
+
+          const memoryFactory = MemoryManagerFactory.getInstance();
+          const currentMemory = memoryFactory.getOrCreate(ctx.chatId);
+          const currentRoleId = currentMemory.getActiveRoleId();
+
+          for (const role of roles) {
+            const marker = role.id === currentRoleId ? '👉 ' : '  ';
+            const tags = role.tags.length > 0 ? ` [${role.tags.join(', ')}]` : '';
+            output += `${marker}**${role.name}**${tags}\n`;
+            if (role.description) {
+              output += `    ${role.description}\n`;
+            }
+          }
+
+          output += '\n使用 /role info <role-id> 查看角色详情';
+          output += '\n使用 /role switch <role-id> 切换角色';
+
+          return {
+            success: true,
+            message: output,
+          };
+        }
+
+        case 'info': {
+          const roleId = ctx.args[1];
+          if (!roleId) {
+            return {
+              success: false,
+              message: '请指定角色ID\n\n用法: /role info <role-id>',
+            };
+          }
+
+          const role = roleManager.getRole(roleId);
+          if (!role) {
+            return {
+              success: false,
+              message: `角色 "${roleId}" 不存在\n\n使用 /role list 查看所有可用角色`,
+            };
+          }
+
+          let output = `🎭 角色详情: **${role.name}**\n\n`;
+          output += `**ID**: \`${role.metadata.id}\`\n`;
+          if (role.description) {
+            output += `**描述**: ${role.description}\n`;
+          }
+          output += '\n**可用工具**: ';
+          if (role.allowed_tools.includes('*')) {
+            output += '所有工具\n';
+          } else {
+            output += role.allowed_tools.length > 0
+              ? role.allowed_tools.join(', ') + '\n'
+              : '无限制\n';
+          }
+          output += '\n**可用技能**: ';
+          if (role.allowed_skills.length > 0) {
+            output += role.allowed_skills.join(', ') + '\n';
+          } else {
+            output += '无限制\n';
+          }
+          if (role.override_model) {
+            output += `\n**模型**: ${role.override_model}\n`;
+          }
+          if (role.tags.length > 0) {
+            output += `\n**标签**: ${role.tags.join(', ')}\n`;
+          }
+
+          return {
+            success: true,
+            message: output,
+          };
+        }
+
+        case 'switch': {
+          const targetRoleId = ctx.args[1];
+          if (!targetRoleId) {
+            return {
+              success: false,
+              message: '请指定要切换的角色ID\n\n用法: /role switch <role-id>',
+            };
+          }
+
+          logger.info({ targetRoleId, chatId: ctx.chatId }, '正在切换角色');
+
+          const memoryFactory = MemoryManagerFactory.getInstance();
+          const currentMemory = memoryFactory.getOrCreate(ctx.chatId);
+          const result = await currentMemory.switchRole(targetRoleId);
+
+          if (result.success) {
+            const role = roleManager.getRole(targetRoleId);
+            if (role?.override_model) {
+              const agentManager = AgentManager.getInstance();
+              const agent = agentManager.getOrCreate(ctx.chatId);
+              agent.updateModel(role.override_model);
+            }
+          }
+
+          return {
+            success: result.success,
+            message: result.message,
+          };
+        }
+
+        case 'current': {
+          const memoryFactory = MemoryManagerFactory.getInstance();
+          const currentMemory = memoryFactory.getOrCreate(ctx.chatId);
+          const roleInfo = currentMemory.getRoleInfo();
+
+          const role = roleManager.getRole(roleInfo.roleId);
+          let output = `🎭 当前角色: **${roleInfo.roleName}**\n\n`;
+          output += `**ID**: \`${roleInfo.roleId}\`\n`;
+          output += '\n**可用工具**: ';
+          if (roleInfo.allowedTools.includes('*')) {
+            output += '所有工具\n';
+          } else {
+            output += roleInfo.allowedTools.length > 0
+              ? roleInfo.allowedTools.join(', ') + '\n'
+              : '无\n';
+          }
+
+          return {
+            success: true,
+            message: output,
+          };
+        }
+
+        default: {
+          return {
+            success: false,
+            message: `未知子命令: ${subCommand || '(无)'}\n\n可用子命令:\n  /role list     - 列出所有角色\n  /role info     - 查看角色详情\n  /role switch   - 切换角色\n  /role current  - 查看当前角色`,
           };
         }
       }
