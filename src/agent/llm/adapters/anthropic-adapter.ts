@@ -33,9 +33,9 @@ export class AnthropicAdapter implements ILLMProvider {
   private temperature: number;
 
   constructor(config: LLMProviderConfig) {
-    const apiKey = config.apiKey || process.env.ANTHROPIC_API_KEY;
+    const apiKey = config.apiKey;
     if (!apiKey) {
-      throw new Error('Anthropic API key is required. Set ANTHROPIC_API_KEY environment variable.');
+      throw new Error('Anthropic API key is required. Please configure it in config.toml.');
     }
 
     this.client = new Anthropic({
@@ -55,7 +55,7 @@ export class AnthropicAdapter implements ILLMProvider {
   }
 
   validateConfig(): boolean {
-    return !!process.env.ANTHROPIC_API_KEY || true;
+    return !!this.client.apiKey;
   }
 
   async generate(

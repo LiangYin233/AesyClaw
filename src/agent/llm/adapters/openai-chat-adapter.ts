@@ -24,9 +24,9 @@ export class OpenAIChatAdapter implements ILLMProvider {
   private temperature: number;
 
   constructor(config: LLMProviderConfig) {
-    const apiKey = config.apiKey || process.env.OPENAI_API_KEY;
+    const apiKey = config.apiKey;
     if (!apiKey) {
-      throw new Error('OpenAI API key is required. Set OPENAI_API_KEY environment variable.');
+      throw new Error('OpenAI API key is required. Please configure it in config.toml.');
     }
 
     this.client = new OpenAI({
@@ -46,7 +46,7 @@ export class OpenAIChatAdapter implements ILLMProvider {
   }
 
   validateConfig(): boolean {
-    return !!process.env.OPENAI_API_KEY || true;
+    return !!this.client.apiKey;
   }
 
   async generate(

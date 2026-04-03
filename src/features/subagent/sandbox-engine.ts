@@ -1,9 +1,10 @@
 import { StandardMessage, MessageRole, LLMProviderType } from '../../agent/llm/types.js';
-import { LLMConfig } from '../../agent/llm/factory.js';
+import { LLMConfig, LLMSession, createLLMSession } from '../../agent/llm/factory.js';
 import { ToolRegistry } from '../../platform/tools/registry.js';
 import { ToolDefinition, ToolExecuteContext } from '../../platform/tools/types.js';
 import { logger } from '../../platform/observability/logger.js';
 import { roleManager } from '../roles/role-manager.js';
+import { configManager } from '../config/config-manager.js';
 import type { SandboxConfig, SubAgentResult, SandboxContext } from './types.js';
 
 export class SandboxEngine {
@@ -102,16 +103,22 @@ export class SandboxEngine {
 
     try {
       const filteredTools = this.getFilteredTools();
-      const llmConfig: LLMConfig = {
-        provider: LLMProviderType.OpenAIChat,
-        model: 'gpt-4o-mini',
-      };
+      const llmConfig = this.getLLMConfig();
 
       const context: ToolExecuteContext = {
         chatId: this.agentId,
         senderId: 'subagent',
         traceId: this.sandboxId,
       };
+
+      const session = createLLMSession(llmConfig, filteredTools);
+
+      for (const msg of this.memory) {
+        if (msg.role === MessageRole.System) {
+          continue;
+        }
+        session.addMessage(msg);
+      }
 
       let step = 0;
       let lastAssistantMessage = '';
@@ -126,11 +133,16 @@ export class SandboxEngine {
 
         const prompt = this.buildPrompt();
 
-        const response = await this.callLLM(prompt, llmConfig, filteredTools);
+        const response = await session.generate(prompt);
+
+        if (response.finishReason === 'error') {
+          throw new Error('LLM 返回错误');
+        }
 
         if (response.toolCalls && response.toolCalls.length > 0) {
           for (const toolCall of response.toolCalls) {
             const toolResult = await this.executeTool(toolCall, context);
+            session.addToolResult(toolCall.id, toolCall.name, toolResult.content);
             this.memory.push({
               role: MessageRole.Tool,
               content: toolResult.content,
@@ -194,6 +206,29 @@ export class SandboxEngine {
     }
   }
 
+  private getLLMConfig(): LLMConfig {
+    const config = configManager.getConfig();
+    const providers = config?.providers;
+
+    if (providers?.openai?.api_key) {
+      return {
+        provider: LLMProviderType.OpenAIChat,
+        model: providers.openai.model || 'gpt-4o-mini',
+        apiKey: providers.openai.api_key,
+        baseUrl: providers.openai.base_url,
+        temperature: 0.7,
+        maxTokens: 4096,
+      };
+    }
+
+    return {
+      provider: LLMProviderType.OpenAIChat,
+      model: 'gpt-4o-mini',
+      temperature: 0.7,
+      maxTokens: 4096,
+    };
+  }
+
   private buildPrompt(): string {
     let prompt = '';
 
@@ -214,69 +249,6 @@ export class SandboxEngine {
       case MessageRole.Tool: return 'System';
       default: return 'System';
     }
-  }
-
-  private async callLLM(
-    prompt: string,
-    config: LLMConfig,
-    tools: ToolDefinition[]
-  ): Promise<{ text?: string; toolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown> }> }> {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY || ''}`,
-      },
-      body: JSON.stringify({
-        model: config.model,
-        messages: [
-          { role: 'system', content: this.config.systemPrompt },
-          ...this.memory.slice(2).map(msg => ({
-            role: msg.role === MessageRole.Tool ? 'tool' : msg.role,
-            content: msg.content,
-            ...(msg.toolCallId ? { tool_call_id: msg.toolCallId } : {}),
-          })),
-        ],
-        tools: tools.length > 0 ? tools.map(t => ({
-          type: 'function',
-          function: {
-            name: t.name,
-            description: t.description,
-            parameters: t.parameters,
-          },
-        })) : undefined,
-        temperature: config.temperature || 0.7,
-        max_tokens: config.maxTokens || 4096,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`LLM API error: ${response.status} - ${error}`);
-    }
-
-    const data = await response.json();
-    const message = data.choices?.[0]?.message;
-
-    if (!message) {
-      throw new Error('No response from LLM');
-    }
-
-    const result: { text?: string; toolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown> }> } = {};
-
-    if (message.content) {
-      result.text = message.content;
-    }
-
-    if (message.tool_calls && message.tool_calls.length > 0) {
-      result.toolCalls = message.tool_calls.map((tc: any) => ({
-        id: tc.id,
-        name: tc.function.name,
-        arguments: JSON.parse(tc.function.arguments || '{}'),
-      }));
-    }
-
-    return result;
   }
 
   private async executeTool(

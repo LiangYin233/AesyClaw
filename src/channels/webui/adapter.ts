@@ -37,8 +37,11 @@ export class WebUIAdapter {
 
     this.app = express();
 
+    const config = configManager.getConfig();
+    const corsOrigin = config?.server?.corsOrigin || '*';
+
     this.app.use(cors({
-      origin: process.env.CORS_ORIGIN || '*',
+      origin: corsOrigin,
       credentials: true,
     }));
 
