@@ -2,28 +2,34 @@ import { CommandDefinition, CommandContext, CommandResult } from './types.js';
 import { commandRegistry } from './command-registry.js';
 import { AgentManager } from '../../agent/core/engine.js';
 import { logger } from '../../platform/observability/logger.js';
+import { pluginManager } from '../plugins/plugin-manager.js';
 
 function formatPluginList(): string {
   const plugins = commandRegistry.getPluginCommands();
+  const loadedPlugins = pluginManager.getLoadedPlugins();
+
   if (plugins.length === 0) {
     return '暂无已加载的插件命令。';
   }
 
-  let output = '🔌 已加载的插件命令：\n\n';
-  const pluginMap = new Map<string, string[]>();
+  let output = '🔌 插件状态：\n\n';
+  const pluginMap = new Map<string, { loaded: boolean; commands: string[] }>();
 
   for (const cmd of plugins) {
     const parts = cmd.name.split(':');
     const pluginName = parts[0];
     if (!pluginMap.has(pluginName)) {
-      pluginMap.set(pluginName, []);
+      pluginMap.set(pluginName, { loaded: true, commands: [] });
     }
-    pluginMap.get(pluginName)!.push(`  /${cmd.name.replace(/^[^:]+:/, '')} - ${cmd.description}`);
+    pluginMap.get(pluginName)!.commands.push(
+      `  /${cmd.name.replace(/^[^:]+:/, '')} - ${cmd.description}`
+    );
   }
 
-  for (const [pluginName, commands] of pluginMap) {
-    output += `📦 ${pluginName}\n`;
-    output += commands.join('\n');
+  for (const [pluginName, info] of pluginMap) {
+    const status = info.loaded ? '✅' : '❌';
+    output += `${status} ${pluginName}\n`;
+    output += info.commands.join('\n');
     output += '\n\n';
   }
 
@@ -109,10 +115,11 @@ export const systemCommands: CommandDefinition[] = [
             };
           }
 
-          logger.info({ pluginName }, '插件开启命令（需要配置支持）');
+          logger.info({ pluginName }, '正在开启插件');
+          const result = await pluginManager.enablePlugin(pluginName);
           return {
-            success: false,
-            message: `插件动态开启功能暂未实现。\n\n当前已加载的插件命令：\n${formatPluginList()}`,
+            success: result.success,
+            message: result.message,
           };
         }
 
@@ -125,17 +132,18 @@ export const systemCommands: CommandDefinition[] = [
             };
           }
 
-          logger.info({ pluginName }, '插件关闭命令（需要配置支持）');
+          logger.info({ pluginName }, '正在关闭插件');
+          const result = await pluginManager.disablePlugin(pluginName);
           return {
-            success: false,
-            message: `插件动态关闭功能暂未实现。\n\n当前已加载的插件命令：\n${formatPluginList()}`,
+            success: result.success,
+            message: result.message,
           };
         }
 
         default: {
           return {
             success: false,
-            message: `未知子命令: ${subCommand || '(无)'}\n\n可用子命令:\n  /plugin list     - 列出所有插件命令\n  /plugin enable   - 开启插件（暂未实现）\n  /plugin disable  - 关闭插件（暂未实现）`,
+            message: `未知子命令: ${subCommand || '(无)'}\n\n可用子命令:\n  /plugin list     - 列出所有插件\n  /plugin enable   - 开启插件\n  /plugin disable  - 关闭插件`,
           };
         }
       }

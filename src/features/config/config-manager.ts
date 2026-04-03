@@ -190,6 +190,41 @@ export class ConfigManager {
     return this.getConfig().plugins;
   }
 
+  async updatePluginConfig(name: string, enabled: boolean): Promise<boolean> {
+    if (!this.config) {
+      logger.error({}, 'ConfigManager not initialized');
+      return false;
+    }
+
+    try {
+      const plugins = this.config.plugins?.plugins || [];
+
+      const normalizedName = name.replace('@aesyclaw/plugin-', '').replace('plugin-', '');
+
+      const existingIndex = plugins.findIndex(p => {
+        const configName = p.name.replace('@aesyclaw/plugin-', '').replace('plugin-', '');
+        return configName === normalizedName || p.name === normalizedName;
+      });
+
+      if (existingIndex >= 0) {
+        plugins[existingIndex].enabled = enabled;
+      } else {
+        plugins.push({
+          name: normalizedName,
+          enabled,
+          options: {},
+        });
+      }
+
+      return this.updateConfig({
+        plugins: { plugins },
+      });
+    } catch (error) {
+      logger.error({ error, name, enabled }, 'Failed to update plugin config');
+      return false;
+    }
+  }
+
   getProviderCredential(provider: string) {
     const providers = this.getConfig().providers;
     return (providers as any)[provider] || null;

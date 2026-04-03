@@ -17,6 +17,7 @@ import {
 } from './types.js';
 import type { PluginConfig } from '../config/schema.js';
 import { CommandRegistry } from '../commands/command-registry.js';
+import { configManager } from '../config/config-manager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,6 +30,7 @@ export class PluginManager {
   private pluginInfos: Map<string, PluginInfo> = new Map();
   private initialized: boolean = false;
   private pluginsDir: string;
+  private pluginPaths: Map<string, { dir: string; packageJson: any }> = new Map();
 
   private constructor(toolRegistry: ToolRegistry) {
     this.toolRegistry = toolRegistry;
@@ -87,6 +89,8 @@ export class PluginManager {
 
         const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
         const pluginName = packageJson.name || dir.name;
+
+        this.pluginPaths.set(pluginName, { dir: pluginDir, packageJson });
 
         const config = enabledPlugins.find(p => {
           const configName = p.name.replace('@aesyclaw/plugin-', '').replace('plugin-', '');
@@ -317,6 +321,127 @@ export class PluginManager {
       logger.info({ pluginName }, '✅ Plugin unloaded successfully');
     } catch (error) {
       logger.error({ pluginName, error }, '❌ Plugin unload failed');
+    }
+  }
+
+  async enablePlugin(pluginName: string): Promise<{ success: boolean; message: string }> {
+    const normalizedName = pluginName.replace('@aesyclaw/plugin-', '').replace('plugin-', '');
+
+    if (this.loadedPlugins.has(normalizedName)) {
+      return {
+        success: false,
+        message: `插件 "${normalizedName}" 已经加载`,
+      };
+    }
+
+    let pluginInfo = this.pluginPaths.get(normalizedName);
+
+    if (!pluginInfo) {
+      if (!fs.existsSync(this.pluginsDir)) {
+        return {
+          success: false,
+          message: `未找到插件 "${normalizedName}"，插件目录不存在`,
+        };
+      }
+
+      const entries = fs.readdirSync(this.pluginsDir, { withFileTypes: true });
+      const pluginDirs = entries.filter(
+        entry => entry.isDirectory() && entry.name.startsWith('plugin_')
+      );
+
+      for (const dir of pluginDirs) {
+        const pluginDir = path.join(this.pluginsDir, dir.name);
+        const packageJsonPath = path.join(pluginDir, 'package.json');
+
+        if (fs.existsSync(packageJsonPath)) {
+          const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+          const pkgName = packageJson.name || dir.name;
+
+          this.pluginPaths.set(pkgName, { dir: pluginDir, packageJson });
+
+          const configName = pkgName.replace('@aesyclaw/plugin-', '').replace('plugin-', '');
+          if (configName === normalizedName || pkgName === normalizedName) {
+            pluginInfo = { dir: pluginDir, packageJson };
+            break;
+          }
+        }
+      }
+    }
+
+    if (!pluginInfo) {
+      return {
+        success: false,
+        message: `未找到插件 "${normalizedName}"，请确认插件已存在于 plugins/ 目录`,
+      };
+    }
+
+    try {
+      const { dir: pluginDir, packageJson } = pluginInfo;
+      const mainFile = packageJson.main || 'dist/index.js';
+      const pluginPath = path.join(pluginDir, mainFile);
+
+      if (fs.existsSync(pluginPath)) {
+        await this.loadPluginFromDist(normalizedName, pluginPath, {});
+      } else {
+        const srcPath = path.join(pluginDir, 'src/index.ts');
+        if (fs.existsSync(srcPath)) {
+          await this.loadPluginFromSource(normalizedName, srcPath, {});
+        } else {
+          return {
+            success: false,
+            message: `插件 "${normalizedName}" 入口文件不存在`,
+          };
+        }
+      }
+
+      if (!this.loadedPlugins.has(normalizedName)) {
+        return {
+          success: false,
+          message: `插件 "${normalizedName}" 加载失败`,
+        };
+      }
+
+      await configManager.updatePluginConfig(normalizedName, true);
+
+      logger.info({ pluginName: normalizedName }, '✅ Plugin enabled successfully');
+      return {
+        success: true,
+        message: `✅ 插件 "${normalizedName}" 已开启`,
+      };
+    } catch (error) {
+      logger.error({ pluginName: normalizedName, error }, '❌ Failed to enable plugin');
+      return {
+        success: false,
+        message: `插件 "${normalizedName}" 开启失败: ${error instanceof Error ? error.message : '未知错误'}`,
+      };
+    }
+  }
+
+  async disablePlugin(pluginName: string): Promise<{ success: boolean; message: string }> {
+    const normalizedName = pluginName.replace('@aesyclaw/plugin-', '').replace('plugin-', '');
+
+    if (!this.loadedPlugins.has(normalizedName)) {
+      return {
+        success: false,
+        message: `插件 "${normalizedName}" 未加载或不存在`,
+      };
+    }
+
+    try {
+      await this.unloadPlugin(normalizedName);
+      await configManager.updatePluginConfig(normalizedName, false);
+
+      logger.info({ pluginName: normalizedName }, '✅ Plugin disabled successfully');
+      return {
+        success: true,
+        message: `✅ 插件 "${normalizedName}" 已关闭`,
+      };
+    } catch (error) {
+      logger.error({ pluginName: normalizedName, error }, '❌ Failed to disable plugin');
+      return {
+        success: false,
+        message: `插件 "${normalizedName}" 关闭失败: ${error instanceof Error ? error.message : '未知错误'}`,
+      };
     }
   }
 
