@@ -9,11 +9,9 @@ description: 当用户要求创建、改写、扩展或整理 AesyClaw 的 Skill
 
 ## 先判断放哪
 
-- 所有“创建 Skill / 修改 Skill / 扩展 Skill / 重写 Skill”的操作，一律只写到 `workspace/skills/<skill-name>/`
+- 所有“创建 Skill / 修改 Skill / 扩展 Skill / 重写 Skill”的操作，一律只写到 `.aesyclaw/skills/<skill-name>/`
 - 不要为这类用户请求创建或修改 `skills/<skill-name>/` 下的内置 Skill，除非用户明确要求维护仓库内置 Skill 且这是开发者任务
-- 面向普通用户的 Skill 制作与迭代，默认都视为外置 Skill
-- 内置 Skill 固定启用，没有配置项，也不能禁用
-- 外置 Skill 通过 `config.skills.<name>.enabled` 控制启用状态
+- 面向普通用户的 Skill 制作与迭代，默认都视为外置 Skills
 - 如果内置和外置同名，系统会优先使用内置 Skill，所以创建外置 Skill 时必须避开现有内置重名
 
 ## 先定清楚这几个点
@@ -98,7 +96,7 @@ description: 清楚描述这个 Skill 在什么场景下应该被触发
 ## 针对 AesyClaw 的额外约束
 
 - 这个项目的 Skill 是给 Agent/LLM 用的，不是给人看的产品文档
-- 用户要求你创建或修改 Skill 时，目标目录默认是 `workspace/skills/`，不是仓库内置 `skills/`
+- 用户要求你创建或修改 Skill 时，目标目录默认是 `.aesyclaw/skills/`，不是仓库内置 `skills/`
 - 触发描述要覆盖“用户怎么说”而不是只写“这个 Skill 是什么”
 - 如果 Skill 涉及本项目的工具、Provider、Session、Memory、Channel 等能力，要写清楚应该优先使用哪些现有接口
 - 如果 Skill 需要读仓库内固定路径，要在正文里写明路径
@@ -117,7 +115,7 @@ description: 清楚描述这个 Skill 在什么场景下应该被触发
 - frontmatter 的 `name` 和目录名一致
 - `description` 足够具体，能帮助系统正确触发
 - 内容精简，没有 README 式废话
-- 目录在 `workspace/skills/<skill-name>/`
+- 目录在 `.aesyclaw/skills/<skill-name>/`
 - 没有误写到仓库内置 `skills/`
 - 确认它不依赖“内置 Skill 固定启用”这类假设
 - 如果改了已有 Skill，确认没有破坏原有触发场景
