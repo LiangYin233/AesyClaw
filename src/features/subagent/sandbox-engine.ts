@@ -3,9 +3,9 @@ import { LLMConfig, LLMSession, createLLMSession } from '../../agent/llm/factory
 import { ToolRegistry } from '../../platform/tools/registry.js';
 import { ToolDefinition, ToolExecuteContext } from '../../platform/tools/types.js';
 import { logger } from '../../platform/observability/logger.js';
-import { roleManager } from '../roles/role-manager.js';
+import { roleManager, DEFAULT_ROLE_ID } from '../roles/role-manager.js';
 import { configManager } from '../config/config-manager.js';
-import { parseModelIdentifier } from '../../platform/utils/model-parser.js';
+import { resolveLLMConfig } from '../../middlewares/agent.middleware.js';
 import type { SandboxConfig, SubAgentResult, SandboxContext } from './types.js';
 
 export class SandboxEngine {
@@ -208,40 +208,17 @@ export class SandboxEngine {
   }
 
   private getLLMConfig(): LLMConfig {
-    const config = configManager.getConfig();
-    const modelIdentifier = config.agent.default_model;
-    const { providerName, modelName } = parseModelIdentifier(modelIdentifier);
-    const providerDetails = config.providers[providerName];
-
-    if (providerDetails) {
+    try {
+      const config = configManager.getConfig();
+      const defaultRole = roleManager.getRoleConfig(DEFAULT_ROLE_ID);
+      const modelIdentifier = defaultRole.model;
+      return resolveLLMConfig(modelIdentifier, config);
+    } catch (error) {
+      logger.warn({ error }, 'Failed to resolve LLM config from config.toml, using fallback');
       return {
-        provider: this.mapProviderType(providerDetails.type),
-        model: modelName,
-        apiKey: providerDetails.api_key,
-        baseUrl: providerDetails.base_url,
-        temperature: providerDetails.temperature ?? 0.7,
-        maxTokens: providerDetails.max_tokens ?? 4096,
+        provider: LLMProviderType.OpenAIChat,
+        model: 'gpt-4o-mini',
       };
-    }
-
-    return {
-      provider: LLMProviderType.OpenAIChat,
-      model: 'gpt-4o-mini',
-      temperature: 0.7,
-      maxTokens: 4096,
-    };
-  }
-
-  private mapProviderType(type: string): LLMProviderType {
-    switch (type) {
-      case 'openai_chat':
-        return LLMProviderType.OpenAIChat;
-      case 'openai_completion':
-        return LLMProviderType.OpenAICompletion;
-      case 'anthropic':
-        return LLMProviderType.Anthropic;
-      default:
-        return LLMProviderType.OpenAIChat;
     }
   }
 

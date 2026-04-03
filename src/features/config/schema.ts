@@ -10,13 +10,20 @@ export const ServerConfigSchema = z.object({
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
 
+export const ModelConfigSchema = z.object({
+  modelname: z.string().describe('底层 API 真实识别的模型字符串'),
+  maxToken: z.number().int().positive().describe('该模型允许的最大输出长度'),
+  reasoning: z.boolean().default(false).describe('标识该模型是否具备原生思维链能力'),
+  vision: z.boolean().default(false).describe('标识该模型是否为多模态，能否处理图片输入'),
+});
+
+export type ModelConfig = z.infer<typeof ModelConfigSchema>;
+
 export const CustomProviderSchema = z.object({
   type: z.enum(['openai_chat', 'openai_completion', 'anthropic']).describe('Provider 类型'),
   api_key: z.string().optional().describe('API Key'),
   base_url: z.string().url().optional().describe('API Base URL'),
-  model: z.string().optional().describe('默认模型名称'),
-  temperature: z.number().min(0).max(2).optional().describe('温度参数'),
-  max_tokens: z.number().int().positive().optional().describe('最大 Token 数'),
+  models: z.record(z.string(), ModelConfigSchema).describe('模型能力预设字典'),
 });
 
 export type CustomProvider = z.infer<typeof CustomProviderSchema>;
@@ -82,12 +89,6 @@ export const PluginsConfigSchema = z.object({
 export type PluginsConfig = z.infer<typeof PluginsConfigSchema>;
 
 export const AgentConfigSchema = z.object({
-  default_model: z.string()
-    .includes('/', { message: "模型配置必须遵循 'provider_name/model_name' 格式" })
-    .describe("全局默认模型标识 (格式: provider_name/model_name)"),
-  default_temperature: z.number().min(0).max(2).default(0.7),
-  default_max_tokens: z.number().int().positive().default(4096),
-  system_prompt: z.string().default('You are a helpful AI assistant.'),
   max_turns: z.number().int().nonnegative().default(50),
 });
 
@@ -122,10 +123,6 @@ export const DEFAULT_CONFIG: FullConfig = {
   },
   providers: {},
   agent: {
-    default_model: 'my_openai/gpt-4o',
-    default_temperature: 0.7,
-    default_max_tokens: 4096,
-    system_prompt: 'You are a helpful AI assistant.',
     max_turns: 50,
   },
   memory: {

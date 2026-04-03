@@ -4,11 +4,11 @@ export const RoleConfigSchema = z.object({
   name: z.string().min(1, '角色名称不能为空'),
   description: z.string().optional().default(''),
   system_prompt: z.string().min(1, '系统提示词不能为空'),
+  model: z.string()
+    .includes('/', { message: "模型配置必须遵循 'provider_name/model_name' 格式" })
+    .describe("模型标识 (格式: provider_name/model_name)"),
   allowed_tools: z.array(z.string()).default(['*']),
   allowed_skills: z.array(z.string()).default([]),
-  override_model: z.string().optional(),
-  avatar: z.string().optional(),
-  tags: z.array(z.string()).default([]),
   enabled: z.boolean().default(true),
 });
 
@@ -31,8 +31,8 @@ export const DEFAULT_ROLE_CONFIG: RoleConfig = {
   name: '默认助手',
   description: '通用助手角色',
   system_prompt: '你是一个有帮助的AI助手。',
+  model: 'official/gpt4o',
   allowed_tools: ['*'],
   allowed_skills: [],
-  tags: [],
   enabled: true,
 };

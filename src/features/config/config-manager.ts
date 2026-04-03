@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { ZodError } from 'zod';
 import * as smolToml from 'smol-toml';
-import { FullConfigSchema, DEFAULT_CONFIG, type FullConfig } from './schema.js';
+import { FullConfigSchema, DEFAULT_CONFIG, type FullConfig, type ModelConfig } from './schema.js';
 import { logger } from '../../platform/observability/logger.js';
 
 export class ConfigManager {
@@ -304,12 +304,21 @@ export class ConfigManager {
       for (const [name, provider] of Object.entries(config.providers)) {
         if (provider) {
           lines.push(`[providers.${name}]`);
+          lines.push(`type = "${provider.type}"`);
           if (provider.api_key) lines.push(`api_key = "${provider.api_key}"`);
           if (provider.base_url) lines.push(`base_url = "${provider.base_url}"`);
-          if (provider.model) lines.push(`model = "${provider.model}"`);
-          if (provider.temperature !== undefined) lines.push(`temperature = ${provider.temperature}`);
-          if (provider.max_tokens !== undefined) lines.push(`max_tokens = ${provider.max_tokens}`);
-          lines.push('');
+
+          if (provider.models && Object.keys(provider.models).length > 0) {
+            lines.push('');
+            for (const [modelName, modelConfig] of Object.entries(provider.models as Record<string, ModelConfig>)) {
+              lines.push(`[providers.${name}.models.${modelName}]`);
+              lines.push(`modelname = "${modelConfig.modelname}"`);
+              lines.push(`maxToken = ${modelConfig.maxToken}`);
+              lines.push(`reasoning = ${modelConfig.reasoning}`);
+              lines.push(`vision = ${modelConfig.vision}`);
+              lines.push('');
+            }
+          }
         }
       }
     }
@@ -326,10 +335,6 @@ export class ConfigManager {
     }
 
     lines.push('[agent]');
-    lines.push(`default_model = "${config.agent.default_model}"`);
-    lines.push(`default_temperature = ${config.agent.default_temperature}`);
-    lines.push(`default_max_tokens = ${config.agent.default_max_tokens}`);
-    lines.push(`system_prompt = "${this.escapeString(config.agent.system_prompt)}"`);
     lines.push(`max_turns = ${config.agent.max_turns}`);
     lines.push('');
 

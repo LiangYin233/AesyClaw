@@ -17,7 +17,7 @@ import {
 } from '../../platform/tools/types';
 import { logger } from '../../platform/observability/logger';
 import { pluginManager } from '../../features/plugins/plugin-manager.js';
-import { roleManager } from '../../features/roles/role-manager.js';
+import { roleManager, DEFAULT_ROLE_ID } from '../../features/roles/role-manager.js';
 import {
   SessionMemoryManager,
   MemoryManagerFactory,
@@ -25,8 +25,7 @@ import {
   createMemoryConfig,
 } from './memory/index';
 import { configManager } from '../../features/config/config-manager.js';
-import { parseModelIdentifier } from '../../platform/utils/model-parser.js';
-import { mapProviderType } from '../../middlewares/agent.middleware.js';
+import { resolveLLMConfig } from '../../middlewares/agent.middleware.js';
 
 export interface AgentConfig {
   llm: LLMConfig;
@@ -366,42 +365,32 @@ export class AgentEngine {
 export class AgentManager {
   private static instance: AgentManager;
   private agents: Map<string, AgentEngine>;
-  private defaultConfig: Required<AgentConfig>;
+  private _defaultConfig: Required<AgentConfig> | null = null;
 
   private constructor() {
     this.agents = new Map();
-    this.defaultConfig = this.buildDefaultConfig();
     logger.info('🏭 AgentManager 单例工厂已初始化（支持记忆系统）');
   }
 
   private buildDefaultConfig(): Required<AgentConfig> {
     try {
-      if (configManager.isInitialized()) {
+      if (configManager.isInitialized() && roleManager.isInitialized()) {
         const config = configManager.getConfig();
-        const modelIdentifier = config.agent.default_model;
-        const { providerName, modelName } = parseModelIdentifier(modelIdentifier);
-        const providerDetails = config.providers[providerName];
+        const defaultRole = roleManager.getRoleConfig(DEFAULT_ROLE_ID);
+        const modelIdentifier = defaultRole.model;
+        const llmConfig = resolveLLMConfig(modelIdentifier, config);
 
-        if (providerDetails) {
-          return {
-            llm: {
-              provider: mapProviderType(providerDetails.type),
-              model: modelName,
-              apiKey: providerDetails.api_key,
-              baseUrl: providerDetails.base_url,
-              maxTokens: providerDetails.max_tokens,
-              temperature: providerDetails.temperature,
-            },
-            maxSteps: 15,
-            systemPrompt: config.agent.system_prompt,
-            tools: [],
-            memoryConfig: {
-              maxContextTokens: config.memory.max_context_tokens,
-              compressionThreshold: config.memory.compression_threshold,
-              dangerThreshold: config.memory.danger_threshold,
-            },
-          };
-        }
+        return {
+          llm: llmConfig,
+          maxSteps: 15,
+          systemPrompt: defaultRole.system_prompt,
+          tools: [],
+          memoryConfig: {
+            maxContextTokens: config.memory.max_context_tokens,
+            compressionThreshold: config.memory.compression_threshold,
+            dangerThreshold: config.memory.danger_threshold,
+          },
+        };
       }
     } catch (error) {
       logger.warn({ error }, 'Failed to build default config from config.toml, using fallback');
@@ -423,6 +412,13 @@ export class AgentManager {
     };
   }
 
+  private getDefaultConfig(): Required<AgentConfig> {
+    if (!this._defaultConfig) {
+      this._defaultConfig = this.buildDefaultConfig();
+    }
+    return this._defaultConfig;
+  }
+
   static getInstance(): AgentManager {
     if (!AgentManager.instance) {
       AgentManager.instance = new AgentManager();
@@ -431,12 +427,13 @@ export class AgentManager {
   }
 
   getOrCreate(chatId: string, config?: Partial<AgentConfig>): AgentEngine {
+    const defaultConfig = this.getDefaultConfig();
     const mergedConfig: AgentConfig = {
-      llm: config?.llm || this.defaultConfig.llm,
-      maxSteps: config?.maxSteps || this.defaultConfig.maxSteps,
-      systemPrompt: config?.systemPrompt || this.defaultConfig.systemPrompt,
-      tools: config?.tools || this.defaultConfig.tools,
-      memoryConfig: config?.memoryConfig || this.defaultConfig.memoryConfig,
+      llm: config?.llm || defaultConfig.llm,
+      maxSteps: config?.maxSteps || defaultConfig.maxSteps,
+      systemPrompt: config?.systemPrompt || defaultConfig.systemPrompt,
+      tools: config?.tools || defaultConfig.tools,
+      memoryConfig: config?.memoryConfig || defaultConfig.memoryConfig,
     };
 
     if (!this.agents.has(chatId)) {
@@ -484,12 +481,13 @@ export class AgentManager {
   }
 
   setDefaultConfig(config: Partial<AgentConfig>): void {
-    this.defaultConfig = {
-      ...this.defaultConfig,
+    const current = this.getDefaultConfig();
+    this._defaultConfig = {
+      ...current,
       ...config,
-      memoryConfig: config.memoryConfig || this.defaultConfig.memoryConfig,
+      memoryConfig: config.memoryConfig || current.memoryConfig,
     };
-    logger.info({ config: this.defaultConfig }, '📝 AgentManager 默认配置已更新');
+    logger.info({ config: this._defaultConfig }, '📝 AgentManager 默认配置已更新');
   }
 }
 

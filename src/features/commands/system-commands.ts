@@ -213,8 +213,7 @@ export const systemCommands: CommandDefinition[] = [
 
           for (const role of roles) {
             const marker = role.id === currentRoleId ? '👉 ' : '  ';
-            const tags = role.tags.length > 0 ? ` [${role.tags.join(', ')}]` : '';
-            output += `${marker}**${role.name}**${tags}\n`;
+            output += `${marker}**${role.name}**\n`;
             if (role.description) {
               output += `    ${role.description}\n`;
             }
@@ -265,11 +264,8 @@ export const systemCommands: CommandDefinition[] = [
           } else {
             output += '无限制\n';
           }
-          if (role.override_model) {
-            output += `\n**模型**: ${role.override_model}\n`;
-          }
-          if (role.tags.length > 0) {
-            output += `\n**标签**: ${role.tags.join(', ')}\n`;
+          if (role.model) {
+            output += `\n**模型**: ${role.model}\n`;
           }
 
           return {
@@ -295,10 +291,10 @@ export const systemCommands: CommandDefinition[] = [
 
           if (result.success) {
             const role = roleManager.getRole(targetRoleId);
-            if (role?.override_model) {
+            if (role?.model) {
               const agentManager = AgentManager.getInstance();
               const agent = agentManager.getOrCreate(ctx.chatId);
-              agent.updateModel(role.override_model);
+              agent.updateModel(role.model);
             }
           }
 

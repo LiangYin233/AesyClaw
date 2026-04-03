@@ -3,12 +3,15 @@ import { logger } from '../platform/observability/logger.js';
 import type { IChannelContext, MiddlewareFunc } from '../agent/core/types.js';
 import { AgentManager } from '../agent/core/engine.js';
 import { LLMProviderType } from '../agent/llm/types.js';
-import { LLMConfig } from '../agent/llm/factory.js';
+import { LLMConfig, ModelCapabilities } from '../agent/llm/factory.js';
 import { parseModelIdentifier } from '../platform/utils/model-parser.js';
-import type { FullConfig, CustomProvider } from '../features/config/schema.js';
+import { roleManager } from '../features/roles/role-manager.js';
+import type { FullConfig, CustomProvider, ModelConfig } from '../features/config/schema.js';
+import { DEFAULT_ROLE_ID } from '../features/roles/types.js';
 
 export interface AgentState {
   llmConfig: LLMConfig;
+  systemPrompt: string;
   [key: string]: unknown;
 }
 
@@ -26,33 +29,60 @@ export function mapProviderType(type: string): LLMProviderType {
   }
 }
 
+export function resolveLLMConfig(modelIdentifier: string, config: FullConfig): LLMConfig {
+  const { providerName, modelAlias } = parseModelIdentifier(modelIdentifier);
+
+  const providerDetails = config.providers[providerName];
+  if (!providerDetails) {
+    throw new Error(
+      `配置错误：未在 providers 中找到名为 '${providerName}' 的端点配置。`
+    );
+  }
+
+  const modelConfig = providerDetails.models?.[modelAlias];
+  if (!modelConfig) {
+    throw new Error(
+      `配置错误：在 provider '${providerName}' 中未找到名为 '${modelAlias}' 的模型配置。`
+    );
+  }
+
+  const capabilities: ModelCapabilities = {
+    reasoning: modelConfig.reasoning ?? false,
+    vision: modelConfig.vision ?? false,
+  };
+
+  return {
+    provider: mapProviderType(providerDetails.type),
+    model: modelConfig.modelname,
+    apiKey: providerDetails.api_key,
+    baseUrl: providerDetails.base_url,
+    maxTokens: modelConfig.maxToken,
+    capabilities,
+  };
+}
+
 export class AgentMiddleware {
   name = 'AgentMiddleware';
 
   getMiddleware(): MiddlewareFunc {
     return async (ctx: IChannelContext, next: () => Promise<void>) => {
-      const config = configManager.getConfig();
-
-      const modelIdentifier = config.agent.default_model;
-      const { providerName, modelName } = parseModelIdentifier(modelIdentifier);
-
-      const providerDetails = config.providers[providerName];
-      if (!providerDetails) {
-        throw new Error(
-          `配置错误：未在 providers 中找到名为 '${providerName}' 的端点配置。`
-        );
+      if (!configManager.isInitialized()) {
+        logger.warn({}, 'ConfigManager not initialized, initializing...');
+        await configManager.initialize();
       }
 
-      const llmConfig: LLMConfig = {
-        provider: mapProviderType(providerDetails.type),
-        model: modelName,
-        apiKey: providerDetails.api_key,
-        baseUrl: providerDetails.base_url,
-        temperature: providerDetails.temperature ?? config.agent.default_temperature,
-        maxTokens: providerDetails.max_tokens ?? config.agent.default_max_tokens,
-      };
+      const config = configManager.getConfig();
 
-      const agentState: AgentState = { llmConfig };
+      const defaultRole = roleManager.getRoleConfig(DEFAULT_ROLE_ID);
+      const modelIdentifier = defaultRole.model;
+      const systemPrompt = defaultRole.system_prompt;
+
+      const llmConfig = resolveLLMConfig(modelIdentifier, config);
+
+      const agentState: AgentState = {
+        llmConfig,
+        systemPrompt,
+      };
 
       if (!ctx.state) {
         ctx.state = agentState;
@@ -63,11 +93,12 @@ export class AgentMiddleware {
       logger.debug(
         {
           modelIdentifier,
-          providerName,
-          modelName,
-          providerType: llmConfig.provider,
+          provider: llmConfig.provider,
+          model: llmConfig.model,
           hasApiKey: !!llmConfig.apiKey,
           hasBaseUrl: !!llmConfig.baseUrl,
+          capabilities: llmConfig.capabilities,
+          systemPromptLength: systemPrompt.length,
         },
         'Agent middleware: LLM config resolved'
       );
@@ -88,21 +119,5 @@ export function buildLLMConfig(
   modelIdentifier: string,
   config: FullConfig
 ): LLMConfig {
-  const { providerName, modelName } = parseModelIdentifier(modelIdentifier);
-
-  const providerDetails = config.providers[providerName];
-  if (!providerDetails) {
-    throw new Error(
-      `配置错误：未在 providers 中找到名为 '${providerName}' 的端点配置。`
-    );
-  }
-
-  return {
-    provider: mapProviderType(providerDetails.type),
-    model: modelName,
-    apiKey: providerDetails.api_key,
-    baseUrl: providerDetails.base_url,
-    temperature: providerDetails.temperature ?? config.agent.default_temperature,
-    maxTokens: providerDetails.max_tokens ?? config.agent.default_max_tokens,
-  };
+  return resolveLLMConfig(modelIdentifier, config);
 }

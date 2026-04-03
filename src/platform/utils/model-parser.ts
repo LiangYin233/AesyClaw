@@ -1,6 +1,6 @@
 export interface ModelIdentifier {
   providerName: string;
-  modelName: string;
+  modelAlias: string;
 }
 
 export function parseModelIdentifier(identifier: string): ModelIdentifier {
@@ -8,16 +8,16 @@ export function parseModelIdentifier(identifier: string): ModelIdentifier {
 
   if (parts.length < 2) {
     throw new Error(
-      `模型标识符格式错误: '${identifier}'。必须遵循 'provider_name/model_name' 格式。`
+      `模型标识符格式错误: '${identifier}'。必须遵循 'provider_name/model_alias' 格式。`
     );
   }
 
   const providerName = parts[0];
-  const modelName = parts.slice(1).join('/');
+  const modelAlias = parts.slice(1).join('/');
 
-  return { providerName, modelName };
+  return { providerName, modelAlias };
 }
 
-export function buildModelIdentifier(providerName: string, modelName: string): string {
-  return `${providerName}/${modelName}`;
+export function buildModelIdentifier(providerName: string, modelAlias: string): string {
+  return `${providerName}/${modelAlias}`;
 }

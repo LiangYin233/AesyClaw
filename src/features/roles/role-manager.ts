@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { parse as parseToml, stringify as stringifyToml } from 'smol-toml';
 import { RoleConfig, RoleConfigSchema, RoleWithMetadata, RoleMetadata, DEFAULT_ROLE_ID, DEFAULT_ROLE_CONFIG } from './types.js';
+
+export { DEFAULT_ROLE_ID } from './types.js';
 import { logger } from '../../platform/observability/logger.js';
 import { pathResolver } from '../../platform/utils/paths.js';
 
@@ -197,9 +199,7 @@ export class RoleManager {
         system_prompt: role.system_prompt,
         allowed_tools: role.allowed_tools,
         allowed_skills: role.allowed_skills,
-        override_model: role.override_model,
-        avatar: role.avatar,
-        tags: role.tags,
+        model: role.model,
         enabled: role.enabled,
       };
     }
@@ -213,9 +213,7 @@ export class RoleManager {
         system_prompt: defaultRole.system_prompt,
         allowed_tools: defaultRole.allowed_tools,
         allowed_skills: defaultRole.allowed_skills,
-        override_model: defaultRole.override_model,
-        avatar: defaultRole.avatar,
-        tags: defaultRole.tags,
+        model: defaultRole.model,
         enabled: defaultRole.enabled,
       };
     }
@@ -231,12 +229,11 @@ export class RoleManager {
     return Array.from(this.roles.keys());
   }
 
-  getRolesList(): Array<{ id: string; name: string; description: string; tags: string[] }> {
+  getRolesList(): Array<{ id: string; name: string; description: string }> {
     return this.getAllRoles().map(role => ({
       id: role.metadata.id,
       name: role.name,
       description: role.description || '',
-      tags: role.tags,
     }));
   }
 
@@ -245,15 +242,17 @@ export class RoleManager {
       return { success: false, message: `角色 "${roleId}" 已存在` };
     }
 
+    if (!config.model) {
+      return { success: false, message: '创建角色时必须指定 model (格式: provider/model)' };
+    }
+
     const fullConfig: RoleConfig = {
       name: config.name || roleId,
       description: config.description || '',
       system_prompt: config.system_prompt || '你是一个有帮助的AI助手。',
       allowed_tools: config.allowed_tools || ['*'],
       allowed_skills: config.allowed_skills || [],
-      override_model: config.override_model,
-      avatar: config.avatar,
-      tags: config.tags || [],
+      model: config.model,
       enabled: config.enabled !== undefined ? config.enabled : true,
     };
 
@@ -288,9 +287,7 @@ export class RoleManager {
       system_prompt: updates.system_prompt ?? existing.system_prompt,
       allowed_tools: updates.allowed_tools ?? existing.allowed_tools,
       allowed_skills: updates.allowed_skills ?? existing.allowed_skills,
-      override_model: updates.override_model ?? existing.override_model,
-      avatar: updates.avatar ?? existing.avatar,
-      tags: updates.tags ?? existing.tags,
+      model: updates.model ?? existing.model,
       enabled: updates.enabled ?? existing.enabled,
     };
 

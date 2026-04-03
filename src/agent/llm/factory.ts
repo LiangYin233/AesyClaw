@@ -15,6 +15,11 @@ import { OpenAICompletionAdapter } from './adapters/openai-completion-adapter';
 import { AnthropicAdapter } from './adapters/anthropic-adapter';
 import { logger } from '../../platform/observability/logger';
 
+export interface ModelCapabilities {
+  reasoning: boolean;
+  vision: boolean;
+}
+
 export interface LLMConfig {
   provider: LLMProviderType;
   mode?: LLMMode;
@@ -24,6 +29,7 @@ export interface LLMConfig {
   maxTokens?: number;
   temperature?: number;
   timeout?: number;
+  capabilities?: ModelCapabilities;
 }
 
 export class LLMProviderFactory {
