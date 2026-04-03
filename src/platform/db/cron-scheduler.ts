@@ -134,7 +134,7 @@ export class CronJobScheduler {
     }
 
     this.running = true;
-    logger.info({}, '🚀 CronJobScheduler started (Event-Driven Mode)');
+    logger.info({}, 'CronJobScheduler started (Event-Driven Mode)');
 
     this.eventSubscriptions.set(
       SystemEvents.CRON_JOB_CREATED,
@@ -192,7 +192,7 @@ export class CronJobScheduler {
     this.eventSubscriptions.clear();
 
     this.running = false;
-    logger.info({}, '🛑 CronJobScheduler stopped');
+    logger.info({}, 'CronJobScheduler stopped');
   }
 
   isRunning(): boolean {
@@ -224,7 +224,7 @@ export class CronJobScheduler {
       }
     }
 
-    logger.info({ taskCount: this.taskQueue.size() }, '📋 Loaded pending cron tasks');
+    logger.info({ taskCount: this.taskQueue.size() }, 'Loaded pending cron tasks');
   }
 
   private scheduleTask(job: CronJobRecord): void {

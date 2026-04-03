@@ -2,12 +2,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from '../observability/logger.js';
 
-const AESYCCLAW_DIR_NAME = '.aesyclaw';
+const AESYCCLAW_DIR = '.aesyclaw';
+const DEFAULT_DATA_DIR = 'data';
+const DEFAULT_LOG_DIR = 'logs';
 const DEFAULT_CONFIG_FILE = 'config.toml';
 const DEFAULT_DATA_FILE = 'aesyclaw.db';
 const DEFAULT_LOG_FILE = 'aesyclaw.log';
 const DEFAULT_SYSTEM_SKILLS_DIR = 'skills';
-const DEFAULT_USER_SKILLS_DIR = '.aesyclaw/skills';
+const DEFAULT_USER_SKILLS_DIR = 'user_skills';
 
 export class PathResolver {
   private static instance: PathResolver;
@@ -21,19 +23,11 @@ export class PathResolver {
 
   private constructor() {
     this.basePath = this.resolveBasePath();
-    this.configDir = path.join(this.basePath, 'config');
-    this.dataDir = path.join(this.basePath, 'data');
-    this.logDir = path.join(this.basePath, 'logs');
-    this.systemSkillsDir = this.resolveSystemSkillsDir();
-    this.userSkillsDir = this.resolveUserSkillsDir();
-  }
-
-  private resolveSystemSkillsDir(): string {
-    return path.resolve(process.cwd(), DEFAULT_SYSTEM_SKILLS_DIR);
-  }
-
-  private resolveUserSkillsDir(): string {
-    return path.join(this.basePath, DEFAULT_USER_SKILLS_DIR);
+    this.configDir = this.basePath;
+    this.dataDir = path.join(this.basePath, DEFAULT_DATA_DIR);
+    this.logDir = path.join(this.basePath, DEFAULT_LOG_DIR);
+    this.systemSkillsDir = path.resolve(process.cwd(), DEFAULT_SYSTEM_SKILLS_DIR);
+    this.userSkillsDir = path.join(this.basePath, DEFAULT_USER_SKILLS_DIR);
   }
 
   static getInstance(): PathResolver {
@@ -44,8 +38,7 @@ export class PathResolver {
   }
 
   private resolveBasePath(): string {
-    const homeDir = process.env.HOME || process.env.USERPROFILE || process.cwd();
-    return path.join(homeDir, AESYCCLAW_DIR_NAME);
+    return path.join(path.resolve(process.cwd()), AESYCCLAW_DIR);
   }
 
   initialize(): void {
@@ -99,7 +92,7 @@ export class PathResolver {
   }
 
   getConfigFilePath(): string {
-    return path.join(this.configDir, DEFAULT_CONFIG_FILE);
+    return path.join(this.basePath, DEFAULT_CONFIG_FILE);
   }
 
   getDataFilePath(): string {

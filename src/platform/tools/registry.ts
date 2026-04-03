@@ -32,7 +32,7 @@ export class ToolRegistry {
   private toolCallHistory: ToolCallResult[] = [];
 
   private constructor() {
-    logger.info('🔧 ToolRegistry 单例已初始化');
+    logger.info('ToolRegistry singleton initialized');
   }
 
   static getInstance(): ToolRegistry {
@@ -275,7 +275,7 @@ export class ToolRegistry {
 
   clearHistory(): void {
     this.toolCallHistory = [];
-    logger.debug('🗑️ 工具调用历史已清空');
+    logger.debug('Tool call history cleared');
   }
 
   getStats(): {

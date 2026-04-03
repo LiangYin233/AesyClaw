@@ -55,7 +55,7 @@ export class PluginManager {
       return;
     }
 
-    logger.info({}, '🔌 Initializing PluginManager...');
+    logger.info({}, 'Initializing PluginManager...');
     this.initialized = true;
   }
 

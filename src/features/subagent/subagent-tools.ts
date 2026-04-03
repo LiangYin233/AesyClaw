@@ -131,43 +131,63 @@ ${result.finalText}
 ⏱️ 执行时间: ${result.executionTime}ms`;
 }
 
+const RunSubAgentSchema = z.object({
+  role_name: z.string().describe('预定义角色名称'),
+  task_description: z.string().describe('详细的任务描述'),
+});
+
+const RunTempSubAgentSchema = z.object({
+  system_prompt: z.string().describe('临时分身的系统提示词'),
+  task_description: z.string().describe('详细的任务描述'),
+});
+
+function createSubAgentTool(
+  name: string,
+  description: string,
+  schema: z.ZodType,
+  parameters: { type: 'object'; properties: Record<string, unknown>; required: string[] },
+  executeFn: (args: unknown, context: ToolExecuteContext) => Promise<{ success: boolean; content: string; error?: string }>
+) {
+  return {
+    name,
+    description,
+    parametersSchema: schema,
+    getDefinition: () => ({
+      name,
+      description,
+      parameters,
+    }),
+    execute: executeFn,
+  };
+}
+
 export const subAgentTools = [
-  {
-    name: SUBAGENT_TOOL_NAME_RUN,
-    description: SUBAGENT_TOOL_DESCRIPTION_RUN,
-    parameters: {
+  createSubAgentTool(
+    SUBAGENT_TOOL_NAME_RUN,
+    SUBAGENT_TOOL_DESCRIPTION_RUN,
+    RunSubAgentSchema,
+    {
       type: 'object' as const,
       properties: {
-        role_name: {
-          type: 'string',
-          description: '预定义角色名称',
-        },
-        task_description: {
-          type: 'string',
-          description: '详细的任务描述',
-        },
+        role_name: { type: 'string', description: '预定义角色名称' },
+        task_description: { type: 'string', description: '详细的任务描述' },
       },
       required: ['role_name', 'task_description'],
     },
-    execute: runSubAgent,
-  },
-  {
-    name: SUBAGENT_TOOL_NAME_TEMP,
-    description: SUBAGENT_TOOL_DESCRIPTION_TEMP,
-    parameters: {
+    runSubAgent
+  ),
+  createSubAgentTool(
+    SUBAGENT_TOOL_NAME_TEMP,
+    SUBAGENT_TOOL_DESCRIPTION_TEMP,
+    RunTempSubAgentSchema,
+    {
       type: 'object' as const,
       properties: {
-        system_prompt: {
-          type: 'string',
-          description: '临时分身的系统提示词',
-        },
-        task_description: {
-          type: 'string',
-          description: '详细的任务描述',
-        },
+        system_prompt: { type: 'string', description: '临时分身的系统提示词' },
+        task_description: { type: 'string', description: '详细的任务描述' },
       },
       required: ['system_prompt', 'task_description'],
     },
-    execute: runTempSubAgent,
-  },
+    runTempSubAgent
+  ),
 ];

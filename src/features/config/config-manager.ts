@@ -16,7 +16,8 @@ export class ConfigManager {
   private debounceTimer: NodeJS.Timeout | null = null;
 
   private constructor() {
-    this.configPath = path.join(os.homedir(), '.aesyclaw', 'config.toml');
+    const projectRoot = path.resolve(process.cwd());
+    this.configPath = path.join(projectRoot, '.aesyclaw', 'config.toml');
   }
 
   static getInstance(): ConfigManager {
@@ -64,6 +65,15 @@ export class ConfigManager {
       const content = await fs.promises.readFile(this.configPath, 'utf-8');
       const parsed = this.parseConfig(content);
       if (parsed) {
+        const originalContent = content.trim();
+        const newContent = this.serializeToTOML(parsed).trim();
+
+        if (originalContent !== newContent) {
+          logger.info({}, 'Config was incomplete, added missing fields with defaults');
+          await this.saveMergedConfig(parsed);
+          logger.info({ path: this.configPath }, 'Updated config file with default values');
+        }
+
         this.config = parsed;
         logger.info({ path: this.configPath }, 'Config loaded successfully');
       } else {
@@ -74,6 +84,11 @@ export class ConfigManager {
     }
   }
 
+  private async saveMergedConfig(config: FullConfig): Promise<void> {
+    const tomlString = this.serializeToTOML(config);
+    await fs.promises.writeFile(this.configPath, tomlString, 'utf-8');
+  }
+
   private parseConfig(content: string): FullConfig | null {
     try {
       const parsed = smolToml.parse(content);
@@ -81,12 +96,50 @@ export class ConfigManager {
       if (result.success) {
         return result.data;
       }
-      logger.warn({ issues: this.formatZodErrors(result.error) }, 'Zod validation failed');
-      return null;
+
+      logger.warn({ issues: this.formatZodErrors(result.error) }, 'Zod validation failed, attempting to fill missing fields with defaults');
+
+      const merged = this.deepMerge(DEFAULT_CONFIG, parsed as Partial<FullConfig>);
+      const mergedResult = FullConfigSchema.safeParse(merged);
+
+      if (mergedResult.success) {
+        logger.info({}, 'Successfully merged user config with defaults');
+        return mergedResult.data;
+      }
+
+      logger.warn({}, 'Partial config merge also failed, using full defaults');
+      return DEFAULT_CONFIG;
     } catch (error) {
-      logger.error({ error }, 'TOML parse error');
-      return null;
+      logger.error({ error }, 'TOML parse error, using defaults');
+      return DEFAULT_CONFIG;
     }
+  }
+
+  private deepMerge<T extends Record<string, any>>(target: T, source: Partial<T>): T {
+    const output = { ...target };
+
+    for (const key in source) {
+      if (source.hasOwnProperty(key)) {
+        const sourceValue = source[key];
+        const targetValue = target[key];
+
+        if (sourceValue !== undefined && sourceValue !== null) {
+          if (this.isPlainObject(sourceValue) && this.isPlainObject(targetValue)) {
+            output[key] = this.deepMerge(targetValue, sourceValue);
+          } else if (Array.isArray(sourceValue) && Array.isArray(targetValue)) {
+            output[key] = [...targetValue, ...sourceValue];
+          } else if (sourceValue !== undefined) {
+            output[key] = sourceValue;
+          }
+        }
+      }
+    }
+
+    return output;
+  }
+
+  private isPlainObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date);
   }
 
   private async writeDefaultConfig(): Promise<void> {

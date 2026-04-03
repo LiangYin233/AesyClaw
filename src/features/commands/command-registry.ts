@@ -8,7 +8,7 @@ export class CommandRegistry {
   private pluginCommands: Map<string, CommandDefinition[]> = new Map();
 
   private constructor() {
-    logger.info('📝 CommandRegistry 单例已初始化');
+    logger.info('CommandRegistry singleton initialized');
   }
 
   static getInstance(): CommandRegistry {
@@ -51,7 +51,7 @@ export class CommandRegistry {
 
     const deleted = this.commands.delete(name);
     if (deleted) {
-      logger.info({ commandName: name }, '🗑️ 命令已注销');
+      logger.info({ commandName: name }, 'Command unregistered');
     }
     return deleted;
   }
@@ -96,7 +96,7 @@ export class CommandRegistry {
     }
 
     this.pluginCommands.delete(pluginName);
-    logger.info({ pluginName }, '🗑️ 插件命令已全部注销');
+    logger.info({ pluginName }, 'Plugin commands unregistered');
   }
 
   getCommand(name: string): CommandDefinition | undefined {
@@ -130,7 +130,7 @@ export class CommandRegistry {
     this.commands.clear();
     this.aliasMap.clear();
     this.pluginCommands.clear();
-    logger.info('🗑️ 所有命令已清空');
+    logger.info('All commands cleared');
   }
 
   getCommandCount(): number {

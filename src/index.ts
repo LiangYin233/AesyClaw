@@ -8,12 +8,12 @@ import { logger } from './platform/observability/logger';
 import { Bootstrap, bootstrap } from './bootstrap';
 
 const toolRegistry = ToolRegistry.getInstance();
-logger.info('🔧 工具注册完成');
+logger.info('ToolRegistry initialized');
 
 const loggingMiddleware: MiddlewareFunc = async (ctx, next) => {
-  logger.info({ traceId: ctx.traceId }, '📝 请求开始');
+  logger.info({ traceId: ctx.traceId }, 'Request started');
   await next();
-  logger.info({ traceId: ctx.traceId }, '📝 请求完成');
+  logger.info({ traceId: ctx.traceId }, 'Request completed');
 };
 
 const agentMiddleware: MiddlewareFunc = async (ctx, next) => {
@@ -29,16 +29,16 @@ const agentMiddleware: MiddlewareFunc = async (ctx, next) => {
     tools: toolRegistry.getAllToolDefinitions(),
   });
 
-  logger.info({ traceId: ctx.traceId, chatId }, '🤖 Agent 处理请求');
+  logger.info({ traceId: ctx.traceId, chatId }, 'Agent processing request');
 
   try {
     const result = await agent.run(ctx.inbound.text);
-    ctx.outbound.text = result.success ? result.finalText : `错误: ${result.error}`;
+    ctx.outbound.text = result.success ? result.finalText : `Error: ${result.error}`;
     ctx.outbound.error = result.error;
   } catch (error) {
-    ctx.outbound.text = 'Agent 执行出错';
+    ctx.outbound.text = 'Agent execution error';
     ctx.outbound.error = error instanceof Error ? error.message : String(error);
-    logger.error({ traceId: ctx.traceId, chatId, error }, '❌ Agent 异常');
+    logger.error({ traceId: ctx.traceId, chatId, error }, 'Agent exception');
   }
 
   await next();
@@ -49,22 +49,15 @@ pipeline.use(loggingMiddleware);
 pipeline.use(agentMiddleware);
 
 async function main() {
-  logger.info('========================================');
-  logger.info('🚀 AesyClaw Agent Framework 启动中...');
-  logger.info('========================================');
-
   try {
     await bootstrap();
-    logger.info('✅ Bootstrap 完成');
   } catch (error) {
-    logger.error({ error }, '❌ Bootstrap 失败');
+    logger.error({ error }, 'Bootstrap failed');
     process.exit(1);
   }
 
-  logger.info({ toolCount: toolRegistry.getAllToolDefinitions().length }, '✅ 系统就绪');
-
   const status = Bootstrap.getStatus();
-  logger.info({ status }, '系统状态');
+  logger.info({ toolCount: status.toolRegistry.totalTools, status }, 'System ready');
 }
 
 main().catch(console.error);

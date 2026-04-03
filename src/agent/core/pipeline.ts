@@ -2,22 +2,30 @@ import { randomUUID } from 'crypto';
 import { IUnifiedMessage, IChannelContext, IOutboundMessage, MiddlewareFunc } from './types';
 import { logger } from '../../platform/observability/logger.js';
 import { pluginManager } from '../../features/plugins/plugin-manager.js';
+import type { IOutboundPayload } from '../../channels/channel-plugin.js';
 
 export class ChannelPipeline {
   private middlewares: MiddlewareFunc[] = [];
 
   use(middleware: MiddlewareFunc): void {
     this.middlewares.push(middleware);
-    logger.debug({ middlewareCount: this.middlewares.length }, '中间件已注册');
+    logger.debug({ middlewareCount: this.middlewares.length }, 'Middleware registered');
   }
 
   async handleInbound(message: IUnifiedMessage): Promise<IChannelContext> {
+    return this.handleInboundWithSend(message, undefined);
+  }
+
+  async handleInboundWithSend(
+    message: IUnifiedMessage,
+    sendFn?: (payload: IOutboundPayload) => Promise<void>
+  ): Promise<IChannelContext> {
     const traceId = randomUUID();
     const startTime = Date.now();
 
     logger.info(
       { traceId, chatId: message.chatId, senderId: message.senderId, text: message.text },
-      '📥 收到入站消息，准备派发到中间件链'
+      'Received inbound message, dispatching to middleware chain'
     );
 
     const processedMessage = await pluginManager.dispatchMessageReceive({
@@ -34,7 +42,7 @@ export class ChannelPipeline {
     if (!processedMessage) {
       logger.info(
         { traceId, chatId: message.chatId },
-        '🚫 消息被插件拦截，不进入后续处理流程'
+        'Message blocked by plugin, skipping further processing'
       );
       return {
         traceId,
@@ -53,10 +61,11 @@ export class ChannelPipeline {
         mediaFiles: [],
       } as IOutboundMessage,
       createdAt: Date.now(),
+      sendFn,
     };
 
     if (this.middlewares.length === 0) {
-      logger.warn({ traceId }, '⚠️ 警告：没有任何中间件被注册，直接返回空响应');
+      logger.warn({ traceId }, 'Warning: No middleware registered, returning empty response');
       return ctx;
     }
 
@@ -67,11 +76,11 @@ export class ChannelPipeline {
         const currentMiddleware = this.middlewares[index++];
         logger.debug(
           { traceId, middlewareIndex: index - 1, remaining: this.middlewares.length - index },
-          `🔗 执行中间件 ${index}/${this.middlewares.length}`
+          `Executing middleware ${index}/${this.middlewares.length}`
         );
         await currentMiddleware(ctx, next);
       } else {
-        logger.debug({ traceId }, '✅ 中间件链执行完毕');
+        logger.debug({ traceId }, 'Middleware chain completed');
       }
     };
 
@@ -93,19 +102,34 @@ export class ChannelPipeline {
         ctx.outbound.error = processedOutbound.error;
       }
 
+      if (sendFn && ctx.outbound.text) {
+        await sendFn({
+          text: ctx.outbound.text,
+          mediaFiles: ctx.outbound.mediaFiles,
+        });
+        logger.debug({ traceId, chatId: ctx.inbound.chatId }, 'Response sent via sendFn');
+      }
+
       const duration = Date.now() - startTime;
       logger.info(
         { traceId, chatId: ctx.inbound.chatId, duration, outboundLength: ctx.outbound.text.length },
-        '📤 消息处理完成，准备返回响应'
+        'Message processing completed, returning response'
       );
     } catch (error) {
       const duration = Date.now() - startTime;
       logger.error(
         { traceId, chatId: ctx.inbound.chatId, duration, error },
-        '❌ 消息处理过程中发生错误'
+        'Error during message processing'
       );
-      ctx.outbound.text = '系统内部错误，请稍后重试';
+      ctx.outbound.text = 'Internal system error, please try again later';
       ctx.outbound.error = error instanceof Error ? error.message : String(error);
+
+      if (sendFn) {
+        await sendFn({
+          text: ctx.outbound.text,
+          mediaFiles: [],
+        });
+      }
     }
 
     return ctx;

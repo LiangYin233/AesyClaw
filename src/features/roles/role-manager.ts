@@ -31,7 +31,7 @@ export class RoleManager {
       return;
     }
 
-    logger.info({}, '🚀 Initializing RoleManager...');
+    logger.info({}, 'Initializing RoleManager...');
 
     this.ensureRolesDirectory();
 
@@ -40,19 +40,19 @@ export class RoleManager {
     this.setupWatchers();
 
     this.initialized = true;
-    logger.info({ roleCount: this.roles.size }, '✅ RoleManager initialized');
+    logger.info({ roleCount: this.roles.size }, 'RoleManager initialized');
   }
 
   private ensureRolesDirectory(): void {
     if (!fs.existsSync(this.rolesDir)) {
       fs.mkdirSync(this.rolesDir, { recursive: true });
-      logger.info({ rolesDir: this.rolesDir }, '📁 Created roles directory');
+      logger.info({ rolesDir: this.rolesDir }, 'Created roles directory');
     }
 
     const defaultPath = this.getRoleFilePath(DEFAULT_ROLE_ID);
     if (!fs.existsSync(defaultPath)) {
       this.saveRoleFile(DEFAULT_ROLE_ID, DEFAULT_ROLE_CONFIG);
-      logger.info({}, '📝 Created default role file');
+      logger.info({}, 'Created default role file');
     }
   }
 
@@ -146,7 +146,7 @@ export class RoleManager {
       const watcher = fs.watch(this.rolesDir, { recursive: false }, (eventType, filename) => {
         if (filename && filename.endsWith('.toml')) {
           const roleId = path.basename(filename, '.toml');
-          logger.info({ roleId, eventType }, '🔄 Role file changed, reloading...');
+          logger.info({ roleId, eventType }, 'Role file changed, reloading...');
 
           this.loadRole(roleId).then(role => {
             if (role) {
@@ -160,7 +160,7 @@ export class RoleManager {
         logger.error({ error }, '❌ Role directory watcher error');
       });
 
-      logger.info({}, '👁️ Role file watchers initialized');
+      logger.info({}, 'Role file watchers initialized');
     } catch (error) {
       logger.error({ error }, '❌ Failed to setup role watchers');
     }
@@ -356,7 +356,7 @@ export class RoleManager {
     this.watcherCleanup();
     this.roles.clear();
     this.initialized = false;
-    logger.info({}, '🛑 RoleManager shutdown');
+    logger.info({}, 'RoleManager shutdown');
   }
 
   isInitialized(): boolean {

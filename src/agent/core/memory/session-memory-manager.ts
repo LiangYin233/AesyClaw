@@ -50,7 +50,7 @@ export class SessionMemoryManager {
     this.calculator.updateConfig(config);
     this.trimmer.updateConfig(config);
     this.summarizer.updateConfig(config);
-    logger.debug({ chatId: this.chatId, config: this.config }, '📝 记忆配置已更新');
+    logger.debug({ chatId: this.chatId, config: this.config }, 'Memory config updated');
   }
 
   addMessage(message: StandardMessage): void {
@@ -135,7 +135,7 @@ export class SessionMemoryManager {
 
   private async triggerCompression(): Promise<void> {
     this.currentPhase = CompressionPhase.SieveProcess;
-    logger.info({ chatId: this.chatId }, '🔍 阶段一：安全分拣中...');
+    logger.info({ chatId: this.chatId }, 'Phase 1: Safety classification...');
 
     const zones = this.summarizer.sieveMessages(this.messages);
     
@@ -153,13 +153,13 @@ export class SessionMemoryManager {
     );
 
     this.currentPhase = CompressionPhase.LLMDrivenSummarization;
-    logger.info({ chatId: this.chatId }, '🤖 阶段二：AI 降维打击中...');
+    logger.info({ chatId: this.chatId }, 'Phase 2: AI compression...');
 
     try {
       const compressionResult = await this.summarizer.summarize(zones);
       
       this.currentPhase = CompressionPhase.Reassembly;
-      logger.info({ chatId: this.chatId }, '🔄 阶段三：上下文重组中...');
+      logger.info({ chatId: this.chatId }, 'Phase 3: Context reorganization...');
 
       this.messages = this.summarizer.reassemble(zones, compressionResult);
       
@@ -298,7 +298,7 @@ export class SessionMemoryManager {
       logger.error({ chatId: this.chatId, error: err }, '❌ 重建系统上下文失败');
     });
     
-    logger.debug({ chatId: this.chatId }, '🗑️ 会话记忆已清空');
+    logger.debug({ chatId: this.chatId }, 'Session memory cleared');
     
     this.emitEvent({
       type: 'reset',
@@ -335,7 +335,7 @@ export class SessionMemoryManager {
     }
     
     const removed = this.messages.splice(this.messages.length - count, count);
-    logger.debug({ chatId: this.chatId, removedCount: removed.length }, '🗑️ 移除了部分历史消息');
+    logger.debug({ chatId: this.chatId, removedCount: removed.length }, 'Removed some historical messages');
     return removed;
   }
 
@@ -438,7 +438,7 @@ export class MemoryManagerFactory {
   private defaultConfig?: Partial<MemoryConfig>;
 
   private constructor() {
-    logger.info('🏭 MemoryManagerFactory 已初始化');
+    logger.info('MemoryManagerFactory initialized');
   }
 
   static getInstance(): MemoryManagerFactory {
@@ -450,7 +450,7 @@ export class MemoryManagerFactory {
 
   setDefaultConfig(config: Partial<MemoryConfig>): void {
     this.defaultConfig = config;
-    logger.debug({ config: this.defaultConfig }, '📝 记忆工厂默认配置已设置');
+    logger.debug({ config: this.defaultConfig }, 'Memory factory default config set');
   }
 
   getOrCreate(chatId: string): SessionMemoryManager {
@@ -472,7 +472,7 @@ export class MemoryManagerFactory {
   removeMemory(chatId: string): boolean {
     const deleted = this.memories.delete(chatId);
     if (deleted) {
-      logger.info({ chatId, remainingMemories: this.memories.size }, '🗑️ 记忆实例已移除');
+      logger.info({ chatId, remainingMemories: this.memories.size }, 'Memory instance removed');
     }
     return deleted;
   }
@@ -487,6 +487,6 @@ export class MemoryManagerFactory {
 
   clearAll(): void {
     this.memories.clear();
-    logger.info('🗑️ 所有记忆实例已清空');
+    logger.info('All memory instances cleared');
   }
 }

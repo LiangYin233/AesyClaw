@@ -218,7 +218,7 @@ export class PromptExecutor {
       }
 
       this.agentManager.removeAgent(tempChatId);
-      logger.debug({ tempChatId }, '🧹 Temporary session cleaned up');
+      logger.debug({ tempChatId }, 'Temporary session cleaned up');
     } catch (error) {
       logger.error(
         { jobId: job.id, tempChatId, error },

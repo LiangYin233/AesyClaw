@@ -40,7 +40,7 @@ export class LoadSkillTool implements ITool {
   async execute(args: unknown, context: ToolExecuteContext): Promise<ToolExecutionResult> {
     const { skill_name, file_path = SKILL_MANIFEST_FILE } = args as { skill_name: string; file_path?: string };
 
-    logger.info({ skill_name, file_path, traceId: context.traceId }, '🔧 Loading skill');
+    logger.info({ skill_name, file_path, traceId: context.traceId }, 'Loading skill');
 
     const basePath = skillManager.getSkillBasePath(skill_name);
 

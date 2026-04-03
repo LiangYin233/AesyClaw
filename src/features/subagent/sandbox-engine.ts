@@ -275,7 +275,7 @@ export class SandboxEngine {
     SandboxEngine.activeSandboxes.delete(this.sandboxId);
     this.memory = [];
     
-    logger.debug({ sandboxId: this.sandboxId }, '🗑️ Sandbox destroyed');
+    logger.debug({ sandboxId: this.sandboxId }, 'Sandbox destroyed');
   }
 
   static getActiveSandbox(sandboxId: string): SandboxContext | undefined {

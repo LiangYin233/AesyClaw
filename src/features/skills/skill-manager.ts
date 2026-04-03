@@ -36,7 +36,7 @@ export class SkillManager {
       return;
     }
 
-    logger.info({}, '🔍 Initializing SkillManager...');
+    logger.info({}, 'Initializing SkillManager...');
 
     await this.scanAll();
 
@@ -45,7 +45,7 @@ export class SkillManager {
     this.initialized = true;
     logger.info(
       { systemSkills: this.countBySource('system'), userSkills: this.countBySource('user') },
-      '✅ SkillManager initialized'
+      'SkillManager initialized'
     );
   }
 
@@ -147,7 +147,7 @@ export class SkillManager {
     try {
       this.routes.clear();
       await this.scanAll();
-      logger.info({}, '🔄 Skill routes reloaded');
+      logger.info({}, 'Skill routes reloaded');
     } finally {
       this.selfUpdating = false;
     }

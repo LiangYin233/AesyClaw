@@ -117,7 +117,7 @@ export class AgentEngine {
           filteredTools: filteredTools.length,
           roleId: this.memory.getActiveRoleId()
         },
-        '🔒 LLM Session created with role-filtered tools'
+        'LLM Session created with role-filtered tools'
       );
     }
     return this.session;
@@ -126,7 +126,7 @@ export class AgentEngine {
   async run(userInput: string): Promise<AgentRunResult> {
     logger.info(
       { chatId: this.chatId, instanceId: this.instanceId, inputLength: userInput.length },
-      '🚀 AgentEngine 开始处理请求'
+      'AgentEngine starting request processing'
     );
 
     this.memory.addMessage({
@@ -151,7 +151,7 @@ export class AgentEngine {
         step++;
         logger.info(
           { chatId: this.chatId, step, maxSteps: this.maxSteps },
-          `🔄 开始第 ${step} 步推理`
+          `Starting step ${step}`
         );
 
         const filteredTools = this.getFilteredTools();
@@ -164,14 +164,14 @@ export class AgentEngine {
         const response = await session.generate(userInput);
 
         if (response.finishReason === 'error') {
-          throw new Error('LLM 返回错误');
+          throw new Error('LLM returned error');
         }
 
         if (response.toolCalls && response.toolCalls.length > 0) {
           totalToolCalls += response.toolCalls.length;
           logger.info(
             { chatId: this.chatId, step, toolCallCount: response.toolCalls.length },
-            '🔧 检测到工具调用'
+            'Tool calls detected'
           );
 
           const toolRequests: ToolCallRequest[] = response.toolCalls.map(tc => ({
@@ -185,7 +185,7 @@ export class AgentEngine {
             if (!roleManager.isToolAllowed(roleId, toolRequest.name)) {
               logger.warn(
                 { toolName: toolRequest.name, roleId },
-                '🚫 工具被角色权限拦截'
+                'Tool blocked by role permission'
               );
 
               const toolMessage: StandardMessage = {
@@ -323,7 +323,7 @@ export class AgentEngine {
   clearHistory(): void {
     this.memory.clear();
     this.session = null;
-    logger.debug({ chatId: this.chatId }, '🗑️ Agent 历史已清空');
+    logger.debug({ chatId: this.chatId }, 'Agent history cleared');
   }
 
   getMemoryStats() {
@@ -354,7 +354,7 @@ export class AgentEngine {
   updateModel(model: string): void {
     this.config.llm.model = model;
     this.session = null;
-    logger.info({ chatId: this.chatId, model }, '🔄 Agent 模型已更新');
+    logger.info({ chatId: this.chatId, model }, 'Agent model updated');
   }
 
   getCurrentRoleId(): string {
@@ -369,7 +369,7 @@ export class AgentManager {
 
   private constructor() {
     this.agents = new Map();
-    logger.info('🏭 AgentManager 单例工厂已初始化（支持记忆系统）');
+    logger.info('AgentManager singleton factory initialized (with memory system)');
   }
 
   private buildDefaultConfig(): Required<AgentConfig> {
@@ -461,7 +461,7 @@ export class AgentManager {
   removeAgent(chatId: string): boolean {
     const deleted = this.agents.delete(chatId);
     if (deleted) {
-      logger.info({ chatId, remainingAgents: this.agents.size }, '🗑️ Agent 实例已移除');
+      logger.info({ chatId, remainingAgents: this.agents.size }, 'Agent instance removed');
     }
     return deleted;
   }
@@ -477,7 +477,7 @@ export class AgentManager {
   clearAll(): void {
     this.agents.clear();
     MemoryManagerFactory.getInstance().clearAll();
-    logger.info('🗑️ 所有 Agent 实例和记忆已清空');
+    logger.info('All agent instances and memory cleared');
   }
 
   setDefaultConfig(config: Partial<AgentConfig>): void {
@@ -487,7 +487,7 @@ export class AgentManager {
       ...config,
       memoryConfig: config.memoryConfig || current.memoryConfig,
     };
-    logger.info({ config: this._defaultConfig }, '📝 AgentManager 默认配置已更新');
+    logger.info({ config: this._defaultConfig }, 'AgentManager default config updated');
   }
 }
 
@@ -518,7 +518,7 @@ export class SimpleTool implements ITool {
     args: unknown,
     context: ToolExecuteContext
   ): Promise<ToolExecutionResult> {
-    logger.info({ toolName: this.name, args, traceId: context.traceId }, '🔧 执行简单工具');
+    logger.info({ toolName: this.name, args, traceId: context.traceId }, 'Executing simple tool');
     
     await new Promise(resolve => setTimeout(resolve, 100));
 

@@ -7,7 +7,7 @@ export class AgentEngine {
   constructor(chatId: string) {
     this.chatId = chatId;
     this.instanceId = `agent-${chatId}-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-    logger.info({ chatId, instanceId: this.instanceId }, '🤖 AgentEngine 实例已创建');
+    logger.info({ chatId, instanceId: this.instanceId }, 'AgentEngine instance created');
   }
 
   async run(text: string): Promise<string> {
@@ -42,7 +42,7 @@ export class AgentManager {
 
   private constructor() {
     this.agents = new Map();
-    logger.info('🏭 AgentManager 单例工厂已初始化');
+    logger.info('AgentManager singleton factory initialized');
   }
 
   static getInstance(): AgentManager {

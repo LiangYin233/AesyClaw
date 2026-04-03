@@ -12,6 +12,7 @@ import { cronJobScheduler, initializePromptExecutor } from './features/cron/inde
 import { commandMiddleware, registerSystemCommands } from './features/commands/index.js';
 import { roleManager } from './features/roles/role-manager.js';
 import { subAgentTools } from './features/subagent/index.js';
+import { channelManager, ChannelPluginManager } from './channels/channel-manager.js';
 
 export interface BootstrapOptions {
   skipDb?: boolean;
@@ -22,6 +23,7 @@ export interface BootstrapOptions {
   skipCron?: boolean;
   skipRoles?: boolean;
   skipSubAgents?: boolean;
+  skipChannels?: boolean;
 }
 
 export class Bootstrap {
@@ -37,24 +39,22 @@ export class Bootstrap {
     }
 
     try {
-      logger.info({}, '========================================');
-      logger.info({}, '🚀 AesyClaw Agent System Starting...');
-      logger.info({}, '========================================');
+      logger.info({}, 'AesyClaw starting...');
 
-      logger.info({}, '[1/10] Initializing PathResolver...');
+      logger.info({}, '[1/11] Initializing PathResolver...');
       pathResolver.initialize();
 
       if (!options.skipConfig) {
-        logger.info({}, '[2/10] Loading configuration...');
+        logger.info({}, '[2/11] Loading configuration...');
         await configManager.initialize();
       }
 
       if (!options.skipDb) {
-        logger.info({}, '[3/10] Initializing SQLite database...');
+        logger.info({}, '[3/11] Initializing SQLite database...');
         sqliteManager.initialize();
       }
 
-      logger.info({}, '[4/10] Initializing core components...');
+      logger.info({}, '[4/11] Initializing core components...');
       this.toolRegistry = ToolRegistry.getInstance();
       this.pipeline = new ChannelPipeline();
 
@@ -62,13 +62,13 @@ export class Bootstrap {
         logger.info({}, '[5/11] Initializing SkillManager...');
         await skillManager.initialize();
         this.toolRegistry.register(loadSkillTool);
-        logger.info(skillManager.getStats(), '✅ Skills system loaded');
+        logger.info(skillManager.getStats(), 'Skills system loaded');
       }
 
       if (!options.skipRoles) {
-        logger.info({}, '[6/11] Initializing RoleManager...');
+        logger.info({}, '[6/12] Initializing RoleManager...');
         await roleManager.initialize();
-        logger.info({ roleCount: roleManager.getAllRoles().length }, '✅ Role system loaded');
+        logger.info({ roleCount: roleManager.getAllRoles().length }, 'Role system loaded');
       }
 
       if (!options.skipSubAgents) {
@@ -76,7 +76,7 @@ export class Bootstrap {
         for (const tool of subAgentTools) {
           this.toolRegistry.register(tool as any);
         }
-        logger.info({ toolCount: subAgentTools.length }, '✅ SubAgent tools registered');
+        logger.info({ toolCount: subAgentTools.length }, 'SubAgent tools registered');
       }
 
       logger.info({}, '[8/12] Mounting ConfigInjectionMiddleware...');
@@ -85,28 +85,29 @@ export class Bootstrap {
       logger.info({}, '[9/12] Registering system commands...');
       registerSystemCommands();
       this.pipeline.use(commandMiddleware);
-      logger.info({}, '✅ Command system initialized');
+      logger.info({}, 'Command system initialized');
 
       if (!options.skipPlugins) {
         logger.info({}, '[10/12] Initializing and loading plugins...');
         await pluginManager.initialize();
+        logger.info({}, 'PluginManager initialized');
         const config = configManager.getConfig();
         if (config?.plugins?.plugins) {
           await pluginManager.scanAndLoad(config.plugins.plugins);
         }
-        logger.info({ loadedPlugins: pluginManager.getPluginCount() }, '✅ Plugins system loaded');
+        logger.info({ loadedPlugins: pluginManager.getPluginCount() }, 'Plugins system loaded');
       }
 
       if (!options.skipCron) {
-        logger.info({}, '[11/12] Initializing Cron system with PromptExecutor...');
+        logger.info({}, '[11/13] Initializing Cron system with PromptExecutor...');
         await initializePromptExecutor();
         cronJobScheduler.start();
         const status = cronJobScheduler.isRunning();
-        logger.info({ schedulerRunning: status }, '✅ Cron system initialized');
+        logger.info({ schedulerRunning: status }, 'Cron system initialized');
       }
 
       if (!options.skipMCP) {
-        logger.info({}, '[12/12] Connecting MCP servers...');
+        logger.info({}, '[12/13] Connecting MCP servers...');
         this.mcpManager = McpClientManager.getInstance(this.toolRegistry);
         const config = configManager.getConfig();
         if (config?.mcp?.servers) {
@@ -114,24 +115,55 @@ export class Bootstrap {
         }
       }
 
+      if (!options.skipChannels) {
+        logger.info({}, '[13/13] Loading channel plugins...');
+        const config = configManager.getConfig();
+        if (config?.channels) {
+          await this.loadChannelPlugins(config.channels);
+        } else {
+          logger.info({}, 'No channels configured, skipping channel plugin loading');
+        }
+      }
+
       this.initialized = true;
-      logger.info({}, '========================================');
-      logger.info({}, '✅ AesyClaw bootstrap completed successfully');
-      logger.info({}, '========================================');
+      logger.info({}, 'AesyClaw started successfully');
     } catch (error) {
-      logger.error({ error }, '❌ Bootstrap failed');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      logger.error({ error: errorMessage, stack: errorStack }, 'Bootstrap failed');
       throw error;
     }
   }
 
+  private static async loadChannelPlugins(channels: Record<string, unknown>): Promise<void> {
+    const onebotConfig = channels.onebot as { enabled?: boolean; wsUrl?: string; accessToken?: string; groupIds?: number[] } | undefined;
+
+    if (onebotConfig?.enabled && onebotConfig?.wsUrl) {
+      try {
+        const { onebotPlugin } = await import('../plugins/plugin_channel_onebot/index.js');
+        await channelManager.registerChannel(onebotPlugin);
+        logger.info({ channelName: 'onebot', wsUrl: onebotConfig.wsUrl }, 'OneBot channel plugin loaded');
+      } catch (error) {
+        logger.error({ error, channel: 'onebot' }, 'Failed to load OneBot channel plugin');
+      }
+    }
+
+    logger.info({ loadedChannels: channelManager.getChannelCount() }, 'Channel system initialized');
+  }
+
   static async shutdown(): Promise<void> {
-    logger.info({}, '========================================');
-    logger.info({}, '🛑 Shutting down AesyClaw...');
-    logger.info({}, '========================================');
+    logger.info({}, 'Shutting down AesyClaw...');
+
+    try {
+      channelManager.shutdown();
+      logger.info({}, '[1/7] Channel Manager stopped');
+    } catch (error) {
+      logger.error({ error }, 'Error stopping Channel Manager');
+    }
 
     try {
       cronJobScheduler.stop();
-      logger.info({}, '[1/6] Cron scheduler stopped');
+      logger.info({}, '[2/7] Cron scheduler stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping Cron scheduler');
     }
@@ -140,7 +172,7 @@ export class Bootstrap {
       if (this.mcpManager) {
         this.mcpManager.shutdown();
         McpClientManager.resetInstance();
-        logger.info({}, '[2/6] MCP Manager stopped');
+        logger.info({}, '[3/7] MCP Manager stopped');
       }
     } catch (error) {
       logger.error({ error }, 'Error stopping MCP Manager');
@@ -148,30 +180,37 @@ export class Bootstrap {
 
     try {
       pluginManager.shutdown();
-      logger.info({}, '[3/6] Plugin Manager stopped');
+      logger.info({}, '[4/7] Plugin Manager stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping Plugin Manager');
     }
 
     try {
       sqliteManager.close();
-      logger.info({}, '[4/6] SQLiteManager closed');
+      logger.info({}, '[5/7] SQLiteManager closed');
     } catch (error) {
       logger.error({ error }, 'Error closing SQLiteManager');
     }
 
     try {
       SkillManager.resetInstance();
-      logger.info({}, '[5/7] SkillManager stopped');
+      logger.info({}, '[6/8] SkillManager stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping SkillManager');
     }
 
     try {
       roleManager.shutdown();
-      logger.info({}, '[6/7] RoleManager stopped');
+      logger.info({}, '[7/8] RoleManager stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping RoleManager');
+    }
+
+    try {
+      ChannelPluginManager.resetInstance();
+      logger.info({}, '[8/8] ChannelPluginManager reset');
+    } catch (error) {
+      logger.error({ error }, 'Error resetting ChannelPluginManager');
     }
 
     this.toolRegistry = null;
@@ -179,9 +218,7 @@ export class Bootstrap {
     this.mcpManager = null;
     this.initialized = false;
 
-    logger.info({}, '========================================');
-    logger.info({}, '✅ AesyClaw shutdown completed');
-    logger.info({}, '========================================');
+    logger.info({}, 'AesyClaw shutdown completed');
   }
 
   static isInitialized(): boolean {
@@ -219,6 +256,7 @@ export class Bootstrap {
     };
     mcpServers: number;
     plugins: number;
+    channels: number;
     cron: {
       running: boolean;
       scheduledTasks: number;
@@ -242,6 +280,7 @@ export class Bootstrap {
       roles: roleStats,
       mcpServers: mcpServers.filter(s => s.connected).length,
       plugins: plugins.length,
+      channels: channelManager.getChannelCount(),
       cron: {
         running: cronJobScheduler.isRunning(),
         scheduledTasks: cronJobScheduler.getScheduledTaskCount(),

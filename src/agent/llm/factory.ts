@@ -36,7 +36,7 @@ export class LLMProviderFactory {
   private adapters: Map<string, ILLMProvider> = new Map();
 
   private constructor() {
-    logger.info('🏭 LLMProviderFactory 单例已初始化');
+    logger.info('LLMProviderFactory singleton initialized');
   }
 
   static getInstance(): LLMProviderFactory {
@@ -113,7 +113,7 @@ export class LLMProviderFactory {
 
   clearCache(): void {
     this.adapters.clear();
-    logger.info('🗑️ LLM Adapter 缓存已清空');
+    logger.info('LLM Adapter cache cleared');
   }
 }
 
@@ -196,7 +196,7 @@ export class LLMSession {
 
   clearHistory(): void {
     this.messages = [];
-    logger.debug('🗑️ LLM Session 历史已清空');
+    logger.debug('LLM Session history cleared');
   }
 }
 

@@ -104,7 +104,7 @@ export type MemoryConfig = z.infer<typeof MemoryConfigSchema>;
 
 export const FullConfigSchema = z.object({
   server: ServerConfigSchema,
-  providers: ProvidersConfigSchema,
+  providers: ProvidersConfigSchema.optional().default({}),
   channels: ChannelsConfigSchema.optional(),
   agent: AgentConfigSchema,
   memory: MemoryConfigSchema,

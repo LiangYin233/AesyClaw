@@ -1,3 +1,5 @@
+import type { IOutboundPayload } from '../../channels/channel-plugin.js';
+
 export interface IUnifiedMessage {
   channelId: string;
   chatId: string;
@@ -23,6 +25,7 @@ export interface IChannelContext {
   createdAt: number;
   state?: Record<string, unknown>;
   blocked?: boolean;
+  sendFn?: (payload: IOutboundPayload) => Promise<void>;
 }
 
 export type MiddlewareFunc = (
