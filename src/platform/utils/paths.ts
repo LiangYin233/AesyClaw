@@ -7,7 +7,7 @@ const DEFAULT_CONFIG_FILE = 'config.toml';
 const DEFAULT_DATA_FILE = 'aesyclaw.db';
 const DEFAULT_LOG_FILE = 'aesyclaw.log';
 const DEFAULT_SYSTEM_SKILLS_DIR = 'skills';
-const DEFAULT_USER_SKILLS_DIR = 'skills';
+const DEFAULT_USER_SKILLS_DIR = '.aesyclaw/skills';
 
 export class PathResolver {
   private static instance: PathResolver;
