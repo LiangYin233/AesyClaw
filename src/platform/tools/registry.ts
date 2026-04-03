@@ -293,5 +293,3 @@ export class ToolRegistry {
     };
   }
 }
-
-export class BuiltInToolExecutor {}
