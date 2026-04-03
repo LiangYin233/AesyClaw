@@ -24,6 +24,9 @@ import {
   MemoryConfig,
   createMemoryConfig,
 } from './memory/index';
+import { configManager } from '../../features/config/config-manager.js';
+import { parseModelIdentifier } from '../../platform/utils/model-parser.js';
+import { mapProviderType } from '../../middlewares/agent.middleware.js';
 
 export interface AgentConfig {
   llm: LLMConfig;
@@ -367,7 +370,44 @@ export class AgentManager {
 
   private constructor() {
     this.agents = new Map();
-    this.defaultConfig = {
+    this.defaultConfig = this.buildDefaultConfig();
+    logger.info('🏭 AgentManager 单例工厂已初始化（支持记忆系统）');
+  }
+
+  private buildDefaultConfig(): Required<AgentConfig> {
+    try {
+      if (configManager.isInitialized()) {
+        const config = configManager.getConfig();
+        const modelIdentifier = config.agent.default_model;
+        const { providerName, modelName } = parseModelIdentifier(modelIdentifier);
+        const providerDetails = config.providers[providerName];
+
+        if (providerDetails) {
+          return {
+            llm: {
+              provider: mapProviderType(providerDetails.type),
+              model: modelName,
+              apiKey: providerDetails.api_key,
+              baseUrl: providerDetails.base_url,
+              maxTokens: providerDetails.max_tokens,
+              temperature: providerDetails.temperature,
+            },
+            maxSteps: 15,
+            systemPrompt: config.agent.system_prompt,
+            tools: [],
+            memoryConfig: {
+              maxContextTokens: config.memory.max_context_tokens,
+              compressionThreshold: config.memory.compression_threshold,
+              dangerThreshold: config.memory.danger_threshold,
+            },
+          };
+        }
+      }
+    } catch (error) {
+      logger.warn({ error }, 'Failed to build default config from config.toml, using fallback');
+    }
+
+    return {
       llm: {
         provider: LLMProviderType.OpenAIChat,
         model: 'gpt-4o-mini',
@@ -381,7 +421,6 @@ export class AgentManager {
         dangerThreshold: 30000,
       },
     };
-    logger.info('🏭 AgentManager 单例工厂已初始化（支持记忆系统）');
   }
 
   static getInstance(): AgentManager {

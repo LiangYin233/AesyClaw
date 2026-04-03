@@ -5,6 +5,7 @@ import { ToolDefinition, ToolExecuteContext } from '../../platform/tools/types.j
 import { logger } from '../../platform/observability/logger.js';
 import { roleManager } from '../roles/role-manager.js';
 import { configManager } from '../config/config-manager.js';
+import { parseModelIdentifier } from '../../platform/utils/model-parser.js';
 import type { SandboxConfig, SubAgentResult, SandboxContext } from './types.js';
 
 export class SandboxEngine {
@@ -208,16 +209,18 @@ export class SandboxEngine {
 
   private getLLMConfig(): LLMConfig {
     const config = configManager.getConfig();
-    const providers = config?.providers;
+    const modelIdentifier = config.agent.default_model;
+    const { providerName, modelName } = parseModelIdentifier(modelIdentifier);
+    const providerDetails = config.providers[providerName];
 
-    if (providers?.openai?.api_key) {
+    if (providerDetails) {
       return {
-        provider: LLMProviderType.OpenAIChat,
-        model: providers.openai.model || 'gpt-4o-mini',
-        apiKey: providers.openai.api_key,
-        baseUrl: providers.openai.base_url,
-        temperature: 0.7,
-        maxTokens: 4096,
+        provider: this.mapProviderType(providerDetails.type),
+        model: modelName,
+        apiKey: providerDetails.api_key,
+        baseUrl: providerDetails.base_url,
+        temperature: providerDetails.temperature ?? 0.7,
+        maxTokens: providerDetails.max_tokens ?? 4096,
       };
     }
 
@@ -227,6 +230,19 @@ export class SandboxEngine {
       temperature: 0.7,
       maxTokens: 4096,
     };
+  }
+
+  private mapProviderType(type: string): LLMProviderType {
+    switch (type) {
+      case 'openai_chat':
+        return LLMProviderType.OpenAIChat;
+      case 'openai_completion':
+        return LLMProviderType.OpenAICompletion;
+      case 'anthropic':
+        return LLMProviderType.Anthropic;
+      default:
+        return LLMProviderType.OpenAIChat;
+    }
   }
 
   private buildPrompt(): string {

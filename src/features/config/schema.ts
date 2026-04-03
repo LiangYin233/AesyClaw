@@ -10,22 +10,18 @@ export const ServerConfigSchema = z.object({
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
 
-export const ProviderCredentialSchema = z.object({
-  api_key: z.string().optional(),
-  base_url: z.string().url().optional(),
-  model: z.string().optional(),
-  temperature: z.number().min(0).max(2).optional(),
-  max_tokens: z.number().int().positive().optional(),
+export const CustomProviderSchema = z.object({
+  type: z.enum(['openai_chat', 'openai_completion', 'anthropic']).describe('Provider 类型'),
+  api_key: z.string().optional().describe('API Key'),
+  base_url: z.string().url().optional().describe('API Base URL'),
+  model: z.string().optional().describe('默认模型名称'),
+  temperature: z.number().min(0).max(2).optional().describe('温度参数'),
+  max_tokens: z.number().int().positive().optional().describe('最大 Token 数'),
 });
 
-export type ProviderCredential = z.infer<typeof ProviderCredentialSchema>;
+export type CustomProvider = z.infer<typeof CustomProviderSchema>;
 
-export const ProvidersConfigSchema = z.object({
-  openai: ProviderCredentialSchema.optional(),
-  anthropic: ProviderCredentialSchema.optional(),
-  google: ProviderCredentialSchema.optional(),
-  deepseek: ProviderCredentialSchema.optional(),
-});
+export const ProvidersConfigSchema = z.record(z.string(), CustomProviderSchema);
 
 export type ProvidersConfig = z.infer<typeof ProvidersConfigSchema>;
 
@@ -33,7 +29,7 @@ export const OneBotConfigSchema = z.object({
   enabled: z.boolean().default(false),
   ws_url: z.string().url().optional(),
   access_token: z.string().optional(),
-  universal: ProviderCredentialSchema.optional(),
+  universal: CustomProviderSchema.optional(),
 });
 
 export const DiscordConfigSchema = z.object({
@@ -86,7 +82,9 @@ export const PluginsConfigSchema = z.object({
 export type PluginsConfig = z.infer<typeof PluginsConfigSchema>;
 
 export const AgentConfigSchema = z.object({
-  default_model: z.string().default('gpt-4o'),
+  default_model: z.string()
+    .includes('/', { message: "模型配置必须遵循 'provider_name/model_name' 格式" })
+    .describe("全局默认模型标识 (格式: provider_name/model_name)"),
   default_temperature: z.number().min(0).max(2).default(0.7),
   default_max_tokens: z.number().int().positive().default(4096),
   system_prompt: z.string().default('You are a helpful AI assistant.'),
@@ -124,7 +122,7 @@ export const DEFAULT_CONFIG: FullConfig = {
   },
   providers: {},
   agent: {
-    default_model: 'gpt-4o',
+    default_model: 'my_openai/gpt-4o',
     default_temperature: 0.7,
     default_max_tokens: 4096,
     system_prompt: 'You are a helpful AI assistant.',
