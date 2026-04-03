@@ -2,7 +2,6 @@ import { pathResolver } from './platform/utils/paths.js';
 import { sqliteManager } from './platform/db/sqlite-manager.js';
 import { configManager } from './features/config/config-manager.js';
 import { logger } from './platform/observability/logger.js';
-import { WebUIAdapter } from './channels/webui/adapter.js';
 import { ToolRegistry } from './platform/tools/registry.js';
 import { McpClientManager } from './platform/tools/mcp/mcp-client-manager.js';
 import { pluginManager } from './features/plugins/plugin-manager.js';
@@ -17,19 +16,16 @@ import { subAgentTools } from './features/subagent/index.js';
 export interface BootstrapOptions {
   skipDb?: boolean;
   skipConfig?: boolean;
-  skipWebUI?: boolean;
   skipPlugins?: boolean;
   skipMCP?: boolean;
   skipSkills?: boolean;
   skipCron?: boolean;
   skipRoles?: boolean;
   skipSubAgents?: boolean;
-  webUIPort?: number;
 }
 
 export class Bootstrap {
   private static initialized: boolean = false;
-  private static webUIAdapter: WebUIAdapter | null = null;
   private static toolRegistry: ToolRegistry | null = null;
   private static pipeline: ChannelPipeline | null = null;
   private static mcpManager: McpClientManager | null = null;
@@ -118,13 +114,6 @@ export class Bootstrap {
         }
       }
 
-      if (!options.skipWebUI) {
-        logger.info({}, '[Extra] Starting WebUI API Server...');
-        this.webUIAdapter = WebUIAdapter.getInstance();
-        await this.webUIAdapter.initialize();
-        await this.webUIAdapter.start(options.webUIPort);
-      }
-
       this.initialized = true;
       logger.info({}, '========================================');
       logger.info({}, '✅ AesyClaw bootstrap completed successfully');
@@ -165,32 +154,22 @@ export class Bootstrap {
     }
 
     try {
-      if (this.webUIAdapter) {
-        await this.webUIAdapter.stop();
-        this.webUIAdapter = null;
-        logger.info({}, '[4/6] WebUIAdapter stopped');
-      }
-    } catch (error) {
-      logger.error({ error }, 'Error stopping WebUIAdapter');
-    }
-
-    try {
       sqliteManager.close();
-      logger.info({}, '[5/6] SQLiteManager closed');
+      logger.info({}, '[4/6] SQLiteManager closed');
     } catch (error) {
       logger.error({ error }, 'Error closing SQLiteManager');
     }
 
     try {
       SkillManager.resetInstance();
-      logger.info({}, '[6/7] SkillManager stopped');
+      logger.info({}, '[5/7] SkillManager stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping SkillManager');
     }
 
     try {
       roleManager.shutdown();
-      logger.info({}, '[7/7] RoleManager stopped');
+      logger.info({}, '[6/7] RoleManager stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping RoleManager');
     }
@@ -244,11 +223,6 @@ export class Bootstrap {
       running: boolean;
       scheduledTasks: number;
     };
-    webUI?: {
-      running: boolean;
-      port: number;
-      connectedClients: number;
-    };
   } {
     const toolStats = this.toolRegistry?.getStats() || { totalTools: 0 };
     const skillStats = skillManager.isInitialized() ? skillManager.getStats() : { total: 0, system: 0, user: 0 };
@@ -272,11 +246,6 @@ export class Bootstrap {
         running: cronJobScheduler.isRunning(),
         scheduledTasks: cronJobScheduler.getScheduledTaskCount(),
       },
-      webUI: this.webUIAdapter ? {
-        running: this.webUIAdapter.isServerRunning(),
-        port: this.webUIAdapter.getPort(),
-        connectedClients: this.webUIAdapter.getConnectedClientsCount(),
-      } : undefined,
     };
   }
 }
