@@ -5,7 +5,7 @@ import { logger } from './platform/observability/logger.js';
 import { WebUIAdapter } from './channels/webui/adapter.js';
 import { ToolRegistry } from './platform/tools/registry.js';
 import { McpClientManager } from './platform/tools/mcp/mcp-client-manager.js';
-import { PluginManager } from './features/plugins/plugin-manager.js';
+import { pluginManager } from './features/plugins/plugin-manager.js';
 import { ChannelPipeline } from './agent/core/pipeline.js';
 import { configInjectionMiddleware } from './middlewares/config.middleware.js';
 import { skillManager, loadSkillTool, SkillManager } from './features/skills/index.js';
@@ -26,7 +26,6 @@ export class Bootstrap {
   private static toolRegistry: ToolRegistry | null = null;
   private static pipeline: ChannelPipeline | null = null;
   private static mcpManager: McpClientManager | null = null;
-  private static pluginManager: PluginManager | null = null;
 
   static async initialize(options: BootstrapOptions = {}): Promise<void> {
     if (this.initialized) {
@@ -39,16 +38,16 @@ export class Bootstrap {
       logger.info({}, '🚀 AesyClaw Agent System Starting...');
       logger.info({}, '========================================');
 
-      logger.info({}, '[1/7] Initializing PathResolver...');
+      logger.info({}, '[1/8] Initializing PathResolver...');
       pathResolver.initialize();
 
       if (!options.skipConfig) {
-        logger.info({}, '[2/7] Loading configuration...');
+        logger.info({}, '[2/8] Loading configuration...');
         await configManager.initialize();
       }
 
       if (!options.skipDb) {
-        logger.info({}, '[3/7] Initializing SQLite database...');
+        logger.info({}, '[3/8] Initializing SQLite database...');
         sqliteManager.initialize();
       }
 
@@ -67,12 +66,13 @@ export class Bootstrap {
       this.pipeline.use(configInjectionMiddleware.getMiddleware());
 
       if (!options.skipPlugins) {
-        logger.info({}, '[7/8] Loading plugins...');
-        this.pluginManager = PluginManager.getInstance(this.toolRegistry, this.pipeline);
+        logger.info({}, '[7/8] Initializing and loading plugins...');
+        await pluginManager.initialize();
         const config = configManager.getConfig();
         if (config?.plugins?.plugins) {
-          await this.pluginManager.loadEnabledPlugins(config.plugins.plugins);
+          await pluginManager.scanAndLoad(config.plugins.plugins);
         }
+        logger.info({ loadedPlugins: pluginManager.getPluginCount() }, '✅ Plugins system loaded');
       }
 
       if (!options.skipMCP) {
@@ -117,11 +117,8 @@ export class Bootstrap {
     }
 
     try {
-      if (this.pluginManager) {
-        this.pluginManager.shutdown();
-        PluginManager.resetInstance();
-        logger.info({}, '[2/5] Plugin Manager stopped');
-      }
+      pluginManager.shutdown();
+      logger.info({}, '[2/5] Plugin Manager stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping Plugin Manager');
     }
@@ -153,7 +150,6 @@ export class Bootstrap {
     this.toolRegistry = null;
     this.pipeline = null;
     this.mcpManager = null;
-    this.pluginManager = null;
     this.initialized = false;
 
     logger.info({}, '========================================');
@@ -202,7 +198,7 @@ export class Bootstrap {
     const toolStats = this.toolRegistry?.getStats() || { totalTools: 0 };
     const skillStats = skillManager.isInitialized() ? skillManager.getStats() : { total: 0, system: 0, user: 0 };
     const mcpServers = this.mcpManager?.getConnectedServers() || [];
-    const plugins = this.pluginManager?.getLoadedPlugins() || [];
+    const plugins = pluginManager?.getLoadedPlugins() || [];
 
     return {
       initialized: this.initialized,

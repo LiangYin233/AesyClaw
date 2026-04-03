@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { IUnifiedMessage, IChannelContext, IOutboundMessage, MiddlewareFunc } from './types';
-import { logger } from '../../platform/observability/logger';
+import { logger } from '../../platform/observability/logger.js';
+import { pluginManager } from '../../features/plugins/plugin-manager.js';
 
 export class ChannelPipeline {
   private middlewares: MiddlewareFunc[] = [];
@@ -19,9 +20,34 @@ export class ChannelPipeline {
       '📥 收到入站消息，准备派发到中间件链'
     );
 
+    const processedMessage = await pluginManager.dispatchMessageReceive({
+      message: {
+        channelId: message.channelId,
+        chatId: message.chatId,
+        senderId: message.senderId,
+        text: message.text,
+        timestamp: message.timestamp,
+        metadata: message.metadata,
+      },
+    });
+
+    if (!processedMessage) {
+      logger.info(
+        { traceId, chatId: message.chatId },
+        '🚫 消息被插件拦截，不进入后续处理流程'
+      );
+      return {
+        traceId,
+        inbound: message,
+        outbound: { text: '', mediaFiles: [] },
+        createdAt: Date.now(),
+        blocked: true,
+      } as IChannelContext & { blocked?: boolean };
+    }
+
     const ctx: IChannelContext = {
       traceId,
-      inbound: message,
+      inbound: processedMessage,
       outbound: {
         text: '',
         mediaFiles: [],
@@ -51,15 +77,31 @@ export class ChannelPipeline {
 
     try {
       await next();
+
+      const processedOutbound = await pluginManager.dispatchMessageSend({
+        message: {
+          chatId: ctx.inbound.chatId,
+          text: ctx.outbound.text,
+          mediaFiles: ctx.outbound.mediaFiles,
+          error: ctx.outbound.error,
+        },
+      });
+
+      if (processedOutbound) {
+        ctx.outbound.text = processedOutbound.text;
+        ctx.outbound.mediaFiles = processedOutbound.mediaFiles;
+        ctx.outbound.error = processedOutbound.error;
+      }
+
       const duration = Date.now() - startTime;
       logger.info(
-        { traceId, chatId: message.chatId, duration, outboundLength: ctx.outbound.text.length },
+        { traceId, chatId: ctx.inbound.chatId, duration, outboundLength: ctx.outbound.text.length },
         '📤 消息处理完成，准备返回响应'
       );
     } catch (error) {
       const duration = Date.now() - startTime;
       logger.error(
-        { traceId, chatId: message.chatId, duration, error },
+        { traceId, chatId: ctx.inbound.chatId, duration, error },
         '❌ 消息处理过程中发生错误'
       );
       ctx.outbound.text = '系统内部错误，请稍后重试';

@@ -22,6 +22,7 @@ export interface IChannelContext {
   outbound: IOutboundMessage;
   createdAt: number;
   state?: Record<string, unknown>;
+  blocked?: boolean;
 }
 
 export type MiddlewareFunc = (

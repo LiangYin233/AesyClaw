@@ -16,6 +16,7 @@ import {
   ToolExecutionResult,
 } from '../../platform/tools/types';
 import { logger } from '../../platform/observability/logger';
+import { pluginManager } from '../../features/plugins/plugin-manager.js';
 import {
   SessionMemoryManager,
   MemoryManagerFactory,
@@ -139,6 +140,11 @@ export class AgentEngine {
           `🔄 开始第 ${step} 步推理`
         );
 
+        await pluginManager.dispatchBeforeLLMRequest({
+          messages: this.memory.getMessages(),
+          tools: this.toolRegistry.getAllToolDefinitions(),
+        });
+
         const response = await session.generate(userInput);
 
         if (response.finishReason === 'error') {
@@ -158,28 +164,50 @@ export class AgentEngine {
             arguments: tc.arguments,
           }));
 
-          const toolResults = await this.toolRegistry.executeTools(toolRequests, context);
+          for (const toolRequest of toolRequests) {
+            let toolResult = await pluginManager.dispatchBeforeToolCall({
+              id: toolRequest.id,
+              name: toolRequest.name,
+              arguments: toolRequest.arguments,
+            });
 
-          for (const result of toolResults) {
-            const feedbackMessage = result.success
-              ? result.content
+            if (!toolResult) {
+              const results = await this.toolRegistry.executeTools([toolRequest], context);
+              toolResult = {
+                success: results[0].success,
+                content: results[0].content,
+                error: results[0].error,
+              };
+            }
+
+            const afterResult = await pluginManager.dispatchAfterToolCall({
+              toolCall: {
+                id: toolRequest.id,
+                name: toolRequest.name,
+                arguments: toolRequest.arguments,
+              },
+              result: toolResult,
+            });
+
+            const feedbackMessage = afterResult.success
+              ? afterResult.content
               : this.toolRegistry.generateHallucinationFeedback(
-                  result.toolName,
-                  { toolName: result.toolName, error: result.error || '未知错误' }
+                  toolRequest.name,
+                  { toolName: toolRequest.name, error: afterResult.error || '未知错误' }
                 );
 
             const toolMessage: StandardMessage = {
               role: MessageRole.Tool,
               content: feedbackMessage,
-              toolCallId: result.toolCallId,
-              name: result.toolName,
+              toolCallId: toolRequest.id,
+              name: toolRequest.name,
             };
             this.memory.addMessage(toolMessage);
-            session.addToolResult(result.toolCallId, result.toolName, feedbackMessage);
+            session.addToolResult(toolRequest.id, toolRequest.name, feedbackMessage);
 
-            if (!result.success) {
+            if (!afterResult.success) {
               logger.warn(
-                { toolName: result.toolName, error: result.error },
+                { toolName: toolRequest.name, error: afterResult.error },
                 '⚠️ 工具执行失败，将反馈给 LLM'
               );
             }
