@@ -16,6 +16,7 @@ import {
   HookPayloadMessageSend,
 } from './types.js';
 import type { PluginConfig } from '../config/schema.js';
+import { CommandRegistry } from '../commands/command-registry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -196,6 +197,11 @@ export class PluginManager {
         await plugin.init(context);
       }
 
+      if (plugin.commands && plugin.commands.length > 0) {
+        const commandRegistry = CommandRegistry.getInstance();
+        commandRegistry.registerFromPlugin(plugin.name, plugin.commands);
+      }
+
       this.loadedPlugins.set(plugin.name, plugin);
       this.pluginInfos.set(plugin.name, {
         name: plugin.name,
@@ -203,6 +209,7 @@ export class PluginManager {
         version: plugin.version,
         loaded: true,
         hooks: this.getPluginHookNames(plugin),
+        commands: plugin.commands?.length || 0,
       });
 
       logger.info({ pluginName: plugin.name }, '✅ Plugin loaded successfully');
@@ -297,6 +304,11 @@ export class PluginManager {
     try {
       if (plugin.destroy) {
         await plugin.destroy();
+      }
+
+      if (plugin.commands && plugin.commands.length > 0) {
+        const commandRegistry = CommandRegistry.getInstance();
+        commandRegistry.unregisterFromPlugin(pluginName);
       }
 
       this.loadedPlugins.delete(pluginName);

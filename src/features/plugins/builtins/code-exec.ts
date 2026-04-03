@@ -1,7 +1,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { z } from 'zod';
-import { IPlugin } from '../types';
+import { IPlugin, PluginContext } from '../types';
 import { ITool, ToolExecutionResult } from '../../../platform/tools/types';
 
 const execAsync = promisify(exec);
@@ -124,13 +124,16 @@ class RunShellCommandTool implements ITool {
   }
 }
 
+const pythonTool = new RunPythonCodeTool();
+const shellTool = new RunShellCommandTool();
+
 export const CodeExecPlugin: IPlugin = {
   name: 'code-exec',
   description: 'Code execution plugin providing Python and shell command execution',
   version: '1.0.0',
 
-  tools: [
-    new RunPythonCodeTool(),
-    new RunShellCommandTool(),
-  ],
+  async init(ctx: PluginContext): Promise<void> {
+    ctx.toolRegistry.register(pythonTool);
+    ctx.toolRegistry.register(shellTool);
+  },
 };

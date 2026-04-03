@@ -56,6 +56,7 @@ export interface CronJobInfo {
   id: string;
   name: string;
   expression: string;
+  prompt: string;
   enabled: boolean;
   lastRun?: string;
   nextRun?: string;

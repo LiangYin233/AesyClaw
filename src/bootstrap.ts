@@ -9,6 +9,8 @@ import { pluginManager } from './features/plugins/plugin-manager.js';
 import { ChannelPipeline } from './agent/core/pipeline.js';
 import { configInjectionMiddleware } from './middlewares/config.middleware.js';
 import { skillManager, loadSkillTool, SkillManager } from './features/skills/index.js';
+import { cronJobScheduler, initializePromptExecutor } from './features/cron/index.js';
+import { commandMiddleware, registerSystemCommands } from './features/commands/index.js';
 
 export interface BootstrapOptions {
   skipDb?: boolean;
@@ -17,6 +19,7 @@ export interface BootstrapOptions {
   skipPlugins?: boolean;
   skipMCP?: boolean;
   skipSkills?: boolean;
+  skipCron?: boolean;
   webUIPort?: number;
 }
 
@@ -38,35 +41,40 @@ export class Bootstrap {
       logger.info({}, '🚀 AesyClaw Agent System Starting...');
       logger.info({}, '========================================');
 
-      logger.info({}, '[1/8] Initializing PathResolver...');
+      logger.info({}, '[1/10] Initializing PathResolver...');
       pathResolver.initialize();
 
       if (!options.skipConfig) {
-        logger.info({}, '[2/8] Loading configuration...');
+        logger.info({}, '[2/10] Loading configuration...');
         await configManager.initialize();
       }
 
       if (!options.skipDb) {
-        logger.info({}, '[3/8] Initializing SQLite database...');
+        logger.info({}, '[3/10] Initializing SQLite database...');
         sqliteManager.initialize();
       }
 
-      logger.info({}, '[4/8] Initializing core components...');
+      logger.info({}, '[4/10] Initializing core components...');
       this.toolRegistry = ToolRegistry.getInstance();
       this.pipeline = new ChannelPipeline();
 
       if (!options.skipSkills) {
-        logger.info({}, '[5/8] Initializing SkillManager...');
+        logger.info({}, '[5/10] Initializing SkillManager...');
         await skillManager.initialize();
         this.toolRegistry.register(loadSkillTool);
         logger.info(skillManager.getStats(), '✅ Skills system loaded');
       }
 
-      logger.info({}, '[6/8] Mounting ConfigInjectionMiddleware...');
+      logger.info({}, '[6/10] Mounting ConfigInjectionMiddleware...');
       this.pipeline.use(configInjectionMiddleware.getMiddleware());
 
+      logger.info({}, '[7/10] Registering system commands...');
+      registerSystemCommands();
+      this.pipeline.use(commandMiddleware);
+      logger.info({}, '✅ Command system initialized');
+
       if (!options.skipPlugins) {
-        logger.info({}, '[7/8] Initializing and loading plugins...');
+        logger.info({}, '[8/10] Initializing and loading plugins...');
         await pluginManager.initialize();
         const config = configManager.getConfig();
         if (config?.plugins?.plugins) {
@@ -75,8 +83,16 @@ export class Bootstrap {
         logger.info({ loadedPlugins: pluginManager.getPluginCount() }, '✅ Plugins system loaded');
       }
 
+      if (!options.skipCron) {
+        logger.info({}, '[9/10] Initializing Cron system with PromptExecutor...');
+        await initializePromptExecutor();
+        cronJobScheduler.start();
+        const status = cronJobScheduler.isRunning();
+        logger.info({ schedulerRunning: status }, '✅ Cron system initialized');
+      }
+
       if (!options.skipMCP) {
-        logger.info({}, '[8/8] Connecting MCP servers...');
+        logger.info({}, '[10/10] Connecting MCP servers...');
         this.mcpManager = McpClientManager.getInstance(this.toolRegistry);
         const config = configManager.getConfig();
         if (config?.mcp?.servers) {
@@ -107,10 +123,17 @@ export class Bootstrap {
     logger.info({}, '========================================');
 
     try {
+      cronJobScheduler.stop();
+      logger.info({}, '[1/6] Cron scheduler stopped');
+    } catch (error) {
+      logger.error({ error }, 'Error stopping Cron scheduler');
+    }
+
+    try {
       if (this.mcpManager) {
         this.mcpManager.shutdown();
         McpClientManager.resetInstance();
-        logger.info({}, '[1/4] MCP Manager stopped');
+        logger.info({}, '[2/6] MCP Manager stopped');
       }
     } catch (error) {
       logger.error({ error }, 'Error stopping MCP Manager');
@@ -118,7 +141,7 @@ export class Bootstrap {
 
     try {
       pluginManager.shutdown();
-      logger.info({}, '[2/5] Plugin Manager stopped');
+      logger.info({}, '[3/6] Plugin Manager stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping Plugin Manager');
     }
@@ -127,7 +150,7 @@ export class Bootstrap {
       if (this.webUIAdapter) {
         await this.webUIAdapter.stop();
         this.webUIAdapter = null;
-        logger.info({}, '[3/5] WebUIAdapter stopped');
+        logger.info({}, '[4/6] WebUIAdapter stopped');
       }
     } catch (error) {
       logger.error({ error }, 'Error stopping WebUIAdapter');
@@ -135,14 +158,14 @@ export class Bootstrap {
 
     try {
       sqliteManager.close();
-      logger.info({}, '[4/5] SQLiteManager closed');
+      logger.info({}, '[5/6] SQLiteManager closed');
     } catch (error) {
       logger.error({ error }, 'Error closing SQLiteManager');
     }
 
     try {
       SkillManager.resetInstance();
-      logger.info({}, '[5/5] SkillManager stopped');
+      logger.info({}, '[6/6] SkillManager stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping SkillManager');
     }
@@ -189,6 +212,10 @@ export class Bootstrap {
     };
     mcpServers: number;
     plugins: number;
+    cron: {
+      running: boolean;
+      scheduledTasks: number;
+    };
     webUI?: {
       running: boolean;
       port: number;
@@ -211,6 +238,10 @@ export class Bootstrap {
       skills: skillStats,
       mcpServers: mcpServers.filter(s => s.connected).length,
       plugins: plugins.length,
+      cron: {
+        running: cronJobScheduler.isRunning(),
+        scheduledTasks: cronJobScheduler.getScheduledTaskCount(),
+      },
       webUI: this.webUIAdapter ? {
         running: this.webUIAdapter.isServerRunning(),
         port: this.webUIAdapter.getPort(),

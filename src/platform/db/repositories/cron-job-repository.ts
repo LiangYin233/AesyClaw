@@ -7,6 +7,7 @@ export interface CronJobRecord {
   name: string;
   cronExpression: string;
   command: string;
+  prompt: string;
   enabled: boolean;
   createdAt: string;
   lastRunAt?: string;
@@ -21,6 +22,7 @@ export interface CreateCronJobInput {
   name: string;
   cronExpression: string;
   command: string;
+  prompt: string;
   nextRunAt?: string;
   metadata?: Record<string, unknown>;
 }
@@ -31,8 +33,8 @@ export class CronJobRepository {
     const metadata = JSON.stringify(input.metadata || {});
 
     const stmt = db.prepare(`
-      INSERT INTO cron_jobs (id, chat_id, name, cron_expression, command, next_run_at, metadata)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO cron_jobs (id, chat_id, name, cron_expression, command, prompt, next_run_at, metadata)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -41,6 +43,7 @@ export class CronJobRepository {
       input.name,
       input.cronExpression,
       input.command,
+      input.prompt,
       input.nextRunAt || null,
       metadata
     );
@@ -104,6 +107,10 @@ export class CronJobRepository {
     if (updates.command !== undefined) {
       fields.push('command = ?');
       values.push(updates.command);
+    }
+    if (updates.prompt !== undefined) {
+      fields.push('prompt = ?');
+      values.push(updates.prompt);
     }
     if (updates.enabled !== undefined) {
       fields.push('enabled = ?');
@@ -180,6 +187,7 @@ export class CronJobRepository {
       name: row.name,
       cronExpression: row.cron_expression,
       command: row.command,
+      prompt: row.prompt || '',
       enabled: row.enabled === 1,
       createdAt: row.created_at,
       lastRunAt: row.last_run_at,

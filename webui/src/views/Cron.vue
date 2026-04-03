@@ -6,7 +6,12 @@ import { cronApi, type CronJobInfo } from '../lib/api';
 const jobs = ref<CronJobInfo[]>([]);
 const loading = ref(true);
 const showCreateForm = ref(false);
-const newJob = ref({ id: '', name: '', expression: '' });
+const newJob = ref({
+  id: '',
+  name: '',
+  expression: '0 9 * * *',
+  prompt: ''
+});
 const creating = ref(false);
 
 async function loadJobs() {
@@ -22,7 +27,7 @@ async function loadJobs() {
 }
 
 async function createJob() {
-  if (!newJob.value.id || !newJob.value.expression) return;
+  if (!newJob.value.id || !newJob.value.expression || !newJob.value.prompt) return;
 
   creating.value = true;
   try {
@@ -30,8 +35,9 @@ async function createJob() {
       id: newJob.value.id,
       name: newJob.value.name || newJob.value.id,
       expression: newJob.value.expression,
+      prompt: newJob.value.prompt,
     });
-    newJob.value = { id: '', name: '', expression: '' };
+    newJob.value = { id: '', name: '', expression: '0 9 * * *', prompt: '' };
     showCreateForm.value = false;
     loadJobs();
   } catch (err) {
@@ -96,7 +102,7 @@ onMounted(loadJobs);
               <input
                 v-model="newJob.name"
                 type="text"
-                placeholder="My Cron Job"
+                placeholder="Daily Report"
                 class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -105,14 +111,30 @@ onMounted(loadJobs);
               <input
                 v-model="newJob.expression"
                 type="text"
-                placeholder="*/5 * * * *"
+                placeholder="0 9 * * *"
                 class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <p class="mt-1 text-xs text-gray-500">Format: minute hour day month weekday</p>
             </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-2">
+                Prompt
+                <span class="text-red-400">*</span>
+              </label>
+              <textarea
+                v-model="newJob.prompt"
+                type="text"
+                rows="4"
+                placeholder="Please analyze today's sales data and create a summary report..."
+                class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              ></textarea>
+              <p class="mt-1 text-xs text-gray-500">
+                This prompt will be sent to the AI Agent when the cron job triggers
+              </p>
+            </div>
             <button
               @click="createJob"
-              :disabled="creating || !newJob.id || !newJob.expression"
+              :disabled="creating || !newJob.id || !newJob.expression || !newJob.prompt"
               class="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded-lg transition-colors"
             >
               {{ creating ? 'Creating...' : 'Create' }}
@@ -171,6 +193,10 @@ onMounted(loadJobs);
                 <span class="text-gray-400">Run Count:</span>
                 <span class="ml-2 text-white">{{ job.runCount }}</span>
               </div>
+            </div>
+            <div v-if="job.prompt" class="mt-4">
+              <span class="text-gray-400 text-sm">Prompt:</span>
+              <p class="mt-1 text-sm text-gray-300 bg-gray-700/50 rounded p-3">{{ job.prompt }}</p>
             </div>
           </div>
 

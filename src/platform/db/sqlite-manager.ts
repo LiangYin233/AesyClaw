@@ -28,6 +28,7 @@ export class SQLiteManager {
       this.db.pragma('foreign_keys = ON');
 
       this.initializeTables();
+      this.runMigrations();
 
       this.initialized = true;
       logger.info({ dbPath }, 'SQLiteManager initialized');
@@ -57,6 +58,7 @@ export class SQLiteManager {
         name TEXT NOT NULL,
         cron_expression TEXT NOT NULL,
         command TEXT NOT NULL,
+        prompt TEXT,
         enabled INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         last_run_at TEXT,
@@ -73,6 +75,22 @@ export class SQLiteManager {
     `);
 
     logger.info({}, 'Database tables initialized');
+  }
+
+  private runMigrations(): void {
+    if (!this.db) throw new Error('Database not initialized');
+
+    try {
+      const result = this.db.prepare("PRAGMA table_info(cron_jobs)").all() as Array<{name: string}>;
+      const columns = new Set(result.map(r => r.name));
+
+      if (!columns.has('prompt')) {
+        this.db.exec('ALTER TABLE cron_jobs ADD COLUMN prompt TEXT');
+        logger.info({}, 'Migration: Added prompt column to cron_jobs');
+      }
+    } catch (error) {
+      logger.warn({ error }, 'Migration check failed (table may not exist yet)');
+    }
   }
 
   getDatabase(): Database.Database {

@@ -136,6 +136,7 @@ export interface CronJobInfo {
   id: string;
   name: string;
   expression: string;
+  prompt: string;
   enabled: boolean;
   lastRun?: string;
   nextRun?: string;
@@ -212,7 +213,7 @@ export const sessionsApi = {
 
 export const cronApi = {
   list: () => api.get<{ jobs: CronJobInfo[] }>('/api/cron'),
-  create: (data: { id: string; name?: string; expression: string; payload?: Record<string, unknown> }) =>
+  create: (data: { id: string; name?: string; expression: string; prompt: string; payload?: Record<string, unknown> }) =>
     api.post<{ job: CronJobInfo }>('/api/cron', data),
   delete: (id: string) => api.delete<{ success: boolean; id: string }>(`/api/cron/${id}`),
   toggle: (id: string) => api.patch<{ success: boolean; id: string; enabled: boolean }>(`/api/cron/${id}/toggle`),

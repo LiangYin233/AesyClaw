@@ -2,6 +2,7 @@ import type { Logger } from '../../platform/observability/logger.js';
 import type { ToolRegistry } from '../../platform/tools/registry.js';
 import type { SkillManager } from '../skills/skill-manager.js';
 import type { StandardMessage } from '../../agent/llm/types.js';
+import type { CommandDefinition } from '../commands/types.js';
 
 export interface ToolExecuteContext {
   chatId: string;
@@ -103,6 +104,7 @@ export interface IPlugin {
   description?: string;
   init?: (ctx: PluginContext) => Promise<void>;
   hooks?: PluginHooks;
+  commands?: CommandDefinition[];
   destroy?: () => Promise<void>;
 }
 
@@ -112,6 +114,7 @@ export interface PluginInfo {
   version: string;
   loaded: boolean;
   hooks: string[];
+  commands?: number;
 }
 
 export type HookName = keyof PluginHooks;

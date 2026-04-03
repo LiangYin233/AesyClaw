@@ -129,6 +129,7 @@ export function createWebUIRouter(): Router {
         id: j.id,
         name: j.name || j.id,
         expression: j.cronExpression,
+        prompt: j.prompt || '',
         enabled: j.enabled,
         lastRun: j.lastRunAt || undefined,
         nextRun: j.nextRunAt || undefined,
@@ -145,11 +146,20 @@ export function createWebUIRouter(): Router {
 
   router.post('/cron', (req, res) => {
     try {
-      const { id, name, expression, payload } = req.body;
+      const { id, name, expression, prompt } = req.body;
 
       if (!id || !expression) {
         const err: ApiError = {
           error: 'id and expression are required',
+          code: 'VALIDATION_ERROR',
+        };
+        res.status(400).json(err);
+        return;
+      }
+
+      if (!prompt || prompt.trim().length === 0) {
+        const err: ApiError = {
+          error: 'prompt is required',
           code: 'VALIDATION_ERROR',
         };
         res.status(400).json(err);
@@ -162,10 +172,23 @@ export function createWebUIRouter(): Router {
         name: name || id,
         cronExpression: expression,
         command: '',
-        metadata: payload || {},
+        prompt: prompt,
+        metadata: {},
       });
 
-      res.json({ job: { id: job.id, name: job.name, expression: job.cronExpression } });
+      res.json({
+        job: {
+          id: job.id,
+          name: job.name,
+          expression: job.cronExpression,
+          prompt: job.prompt,
+          enabled: job.enabled,
+          lastRun: job.lastRunAt || undefined,
+          nextRun: job.nextRunAt || undefined,
+          runCount: job.runCount,
+          payload: job.metadata || {},
+        }
+      });
     } catch (error) {
       logger.error({ error }, 'Failed to create cron job');
       const err: ApiError = { error: 'Failed to create cron job', code: 'INTERNAL_ERROR' };
