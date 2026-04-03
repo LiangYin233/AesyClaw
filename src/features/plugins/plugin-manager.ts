@@ -408,6 +408,8 @@ export class PluginManager {
       };
     } catch (error) {
       this.pluginPaths.delete(normalizedName);
+      this.loadedPlugins.delete(normalizedName);
+      this.pluginInfos.delete(normalizedName);
       logger.error({ pluginName: normalizedName, error }, '❌ Failed to enable plugin');
       return {
         success: false,
