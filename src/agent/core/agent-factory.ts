@@ -11,21 +11,16 @@ export class AgentEngine {
   }
 
   async run(text: string): Promise<string> {
-    const delay = Math.random() * 2000 + 1000;
-    const startTime = Date.now();
-
     logger.debug(
-      { chatId: this.chatId, instanceId: this.instanceId, input: text, delay: Math.round(delay) },
+      { chatId: this.chatId, instanceId: this.instanceId, input: text },
       '⏳ AgentEngine 开始处理请求'
     );
 
-    await new Promise((resolve) => setTimeout(resolve, delay));
-
-    const duration = Date.now() - startTime;
-    const response = `[${this.chatId}] 模拟回复：收到您的消息「${text}」，处理耗时 ${duration}ms`;
+    // TODO: 实现真正的 AI 处理逻辑
+    const response = `[${this.chatId}] 处理消息：${text}`;
 
     logger.info(
-      { chatId: this.chatId, instanceId: this.instanceId, duration },
+      { chatId: this.chatId, instanceId: this.instanceId },
       '✅ AgentEngine 处理完成'
     );
 
