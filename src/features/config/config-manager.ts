@@ -1,6 +1,8 @@
 import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import { ZodError } from 'zod';
-import { pathResolver } from '../../platform/utils/paths.js';
+import * as smolToml from 'smol-toml';
 import { FullConfigSchema, DEFAULT_CONFIG, type FullConfig } from './schema.js';
 import { logger } from '../../platform/observability/logger.js';
 
@@ -9,9 +11,12 @@ export class ConfigManager {
   private config: FullConfig | null = null;
   private initialized: boolean = false;
   private configPath: string;
+  private selfUpdating: boolean = false;
+  private watcher: fs.FSWatcher | null = null;
+  private debounceTimer: NodeJS.Timeout | null = null;
 
   private constructor() {
-    this.configPath = pathResolver.getConfigFilePath();
+    this.configPath = path.join(os.homedir(), '.aesyclaw', 'config.toml');
   }
 
   static getInstance(): ConfigManager {
@@ -28,145 +33,122 @@ export class ConfigManager {
 
     try {
       await this.loadConfig();
+      this.setupFileWatcher();
       this.initialized = true;
-      logger.info({ configPath: this.configPath }, 'ConfigManager initialized');
+      logger.info({ configPath: this.configPath }, 'ConfigManager initialized with hot-reload');
     } catch (error) {
       logger.error({ error }, 'Failed to initialize ConfigManager');
       throw error;
     }
   }
 
+  private async ensureConfigDir(): Promise<void> {
+    const configDir = path.dirname(this.configPath);
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true });
+      logger.info({ configDir }, 'Created config directory');
+    }
+  }
+
   private async loadConfig(): Promise<void> {
+    await this.ensureConfigDir();
+
     if (!fs.existsSync(this.configPath)) {
       logger.info({ path: this.configPath }, 'Config file not found, generating default');
-      await this.generateDefaultConfig();
+      await this.writeDefaultConfig();
       this.config = DEFAULT_CONFIG;
       return;
     }
 
     try {
       const content = await fs.promises.readFile(this.configPath, 'utf-8');
-      const parsed = this.parseTOML(content);
-      this.config = FullConfigSchema.parse(parsed);
-      logger.info({ path: this.configPath }, 'Config loaded successfully');
+      const parsed = this.parseConfig(content);
+      if (parsed) {
+        this.config = parsed;
+        logger.info({ path: this.configPath }, 'Config loaded successfully');
+      } else {
+        logger.warn({}, 'Config parse failed, using cached/default config');
+      }
     } catch (error) {
-      if (error instanceof ZodError) {
-        logger.error({ issues: error.issues }, 'Config validation failed');
-        throw new Error(`Configuration validation failed: ${this.formatZodErrors(error)}`);
-      }
-      throw error;
+      this.gracefulDegradation(error as Error);
     }
   }
 
-  private parseTOML(content: string): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
-    const lines = content.split('\n');
-    let currentSection: Record<string, unknown> = result;
-    let sectionPath: string[] = [];
-
-    for (let line of lines) {
-      line = line.trim();
-
-      if (!line || line.startsWith('#')) {
-        continue;
+  private parseConfig(content: string): FullConfig | null {
+    try {
+      const parsed = smolToml.parse(content);
+      const result = FullConfigSchema.safeParse(parsed);
+      if (result.success) {
+        return result.data;
       }
-
-      if (line.startsWith('[') && line.endsWith(']')) {
-        const sectionName = line.slice(1, -1);
-        sectionPath = sectionName.split('.');
-        currentSection = result;
-
-        for (const part of sectionPath) {
-          if (!currentSection[part]) {
-            currentSection[part] = {};
-          }
-          currentSection = currentSection[part] as Record<string, unknown>;
-        }
-        continue;
-      }
-
-      const eqIndex = line.indexOf('=');
-      if (eqIndex === -1) continue;
-
-      const key = line.slice(0, eqIndex).trim();
-      const value = line.slice(eqIndex + 1).trim();
-
-      currentSection[key] = this.parseValue(value);
+      logger.warn({ issues: this.formatZodErrors(result.error) }, 'Zod validation failed');
+      return null;
+    } catch (error) {
+      logger.error({ error }, 'TOML parse error');
+      return null;
     }
-
-    return result;
   }
 
-  private parseValue(value: string): unknown {
-    value = value.trim();
-
-    if ((value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))) {
-      return value.slice(1, -1);
-    }
-
-    if (value === 'true') return true;
-    if (value === 'false') return false;
-
-    if (value === 'null' || value === 'nil') return null;
-
-    const num = Number(value);
-    if (!isNaN(num) && value !== '') {
-      return num;
-    }
-
-    if (value.startsWith('[') && value.endsWith(']')) {
-      const arrayContent = value.slice(1, -1).trim();
-      if (!arrayContent) return [];
-      return arrayContent.split(',').map(item => this.parseValue(item.trim()));
-    }
-
-    return value;
-  }
-
-  private async generateDefaultConfig(): Promise<void> {
-    const configContent = `# AesyClaw Configuration File
-# This file is auto-generated on first run
-
-[server]
-port = 3000
-host = "0.0.0.0"
-log_level = "info"
-
-[providers]
-# Uncomment and fill in your API credentials
-# [providers.openai]
-# api_key = "your-openai-api-key"
-# model = "gpt-4o"
-
-# [providers.anthropic]
-# api_key = "your-anthropic-api-key"
-# model = "claude-3-sonnet-20240229"
-
-[channels]
-# [channels.onebot]
-# enabled = false
-# ws_url = "ws://localhost:3001"
-
-# [channels.discord]
-# enabled = false
-# token = "your-discord-token"
-
-[agent]
-default_model = "gpt-4o"
-default_temperature = 0.7
-default_max_tokens = 4096
-system_prompt = "You are a helpful AI assistant."
-max_turns = 50
-
-[memory]
-max_context_tokens = 128000
-compression_threshold = 80000
-danger_threshold = 30000
-`;
-
-    await fs.promises.writeFile(this.configPath, configContent, 'utf-8');
+  private async writeDefaultConfig(): Promise<void> {
+    const defaultConfig = DEFAULT_CONFIG;
+    const tomlString = this.serializeToTOML(defaultConfig);
+    await fs.promises.writeFile(this.configPath, tomlString, 'utf-8');
     logger.info({ path: this.configPath }, 'Default config file generated');
+  }
+
+  private setupFileWatcher(): void {
+    if (this.watcher) {
+      return;
+    }
+
+    try {
+      this.watcher = fs.watch(this.configPath, (eventType) => {
+        if (eventType !== 'change') return;
+        this.handleFileChange();
+      });
+      logger.info({}, 'File watcher setup successfully');
+    } catch (error) {
+      logger.error({ error }, 'Failed to setup file watcher');
+    }
+  }
+
+  private handleFileChange(): void {
+    if (this.selfUpdating) {
+      logger.debug({}, 'Ignoring self-triggered file change');
+      return;
+    }
+
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+    }
+
+    this.debounceTimer = setTimeout(async () => {
+      await this.reload();
+    }, 500);
+  }
+
+  private async reload(): Promise<void> {
+    logger.info({}, 'Reloading configuration...');
+    try {
+      const content = await fs.promises.readFile(this.configPath, 'utf-8');
+      const parsed = this.parseConfig(content);
+      if (parsed) {
+        this.config = parsed;
+        logger.info({}, 'Configuration reloaded successfully');
+      } else {
+        logger.warn({}, 'Config reload failed, keeping old config');
+      }
+    } catch (error) {
+      this.gracefulDegradation(error as Error);
+    }
+  }
+
+  private gracefulDegradation(error: Error): void {
+    logger.error({ error }, 'Config system error, using cached config');
+    if (!this.config) {
+      this.config = DEFAULT_CONFIG;
+      logger.info({}, 'Using default config as fallback');
+    }
   }
 
   private formatZodErrors(error: ZodError): string {
@@ -200,26 +182,74 @@ danger_threshold = 30000
     return this.getConfig().memory;
   }
 
+  getMCPConfig() {
+    return this.getConfig().mcp;
+  }
+
+  getPluginsConfig() {
+    return this.getConfig().plugins;
+  }
+
   getProviderCredential(provider: string) {
     const providers = this.getConfig().providers;
     return (providers as any)[provider] || null;
   }
 
-  async reload(): Promise<void> {
-    logger.info({}, 'Reloading configuration...');
-    await this.loadConfig();
-    logger.info({}, 'Configuration reloaded');
+  async reloadConfig(): Promise<void> {
+    await this.reload();
   }
 
-  async updateConfig(updates: Partial<FullConfig>): Promise<void> {
-    if (!this.config) throw new Error('ConfigManager not initialized');
+  async updateConfig(updates: Partial<FullConfig>): Promise<boolean> {
+    if (!this.config) {
+      logger.error({}, 'ConfigManager not initialized');
+      return false;
+    }
 
-    const merged = { ...this.config, ...updates };
-    this.config = FullConfigSchema.parse(merged);
+    try {
+      const merged = this.mergeConfig(this.config, updates);
+      const result = FullConfigSchema.safeParse(merged);
+      if (!result.success) {
+        logger.warn({ issues: this.formatZodErrors(result.error) }, 'Update validation failed');
+        return false;
+      }
+      this.config = result.data;
+      this.saveToDisk();
+      return true;
+    } catch (error) {
+      logger.error({ error }, 'Update config failed');
+      return false;
+    }
+  }
 
-    const content = this.serializeToTOML(this.config);
-    await fs.promises.writeFile(this.configPath, content, 'utf-8');
-    logger.info({ path: this.configPath }, 'Configuration updated');
+  private mergeConfig(current: FullConfig, updates: Partial<FullConfig>): FullConfig {
+    return {
+      ...current,
+      ...updates,
+      server: { ...current.server, ...updates.server },
+      providers: { ...current.providers, ...updates.providers },
+      agent: { ...current.agent, ...updates.agent },
+      memory: { ...current.memory, ...updates.memory },
+      channels: updates.channels ? { ...current.channels, ...updates.channels } : current.channels,
+      mcp: updates.mcp ? { ...current.mcp, ...updates.mcp } : current.mcp,
+      plugins: updates.plugins ? { ...current.plugins, ...updates.plugins } : current.plugins,
+    };
+  }
+
+  private saveToDisk(): void {
+    if (!this.config) return;
+
+    this.selfUpdating = true;
+    try {
+      const tomlString = this.serializeToTOML(this.config);
+      fs.writeFileSync(this.configPath, tomlString, 'utf-8');
+      logger.info({ path: this.configPath }, 'Configuration updated and saved to disk');
+    } catch (error) {
+      logger.error({ error }, 'Failed to save config to disk');
+    } finally {
+      setTimeout(() => {
+        this.selfUpdating = false;
+      }, 100);
+    }
   }
 
   private serializeToTOML(config: FullConfig): string {
@@ -230,6 +260,7 @@ danger_threshold = 30000
       `port = ${config.server.port}`,
       `host = "${config.server.host}"`,
       `log_level = "${config.server.logLevel}"`,
+      `admin_token = "${config.server.adminToken}"`,
       '',
     ];
 
@@ -248,7 +279,7 @@ danger_threshold = 30000
       }
     }
 
-    if (Object.keys(config.channels).length > 0) {
+    if (config.channels && Object.keys(config.channels).length > 0) {
       lines.push('[channels]');
       for (const [name, channel] of Object.entries(config.channels)) {
         if (channel) {
@@ -271,6 +302,42 @@ danger_threshold = 30000
     lines.push(`max_context_tokens = ${config.memory.max_context_tokens}`);
     lines.push(`compression_threshold = ${config.memory.compression_threshold}`);
     lines.push(`danger_threshold = ${config.memory.danger_threshold}`);
+    lines.push('');
+
+    if (config.mcp && config.mcp.servers && config.mcp.servers.length > 0) {
+      lines.push('[mcp]');
+      lines.push('servers = [');
+      for (const server of config.mcp.servers) {
+        lines.push('  {');
+        lines.push(`    name = "${server.name}"`);
+        lines.push(`    command = "${server.command}"`);
+        lines.push(`    args = [${server.args.map(a => `"${a}"`).join(', ')}]`);
+        if (server.env) {
+          const envEntries = Object.entries(server.env).map(([k, v]) => `${k} = "${v}"`).join(', ');
+          lines.push(`    env = { ${envEntries} }`);
+        }
+        lines.push(`    enabled = ${server.enabled}`);
+        lines.push('  },');
+      }
+      lines.push(']');
+      lines.push('');
+    }
+
+    if (config.plugins && config.plugins.plugins && config.plugins.plugins.length > 0) {
+      lines.push('[plugins]');
+      lines.push('plugins = [');
+      for (const plugin of config.plugins.plugins) {
+        lines.push('  {');
+        lines.push(`    name = "${plugin.name}"`);
+        lines.push(`    enabled = ${plugin.enabled}`);
+        if (plugin.options) {
+          const optionsEntries = Object.entries(plugin.options).map(([k, v]) => `${k} = ${JSON.stringify(v)}`).join(', ');
+          lines.push(`    options = { ${optionsEntries} }`);
+        }
+        lines.push('  },');
+      }
+      lines.push(']');
+    }
 
     return lines.join('\n');
   }
@@ -285,6 +352,18 @@ danger_threshold = 30000
 
   getConfigPath(): string {
     return this.configPath;
+  }
+
+  destroy(): void {
+    if (this.watcher) {
+      this.watcher.close();
+      this.watcher = null;
+    }
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+    logger.info({}, 'ConfigManager destroyed');
   }
 }
 

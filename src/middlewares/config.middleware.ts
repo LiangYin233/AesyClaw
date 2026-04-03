@@ -26,8 +26,8 @@ export class ConfigInjectionMiddleware {
 
       logger.debug({
         hasServer: !!config.server,
-        hasProviders: Object.keys(config.providers).length > 0,
-        hasChannels: Object.keys(config.channels).length > 0,
+        hasProviders: Object.keys(config.providers || {}).length > 0,
+        hasChannels: config.channels ? Object.keys(config.channels).length > 0 : false,
         hasAgent: !!config.agent,
       }, 'Config injected into context');
 

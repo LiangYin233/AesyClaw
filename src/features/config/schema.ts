@@ -4,6 +4,8 @@ export const ServerConfigSchema = z.object({
   port: z.number().int().min(1).max(65535).default(3000),
   host: z.string().default('0.0.0.0'),
   logLevel: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+  adminToken: z.string().default('admin123'),
+  corsOrigin: z.string().optional(),
 });
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
@@ -25,7 +27,7 @@ export const ProvidersConfigSchema = z.object({
   deepseek: ProviderCredentialSchema.optional(),
 });
 
-export type ProvidersConfig = z.infer<typeof ProvidersConfigSchema>;
+export type providersConfig = z.infer<typeof ProvidersConfigSchema>;
 
 export const OneBotConfigSchema = z.object({
   enabled: z.boolean().default(false),
@@ -53,6 +55,36 @@ export const ChannelsConfigSchema = z.object({
 
 export type ChannelsConfig = z.infer<typeof ChannelsConfigSchema>;
 
+export const MCPServerConfigSchema = z.object({
+  name: z.string(),
+  command: z.string(),
+  args: z.array(z.string()).default([]),
+  env: z.record(z.string(), z.string()).optional(),
+  enabled: z.boolean().default(true),
+});
+
+export type MCPServerConfig = z.infer<typeof MCPServerConfigSchema>;
+
+export const MCPConfigSchema = z.object({
+  servers: z.array(MCPServerConfigSchema).default([]),
+});
+
+export type MCPConfig = z.infer<typeof MCPConfigSchema>;
+
+export const PluginConfigSchema = z.object({
+  name: z.string(),
+  enabled: z.boolean().default(true),
+  options: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type PluginConfig = z.infer<typeof PluginConfigSchema>;
+
+export const PluginsConfigSchema = z.object({
+  plugins: z.array(PluginConfigSchema).default([]),
+});
+
+export type PluginsConfig = z.infer<typeof PluginsConfigSchema>;
+
 export const AgentConfigSchema = z.object({
   default_model: z.string().default('gpt-4o'),
   default_temperature: z.number().min(0).max(2).default(0.7),
@@ -74,9 +106,11 @@ export type MemoryConfig = z.infer<typeof MemoryConfigSchema>;
 export const FullConfigSchema = z.object({
   server: ServerConfigSchema,
   providers: ProvidersConfigSchema,
-  channels: ChannelsConfigSchema,
+  channels: ChannelsConfigSchema.optional(),
   agent: AgentConfigSchema,
   memory: MemoryConfigSchema,
+  mcp: MCPConfigSchema.optional(),
+  plugins: PluginsConfigSchema.optional(),
 });
 
 export type FullConfig = z.infer<typeof FullConfigSchema>;
@@ -86,9 +120,9 @@ export const DEFAULT_CONFIG: FullConfig = {
     port: 3000,
     host: '0.0.0.0',
     logLevel: 'info',
+    adminToken: 'admin123',
   },
   providers: {},
-  channels: {},
   agent: {
     default_model: 'gpt-4o',
     default_temperature: 0.7,

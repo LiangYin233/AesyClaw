@@ -23,8 +23,12 @@ export default defineConfig(() => {
         interval: 300,
       },
       proxy: {
+        '/api': {
+          target: 'http://127.0.0.1:3001',
+          changeOrigin: true,
+        },
         '/ws': {
-          target: 'ws://127.0.0.1:18792',
+          target: 'ws://127.0.0.1:3001',
           changeOrigin: true,
           ws: true,
         },
