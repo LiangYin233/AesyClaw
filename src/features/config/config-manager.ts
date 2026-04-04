@@ -5,6 +5,7 @@ import { ZodError } from 'zod';
 import * as smolToml from 'smol-toml';
 import { FullConfigSchema, DEFAULT_CONFIG, type FullConfig, type ModelConfig } from './schema.js';
 import { logger } from '../../platform/observability/logger.js';
+import { pathResolver } from '../../platform/utils/paths.js';
 
 export class ConfigManager {
   private static instance: ConfigManager;
@@ -16,8 +17,7 @@ export class ConfigManager {
   private debounceTimer: NodeJS.Timeout | null = null;
 
   private constructor() {
-    const projectRoot = path.resolve(process.cwd());
-    this.configPath = path.join(projectRoot, '.aesyclaw', 'config.toml');
+    this.configPath = pathResolver.getConfigFilePath();
   }
 
   static getInstance(): ConfigManager {
@@ -43,17 +43,7 @@ export class ConfigManager {
     }
   }
 
-  private async ensureConfigDir(): Promise<void> {
-    const configDir = path.dirname(this.configPath);
-    if (!fs.existsSync(configDir)) {
-      fs.mkdirSync(configDir, { recursive: true });
-      logger.info({ configDir }, 'Created config directory');
-    }
-  }
-
   private async loadConfig(): Promise<void> {
-    await this.ensureConfigDir();
-
     if (!fs.existsSync(this.configPath)) {
       logger.info({ path: this.configPath }, 'Config file not found, generating default');
       await this.writeDefaultConfig();
@@ -105,6 +95,11 @@ export class ConfigManager {
           logger.info({}, 'No MCP servers configured, adding default MCP server example');
         }
 
+        if (this.shouldAddDefaultChannels(parsed)) {
+          result.data.channels = this.getDefaultChannelExample();
+          logger.info({}, 'No channels configured, adding default channel example');
+        }
+
         return result.data;
       }
 
@@ -113,15 +108,18 @@ export class ConfigManager {
       const parsedAny = parsed as any;
       const hasProviders = parsedAny?.providers && Object.keys(parsedAny.providers).length > 0;
       const hasMCPServers = parsedAny?.mcp?.servers && Array.isArray(parsedAny.mcp.servers) && parsedAny.mcp.servers.length > 0;
+      const hasChannels = parsedAny?.channels && Object.keys(parsedAny.channels).length > 0;
 
       const mergedProviders = hasProviders ? parsedAny.providers : this.getDefaultProviderExample();
       const mergedMCPServers = hasMCPServers ? parsedAny.mcp.servers : this.getDefaultMCPServerExample();
+      const mergedChannels = hasChannels ? parsedAny.channels : this.getDefaultChannelExample();
 
       const merged = {
         ...DEFAULT_CONFIG,
         ...parsedAny,
         providers: mergedProviders,
         mcp: { servers: mergedMCPServers },
+        channels: mergedChannels,
       };
 
       const mergedResult = FullConfigSchema.safeParse(merged);
@@ -133,7 +131,10 @@ export class ConfigManager {
         if (!hasMCPServers) {
           logger.info({}, 'No MCP servers configured, adding default MCP server example');
         }
-        if (hasProviders || hasMCPServers) {
+        if (!hasChannels) {
+          logger.info({}, 'No channels configured, adding default channel example');
+        }
+        if (hasProviders || hasMCPServers || hasChannels) {
           logger.info({}, 'Successfully merged user config with defaults');
         }
         return mergedResult.data;
@@ -213,8 +214,24 @@ export class ConfigManager {
     ];
   }
 
+  private shouldAddDefaultChannels(parsedConfig: any): boolean {
+    const hasChannels = parsedConfig?.channels && Object.keys(parsedConfig.channels).length > 0;
+    return !hasChannels;
+  }
+
+  private getDefaultChannelExample(): Record<string, any> {
+    return {
+      onebot: {
+        enabled: false,
+      },
+    };
+  }
+
   private async writeDefaultConfig(): Promise<void> {
-    const defaultConfig = DEFAULT_CONFIG;
+    const defaultConfig = {
+      ...DEFAULT_CONFIG,
+      channels: this.getDefaultChannelExample(),
+    };
     const tomlString = this.serializeToTOML(defaultConfig);
     await fs.promises.writeFile(this.configPath, tomlString, 'utf-8');
     logger.info({ path: this.configPath }, 'Default config file generated');

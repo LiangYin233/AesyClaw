@@ -32,7 +32,7 @@ export class PluginManager {
 
   private constructor(toolRegistry: ToolRegistry) {
     this.toolRegistry = toolRegistry;
-    this.pluginsDir = path.resolve(process.cwd(), 'plugins');
+    this.pluginsDir = path.join(process.cwd(), 'plugins');
   }
 
   static getInstance(toolRegistry: ToolRegistry): PluginManager {

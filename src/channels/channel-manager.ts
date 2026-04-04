@@ -32,6 +32,7 @@ export class ChannelPluginManager {
 
   async registerChannel(
     plugin: IChannelPlugin,
+    config?: Record<string, unknown>,
     sendFn?: (payload: IOutboundPayload) => Promise<void>
   ): Promise<void> {
     if (this.channels.has(plugin.name)) {
@@ -42,7 +43,7 @@ export class ChannelPluginManager {
     logger.info({ channelName: plugin.name, version: plugin.version }, 'Registering channel plugin');
 
     const ctx: ChannelPluginContext = {
-      config: {},
+      config: config || {},
       logger: this.pluginLogger,
     };
 

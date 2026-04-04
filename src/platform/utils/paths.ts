@@ -22,11 +22,11 @@ export class PathResolver {
   private initialized: boolean = false;
 
   private constructor() {
-    this.basePath = this.resolveBasePath();
+    this.basePath = path.join(process.cwd(), AESYCCLAW_DIR);
     this.configDir = this.basePath;
     this.dataDir = path.join(this.basePath, DEFAULT_DATA_DIR);
     this.logDir = path.join(this.basePath, DEFAULT_LOG_DIR);
-    this.systemSkillsDir = path.resolve(process.cwd(), DEFAULT_SYSTEM_SKILLS_DIR);
+    this.systemSkillsDir = path.join(process.cwd(), DEFAULT_SYSTEM_SKILLS_DIR);
     this.userSkillsDir = path.join(this.basePath, DEFAULT_USER_SKILLS_DIR);
   }
 
@@ -35,10 +35,6 @@ export class PathResolver {
       PathResolver.instance = new PathResolver();
     }
     return PathResolver.instance;
-  }
-
-  private resolveBasePath(): string {
-    return path.join(path.resolve(process.cwd()), AESYCCLAW_DIR);
   }
 
   initialize(): void {
