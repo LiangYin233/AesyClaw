@@ -93,17 +93,49 @@ export class ConfigManager {
     try {
       const parsed = smolToml.parse(content);
       const result = FullConfigSchema.safeParse(parsed);
+
       if (result.success) {
+        if (this.shouldAddDefaultProviders(parsed)) {
+          result.data.providers = this.getDefaultProviderExample();
+          logger.info({}, 'No providers configured, adding default provider example');
+        }
+
+        if (this.shouldAddDefaultMCPServers(parsed)) {
+          result.data.mcp = { servers: this.getDefaultMCPServerExample() };
+          logger.info({}, 'No MCP servers configured, adding default MCP server example');
+        }
+
         return result.data;
       }
 
       logger.warn({ issues: this.formatZodErrors(result.error) }, 'Zod validation failed, attempting to fill missing fields with defaults');
 
-      const merged = this.deepMerge(DEFAULT_CONFIG, parsed as Partial<FullConfig>);
+      const parsedAny = parsed as any;
+      const hasProviders = parsedAny?.providers && Object.keys(parsedAny.providers).length > 0;
+      const hasMCPServers = parsedAny?.mcp?.servers && Array.isArray(parsedAny.mcp.servers) && parsedAny.mcp.servers.length > 0;
+
+      const mergedProviders = hasProviders ? parsedAny.providers : this.getDefaultProviderExample();
+      const mergedMCPServers = hasMCPServers ? parsedAny.mcp.servers : this.getDefaultMCPServerExample();
+
+      const merged = {
+        ...DEFAULT_CONFIG,
+        ...parsedAny,
+        providers: mergedProviders,
+        mcp: { servers: mergedMCPServers },
+      };
+
       const mergedResult = FullConfigSchema.safeParse(merged);
 
       if (mergedResult.success) {
-        logger.info({}, 'Successfully merged user config with defaults');
+        if (!hasProviders) {
+          logger.info({}, 'No providers configured, adding default provider example');
+        }
+        if (!hasMCPServers) {
+          logger.info({}, 'No MCP servers configured, adding default MCP server example');
+        }
+        if (hasProviders || hasMCPServers) {
+          logger.info({}, 'Successfully merged user config with defaults');
+        }
         return mergedResult.data;
       }
 
@@ -115,7 +147,7 @@ export class ConfigManager {
     }
   }
 
-  private deepMerge<T extends Record<string, any>>(target: T, source: Partial<T>): T {
+  private deepMerge(target: Record<string, any>, source: Record<string, any>): Record<string, any> {
     const output = { ...target };
 
     for (const key in source) {
@@ -128,7 +160,7 @@ export class ConfigManager {
             output[key] = this.deepMerge(targetValue, sourceValue);
           } else if (Array.isArray(sourceValue) && Array.isArray(targetValue)) {
             output[key] = [...targetValue, ...sourceValue];
-          } else if (sourceValue !== undefined) {
+          } else {
             output[key] = sourceValue;
           }
         }
@@ -140,6 +172,45 @@ export class ConfigManager {
 
   private isPlainObject(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date);
+  }
+
+  private shouldAddDefaultProviders(parsedConfig: any): boolean {
+    const hasProviders = parsedConfig?.providers && Object.keys(parsedConfig.providers).length > 0;
+    return !hasProviders;
+  }
+
+  private shouldAddDefaultMCPServers(parsedConfig: any): boolean {
+    const hasMCPServers = parsedConfig?.mcp?.servers && parsedConfig.mcp.servers.length > 0;
+    return !hasMCPServers;
+  }
+
+  private getDefaultProviderExample(): Record<string, any> {
+    return {
+      openai: {
+        type: 'openai_chat',
+        api_key: 'your-api-key',
+        base_url: 'https://api.openai.com/v1',
+        models: {
+          default: {
+            modelname: 'gpt-4o',
+            maxToken: 4096,
+            reasoning: false,
+            vision: false,
+          },
+        },
+      },
+    };
+  }
+
+  private getDefaultMCPServerExample(): any[] {
+    return [
+      {
+        name: 'example',
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-filesystem', './skills'],
+        enabled: false,
+      },
+    ];
   }
 
   private async writeDefaultConfig(): Promise<void> {
@@ -357,18 +428,21 @@ export class ConfigManager {
   private serializeToTOML(config: FullConfig): string {
     const lines: string[] = [
       '# AesyClaw Configuration File',
-      '',
-      '[server]',
-      `port = ${config.server.port}`,
-      `host = "${config.server.host}"`,
-      `log_level = "${config.server.logLevel}"`,
-      `admin_token = "${config.server.adminToken}"`,
+      '# Auto-generated defaults for missing values',
       '',
     ];
 
-    if (Object.keys(config.providers).length > 0) {
+    lines.push('[server]');
+    lines.push(`port = ${config.server.port}`);
+    lines.push(`host = "${config.server.host}"`);
+    lines.push(`log_level = "${config.server.logLevel}"`);
+    lines.push(`admin_token = "${config.server.adminToken}"`);
+    lines.push('');
+
+    const providerEntries = Object.entries(config.providers || {});
+    if (providerEntries.length > 0) {
       lines.push('[providers]');
-      for (const [name, provider] of Object.entries(config.providers)) {
+      for (const [name, provider] of providerEntries) {
         if (provider) {
           lines.push(`[providers.${name}]`);
           lines.push(`type = "${provider.type}"`);
@@ -376,26 +450,38 @@ export class ConfigManager {
           if (provider.base_url) lines.push(`base_url = "${provider.base_url}"`);
 
           if (provider.models && Object.keys(provider.models).length > 0) {
-            lines.push('');
-            for (const [modelName, modelConfig] of Object.entries(provider.models as Record<string, ModelConfig>)) {
+            for (const [modelName, modelConfig] of Object.entries(provider.models)) {
               lines.push(`[providers.${name}.models.${modelName}]`);
               lines.push(`modelname = "${modelConfig.modelname}"`);
               lines.push(`maxToken = ${modelConfig.maxToken}`);
               lines.push(`reasoning = ${modelConfig.reasoning}`);
               lines.push(`vision = ${modelConfig.vision}`);
-              lines.push('');
             }
           }
+          lines.push('');
         }
       }
     }
 
     if (config.channels && Object.keys(config.channels).length > 0) {
-      lines.push('[channels]');
-      for (const [name, channel] of Object.entries(config.channels)) {
-        if (channel) {
-          lines.push(`[channels.${name}]`);
-          if ('enabled' in channel) lines.push(`enabled = ${channel.enabled}`);
+      for (const [channelName, channelConfig] of Object.entries(config.channels)) {
+        if (channelConfig && typeof channelConfig === 'object') {
+          lines.push(`[channels.${channelName}]`);
+          for (const [key, value] of Object.entries(channelConfig)) {
+            if (value !== undefined && value !== null) {
+              if (typeof value === 'boolean') {
+                lines.push(`${key} = ${value}`);
+              } else if (typeof value === 'number') {
+                lines.push(`${key} = ${value}`);
+              } else if (typeof value === 'string') {
+                lines.push(`${key} = "${value}"`);
+              } else if (Array.isArray(value)) {
+                lines.push(`${key} = ${JSON.stringify(value)}`);
+              } else if (typeof value === 'object') {
+                lines.push(`${key} = ${JSON.stringify(value)}`);
+              }
+            }
+          }
           lines.push('');
         }
       }
@@ -411,26 +497,24 @@ export class ConfigManager {
     lines.push(`danger_threshold = ${config.memory.danger_threshold}`);
     lines.push('');
 
-    if (config.mcp && config.mcp.servers && config.mcp.servers.length > 0) {
-      lines.push('[mcp]');
-      lines.push('servers = [');
+    if (config.mcp?.servers && config.mcp.servers.length > 0) {
       for (const server of config.mcp.servers) {
-        lines.push('  {');
-        lines.push(`    name = "${server.name}"`);
-        lines.push(`    command = "${server.command}"`);
-        lines.push(`    args = [${server.args.map(a => `"${a}"`).join(', ')}]`);
+        lines.push('[[mcp.servers]]');
+        lines.push(`name = "${server.name}"`);
+        lines.push(`command = "${server.command}"`);
+        if (server.args && server.args.length > 0) {
+          lines.push(`args = ${JSON.stringify(server.args)}`);
+        }
         if (server.env) {
           const envEntries = Object.entries(server.env).map(([k, v]) => `${k} = "${v}"`).join(', ');
-          lines.push(`    env = { ${envEntries} }`);
+          lines.push(`env = { ${envEntries} }`);
         }
-        lines.push(`    enabled = ${server.enabled}`);
-        lines.push('  },');
+        lines.push(`enabled = ${server.enabled}`);
+        lines.push('');
       }
-      lines.push(']');
-      lines.push('');
     }
 
-    if (config.plugins && config.plugins.plugins && config.plugins.plugins.length > 0) {
+    if (config.plugins?.plugins && config.plugins.plugins.length > 0) {
       lines.push('[plugins]');
       lines.push('plugins = [');
       for (const plugin of config.plugins.plugins) {

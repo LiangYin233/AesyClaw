@@ -1,12 +1,25 @@
 import WebSocket from 'ws';
-import type { 
-  IChannelPlugin, 
-  IChannelWithSend, 
-  ChannelPluginContext, 
+import { z } from 'zod';
+import type {
+  IChannelPlugin,
+  IChannelWithSend,
+  ChannelPluginContext,
   IOutboundPayload,
-  ChannelPluginLogger 
+  ChannelPluginLogger
 } from '../../src/channels/channel-plugin';
 import type { IUnifiedMessage } from '../../src/agent/core/types';
+
+export const OneBotChannelConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  ws_url: z.string().url().optional(),
+  access_token: z.string().optional(),
+  group_ids: z.array(z.string()).default([]),
+  private_ids: z.array(z.string()).default([]),
+  self_id: z.union([z.number(), z.string()]).optional(),
+  message_format: z.enum(['array', 'string']).default('string'),
+});
+
+export type OneBotChannelConfig = z.infer<typeof OneBotChannelConfigSchema>;
 
 export interface OneBotConfig {
   wsUrl: string;
@@ -104,14 +117,27 @@ export const onebotPlugin: IChannelPlugin & IChannelWithSend = {
   description: 'OneBot Channel Plugin - 支持 OneBot v11/v12 协议',
 
   async init(ctx: ChannelPluginContext): Promise<void> {
-    state.config = ctx.config.providers?.onebot as OneBotConfig;
-    state.logger = ctx.logger;
+    const rawConfig = ctx.config as Record<string, unknown>;
+    const validatedConfig = OneBotChannelConfigSchema.parse(rawConfig);
 
-    if (!state.config?.wsUrl) {
-      throw new Error('OneBot config missing: providers.onebot.wsUrl is required');
+    if (!validatedConfig.enabled) {
+      ctx.logger.info('OneBot channel disabled', {});
+      return;
     }
 
-    state.config.messageFormat = state.config.messageFormat || 'array';
+    if (!validatedConfig.ws_url) {
+      throw new Error('OneBot config missing: channels.onebot.ws_url is required');
+    }
+
+    state.config = {
+      wsUrl: validatedConfig.ws_url,
+      accessToken: validatedConfig.access_token,
+      groupIds: validatedConfig.group_ids,
+      privateIds: validatedConfig.private_ids,
+      selfId: validatedConfig.self_id,
+      messageFormat: validatedConfig.message_format,
+    };
+    state.logger = ctx.logger;
 
     await connect();
   },
@@ -128,7 +154,7 @@ export const onebotPlugin: IChannelPlugin & IChannelWithSend = {
     state.pendingRequests.clear();
     state.connected = false;
     
-    state.logger?.info({}, 'OneBot plugin destroyed');
+    state.logger?.info('OneBot plugin destroyed', {});
   },
 
   getSendFn(): (payload: IOutboundPayload) => Promise<void> {
@@ -150,13 +176,13 @@ async function connect(): Promise<void> {
       headers['Authorization'] = `Bearer ${config.accessToken}`;
     }
 
-    logger.info({ wsUrl: config.wsUrl }, 'Connecting to OneBot server...');
+    logger.info('Connecting to OneBot server...', { wsUrl: config.wsUrl });
 
     const ws = new WebSocket(config.wsUrl, { headers });
     state.ws = ws;
 
     ws.on('open', () => {
-      logger.info({ wsUrl: config.wsUrl }, 'OneBot WebSocket connected');
+      logger.info('OneBot WebSocket connected', { wsUrl: config.wsUrl });
       state.connected = true;
       resolve();
     });
@@ -171,17 +197,17 @@ async function connect(): Promise<void> {
           handleEvent(payload as OneBotMessage);
         }
       } catch (error) {
-        logger.error({ error }, 'Failed to parse OneBot message');
+        logger.error('Failed to parse OneBot message', { error });
       }
     });
 
     ws.on('close', (code, reason) => {
-      logger.warn({ code, reason: reason.toString() }, 'OneBot WebSocket closed');
+      logger.warn('OneBot WebSocket closed', { code, reason: reason.toString() });
       state.connected = false;
     });
 
     ws.on('error', (error) => {
-      logger.error({ error }, 'OneBot WebSocket error');
+      logger.error('OneBot WebSocket error', { error });
       if (!state.connected) {
         reject(error);
       }
@@ -207,7 +233,7 @@ function handleEvent(event: OneBotMessage): void {
 
   if (event.post_type === 'meta_event') {
     if (event.meta_event_type === 'heartbeat' || event.meta_event_type === 'lifecycle') {
-      logger.debug({ metaEventType: event.meta_event_type }, 'Meta event received');
+      logger.debug('Meta event received', { metaEventType: event.meta_event_type });
     }
     return;
   }
@@ -233,7 +259,7 @@ function handleGroupMessage(event: OneBotMessage): void {
 
   if (config.groupIds && config.groupIds.length > 0) {
     if (!config.groupIds.includes(groupIdStr)) {
-      logger.debug({ groupId: groupIdStr }, 'Message from non-whitelisted group, ignoring');
+      logger.debug('Message from non-whitelisted group, ignoring', { groupId: groupIdStr });
       return;
     }
   }
@@ -271,7 +297,7 @@ function handlePrivateMessage(event: OneBotMessage): void {
 
   if (config.privateIds && config.privateIds.length > 0) {
     if (!config.privateIds.includes(userIdStr)) {
-      logger.debug({ userId: userIdStr }, 'Message from non-whitelisted user, ignoring');
+      logger.debug('Message from non-whitelisted user, ignoring', { userId: userIdStr });
       return;
     }
   }
@@ -381,7 +407,7 @@ function createSendFn(targetId: string, messageType: 'group' | 'private'): (payl
 
   return async (payload: IOutboundPayload): Promise<void> => {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      logger.warn({ targetId, messageType }, 'Cannot send message: WebSocket not connected');
+      logger.warn('Cannot send message: WebSocket not connected', { targetId, messageType });
       return;
     }
 
@@ -398,9 +424,9 @@ function createSendFn(targetId: string, messageType: 'group' | 'private'): (payl
 
     try {
       await sendApi(params.action, params.params, params.echo);
-      logger.debug({ targetId, messageType }, 'Message sent successfully');
+      logger.debug('Message sent successfully', { targetId, messageType });
     } catch (error) {
-      logger.error({ error, targetId, messageType }, 'Failed to send message');
+      logger.error('Failed to send message', { error, targetId, messageType });
     }
   };
 }
@@ -475,12 +501,12 @@ async function sendApi(action: string, params: Record<string, unknown>, echo?: s
 function emitInbound(message: IUnifiedMessage, sendFn: (payload: IOutboundPayload) => Promise<void>): void {
   const logger = state.logger!;
   
-  logger.info({ 
+  logger.info('Emitting inbound message to pipeline', { 
     channelId: message.channelId, 
     chatId: message.chatId, 
     senderId: message.senderId,
     text: message.text 
-  }, 'Emitting inbound message to pipeline');
+  });
 
   if (state.pipeline && typeof (state.pipeline as any).handleInboundWithSend === 'function') {
     (state.pipeline as any).handleInboundWithSend(message, sendFn);

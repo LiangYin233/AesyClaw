@@ -23,7 +23,7 @@ export const CustomProviderSchema = z.object({
   type: z.enum(['openai_chat', 'openai_completion', 'anthropic']).describe('Provider 类型'),
   api_key: z.string().optional().describe('API Key'),
   base_url: z.string().url().optional().describe('API Base URL'),
-  models: z.record(z.string(), ModelConfigSchema).describe('模型能力预设字典'),
+  models: z.record(z.string(), ModelConfigSchema).optional().describe('模型能力预设字典'),
 });
 
 export type CustomProvider = z.infer<typeof CustomProviderSchema>;
@@ -32,29 +32,7 @@ export const ProvidersConfigSchema = z.record(z.string(), CustomProviderSchema);
 
 export type ProvidersConfig = z.infer<typeof ProvidersConfigSchema>;
 
-export const OneBotConfigSchema = z.object({
-  enabled: z.boolean().default(false),
-  ws_url: z.string().url().optional(),
-  access_token: z.string().optional(),
-  universal: CustomProviderSchema.optional(),
-});
-
-export const DiscordConfigSchema = z.object({
-  enabled: z.boolean().default(false),
-  token: z.string().optional(),
-  bot_token: z.string().optional(),
-  application_id: z.string().optional(),
-});
-
-export const ChannelsConfigSchema = z.object({
-  onebot: OneBotConfigSchema.optional(),
-  discord: DiscordConfigSchema.optional(),
-  custom_ws: z.object({
-    enabled: z.boolean().default(false),
-    port: z.number().int().min(1).max(65535).default(8080),
-    path: z.string().default('/ws'),
-  }).optional(),
-});
+export const ChannelsConfigSchema = z.record(z.string(), z.record(z.string(), z.unknown()));
 
 export type ChannelsConfig = z.infer<typeof ChannelsConfigSchema>;
 
@@ -121,7 +99,22 @@ export const DEFAULT_CONFIG: FullConfig = {
     logLevel: 'info',
     adminToken: 'admin123',
   },
-  providers: {},
+  providers: {
+    openai: {
+      type: 'openai_chat',
+      api_key: 'your-api-key',
+      base_url: 'https://api.openai.com/v1',
+      models: {
+        default: {
+          modelname: 'gpt-4o',
+          maxToken: 4096,
+          reasoning: false,
+          vision: false,
+        },
+      },
+    },
+  },
+  channels: {},
   agent: {
     max_turns: 50,
   },
@@ -129,5 +122,18 @@ export const DEFAULT_CONFIG: FullConfig = {
     max_context_tokens: 128000,
     compression_threshold: 80000,
     danger_threshold: 30000,
+  },
+  mcp: {
+    servers: [
+      {
+        name: 'example',
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-filesystem', './skills'],
+        enabled: false,
+      },
+    ],
+  },
+  plugins: {
+    plugins: [],
   },
 };

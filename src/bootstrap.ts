@@ -136,13 +136,11 @@ export class Bootstrap {
   }
 
   private static async loadChannelPlugins(channels: Record<string, unknown>): Promise<void> {
-    const onebotConfig = channels.onebot as { enabled?: boolean; wsUrl?: string; accessToken?: string; groupIds?: number[] } | undefined;
-
-    if (onebotConfig?.enabled && onebotConfig?.wsUrl) {
+    if (channels.onebot) {
       try {
         const { onebotPlugin } = await import('../plugins/plugin_channel_onebot/index.js');
-        await channelManager.registerChannel(onebotPlugin);
-        logger.info({ channelName: 'onebot', wsUrl: onebotConfig.wsUrl }, 'OneBot channel plugin loaded');
+        await channelManager.registerChannel(onebotPlugin, channels.onebot);
+        logger.info({ channelName: 'onebot' }, 'OneBot channel plugin loaded');
       } catch (error) {
         logger.error({ error, channel: 'onebot' }, 'Failed to load OneBot channel plugin');
       }
