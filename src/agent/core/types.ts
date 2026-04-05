@@ -3,7 +3,6 @@ import type { IOutboundPayload } from '../../channels/channel-plugin.js';
 export interface IUnifiedMessage {
   channelId: string;
   chatId: string;
-  senderId: string;
   text: string;
   timestamp?: number;
   metadata?: Record<string, unknown>;

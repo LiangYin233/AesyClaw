@@ -1,10 +1,10 @@
 import { CommandDefinition, CommandContext, CommandResult } from './types.js';
 import { commandRegistry } from './command-registry.js';
-import { AgentManager } from '../../agent/core/engine.js';
+import { sessionRegistry } from '../../agent/core/session/session-registry.js';
+import { SessionId } from '../../agent/core/session/session-id.js';
 import { logger } from '../../platform/observability/logger.js';
 import { pluginManager } from '../plugins/plugin-manager.js';
 import { roleManager } from '../roles/role-manager.js';
-import { MemoryManagerFactory } from '../../agent/core/memory/session-memory-manager.js';
 
 function formatPluginList(): string {
   const plugins = commandRegistry.getPluginCommands();
@@ -154,40 +154,79 @@ export const systemCommands: CommandDefinition[] = [
   {
     name: 'session',
     description: '会话管理命令',
-    usage: '/session <new|clear>',
+    usage: '/session <list|clear|stats>',
     category: 'system',
     aliases: ['sess'],
     execute: async (ctx: CommandContext): Promise<CommandResult> => {
       const subCommand = ctx.args[0]?.toLowerCase();
 
       switch (subCommand) {
-        case 'new': {
-          const newChatId = `session_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-          const agentManager = AgentManager.getInstance();
-          agentManager.getOrCreate(newChatId);
+        case 'list': {
+          const sessions = sessionRegistry.getAllSessions();
+          if (sessions.length === 0) {
+            return {
+              success: true,
+              message: '暂无活动会话',
+            };
+          }
+
+          let output = '📋 活动会话列表：\n\n';
+          for (const session of sessions) {
+            const { channel, type, chatId, session: sessionPart } = session.metadata;
+            output += `${channel}:${type}:${chatId}:${sessionPart}\n`;
+            output += `  - 消息数: ${session.metadata.messageCount}\n`;
+            output += `  - 最后活跃: ${session.metadata.lastActiveAt.toLocaleString()}\n\n`;
+          }
 
           return {
             success: true,
-            message: `✅ 新会话已创建\n\n会话ID: ${newChatId}\n\n请使用此会话ID开始新对话。`,
-            data: { newChatId },
+            message: output.trim(),
           };
         }
 
         case 'clear': {
-          const agentManager = AgentManager.getInstance();
-          const agent = agentManager.getOrCreate(ctx.chatId);
-          agent.clearHistory();
+          const sessionId = SessionId.fromUnifiedMessage({
+            channelId: 'unknown',
+            chatId: ctx.chatId,
+            text: '',
+          });
+          const session = sessionRegistry.getSession(sessionId);
+          if (session) {
+            session.memory.clear();
+            return {
+              success: true,
+              message: '✅ 会话历史已清除',
+            };
+          }
+          return {
+            success: false,
+            message: '会话不存在',
+          };
+        }
+
+        case 'stats': {
+          const stats = sessionRegistry.getStats();
+          let output = '📊 会话统计：\n\n';
+          output += `总会话数: ${stats.total}\n\n`;
+          output += '按渠道:\n';
+          for (const [channel, count] of Object.entries(stats.byChannel)) {
+            output += `  - ${channel}: ${count}\n`;
+          }
+          output += '\n按类型:\n';
+          for (const [type, count] of Object.entries(stats.byType)) {
+            output += `  - ${type}: ${count}\n`;
+          }
 
           return {
             success: true,
-            message: '✅ 会话历史已清除',
+            message: output.trim(),
           };
         }
 
         default: {
           return {
             success: false,
-            message: `未知子命令: ${subCommand || '(无)'}\n\n可用子命令:\n  /session new   - 创建新会话\n  /session clear - 清除当前会话历史`,
+            message: `未知子命令: ${subCommand || '(无)'}\n\n可用子命令:\n  /session list   - 列出所有会话\n  /session clear - 清除当前会话\n  /session stats - 查看会话统计`,
           };
         }
       }
@@ -207,13 +246,8 @@ export const systemCommands: CommandDefinition[] = [
           const roles = roleManager.getRolesList();
           let output = '🎭 可用角色列表：\n\n';
 
-          const memoryFactory = MemoryManagerFactory.getInstance();
-          const currentMemory = memoryFactory.getOrCreate(ctx.chatId);
-          const currentRoleId = currentMemory.getActiveRoleId();
-
           for (const role of roles) {
-            const marker = role.id === currentRoleId ? '👉 ' : '  ';
-            output += `${marker}**${role.name}**\n`;
+            output += `  **${role.name}**\n`;
             if (role.description) {
               output += `    ${role.description}\n`;
             }
@@ -285,16 +319,25 @@ export const systemCommands: CommandDefinition[] = [
 
           logger.info({ targetRoleId, chatId: ctx.chatId }, '正在切换角色');
 
-          const memoryFactory = MemoryManagerFactory.getInstance();
-          const currentMemory = memoryFactory.getOrCreate(ctx.chatId);
-          const result = await currentMemory.switchRole(targetRoleId);
+          const sessionId = SessionId.fromUnifiedMessage({
+            channelId: 'unknown',
+            chatId: ctx.chatId,
+            text: '',
+          });
+          const session = sessionRegistry.getSession(sessionId);
+          if (!session) {
+            return {
+              success: false,
+              message: '会话不存在',
+            };
+          }
+
+          const result = await session.memory.switchRole(targetRoleId);
 
           if (result.success) {
             const role = roleManager.getRole(targetRoleId);
             if (role?.model) {
-              const agentManager = AgentManager.getInstance();
-              const agent = agentManager.getOrCreate(ctx.chatId);
-              agent.updateModel(role.model);
+              session.agent.updateModel(role.model);
             }
           }
 
@@ -305,10 +348,20 @@ export const systemCommands: CommandDefinition[] = [
         }
 
         case 'current': {
-          const memoryFactory = MemoryManagerFactory.getInstance();
-          const currentMemory = memoryFactory.getOrCreate(ctx.chatId);
-          const roleInfo = currentMemory.getRoleInfo();
+          const sessionId = SessionId.fromUnifiedMessage({
+            channelId: 'unknown',
+            chatId: ctx.chatId,
+            text: '',
+          });
+          const session = sessionRegistry.getSession(sessionId);
+          if (!session) {
+            return {
+              success: false,
+              message: '会话不存在',
+            };
+          }
 
+          const roleInfo = session.memory.getRoleInfo();
           const role = roleManager.getRole(roleInfo.roleId);
           let output = `🎭 当前角色: **${roleInfo.roleName}**\n\n`;
           output += `**ID**: \`${roleInfo.roleId}\`\n`;

@@ -48,7 +48,6 @@ export interface HookPayloadMessageReceive {
   message: {
     channelId: string;
     chatId: string;
-    senderId: string;
     text: string;
     timestamp?: number;
     metadata?: Record<string, unknown>;

@@ -9,7 +9,6 @@ export interface CommandDefinition {
 
 export interface CommandContext {
   chatId: string;
-  senderId: string;
   args: string[];
   rawArgs: string;
   traceId: string;

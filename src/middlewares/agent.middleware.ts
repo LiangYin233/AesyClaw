@@ -1,7 +1,6 @@
 import { configManager } from '../features/config/index.js';
 import { logger } from '../platform/observability/logger.js';
 import type { IChannelContext, MiddlewareFunc } from '../agent/core/types.js';
-import { AgentManager } from '../agent/core/engine.js';
 import { LLMProviderType } from '../agent/llm/types.js';
 import { LLMConfig, ModelCapabilities } from '../agent/llm/factory.js';
 import { parseModelIdentifier } from '../platform/utils/model-parser.js';
@@ -9,6 +8,7 @@ import { roleManager } from '../features/roles/role-manager.js';
 import { systemPromptManager } from '../features/roles/system-prompt-manager.js';
 import type { FullConfig, CustomProvider, ModelConfig } from '../features/config/schema.js';
 import { DEFAULT_ROLE_ID } from '../features/roles/types.js';
+import { getSessionFromContext, getSessionIdFromContext } from './session.middleware.js';
 
 export interface AgentState {
   llmConfig: LLMConfig;
@@ -73,13 +73,22 @@ export class AgentMiddleware {
       }
 
       const config = configManager.getConfig();
+      const sessionContext = getSessionFromContext(ctx);
+      const sessionId = getSessionIdFromContext(ctx);
 
+      if (!sessionContext) {
+        logger.error({}, '❌ SessionContext not found, ensure SessionMiddleware is registered before AgentMiddleware');
+        ctx.outbound.text = 'System error: Session not initialized';
+        await next();
+        return;
+      }
+
+      const agent = sessionContext.agent;
       const defaultRole = roleManager.getRoleConfig(DEFAULT_ROLE_ID);
       const modelIdentifier = defaultRole.model;
       const systemPrompt = systemPromptManager.buildSystemPrompt({
         roleId: DEFAULT_ROLE_ID,
         chatId: ctx.inbound.chatId,
-        senderId: ctx.inbound.senderId,
       });
 
       const llmConfig = resolveLLMConfig(modelIdentifier, config);
@@ -97,12 +106,15 @@ export class AgentMiddleware {
 
       logger.info(
         {
+          sessionId,
           chatId: ctx.inbound.chatId,
+          channel: sessionContext.metadata.channel,
+          type: sessionContext.metadata.type,
           modelIdentifier,
           provider: llmConfig.provider,
           model: llmConfig.model,
         },
-        'Agent middleware: Starting agent processing'
+        '🤖 Agent middleware: Starting agent processing'
       );
 
       try {
@@ -113,29 +125,21 @@ export class AgentMiddleware {
           return;
         }
 
-        const agentManager = AgentManager.getInstance();
-        const agent = agentManager.getOrCreate(ctx.inbound.chatId, {
-          llm: llmConfig,
-          maxSteps: config.agent.max_turns,
-          systemPrompt: systemPrompt,
-          tools: [],
-        });
-
         const result = await agent.run(userInput);
 
         if (result.success) {
           ctx.outbound.text = result.finalText;
-          logger.info({ chatId: ctx.inbound.chatId }, 'Agent processing completed');
+          logger.info({ sessionId, chatId: ctx.inbound.chatId }, '✅ Agent processing completed');
         } else {
           ctx.outbound.text = `Error: ${result.error}`;
           ctx.outbound.error = result.error;
-          logger.error({ chatId: ctx.inbound.chatId, error: result.error }, 'Agent processing failed');
+          logger.error({ sessionId, chatId: ctx.inbound.chatId, error: result.error }, '❌ Agent processing failed');
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         ctx.outbound.text = `Agent error: ${errorMessage}`;
         ctx.outbound.error = errorMessage;
-        logger.error({ chatId: ctx.inbound.chatId, error: errorMessage }, 'Agent exception');
+        logger.error({ sessionId, chatId: ctx.inbound.chatId, error: errorMessage }, '❌ Agent exception');
       }
 
       await next();

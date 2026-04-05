@@ -4,7 +4,8 @@ import { cronJobScheduler, generateCronId } from '../../platform/db/cron-schedul
 import { logger } from '../../platform/observability/logger.js';
 import { eventBus, SystemEvents } from '../../platform/events/index.js';
 import { configManager } from '../config/config-manager.js';
-import { AgentManager } from '../../agent/core/engine.js';
+import { sessionRegistry } from '../../agent/core/session/session-registry.js';
+import { SessionId } from '../../agent/core/session/session-id.js';
 import { ToolRegistry } from '../../platform/tools/registry.js';
 
 export interface CreateCronJobInput {
@@ -147,12 +148,10 @@ export function getSchedulerStatus(): {
 }
 
 export class PromptExecutor {
-  private agentManager: AgentManager;
   private toolRegistry: ToolRegistry;
   private config: any;
 
   constructor() {
-    this.agentManager = AgentManager.getInstance();
     this.toolRegistry = ToolRegistry.getInstance();
   }
 
@@ -162,10 +161,11 @@ export class PromptExecutor {
       return;
     }
 
-    const tempChatId = `cron_${job.id}_${Date.now()}`;
+    const sessionPart = SessionId.generateSession();
+    const sessionId = `cron:cron:${job.id}:${sessionPart}`;
 
     logger.info(
-      { jobId: job.id, jobName: job.name, tempChatId },
+      { jobId: job.id, jobName: job.name, sessionId },
       '🤖 Creating temporary session for cron job execution'
     );
 
@@ -176,7 +176,11 @@ export class PromptExecutor {
       const model = this.config?.providers?.openai?.model || 'gpt-4o-mini';
       const maxSteps = this.config?.agent?.maxSteps || 15;
 
-      const agent = this.agentManager.getOrCreate(tempChatId, {
+      const session = sessionRegistry.getOrCreate(sessionId, {
+        channel: 'cron',
+        type: 'cron',
+        chatId: job.id,
+        session: sessionPart,
         llm: {
           provider: 'openai-chat' as any,
           model,
@@ -190,13 +194,13 @@ export class PromptExecutor {
         '📤 Sending prompt to Agent'
       );
 
-      const result = await agent.run(job.prompt);
+      const result = await session.agent.run(job.prompt);
 
       if (result.success) {
         logger.info(
           {
             jobId: job.id,
-            tempChatId,
+            sessionId,
             steps: result.steps,
             toolCalls: result.toolCalls,
             responseLength: result.finalText.length,
@@ -217,16 +221,16 @@ export class PromptExecutor {
         );
       }
 
-      this.agentManager.removeAgent(tempChatId);
-      logger.debug({ tempChatId }, 'Temporary session cleaned up');
+      sessionRegistry.removeSession(sessionId);
+      logger.debug({ sessionId }, 'Temporary session cleaned up');
     } catch (error) {
       logger.error(
-        { jobId: job.id, tempChatId, error },
+        { jobId: job.id, sessionId, error },
         '❌ Error executing cron job via Agent'
       );
 
       try {
-        this.agentManager.removeAgent(tempChatId);
+        sessionRegistry.removeSession(sessionId);
       } catch {
       }
     }

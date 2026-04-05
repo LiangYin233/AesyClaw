@@ -17,15 +17,11 @@ import {
 } from '../../platform/tools/types';
 import { logger } from '../../platform/observability/logger';
 import { pluginManager } from '../../features/plugins/plugin-manager.js';
-import { roleManager, DEFAULT_ROLE_ID } from '../../features/roles/role-manager.js';
+import { roleManager } from '../../features/roles/role-manager.js';
 import {
   SessionMemoryManager,
-  MemoryManagerFactory,
   MemoryConfig,
-  createMemoryConfig,
 } from './memory/index';
-import { configManager } from '../../features/config/config-manager.js';
-import { resolveLLMConfig } from '../../middlewares/agent.middleware.js';
 
 export interface AgentConfig {
   llm: LLMConfig;
@@ -73,13 +69,8 @@ export class AgentEngine {
     this.tools = this.config.tools;
     this.maxSteps = this.config.maxSteps;
     
-    const memoryFactory = MemoryManagerFactory.getInstance();
-    this.memory = memoryFactory.getOrCreate(chatId);
+    this.memory = new SessionMemoryManager(chatId, this.config.memoryConfig);
     
-    if (this.config.memoryConfig) {
-      this.memory.updateConfig(this.config.memoryConfig);
-    }
-
     if (!this.memory.hasMessages() && this.config.systemPrompt) {
       this.memory.addMessage({
         role: MessageRole.System,
@@ -359,135 +350,6 @@ export class AgentEngine {
 
   getCurrentRoleId(): string {
     return this.memory.getActiveRoleId();
-  }
-}
-
-export class AgentManager {
-  private static instance: AgentManager;
-  private agents: Map<string, AgentEngine>;
-  private _defaultConfig: Required<AgentConfig> | null = null;
-
-  private constructor() {
-    this.agents = new Map();
-    logger.info('AgentManager singleton factory initialized (with memory system)');
-  }
-
-  private buildDefaultConfig(): Required<AgentConfig> {
-    try {
-      if (configManager.isInitialized() && roleManager.isInitialized()) {
-        const config = configManager.getConfig();
-        const defaultRole = roleManager.getRoleConfig(DEFAULT_ROLE_ID);
-        const modelIdentifier = defaultRole.model;
-        const llmConfig = resolveLLMConfig(modelIdentifier, config);
-
-        return {
-          llm: llmConfig,
-          maxSteps: 15,
-          systemPrompt: defaultRole.system_prompt,
-          tools: [],
-          memoryConfig: {
-            maxContextTokens: config.memory.max_context_tokens,
-            compressionThreshold: config.memory.compression_threshold,
-            dangerThreshold: config.memory.danger_threshold,
-          },
-        };
-      }
-    } catch (error) {
-      logger.warn({ error }, 'Failed to build default config from config.toml, using fallback');
-    }
-
-    return {
-      llm: {
-        provider: LLMProviderType.OpenAIChat,
-        model: 'gpt-4o-mini',
-      },
-      maxSteps: 15,
-      systemPrompt: '你是一个有帮助的AI助手。',
-      tools: [],
-      memoryConfig: {
-        maxContextTokens: 128000,
-        compressionThreshold: 80000,
-        dangerThreshold: 30000,
-      },
-    };
-  }
-
-  private getDefaultConfig(): Required<AgentConfig> {
-    if (!this._defaultConfig) {
-      this._defaultConfig = this.buildDefaultConfig();
-    }
-    return this._defaultConfig;
-  }
-
-  static getInstance(): AgentManager {
-    if (!AgentManager.instance) {
-      AgentManager.instance = new AgentManager();
-    }
-    return AgentManager.instance;
-  }
-
-  getOrCreate(chatId: string, config?: Partial<AgentConfig>): AgentEngine {
-    const defaultConfig = this.getDefaultConfig();
-    const mergedConfig: AgentConfig = {
-      llm: config?.llm || defaultConfig.llm,
-      maxSteps: config?.maxSteps || defaultConfig.maxSteps,
-      systemPrompt: config?.systemPrompt || defaultConfig.systemPrompt,
-      tools: config?.tools || defaultConfig.tools,
-      memoryConfig: config?.memoryConfig || defaultConfig.memoryConfig,
-    };
-
-    if (!this.agents.has(chatId)) {
-      logger.debug(
-        { chatId, totalInstances: this.agents.size + 1 },
-        '🆕 创建新的 AgentEngine 实例（集成记忆）'
-      );
-      const agent = new AgentEngine(chatId, mergedConfig);
-      this.agents.set(chatId, agent);
-    } else {
-      const existingAgent = this.agents.get(chatId)!;
-      logger.debug(
-        { chatId, instanceId: existingAgent.getInstanceId(), totalInstances: this.agents.size },
-        '♻️ 复用已存在的 AgentEngine 实例'
-      );
-    }
-
-    return this.agents.get(chatId)!;
-  }
-
-  hasAgent(chatId: string): boolean {
-    return this.agents.has(chatId);
-  }
-
-  removeAgent(chatId: string): boolean {
-    const deleted = this.agents.delete(chatId);
-    if (deleted) {
-      logger.info({ chatId, remainingAgents: this.agents.size }, 'Agent instance removed');
-    }
-    return deleted;
-  }
-
-  getActiveAgentsCount(): number {
-    return this.agents.size;
-  }
-
-  getAllChatIds(): string[] {
-    return Array.from(this.agents.keys());
-  }
-
-  clearAll(): void {
-    this.agents.clear();
-    MemoryManagerFactory.getInstance().clearAll();
-    logger.info('All agent instances and memory cleared');
-  }
-
-  setDefaultConfig(config: Partial<AgentConfig>): void {
-    const current = this.getDefaultConfig();
-    this._defaultConfig = {
-      ...current,
-      ...config,
-      memoryConfig: config.memoryConfig || current.memoryConfig,
-    };
-    logger.info({ config: this._defaultConfig }, 'AgentManager default config updated');
   }
 }
 

@@ -24,7 +24,7 @@ export class ChannelPipeline {
     const startTime = Date.now();
 
     logger.info(
-      { traceId, chatId: message.chatId, senderId: message.senderId, text: message.text },
+      { traceId, chatId: message.chatId, text: message.text },
       'Received inbound message, dispatching to middleware chain'
     );
 
@@ -32,7 +32,6 @@ export class ChannelPipeline {
       message: {
         channelId: message.channelId,
         chatId: message.chatId,
-        senderId: message.senderId,
         text: message.text,
         timestamp: message.timestamp,
         metadata: message.metadata,

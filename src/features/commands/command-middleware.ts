@@ -42,7 +42,6 @@ export const commandMiddleware: MiddlewareFunc = async (
   try {
     const result = await command.execute({
       chatId: ctx.inbound.chatId,
-      senderId: ctx.inbound.senderId,
       args: parsed.args,
       rawArgs: parsed.rawArgs,
       traceId: ctx.traceId,

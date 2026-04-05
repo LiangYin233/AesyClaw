@@ -1,11 +1,12 @@
 import { ChannelPipeline } from './agent/core/pipeline';
 import { IUnifiedMessage, MiddlewareFunc } from './agent/core/types';
-import { AgentManager } from './agent/core/engine';
 import { ToolRegistry } from './platform/tools/registry';
 import { ITool } from './platform/tools/types';
 import { LLMProviderType } from './agent/llm/types';
 import { logger } from './platform/observability/logger';
 import { Bootstrap, bootstrap } from './bootstrap';
+import { sessionRegistry } from './agent/core/session/session-registry.js';
+import { SessionId } from './agent/core/session/session-id.js';
 
 const toolRegistry = ToolRegistry.getInstance();
 logger.info('ToolRegistry initialized');
@@ -16,20 +17,34 @@ const loggingMiddleware: MiddlewareFunc = async (ctx, next) => {
   logger.info({ traceId: ctx.traceId }, 'Request completed');
 };
 
-const agentMiddleware: MiddlewareFunc = async (ctx, next) => {
+const sessionMiddleware: MiddlewareFunc = async (ctx, next) => {
   const chatId = ctx.inbound.chatId;
-  const agentManager = AgentManager.getInstance();
-  const agent = agentManager.getOrCreate(chatId, {
-    llm: {
-      provider: LLMProviderType.OpenAIChat,
-      model: 'gpt-4o-mini',
-    },
-    maxSteps: 5,
-    systemPrompt: '你是一个有帮助的AI助手，可以使用工具来回答问题。',
-    tools: toolRegistry.getAllToolDefinitions(),
+  const channelId = ctx.inbound.channelId;
+  const sessionId = SessionId.fromUnifiedMessage(ctx.inbound);
+
+  sessionRegistry.getOrCreate(sessionId, {
+    channel: channelId,
+    type: (ctx.inbound.metadata?.type as string) || 'default',
+    chatId: chatId,
+    session: SessionId.parse(sessionId).session,
   });
 
-  logger.info({ traceId: ctx.traceId, chatId }, 'Agent processing request');
+  await next();
+};
+
+const agentMiddleware: MiddlewareFunc = async (ctx, next) => {
+  const chatId = ctx.inbound.chatId;
+  const sessionId = SessionId.fromUnifiedMessage(ctx.inbound);
+  const sessionContext = sessionRegistry.getSession(sessionId);
+
+  if (!sessionContext) {
+    ctx.outbound.text = 'Session not found';
+    await next();
+    return;
+  }
+
+  const agent = sessionContext.agent;
+  logger.info({ traceId: ctx.traceId, chatId, sessionId }, 'Agent processing request');
 
   try {
     const result = await agent.run(ctx.inbound.text);
@@ -46,6 +61,7 @@ const agentMiddleware: MiddlewareFunc = async (ctx, next) => {
 
 const pipeline = new ChannelPipeline();
 pipeline.use(loggingMiddleware);
+pipeline.use(sessionMiddleware);
 pipeline.use(agentMiddleware);
 
 async function main() {

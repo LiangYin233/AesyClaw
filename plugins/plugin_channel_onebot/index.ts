@@ -265,7 +265,6 @@ function handleGroupMessage(event: OneBotMessage): void {
   const unifiedMsg: IUnifiedMessage = {
     channelId: onebotPlugin.name,
     chatId: groupIdStr,
-    senderId: String(event.user_id || event.sender?.user_id || '0'),
     text: rawMessage,
     timestamp: event.time,
     metadata: {
@@ -302,7 +301,6 @@ function handlePrivateMessage(event: OneBotMessage): void {
   const unifiedMsg: IUnifiedMessage = {
     channelId: onebotPlugin.name,
     chatId: userIdStr,
-    senderId: userIdStr,
     text: rawMessage,
     timestamp: event.time,
     metadata: {
@@ -499,7 +497,6 @@ function emitInbound(message: IUnifiedMessage, sendFn: (payload: IOutboundPayloa
   logger.info('Emitting inbound message to pipeline', {
     channelId: message.channelId,
     chatId: message.chatId,
-    senderId: message.senderId,
     text: message.text
   });
 

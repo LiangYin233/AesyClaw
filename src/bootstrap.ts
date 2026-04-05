@@ -7,6 +7,7 @@ import { McpClientManager } from './platform/tools/mcp/mcp-client-manager.js';
 import { pluginManager } from './features/plugins/plugin-manager.js';
 import { ChannelPipeline } from './agent/core/pipeline.js';
 import { configInjectionMiddleware } from './middlewares/config.middleware.js';
+import { sessionMiddleware } from './middlewares/session.middleware.js';
 import { agentMiddleware } from './middlewares/agent.middleware.js';
 import { skillManager, loadSkillTool, SkillManager } from './features/skills/index.js';
 import { cronJobScheduler, initializePromptExecutor } from './features/cron/index.js';
@@ -14,6 +15,7 @@ import { commandMiddleware, registerSystemCommands } from './features/commands/i
 import { roleManager } from './features/roles/role-manager.js';
 import { subAgentTools } from './features/subagent/index.js';
 import { channelManager, ChannelPluginManager } from './channels/channel-manager.js';
+import { sessionRegistry, SessionRegistry } from './agent/core/session/index.js';
 
 export interface BootstrapOptions {
   skipDb?: boolean;
@@ -87,6 +89,10 @@ export class Bootstrap {
       registerSystemCommands();
       this.pipeline.use(commandMiddleware);
       logger.info({}, 'Command system initialized');
+
+      logger.info({}, '[9/12] Mounting SessionMiddleware...');
+      this.pipeline.use(sessionMiddleware.getMiddleware());
+      logger.info({}, 'Session middleware initialized');
 
       logger.info({}, '[9.5/12] Mounting AgentMiddleware...');
       this.pipeline.use(agentMiddleware.getMiddleware());
@@ -206,14 +212,22 @@ export class Bootstrap {
 
     try {
       roleManager.shutdown();
-      logger.info({}, '[7/8] RoleManager stopped');
+      logger.info({}, '[7/9] RoleManager stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping RoleManager');
     }
 
     try {
+      sessionRegistry.shutdown();
+      SessionRegistry.resetInstance();
+      logger.info({}, '[8/9] SessionRegistry stopped');
+    } catch (error) {
+      logger.error({ error }, 'Error stopping SessionRegistry');
+    }
+
+    try {
       ChannelPluginManager.resetInstance();
-      logger.info({}, '[8/8] ChannelPluginManager reset');
+      logger.info({}, '[9/9] ChannelPluginManager reset');
     } catch (error) {
       logger.error({ error }, 'Error resetting ChannelPluginManager');
     }
@@ -259,6 +273,11 @@ export class Bootstrap {
     roles: {
       total: number;
     };
+    sessions: {
+      total: number;
+      byChannel: Record<string, number>;
+      byType: Record<string, number>;
+    };
     mcpServers: number;
     plugins: number;
     channels: number;
@@ -272,6 +291,7 @@ export class Bootstrap {
     const mcpServers = this.mcpManager?.getConnectedServers() || [];
     const plugins = pluginManager?.getLoadedPlugins() || [];
     const roleStats = roleManager.isInitialized() ? { total: roleManager.getAllRoles().length } : { total: 0 };
+    const sessionStats = sessionRegistry.getStats();
 
     return {
       initialized: this.initialized,
@@ -283,6 +303,7 @@ export class Bootstrap {
       },
       skills: skillStats,
       roles: roleStats,
+      sessions: sessionStats,
       mcpServers: mcpServers.filter(s => s.connected).length,
       plugins: plugins.length,
       channels: channelManager.getChannelCount(),
