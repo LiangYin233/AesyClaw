@@ -354,7 +354,6 @@ export class ConfigManager {
     }
 
     const plugins = this._config.plugins || [];
-    let updated = false;
 
     for (const [name, defaults] of this.pendingPluginDefaults) {
       const existingConfig = plugins.find(p => {
@@ -365,12 +364,7 @@ export class ConfigManager {
       if (!existingConfig || !existingConfig.options || Object.keys(existingConfig.options).length === 0) {
         logger.info({ pluginName: name, defaults }, 'Adding plugin default options to config');
         await this.updatePluginConfig(name, true, defaults);
-        updated = true;
       }
-    }
-
-    if (updated) {
-      this._config = this._config;
     }
   }
 
@@ -380,7 +374,6 @@ export class ConfigManager {
     }
 
     const channels = this._config.channels || {};
-    let updated = false;
 
     for (const [name, defaults] of this.pendingChannelDefaults) {
       const existingConfig = channels[name];
@@ -388,12 +381,7 @@ export class ConfigManager {
       if (!existingConfig || Object.keys(existingConfig).length === 0) {
         logger.info({ channelName: name, defaults }, 'Adding channel default options to config');
         await this.updateChannelConfig(name, defaults);
-        updated = true;
       }
-    }
-
-    if (updated) {
-      this._config = this._config;
     }
   }
 
