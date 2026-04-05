@@ -40,19 +40,31 @@ export class SystemPromptManager {
       .replace(/\{\{systemLang\}\}/g, vars.systemLang);
   }
 
-  private buildCapabilitiesSection(): { skills: string; tools: string } {
+  private buildCapabilitiesSection(roleId: string): { skills: string; tools: string } {
+    const roleConfig = roleManager.getRoleConfig(roleId);
     const lines: string[] = [];
 
     if (skillManager.isInitialized()) {
       const allSkillNames = skillManager.getSkillNames();
+      const allowedSkills = roleConfig.allowed_skills;
+
       if (allSkillNames.length > 0) {
         lines.push('');
         lines.push('【可用技能】');
-        for (const skillName of allSkillNames) {
+
+        const filteredSkills = allowedSkills.includes('*')
+          ? allSkillNames
+          : allSkillNames.filter(name => allowedSkills.includes(name));
+
+        for (const skillName of filteredSkills) {
           const route = skillManager.getSkillRoute(skillName);
           if (route) {
             lines.push(`- ${skillName}: ${route.shortDescription}`);
           }
+        }
+
+        if (filteredSkills.length === 0) {
+          lines.push('（该角色未配置任何技能）');
         }
       }
     }
@@ -63,13 +75,23 @@ export class SystemPromptManager {
     try {
       const toolRegistry = ToolRegistry.getInstance();
       const allTools = toolRegistry.getAllToolDefinitions();
+      const allowedTools = roleConfig.allowed_tools;
 
       if (allTools.length > 0) {
         toolLines.push('');
         toolLines.push('【可用工具】');
-        for (const tool of allTools) {
+
+        const filteredTools = allowedTools.includes('*')
+          ? allTools
+          : allTools.filter(tool => allowedTools.includes(tool.name));
+
+        for (const tool of filteredTools) {
           const description = tool.description?.split('\n')[0] || '无描述';
           toolLines.push(`- ${tool.name}: ${description}`);
+        }
+
+        if (filteredTools.length === 0) {
+          toolLines.push('（该角色未配置任何工具）');
         }
       }
     } catch (error) {
@@ -91,7 +113,7 @@ export class SystemPromptManager {
     const vars = this.getSystemVariables();
     let prompt = this.replaceVariables(basePrompt, vars);
 
-    const { skills, tools } = this.buildCapabilitiesSection();
+    const { skills, tools } = this.buildCapabilitiesSection(actualRoleId);
 
     const systemInfoLines: string[] = [];
     systemInfoLines.push('');
