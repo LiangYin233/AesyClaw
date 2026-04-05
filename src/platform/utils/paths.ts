@@ -10,6 +10,7 @@ const DEFAULT_DATA_FILE = 'aesyclaw.db';
 const DEFAULT_LOG_FILE = 'aesyclaw.log';
 const DEFAULT_SYSTEM_SKILLS_DIR = 'skills';
 const DEFAULT_USER_SKILLS_DIR = 'user_skills';
+const DEFAULT_WORKSPACE_DIR = 'workspace';
 
 export class PathResolver {
   private static instance: PathResolver;
@@ -19,6 +20,7 @@ export class PathResolver {
   private logDir: string;
   private systemSkillsDir: string;
   private userSkillsDir: string;
+  private workspaceDir: string;
   private initialized: boolean = false;
 
   private constructor() {
@@ -28,6 +30,7 @@ export class PathResolver {
     this.logDir = path.join(this.basePath, DEFAULT_LOG_DIR);
     this.systemSkillsDir = path.join(process.cwd(), DEFAULT_SYSTEM_SKILLS_DIR);
     this.userSkillsDir = path.join(this.basePath, DEFAULT_USER_SKILLS_DIR);
+    this.workspaceDir = path.join(this.basePath, DEFAULT_WORKSPACE_DIR);
   }
 
   static getInstance(): PathResolver {
@@ -48,6 +51,7 @@ export class PathResolver {
       this.ensureDirectoryExists(this.dataDir);
       this.ensureDirectoryExists(this.logDir);
       this.ensureDirectoryExists(this.userSkillsDir);
+      this.ensureDirectoryExists(this.workspaceDir);
 
       this.initialized = true;
       logger.info({
@@ -111,6 +115,10 @@ export class PathResolver {
 
   getUserSkillsDir(): string {
     return this.userSkillsDir;
+  }
+
+  getWorkspaceDir(): string {
+    return this.workspaceDir;
   }
 
   isInitialized(): boolean {

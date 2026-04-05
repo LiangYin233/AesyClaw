@@ -171,7 +171,7 @@ ${conversationText}
       throw new Error('ConfigManager not initialized');
     }
 
-    const config = configManager.getConfig();
+    const config = configManager.config;
     const provider = config.providers?.[providerName as string];
 
     if (!provider) {

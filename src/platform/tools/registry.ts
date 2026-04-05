@@ -49,7 +49,7 @@ export class ToolRegistry {
     this.tools.set(tool.name, tool);
     logger.info(
       { toolName: tool.name, totalTools: this.tools.size },
-      '✅ 工具已注册'
+      '工具已注册'
     );
   }
 
@@ -142,7 +142,7 @@ export class ToolRegistry {
 
     logger.info(
       { toolName, args, chatId: context.chatId, traceId: context.traceId },
-      '🔧 开始执行工具'
+      ' 开始执行工具'
     );
 
     const tool = this.tools.get(toolName);
@@ -166,7 +166,7 @@ export class ToolRegistry {
       };
       logger.warn(
         { toolName, errors: validation.errors },
-        '⚠️ 工具参数验证失败'
+        '工具参数验证失败'
       );
       return errorResult;
     }
@@ -177,7 +177,7 @@ export class ToolRegistry {
 
       logger.info(
         { toolName, executionTime, success: result.success },
-        '✅ 工具执行完成'
+        '工具执行完成'
       );
 
       return result;
@@ -207,7 +207,7 @@ export class ToolRegistry {
 
     logger.info(
       { toolCount: requests.length, chatId: context.chatId },
-      '🚀 开始批量执行工具'
+      ' 开始批量执行工具'
     );
 
     for (const request of requests) {
@@ -228,7 +228,7 @@ export class ToolRegistry {
 
     logger.info(
       { totalTools: requests.length, successCount: results.filter(r => r.success).length },
-      '📊 批量工具执行完成'
+      ' 批量工具执行完成'
     );
 
     return results;

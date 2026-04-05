@@ -104,7 +104,7 @@ export class Bootstrap {
         logger.info({}, '[10/12] Initializing and loading plugins...');
         await pluginManager.initialize();
         logger.info({}, 'PluginManager initialized');
-        const config = configManager.getConfig();
+        const config = configManager.config;
         await pluginManager.scanAndLoad(config?.plugins || []);
         logger.info({ loadedPlugins: pluginManager.getPluginCount() }, 'Plugins system loaded');
       }
@@ -120,7 +120,7 @@ export class Bootstrap {
       if (!options.skipMCP) {
         logger.info({}, '[12/13] Connecting MCP servers...');
         this.mcpManager = McpClientManager.getInstance(this.toolRegistry);
-        const config = configManager.getConfig();
+        const config = configManager.config;
         if (config?.mcp?.servers) {
           await this.mcpManager.connectConfiguredServers(config.mcp.servers);
         }
@@ -128,7 +128,7 @@ export class Bootstrap {
 
       if (!options.skipChannels) {
         logger.info({}, '[13/13] Loading channel plugins...');
-        const config = configManager.getConfig();
+        const config = configManager.config;
         await this.loadChannelPlugins(config?.channels || {}, this.pipeline);
       }
 
@@ -173,7 +173,7 @@ export class Bootstrap {
   }
 
   private static normalizePath(filePath: string): string {
-    if (filePath.match(/^[a-z]:/i)) {
+    if (path.isAbsolute(filePath)) {
       return `file:///${filePath.replace(/\\/g, '/')}`;
     }
     return filePath;

@@ -214,28 +214,14 @@ export class AgentEngine {
               result: toolResult,
             });
 
-            const feedbackMessage = afterResult.success
-              ? afterResult.content
-              : this.toolRegistry.generateHallucinationFeedback(
-                  toolRequest.name,
-                  { toolName: toolRequest.name, error: afterResult.error || '未知错误' }
-                );
-
             const toolMessage: StandardMessage = {
               role: MessageRole.Tool,
-              content: feedbackMessage,
+              content: afterResult.content,
               toolCallId: toolRequest.id,
               name: toolRequest.name,
             };
             this.memory.addMessage(toolMessage);
-            session.addToolResult(toolRequest.id, toolRequest.name, feedbackMessage);
-
-            if (!afterResult.success) {
-              logger.warn(
-                { toolName: toolRequest.name, error: afterResult.error },
-                '⚠️ 工具执行失败，将反馈给 LLM'
-              );
-            }
+            session.addToolResult(toolRequest.id, toolRequest.name, afterResult.content);
           }
 
           continue;
@@ -250,7 +236,7 @@ export class AgentEngine {
         
         logger.info(
           { chatId: this.chatId, step, responseLength: finalText.length },
-          '✅ LLM 推理完成，无更多工具调用'
+          'LLM 推理完成，无更多工具调用'
         );
         break;
       }
@@ -258,7 +244,7 @@ export class AgentEngine {
       if (step >= this.maxSteps) {
         logger.warn(
           { chatId: this.chatId, steps: step },
-          '⚠️ 达到最大推理步数限制'
+          '达到最大推理步数限制'
         );
         finalText = `抱歉，任务在 ${this.maxSteps} 步后仍未完成。请简化您的请求或分步进行。`;
       }
@@ -273,7 +259,7 @@ export class AgentEngine {
           toolCalls: totalToolCalls,
           tokenUsage,
         },
-        '🎉 AgentEngine 任务完成'
+        'AgentEngine 任务完成'
       );
 
       return {

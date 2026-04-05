@@ -3,8 +3,12 @@ import { IPlugin, PluginContext } from '../../src/features/plugins/types';
 import { ITool, ToolExecuteContext, ToolExecutionResult } from '../../src/platform/tools/types';
 import { z } from 'zod';
 import * as path from 'path';
+import * as fs from 'fs';
 
-const DEFAULT_WORKDIR = path.join(process.cwd(), '.aesyclaw', 'workspace');
+const WORKSPACE_DIR = path.join(process.cwd(), '.aesyclaw', 'workspace');
+if (!fs.existsSync(WORKSPACE_DIR)) {
+  fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
+}
 
 function autoDecode(buffer: Buffer): string {
   if (buffer.length === 0) return '';
@@ -31,29 +35,38 @@ function containsHighBytes(buffer: Buffer): boolean {
   return false;
 }
 
-function execCommand(command: string, cwd: string): Promise<string> {
+function execCommand(command: string, cwd: string): Promise<{ output: string; exitCode: number }> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(command, [], {
-      shell: true,
+    const isWindows = process.platform === 'win32';
+    const shell = isWindows ? 'powershell.exe' : '/bin/sh';
+    const args = isWindows ? ['-NoProfile', '-Command', command] : ['-c', command];
+
+    const proc = spawn(shell, args, {
       cwd: cwd,
-      env: { ...process.env }
+      env: { ...process.env },
+      windowsHide: true
     });
-    
-    const stdoutChunks: Buffer[] = [];
-    const stderrChunks: Buffer[] = [];
-    
-    proc.stdout?.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
-    proc.stderr?.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
-    
-    proc.on('close', () => {
-      const stdout = autoDecode(Buffer.concat(stdoutChunks));
-      const stderr = autoDecode(Buffer.concat(stderrChunks));
-      
-      const output = stdout + (stderr ? (stdout ? '\n' : '') + stderr : '');
-      resolve(output);
+
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout?.on('data', (data: Buffer) => {
+      stdout += autoDecode(data);
     });
-    
-    proc.on('error', reject);
+
+    proc.stderr?.on('data', (data: Buffer) => {
+      stderr += autoDecode(data);
+    });
+
+    proc.on('close', (code: number | null) => {
+      const exitCode = code ?? 0;
+      const combined = stdout + (stderr ? (stdout ? '\n' : '') + stderr : '');
+      resolve({ output: combined, exitCode });
+    });
+
+    proc.on('error', (error: Error) => {
+      reject(error);
+    });
   });
 }
 
@@ -81,12 +94,20 @@ const execTool: ITool = {
   async execute(args: unknown, _context: ToolExecuteContext): Promise<ToolExecutionResult> {
     try {
       const { command } = args as { command: string };
-      
-      const result = await execCommand(command, DEFAULT_WORKDIR);
-      
+
+      const { output, exitCode } = await execCommand(command, WORKSPACE_DIR);
+
+      if (exitCode !== 0) {
+        return {
+          success: false,
+          content: output,
+          error: `命令执行失败，退出码: ${exitCode}`
+        };
+      }
+
       return {
         success: true,
-        content: result
+        content: output || '(无输出)'
       };
     } catch (error) {
       return {

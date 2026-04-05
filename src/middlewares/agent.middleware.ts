@@ -71,7 +71,7 @@ export class AgentMiddleware {
         await configManager.initialize();
       }
 
-      const config = configManager.getConfig();
+      const config = configManager.config;
       const sessionContext = getSessionFromContext(ctx);
       const sessionId = getSessionIdFromContext(ctx);
 

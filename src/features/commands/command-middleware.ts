@@ -55,7 +55,7 @@ export const commandMiddleware: MiddlewareFunc = async (
 
     logger.info(
       { commandName: command.name, success: result.success },
-      '✅ 命令执行完成'
+      '命令执行完成'
     );
   } catch (error) {
     logger.error(

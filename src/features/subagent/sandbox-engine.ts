@@ -41,7 +41,7 @@ export class SandboxEngine {
         roleId: config.roleId || 'temp',
         toolCount: config.allowedTools.length
       },
-      '🚀 SandboxEngine created'
+      ' SandboxEngine created'
     );
   }
 
@@ -173,7 +173,7 @@ export class SandboxEngine {
           executionTime,
           outputLength: lastAssistantMessage.length
         },
-        '✅ Sub-agent execution completed'
+        'Sub-agent execution completed'
       );
 
       this.destroy();
@@ -207,12 +207,12 @@ export class SandboxEngine {
 
   private getLLMConfig(): LLMConfig {
     try {
-      const config = configManager.getConfig();
+      const config = configManager.config;
       const defaultRole = roleManager.getRoleConfig(DEFAULT_ROLE_ID);
       const modelIdentifier = defaultRole.model;
       return resolveLLMConfig(modelIdentifier, config);
     } catch (error) {
-      logger.warn({ error }, 'Failed to resolve LLM config from config.toml, using fallback');
+      logger.warn({ error }, 'Failed to resolve LLM config from config.json, using fallback');
       return {
         provider: LLMProviderType.OpenAIChat,
         model: 'gpt-4o-mini',

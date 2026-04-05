@@ -16,7 +16,7 @@ export class ConfigInjectionMiddleware {
         await configManager.initialize();
       }
 
-      const config = configManager.getConfig();
+      const config = configManager.config;
 
       if (!ctx.state) {
         ctx.state = { config };
@@ -42,7 +42,7 @@ export function getConfigFromContext(ctx: IChannelContext): FullConfig {
   const configState = ctx.state as unknown as ConfigState;
   if (!configState?.config) {
     if (configManager.isInitialized()) {
-      return configManager.getConfig();
+      return configManager.config;
     }
     throw new Error('No config available in context and ConfigManager not initialized');
   }

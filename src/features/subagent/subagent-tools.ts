@@ -32,7 +32,7 @@ export async function runSubAgent(
 
   logger.info(
     { roleName: role_name, taskDescription: task_description, parentTraceId: context.traceId },
-    '🔧 runSubAgent called'
+    ' runSubAgent called'
   );
 
   const role = roleManager.getRole(role_name);
@@ -90,7 +90,7 @@ export async function runTempSubAgent(
 
   logger.info(
     { systemPromptPreview: system_prompt.substring(0, 50), parentTraceId: context.traceId },
-    '🔧 runTempSubAgent called'
+    ' runTempSubAgent called'
   );
 
   const toolRegistry = ToolRegistry.getInstance();

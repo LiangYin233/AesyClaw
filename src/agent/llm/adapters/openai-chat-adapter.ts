@@ -24,7 +24,7 @@ export class OpenAIChatAdapter implements ILLMProvider {
   constructor(config: LLMProviderConfig) {
     const apiKey = config.apiKey;
     if (!apiKey) {
-      throw new Error('OpenAI API key is required. Please configure it in config.toml.');
+      throw new Error('OpenAI API key is required. Please configure it in config.json.');
     }
 
     this.client = new OpenAI({
@@ -107,7 +107,7 @@ export class OpenAIChatAdapter implements ILLMProvider {
           toolCallCount: toolCalls.length,
           tokenUsage,
         },
-        '📥 收到 OpenAI 响应'
+        ' 收到 OpenAI 响应'
       );
 
       return {

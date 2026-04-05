@@ -195,7 +195,7 @@ export const systemCommands: CommandDefinition[] = [
             session.memory.clear();
             return {
               success: true,
-              message: '✅ 会话历史已清除',
+              message: '会话历史已清除',
             };
           }
           return {
@@ -206,7 +206,7 @@ export const systemCommands: CommandDefinition[] = [
 
         case 'stats': {
           const stats = sessionRegistry.getStats();
-          let output = '📊 会话统计：\n\n';
+          let output = ' 会话统计：\n\n';
           output += `总会话数: ${stats.total}\n\n`;
           output += '按渠道:\n';
           for (const [channel, count] of Object.entries(stats.byChannel)) {

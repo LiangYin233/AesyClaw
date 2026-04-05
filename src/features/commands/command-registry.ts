@@ -33,7 +33,7 @@ export class CommandRegistry {
 
     logger.info(
       { commandName: command.name, category: command.category },
-      '✅ 命令已注册'
+      '命令已注册'
     );
   }
 
@@ -74,7 +74,7 @@ export class CommandRegistry {
 
       logger.info(
         { pluginName, commandName: namespacedName },
-        '✅ 插件命令已注册'
+        '插件命令已注册'
       );
     }
 

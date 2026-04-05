@@ -170,11 +170,10 @@ export class PromptExecutor {
     );
 
     try {
-      this.config = configManager.getConfig();
-
-      const systemPrompt = this.config?.agent?.systemPrompt || '你是一个有帮助的AI助手。';
-      const model = this.config?.providers?.openai?.model || 'gpt-4o-mini';
-      const maxSteps = this.config?.agent?.maxSteps || 15;
+      const config = configManager.config;
+      const systemPrompt = '你是一个有帮助的AI助手。';
+      const model = config?.providers?.openai?.models?.default?.modelname || 'gpt-4o-mini';
+      const maxSteps = config?.agent?.max_steps || 50;
 
       const session = sessionRegistry.getOrCreate(sessionId, {
         channel: 'cron',
@@ -205,13 +204,13 @@ export class PromptExecutor {
             toolCalls: result.toolCalls,
             responseLength: result.finalText.length,
           },
-          '✅ Cron job Agent execution completed successfully'
+          'Cron job Agent execution completed successfully'
         );
 
         if (result.tokenUsage) {
           logger.info(
             { jobId: job.id, tokenUsage: result.tokenUsage },
-            '📊 Token usage'
+            ' Token usage'
           );
         }
       } else {

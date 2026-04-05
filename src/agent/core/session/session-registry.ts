@@ -11,8 +11,9 @@ import { DEFAULT_SESSION_CONFIG } from './types.js';
 import type { SessionContext } from './session-context.js';
 import { createSessionMetadata } from './session-context.js';
 import { SessionId } from './session-id.js';
-import type { MemoryConfig } from '../memory/types.js';
+import type { MemoryConfig as MemoryConfigInternal } from '../memory/types.js';
 import { SessionMemoryManager } from '../memory/session-memory-manager.js';
+import type { MemoryConfig as MemoryConfigSchema } from '../../../features/config/schema.js';
 import { AgentEngine } from '../engine.js';
 
 export class SessionRegistry {
@@ -44,7 +45,7 @@ export class SessionRegistry {
   private getDefaultLLMConfig(): LLMConfig {
     try {
       if (configManager.isInitialized() && roleManager.isInitialized()) {
-        const config = configManager.getConfig();
+        const config = configManager.config;
         const defaultRole = roleManager.getRoleConfig(DEFAULT_ROLE_ID);
         const modelIdentifier = defaultRole.model;
         const { providerName, modelAlias } = this.parseModelIdentifier(modelIdentifier);
@@ -97,29 +98,6 @@ export class SessionRegistry {
     return { providerName: parts[0], modelAlias: parts[1] };
   }
 
-  private getDefaultMemoryConfig(): MemoryConfig {
-    try {
-      if (configManager.isInitialized()) {
-        const config = configManager.getConfig();
-        return {
-          maxContextTokens: config.memory.max_context_tokens,
-          compressionThreshold: config.memory.compression_threshold,
-          compressionProvider: config.memory.compression_provider || 'openai',
-           compressionModel: config.memory.compression_model || 'qwen3.5-plus',
-        };
-      }
-    } catch (error) {
-      logger.warn({ error }, 'Failed to get memory config from config, using defaults');
-    }
-
-    return {
-      maxContextTokens: 128000,
-      compressionThreshold: 0.75,
-      compressionProvider: 'openai',
-      compressionModel: 'qwen3.5-plus',
-    };
-  }
-
   getOrCreate(sessionId: string, options: SessionOptions): SessionContext {
     if (this.sessions.has(sessionId)) {
       const existing = this.sessions.get(sessionId)!;
@@ -130,8 +108,8 @@ export class SessionRegistry {
 
     logger.debug({ sessionId, channel: options.channel, type: options.type, chatId: options.chatId }, '🆕 创建新会话');
 
-    const memory = this.createMemory(sessionId, options);
-    const agent = this.createAgent(sessionId, options, memory);
+    const { manager: memory, config: memoryConfig } = this.createMemory(sessionId, options);
+    const agent = this.createAgent(sessionId, options, memory, memoryConfig);
 
     const metadata = createSessionMetadata(
       sessionId,
@@ -159,14 +137,28 @@ export class SessionRegistry {
     return this.chatToSession.get(`${channel}:${type}:${chatId}`) || null;
   }
 
-  private createMemory(sessionId: string, options: SessionOptions) {
-    const memoryConfig = options.memoryConfig || this.getDefaultMemoryConfig();
-    return new SessionMemoryManager(sessionId, memoryConfig);
+  private createMemory(sessionId: string, options: SessionOptions): { manager: SessionMemoryManager; config: MemoryConfigInternal } {
+    let memoryConfig: MemoryConfigInternal;
+
+    if (options.memoryConfig) {
+      memoryConfig = options.memoryConfig as MemoryConfigInternal;
+    } else {
+      const rawConfig = configManager.config.memory as MemoryConfigSchema;
+      memoryConfig = {
+        maxContextTokens: rawConfig.max_context_tokens,
+        compressionThreshold: rawConfig.compression_threshold,
+        compressionProvider: rawConfig.compression_provider || 'openai',
+        compressionModel: rawConfig.compression_model || 'qwen3.5-plus',
+      };
+    }
+
+    const manager = new SessionMemoryManager(sessionId, memoryConfig);
+    return { manager, config: memoryConfig };
   }
 
-  private createAgent(sessionId: string, options: SessionOptions, memory: SessionMemoryManager) {
+  private createAgent(sessionId: string, options: SessionOptions, memory: SessionMemoryManager, memoryConfig: MemoryConfigInternal) {
     const llmConfig = options.llm || this.getDefaultLLMConfig();
-    const maxSteps = options.maxSteps || 15;
+    const maxSteps = options.maxSteps || configManager.config.agent.max_steps || 50;
     const systemPrompt = options.systemPrompt || systemPromptManager.buildSystemPrompt({
       roleId: DEFAULT_ROLE_ID,
       chatId: options.chatId,
@@ -177,7 +169,7 @@ export class SessionRegistry {
       maxSteps,
       systemPrompt,
       tools: [],
-      memoryConfig: options.memoryConfig || this.getDefaultMemoryConfig(),
+      memoryConfig: memoryConfig,
     });
   }
 

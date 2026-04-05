@@ -8,7 +8,7 @@ import { pathResolver } from '../../platform/utils/paths.js';
 
 export class ConfigManager {
   private static instance: ConfigManager;
-  private config: FullConfig | null = null;
+  private _config: FullConfig | null = null;
   private initialized: boolean = false;
   private configPath: string;
   private selfUpdating: boolean = false;
@@ -16,6 +16,13 @@ export class ConfigManager {
   private debounceTimer: NodeJS.Timeout | null = null;
   private pendingPluginDefaults: Map<string, Record<string, unknown>> = new Map();
   private pendingChannelDefaults: Map<string, Record<string, unknown>> = new Map();
+
+  get config(): FullConfig {
+    if (!this._config) {
+      throw new Error('ConfigManager not initialized');
+    }
+    return this._config;
+  }
 
   private normalizePluginName(name: string): string {
     return name
@@ -54,7 +61,7 @@ export class ConfigManager {
     if (!fs.existsSync(this.configPath)) {
       logger.info({ path: this.configPath }, 'Config file not found, generating default');
       await this.writeDefaultConfig();
-      this.config = DEFAULT_CONFIG;
+      this._config = DEFAULT_CONFIG;
       return;
     }
 
@@ -71,7 +78,7 @@ export class ConfigManager {
           logger.info({ path: this.configPath }, 'Updated config file with default values');
         }
 
-        this.config = parsed;
+        this._config = parsed;
         logger.info({ path: this.configPath }, 'Config loaded successfully');
       } else {
         logger.warn({}, 'Config parse failed, using cached/default config');
@@ -149,7 +156,7 @@ export class ConfigManager {
       logger.warn({}, 'Partial config merge also failed, using full defaults');
       return DEFAULT_CONFIG;
     } catch (error) {
-      logger.error({ error }, 'TOML parse error, using defaults');
+      logger.error({ error }, 'Config parse error, using defaults');
       return DEFAULT_CONFIG;
     }
   }
@@ -271,7 +278,7 @@ export class ConfigManager {
       const content = await fs.promises.readFile(this.configPath, 'utf-8');
       const parsed = this.parseConfig(content);
       if (parsed) {
-        this.config = parsed;
+        this._config = parsed;
         logger.info({}, 'Configuration reloaded successfully');
       } else {
         logger.warn({}, 'Config reload failed, keeping old config');
@@ -283,8 +290,8 @@ export class ConfigManager {
 
   private gracefulDegradation(error: Error): void {
     logger.error({ error }, 'Config system error, using cached config');
-    if (!this.config) {
-      this.config = DEFAULT_CONFIG;
+    if (!this._config) {
+      this._config = DEFAULT_CONFIG;
       logger.info({}, 'Using default config as fallback');
     }
   }
@@ -294,35 +301,20 @@ export class ConfigManager {
   }
 
   getConfig(): FullConfig {
-    if (!this.config) {
-      throw new Error('ConfigManager not initialized. Call initialize() first.');
-    }
     return this.config;
-  }
-
-  getServerConfig() {
-    return this.getConfig().server;
-  }
-
-  getProvidersConfig() {
-    return this.getConfig().providers;
-  }
-
-  getChannelsConfig() {
-    return this.getConfig().channels;
   }
 
   async updateChannelConfig(
     channelName: string,
     config: Record<string, unknown>
   ): Promise<boolean> {
-    if (!this.config) {
+    if (!this._config) {
       logger.error({}, 'ConfigManager not initialized');
       return false;
     }
 
     try {
-      const channels = this.config.channels || {};
+      const channels = this._config.channels || {};
 
       channels[channelName] = {
         ...channels[channelName],
@@ -347,7 +339,7 @@ export class ConfigManager {
   }
 
   async syncAllDefaultConfigs(): Promise<void> {
-    if (!this.config) {
+    if (!this._config) {
       logger.error({}, 'ConfigManager not initialized');
       return;
     }
@@ -357,11 +349,11 @@ export class ConfigManager {
   }
 
   private async syncPluginDefaults(): Promise<void> {
-    if (!this.config || this.pendingPluginDefaults.size === 0) {
+    if (!this._config || this.pendingPluginDefaults.size === 0) {
       return;
     }
 
-    const plugins = this.config.plugins || [];
+    const plugins = this._config.plugins || [];
     let updated = false;
 
     for (const [name, defaults] of this.pendingPluginDefaults) {
@@ -378,16 +370,16 @@ export class ConfigManager {
     }
 
     if (updated) {
-      this.config = this.getConfig();
+      this._config = this._config;
     }
   }
 
   private async syncChannelDefaults(): Promise<void> {
-    if (!this.config || this.pendingChannelDefaults.size === 0) {
+    if (!this._config || this.pendingChannelDefaults.size === 0) {
       return;
     }
 
-    const channels = this.config.channels || {};
+    const channels = this._config.channels || {};
     let updated = false;
 
     for (const [name, defaults] of this.pendingChannelDefaults) {
@@ -401,24 +393,8 @@ export class ConfigManager {
     }
 
     if (updated) {
-      this.config = this.getConfig();
+      this._config = this._config;
     }
-  }
-
-  getAgentConfig() {
-    return this.getConfig().agent;
-  }
-
-  getMemoryConfig() {
-    return this.getConfig().memory;
-  }
-
-  getMCPConfig() {
-    return this.getConfig().mcp;
-  }
-
-  getPluginsConfig() {
-    return this.getConfig().plugins;
   }
 
   async updatePluginConfig(
@@ -426,13 +402,13 @@ export class ConfigManager {
     enabled: boolean,
     options?: Record<string, unknown>
   ): Promise<boolean> {
-    if (!this.config) {
+    if (!this._config) {
       logger.error({}, 'ConfigManager not initialized');
       return false;
     }
 
     try {
-      const plugins = this.config.plugins || [];
+      const plugins = this._config.plugins || [];
       const normalizedName = this.normalizePluginName(name);
 
       const existingIndex = plugins.findIndex(p => {
@@ -453,7 +429,7 @@ export class ConfigManager {
         });
       }
 
-      this.config.plugins = plugins;
+      this._config.plugins = plugins;
 
       return this.updateConfig({
         plugins: plugins,
@@ -464,29 +440,24 @@ export class ConfigManager {
     }
   }
 
-  getProviderCredential(provider: string) {
-    const providers = this.getConfig().providers;
-    return (providers as any)[provider] || null;
-  }
-
   async reloadConfig(): Promise<void> {
     await this.reload();
   }
 
   async updateConfig(updates: Partial<FullConfig>): Promise<boolean> {
-    if (!this.config) {
+    if (!this._config) {
       logger.error({}, 'ConfigManager not initialized');
       return false;
     }
 
     try {
-      const merged = this.mergeConfig(this.config, updates);
+      const merged = this.mergeConfig(this._config, updates);
       const result = FullConfigSchema.safeParse(merged);
       if (!result.success) {
         logger.warn({ issues: this.formatZodErrors(result.error) }, 'Update validation failed');
         return false;
       }
-      this.config = result.data;
+      this._config = result.data;
       this.saveToDisk();
       return true;
     } catch (error) {
@@ -524,11 +495,11 @@ export class ConfigManager {
   }
 
   private saveToDisk(): void {
-    if (!this.config) return;
+    if (!this._config) return;
 
     this.selfUpdating = true;
     try {
-      const jsonString = this.serializeToJSON(this.config);
+      const jsonString = this.serializeToJSON(this._config);
       fs.writeFileSync(this.configPath, jsonString, 'utf-8');
       logger.info({ path: this.configPath }, 'Configuration updated and saved to disk');
     } catch (error) {

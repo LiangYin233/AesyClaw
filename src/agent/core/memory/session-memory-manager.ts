@@ -96,7 +96,7 @@ export class SessionMemoryManager {
           currentTokens: budget.currentTokens,
           threshold: this.config.compressionThreshold,
         },
-        '⚠️ Token 预算超限，触发压缩协议'
+        'Token 预算超限，触发压缩协议'
       );
       this.triggerCompression();
     }
@@ -150,7 +150,7 @@ export class SessionMemoryManager {
         sacredZones: sacredZones.length,
         compressibleZones: compressibleZones.length,
       },
-      '✅ 分拣完成，准备压缩'
+      '分拣完成，准备压缩'
     );
 
     this.currentPhase = CompressionPhase.LLMDrivenSummarization;
@@ -178,7 +178,7 @@ export class SessionMemoryManager {
           newTokenCount: newBudget.currentTokens,
           totalMessages: this.messages.length,
         },
-        '🎉 压缩流水线执行完成'
+        '压缩流水线执行完成'
       );
 
       this.emitEvent({
@@ -268,7 +268,7 @@ export class SessionMemoryManager {
 
     return {
       success: true,
-      message: `✅ 已成功切换至角色：${roleConfig.name}\n可用工具: ${allowedTools}`,
+      message: `已成功切换至角色：${roleConfig.name}\n可用工具: ${allowedTools}`,
     };
   }
 
@@ -381,7 +381,7 @@ export class SessionMemoryManager {
         chatId: this.chatId,
         importedMessages: this.messages.length,
       },
-      '📥 记忆已导入'
+      ' 记忆已导入'
     );
   }
 

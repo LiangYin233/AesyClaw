@@ -21,7 +21,7 @@ export class AgentEngine {
 
     logger.info(
       { chatId: this.chatId, instanceId: this.instanceId },
-      '✅ AgentEngine 处理完成'
+      'AgentEngine 处理完成'
     );
 
     return response;

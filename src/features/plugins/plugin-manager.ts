@@ -148,7 +148,7 @@ export class PluginManager {
   }
 
   private normalizePath(filePath: string): string {
-    if (filePath.match(/^[a-z]:/i)) {
+    if (path.isAbsolute(filePath)) {
       return `file:///${filePath.replace(/\\/g, '/')}`;
     }
     return filePath;
@@ -330,13 +330,21 @@ export class PluginManager {
   async dispatchBeforeToolCall(
     toolCall: HookPayloadToolCall
   ): Promise<{ success: boolean; content: string; error?: string } | null> {
-    return this.dispatchHook('beforeToolCall', toolCall);
+    const result = await this.dispatchHook('beforeToolCall', toolCall) as any;
+    if (result === toolCall) {
+      return null;
+    }
+    return result as { success: boolean; content: string; error?: string } | null;
   }
 
   async dispatchAfterToolCall(
     payload: HookPayloadAfterToolCall
   ): Promise<HookPayloadAfterToolCall['result']> {
-    return this.dispatchHook('afterToolCall', payload);
+    const result = await this.dispatchHook('afterToolCall', payload) as any;
+    if (result === payload) {
+      return payload.result;
+    }
+    return result as HookPayloadAfterToolCall['result'];
   }
 
   async dispatchMessageSend(
@@ -467,7 +475,7 @@ export class PluginManager {
       logger.info({ pluginName: normalizedName }, 'Plugin enabled successfully');
       return {
         success: true,
-        message: `✅ 插件 "${normalizedName}" 已开启`,
+        message: `插件 "${normalizedName}" 已开启`,
       };
     } catch (error) {
       this.pluginPaths.delete(normalizedName);
@@ -498,7 +506,7 @@ export class PluginManager {
       logger.info({ pluginName: normalizedName }, 'Plugin disabled successfully');
       return {
         success: true,
-        message: `✅ 插件 "${normalizedName}" 已关闭`,
+        message: `插件 "${normalizedName}" 已关闭`,
       };
     } catch (error) {
       logger.error({ pluginName: normalizedName, error }, 'Failed to disable plugin');
