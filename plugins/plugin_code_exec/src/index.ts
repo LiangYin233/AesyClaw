@@ -1,37 +1,10 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { z, type ZodType } from 'zod';
+import { z } from 'zod';
 import type { IPlugin, PluginContext } from '../../../src/features/plugins/types.js';
-import type { ToolDefinition, ToolExecuteContext, ToolExecutionResult, ToolParameterProperty } from '../../../src/platform/tools/types.js';
+import { zodToToolParameters, type ToolDefinition, type ToolExecuteContext, type ToolExecutionResult } from '../../../src/platform/tools/types.js';
 
 const execAsync = promisify(exec);
-
-function zodToToolParameters(schema: ZodType): ToolDefinition['parameters'] {
-  const parsed = schema.safeParse({});
-  if (!parsed.success) {
-    return { type: 'object', properties: {} };
-  }
-
-  const data = parsed.data as Record<string, unknown>;
-  const properties: Record<string, ToolParameterProperty> = {};
-  const required: string[] = [];
-
-  if (data.type === 'object' && data.properties) {
-    const props = data.properties as Record<string, unknown>;
-    for (const [key, value] of Object.entries(props)) {
-      properties[key] = value as ToolParameterProperty;
-      if ((value as Record<string, unknown>).type !== 'undefined' && !(value as Record<string, unknown>).optional) {
-        required.push(key);
-      }
-    }
-  }
-
-  return {
-    type: 'object',
-    properties,
-    required,
-  };
-}
 
 class RunPythonCodeTool {
   readonly name = 'run_python_code';
