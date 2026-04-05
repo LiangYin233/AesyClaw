@@ -1,4 +1,4 @@
-import { StandardMessage, MessageRole } from '../../llm/types';
+import { StandardMessage, MessageRole } from '../../llm/types.js';
 import {
   MemoryConfig,
   MemoryStats,
@@ -6,14 +6,14 @@ import {
   MemoryEvent,
   TokenBudget,
   createMemoryConfig,
-} from './types';
-import { TokenBudgetCalculator } from './token-budget-calculator';
-import { MessageTrimmer } from './message-trimmer';
-import { LosslessSummarizer } from './lossless-summarizer';
-import { logger } from '../../../platform/observability/logger';
-import { roleManager, DEFAULT_ROLE_ID } from '../../../features/roles';
-import { systemPromptManager } from '../../../features/roles/system-prompt-manager';
-import { skillManager } from '../../../features/skills';
+} from './types.js';
+import { TokenBudgetCalculator } from './token-budget-calculator.js';
+import { MessageTrimmer } from './message-trimmer.js';
+import { LosslessSummarizer } from './lossless-summarizer.js';
+import { logger } from '../../../platform/observability/logger.js';
+import { roleManager, DEFAULT_ROLE_ID } from '../../../features/roles/index.js';
+import { systemPromptManager } from '../../../features/roles/system-prompt-manager.js';
+import { skillManager } from '../../../features/skills/index.js';
 
 export class SessionMemoryManager {
   readonly chatId: string;

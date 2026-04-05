@@ -10,9 +10,9 @@ import {
   TokenUsage,
   LLMProviderConfig,
   MessageRole,
-} from '../types';
-import { ToolDefinition } from '../../../platform/tools/types';
-import { logger } from '../../../platform/observability/logger';
+} from '../types.js';
+import { ToolDefinition } from '../../../platform/tools/types.js';
+import { logger } from '../../../platform/observability/logger.js';
 
 export class OpenAIChatAdapter implements ILLMProvider {
   readonly providerType = LLMProviderType.OpenAIChat;

@@ -1,10 +1,10 @@
 import { spawn, ChildProcess } from 'child_process';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { logger } from '../../observability/logger';
-import { ToolRegistry } from '../registry';
-import { McpToolAdapter, MCPServerInfo, MCPToolInfo } from './types';
-import type { MCPServerConfig } from '../../../features/config/schema';
+import { logger } from '../../observability/logger.js';
+import { ToolRegistry } from '../registry.js';
+import { McpToolAdapter, MCPServerInfo, MCPToolInfo } from './types.js';
+import type { MCPServerConfig } from '../../../features/config/schema.js';
 
 export class McpClientManager {
   private static instance: McpClientManager;

@@ -8,12 +8,12 @@ import {
   ToolCall,
   TokenUsage,
   MessageRole,
-} from './types';
-import { ToolDefinition } from '../../platform/tools/types';
-import { OpenAIChatAdapter } from './adapters/openai-chat-adapter';
-import { OpenAICompletionAdapter } from './adapters/openai-completion-adapter';
-import { AnthropicAdapter } from './adapters/anthropic-adapter';
-import { logger } from '../../platform/observability/logger';
+} from './types.js';
+import { ToolDefinition } from '../../platform/tools/types.js';
+import { OpenAIChatAdapter } from './adapters/openai-chat-adapter.js';
+import { OpenAICompletionAdapter } from './adapters/openai-completion-adapter.js';
+import { AnthropicAdapter } from './adapters/anthropic-adapter.js';
+import { logger } from '../../platform/observability/logger.js';
 
 export interface ModelCapabilities {
   reasoning: boolean;

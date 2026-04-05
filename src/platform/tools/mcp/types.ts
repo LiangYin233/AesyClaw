@@ -1,5 +1,5 @@
-import { ZodType } from 'zod';
-import { ITool, ToolExecuteContext, ToolExecutionResult, ToolDefinition, ToolParameters } from '../types';
+import { z } from 'zod';
+import { ITool, ToolExecuteContext, ToolExecutionResult, ToolDefinition, ToolParameters } from '../types.js';
 
 export interface MCPServerInfo {
   name: string;

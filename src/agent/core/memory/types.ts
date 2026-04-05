@@ -1,4 +1,4 @@
-import { LLMProviderType, StandardMessage } from '../../llm/types';
+import { LLMProviderType, StandardMessage } from '../../llm/types.js';
 
 export enum CompressionPhase {
   Idle = 'idle',

@@ -4,9 +4,9 @@ import {
   MessageRole,
   LLMProviderType,
   ToolCall,
-} from '../llm/types';
-import { LLMConfig, LLMSession, createLLMSession } from '../llm/factory';
-import { ToolRegistry } from '../../platform/tools/registry';
+} from '../llm/types.js';
+import { LLMConfig, LLMSession, createLLMSession } from '../llm/factory.js';
+import { ToolRegistry } from '../../platform/tools/registry.js';
 import {
   ToolDefinition,
   ToolExecuteContext,
@@ -14,14 +14,14 @@ import {
   zodToToolParameters,
   ITool,
   ToolExecutionResult,
-} from '../../platform/tools/types';
-import { logger } from '../../platform/observability/logger';
+} from '../../platform/tools/types.js';
+import { logger } from '../../platform/observability/logger.js';
 import { pluginManager } from '../../features/plugins/plugin-manager.js';
 import { roleManager } from '../../features/roles/role-manager.js';
 import {
   SessionMemoryManager,
   MemoryConfig,
-} from './memory/index';
+} from './memory/index.js';
 
 export interface AgentConfig {
   llm: LLMConfig;

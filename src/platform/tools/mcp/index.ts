@@ -1,2 +1,2 @@
-export { McpClientManager } from './mcp-client-manager';
-export { McpToolAdapter, MCPServerInfo, MCPToolInfo } from './types';
+export { McpClientManager } from './mcp-client-manager.js';
+export { McpToolAdapter, MCPServerInfo, MCPToolInfo } from './types.js';

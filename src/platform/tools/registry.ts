@@ -7,8 +7,8 @@ import {
   ToolCallResult,
   ToolCallRequest,
   zodToToolParameters,
-} from './types';
-import { logger } from '../observability/logger';
+} from './types.js';
+import { logger } from '../observability/logger.js';
 
 export interface ToolValidationError {
   toolName: string;

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ToolDefinition } from '../../platform/tools/types';
+import { ToolDefinition } from '../../platform/tools/types.js';
 
 export enum MessageRole {
   System = 'system',

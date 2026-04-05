@@ -1,4 +1,4 @@
-export { PluginManager, pluginManager } from './plugin-manager';
+export { PluginManager, pluginManager } from './plugin-manager.js';
 export {
   IPlugin,
   PluginContext,

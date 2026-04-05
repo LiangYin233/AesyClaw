@@ -1,5 +1,5 @@
-import { logger } from './platform/observability/logger';
-import { Bootstrap, bootstrap } from './bootstrap';
+import { logger } from './platform/observability/logger.js';
+import { Bootstrap, bootstrap } from './bootstrap.js';
 
 async function main() {
   try {

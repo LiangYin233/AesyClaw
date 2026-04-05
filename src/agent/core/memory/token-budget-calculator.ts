@@ -1,5 +1,5 @@
-import { StandardMessage, MessageRole } from '../../llm/types';
-import { TokenBudget, MemoryConfig } from './types';
+import { StandardMessage, MessageRole } from '../../llm/types.js';
+import { TokenBudget, MemoryConfig } from './types.js';
 
 export class TokenBudgetCalculator {
   private config: MemoryConfig;

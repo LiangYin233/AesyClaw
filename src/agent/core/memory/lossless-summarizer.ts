@@ -1,10 +1,10 @@
-import { StandardMessage, MessageRole, LLMProviderType } from '../../llm/types';
-import { MessageZone, CompressionResult, MemoryConfig } from './types';
-import { TokenBudgetCalculator } from './token-budget-calculator';
-import { LLMProviderFactory } from '../../llm/factory';
-import { configManager } from '../../../features/config/config-manager';
-import { logger } from '../../../platform/observability/logger';
-import { mapProviderType } from '../../../middlewares/agent.middleware';
+import { StandardMessage, MessageRole, LLMProviderType } from '../../llm/types.js';
+import { MessageZone, CompressionResult, MemoryConfig } from './types.js';
+import { TokenBudgetCalculator } from './token-budget-calculator.js';
+import { LLMProviderFactory } from '../../llm/factory.js';
+import { configManager } from '../../../features/config/config-manager.js';
+import { logger } from '../../../platform/observability/logger.js';
+import { mapProviderType } from '../../../middlewares/agent.middleware.js';
 
 export class LosslessSummarizer {
   private config: MemoryConfig;

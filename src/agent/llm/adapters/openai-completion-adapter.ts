@@ -9,9 +9,9 @@ import {
   TokenUsage,
   LLMProviderConfig,
   MessageRole,
-} from '../types';
-import { ToolDefinition } from '../../../platform/tools/types';
-import { logger } from '../../../platform/observability/logger';
+} from '../types.js';
+import { ToolDefinition } from '../../../platform/tools/types.js';
+import { logger } from '../../../platform/observability/logger.js';
 import { randomUUID } from 'crypto';
 
 const TOOL_CALL_PATTERN = /<tool_call>\s*name:\s*(\w+)\s*arguments:\s*(\{[^}]+\})\s*<\/tool_call>/gi;

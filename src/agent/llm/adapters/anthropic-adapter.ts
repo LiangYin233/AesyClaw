@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import type { MessageCreateParamsNonStreaming } from '@anthropic-ai/sdk/resources/messages';
 import {
   ILLMProvider,
   LLMProviderType,
@@ -9,11 +10,9 @@ import {
   TokenUsage,
   LLMProviderConfig,
   MessageRole,
-} from '../types';
-import { ToolDefinition } from '../../../platform/tools/types';
-import { logger } from '../../../platform/observability/logger';
-
-type AnthropicContentBlock = 
+} from '../types.js';
+import { ToolDefinition } from '../../../platform/tools/types.js';
+import { logger } from '../../../platform/observability/logger.js';AnthropicContentBlock = 
   | { type: 'text'; text: string }
   | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
   | { type: 'tool_result'; tool_use_id: string; content: string };

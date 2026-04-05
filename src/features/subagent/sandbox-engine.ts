@@ -46,20 +46,18 @@ export class SandboxEngine {
   }
 
   private initializeMemory(): void {
+    const toolPermissionText = this.config.allowedTools.includes('*') 
+      ? '你有权限使用所有工具。' 
+      : `你只能使用以下工具: ${this.config.allowedTools.join(', ')}。`;
+
+    const taskDescription = this.getTaskFromConfig();
+    
+    const fullSystemPrompt = `${this.config.systemPrompt}\n\n${toolPermissionText}\n\n任务：${taskDescription}`;
+
     this.memory = [
       {
         role: MessageRole.System,
-        content: this.config.systemPrompt,
-      },
-      {
-        role: MessageRole.User,
-        content: this.config.allowedTools.includes('*') 
-          ? '你有权限使用所有工具。' 
-          : `你只能使用以下工具: ${this.config.allowedTools.join(', ')}。`,
-      },
-      {
-        role: MessageRole.User,
-        content: `【任务】\n${this.getTaskFromConfig()}`,
+        content: fullSystemPrompt,
       },
     ];
   }
