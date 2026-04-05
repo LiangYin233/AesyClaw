@@ -161,29 +161,6 @@ export class ConfigManager {
     }
   }
 
-  private deepMerge(target: Record<string, any>, source: Record<string, any>): Record<string, any> {
-    const output = { ...target };
-
-    for (const key in source) {
-      if (source.hasOwnProperty(key)) {
-        const sourceValue = source[key];
-        const targetValue = target[key];
-
-        if (sourceValue !== undefined && sourceValue !== null) {
-          if (this.isPlainObject(sourceValue) && this.isPlainObject(targetValue)) {
-            output[key] = this.deepMerge(targetValue, sourceValue);
-          } else if (Array.isArray(sourceValue) && Array.isArray(targetValue)) {
-            output[key] = [...targetValue, ...sourceValue];
-          } else {
-            output[key] = sourceValue;
-          }
-        }
-      }
-    }
-
-    return output;
-  }
-
   private isPlainObject(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date);
   }

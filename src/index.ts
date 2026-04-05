@@ -1,4 +1,3 @@
-import { ToolRegistry } from './platform/tools/registry';
 import { logger } from './platform/observability/logger';
 import { Bootstrap, bootstrap } from './bootstrap';
 
@@ -16,5 +15,4 @@ async function main() {
 
 main().catch(console.error);
 
-export const toolRegistry = ToolRegistry.getInstance();
 export const getPipeline = () => Bootstrap.getPipeline();

@@ -15,6 +15,8 @@ import type { MemoryConfig as MemoryConfigInternal } from '../memory/types.js';
 import { SessionMemoryManager } from '../memory/session-memory-manager.js';
 import type { MemoryConfig as MemoryConfigSchema } from '../../../features/config/schema.js';
 import { AgentEngine } from '../engine.js';
+import { mapProviderType } from '../../../middlewares/agent.middleware.js';
+import { parseModelIdentifier } from '../../../platform/utils/model-parser.js';
 
 export class SessionRegistry {
   private static instance: SessionRegistry;
@@ -48,7 +50,7 @@ export class SessionRegistry {
         const config = configManager.config;
         const defaultRole = roleManager.getRoleConfig(DEFAULT_ROLE_ID);
         const modelIdentifier = defaultRole.model;
-        const { providerName, modelAlias } = this.parseModelIdentifier(modelIdentifier);
+        const { providerName, modelAlias } = parseModelIdentifier(modelIdentifier);
 
         const providerDetails = config.providers[providerName];
         if (!providerDetails) {
@@ -61,7 +63,7 @@ export class SessionRegistry {
         }
 
         return {
-          provider: this.mapProviderType(providerDetails.type),
+          provider: mapProviderType(providerDetails.type),
           model: modelConfig.modelname,
           apiKey: providerDetails.api_key,
           baseUrl: providerDetails.base_url,
@@ -75,27 +77,6 @@ export class SessionRegistry {
       provider: LLMProviderType.OpenAIChat,
       model: 'gpt-4o-mini',
     };
-  }
-
-  private mapProviderType(type: string): LLMProviderType {
-    switch (type) {
-      case 'openai_chat':
-        return LLMProviderType.OpenAIChat;
-      case 'openai_completion':
-        return LLMProviderType.OpenAICompletion;
-      case 'anthropic':
-        return LLMProviderType.Anthropic;
-      default:
-        return LLMProviderType.OpenAIChat;
-    }
-  }
-
-  private parseModelIdentifier(modelIdentifier: string): { providerName: string; modelAlias: string } {
-    const parts = modelIdentifier.split('/');
-    if (parts.length !== 2) {
-      return { providerName: 'openai', modelAlias: modelIdentifier };
-    }
-    return { providerName: parts[0], modelAlias: parts[1] };
   }
 
   getOrCreate(sessionId: string, options: SessionOptions): SessionContext {

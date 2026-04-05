@@ -4,6 +4,7 @@ import { TokenBudgetCalculator } from './token-budget-calculator';
 import { LLMProviderFactory } from '../../llm/factory';
 import { configManager } from '../../../features/config/config-manager';
 import { logger } from '../../../platform/observability/logger';
+import { mapProviderType } from '../../../middlewares/agent.middleware';
 
 export class LosslessSummarizer {
   private config: MemoryConfig;
@@ -184,7 +185,7 @@ ${conversationText}
       throw new Error(`Model config not found for provider "${providerName}"`);
     }
 
-    const llmProviderType = this.mapProviderType(provider.type);
+    const llmProviderType = mapProviderType(provider.type);
 
     const factory = LLMProviderFactory.getInstance();
     
@@ -205,19 +206,6 @@ ${conversationText}
     ], undefined);
 
     return response.text;
-  }
-
-  private mapProviderType(type: string): LLMProviderType {
-    switch (type) {
-      case 'openai_chat':
-        return LLMProviderType.OpenAIChat;
-      case 'openai_completion':
-        return LLMProviderType.OpenAICompletion;
-      case 'anthropic':
-        return LLMProviderType.Anthropic;
-      default:
-        return LLMProviderType.OpenAIChat;
-    }
   }
 
   private fallbackSummary(messages: StandardMessage[]): string {
