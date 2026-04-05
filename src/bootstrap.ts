@@ -7,6 +7,7 @@ import { McpClientManager } from './platform/tools/mcp/mcp-client-manager.js';
 import { pluginManager } from './features/plugins/plugin-manager.js';
 import { ChannelPipeline } from './agent/core/pipeline.js';
 import { configInjectionMiddleware } from './middlewares/config.middleware.js';
+import { agentMiddleware } from './middlewares/agent.middleware.js';
 import { skillManager, loadSkillTool, SkillManager } from './features/skills/index.js';
 import { cronJobScheduler, initializePromptExecutor } from './features/cron/index.js';
 import { commandMiddleware, registerSystemCommands } from './features/commands/index.js';
@@ -87,6 +88,10 @@ export class Bootstrap {
       this.pipeline.use(commandMiddleware);
       logger.info({}, 'Command system initialized');
 
+      logger.info({}, '[9.5/12] Mounting AgentMiddleware...');
+      this.pipeline.use(agentMiddleware.getMiddleware());
+      logger.info({}, 'Agent middleware initialized');
+
       if (!options.skipPlugins) {
         logger.info({}, '[10/12] Initializing and loading plugins...');
         await pluginManager.initialize();
@@ -119,7 +124,7 @@ export class Bootstrap {
         logger.info({}, '[13/13] Loading channel plugins...');
         const config = configManager.getConfig();
         if (config?.channels) {
-          await this.loadChannelPlugins(config.channels);
+          await this.loadChannelPlugins(config.channels, this.pipeline);
         } else {
           logger.info({}, 'No channels configured, skipping channel plugin loading');
         }
@@ -135,7 +140,9 @@ export class Bootstrap {
     }
   }
 
-  private static async loadChannelPlugins(channels: Record<string, unknown>): Promise<void> {
+  private static async loadChannelPlugins(channels: Record<string, unknown>, pipeline: any): Promise<void> {
+    channelManager.setPipeline(pipeline);
+
     if (channels.onebot) {
       try {
         const { onebotPlugin } = await import('../plugins/plugin_channel_onebot/index.js');

@@ -15,8 +15,6 @@ export const OneBotChannelConfigSchema = z.object({
   access_token: z.string().optional(),
   group_ids: z.array(z.string()).default([]),
   private_ids: z.array(z.string()).default([]),
-  self_id: z.union([z.number(), z.string()]).optional(),
-  message_format: z.enum(['array', 'string']).default('string'),
 });
 
 export type OneBotChannelConfig = z.infer<typeof OneBotChannelConfigSchema>;
@@ -27,8 +25,6 @@ export interface OneBotConfig {
   accessToken?: string;
   groupIds?: string[];
   privateIds?: string[];
-  selfId?: number | string;
-  messageFormat?: 'array' | 'string';
 }
 
 interface OneBotMessage {
@@ -97,7 +93,7 @@ interface PluginState {
   ws: WebSocket | null;
   config: OneBotConfig | null;
   logger: ChannelPluginLogger | null;
-  pipeline: unknown | null;
+  pipeline: any;
   pendingRequests: Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>;
   connected: boolean;
 }
@@ -134,10 +130,9 @@ export const onebotPlugin: IChannelPlugin & IChannelWithSend = {
       accessToken: validatedConfig.access_token,
       groupIds: validatedConfig.group_ids,
       privateIds: validatedConfig.private_ids,
-      selfId: validatedConfig.self_id,
-      messageFormat: validatedConfig.message_format,
     };
     state.logger = ctx.logger;
+    state.pipeline = ctx.pipeline;
 
     await connect();
   },
@@ -284,7 +279,7 @@ function handleGroupMessage(event: OneBotMessage): void {
   };
 
   const sendFn = createSendFn(groupIdStr, 'group');
-  emitInbound(unifiedMsg, sendFn);
+  emitInbound(unifiedMsg, sendFn, state.pipeline);
 }
 
 function handlePrivateMessage(event: OneBotMessage): void {
@@ -319,7 +314,7 @@ function handlePrivateMessage(event: OneBotMessage): void {
   };
 
   const sendFn = createSendFn(userIdStr, 'private');
-  emitInbound(unifiedMsg, sendFn);
+  emitInbound(unifiedMsg, sendFn, state.pipeline);
 }
 
 function extractRawMessage(message: string | Array<OneBotMessageSegment>): string {
@@ -498,20 +493,20 @@ async function sendApi(action: string, params: Record<string, unknown>, echo?: s
   });
 }
 
-function emitInbound(message: IUnifiedMessage, sendFn: (payload: IOutboundPayload) => Promise<void>): void {
+function emitInbound(message: IUnifiedMessage, sendFn: (payload: IOutboundPayload) => Promise<void>, pipeline: any): void {
   const logger = state.logger!;
-  
-  logger.info('Emitting inbound message to pipeline', { 
-    channelId: message.channelId, 
-    chatId: message.chatId, 
+
+  logger.info('Emitting inbound message to pipeline', {
+    channelId: message.channelId,
+    chatId: message.chatId,
     senderId: message.senderId,
-    text: message.text 
+    text: message.text
   });
 
-  if (state.pipeline && typeof (state.pipeline as any).handleInboundWithSend === 'function') {
-    (state.pipeline as any).handleInboundWithSend(message, sendFn);
-  } else if (state.pipeline && typeof (state.pipeline as any).handleInbound === 'function') {
-    (state.pipeline as any).handleInbound(message);
+  if (pipeline && typeof pipeline.handleInboundWithSend === 'function') {
+    pipeline.handleInboundWithSend(message, sendFn);
+  } else if (pipeline && typeof pipeline.handleInbound === 'function') {
+    pipeline.handleInbound(message);
   }
 }
 

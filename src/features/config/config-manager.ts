@@ -108,11 +108,10 @@ export class ConfigManager {
       const parsedAny = parsed as any;
       const hasProviders = parsedAny?.providers && Object.keys(parsedAny.providers).length > 0;
       const hasMCPServers = parsedAny?.mcp?.servers && Array.isArray(parsedAny.mcp.servers) && parsedAny.mcp.servers.length > 0;
-      const hasChannels = parsedAny?.channels && Object.keys(parsedAny.channels).length > 0;
 
       const mergedProviders = hasProviders ? parsedAny.providers : this.getDefaultProviderExample();
       const mergedMCPServers = hasMCPServers ? parsedAny.mcp.servers : this.getDefaultMCPServerExample();
-      const mergedChannels = hasChannels ? parsedAny.channels : this.getDefaultChannelExample();
+      const mergedChannels = this.shouldAddDefaultChannels(parsedAny) ? this.getDefaultChannelExample() : parsedAny.channels;
 
       const merged = {
         ...DEFAULT_CONFIG,
@@ -131,10 +130,10 @@ export class ConfigManager {
         if (!hasMCPServers) {
           logger.info({}, 'No MCP servers configured, adding default MCP server example');
         }
-        if (!hasChannels) {
+        if (this.shouldAddDefaultChannels(parsedAny)) {
           logger.info({}, 'No channels configured, adding default channel example');
         }
-        if (hasProviders || hasMCPServers || hasChannels) {
+        if (hasProviders || hasMCPServers || !this.shouldAddDefaultChannels(parsedAny)) {
           logger.info({}, 'Successfully merged user config with defaults');
         }
         return mergedResult.data;
@@ -223,6 +222,10 @@ export class ConfigManager {
     return {
       onebot: {
         enabled: false,
+        ws_url: 'ws://127.0.0.1:3001',
+        access_token: '',
+        group_ids: [],
+        private_ids: [],
       },
     };
   }
@@ -484,8 +487,19 @@ export class ConfigManager {
       for (const [channelName, channelConfig] of Object.entries(config.channels)) {
         if (channelConfig && typeof channelConfig === 'object') {
           lines.push(`[channels.${channelName}]`);
+          const fieldComments: Record<string, string> = {
+            enabled: 'Enable this channel',
+            ws_url: 'WebSocket server URL',
+            access_token: 'Access token for authentication',
+            group_ids: 'List of group IDs to listen',
+            private_ids: 'List of private chat IDs to listen',
+          };
           for (const [key, value] of Object.entries(channelConfig)) {
             if (value !== undefined && value !== null) {
+              const comment = fieldComments[key];
+              if (comment) {
+                lines.push(`# ${comment}`);
+              }
               if (typeof value === 'boolean') {
                 lines.push(`${key} = ${value}`);
               } else if (typeof value === 'number') {

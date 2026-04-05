@@ -31,7 +31,7 @@ export const DEFAULT_ROLE_CONFIG: RoleConfig = {
   name: '默认助手',
   description: '通用助手角色',
   system_prompt: '你是一个有帮助的AI助手。',
-  model: 'official/gpt4o',
+  model: 'openai/default',
   allowed_tools: ['*'],
   allowed_skills: [],
   enabled: true,

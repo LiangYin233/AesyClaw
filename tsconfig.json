@@ -4,13 +4,13 @@
     "module": "ES2022",
     "moduleResolution": "Bundler",
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "plugins", "**/*.test.ts"]
+  "include": ["src/**/*", "plugins/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }

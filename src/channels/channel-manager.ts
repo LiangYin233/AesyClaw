@@ -1,4 +1,5 @@
 import type { IChannelPlugin, IChannelWithSend, IOutboundPayload, ChannelPluginLogger, ChannelPluginContext } from './channel-plugin.js';
+import type { ChannelPipeline } from '../agent/core/pipeline.js';
 import { logger } from '../platform/observability/logger.js';
 
 export class ChannelPluginManager {
@@ -6,6 +7,7 @@ export class ChannelPluginManager {
   private channels: Map<string, IChannelPlugin> = new Map();
   private sendFunctions: Map<string, (payload: IOutboundPayload) => Promise<void>> = new Map();
   private pluginLogger: ChannelPluginLogger;
+  private pipeline: ChannelPipeline | null = null;
 
   private constructor() {
     this.pluginLogger = {
@@ -30,6 +32,10 @@ export class ChannelPluginManager {
     }
   }
 
+  setPipeline(pipeline: ChannelPipeline): void {
+    this.pipeline = pipeline;
+  }
+
   async registerChannel(
     plugin: IChannelPlugin,
     config?: Record<string, unknown>,
@@ -45,6 +51,7 @@ export class ChannelPluginManager {
     const ctx: ChannelPluginContext = {
       config: config || {},
       logger: this.pluginLogger,
+      pipeline: this.pipeline!,
     };
 
     try {

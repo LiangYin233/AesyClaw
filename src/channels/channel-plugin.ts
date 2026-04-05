@@ -1,4 +1,5 @@
 import type { IOutboundMessage } from '../agent/core/types.js';
+import type { ChannelPipeline } from '../agent/core/pipeline.js';
 
 export interface IOutboundPayload {
   text: string;
@@ -13,8 +14,9 @@ export interface ChannelPluginLogger {
 }
 
 export interface ChannelPluginContext {
-  config: Record<string, unknown>;
+  config?: Record<string, unknown>;
   logger: ChannelPluginLogger;
+  pipeline: ChannelPipeline;
 }
 
 export interface IChannelPlugin {

@@ -102,7 +102,7 @@ export class ChannelPipeline {
         ctx.outbound.error = processedOutbound.error;
       }
 
-      if (sendFn && ctx.outbound.text) {
+      if (sendFn && ctx.outbound?.text) {
         await sendFn({
           text: ctx.outbound.text,
           mediaFiles: ctx.outbound.mediaFiles,
@@ -111,23 +111,30 @@ export class ChannelPipeline {
       }
 
       const duration = Date.now() - startTime;
+      const outboundText = ctx.outbound?.text ?? '';
+      const outboundLength = outboundText.length;
       logger.info(
-        { traceId, chatId: ctx.inbound.chatId, duration, outboundLength: ctx.outbound.text.length },
+        { traceId, chatId: ctx.inbound.chatId, duration, outboundLength },
         'Message processing completed, returning response'
       );
     } catch (error) {
       const duration = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
       logger.error(
-        { traceId, chatId: ctx.inbound.chatId, duration, error },
+        { traceId, chatId: ctx.inbound.chatId, duration, error: errorMessage, stack: errorStack },
         'Error during message processing'
       );
+      if (!ctx.outbound) {
+        ctx.outbound = { text: '', mediaFiles: [] };
+      }
       ctx.outbound.text = 'Internal system error, please try again later';
-      ctx.outbound.error = error instanceof Error ? error.message : String(error);
+      ctx.outbound.error = errorMessage;
 
-      if (sendFn) {
+      if (sendFn && ctx.outbound?.text) {
         await sendFn({
           text: ctx.outbound.text,
-          mediaFiles: [],
+          mediaFiles: ctx.outbound.mediaFiles ?? [],
         });
       }
     }

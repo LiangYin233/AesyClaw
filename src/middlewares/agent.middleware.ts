@@ -90,18 +90,48 @@ export class AgentMiddleware {
         Object.assign(ctx.state, agentState);
       }
 
-      logger.debug(
+      logger.info(
         {
+          chatId: ctx.inbound.chatId,
           modelIdentifier,
           provider: llmConfig.provider,
           model: llmConfig.model,
-          hasApiKey: !!llmConfig.apiKey,
-          hasBaseUrl: !!llmConfig.baseUrl,
-          capabilities: llmConfig.capabilities,
-          systemPromptLength: systemPrompt.length,
         },
-        'Agent middleware: LLM config resolved'
+        'Agent middleware: Starting agent processing'
       );
+
+      try {
+        const userInput = ctx.inbound.text ?? '';
+        if (!userInput.trim()) {
+          ctx.outbound.text = '';
+          await next();
+          return;
+        }
+
+        const agentManager = AgentManager.getInstance();
+        const agent = agentManager.getOrCreate(ctx.inbound.chatId, {
+          llm: llmConfig,
+          maxSteps: config.agent.max_turns,
+          systemPrompt: systemPrompt,
+          tools: [],
+        });
+
+        const result = await agent.run(userInput);
+
+        if (result.success) {
+          ctx.outbound.text = result.finalText;
+          logger.info({ chatId: ctx.inbound.chatId }, 'Agent processing completed');
+        } else {
+          ctx.outbound.text = `Error: ${result.error}`;
+          ctx.outbound.error = result.error;
+          logger.error({ chatId: ctx.inbound.chatId, error: result.error }, 'Agent processing failed');
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        ctx.outbound.text = `Agent error: ${errorMessage}`;
+        ctx.outbound.error = errorMessage;
+        logger.error({ chatId: ctx.inbound.chatId, error: errorMessage }, 'Agent exception');
+      }
 
       await next();
     };
