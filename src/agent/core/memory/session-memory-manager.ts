@@ -12,6 +12,7 @@ import { MessageTrimmer } from './message-trimmer';
 import { LosslessSummarizer } from './lossless-summarizer';
 import { logger } from '../../../platform/observability/logger';
 import { roleManager, DEFAULT_ROLE_ID } from '../../../features/roles';
+import { systemPromptManager } from '../../../features/roles/system-prompt-manager';
 import { skillManager } from '../../../features/skills';
 
 export class SessionMemoryManager {
@@ -220,16 +221,10 @@ export class SessionMemoryManager {
   }
 
   async rebuildSystemContext(): Promise<void> {
-    const roleConfig = roleManager.getRoleConfig(this.activeRoleId);
-
-    let systemPrompt = roleConfig.system_prompt;
-
-    if (roleConfig.allowed_skills.length > 0) {
-      const skillDescriptions = skillManager.getSkillDescriptionsForRole(roleConfig.allowed_skills);
-      if (skillDescriptions) {
-        systemPrompt += '\n\n## 可用技能 (SOP)\n' + skillDescriptions;
-      }
-    }
+    const systemPrompt = systemPromptManager.buildSystemPrompt({
+      roleId: this.activeRoleId,
+      chatId: this.chatId,
+    });
 
     if (this.messages.length > 0 && this.messages[0].role === MessageRole.System) {
       this.messages[0] = {
@@ -244,7 +239,7 @@ export class SessionMemoryManager {
     }
 
     logger.info(
-      { chatId: this.chatId, roleId: this.activeRoleId, roleName: roleConfig.name },
+      { chatId: this.chatId, roleId: this.activeRoleId },
       '🧠 系统上下文已重建'
     );
   }

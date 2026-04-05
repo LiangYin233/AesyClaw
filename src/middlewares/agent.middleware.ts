@@ -6,6 +6,7 @@ import { LLMProviderType } from '../agent/llm/types.js';
 import { LLMConfig, ModelCapabilities } from '../agent/llm/factory.js';
 import { parseModelIdentifier } from '../platform/utils/model-parser.js';
 import { roleManager } from '../features/roles/role-manager.js';
+import { systemPromptManager } from '../features/roles/system-prompt-manager.js';
 import type { FullConfig, CustomProvider, ModelConfig } from '../features/config/schema.js';
 import { DEFAULT_ROLE_ID } from '../features/roles/types.js';
 
@@ -75,7 +76,11 @@ export class AgentMiddleware {
 
       const defaultRole = roleManager.getRoleConfig(DEFAULT_ROLE_ID);
       const modelIdentifier = defaultRole.model;
-      const systemPrompt = defaultRole.system_prompt;
+      const systemPrompt = systemPromptManager.buildSystemPrompt({
+        roleId: DEFAULT_ROLE_ID,
+        chatId: ctx.inbound.chatId,
+        senderId: ctx.inbound.senderId,
+      });
 
       const llmConfig = resolveLLMConfig(modelIdentifier, config);
 
