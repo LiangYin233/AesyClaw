@@ -112,6 +112,7 @@ export interface IPlugin {
   name: string;
   version: string;
   description?: string;
+  defaultOptions?: Record<string, unknown>;
   init?: (ctx: PluginContext) => Promise<void>;
   hooks?: PluginHooks;
   commands?: CommandDefinition[];

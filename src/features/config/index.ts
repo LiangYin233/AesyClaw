@@ -13,7 +13,6 @@ export {
   MCPServerConfigSchema,
   MCPConfigSchema,
   PluginConfigSchema,
-  PluginsConfigSchema,
   CustomProviderSchema,
   ModelConfigSchema,
   DEFAULT_CONFIG,
@@ -28,5 +27,4 @@ export {
   type MCPServerConfig,
   type MCPConfig,
   type PluginConfig,
-  type PluginsConfig,
 } from './schema.js';

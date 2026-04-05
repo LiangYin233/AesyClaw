@@ -1,3 +1,5 @@
+import * as path from 'path';
+import * as fs from 'fs';
 import { pathResolver } from './platform/utils/paths.js';
 import { sqliteManager } from './platform/db/sqlite-manager.js';
 import { configManager } from './features/config/config-manager.js';
@@ -103,9 +105,7 @@ export class Bootstrap {
         await pluginManager.initialize();
         logger.info({}, 'PluginManager initialized');
         const config = configManager.getConfig();
-        if (config?.plugins?.plugins) {
-          await pluginManager.scanAndLoad(config.plugins.plugins);
-        }
+        await pluginManager.scanAndLoad(config?.plugins || []);
         logger.info({ loadedPlugins: pluginManager.getPluginCount() }, 'Plugins system loaded');
       }
 
@@ -129,12 +129,10 @@ export class Bootstrap {
       if (!options.skipChannels) {
         logger.info({}, '[13/13] Loading channel plugins...');
         const config = configManager.getConfig();
-        if (config?.channels) {
-          await this.loadChannelPlugins(config.channels, this.pipeline);
-        } else {
-          logger.info({}, 'No channels configured, skipping channel plugin loading');
-        }
+        await this.loadChannelPlugins(config?.channels || {}, this.pipeline);
       }
+
+      await configManager.syncAllDefaultConfigs();
 
       this.initialized = true;
       logger.info({}, 'AesyClaw started successfully');
@@ -149,17 +147,36 @@ export class Bootstrap {
   private static async loadChannelPlugins(channels: Record<string, unknown>, pipeline: any): Promise<void> {
     channelManager.setPipeline(pipeline);
 
-    if (channels.onebot) {
-      try {
-        const { onebotPlugin } = await import('../plugins/plugin_channel_onebot/index.js');
-        await channelManager.registerChannel(onebotPlugin, channels.onebot as Record<string, unknown>);
-        logger.info({ channelName: 'onebot' }, 'OneBot channel plugin loaded');
-      } catch (error) {
-        logger.error({ error, channel: 'onebot' }, 'Failed to load OneBot channel plugin');
+    const pluginsDir = path.join(process.cwd(), 'plugins');
+    const entries = fs.readdirSync(pluginsDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name.startsWith('channel_')) {
+        const pluginName = entry.name;
+
+        try {
+          const pluginPath = path.join(pluginsDir, pluginName, 'index.ts');
+          const normalizedPath = this.normalizePath(pluginPath);
+          const { default: channelPlugin } = await import(normalizedPath);
+          const channelName = pluginName.replace('channel_', '');
+          const channelConfig = channels[channelName] as Record<string, unknown> | undefined;
+
+          await channelManager.registerChannel(channelPlugin, channelConfig || {});
+          logger.info({ channelName }, `${channelName} channel plugin loaded`);
+        } catch (error) {
+          logger.error({ error, pluginName }, 'Failed to load channel plugin');
+        }
       }
     }
 
     logger.info({ loadedChannels: channelManager.getChannelCount() }, 'Channel system initialized');
+  }
+
+  private static normalizePath(filePath: string): string {
+    if (filePath.match(/^[a-z]:/i)) {
+      return `file:///${filePath.replace(/\\/g, '/')}`;
+    }
+    return filePath;
   }
 
   static async shutdown(): Promise<void> {

@@ -1,6 +1,5 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { parse as parseToml, stringify as stringifyToml } from 'smol-toml';
 import { RoleConfig, RoleConfigSchema, RoleWithMetadata, RoleMetadata, DEFAULT_ROLE_ID, DEFAULT_ROLE_CONFIG } from './types.js';
 
 export { DEFAULT_ROLE_ID } from './types.js';
@@ -57,16 +56,16 @@ export class RoleManager {
   }
 
   private getRoleFilePath(roleId: string): string {
-    return path.join(this.rolesDir, `${roleId}.toml`);
+    return path.join(this.rolesDir, `${roleId}.json`);
   }
 
   private async loadAllRoles(): Promise<void> {
     try {
       const files = fs.readdirSync(this.rolesDir);
-      const tomlFiles = files.filter(f => f.endsWith('.toml'));
+      const jsonFiles = files.filter(f => f.endsWith('.json'));
 
-      for (const file of tomlFiles) {
-        const roleId = path.basename(file, '.toml');
+      for (const file of jsonFiles) {
+        const roleId = path.basename(file, '.json');
         await this.loadRole(roleId);
       }
 
@@ -75,7 +74,7 @@ export class RoleManager {
           ...DEFAULT_ROLE_CONFIG,
           metadata: {
             id: DEFAULT_ROLE_ID,
-            fileName: `${DEFAULT_ROLE_ID}.toml`,
+            fileName: `${DEFAULT_ROLE_ID}.json`,
             loadedAt: new Date(),
             updatedAt: new Date(),
           },
@@ -99,7 +98,7 @@ export class RoleManager {
 
     try {
       const content = fs.readFileSync(filePath, 'utf-8');
-      const rawConfig = parseToml(content) as Partial<RoleConfig>;
+      const rawConfig = JSON.parse(content) as Partial<RoleConfig>;
 
       const result = RoleConfigSchema.safeParse(rawConfig);
 
@@ -119,7 +118,7 @@ export class RoleManager {
       const stats = fs.statSync(filePath);
       const metadata: RoleMetadata = {
         id: roleId,
-        fileName: `${roleId}.toml`,
+        fileName: `${roleId}.json`,
         loadedAt: new Date(),
         updatedAt: stats.mtime,
       };
@@ -144,8 +143,8 @@ export class RoleManager {
 
     try {
       const watcher = fs.watch(this.rolesDir, { recursive: false }, (eventType, filename) => {
-        if (filename && filename.endsWith('.toml')) {
-          const roleId = path.basename(filename, '.toml');
+        if (filename && filename.endsWith('.json')) {
+          const roleId = path.basename(filename, '.json');
           logger.info({ roleId, eventType }, 'Role file changed, reloading...');
 
           this.loadRole(roleId).then(role => {
@@ -177,7 +176,7 @@ export class RoleManager {
     const filePath = this.getRoleFilePath(roleId);
 
     try {
-      const content = stringifyToml(config as Record<string, unknown>);
+      const content = JSON.stringify(config, null, 2);
       fs.writeFileSync(filePath, content, 'utf-8');
       logger.debug({ roleId }, 'Role file saved');
     } catch (error) {

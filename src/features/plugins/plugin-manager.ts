@@ -130,7 +130,8 @@ export class PluginManager {
     options: Record<string, unknown>
   ): Promise<void> {
     try {
-      const pluginModule = await import(pluginPath);
+      const normalizedPath = this.normalizePath(pluginPath);
+      const pluginModule = await import(normalizedPath);
       const plugin = pluginModule.default || pluginModule;
 
       if (!plugin || !plugin.name) {
@@ -140,8 +141,17 @@ export class PluginManager {
 
       await this.initializePlugin(plugin, options);
     } catch (error) {
-      logger.error({ pluginPath, error }, 'Failed to dynamically import plugin');
+      logger.error({ pluginPath, error: String(error) }, 'Failed to dynamically import plugin');
+      logger.info({ pluginName, pluginPath }, 'Trying to load as TypeScript source...');
+      await this.loadPluginFromSource(pluginName, pluginPath.replace('.js', '.ts'), options);
     }
+  }
+
+  private normalizePath(filePath: string): string {
+    if (filePath.match(/^[a-z]:/i)) {
+      return `file:///${filePath.replace(/\\/g, '/')}`;
+    }
+    return filePath;
   }
 
   private async loadPluginFromSource(
@@ -150,7 +160,8 @@ export class PluginManager {
     options: Record<string, unknown>
   ): Promise<void> {
     try {
-      const tsxModule = await import(sourcePath);
+      const normalizedPath = this.normalizePath(sourcePath);
+      const tsxModule = await import(normalizedPath);
       const plugin = tsxModule.default || tsxModule;
 
       if (!plugin || !plugin.name) {
@@ -178,6 +189,15 @@ export class PluginManager {
       'Loading plugin'
     );
 
+    if (plugin.defaultOptions !== undefined) {
+      const normalizedName = plugin.name
+        .replace('channel_', '')
+        .replace('plugin_', '');
+      configManager.registerPluginDefaults(normalizedName, plugin.defaultOptions);
+    }
+
+    const mergedOptions = this.mergePluginOptions(plugin, options);
+
     const context: PluginContext = {
       logger: {
         info: (msg: string, data?: Record<string, unknown>) =>
@@ -189,7 +209,7 @@ export class PluginManager {
         debug: (msg: string, data?: Record<string, unknown>) =>
           logger.debug({ plugin: plugin.name, ...data }, `[${plugin.name}] ${msg}`),
       },
-      config: options,
+      config: mergedOptions,
       toolRegistry: this.toolRegistry,
     };
 
@@ -217,6 +237,33 @@ export class PluginManager {
     } catch (error) {
       logger.error({ pluginName: plugin.name, error }, 'Plugin initialization failed');
     }
+  }
+
+  private mergePluginOptions(
+    plugin: IPlugin,
+    userOptions: Record<string, unknown>
+  ): Record<string, unknown> {
+    const defaultOptions = plugin.defaultOptions || {};
+    const merged = { ...defaultOptions };
+
+    for (const key in userOptions) {
+      if (userOptions.hasOwnProperty(key)) {
+        const userValue = userOptions[key];
+        const defaultValue = defaultOptions[key];
+
+        if (this.isPlainObject(userValue) && this.isPlainObject(defaultValue)) {
+          merged[key] = { ...defaultValue, ...userValue };
+        } else {
+          merged[key] = userValue;
+        }
+      }
+    }
+
+    return merged;
+  }
+
+  private isPlainObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date);
   }
 
   private getPluginHookNames(plugin: IPlugin): string[] {

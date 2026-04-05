@@ -12,7 +12,7 @@ export type ServerConfig = z.infer<typeof ServerConfigSchema>;
 
 export const ModelConfigSchema = z.object({
   modelname: z.string().describe('底层 API 真实识别的模型字符串'),
-  contextWindow: z.number().int().positive().optional().describe('模型最大上下文窗口 token 数'),
+  contextWindow: z.number().int().positive().default(128000).describe('模型最大上下文窗口 token 数'),
   reasoning: z.boolean().default(false).describe('标识该模型是否具备原生思维链能力'),
   vision: z.boolean().default(false).describe('标识该模型是否为多模态，能否处理图片输入'),
 });
@@ -60,14 +60,8 @@ export const PluginConfigSchema = z.object({
 
 export type PluginConfig = z.infer<typeof PluginConfigSchema>;
 
-export const PluginsConfigSchema = z.object({
-  plugins: z.array(PluginConfigSchema).default([]),
-});
-
-export type PluginsConfig = z.infer<typeof PluginsConfigSchema>;
-
 export const AgentConfigSchema = z.object({
-  max_turns: z.number().int().nonnegative().default(50),
+  max_steps: z.number().int().positive().default(100),
 });
 
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
@@ -88,7 +82,7 @@ export const FullConfigSchema = z.object({
   agent: AgentConfigSchema,
   memory: MemoryConfigSchema,
   mcp: MCPConfigSchema.optional(),
-  plugins: PluginsConfigSchema.optional(),
+  plugins: z.array(PluginConfigSchema).optional().default([]),
 });
 
 export type FullConfig = z.infer<typeof FullConfigSchema>;
@@ -108,6 +102,7 @@ export const DEFAULT_CONFIG: FullConfig = {
       models: {
         default: {
           modelname: 'gpt-4o',
+          contextWindow: 128000,
           reasoning: false,
           vision: false,
         },
@@ -116,7 +111,7 @@ export const DEFAULT_CONFIG: FullConfig = {
   },
   channels: {},
   agent: {
-    max_turns: 50,
+    max_steps: 100,
   },
   memory: {
     max_context_tokens: 128000,
@@ -134,7 +129,5 @@ export const DEFAULT_CONFIG: FullConfig = {
       },
     ],
   },
-  plugins: {
-    plugins: [],
-  },
+  plugins: [],
 };

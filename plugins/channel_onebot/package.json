@@ -1,5 +1,5 @@
 {
-  "name": "@aesyclaw/plugin-channel-onebot",
+  "name": "@aesyclaw/channel-onebot",
   "version": "1.0.0",
   "description": "OneBot Channel Plugin for AesyClaw",
   "main": "index.ts",

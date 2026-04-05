@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { ZodError } from 'zod';
-import * as smolToml from 'smol-toml';
 import { FullConfigSchema, DEFAULT_CONFIG, type FullConfig, type ModelConfig } from './schema.js';
 import { logger } from '../../platform/observability/logger.js';
 import { pathResolver } from '../../platform/utils/paths.js';
@@ -15,6 +14,14 @@ export class ConfigManager {
   private selfUpdating: boolean = false;
   private watcher: fs.FSWatcher | null = null;
   private debounceTimer: NodeJS.Timeout | null = null;
+  private pendingPluginDefaults: Map<string, Record<string, unknown>> = new Map();
+  private pendingChannelDefaults: Map<string, Record<string, unknown>> = new Map();
+
+  private normalizePluginName(name: string): string {
+    return name
+      .replace('channel_', '')
+      .replace('plugin_', '');
+  }
 
   private constructor() {
     this.configPath = pathResolver.getConfigFilePath();
@@ -56,7 +63,7 @@ export class ConfigManager {
       const parsed = this.parseConfig(content);
       if (parsed) {
         const originalContent = content.trim();
-        const newContent = this.serializeToTOML(parsed).trim();
+        const newContent = this.serializeToJSON(parsed).trim();
 
         if (originalContent !== newContent) {
           logger.info({}, 'Config was incomplete, added missing fields with defaults');
@@ -75,13 +82,13 @@ export class ConfigManager {
   }
 
   private async saveMergedConfig(config: FullConfig): Promise<void> {
-    const tomlString = this.serializeToTOML(config);
-    await fs.promises.writeFile(this.configPath, tomlString, 'utf-8');
+    const jsonString = this.serializeToJSON(config);
+    await fs.promises.writeFile(this.configPath, jsonString, 'utf-8');
   }
 
   private parseConfig(content: string): FullConfig | null {
     try {
-      const parsed = smolToml.parse(content);
+      const parsed = JSON.parse(content);
       const result = FullConfigSchema.safeParse(parsed);
 
       if (result.success) {
@@ -96,8 +103,8 @@ export class ConfigManager {
         }
 
         if (this.shouldAddDefaultChannels(parsed)) {
-          result.data.channels = this.getDefaultChannelExample();
-          logger.info({}, 'No channels configured, adding default channel example');
+          result.data.channels = {};
+          logger.info({}, 'No channels configured, channels will be loaded from plugins');
         }
 
         return result.data;
@@ -111,7 +118,7 @@ export class ConfigManager {
 
       const mergedProviders = hasProviders ? parsedAny.providers : this.getDefaultProviderExample();
       const mergedMCPServers = hasMCPServers ? parsedAny.mcp.servers : this.getDefaultMCPServerExample();
-      const mergedChannels = this.shouldAddDefaultChannels(parsedAny) ? this.getDefaultChannelExample() : parsedAny.channels;
+      const mergedChannels = this.shouldAddDefaultChannels(parsedAny) ? {} : parsedAny.channels;
 
       const merged = {
         ...DEFAULT_CONFIG,
@@ -217,25 +224,13 @@ export class ConfigManager {
     return !hasChannels;
   }
 
-  private getDefaultChannelExample(): Record<string, any> {
-    return {
-      onebot: {
-        enabled: false,
-        ws_url: 'ws://127.0.0.1:3001',
-        access_token: '',
-        group_ids: [],
-        private_ids: [],
-      },
-    };
-  }
-
   private async writeDefaultConfig(): Promise<void> {
     const defaultConfig = {
       ...DEFAULT_CONFIG,
-      channels: this.getDefaultChannelExample(),
+      channels: {},
     };
-    const tomlString = this.serializeToTOML(defaultConfig);
-    await fs.promises.writeFile(this.configPath, tomlString, 'utf-8');
+    const jsonString = this.serializeToJSON(defaultConfig);
+    await fs.promises.writeFile(this.configPath, jsonString, 'utf-8');
     logger.info({ path: this.configPath }, 'Default config file generated');
   }
 
@@ -317,6 +312,99 @@ export class ConfigManager {
     return this.getConfig().channels;
   }
 
+  async updateChannelConfig(
+    channelName: string,
+    config: Record<string, unknown>
+  ): Promise<boolean> {
+    if (!this.config) {
+      logger.error({}, 'ConfigManager not initialized');
+      return false;
+    }
+
+    try {
+      const channels = this.config.channels || {};
+
+      channels[channelName] = {
+        ...channels[channelName],
+        ...config,
+      };
+
+      return this.updateConfig({
+        channels: channels,
+      });
+    } catch (error) {
+      logger.error({ error, channelName }, 'Failed to update channel config');
+      return false;
+    }
+  }
+
+  registerPluginDefaults(name: string, defaults: Record<string, unknown>): void {
+    this.pendingPluginDefaults.set(name, defaults);
+  }
+
+  registerChannelDefaults(name: string, defaults: Record<string, unknown>): void {
+    this.pendingChannelDefaults.set(name, defaults);
+  }
+
+  async syncAllDefaultConfigs(): Promise<void> {
+    if (!this.config) {
+      logger.error({}, 'ConfigManager not initialized');
+      return;
+    }
+
+    await this.syncPluginDefaults();
+    await this.syncChannelDefaults();
+  }
+
+  private async syncPluginDefaults(): Promise<void> {
+    if (!this.config || this.pendingPluginDefaults.size === 0) {
+      return;
+    }
+
+    const plugins = this.config.plugins || [];
+    let updated = false;
+
+    for (const [name, defaults] of this.pendingPluginDefaults) {
+      const existingConfig = plugins.find(p => {
+        const configName = this.normalizePluginName(p.name);
+        return configName === name || p.name === name;
+      });
+
+      if (!existingConfig || !existingConfig.options || Object.keys(existingConfig.options).length === 0) {
+        logger.info({ pluginName: name, defaults }, 'Adding plugin default options to config');
+        await this.updatePluginConfig(name, true, defaults);
+        updated = true;
+      }
+    }
+
+    if (updated) {
+      this.config = this.getConfig();
+    }
+  }
+
+  private async syncChannelDefaults(): Promise<void> {
+    if (!this.config || this.pendingChannelDefaults.size === 0) {
+      return;
+    }
+
+    const channels = this.config.channels || {};
+    let updated = false;
+
+    for (const [name, defaults] of this.pendingChannelDefaults) {
+      const existingConfig = channels[name];
+
+      if (!existingConfig || Object.keys(existingConfig).length === 0) {
+        logger.info({ channelName: name, defaults }, 'Adding channel default options to config');
+        await this.updateChannelConfig(name, defaults);
+        updated = true;
+      }
+    }
+
+    if (updated) {
+      this.config = this.getConfig();
+    }
+  }
+
   getAgentConfig() {
     return this.getConfig().agent;
   }
@@ -333,34 +421,42 @@ export class ConfigManager {
     return this.getConfig().plugins;
   }
 
-  async updatePluginConfig(name: string, enabled: boolean): Promise<boolean> {
+  async updatePluginConfig(
+    name: string,
+    enabled: boolean,
+    options?: Record<string, unknown>
+  ): Promise<boolean> {
     if (!this.config) {
       logger.error({}, 'ConfigManager not initialized');
       return false;
     }
 
     try {
-      const plugins = this.config.plugins?.plugins || [];
-
-      const normalizedName = name.replace('@aesyclaw/plugin-', '').replace('plugin-', '');
+      const plugins = this.config.plugins || [];
+      const normalizedName = this.normalizePluginName(name);
 
       const existingIndex = plugins.findIndex(p => {
-        const configName = p.name.replace('@aesyclaw/plugin-', '').replace('plugin-', '');
+        const configName = this.normalizePluginName(p.name);
         return configName === normalizedName || p.name === normalizedName;
       });
 
       if (existingIndex >= 0) {
         plugins[existingIndex].enabled = enabled;
+        if (options) {
+          plugins[existingIndex].options = options;
+        }
       } else {
         plugins.push({
           name: normalizedName,
           enabled,
-          options: {},
+          options: options || {},
         });
       }
 
+      this.config.plugins = plugins;
+
       return this.updateConfig({
-        plugins: { plugins },
+        plugins: plugins,
       });
     } catch (error) {
       logger.error({ error, name, enabled }, 'Failed to update plugin config');
@@ -421,7 +517,7 @@ export class ConfigManager {
       result.mcp = updates.mcp ? { ...current.mcp, ...updates.mcp } : current.mcp;
     }
     if (updates.plugins !== undefined) {
-      result.plugins = updates.plugins ? { ...current.plugins, ...updates.plugins } : current.plugins;
+      result.plugins = updates.plugins || current.plugins;
     }
     
     return result;
@@ -432,8 +528,8 @@ export class ConfigManager {
 
     this.selfUpdating = true;
     try {
-      const tomlString = this.serializeToTOML(this.config);
-      fs.writeFileSync(this.configPath, tomlString, 'utf-8');
+      const jsonString = this.serializeToJSON(this.config);
+      fs.writeFileSync(this.configPath, jsonString, 'utf-8');
       logger.info({ path: this.configPath }, 'Configuration updated and saved to disk');
     } catch (error) {
       logger.error({ error }, 'Failed to save config to disk');
@@ -444,134 +540,8 @@ export class ConfigManager {
     }
   }
 
-  private serializeToTOML(config: FullConfig): string {
-    const lines: string[] = [
-      '# AesyClaw Configuration File',
-      '# Auto-generated defaults for missing values',
-      '',
-    ];
-
-    lines.push('[server]');
-    lines.push(`port = ${config.server.port}`);
-    lines.push(`host = "${config.server.host}"`);
-    lines.push(`log_level = "${config.server.logLevel}"`);
-    lines.push(`admin_token = "${config.server.adminToken}"`);
-    lines.push('');
-
-    const providerEntries = Object.entries(config.providers || {});
-    if (providerEntries.length > 0) {
-      lines.push('[providers]');
-      for (const [name, provider] of providerEntries) {
-        if (provider) {
-          lines.push(`[providers.${name}]`);
-          lines.push(`type = "${provider.type}"`);
-          if (provider.api_key) lines.push(`api_key = "${provider.api_key}"`);
-          if (provider.base_url) lines.push(`base_url = "${provider.base_url}"`);
-
-          if (provider.models && Object.keys(provider.models).length > 0) {
-            for (const [modelName, modelConfig] of Object.entries(provider.models)) {
-              lines.push(`[providers.${name}.models.${modelName}]`);
-              lines.push(`modelname = "${modelConfig.modelname}"`);
-              if (modelConfig.contextWindow) {
-                lines.push(`contextWindow = ${modelConfig.contextWindow}`);
-              }
-              lines.push(`reasoning = ${modelConfig.reasoning}`);
-              lines.push(`vision = ${modelConfig.vision}`);
-            }
-          }
-          lines.push('');
-        }
-      }
-    }
-
-    if (config.channels && Object.keys(config.channels).length > 0) {
-      for (const [channelName, channelConfig] of Object.entries(config.channels)) {
-        if (channelConfig && typeof channelConfig === 'object') {
-          lines.push(`[channels.${channelName}]`);
-          const fieldComments: Record<string, string> = {
-            enabled: 'Enable this channel',
-            ws_url: 'WebSocket server URL',
-            access_token: 'Access token for authentication',
-            group_ids: 'List of group IDs to listen',
-            private_ids: 'List of private chat IDs to listen',
-          };
-          for (const [key, value] of Object.entries(channelConfig)) {
-            if (value !== undefined && value !== null) {
-              const comment = fieldComments[key];
-              if (comment) {
-                lines.push(`# ${comment}`);
-              }
-              if (typeof value === 'boolean') {
-                lines.push(`${key} = ${value}`);
-              } else if (typeof value === 'number') {
-                lines.push(`${key} = ${value}`);
-              } else if (typeof value === 'string') {
-                lines.push(`${key} = "${value}"`);
-              } else if (Array.isArray(value)) {
-                lines.push(`${key} = ${JSON.stringify(value)}`);
-              } else if (typeof value === 'object') {
-                lines.push(`${key} = ${JSON.stringify(value)}`);
-              }
-            }
-          }
-          lines.push('');
-        }
-      }
-    }
-
-    lines.push('[agent]');
-    lines.push(`max_turns = ${config.agent.max_turns}`);
-    lines.push('');
-
-    lines.push('[memory]');
-    lines.push(`max_context_tokens = ${config.memory.max_context_tokens}`);
-    lines.push(`compression_threshold = ${config.memory.compression_threshold}`);
-    if (config.memory.compression_provider) {
-      lines.push(`compression_provider = "${config.memory.compression_provider}"`);
-    }
-    if (config.memory.compression_model) {
-      lines.push(`compression_model = "${config.memory.compression_model}"`);
-    }
-    lines.push('');
-
-    if (config.mcp?.servers && config.mcp.servers.length > 0) {
-      for (const server of config.mcp.servers) {
-        lines.push('[[mcp.servers]]');
-        lines.push(`name = "${server.name}"`);
-        lines.push(`command = "${server.command}"`);
-        if (server.args && server.args.length > 0) {
-          lines.push(`args = ${JSON.stringify(server.args)}`);
-        }
-        if (server.env) {
-          const envEntries = Object.entries(server.env).map(([k, v]) => `${k} = "${v}"`).join(', ');
-          lines.push(`env = { ${envEntries} }`);
-        }
-        lines.push(`enabled = ${server.enabled}`);
-        lines.push('');
-      }
-    }
-
-    if (config.plugins?.plugins && config.plugins.plugins.length > 0) {
-      lines.push('[plugins]');
-      lines.push('plugins = [');
-      for (const plugin of config.plugins.plugins) {
-        lines.push('  {');
-        lines.push(`    name = "${plugin.name}"`);
-        lines.push(`    enabled = ${plugin.enabled}`);
-        if (plugin.options) {
-          const optionsEntries = Object.entries(plugin.options).map(([k, v]) => `${k} = ${JSON.stringify(v)}`).join(', ');
-          lines.push(`    options = { ${optionsEntries} }`);
-        }
-        lines.push('  },');
-      }
-      lines.push(']');
-    }
-
-    return lines.join('\n');
-  }
-
-  private escapeString(str: string): string {
-    return str.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
+  private serializeToJSON(config: FullConfig): string {
+    return JSON.stringify(config, null, 2);
   }
 
   isInitialized(): boolean {

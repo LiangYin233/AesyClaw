@@ -1,0 +1,7 @@
+{
+  "name": "plugin_exec",
+  "version": "1.0.0",
+  "description": "Shell command execution tool",
+  "main": "index.ts",
+  "type": "module"
+}

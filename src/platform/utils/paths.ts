@@ -5,7 +5,7 @@ import { logger } from '../observability/logger.js';
 const AESYCCLAW_DIR = '.aesyclaw';
 const DEFAULT_DATA_DIR = 'data';
 const DEFAULT_LOG_DIR = 'logs';
-const DEFAULT_CONFIG_FILE = 'config.toml';
+const DEFAULT_CONFIG_FILE = 'config.json';
 const DEFAULT_DATA_FILE = 'aesyclaw.db';
 const DEFAULT_LOG_FILE = 'aesyclaw.log';
 const DEFAULT_SYSTEM_SKILLS_DIR = 'skills';

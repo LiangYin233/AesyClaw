@@ -23,6 +23,7 @@ export interface IChannelPlugin {
   name: string;
   version: string;
   description?: string;
+  defaultOptions?: Record<string, unknown>;
   init(ctx: ChannelPluginContext): Promise<void>;
   destroy(): Promise<void>;
 }

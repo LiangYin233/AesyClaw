@@ -112,6 +112,14 @@ export const onebotPlugin: IChannelPlugin & IChannelWithSend = {
   version: '1.0.0',
   description: 'OneBot Channel Plugin - 支持 OneBot v11/v12 协议',
 
+  defaultOptions: {
+    enabled: false,
+    ws_url: 'ws://127.0.0.1:3001',
+    access_token: '',
+    group_ids: [],
+    private_ids: [],
+  },
+
   async init(ctx: ChannelPluginContext): Promise<void> {
     const rawConfig = ctx.config as Record<string, unknown>;
     const validatedConfig = OneBotChannelConfigSchema.parse(rawConfig);
