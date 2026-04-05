@@ -1,4 +1,4 @@
-import { StandardMessage } from '../../llm/types';
+import { LLMProviderType, StandardMessage } from '../../llm/types';
 
 export enum CompressionPhase {
   Idle = 'idle',
@@ -12,8 +12,8 @@ export enum CompressionPhase {
 export interface MemoryConfig {
   maxContextTokens: number;
   compressionThreshold: number;
-  summarizerModel?: string;
-  summarizerApiKey?: string;
+  compressionProvider: string;
+  compressionModel: string;
 }
 
 export interface TokenBudget {
@@ -71,7 +71,8 @@ export interface MemoryEvent {
 export const DEFAULT_MEMORY_CONFIG: MemoryConfig = {
   maxContextTokens: 128000,
   compressionThreshold: 0.75,
-  summarizerModel: 'claude-3-haiku-20240307',
+  compressionProvider: 'openai',
+  compressionModel: 'qwen3.5-plus',
 };
 
 export function createMemoryConfig(partial?: Partial<MemoryConfig>): MemoryConfig {

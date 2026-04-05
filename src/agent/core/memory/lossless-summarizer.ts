@@ -1,6 +1,8 @@
-import { StandardMessage, MessageRole } from '../../llm/types';
+import { StandardMessage, MessageRole, LLMProviderType } from '../../llm/types';
 import { MessageZone, CompressionResult, MemoryConfig } from './types';
 import { TokenBudgetCalculator } from './token-budget-calculator';
+import { LLMProviderFactory } from '../../llm/factory';
+import { configManager } from '../../../features/config/config-manager';
 import { logger } from '../../../platform/observability/logger';
 
 export class LosslessSummarizer {
@@ -87,6 +89,8 @@ export class LosslessSummarizer {
       { 
         compressibleCount: compressibleMessages.length,
         originalTokens,
+        provider: this.config.compressionProvider,
+        model: this.config.compressionModel,
       },
       '🔄 开始 LLM 驱动的无损压缩'
     );
@@ -160,36 +164,60 @@ ${conversationText}
   }
 
   private async callSummarizerModel(prompt: string): Promise<string> {
-    if (!this.config.summarizerApiKey) {
-      logger.warn('缺少 summarizerApiKey，使用备用摘要方案');
-      throw new Error('No API key configured');
+    const providerName = this.config.compressionProvider;
+    const modelName = this.config.compressionModel;
+
+    if (!configManager.isInitialized()) {
+      throw new Error('ConfigManager not initialized');
     }
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': this.config.summarizerApiKey,
-        'anthropic-version': '2023-06-01',
+    const config = configManager.getConfig();
+    const provider = config.providers?.[providerName as string];
+
+    if (!provider) {
+      throw new Error(`Compression provider "${providerName}" not found in config`);
+    }
+
+    const modelConfig = provider.models?.default;
+
+    if (!modelConfig) {
+      throw new Error(`Model config not found for provider "${providerName}"`);
+    }
+
+    const llmProviderType = this.mapProviderType(provider.type);
+
+    const factory = LLMProviderFactory.getInstance();
+    
+    const llmConfig = {
+      provider: llmProviderType,
+      model: modelConfig.modelname,
+      apiKey: provider.api_key,
+      baseUrl: provider.base_url,
+    };
+
+    const adapter = factory.createAdapter(llmConfig);
+
+    const response = await adapter.generate([
+      {
+        role: MessageRole.User,
+        content: prompt,
       },
-      body: JSON.stringify({
-        model: this.config.summarizerModel || 'claude-3-haiku-20240307',
-        max_tokens: 1024,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-      }),
-    });
+    ], undefined);
 
-    if (!response.ok) {
-      throw new Error(`API 请求失败: ${response.status}`);
+    return response.text;
+  }
+
+  private mapProviderType(type: string): LLMProviderType {
+    switch (type) {
+      case 'openai_chat':
+        return LLMProviderType.OpenAIChat;
+      case 'openai_completion':
+        return LLMProviderType.OpenAICompletion;
+      case 'anthropic':
+        return LLMProviderType.Anthropic;
+      default:
+        return LLMProviderType.OpenAIChat;
     }
-
-    const data = await response.json();
-    return data.content?.[0]?.text || '摘要生成失败';
   }
 
   private fallbackSummary(messages: StandardMessage[]): string {

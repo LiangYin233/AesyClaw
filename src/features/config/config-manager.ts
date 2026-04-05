@@ -526,6 +526,12 @@ export class ConfigManager {
     lines.push('[memory]');
     lines.push(`max_context_tokens = ${config.memory.max_context_tokens}`);
     lines.push(`compression_threshold = ${config.memory.compression_threshold}`);
+    if (config.memory.compression_provider) {
+      lines.push(`compression_provider = "${config.memory.compression_provider}"`);
+    }
+    if (config.memory.compression_model) {
+      lines.push(`compression_model = "${config.memory.compression_model}"`);
+    }
     lines.push('');
 
     if (config.mcp?.servers && config.mcp.servers.length > 0) {

@@ -104,6 +104,8 @@ export class SessionRegistry {
         return {
           maxContextTokens: config.memory.max_context_tokens,
           compressionThreshold: config.memory.compression_threshold,
+          compressionProvider: config.memory.compression_provider || 'openai',
+           compressionModel: config.memory.compression_model || 'qwen3.5-plus',
         };
       }
     } catch (error) {
@@ -113,6 +115,8 @@ export class SessionRegistry {
     return {
       maxContextTokens: 128000,
       compressionThreshold: 0.75,
+      compressionProvider: 'openai',
+      compressionModel: 'qwen3.5-plus',
     };
   }
 
