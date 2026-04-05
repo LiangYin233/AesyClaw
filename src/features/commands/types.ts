@@ -9,6 +9,8 @@ export interface CommandDefinition {
 
 export interface CommandContext {
   chatId: string;
+  channelId: string;
+  messageType: string;
   args: string[];
   rawArgs: string;
   traceId: string;

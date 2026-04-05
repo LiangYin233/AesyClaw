@@ -185,12 +185,28 @@ export const systemCommands: CommandDefinition[] = [
         }
 
         case 'clear': {
-          const sessionId = SessionId.fromUnifiedMessage({
-            channelId: 'unknown',
-            chatId: ctx.chatId,
-            text: '',
-          });
-          const session = sessionRegistry.getSession(sessionId);
+          const existingSessionId = sessionRegistry.getSessionIdByChatId(
+            ctx.channelId,
+            ctx.messageType,
+            ctx.chatId
+          );
+          
+          if (!existingSessionId) {
+            const sessions = sessionRegistry.getSessionsByChatId(ctx.chatId);
+            if (sessions.length === 0) {
+              return {
+                success: false,
+                message: '会话不存在',
+              };
+            }
+            sessions[0].memory.clear();
+            return {
+              success: true,
+              message: '会话历史已清除',
+            };
+          }
+          
+          const session = sessionRegistry.getSession(existingSessionId);
           if (session) {
             session.memory.clear();
             return {
@@ -319,12 +335,20 @@ export const systemCommands: CommandDefinition[] = [
 
           logger.info({ targetRoleId, chatId: ctx.chatId }, '正在切换角色');
 
-          const sessionId = SessionId.fromUnifiedMessage({
-            channelId: 'unknown',
-            chatId: ctx.chatId,
-            text: '',
-          });
-          const session = sessionRegistry.getSession(sessionId);
+          const existingSessionId = sessionRegistry.getSessionIdByChatId(
+            ctx.channelId,
+            ctx.messageType,
+            ctx.chatId
+          );
+          
+          let session;
+          if (existingSessionId) {
+            session = sessionRegistry.getSession(existingSessionId);
+          } else {
+            const sessions = sessionRegistry.getSessionsByChatId(ctx.chatId);
+            session = sessions.length > 0 ? sessions[0] : null;
+          }
+          
           if (!session) {
             return {
               success: false,
@@ -348,12 +372,20 @@ export const systemCommands: CommandDefinition[] = [
         }
 
         case 'current': {
-          const sessionId = SessionId.fromUnifiedMessage({
-            channelId: 'unknown',
-            chatId: ctx.chatId,
-            text: '',
-          });
-          const session = sessionRegistry.getSession(sessionId);
+          const existingSessionId = sessionRegistry.getSessionIdByChatId(
+            ctx.channelId,
+            ctx.messageType,
+            ctx.chatId
+          );
+          
+          let session;
+          if (existingSessionId) {
+            session = sessionRegistry.getSession(existingSessionId);
+          } else {
+            const sessions = sessionRegistry.getSessionsByChatId(ctx.chatId);
+            session = sessions.length > 0 ? sessions[0] : null;
+          }
+          
           if (!session) {
             return {
               success: false,

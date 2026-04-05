@@ -42,6 +42,8 @@ export const commandMiddleware: MiddlewareFunc = async (
   try {
     const result = await command.execute({
       chatId: ctx.inbound.chatId,
+      channelId: ctx.inbound.channelId,
+      messageType: (ctx.inbound.metadata?.type as string) || 'default',
       args: parsed.args,
       rawArgs: parsed.rawArgs,
       traceId: ctx.traceId,
