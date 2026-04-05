@@ -22,7 +22,6 @@ export class OpenAICompletionAdapter implements ILLMProvider {
 
   private client: OpenAI;
   private model: string;
-  private maxTokens: number;
 
   constructor(config: LLMProviderConfig) {
     const apiKey = config.apiKey;
@@ -37,10 +36,9 @@ export class OpenAICompletionAdapter implements ILLMProvider {
     });
 
     this.model = config.model || 'gpt-3.5-turbo-instruct';
-    this.maxTokens = config.maxTokens || 2048;
 
     logger.info(
-      { provider: this.providerType, model: this.model, maxTokens: this.maxTokens },
+      { provider: this.providerType, model: this.model },
       '🤖 OpenAI Completion Adapter 已初始化'
     );
   }
@@ -64,7 +62,6 @@ export class OpenAICompletionAdapter implements ILLMProvider {
       const response = await this.client.completions.create({
         model: this.model,
         prompt,
-        max_tokens: this.maxTokens,
         stop: ['</tool_call>', '\n\n\n'],
       });
 

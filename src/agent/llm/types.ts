@@ -60,7 +60,6 @@ export interface LLMProviderConfig {
   model?: string;
   apiKey?: string;
   baseUrl?: string;
-  maxTokens?: number;
   timeout?: number;
 }
 

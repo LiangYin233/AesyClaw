@@ -193,7 +193,6 @@ export class ConfigManager {
         models: {
           default: {
             modelname: 'gpt-4o',
-            maxToken: 4096,
             reasoning: false,
             vision: false,
           },
@@ -473,7 +472,9 @@ export class ConfigManager {
             for (const [modelName, modelConfig] of Object.entries(provider.models)) {
               lines.push(`[providers.${name}.models.${modelName}]`);
               lines.push(`modelname = "${modelConfig.modelname}"`);
-              lines.push(`maxToken = ${modelConfig.maxToken}`);
+              if (modelConfig.contextWindow) {
+                lines.push(`contextWindow = ${modelConfig.contextWindow}`);
+              }
               lines.push(`reasoning = ${modelConfig.reasoning}`);
               lines.push(`vision = ${modelConfig.vision}`);
             }
@@ -525,7 +526,6 @@ export class ConfigManager {
     lines.push('[memory]');
     lines.push(`max_context_tokens = ${config.memory.max_context_tokens}`);
     lines.push(`compression_threshold = ${config.memory.compression_threshold}`);
-    lines.push(`danger_threshold = ${config.memory.danger_threshold}`);
     lines.push('');
 
     if (config.mcp?.servers && config.mcp.servers.length > 0) {

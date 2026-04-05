@@ -15,8 +15,22 @@ export class SessionMiddleware {
   getMiddleware(): MiddlewareFunc {
     return async (ctx: IChannelContext, next: () => Promise<void>) => {
       try {
-        const sessionId = SessionId.fromUnifiedMessage(ctx.inbound);
-        const components = SessionId.parse(sessionId);
+        const channel = ctx.inbound.channelId;
+        const type = (ctx.inbound.metadata?.type as string) || 'default';
+        const chatId = ctx.inbound.chatId;
+
+        const existingSessionId = sessionRegistry.getSessionIdByChatId(channel, type, chatId);
+        let sessionId: string;
+        let components: { channel: string; type: string; chatId: string; session: string };
+
+        if (existingSessionId) {
+          sessionId = existingSessionId;
+          components = SessionId.parse(sessionId);
+          logger.debug({ sessionId, channel, type, chatId }, '♻️ 复用已有会话');
+        } else {
+          sessionId = SessionId.fromUnifiedMessage(ctx.inbound);
+          components = SessionId.parse(sessionId);
+        }
 
         const sessionContext = sessionRegistry.getOrCreate(sessionId, {
           channel: components.channel,

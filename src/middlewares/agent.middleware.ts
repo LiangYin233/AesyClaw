@@ -57,7 +57,6 @@ export function resolveLLMConfig(modelIdentifier: string, config: FullConfig): L
     model: modelConfig.modelname,
     apiKey: providerDetails.api_key,
     baseUrl: providerDetails.base_url,
-    maxTokens: modelConfig.maxToken,
     capabilities,
   };
 }

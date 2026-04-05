@@ -18,6 +18,7 @@ import { AgentEngine } from '../engine.js';
 export class SessionRegistry {
   private static instance: SessionRegistry;
   private sessions: Map<string, SessionContext> = new Map();
+  private chatToSession: Map<string, string> = new Map();
   private config: SessionConfig;
   private cleanupTimer: NodeJS.Timeout | null = null;
 
@@ -63,7 +64,6 @@ export class SessionRegistry {
           model: modelConfig.modelname,
           apiKey: providerDetails.api_key,
           baseUrl: providerDetails.base_url,
-          maxTokens: modelConfig.maxToken,
         };
       }
     } catch (error) {
@@ -104,7 +104,6 @@ export class SessionRegistry {
         return {
           maxContextTokens: config.memory.max_context_tokens,
           compressionThreshold: config.memory.compression_threshold,
-          dangerThreshold: config.memory.danger_threshold,
         };
       }
     } catch (error) {
@@ -113,8 +112,7 @@ export class SessionRegistry {
 
     return {
       maxContextTokens: 128000,
-      compressionThreshold: 80000,
-      dangerThreshold: 30000,
+      compressionThreshold: 0.75,
     };
   }
 
@@ -147,9 +145,14 @@ export class SessionRegistry {
     };
 
     this.sessions.set(sessionId, context);
+    this.chatToSession.set(`${options.channel}:${options.type}:${options.chatId}`, sessionId);
     this.enforceMaxSessions(options.chatId);
 
     return context;
+  }
+
+  getSessionIdByChatId(channel: string, type: string, chatId: string): string | null {
+    return this.chatToSession.get(`${channel}:${type}:${chatId}`) || null;
   }
 
   private createMemory(sessionId: string, options: SessionOptions) {
@@ -201,6 +204,8 @@ export class SessionRegistry {
   removeSession(sessionId: string): boolean {
     const session = this.sessions.get(sessionId);
     if (session) {
+      const key = `${session.metadata.channel}:${session.metadata.type}:${session.metadata.chatId}`;
+      this.chatToSession.delete(key);
       session.memory.clear();
       this.sessions.delete(sessionId);
       logger.info({ sessionId }, '✅ 会话已删除');

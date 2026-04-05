@@ -26,7 +26,6 @@ export interface LLMConfig {
   model?: string;
   apiKey?: string;
   baseUrl?: string;
-  maxTokens?: number;
   timeout?: number;
   capabilities?: ModelCapabilities;
 }
@@ -63,7 +62,6 @@ export class LLMProviderFactory {
           model: config.model,
           apiKey: config.apiKey,
           baseUrl: config.baseUrl,
-          maxTokens: config.maxTokens,
           timeout: config.timeout,
         });
         break;
@@ -74,7 +72,6 @@ export class LLMProviderFactory {
           model: config.model,
           apiKey: config.apiKey,
           baseUrl: config.baseUrl,
-          maxTokens: config.maxTokens,
           timeout: config.timeout,
         });
         break;
@@ -85,7 +82,6 @@ export class LLMProviderFactory {
           model: config.model,
           apiKey: config.apiKey,
           baseUrl: config.baseUrl,
-          maxTokens: config.maxTokens,
           timeout: config.timeout,
         });
         break;

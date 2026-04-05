@@ -18,13 +18,14 @@ export class MessageTrimmer {
   checkAndTrim(message: StandardMessage | string): { message: StandardMessage | string; result?: TruncationResult } {
     const content = typeof message === 'string' ? message : message.content;
     const tokens = this.calculator.calculateSingleMessage(content);
+    const compressionThresholdTokens = this.config.maxContextTokens * this.config.compressionThreshold;
 
-    if (tokens < this.config.dangerThreshold) {
+    if (tokens < compressionThresholdTokens) {
       return { message };
     }
 
     const result = this.trimMessage(content, tokens);
-    
+
     if (typeof message === 'string') {
       return { message: result.preservedHead + result.warningMessage + result.preservedTail, result };
     }
@@ -38,8 +39,9 @@ export class MessageTrimmer {
   trimMessage(content: string, tokens?: number): TruncationResult {
     const originalLength = content.length;
     const estimatedTokens = tokens || this.calculator.calculateSingleMessage(content);
+    const compressionThresholdTokens = this.config.maxContextTokens * this.config.compressionThreshold;
 
-    if (estimatedTokens < this.config.dangerThreshold) {
+    if (estimatedTokens < compressionThresholdTokens) {
       return {
         originalLength,
         truncatedLength: originalLength,

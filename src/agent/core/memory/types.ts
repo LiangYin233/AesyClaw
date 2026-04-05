@@ -12,7 +12,6 @@ export enum CompressionPhase {
 export interface MemoryConfig {
   maxContextTokens: number;
   compressionThreshold: number;
-  dangerThreshold: number;
   summarizerModel?: string;
   summarizerApiKey?: string;
 }
@@ -71,8 +70,7 @@ export interface MemoryEvent {
 
 export const DEFAULT_MEMORY_CONFIG: MemoryConfig = {
   maxContextTokens: 128000,
-  compressionThreshold: 80000,
-  dangerThreshold: 30000,
+  compressionThreshold: 0.75,
   summarizerModel: 'claude-3-haiku-20240307',
 };
 

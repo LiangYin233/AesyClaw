@@ -12,7 +12,7 @@ export type ServerConfig = z.infer<typeof ServerConfigSchema>;
 
 export const ModelConfigSchema = z.object({
   modelname: z.string().describe('底层 API 真实识别的模型字符串'),
-  maxToken: z.number().int().positive().describe('该模型允许的最大输出长度'),
+  contextWindow: z.number().int().positive().optional().describe('模型最大上下文窗口 token 数'),
   reasoning: z.boolean().default(false).describe('标识该模型是否具备原生思维链能力'),
   vision: z.boolean().default(false).describe('标识该模型是否为多模态，能否处理图片输入'),
 });
@@ -74,8 +74,7 @@ export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 
 export const MemoryConfigSchema = z.object({
   max_context_tokens: z.number().int().positive().default(128000),
-  compression_threshold: z.number().int().positive().default(80000),
-  danger_threshold: z.number().int().positive().default(30000),
+  compression_threshold: z.number().min(0).max(1).default(0.75).describe('触发压缩的上下文占比阈值 (0.0-1.0)'),
 });
 
 export type MemoryConfig = z.infer<typeof MemoryConfigSchema>;
@@ -107,7 +106,6 @@ export const DEFAULT_CONFIG: FullConfig = {
       models: {
         default: {
           modelname: 'gpt-4o',
-          maxToken: 4096,
           reasoning: false,
           vision: false,
         },
@@ -120,8 +118,7 @@ export const DEFAULT_CONFIG: FullConfig = {
   },
   memory: {
     max_context_tokens: 128000,
-    compression_threshold: 80000,
-    danger_threshold: 30000,
+    compression_threshold: 0.75,
   },
   mcp: {
     servers: [

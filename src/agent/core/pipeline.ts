@@ -28,7 +28,7 @@ export class ChannelPipeline {
       'Received inbound message, dispatching to middleware chain'
     );
 
-    const processedMessage = await pluginManager.dispatchMessageReceive({
+    const hookResult = await pluginManager.dispatchMessageReceive({
       message: {
         channelId: message.channelId,
         chatId: message.chatId,
@@ -38,7 +38,7 @@ export class ChannelPipeline {
       },
     });
 
-    if (!processedMessage) {
+    if (!hookResult) {
       logger.info(
         { traceId, chatId: message.chatId },
         'Message blocked by plugin, skipping further processing'
@@ -54,7 +54,7 @@ export class ChannelPipeline {
 
     const ctx: IChannelContext = {
       traceId,
-      inbound: processedMessage,
+      inbound: hookResult as typeof message,
       outbound: {
         text: '',
         mediaFiles: [],

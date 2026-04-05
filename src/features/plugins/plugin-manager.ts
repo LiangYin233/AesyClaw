@@ -268,7 +268,10 @@ export class PluginManager {
   async dispatchMessageReceive(
     payload: HookPayloadMessageReceive
   ): Promise<HookPayloadMessageReceive['message'] | null> {
-    return this.dispatchHook('onMessageReceive', payload);
+    const result = await this.dispatchHook('onMessageReceive', payload) as HookPayloadMessageReceive | HookPayloadMessageReceive['message'] | null;
+    if (!result) return null;
+    if ('message' in result) return result.message;
+    return result;
   }
 
   async dispatchBeforeLLMRequest(
@@ -292,7 +295,10 @@ export class PluginManager {
   async dispatchMessageSend(
     payload: HookPayloadMessageSend
   ): Promise<HookPayloadMessageSend['message'] | null> {
-    return this.dispatchHook('onMessageSend', payload);
+    const result = await this.dispatchHook('onMessageSend', payload) as HookPayloadMessageSend | HookPayloadMessageSend['message'] | null;
+    if (!result) return null;
+    if ('message' in result) return result.message;
+    return result;
   }
 
   async unloadPlugin(pluginName: string): Promise<void> {

@@ -16,7 +16,8 @@ export class TokenBudgetCalculator {
   calculate(messages: StandardMessage[]): TokenBudget {
     const totalTokens = this.calculateTotalTokens(messages);
     const usagePercentage = (totalTokens / this.config.maxContextTokens) * 100;
-    const needsCompression = totalTokens >= this.config.compressionThreshold;
+    const compressionThresholdTokens = this.config.maxContextTokens * this.config.compressionThreshold;
+    const needsCompression = totalTokens >= compressionThresholdTokens;
 
     return {
       currentTokens: totalTokens,
@@ -92,13 +93,9 @@ export class TokenBudgetCalculator {
     return Math.ceil(total);
   }
 
-  isDangerous(message: StandardMessage | string): boolean {
-    const tokens = this.calculateSingleMessage(message);
-    return tokens >= this.config.dangerThreshold;
-  }
-
   needsCompression(tokens: number): boolean {
-    return tokens >= this.config.compressionThreshold;
+    const compressionThresholdTokens = this.config.maxContextTokens * this.config.compressionThreshold;
+    return tokens >= compressionThresholdTokens;
   }
 
   clearCache(): void {

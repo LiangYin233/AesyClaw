@@ -20,7 +20,6 @@ export class OpenAIChatAdapter implements ILLMProvider {
 
   private client: OpenAI;
   private model: string;
-  private maxTokens: number;
 
   constructor(config: LLMProviderConfig) {
     const apiKey = config.apiKey;
@@ -35,10 +34,9 @@ export class OpenAIChatAdapter implements ILLMProvider {
     });
 
     this.model = config.model || 'gpt-4o-mini';
-    this.maxTokens = config.maxTokens || 4096;
 
     logger.info(
-      { provider: this.providerType, model: this.model, maxTokens: this.maxTokens },
+      { provider: this.providerType, model: this.model },
       '🤖 OpenAI Chat Adapter 已初始化'
     );
   }
@@ -76,7 +74,6 @@ export class OpenAIChatAdapter implements ILLMProvider {
         messages: openAIMessages,
         tools: openAITools,
         tool_choice: openAITools && openAITools.length > 0 ? 'auto' : undefined,
-        max_tokens: this.maxTokens,
       });
 
       const choice = response.choices[0];

@@ -263,11 +263,12 @@ function handleGroupMessage(event: OneBotMessage): void {
   const media = extractMedia(event.message);
 
   const unifiedMsg: IUnifiedMessage = {
-    channelId: onebotPlugin.name,
+    channelId: 'onebot',
     chatId: groupIdStr,
     text: rawMessage,
     timestamp: event.time,
     metadata: {
+      type: 'group',
       raw: event,
       media,
       sender: event.sender,
@@ -299,11 +300,12 @@ function handlePrivateMessage(event: OneBotMessage): void {
   const rawMessage = extractRawMessage(event.message);
 
   const unifiedMsg: IUnifiedMessage = {
-    channelId: onebotPlugin.name,
+    channelId: 'onebot',
     chatId: userIdStr,
     text: rawMessage,
     timestamp: event.time,
     metadata: {
+      type: 'private',
       raw: event,
       sender: event.sender,
       messageId: String(event.message_id),

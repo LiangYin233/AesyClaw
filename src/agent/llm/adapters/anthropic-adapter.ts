@@ -29,7 +29,6 @@ export class AnthropicAdapter implements ILLMProvider {
 
   private client: Anthropic;
   private model: string;
-  private maxTokens: number;
 
   constructor(config: LLMProviderConfig) {
     const apiKey = config.apiKey;
@@ -44,10 +43,9 @@ export class AnthropicAdapter implements ILLMProvider {
     });
 
     this.model = config.model || 'claude-sonnet-4-20250514';
-    this.maxTokens = config.maxTokens || 4096;
 
     logger.info(
-      { provider: this.providerType, model: this.model, maxTokens: this.maxTokens },
+      { provider: this.providerType, model: this.model },
       '🤖 Anthropic Claude Adapter 已初始化'
     );
   }
@@ -81,7 +79,7 @@ export class AnthropicAdapter implements ILLMProvider {
         model: this.model,
         messages: anthropicMessages,
         tools: anthropicTools,
-        max_tokens: this.maxTokens,
+        max_tokens: 8192,
       });
 
       const toolCalls: ToolCall[] = [];
