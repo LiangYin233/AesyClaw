@@ -12,6 +12,8 @@ import type { SessionContext } from './session-context.js';
 import { createSessionMetadata } from './session-context.js';
 import { SessionId } from './session-id.js';
 import type { MemoryConfig } from '../memory/types.js';
+import { SessionMemoryManager } from '../memory/session-memory-manager.js';
+import { AgentEngine } from '../engine.js';
 
 export class SessionRegistry {
   private static instance: SessionRegistry;
@@ -151,16 +153,11 @@ export class SessionRegistry {
   }
 
   private createMemory(sessionId: string, options: SessionOptions) {
-    const { MemoryManagerFactory } = require('../memory/index.js');
-    const factory = MemoryManagerFactory.getInstance();
-
     const memoryConfig = options.memoryConfig || this.getDefaultMemoryConfig();
-    factory.setDefaultConfig(memoryConfig);
-
-    return factory.getOrCreate(sessionId);
+    return new SessionMemoryManager(sessionId, memoryConfig);
   }
 
-  private createAgent(sessionId: string, options: SessionOptions, memory: any) {
+  private createAgent(sessionId: string, options: SessionOptions, memory: SessionMemoryManager) {
     const llmConfig = options.llm || this.getDefaultLLMConfig();
     const maxSteps = options.maxSteps || 15;
     const systemPrompt = options.systemPrompt || systemPromptManager.buildSystemPrompt({
@@ -168,8 +165,7 @@ export class SessionRegistry {
       chatId: options.chatId,
     });
 
-    const AgentEngineClass = require('../engine.js').AgentEngine;
-    return new AgentEngineClass(sessionId, {
+    return new AgentEngine(sessionId, {
       llm: llmConfig,
       maxSteps,
       systemPrompt,

@@ -7,7 +7,6 @@ import {
   PluginContext,
   PluginInfo,
   HookName,
-  PluginHooks,
   HookPayloadMessageReceive,
   HookPayloadBeforeLLMRequest,
   HookPayloadToolCall,

@@ -1,9 +1,37 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { z } from 'zod';
+import { z, type ZodType } from 'zod';
 import type { IPlugin, PluginContext } from '../../../src/features/plugins/types.js';
+import type { ToolDefinition, ToolExecuteContext, ToolExecutionResult, ToolParameterProperty } from '../../../src/platform/tools/types.js';
 
 const execAsync = promisify(exec);
+
+function zodToToolParameters(schema: ZodType): ToolDefinition['parameters'] {
+  const parsed = schema.safeParse({});
+  if (!parsed.success) {
+    return { type: 'object', properties: {} };
+  }
+
+  const data = parsed.data as Record<string, unknown>;
+  const properties: Record<string, ToolParameterProperty> = {};
+  const required: string[] = [];
+
+  if (data.type === 'object' && data.properties) {
+    const props = data.properties as Record<string, unknown>;
+    for (const [key, value] of Object.entries(props)) {
+      properties[key] = value as ToolParameterProperty;
+      if ((value as Record<string, unknown>).type !== 'undefined' && !(value as Record<string, unknown>).optional) {
+        required.push(key);
+      }
+    }
+  }
+
+  return {
+    type: 'object',
+    properties,
+    required,
+  };
+}
 
 class RunPythonCodeTool {
   readonly name = 'run_python_code';
@@ -13,7 +41,15 @@ class RunPythonCodeTool {
     timeout: z.number().int().positive().optional().default(30).describe('Timeout in seconds'),
   });
 
-  async execute(args: unknown, _context: any): Promise<{ success: boolean; content: string; error?: string }> {
+  getDefinition(): ToolDefinition {
+    return {
+      name: this.name,
+      description: this.description,
+      parameters: zodToToolParameters(this.parametersSchema),
+    };
+  }
+
+  async execute(args: unknown, _context: ToolExecuteContext): Promise<ToolExecutionResult> {
     const { code, timeout = 30 } = args as { code: string; timeout?: number };
 
     try {
@@ -56,7 +92,15 @@ class RunShellCommandTool {
     cwd: z.string().optional().describe('Working directory'),
   });
 
-  async execute(args: unknown, _context: any): Promise<{ success: boolean; content: string; error?: string }> {
+  getDefinition(): ToolDefinition {
+    return {
+      name: this.name,
+      description: this.description,
+      parameters: zodToToolParameters(this.parametersSchema),
+    };
+  }
+
+  async execute(args: unknown, _context: ToolExecuteContext): Promise<ToolExecutionResult> {
     const { command, timeout = 30, cwd } = args as {
       command: string;
       timeout?: number;
@@ -102,34 +146,8 @@ const plugin: IPlugin = {
   async init(ctx: PluginContext): Promise<void> {
     ctx.logger.info('Initializing code-exec plugin');
 
-    ctx.toolRegistry.register({
-      name: pythonTool.name,
-      description: pythonTool.description,
-      parameters: {
-        type: 'object',
-        properties: {
-          code: { type: 'string', description: 'The Python code to execute' },
-          timeout: { type: 'number', description: 'Timeout in seconds' },
-        },
-        required: ['code'],
-      },
-      execute: pythonTool.execute.bind(pythonTool),
-    });
-
-    ctx.toolRegistry.register({
-      name: shellTool.name,
-      description: shellTool.description,
-      parameters: {
-        type: 'object',
-        properties: {
-          command: { type: 'string', description: 'The shell command to execute' },
-          timeout: { type: 'number', description: 'Timeout in seconds' },
-          cwd: { type: 'string', description: 'Working directory' },
-        },
-        required: ['command'],
-      },
-      execute: shellTool.execute.bind(shellTool),
-    });
+    ctx.toolRegistry.register(pythonTool);
+    ctx.toolRegistry.register(shellTool);
 
     ctx.logger.info('code-exec plugin tools registered');
   },

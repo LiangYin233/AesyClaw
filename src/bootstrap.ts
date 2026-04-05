@@ -152,7 +152,7 @@ export class Bootstrap {
     if (channels.onebot) {
       try {
         const { onebotPlugin } = await import('../plugins/plugin_channel_onebot/index.js');
-        await channelManager.registerChannel(onebotPlugin, channels.onebot);
+        await channelManager.registerChannel(onebotPlugin, channels.onebot as Record<string, unknown>);
         logger.info({ channelName: 'onebot' }, 'OneBot channel plugin loaded');
       } catch (error) {
         logger.error({ error, channel: 'onebot' }, 'Failed to load OneBot channel plugin');
