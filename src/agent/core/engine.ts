@@ -95,11 +95,6 @@ export class AgentEngine {
     if (!this.session) {
       const filteredTools = this.getFilteredTools();
       this.session = createLLMSession(this.config.llm, filteredTools);
-      
-      const messages = this.memory.getMessagesForLLM();
-      for (const msg of messages) {
-        this.session.addMessage(msg);
-      }
 
       logger.debug(
         { 
@@ -126,6 +121,7 @@ export class AgentEngine {
     });
 
     const session = this.getSession();
+    const messages = this.memory.getMessages();
 
     const context: ToolExecuteContext = {
       chatId: this.chatId,
@@ -152,7 +148,7 @@ export class AgentEngine {
           tools: filteredTools,
         });
 
-        const response = await session.generate(userInput);
+        const response = await session.generate(messages);
 
         if (response.finishReason === 'error') {
           throw new Error('LLM returned error');

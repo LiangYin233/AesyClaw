@@ -130,9 +130,7 @@ export class SandboxEngine {
           'Sub-agent thinking...'
         );
 
-        const prompt = this.buildPrompt();
-
-        const response = await session.generate(prompt);
+        const response = await session.generate(this.memory);
 
         if (response.finishReason === 'error') {
           throw new Error('LLM 返回错误');

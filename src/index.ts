@@ -1,5 +1,7 @@
+import { bootstrap, Bootstrap } from './bootstrap.js';
+import { pipeline } from './agent/core/pipeline.js';
+import { toolRegistry } from './platform/tools/registry.js';
 import { logger } from './platform/observability/logger.js';
-import { Bootstrap, bootstrap } from './bootstrap.js';
 
 async function main() {
   try {
@@ -15,4 +17,4 @@ async function main() {
 
 main().catch(console.error);
 
-export const getPipeline = () => Bootstrap.getPipeline();
+export { pipeline, toolRegistry };

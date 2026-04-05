@@ -4,10 +4,10 @@ import { pathResolver } from './platform/utils/paths.js';
 import { sqliteManager } from './platform/db/sqlite-manager.js';
 import { configManager } from './features/config/config-manager.js';
 import { logger } from './platform/observability/logger.js';
-import { ToolRegistry } from './platform/tools/registry.js';
+import { toolRegistry, ToolRegistry } from './platform/tools/registry.js';
 import { McpClientManager } from './platform/tools/mcp/mcp-client-manager.js';
 import { pluginManager } from './features/plugins/plugin-manager.js';
-import { ChannelPipeline } from './agent/core/pipeline.js';
+import { pipeline, ChannelPipeline } from './agent/core/pipeline.js';
 import { configInjectionMiddleware } from './middlewares/config.middleware.js';
 import { sessionMiddleware } from './middlewares/session.middleware.js';
 import { agentMiddleware } from './middlewares/agent.middleware.js';
@@ -33,8 +33,6 @@ export interface BootstrapOptions {
 
 export class Bootstrap {
   private static initialized: boolean = false;
-  private static toolRegistry: ToolRegistry | null = null;
-  private static pipeline: ChannelPipeline | null = null;
   private static mcpManager: McpClientManager | null = null;
 
   static async initialize(options: BootstrapOptions = {}): Promise<void> {
@@ -60,13 +58,12 @@ export class Bootstrap {
       }
 
       logger.info({}, '[4/11] Initializing core components...');
-      this.toolRegistry = ToolRegistry.getInstance();
-      this.pipeline = new ChannelPipeline();
+      logger.info({}, 'Using shared ToolRegistry and Pipeline instances');
 
       if (!options.skipSkills) {
         logger.info({}, '[5/11] Initializing SkillManager...');
         await skillManager.initialize();
-        this.toolRegistry.register(loadSkillTool);
+        toolRegistry.register(loadSkillTool);
         logger.info(skillManager.getStats(), 'Skills system loaded');
       }
 
@@ -79,25 +76,25 @@ export class Bootstrap {
       if (!options.skipSubAgents) {
         logger.info({}, '[7/12] Registering SubAgent tools...');
         for (const tool of subAgentTools) {
-          this.toolRegistry.register(tool as any);
+          toolRegistry.register(tool as any);
         }
         logger.info({ toolCount: subAgentTools.length }, 'SubAgent tools registered');
       }
 
       logger.info({}, '[8/12] Mounting ConfigInjectionMiddleware...');
-      this.pipeline.use(configInjectionMiddleware.getMiddleware());
+      pipeline.use(configInjectionMiddleware.getMiddleware());
 
       logger.info({}, '[9/12] Registering system commands...');
       registerSystemCommands();
-      this.pipeline.use(commandMiddleware);
+      pipeline.use(commandMiddleware);
       logger.info({}, 'Command system initialized');
 
       logger.info({}, '[9/12] Mounting SessionMiddleware...');
-      this.pipeline.use(sessionMiddleware.getMiddleware());
+      pipeline.use(sessionMiddleware.getMiddleware());
       logger.info({}, 'Session middleware initialized');
 
       logger.info({}, '[9.5/12] Mounting AgentMiddleware...');
-      this.pipeline.use(agentMiddleware.getMiddleware());
+      pipeline.use(agentMiddleware.getMiddleware());
       logger.info({}, 'Agent middleware initialized');
 
       if (!options.skipPlugins) {
@@ -119,7 +116,7 @@ export class Bootstrap {
 
       if (!options.skipMCP) {
         logger.info({}, '[12/13] Connecting MCP servers...');
-        this.mcpManager = McpClientManager.getInstance(this.toolRegistry);
+        this.mcpManager = McpClientManager.getInstance(toolRegistry);
         const config = configManager.config;
         if (config?.mcp?.servers) {
           await this.mcpManager.connectConfiguredServers(config.mcp.servers);
@@ -129,7 +126,7 @@ export class Bootstrap {
       if (!options.skipChannels) {
         logger.info({}, '[13/13] Loading channel plugins...');
         const config = configManager.config;
-        await this.loadChannelPlugins(config?.channels || {}, this.pipeline);
+        await this.loadChannelPlugins(config?.channels || {});
       }
 
       await configManager.syncAllDefaultConfigs();
@@ -144,7 +141,7 @@ export class Bootstrap {
     }
   }
 
-  private static async loadChannelPlugins(channels: Record<string, unknown>, pipeline: any): Promise<void> {
+  private static async loadChannelPlugins(channels: Record<string, unknown>): Promise<void> {
     channelManager.setPipeline(pipeline);
 
     const pluginsDir = path.join(process.cwd(), 'plugins');
@@ -249,8 +246,6 @@ export class Bootstrap {
       logger.error({ error }, 'Error resetting ChannelPluginManager');
     }
 
-    this.toolRegistry = null;
-    this.pipeline = null;
     this.mcpManager = null;
     this.initialized = false;
 
@@ -266,12 +261,12 @@ export class Bootstrap {
     await this.initialize(options);
   }
 
-  static getToolRegistry(): ToolRegistry | null {
-    return this.toolRegistry;
+  static getToolRegistry(): ToolRegistry {
+    return toolRegistry;
   }
 
-  static getPipeline(): ChannelPipeline | null {
-    return this.pipeline;
+  static getPipeline(): ChannelPipeline {
+    return pipeline;
   }
 
   static getStatus(): {
@@ -303,7 +298,7 @@ export class Bootstrap {
       scheduledTasks: number;
     };
   } {
-    const toolStats = this.toolRegistry?.getStats() || { totalTools: 0 };
+    const toolStats = toolRegistry.getStats();
     const skillStats = skillManager.isInitialized() ? skillManager.getStats() : { total: 0, system: 0, user: 0 };
     const mcpServers = this.mcpManager?.getConnectedServers() || [];
     const plugins = pluginManager?.getLoadedPlugins() || [];

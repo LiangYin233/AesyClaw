@@ -141,3 +141,5 @@ export class ChannelPipeline {
     return ctx;
   }
 }
+
+export const pipeline = new ChannelPipeline();

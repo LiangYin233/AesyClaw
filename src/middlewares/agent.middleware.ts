@@ -4,6 +4,7 @@ import type { IChannelContext, MiddlewareFunc } from '../agent/core/types.js';
 import { LLMProviderType } from '../agent/llm/types.js';
 import { LLMConfig, ModelCapabilities } from '../agent/llm/factory.js';
 import { parseModelIdentifier } from '../platform/utils/model-parser.js';
+import { mapProviderType } from '../platform/utils/llm-utils.js';
 import { roleManager } from '../features/roles/role-manager.js';
 import { systemPromptManager } from '../features/roles/system-prompt-manager.js';
 import type { FullConfig, CustomProvider, ModelConfig } from '../features/config/schema.js';
@@ -14,20 +15,6 @@ export interface AgentState {
   llmConfig: LLMConfig;
   systemPrompt: string;
   [key: string]: unknown;
-}
-
-export function mapProviderType(type: string): LLMProviderType {
-  switch (type) {
-    case 'openai_chat':
-      return LLMProviderType.OpenAIChat;
-    case 'openai_completion':
-      return LLMProviderType.OpenAICompletion;
-    case 'anthropic':
-      return LLMProviderType.Anthropic;
-    default:
-      logger.warn({ type }, 'Unknown provider type, defaulting to OpenAI Chat');
-      return LLMProviderType.OpenAIChat;
-  }
 }
 
 export function resolveLLMConfig(modelIdentifier: string, config: FullConfig): LLMConfig {

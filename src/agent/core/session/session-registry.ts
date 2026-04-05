@@ -15,7 +15,7 @@ import type { MemoryConfig as MemoryConfigInternal } from '../memory/types.js';
 import { SessionMemoryManager } from '../memory/session-memory-manager.js';
 import type { MemoryConfig as MemoryConfigSchema } from '../../../features/config/schema.js';
 import { AgentEngine } from '../engine.js';
-import { mapProviderType } from '../../../middlewares/agent.middleware.js';
+import { mapProviderType } from '../../../platform/utils/llm-utils.js';
 import { parseModelIdentifier } from '../../../platform/utils/model-parser.js';
 
 export class SessionRegistry {

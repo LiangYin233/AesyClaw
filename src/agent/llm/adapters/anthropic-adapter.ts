@@ -12,7 +12,9 @@ import {
   MessageRole,
 } from '../types.js';
 import { ToolDefinition } from '../../../platform/tools/types.js';
-import { logger } from '../../../platform/observability/logger.js';AnthropicContentBlock = 
+import { logger } from '../../../platform/observability/logger.js';
+
+type AnthropicContentBlock =
   | { type: 'text'; text: string }
   | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
   | { type: 'tool_result'; tool_use_id: string; content: string };

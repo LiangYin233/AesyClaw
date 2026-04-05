@@ -132,15 +132,9 @@ export class LLMSession {
     );
   }
 
-  async generate(prompt: string): Promise<StandardResponse> {
-    const userMessageIndex = this.messages.length;
-    this.addMessage({
-      role: MessageRole.User,
-      content: prompt,
-    });
-
+  async generate(messages: StandardMessage[]): Promise<StandardResponse> {
     try {
-      const response = await this.adapter.generate(this.messages, this.tools);
+      const response = await this.adapter.generate(messages, this.tools);
 
       if (response.text) {
         this.addMessage({
@@ -158,7 +152,6 @@ export class LLMSession {
 
       return response;
     } catch (error) {
-      this.messages.splice(userMessageIndex);
       throw error;
     }
   }

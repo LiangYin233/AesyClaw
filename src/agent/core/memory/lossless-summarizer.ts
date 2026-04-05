@@ -4,7 +4,7 @@ import { TokenBudgetCalculator } from './token-budget-calculator.js';
 import { LLMProviderFactory } from '../../llm/factory.js';
 import { configManager } from '../../../features/config/config-manager.js';
 import { logger } from '../../../platform/observability/logger.js';
-import { mapProviderType } from '../../../middlewares/agent.middleware.js';
+import { mapProviderType } from '../../../platform/utils/llm-utils.js';
 
 export class LosslessSummarizer {
   private config: MemoryConfig;
