@@ -213,9 +213,9 @@ export class PluginManager {
         commands: plugin.commands?.length || 0,
       });
 
-      logger.info({ pluginName: plugin.name }, '✅ Plugin loaded successfully');
+      logger.info({ pluginName: plugin.name }, 'Plugin loaded successfully');
     } catch (error) {
-      logger.error({ pluginName: plugin.name, error }, '❌ Plugin initialization failed');
+      logger.error({ pluginName: plugin.name, error }, 'Plugin initialization failed');
     }
   }
 
@@ -321,9 +321,9 @@ export class PluginManager {
       this.loadedPlugins.delete(pluginName);
       this.pluginInfos.delete(pluginName);
 
-      logger.info({ pluginName }, '✅ Plugin unloaded successfully');
+      logger.info({ pluginName }, 'Plugin unloaded successfully');
     } catch (error) {
-      logger.error({ pluginName, error }, '❌ Plugin unload failed');
+      logger.error({ pluginName, error }, 'Plugin unload failed');
     }
   }
 
@@ -417,7 +417,7 @@ export class PluginManager {
 
       await configManager.updatePluginConfig(normalizedName, true);
 
-      logger.info({ pluginName: normalizedName }, '✅ Plugin enabled successfully');
+      logger.info({ pluginName: normalizedName }, 'Plugin enabled successfully');
       return {
         success: true,
         message: `✅ 插件 "${normalizedName}" 已开启`,
@@ -426,7 +426,7 @@ export class PluginManager {
       this.pluginPaths.delete(normalizedName);
       this.loadedPlugins.delete(normalizedName);
       this.pluginInfos.delete(normalizedName);
-      logger.error({ pluginName: normalizedName, error }, '❌ Failed to enable plugin');
+      logger.error({ pluginName: normalizedName, error }, 'Failed to enable plugin');
       return {
         success: false,
         message: `插件 "${normalizedName}" 开启失败: ${error instanceof Error ? error.message : '未知错误'}`,
@@ -448,13 +448,13 @@ export class PluginManager {
       await this.unloadPlugin(normalizedName);
       await configManager.updatePluginConfig(normalizedName, false);
 
-      logger.info({ pluginName: normalizedName }, '✅ Plugin disabled successfully');
+      logger.info({ pluginName: normalizedName }, 'Plugin disabled successfully');
       return {
         success: true,
         message: `✅ 插件 "${normalizedName}" 已关闭`,
       };
     } catch (error) {
-      logger.error({ pluginName: normalizedName, error }, '❌ Failed to disable plugin');
+      logger.error({ pluginName: normalizedName, error }, 'Failed to disable plugin');
       return {
         success: false,
         message: `插件 "${normalizedName}" 关闭失败: ${error instanceof Error ? error.message : '未知错误'}`,

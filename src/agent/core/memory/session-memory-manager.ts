@@ -192,7 +192,7 @@ export class SessionMemoryManager {
 
       this.currentPhase = CompressionPhase.Idle;
     } catch (error) {
-      logger.error({ chatId: this.chatId, error }, '❌ 压缩流水线执行失败');
+      logger.error({ chatId: this.chatId, error }, '压缩流水线执行失败');
       this.currentPhase = CompressionPhase.Idle;
       throw error;
     }
@@ -205,7 +205,7 @@ export class SessionMemoryManager {
   setActiveRole(roleId: string): boolean {
     const role = roleManager.getRole(roleId);
     if (!role) {
-      logger.warn({ chatId: this.chatId, roleId }, '⚠️ 尝试切换到不存在的角色');
+      logger.warn({ chatId: this.chatId, roleId }, '尝试切换到不存在的角色');
       return false;
     }
 
@@ -290,7 +290,7 @@ export class SessionMemoryManager {
     this.activeRoleId = DEFAULT_ROLE_ID;
     
     this.rebuildSystemContext().catch(err => {
-      logger.error({ chatId: this.chatId, error: err }, '❌ 重建系统上下文失败');
+      logger.error({ chatId: this.chatId, error: err }, '重建系统上下文失败');
     });
     
     logger.debug({ chatId: this.chatId }, 'Session memory cleared');
@@ -349,7 +349,7 @@ export class SessionMemoryManager {
       try {
         listener(event);
       } catch (error) {
-        logger.error({ error, eventType: event.type }, '❌ 记忆事件监听器执行失败');
+        logger.error({ error, eventType: event.type }, '记忆事件监听器执行失败');
       }
     }
   }

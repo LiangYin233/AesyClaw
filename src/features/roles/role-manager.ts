@@ -82,9 +82,9 @@ export class RoleManager {
         });
       }
 
-      logger.info({ loadedCount: this.roles.size }, '✅ All roles loaded');
+      logger.info({ loadedCount: this.roles.size }, 'All roles loaded');
     } catch (error) {
-      logger.error({ error }, '❌ Failed to load roles');
+      logger.error({ error }, 'Failed to load roles');
       throw error;
     }
   }
@@ -104,7 +104,7 @@ export class RoleManager {
       const result = RoleConfigSchema.safeParse(rawConfig);
 
       if (!result.success) {
-        logger.error({ roleId, issues: result.error.issues }, '❌ Role validation failed');
+        logger.error({ roleId, issues: result.error.issues }, 'Role validation failed');
         return null;
       }
 
@@ -130,11 +130,11 @@ export class RoleManager {
       };
 
       this.roles.set(roleId, roleWithMeta);
-      logger.debug({ roleId, name: config.name }, '✅ Role loaded');
+      logger.debug({ roleId, name: config.name }, 'Role loaded');
 
       return roleWithMeta;
     } catch (error) {
-      logger.error({ roleId, error }, '❌ Failed to load role');
+      logger.error({ roleId, error }, 'Failed to load role');
       return null;
     }
   }
@@ -150,19 +150,19 @@ export class RoleManager {
 
           this.loadRole(roleId).then(role => {
             if (role) {
-              logger.info({ roleId, name: role.name }, '✅ Role hot-reloaded');
+              logger.info({ roleId, name: role.name }, 'Role hot-reloaded');
             }
           });
         }
       });
 
       watcher.on('error', (error) => {
-        logger.error({ error }, '❌ Role directory watcher error');
+        logger.error({ error }, 'Role directory watcher error');
       });
 
       logger.info({}, 'Role file watchers initialized');
     } catch (error) {
-      logger.error({ error }, '❌ Failed to setup role watchers');
+      logger.error({ error }, 'Failed to setup role watchers');
     }
   }
 
@@ -179,9 +179,9 @@ export class RoleManager {
     try {
       const content = stringifyToml(config as Record<string, unknown>);
       fs.writeFileSync(filePath, content, 'utf-8');
-      logger.debug({ roleId }, '✅ Role file saved');
+      logger.debug({ roleId }, 'Role file saved');
     } catch (error) {
-      logger.error({ roleId, error }, '❌ Failed to save role file');
+      logger.error({ roleId, error }, 'Failed to save role file');
       throw error;
     }
   }
@@ -206,7 +206,7 @@ export class RoleManager {
 
     const defaultRole = this.getRole(DEFAULT_ROLE_ID);
     if (defaultRole) {
-      logger.warn({ requestedRoleId: roleId }, '⚠️ Role not found, returning default');
+      logger.warn({ requestedRoleId: roleId }, 'Role not found, returning default');
       return {
         name: defaultRole.name,
         description: defaultRole.description,
@@ -319,7 +319,7 @@ export class RoleManager {
     try {
       fs.unlinkSync(filePath);
       this.roles.delete(roleId);
-      logger.info({ roleId }, '✅ Role deleted');
+      logger.info({ roleId }, 'Role deleted');
       return { success: true, message: `角色 "${roleId}" 已删除` };
     } catch (error) {
       return { success: false, message: `删除失败: ${error instanceof Error ? error.message : '未知错误'}` };

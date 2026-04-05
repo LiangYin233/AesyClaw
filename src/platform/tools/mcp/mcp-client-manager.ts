@@ -72,9 +72,9 @@ export class McpClientManager {
         toolCount: 0,
       });
 
-      logger.info({ serverName: config.name }, '✅ MCP 服务器连接成功');
+      logger.info({ serverName: config.name }, 'MCP 服务器连接成功');
     } catch (error) {
-      logger.error({ serverName: config.name, error }, '❌ MCP 服务器连接失败');
+      logger.error({ serverName: config.name, error }, 'MCP 服务器连接失败');
       this.serverInfos.set(config.name, {
         name: config.name,
         connected: false,

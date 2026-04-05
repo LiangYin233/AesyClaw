@@ -118,7 +118,7 @@ export class OpenAIChatAdapter implements ILLMProvider {
         rawResponse: response,
       };
     } catch (error) {
-      logger.error({ error }, '❌ OpenAI Chat API 调用失败');
+      logger.error({ error }, 'OpenAI Chat API 调用失败');
       throw error;
     }
   }

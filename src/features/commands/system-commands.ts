@@ -395,5 +395,5 @@ export function registerSystemCommands(): void {
   for (const command of systemCommands) {
     commandRegistry.register(command);
   }
-  logger.info({ count: systemCommands.length }, '✅ 系统命令已注册');
+  logger.info({ count: systemCommands.length }, '系统命令已注册');
 }

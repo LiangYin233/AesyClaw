@@ -44,7 +44,7 @@ export class ToolRegistry {
 
   register(tool: ITool): void {
     if (this.tools.has(tool.name)) {
-      logger.warn({ toolName: tool.name }, '⚠️ 工具已存在，将被覆盖');
+      logger.warn({ toolName: tool.name }, '工具已存在，将被覆盖');
     }
     this.tools.set(tool.name, tool);
     logger.info(
@@ -83,7 +83,7 @@ export class ToolRegistry {
       if (tool) {
         definitions.push(tool.getDefinition());
       } else {
-        logger.warn({ toolName: name }, '⚠️ 请求了未注册的工具定义');
+        logger.warn({ toolName: name }, '请求了未注册的工具定义');
       }
     }
     return definitions;
@@ -152,7 +152,7 @@ export class ToolRegistry {
         content: '',
         error: `工具 "${toolName}" 未注册`,
       };
-      logger.error({ toolName }, '❌ 工具不存在');
+      logger.error({ toolName }, '工具不存在');
       return errorResult;
     }
 

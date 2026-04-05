@@ -92,7 +92,7 @@ export class LosslessSummarizer {
         provider: this.config.compressionProvider,
         model: this.config.compressionModel,
       },
-      '🔄 开始 LLM 驱动的无损压缩'
+      '开始 LLM 驱动的无损压缩'
     );
 
     const summaryContent = await this.generateSummary(compressibleMessages);
@@ -121,7 +121,7 @@ export class LosslessSummarizer {
         compressionRatio: `${(compressionRatio * 100).toFixed(2)}%`,
         summaryLength: summaryContent.length,
       },
-      '✅ LLM 驱动的无损压缩完成'
+      'LLM 驱动的无损压缩完成'
     );
 
     return {
@@ -158,7 +158,7 @@ ${conversationText}
       const response = await this.callSummarizerModel(summarizationPrompt);
       return response;
     } catch (error) {
-      logger.error({ error }, '❌ LLM 压缩失败，使用备用方案');
+      logger.error({ error }, 'LLM 压缩失败，使用备用方案');
       return this.fallbackSummary(messages);
     }
   }

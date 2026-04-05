@@ -76,7 +76,7 @@ export class AgentMiddleware {
       const sessionId = getSessionIdFromContext(ctx);
 
       if (!sessionContext) {
-        logger.error({}, '❌ SessionContext not found, ensure SessionMiddleware is registered before AgentMiddleware');
+        logger.error({}, 'SessionContext not found, ensure SessionMiddleware is registered before AgentMiddleware');
         ctx.outbound.text = 'System error: Session not initialized';
         await next();
         return;
@@ -128,17 +128,17 @@ export class AgentMiddleware {
 
         if (result.success) {
           ctx.outbound.text = result.finalText;
-          logger.info({ sessionId, chatId: ctx.inbound.chatId }, '✅ Agent processing completed');
+          logger.info({ sessionId, chatId: ctx.inbound.chatId }, 'Agent processing completed');
         } else {
           ctx.outbound.text = `Error: ${result.error}`;
           ctx.outbound.error = result.error;
-          logger.error({ sessionId, chatId: ctx.inbound.chatId, error: result.error }, '❌ Agent processing failed');
+          logger.error({ sessionId, chatId: ctx.inbound.chatId, error: result.error }, 'Agent processing failed');
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         ctx.outbound.text = `Agent error: ${errorMessage}`;
         ctx.outbound.error = errorMessage;
-        logger.error({ sessionId, chatId: ctx.inbound.chatId, error: errorMessage }, '❌ Agent exception');
+        logger.error({ sessionId, chatId: ctx.inbound.chatId, error: errorMessage }, 'Agent exception');
       }
 
       await next();

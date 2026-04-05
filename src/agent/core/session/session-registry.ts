@@ -124,7 +124,7 @@ export class SessionRegistry {
     if (this.sessions.has(sessionId)) {
       const existing = this.sessions.get(sessionId)!;
       existing.metadata.lastActiveAt = new Date();
-      logger.debug({ sessionId }, '♻️ 复用已存在的会话');
+      logger.debug({ sessionId }, '复用已存在的会话');
       return existing;
     }
 
@@ -192,7 +192,7 @@ export class SessionRegistry {
       const toRemove = sortedSessions.slice(0, sessionsForChat.length - this.config.maxSessionsPerChat);
       for (const session of toRemove) {
         this.removeSession(session.metadata.sessionId);
-        logger.info({ sessionId: session.metadata.sessionId }, '🗑️ 清理超出限制的旧会话');
+        logger.info({ sessionId: session.metadata.sessionId }, '清理超出限制的旧会话');
       }
     }
   }
@@ -212,7 +212,7 @@ export class SessionRegistry {
       this.chatToSession.delete(key);
       session.memory.clear();
       this.sessions.delete(sessionId);
-      logger.info({ sessionId }, '✅ 会话已删除');
+      logger.info({ sessionId }, '会话已删除');
       return true;
     }
     return false;
@@ -239,7 +239,7 @@ export class SessionRegistry {
       session.memory.clear();
     }
     this.sessions.clear();
-    logger.info({}, '🗑️ 所有会话已清理');
+    logger.info({}, '所有会话已清理');
   }
 
   clearByChatId(chatId: string): void {
@@ -247,7 +247,7 @@ export class SessionRegistry {
     for (const session of sessions) {
       this.removeSession(session.metadata.sessionId);
     }
-    logger.info({ chatId, count: sessions.length }, '🗑️ 聊天会话已清理');
+    logger.info({ chatId, count: sessions.length }, '聊天会话已清理');
   }
 
   cleanupInactive(maxAge: number): void {
@@ -302,14 +302,14 @@ export class SessionRegistry {
       }
     }, intervalMs);
 
-    logger.info({ intervalMs }, '🔄 自动清理已启动');
+    logger.info({ intervalMs }, '自动清理已启动');
   }
 
   stopAutoCleanup(): void {
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer);
       this.cleanupTimer = null;
-      logger.info({}, '⏹️ 自动清理已停止');
+      logger.info({}, '自动清理已停止');
     }
   }
 

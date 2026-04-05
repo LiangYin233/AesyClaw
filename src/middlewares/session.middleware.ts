@@ -26,7 +26,7 @@ export class SessionMiddleware {
         if (existingSessionId) {
           sessionId = existingSessionId;
           components = SessionId.parse(sessionId);
-          logger.debug({ sessionId, channel, type, chatId }, '♻️ 复用已有会话');
+          logger.debug({ sessionId, channel, type, chatId }, '复用已有会话');
         } else {
           sessionId = SessionId.fromUnifiedMessage(ctx.inbound);
           components = SessionId.parse(sessionId);

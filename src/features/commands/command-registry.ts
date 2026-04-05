@@ -20,7 +20,7 @@ export class CommandRegistry {
 
   register(command: CommandDefinition): void {
     if (this.commands.has(command.name)) {
-      logger.warn({ commandName: command.name }, '⚠️ 命令已存在，将被覆盖');
+      logger.warn({ commandName: command.name }, '命令已存在，将被覆盖');
     }
 
     this.commands.set(command.name, command);

@@ -49,7 +49,7 @@ export class LLMProviderFactory {
     const cacheKey = this.getCacheKey(config);
 
     if (this.adapters.has(cacheKey)) {
-      logger.debug({ cacheKey, provider: config.provider }, '♻️ 复用已存在的 LLM Adapter');
+      logger.debug({ cacheKey, provider: config.provider }, '复用已存在的 LLM Adapter');
       return this.adapters.get(cacheKey)!;
     }
 

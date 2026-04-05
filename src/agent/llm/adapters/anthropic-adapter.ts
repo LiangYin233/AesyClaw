@@ -133,7 +133,7 @@ export class AnthropicAdapter implements ILLMProvider {
         rawResponse: response,
       };
     } catch (error) {
-      logger.error({ error }, '❌ Anthropic Claude API 调用失败');
+      logger.error({ error }, 'Anthropic Claude API 调用失败');
       throw error;
     }
   }

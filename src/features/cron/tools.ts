@@ -244,5 +244,5 @@ export async function initializePromptExecutor(): Promise<void> {
     await promptExecutor.execute(job);
   });
 
-  logger.info({}, '✅ PromptExecutor initialized for cron jobs');
+  logger.info({}, 'PromptExecutor initialized for cron jobs');
 }

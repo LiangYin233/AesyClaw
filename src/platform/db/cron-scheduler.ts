@@ -281,7 +281,7 @@ export class CronJobScheduler {
     const removed = this.taskQueue.remove(t => t.job.id === jobId);
     if (removed?.timeoutId) {
       clearTimeout(removed.timeoutId);
-      logger.debug({ jobId }, '❌ Cancelled scheduled task');
+      logger.debug({ jobId }, 'Cancelled scheduled task');
     }
   }
 
@@ -293,7 +293,7 @@ export class CronJobScheduler {
 
     const nextTask = this.taskQueue.peek();
     if (!nextTask) {
-      logger.debug({}, '⏸️ No pending tasks');
+      logger.debug({}, 'No pending tasks');
       return;
     }
 
@@ -319,7 +319,7 @@ export class CronJobScheduler {
 
   private async executeJob(job: CronJobRecord): Promise<void> {
     if (!this.executor) {
-      logger.error({ jobId: job.id, jobName: job.name }, '❌ 无法执行定时任务：执行器未设置');
+      logger.error({ jobId: job.id, jobName: job.name }, '无法执行定时任务：执行器未设置');
       cronJobRepository.incrementErrorCount(job.id);
       return;
     }
@@ -339,7 +339,7 @@ export class CronJobScheduler {
         this.scheduleTask({ ...job, nextRunAt });
       } else {
         cronJobRepository.update(job.id, { enabled: false });
-        logger.warn({ jobId: job.id }, '⚠️ No next run time calculated, disabling job');
+        logger.warn({ jobId: job.id }, 'No next run time calculated, disabling job');
       }
 
       eventBus.emit(SystemEvents.CRON_JOB_EXECUTED, {
@@ -348,9 +348,9 @@ export class CronJobScheduler {
         timestamp: new Date().toISOString(),
       });
 
-      logger.info({ id: job.id, executionTime }, '✅ Cron job executed successfully');
+      logger.info({ id: job.id, executionTime }, 'Cron job executed successfully');
     } catch (error) {
-      logger.error({ id: job.id, error }, '❌ Error executing cron job');
+      logger.error({ id: job.id, error }, 'Error executing cron job');
     }
   }
 

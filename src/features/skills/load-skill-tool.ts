@@ -49,7 +49,7 @@ export class LoadSkillTool implements ITool {
       const routes = skillManager.getAllRoutes();
       const availableNames = routes.map(r => r.name).join(', ') || 'none';
 
-      logger.warn({ skill_name, availableSkills }, '⚠️ Skill not found');
+      logger.warn({ skill_name, availableSkills }, 'Skill not found');
 
       return {
         success: false,
@@ -92,7 +92,7 @@ export class LoadSkillTool implements ITool {
       const source = route?.source || 'unknown';
       const skillInfo = route?.metadata ? `\n\nSkill: ${skill_name} (${source})\nVersion: ${route.metadata.version || 'N/A'}\nAuthor: ${route.metadata.author || 'N/A'}\n` : '';
 
-      logger.info({ skill_name, file_path, source, traceId: context.traceId }, '✅ Skill loaded successfully');
+      logger.info({ skill_name, file_path, source, traceId: context.traceId }, 'Skill loaded successfully');
 
       return {
         success: true,
@@ -106,7 +106,7 @@ export class LoadSkillTool implements ITool {
       };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        logger.warn({ skill_name, targetFullPath }, '⚠️ Skill file not found');
+        logger.warn({ skill_name, targetFullPath }, 'Skill file not found');
 
         return {
           success: false,
@@ -115,7 +115,7 @@ export class LoadSkillTool implements ITool {
         };
       }
 
-      logger.error({ skill_name, targetFullPath, error }, '❌ Failed to read skill file');
+      logger.error({ skill_name, targetFullPath, error }, 'Failed to read skill file');
 
       return {
         success: false,

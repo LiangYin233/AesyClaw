@@ -94,7 +94,7 @@ export class OpenAICompletionAdapter implements ILLMProvider {
         rawResponse: response,
       };
     } catch (error) {
-      logger.error({ error }, '❌ OpenAI Completion API 调用失败');
+      logger.error({ error }, 'OpenAI Completion API 调用失败');
       throw error;
     }
   }
@@ -168,10 +168,10 @@ export class OpenAICompletionAdapter implements ILLMProvider {
             arguments: args,
           });
         } catch {
-          logger.warn({ toolName, argsStr }, '⚠️ 无法解析工具参数');
+          logger.warn({ toolName, argsStr }, '无法解析工具参数');
         }
       } else {
-        logger.warn({ toolName }, '⚠️ LLM 调用了未注册的工具');
+        logger.warn({ toolName }, 'LLM 调用了未注册的工具');
       }
     }
 
