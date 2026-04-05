@@ -36,7 +36,7 @@ export const commandMiddleware: MiddlewareFunc = async (
 
   logger.info(
     { commandName: command.name, chatId: ctx.inbound.chatId, args: parsed.args },
-    '⚡ 执行命令'
+    '执行命令'
   );
 
   try {

@@ -325,7 +325,7 @@ export class CronJobScheduler {
     }
 
     try {
-      logger.info({ id: job.id, name: job.name }, '⚡ Executing cron job');
+      logger.info({ id: job.id, name: job.name }, 'Executing cron job');
 
       const startTime = Date.now();
       await this.executor(job);
