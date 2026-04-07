@@ -2,7 +2,7 @@ import type { IChannelPlugin, IChannelWithSend, IOutboundPayload, ChannelPluginL
 import type { ChannelPipeline } from '../agent/core/pipeline.js';
 import { logger } from '../platform/observability/logger.js';
 import { configManager } from '../features/config/config-manager.js';
-import type { ChannelsConfig } from '../features/config/schema.js';
+import { isPlainObject } from '../platform/utils/index.js';
 
 export class ChannelPluginManager {
   private static instance: ChannelPluginManager;
@@ -54,7 +54,7 @@ export class ChannelPluginManager {
         const userValue = userConfig[key];
         const defaultValue = defaultOptions[key];
 
-        if (this.isPlainObject(userValue) && this.isPlainObject(defaultValue)) {
+        if (isPlainObject(userValue) && isPlainObject(defaultValue)) {
           merged[key] = { ...defaultValue, ...userValue };
         } else {
           merged[key] = userValue;
@@ -63,10 +63,6 @@ export class ChannelPluginManager {
     }
 
     return merged;
-  }
-
-  private isPlainObject(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date);
   }
 
   async registerChannel(
@@ -82,10 +78,7 @@ export class ChannelPluginManager {
     logger.info({ channelName: plugin.name, version: plugin.version }, 'Registering channel plugin');
 
     if (plugin.defaultOptions && Object.keys(plugin.defaultOptions).length > 0) {
-      const normalizedName = plugin.name
-        .replace('channel_', '')
-        .replace('plugin_', '');
-      configManager.registerChannelDefaults(normalizedName, plugin.defaultOptions);
+      configManager.registerChannelDefaults(plugin.name, plugin.defaultOptions);
     }
 
     const mergedConfig = this.mergeChannelOptions(plugin, config);

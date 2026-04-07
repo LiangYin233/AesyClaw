@@ -13,6 +13,7 @@ import {
 } from '../types.js';
 import { ToolDefinition } from '../../../platform/tools/types.js';
 import { logger } from '../../../platform/observability/logger.js';
+import { PromptContext } from '../prompt-context.js';
 
 export class OpenAIChatAdapter implements ILLMProvider {
   readonly providerType = LLMProviderType.OpenAIChat;
@@ -45,12 +46,17 @@ export class OpenAIChatAdapter implements ILLMProvider {
     return !!this.client.apiKey;
   }
 
-  async generate(
-    messages: StandardMessage[],
-    tools?: ToolDefinition[]
-  ): Promise<StandardResponse> {
-    const openAIMessages = this.convertMessages(messages);
-    const openAITools = tools?.map(tool => ({
+  async generate(context: PromptContext): Promise<StandardResponse> {
+    const systemMessage: ChatCompletionMessageParam = {
+      role: 'system',
+      content: context.system.systemPrompt,
+    };
+
+    const chatMessages = this.convertMessages(context.messages);
+
+    const allMessages = [systemMessage, ...chatMessages];
+
+    const openAITools = context.tools.map(tool => ({
       type: 'function' as const,
       function: {
         name: tool.name,
@@ -60,20 +66,21 @@ export class OpenAIChatAdapter implements ILLMProvider {
     }));
 
     logger.debug(
-      { 
-        messageCount: messages.length, 
-        hasTools: !!tools, 
-        toolCount: tools?.length || 0 
+      {
+        messageCount: allMessages.length,
+        hasTools: context.tools.length > 0,
+        toolCount: context.tools.length,
+        contextMetadata: context.metadata,
       },
-      '📤 发送请求到 OpenAI Chat API'
+      '📤 从 PromptContext 发送请求到 OpenAI Chat API'
     );
 
     try {
       const response = await this.client.chat.completions.create({
         model: this.model,
-        messages: openAIMessages,
-        tools: openAITools,
-        tool_choice: openAITools && openAITools.length > 0 ? 'auto' : undefined,
+        messages: allMessages,
+        tools: openAITools.length > 0 ? openAITools : undefined,
+        tool_choice: openAITools.length > 0 ? 'auto' : undefined,
       });
 
       const choice = response.choices[0];
@@ -101,13 +108,13 @@ export class OpenAIChatAdapter implements ILLMProvider {
       const finishReason = this.mapFinishReason(choice.finish_reason);
 
       logger.info(
-        { 
-          finishReason, 
-          hasContent: !!message.content, 
+        {
+          finishReason,
+          hasContent: !!message.content,
           toolCallCount: toolCalls.length,
           tokenUsage,
         },
-        ' 收到 OpenAI 响应'
+        '从 PromptContext 收到 OpenAI 响应'
       );
 
       return {
@@ -118,7 +125,7 @@ export class OpenAIChatAdapter implements ILLMProvider {
         rawResponse: response,
       };
     } catch (error) {
-      logger.error({ error }, 'OpenAI Chat API 调用失败');
+      logger.error({ error }, '从 PromptContext 调用 OpenAI Chat API 失败');
       throw error;
     }
   }

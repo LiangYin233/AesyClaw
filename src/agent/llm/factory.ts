@@ -14,10 +14,10 @@ import { OpenAIChatAdapter } from './adapters/openai-chat-adapter.js';
 import { OpenAICompletionAdapter } from './adapters/openai-completion-adapter.js';
 import { AnthropicAdapter } from './adapters/anthropic-adapter.js';
 import { logger } from '../../platform/observability/logger.js';
+import { PromptContext } from './prompt-context.js';
 
 export interface ModelCapabilities {
   reasoning: boolean;
-  vision: boolean;
 }
 
 export interface LLMConfig {
@@ -132,28 +132,24 @@ export class LLMSession {
     );
   }
 
-  async generate(messages: StandardMessage[]): Promise<StandardResponse> {
-    try {
-      const response = await this.adapter.generate(messages, this.tools);
+  async generate(context: PromptContext): Promise<StandardResponse> {
+    const response = await this.adapter.generate(context);
 
-      if (response.text) {
-        this.addMessage({
-          role: MessageRole.Assistant,
-          content: response.text,
-          toolCalls: response.toolCalls,
-        });
-      }
-
-      if (response.tokenUsage) {
-        this.totalTokenUsage.promptTokens += response.tokenUsage.promptTokens;
-        this.totalTokenUsage.completionTokens += response.tokenUsage.completionTokens;
-        this.totalTokenUsage.totalTokens += response.tokenUsage.totalTokens;
-      }
-
-      return response;
-    } catch (error) {
-      throw error;
+    if (response.text) {
+      this.addMessage({
+        role: MessageRole.Assistant,
+        content: response.text,
+        toolCalls: response.toolCalls,
+      });
     }
+
+    if (response.tokenUsage) {
+      this.totalTokenUsage.promptTokens += response.tokenUsage.promptTokens;
+      this.totalTokenUsage.completionTokens += response.tokenUsage.completionTokens;
+      this.totalTokenUsage.totalTokens += response.tokenUsage.totalTokens;
+    }
+
+    return response;
   }
 
   addToolResult(toolCallId: string, toolName: string, result: string): void {

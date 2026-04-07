@@ -1,5 +1,5 @@
-import { z } from 'zod';
 import { ToolDefinition } from '../../platform/tools/types.js';
+import { PromptContext } from './prompt-context.js';
 
 export enum MessageRole {
   System = 'system',
@@ -67,10 +67,7 @@ export interface ILLMProvider {
   readonly providerType: LLMProviderType;
   readonly supportedModes: LLMMode[];
 
-  generate(
-    messages: StandardMessage[],
-    tools?: ToolDefinition[]
-  ): Promise<StandardResponse>;
+  generate(context: PromptContext): Promise<StandardResponse>;
 
   validateConfig(): boolean;
 }
@@ -78,31 +75,3 @@ export interface ILLMProvider {
 export interface IAdapterFactory {
   createAdapter(config: LLMProviderConfig): ILLMProvider;
 }
-
-export const StandardMessageSchema = z.object({
-  role: z.nativeEnum(MessageRole),
-  content: z.string(),
-  toolCalls: z.array(z.object({
-    id: z.string(),
-    name: z.string(),
-    arguments: z.record(z.string(), z.unknown()),
-  })).optional(),
-  toolCallId: z.string().optional(),
-  name: z.string().optional(),
-});
-
-export const StandardResponseSchema = z.object({
-  text: z.string(),
-  toolCalls: z.array(z.object({
-    id: z.string(),
-    name: z.string(),
-    arguments: z.record(z.string(), z.unknown()),
-  })),
-  tokenUsage: z.object({
-    promptTokens: z.number(),
-    completionTokens: z.number(),
-    totalTokens: z.number(),
-  }).optional(),
-  finishReason: z.enum(['stop', 'tool_calls', 'length', 'content_filter', 'error']),
-  rawResponse: z.unknown().optional(),
-});

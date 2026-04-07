@@ -14,10 +14,18 @@ export const ModelConfigSchema = z.object({
   modelname: z.string().describe('底层 API 真实识别的模型字符串'),
   contextWindow: z.number().int().positive().default(128000).describe('模型最大上下文窗口 token 数'),
   reasoning: z.boolean().default(false).describe('标识该模型是否具备原生思维链能力'),
-  vision: z.boolean().default(false).describe('标识该模型是否为多模态，能否处理图片输入'),
 });
 
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
+
+export const MultimodalConfigSchema = z.object({
+  stt_provider: z.string().describe('语音转文字 provider 名称'),
+  stt_model: z.string().describe('语音转文字模型'),
+  vision_provider: z.string().describe('图片理解 provider 名称'),
+  vision_model: z.string().describe('图片理解模型'),
+});
+
+export type MultimodalConfig = z.infer<typeof MultimodalConfigSchema>;
 
 export const CustomProviderSchema = z.object({
   type: z.enum(['openai_chat', 'openai_completion', 'anthropic']).describe('Provider 类型'),
@@ -81,6 +89,7 @@ export const FullConfigSchema = z.object({
   channels: ChannelsConfigSchema.optional(),
   agent: AgentConfigSchema,
   memory: MemoryConfigSchema,
+  multimodal: MultimodalConfigSchema,
   mcp: MCPConfigSchema.optional(),
   plugins: z.array(PluginConfigSchema).optional().default([]),
 });
@@ -104,7 +113,6 @@ export const DEFAULT_CONFIG: FullConfig = {
           modelname: 'gpt-4o',
           contextWindow: 128000,
           reasoning: false,
-          vision: false,
         },
       },
     },
@@ -118,6 +126,12 @@ export const DEFAULT_CONFIG: FullConfig = {
     compression_threshold: 0.75,
     compression_provider: 'openai',
     compression_model: 'qwen3.5-plus',
+  },
+  multimodal: {
+    stt_provider: 'openai',
+    stt_model: 'whisper-1',
+    vision_provider: 'openai',
+    vision_model: 'gpt-4o-mini',
   },
   mcp: {
     servers: [

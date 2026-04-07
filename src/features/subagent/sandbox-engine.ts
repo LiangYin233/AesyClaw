@@ -1,5 +1,6 @@
 import { StandardMessage, MessageRole, LLMProviderType } from '../../agent/llm/types.js';
 import { LLMConfig, LLMSession, createLLMSession } from '../../agent/llm/factory.js';
+import { buildPromptContext } from '../../agent/llm/prompt-context-factory.js';
 import { ToolRegistry } from '../../platform/tools/registry.js';
 import { ToolDefinition, ToolExecuteContext } from '../../platform/tools/types.js';
 import { logger } from '../../platform/observability/logger.js';
@@ -130,7 +131,15 @@ export class SandboxEngine {
           'Sub-agent thinking...'
         );
 
-        const response = await session.generate(this.memory);
+        const promptContext = buildPromptContext({
+          chatId: this.sandboxId,
+          senderId: 'sandbox',
+          roleId: this.config.roleId || DEFAULT_ROLE_ID,
+          messages: this.memory,
+          tools: filteredTools,
+        });
+
+        const response = await session.generate(promptContext);
 
         if (response.finishReason === 'error') {
           throw new Error('LLM 返回错误');
@@ -213,28 +222,6 @@ export class SandboxEngine {
         provider: LLMProviderType.OpenAIChat,
         model: 'gpt-4o-mini',
       };
-    }
-  }
-
-  private buildPrompt(): string {
-    let prompt = '';
-
-    for (const msg of this.memory) {
-      if (msg.role === MessageRole.System) {
-        continue;
-      }
-      prompt += `${this.formatRole(msg.role)}: ${msg.content}\n\n`;
-    }
-
-    return prompt.trim();
-  }
-
-  private formatRole(role: MessageRole): string {
-    switch (role) {
-      case MessageRole.User: return 'User';
-      case MessageRole.Assistant: return 'Assistant';
-      case MessageRole.Tool: return 'System';
-      default: return 'System';
     }
   }
 

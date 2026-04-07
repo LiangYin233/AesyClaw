@@ -8,6 +8,16 @@ import type {
   ChannelPluginLogger
 } from '../../src/channels/channel-plugin';
 import type { IUnifiedMessage } from '../../src/agent/core/types';
+import type { DownloadedMedia } from '../../src/platform/utils/index.js';
+
+let mediaDownloader: any = null;
+async function getMediaDownloader() {
+  if (!mediaDownloader) {
+    const module = await import('../../src/platform/utils/media-downloader.js');
+    mediaDownloader = module.mediaDownloader;
+  }
+  return mediaDownloader;
+}
 
 export const OneBotChannelConfigSchema = z.object({
   enabled: z.boolean().default(false),
@@ -108,7 +118,7 @@ const state: PluginState = {
 };
 
 export const onebotPlugin: IChannelPlugin & IChannelWithSend = {
-  name: 'channel-onebot',
+  name: 'onebot',
   version: '1.0.0',
   description: 'OneBot Channel Plugin - 支持 OneBot v11/v12 协议',
 
@@ -267,27 +277,31 @@ function handleGroupMessage(event: OneBotMessage): void {
     }
   }
 
-  const rawMessage = extractRawMessage(event.message);
-  const media = extractMedia(event.message);
+  processMediaInMessage(event).then(processedEvent => {
+    const rawMessage = extractRawMessage(processedEvent.message);
+    const media = extractMedia(processedEvent.message);
 
-  const unifiedMsg: IUnifiedMessage = {
-    channelId: 'onebot',
-    chatId: groupIdStr,
-    text: rawMessage,
-    timestamp: event.time,
-    metadata: {
-      type: 'group',
-      raw: event,
-      media,
-      sender: event.sender,
-      messageId: String(event.message_id),
-      groupId: groupIdStr,
-      userId: String(event.user_id || event.sender?.user_id || '0'),
-    },
-  };
+    const unifiedMsg: IUnifiedMessage = {
+      channelId: 'onebot',
+      chatId: groupIdStr,
+      text: rawMessage,
+      timestamp: processedEvent.time,
+      metadata: {
+        type: 'group',
+        raw: processedEvent,
+        media,
+        sender: processedEvent.sender,
+        messageId: String(processedEvent.message_id),
+        groupId: groupIdStr,
+        userId: String(processedEvent.user_id || processedEvent.sender?.user_id || '0'),
+      },
+    };
 
-  const sendFn = createSendFn(groupIdStr, 'group');
-  emitInbound(unifiedMsg, sendFn, state.pipeline);
+    const sendFn = createSendFn(groupIdStr, 'group');
+    emitInbound(unifiedMsg, sendFn, state.pipeline);
+  }).catch(err => {
+    logger.error('Error processing media in group message', { error: err });
+  });
 }
 
 function handlePrivateMessage(event: OneBotMessage): void {
@@ -305,24 +319,28 @@ function handlePrivateMessage(event: OneBotMessage): void {
     }
   }
 
-  const rawMessage = extractRawMessage(event.message);
+  processMediaInMessage(event).then(processedEvent => {
+    const rawMessage = extractRawMessage(processedEvent.message);
 
-  const unifiedMsg: IUnifiedMessage = {
-    channelId: 'onebot',
-    chatId: userIdStr,
-    text: rawMessage,
-    timestamp: event.time,
-    metadata: {
-      type: 'private',
-      raw: event,
-      sender: event.sender,
-      messageId: String(event.message_id),
-      userId: userIdStr,
-    },
-  };
+    const unifiedMsg: IUnifiedMessage = {
+      channelId: 'onebot',
+      chatId: userIdStr,
+      text: rawMessage,
+      timestamp: processedEvent.time,
+      metadata: {
+        type: 'private',
+        raw: processedEvent,
+        sender: processedEvent.sender,
+        messageId: String(processedEvent.message_id),
+        userId: userIdStr,
+      },
+    };
 
-  const sendFn = createSendFn(userIdStr, 'private');
-  emitInbound(unifiedMsg, sendFn, state.pipeline);
+    const sendFn = createSendFn(userIdStr, 'private');
+    emitInbound(unifiedMsg, sendFn, state.pipeline);
+  }).catch(err => {
+    logger.error('Error processing media in private message', { error: err });
+  });
 }
 
 function extractRawMessage(message: string | Array<OneBotMessageSegment>): string {
@@ -336,17 +354,36 @@ function extractRawMessage(message: string | Array<OneBotMessageSegment>): strin
         return String(seg.data.text || '');
       }
       if (seg.type === 'image') {
-        const file = seg.data.file;
-        const url = seg.data.url;
-        return url ? `[图片: ${url}]` : `[图片: ${file}]`;
+        const localPath = seg.data.url as string | undefined;
+        if (localPath) {
+          return `[图片: ${localPath}]`;
+        }
+        const file = seg.data.file as string | undefined;
+        return `[图片: ${file || ''}]`;
       }
       if (seg.type === 'video') {
-        const file = seg.data.file;
-        return `[视频: ${file}]`;
+        const localPath = seg.data.url as string | undefined;
+        if (localPath) {
+          return `[视频: ${localPath}]`;
+        }
+        const file = seg.data.file as string | undefined;
+        return `[视频: ${file || ''}]`;
       }
       if (seg.type === 'record') {
-        const file = seg.data.file;
-        return `[语音: ${file}]`;
+        const localPath = seg.data.url as string | undefined;
+        if (localPath) {
+          return `[语音: ${localPath}]`;
+        }
+        const file = seg.data.file as string | undefined;
+        return `[语音: ${file || ''}]`;
+      }
+      if (seg.type === 'file') {
+        const localPath = seg.data.url as string | undefined;
+        if (localPath) {
+          return `[文件: ${localPath}]`;
+        }
+        const file = seg.data.file as string | undefined;
+        return `[文件: ${file || ''}]`;
       }
       if (seg.type === 'at') {
         const qq = seg.data.qq;
@@ -365,43 +402,139 @@ function extractRawMessage(message: string | Array<OneBotMessageSegment>): strin
     .join('');
 }
 
-function extractMedia(message: string | Array<OneBotMessageSegment>): Array<{ type: string; url: string }> {
-  const media: Array<{ type: string; url: string }> = [];
+function extractMedia(message: string | Array<OneBotMessageSegment>): Array<{ type: string; url: string; filename?: string }> {
+  const media: Array<{ type: string; url: string; filename?: string }> = [];
 
   if (typeof message === 'string') {
     return media;
   }
 
   for (const seg of message) {
+    const url = String(seg.data.url || seg.data.file || '');
+    const filename = seg.data.filename as string | undefined;
+
+    if (!url) continue;
+
     switch (seg.type) {
       case 'image':
         media.push({
           type: 'image',
-          url: String(seg.data.url || seg.data.file || ''),
+          url,
+          filename,
         });
         break;
       case 'video':
         media.push({
           type: 'video',
-          url: String(seg.data.url || seg.data.file || ''),
+          url,
+          filename,
         });
         break;
       case 'record':
         media.push({
           type: 'audio',
-          url: String(seg.data.url || seg.data.file || ''),
+          url,
+          filename,
         });
         break;
       case 'file':
         media.push({
           type: 'file',
-          url: String(seg.data.url || seg.data.file || ''),
+          url,
+          filename,
         });
         break;
     }
   }
 
   return media;
+}
+
+async function processMediaInMessage(event: OneBotMessage): Promise<OneBotMessage> {
+  const logger = state.logger!;
+  const mediaToDownload: Array<{ url: string; type: string; seg: OneBotMessageSegment }> = [];
+
+  if (typeof event.message !== 'string' && Array.isArray(event.message)) {
+    for (const seg of event.message) {
+      if (seg.type === 'image' || seg.type === 'video' || seg.type === 'record' || seg.type === 'file') {
+        const url = String(seg.data.url || seg.data.file || '');
+        if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+          mediaToDownload.push({
+            url,
+            type: seg.type,
+            seg,
+          });
+        }
+      }
+    }
+  }
+
+  if (mediaToDownload.length === 0) {
+    return event;
+  }
+
+  logger.info(
+    'Downloading media files',
+    { mediaCount: mediaToDownload.length, chatId: String(event.user_id || event.group_id || '') }
+  );
+
+  const downloadedMedia: Map<string, DownloadedMedia> = new Map();
+  const downloader = await getMediaDownloader();
+
+  for (const item of mediaToDownload) {
+    const result = await downloader.download({
+      url: item.url,
+      type: item.type as 'image' | 'file' | 'video' | 'audio',
+    });
+
+    if (result.success && result.localPath) {
+      downloadedMedia.set(item.url, {
+        type: item.type,
+        url: item.url,
+        localPath: result.localPath,
+        filename: result.filename!,
+      });
+      logger.debug('Media downloaded', { url: item.url, localPath: result.localPath });
+    } else {
+      logger.warn('Failed to download media', { url: item.url, error: result.error });
+    }
+  }
+
+  if (downloadedMedia.size === 0) {
+    return event;
+  }
+
+  if (typeof event.message === 'string') {
+    return event;
+  }
+
+  const processedMessage = event.message.map(seg => {
+    if (typeof seg === 'string') {
+      return seg;
+    }
+
+    const url = String(seg.data.url || seg.data.file || '');
+    const downloaded = downloadedMedia.get(url);
+
+    if (downloaded) {
+      return {
+        ...seg,
+        data: {
+          ...seg.data,
+          url: downloaded.localPath,
+          filename: downloaded.filename,
+          originalUrl: url,
+        },
+      };
+    }
+
+    return seg;
+  });
+
+  return {
+    ...event,
+    message: processedMessage,
+  };
 }
 
 function createSendFn(targetId: string, messageType: 'group' | 'private'): (payload: IOutboundPayload) => Promise<void> {

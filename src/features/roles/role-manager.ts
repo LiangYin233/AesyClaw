@@ -192,32 +192,28 @@ export class RoleManager {
   getRoleConfig(roleId: string): RoleConfig {
     const role = this.getRole(roleId);
     if (role) {
-      return {
-        name: role.name,
-        description: role.description,
-        system_prompt: role.system_prompt,
-        allowed_tools: role.allowed_tools,
-        allowed_skills: role.allowed_skills,
-        model: role.model,
-        enabled: role.enabled,
-      };
+      return this.toRoleConfig(role);
     }
 
     const defaultRole = this.getRole(DEFAULT_ROLE_ID);
     if (defaultRole) {
       logger.warn({ requestedRoleId: roleId }, 'Role not found, returning default');
-      return {
-        name: defaultRole.name,
-        description: defaultRole.description,
-        system_prompt: defaultRole.system_prompt,
-        allowed_tools: defaultRole.allowed_tools,
-        allowed_skills: defaultRole.allowed_skills,
-        model: defaultRole.model,
-        enabled: defaultRole.enabled,
-      };
+      return this.toRoleConfig(defaultRole);
     }
 
     return DEFAULT_ROLE_CONFIG;
+  }
+
+  private toRoleConfig(role: RoleWithMetadata): RoleConfig {
+    return {
+      name: role.name,
+      description: role.description,
+      system_prompt: role.system_prompt,
+      allowed_tools: role.allowed_tools,
+      allowed_skills: role.allowed_skills,
+      model: role.model,
+      enabled: role.enabled,
+    };
   }
 
   getAllRoles(): RoleWithMetadata[] {

@@ -36,7 +36,6 @@ export function resolveLLMConfig(modelIdentifier: string, config: FullConfig): L
 
   const capabilities: ModelCapabilities = {
     reasoning: modelConfig.reasoning ?? false,
-    vision: modelConfig.vision ?? false,
   };
 
   return {
@@ -104,7 +103,30 @@ export class AgentMiddleware {
       );
 
       try {
-        const userInput = ctx.inbound.text ?? '';
+        let userInput = ctx.inbound.text ?? '';
+        const metadata = ctx.inbound.metadata;
+        const media = metadata?.media as Array<{ type: string; url: string; filename?: string }> | undefined;
+
+        if (media && Array.isArray(media) && media.length > 0) {
+          const mediaDescriptions: string[] = [];
+
+          for (const item of media) {
+            if (item.type === 'image') {
+              mediaDescriptions.push(`[图片: ${item.url}]`);
+            } else if (item.type === 'audio') {
+              mediaDescriptions.push(`[语音: ${item.url}]`);
+            } else if (item.type === 'file') {
+              mediaDescriptions.push(`[文件: ${item.filename || item.url}]`);
+            } else if (item.type === 'video') {
+              mediaDescriptions.push(`[视频: ${item.url}]`);
+            }
+          }
+
+          if (mediaDescriptions.length > 0) {
+            userInput = `${userInput}\n\n附件信息：\n${mediaDescriptions.join('\n')}`;
+          }
+        }
+
         if (!userInput.trim()) {
           ctx.outbound.text = '';
           await next();

@@ -6,6 +6,7 @@ import { FullConfigSchema, DEFAULT_CONFIG, type FullConfig, type ModelConfig } f
 import { logger } from '../../platform/observability/logger.js';
 import { pathResolver } from '../../platform/utils/paths.js';
 
+
 export class ConfigManager {
   private static instance: ConfigManager;
   private _config: FullConfig | null = null;
@@ -22,12 +23,6 @@ export class ConfigManager {
       throw new Error('ConfigManager not initialized');
     }
     return this._config;
-  }
-
-  private normalizePluginName(name: string): string {
-    return name
-      .replace('channel_', '')
-      .replace('plugin_', '');
   }
 
   private constructor() {
@@ -161,10 +156,6 @@ export class ConfigManager {
     }
   }
 
-  private isPlainObject(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date);
-  }
-
   private shouldAddDefaultProviders(parsedConfig: any): boolean {
     const hasProviders = parsedConfig?.providers && Object.keys(parsedConfig.providers).length > 0;
     return !hasProviders;
@@ -185,7 +176,6 @@ export class ConfigManager {
           default: {
             modelname: 'gpt-4o',
             reasoning: false,
-            vision: false,
           },
         },
       },
@@ -334,8 +324,7 @@ export class ConfigManager {
 
     for (const [name, defaults] of this.pendingPluginDefaults) {
       const existingConfig = plugins.find(p => {
-        const configName = this.normalizePluginName(p.name);
-        return configName === name || p.name === name;
+        return p.name === name;
       });
 
       if (!existingConfig || !existingConfig.options || Object.keys(existingConfig.options).length === 0) {
@@ -374,11 +363,9 @@ export class ConfigManager {
 
     try {
       const plugins = this._config.plugins || [];
-      const normalizedName = this.normalizePluginName(name);
 
       const existingIndex = plugins.findIndex(p => {
-        const configName = this.normalizePluginName(p.name);
-        return configName === normalizedName || p.name === normalizedName;
+        return p.name === name;
       });
 
       if (existingIndex >= 0) {
@@ -388,7 +375,7 @@ export class ConfigManager {
         }
       } else {
         plugins.push({
-          name: normalizedName,
+          name: name,
           enabled,
           options: options || {},
         });

@@ -5,6 +5,7 @@ import { LLMProviderFactory } from '../../llm/factory.js';
 import { configManager } from '../../../features/config/config-manager.js';
 import { logger } from '../../../platform/observability/logger.js';
 import { mapProviderType } from '../../../platform/utils/llm-utils.js';
+import { buildPromptContext } from '../../llm/prompt-context-factory.js';
 
 export class LosslessSummarizer {
   private config: MemoryConfig;
@@ -198,12 +199,20 @@ ${conversationText}
 
     const adapter = factory.createAdapter(llmConfig);
 
-    const response = await adapter.generate([
-      {
-        role: MessageRole.User,
-        content: prompt,
-      },
-    ], undefined);
+    const context = buildPromptContext({
+      chatId: 'lossless-summarizer',
+      senderId: 'system',
+      roleId: 'default',
+      messages: [
+        {
+          role: MessageRole.User,
+          content: prompt,
+        },
+      ],
+      tools: [],
+    });
+
+    const response = await adapter.generate(context);
 
     return response.text;
   }

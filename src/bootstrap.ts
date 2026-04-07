@@ -16,6 +16,7 @@ import { cronJobScheduler, initializePromptExecutor } from './features/cron/inde
 import { commandMiddleware, registerSystemCommands } from './features/commands/index.js';
 import { roleManager } from './features/roles/role-manager.js';
 import { subAgentTools } from './features/subagent/index.js';
+import { speechToTextTool, imageUnderstandingTool } from './platform/tools/multimodal-tools.js';
 import { channelManager, ChannelPluginManager } from './channels/channel-manager.js';
 import { sessionRegistry, SessionRegistry } from './agent/core/session/index.js';
 
@@ -80,6 +81,11 @@ export class Bootstrap {
         }
         logger.info({ toolCount: subAgentTools.length }, 'SubAgent tools registered');
       }
+
+      logger.info({}, '[7.5/12] Registering Multimodal tools...');
+      toolRegistry.register(speechToTextTool);
+      toolRegistry.register(imageUnderstandingTool);
+      logger.info({}, 'Multimodal tools registered');
 
       logger.info({}, '[8/12] Mounting ConfigInjectionMiddleware...');
       pipeline.use(configInjectionMiddleware.getMiddleware());
@@ -155,13 +161,25 @@ export class Bootstrap {
           const pluginPath = path.join(pluginsDir, pluginName, 'index.ts');
           const normalizedPath = this.normalizePath(pluginPath);
           const { default: channelPlugin } = await import(normalizedPath);
-          const channelName = pluginName.replace('channel_', '');
-          const channelConfig = channels[channelName] as Record<string, unknown> | undefined;
+
+          const packageJsonPath = path.join(pluginsDir, pluginName, 'package.json');
+          if (fs.existsSync(packageJsonPath)) {
+            const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+            if (pkg.name && pkg.name !== channelPlugin.name) {
+              throw new Error(
+                `Channel plugin name mismatch: package.json name is "${pkg.name}" but plugin.name is "${channelPlugin.name}". They must match.`
+              );
+            }
+          }
+
+          const channelConfig = channels[channelPlugin.name] as Record<string, unknown> | undefined;
 
           await channelManager.registerChannel(channelPlugin, channelConfig || {});
-          logger.info({ channelName }, `${channelName} channel plugin loaded`);
+          logger.info({ channelName: channelPlugin.name }, `${channelPlugin.name} channel plugin loaded`);
         } catch (error) {
-          logger.error({ error, pluginName }, 'Failed to load channel plugin');
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const errorStack = error instanceof Error ? error.stack : undefined;
+          logger.error({ error: errorMessage, stack: errorStack, pluginName }, 'Failed to load channel plugin');
         }
       }
     }

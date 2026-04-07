@@ -120,7 +120,7 @@ const execTool: ITool = {
 };
 
 const plugin: IPlugin = {
-  name: 'exec-plugin',
+  name: 'exec',
   version: '1.0.0',
   description: 'Shell 命令执行插件',
   defaultOptions: {},

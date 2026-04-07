@@ -1,8 +1,7 @@
 {
-  "name": "@aesyclaw/channel-onebot",
+  "name": "onebot",
   "version": "1.0.0",
   "description": "OneBot Channel Plugin for AesyClaw",
-  "main": "index.ts",
   "type": "module",
   "peerDependencies": {
     "ws": "^8.18.0"

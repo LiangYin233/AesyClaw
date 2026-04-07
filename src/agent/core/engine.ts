@@ -6,6 +6,7 @@ import {
   ToolCall,
 } from '../llm/types.js';
 import { LLMConfig, LLMSession, createLLMSession } from '../llm/factory.js';
+import { buildPromptContext } from '../llm/prompt-context-factory.js';
 import { ToolRegistry } from '../../platform/tools/registry.js';
 import {
   ToolDefinition,
@@ -143,12 +144,16 @@ export class AgentEngine {
 
         const filteredTools = this.getFilteredTools();
 
+        const currentMessages = this.memory.getMessages();
+
         await pluginManager.dispatchBeforeLLMRequest({
-          messages: this.memory.getMessages(),
+          messages: currentMessages,
           tools: filteredTools,
         });
 
-        const response = await session.generate(messages);
+        const promptContext = this.buildPromptContextForCurrentState(currentMessages, filteredTools);
+
+        const response = await session.generate(promptContext);
 
         if (response.finishReason === 'error') {
           throw new Error('LLM returned error');
@@ -156,10 +161,38 @@ export class AgentEngine {
 
         if (response.toolCalls && response.toolCalls.length > 0) {
           totalToolCalls += response.toolCalls.length;
+
+          const toolNames = response.toolCalls.map(tc => tc.name).join(', ');
           logger.info(
-            { chatId: this.chatId, step, toolCallCount: response.toolCalls.length },
+            { chatId: this.chatId, step, toolCallCount: response.toolCalls.length, toolNames },
             'Tool calls detected'
           );
+
+          const assistantMessage: StandardMessage = {
+            role: MessageRole.Assistant,
+            content: response.text || '',
+            toolCalls: response.toolCalls,
+          };
+          this.memory.addMessage(assistantMessage);
+          session.addMessage(assistantMessage);
+          
+          logger.info(
+            { 
+              addedToMemory: true, 
+              toolCallsCount: response.toolCalls.length,
+              toolCallNames: response.toolCalls.map(tc => tc.name).join(',')
+            },
+            'Assistant 消息已添加到 memory'
+          );
+          
+          const recentTools = this.memory.getMessages().slice(-10).filter(m => m.role === MessageRole.Tool);
+          const recentToolNames = recentTools.map(m => m.name);
+          if (recentToolNames.length > 0) {
+            logger.info(
+              { chatId: this.chatId, recentToolCalls: recentToolNames.join(', ') },
+              'Recent tool calls in memory'
+            );
+          }
 
           const toolRequests: ToolCallRequest[] = response.toolCalls.map(tc => ({
             id: tc.id,
@@ -218,6 +251,17 @@ export class AgentEngine {
             };
             this.memory.addMessage(toolMessage);
             session.addToolResult(toolRequest.id, toolRequest.name, afterResult.content);
+            
+            logger.info(
+              { toolName: toolRequest.name, contentPreview: afterResult.content.substring(0, 200) },
+              '工具返回内容'
+            );
+            
+            const currentMessages = this.memory.getMessages();
+            logger.info(
+              { totalMessages: currentMessages.length, lastMessageRole: currentMessages[currentMessages.length - 1]?.role },
+              '添加工具结果后的 memory 状态'
+            );
           }
 
           continue;
@@ -324,6 +368,18 @@ export class AgentEngine {
     return allToolDefs.filter(tool => allowedToolNames.includes(tool.name));
   }
 
+  private buildPromptContextForCurrentState(messages: StandardMessage[], tools: ToolDefinition[]) {
+    const roleId = this.memory.getActiveRoleId();
+
+    return buildPromptContext({
+      chatId: this.chatId,
+      senderId: 'user',
+      roleId: roleId,
+      messages: messages,
+      tools: tools
+    });
+  }
+
   updateModel(model: string): void {
     this.config.llm.model = model;
     this.session = null;
@@ -332,43 +388,5 @@ export class AgentEngine {
 
   getCurrentRoleId(): string {
     return this.memory.getActiveRoleId();
-  }
-}
-
-export class SimpleTool implements ITool {
-  readonly name: string;
-  readonly description: string;
-  readonly parametersSchema: z.ZodType;
-
-  constructor(
-    name: string,
-    description: string,
-    parametersSchema: z.ZodType
-  ) {
-    this.name = name;
-    this.description = description;
-    this.parametersSchema = parametersSchema;
-  }
-
-  getDefinition(): ToolDefinition {
-    return {
-      name: this.name,
-      description: this.description,
-      parameters: zodToToolParameters(this.parametersSchema),
-    };
-  }
-
-  async execute(
-    args: unknown,
-    context: ToolExecuteContext
-  ): Promise<ToolExecutionResult> {
-    logger.info({ toolName: this.name, args, traceId: context.traceId }, 'Executing simple tool');
-    
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    return {
-      success: true,
-      content: `工具 ${this.name} 执行成功，输入参数: ${JSON.stringify(args)}`,
-    };
   }
 }

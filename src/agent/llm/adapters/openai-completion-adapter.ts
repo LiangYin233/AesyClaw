@@ -13,6 +13,7 @@ import {
 import { ToolDefinition } from '../../../platform/tools/types.js';
 import { logger } from '../../../platform/observability/logger.js';
 import { randomUUID } from 'crypto';
+import { PromptContext } from '../prompt-context.js';
 
 const TOOL_CALL_PATTERN = /<tool_call>\s*name:\s*(\w+)\s*arguments:\s*(\{[^}]+\})\s*<\/tool_call>/gi;
 
@@ -47,15 +48,17 @@ export class OpenAICompletionAdapter implements ILLMProvider {
     return !!this.client.apiKey;
   }
 
-  async generate(
-    messages: StandardMessage[],
-    tools?: ToolDefinition[]
-  ): Promise<StandardResponse> {
-    const prompt = this.buildPrompt(messages, tools);
+  async generate(context: PromptContext): Promise<StandardResponse> {
+    const prompt = this.buildPromptFromContext(context);
 
     logger.debug(
-      { promptLength: prompt.length, hasTools: !!tools },
-      '📤 发送请求到 OpenAI Completion API'
+      {
+        promptLength: prompt.length,
+        hasTools: context.tools.length > 0,
+        toolCount: context.tools.length,
+        contextMetadata: context.metadata,
+      },
+      '📤 从 PromptContext 发送请求到 OpenAI Completion API'
     );
 
     try {
@@ -72,18 +75,18 @@ export class OpenAICompletionAdapter implements ILLMProvider {
         totalTokens: response.usage.total_tokens,
       } : undefined;
 
-      const toolCalls = this.extractToolCalls(text, tools || []);
+      const toolCalls = this.extractToolCalls(text, context.tools);
 
       const finishReason = toolCalls.length > 0 ? 'tool_calls' : 'stop';
 
       logger.info(
-        { 
-          finishReason, 
-          textLength: text.length, 
+        {
+          finishReason,
+          textLength: text.length,
           toolCallCount: toolCalls.length,
           tokenUsage,
         },
-        ' 收到 OpenAI Completion 响应'
+        '从 PromptContext 收到 OpenAI Completion 响应'
       );
 
       return {
@@ -94,30 +97,23 @@ export class OpenAICompletionAdapter implements ILLMProvider {
         rawResponse: response,
       };
     } catch (error) {
-      logger.error({ error }, 'OpenAI Completion API 调用失败');
+      logger.error({ error }, '从 PromptContext 调用 OpenAI Completion API 失败');
       throw error;
     }
   }
 
-  private buildPrompt(messages: StandardMessage[], tools?: ToolDefinition[]): string {
+  private buildPromptFromContext(context: PromptContext): string {
     const parts: string[] = [];
 
-    const systemMessages = messages.filter(m => m.role === MessageRole.System);
-    const conversationMessages = messages.filter(m => m.role !== MessageRole.System);
+    parts.push('=== SYSTEM INSTRUCTIONS ===\n');
+    parts.push(context.system.systemPrompt);
+    parts.push('\n');
 
-    if (systemMessages.length > 0) {
-      parts.push('=== SYSTEM INSTRUCTIONS ===\n');
-      for (const msg of systemMessages) {
-        parts.push(msg.content);
-      }
-      parts.push('\n');
-    }
-
-    if (tools && tools.length > 0) {
+    if (context.tools && context.tools.length > 0) {
       parts.push('=== AVAILABLE TOOLS ===\n');
       parts.push('You can call one or more functions to assist with the user query.\n\n');
-      
-      for (const tool of tools) {
+
+      for (const tool of context.tools) {
         const paramsStr = JSON.stringify(tool.parameters, null, 2);
         parts.push(`## ${tool.name}\n`);
         parts.push(`Description: ${tool.description}\n`);
@@ -134,7 +130,7 @@ export class OpenAICompletionAdapter implements ILLMProvider {
     }
 
     parts.push('=== CONVERSATION ===\n');
-    for (const msg of conversationMessages) {
+    for (const msg of context.messages) {
       if (msg.role === MessageRole.User) {
         parts.push(`User: ${msg.content}\n`);
       } else if (msg.role === MessageRole.Assistant) {

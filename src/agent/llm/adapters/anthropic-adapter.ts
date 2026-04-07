@@ -13,6 +13,7 @@ import {
 } from '../types.js';
 import { ToolDefinition } from '../../../platform/tools/types.js';
 import { logger } from '../../../platform/observability/logger.js';
+import { PromptContext } from '../prompt-context.js';
 
 type AnthropicContentBlock =
   | { type: 'text'; text: string }
@@ -55,32 +56,41 @@ export class AnthropicAdapter implements ILLMProvider {
     return !!this.client.apiKey;
   }
 
-  async generate(
-    messages: StandardMessage[],
-    tools?: ToolDefinition[]
-  ): Promise<StandardResponse> {
-    const anthropicMessages = this.convertMessages(messages);
-    const anthropicTools = tools?.map(tool => ({
+  async generate(context: PromptContext): Promise<StandardResponse> {
+    const systemContent: AnthropicContentBlock = {
+      type: 'text',
+      text: `<system>\n${context.system.systemPrompt}\n</system>`,
+    };
+
+    const anthropicMessages = this.convertMessages(context.messages);
+
+    const allMessages = [
+      { role: 'user' as const, content: [systemContent] },
+      ...anthropicMessages,
+    ];
+
+    const anthropicTools = context.tools.map(tool => ({
       name: tool.name,
       description: tool.description,
       input_schema: tool.parameters,
     }));
 
     logger.debug(
-      { 
-        messageCount: messages.length, 
-        hasTools: !!tools, 
-        toolCount: tools?.length || 0 
+      {
+        messageCount: allMessages.length,
+        hasTools: context.tools.length > 0,
+        toolCount: context.tools.length,
+        contextMetadata: context.metadata,
       },
-      '📤 发送请求到 Anthropic Claude API'
+      '📤 从 PromptContext 发送请求到 Anthropic Claude API'
     );
 
     try {
       const response = await this.client.messages.create({
         model: this.model,
-        messages: anthropicMessages,
-        tools: anthropicTools,
-        max_tokens: 8192,
+        messages: allMessages as any,
+        tools: anthropicTools.length > 0 ? anthropicTools : undefined,
+        max_tokens: context.metadata?.maxTokens || 8192,
       });
 
       const toolCalls: ToolCall[] = [];
@@ -117,13 +127,13 @@ export class AnthropicAdapter implements ILLMProvider {
       }
 
       logger.info(
-        { 
-          finishReason, 
-          hasContent: !!text, 
+        {
+          finishReason,
+          hasContent: !!text,
           toolCallCount: toolCalls.length,
           tokenUsage,
         },
-        ' 收到 Anthropic Claude 响应'
+        '从 PromptContext 收到 Anthropic Claude 响应'
       );
 
       return {
@@ -134,7 +144,7 @@ export class AnthropicAdapter implements ILLMProvider {
         rawResponse: response,
       };
     } catch (error) {
-      logger.error({ error }, 'Anthropic Claude API 调用失败');
+      logger.error({ error }, '从 PromptContext 调用 Anthropic Claude API 失败');
       throw error;
     }
   }
