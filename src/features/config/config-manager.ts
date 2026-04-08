@@ -121,17 +121,17 @@ export class ConfigManager {
       const result = FullConfigSchema.safeParse(parsed);
 
       if (result.success) {
-        if (this.shouldAddDefaultProviders(parsed)) {
+        if (this.shouldAddDefault(parsed, config => config.providers, providers => !providers || Object.keys(providers).length === 0)) {
           result.data.providers = this.getDefaultProviderExample();
           logger.info({}, 'No providers configured, adding default provider example');
         }
 
-        if (this.shouldAddDefaultMCPServers(parsed)) {
+        if (this.shouldAddDefault(parsed, config => config.mcp?.servers, servers => !servers || !Array.isArray(servers) || servers.length === 0)) {
           result.data.mcp = { servers: this.getDefaultMCPServerExample() };
           logger.info({}, 'No MCP servers configured, adding default MCP server example');
         }
 
-        if (this.shouldAddDefaultChannels(parsed)) {
+        if (this.shouldAddDefault(parsed, config => config.channels, channels => !channels || Object.keys(channels).length === 0)) {
           result.data.channels = {};
           logger.info({}, 'No channels configured, channels will be loaded from plugins');
         }
@@ -142,12 +142,13 @@ export class ConfigManager {
       logger.warn({ issues: this.formatZodErrors(result.error) }, 'Zod validation failed, attempting to fill missing fields with defaults');
 
       const parsedConfig = parsed as ParsedConfig;
-      const hasProviders = parsedConfig?.providers && Object.keys(parsedConfig.providers).length > 0;
-      const hasMCPServers = parsedConfig?.mcp?.servers && Array.isArray(parsedConfig.mcp.servers) && parsedConfig.mcp.servers.length > 0;
+      const hasProviders = !this.shouldAddDefault(parsedConfig, config => config.providers, providers => !providers || Object.keys(providers).length === 0);
+      const hasMCPServers = !this.shouldAddDefault(parsedConfig, config => config.mcp?.servers, servers => !servers || !Array.isArray(servers) || servers.length === 0);
+      const hasChannels = !this.shouldAddDefault(parsedConfig, config => config.channels, channels => !channels || Object.keys(channels).length === 0);
 
       const mergedProviders = hasProviders ? parsedConfig.providers : this.getDefaultProviderExample();
       const mergedMCPServers = hasMCPServers ? parsedConfig.mcp?.servers : this.getDefaultMCPServerExample();
-      const mergedChannels = this.shouldAddDefaultChannels(parsedConfig) ? {} : parsedConfig.channels;
+      const mergedChannels = hasChannels ? parsedConfig.channels : {};
 
       const merged = {
         ...DEFAULT_CONFIG,
@@ -166,10 +167,10 @@ export class ConfigManager {
         if (!hasMCPServers) {
           logger.info({}, 'No MCP servers configured, adding default MCP server example');
         }
-        if (this.shouldAddDefaultChannels(parsedConfig)) {
+        if (!hasChannels) {
           logger.info({}, 'No channels configured, adding default channel example');
         }
-        if (hasProviders || hasMCPServers || !this.shouldAddDefaultChannels(parsedConfig)) {
+        if (hasProviders || hasMCPServers || hasChannels) {
           logger.info({}, 'Successfully merged user config with defaults');
         }
         return mergedResult.data;
@@ -183,14 +184,9 @@ export class ConfigManager {
     }
   }
 
-  private shouldAddDefaultProviders(parsedConfig: ParsedConfig): boolean {
-    const hasProviders = parsedConfig?.providers && Object.keys(parsedConfig.providers).length > 0;
-    return !hasProviders;
-  }
-
-  private shouldAddDefaultMCPServers(parsedConfig: ParsedConfig): boolean {
-    const hasMCPServers = parsedConfig?.mcp?.servers && Array.isArray(parsedConfig.mcp.servers) && parsedConfig.mcp.servers.length > 0;
-    return !hasMCPServers;
+  private shouldAddDefault<T>(parsedConfig: ParsedConfig, getter: (config: ParsedConfig) => T | undefined, isEmpty: (value: T) => boolean): boolean {
+    const value = getter(parsedConfig);
+    return value === undefined || isEmpty(value);
   }
 
   private getDefaultProviderExample(): ProviderExample {
@@ -219,11 +215,6 @@ export class ConfigManager {
         enabled: false,
       },
     ];
-  }
-
-  private shouldAddDefaultChannels(parsedConfig: ParsedConfig): boolean {
-    const hasChannels = parsedConfig?.channels && Object.keys(parsedConfig.channels).length > 0;
-    return !hasChannels;
   }
 
   private async writeDefaultConfig(): Promise<void> {

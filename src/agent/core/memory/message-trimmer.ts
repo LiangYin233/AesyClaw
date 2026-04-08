@@ -1,6 +1,6 @@
 import { StandardMessage } from '../../llm/types.js';
 import { TruncationResult, MemoryConfig } from './types.js';
-import { TokenBudgetCalculator } from './token-budget-calculator';
+import { TokenBudgetCalculator } from './token-budget-calculator.js';
 
 export class MessageTrimmer {
   private config: MemoryConfig;

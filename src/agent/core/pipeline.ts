@@ -89,9 +89,9 @@ export class ChannelPipeline {
       const processedOutbound = await pluginManager.dispatchMessageSend({
         message: {
           chatId: ctx.inbound.chatId,
-          text: ctx.outbound.text,
-          mediaFiles: ctx.outbound.mediaFiles,
-          error: ctx.outbound.error,
+          text: ctx.outbound?.text,
+          mediaFiles: ctx.outbound?.mediaFiles,
+          error: ctx.outbound?.error,
         },
       });
 

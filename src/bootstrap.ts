@@ -45,66 +45,66 @@ export class Bootstrap {
     try {
       logger.info({}, 'AesyClaw starting...');
 
-      logger.info({}, '[1/11] Initializing PathResolver...');
+      logger.info({}, '[1/13] Initializing PathResolver...');
       pathResolver.initialize();
 
       if (!options.skipConfig) {
-        logger.info({}, '[2/11] Loading configuration...');
+        logger.info({}, '[2/13] Loading configuration...');
         await configManager.initialize();
       }
 
       if (!options.skipDb) {
-        logger.info({}, '[3/11] Initializing SQLite database...');
+        logger.info({}, '[3/13] Initializing SQLite database...');
         sqliteManager.initialize();
       }
 
-      logger.info({}, '[4/11] Initializing core components...');
+      logger.info({}, '[4/13] Initializing core components...');
       logger.info({}, 'Using shared ToolRegistry and Pipeline instances');
 
       if (!options.skipSkills) {
-        logger.info({}, '[5/11] Initializing SkillManager...');
+        logger.info({}, '[5/13] Initializing SkillManager...');
         await skillManager.initialize();
         toolRegistry.register(loadSkillTool);
         logger.info(skillManager.getStats(), 'Skills system loaded');
       }
 
       if (!options.skipRoles) {
-        logger.info({}, '[6/12] Initializing RoleManager...');
+        logger.info({}, '[6/13] Initializing RoleManager...');
         await roleManager.initialize();
         logger.info({ roleCount: roleManager.getAllRoles().length }, 'Role system loaded');
       }
 
       if (!options.skipSubAgents) {
-        logger.info({}, '[7/12] Registering SubAgent tools...');
+        logger.info({}, '[7/13] Registering SubAgent tools...');
         for (const tool of subAgentTools) {
           toolRegistry.register(tool);
         }
         logger.info({ toolCount: subAgentTools.length }, 'SubAgent tools registered');
       }
 
-      logger.info({}, '[7.5/12] Registering Multimodal tools...');
+      logger.info({}, '[8/13] Registering Multimodal tools...');
       toolRegistry.register(speechToTextTool);
       toolRegistry.register(imageUnderstandingTool);
       logger.info({}, 'Multimodal tools registered');
 
-      logger.info({}, '[8/12] Mounting ConfigInjectionMiddleware...');
+      logger.info({}, '[9/13] Mounting ConfigInjectionMiddleware...');
       pipeline.use(configInjectionMiddleware.getMiddleware());
 
-      logger.info({}, '[9/12] Registering system commands...');
+      logger.info({}, '[10/13] Registering system commands...');
       registerSystemCommands();
       pipeline.use(commandMiddleware);
       logger.info({}, 'Command system initialized');
 
-      logger.info({}, '[9/12] Mounting SessionMiddleware...');
+      logger.info({}, '[11/13] Mounting SessionMiddleware...');
       pipeline.use(sessionMiddleware.getMiddleware());
       logger.info({}, 'Session middleware initialized');
 
-      logger.info({}, '[9.5/12] Mounting AgentMiddleware...');
+      logger.info({}, '[12/13] Mounting AgentMiddleware...');
       pipeline.use(agentMiddleware.getMiddleware());
       logger.info({}, 'Agent middleware initialized');
 
       if (!options.skipPlugins) {
-        logger.info({}, '[10/12] Initializing and loading plugins...');
+        logger.info({}, '[13/13] Initializing and loading plugins...');
         await pluginManager.initialize();
         logger.info({}, 'PluginManager initialized');
         const config = configManager.config;
@@ -113,7 +113,7 @@ export class Bootstrap {
       }
 
       if (!options.skipCron) {
-        logger.info({}, '[11/13] Initializing Cron system with PromptExecutor...');
+        logger.info({}, '[14/16] Initializing Cron system with PromptExecutor...');
         await initializePromptExecutor();
         cronJobScheduler.start();
         const status = cronJobScheduler.isRunning();
@@ -121,7 +121,7 @@ export class Bootstrap {
       }
 
       if (!options.skipMCP) {
-        logger.info({}, '[12/13] Connecting MCP servers...');
+        logger.info({}, '[15/16] Connecting MCP servers...');
         this.mcpManager = McpClientManager.getInstance(toolRegistry);
         const config = configManager.config;
         if (config?.mcp?.servers) {
@@ -130,7 +130,7 @@ export class Bootstrap {
       }
 
       if (!options.skipChannels) {
-        logger.info({}, '[13/13] Loading channel plugins...');
+        logger.info({}, '[16/16] Loading channel plugins...');
         const config = configManager.config;
         await this.loadChannelPlugins(config?.channels || {});
       }
@@ -199,14 +199,14 @@ export class Bootstrap {
 
     try {
       channelManager.shutdown();
-      logger.info({}, '[1/7] Channel Manager stopped');
+      logger.info({}, '[1/9] Channel Manager stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping Channel Manager');
     }
 
     try {
       cronJobScheduler.stop();
-      logger.info({}, '[2/7] Cron scheduler stopped');
+      logger.info({}, '[2/9] Cron scheduler stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping Cron scheduler');
     }
@@ -215,7 +215,7 @@ export class Bootstrap {
       if (this.mcpManager) {
         this.mcpManager.shutdown();
         McpClientManager.resetInstance();
-        logger.info({}, '[3/7] MCP Manager stopped');
+        logger.info({}, '[3/9] MCP Manager stopped');
       }
     } catch (error) {
       logger.error({ error }, 'Error stopping MCP Manager');
@@ -223,21 +223,21 @@ export class Bootstrap {
 
     try {
       pluginManager.shutdown();
-      logger.info({}, '[4/7] Plugin Manager stopped');
+      logger.info({}, '[4/9] Plugin Manager stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping Plugin Manager');
     }
 
     try {
       sqliteManager.close();
-      logger.info({}, '[5/7] SQLiteManager closed');
+      logger.info({}, '[5/9] SQLiteManager closed');
     } catch (error) {
       logger.error({ error }, 'Error closing SQLiteManager');
     }
 
     try {
       SkillManager.resetInstance();
-      logger.info({}, '[6/8] SkillManager stopped');
+      logger.info({}, '[6/9] SkillManager stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping SkillManager');
     }

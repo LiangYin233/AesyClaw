@@ -19,6 +19,16 @@ export interface CreateSessionInput {
   metadata?: Record<string, unknown>;
 }
 
+export type SessionRow = {
+  chat_id: string;
+  channel_type: string;
+  channel_id?: string;
+  user_id?: string;
+  created_at: string;
+  updated_at: string;
+  metadata: string;
+};
+
 export class SessionRepository {
   create(input: CreateSessionInput): SessionRecord {
     const db = sqliteManager.getDatabase();
@@ -38,15 +48,7 @@ export class SessionRepository {
   findByChatId(chatId: string): SessionRecord | null {
     const db = sqliteManager.getDatabase();
     const stmt = db.prepare('SELECT * FROM sessions WHERE chat_id = ?');
-    const row = stmt.get(chatId) as {
-      chat_id: string;
-      channel_type: string;
-      channel_id?: string;
-      user_id?: string;
-      created_at: string;
-      updated_at: string;
-      metadata: string;
-    };
+    const row = stmt.get(chatId) as SessionRow;
 
     if (!row) return null;
 
@@ -101,15 +103,7 @@ export class SessionRepository {
   findAll(): SessionRecord[] {
     const db = sqliteManager.getDatabase();
     const stmt = db.prepare('SELECT * FROM sessions ORDER BY created_at DESC');
-    const rows = stmt.all() as Array<{
-      chat_id: string;
-      channel_type: string;
-      channel_id?: string;
-      user_id?: string;
-      created_at: string;
-      updated_at: string;
-      metadata: string;
-    }>;
+    const rows = stmt.all() as SessionRow[];
 
     return rows.map(row => this.mapRowToRecord(row));
   }
@@ -126,15 +120,7 @@ export class SessionRepository {
 
     query += ' ORDER BY created_at DESC';
     const stmt = db.prepare(query);
-    const rows = stmt.all(...params) as Array<{
-      chat_id: string;
-      channel_type: string;
-      channel_id?: string;
-      user_id?: string;
-      created_at: string;
-      updated_at: string;
-      metadata: string;
-    }>;
+    const rows = stmt.all(...params) as SessionRow[];
 
     return rows.map(row => this.mapRowToRecord(row));
   }
@@ -147,15 +133,7 @@ export class SessionRepository {
     return this.create(input);
   }
 
-  private mapRowToRecord(row: {
-    chat_id: string;
-    channel_type: string;
-    channel_id?: string;
-    user_id?: string;
-    created_at: string;
-    updated_at: string;
-    metadata: string;
-  }): SessionRecord {
+  private mapRowToRecord(row: SessionRow): SessionRecord {
     return {
       chatId: row.chat_id,
       channelType: row.channel_type,
