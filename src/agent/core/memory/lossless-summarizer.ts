@@ -1,13 +1,11 @@
-import { StandardMessage, MessageRole } from '../../llm/types.js';
+import { StandardMessage, MessageRole, LLMProviderType } from '../../llm/types.js';
 import { MessageZone, CompressionResult, MemoryConfig } from './types.js';
 import { TokenBudgetCalculator } from './token-budget-calculator.js';
-import { LLMProviderFactory } from '../../llm/factory.js';
+import { UnifiedLLMClient } from '../../llm/unified-client.js';
 import { configManager } from '../../../features/config/config-manager.js';
 import { logger } from '../../../platform/observability/logger.js';
 import { mapProviderType } from '../../../platform/utils/llm-utils.js';
-import { buildPromptContext } from '../../llm/prompt-context-factory.js';
 import { MessageFactory } from '../message-factory.js';
-import { RoleUtils } from '../role-utils.js';
 
 export class LosslessSummarizer {
   private config: MemoryConfig;
@@ -188,30 +186,26 @@ ${conversationText}
 
     const llmProviderType = mapProviderType(provider.type);
 
-    const factory = LLMProviderFactory.getInstance();
-    
-    const llmConfig = {
+    const client = new UnifiedLLMClient({
       provider: llmProviderType,
       model: modelConfig.modelname,
       apiKey: provider.api_key,
       baseUrl: provider.base_url,
-    };
-
-    const adapter = factory.createAdapter(llmConfig);
-
-    const context = buildPromptContext({
-      chatId: 'lossless-summarizer',
-      senderId: 'system',
-      roleId: 'default',
-      messages: [
-        MessageFactory.createUserMessage(prompt),
-      ],
-      tools: [],
+      cacheEnabled: false,
+      streamEnabled: false,
     });
 
-    const response = await adapter.generate(context);
+    try {
+      const response = await client.generate({
+        messages: [MessageFactory.createUserMessage(prompt)],
+        systemPrompt: '你是一个客观的系统记录员。请将以下 Agent 的执行过程与工具返回结果，浓缩为精简的步骤摘要。',
+        tools: [],
+      });
 
-    return response.text;
+      return response.text;
+    } finally {
+      client.destroy();
+    }
   }
 
   private fallbackSummary(messages: StandardMessage[]): string {
