@@ -14,6 +14,8 @@ import {
 import { ToolDefinition } from '../../../platform/tools/types.js';
 import { logger } from '../../../platform/observability/logger.js';
 import { PromptContext } from '../prompt-context.js';
+import { TokenUsageMapper } from '../utils/token-usage-mapper.js';
+import { FinishReasonMapper } from '../utils/finish-reason-mapper.js';
 
 type AnthropicContentBlock =
   | { type: 'text'; text: string }
@@ -57,17 +59,7 @@ export class AnthropicAdapter implements ILLMProvider {
   }
 
   async generate(context: PromptContext): Promise<StandardResponse> {
-    const systemContent: AnthropicContentBlock = {
-      type: 'text',
-      text: `<system>\n${context.system.systemPrompt}\n</system>`,
-    };
-
     const anthropicMessages = this.convertMessages(context.messages);
-
-    const allMessages = [
-      { role: 'user' as const, content: [systemContent] },
-      ...anthropicMessages,
-    ];
 
     const anthropicTools = context.tools.map(tool => ({
       name: tool.name,
@@ -77,7 +69,7 @@ export class AnthropicAdapter implements ILLMProvider {
 
     logger.debug(
       {
-        messageCount: allMessages.length,
+        messageCount: anthropicMessages.length,
         hasTools: context.tools.length > 0,
         toolCount: context.tools.length,
         contextMetadata: context.metadata,
@@ -88,7 +80,8 @@ export class AnthropicAdapter implements ILLMProvider {
     try {
       const response = await this.client.messages.create({
         model: this.model,
-        messages: allMessages as any,
+        system: context.system.systemPrompt,
+        messages: anthropicMessages as any,
         tools: anthropicTools.length > 0 ? anthropicTools : undefined,
         max_tokens: context.metadata?.maxTokens || 8192,
       });
@@ -109,22 +102,9 @@ export class AnthropicAdapter implements ILLMProvider {
         }
       }
 
-      const tokenUsage: TokenUsage | undefined = response.usage ? {
-        promptTokens: response.usage.input_tokens,
-        completionTokens: response.usage.output_tokens,
-        totalTokens: response.usage.input_tokens + response.usage.output_tokens,
-      } : undefined;
+      const tokenUsage = TokenUsageMapper.fromAnthropic(response.usage);
 
-      let finishReason: StandardResponse['finishReason'] = 'stop';
-      if (response.stop_reason === 'end_turn') {
-        finishReason = 'stop';
-      } else if (response.stop_reason === 'tool_use') {
-        finishReason = 'tool_calls';
-      } else if (response.stop_reason === 'max_tokens') {
-        finishReason = 'length';
-      } else if (response.stop_reason === 'stop_sequence') {
-        finishReason = 'stop';
-      }
+      const finishReason = FinishReasonMapper.fromAnthropic(response.stop_reason);
 
       logger.info(
         {
@@ -155,13 +135,7 @@ export class AnthropicAdapter implements ILLMProvider {
 
     for (const msg of messages) {
       if (msg.role === MessageRole.System) {
-        if (currentUserContent.length > 0) {
-          result.push({ role: 'user', content: currentUserContent });
-        }
-        currentUserContent = [{
-          type: 'text' as const,
-          text: `<system>\n${msg.content}\n</system>`,
-        }];
+        continue;
       } else if (msg.role === MessageRole.User) {
         currentUserContent.push({
           type: 'text',

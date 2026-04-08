@@ -1,4 +1,4 @@
-import { MessageRole, StandardMessage } from './types.js';
+import { StandardMessage } from './types.js';
 import { ToolDefinition } from '../../platform/tools/types.js';
 
 export interface SystemVariables {

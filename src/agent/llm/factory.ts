@@ -1,6 +1,5 @@
 import {
   ILLMProvider,
-  LLMProviderConfig,
   LLMProviderType,
   LLMMode,
   StandardMessage,

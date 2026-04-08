@@ -2,8 +2,6 @@ import { logger } from '../../platform/observability/logger.js';
 import { roleManager, DEFAULT_ROLE_ID } from '../../features/roles/role-manager.js';
 import { skillManager } from '../../features/skills/skill-manager.js';
 import { systemPromptManager } from '../../features/roles/system-prompt-manager.js';
-import { StandardMessage } from './types.js';
-import { ToolDefinition } from '../../platform/tools/types.js';
 import {
   PromptContext,
   PromptContextOptions,

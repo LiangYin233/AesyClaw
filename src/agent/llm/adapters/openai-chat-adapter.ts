@@ -14,6 +14,8 @@ import {
 import { ToolDefinition } from '../../../platform/tools/types.js';
 import { logger } from '../../../platform/observability/logger.js';
 import { PromptContext } from '../prompt-context.js';
+import { TokenUsageMapper } from '../utils/token-usage-mapper.js';
+import { FinishReasonMapper } from '../utils/finish-reason-mapper.js';
 
 export class OpenAIChatAdapter implements ILLMProvider {
   readonly providerType = LLMProviderType.OpenAIChat;
@@ -99,13 +101,9 @@ export class OpenAIChatAdapter implements ILLMProvider {
         }
       }
 
-      const tokenUsage: TokenUsage | undefined = response.usage ? {
-        promptTokens: response.usage.prompt_tokens,
-        completionTokens: response.usage.completion_tokens,
-        totalTokens: response.usage.total_tokens,
-      } : undefined;
+      const tokenUsage = TokenUsageMapper.fromOpenAI(response.usage);
 
-      const finishReason = this.mapFinishReason(choice.finish_reason);
+      const finishReason = FinishReasonMapper.fromOpenAI(choice.finish_reason);
 
       logger.info(
         {
@@ -176,22 +174,5 @@ export class OpenAIChatAdapter implements ILLMProvider {
     }
 
     return result;
-  }
-
-  private mapFinishReason(
-    reason: string | null
-  ): StandardResponse['finishReason'] {
-    switch (reason) {
-      case 'stop':
-        return 'stop';
-      case 'tool_calls':
-        return 'tool_calls';
-      case 'length':
-        return 'length';
-      case 'content_filter':
-        return 'content_filter';
-      default:
-        return 'error';
-    }
   }
 }

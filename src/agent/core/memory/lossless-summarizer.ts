@@ -6,6 +6,8 @@ import { configManager } from '../../../features/config/config-manager.js';
 import { logger } from '../../../platform/observability/logger.js';
 import { mapProviderType } from '../../../platform/utils/llm-utils.js';
 import { buildPromptContext } from '../../llm/prompt-context-factory.js';
+import { MessageFactory } from '../message-factory.js';
+import { RoleUtils } from '../role-utils.js';
 
 export class LosslessSummarizer {
   private config: MemoryConfig;
@@ -100,8 +102,7 @@ export class LosslessSummarizer {
     const summaryContent = await this.generateSummary(compressibleMessages);
     
     const summaryMessage: StandardMessage = {
-      role: MessageRole.System,
-      content: `(系统内部摘要：${summaryContent})`,
+      ...MessageFactory.createSystemMessage(`(系统内部摘要：${summaryContent})`),
       name: 'system_summary',
     };
 
@@ -204,10 +205,7 @@ ${conversationText}
       senderId: 'system',
       roleId: 'default',
       messages: [
-        {
-          role: MessageRole.User,
-          content: prompt,
-        },
+        MessageFactory.createUserMessage(prompt),
       ],
       tools: [],
     });
@@ -245,12 +243,7 @@ ${conversationText}
   }
 
   private formatMessage(msg: StandardMessage): string {
-    const roleLabel = {
-      [MessageRole.System]: '[系统]',
-      [MessageRole.User]: '[用户]',
-      [MessageRole.Assistant]: '[助手]',
-      [MessageRole.Tool]: '[工具]',
-    }[msg.role];
+    const roleLabel = RoleUtils.getLabel(msg.role);
 
     let content = msg.content;
     

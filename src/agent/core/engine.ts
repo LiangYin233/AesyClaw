@@ -2,12 +2,11 @@ import { z } from 'zod';
 import {
   StandardMessage,
   MessageRole,
-  LLMProviderType,
-  ToolCall,
 } from '../llm/types.js';
 import { LLMConfig, LLMSession, createLLMSession } from '../llm/factory.js';
 import { buildPromptContext } from '../llm/prompt-context-factory.js';
 import { ToolRegistry } from '../../platform/tools/registry.js';
+import { MessageFactory } from './message-factory.js';
 import {
   ToolDefinition,
   ToolExecuteContext,
@@ -73,10 +72,7 @@ export class AgentEngine {
     this.memory = new SessionMemoryManager(chatId, this.config.memoryConfig);
     
     if (!this.memory.hasMessages() && this.config.systemPrompt) {
-      this.memory.addMessage({
-        role: MessageRole.System,
-        content: this.config.systemPrompt,
-      });
+      this.memory.addMessage(MessageFactory.createSystemMessage(this.config.systemPrompt));
     }
 
     logger.info(
@@ -116,10 +112,7 @@ export class AgentEngine {
       'AgentEngine starting request processing'
     );
 
-    this.memory.addMessage({
-      role: MessageRole.User,
-      content: userInput,
-    });
+    this.memory.addMessage(MessageFactory.createUserMessage(userInput));
 
     const session = this.getSession();
     const messages = this.memory.getMessages();
@@ -168,11 +161,10 @@ export class AgentEngine {
             'Tool calls detected'
           );
 
-          const assistantMessage: StandardMessage = {
-            role: MessageRole.Assistant,
-            content: response.text || '',
-            toolCalls: response.toolCalls,
-          };
+          const assistantMessage = MessageFactory.createAssistantMessage(
+            response.text || '',
+            response.toolCalls
+          );
           this.memory.addMessage(assistantMessage);
           session.addMessage(assistantMessage);
           
@@ -208,12 +200,11 @@ export class AgentEngine {
                 'Tool blocked by role permission'
               );
 
-              const toolMessage: StandardMessage = {
-                role: MessageRole.Tool,
-                content: `[权限拒绝] 角色 "${roleId}" 不允许使用工具 "${toolRequest.name}"。`,
-                toolCallId: toolRequest.id,
-                name: toolRequest.name,
-              };
+              const toolMessage = MessageFactory.createToolMessage(
+                toolRequest.id,
+                toolRequest.name,
+                `[权限拒绝] 角色 "${roleId}" 不允许使用工具 "${toolRequest.name}"。`
+              );
               this.memory.addMessage(toolMessage);
               session.addToolResult(toolRequest.id, toolRequest.name, toolMessage.content);
               continue;
@@ -243,12 +234,11 @@ export class AgentEngine {
               result: toolResult,
             });
 
-            const toolMessage: StandardMessage = {
-              role: MessageRole.Tool,
-              content: afterResult.content,
-              toolCallId: toolRequest.id,
-              name: toolRequest.name,
-            };
+            const toolMessage = MessageFactory.createToolMessage(
+              toolRequest.id,
+              toolRequest.name,
+              afterResult.content
+            );
             this.memory.addMessage(toolMessage);
             session.addToolResult(toolRequest.id, toolRequest.name, afterResult.content);
             
@@ -269,10 +259,7 @@ export class AgentEngine {
 
         finalText = response.text;
         
-        this.memory.addMessage({
-          role: MessageRole.Assistant,
-          content: finalText,
-        });
+        this.memory.addMessage(MessageFactory.createAssistantMessage(finalText));
         
         logger.info(
           { chatId: this.chatId, step, responseLength: finalText.length },

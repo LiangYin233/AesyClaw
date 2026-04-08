@@ -1,5 +1,6 @@
 import { StandardMessage, MessageRole } from '../../llm/types.js';
 import { TokenBudget, MemoryConfig } from './types.js';
+import { RoleUtils } from '../role-utils.js';
 
 export class TokenBudgetCalculator {
   private config: MemoryConfig;
@@ -69,13 +70,7 @@ export class TokenBudgetCalculator {
       tokens += this.estimateTokensFromString(toolCallsStr) * 0.5;
     }
 
-    const roleOverhead: Record<MessageRole, number> = {
-      [MessageRole.System]: 5,
-      [MessageRole.User]: 3,
-      [MessageRole.Assistant]: 3,
-      [MessageRole.Tool]: 5,
-    };
-    tokens += roleOverhead[message.role] || 3;
+    tokens += RoleUtils.getTokenWeight(message.role);
 
     return Math.ceil(tokens);
   }

@@ -3,7 +3,6 @@ import {
   ILLMProvider,
   LLMProviderType,
   LLMMode,
-  StandardMessage,
   StandardResponse,
   ToolCall,
   TokenUsage,
@@ -14,6 +13,7 @@ import { ToolDefinition } from '../../../platform/tools/types.js';
 import { logger } from '../../../platform/observability/logger.js';
 import { randomUUID } from 'crypto';
 import { PromptContext } from '../prompt-context.js';
+import { TokenUsageMapper } from '../utils/token-usage-mapper.js';
 
 const TOOL_CALL_PATTERN = /<tool_call>\s*name:\s*(\w+)\s*arguments:\s*(\{[^}]+\})\s*<\/tool_call>/gi;
 
@@ -69,11 +69,7 @@ export class OpenAICompletionAdapter implements ILLMProvider {
       });
 
       const text = response.choices[0]?.text || '';
-      const tokenUsage: TokenUsage | undefined = response.usage ? {
-        promptTokens: response.usage.prompt_tokens,
-        completionTokens: response.usage.completion_tokens,
-        totalTokens: response.usage.total_tokens,
-      } : undefined;
+      const tokenUsage = TokenUsageMapper.fromCompletion(response.usage);
 
       const toolCalls = this.extractToolCalls(text, context.tools);
 
