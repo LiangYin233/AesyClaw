@@ -31,7 +31,7 @@ export class McpClientManager {
     if (!McpClientManager.instance) {
       McpClientManager.instance = new McpClientManager(toolRegistry);
     }
-    return McpClientManager.instance!;
+    return McpClientManager.instance;
   }
 
   static resetInstance(): void {

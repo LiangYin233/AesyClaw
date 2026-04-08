@@ -86,7 +86,7 @@ export class ChannelPluginManager {
     const ctx: ChannelPluginContext = {
       config: mergedConfig,
       logger: this.pluginLogger,
-      pipeline: this.pipeline!,
+      pipeline: this.pipeline,
     };
 
     try {

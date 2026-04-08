@@ -111,7 +111,7 @@ export class LosslessSummarizer {
       summaryMessage,
     ];
 
-    const compressedTokens = this.calculator.calculateSingleMessage(summaryMessage);
+    const compressedTokens = this.calculator.calculateTotalTokens(compressedMessages);
 
     const compressionRatio = originalTokens > 0 
       ? compressedTokens / originalTokens 
