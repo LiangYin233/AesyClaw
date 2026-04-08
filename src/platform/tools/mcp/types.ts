@@ -1,5 +1,5 @@
-import { z, ZodType } from 'zod';
-import { ITool, ToolExecuteContext, ToolExecutionResult, ToolDefinition, ToolParameters } from '../types.js';
+import { ZodType } from 'zod';
+import { ITool, ToolExecuteContext, ToolExecutionResult, ToolDefinition } from '../types.js';
 
 export interface MCPServerInfo {
   name: string;
@@ -21,12 +21,12 @@ export class McpToolAdapter implements ITool {
   readonly parametersSchema: ZodType;
   readonly serverName: string;
   
-  private executeToolFn: (args: Record<string, unknown>) => Promise<ToolExecutionResult>;
+  private executeToolFn: (_args: Record<string, unknown>) => Promise<ToolExecutionResult>;
 
   constructor(
     serverName: string,
     toolInfo: MCPToolInfo,
-    executeToolFn: (args: Record<string, unknown>) => Promise<ToolExecutionResult>
+    executeToolFn: (_args: Record<string, unknown>) => Promise<ToolExecutionResult>
   ) {
     this.serverName = serverName;
     this.name = `${serverName}_${toolInfo.name}`;
@@ -73,16 +73,18 @@ export class McpToolAdapter implements ITool {
         return z.number().int();
       case 'boolean':
         return z.boolean();
-      case 'array':
+      case 'array': {
         const items = prop.items as Record<string, unknown>;
         return z.array(items ? this.zodFromJsonSchema(items) : z.any());
-      case 'object':
+      }
+      case 'object': {
         const props = prop.properties as Record<string, unknown> || {};
         const shape: Record<string, ZodType> = {};
         for (const [k, v] of Object.entries(props)) {
           shape[k] = this.zodFromJsonSchema(v as Record<string, unknown>);
         }
         return z.object(shape);
+      }
       default:
         return z.any();
     }
@@ -99,7 +101,7 @@ export class McpToolAdapter implements ITool {
     };
   }
 
-  async execute(args: unknown, context: ToolExecuteContext): Promise<ToolExecutionResult> {
+  async execute(args: unknown, _context: ToolExecuteContext): Promise<ToolExecutionResult> {
     try {
       const result = await this.executeToolFn(args as Record<string, unknown>);
       return result;

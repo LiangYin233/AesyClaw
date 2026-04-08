@@ -1,5 +1,4 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { MessageCreateParamsNonStreaming } from '@anthropic-ai/sdk/resources/messages';
 import {
   ILLMProvider,
   LLMProviderType,
@@ -7,11 +6,9 @@ import {
   StandardMessage,
   StandardResponse,
   ToolCall,
-  TokenUsage,
   LLMProviderConfig,
   MessageRole,
 } from '../types.js';
-import { ToolDefinition } from '../../../platform/tools/types.js';
 import { logger } from '../../../platform/observability/logger.js';
 import { PromptContext } from '../prompt-context.js';
 import { TokenUsageMapper } from '../utils/token-usage-mapper.js';
@@ -81,7 +78,7 @@ export class AnthropicAdapter implements ILLMProvider {
       const response = await this.client.messages.create({
         model: this.model,
         system: context.system.systemPrompt,
-        messages: anthropicMessages as any,
+        messages: anthropicMessages,
         tools: anthropicTools.length > 0 ? anthropicTools : undefined,
         max_tokens: context.metadata?.maxTokens || 8192,
       });

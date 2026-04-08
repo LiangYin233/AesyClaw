@@ -104,7 +104,7 @@ export class SystemPromptManager {
   }
 
   buildSystemPrompt(options: SystemPromptBuildOptions): string {
-    const { roleId, chatId, senderId } = options;
+    const { roleId } = options;
     const actualRoleId = roleId || DEFAULT_ROLE_ID;
 
     const roleConfig = roleManager.getRoleConfig(actualRoleId);

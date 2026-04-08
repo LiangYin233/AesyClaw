@@ -18,7 +18,7 @@ export class ChannelPipeline {
 
   async handleInboundWithSend(
     message: IUnifiedMessage,
-    sendFn?: (payload: IOutboundPayload) => Promise<void>
+    sendFn?: (_payload: IOutboundPayload) => Promise<void>
   ): Promise<IChannelContext> {
     const traceId = randomUUID();
     const startTime = Date.now();

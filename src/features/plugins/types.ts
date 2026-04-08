@@ -12,26 +12,35 @@ export interface ToolExecuteContext {
   [key: string]: unknown;
 }
 
+export interface ParameterDefinition {
+  type: 'string' | 'number' | 'boolean' | 'array' | 'object';
+  description?: string;
+  items?: ParameterDefinition;
+  properties?: Record<string, ParameterDefinition>;
+  required?: string[];
+  [key: string]: unknown;
+}
+
 export interface PluginToolDefinition {
   name: string;
   description: string;
   parameters: {
     type: 'object';
-    properties: Record<string, any>;
+    properties: Record<string, ParameterDefinition>;
     required?: string[];
     [key: string]: unknown;
   };
   execute: (
-    args: unknown,
-    context: ToolExecuteContext
+    _args: unknown,
+    _context: ToolExecuteContext
   ) => Promise<{ success: boolean; content: string; error?: string }>;
 }
 
 export interface PluginLogger {
-  info: (msg: string, data?: Record<string, unknown>) => void;
-  warn: (msg: string, data?: Record<string, unknown>) => void;
-  error: (msg: string, data?: Record<string, unknown>) => void;
-  debug: (msg: string, data?: Record<string, unknown>) => void;
+  info: (_msg: string, _data?: Record<string, unknown>) => void;
+  warn: (_msg: string, _data?: Record<string, unknown>) => void;
+  error: (_msg: string, _data?: Record<string, unknown>) => void;
+  debug: (_msg: string, _data?: Record<string, unknown>) => void;
 }
 
 export interface PluginContext {
@@ -40,7 +49,7 @@ export interface PluginContext {
   toolRegistry: ToolRegistry;
   skillManager?: SkillManager;
   pipeline?: ChannelPipeline;
-  sendFn?: (payload: IOutboundPayload) => Promise<void>;
+  sendFn?: (_payload: IOutboundPayload) => Promise<void>;
   channelId?: string;
 }
 
@@ -92,19 +101,19 @@ export interface HookPayloadMessageSend {
 
 export interface PluginHooks {
   onMessageReceive?: (
-    payload: HookPayloadMessageReceive
+    _payload: HookPayloadMessageReceive
   ) => Promise<HookPayloadMessageReceive['message'] | null>;
   beforeLLMRequest?: (
-    payload: HookPayloadBeforeLLMRequest
+    _payload: HookPayloadBeforeLLMRequest
   ) => Promise<void>;
   beforeToolCall?: (
-    toolCall: HookPayloadToolCall
+    _toolCall: HookPayloadToolCall
   ) => Promise<{ success: boolean; content: string; error?: string } | null>;
   afterToolCall?: (
-    payload: HookPayloadAfterToolCall
+    _payload: HookPayloadAfterToolCall
   ) => Promise<HookPayloadAfterToolCall['result']>;
   onMessageSend?: (
-    payload: HookPayloadMessageSend
+    _payload: HookPayloadMessageSend
   ) => Promise<HookPayloadMessageSend['message'] | null>;
 }
 
@@ -113,7 +122,7 @@ export interface IPlugin {
   version: string;
   description?: string;
   defaultOptions?: Record<string, unknown>;
-  init?: (ctx: PluginContext) => Promise<void>;
+  init?: (_ctx: PluginContext) => Promise<void>;
   hooks?: PluginHooks;
   commands?: CommandDefinition[];
   destroy?: () => Promise<void>;

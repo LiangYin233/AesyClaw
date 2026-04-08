@@ -1,4 +1,4 @@
-import { StandardMessage, MessageRole } from '../../llm/types.js';
+import { StandardMessage } from '../../llm/types.js';
 import { TokenBudget, MemoryConfig } from './types.js';
 import { RoleUtils } from '../role-utils.js';
 

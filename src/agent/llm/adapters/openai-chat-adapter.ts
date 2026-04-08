@@ -7,15 +7,24 @@ import {
   StandardMessage,
   StandardResponse,
   ToolCall,
-  TokenUsage,
   LLMProviderConfig,
   MessageRole,
 } from '../types.js';
-import { ToolDefinition } from '../../../platform/tools/types.js';
 import { logger } from '../../../platform/observability/logger.js';
 import { PromptContext } from '../prompt-context.js';
 import { TokenUsageMapper } from '../utils/token-usage-mapper.js';
 import { FinishReasonMapper } from '../utils/finish-reason-mapper.js';
+
+interface AssistantMessageWithToolCalls extends ChatCompletionMessageParam {
+  tool_calls?: Array<{
+    id: string;
+    type: 'function';
+    function: {
+      name: string;
+      arguments: string;
+    };
+  }>;
+}
 
 export class OpenAIChatAdapter implements ILLMProvider {
   readonly providerType = LLMProviderType.OpenAIChat;
@@ -143,13 +152,13 @@ export class OpenAIChatAdapter implements ILLMProvider {
           content: msg.content,
         });
       } else if (msg.role === MessageRole.Assistant) {
-        const assistantMsg: ChatCompletionMessageParam = {
+        const assistantMsg: AssistantMessageWithToolCalls = {
           role: 'assistant',
           content: msg.content || null,
         };
 
         if (msg.toolCalls && msg.toolCalls.length > 0) {
-          (assistantMsg as any).tool_calls = msg.toolCalls.map(tc => ({
+          assistantMsg.tool_calls = msg.toolCalls.map(tc => ({
             id: tc.id,
             type: 'function' as const,
             function: {

@@ -1,6 +1,4 @@
 import { logger } from '../../../platform/observability/logger.js';
-import { ToolRegistry } from '../../../platform/tools/registry.js';
-import type { ToolDefinition } from '../../../platform/tools/types.js';
 import { LLMProviderType } from '../../llm/types.js';
 import type { LLMConfig } from '../../llm/factory.js';
 import { roleManager, DEFAULT_ROLE_ID } from '../../../features/roles/role-manager.js';
@@ -10,7 +8,6 @@ import type { SessionOptions, SessionConfig } from './types.js';
 import { DEFAULT_SESSION_CONFIG } from './types.js';
 import type { SessionContext } from './session-context.js';
 import { createSessionMetadata } from './session-context.js';
-import { SessionId } from './session-id.js';
 import type { MemoryConfig as MemoryConfigInternal } from '../memory/types.js';
 import { SessionMemoryManager } from '../memory/session-memory-manager.js';
 import type { MemoryConfig as MemoryConfigSchema } from '../../../features/config/schema.js';
@@ -19,7 +16,7 @@ import { mapProviderType } from '../../../platform/utils/llm-utils.js';
 import { parseModelIdentifier } from '../../../platform/utils/model-parser.js';
 
 export class SessionRegistry {
-  private static instance: SessionRegistry;
+  private static instance: SessionRegistry | undefined;
   private sessions: Map<string, SessionContext> = new Map();
   private chatToSession: Map<string, string> = new Map();
   private config: SessionConfig;
@@ -40,7 +37,7 @@ export class SessionRegistry {
   static resetInstance(): void {
     if (SessionRegistry.instance) {
       SessionRegistry.instance.shutdown();
-      SessionRegistry.instance = undefined as any;
+      SessionRegistry.instance = undefined;
     }
   }
 

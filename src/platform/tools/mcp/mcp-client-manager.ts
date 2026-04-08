@@ -1,4 +1,4 @@
-import { spawn, ChildProcess } from 'child_process';
+import type { ChildProcess } from 'child_process';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { logger } from '../../observability/logger.js';
@@ -6,8 +6,17 @@ import { ToolRegistry } from '../registry.js';
 import { McpToolAdapter, MCPServerInfo, MCPToolInfo } from './types.js';
 import type { MCPServerConfig } from '../../../features/config/schema.js';
 
+// 直接使用 Client 类型，通过类型断言处理 request 方法
+// 由于 Client 类型的 request 方法签名与我们的使用方式不同，我们需要使用类型断言
+
+interface StdioClientTransportWithProcess extends StdioClientTransport {
+  childProcess: ChildProcess;
+}
+
+
+
 export class McpClientManager {
-  private static instance: McpClientManager;
+  private static instance: McpClientManager | undefined;
   
   private clients: Map<string, Client> = new Map();
   private processes: Map<string, ChildProcess> = new Map();
@@ -22,13 +31,13 @@ export class McpClientManager {
     if (!McpClientManager.instance) {
       McpClientManager.instance = new McpClientManager(toolRegistry);
     }
-    return McpClientManager.instance;
+    return McpClientManager.instance!;
   }
 
   static resetInstance(): void {
     if (McpClientManager.instance) {
       McpClientManager.instance.shutdown();
-      (McpClientManager.instance as any) = undefined;
+      McpClientManager.instance = undefined;
     }
   }
 
@@ -61,7 +70,7 @@ export class McpClientManager {
 
       await client.connect(transport);
       this.clients.set(config.name, client);
-      this.processes.set(config.name, (transport as any).childProcess);
+      this.processes.set(config.name, (transport as StdioClientTransportWithProcess).childProcess);
 
       await this.syncTools(config.name, client);
 
@@ -87,7 +96,7 @@ export class McpClientManager {
 
   private async syncTools(serverName: string, client: Client): Promise<void> {
     try {
-      const response = await (client as any).request({
+      const response = await (client as { request: (_params: { method: string; params: Record<string, unknown> }) => Promise<{ tools?: MCPToolInfo[] }> }).request({
         method: 'tools/list',
         params: {},
       });
@@ -127,7 +136,7 @@ export class McpClientManager {
     }
 
     try {
-      const response = await (client as any).request({
+      const response = await (client as { request: (_params: { method: string; params: Record<string, unknown> }) => Promise<{ content?: Array<{ text?: string; data?: unknown }> }> }).request({
         method: 'tools/call',
         params: {
           name: toolName,
@@ -141,9 +150,9 @@ export class McpClientManager {
       for (const item of content) {
         if (item && typeof item === 'object') {
           if ('text' in item) {
-            textParts.push(String((item as any).text));
+            textParts.push(String(item.text));
           } else if ('data' in item) {
-            textParts.push(`[data: ${(item as any).data}]`);
+            textParts.push(`[data: ${item.data}]`);
           }
         }
       }

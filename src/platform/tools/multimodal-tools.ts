@@ -5,9 +5,6 @@ import OpenAI from 'openai';
 import { ITool, ToolDefinition, ToolExecuteContext, ToolExecutionResult, zodToToolParameters } from './types.js';
 import { logger } from '../observability/logger.js';
 import { configManager } from '../../features/config/config-manager.js';
-import { parseModelIdentifier } from '../utils/model-parser.js';
-import { mapProviderType } from '../utils/llm-utils.js';
-import { LLMProviderType } from '../../agent/llm/types.js';
 
 const SpeechToTextSchema = z.object({
   audio_path: z.string().describe('语音文件路径，支持本地路径或URL'),

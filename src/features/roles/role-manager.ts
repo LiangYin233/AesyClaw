@@ -166,7 +166,7 @@ export class RoleManager {
   }
 
   private watcherCleanup(): void {
-    for (const [id, watcher] of this.watchers) {
+    for (const [, watcher] of this.watchers) {
       watcher.close();
     }
     this.watchers.clear();
