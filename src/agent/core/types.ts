@@ -24,10 +24,10 @@ export interface IChannelContext {
   createdAt: number;
   state?: Record<string, unknown>;
   blocked?: boolean;
-  sendFn?: (payload: IOutboundPayload) => Promise<void>;
+  sendFn?: (_payload: IOutboundPayload) => Promise<void>;
 }
 
 export type MiddlewareFunc = (
-  ctx: IChannelContext,
-  next: () => Promise<void>
+  _ctx: IChannelContext,
+  _next: () => Promise<void>
 ) => Promise<void>;

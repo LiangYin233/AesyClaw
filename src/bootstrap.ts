@@ -77,7 +77,7 @@ export class Bootstrap {
       if (!options.skipSubAgents) {
         logger.info({}, '[7/12] Registering SubAgent tools...');
         for (const tool of subAgentTools) {
-          toolRegistry.register(tool as any);
+          toolRegistry.register(tool);
         }
         logger.info({ toolCount: subAgentTools.length }, 'SubAgent tools registered');
       }

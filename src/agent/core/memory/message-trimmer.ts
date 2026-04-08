@@ -1,4 +1,4 @@
-import { StandardMessage, MessageRole } from '../../llm/types.js';
+import { StandardMessage } from '../../llm/types.js';
 import { TruncationResult, MemoryConfig } from './types.js';
 import { TokenBudgetCalculator } from './token-budget-calculator';
 
@@ -55,7 +55,6 @@ export class MessageTrimmer {
     const preserveRatio = 0.1;
     const headLength = Math.floor(originalLength * preserveRatio);
     const tailLength = Math.floor(originalLength * preserveRatio);
-    const middleStart = headLength;
     const middleEnd = originalLength - tailLength;
 
     const preservedHead = content.substring(0, headLength);

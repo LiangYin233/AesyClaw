@@ -1,4 +1,4 @@
-import { LLMProviderType, StandardMessage } from '../../llm/types.js';
+import { StandardMessage } from '../../llm/types.js';
 
 export enum CompressionPhase {
   Idle = 'idle',
@@ -6,8 +6,9 @@ export enum CompressionPhase {
   SieveProcess = 'sieve_process',
   LLMDrivenSummarization = 'llm_driven_summarization',
   Reassembly = 'reassembly',
-  Truncation = 'truncation',
+  _Truncation = 'truncation'
 }
+
 
 export interface MemoryConfig {
   maxContextTokens: number;

@@ -1,10 +1,37 @@
 import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
 import { ZodError } from 'zod';
-import { FullConfigSchema, DEFAULT_CONFIG, type FullConfig, type ModelConfig } from './schema.js';
+import { FullConfigSchema, DEFAULT_CONFIG, type FullConfig } from './schema.js';
 import { logger } from '../../platform/observability/logger.js';
 import { pathResolver } from '../../platform/utils/paths.js';
+
+interface ParsedConfig {
+  providers?: Record<string, unknown>;
+  mcp?: {
+    servers?: unknown[];
+  };
+  channels?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+
+
+type ProviderExample = Record<string, {
+  type: 'openai_chat' | 'openai_completion' | 'anthropic';
+  api_key: string;
+  base_url: string;
+  models: Record<string, {
+    modelname: string;
+    contextWindow: number;
+    reasoning: boolean;
+  }>;
+}>
+
+interface MCPServerExample {
+  name: string;
+  command: string;
+  args: string[];
+  enabled: boolean;
+}
 
 
 export class ConfigManager {
@@ -114,17 +141,17 @@ export class ConfigManager {
 
       logger.warn({ issues: this.formatZodErrors(result.error) }, 'Zod validation failed, attempting to fill missing fields with defaults');
 
-      const parsedAny = parsed as any;
-      const hasProviders = parsedAny?.providers && Object.keys(parsedAny.providers).length > 0;
-      const hasMCPServers = parsedAny?.mcp?.servers && Array.isArray(parsedAny.mcp.servers) && parsedAny.mcp.servers.length > 0;
+      const parsedConfig = parsed as ParsedConfig;
+      const hasProviders = parsedConfig?.providers && Object.keys(parsedConfig.providers).length > 0;
+      const hasMCPServers = parsedConfig?.mcp?.servers && Array.isArray(parsedConfig.mcp.servers) && parsedConfig.mcp.servers.length > 0;
 
-      const mergedProviders = hasProviders ? parsedAny.providers : this.getDefaultProviderExample();
-      const mergedMCPServers = hasMCPServers ? parsedAny.mcp.servers : this.getDefaultMCPServerExample();
-      const mergedChannels = this.shouldAddDefaultChannels(parsedAny) ? {} : parsedAny.channels;
+      const mergedProviders = hasProviders ? parsedConfig.providers : this.getDefaultProviderExample();
+      const mergedMCPServers = hasMCPServers ? parsedConfig.mcp?.servers : this.getDefaultMCPServerExample();
+      const mergedChannels = this.shouldAddDefaultChannels(parsedConfig) ? {} : parsedConfig.channels;
 
       const merged = {
         ...DEFAULT_CONFIG,
-        ...parsedAny,
+        ...parsedConfig,
         providers: mergedProviders,
         mcp: { servers: mergedMCPServers },
         channels: mergedChannels,
@@ -139,10 +166,10 @@ export class ConfigManager {
         if (!hasMCPServers) {
           logger.info({}, 'No MCP servers configured, adding default MCP server example');
         }
-        if (this.shouldAddDefaultChannels(parsedAny)) {
+        if (this.shouldAddDefaultChannels(parsedConfig)) {
           logger.info({}, 'No channels configured, adding default channel example');
         }
-        if (hasProviders || hasMCPServers || !this.shouldAddDefaultChannels(parsedAny)) {
+        if (hasProviders || hasMCPServers || !this.shouldAddDefaultChannels(parsedConfig)) {
           logger.info({}, 'Successfully merged user config with defaults');
         }
         return mergedResult.data;
@@ -156,17 +183,17 @@ export class ConfigManager {
     }
   }
 
-  private shouldAddDefaultProviders(parsedConfig: any): boolean {
+  private shouldAddDefaultProviders(parsedConfig: ParsedConfig): boolean {
     const hasProviders = parsedConfig?.providers && Object.keys(parsedConfig.providers).length > 0;
     return !hasProviders;
   }
 
-  private shouldAddDefaultMCPServers(parsedConfig: any): boolean {
-    const hasMCPServers = parsedConfig?.mcp?.servers && parsedConfig.mcp.servers.length > 0;
+  private shouldAddDefaultMCPServers(parsedConfig: ParsedConfig): boolean {
+    const hasMCPServers = parsedConfig?.mcp?.servers && Array.isArray(parsedConfig.mcp.servers) && parsedConfig.mcp.servers.length > 0;
     return !hasMCPServers;
   }
 
-  private getDefaultProviderExample(): Record<string, any> {
+  private getDefaultProviderExample(): ProviderExample {
     return {
       openai: {
         type: 'openai_chat',
@@ -175,6 +202,7 @@ export class ConfigManager {
         models: {
           default: {
             modelname: 'gpt-4o',
+            contextWindow: 128000,
             reasoning: false,
           },
         },
@@ -182,7 +210,7 @@ export class ConfigManager {
     };
   }
 
-  private getDefaultMCPServerExample(): any[] {
+  private getDefaultMCPServerExample(): MCPServerExample[] {
     return [
       {
         name: 'example',
@@ -193,7 +221,7 @@ export class ConfigManager {
     ];
   }
 
-  private shouldAddDefaultChannels(parsedConfig: any): boolean {
+  private shouldAddDefaultChannels(parsedConfig: ParsedConfig): boolean {
     const hasChannels = parsedConfig?.channels && Object.keys(parsedConfig.channels).length > 0;
     return !hasChannels;
   }
@@ -264,7 +292,7 @@ export class ConfigManager {
   }
 
   private formatZodErrors(error: ZodError): string {
-    return error.issues.map((e: any) => `${e.path?.join('.') || 'unknown'}: ${e.message}`).join('; ');
+    return error.issues.map((e) => `${e.path?.join('.') || 'unknown'}: ${e.message}`).join('; ');
   }
 
   getConfig(): FullConfig {

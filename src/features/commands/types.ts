@@ -4,7 +4,7 @@ export interface CommandDefinition {
   usage: string;
   aliases?: string[];
   category: 'system' | 'plugin';
-  execute: (ctx: CommandContext) => Promise<CommandResult>;
+  execute: (_ctx: CommandContext) => Promise<CommandResult>;
 }
 
 export interface CommandContext {

@@ -1,4 +1,6 @@
-import { z, ZodType } from 'zod';
+
+
+import { ZodType } from 'zod';
 
 export interface ToolParameterProperty {
   type: string;
@@ -43,7 +45,7 @@ export interface ITool {
   readonly parametersSchema: ZodType;
 
   getDefinition(): ToolDefinition;
-  execute(args: unknown, context: ToolExecuteContext): Promise<ToolExecutionResult>;
+  execute(_args: unknown, _context: ToolExecuteContext): Promise<ToolExecutionResult>;
 }
 
 export interface ToolCallRequest {

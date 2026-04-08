@@ -5,7 +5,7 @@ import { eventBus, SystemEvents } from '../events/index.js';
 import type { SystemEvent } from '../events/index.js';
 
 export interface CronJobExecutor {
-  (job: CronJobRecord): Promise<void>;
+  (_job: CronJobRecord): Promise<void>;
 }
 
 interface ScheduledTask {
@@ -16,9 +16,9 @@ interface ScheduledTask {
 
 class PriorityQueue<T> {
   private heap: T[] = [];
-  private comparator: (a: T, b: T) => number;
+  private comparator: (_a: T, _b: T) => number;
 
-  constructor(comparator: (a: T, b: T) => number) {
+  constructor(comparator: (_a: T, _b: T) => number) {
     this.comparator = comparator;
   }
 
@@ -50,7 +50,7 @@ class PriorityQueue<T> {
     return this.heap.length === 0;
   }
 
-  remove(predicate: (item: T) => boolean): T | undefined {
+  remove(predicate: (_item: T) => boolean): T | undefined {
     const index = this.heap.findIndex(predicate);
     if (index === -1) return undefined;
     
@@ -138,28 +138,28 @@ export class CronJobScheduler {
 
     this.eventSubscriptions.set(
       SystemEvents.CRON_JOB_CREATED,
-      eventBus.on(SystemEvents.CRON_JOB_CREATED, (payload: any) => {
+      eventBus.on(SystemEvents.CRON_JOB_CREATED, (payload: { job: CronJobRecord }) => {
         this.scheduleTask(payload.job);
       })
     );
 
     this.eventSubscriptions.set(
       SystemEvents.CRON_JOB_UPDATED,
-      eventBus.on(SystemEvents.CRON_JOB_UPDATED, (payload: any) => {
+      eventBus.on(SystemEvents.CRON_JOB_UPDATED, (payload: { job: CronJobRecord }) => {
         this.rescheduleTask(payload.job);
       })
     );
 
     this.eventSubscriptions.set(
       SystemEvents.CRON_JOB_DELETED,
-      eventBus.on(SystemEvents.CRON_JOB_DELETED, (payload: any) => {
+      eventBus.on(SystemEvents.CRON_JOB_DELETED, (payload: { jobId: string }) => {
         this.cancelTask(payload.jobId);
       })
     );
 
     this.eventSubscriptions.set(
       SystemEvents.CRON_JOB_TOGGLED,
-      eventBus.on(SystemEvents.CRON_JOB_TOGGLED, (payload: any) => {
+      eventBus.on(SystemEvents.CRON_JOB_TOGGLED, (payload: { enabled: boolean; job: CronJobRecord }) => {
         if (payload.enabled) {
           this.scheduleTask(payload.job);
         } else {

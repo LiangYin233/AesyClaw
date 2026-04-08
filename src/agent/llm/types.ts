@@ -1,12 +1,12 @@
-import { ToolDefinition } from '../../platform/tools/types.js';
 import { PromptContext } from './prompt-context.js';
 
 export enum MessageRole {
   System = 'system',
   User = 'user',
   Assistant = 'assistant',
-  Tool = 'tool',
+  Tool = 'tool'
 }
+
 
 export interface StandardMessage {
   role: MessageRole;
@@ -47,12 +47,12 @@ export interface StandardResponse {
 export enum LLMProviderType {
   OpenAIChat = 'openai-chat',
   OpenAICompletion = 'openai-completion',
-  Anthropic = 'anthropic',
+  Anthropic = 'anthropic'
 }
 
 export enum LLMMode {
   Chat = 'chat',
-  Completion = 'completion',
+  Completion = 'completion'
 }
 
 export interface LLMProviderConfig {
@@ -67,11 +67,11 @@ export interface ILLMProvider {
   readonly providerType: LLMProviderType;
   readonly supportedModes: LLMMode[];
 
-  generate(context: PromptContext): Promise<StandardResponse>;
+  generate(_context: PromptContext): Promise<StandardResponse>;
 
   validateConfig(): boolean;
 }
 
 export interface IAdapterFactory {
-  createAdapter(config: LLMProviderConfig): ILLMProvider;
+  createAdapter(_config: LLMProviderConfig): ILLMProvider;
 }

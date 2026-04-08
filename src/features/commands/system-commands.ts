@@ -7,7 +7,6 @@ import { roleManager } from '../roles/role-manager.js';
 
 function formatPluginList(): string {
   const plugins = commandRegistry.getPluginCommands();
-  const loadedPlugins = pluginManager.getLoadedPlugins();
 
   if (plugins.length === 0) {
     return '暂无已加载的插件命令。';
@@ -100,7 +99,6 @@ export const systemCommands: CommandDefinition[] = [
 
       switch (subCommand) {
         case 'list': {
-          const plugins = commandRegistry.getPluginCommands();
           return {
             success: true,
             message: formatPluginList(),
@@ -393,7 +391,6 @@ export const systemCommands: CommandDefinition[] = [
           }
 
           const roleInfo = session.memory.getRoleInfo();
-          const role = roleManager.getRole(roleInfo.roleId);
           let output = `🎭 当前角色: **${roleInfo.roleName}**\n\n`;
           output += `**ID**: \`${roleInfo.roleId}\`\n`;
           output += '\n**可用工具**: ';

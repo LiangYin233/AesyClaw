@@ -1,5 +1,5 @@
 import { StandardMessage, MessageRole, LLMProviderType } from '../../agent/llm/types.js';
-import { LLMConfig, LLMSession, createLLMSession } from '../../agent/llm/factory.js';
+import { LLMConfig, createLLMSession } from '../../agent/llm/factory.js';
 import { buildPromptContext } from '../../agent/llm/prompt-context-factory.js';
 import { ToolRegistry } from '../../platform/tools/registry.js';
 import { ToolDefinition, ToolExecuteContext } from '../../platform/tools/types.js';

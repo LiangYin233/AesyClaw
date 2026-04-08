@@ -1,4 +1,3 @@
-import { z } from 'zod';
 import {
   StandardMessage,
   MessageRole,
@@ -11,9 +10,6 @@ import {
   ToolDefinition,
   ToolExecuteContext,
   ToolCallRequest,
-  zodToToolParameters,
-  ITool,
-  ToolExecutionResult,
 } from '../../platform/tools/types.js';
 import { logger } from '../../platform/observability/logger.js';
 import { pluginManager } from '../../features/plugins/plugin-manager.js';
@@ -115,7 +111,6 @@ export class AgentEngine {
     this.memory.addMessage(MessageFactory.createUserMessage(userInput));
 
     const session = this.getSession();
-    const messages = this.memory.getMessages();
 
     const context: ToolExecuteContext = {
       chatId: this.chatId,

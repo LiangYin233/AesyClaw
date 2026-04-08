@@ -28,7 +28,7 @@ export class PluginManager {
   private pluginInfos: Map<string, PluginInfo> = new Map();
   private initialized: boolean = false;
   private pluginsDir: string;
-  private pluginPaths: Map<string, { dir: string; packageJson: any }> = new Map();
+  private pluginPaths: Map<string, { dir: string; packageJson: Record<string, unknown> }> = new Map();
 
   private constructor(toolRegistry: ToolRegistry) {
     this.toolRegistry = toolRegistry;
@@ -45,7 +45,8 @@ export class PluginManager {
   static resetInstance(): void {
     if (PluginManager.instance) {
       PluginManager.instance.shutdown();
-      PluginManager.instance = undefined as any;
+      // @ts-ignore: resetting singleton instance
+      PluginManager.instance = undefined;
     }
   }
 
@@ -270,7 +271,7 @@ export class PluginManager {
     const merged = { ...defaultOptions };
 
     for (const key in userOptions) {
-      if (userOptions.hasOwnProperty(key)) {
+      if (Object.hasOwn(userOptions, key)) {
         const userValue = userOptions[key];
         const defaultValue = defaultOptions[key];
 
@@ -301,7 +302,7 @@ export class PluginManager {
     hookName: K,
     payload: HookPayloadMap[K] | undefined
   ): Promise<HookResultMap[K]> {
-    let result: any = payload;
+    let result: HookPayloadMap[K] | undefined = payload;
 
     for (const [, plugin] of this.loadedPlugins) {
       if (!plugin.hooks) continue;
@@ -349,7 +350,7 @@ export class PluginManager {
   async dispatchBeforeToolCall(
     toolCall: HookPayloadToolCall
   ): Promise<{ success: boolean; content: string; error?: string } | null> {
-    const result = await this.dispatchHook('beforeToolCall', toolCall) as any;
+    const result = await this.dispatchHook('beforeToolCall', toolCall);
     if (result === toolCall) {
       return null;
     }
@@ -359,7 +360,7 @@ export class PluginManager {
   async dispatchAfterToolCall(
     payload: HookPayloadAfterToolCall
   ): Promise<HookPayloadAfterToolCall['result']> {
-    const result = await this.dispatchHook('afterToolCall', payload) as any;
+    const result = await this.dispatchHook('afterToolCall', payload);
     if (result === payload) {
       return payload.result;
     }
