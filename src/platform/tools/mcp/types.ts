@@ -1,4 +1,4 @@
-import { ZodType } from 'zod';
+import { ZodType, z } from 'zod';
 import { ITool, ToolExecuteContext, ToolExecutionResult, ToolDefinition } from '../types.js';
 
 export interface MCPServerInfo {
@@ -36,8 +36,6 @@ export class McpToolAdapter implements ITool {
   }
 
   private parseInputSchema(schema: Record<string, unknown>): ZodType {
-    const { z } = require('zod');
-    
     if (!schema || typeof schema !== 'object') {
       return z.object({});
     }
@@ -61,7 +59,6 @@ export class McpToolAdapter implements ITool {
   }
 
   private zodFromJsonSchema(prop: Record<string, unknown>): ZodType {
-    const { z } = require('zod');
     const type = prop.type as string;
 
     switch (type) {

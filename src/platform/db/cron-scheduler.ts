@@ -392,8 +392,14 @@ export class CronJobScheduler {
   private matches(value: number, pattern: string): boolean {
     if (pattern === '*') return true;
     if (pattern.includes('/')) {
-      const [, step] = pattern.split('/');
-      return value % parseInt(step, 10) === 0;
+      const [range, stepStr] = pattern.split('/');
+      const step = parseInt(stepStr, 10);
+      if (range === '*') {
+        return value % step === 0;
+      } else {
+        const start = parseInt(range, 10);
+        return value >= start && (value - start) % step === 0;
+      }
     }
     if (pattern.includes(',')) {
       return pattern.split(',').some(p => parseInt(p, 10) === value);

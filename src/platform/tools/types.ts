@@ -127,4 +127,4 @@ function convertProperty(prop: Record<string, unknown>): ToolParameterProperty {
   return result;
 }
 
-export const BuiltInTools = {} as const;
+

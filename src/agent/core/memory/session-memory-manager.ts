@@ -54,7 +54,7 @@ export class SessionMemoryManager {
     logger.debug({ chatId: this.chatId, config: this.config }, 'Memory config updated');
   }
 
-  addMessage(message: StandardMessage): void {
+  async addMessage(message: StandardMessage): Promise<void> {
     this.currentPhase = CompressionPhase.Monitoring;
     
     const { message: processedMessage, result } = this.trimmer.checkAndTrim(message);
@@ -98,7 +98,7 @@ export class SessionMemoryManager {
         },
         'Token 预算超限，触发压缩协议'
       );
-      this.triggerCompression();
+      await this.triggerCompression();
     }
 
     this.currentPhase = CompressionPhase.Idle;
@@ -281,7 +281,7 @@ export class SessionMemoryManager {
     };
   }
 
-  clear(): void {
+  async clear(): Promise<void> {
     this.messages = [];
     this.calculator.clearCache();
     this.compressionCount = 0;
@@ -289,9 +289,11 @@ export class SessionMemoryManager {
     this.currentPhase = CompressionPhase.Idle;
     this.activeRoleId = DEFAULT_ROLE_ID;
     
-    this.rebuildSystemContext().catch(err => {
+    try {
+      await this.rebuildSystemContext();
+    } catch (err) {
       logger.error({ chatId: this.chatId, error: err }, '重建系统上下文失败');
-    });
+    }
     
     logger.debug({ chatId: this.chatId }, 'Session memory cleared');
     
