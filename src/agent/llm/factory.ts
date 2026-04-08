@@ -164,8 +164,24 @@ export class LLMSession {
     this.messages.push(message);
   }
 
-  getMessages(): StandardMessage[] {
+  getMessages(): ReadonlyArray<StandardMessage> {
+    return this.messages;
+  }
+
+  getMessagesCopy(): StandardMessage[] {
     return [...this.messages];
+  }
+
+  getMessageCount(): number {
+    return this.messages.length;
+  }
+
+  getLastMessage(): StandardMessage | undefined {
+    return this.messages[this.messages.length - 1];
+  }
+
+  getRecentMessages(count: number): StandardMessage[] {
+    return this.messages.slice(-count);
   }
 
   getTotalTokenUsage(): TokenUsage {

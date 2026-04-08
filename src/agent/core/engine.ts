@@ -172,7 +172,7 @@ export class AgentEngine {
             'Assistant 消息已添加到 memory'
           );
           
-          const recentTools = this.memory.getMessages().slice(-10).filter(m => m.role === MessageRole.Tool);
+          const recentTools = this.memory.getRecentMessages(10).filter(m => m.role === MessageRole.Tool);
           const recentToolNames = recentTools.map(m => m.name || '');
 
           if (recentToolNames.length > 0) {
@@ -243,9 +243,10 @@ export class AgentEngine {
               '工具返回内容'
             );
             
-            const currentMessages = this.memory.getMessages();
+            const totalMessages = this.memory.getMessageCount();
+            const lastMessage = this.memory.getLastMessage();
             logger.info(
-              { totalMessages: currentMessages.length, lastMessageRole: currentMessages[currentMessages.length - 1]?.role },
+              { totalMessages, lastMessageRole: lastMessage?.role },
               '添加工具结果后的 memory 状态'
             );
           }
@@ -317,7 +318,7 @@ export class AgentEngine {
   }
 
   getHistory(): StandardMessage[] {
-    return this.memory.getMessages();
+    return this.memory.getMessagesCopy();
   }
 
   clearHistory(): void {
@@ -351,14 +352,14 @@ export class AgentEngine {
     return allToolDefs.filter(tool => allowedToolNames.includes(tool.name));
   }
 
-  private buildPromptContextForCurrentState(messages: StandardMessage[], tools: ToolDefinition[]) {
+  private buildPromptContextForCurrentState(messages: ReadonlyArray<StandardMessage>, tools: ToolDefinition[]) {
     const roleId = this.memory.getActiveRoleId();
 
     return buildPromptContext({
       chatId: this.chatId,
       senderId: 'user',
       roleId: roleId,
-      messages: messages,
+      messages: [...messages],
       tools: tools
     });
   }

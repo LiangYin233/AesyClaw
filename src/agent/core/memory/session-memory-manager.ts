@@ -104,8 +104,24 @@ export class SessionMemoryManager {
     this.currentPhase = CompressionPhase.Idle;
   }
 
-  getMessages(): StandardMessage[] {
+  getMessages(): ReadonlyArray<StandardMessage> {
+    return this.messages;
+  }
+
+  getMessagesCopy(): StandardMessage[] {
     return [...this.messages];
+  }
+
+  getMessageCount(): number {
+    return this.messages.length;
+  }
+
+  getLastMessage(): StandardMessage | undefined {
+    return this.messages[this.messages.length - 1];
+  }
+
+  getRecentMessages(count: number): StandardMessage[] {
+    return this.messages.slice(-count);
   }
 
   getMessagesForLLM(): StandardMessage[] {
@@ -304,20 +320,12 @@ export class SessionMemoryManager {
     });
   }
 
-  getMessageCount(): number {
-    return this.messages.length;
-  }
-
   getTokenCount(): number {
     return this.checkBudget().currentTokens;
   }
 
   hasMessages(): boolean {
     return this.messages.length > 0;
-  }
-
-  getLastMessage(): StandardMessage | undefined {
-    return this.messages[this.messages.length - 1];
   }
 
   getLastNMessages(n: number): StandardMessage[] {
@@ -364,7 +372,7 @@ export class SessionMemoryManager {
   } {
     return {
       chatId: this.chatId,
-      messages: this.getMessages(),
+      messages: this.getMessagesCopy(),
       stats: this.getStats(),
       config: this.config,
     };

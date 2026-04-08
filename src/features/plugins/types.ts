@@ -64,7 +64,7 @@ export interface HookPayloadMessageReceive {
 }
 
 export interface HookPayloadBeforeLLMRequest {
-  messages: StandardMessage[];
+  messages: ReadonlyArray<StandardMessage>;
   tools: Array<{
     name: string;
     description: string;
