@@ -411,10 +411,6 @@ export class ConfigManager {
     }
   }
 
-  async reloadConfig(): Promise<void> {
-    await this.reload();
-  }
-
   async updateConfig(updates: Partial<FullConfig>): Promise<boolean> {
     if (!this._config) {
       logger.error({}, 'ConfigManager not initialized');

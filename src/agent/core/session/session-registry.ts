@@ -167,10 +167,6 @@ export class SessionRegistry {
     }
   }
 
-  hasSession(sessionId: string): boolean {
-    return this.sessions.has(sessionId);
-  }
-
   getSession(sessionId: string): SessionContext | undefined {
     return this.sessions.get(sessionId);
   }
@@ -194,30 +190,6 @@ export class SessionRegistry {
 
   getSessionsByChatId(chatId: string): SessionContext[] {
     return this.getAllSessions().filter(s => s.metadata.chatId === chatId);
-  }
-
-  getSessionsByChannel(channel: string): SessionContext[] {
-    return this.getAllSessions().filter(s => s.metadata.channel === channel);
-  }
-
-  getSessionsByType(type: string): SessionContext[] {
-    return this.getAllSessions().filter(s => s.metadata.type === type);
-  }
-
-  clearAll(): void {
-    for (const session of this.sessions.values()) {
-      session.memory.clear();
-    }
-    this.sessions.clear();
-    logger.info({}, '所有会话已清理');
-  }
-
-  clearByChatId(chatId: string): void {
-    const sessions = this.getSessionsByChatId(chatId);
-    for (const session of sessions) {
-      this.removeSession(session.metadata.sessionId);
-    }
-    logger.info({ chatId, count: sessions.length }, '聊天会话已清理');
   }
 
   cleanupInactive(maxAge: number): void {
@@ -285,7 +257,10 @@ export class SessionRegistry {
 
   shutdown(): void {
     this.stopAutoCleanup();
-    this.clearAll();
+    for (const session of this.sessions.values()) {
+      session.memory.clear();
+    }
+    this.sessions.clear();
     logger.info({}, 'SessionRegistry shutdown');
   }
 }

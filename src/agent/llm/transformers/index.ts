@@ -6,7 +6,6 @@ export {
   MessageTransformer,
   OpenAIMessageFormatter,
   AnthropicMessageFormatter,
-  messageTransformer,
   type IMessageFormatter,
   type OpenAIConvertedMessages,
   type AnthropicConvertedMessages,

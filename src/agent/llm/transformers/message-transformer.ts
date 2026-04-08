@@ -9,12 +9,14 @@ import {
   MessageRole,
   ToolCall,
   LLMProviderType,
+  OpenAIConvertedMessages,
+  AnthropicConvertedMessages,
+  IMessageFormatter,
 } from '../types.js';
 import { logger } from '../../../platform/observability/logger.js';
 
-/**
- * OpenAI 助手消息类型（包含工具调用）
- */
+export { OpenAIConvertedMessages, AnthropicConvertedMessages, IMessageFormatter };
+
 interface AssistantMessageWithToolCalls {
   role: 'assistant';
   content: string | null;
@@ -28,61 +30,19 @@ interface AssistantMessageWithToolCalls {
   }>;
 }
 
-/**
- * Anthropic 内容块类型
- */
 type AnthropicContentBlock =
   | { type: 'text'; text: string }
   | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
   | { type: 'tool_result'; tool_use_id: string; content: string };
 
-/**
- * Anthropic 消息类型
- */
 interface AnthropicMessage {
   role: 'user' | 'assistant';
   content: string | AnthropicContentBlock[];
 }
 
-/**
- * OpenAI 格式的系统消息
- */
 interface OpenAISystemMessage {
   role: 'system';
   content: string;
-}
-
-/**
- * 转换后的 OpenAI 消息结果
- */
-export interface OpenAIConvertedMessages {
-  /** 系统消息（单独传递） */
-  systemMessage?: OpenAISystemMessage;
-  /** 对话消息数组 */
-  messages: ChatCompletionMessageParam[];
-}
-
-/**
- * 转换后的 Anthropic 消息结果
- */
-export interface AnthropicConvertedMessages {
-  /** 系统提示（单独传递） */
-  systemPrompt?: string;
-  /** 对话消息数组 */
-  messages: AnthropicMessage[];
-}
-
-/**
- * 消息格式化器接口
- */
-export interface IMessageFormatter {
-  /**
-   * 将标准消息格式转换为特定提供商的消息格式
-   * @param messages 标准消息数组
-   * @param systemPrompt 系统提示（可选）
-   * @returns 转换后的消息格式
-   */
-  format(messages: StandardMessage[], systemPrompt?: string): unknown;
 }
 
 /**
@@ -401,119 +361,23 @@ export class MessageTransformer {
     this.registerFormatter(LLMProviderType.Anthropic, new AnthropicMessageFormatter());
   }
 
-  /**
-   * 注册消息格式化器
-   * @param providerType 提供商类型
-   * @param formatter 格式化器实例
-   */
-  registerFormatter(providerType: LLMProviderType, formatter: IMessageFormatter): void {
+  private registerFormatter(providerType: LLMProviderType, formatter: IMessageFormatter): void {
     this.formatters.set(providerType, formatter);
-    logger.debug(
-      { providerType },
-      '已注册消息格式化器'
-    );
   }
 
-  /**
-   * 转换消息为指定提供商的格式
-   * @param providerType 提供商类型
-   * @param messages 标准消息数组
-   * @param systemPrompt 系统提示（可选）
-   * @returns 转换后的消息格式
-   */
-  transform(
-    providerType: LLMProviderType,
-    messages: StandardMessage[],
-    systemPrompt?: string
-  ): OpenAIConvertedMessages | AnthropicConvertedMessages | unknown {
-    const formatter = this.formatters.get(providerType);
-
-    if (!formatter) {
-      logger.warn(
-        { providerType },
-        '未找到对应的消息格式化器，返回原始消息'
-      );
-      return messages;
-    }
-
-    return formatter.format(messages, systemPrompt);
-  }
-
-  /**
-   * 转换为 OpenAI 格式
-   * @param messages 标准消息数组
-   * @param systemPrompt 系统提示（可选）
-   * @returns OpenAI 格式的消息
-   */
   toOpenAI(
     messages: StandardMessage[],
     systemPrompt?: string
   ): OpenAIConvertedMessages {
-    const formatter = new OpenAIMessageFormatter();
+    const formatter = this.formatters.get(LLMProviderType.OpenAIChat)!;
     return formatter.format(messages, systemPrompt) as OpenAIConvertedMessages;
   }
 
-  /**
-   * 转换为 Anthropic 格式
-   * @param messages 标准消息数组
-   * @param systemPrompt 系统提示（可选）
-   * @returns Anthropic 格式的消息
-   */
   toAnthropic(
     messages: StandardMessage[],
     systemPrompt?: string
   ): AnthropicConvertedMessages {
-    const formatter = new AnthropicMessageFormatter();
+    const formatter = this.formatters.get(LLMProviderType.Anthropic)!;
     return formatter.format(messages, systemPrompt) as AnthropicConvertedMessages;
   }
-
-  /**
-   * 验证消息格式是否正确
-   * @param messages 标准消息数组
-   * @returns 验证结果
-   */
-  validate(messages: StandardMessage[]): { valid: boolean; errors: string[] } {
-    const errors: string[] = [];
-
-    for (let i = 0; i < messages.length; i++) {
-      const msg = messages[i];
-
-      // 检查必需字段
-      if (!msg.role) {
-        errors.push(`消息 ${i}: 缺少 role 字段`);
-      }
-
-      if (!msg.content && msg.role !== MessageRole.Assistant) {
-        errors.push(`消息 ${i}: 缺少 content 字段`);
-      }
-
-      // 检查工具消息的 toolCallId
-      if (msg.role === MessageRole.Tool && !msg.toolCallId) {
-        errors.push(`消息 ${i}: Tool 消息缺少 toolCallId`);
-      }
-
-      // 检查助手消息的工具调用
-      if (msg.role === MessageRole.Assistant && msg.toolCalls) {
-        for (let j = 0; j < msg.toolCalls.length; j++) {
-          const tc = msg.toolCalls[j];
-          if (!tc.id) {
-            errors.push(`消息 ${i}, 工具调用 ${j}: 缺少 id`);
-          }
-          if (!tc.name) {
-            errors.push(`消息 ${i}, 工具调用 ${j}: 缺少 name`);
-          }
-        }
-      }
-    }
-
-    return {
-      valid: errors.length === 0,
-      errors,
-    };
-  }
 }
-
-/**
- * 创建全局消息转换器实例
- */
-export const messageTransformer = new MessageTransformer();

@@ -32,12 +32,13 @@ export class TokenBudgetCalculator {
     let totalTokens = 0;
 
     for (const message of messages) {
-      const cached = this.tokenCache.get(message.content);
+      const cacheKey = `${message.role}:${message.content}:${message.toolCalls?.length ?? 0}`;
+      const cached = this.tokenCache.get(cacheKey);
       if (cached !== undefined) {
         totalTokens += cached;
       } else {
         const tokens = this.estimateTokens(message);
-        this.tokenCache.set(message.content, tokens);
+        this.tokenCache.set(cacheKey, tokens);
         totalTokens += tokens;
       }
     }

@@ -13,11 +13,3 @@ export {
   type ModelPricing,
   MODEL_PRICING,
 } from './metrics-collector.js';
-
-export {
-  MetricsEnabledProvider,
-  createMetricsEnabledProvider,
-  getGlobalMetricsCollector,
-  setGlobalMetricsCollector,
-  resetGlobalMetricsCollector,
-} from './integration.js';

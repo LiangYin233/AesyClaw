@@ -21,7 +21,7 @@ import { CommandRegistry } from '../commands/command-registry.js';
 import { configManager } from '../config/config-manager.js';
 
 export class PluginManager {
-  private static instance: PluginManager;
+  private static instance: PluginManager | undefined = undefined;
 
   private toolRegistry: ToolRegistry;
   private loadedPlugins: Map<string, IPlugin> = new Map();
@@ -45,7 +45,6 @@ export class PluginManager {
   static resetInstance(): void {
     if (PluginManager.instance) {
       PluginManager.instance.shutdown();
-      // @ts-ignore: resetting singleton instance
       PluginManager.instance = undefined;
     }
   }

@@ -266,9 +266,9 @@ export class ToolRegistry {
     return [...this.toolCallHistory];
   }
 
-  getToolCallHistoryByChatId(_chatId: string): ToolCallResult[] {
+  getToolCallHistoryByChatId(chatId: string): ToolCallResult[] {
     return this.toolCallHistory.filter(
-      result => result.toolCallId.includes(_chatId)
+      result => result.toolCallId === chatId
     );
   }
 

@@ -24,10 +24,12 @@ export class SkillManager {
   }
 
   static resetInstance(): void {
-    if (SkillManager.instance?.watcher) {
-      SkillManager.instance.watcher.close();
+    if (SkillManager.instance) {
+      if (SkillManager.instance.watcher) {
+        SkillManager.instance.watcher.close();
+      }
+      SkillManager.instance = undefined;
     }
-    SkillManager.instance = undefined;
   }
 
   async initialize(): Promise<void> {
