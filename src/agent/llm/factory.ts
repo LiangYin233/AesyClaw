@@ -7,6 +7,7 @@ import {
   ToolCall,
   TokenUsage,
   MessageRole,
+  UnifiedLLMClientConfig,
 } from './types.js';
 import { ToolDefinition } from '../../platform/tools/types.js';
 import { OpenAIChatAdapter } from './adapters/openai-chat-adapter.js';
@@ -14,6 +15,7 @@ import { OpenAICompletionAdapter } from './adapters/openai-completion-adapter.js
 import { AnthropicAdapter } from './adapters/anthropic-adapter.js';
 import { logger } from '../../platform/observability/logger.js';
 import { PromptContext } from './prompt-context.js';
+import { UnifiedLLMClient } from './unified-client.js';
 
 export interface ModelCapabilities {
   reasoning: boolean;
@@ -112,28 +114,60 @@ export class LLMProviderFactory {
   }
 }
 
+/**
+ * LLM 会话类
+ * 使用 UnifiedLLMClient 提供统一的 LLM 调用接口
+ * 保持向后兼容的接口设计
+ */
 export class LLMSession {
-  private adapter: ILLMProvider;
+  /** 统一 LLM 客户端实例 */
+  private client: UnifiedLLMClient;
+  
+  /** 工具定义列表 */
   private tools: ToolDefinition[];
+  
+  /** 消息历史 */
   private messages: StandardMessage[] = [];
+  
+  /** 总 Token 使用量统计 */
   private totalTokenUsage: TokenUsage = {
     promptTokens: 0,
     completionTokens: 0,
     totalTokens: 0,
   };
 
-  constructor(adapter: ILLMProvider, tools: ToolDefinition[] = []) {
-    this.adapter = adapter;
+  /**
+   * 创建 LLM 会话实例
+   * @param client UnifiedLLMClient 实例
+   * @param tools 工具定义列表
+   */
+  constructor(client: UnifiedLLMClient, tools: ToolDefinition[] = []) {
+    this.client = client;
     this.tools = tools;
     logger.debug(
-      { provider: adapter.providerType, toolCount: tools.length },
-      '💬 创建新的 LLM Session'
+      { toolCount: tools.length },
+      '💬 创建新的 LLM Session (使用 UnifiedLLMClient)'
     );
   }
 
+  /**
+   * 生成响应
+   * 向后兼容接口：接收 PromptContext 并转换为 UnifiedLLMClient 所需格式
+   * @param context Prompt 上下文
+   * @returns 标准响应
+   */
   async generate(context: PromptContext): Promise<StandardResponse> {
-    const response = await this.adapter.generate(context);
+    // 从 PromptContext 提取消息，合并现有消息历史
+    const contextMessages = context.messages || [];
+    
+    // 使用 UnifiedLLMClient 生成响应
+    const response = await this.client.generate({
+      messages: contextMessages,
+      systemPrompt: context.system?.systemPrompt,
+      tools: this.tools,
+    });
 
+    // 如果响应包含文本，添加到消息历史
     if (response.text) {
       this.addMessage({
         role: MessageRole.Assistant,
@@ -142,6 +176,7 @@ export class LLMSession {
       });
     }
 
+    // 累加 Token 使用量
     if (response.tokenUsage) {
       this.totalTokenUsage.promptTokens += response.tokenUsage.promptTokens;
       this.totalTokenUsage.completionTokens += response.tokenUsage.completionTokens;
@@ -151,6 +186,12 @@ export class LLMSession {
     return response;
   }
 
+  /**
+   * 添加工具调用结果到消息历史
+   * @param toolCallId 工具调用 ID
+   * @param toolName 工具名称
+   * @param result 工具执行结果
+   */
   addToolResult(toolCallId: string, toolName: string, result: string): void {
     this.addMessage({
       role: MessageRole.Tool,
@@ -160,48 +201,117 @@ export class LLMSession {
     });
   }
 
+  /**
+   * 添加消息到历史
+   * @param message 标准消息
+   */
   addMessage(message: StandardMessage): void {
     this.messages.push(message);
   }
 
+  /**
+   * 获取消息历史（只读）
+   * @returns 消息数组
+   */
   getMessages(): ReadonlyArray<StandardMessage> {
     return this.messages;
   }
 
+  /**
+   * 获取消息历史的副本
+   * @returns 消息数组副本
+   */
   getMessagesCopy(): StandardMessage[] {
     return [...this.messages];
   }
 
+  /**
+   * 获取消息数量
+   * @returns 消息数量
+   */
   getMessageCount(): number {
     return this.messages.length;
   }
 
+  /**
+   * 获取最后一条消息
+   * @returns 最后一条消息或 undefined
+   */
   getLastMessage(): StandardMessage | undefined {
     return this.messages[this.messages.length - 1];
   }
 
+  /**
+   * 获取最近的消息
+   * @param count 消息数量
+   * @returns 最近的消息数组
+   */
   getRecentMessages(count: number): StandardMessage[] {
     return this.messages.slice(-count);
   }
 
+  /**
+   * 获取总 Token 使用量
+   * @returns Token 使用量副本
+   */
   getTotalTokenUsage(): TokenUsage {
     return { ...this.totalTokenUsage };
   }
 
+  /**
+   * 获取所有工具调用
+   * @returns 工具调用数组
+   */
   getToolCalls(): ToolCall[] {
     return this.messages
       .filter(m => m.role === 'assistant' && m.toolCalls)
       .flatMap(m => m.toolCalls || []);
   }
 
+  /**
+   * 清空消息历史
+   */
   clearHistory(): void {
     this.messages = [];
     logger.debug('LLM Session history cleared');
   }
+
+  /**
+   * 获取底层 UnifiedLLMClient 实例
+   * 用于高级用法和直接访问客户端功能
+   * @returns UnifiedLLMClient 实例
+   */
+  getClient(): UnifiedLLMClient {
+    return this.client;
+  }
 }
 
+/**
+ * 创建 LLM 会话实例
+ * 工厂函数：根据配置创建 UnifiedLLMClient 并初始化 LLMSession
+ * @param config LLM 配置
+ * @param tools 工具定义列表
+ * @returns LLMSession 实例
+ */
 export function createLLMSession(config: LLMConfig, tools: ToolDefinition[] = []): LLMSession {
-  const factory = LLMProviderFactory.getInstance();
-  const adapter = factory.createAdapter(config);
-  return new LLMSession(adapter, tools);
+  // 构建 UnifiedLLMClient 配置
+  const clientConfig: UnifiedLLMClientConfig = {
+    provider: config.provider,
+    model: config.model || 'gpt-4o-mini',
+    apiKey: config.apiKey,
+    baseUrl: config.baseUrl,
+    timeout: config.timeout,
+    cacheEnabled: false, // LLMSession 默认不启用缓存，避免工具调用结果缓存
+    streamEnabled: false,
+  };
+
+  // 创建 UnifiedLLMClient 实例
+  const client = new UnifiedLLMClient(clientConfig);
+
+  logger.info(
+    { provider: config.provider, model: config.model, toolCount: tools.length },
+    '🆕 创建新的 LLMSession (使用 UnifiedLLMClient)'
+  );
+
+  return new LLMSession(client, tools);
 }

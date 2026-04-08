@@ -1,9 +1,11 @@
 import {
   StandardMessage,
   MessageRole,
+  UnifiedLLMClientConfig,
+  UnifiedRequestOptions,
 } from '../llm/types.js';
-import { LLMConfig, LLMSession, createLLMSession } from '../llm/factory.js';
-import { buildPromptContext } from '../llm/prompt-context-factory.js';
+import { LLMConfig } from '../llm/factory.js';
+import { UnifiedLLMClient } from '../llm/unified-client.js';
 import { ToolRegistry } from '../../platform/tools/registry.js';
 import { MessageFactory } from './message-factory.js';
 import {
@@ -18,6 +20,8 @@ import {
   SessionMemoryManager,
   MemoryConfig,
 } from './memory/index.js';
+import { LLMProviderType } from '../llm/types.js';
+import { MetricsReport } from '../llm/metrics/metrics-collector.js';
 
 export interface AgentConfig {
   llm: LLMConfig;
@@ -44,7 +48,7 @@ export class AgentEngine {
   readonly chatId: string;
   private instanceId: string;
   private config: Required<AgentConfig>;
-  private session: LLMSession | null = null;
+  private client: UnifiedLLMClient | null = null;
   private toolRegistry: ToolRegistry;
   private tools: ToolDefinition[];
   private maxSteps: number;
@@ -84,10 +88,25 @@ export class AgentEngine {
     );
   }
 
-  private getSession(): LLMSession {
-    if (!this.session) {
+  /**
+   * 获取或创建 UnifiedLLMClient 实例
+   */
+  private getClient(): UnifiedLLMClient {
+    if (!this.client) {
       const filteredTools = this.getFilteredTools();
-      this.session = createLLMSession(this.config.llm, filteredTools);
+      
+      // 构建 UnifiedLLMClient 配置
+      const clientConfig: UnifiedLLMClientConfig = {
+        provider: this.config.llm.provider as LLMProviderType,
+        model: this.config.llm.model || 'gpt-4o-mini',
+        apiKey: this.config.llm.apiKey,
+        baseUrl: this.config.llm.baseUrl,
+        timeout: this.config.llm.timeout,
+        cacheEnabled: false, // AgentEngine 默认不启用缓存，避免工具调用结果缓存
+        streamEnabled: false,
+      };
+
+      this.client = new UnifiedLLMClient(clientConfig);
 
       logger.debug(
         { 
@@ -96,10 +115,10 @@ export class AgentEngine {
           filteredTools: filteredTools.length,
           roleId: this.memory.getActiveRoleId()
         },
-        'LLM Session created with role-filtered tools'
+        'UnifiedLLMClient created with role-filtered tools'
       );
     }
-    return this.session;
+    return this.client;
   }
 
   async run(userInput: string): Promise<AgentRunResult> {
@@ -110,7 +129,7 @@ export class AgentEngine {
 
     this.memory.addMessage(MessageFactory.createUserMessage(userInput));
 
-    const session = this.getSession();
+    const client = this.getClient();
 
     const context: ToolExecuteContext = {
       chatId: this.chatId,
@@ -121,6 +140,11 @@ export class AgentEngine {
     let step = 0;
     let totalToolCalls = 0;
     let finalText = '';
+    let totalTokenUsage = {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+    };
 
     try {
       while (step < this.maxSteps) {
@@ -139,12 +163,29 @@ export class AgentEngine {
           tools: filteredTools,
         });
 
-        const promptContext = this.buildPromptContextForCurrentState(currentMessages, filteredTools);
-
-        const response = await session.generate(promptContext);
+        // 使用 UnifiedLLMClient 调用 LLM
+        const response = await client.generate({
+          messages: [...currentMessages],
+          systemPrompt: this.config.systemPrompt,
+          tools: filteredTools,
+        }, {
+          sessionId: this.chatId,
+          userId: 'user',
+          metadata: {
+            traceId: this.instanceId,
+            roleId: this.memory.getActiveRoleId(),
+          },
+        });
 
         if (response.finishReason === 'error') {
           throw new Error('LLM returned error');
+        }
+
+        // 累加 token 使用统计
+        if (response.tokenUsage) {
+          totalTokenUsage.promptTokens += response.tokenUsage.promptTokens;
+          totalTokenUsage.completionTokens += response.tokenUsage.completionTokens;
+          totalTokenUsage.totalTokens += response.tokenUsage.totalTokens;
         }
 
         if (response.toolCalls && response.toolCalls.length > 0) {
@@ -161,7 +202,6 @@ export class AgentEngine {
             response.toolCalls
           );
           this.memory.addMessage(assistantMessage);
-          session.addMessage(assistantMessage);
           
           logger.info(
             { 
@@ -202,7 +242,6 @@ export class AgentEngine {
                 `[权限拒绝] 角色 "${roleId}" 不允许使用工具 "${toolRequest.name}"。`
               );
               this.memory.addMessage(toolMessage);
-              session.addToolResult(toolRequest.id, toolRequest.name, toolMessage.content);
               continue;
             }
 
@@ -236,7 +275,6 @@ export class AgentEngine {
               afterResult.content
             );
             this.memory.addMessage(toolMessage);
-            session.addToolResult(toolRequest.id, toolRequest.name, afterResult.content);
             
             logger.info(
               { toolName: toolRequest.name, contentPreview: afterResult.content.substring(0, 200) },
@@ -273,15 +311,13 @@ export class AgentEngine {
         finalText = `抱歉，任务在 ${this.maxSteps} 步后仍未完成。请简化您的请求或分步进行。`;
       }
 
-      const tokenUsage = session.getTotalTokenUsage();
-
       logger.info(
         { 
           chatId: this.chatId, 
           instanceId: this.instanceId,
           steps: step,
           toolCalls: totalToolCalls,
-          tokenUsage,
+          tokenUsage: totalTokenUsage,
         },
         'AgentEngine 任务完成'
       );
@@ -291,7 +327,7 @@ export class AgentEngine {
         finalText,
         steps: step,
         toolCalls: totalToolCalls,
-        tokenUsage,
+        tokenUsage: totalTokenUsage,
       };
     } catch (error) {
       logger.error(
@@ -323,8 +359,53 @@ export class AgentEngine {
 
   clearHistory(): void {
     this.memory.clear();
-    this.session = null;
+    this.client = null;
     logger.debug({ chatId: this.chatId }, 'Agent history cleared');
+  }
+
+  /**
+   * 获取指标统计信息
+   * @param startTime 开始时间（可选）
+   * @param endTime 结束时间（可选）
+   * @returns 指标报告
+   */
+  getMetrics(startTime?: Date, endTime?: Date): MetricsReport {
+    if (!this.client) {
+      // 如果 client 未初始化，返回空报告
+      const now = new Date().toISOString();
+      return {
+        generatedAt: now,
+        timeRange: {
+          start: now,
+          end: now,
+        },
+        totalRequests: 0,
+        successfulRequests: 0,
+        failedRequests: 0,
+        successRate: 0,
+        averageLatency: 0,
+        totalPromptTokens: 0,
+        totalCompletionTokens: 0,
+        totalTokens: 0,
+        estimatedCost: 0,
+        providers: new Map(),
+        errors: [],
+      };
+    }
+    return this.client.getMetrics(startTime, endTime);
+  }
+
+  /**
+   * 销毁引擎
+   * 释放资源
+   */
+  destroy(): void {
+    if (this.client) {
+      this.client.destroy();
+      this.client = null;
+    }
+    this.memory.clear();
+    logger.info({ chatId: this.chatId }, 'AgentEngine 已销毁');
   }
 
   getMemoryStats() {
@@ -352,21 +433,13 @@ export class AgentEngine {
     return allToolDefs.filter(tool => allowedToolNames.includes(tool.name));
   }
 
-  private buildPromptContextForCurrentState(messages: ReadonlyArray<StandardMessage>, tools: ToolDefinition[]) {
-    const roleId = this.memory.getActiveRoleId();
-
-    return buildPromptContext({
-      chatId: this.chatId,
-      senderId: 'user',
-      roleId: roleId,
-      messages: [...messages],
-      tools: tools
-    });
-  }
-
   updateModel(model: string): void {
     this.config.llm.model = model;
-    this.session = null;
+    // 销毁旧的 client，下次调用时会创建新的 client
+    if (this.client) {
+      this.client.destroy();
+      this.client = null;
+    }
     logger.info({ chatId: this.chatId, model }, 'Agent model updated');
   }
 

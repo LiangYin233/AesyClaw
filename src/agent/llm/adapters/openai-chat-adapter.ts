@@ -4,27 +4,16 @@ import {
   ILLMProvider,
   LLMProviderType,
   LLMMode,
-  StandardMessage,
   StandardResponse,
   ToolCall,
   LLMProviderConfig,
-  MessageRole,
 } from '../types.js';
 import { logger } from '../../../platform/observability/logger.js';
 import { PromptContext } from '../prompt-context.js';
 import { TokenUsageMapper } from '../utils/token-usage-mapper.js';
 import { FinishReasonMapper } from '../utils/finish-reason-mapper.js';
-
-interface AssistantMessageWithToolCalls extends ChatCompletionMessageParam {
-  tool_calls?: Array<{
-    id: string;
-    type: 'function';
-    function: {
-      name: string;
-      arguments: string;
-    };
-  }>;
-}
+import { MessageTransformer } from '../transformers/message-transformer.js';
+import { ToolTransformer } from '../transformers/tool-transformer.js';
 
 export class OpenAIChatAdapter implements ILLMProvider {
   readonly providerType = LLMProviderType.OpenAIChat;
@@ -32,6 +21,8 @@ export class OpenAIChatAdapter implements ILLMProvider {
 
   private client: OpenAI;
   private model: string;
+  private messageTransformer: MessageTransformer;
+  private toolTransformer: ToolTransformer;
 
   constructor(config: LLMProviderConfig) {
     const apiKey = config.apiKey;
@@ -46,6 +37,10 @@ export class OpenAIChatAdapter implements ILLMProvider {
     });
 
     this.model = config.model || 'gpt-4o-mini';
+    
+    // 初始化转换器
+    this.messageTransformer = new MessageTransformer();
+    this.toolTransformer = new ToolTransformer();
 
     logger.info(
       { provider: this.providerType, model: this.model },
@@ -58,23 +53,25 @@ export class OpenAIChatAdapter implements ILLMProvider {
   }
 
   async generate(context: PromptContext): Promise<StandardResponse> {
-    const systemMessage: ChatCompletionMessageParam = {
-      role: 'system',
-      content: context.system.systemPrompt,
-    };
+    // 使用 MessageTransformer 转换消息
+    const convertedMessages = this.messageTransformer.toOpenAI(
+      context.messages,
+      context.system.systemPrompt
+    );
 
-    const chatMessages = this.convertMessages(context.messages);
+    // 构建消息数组：系统消息 + 对话消息
+    const allMessages: ChatCompletionMessageParam[] = [];
+    
+    // 如果有系统消息，添加到开头
+    if (convertedMessages.systemMessage) {
+      allMessages.push(convertedMessages.systemMessage);
+    }
+    
+    // 添加对话消息
+    allMessages.push(...convertedMessages.messages);
 
-    const allMessages = [systemMessage, ...chatMessages];
-
-    const openAITools = context.tools.map(tool => ({
-      type: 'function' as const,
-      function: {
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.parameters,
-      },
-    }));
+    // 使用 ToolTransformer 转换工具
+    const openAITools = this.toolTransformer.toOpenAI(context.tools);
 
     logger.debug(
       {
@@ -135,53 +132,5 @@ export class OpenAIChatAdapter implements ILLMProvider {
       logger.error({ error }, '从 PromptContext 调用 OpenAI Chat API 失败');
       throw error;
     }
-  }
-
-  private convertMessages(messages: StandardMessage[]): ChatCompletionMessageParam[] {
-    const result: ChatCompletionMessageParam[] = [];
-
-    for (const msg of messages) {
-      if (msg.role === MessageRole.System) {
-        result.push({
-          role: 'system',
-          content: msg.content,
-        });
-      } else if (msg.role === MessageRole.User) {
-        result.push({
-          role: 'user',
-          content: msg.content,
-        });
-      } else if (msg.role === MessageRole.Assistant) {
-        const assistantMsg: AssistantMessageWithToolCalls = {
-          role: 'assistant',
-          content: msg.content || null,
-        };
-
-        if (msg.toolCalls && msg.toolCalls.length > 0) {
-          assistantMsg.tool_calls = msg.toolCalls.map(tc => ({
-            id: tc.id,
-            type: 'function' as const,
-            function: {
-              name: tc.name,
-              arguments: JSON.stringify(tc.arguments),
-            },
-          }));
-        }
-
-        result.push(assistantMsg);
-      } else if (msg.role === MessageRole.Tool) {
-        if (!msg.toolCallId) {
-          logger.warn({ msgRole: msg.role }, 'Tool message missing toolCallId, skipping');
-          continue;
-        }
-        result.push({
-          role: 'tool',
-          content: msg.content,
-          tool_call_id: msg.toolCallId,
-        });
-      }
-    }
-
-    return result;
   }
 }

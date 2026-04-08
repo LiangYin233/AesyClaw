@@ -18,7 +18,7 @@ interface CompletionTokenUsage {
 }
 
 export class TokenUsageMapper {
-  static fromOpenAI(usage: OpenAITokenUsage): TokenUsage | undefined {
+  static fromOpenAI(usage: OpenAITokenUsage | undefined): TokenUsage | undefined {
     if (!usage) {
       return undefined;
     }
@@ -29,7 +29,7 @@ export class TokenUsageMapper {
     };
   }
 
-  static fromAnthropic(usage: AnthropicTokenUsage): TokenUsage | undefined {
+  static fromAnthropic(usage: AnthropicTokenUsage | undefined): TokenUsage | undefined {
     if (!usage) {
       return undefined;
     }
@@ -40,7 +40,7 @@ export class TokenUsageMapper {
     };
   }
 
-  static fromCompletion(usage: CompletionTokenUsage): TokenUsage | undefined {
+  static fromCompletion(usage: CompletionTokenUsage | undefined): TokenUsage | undefined {
     if (!usage) {
       return undefined;
     }

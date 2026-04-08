@@ -3,26 +3,16 @@ import {
   ILLMProvider,
   LLMProviderType,
   LLMMode,
-  StandardMessage,
   StandardResponse,
   ToolCall,
   LLMProviderConfig,
-  MessageRole,
 } from '../types.js';
 import { logger } from '../../../platform/observability/logger.js';
 import { PromptContext } from '../prompt-context.js';
 import { TokenUsageMapper } from '../utils/token-usage-mapper.js';
 import { FinishReasonMapper } from '../utils/finish-reason-mapper.js';
-
-type AnthropicContentBlock =
-  | { type: 'text'; text: string }
-  | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
-  | { type: 'tool_result'; tool_use_id: string; content: string };
-
-interface AnthropicMessage {
-  role: 'user' | 'assistant';
-  content: string | AnthropicContentBlock[];
-}
+import { MessageTransformer } from '../transformers/message-transformer.js';
+import { ToolTransformer } from '../transformers/tool-transformer.js';
 
 export class AnthropicAdapter implements ILLMProvider {
   readonly providerType = LLMProviderType.Anthropic;
@@ -30,6 +20,8 @@ export class AnthropicAdapter implements ILLMProvider {
 
   private client: Anthropic;
   private model: string;
+  private messageTransformer: MessageTransformer;
+  private toolTransformer: ToolTransformer;
 
   constructor(config: LLMProviderConfig) {
     const apiKey = config.apiKey;
@@ -44,6 +36,10 @@ export class AnthropicAdapter implements ILLMProvider {
     });
 
     this.model = config.model || 'claude-sonnet-4-20250514';
+    
+    // 初始化转换器
+    this.messageTransformer = new MessageTransformer();
+    this.toolTransformer = new ToolTransformer();
 
     logger.info(
       { provider: this.providerType, model: this.model },
@@ -56,17 +52,18 @@ export class AnthropicAdapter implements ILLMProvider {
   }
 
   async generate(context: PromptContext): Promise<StandardResponse> {
-    const anthropicMessages = this.convertMessages(context.messages);
+    // 使用 MessageTransformer 转换消息
+    const convertedMessages = this.messageTransformer.toAnthropic(
+      context.messages,
+      context.system.systemPrompt
+    );
 
-    const anthropicTools = context.tools.map(tool => ({
-      name: tool.name,
-      description: tool.description,
-      input_schema: tool.parameters,
-    }));
+    // 使用 ToolTransformer 转换工具
+    const anthropicTools = this.toolTransformer.toAnthropic(context.tools);
 
     logger.debug(
       {
-        messageCount: anthropicMessages.length,
+        messageCount: convertedMessages.messages.length,
         hasTools: context.tools.length > 0,
         toolCount: context.tools.length,
         contextMetadata: context.metadata,
@@ -77,8 +74,8 @@ export class AnthropicAdapter implements ILLMProvider {
     try {
       const response = await this.client.messages.create({
         model: this.model,
-        system: context.system.systemPrompt,
-        messages: anthropicMessages,
+        system: convertedMessages.systemPrompt || context.system.systemPrompt,
+        messages: convertedMessages.messages,
         tools: anthropicTools.length > 0 ? anthropicTools : undefined,
         max_tokens: context.metadata?.maxTokens || 8192,
       });
@@ -124,57 +121,5 @@ export class AnthropicAdapter implements ILLMProvider {
       logger.error({ error }, '从 PromptContext 调用 Anthropic Claude API 失败');
       throw error;
     }
-  }
-
-  private convertMessages(messages: StandardMessage[]): AnthropicMessage[] {
-    const result: AnthropicMessage[] = [];
-    let currentUserContent: AnthropicContentBlock[] = [];
-
-    for (const msg of messages) {
-      if (msg.role === MessageRole.System) {
-        continue;
-      } else if (msg.role === MessageRole.User) {
-        currentUserContent.push({
-          type: 'text',
-          text: msg.content,
-        });
-      } else if (msg.role === MessageRole.Assistant) {
-        if (currentUserContent.length > 0) {
-          result.push({ role: 'user', content: currentUserContent });
-          currentUserContent = [];
-        }
-
-        const assistantContent: AnthropicContentBlock[] = [];
-        if (msg.content) {
-          assistantContent.push({ type: 'text', text: msg.content });
-        }
-        if (msg.toolCalls && msg.toolCalls.length > 0) {
-          for (const tc of msg.toolCalls) {
-            assistantContent.push({
-              type: 'tool_use',
-              id: tc.id,
-              name: tc.name,
-              input: tc.arguments,
-            });
-          }
-        }
-
-        if (assistantContent.length > 0) {
-          result.push({ role: 'assistant', content: assistantContent });
-        }
-      } else if (msg.role === MessageRole.Tool) {
-        currentUserContent.push({
-          type: 'tool_result',
-          tool_use_id: msg.toolCallId,
-          content: msg.content,
-        });
-      }
-    }
-
-    if (currentUserContent.length > 0) {
-      result.push({ role: 'user', content: currentUserContent });
-    }
-
-    return result;
   }
 }
