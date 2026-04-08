@@ -100,53 +100,6 @@ export async function updateCronJob(
   return job;
 }
 
-export function parseCronDescription(cronExpression: string): string {
-  const parts = cronExpression.split(' ');
-  if (parts.length < 5) return 'Invalid cron expression';
-
-  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
-
-  const descriptions: string[] = [];
-
-  if (minute === '*' && hour === '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
-    return 'Every minute';
-  }
-
-  if (minute === '0' && hour === '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
-    return 'Every hour';
-  }
-
-  if (minute === '0' && hour === '0' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
-    return 'Every day at midnight';
-  }
-
-  if (dayOfWeek !== '*' && dayOfWeek !== '?') {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const dayIndex = parseInt(dayOfWeek);
-    if (!isNaN(dayIndex) && dayIndex >= 0 && dayIndex <= 6) {
-      descriptions.push(`Every ${days[dayIndex]}`);
-    }
-  }
-
-  if (hour !== '*' && minute !== '*') {
-    descriptions.push(`at ${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`);
-  }
-
-  return descriptions.join(' ') || `Custom schedule: ${cronExpression}`;
-}
-
-export function getSchedulerStatus(): {
-  running: boolean;
-  scheduledTasks: number;
-  nextTask: { jobId: string; executeAt: string; delayMs: number } | null;
-} {
-  return {
-    running: cronJobScheduler.isRunning(),
-    scheduledTasks: cronJobScheduler.getScheduledTaskCount(),
-    nextTask: cronJobScheduler.getNextScheduledTask(),
-  };
-}
-
 export class PromptExecutor {
   private toolRegistry: ToolRegistry;
 

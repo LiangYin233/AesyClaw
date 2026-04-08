@@ -17,6 +17,7 @@ import {
   BatchRequestResult,
   StreamCallbacks,
   UnifiedClientEvent,
+  RequestOptions,
   RequestStartEventData,
   RequestCompleteEventData,
   RequestErrorEventData,
@@ -30,8 +31,6 @@ import { ToolTransformer } from './transformers/tool-transformer.js';
 import { ErrorHandler, RetryPolicy, DEFAULT_RETRY_POLICY, ErrorType, RetryCallback } from './error/error-handler.js';
 import { CacheManager, CacheConfig, CacheStats } from './cache/cache-manager.js';
 import { MetricsCollector, MetricsCollectorConfig, MetricsReport, RequestMetric } from './metrics/metrics-collector.js';
-import { RequestBuilder, RequestOptions } from './builders/request-builder.js';
-import { ResponseParser } from './parsers/response-parser.js';
 import { StreamHandler, StreamOutput } from './stream/stream-handler.js';
 import { ILLMProvider } from './types.js';
 import { LLMProviderFactory } from './factory.js';
@@ -111,9 +110,6 @@ export class UnifiedLLMClient extends EventEmitter {
   /** 指标收集器 */
   private readonly metricsCollector: MetricsCollector;
 
-  /** 请求构建器 */
-  private readonly requestBuilder: RequestBuilder;
-
   /** 默认请求选项 */
   private readonly defaultOptions: RequestOptions;
 
@@ -150,13 +146,7 @@ export class UnifiedLLMClient extends EventEmitter {
     // 初始化指标收集器
     this.metricsCollector = new MetricsCollector(config.metricsConfig);
 
-    // 初始化请求构建器
     this.defaultOptions = config.defaultOptions ?? {};
-    this.requestBuilder = new RequestBuilder({
-      providerType: this.provider,
-      model: this.model,
-      defaultOptions: this.defaultOptions,
-    });
 
     // 创建 LLM 提供者实例
     const factory = LLMProviderFactory.getInstance();
@@ -353,92 +343,32 @@ export class UnifiedLLMClient extends EventEmitter {
       // 使用错误处理器执行流式请求
       await this.errorHandler.executeWithRetry(
         async () => {
-          // 调用 LLM 提供者获取流式响应
           const stream = await this.adapter.generate(context);
 
-          // 注意：这里需要适配器支持流式响应
-          // 由于当前的 ILLMProvider 接口返回 StandardResponse，我们需要修改适配器以支持流式
-          // 这里提供一个框架实现
-
-          // 如果适配器返回的是流式响应，我们需要处理它
-          // 这里假设适配器会在 rawResponse 中返回流式对象
-          if (stream.rawResponse && typeof (stream.rawResponse as any)[Symbol.asyncIterator] === 'function') {
-            // 处理流式响应
-            for await (const chunk of stream.rawResponse as AsyncIterable<any>) {
-              const output = streamHandler.parseChunk(chunk);
-
-              if (output) {
-                if (output.text && callbacks.onToken) {
-                  callbacks.onToken(output.text);
-                }
-
-                if (output.toolCall && callbacks.onToolCall) {
-                  callbacks.onToolCall(output.toolCall);
-                }
-
-                if (output.done) {
-                  const result = {
-                    text: streamHandler.getAccumulatedText(),
-                    toolCalls: streamHandler.getToolCalls(),
-                    tokenUsage: streamHandler.getTokenUsage(),
-                    finishReason: streamHandler.getFinishReason() || 'stop',
-                  };
-
-                  if (callbacks.onComplete) {
-                    callbacks.onComplete(result);
-                  }
-
-                  // 记录成功指标
-                  this.metricsCollector.recordSuccess(
-                    metricsRequestId,
-                    result.tokenUsage,
-                    options?.metadata
-                  );
-
-                  // 发射请求完成事件
-                  this.emitRequestComplete(
-                    requestId,
-                    {
-                      text: result.text,
-                      toolCalls: result.toolCalls,
-                      tokenUsage: result.tokenUsage,
-                      finishReason: result.finishReason as any,
-                    },
-                    Date.now() - startTime,
-                    false
-                  );
-                }
-              }
-            }
-          } else {
-            // 如果不是流式响应，直接处理完整响应
-            if (callbacks.onToken && stream.text) {
-              callbacks.onToken(stream.text);
-            }
-
-            if (callbacks.onToolCall && stream.toolCalls) {
-              stream.toolCalls.forEach(callbacks.onToolCall);
-            }
-
-            if (callbacks.onComplete) {
-              callbacks.onComplete({
-                text: stream.text,
-                toolCalls: stream.toolCalls,
-                tokenUsage: stream.tokenUsage,
-                finishReason: stream.finishReason,
-              });
-            }
-
-            // 记录成功指标
-            this.metricsCollector.recordSuccess(
-              metricsRequestId,
-              stream.tokenUsage,
-              options?.metadata
-            );
-
-            // 发射请求完成事件
-            this.emitRequestComplete(requestId, stream, Date.now() - startTime, false);
+          if (callbacks.onToken && stream.text) {
+            callbacks.onToken(stream.text);
           }
+
+          if (callbacks.onToolCall && stream.toolCalls) {
+            stream.toolCalls.forEach(callbacks.onToolCall);
+          }
+
+          if (callbacks.onComplete) {
+            callbacks.onComplete({
+              text: stream.text,
+              toolCalls: stream.toolCalls,
+              tokenUsage: stream.tokenUsage,
+              finishReason: stream.finishReason,
+            });
+          }
+
+          this.metricsCollector.recordSuccess(
+            metricsRequestId,
+            stream.tokenUsage,
+            options?.metadata
+          );
+
+          this.emitRequestComplete(requestId, stream, Date.now() - startTime, false);
 
           return stream;
         },
@@ -523,13 +453,6 @@ export class UnifiedLLMClient extends EventEmitter {
       for (const result of chunkResults) {
         if (result.status === 'fulfilled') {
           results.push(result.value);
-        } else {
-          // Promise.allSettled 不会拒绝，但为了类型安全
-          results.push({
-            id: 'unknown',
-            error: result.reason,
-            success: false,
-          });
         }
       }
     }

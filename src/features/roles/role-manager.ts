@@ -342,11 +342,6 @@ export class RoleManager {
     return allTools.filter(tool => config.allowed_tools.includes(tool));
   }
 
-  isSkillAllowed(roleId: string, skillName: string): boolean {
-    const config = this.getRoleConfig(roleId);
-    return config.allowed_skills.includes('*') || config.allowed_skills.includes(skillName);
-  }
-
   shutdown(): void {
     this.watcherCleanup();
     this.roles.clear();

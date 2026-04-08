@@ -148,25 +148,13 @@ export class CacheManager<T = unknown> {
    * @param key 缓存键
    * @returns 是否删除成功
    */
-  delete(key: string): boolean {
-    return this.cache.delete(key);
-  }
-
-  /**
-   * 清空所有缓存
-   */
   clear(): void {
     this.cache.clear();
-    // 重置统计信息
     this.stats.hits = 0;
     this.stats.misses = 0;
     this.stats.evictions = 0;
   }
 
-  /**
-   * 获取缓存统计信息
-   * @returns 缓存统计信息
-   */
   getStats(): CacheStats {
     const totalRequests = this.stats.hits + this.stats.misses;
     const hitRate = totalRequests > 0 ? this.stats.hits / totalRequests : 0;
@@ -187,42 +175,7 @@ export class CacheManager<T = unknown> {
    * @param key 缓存键
    * @returns 是否存在
    */
-  has(key: string): boolean {
-    const entry = this.cache.get(key);
-    if (!entry) {
-      return false;
-    }
-
-    // 检查是否过期
-    if (this.isExpired(entry)) {
-      this.cache.delete(key);
-      return false;
-    }
-
-    return true;
-  }
-
-  /**
-   * 获取缓存大小
-   * @returns 缓存条目数量
-   */
-  size(): number {
-    return this.cache.size;
-  }
-
-  /**
-   * 获取所有缓存键
-   * @returns 缓存键数组
-   */
-  keys(): string[] {
-    return Array.from(this.cache.keys());
-  }
-
-  /**
-   * 手动触发过期缓存清理
-   * @returns 清理的条目数量
-   */
-  cleanup(): number {
+  private cleanup(): number {
     let cleaned = 0;
     const now = Date.now();
 
@@ -296,62 +249,5 @@ export class CacheManager<T = unknown> {
     if (this.cleanupTimer.unref) {
       this.cleanupTimer.unref();
     }
-  }
-
-  /**
-   * 获取缓存条目的剩余 TTL
-   * @param key 缓存键
-   * @returns 剩余 TTL（毫秒），如果不存在或已过期则返回 0
-   */
-  getRemainingTTL(key: string): number {
-    const entry = this.cache.get(key);
-    if (!entry) {
-      return 0;
-    }
-
-    const now = Date.now();
-    const elapsed = now - entry.timestamp;
-    const remaining = entry.ttl - elapsed;
-
-    return remaining > 0 ? remaining : 0;
-  }
-
-  /**
-   * 更新缓存条目的 TTL
-   * @param key 缓存键
-   * @param ttl 新的 TTL（毫秒）
-   * @returns 是否更新成功
-   */
-  updateTTL(key: string, ttl: number): boolean {
-    const entry = this.cache.get(key);
-    if (!entry) {
-      return false;
-    }
-
-    entry.ttl = ttl;
-    entry.timestamp = Date.now();
-    return true;
-  }
-
-  /**
-   * 获取或设置缓存
-   * 如果缓存存在且未过期，则返回缓存值
-   * 否则调用 factory 函数生成新值并缓存
-   * @param key 缓存键
-   * @param factory 缓存值生成函数
-   * @param ttl 过期时间（毫秒）
-   * @returns 缓存值或新生成的值
-   */
-  async getOrSet(key: string, factory: () => Promise<T>, ttl?: number): Promise<T> {
-    // 尝试获取缓存
-    const cached = this.get(key);
-    if (cached !== undefined) {
-      return cached;
-    }
-
-    // 生成新值
-    const value = await factory();
-    this.set(key, value, ttl);
-    return value;
   }
 }

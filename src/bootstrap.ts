@@ -45,66 +45,66 @@ export class Bootstrap {
     try {
       logger.info({}, 'AesyClaw starting...');
 
-      logger.info({}, '[1/13] Initializing PathResolver...');
+      logger.info({}, '[1/16] Initializing PathResolver...');
       pathResolver.initialize();
 
       if (!options.skipConfig) {
-        logger.info({}, '[2/13] Loading configuration...');
+        logger.info({}, '[2/16] Loading configuration...');
         await configManager.initialize();
       }
 
       if (!options.skipDb) {
-        logger.info({}, '[3/13] Initializing SQLite database...');
+        logger.info({}, '[3/16] Initializing SQLite database...');
         sqliteManager.initialize();
       }
 
-      logger.info({}, '[4/13] Initializing core components...');
+      logger.info({}, '[4/16] Initializing core components...');
       logger.info({}, 'Using shared ToolRegistry and Pipeline instances');
 
       if (!options.skipSkills) {
-        logger.info({}, '[5/13] Initializing SkillManager...');
+        logger.info({}, '[5/16] Initializing SkillManager...');
         await skillManager.initialize();
         toolRegistry.register(loadSkillTool);
         logger.info(skillManager.getStats(), 'Skills system loaded');
       }
 
       if (!options.skipRoles) {
-        logger.info({}, '[6/13] Initializing RoleManager...');
+        logger.info({}, '[6/16] Initializing RoleManager...');
         await roleManager.initialize();
         logger.info({ roleCount: roleManager.getAllRoles().length }, 'Role system loaded');
       }
 
       if (!options.skipSubAgents) {
-        logger.info({}, '[7/13] Registering SubAgent tools...');
+        logger.info({}, '[7/16] Registering SubAgent tools...');
         for (const tool of subAgentTools) {
           toolRegistry.register(tool);
         }
         logger.info({ toolCount: subAgentTools.length }, 'SubAgent tools registered');
       }
 
-      logger.info({}, '[8/13] Registering Multimodal tools...');
+      logger.info({}, '[8/16] Registering Multimodal tools...');
       toolRegistry.register(speechToTextTool);
       toolRegistry.register(imageUnderstandingTool);
       logger.info({}, 'Multimodal tools registered');
 
-      logger.info({}, '[9/13] Mounting ConfigInjectionMiddleware...');
+      logger.info({}, '[9/16] Mounting ConfigInjectionMiddleware...');
       pipeline.use(configInjectionMiddleware.getMiddleware());
 
-      logger.info({}, '[10/13] Registering system commands...');
+      logger.info({}, '[10/16] Registering system commands...');
       registerSystemCommands();
       pipeline.use(commandMiddleware);
       logger.info({}, 'Command system initialized');
 
-      logger.info({}, '[11/13] Mounting SessionMiddleware...');
+      logger.info({}, '[11/16] Mounting SessionMiddleware...');
       pipeline.use(sessionMiddleware.getMiddleware());
       logger.info({}, 'Session middleware initialized');
 
-      logger.info({}, '[12/13] Mounting AgentMiddleware...');
+      logger.info({}, '[12/16] Mounting AgentMiddleware...');
       pipeline.use(agentMiddleware.getMiddleware());
       logger.info({}, 'Agent middleware initialized');
 
       if (!options.skipPlugins) {
-        logger.info({}, '[13/13] Initializing and loading plugins...');
+        logger.info({}, '[13/16] Initializing and loading plugins...');
         await pluginManager.initialize();
         logger.info({}, 'PluginManager initialized');
         const config = configManager.config;

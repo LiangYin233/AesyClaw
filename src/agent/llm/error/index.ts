@@ -11,5 +11,4 @@ export {
   RetryStats,
   RetryCallback,
   DEFAULT_RETRY_POLICY,
-  createErrorHandler,
 } from './error-handler.js';

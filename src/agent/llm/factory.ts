@@ -103,20 +103,10 @@ export class LLMProviderFactory {
   private getCacheKey(config: LLMConfig): string {
     return `${config.provider}:${config.model || 'default'}:${config.mode || 'chat'}`;
   }
-
-  hasAdapter(cacheKey: string): boolean {
-    return this.adapters.has(cacheKey);
-  }
-
-  clearCache(): void {
-    this.adapters.clear();
-    logger.info('LLM Adapter cache cleared');
-  }
 }
 
 /**
  * LLM 会话类
- * 使用 UnifiedLLMClient 提供统一的 LLM 调用接口
  * 保持向后兼容的接口设计
  */
 export class LLMSession {
@@ -207,82 +197,6 @@ export class LLMSession {
    */
   addMessage(message: StandardMessage): void {
     this.messages.push(message);
-  }
-
-  /**
-   * 获取消息历史（只读）
-   * @returns 消息数组
-   */
-  getMessages(): ReadonlyArray<StandardMessage> {
-    return this.messages;
-  }
-
-  /**
-   * 获取消息历史的副本
-   * @returns 消息数组副本
-   */
-  getMessagesCopy(): StandardMessage[] {
-    return [...this.messages];
-  }
-
-  /**
-   * 获取消息数量
-   * @returns 消息数量
-   */
-  getMessageCount(): number {
-    return this.messages.length;
-  }
-
-  /**
-   * 获取最后一条消息
-   * @returns 最后一条消息或 undefined
-   */
-  getLastMessage(): StandardMessage | undefined {
-    return this.messages[this.messages.length - 1];
-  }
-
-  /**
-   * 获取最近的消息
-   * @param count 消息数量
-   * @returns 最近的消息数组
-   */
-  getRecentMessages(count: number): StandardMessage[] {
-    return this.messages.slice(-count);
-  }
-
-  /**
-   * 获取总 Token 使用量
-   * @returns Token 使用量副本
-   */
-  getTotalTokenUsage(): TokenUsage {
-    return { ...this.totalTokenUsage };
-  }
-
-  /**
-   * 获取所有工具调用
-   * @returns 工具调用数组
-   */
-  getToolCalls(): ToolCall[] {
-    return this.messages
-      .filter(m => m.role === 'assistant' && m.toolCalls)
-      .flatMap(m => m.toolCalls || []);
-  }
-
-  /**
-   * 清空消息历史
-   */
-  clearHistory(): void {
-    this.messages = [];
-    logger.debug('LLM Session history cleared');
-  }
-
-  /**
-   * 获取底层 UnifiedLLMClient 实例
-   * 用于高级用法和直接访问客户端功能
-   * @returns UnifiedLLMClient 实例
-   */
-  getClient(): UnifiedLLMClient {
-    return this.client;
   }
 }
 

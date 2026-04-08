@@ -12,27 +12,7 @@ if (!fs.existsSync(WORKSPACE_DIR)) {
 
 function autoDecode(buffer: Buffer): string {
   if (buffer.length === 0) return '';
-  
-  const utf8Text = buffer.toString('utf-8');
-  if (!utf8Text.includes('\uFFFD')) {
-    return utf8Text;
-  }
-  
-  const latin1Text = buffer.toString('latin1');
-  if (containsHighBytes(buffer)) {
-    return latin1Text;
-  }
-  
-  return latin1Text;
-}
-
-function containsHighBytes(buffer: Buffer): boolean {
-  for (let i = 0; i < buffer.length; i++) {
-    if (buffer[i] > 0x7F) {
-      return true;
-    }
-  }
-  return false;
+  return buffer.toString('utf-8');
 }
 
 function execCommand(command: string, cwd: string): Promise<{ output: string; exitCode: number }> {

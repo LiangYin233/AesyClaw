@@ -5,7 +5,7 @@ import { configManager } from '../features/config/config-manager.js';
 import { isPlainObject } from '../platform/utils/index.js';
 
 export class ChannelPluginManager {
-  private static instance: ChannelPluginManager | null = null;
+  private static instance: ChannelPluginManager | undefined = undefined;
   private channels: Map<string, IChannelPlugin> = new Map();
   private sendFunctions: Map<string, (_payload: IOutboundPayload) => Promise<void>> = new Map();
   private pluginLogger: ChannelPluginLogger;
@@ -30,7 +30,7 @@ export class ChannelPluginManager {
   static resetInstance(): void {
     if (ChannelPluginManager.instance) {
       ChannelPluginManager.instance.shutdown();
-      ChannelPluginManager.instance = null;
+      ChannelPluginManager.instance = undefined;
     }
   }
 
@@ -126,24 +126,12 @@ export class ChannelPluginManager {
     }
   }
 
-  getChannel(name: string): IChannelPlugin | undefined {
-    return this.channels.get(name);
-  }
-
   getSendFn(name: string): ((_payload: IOutboundPayload) => Promise<void>) | undefined {
     return this.sendFunctions.get(name);
   }
 
-  getAllChannels(): IChannelPlugin[] {
-    return Array.from(this.channels.values());
-  }
-
   getChannelCount(): number {
     return this.channels.size;
-  }
-
-  hasChannel(name: string): boolean {
-    return this.channels.has(name);
   }
 
   async shutdown(): Promise<void> {

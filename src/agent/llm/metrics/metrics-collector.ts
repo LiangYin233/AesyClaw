@@ -4,93 +4,36 @@
  */
 
 import { randomUUID } from 'crypto';
-import { TokenUsage, LLMProviderType } from '../types.js';
+import {
+  TokenUsage,
+  LLMProviderType,
+  ModelPricing,
+  RequestMetric,
+  ErrorMetric,
+} from '../types.js';
 import { logger } from '../../../platform/observability/logger.js';
 
-/**
- * 模型定价信息（每 1K tokens, USD）
- */
-export interface ModelPricing {
-  prompt: number;      // 输入 token 价格（每 1K tokens）
-  completion: number;  // 输出 token 价格（每 1K tokens）
-}
+export { RequestMetric, ErrorMetric, ModelPricing };
 
 /**
  * 主流模型定价表
  * 价格单位：美元/1K tokens
  */
 export const MODEL_PRICING: Record<string, ModelPricing> = {
-  // OpenAI GPT-4 系列
   'gpt-4o': { prompt: 0.005, completion: 0.015 },
   'gpt-4o-mini': { prompt: 0.00015, completion: 0.0006 },
   'gpt-4-turbo': { prompt: 0.01, completion: 0.03 },
   'gpt-4': { prompt: 0.03, completion: 0.06 },
   'gpt-4-32k': { prompt: 0.06, completion: 0.12 },
   'gpt-3.5-turbo': { prompt: 0.0005, completion: 0.0015 },
-
-  // Anthropic Claude 系列
   'claude-3-opus': { prompt: 0.015, completion: 0.075 },
   'claude-3-sonnet': { prompt: 0.003, completion: 0.015 },
   'claude-3-haiku': { prompt: 0.00025, completion: 0.00125 },
   'claude-3-5-sonnet': { prompt: 0.003, completion: 0.015 },
   'claude-3-5-haiku': { prompt: 0.0008, completion: 0.004 },
-
-  // 其他模型
   'deepseek-chat': { prompt: 0.0001, completion: 0.0002 },
   'deepseek-coder': { prompt: 0.0001, completion: 0.0002 },
 };
-
-/**
- * 单次请求指标
- */
-export interface RequestMetric {
-  /** 请求唯一标识 */
-  requestId: string;
-  /** 提供商类型 */
-  provider: LLMProviderType;
-  /** 模型名称 */
-  model: string;
-  /** 请求开始时间（ISO 字符串） */
-  startTime: string;
-  /** 请求结束时间（ISO 字符串） */
-  endTime?: string;
-  /** 请求延迟（毫秒） */
-  latency?: number;
-  /** Token 使用情况 */
-  tokenUsage?: TokenUsage;
-  /** 请求是否成功 */
-  success: boolean;
-  /** 错误信息（失败时） */
-  error?: string;
-  /** 错误类型（失败时） */
-  errorType?: string;
-  /** 预估成本（美元） */
-  estimatedCost?: number;
-  /** 会话 ID（可选） */
-  sessionId?: string;
-  /** 用户 ID（可选） */
-  userId?: string;
-  /** 额外元数据 */
-  metadata?: Record<string, unknown>;
-}
-
-/**
- * 错误统计指标
- */
-export interface ErrorMetric {
-  /** 错误类型 */
-  errorType: string;
-  /** 错误消息 */
-  errorMessage: string;
-  /** 出现次数 */
-  count: number;
-  /** 最后出现时间 */
-  lastOccurrence: string;
-  /** 关联的提供商 */
-  providers: Set<LLMProviderType>;
-  /** 关联的模型 */
-  models: Set<string>;
-}
 
 /**
  * 按模型分组的指标
@@ -451,50 +394,18 @@ export class MetricsCollector {
   /**
    * 获取所有请求指标
    */
-  getRequests(): RequestMetric[] {
-    return [...this.requests];
-  }
-
-  /**
-   * 获取指定时间范围内的请求
-   * @param startTime 开始时间
-   * @param endTime 结束时间
-   */
-  getRequestsByTimeRange(startTime: Date, endTime: Date): RequestMetric[] {
-    return this.requests.filter(req => {
-      const reqTime = new Date(req.startTime);
-      return reqTime >= startTime && reqTime <= endTime;
-    });
-  }
-
-  /**
-   * 获取指定提供商的请求
-   * @param provider 提供商类型
-   */
-  getRequestsByProvider(provider: LLMProviderType): RequestMetric[] {
-    return this.requests.filter(req => req.provider === provider);
-  }
-
-  /**
-   * 获取指定模型的请求
-   * @param model 模型名称
-   */
-  getRequestsByModel(model: string): RequestMetric[] {
-    return this.requests.filter(req => req.model === model);
-  }
-
-  /**
-   * 获取完整统计报告
-   * @param startTime 开始时间（可选，默认为最早请求时间）
-   * @param endTime 结束时间（可选，默认为当前时间）
-   */
   getMetricsReport(startTime?: Date, endTime?: Date): MetricsReport {
-    const filteredRequests = startTime || endTime
-      ? this.getRequestsByTimeRange(
-          startTime || new Date(0),
-          endTime || new Date()
-        )
-      : this.requests;
+    let filteredRequests: RequestMetric[];
+    if (startTime || endTime) {
+      const start = startTime || new Date(0);
+      const end = endTime || new Date();
+      filteredRequests = this.requests.filter(req => {
+        const reqTime = new Date(req.startTime);
+        return reqTime >= start && reqTime <= end;
+      });
+    } else {
+      filteredRequests = this.requests;
+    }
 
     const generatedAt = new Date().toISOString();
     const timeRange = {
@@ -710,152 +621,9 @@ export class MetricsCollector {
   /**
    * 获取指定提供商的统计指标
    */
-  getProviderMetrics(provider: LLMProviderType): ProviderMetrics | undefined {
-    const requests = this.getRequestsByProvider(provider);
-    if (requests.length === 0) {
-      return undefined;
-    }
-
-    const providerMap = this.groupByProvider(requests);
-    return providerMap.get(provider);
-  }
-
-  /**
-   * 获取指定模型的统计指标
-   */
-  getModelMetrics(model: string): ModelMetrics | undefined {
-    const requests = this.getRequestsByModel(model);
-    if (requests.length === 0) {
-      return undefined;
-    }
-
-    const modelMap = this.groupByModel(requests);
-    return modelMap.get(model);
-  }
-
-  /**
-   * 清除所有指标数据
-   */
   clear(): void {
     this.requests = [];
     this.activeRequests.clear();
     logger.info('🗑️ 已清除所有指标数据');
-  }
-
-  /**
-   * 清除指定时间范围之前的指标数据
-   * @param before 截止时间
-   */
-  clearBefore(before: Date): void {
-    const beforeTime = before.getTime();
-    this.requests = this.requests.filter(
-      req => new Date(req.startTime).getTime() >= beforeTime
-    );
-    logger.info({ before: before.toISOString() }, '🗑️ 已清除指定时间之前的指标数据');
-  }
-
-  /**
-   * 获取当前活跃请求数量
-   */
-  getActiveRequestCount(): number {
-    return this.activeRequests.size;
-  }
-
-  /**
-   * 获取总请求数量
-   */
-  getTotalRequestCount(): number {
-    return this.requests.length;
-  }
-
-  /**
-   * 导出指标数据为 JSON
-   */
-  exportJSON(): string {
-    const report = this.getMetricsReport();
-
-    // 转换 Map 为数组以便 JSON 序列化
-    const serializableReport = {
-      generatedAt: report.generatedAt,
-      timeRange: report.timeRange,
-      totalRequests: report.totalRequests,
-      successfulRequests: report.successfulRequests,
-      failedRequests: report.failedRequests,
-      successRate: report.successRate,
-      averageLatency: report.averageLatency,
-      totalPromptTokens: report.totalPromptTokens,
-      totalCompletionTokens: report.totalCompletionTokens,
-      totalTokens: report.totalTokens,
-      estimatedCost: report.estimatedCost,
-      providers: Array.from(report.providers.entries()).map(([key, value]) => ({
-        provider: key,
-        totalRequests: value.totalRequests,
-        successfulRequests: value.successfulRequests,
-        failedRequests: value.failedRequests,
-        successRate: value.successRate,
-        averageLatency: value.averageLatency,
-        totalPromptTokens: value.totalPromptTokens,
-        totalCompletionTokens: value.totalCompletionTokens,
-        totalTokens: value.totalTokens,
-        estimatedCost: value.estimatedCost,
-        models: Array.from(value.models.entries()).map(([modelKey, modelValue]) => ({
-          model: modelKey,
-          totalRequests: modelValue.totalRequests,
-          successfulRequests: modelValue.successfulRequests,
-          failedRequests: modelValue.failedRequests,
-          successRate: modelValue.successRate,
-          averageLatency: modelValue.averageLatency,
-          minLatency: modelValue.minLatency,
-          maxLatency: modelValue.maxLatency,
-          totalPromptTokens: modelValue.totalPromptTokens,
-          totalCompletionTokens: modelValue.totalCompletionTokens,
-          totalTokens: modelValue.totalTokens,
-          estimatedCost: modelValue.estimatedCost,
-          averageCostPerRequest: modelValue.averageCostPerRequest,
-        })),
-      })),
-      errors: report.errors.map(err => ({
-        errorType: err.errorType,
-        errorMessage: err.errorMessage,
-        count: err.count,
-        lastOccurrence: err.lastOccurrence,
-        providers: Array.from(err.providers),
-        models: Array.from(err.models),
-      })),
-    };
-
-    return JSON.stringify(serializableReport, null, 2);
-  }
-
-  /**
-   * 打印摘要报告
-   */
-  printSummary(): void {
-    const report = this.getMetricsReport();
-
-    logger.info('📊 ========== LLM 指标统计报告 ==========');
-    logger.info(`📅 时间范围: ${report.timeRange.start} ~ ${report.timeRange.end}`);
-    logger.info(`📈 总请求数: ${report.totalRequests}`);
-    logger.info(`✅ 成功请求: ${report.successfulRequests} (${report.successRate.toFixed(2)}%)`);
-    logger.info(`❌ 失败请求: ${report.failedRequests}`);
-    logger.info(`⏱️  平均延迟: ${report.averageLatency.toFixed(2)}ms`);
-    logger.info(`🔤 总 Token: ${report.totalTokens} (输入: ${report.totalPromptTokens}, 输出: ${report.totalCompletionTokens})`);
-    logger.info(`💰 预估成本: $${report.estimatedCost.toFixed(6)}`);
-
-    logger.info('\n📊 按提供商统计:');
-    for (const [provider, metrics] of report.providers) {
-      logger.info(`  ${provider}:`);
-      logger.info(`    请求数: ${metrics.totalRequests}, 成功率: ${metrics.successRate.toFixed(2)}%`);
-      logger.info(`    Token: ${metrics.totalTokens}, 成本: $${metrics.estimatedCost.toFixed(6)}`);
-    }
-
-    if (report.errors.length > 0) {
-      logger.info('\n❌ 错误统计:');
-      for (const error of report.errors.slice(0, 5)) {
-        logger.info(`  ${error.errorType}: ${error.count} 次`);
-      }
-    }
-
-    logger.info('📊 ========================================');
   }
 }

@@ -412,10 +412,6 @@ export class SessionMemoryManager {
       if (curr.role === MessageRole.Tool && prev.role !== MessageRole.Assistant) {
         return false;
       }
-      
-      if (curr.role === MessageRole.Assistant && prev.role === MessageRole.Tool) {
-        return false;
-      }
     }
     return true;
   }

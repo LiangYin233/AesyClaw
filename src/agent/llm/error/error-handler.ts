@@ -3,80 +3,10 @@
  * 提供统一的错误处理和自动重试机制
  */
 
+import { ErrorInfo, ErrorType, RetryPolicy } from '../types.js';
 import { logger } from '../../../platform/observability/logger.js';
 
-/**
- * 错误类型枚举
- * 用于分类不同类型的错误，决定是否需要重试
- */
-export enum ErrorType {
-  /** 网络错误 - 可重试 */
-  NETWORK_ERROR = 'network_error',
-  /** 连接重置 - 可重试 */
-  CONNECTION_RESET = 'connection_reset',
-  /** 连接超时 - 可重试 */
-  TIMEOUT = 'timeout',
-  /** DNS 解析失败 - 可重试 */
-  DNS_ERROR = 'dns_error',
-  /** 限流错误 - 可重试（需要等待） */
-  RATE_LIMIT = 'rate_limit',
-  /** 服务过载 - 可重试 */
-  OVERLOADED = 'overloaded',
-  /** 内部错误 - 可重试 */
-  INTERNAL_ERROR = 'internal_error',
-  /** 认证错误 - 不可重试 */
-  AUTHENTICATION_ERROR = 'authentication_error',
-  /** 授权错误 - 不可重试 */
-  AUTHORIZATION_ERROR = 'authorization_error',
-  /** 参数错误 - 不可重试 */
-  INVALID_REQUEST = 'invalid_request',
-  /** 资源未找到 - 不可重试 */
-  NOT_FOUND = 'not_found',
-  /** 内容过滤 - 不可重试 */
-  CONTENT_FILTER = 'content_filter',
-  /** 未知错误 - 默认不可重试 */
-  UNKNOWN = 'unknown',
-}
-
-/**
- * 错误信息接口
- */
-export interface ErrorInfo {
-  /** 错误类型 */
-  type: ErrorType;
-  /** 原始错误对象 */
-  originalError: Error;
-  /** 错误消息 */
-  message: string;
-  /** HTTP 状态码（如果适用） */
-  statusCode?: number;
-  /** 错误代码 */
-  code?: string;
-  /** 是否可重试 */
-  retryable: boolean;
-  /** 重试等待时间（毫秒，如果适用） */
-  retryAfter?: number;
-}
-
-/**
- * 重试策略配置接口
- */
-export interface RetryPolicy {
-  /** 最大重试次数 */
-  maxRetries: number;
-  /** 初始延迟时间（毫秒） */
-  initialDelay: number;
-  /** 最大延迟时间（毫秒） */
-  maxDelay: number;
-  /** 退避倍数 */
-  backoffMultiplier: number;
-  /** 可重试的错误类型 */
-  retryableErrors: ErrorType[];
-  /** 是否启用抖动（jitter）以避免重试风暴 */
-  enableJitter?: boolean;
-  /** 抖动因子（0-1之间） */
-  jitterFactor?: number;
-}
+export { ErrorType, ErrorInfo, RetryPolicy };
 
 /**
  * 默认重试策略配置
@@ -595,22 +525,8 @@ export class ErrorHandler {
   /**
    * 获取当前重试策略
    */
-  getPolicy(): Readonly<RetryPolicy> {
-    return { ...this.policy };
-  }
-
-  /**
-   * 更新重试策略
-   */
   updatePolicy(policy: Partial<RetryPolicy>): void {
     this.policy = { ...this.policy, ...policy };
     logger.info({ policy: this.policy }, '📝 重试策略已更新');
   }
-}
-
-/**
- * 创建默认错误处理器实例
- */
-export function createErrorHandler(policy?: Partial<RetryPolicy>): ErrorHandler {
-  return new ErrorHandler(policy);
 }

@@ -558,13 +558,16 @@ export function createAnthropicStreamHandler(options?: { debug?: boolean }): Str
  * @param onComplete 完成的回调函数
  * @returns StreamHandler 实例
  */
-export async function handleOpenAIStream(
-  stream: AsyncIterable<OpenAIStreamChunk>,
+type StreamProvider = 'openai' | 'anthropic';
+
+export async function handleStream(
+  provider: StreamProvider,
+  stream: AsyncIterable<StreamChunk>,
   onToken?: (text: string) => void,
   onToolCall?: (toolCall: ToolCall) => void,
   onComplete?: (result: { text: string; toolCalls: ToolCall[]; tokenUsage: TokenUsage; finishReason: string }) => void
 ): Promise<StreamHandler> {
-  const handler = new StreamHandler({ provider: 'openai' });
+  const handler = new StreamHandler({ provider });
 
   for await (const chunk of stream) {
     const output = handler.parseChunk(chunk);
@@ -592,44 +595,20 @@ export async function handleOpenAIStream(
   return handler;
 }
 
-/**
- * 处理 Anthropic 流式响应的辅助函数
- * @param stream Anthropic 流式响应
- * @param onToken 每个 token 的回调函数
- * @param onToolCall 工具调用的回调函数
- * @param onComplete 完成的回调函数
- * @returns StreamHandler 实例
- */
+export async function handleOpenAIStream(
+  stream: AsyncIterable<OpenAIStreamChunk>,
+  onToken?: (text: string) => void,
+  onToolCall?: (toolCall: ToolCall) => void,
+  onComplete?: (result: { text: string; toolCalls: ToolCall[]; tokenUsage: TokenUsage; finishReason: string }) => void
+): Promise<StreamHandler> {
+  return handleStream('openai', stream as AsyncIterable<StreamChunk>, onToken, onToolCall, onComplete);
+}
+
 export async function handleAnthropicStream(
   stream: AsyncIterable<AnthropicStreamChunk>,
   onToken?: (text: string) => void,
   onToolCall?: (toolCall: ToolCall) => void,
   onComplete?: (result: { text: string; toolCalls: ToolCall[]; tokenUsage: TokenUsage; finishReason: string }) => void
 ): Promise<StreamHandler> {
-  const handler = new StreamHandler({ provider: 'anthropic' });
-
-  for await (const chunk of stream) {
-    const output = handler.parseChunk(chunk);
-
-    if (output) {
-      if (output.text && onToken) {
-        onToken(output.text);
-      }
-
-      if (output.toolCall && onToolCall) {
-        onToolCall(output.toolCall);
-      }
-
-      if (output.done && onComplete) {
-        onComplete({
-          text: handler.getAccumulatedText(),
-          toolCalls: handler.getToolCalls(),
-          tokenUsage: handler.getTokenUsage(),
-          finishReason: handler.getFinishReason() || 'stop',
-        });
-      }
-    }
-  }
-
-  return handler;
+  return handleStream('anthropic', stream as AsyncIterable<StreamChunk>, onToken, onToolCall, onComplete);
 }

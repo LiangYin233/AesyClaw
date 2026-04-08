@@ -21,7 +21,6 @@ import {
   MemoryConfig,
 } from './memory/index.js';
 import { LLMProviderType } from '../llm/types.js';
-import { MetricsReport } from '../llm/metrics/metrics-collector.js';
 
 export interface AgentConfig {
   llm: LLMConfig;
@@ -127,7 +126,7 @@ export class AgentEngine {
       'AgentEngine starting request processing'
     );
 
-    this.memory.addMessage(MessageFactory.createUserMessage(userInput));
+    await this.memory.addMessage(MessageFactory.createUserMessage(userInput));
 
     const client = this.getClient();
 
@@ -201,7 +200,7 @@ export class AgentEngine {
             response.text || '',
             response.toolCalls
           );
-          this.memory.addMessage(assistantMessage);
+          await this.memory.addMessage(assistantMessage);
           
           logger.info(
             { 
@@ -241,7 +240,7 @@ export class AgentEngine {
                 toolRequest.name,
                 `[权限拒绝] 角色 "${roleId}" 不允许使用工具 "${toolRequest.name}"。`
               );
-              this.memory.addMessage(toolMessage);
+              await this.memory.addMessage(toolMessage);
               continue;
             }
 
@@ -274,7 +273,7 @@ export class AgentEngine {
               toolRequest.name,
               afterResult.content
             );
-            this.memory.addMessage(toolMessage);
+            await this.memory.addMessage(toolMessage);
             
             logger.info(
               { toolName: toolRequest.name, contentPreview: afterResult.content.substring(0, 200) },
@@ -345,105 +344,21 @@ export class AgentEngine {
     }
   }
 
-  getChatId(): string {
-    return this.chatId;
-  }
-
-  getInstanceId(): string {
-    return this.instanceId;
-  }
-
-  getHistory(): StandardMessage[] {
-    return this.memory.getMessagesCopy();
-  }
-
-  clearHistory(): void {
-    this.memory.clear();
-    this.client = null;
-    logger.debug({ chatId: this.chatId }, 'Agent history cleared');
-  }
-
-  /**
-   * 获取指标统计信息
-   * @param startTime 开始时间（可选）
-   * @param endTime 结束时间（可选）
-   * @returns 指标报告
-   */
-  getMetrics(startTime?: Date, endTime?: Date): MetricsReport {
-    if (!this.client) {
-      // 如果 client 未初始化，返回空报告
-      const now = new Date().toISOString();
-      return {
-        generatedAt: now,
-        timeRange: {
-          start: now,
-          end: now,
-        },
-        totalRequests: 0,
-        successfulRequests: 0,
-        failedRequests: 0,
-        successRate: 0,
-        averageLatency: 0,
-        totalPromptTokens: 0,
-        totalCompletionTokens: 0,
-        totalTokens: 0,
-        estimatedCost: 0,
-        providers: new Map(),
-        errors: [],
-      };
-    }
-    return this.client.getMetrics(startTime, endTime);
-  }
-
-  /**
-   * 销毁引擎
-   * 释放资源
-   */
-  destroy(): void {
-    if (this.client) {
-      this.client.destroy();
-      this.client = null;
-    }
-    this.memory.clear();
-    logger.info({ chatId: this.chatId }, 'AgentEngine 已销毁');
-  }
-
-  getMemoryStats() {
-    return this.memory.getStats();
-  }
-
-  getTokenBudget() {
-    return this.memory.checkBudget();
-  }
-
-  isMemoryCompressing(): boolean {
-    return this.memory.isCompressing();
-  }
-
-  getMemoryCompressionPhase() {
-    return this.memory.getCurrentPhase();
-  }
-
   private getFilteredTools(): ToolDefinition[] {
     const roleId = this.memory.getActiveRoleId();
     const allToolDefs = this.toolRegistry.getAllToolDefinitions();
     const toolNames = allToolDefs.map(t => t.name);
     const allowedToolNames = roleManager.getAllowedTools(roleId, toolNames);
 
-    return allToolDefs.filter(tool => allowedToolNames.includes(tool.name));
+return allToolDefs.filter(tool => allowedToolNames.includes(tool.name));
   }
 
   updateModel(model: string): void {
     this.config.llm.model = model;
-    // 销毁旧的 client，下次调用时会创建新的 client
     if (this.client) {
       this.client.destroy();
       this.client = null;
     }
     logger.info({ chatId: this.chatId, model }, 'Agent model updated');
-  }
-
-  getCurrentRoleId(): string {
-    return this.memory.getActiveRoleId();
   }
 }

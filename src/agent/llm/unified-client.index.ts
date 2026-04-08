@@ -12,7 +12,6 @@ export {
 // 导出错误处理器
 export {
   ErrorHandler,
-  createErrorHandler,
   DEFAULT_RETRY_POLICY,
 } from './error/error-handler.js';
 
@@ -25,20 +24,12 @@ export {
   MODEL_PRICING,
 } from './metrics/metrics-collector.js';
 
-// 导出请求构建器
-export {
-  RequestBuilder,
-  createRequestBuilder,
-} from './builders/request-builder.js';
-
-// 导出响应解析器
-export { ResponseParser } from './parsers/response-parser.js';
-
 // 导出流式处理器
 export {
   StreamHandler,
   createOpenAIStreamHandler,
   createAnthropicStreamHandler,
+  handleStream,
   handleOpenAIStream,
   handleAnthropicStream,
 } from './stream/stream-handler.js';
@@ -48,13 +39,11 @@ export {
   MessageTransformer,
   OpenAIMessageFormatter,
   AnthropicMessageFormatter,
-  messageTransformer,
 } from './transformers/message-transformer.js';
 
 // 导出工具转换器
 export {
   ToolTransformer,
-  getToolTransformer,
 } from './transformers/tool-transformer.js';
 
 // 导出所有类型（从 types.ts 统一导出）
@@ -105,21 +94,8 @@ export {
   type AnthropicToolDefinition,
   type ToolFormatter,
 
-  // 请求构建器类型
+  // 请求选项
   type RequestOptions,
-  type StandardRequest,
-  type StreamRequest,
-  type RequestBuilderConfig,
-  type ValidationResult,
-  type OpenAIStandardRequest,
-  type OpenAIStreamRequest,
-  type AnthropicStandardRequest,
-  type AnthropicStreamRequest,
-
-  // 响应解析器类型
-  type OpenAIResponse,
-  type AnthropicResponse,
-  type ProviderType,
 
   // 流式处理类型
   type StreamHandlerOptions,
@@ -140,7 +116,6 @@ export {
   type CacheEventData,
   type RetryEventData,
 
-  // 类型别名
   type LLMClientConfig,
   type GenerateParams,
   type StreamGenerateParams,

@@ -260,16 +260,4 @@ export class SandboxEngine {
     
     logger.debug({ sandboxId: this.sandboxId }, 'Sandbox destroyed');
   }
-
-  static getActiveSandbox(sandboxId: string): SandboxContext | undefined {
-    return SandboxEngine.activeSandboxes.get(sandboxId);
-  }
-
-  static getActiveCount(): number {
-    return SandboxEngine.activeSandboxes.size;
-  }
-
-  static getActiveSandboxes(): SandboxContext[] {
-    return Array.from(SandboxEngine.activeSandboxes.values());
-  }
 }

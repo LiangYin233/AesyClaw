@@ -7,6 +7,7 @@ export {
   StreamHandler,
   createOpenAIStreamHandler,
   createAnthropicStreamHandler,
+  handleStream,
   handleOpenAIStream,
   handleAnthropicStream,
   type StreamChunk,
