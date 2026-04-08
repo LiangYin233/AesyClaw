@@ -165,7 +165,7 @@ export class AnthropicAdapter implements ILLMProvider {
       } else if (msg.role === MessageRole.Tool) {
         currentUserContent.push({
           type: 'tool_result',
-          tool_use_id: msg.toolCallId!,
+          tool_use_id: msg.toolCallId,
           content: msg.content,
         });
       }

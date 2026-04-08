@@ -173,7 +173,8 @@ export class AgentEngine {
           );
           
           const recentTools = this.memory.getMessages().slice(-10).filter(m => m.role === MessageRole.Tool);
-          const recentToolNames = recentTools.map(m => m.name);
+          const recentToolNames = recentTools.map(m => m.name || '');
+
           if (recentToolNames.length > 0) {
             logger.info(
               { chatId: this.chatId, recentToolCalls: recentToolNames.join(', ') },

@@ -20,7 +20,7 @@ export class SkillManager {
     if (!SkillManager.instance) {
       SkillManager.instance = new SkillManager();
     }
-    return SkillManager.instance!;
+    return SkillManager.instance;
   }
 
   static resetInstance(): void {
