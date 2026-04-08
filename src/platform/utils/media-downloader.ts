@@ -65,7 +65,9 @@ export class MediaDownloader {
       if (ext && ext.length <= 10) {
         return ext;
       }
-    } catch {}
+    } catch {
+      // Ignore URL parsing errors, will use type-based extension
+    }
 
     const typeExtensions: Record<string, string> = {
       image: '.jpg',

@@ -1,7 +1,24 @@
 import { TokenUsage } from '../types.js';
 
+interface OpenAITokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
+interface AnthropicTokenUsage {
+  input_tokens: number;
+  output_tokens: number;
+}
+
+interface CompletionTokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
 export class TokenUsageMapper {
-  static fromOpenAI(usage: any): TokenUsage | undefined {
+  static fromOpenAI(usage: OpenAITokenUsage): TokenUsage | undefined {
     if (!usage) {
       return undefined;
     }
@@ -12,7 +29,7 @@ export class TokenUsageMapper {
     };
   }
 
-  static fromAnthropic(usage: any): TokenUsage | undefined {
+  static fromAnthropic(usage: AnthropicTokenUsage): TokenUsage | undefined {
     if (!usage) {
       return undefined;
     }
@@ -23,7 +40,7 @@ export class TokenUsageMapper {
     };
   }
 
-  static fromCompletion(usage: any): TokenUsage | undefined {
+  static fromCompletion(usage: CompletionTokenUsage): TokenUsage | undefined {
     if (!usage) {
       return undefined;
     }

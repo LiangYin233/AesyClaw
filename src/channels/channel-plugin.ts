@@ -1,4 +1,4 @@
-import type { IOutboundMessage } from '../agent/core/types.js';
+
 import type { ChannelPipeline } from '../agent/core/pipeline.js';
 
 export interface IOutboundPayload {
@@ -7,10 +7,10 @@ export interface IOutboundPayload {
 }
 
 export interface ChannelPluginLogger {
-  info: (msg: string, data?: Record<string, unknown>) => void;
-  warn: (msg: string, data?: Record<string, unknown>) => void;
-  error: (msg: string, data?: Record<string, unknown>) => void;
-  debug: (msg: string, data?: Record<string, unknown>) => void;
+  info: (_msg: string, _data?: Record<string, unknown>) => void;
+  warn: (_msg: string, _data?: Record<string, unknown>) => void;
+  error: (_msg: string, _data?: Record<string, unknown>) => void;
+  debug: (_msg: string, _data?: Record<string, unknown>) => void;
 }
 
 export interface ChannelPluginContext {
@@ -24,10 +24,10 @@ export interface IChannelPlugin {
   version: string;
   description?: string;
   defaultOptions?: Record<string, unknown>;
-  init(ctx: ChannelPluginContext): Promise<void>;
+  init(_ctx: ChannelPluginContext): Promise<void>;
   destroy(): Promise<void>;
 }
 
 export interface IChannelWithSend extends IChannelPlugin {
-  getSendFn(): (payload: IOutboundPayload) => Promise<void>;
+  getSendFn(): (_payload: IOutboundPayload) => Promise<void>;
 }

@@ -1,4 +1,4 @@
-import { StandardMessage, MessageRole, LLMProviderType } from '../../llm/types.js';
+import { StandardMessage, MessageRole } from '../../llm/types.js';
 import { MessageZone, CompressionResult, MemoryConfig } from './types.js';
 import { TokenBudgetCalculator } from './token-budget-calculator.js';
 import { LLMProviderFactory } from '../../llm/factory.js';
@@ -168,7 +168,6 @@ ${conversationText}
 
   private async callSummarizerModel(prompt: string): Promise<string> {
     const providerName = this.config.compressionProvider;
-    const modelName = this.config.compressionModel;
 
     if (!configManager.isInitialized()) {
       throw new Error('ConfigManager not initialized');

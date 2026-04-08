@@ -3,10 +3,10 @@ import * as path from 'path';
 import { logger } from '../../platform/observability/logger.js';
 import { pathResolver } from '../../platform/utils/paths.js';
 import { scanSkillDirectory } from './skill-parser.js';
-import type { SkillRoute, SkillSource } from './types.js';
+import type { SkillRoute, SkillSource, SkillMetadata } from './types.js';
 
 export class SkillManager {
-  private static instance: SkillManager;
+  private static instance: SkillManager | undefined;
 
   private routes: Map<string, SkillRoute> = new Map();
   private initialized: boolean = false;
@@ -20,14 +20,14 @@ export class SkillManager {
     if (!SkillManager.instance) {
       SkillManager.instance = new SkillManager();
     }
-    return SkillManager.instance;
+    return SkillManager.instance!;
   }
 
   static resetInstance(): void {
     if (SkillManager.instance?.watcher) {
       SkillManager.instance.watcher.close();
     }
-    SkillManager.instance = undefined as any;
+    SkillManager.instance = undefined;
   }
 
   async initialize(): Promise<void> {
@@ -73,7 +73,7 @@ export class SkillManager {
     }
   }
 
-  private registerRoute(name: string, basePath: string, source: SkillSource, metadata?: any): void {
+  private registerRoute(name: string, basePath: string, source: SkillSource, metadata?: SkillMetadata): void {
     const existing = this.routes.get(name);
     if (existing) {
       if (existing.source === 'user' && source === 'system') {
@@ -100,7 +100,6 @@ export class SkillManager {
     if (this.watcher) return;
 
     const systemDir = pathResolver.getSystemSkillsDir();
-    const userDir = pathResolver.getUserSkillsDir();
 
     try {
       this.watcher = fs.watch(

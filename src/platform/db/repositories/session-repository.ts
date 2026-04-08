@@ -38,7 +38,15 @@ export class SessionRepository {
   findByChatId(chatId: string): SessionRecord | null {
     const db = sqliteManager.getDatabase();
     const stmt = db.prepare('SELECT * FROM sessions WHERE chat_id = ?');
-    const row = stmt.get(chatId) as any;
+    const row = stmt.get(chatId) as {
+      chat_id: string;
+      channel_type: string;
+      channel_id?: string;
+      user_id?: string;
+      created_at: string;
+      updated_at: string;
+      metadata: string;
+    };
 
     if (!row) return null;
 
@@ -48,7 +56,7 @@ export class SessionRepository {
   update(chatId: string, updates: Partial<Omit<CreateSessionInput, 'chatId'>>): SessionRecord | null {
     const db = sqliteManager.getDatabase();
     const fields: string[] = ['updated_at = datetime("now")'];
-    const values: any[] = [];
+    const values: Array<string | null> = [];
 
     if (updates.channelType !== undefined) {
       fields.push('channel_type = ?');
@@ -93,7 +101,15 @@ export class SessionRepository {
   findAll(): SessionRecord[] {
     const db = sqliteManager.getDatabase();
     const stmt = db.prepare('SELECT * FROM sessions ORDER BY created_at DESC');
-    const rows = stmt.all() as any[];
+    const rows = stmt.all() as Array<{
+      chat_id: string;
+      channel_type: string;
+      channel_id?: string;
+      user_id?: string;
+      created_at: string;
+      updated_at: string;
+      metadata: string;
+    }>;
 
     return rows.map(row => this.mapRowToRecord(row));
   }
@@ -101,7 +117,7 @@ export class SessionRepository {
   findByChannel(channelType: string, channelId?: string): SessionRecord[] {
     const db = sqliteManager.getDatabase();
     let query = 'SELECT * FROM sessions WHERE channel_type = ?';
-    const params: any[] = [channelType];
+    const params: Array<string> = [channelType];
 
     if (channelId) {
       query += ' AND channel_id = ?';
@@ -110,7 +126,15 @@ export class SessionRepository {
 
     query += ' ORDER BY created_at DESC';
     const stmt = db.prepare(query);
-    const rows = stmt.all(...params) as any[];
+    const rows = stmt.all(...params) as Array<{
+      chat_id: string;
+      channel_type: string;
+      channel_id?: string;
+      user_id?: string;
+      created_at: string;
+      updated_at: string;
+      metadata: string;
+    }>;
 
     return rows.map(row => this.mapRowToRecord(row));
   }
@@ -123,7 +147,15 @@ export class SessionRepository {
     return this.create(input);
   }
 
-  private mapRowToRecord(row: any): SessionRecord {
+  private mapRowToRecord(row: {
+    chat_id: string;
+    channel_type: string;
+    channel_id?: string;
+    user_id?: string;
+    created_at: string;
+    updated_at: string;
+    metadata: string;
+  }): SessionRecord {
     return {
       chatId: row.chat_id,
       channelType: row.channel_type,

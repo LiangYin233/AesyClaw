@@ -5,9 +5,9 @@ import { configManager } from '../features/config/config-manager.js';
 import { isPlainObject } from '../platform/utils/index.js';
 
 export class ChannelPluginManager {
-  private static instance: ChannelPluginManager;
+  private static instance: ChannelPluginManager | null = null;
   private channels: Map<string, IChannelPlugin> = new Map();
-  private sendFunctions: Map<string, (payload: IOutboundPayload) => Promise<void>> = new Map();
+  private sendFunctions: Map<string, (_payload: IOutboundPayload) => Promise<void>> = new Map();
   private pluginLogger: ChannelPluginLogger;
   private pipeline: ChannelPipeline | null = null;
 
@@ -30,7 +30,7 @@ export class ChannelPluginManager {
   static resetInstance(): void {
     if (ChannelPluginManager.instance) {
       ChannelPluginManager.instance.shutdown();
-      ChannelPluginManager.instance = undefined as any;
+      ChannelPluginManager.instance = null;
     }
   }
 
@@ -50,7 +50,7 @@ export class ChannelPluginManager {
     }
 
     for (const key in userConfig) {
-      if (userConfig.hasOwnProperty(key)) {
+      if (Object.hasOwn(userConfig, key)) {
         const userValue = userConfig[key];
         const defaultValue = defaultOptions[key];
 
@@ -68,7 +68,7 @@ export class ChannelPluginManager {
   async registerChannel(
     plugin: IChannelPlugin,
     config?: Record<string, unknown>,
-    sendFn?: (payload: IOutboundPayload) => Promise<void>
+    sendFn?: (_payload: IOutboundPayload) => Promise<void>
   ): Promise<void> {
     if (this.channels.has(plugin.name)) {
       logger.warn({ channelName: plugin.name }, 'Channel plugin already registered, skipping');
@@ -130,7 +130,7 @@ export class ChannelPluginManager {
     return this.channels.get(name);
   }
 
-  getSendFn(name: string): ((payload: IOutboundPayload) => Promise<void>) | undefined {
+  getSendFn(name: string): ((_payload: IOutboundPayload) => Promise<void>) | undefined {
     return this.sendFunctions.get(name);
   }
 

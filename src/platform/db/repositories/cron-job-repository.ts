@@ -55,7 +55,20 @@ export class CronJobRepository {
   findById(id: string): CronJobRecord | null {
     const db = sqliteManager.getDatabase();
     const stmt = db.prepare('SELECT * FROM cron_jobs WHERE id = ?');
-    const row = stmt.get(id) as any;
+    const row = stmt.get(id) as {
+      id: string;
+      chat_id: string;
+      name: string;
+      cron_expression: string;
+      command: string;
+      prompt: string;
+      enabled: number;
+      created_at: string;
+      last_run_at?: string;
+      next_run_at?: string;
+      run_count: number;
+      metadata: string;
+    };
 
     if (!row) return null;
 
@@ -65,7 +78,20 @@ export class CronJobRepository {
   findByChatId(chatId: string): CronJobRecord[] {
     const db = sqliteManager.getDatabase();
     const stmt = db.prepare('SELECT * FROM cron_jobs WHERE chat_id = ? ORDER BY created_at DESC');
-    const rows = stmt.all(chatId) as any[];
+    const rows = stmt.all(chatId) as Array<{
+      id: string;
+      chat_id: string;
+      name: string;
+      cron_expression: string;
+      command: string;
+      prompt: string;
+      enabled: number;
+      created_at: string;
+      last_run_at?: string;
+      next_run_at?: string;
+      run_count: number;
+      metadata: string;
+    }>;
 
     return rows.map(row => this.mapRowToRecord(row));
   }
@@ -73,7 +99,20 @@ export class CronJobRepository {
   findEnabled(): CronJobRecord[] {
     const db = sqliteManager.getDatabase();
     const stmt = db.prepare('SELECT * FROM cron_jobs WHERE enabled = 1 ORDER BY next_run_at ASC');
-    const rows = stmt.all() as any[];
+    const rows = stmt.all() as Array<{
+      id: string;
+      chat_id: string;
+      name: string;
+      cron_expression: string;
+      command: string;
+      prompt: string;
+      enabled: number;
+      created_at: string;
+      last_run_at?: string;
+      next_run_at?: string;
+      run_count: number;
+      metadata: string;
+    }>;
 
     return rows.map(row => this.mapRowToRecord(row));
   }
@@ -86,7 +125,20 @@ export class CronJobRepository {
       WHERE enabled = 1 AND next_run_at IS NOT NULL AND next_run_at <= ?
       ORDER BY next_run_at ASC
     `);
-    const rows = stmt.all(now) as any[];
+    const rows = stmt.all(now) as Array<{
+      id: string;
+      chat_id: string;
+      name: string;
+      cron_expression: string;
+      command: string;
+      prompt: string;
+      enabled: number;
+      created_at: string;
+      last_run_at?: string;
+      next_run_at?: string;
+      run_count: number;
+      metadata: string;
+    }>;
 
     return rows.map(row => this.mapRowToRecord(row));
   }
@@ -94,7 +146,7 @@ export class CronJobRepository {
   update(id: string, updates: Partial<Omit<CronJobRecord, 'id' | 'createdAt'>>): CronJobRecord | null {
     const db = sqliteManager.getDatabase();
     const fields: string[] = [];
-    const values: any[] = [];
+    const values: Array<string | number | null> = [];
 
     if (updates.name !== undefined) {
       fields.push('name = ?');
@@ -191,7 +243,20 @@ export class CronJobRepository {
     stmt.run(nextRunAt, id);
   }
 
-  private mapRowToRecord(row: any): CronJobRecord {
+  private mapRowToRecord(row: {
+    id: string;
+    chat_id: string;
+    name: string;
+    cron_expression: string;
+    command: string;
+    prompt: string;
+    enabled: number;
+    created_at: string;
+    last_run_at?: string;
+    next_run_at?: string;
+    run_count: number;
+    metadata: string;
+  }): CronJobRecord {
     return {
       id: row.id,
       chatId: row.chat_id,

@@ -1,4 +1,4 @@
-import { ZodError, ZodType } from 'zod';
+import { ZodError } from 'zod';
 import {
   ITool,
   ToolDefinition,
@@ -6,7 +6,6 @@ import {
   ToolExecutionResult,
   ToolCallResult,
   ToolCallRequest,
-  zodToToolParameters,
 } from './types.js';
 import { logger } from '../observability/logger.js';
 

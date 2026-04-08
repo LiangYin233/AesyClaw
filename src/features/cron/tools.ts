@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import { cronJobRepository, type CronJobRecord } from '../../platform/db/repositories/cron-job-repository.js';
 import { cronJobScheduler, generateCronId } from '../../platform/db/cron-scheduler.js';
 import { logger } from '../../platform/observability/logger.js';
@@ -7,6 +6,7 @@ import { configManager } from '../config/config-manager.js';
 import { sessionRegistry } from '../../agent/core/session/session-registry.js';
 import { SessionId } from '../../agent/core/session/session-id.js';
 import { ToolRegistry } from '../../platform/tools/registry.js';
+import { LLMProviderType } from '../../agent/llm/types.js';
 
 export interface CreateCronJobInput {
   chatId: string;
@@ -149,7 +149,6 @@ export function getSchedulerStatus(): {
 
 export class PromptExecutor {
   private toolRegistry: ToolRegistry;
-  private config: any;
 
   constructor() {
     this.toolRegistry = ToolRegistry.getInstance();
@@ -181,7 +180,7 @@ export class PromptExecutor {
         chatId: job.id,
         session: sessionPart,
         llm: {
-          provider: 'openai-chat' as any,
+          provider: LLMProviderType.OpenAIChat,
           model,
         },
         systemPrompt,
@@ -230,7 +229,8 @@ export class PromptExecutor {
 
       try {
         sessionRegistry.removeSession(sessionId);
-      } catch {
+      } catch (error) {
+        logger.error({ error }, '❌ Error removing session after cron job execution');
       }
     }
   }

@@ -13,7 +13,7 @@ import { LosslessSummarizer } from './lossless-summarizer.js';
 import { logger } from '../../../platform/observability/logger.js';
 import { roleManager, DEFAULT_ROLE_ID } from '../../../features/roles/index.js';
 import { systemPromptManager } from '../../../features/roles/system-prompt-manager.js';
-import { skillManager } from '../../../features/skills/index.js';
+
 
 export class SessionMemoryManager {
   readonly chatId: string;
@@ -25,7 +25,7 @@ export class SessionMemoryManager {
   private currentPhase: CompressionPhase = CompressionPhase.Idle;
   private compressionCount: number = 0;
   private lastCompressionTime?: Date;
-  private eventListeners: Array<(event: MemoryEvent) => void> = [];
+  private eventListeners: Array<(_event: MemoryEvent) => void> = [];
   private activeRoleId: string = DEFAULT_ROLE_ID;
 
   constructor(chatId: string, config?: Partial<MemoryConfig>) {
@@ -334,7 +334,7 @@ export class SessionMemoryManager {
     return removed;
   }
 
-  onEvent(listener: (event: MemoryEvent) => void): () => void {
+  onEvent(listener: (_event: MemoryEvent) => void): () => void {
     this.eventListeners.push(listener);
     return () => {
       const index = this.eventListeners.indexOf(listener);

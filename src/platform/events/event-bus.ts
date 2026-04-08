@@ -1,4 +1,4 @@
-type EventHandler<T = unknown> = (payload: T) => void | Promise<void>;
+type EventHandler<T = unknown> = (_payload: T) => void | Promise<void>;
 
 interface EventSubscription {
   id: string;

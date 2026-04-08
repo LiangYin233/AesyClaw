@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { logger } from '../../platform/observability/logger.js';
-import { ToolExecuteContext } from '../../platform/tools/types.js';
+import { ToolExecuteContext, ToolParameters, ToolExecutionResult } from '../../platform/tools/types.js';
 import { roleManager } from '../roles/role-manager.js';
 import { ToolRegistry } from '../../platform/tools/registry.js';
 import { SandboxEngine } from './sandbox-engine.js';
@@ -145,8 +145,8 @@ function createSubAgentTool(
   name: string,
   description: string,
   schema: z.ZodType,
-  parameters: { type: 'object'; properties: Record<string, unknown>; required: string[] },
-  executeFn: (args: unknown, context: ToolExecuteContext) => Promise<{ success: boolean; content: string; error?: string }>
+  parameters: ToolParameters,
+  executeFn: (_args: unknown, _context: ToolExecuteContext) => Promise<ToolExecutionResult>
 ) {
   return {
     name,
