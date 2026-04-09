@@ -33,7 +33,7 @@ import { CacheManager, CacheConfig, CacheStats } from './cache/cache-manager.js'
 import { MetricsCollector, MetricsCollectorConfig, MetricsReport, RequestMetric } from './metrics/metrics-collector.js';
 import { StreamHandler, StreamOutput } from './stream/stream-handler.js';
 import { ILLMProvider } from './types.js';
-import { LLMProviderFactory } from './factory.js';
+import { LLMProviderFactory, llmProviderFactory } from './factory.js';
 import { logger } from '../../platform/observability/logger.js';
 
 /**
@@ -149,8 +149,7 @@ export class UnifiedLLMClient extends EventEmitter {
     this.defaultOptions = config.defaultOptions ?? {};
 
     // 创建 LLM 提供者实例
-    const factory = LLMProviderFactory.getInstance();
-    this.adapter = factory.createAdapter({
+    this.adapter = llmProviderFactory.createAdapter({
       provider: this.provider,
       model: this.model,
       apiKey: this.apiKey,
@@ -279,18 +278,17 @@ export class UnifiedLLMClient extends EventEmitter {
       this.emitRequestComplete(requestId, response, latency, false);
 
       return response;
-    } catch (error: any) {
-      // 记录失败指标
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
       const errorInfo = this.errorHandler.classifyError(error);
       this.metricsCollector.recordError(
         metricsRequestId,
-        error.message,
+        err.message,
         errorInfo.type,
         options?.metadata
       );
 
-      // 发射请求错误事件
-      this.emitRequestError(requestId, errorInfo.type, error.message, errorInfo.retryable ? 1 : 0);
+      this.emitRequestError(requestId, errorInfo.type, err.message, errorInfo.retryable ? 1 : 0);
 
       throw error;
     }
@@ -376,21 +374,20 @@ export class UnifiedLLMClient extends EventEmitter {
       );
 
       return streamHandler;
-    } catch (error: any) {
-      // 记录失败指标
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
       const errorInfo = this.errorHandler.classifyError(error);
       this.metricsCollector.recordError(
         metricsRequestId,
-        error.message,
+        err.message,
         errorInfo.type,
         options?.metadata
       );
 
-      // 发射请求错误事件
-      this.emitRequestError(requestId, errorInfo.type, error.message, 0);
+      this.emitRequestError(requestId, errorInfo.type, err.message, 0);
 
       if (callbacks.onError) {
-        callbacks.onError(error);
+        callbacks.onError(err);
       }
 
       throw error;
@@ -439,10 +436,11 @@ export class UnifiedLLMClient extends EventEmitter {
               response,
               success: true,
             };
-          } catch (error: any) {
+          } catch (error: unknown) {
+            const err = error instanceof Error ? error : new Error(String(error));
             return {
               id: item.id,
-              error,
+              error: err,
               success: false,
             };
           }

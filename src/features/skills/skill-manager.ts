@@ -6,31 +6,13 @@ import { scanSkillDirectory } from './skill-parser.js';
 import type { SkillRoute, SkillSource, SkillMetadata } from './types.js';
 
 export class SkillManager {
-  private static instance: SkillManager | undefined;
-
   private routes: Map<string, SkillRoute> = new Map();
   private initialized: boolean = false;
   private watcher: fs.FSWatcher | null = null;
   private debounceTimer: NodeJS.Timeout | null = null;
   private selfUpdating: boolean = false;
 
-  private constructor() {}
-
-  static getInstance(): SkillManager {
-    if (!SkillManager.instance) {
-      SkillManager.instance = new SkillManager();
-    }
-    return SkillManager.instance;
-  }
-
-  static resetInstance(): void {
-    if (SkillManager.instance) {
-      if (SkillManager.instance.watcher) {
-        SkillManager.instance.watcher.close();
-      }
-      SkillManager.instance = undefined;
-    }
-  }
+  constructor() {}
 
   async initialize(): Promise<void> {
     if (this.initialized) {
@@ -254,4 +236,4 @@ export class SkillManager {
   }
 }
 
-export const skillManager = SkillManager.getInstance();
+export const skillManager = new SkillManager();

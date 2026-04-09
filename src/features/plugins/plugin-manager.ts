@@ -21,8 +21,6 @@ import { CommandRegistry } from '../commands/command-registry.js';
 import { configManager } from '../config/config-manager.js';
 
 export class PluginManager {
-  private static instance: PluginManager | undefined = undefined;
-
   private toolRegistry: ToolRegistry;
   private loadedPlugins: Map<string, IPlugin> = new Map();
   private pluginInfos: Map<string, PluginInfo> = new Map();
@@ -30,23 +28,9 @@ export class PluginManager {
   private pluginsDir: string;
   private pluginPaths: Map<string, { dir: string; packageJson: Record<string, unknown> }> = new Map();
 
-  private constructor(toolRegistry: ToolRegistry) {
+  constructor(toolRegistry: ToolRegistry) {
     this.toolRegistry = toolRegistry;
     this.pluginsDir = path.join(process.cwd(), 'plugins');
-  }
-
-  static getInstance(toolRegistry: ToolRegistry): PluginManager {
-    if (!PluginManager.instance) {
-      PluginManager.instance = new PluginManager(toolRegistry);
-    }
-    return PluginManager.instance;
-  }
-
-  static resetInstance(): void {
-    if (PluginManager.instance) {
-      PluginManager.instance.shutdown();
-      PluginManager.instance = undefined;
-    }
   }
 
   async initialize(): Promise<void> {
@@ -301,7 +285,7 @@ export class PluginManager {
     hookName: K,
     payload: HookPayloadMap[K] | undefined
   ): Promise<HookResultMap[K]> {
-    let result: HookPayloadMap[K] | undefined = payload;
+    let result: unknown = payload;
 
     for (const [, plugin] of this.loadedPlugins) {
       if (!plugin.hooks) continue;
@@ -315,7 +299,8 @@ export class PluginManager {
           'Dispatching hook'
         );
 
-        const hookResult = await hook(result);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const hookResult = await (hook as (payload: unknown) => Promise<unknown>)(result);
 
         if (hookResult !== undefined && hookResult !== null) {
           result = hookResult;
@@ -328,7 +313,7 @@ export class PluginManager {
       }
     }
 
-    return result;
+    return result as HookResultMap[K];
   }
 
   async dispatchMessageReceive(
@@ -350,7 +335,7 @@ export class PluginManager {
     toolCall: HookPayloadToolCall
   ): Promise<{ success: boolean; content: string; error?: string } | null> {
     const result = await this.dispatchHook('beforeToolCall', toolCall);
-    if (result === toolCall) {
+    if (result === null) {
       return null;
     }
     return result as { success: boolean; content: string; error?: string } | null;
@@ -360,9 +345,6 @@ export class PluginManager {
     payload: HookPayloadAfterToolCall
   ): Promise<HookPayloadAfterToolCall['result']> {
     const result = await this.dispatchHook('afterToolCall', payload);
-    if (result === payload) {
-      return payload.result;
-    }
     return result as HookPayloadAfterToolCall['result'];
   }
 
@@ -462,7 +444,7 @@ export class PluginManager {
 
     try {
       const { dir: pluginDir, packageJson } = pluginInfo;
-      const mainFile = packageJson.main || 'dist/index.js';
+      const mainFile = (packageJson.main as string | undefined) || 'dist/index.js';
       const pluginPath = path.join(pluginDir, mainFile);
 
       if (fs.existsSync(pluginPath)) {
@@ -573,6 +555,6 @@ export class PluginManager {
   }
 }
 
-export const pluginManager = PluginManager.getInstance(
-  ToolRegistry.getInstance()
-);
+import { toolRegistry } from '../../platform/tools/registry.js';
+
+export const pluginManager = new PluginManager(toolRegistry);

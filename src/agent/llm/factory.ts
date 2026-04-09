@@ -35,8 +35,8 @@ export class LLMProviderFactory {
   private static instance: LLMProviderFactory;
   private adapters: Map<string, ILLMProvider> = new Map();
 
-  private constructor() {
-    logger.info('LLMProviderFactory singleton initialized');
+  constructor() {
+    logger.info('LLMProviderFactory initialized');
   }
 
   static getInstance(): LLMProviderFactory {
@@ -229,3 +229,5 @@ export function createLLMSession(config: LLMConfig, tools: ToolDefinition[] = []
 
   return new LLMSession(client, tools);
 }
+
+export const llmProviderFactory = new LLMProviderFactory();

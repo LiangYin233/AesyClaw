@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { logger } from '../../platform/observability/logger.js';
 import { ToolExecuteContext, ToolParameters, ToolExecutionResult } from '../../platform/tools/types.js';
 import { roleManager } from '../roles/role-manager.js';
-import { ToolRegistry } from '../../platform/tools/registry.js';
+import { toolRegistry } from '../../platform/tools/registry.js';
 import { SandboxEngine } from './sandbox-engine.js';
 import {
   RunSubAgentInputSchema,
@@ -93,7 +93,6 @@ export async function runTempSubAgent(
     ' runTempSubAgent called'
   );
 
-  const toolRegistry = ToolRegistry.getInstance();
   const allTools = toolRegistry.getAllToolDefinitions();
   const allowedToolNames = allTools.map(t => t.name);
 

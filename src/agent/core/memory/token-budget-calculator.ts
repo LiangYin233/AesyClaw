@@ -5,6 +5,7 @@ import { RoleUtils } from '../role-utils.js';
 export class TokenBudgetCalculator {
   private config: MemoryConfig;
   private tokenCache: Map<string, number> = new Map();
+  private static readonly MAX_CACHE_SIZE = 500;
 
   constructor(config: MemoryConfig) {
     this.config = config;
@@ -35,9 +36,17 @@ export class TokenBudgetCalculator {
       const cacheKey = `${message.role}:${message.content}:${message.toolCalls?.length ?? 0}`;
       const cached = this.tokenCache.get(cacheKey);
       if (cached !== undefined) {
+        this.tokenCache.delete(cacheKey);
+        this.tokenCache.set(cacheKey, cached);
         totalTokens += cached;
       } else {
         const tokens = this.estimateTokens(message);
+        if (this.tokenCache.size >= TokenBudgetCalculator.MAX_CACHE_SIZE) {
+          const firstKey = this.tokenCache.keys().next().value;
+          if (firstKey !== undefined) {
+            this.tokenCache.delete(firstKey);
+          }
+        }
         this.tokenCache.set(cacheKey, tokens);
         totalTokens += tokens;
       }
@@ -51,10 +60,19 @@ export class TokenBudgetCalculator {
 
   calculateSingleMessage(message: StandardMessage | string): number {
     const content = typeof message === 'string' ? message : message.content;
-    
+
     const cached = this.tokenCache.get(content);
     if (cached !== undefined) {
+      this.tokenCache.delete(content);
+      this.tokenCache.set(content, cached);
       return cached;
+    }
+
+    if (this.tokenCache.size >= TokenBudgetCalculator.MAX_CACHE_SIZE) {
+      const firstKey = this.tokenCache.keys().next().value;
+      if (firstKey !== undefined) {
+        this.tokenCache.delete(firstKey);
+      }
     }
 
     const tokens = this.estimateTokensFromString(content);

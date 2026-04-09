@@ -11,9 +11,16 @@ import { TokenBudgetCalculator } from './token-budget-calculator.js';
 import { MessageTrimmer } from './message-trimmer.js';
 import { LosslessSummarizer } from './lossless-summarizer.js';
 import { logger } from '../../../platform/observability/logger.js';
-import { roleManager, DEFAULT_ROLE_ID } from '../../../features/roles/index.js';
-import { systemPromptManager } from '../../../features/roles/system-prompt-manager.js';
+import { DEFAULT_ROLE_ID } from '../../../features/roles/role-manager.js';
+import type { IConfigManager } from '../../../contracts/config-manager.js';
+import type { IRoleManager } from '../../../contracts/role-manager.js';
+import type { ISystemPromptBuilder } from '../../../contracts/system-prompt-builder.js';
 
+export interface SessionMemoryManagerDependencies {
+  configManager: IConfigManager;
+  systemPromptBuilder: ISystemPromptBuilder;
+  roleManager?: IRoleManager;
+}
 
 export class SessionMemoryManager {
   readonly chatId: string;
@@ -27,17 +34,26 @@ export class SessionMemoryManager {
   private lastCompressionTime?: Date;
   private eventListeners: Array<(_event: MemoryEvent) => void> = [];
   private activeRoleId: string = DEFAULT_ROLE_ID;
+  private deps: SessionMemoryManagerDependencies;
 
-  constructor(chatId: string, config?: Partial<MemoryConfig>) {
+  constructor(
+    chatId: string,
+    config?: Partial<MemoryConfig>,
+    deps?: SessionMemoryManagerDependencies
+  ) {
     this.chatId = chatId;
     this.config = createMemoryConfig(config);
-    
+    this.deps = deps || {
+      configManager: { config: { memory: { max_context_tokens: 60000, compression_threshold: 0.8, compression_provider: 'openai', compression_model: 'qwen3.5-plus' } } } as IConfigManager,
+      systemPromptBuilder: { buildSystemPrompt: () => '' } as unknown as ISystemPromptBuilder,
+    };
+
     this.calculator = new TokenBudgetCalculator(this.config);
     this.trimmer = new MessageTrimmer(this.config, this.calculator);
-    this.summarizer = new LosslessSummarizer(this.config, this.calculator);
+    this.summarizer = new LosslessSummarizer(this.config, this.calculator, this.deps.configManager);
 
     logger.info(
-      { 
+      {
         chatId: this.chatId,
         maxTokens: this.config.maxContextTokens,
         compressionThreshold: this.config.compressionThreshold,
@@ -219,7 +235,11 @@ export class SessionMemoryManager {
   }
 
   setActiveRole(roleId: string): boolean {
-    const role = roleManager.getRole(roleId);
+    if (!this.deps.roleManager) {
+      logger.warn({ chatId: this.chatId, roleId }, 'RoleManager not available');
+      return false;
+    }
+    const role = this.deps.roleManager.getRole(roleId);
     if (!role) {
       logger.warn({ chatId: this.chatId, roleId }, '尝试切换到不存在的角色');
       return false;
@@ -237,7 +257,7 @@ export class SessionMemoryManager {
   }
 
   async rebuildSystemContext(): Promise<void> {
-    const systemPrompt = systemPromptManager.buildSystemPrompt({
+    const systemPrompt = this.deps.systemPromptBuilder.buildSystemPrompt({
       roleId: this.activeRoleId,
       chatId: this.chatId,
     });
@@ -261,9 +281,12 @@ export class SessionMemoryManager {
   }
 
   async switchRole(roleId: string): Promise<{ success: boolean; message: string }> {
-    const role = roleManager.getRole(roleId);
+    if (!this.deps.roleManager) {
+      return { success: false, message: 'RoleManager not available' };
+    }
+    const role = this.deps.roleManager.getRole(roleId);
     if (!role) {
-      const availableRoles = roleManager.getRolesList();
+      const availableRoles = this.deps.roleManager.getAllRoles();
       const roleNames = availableRoles.map(r => r.name).join(', ');
       return {
         success: false,
@@ -277,7 +300,7 @@ export class SessionMemoryManager {
 
     await this.rebuildSystemContext();
 
-    const roleConfig = roleManager.getRoleConfig(roleId);
+    const roleConfig = this.deps.roleManager.getRoleConfig(roleId);
     const allowedTools = roleConfig.allowed_tools.includes('*')
       ? '所有工具'
       : roleConfig.allowed_tools.join(', ');
@@ -289,7 +312,10 @@ export class SessionMemoryManager {
   }
 
   getRoleInfo(): { roleId: string; roleName: string; allowedTools: string[] } {
-    const roleConfig = roleManager.getRoleConfig(this.activeRoleId);
+    if (!this.deps.roleManager) {
+      return { roleId: this.activeRoleId, roleName: 'default', allowedTools: [] };
+    }
+    const roleConfig = this.deps.roleManager.getRoleConfig(this.activeRoleId);
     return {
       roleId: this.activeRoleId,
       roleName: roleConfig.name,

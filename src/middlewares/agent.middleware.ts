@@ -1,6 +1,6 @@
 import { configManager } from '../features/config/index.js';
 import { logger } from '../platform/observability/logger.js';
-import type { IChannelContext, MiddlewareFunc } from '../agent/core/types.js';
+import type { IChannelContext, MiddlewareFunc, PipelineState } from '../agent/core/types.js';
 import { LLMConfig, ModelCapabilities } from '../agent/llm/factory.js';
 import { parseModelIdentifier } from '../platform/utils/model-parser.js';
 import { mapProviderType } from '../platform/utils/llm-utils.js';
@@ -77,16 +77,14 @@ export class AgentMiddleware {
 
       const llmConfig = resolveLLMConfig(modelIdentifier, config);
 
-      const agentState: AgentState = {
+      if (!ctx.state) {
+        ctx.state = {} as PipelineState;
+      }
+
+      ctx.state.agent = {
         llmConfig,
         systemPrompt,
       };
-
-      if (!ctx.state) {
-        ctx.state = agentState;
-      } else {
-        Object.assign(ctx.state, agentState);
-      }
 
       logger.info(
         {
@@ -157,8 +155,9 @@ export class AgentMiddleware {
 export const agentMiddleware = new AgentMiddleware();
 
 export function getAgentConfigFromContext(ctx: IChannelContext): LLMConfig | null {
-  const agentState = ctx.state as unknown as AgentState;
-  return agentState?.llmConfig || null;
+  const agentState = ctx.state?.agent;
+  if (!agentState) return null;
+  return agentState.llmConfig as LLMConfig | null;
 }
 
 export function buildLLMConfig(

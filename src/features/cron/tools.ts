@@ -100,11 +100,13 @@ export async function updateCronJob(
   return job;
 }
 
+import { toolRegistry } from '../../platform/tools/registry.js';
+
 export class PromptExecutor {
   private toolRegistry: ToolRegistry;
 
   constructor() {
-    this.toolRegistry = ToolRegistry.getInstance();
+    this.toolRegistry = toolRegistry;
   }
 
   async execute(job: CronJobRecord): Promise<void> {

@@ -2,6 +2,10 @@ import { logger } from '../../../platform/observability/logger.js';
 import { TokenUsage, ToolCall } from '../types.js';
 import { FinishReasonMapper } from '../utils/finish-reason-mapper.js';
 
+interface ToolCallWithRaw extends ToolCall {
+  __raw__?: string;
+}
+
 /**
  * OpenAI 流式响应块类型
  */
@@ -200,15 +204,14 @@ export class StreamHandler implements AsyncGenerator<StreamOutput, void, unknown
           };
           this.toolCallsMap.set(index, toolCall);
         } else if (toolCall && toolCallDelta.function) {
-          // 累积工具调用参数
           if (toolCallDelta.function.name) {
             toolCall.name = toolCallDelta.function.name;
           }
           if (toolCallDelta.function.arguments) {
-            // 累积参数字符串，稍后解析
-            const existingArgs = (toolCall.arguments as any).__raw__ || '';
+            const toolCallWithRaw = toolCall as ToolCallWithRaw;
+            const existingArgs = toolCallWithRaw.__raw__ || '';
             const newArgs = existingArgs + toolCallDelta.function.arguments;
-            (toolCall.arguments as any).__raw__ = newArgs;
+            toolCallWithRaw.__raw__ = newArgs;
           }
         }
 
@@ -424,7 +427,8 @@ export class StreamHandler implements AsyncGenerator<StreamOutput, void, unknown
    */
   private parseToolCallArguments(): void {
     for (const [index, toolCall] of this.toolCallsMap) {
-      const rawArgs = (toolCall.arguments as any).__raw__;
+      const toolCallWithRaw = toolCall as ToolCallWithRaw;
+      const rawArgs = toolCallWithRaw.__raw__;
       if (rawArgs) {
         try {
           toolCall.arguments = JSON.parse(rawArgs);

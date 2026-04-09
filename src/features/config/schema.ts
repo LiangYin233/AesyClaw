@@ -4,7 +4,6 @@ export const ServerConfigSchema = z.object({
   port: z.number().int().min(1).max(65535).default(3000),
   host: z.string().default('0.0.0.0'),
   log_level: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
-  admin_token: z.string().default('admin123'),
   cors_origin: z.string().optional(),
 });
 
@@ -101,7 +100,6 @@ export const DEFAULT_CONFIG: FullConfig = {
     port: 3000,
     host: '0.0.0.0',
     log_level: 'info',
-    admin_token: 'admin123',
   },
   providers: {
     openai: {

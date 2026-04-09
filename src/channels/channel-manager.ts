@@ -5,33 +5,18 @@ import { configManager } from '../features/config/config-manager.js';
 import { isPlainObject } from '../platform/utils/index.js';
 
 export class ChannelPluginManager {
-  private static instance: ChannelPluginManager | undefined = undefined;
   private channels: Map<string, IChannelPlugin> = new Map();
   private sendFunctions: Map<string, (_payload: IOutboundPayload) => Promise<void>> = new Map();
   private pluginLogger: ChannelPluginLogger;
   private pipeline: ChannelPipeline | null = null;
 
-  private constructor() {
+  constructor() {
     this.pluginLogger = {
       info: (msg, data) => logger.info(data || {}, msg),
       warn: (msg, data) => logger.warn(data || {}, msg),
       error: (msg, data) => logger.error(data || {}, msg),
       debug: (msg, data) => logger.debug(data || {}, msg),
     };
-  }
-
-  static getInstance(): ChannelPluginManager {
-    if (!ChannelPluginManager.instance) {
-      ChannelPluginManager.instance = new ChannelPluginManager();
-    }
-    return ChannelPluginManager.instance;
-  }
-
-  static resetInstance(): void {
-    if (ChannelPluginManager.instance) {
-      ChannelPluginManager.instance.shutdown();
-      ChannelPluginManager.instance = undefined;
-    }
   }
 
   setPipeline(pipeline: ChannelPipeline): void {
@@ -70,6 +55,10 @@ export class ChannelPluginManager {
     config?: Record<string, unknown>,
     sendFn?: (_payload: IOutboundPayload) => Promise<void>
   ): Promise<void> {
+    if (!this.pipeline) {
+      throw new Error('Cannot register channel: pipeline not initialized');
+    }
+
     if (this.channels.has(plugin.name)) {
       logger.warn({ channelName: plugin.name }, 'Channel plugin already registered, skipping');
       return;
@@ -148,4 +137,4 @@ export class ChannelPluginManager {
   }
 }
 
-export const channelManager = ChannelPluginManager.getInstance();
+export const channelManager = new ChannelPluginManager();
