@@ -16,6 +16,8 @@ import {
 import { logger } from '../../platform/observability/logger.js';
 import { pluginManager } from '../../features/plugins/plugin-manager.js';
 import { roleManager } from '../../features/roles/role-manager.js';
+import { systemPromptManager } from '../../features/roles/system-prompt-manager.js';
+import { configManager } from '../../features/config/config-manager.js';
 import {
   SessionMemoryManager,
   MemoryConfig,
@@ -68,7 +70,10 @@ export class AgentEngine {
     this.tools = this.config.tools;
     this.maxSteps = this.config.maxSteps;
     
-    this.memory = new SessionMemoryManager(chatId, this.config.memoryConfig);
+    this.memory = new SessionMemoryManager(chatId, this.config.memoryConfig, {
+      configManager,
+      systemPromptBuilder: systemPromptManager,
+    });
     
     if (!this.memory.hasMessages() && this.config.systemPrompt) {
       this.memory.addMessage(MessageFactory.createSystemMessage(this.config.systemPrompt));

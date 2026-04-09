@@ -38,15 +38,19 @@ export class SessionMemoryManager {
 
   constructor(
     chatId: string,
-    config?: Partial<MemoryConfig>,
-    deps?: SessionMemoryManagerDependencies
+    config: Partial<MemoryConfig> | undefined,
+    deps: SessionMemoryManagerDependencies
   ) {
+    if (!deps.configManager) {
+      throw new Error('SessionMemoryManager requires configManager dependency');
+    }
+    if (!deps.systemPromptBuilder) {
+      throw new Error('SessionMemoryManager requires systemPromptBuilder dependency');
+    }
+
     this.chatId = chatId;
     this.config = createMemoryConfig(config);
-    this.deps = deps || {
-      configManager: { config: { memory: { max_context_tokens: 60000, compression_threshold: 0.8, compression_provider: 'openai', compression_model: 'qwen3.5-plus' } } } as IConfigManager,
-      systemPromptBuilder: { buildSystemPrompt: () => '' } as unknown as ISystemPromptBuilder,
-    };
+    this.deps = deps;
 
     this.calculator = new TokenBudgetCalculator(this.config);
     this.trimmer = new MessageTrimmer(this.config, this.calculator);
