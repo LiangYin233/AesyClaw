@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import { ZodError } from 'zod';
 import { FullConfigSchema, DEFAULT_CONFIG, type FullConfig } from './schema.js';
 import { logger } from '../../platform/observability/logger.js';
-import { pathResolver } from '../../platform/utils/paths.js';
+import { PathResolver, pathResolver } from '../../platform/utils/paths.js';
 
 interface ParsedConfig {
   providers?: Record<string, unknown>;
@@ -35,7 +35,6 @@ interface MCPServerExample {
 
 
 export class ConfigManager {
-  private static instance: ConfigManager;
   private _config: FullConfig | null = null;
   private initialized: boolean = false;
   private configPath: string;
@@ -52,15 +51,8 @@ export class ConfigManager {
     return this._config;
   }
 
-  private constructor() {
-    this.configPath = pathResolver.getConfigFilePath();
-  }
-
-  static getInstance(): ConfigManager {
-    if (!ConfigManager.instance) {
-      ConfigManager.instance = new ConfigManager();
-    }
-    return ConfigManager.instance;
+  constructor(pathResolverInstance?: PathResolver) {
+    this.configPath = (pathResolverInstance || pathResolver).getConfigFilePath();
   }
 
   async initialize(): Promise<void> {
@@ -503,4 +495,4 @@ export class ConfigManager {
   }
 }
 
-export const configManager = ConfigManager.getInstance();
+export const configManager = new ConfigManager();

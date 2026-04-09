@@ -1,9 +1,9 @@
 import { logger } from '../../../platform/observability/logger.js';
 import { LLMProviderType } from '../../llm/types.js';
 import type { LLMConfig } from '../../llm/factory.js';
-import { roleManager, DEFAULT_ROLE_ID } from '../../../features/roles/role-manager.js';
-import { configManager } from '../../../features/config/config-manager.js';
-import { systemPromptManager } from '../../../features/roles/system-prompt-manager.js';
+import type { IConfigManager } from '../../../contracts/config-manager.js';
+import type { IRoleManager } from '../../../contracts/role-manager.js';
+import type { ISystemPromptBuilder } from '../../../contracts/system-prompt-builder.js';
 import type { SessionOptions, SessionConfig } from './types.js';
 import { DEFAULT_SESSION_CONFIG } from './types.js';
 import type { SessionContext } from './session-context.js';
@@ -14,38 +14,32 @@ import type { MemoryConfig as MemoryConfigSchema } from '../../../features/confi
 import { AgentEngine } from '../engine.js';
 import { mapProviderType } from '../../../platform/utils/llm-utils.js';
 import { parseModelIdentifier } from '../../../platform/utils/model-parser.js';
+import { DEFAULT_ROLE_ID } from '../../../features/roles/role-manager.js';
+
+export interface SessionRegistryDependencies {
+  configManager: IConfigManager;
+  roleManager: IRoleManager;
+  systemPromptBuilder: ISystemPromptBuilder;
+}
 
 export class SessionRegistry {
-  private static instance: SessionRegistry | undefined;
   private sessions: Map<string, SessionContext> = new Map();
   private chatToSession: Map<string, string> = new Map();
   private config: SessionConfig;
   private cleanupTimer: NodeJS.Timeout | null = null;
+  private deps: SessionRegistryDependencies;
 
-  private constructor() {
+  constructor(deps: SessionRegistryDependencies) {
+    this.deps = deps;
     this.config = { ...DEFAULT_SESSION_CONFIG };
     logger.info('SessionRegistry initialized');
   }
 
-  static getInstance(): SessionRegistry {
-    if (!SessionRegistry.instance) {
-      SessionRegistry.instance = new SessionRegistry();
-    }
-    return SessionRegistry.instance;
-  }
-
-  static resetInstance(): void {
-    if (SessionRegistry.instance) {
-      SessionRegistry.instance.shutdown();
-      SessionRegistry.instance = undefined;
-    }
-  }
-
   private getDefaultLLMConfig(): LLMConfig {
     try {
-      if (configManager.isInitialized() && roleManager.isInitialized()) {
-        const config = configManager.config;
-        const defaultRole = roleManager.getRoleConfig(DEFAULT_ROLE_ID);
+      if (this.deps.configManager.isInitialized() && this.deps.roleManager.isInitialized()) {
+        const config = this.deps.configManager.config;
+        const defaultRole = this.deps.roleManager.getRoleConfig(DEFAULT_ROLE_ID);
         const modelIdentifier = defaultRole.model;
         const { providerName, modelAlias } = parseModelIdentifier(modelIdentifier);
 
@@ -121,7 +115,7 @@ export class SessionRegistry {
     if (options.memoryConfig) {
       memoryConfig = options.memoryConfig as MemoryConfigInternal;
     } else {
-      const rawConfig = configManager.config.memory as MemoryConfigSchema;
+      const rawConfig = this.deps.configManager.config.memory as MemoryConfigSchema;
       memoryConfig = {
         maxContextTokens: rawConfig.max_context_tokens,
         compressionThreshold: rawConfig.compression_threshold,
@@ -130,14 +124,17 @@ export class SessionRegistry {
       };
     }
 
-    const manager = new SessionMemoryManager(sessionId, memoryConfig);
+    const manager = new SessionMemoryManager(sessionId, memoryConfig, {
+      configManager: this.deps.configManager,
+      systemPromptBuilder: this.deps.systemPromptBuilder,
+    });
     return { manager, config: memoryConfig };
   }
 
   private createAgent(sessionId: string, options: SessionOptions, memory: SessionMemoryManager, memoryConfig: MemoryConfigInternal) {
     const llmConfig = options.llm || this.getDefaultLLMConfig();
-    const maxSteps = options.maxSteps || configManager.config.agent.max_steps || 50;
-    const systemPrompt = options.systemPrompt || systemPromptManager.buildSystemPrompt({
+    const maxSteps = options.maxSteps || this.deps.configManager.config.agent.max_steps || 50;
+    const systemPrompt = options.systemPrompt || this.deps.systemPromptBuilder.buildSystemPrompt({
       roleId: DEFAULT_ROLE_ID,
       chatId: options.chatId,
     });
@@ -265,4 +262,21 @@ export class SessionRegistry {
   }
 }
 
-export const sessionRegistry = SessionRegistry.getInstance();
+import { configManager } from '../../../features/config/config-manager.js';
+import { roleManager } from '../../../features/roles/role-manager.js';
+import { systemPromptManager } from '../../../features/roles/system-prompt-manager.js';
+
+let sessionRegistryInstance: SessionRegistry | null = null;
+
+export function createSessionRegistry(): SessionRegistry {
+  if (!sessionRegistryInstance) {
+    sessionRegistryInstance = new SessionRegistry({
+      configManager: configManager as unknown as IConfigManager,
+      roleManager: roleManager as unknown as IRoleManager,
+      systemPromptBuilder: systemPromptManager as unknown as ISystemPromptBuilder,
+    });
+  }
+  return sessionRegistryInstance;
+}
+
+export const sessionRegistry = createSessionRegistry();

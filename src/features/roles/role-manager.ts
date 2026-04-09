@@ -7,21 +7,13 @@ import { logger } from '../../platform/observability/logger.js';
 import { pathResolver } from '../../platform/utils/paths.js';
 
 export class RoleManager {
-  private static instance: RoleManager;
   private roles: Map<string, RoleWithMetadata> = new Map();
   private watchers: Map<string, fs.FSWatcher> = new Map();
   private rolesDir: string;
   private initialized: boolean = false;
 
-  private constructor() {
+  constructor() {
     this.rolesDir = path.join(pathResolver.getConfigDir(), 'roles');
-  }
-
-  static getInstance(): RoleManager {
-    if (!RoleManager.instance) {
-      RoleManager.instance = new RoleManager();
-    }
-    return RoleManager.instance;
   }
 
   async initialize(): Promise<void> {
@@ -354,4 +346,4 @@ export class RoleManager {
   }
 }
 
-export const roleManager = RoleManager.getInstance();
+export const roleManager = new RoleManager();

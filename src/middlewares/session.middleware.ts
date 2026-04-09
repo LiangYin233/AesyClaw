@@ -1,5 +1,5 @@
 import { logger } from '../platform/observability/logger.js';
-import type { IChannelContext, MiddlewareFunc } from '../agent/core/types.js';
+import type { IChannelContext, MiddlewareFunc, PipelineState } from '../agent/core/types.js';
 import { SessionId } from '../agent/core/session/session-id.js';
 import { sessionRegistry } from '../agent/core/session/session-registry.js';
 import type { SessionContext } from '../agent/core/session/session-context.js';
@@ -39,16 +39,14 @@ export class SessionMiddleware {
           session: components.session,
         });
 
-        const sessionState: SessionState = {
+        if (!ctx.state) {
+          ctx.state = {} as PipelineState;
+        }
+
+        ctx.state.session = {
           sessionContext,
           sessionId,
         };
-
-        if (!ctx.state) {
-          ctx.state = sessionState as unknown as Record<string, unknown>;
-        } else {
-          Object.assign(ctx.state, sessionState);
-        }
 
         logger.debug(
           {
@@ -76,11 +74,11 @@ export class SessionMiddleware {
 export const sessionMiddleware = new SessionMiddleware();
 
 export function getSessionFromContext(ctx: IChannelContext): SessionContext | null {
-  const state = ctx.state as unknown as SessionState;
-  return state?.sessionContext || null;
+  const state = ctx.state?.session;
+  if (!state) return null;
+  return state.sessionContext as SessionContext | null;
 }
 
 export function getSessionIdFromContext(ctx: IChannelContext): string | null {
-  const state = ctx.state as unknown as SessionState;
-  return state?.sessionId || null;
+  return ctx.state?.session?.sessionId || null;
 }

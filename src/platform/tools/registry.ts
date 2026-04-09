@@ -26,19 +26,12 @@ export interface ToolExecutionReport {
 }
 
 export class ToolRegistry {
-  private static instance: ToolRegistry;
+  private static readonly MAX_HISTORY_SIZE = 1000;
   private tools: Map<string, ITool> = new Map();
   private toolCallHistory: ToolCallResult[] = [];
 
-  private constructor() {
-    logger.info('ToolRegistry singleton initialized');
-  }
-
-  static getInstance(): ToolRegistry {
-    if (!ToolRegistry.instance) {
-      ToolRegistry.instance = new ToolRegistry();
-    }
-    return ToolRegistry.instance;
+  constructor() {
+    logger.info('ToolRegistry initialized');
   }
 
   register(tool: ITool): void {
@@ -223,6 +216,12 @@ export class ToolRegistry {
 
       results.push(toolCallResult);
       this.toolCallHistory.push(toolCallResult);
+
+      if (this.toolCallHistory.length > ToolRegistry.MAX_HISTORY_SIZE) {
+        this.toolCallHistory.shift();
+      }
+
+      this.pruneOldRecords();
     }
 
     logger.info(
@@ -272,6 +271,13 @@ export class ToolRegistry {
     );
   }
 
+  private pruneOldRecords(): void {
+    if (this.toolCallHistory.length > ToolRegistry.MAX_HISTORY_SIZE) {
+      const excess = this.toolCallHistory.length - ToolRegistry.MAX_HISTORY_SIZE;
+      this.toolCallHistory.splice(0, excess);
+    }
+  }
+
   clearHistory(): void {
     this.toolCallHistory = [];
     logger.debug('Tool call history cleared');
@@ -293,4 +299,4 @@ export class ToolRegistry {
   }
 }
 
-export const toolRegistry = ToolRegistry.getInstance();
+export const toolRegistry = new ToolRegistry();

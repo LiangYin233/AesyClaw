@@ -214,7 +214,6 @@ export class Bootstrap {
     try {
       if (this.mcpManager) {
         this.mcpManager.shutdown();
-        McpClientManager.resetInstance();
         logger.info({}, '[3/9] MCP Manager stopped');
       }
     } catch (error) {
@@ -236,7 +235,6 @@ export class Bootstrap {
     }
 
     try {
-      SkillManager.resetInstance();
       logger.info({}, '[6/9] SkillManager stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping SkillManager');
@@ -251,17 +249,16 @@ export class Bootstrap {
 
     try {
       sessionRegistry.shutdown();
-      SessionRegistry.resetInstance();
       logger.info({}, '[8/9] SessionRegistry stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping SessionRegistry');
     }
 
     try {
-      ChannelPluginManager.resetInstance();
-      logger.info({}, '[9/9] ChannelPluginManager reset');
+      channelManager.shutdown();
+      logger.info({}, '[9/9] ChannelPluginManager stopped');
     } catch (error) {
-      logger.error({ error }, 'Error resetting ChannelPluginManager');
+      logger.error({ error }, 'Error stopping ChannelPluginManager');
     }
 
     this.mcpManager = null;

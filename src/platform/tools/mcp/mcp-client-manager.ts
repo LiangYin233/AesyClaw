@@ -96,7 +96,10 @@ export class McpClientManager {
 
   private async syncTools(serverName: string, client: Client): Promise<void> {
     try {
-      const response = await (client as { request: (_params: { method: string; params: Record<string, unknown> }) => Promise<{ tools?: MCPToolInfo[] }> }).request({
+      const rawClient = client as unknown as {
+        request: (params: { method: string; params: Record<string, unknown> }) => Promise<{ tools?: MCPToolInfo[] }>;
+      };
+      const response = await rawClient.request({
         method: 'tools/list',
         params: {},
       });
@@ -136,7 +139,10 @@ export class McpClientManager {
     }
 
     try {
-      const response = await (client as { request: (_params: { method: string; params: Record<string, unknown> }) => Promise<{ content?: Array<{ text?: string; data?: unknown }> }> }).request({
+      const rawClient = client as unknown as {
+        request: (params: { method: string; params: Record<string, unknown> }) => Promise<{ content?: Array<{ text?: string; data?: unknown }> }>;
+      };
+      const response = await rawClient.request({
         method: 'tools/call',
         params: {
           name: toolName,

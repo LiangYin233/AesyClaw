@@ -1,3 +1,5 @@
+import { logger } from '../observability/logger.js';
+
 type EventHandler<T = unknown> = (_payload: T) => void | Promise<void>;
 
 interface EventSubscription {
@@ -8,18 +10,10 @@ interface EventSubscription {
 }
 
 export class EventBus {
-  private static instance: EventBus;
   private subscriptions: Map<string, EventSubscription[]> = new Map();
   private subscriptionIdCounter: number = 0;
 
-  private constructor() {}
-
-  static getInstance(): EventBus {
-    if (!EventBus.instance) {
-      EventBus.instance = new EventBus();
-    }
-    return EventBus.instance;
-  }
+  constructor() {}
 
   on<T = unknown>(event: string, handler: EventHandler<T>): string {
     return this.addSubscription(event, handler as EventHandler<unknown>, false);
@@ -57,7 +51,10 @@ export class EventBus {
         const result = sub.handler(payload as T);
         if (result instanceof Promise) {
           result.catch((error) => {
-            console.error(`Event handler error in ${event}:`, error);
+            logger.error(
+              { error, event, handlerName: sub.handler.name || 'anonymous' },
+              'Event handler error'
+            );
           });
         }
 
@@ -65,7 +62,10 @@ export class EventBus {
           toRemove.push(sub.id);
         }
       } catch (error) {
-        console.error(`Event handler error in ${event}:`, error);
+        logger.error(
+          { error, event, handlerName: sub.handler.name || 'anonymous' },
+          'Event handler error'
+        );
       }
     }
 
@@ -107,7 +107,7 @@ export class EventBus {
   }
 }
 
-export const eventBus = EventBus.getInstance();
+export const eventBus = new EventBus();
 
 export const SystemEvents = {
   CRON_JOB_CREATED: 'cron:job:created',

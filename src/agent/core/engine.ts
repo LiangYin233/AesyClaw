@@ -64,7 +64,7 @@ export class AgentEngine {
       memoryConfig: config.memoryConfig || {},
     };
 
-    this.toolRegistry = ToolRegistry.getInstance();
+    this.toolRegistry = new ToolRegistry();
     this.tools = this.config.tools;
     this.maxSteps = this.config.maxSteps;
     
@@ -139,7 +139,7 @@ export class AgentEngine {
     let step = 0;
     let totalToolCalls = 0;
     let finalText = '';
-    let totalTokenUsage = {
+    const totalTokenUsage = {
       promptTokens: 0,
       completionTokens: 0,
       totalTokens: 0,
@@ -293,7 +293,7 @@ export class AgentEngine {
 
         finalText = response.text;
         
-        this.memory.addMessage(MessageFactory.createAssistantMessage(finalText));
+        await this.memory.addMessage(MessageFactory.createAssistantMessage(finalText));
         
         logger.info(
           { chatId: this.chatId, step, responseLength: finalText.length },

@@ -181,66 +181,65 @@ export class ErrorHandler {
    * @param error 原始错误对象
    * @returns 错误信息
    */
-  classifyError(error: any): ErrorInfo {
-    // 处理网络错误
-    if (this.isNetworkError(error)) {
+  classifyError(error: unknown): ErrorInfo {
+    const err = error instanceof Error ? error : new Error(String(error));
+
+    if (this.isNetworkError(err)) {
       return {
         type: ErrorType.NETWORK_ERROR,
-        originalError: error,
-        message: error.message || '网络连接错误',
-        code: error.code,
+        originalError: err,
+        message: err.message || '网络连接错误',
+        code: (error as { code?: string }).code,
         retryable: true,
       };
     }
 
-    // 处理连接重置
-    if (error.code === 'ECONNRESET') {
+    const errorCode = (error as { code?: string }).code;
+
+    if (errorCode === 'ECONNRESET') {
       return {
         type: ErrorType.CONNECTION_RESET,
-        originalError: error,
+        originalError: err,
         message: '连接被重置',
-        code: error.code,
+        code: errorCode,
         retryable: true,
       };
     }
 
-    // 处理超时
-    if (error.code === 'ETIMEDOUT' || error.code === 'ESOCKETTIMEDOUT') {
+    if (errorCode === 'ETIMEDOUT' || errorCode === 'ESOCKETTIMEDOUT') {
       return {
         type: ErrorType.TIMEOUT,
-        originalError: error,
+        originalError: err,
         message: '请求超时',
-        code: error.code,
+        code: errorCode,
         retryable: true,
       };
     }
 
-    // 处理 DNS 错误
-    if (error.code === 'ENOTFOUND' || error.code === 'EAI_AGAIN') {
+    if (errorCode === 'ENOTFOUND' || errorCode === 'EAI_AGAIN') {
       return {
         type: ErrorType.DNS_ERROR,
-        originalError: error,
+        originalError: err,
         message: 'DNS 解析失败',
-        code: error.code,
+        code: errorCode,
         retryable: true,
       };
     }
 
-    // 处理 HTTP 错误
-    if (error.status || error.statusCode || error.response?.status) {
+    const httpError = error as { status?: number; statusCode?: number; response?: { status?: number } };
+    if (httpError.status || httpError.statusCode || httpError.response?.status) {
       return this.classifyHttpError(error);
     }
 
-    // 处理 API 特定错误
-    if (error.error?.type || error.type) {
+    const apiError = error as { error?: { type?: string; message?: string }; type?: string };
+    if (apiError.error?.type || apiError.type) {
       return this.classifyApiError(error);
     }
 
-    // 未知错误
     return {
       type: ErrorType.UNKNOWN,
-      originalError: error,
-      message: error.message || '未知错误',
+      originalError: err,
+      message: err.message || '未知错误',
       retryable: false,
     };
   }
@@ -248,49 +247,53 @@ export class ErrorHandler {
   /**
    * 分类 HTTP 错误
    */
-  private classifyHttpError(error: any): ErrorInfo {
-    const statusCode = error.status || error.statusCode || error.response?.status;
-    const message = error.message || `HTTP ${statusCode} 错误`;
+  private classifyHttpError(error: unknown): ErrorInfo {
+    const httpError = error as {
+      status?: number;
+      statusCode?: number;
+      response?: { status?: number };
+      message?: string;
+      headers?: Record<string, unknown>;
+    };
+    const statusCode = httpError.status || httpError.statusCode || httpError.response?.status;
+    const message = httpError.message || `HTTP ${statusCode} 错误`;
+    const err = error instanceof Error ? error : new Error(String(error));
 
-    // 401 认证错误
     if (statusCode === 401) {
       return {
         type: ErrorType.AUTHENTICATION_ERROR,
-        originalError: error,
+        originalError: err,
         message: '认证失败，请检查 API 密钥',
         statusCode,
         retryable: false,
       };
     }
 
-    // 403 授权错误
     if (statusCode === 403) {
       return {
         type: ErrorType.AUTHORIZATION_ERROR,
-        originalError: error,
+        originalError: err,
         message: '权限不足，无法访问资源',
         statusCode,
         retryable: false,
       };
     }
 
-    // 404 未找到
     if (statusCode === 404) {
       return {
         type: ErrorType.NOT_FOUND,
-        originalError: error,
+        originalError: err,
         message: '请求的资源不存在',
         statusCode,
         retryable: false,
       };
     }
 
-    // 429 限流
     if (statusCode === 429) {
       const retryAfter = this.parseRetryAfter(error);
       return {
         type: ErrorType.RATE_LIMIT,
-        originalError: error,
+        originalError: err,
         message: '请求频率超限，请稍后重试',
         statusCode,
         retryable: true,
@@ -298,32 +301,29 @@ export class ErrorHandler {
       };
     }
 
-    // 400 参数错误
     if (statusCode === 400) {
       return {
         type: ErrorType.INVALID_REQUEST,
-        originalError: error,
+        originalError: err,
         message: '请求参数错误',
         statusCode,
         retryable: false,
       };
     }
 
-    // 500+ 服务器错误
-    if (statusCode >= 500) {
+    if (statusCode !== undefined && statusCode >= 500) {
       return {
         type: ErrorType.INTERNAL_ERROR,
-        originalError: error,
+        originalError: err,
         message: `服务器内部错误 (${statusCode})`,
         statusCode,
         retryable: true,
       };
     }
 
-    // 其他 HTTP 错误
     return {
       type: ErrorType.UNKNOWN,
-      originalError: error,
+      originalError: err,
       message,
       statusCode,
       retryable: false,
@@ -333,15 +333,21 @@ export class ErrorHandler {
   /**
    * 分类 API 特定错误
    */
-  private classifyApiError(error: any): ErrorInfo {
-    const errorType = error.error?.type || error.type;
-    const message = error.error?.message || error.message || 'API 错误';
+  private classifyApiError(error: unknown): ErrorInfo {
+    const apiError = error as {
+      error?: { type?: string; message?: string };
+      type?: string;
+      message?: string;
+      code?: string;
+    };
+    const errorType = apiError.error?.type || apiError.type;
+    const message = apiError.error?.message || apiError.message || 'API 错误';
+    const err = error instanceof Error ? error : new Error(String(error));
 
-    // Anthropic 错误类型
     if (errorType === 'rate_limit_error' || errorType === 'rate_limit_exceeded') {
       return {
         type: ErrorType.RATE_LIMIT,
-        originalError: error,
+        originalError: err,
         message: 'API 请求频率超限',
         retryable: true,
         retryAfter: this.parseRetryAfter(error),
@@ -351,7 +357,7 @@ export class ErrorHandler {
     if (errorType === 'overloaded_error' || errorType === 'overloaded') {
       return {
         type: ErrorType.OVERLOADED,
-        originalError: error,
+        originalError: err,
         message: 'API 服务过载',
         retryable: true,
       };
@@ -360,7 +366,7 @@ export class ErrorHandler {
     if (errorType === 'internal_error') {
       return {
         type: ErrorType.INTERNAL_ERROR,
-        originalError: error,
+        originalError: err,
         message: 'API 内部错误',
         retryable: true,
       };
@@ -369,7 +375,7 @@ export class ErrorHandler {
     if (errorType === 'authentication_error' || errorType === 'invalid_api_key') {
       return {
         type: ErrorType.AUTHENTICATION_ERROR,
-        originalError: error,
+        originalError: err,
         message: 'API 认证失败',
         retryable: false,
       };
@@ -378,7 +384,7 @@ export class ErrorHandler {
     if (errorType === 'permission_error' || errorType === 'permission_denied') {
       return {
         type: ErrorType.AUTHORIZATION_ERROR,
-        originalError: error,
+        originalError: err,
         message: 'API 权限不足',
         retryable: false,
       };
@@ -387,7 +393,7 @@ export class ErrorHandler {
     if (errorType === 'not_found_error') {
       return {
         type: ErrorType.NOT_FOUND,
-        originalError: error,
+        originalError: err,
         message: 'API 资源不存在',
         retryable: false,
       };
@@ -396,17 +402,16 @@ export class ErrorHandler {
     if (errorType === 'invalid_request_error') {
       return {
         type: ErrorType.INVALID_REQUEST,
-        originalError: error,
+        originalError: err,
         message: 'API 请求参数无效',
         retryable: false,
       };
     }
 
-    // OpenAI 内容过滤
-    if (errorType === 'content_filter' || error.code === 'content_filter') {
+    if (errorType === 'content_filter' || apiError.code === 'content_filter') {
       return {
         type: ErrorType.CONTENT_FILTER,
-        originalError: error,
+        originalError: err,
         message: '内容被过滤',
         retryable: false,
       };
@@ -414,7 +419,7 @@ export class ErrorHandler {
 
     return {
       type: ErrorType.UNKNOWN,
-      originalError: error,
+      originalError: err,
       message,
       retryable: false,
     };
@@ -423,7 +428,7 @@ export class ErrorHandler {
   /**
    * 检查是否为网络错误
    */
-  private isNetworkError(error: any): boolean {
+  private isNetworkError(error: Error): boolean {
     const networkErrorCodes = [
       'ECONNREFUSED',
       'EPIPE',
@@ -432,32 +437,39 @@ export class ErrorHandler {
       'ECONNABORTED',
     ];
 
+    const errorWithCode = error as Error & { code?: string };
+    const errorCode = errorWithCode.code;
+
     return (
-      networkErrorCodes.includes(error.code) ||
-      error.code === 'NETWORK_ERROR' ||
-      error.message?.includes('network') ||
-      error.message?.includes('ECONNREFUSED')
+      (errorCode && networkErrorCodes.includes(errorCode)) ||
+      errorCode === 'NETWORK_ERROR' ||
+      error.message.includes('network') ||
+      error.message.includes('ECONNREFUSED')
     );
   }
 
   /**
    * 解析 Retry-After 头
    */
-  private parseRetryAfter(error: any): number | undefined {
-    const retryAfter =
-      error.headers?.['retry-after'] ||
-      error.response?.headers?.['retry-after'] ||
-      error.error?.retry_after;
+  private parseRetryAfter(error: unknown): number | undefined {
+    const err = error as {
+      headers?: Record<string, unknown>;
+      response?: { headers?: Record<string, unknown> };
+      error?: { retry_after?: unknown };
+    };
+    const retryAfter = 
+      err.headers?.['retry-after'] ||
+      err.response?.headers?.['retry-after'] ||
+      err.error?.retry_after;
 
-    if (retryAfter) {
-      // 如果是数字或数字字符串，视为秒数（支持小数）
-      const seconds = parseFloat(retryAfter);
+    if (retryAfter !== undefined && retryAfter !== null) {
+      const retryAfterStr = String(retryAfter);
+      const seconds = parseFloat(retryAfterStr);
       if (!isNaN(seconds)) {
-        return seconds * 1000; // 转换为毫秒
+        return seconds * 1000;
       }
 
-      // 如果是日期字符串，计算剩余时间
-      const date = new Date(retryAfter);
+      const date = new Date(retryAfterStr);
       if (!isNaN(date.getTime())) {
         return Math.max(0, date.getTime() - Date.now());
       }
@@ -510,8 +522,9 @@ export class ErrorHandler {
     const error = new Error(
       `${errorInfo.message} (尝试 ${stats.totalAttempts} 次, 重试 ${stats.retryCount} 次)`
     );
-    (error as any).errorInfo = errorInfo;
-    (error as any).retryStats = stats;
+    const enhancedError = error as Error & { errorInfo: ErrorInfo; retryStats: RetryStats };
+    enhancedError.errorInfo = errorInfo;
+    enhancedError.retryStats = stats;
     return error;
   }
 

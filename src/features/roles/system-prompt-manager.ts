@@ -1,7 +1,7 @@
 import { logger } from '../../platform/observability/logger.js';
 import { roleManager, DEFAULT_ROLE_ID } from './role-manager.js';
 import { skillManager } from '../skills/skill-manager.js';
-import { ToolRegistry } from '../../platform/tools/registry.js';
+import { toolRegistry } from '../../platform/tools/registry.js';
 import type { SystemPromptBuildOptions, SystemVariables } from './system-prompt-types.js';
 
 const OS_NAMES: Record<string, string> = {
@@ -12,17 +12,8 @@ const OS_NAMES: Record<string, string> = {
 };
 
 export class SystemPromptManager {
-  private static instance: SystemPromptManager;
-
-  private constructor() {
-    logger.info('SystemPromptManager singleton initialized');
-  }
-
-  static getInstance(): SystemPromptManager {
-    if (!SystemPromptManager.instance) {
-      SystemPromptManager.instance = new SystemPromptManager();
-    }
-    return SystemPromptManager.instance;
+  constructor() {
+    logger.info('SystemPromptManager initialized');
   }
 
   getSystemVariables(): SystemVariables {
@@ -73,7 +64,6 @@ export class SystemPromptManager {
 
     const toolLines: string[] = [];
     try {
-      const toolRegistry = ToolRegistry.getInstance();
       const allTools = toolRegistry.getAllToolDefinitions();
       const allowedTools = roleConfig.allowed_tools;
 
@@ -149,4 +139,4 @@ export class SystemPromptManager {
   }
 }
 
-export const systemPromptManager = SystemPromptManager.getInstance();
+export const systemPromptManager = new SystemPromptManager();

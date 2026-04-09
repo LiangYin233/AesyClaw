@@ -1,6 +1,6 @@
 import { configManager, type FullConfig } from '../features/config/index.js';
 import { logger } from '../platform/observability/logger.js';
-import type { IChannelContext, MiddlewareFunc } from '../agent/core/types.js';
+import type { IChannelContext, MiddlewareFunc, PipelineState } from '../agent/core/types.js';
 
 export interface ConfigState {
   config: FullConfig;
@@ -19,10 +19,10 @@ export class ConfigInjectionMiddleware {
       const config = configManager.config;
 
       if (!ctx.state) {
-        ctx.state = { config };
-      } else {
-        (ctx.state as unknown as ConfigState).config = config;
+        ctx.state = {} as PipelineState;
       }
+
+      ctx.state.config = { config };
 
       logger.debug({
         hasServer: !!config.server,
@@ -39,12 +39,12 @@ export class ConfigInjectionMiddleware {
 export const configInjectionMiddleware = new ConfigInjectionMiddleware();
 
 export function getConfigFromContext(ctx: IChannelContext): FullConfig {
-  const configState = ctx.state as unknown as ConfigState;
+  const configState = ctx.state?.config;
   if (!configState?.config) {
     if (configManager.isInitialized()) {
       return configManager.config;
     }
     throw new Error('No config available in context and ConfigManager not initialized');
   }
-  return configState.config;
+  return configState.config as FullConfig;
 }

@@ -521,7 +521,8 @@ export interface OpenAIConvertedMessages {
   /** 系统消息（单独传递） */
   systemMessage?: OpenAISystemMessage;
   /** 对话消息数组 */
-  messages: Array<any>; // ChatCompletionMessageParam
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  messages: Array<any>;
 }
 
 /**
@@ -533,6 +534,7 @@ export interface AnthropicConvertedMessages {
   /** 对话消息数组 */
   messages: Array<{
     role: 'user' | 'assistant';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     content: string | Array<any>;
   }>;
 }

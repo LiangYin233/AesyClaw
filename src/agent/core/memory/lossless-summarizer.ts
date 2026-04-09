@@ -2,18 +2,21 @@ import { StandardMessage, MessageRole, LLMProviderType } from '../../llm/types.j
 import { MessageZone, CompressionResult, MemoryConfig } from './types.js';
 import { TokenBudgetCalculator } from './token-budget-calculator.js';
 import { UnifiedLLMClient } from '../../llm/unified-client.js';
-import { configManager } from '../../../features/config/config-manager.js';
 import { logger } from '../../../platform/observability/logger.js';
 import { mapProviderType } from '../../../platform/utils/llm-utils.js';
 import { MessageFactory } from '../message-factory.js';
+import { RoleUtils } from '../role-utils.js';
+import type { IConfigManager } from '../../../contracts/config-manager.js';
 
 export class LosslessSummarizer {
   private config: MemoryConfig;
   private calculator: TokenBudgetCalculator;
+  private configManager: IConfigManager;
 
-  constructor(config: MemoryConfig, calculator: TokenBudgetCalculator) {
+  constructor(config: MemoryConfig, calculator: TokenBudgetCalculator, configManager: IConfigManager) {
     this.config = config;
     this.calculator = calculator;
+    this.configManager = configManager;
   }
 
   updateConfig(config: Partial<MemoryConfig>): void {
@@ -167,11 +170,11 @@ ${conversationText}
   private async callSummarizerModel(prompt: string): Promise<string> {
     const providerName = this.config.compressionProvider;
 
-    if (!configManager.isInitialized()) {
+    if (!this.configManager.isInitialized()) {
       throw new Error('ConfigManager not initialized');
     }
 
-    const config = configManager.config;
+    const config = this.configManager.config;
     const provider = config.providers?.[providerName as string];
 
     if (!provider) {

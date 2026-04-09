@@ -1,7 +1,7 @@
 import { StandardMessage, MessageRole, LLMProviderType } from '../../agent/llm/types.js';
 import { LLMConfig, createLLMSession } from '../../agent/llm/factory.js';
 import { buildPromptContext } from '../../agent/llm/prompt-context-factory.js';
-import { ToolRegistry } from '../../platform/tools/registry.js';
+import { toolRegistry } from '../../platform/tools/registry.js';
 import { ToolDefinition, ToolExecuteContext } from '../../platform/tools/types.js';
 import { logger } from '../../platform/observability/logger.js';
 import { roleManager, DEFAULT_ROLE_ID } from '../roles/role-manager.js';
@@ -83,7 +83,6 @@ export class SandboxEngine {
   }
 
   private getFilteredTools(): ToolDefinition[] {
-    const toolRegistry = ToolRegistry.getInstance();
     const allTools = toolRegistry.getAllToolDefinitions();
 
     if (this.config.allowedTools.includes('*')) {
@@ -238,7 +237,6 @@ export class SandboxEngine {
     }
 
     try {
-      const toolRegistry = ToolRegistry.getInstance();
       const results = await toolRegistry.executeTools(
         [{ id: toolCall.id, name: toolCall.name, arguments: toolCall.arguments }],
         context

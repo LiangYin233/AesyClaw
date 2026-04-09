@@ -17,12 +17,27 @@ export interface IOutboundMessage {
   error?: string;
 }
 
+export interface PipelineState {
+  config?: {
+    config: unknown;
+  };
+  session?: {
+    sessionContext: unknown;
+    sessionId: string;
+  };
+  agent?: {
+    llmConfig: unknown;
+    systemPrompt: string;
+    [key: string]: unknown;
+  };
+}
+
 export interface IChannelContext {
   traceId: string;
   inbound: IUnifiedMessage;
   outbound: IOutboundMessage;
   createdAt: number;
-  state?: Record<string, unknown>;
+  state?: PipelineState;
   blocked?: boolean;
   sendFn?: (_payload: IOutboundPayload) => Promise<void>;
 }
