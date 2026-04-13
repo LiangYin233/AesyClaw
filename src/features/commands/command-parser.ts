@@ -1,4 +1,4 @@
-import { ParsedCommand } from './types.js';
+import { ParsedCommand } from '@/contracts/commands.js';
 
 export class CommandParser {
   private static instance: CommandParser;

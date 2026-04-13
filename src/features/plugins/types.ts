@@ -1,7 +1,7 @@
 import type { IOutboundPayload } from '@/channels/channel-plugin.js';
+import type { CommandDefinition } from '@/contracts/commands.js';
 import type { StandardMessage } from '@/platform/llm/types.js';
 import type { ToolRegistry } from '@/platform/tools/registry.js';
-import type { CommandDefinition } from '../commands/types.js';
 
 export interface ToolExecuteContext {
   chatId: string;

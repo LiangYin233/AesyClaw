@@ -1,5 +1,5 @@
 import { logger } from '@/platform/observability/logger.js';
-import { CommandDefinition } from './types.js';
+import { CommandDefinition } from '@/contracts/commands.js';
 
 export class CommandRegistry {
   private static instance: CommandRegistry;

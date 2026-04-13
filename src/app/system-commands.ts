@@ -1,9 +1,13 @@
-import { CommandDefinition, CommandContext, CommandResult } from './types.js';
-import { commandRegistry } from './command-registry.js';
 import { sessionRegistry } from '@/app/session-registry.js';
+import { pluginManager } from '@/app/plugin-runtime.js';
+import {
+  CommandContext,
+  CommandDefinition,
+  CommandResult,
+} from '@/contracts/commands.js';
+import { commandRegistry } from '@/features/commands/command-registry.js';
+import { roleManager } from '@/features/roles/role-manager.js';
 import { logger } from '@/platform/observability/logger.js';
-import { pluginManager } from '../plugins/plugin-manager.js';
-import { roleManager } from '../roles/role-manager.js';
 
 function formatPluginList(): string {
   const plugins = commandRegistry.getPluginCommands();
@@ -187,7 +191,7 @@ export const systemCommands: CommandDefinition[] = [
             ctx.messageType,
             ctx.chatId
           );
-          
+
           if (!existingSessionId) {
             const sessions = sessionRegistry.getSessionsByChatId(ctx.chatId);
             if (sessions.length === 0) {
@@ -202,7 +206,7 @@ export const systemCommands: CommandDefinition[] = [
               message: '会话历史已清除',
             };
           }
-          
+
           const session = sessionRegistry.getSession(existingSessionId);
           if (session) {
             session.memory.clear();
@@ -302,12 +306,12 @@ export const systemCommands: CommandDefinition[] = [
             output += '所有工具\n';
           } else {
             output += role.allowed_tools.length > 0
-              ? role.allowed_tools.join(', ') + '\n'
+              ? `${role.allowed_tools.join(', ')}\n`
               : '无限制\n';
           }
           output += '\n**可用技能**: ';
           if (role.allowed_skills.length > 0) {
-            output += role.allowed_skills.join(', ') + '\n';
+            output += `${role.allowed_skills.join(', ')}\n`;
           } else {
             output += '无限制\n';
           }
@@ -337,7 +341,7 @@ export const systemCommands: CommandDefinition[] = [
             ctx.messageType,
             ctx.chatId
           );
-          
+
           let session;
           if (existingSessionId) {
             session = sessionRegistry.getSession(existingSessionId);
@@ -345,7 +349,7 @@ export const systemCommands: CommandDefinition[] = [
             const sessions = sessionRegistry.getSessionsByChatId(ctx.chatId);
             session = sessions.length > 0 ? sessions[0] : null;
           }
-          
+
           if (!session) {
             return {
               success: false,
@@ -374,7 +378,7 @@ export const systemCommands: CommandDefinition[] = [
             ctx.messageType,
             ctx.chatId
           );
-          
+
           let session;
           if (existingSessionId) {
             session = sessionRegistry.getSession(existingSessionId);
@@ -382,7 +386,7 @@ export const systemCommands: CommandDefinition[] = [
             const sessions = sessionRegistry.getSessionsByChatId(ctx.chatId);
             session = sessions.length > 0 ? sessions[0] : null;
           }
-          
+
           if (!session) {
             return {
               success: false,
@@ -398,7 +402,7 @@ export const systemCommands: CommandDefinition[] = [
             output += '所有工具\n';
           } else {
             output += roleInfo.allowedTools.length > 0
-              ? roleInfo.allowedTools.join(', ') + '\n'
+              ? `${roleInfo.allowedTools.join(', ')}\n`
               : '无\n';
           }
 
