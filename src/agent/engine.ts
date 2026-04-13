@@ -11,10 +11,10 @@ import {
   type ModelDefinition,
   type Tool as AesyiuTool,
 } from 'aesyiu';
+import { pluginManager } from '@/app/plugin-runtime.js';
 import type { IRoleManager } from '@/contracts/role-manager.js';
 import { configManager } from '@/features/config/config-manager.js';
 import { buildHookSkills, buildHookTools } from '@/features/plugins/hook-utils.js';
-import { pluginManager } from '@/features/plugins/plugin-manager.js';
 import { roleManager } from '@/features/roles/role-manager.js';
 import { skillManager } from '@/features/skills/skill-manager.js';
 import { LLMConfig, LLMProviderType, MessageRole, StandardMessage } from '@/platform/llm/types.js';

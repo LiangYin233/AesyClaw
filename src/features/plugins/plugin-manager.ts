@@ -1,5 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import type { PluginCommandRegistrar } from '@/contracts/commands.js';
+import type {
+  PluginConfigStore,
+  PluginRuntimeConfig,
+} from '@/contracts/plugin-config-store.js';
 import { ToolRegistry } from '@/platform/tools/registry.js';
 import { isPlainObject } from '@/platform/utils/index.js';
 import { logger } from '@/platform/observability/logger.js';
@@ -16,20 +21,24 @@ import {
   HookPayloadMap,
   HookResultMap,
 } from './types.js';
-import type { PluginConfig } from '../config/schema.js';
-import { CommandRegistry } from '../commands/command-registry.js';
-import { configManager } from '../config/config-manager.js';
+
+export interface PluginManagerDependencies {
+  commandRegistrar: PluginCommandRegistrar;
+  configStore: PluginConfigStore;
+}
 
 export class PluginManager {
   private toolRegistry: ToolRegistry;
+  private deps: PluginManagerDependencies;
   private loadedPlugins: Map<string, IPlugin> = new Map();
   private pluginInfos: Map<string, PluginInfo> = new Map();
   private initialized: boolean = false;
   private pluginsDir: string;
   private pluginPaths: Map<string, { dir: string; packageJson: Record<string, unknown> }> = new Map();
 
-  constructor(toolRegistry: ToolRegistry) {
+  constructor(toolRegistry: ToolRegistry, deps: PluginManagerDependencies) {
     this.toolRegistry = toolRegistry;
+    this.deps = deps;
     this.pluginsDir = path.join(process.cwd(), 'plugins');
   }
 
@@ -43,7 +52,7 @@ export class PluginManager {
     this.initialized = true;
   }
 
-  async scanAndLoad(enabledPlugins: PluginConfig[]): Promise<void> {
+  async scanAndLoad(enabledPlugins: readonly PluginRuntimeConfig[]): Promise<void> {
     logger.info({ pluginsDir: this.pluginsDir }, 'Scanning plugins directory');
 
     if (!fs.existsSync(this.pluginsDir)) {
@@ -200,7 +209,7 @@ export class PluginManager {
     );
 
     if (plugin.defaultOptions !== undefined) {
-      configManager.registerPluginDefaults(plugin.name, plugin.defaultOptions);
+      this.deps.configStore.registerPluginDefaults(plugin.name, plugin.defaultOptions);
     }
 
     const mergedOptions = this.mergePluginOptions(plugin, options);
@@ -226,8 +235,7 @@ export class PluginManager {
       }
 
       if (plugin.commands && plugin.commands.length > 0) {
-        const commandRegistry = CommandRegistry.getInstance();
-        commandRegistry.registerFromPlugin(plugin.name, plugin.commands);
+        this.deps.commandRegistrar.registerFromPlugin(plugin.name, plugin.commands);
       }
 
       this.loadedPlugins.set(plugin.name, plugin);
@@ -369,8 +377,7 @@ export class PluginManager {
       }
 
       if (plugin.commands && plugin.commands.length > 0) {
-        const commandRegistry = CommandRegistry.getInstance();
-        commandRegistry.unregisterFromPlugin(pluginName);
+        this.deps.commandRegistrar.unregisterFromPlugin(pluginName);
       }
 
       this.loadedPlugins.delete(pluginName);
@@ -467,7 +474,7 @@ export class PluginManager {
         };
       }
 
-      await configManager.updatePluginConfig(pluginName, true);
+      await this.deps.configStore.updatePluginConfig(pluginName, true);
 
       logger.info({ pluginName: pluginName }, 'Plugin enabled successfully');
       return {
@@ -496,7 +503,7 @@ export class PluginManager {
 
     try {
       await this.unloadPlugin(pluginName);
-      await configManager.updatePluginConfig(pluginName, false);
+      await this.deps.configStore.updatePluginConfig(pluginName, false);
 
       logger.info({ pluginName: pluginName }, 'Plugin disabled successfully');
       return {
@@ -553,7 +560,3 @@ export class PluginManager {
     logger.info({ pluginsDir: this.pluginsDir }, 'Plugins directory updated');
   }
 }
-
-import { toolRegistry } from '@/platform/tools/registry.js';
-
-export const pluginManager = new PluginManager(toolRegistry);

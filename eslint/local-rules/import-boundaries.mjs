@@ -3,6 +3,7 @@ import { fileURLToPath } from 'url';
 import {
   SOURCE_ALIAS_PREFIX,
   PLUGIN_SDK_PREFIX,
+  getFeatureName,
   getTopLevelModule,
   isBarrelFile,
   isPluginFile,
@@ -54,8 +55,10 @@ function reportsForNode(context, node) {
 
   const repoRelativeFile = toRepoRelative(context.filename);
   const sourceModule = getTopLevelModule(repoRelativeFile);
+  const sourceFeature = getFeatureName(repoRelativeFile);
   const targetRepoRelative = toResolvedRepoRelative(context, source);
   const targetModule = targetRepoRelative ? getTopLevelModule(targetRepoRelative) : null;
+  const targetFeature = targetRepoRelative ? getFeatureName(targetRepoRelative) : null;
   const reports = [];
 
   if (isPluginFile(repoRelativeFile)) {
@@ -80,6 +83,19 @@ function reportsForNode(context, node) {
     reports.push({
       node: node.source,
       message: 'Platform code must not depend on higher-level feature, agent, or channel modules.',
+    });
+  }
+
+  if (
+    sourceModule === 'features' &&
+    targetModule === 'features' &&
+    sourceFeature &&
+    targetFeature &&
+    sourceFeature !== targetFeature
+  ) {
+    reports.push({
+      node: node.source,
+      message: 'Feature modules must not import other feature modules directly.',
     });
   }
 

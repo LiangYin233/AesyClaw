@@ -23,6 +23,15 @@ export function getTopLevelModule(repoRelativePath) {
   return null;
 }
 
+export function getFeatureName(repoRelativePath) {
+  if (!repoRelativePath.startsWith('src/features/')) {
+    return null;
+  }
+
+  const [, , featureName] = repoRelativePath.split('/');
+  return featureName || null;
+}
+
 export function isPluginFile(repoRelativePath) {
   return repoRelativePath.startsWith('plugins/');
 }

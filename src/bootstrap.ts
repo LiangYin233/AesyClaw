@@ -1,14 +1,15 @@
 import * as path from 'path';
 import * as fs from 'fs';
+import { pluginManager } from '@/app/plugin-runtime.js';
 import { sessionRegistry, type SessionRegistry } from '@/app/session-registry.js';
+import { registerSystemCommands } from '@/app/system-commands.js';
 import { ChannelPipeline } from '@/agent/pipeline.js';
+import { subAgentTools } from '@/agent/subagent/index.js';
 import { channelManager } from '@/channels/channel-manager.js';
-import { commandMiddleware, registerSystemCommands } from '@/features/commands/index.js';
+import { commandMiddleware } from '@/features/commands/index.js';
 import { configManager } from '@/features/config/config-manager.js';
 import { initializePromptExecutor } from '@/features/cron/index.js';
-import { pluginManager } from '@/features/plugins/plugin-manager.js';
 import { roleManager } from '@/features/roles/role-manager.js';
-import { subAgentTools } from '@/features/subagent/index.js';
 import { agentMiddleware } from '@/middlewares/agent.middleware.js';
 import { configInjectionMiddleware } from '@/middlewares/config.middleware.js';
 import { sessionMiddleware } from '@/middlewares/session.middleware.js';
