@@ -4,6 +4,7 @@ import { logger } from '../../platform/observability/logger.js';
 import { eventBus, SystemEvents } from '../../platform/events/index.js';
 import { sessionRegistry } from '../../agent/session/session-registry.js';
 import { SessionId } from '../../agent/session/session-id.js';
+import { sessionRepository } from '../../platform/db/repositories/session-repository.js';
 
 export interface CreateCronJobInput {
   chatId: string;
@@ -25,6 +26,17 @@ export async function createCronJob(input: CreateCronJobInput): Promise<CronJobR
 
   const id = generateCronId();
   const nextRunAt = cronJobScheduler.calculateNextRunTime(input.cronExpression) || undefined;
+
+  if (!sessionRepository.findByChatId(input.chatId)) {
+    sessionRepository.create({
+      chatId: input.chatId,
+      channelType: 'unknown',
+      channelId: 'unknown',
+      metadata: {
+        source: 'cron',
+      },
+    });
+  }
 
   const job = cronJobRepository.create({
     id,

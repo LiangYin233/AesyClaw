@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { logger } from '../../platform/observability/logger.js';
 import { ToolExecuteContext, ToolParameters, ToolExecutionResult } from '../../platform/tools/types.js';
 import { roleManager } from '../roles/role-manager.js';
-import { toolRegistry } from '../../platform/tools/registry.js';
 import { SandboxEngine } from './sandbox-engine.js';
 import {
   RunSubAgentInputSchema,
@@ -93,16 +92,20 @@ export async function runTempSubAgent(
     ' runTempSubAgent called'
   );
 
-  const allTools = toolRegistry.getAllToolDefinitions();
-  const allowedToolNames = allTools.map(t => t.name);
+  const inheritedTools = Array.isArray(context.allowedTools)
+    ? context.allowedTools.filter((toolName): toolName is string => typeof toolName === 'string')
+    : ['*'];
+  const inheritedSkills = Array.isArray(context.allowedSkills)
+    ? context.allowedSkills.filter((skillName): skillName is string => typeof skillName === 'string')
+    : [];
 
   const fullSystemPrompt = `${system_prompt}\n\n【任务】\n${task_description}`;
 
   const sandbox = new SandboxEngine(context.chatId, {
     roleId: undefined,
     systemPrompt: fullSystemPrompt,
-    allowedTools: allowedToolNames,
-    allowedSkills: [],
+    allowedTools: inheritedTools,
+    allowedSkills: inheritedSkills,
     parentContext: context,
   });
 

@@ -263,6 +263,9 @@ export class AgentEngine {
         const syntheticToolCallId = randomUUID();
         const parsedArgs = args && typeof args === 'object' ? args as Record<string, unknown> : {};
         const toolContext: ToolExecuteContext = {
+          roleId: this.memory.getActiveRoleId(),
+          allowedTools: tools.map(registeredTool => registeredTool.name),
+          allowedSkills: this.getAllowedSkills(this.memory.getActiveRoleId()).map(skill => skill.name),
           chatId: this.chatId,
           senderId: 'user',
           traceId: this.instanceId,

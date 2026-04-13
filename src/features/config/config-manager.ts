@@ -13,6 +13,13 @@ interface ParsedConfig {
   [key: string]: unknown;
 }
 
+interface ParseConfigResult {
+  config: FullConfig | null;
+  shouldWriteBack: boolean;
+}
+
+type ConfigChangeListener = (_nextConfig: FullConfig, _previousConfig: FullConfig) => void | Promise<void>;
+
 
 
 type ProviderExample = Record<string, {
@@ -45,6 +52,7 @@ export class ConfigManager {
   private debounceTimer: NodeJS.Timeout | null = null;
   private pendingPluginDefaults: Map<string, Record<string, unknown>> = new Map();
   private pendingChannelDefaults: Map<string, Record<string, unknown>> = new Map();
+  private configChangeListeners: Set<ConfigChangeListener> = new Set();
 
   get config(): FullConfig {
     if (!this._config) {
@@ -84,17 +92,17 @@ export class ConfigManager {
     try {
       const content = await fs.promises.readFile(this.configPath, 'utf-8');
       const parsed = this.parseConfig(content);
-      if (parsed) {
+      if (parsed.config) {
         const originalContent = content.trim();
-        const newContent = this.serializeToJSON(parsed).trim();
+        const newContent = this.serializeToJSON(parsed.config).trim();
 
-        if (originalContent !== newContent) {
+        if (parsed.shouldWriteBack && originalContent !== newContent) {
           logger.info({}, 'Config was incomplete, added missing fields with defaults');
-          await this.saveMergedConfig(parsed);
+          await this.saveMergedConfig(parsed.config);
           logger.info({ path: this.configPath }, 'Updated config file with default values');
         }
 
-        this._config = parsed;
+        this._config = parsed.config;
         logger.info({ path: this.configPath }, 'Config loaded successfully');
       } else {
         logger.warn({}, 'Config parse failed, using cached/default config');
@@ -105,32 +113,48 @@ export class ConfigManager {
   }
 
   private async saveMergedConfig(config: FullConfig): Promise<void> {
-    const jsonString = this.serializeToJSON(config);
-    await fs.promises.writeFile(this.configPath, jsonString, 'utf-8');
+    this.selfUpdating = true;
+
+    try {
+      const jsonString = this.serializeToJSON(config);
+      await fs.promises.writeFile(this.configPath, jsonString, 'utf-8');
+    } finally {
+      setTimeout(() => {
+        this.selfUpdating = false;
+      }, 100);
+    }
   }
 
-  private parseConfig(content: string): FullConfig | null {
+  private parseConfig(content: string): ParseConfigResult {
     try {
       const parsed = JSON.parse(content);
       const result = FullConfigSchema.safeParse(parsed);
 
       if (result.success) {
+        let shouldWriteBack = false;
+
         if (this.shouldAddDefault(parsed, config => config.providers, providers => !providers || Object.keys(providers).length === 0)) {
           result.data.providers = this.getDefaultProviderExample();
+          shouldWriteBack = true;
           logger.info({}, 'No providers configured, adding default provider example');
         }
 
         if (this.shouldAddDefault(parsed, config => config.mcp?.servers, servers => !servers || !Array.isArray(servers) || servers.length === 0)) {
           result.data.mcp = { servers: this.getDefaultMCPServerExample() };
+          shouldWriteBack = true;
           logger.info({}, 'No MCP servers configured, adding default MCP server example');
         }
 
         if (this.shouldAddDefault(parsed, config => config.channels, channels => !channels || Object.keys(channels).length === 0)) {
           result.data.channels = {};
+          shouldWriteBack = true;
           logger.info({}, 'No channels configured, channels will be loaded from plugins');
         }
 
-        return result.data;
+        return {
+          config: result.data,
+          shouldWriteBack,
+        };
       }
 
       logger.warn({ issues: this.formatZodErrors(result.error) }, 'Zod validation failed, attempting to fill missing fields with defaults');
@@ -167,14 +191,23 @@ export class ConfigManager {
         if (hasProviders || hasMCPServers || hasChannels) {
           logger.info({}, 'Successfully merged user config with defaults');
         }
-        return mergedResult.data;
+        return {
+          config: mergedResult.data,
+          shouldWriteBack: true,
+        };
       }
 
-      logger.warn({}, 'Partial config merge also failed, using full defaults');
-      return DEFAULT_CONFIG;
+      logger.warn({}, 'Partial config merge also failed, keeping existing config');
+      return {
+        config: null,
+        shouldWriteBack: false,
+      };
     } catch (error) {
-      logger.error({ error }, 'Config parse error, using defaults');
-      return DEFAULT_CONFIG;
+      logger.error({ error }, 'Config parse error, keeping existing config');
+      return {
+        config: null,
+        shouldWriteBack: false,
+      };
     }
   }
 
@@ -257,9 +290,22 @@ export class ConfigManager {
     try {
       const content = await fs.promises.readFile(this.configPath, 'utf-8');
       const parsed = this.parseConfig(content);
-      if (parsed) {
-        this._config = parsed;
+      if (parsed.config) {
+        const previousConfig = this._config;
+        const originalContent = content.trim();
+        const newContent = this.serializeToJSON(parsed.config).trim();
+
+        if (parsed.shouldWriteBack && originalContent !== newContent) {
+          await this.saveMergedConfig(parsed.config);
+          logger.info({ path: this.configPath }, 'Updated config file with default values after reload');
+        }
+
+        this._config = parsed.config;
         logger.info({}, 'Configuration reloaded successfully');
+
+        if (previousConfig) {
+          await this.notifyConfigChange(parsed.config, previousConfig);
+        }
       } else {
         logger.warn({}, 'Config reload failed, keeping old config');
       }
@@ -282,6 +328,14 @@ export class ConfigManager {
 
   getConfig(): FullConfig {
     return this.config;
+  }
+
+  onConfigChange(listener: ConfigChangeListener): () => void {
+    this.configChangeListeners.add(listener);
+
+    return () => {
+      this.configChangeListeners.delete(listener);
+    };
   }
 
   async updateChannelConfig(
@@ -418,8 +472,14 @@ export class ConfigManager {
         logger.warn({ issues: this.formatZodErrors(result.error) }, 'Update validation failed');
         return false;
       }
+      const previousConfig = this._config;
       this._config = result.data;
       this.saveToDisk();
+
+      if (previousConfig) {
+        await this.notifyConfigChange(result.data, previousConfig);
+      }
+
       return true;
     } catch (error) {
       logger.error({ error }, 'Update config failed');
@@ -476,6 +536,16 @@ export class ConfigManager {
     return JSON.stringify(config, null, 2);
   }
 
+  private async notifyConfigChange(nextConfig: FullConfig, previousConfig: FullConfig): Promise<void> {
+    for (const listener of this.configChangeListeners) {
+      try {
+        await listener(nextConfig, previousConfig);
+      } catch (error) {
+        logger.error({ error }, 'Config change listener failed');
+      }
+    }
+  }
+
   isInitialized(): boolean {
     return this.initialized;
   }
@@ -493,6 +563,7 @@ export class ConfigManager {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
     }
+    this.configChangeListeners.clear();
     logger.info({}, 'ConfigManager destroyed');
   }
 }

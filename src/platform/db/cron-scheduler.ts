@@ -238,39 +238,21 @@ export class CronJobScheduler {
     const executeAt = new Date(job.nextRunAt).getTime();
     const now = Date.now();
 
-    if (executeAt <= now) {
-      logger.debug({ jobId: job.id }, 'Task already due, executing immediately');
-      this.executeJob(job);
-      const newNextRun = this.calculateNextRunTime(job.cronExpression);
-      if (newNextRun) {
-        cronJobRepository.setNextRunTime(job.id, newNextRun);
-        const updatedJob = { ...job, nextRunAt: newNextRun };
-        this.scheduleTask(updatedJob);
-      }
-      return;
-    }
-
-    const delay = executeAt - now;
+    const normalizedExecuteAt = executeAt <= now ? now : executeAt;
+    const delay = normalizedExecuteAt - now;
     logger.debug(
       { jobId: job.id, jobName: job.name, delayMs: delay, executeAt: job.nextRunAt },
       '📅 Scheduled task'
     );
 
-    const timeoutId = setTimeout(() => {
-      this.executeJob(job);
-    }, delay);
-
     const scheduledTask: ScheduledTask = {
       job,
-      executeAt,
-      timeoutId,
+      executeAt: normalizedExecuteAt,
+      timeoutId: null,
     };
 
     this.taskQueue.push(scheduledTask);
-
-    if (this.taskQueue.peek()?.job.id === job.id) {
-      this.scheduleNext();
-    }
+    this.scheduleNext();
   }
 
   private rescheduleTask(job: CronJobRecord): void {
@@ -281,7 +263,11 @@ export class CronJobScheduler {
     const removed = this.taskQueue.remove(t => t.job.id === jobId);
     if (removed?.timeoutId) {
       clearTimeout(removed.timeoutId);
+    }
+
+    if (removed) {
       logger.debug({ jobId }, 'Cancelled scheduled task');
+      this.scheduleNext();
     }
   }
 

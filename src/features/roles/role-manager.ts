@@ -84,6 +84,7 @@ export class RoleManager {
     const filePath = this.getRoleFilePath(roleId);
 
     if (!fs.existsSync(filePath)) {
+      this.roles.delete(roleId);
       logger.debug({ roleId }, 'Role file not found');
       return null;
     }
@@ -95,6 +96,7 @@ export class RoleManager {
       const result = RoleConfigSchema.safeParse(rawConfig);
 
       if (!result.success) {
+        this.roles.delete(roleId);
         logger.error({ roleId, issues: result.error.issues }, 'Role validation failed');
         return null;
       }
@@ -125,6 +127,7 @@ export class RoleManager {
 
       return roleWithMeta;
     } catch (error) {
+      this.roles.delete(roleId);
       logger.error({ roleId, error }, 'Failed to load role');
       return null;
     }
@@ -142,10 +145,14 @@ export class RoleManager {
           this.loadRole(roleId).then(role => {
             if (role) {
               logger.info({ roleId, name: role.name }, 'Role hot-reloaded');
+            } else {
+              logger.info({ roleId }, 'Role removed or disabled after reload');
             }
           });
         }
       });
+
+      this.watchers.set(this.rolesDir, watcher);
 
       watcher.on('error', (error) => {
         logger.error({ error }, 'Role directory watcher error');

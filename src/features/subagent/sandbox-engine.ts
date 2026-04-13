@@ -131,9 +131,14 @@ export class SandboxEngine {
 
   private extractTaskDescription(): string {
     const systemPrompt = this.config.systemPrompt;
-    const taskMatch = systemPrompt.match(/任务[：:]\s*(.+?)(?:\n|$)/i);
+    const blockTaskMatch = systemPrompt.match(/【任务】\s*([\s\S]+)$/i);
+    if (blockTaskMatch) {
+      return blockTaskMatch[1].trim();
+    }
+
+    const taskMatch = systemPrompt.match(/任务[：:]\s*([\s\S]+)$/i);
     if (taskMatch) {
-      return taskMatch[1];
+      return taskMatch[1].trim();
     }
     return '执行指定任务';
   }
@@ -245,6 +250,9 @@ export class SandboxEngine {
         const syntheticToolCallId = randomUUID();
         const parsedArgs = args && typeof args === 'object' ? args as Record<string, unknown> : {};
         const toolContext: ToolExecuteContext = {
+          roleId: this.config.roleId,
+          allowedTools: this.config.allowedTools,
+          allowedSkills: this.config.allowedSkills,
           chatId: this.agentId,
           senderId: 'subagent',
           traceId: this.sandboxId,
@@ -393,8 +401,9 @@ export class SandboxEngine {
   private getLLMConfig(): LLMConfig {
     try {
       const config = configManager.config;
-      const defaultRole = roleManager.getRoleConfig(DEFAULT_ROLE_ID);
-      const modelIdentifier = defaultRole.model;
+      const roleId = this.config.roleId || DEFAULT_ROLE_ID;
+      const roleConfig = roleManager.getRoleConfig(roleId);
+      const modelIdentifier = roleConfig.model;
       return resolveLLMConfig(modelIdentifier, config);
     } catch (error) {
       logger.warn({ error }, 'Failed to resolve LLM config from config.json, using fallback');
