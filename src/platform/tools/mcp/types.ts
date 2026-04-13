@@ -10,6 +10,10 @@ export interface MCPServerInfo {
   toolCount: number;
 }
 
+export function buildMcpToolName(serverName: string, toolName: string): string {
+  return `${serverName}.${toolName}`;
+}
+
 export class McpToolAdapter implements ITool {
   readonly name: string;
   readonly description: string;
@@ -25,7 +29,7 @@ export class McpToolAdapter implements ITool {
   ) {
     this.serverName = serverName;
     this.tool = tool;
-    this.name = tool.name;
+    this.name = buildMcpToolName(serverName, tool.name);
     this.description = tool.description || `Tool from ${serverName}: ${tool.name}`;
     this.toolParameters = this.normalizeToolParameters(tool.parameters);
     this.parametersSchema = this.parseInputSchema(this.toolParameters);

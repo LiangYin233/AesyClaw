@@ -29,6 +29,9 @@ export interface ToolExecuteContext {
   chatId: string;
   senderId: string;
   traceId: string;
+  roleId?: string;
+  allowedTools?: string[];
+  allowedSkills?: string[];
   [key: string]: unknown;
 }
 

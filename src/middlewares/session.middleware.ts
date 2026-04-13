@@ -3,6 +3,7 @@ import type { IChannelContext, MiddlewareFunc, PipelineState } from '../agent/ty
 import { SessionId } from '../agent/session/session-id.js';
 import { sessionRegistry } from '../agent/session/session-registry.js';
 import type { SessionContext } from '../agent/session/session-context.js';
+import { sessionRepository } from '../platform/db/repositories/session-repository.js';
 
 export interface SessionState {
   sessionContext: SessionContext;
@@ -37,6 +38,16 @@ export class SessionMiddleware {
           type: components.type,
           chatId: components.chatId,
           session: components.session,
+        });
+
+        sessionRepository.ensure({
+          chatId: components.chatId,
+          channelType: components.channel,
+          channelId: components.type,
+          metadata: {
+            sessionId,
+            session: components.session,
+          },
         });
 
         if (!ctx.state) {

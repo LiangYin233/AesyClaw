@@ -133,6 +133,10 @@ export class SessionRepository {
     return this.create(input);
   }
 
+  ensure(input: CreateSessionInput): SessionRecord {
+    return this.upsert(input);
+  }
+
   private mapRowToRecord(row: SessionRow): SessionRecord {
     return {
       chatId: row.chat_id,

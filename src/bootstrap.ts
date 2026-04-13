@@ -38,6 +38,9 @@ let sessionRegistryInstance: SessionRegistry | null = null;
 export class Bootstrap {
   private static initialized: boolean = false;
   private static mcpManager: McpClientManager | null = null;
+  private static configChangeUnsubscribe: (() => void) | null = null;
+  private static mcpHotReloadEnabled: boolean = false;
+  private static channelHotReloadEnabled: boolean = false;
 
   static async initialize(options: BootstrapOptions = {}): Promise<void> {
     if (this.initialized) {
@@ -144,6 +147,13 @@ export class Bootstrap {
 
       await configManager.syncAllDefaultConfigs();
 
+      if (!options.skipConfig) {
+        this.registerConfigChangeListener({
+          mcp: !options.skipMCP,
+          channels: !options.skipChannels,
+        });
+      }
+
       this.initialized = true;
       logger.info({}, 'AesyClaw started successfully');
     } catch (error) {
@@ -162,6 +172,12 @@ export class Bootstrap {
     channelManager.setPipeline(pipeline as any);
 
     const pluginsDir = path.join(process.cwd(), 'plugins');
+
+    if (!fs.existsSync(pluginsDir)) {
+      logger.warn({ pluginsDir }, 'Plugins directory not found, skipping channel plugin loading');
+      return;
+    }
+
     const entries = fs.readdirSync(pluginsDir, { withFileTypes: true });
 
     for (const entry of entries) {
@@ -198,6 +214,33 @@ export class Bootstrap {
     logger.info({ loadedChannels: channelManager.getChannelCount() }, 'Channel system initialized');
   }
 
+  private static registerConfigChangeListener(options: { mcp: boolean; channels: boolean }): void {
+    if (this.configChangeUnsubscribe) {
+      this.configChangeUnsubscribe();
+      this.configChangeUnsubscribe = null;
+    }
+
+    this.mcpHotReloadEnabled = options.mcp;
+    this.channelHotReloadEnabled = options.channels;
+
+    this.configChangeUnsubscribe = configManager.onConfigChange(async (nextConfig, previousConfig) => {
+      const mcpChanged = JSON.stringify(previousConfig.mcp?.servers || []) !== JSON.stringify(nextConfig.mcp?.servers || []);
+      const channelsChanged = JSON.stringify(previousConfig.channels || {}) !== JSON.stringify(nextConfig.channels || {});
+
+      if (mcpChanged && this.mcpHotReloadEnabled && this.mcpManager) {
+        logger.info({}, 'MCP config changed, reconnecting MCP servers');
+        await this.mcpManager.shutdown();
+        await this.mcpManager.connectConfiguredServers(nextConfig.mcp?.servers || []);
+      }
+
+      if (channelsChanged && this.channelHotReloadEnabled) {
+        logger.info({}, 'Channel config changed, reloading channel plugins');
+        await channelManager.shutdown();
+        await this.loadChannelPlugins(nextConfig.channels || {});
+      }
+    });
+  }
+
   private static normalizePath(filePath: string): string {
     if (path.isAbsolute(filePath)) {
       return `file:///${filePath.replace(/\\/g, '/')}`;
@@ -208,8 +251,16 @@ export class Bootstrap {
   static async shutdown(): Promise<void> {
     logger.info({}, 'Shutting down AesyClaw...');
 
+    if (this.configChangeUnsubscribe) {
+      this.configChangeUnsubscribe();
+      this.configChangeUnsubscribe = null;
+    }
+
+    this.mcpHotReloadEnabled = false;
+    this.channelHotReloadEnabled = false;
+
     try {
-      channelManager.shutdown();
+      await channelManager.shutdown();
       logger.info({}, '[1/9] Channel Manager stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping Channel Manager');
@@ -271,7 +322,7 @@ export class Bootstrap {
     }
 
     try {
-      channelManager.shutdown();
+      await channelManager.shutdown();
       logger.info({}, '[9/9] ChannelPluginManager stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping ChannelPluginManager');
