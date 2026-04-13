@@ -1,6 +1,11 @@
 import type { AgentEngine } from '../engine.js';
 import type { SessionMemoryManager } from '../memory/session-memory-manager.js';
-import type { SessionConfig } from './types.js';
+
+export interface SessionConfig {
+  maxSessionsPerChat: number;
+  sessionTTL: number;
+  autoCleanup: boolean;
+}
 
 export interface SessionMetadata {
   sessionId: string;

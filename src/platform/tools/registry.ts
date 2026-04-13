@@ -50,7 +50,7 @@ export class ToolRegistry {
     if (deleted) {
       logger.info(
         { toolName, remainingTools: this.tools.size },
-        '🗑️ 工具已注销'
+        '工具已注销'
       );
     }
     return deleted;
@@ -184,7 +184,7 @@ export class ToolRegistry {
 
       logger.error(
         { toolName, executionTime, error },
-        '❌ 工具执行出错'
+        '工具执行出错'
       );
 
       return errorResult;

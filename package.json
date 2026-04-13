@@ -1,6 +1,7 @@
 {
   "name": "aesyclaw",
   "version": "1.0.0",
+  "packageManager": "yarn@1.22.22",
   "main": "dist/index.js",
   "scripts": {
     "dev": "chcp 65001 && tsx watch src/index.ts",

@@ -130,7 +130,7 @@ function formatSubAgentResult(roleName: string, result: SubAgentResult): string 
 ━━━━━━━━━━━━━━━━━━━━
 ${result.finalText}
 ━━━━━━━━━━━━━━━━━━━━
-⏱️ 执行时间: ${result.executionTime}ms`;
+执行时间: ${result.executionTime}ms`;
 }
 
 const RunSubAgentSchema = z.object({

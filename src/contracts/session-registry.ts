@@ -1,11 +1,11 @@
 import type { SessionContext } from '@/agent/session/session-context.js';
-import type { SessionOptions } from '@/agent/session/types.js';
+import type { SessionOptions } from '@/agent/session/session-registry.js';
 
 export interface ISessionRegistry {
   getOrCreate(sessionId: string, options: SessionOptions): SessionContext;
   getSession(sessionId: string): SessionContext | undefined;
-  deleteSession(sessionId: string): boolean;
+  removeSession(sessionId: string): boolean;
   getSessionCount(): number;
-  getSessionIdByChatId(channel: string, type: string, chatId: string): string | undefined;
+  getSessionIdByChatId(channel: string, type: string, chatId: string): string | null;
   shutdown(): void;
 }
