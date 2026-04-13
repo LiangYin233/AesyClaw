@@ -11,12 +11,12 @@ import { commandMiddleware, registerSystemCommands } from './features/commands/i
 import { subAgentTools } from './features/subagent/index.js';
 import { speechToTextTool, imageUnderstandingTool } from './platform/tools/multimodal-tools.js';
 import { channelManager } from './channels/channel-manager.js';
-import { roleManagerAdapter } from './adapters/index.js';
+import { roleManager } from './features/roles/role-manager.js';
 import { configInjectionMiddleware } from './middlewares/config.middleware.js';
 import { sessionMiddleware } from './middlewares/session.middleware.js';
 import { agentMiddleware } from './middlewares/agent.middleware.js';
-import { ChannelPipeline } from './agent/core/pipeline.js';
-import { sessionRegistry, type SessionRegistry } from './agent/core/session/session-registry.js';
+import { ChannelPipeline } from './agent/pipeline.js';
+import { sessionRegistry, type SessionRegistry } from './agent/session/session-registry.js';
 import { ToolRegistry, toolRegistry as sharedToolRegistry } from './platform/tools/registry.js';
 
 export interface BootstrapOptions {
@@ -67,8 +67,6 @@ export class Bootstrap {
       sessionRegistryInstance = sessionRegistry;
 
       pipeline = new ChannelPipeline();
-
-      const roleManager = roleManagerAdapter;
 
       if (!options.skipSkills) {
         logger.info({}, '[5/16] Initializing SkillManager...');
@@ -332,7 +330,7 @@ export class Bootstrap {
     const toolStats = toolRegistryInstance?.getStats() ?? { totalTools: 0 };
     const mcpServers = this.mcpManager?.getConnectedServers() || [];
     const plugins = pluginManager?.getLoadedPlugins() || [];
-    const roleStats = roleManagerAdapter.isInitialized() ? { total: roleManagerAdapter.getAllRoles().length } : { total: 0 };
+      const roleStats = roleManager.isInitialized() ? { total: roleManager.getAllRoles().length } : { total: 0 };
 
     return {
       initialized: this.initialized,

@@ -1,5 +1,5 @@
 import type { IChannelPlugin, IChannelWithSend, IOutboundPayload, ChannelPluginLogger, ChannelPluginContext } from './channel-plugin.js';
-import type { ChannelPipeline } from '../agent/core/pipeline.js';
+import type { ChannelPipeline } from '../agent/pipeline.js';
 import { logger } from '../platform/observability/logger.js';
 import { configManager } from '../features/config/config-manager.js';
 import { isPlainObject } from '../platform/utils/index.js';

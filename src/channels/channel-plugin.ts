@@ -1,5 +1,5 @@
 
-import type { ChannelPipeline } from '../agent/core/pipeline.js';
+import type { ChannelPipeline } from '../agent/pipeline.js';
 
 export interface IOutboundPayload {
   text: string;

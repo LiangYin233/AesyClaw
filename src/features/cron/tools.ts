@@ -3,8 +3,8 @@ import { cronJobScheduler, generateCronId } from '../../platform/db/cron-schedul
 import { logger } from '../../platform/observability/logger.js';
 import { eventBus, SystemEvents } from '../../platform/events/index.js';
 import { configManager } from '../config/config-manager.js';
-import { sessionRegistry } from '../../agent/core/session/session-registry.js';
-import { SessionId } from '../../agent/core/session/session-id.js';
+import { sessionRegistry } from '../../agent/session/session-registry.js';
+import { SessionId } from '../../agent/session/session-id.js';
 import { LLMProviderType } from '../../platform/llm/types.js';
 
 export interface CreateCronJobInput {

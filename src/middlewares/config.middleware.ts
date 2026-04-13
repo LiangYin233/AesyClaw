@@ -1,6 +1,6 @@
 import { configManager, type FullConfig } from '../features/config/index.js';
 import { logger } from '../platform/observability/logger.js';
-import type { IChannelContext, MiddlewareFunc, PipelineState } from '../agent/core/types.js';
+import type { IChannelContext, MiddlewareFunc, PipelineState } from '../agent/types.js';
 
 export interface ConfigState {
   config: FullConfig;
