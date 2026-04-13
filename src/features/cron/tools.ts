@@ -1,5 +1,4 @@
-import { sessionRegistry } from '@/app/session-registry.js';
-import { SessionId } from '@/agent/session/session-id.js';
+import { createTemporarySession, removeTemporarySession } from '@/agent/session/session-runtime.js';
 import { cronJobScheduler, generateCronId } from '@/platform/db/cron-scheduler.js';
 import { cronJobRepository, type CronJobRecord } from '@/platform/db/repositories/cron-job-repository.js';
 import { sessionRepository } from '@/platform/db/repositories/session-repository.js';
@@ -116,25 +115,23 @@ export class PromptExecutor {
       return;
     }
 
-    const sessionPart = SessionId.generateSession();
-    const sessionId = `cron:cron:${job.id}:${sessionPart}`;
-
     logger.info(
-      { jobId: job.id, jobName: job.name, sessionId },
-      '🤖 Creating temporary session for cron job execution'
+      { jobId: job.id, jobName: job.name },
+      'Creating temporary session for cron job execution'
     );
 
+    let sessionId: string | undefined;
+
     try {
-      const session = sessionRegistry.getOrCreate(sessionId, {
-        channel: 'cron',
-        type: 'cron',
+      const { sessionId: sid, session } = createTemporarySession(job.id, {
         chatId: job.chatId,
-        session: sessionPart,
+        prompt: job.prompt,
       });
+      sessionId = sid;
 
       logger.info(
         { jobId: job.id, promptLength: job.prompt.length },
-        '📤 Sending prompt to Agent'
+        'Sending prompt to Agent'
       );
 
       const result = await session.agent.run(job.prompt);
@@ -160,22 +157,24 @@ export class PromptExecutor {
       } else {
         logger.error(
           { jobId: job.id, error: result.error },
-          '❌ Cron job Agent execution failed'
+          'Cron job Agent execution failed'
         );
       }
 
-      sessionRegistry.removeSession(sessionId);
+      removeTemporarySession(sessionId);
       logger.debug({ sessionId }, 'Temporary session cleaned up');
     } catch (error) {
       logger.error(
         { jobId: job.id, sessionId, error },
-        '❌ Error executing cron job via Agent'
+        'Error executing cron job via Agent'
       );
 
-      try {
-        sessionRegistry.removeSession(sessionId);
-      } catch (error) {
-        logger.error({ error }, '❌ Error removing session after cron job execution');
+      if (sessionId) {
+        try {
+          removeTemporarySession(sessionId);
+        } catch (error) {
+          logger.error({ error }, 'Error removing session after cron job execution');
+        }
       }
     }
   }
