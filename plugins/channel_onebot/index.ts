@@ -5,13 +5,14 @@ import type {
   IChannelWithSend,
   ChannelPluginContext,
   IOutboundPayload,
-  ChannelPluginLogger
+   ChannelPluginLogger
 } from '../../src/channels/channel-plugin';
 import type { IUnifiedMessage } from '../../src/agent/core/types';
-import type { DownloadedMedia } from '../../src/platform/utils/index.js';
+import type { DownloadedMedia, MediaDownloader } from '../../src/platform/utils/index.js';
 
-let mediaDownloader: any = null;
-async function getMediaDownloader() {
+let mediaDownloader: MediaDownloader | null = null;
+
+async function getMediaDownloader(): Promise<MediaDownloader> {
   if (!mediaDownloader) {
     const module = await import('../../src/platform/utils/media-downloader.js');
     mediaDownloader = module.mediaDownloader;
@@ -31,7 +32,6 @@ export type OneBotChannelConfig = z.infer<typeof OneBotChannelConfigSchema>;
 
 export interface OneBotConfig {
   wsUrl: string;
-  token?: string;
   accessToken?: string;
   groupIds?: string[];
   privateIds?: string[];
@@ -103,7 +103,7 @@ interface PluginState {
   ws: WebSocket | null;
   config: OneBotConfig | null;
   logger: ChannelPluginLogger | null;
-  pipeline: any;
+  pipeline: ChannelPluginContext['pipeline'] | null;
   pendingRequests: Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>;
   connected: boolean;
 }
@@ -321,6 +321,7 @@ function handlePrivateMessage(event: OneBotMessage): void {
 
   processMediaInMessage(event).then(processedEvent => {
     const rawMessage = extractRawMessage(processedEvent.message);
+    const media = extractMedia(processedEvent.message);
 
     const unifiedMsg: IUnifiedMessage = {
       channelId: 'onebot',
@@ -330,6 +331,7 @@ function handlePrivateMessage(event: OneBotMessage): void {
       metadata: {
         type: 'private',
         raw: processedEvent,
+        media,
         sender: processedEvent.sender,
         messageId: String(processedEvent.message_id),
         userId: userIdStr,
@@ -538,10 +540,10 @@ async function processMediaInMessage(event: OneBotMessage): Promise<OneBotMessag
 }
 
 function createSendFn(targetId: string, messageType: 'group' | 'private'): (payload: IOutboundPayload) => Promise<void> {
-  const ws = state.ws;
-  const logger = state.logger!;
-
   return async (payload: IOutboundPayload): Promise<void> => {
+    const ws = state.ws;
+    const logger = state.logger!;
+
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       logger.warn('Cannot send message: WebSocket not connected', { targetId, messageType });
       return;
@@ -634,7 +636,11 @@ async function sendApi(action: string, params: Record<string, unknown>, echo?: s
   });
 }
 
-function emitInbound(message: IUnifiedMessage, sendFn: (payload: IOutboundPayload) => Promise<void>, pipeline: any): void {
+function emitInbound(
+  message: IUnifiedMessage,
+  sendFn: (payload: IOutboundPayload) => Promise<void>,
+  pipeline: ChannelPluginContext['pipeline'] | null
+): void {
   const logger = state.logger!;
 
   logger.info('Emitting inbound message to pipeline', {
