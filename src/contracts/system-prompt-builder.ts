@@ -1,10 +1,7 @@
-export interface PromptBuildContext {
-  chatId: string;
-  toolDescriptions?: string;
-  skillInstructions?: string;
-  sessionMemory?: string;
-}
+import type { SystemPromptBuildOptions } from '@/features/roles/system-prompt-types.js';
+
+export type { SystemPromptBuildOptions as PromptBuildContext };
 
 export interface ISystemPromptBuilder {
-  buildSystemPrompt(params: { roleId: string; chatId: string; toolDescriptions?: string; skillInstructions?: string; sessionMemory?: string }): string;
+  buildSystemPrompt(options: SystemPromptBuildOptions): string;
 }
