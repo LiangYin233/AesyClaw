@@ -11,7 +11,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "aesyiu": "^0.1.1",
+    "aesyiu": "^0.1.2",
     "better-sqlite3": "^12.9.0",
     "node-cron": "^4.2.1",
     "openai": "^6.34.0",
