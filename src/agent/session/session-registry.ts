@@ -1,23 +1,39 @@
 import { logger } from '@/platform/observability/logger.js';
 import { LLMProviderType, type LLMConfig } from '@/platform/llm/types.js';
+import type { ToolDefinition } from '@/platform/tools/types.js';
 import type { IConfigManager } from '@/contracts/config-manager.js';
 import type { IRoleManager } from '@/contracts/role-manager.js';
 import type { ISystemPromptBuilder } from '@/contracts/system-prompt-builder.js';
-import type { SessionOptions, SessionConfig } from './types.js';
-import { DEFAULT_SESSION_CONFIG } from './types.js';
-import type { SessionContext } from './session-context.js';
+import type { SessionConfig, SessionContext } from './session-context.js';
 import { createSessionMetadata } from './session-context.js';
 import type { MemoryConfig as MemoryConfigInternal } from '../memory/types.js';
+import { resolveLLMConfig } from '../runtime/resolve-llm-config.js';
 import { SessionMemoryManager } from '../memory/session-memory-manager.js';
 import { AgentEngine } from '../engine.js';
-import { mapProviderType } from '@/platform/utils/llm-utils.js';
-import { parseModelIdentifier } from '@/platform/utils/model-parser.js';
 import { DEFAULT_ROLE_ID } from '@/features/roles/types.js';
 
 interface SessionMemoryConfigSource {
   max_context_tokens: number;
   compression_threshold: number;
 }
+
+export interface SessionOptions {
+  channel: string;
+  type: string;
+  chatId: string;
+  session: string;
+  llm?: LLMConfig;
+  maxSteps?: number;
+  systemPrompt?: string;
+  tools?: ToolDefinition[];
+  memoryConfig?: Partial<MemoryConfigInternal>;
+}
+
+const DEFAULT_SESSION_CONFIG: SessionConfig = {
+  maxSessionsPerChat: 10,
+  sessionTTL: 86400000,
+  autoCleanup: true,
+};
 
 export interface SessionRegistryDependencies {
   configManager: IConfigManager;
@@ -43,25 +59,7 @@ export class SessionRegistry {
       if (this.deps.configManager.isInitialized() && this.deps.roleManager.isInitialized()) {
         const config = this.deps.configManager.config;
         const defaultRole = this.deps.roleManager.getRoleConfig(DEFAULT_ROLE_ID);
-        const modelIdentifier = defaultRole.model;
-        const { providerName, modelAlias } = parseModelIdentifier(modelIdentifier);
-
-        const providerDetails = config.providers[providerName];
-        if (!providerDetails) {
-          throw new Error(`Provider '${providerName}' not found`);
-        }
-
-        const modelConfig = providerDetails.models?.[modelAlias];
-        if (!modelConfig) {
-          throw new Error(`Model '${modelAlias}' not found in provider '${providerName}'`);
-        }
-
-        return {
-          provider: mapProviderType(providerDetails.type),
-          model: modelConfig.modelname,
-          apiKey: providerDetails.api_key,
-          baseUrl: providerDetails.base_url,
-        };
+        return resolveLLMConfig(defaultRole.model, config);
       }
     } catch (error) {
       logger.warn({ error }, 'Failed to get LLM config from config, using defaults');
@@ -81,7 +79,7 @@ export class SessionRegistry {
       return existing;
     }
 
-    logger.debug({ sessionId, channel: options.channel, type: options.type, chatId: options.chatId }, '🆕 创建新会话');
+    logger.debug({ sessionId, channel: options.channel, type: options.type, chatId: options.chatId }, '创建新会话');
 
     const { manager: memory, config: memoryConfig } = this.createMemory(sessionId, options);
     const agent = this.createAgent(sessionId, options, memory, memoryConfig);
@@ -206,7 +204,7 @@ export class SessionRegistry {
     }
 
     if (sessionsToRemove.length > 0) {
-      logger.info({ count: sessionsToRemove.length }, '🧹 不活跃会话已清理');
+      logger.info({ count: sessionsToRemove.length }, '不活跃会话已清理');
     }
   }
 

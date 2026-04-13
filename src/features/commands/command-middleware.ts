@@ -29,7 +29,7 @@ export const commandMiddleware: MiddlewareFunc = async (
     ctx.outbound.error = `Unknown command: ${parsed.name}`;
     logger.warn(
       { commandName: parsed.name, chatId: ctx.inbound.chatId },
-      '❌ 未知命令'
+      '未知命令'
     );
     return;
   }
@@ -62,7 +62,7 @@ export const commandMiddleware: MiddlewareFunc = async (
   } catch (error) {
     logger.error(
       { commandName: command.name, error },
-      '❌ 命令执行失败'
+      '命令执行失败'
     );
 
     ctx.outbound.text = `命令执行失败: ${error instanceof Error ? error.message : '未知错误'}`;
