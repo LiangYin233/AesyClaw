@@ -224,7 +224,7 @@ export class Bootstrap {
 
     try {
       if (this.mcpManager) {
-        this.mcpManager.shutdown();
+        await this.mcpManager.shutdown();
         logger.info({}, '[3/9] MCP Manager stopped');
       }
     } catch (error) {

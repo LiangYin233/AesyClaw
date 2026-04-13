@@ -1,25 +1,14 @@
-import type { ChildProcess } from 'child_process';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { MCPManager, type MCPServerConfig as AesyiuMCPServerConfig } from 'aesyiu';
 import { logger } from '../../observability/logger.js';
 import { ToolRegistry } from '../registry.js';
-import { McpToolAdapter, MCPServerInfo, MCPToolInfo } from './types.js';
+import { McpToolAdapter, MCPServerInfo } from './types.js';
 import type { MCPServerConfig } from '../../../features/config/schema.js';
-
-// 直接使用 Client 类型，通过类型断言处理 request 方法
-// 由于 Client 类型的 request 方法签名与我们的使用方式不同，我们需要使用类型断言
-
-interface StdioClientTransportWithProcess extends StdioClientTransport {
-  childProcess: ChildProcess;
-}
-
-
 
 export class McpClientManager {
   private static instance: McpClientManager | undefined;
   
-  private clients: Map<string, Client> = new Map();
-  private processes: Map<string, ChildProcess> = new Map();
+  private managers: Map<string, MCPManager> = new Map();
+  private serverToolNames: Map<string, string[]> = new Map();
   private toolRegistry: ToolRegistry;
   private serverInfos: Map<string, MCPServerInfo> = new Map();
 
@@ -34,9 +23,9 @@ export class McpClientManager {
     return McpClientManager.instance;
   }
 
-  static resetInstance(): void {
+  static async resetInstance(): Promise<void> {
     if (McpClientManager.instance) {
-      McpClientManager.instance.shutdown();
+      await McpClientManager.instance.shutdown();
       McpClientManager.instance = undefined;
     }
   }
@@ -47,42 +36,44 @@ export class McpClientManager {
       return;
     }
 
-    if (this.clients.has(config.name)) {
+    if (this.managers.has(config.name)) {
       logger.warn({ serverName: config.name }, 'MCP 服务器已连接，跳过');
       return;
     }
 
     logger.info({ serverName: config.name, command: config.command }, '正在连接 MCP 服务器');
 
+    const manager = new MCPManager();
+
     try {
-      const transport = new StdioClientTransport({
-        command: config.command,
-        args: config.args,
-        env: config.env as Record<string, string>,
-      });
+      const tools = await manager.registerServer(this.toAesyiuServerConfig(config));
+      const adapters = tools.map(tool => new McpToolAdapter(config.name, tool));
 
-      const client = new Client({
-        name: `aesyclaw-${config.name}`,
-        version: '1.0.0',
-      }, {
-        capabilities: {},
-      });
+      for (const adapter of adapters) {
+        this.toolRegistry.register(adapter);
+      }
 
-      await client.connect(transport);
-      this.clients.set(config.name, client);
-      this.processes.set(config.name, (transport as StdioClientTransportWithProcess).childProcess);
-
-      await this.syncTools(config.name, client);
+      this.managers.set(config.name, manager);
+      this.serverToolNames.set(
+        config.name,
+        adapters.map(adapter => adapter.name)
+      );
 
       this.serverInfos.set(config.name, {
         name: config.name,
         connected: true,
         lastChecked: new Date(),
-        toolCount: 0,
+        toolCount: adapters.length,
       });
 
-      logger.info({ serverName: config.name }, 'MCP 服务器连接成功');
+      logger.info({ serverName: config.name, toolCount: adapters.length }, 'MCP 服务器连接成功');
     } catch (error) {
+      try {
+        await manager.dispose();
+      } catch (disposeError) {
+        logger.warn({ serverName: config.name, error: disposeError }, 'MCP 服务器连接失败后清理未完成');
+      }
+
       logger.error({ serverName: config.name, error }, 'MCP 服务器连接失败');
       this.serverInfos.set(config.name, {
         name: config.name,
@@ -94,99 +85,29 @@ export class McpClientManager {
     }
   }
 
-  private async syncTools(serverName: string, client: Client): Promise<void> {
-    try {
-      const rawClient = client as unknown as {
-        request: (params: { method: string; params: Record<string, unknown> }) => Promise<{ tools?: MCPToolInfo[] }>;
-      };
-      const response = await rawClient.request({
-        method: 'tools/list',
-        params: {},
-      });
-
-      const tools = response.tools || [];
-      logger.info({ serverName, toolCount: tools.length }, '同步 MCP 工具');
-
-      for (const toolInfo of tools) {
-        const adapter = new McpToolAdapter(
-          serverName,
-          toolInfo as MCPToolInfo,
-          async (args) => {
-            return this.executeTool(serverName, toolInfo.name, args);
-          }
-        );
-
-        this.toolRegistry.register(adapter);
-      }
-
-      const info = this.serverInfos.get(serverName);
-      if (info) {
-        info.toolCount = tools.length;
-      }
-    } catch (error) {
-      logger.error({ serverName, error }, '同步 MCP 工具失败');
-    }
-  }
-
-  private async executeTool(
-    serverName: string,
-    toolName: string,
-    args: Record<string, unknown>
-  ): Promise<{ success: boolean; content: string; error?: string }> {
-    const client = this.clients.get(serverName);
-    if (!client) {
-      return { success: false, content: '', error: `MCP 客户端 ${serverName} 未连接` };
-    }
-
-    try {
-      const rawClient = client as unknown as {
-        request: (params: { method: string; params: Record<string, unknown> }) => Promise<{ content?: Array<{ text?: string; data?: unknown }> }>;
-      };
-      const response = await rawClient.request({
-        method: 'tools/call',
-        params: {
-          name: toolName,
-          arguments: args,
-        },
-      });
-
-      const content = response.content || [];
-      const textParts: string[] = [];
-      
-      for (const item of content) {
-        if (item && typeof item === 'object') {
-          if ('text' in item) {
-            textParts.push(String(item.text));
-          } else if ('data' in item) {
-            textParts.push(`[data: ${item.data}]`);
-          }
-        }
-      }
-
-      return { success: true, content: textParts.join('\n') || '(no output)' };
-    } catch (error) {
-      return {
-        success: false,
-        content: '',
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
+  private toAesyiuServerConfig(config: MCPServerConfig): AesyiuMCPServerConfig {
+    return {
+      name: config.name,
+      command: config.command,
+      ...(config.args.length > 0 ? { args: config.args } : {}),
+      ...(config.env ? { env: config.env } : {}),
+    };
   }
 
   async disconnectServer(serverName: string): Promise<void> {
-    const client = this.clients.get(serverName);
-    const process = this.processes.get(serverName);
+    const manager = this.managers.get(serverName);
+    const toolNames = this.serverToolNames.get(serverName) || [];
 
-    if (client) {
-      await client.close();
-      this.clients.delete(serverName);
+    for (const toolName of toolNames) {
+      this.toolRegistry.unregister(toolName);
     }
 
-    if (process) {
-      process.kill();
-      this.processes.delete(serverName);
+    if (manager) {
+      await manager.dispose();
+      this.managers.delete(serverName);
     }
 
+    this.serverToolNames.delete(serverName);
     this.serverInfos.delete(serverName);
     logger.info({ serverName }, 'MCP 服务器已断开');
   }
@@ -210,21 +131,19 @@ export class McpClientManager {
     return this.serverInfos.get(serverName);
   }
 
-  shutdown(): void {
+  async shutdown(): Promise<void> {
     logger.info('关闭 MCP 客户端管理器');
 
-    for (const [, client] of this.clients) {
-      client.close().catch((err) => {
-        logger.error({ error: err }, '关闭 MCP 客户端失败');
-      });
+    for (const serverName of Array.from(this.managers.keys())) {
+      try {
+        await this.disconnectServer(serverName);
+      } catch (error) {
+        logger.error({ serverName, error }, '关闭 MCP 客户端失败');
+      }
     }
 
-    for (const [, process] of this.processes) {
-      process.kill();
-    }
-
-    this.clients.clear();
-    this.processes.clear();
+    this.managers.clear();
+    this.serverToolNames.clear();
     this.serverInfos.clear();
   }
 }

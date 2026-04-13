@@ -2,10 +2,8 @@ import { cronJobRepository, type CronJobRecord } from '../../platform/db/reposit
 import { cronJobScheduler, generateCronId } from '../../platform/db/cron-scheduler.js';
 import { logger } from '../../platform/observability/logger.js';
 import { eventBus, SystemEvents } from '../../platform/events/index.js';
-import { configManager } from '../config/config-manager.js';
 import { sessionRegistry } from '../../agent/session/session-registry.js';
 import { SessionId } from '../../agent/session/session-id.js';
-import { LLMProviderType } from '../../platform/llm/types.js';
 
 export interface CreateCronJobInput {
   chatId: string;
@@ -115,22 +113,11 @@ export class PromptExecutor {
     );
 
     try {
-      const config = configManager.config;
-      const systemPrompt = '你是一个有帮助的AI助手。';
-      const model = config?.providers?.openai?.models?.default?.modelname || 'gpt-4o-mini';
-      const maxSteps = config?.agent?.max_steps || 50;
-
       const session = sessionRegistry.getOrCreate(sessionId, {
         channel: 'cron',
         type: 'cron',
-        chatId: job.id,
+        chatId: job.chatId,
         session: sessionPart,
-        llm: {
-          provider: LLMProviderType.OpenAIChat,
-          model,
-        },
-        systemPrompt,
-        maxSteps,
       });
 
       logger.info(

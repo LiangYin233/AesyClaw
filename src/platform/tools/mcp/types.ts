@@ -1,5 +1,6 @@
+import type { Tool as AesyiuTool } from 'aesyiu';
 import { ZodType, z } from 'zod';
-import { ITool, ToolExecuteContext, ToolExecutionResult, ToolDefinition } from '../types.js';
+import { ITool, ToolExecuteContext, ToolExecutionResult, ToolDefinition, type ToolParameters } from '../types.js';
 
 export interface MCPServerInfo {
   name: string;
@@ -9,33 +10,55 @@ export interface MCPServerInfo {
   toolCount: number;
 }
 
-export interface MCPToolInfo {
-  name: string;
-  description: string;
-  inputSchema: Record<string, unknown>;
-}
-
 export class McpToolAdapter implements ITool {
   readonly name: string;
   readonly description: string;
   readonly parametersSchema: ZodType;
   readonly serverName: string;
   
-  private executeToolFn: (_args: Record<string, unknown>) => Promise<ToolExecutionResult>;
+  private readonly tool: AesyiuTool;
+  private readonly toolParameters: ToolParameters;
 
   constructor(
     serverName: string,
-    toolInfo: MCPToolInfo,
-    executeToolFn: (_args: Record<string, unknown>) => Promise<ToolExecutionResult>
+    tool: AesyiuTool,
   ) {
     this.serverName = serverName;
-    this.name = `${serverName}_${toolInfo.name}`;
-    this.description = toolInfo.description || `Tool from ${serverName}: ${toolInfo.name}`;
-    this.parametersSchema = this.parseInputSchema(toolInfo.inputSchema);
-    this.executeToolFn = executeToolFn;
+    this.tool = tool;
+    this.name = tool.name;
+    this.description = tool.description || `Tool from ${serverName}: ${tool.name}`;
+    this.toolParameters = this.normalizeToolParameters(tool.parameters);
+    this.parametersSchema = this.parseInputSchema(this.toolParameters);
   }
 
-  private parseInputSchema(schema: Record<string, unknown>): ZodType {
+  private normalizeToolParameters(parameters: Record<string, unknown>): ToolParameters {
+    if (!parameters || typeof parameters !== 'object') {
+      return {
+        type: 'object',
+        properties: {},
+      };
+    }
+
+    const rawParameters = parameters as Record<string, unknown>;
+    const properties = rawParameters.properties;
+    const required = rawParameters.required;
+
+    return {
+      ...rawParameters,
+      type: 'object',
+      properties:
+        properties && typeof properties === 'object' && !Array.isArray(properties)
+          ? properties as ToolParameters['properties']
+          : {},
+      ...(Array.isArray(required)
+        ? {
+            required: required.filter((item): item is string => typeof item === 'string'),
+          }
+        : {}),
+    } as ToolParameters;
+  }
+
+  private parseInputSchema(schema: ToolParameters): ZodType {
     if (!schema || typeof schema !== 'object') {
       return z.object({});
     }
@@ -46,19 +69,19 @@ export class McpToolAdapter implements ITool {
     const shape: Record<string, ZodType> = {};
 
     for (const [key, prop] of Object.entries(properties)) {
-      shape[key] = this.zodFromJsonSchema(prop as Record<string, unknown>);
+      const propertySchema = this.zodFromJsonSchema(prop as Record<string, unknown>);
+      shape[key] = required.includes(key) ? propertySchema : propertySchema.optional();
     }
 
-    const schemaObj = z.object(shape);
-    
-    if (required.length === 0) {
-      return schemaObj.optional();
-    }
-
-    return schemaObj;
+    return z.object(shape);
   }
 
   private zodFromJsonSchema(prop: Record<string, unknown>): ZodType {
+    if (Array.isArray(prop.enum) && prop.enum.length > 0 && prop.enum.every(value => typeof value === 'string')) {
+      const enumValues = prop.enum as [string, ...string[]];
+      return z.enum(enumValues);
+    }
+
     const type = prop.type as string;
 
     switch (type) {
@@ -76,10 +99,16 @@ export class McpToolAdapter implements ITool {
       }
       case 'object': {
         const props = prop.properties as Record<string, unknown> || {};
+        const required = Array.isArray(prop.required)
+          ? prop.required.filter((item): item is string => typeof item === 'string')
+          : [];
         const shape: Record<string, ZodType> = {};
+
         for (const [k, v] of Object.entries(props)) {
-          shape[k] = this.zodFromJsonSchema(v as Record<string, unknown>);
+          const nestedSchema = this.zodFromJsonSchema(v as Record<string, unknown>);
+          shape[k] = required.includes(k) ? nestedSchema : nestedSchema.optional();
         }
+
         return z.object(shape);
       }
       default:
@@ -91,23 +120,43 @@ export class McpToolAdapter implements ITool {
     return {
       name: this.name,
       description: this.description,
-      parameters: {
-        type: 'object',
-        properties: {},
-      },
+      parameters: this.toolParameters,
     };
   }
 
   async execute(args: unknown, _context: ToolExecuteContext): Promise<ToolExecutionResult> {
     try {
-      const result = await this.executeToolFn(args as Record<string, unknown>);
-      return result;
+      const result = await this.tool.execute(args as Record<string, unknown>, _context);
+      return {
+        success: true,
+        content: this.normalizeToolContent(result),
+      };
     } catch (error) {
       return {
         success: false,
         content: '',
         error: error instanceof Error ? error.message : String(error),
       };
+    }
+  }
+
+  private normalizeToolContent(result: unknown): string {
+    if (result === undefined || result === null) {
+      return '(no output)';
+    }
+
+    if (typeof result === 'string') {
+      return result;
+    }
+
+    if (typeof result === 'number' || typeof result === 'boolean' || typeof result === 'bigint') {
+      return String(result);
+    }
+
+    try {
+      return JSON.stringify(result, null, 2);
+    } catch {
+      return String(result);
     }
   }
 }
