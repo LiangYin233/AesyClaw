@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "chcp 65001 && tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "build": "tsc"
+    "build": "tsc && tsc-alias",
+    "lint": "eslint \"src/**/*.ts\" \"plugins/**/*.ts\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
@@ -27,6 +28,7 @@
     "@typescript-eslint/eslint-plugin": "^8.58.1",
     "@typescript-eslint/parser": "^8.58.1",
     "eslint": "^10.2.0",
+    "tsc-alias": "^1.8.16",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2"
   }

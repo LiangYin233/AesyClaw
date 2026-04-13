@@ -1,8 +1,8 @@
 import cron from 'node-cron';
 import { cronJobRepository, type CronJobRecord } from './repositories/cron-job-repository.js';
 import { logger } from '../observability/logger.js';
-import { eventBus, SystemEvents } from '../events/index.js';
-import type { SystemEvent } from '../events/index.js';
+import { eventBus, SystemEvents } from '../events/event-bus.js';
+import type { SystemEvent } from '../events/event-bus.js';
 
 export interface CronJobExecutor {
   (_job: CronJobRecord): Promise<void>;

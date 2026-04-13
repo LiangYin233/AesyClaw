@@ -1,10 +1,10 @@
-import { cronJobRepository, type CronJobRecord } from '../../platform/db/repositories/cron-job-repository.js';
-import { cronJobScheduler, generateCronId } from '../../platform/db/cron-scheduler.js';
-import { logger } from '../../platform/observability/logger.js';
-import { eventBus, SystemEvents } from '../../platform/events/index.js';
-import { sessionRegistry } from '../../agent/session/session-registry.js';
-import { SessionId } from '../../agent/session/session-id.js';
-import { sessionRepository } from '../../platform/db/repositories/session-repository.js';
+import { sessionRegistry } from '@/app/session-registry.js';
+import { SessionId } from '@/agent/session/session-id.js';
+import { cronJobScheduler, generateCronId } from '@/platform/db/cron-scheduler.js';
+import { cronJobRepository, type CronJobRecord } from '@/platform/db/repositories/cron-job-repository.js';
+import { sessionRepository } from '@/platform/db/repositories/session-repository.js';
+import { eventBus, SystemEvents } from '@/platform/events/index.js';
+import { logger } from '@/platform/observability/logger.js';
 
 export interface CreateCronJobInput {
   chatId: string;

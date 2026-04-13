@@ -1,4 +1,4 @@
-export { SessionRegistry, sessionRegistry } from './session-registry.js';
+export { SessionRegistry } from './session-registry.js';
 export { SessionId } from './session-id.js';
 export type { SessionIdComponents } from './session-id.js';
 export { createSessionMetadata } from './session-context.js';

@@ -1,5 +1,5 @@
-import { bootstrap, Bootstrap } from './bootstrap.js';
-import { logger } from './platform/observability/logger.js';
+import { bootstrap, Bootstrap } from '@/bootstrap.js';
+import { logger } from '@/platform/observability/logger.js';
 
 async function main() {
   try {
@@ -15,4 +15,4 @@ async function main() {
 
 main().catch(console.error);
 
-export { bootstrap, shutdown } from './bootstrap.js';
+export { bootstrap, shutdown } from '@/bootstrap.js';

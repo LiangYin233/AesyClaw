@@ -1,9 +1,9 @@
 import { spawn } from 'child_process';
-import { IPlugin, PluginContext } from '../../src/features/plugins/types';
-import { ITool, ToolExecuteContext, ToolExecutionResult } from '../../src/platform/tools/types';
 import { z } from 'zod';
 import * as path from 'path';
 import * as fs from 'fs';
+import type { IPlugin, PluginContext } from '@/sdk/plugin.js';
+import type { ITool, ToolExecuteContext, ToolExecutionResult } from '@/sdk/tools.js';
 
 const WORKSPACE_DIR = path.join(process.cwd(), '.aesyclaw', 'workspace');
 if (!fs.existsSync(WORKSPACE_DIR)) {

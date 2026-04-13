@@ -1,8 +1,8 @@
 import { randomUUID } from 'crypto';
 import { IUnifiedMessage, IChannelContext, IOutboundMessage, MiddlewareFunc } from './types.js';
-import { logger } from '../platform/observability/logger.js';
-import { pluginManager } from '../features/plugins/plugin-manager.js';
-import type { IOutboundPayload } from '../channels/channel-plugin.js';
+import type { IOutboundPayload } from '@/channels/channel-plugin.js';
+import { pluginManager } from '@/features/plugins/plugin-manager.js';
+import { logger } from '@/platform/observability/logger.js';
 
 export class ChannelPipeline {
   private middlewares: MiddlewareFunc[] = [];

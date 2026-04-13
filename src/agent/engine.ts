@@ -11,23 +11,21 @@ import {
   type ModelDefinition,
   type Tool as AesyiuTool,
 } from 'aesyiu';
-import type { IRoleManager } from '../contracts/role-manager.js';
-import { logger } from '../platform/observability/logger.js';
-import { pluginManager } from '../features/plugins/plugin-manager.js';
-import { buildHookSkills, buildHookTools } from '../features/plugins/hook-utils.js';
-import { roleManager } from '../features/roles/role-manager.js';
-import { skillManager } from '../features/skills/skill-manager.js';
-import { configManager } from '../features/config/config-manager.js';
-import { toolRegistry } from '../platform/tools/registry.js';
-import { ITool, ToolExecuteContext, ToolExecutionResult } from '../platform/tools/types.js';
-import { LLMConfig, LLMProviderType, MessageRole, StandardMessage } from '../platform/llm/types.js';
+import type { IRoleManager } from '@/contracts/role-manager.js';
+import { configManager } from '@/features/config/config-manager.js';
+import { buildHookSkills, buildHookTools } from '@/features/plugins/hook-utils.js';
+import { pluginManager } from '@/features/plugins/plugin-manager.js';
+import { roleManager } from '@/features/roles/role-manager.js';
+import { skillManager } from '@/features/skills/skill-manager.js';
+import { LLMConfig, LLMProviderType, MessageRole, StandardMessage } from '@/platform/llm/types.js';
+import { logger } from '@/platform/observability/logger.js';
+import { toolRegistry } from '@/platform/tools/registry.js';
+import { ITool, ToolExecuteContext, ToolExecutionResult } from '@/platform/tools/types.js';
+import { mapProviderType } from '@/platform/utils/llm-utils.js';
+import { parseModelIdentifier } from '@/platform/utils/model-parser.js';
 import { MessageFactory } from './message-factory.js';
-import {
-  SessionMemoryManager,
-  MemoryConfig,
-} from './memory/index.js';
-import { parseModelIdentifier } from '../platform/utils/model-parser.js';
-import { mapProviderType } from '../platform/utils/llm-utils.js';
+import { SessionMemoryManager } from './memory/session-memory-manager.js';
+import { MemoryConfig } from './memory/types.js';
 
 export interface AgentConfig {
   llm: LLMConfig;

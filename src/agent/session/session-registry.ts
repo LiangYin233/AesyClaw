@@ -1,19 +1,23 @@
-import { logger } from '../../platform/observability/logger.js';
-import { LLMProviderType, type LLMConfig } from '../../platform/llm/types.js';
-import type { IConfigManager } from '../../contracts/config-manager.js';
-import type { IRoleManager } from '../../contracts/role-manager.js';
-import type { ISystemPromptBuilder } from '../../contracts/system-prompt-builder.js';
+import { logger } from '@/platform/observability/logger.js';
+import { LLMProviderType, type LLMConfig } from '@/platform/llm/types.js';
+import type { IConfigManager } from '@/contracts/config-manager.js';
+import type { IRoleManager } from '@/contracts/role-manager.js';
+import type { ISystemPromptBuilder } from '@/contracts/system-prompt-builder.js';
 import type { SessionOptions, SessionConfig } from './types.js';
 import { DEFAULT_SESSION_CONFIG } from './types.js';
 import type { SessionContext } from './session-context.js';
 import { createSessionMetadata } from './session-context.js';
 import type { MemoryConfig as MemoryConfigInternal } from '../memory/types.js';
 import { SessionMemoryManager } from '../memory/session-memory-manager.js';
-import type { MemoryConfig as MemoryConfigSchema } from '../../features/config/schema.js';
 import { AgentEngine } from '../engine.js';
-import { mapProviderType } from '../../platform/utils/llm-utils.js';
-import { parseModelIdentifier } from '../../platform/utils/model-parser.js';
-import { DEFAULT_ROLE_ID } from '../../features/roles/role-manager.js';
+import { mapProviderType } from '@/platform/utils/llm-utils.js';
+import { parseModelIdentifier } from '@/platform/utils/model-parser.js';
+import { DEFAULT_ROLE_ID } from '@/features/roles/types.js';
+
+interface SessionMemoryConfigSource {
+  max_context_tokens: number;
+  compression_threshold: number;
+}
 
 export interface SessionRegistryDependencies {
   configManager: IConfigManager;
@@ -114,7 +118,7 @@ export class SessionRegistry {
     if (options.memoryConfig) {
       memoryConfig = options.memoryConfig as MemoryConfigInternal;
     } else {
-      const rawConfig = this.deps.configManager.config.memory as MemoryConfigSchema;
+      const rawConfig = this.deps.configManager.config.memory as SessionMemoryConfigSource;
       memoryConfig = {
         maxContextTokens: rawConfig.max_context_tokens,
         compressionThreshold: rawConfig.compression_threshold,
@@ -258,22 +262,3 @@ export class SessionRegistry {
     logger.info({}, 'SessionRegistry shutdown');
   }
 }
-
-import { configManager } from '../../features/config/config-manager.js';
-import { roleManager } from '../../features/roles/role-manager.js';
-import { systemPromptManager } from '../../features/roles/system-prompt-manager.js';
-
-let sessionRegistryInstance: SessionRegistry | null = null;
-
-export function createSessionRegistry(): SessionRegistry {
-  if (!sessionRegistryInstance) {
-    sessionRegistryInstance = new SessionRegistry({
-      configManager: configManager as unknown as IConfigManager,
-      roleManager: roleManager as unknown as IRoleManager,
-      systemPromptBuilder: systemPromptManager as unknown as ISystemPromptBuilder,
-    });
-  }
-  return sessionRegistryInstance;
-}
-
-export const sessionRegistry = createSessionRegistry();

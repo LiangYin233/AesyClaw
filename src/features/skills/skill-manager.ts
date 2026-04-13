@@ -1,6 +1,6 @@
 import { loadSkills, type AgentSkill } from 'aesyiu';
-import { logger } from '../../platform/observability/logger.js';
-import { pathResolver } from '../../platform/utils/paths.js';
+import { logger } from '@/platform/observability/logger.js';
+import { pathResolver } from '@/platform/utils/paths.js';
 import type { RegisteredSkill, SkillSource } from './types.js';
 
 function isMissingSkillsDirectory(error: unknown): boolean {

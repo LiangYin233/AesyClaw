@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import { ZodError } from 'zod';
+import { logger } from '@/platform/observability/logger.js';
+import { PathResolver, pathResolver } from '@/platform/utils/paths.js';
 import { FullConfigSchema, DEFAULT_CONFIG, type FullConfig } from './schema.js';
-import { logger } from '../../platform/observability/logger.js';
-import { PathResolver, pathResolver } from '../../platform/utils/paths.js';
 
 interface ParsedConfig {
   providers?: Record<string, unknown>;

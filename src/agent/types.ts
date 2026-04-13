@@ -1,4 +1,4 @@
-import type { IOutboundPayload } from '../channels/channel-plugin.js';
+import type { IOutboundPayload } from '@/channels/channel-plugin.js';
 
 export interface IUnifiedMessage {
   channelId: string;

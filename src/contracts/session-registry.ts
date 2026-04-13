@@ -1,5 +1,5 @@
-import type { SessionContext } from '../agent/session/session-context.js';
-import type { SessionOptions } from '../agent/session/types.js';
+import type { SessionContext } from '@/agent/session/session-context.js';
+import type { SessionOptions } from '@/agent/session/types.js';
 
 export interface ISessionRegistry {
   getOrCreate(sessionId: string, options: SessionOptions): SessionContext;

@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { logger } from '../../platform/observability/logger.js';
-import { ToolRegistry } from '../../platform/tools/registry.js';
-import { isPlainObject } from '../../platform/utils/index.js';
+import { ToolRegistry } from '@/platform/tools/registry.js';
+import { isPlainObject } from '@/platform/utils/index.js';
+import { logger } from '@/platform/observability/logger.js';
 import {
   IPlugin,
   PluginContext,
@@ -299,7 +299,6 @@ export class PluginManager {
           'Dispatching hook'
         );
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const hookResult = await (hook as (payload: unknown) => Promise<unknown>)(result);
 
         if (hookResult !== undefined && hookResult !== null) {
@@ -555,6 +554,6 @@ export class PluginManager {
   }
 }
 
-import { toolRegistry } from '../../platform/tools/registry.js';
+import { toolRegistry } from '@/platform/tools/registry.js';
 
 export const pluginManager = new PluginManager(toolRegistry);
