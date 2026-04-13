@@ -48,6 +48,8 @@ export const MCPServerConfigSchema = z.object({
   command: z.string(),
   args: z.array(z.string()).default([]),
   env: z.record(z.string(), z.string()).optional(),
+  cwd: z.string().optional(),
+  stderr: z.enum(['inherit', 'pipe', 'ignore', 'overlapped']).optional(),
   enabled: z.boolean().default(true),
 });
 
