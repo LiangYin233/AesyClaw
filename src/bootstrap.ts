@@ -1,18 +1,23 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import { pluginManager } from '@/app/plugin-runtime.js';
-import { sessionRegistry, type SessionRegistry } from '@/app/session-registry.js';
-import { registerSystemCommands } from '@/app/system-commands.js';
+import { agentMessageStage } from '@/agent/runtime/agent-message-stage.js';
+import { getSessionForCommandContext, sessionMessageStage, sessionRegistry, type SessionRegistry } from '@/agent/session/session-runtime.js';
 import { ChannelPipeline } from '@/agent/pipeline.js';
 import { subAgentTools } from '@/agent/subagent/subagent-tools.js';
 import { channelManager } from '@/channels/channel-manager.js';
+import type { CommandDefinition } from '@/contracts/commands.js';
+import type { IPluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
 import { commandMiddleware } from '@/features/commands/command-middleware.js';
+import { commandRegistry } from '@/features/commands/command-registry.js';
+import { helpCommandGroup } from '@/features/commands/help-command-group.js';
+import { sessionCommandGroup } from '@/features/commands/session-command-group.js';
+import { configMessageStage } from '@/features/config/config-message-stage.js';
 import { configManager } from '@/features/config/config-manager.js';
 import { initializePromptExecutor } from '@/features/cron/index.js';
+import { createPluginCommandGroup } from '@/features/plugins/plugin-command-group.js';
+import { createPluginManager } from '@/features/plugins/create-plugin-manager.js';
 import { roleManager } from '@/features/roles/role-manager.js';
-import { agentMiddleware } from '@/middlewares/agent.middleware.js';
-import { configInjectionMiddleware } from '@/middlewares/config.middleware.js';
-import { sessionMiddleware } from '@/middlewares/session.middleware.js';
+import { createRoleCommandGroup } from '@/features/roles/role-command-group.js';
 import { cronJobScheduler } from '@/platform/db/cron-scheduler.js';
 import { sqliteManager } from '@/platform/db/sqlite-manager.js';
 import { logger } from '@/platform/observability/logger.js';
@@ -36,6 +41,38 @@ export interface BootstrapOptions {
 let pipeline: ChannelPipeline | null = null;
 let toolRegistryInstance: ToolRegistry | null = null;
 let sessionRegistryInstance: SessionRegistry | null = null;
+
+export const pluginManager = createPluginManager(sharedToolRegistry, {
+  commandRegistrar: commandRegistry,
+  configStore: configManager,
+});
+
+export function getHookRuntime(): IPluginHookRuntime {
+  return pluginManager;
+}
+
+function buildSystemCommands(): CommandDefinition[] {
+  return [
+    ...helpCommandGroup,
+    ...createPluginCommandGroup({
+      getPluginCommands: () => commandRegistry.getPluginCommands(),
+      enablePlugin: (pluginName) => pluginManager.enablePlugin(pluginName),
+      disablePlugin: (pluginName) => pluginManager.disablePlugin(pluginName),
+    }),
+    ...sessionCommandGroup,
+    ...createRoleCommandGroup({
+      getSessionForCommand: getSessionForCommandContext,
+    }),
+  ];
+}
+
+function registerSystemCommands(): void {
+  const systemCommands = buildSystemCommands();
+  for (const command of systemCommands) {
+    commandRegistry.register(command);
+  }
+  logger.info({ count: systemCommands.length }, '系统命令已注册');
+}
 
 export class Bootstrap {
   private static initialized: boolean = false;
@@ -75,11 +112,11 @@ export class Bootstrap {
         () => configManager.config
       );
 
-      pipeline = new ChannelPipeline();
+      pipeline = new ChannelPipeline(pluginManager);
 
       if (!options.skipSkills) {
         logger.info({}, '[5/16] Initializing SkillManager...');
-        const { skillManager } = await import('./features/skills/skill-manager.js');
+        const { skillManager } = await import('@/features/skills/skill-manager.js');
         await skillManager.initialize();
         logger.info(skillManager.getStats(), 'Skills system loaded');
       }
@@ -104,7 +141,7 @@ export class Bootstrap {
       logger.info({}, 'Multimodal tools registered');
 
       logger.info({}, '[9/16] Mounting ConfigInjectionMiddleware...');
-      pipeline.use(configInjectionMiddleware.getMiddleware());
+      pipeline.use(configMessageStage);
 
       logger.info({}, '[10/16] Registering system commands...');
       registerSystemCommands();
@@ -112,11 +149,11 @@ export class Bootstrap {
       logger.info({}, 'Command system initialized');
 
       logger.info({}, '[11/16] Mounting SessionMiddleware...');
-      pipeline.use(sessionMiddleware.getMiddleware());
+      pipeline.use(sessionMessageStage);
       logger.info({}, 'Session middleware initialized');
 
       logger.info({}, '[12/16] Mounting AgentMiddleware...');
-      pipeline.use(agentMiddleware.getMiddleware());
+      pipeline.use(agentMessageStage);
       logger.info({}, 'Agent middleware initialized');
 
       if (!options.skipPlugins) {

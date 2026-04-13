@@ -1,11 +1,16 @@
 import { randomUUID } from 'crypto';
-import { pluginManager } from '@/app/plugin-runtime.js';
+import type { IPluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
 import { IUnifiedMessage, IChannelContext, IOutboundMessage, MiddlewareFunc } from './types.js';
 import type { IOutboundPayload } from '@/channels/channel-plugin.js';
 import { logger } from '@/platform/observability/logger.js';
 
 export class ChannelPipeline {
   private middlewares: MiddlewareFunc[] = [];
+  private hookRuntime: IPluginHookRuntime;
+
+  constructor(hookRuntime: IPluginHookRuntime) {
+    this.hookRuntime = hookRuntime;
+  }
 
   use(middleware: MiddlewareFunc): void {
     this.middlewares.push(middleware);
@@ -28,7 +33,7 @@ export class ChannelPipeline {
       'Received inbound message, dispatching to middleware chain'
     );
 
-    const hookResult = await pluginManager.dispatchMessageReceive({
+    const hookResult = await this.hookRuntime.dispatchMessageReceive({
       message: {
         channelId: message.channelId,
         chatId: message.chatId,
@@ -86,7 +91,7 @@ export class ChannelPipeline {
     try {
       await next();
 
-      const processedOutbound = await pluginManager.dispatchMessageSend({
+      const processedOutbound = await this.hookRuntime.dispatchMessageSend({
         message: {
           chatId: ctx.inbound.chatId,
           text: ctx.outbound?.text,
@@ -141,5 +146,3 @@ export class ChannelPipeline {
     return ctx;
   }
 }
-
-export const pipeline = new ChannelPipeline();
