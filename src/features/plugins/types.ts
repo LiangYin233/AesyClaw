@@ -1,6 +1,6 @@
 import type { ToolRegistry } from '../../platform/tools/registry.js';
 import type { SkillManager } from '../skills/skill-manager.js';
-import type { StandardMessage } from '../../agent/llm/types.js';
+import type { StandardMessage } from '../../platform/llm/types.js';
 import type { CommandDefinition } from '../commands/types.js';
 import type { ChannelPipeline } from '../../agent/core/pipeline.js';
 import type { IOutboundPayload } from '../../channels/channel-plugin.js';

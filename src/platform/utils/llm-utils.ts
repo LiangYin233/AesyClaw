@@ -1,4 +1,4 @@
-import { LLMProviderType } from '../../agent/llm/types.js';
+import { LLMProviderType } from '../llm/types.js';
 
 export function mapProviderType(type: string): LLMProviderType {
   switch (type) {

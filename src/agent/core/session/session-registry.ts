@@ -1,6 +1,5 @@
 import { logger } from '../../../platform/observability/logger.js';
-import { LLMProviderType } from '../../llm/types.js';
-import type { LLMConfig } from '../../llm/factory.js';
+import { LLMProviderType, type LLMConfig } from '../../../platform/llm/types.js';
 import type { IConfigManager } from '../../../contracts/config-manager.js';
 import type { IRoleManager } from '../../../contracts/role-manager.js';
 import type { ISystemPromptBuilder } from '../../../contracts/system-prompt-builder.js';
@@ -127,6 +126,7 @@ export class SessionRegistry {
     const manager = new SessionMemoryManager(sessionId, memoryConfig, {
       configManager: this.deps.configManager,
       systemPromptBuilder: this.deps.systemPromptBuilder,
+      roleManager: this.deps.roleManager,
     });
     return { manager, config: memoryConfig };
   }
@@ -143,7 +143,7 @@ export class SessionRegistry {
       llm: llmConfig,
       maxSteps,
       systemPrompt,
-      tools: [],
+      memory,
       memoryConfig: memoryConfig,
     });
   }

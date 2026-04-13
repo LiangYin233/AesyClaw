@@ -1,4 +1,4 @@
-import { StandardMessage } from '../../llm/types.js';
+import { StandardMessage } from '../../../platform/llm/types.js';
 import { TruncationResult, MemoryConfig } from './types.js';
 import { TokenBudgetCalculator } from './token-budget-calculator.js';
 

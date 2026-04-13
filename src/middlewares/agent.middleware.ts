@@ -1,7 +1,7 @@
 import { configManager } from '../features/config/index.js';
 import { logger } from '../platform/observability/logger.js';
 import type { IChannelContext, MiddlewareFunc, PipelineState } from '../agent/core/types.js';
-import { LLMConfig, ModelCapabilities } from '../agent/llm/factory.js';
+import type { LLMConfig, ModelCapabilities } from '../platform/llm/types.js';
 import { parseModelIdentifier } from '../platform/utils/model-parser.js';
 import { mapProviderType } from '../platform/utils/llm-utils.js';
 import { roleManager } from '../features/roles/role-manager.js';

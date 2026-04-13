@@ -1,6 +1,4 @@
 import { bootstrap, Bootstrap } from './bootstrap.js';
-import { pipeline } from './agent/core/pipeline.js';
-import { toolRegistry } from './platform/tools/registry.js';
 import { logger } from './platform/observability/logger.js';
 
 async function main() {
@@ -17,4 +15,4 @@ async function main() {
 
 main().catch(console.error);
 
-export { pipeline, toolRegistry };
+export { bootstrap, shutdown } from './bootstrap.js';
