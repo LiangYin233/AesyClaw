@@ -6,13 +6,16 @@ import {
   MemoryManager,
   OpenAICompletionProvider,
   OpenAIResponsesProvider,
+  type AgentSkill,
   type Message as AesyiuMessage,
   type ModelDefinition,
   type Tool as AesyiuTool,
 } from 'aesyiu';
 import { logger } from '../../platform/observability/logger.js';
 import { pluginManager } from '../../features/plugins/plugin-manager.js';
+import { buildHookSkills, buildHookTools } from '../../features/plugins/hook-utils.js';
 import { roleManager } from '../../features/roles/role-manager.js';
+import { skillManager } from '../../features/skills/skill-manager.js';
 import { configManager } from '../../features/config/config-manager.js';
 import { toolRegistry } from '../../platform/tools/registry.js';
 import { ITool, ToolExecuteContext, ToolExecutionResult } from '../../platform/tools/types.js';
@@ -174,7 +177,11 @@ export class AgentEngine {
     };
   }
 
-  private createProvider(stats: RunStats, toolDefs: readonly ReturnType<ITool['getDefinition']>[]) {
+  private createProvider(
+    stats: RunStats,
+    hookTools: ReturnType<typeof buildHookTools>,
+    hookSkills: ReturnType<typeof buildHookSkills>
+  ) {
     const modelId = this.config.llm.model || 'gpt-4o-mini';
     const modelDef = this.resolveModelDefinition(modelId);
     const providerConfig = {
@@ -201,11 +208,8 @@ export class AgentEngine {
       try {
         await pluginManager.dispatchBeforeLLMRequest({
           messages: messages.map(toStandardMessage),
-          tools: toolDefs.map(tool => ({
-            name: tool.name,
-            description: tool.description,
-            parameters: tool.parameters,
-          })),
+          tools: hookTools,
+          skills: hookSkills,
         });
       } catch (error) {
         stats.error = error instanceof Error ? error.message : String(error);
@@ -237,6 +241,15 @@ export class AgentEngine {
       .filter(toolName => !configuredToolSet || configuredToolSet.has(toolName))
       .map(toolName => toolRegistry.getTool(toolName))
       .filter((tool): tool is ITool => Boolean(tool));
+  }
+
+  private getAllowedSkills(roleId: string): AgentSkill[] {
+    if (!skillManager.isInitialized()) {
+      return [];
+    }
+
+    const allowedSkillIds = roleManager.getRoleConfig(roleId).allowed_skills;
+    return skillManager.getSkillsForRole(allowedSkillIds);
   }
 
   private createRunTools(tools: readonly ITool[], stats: RunStats): AesyiuTool[] {
@@ -288,7 +301,11 @@ export class AgentEngine {
   }
 
   private syncMemory(messages: readonly AesyiuMessage[]): void {
-    this.memory.importMemory(messages.map(toStandardMessage));
+    this.memory.importMemory(
+      messages
+        .filter(message => !message._meta?.skillPrompt)
+        .map(toStandardMessage)
+    );
   }
 
   async run(userInput: string): Promise<AgentRunResult> {
@@ -304,8 +321,12 @@ export class AgentEngine {
 
     try {
       const filteredTools = this.getFilteredTools();
+      const roleId = this.memory.getActiveRoleId();
+      const allowedSkills = this.getAllowedSkills(roleId);
       const toolDefs = filteredTools.map(tool => tool.getDefinition());
-      const provider = this.createProvider(stats, toolDefs);
+      const hookSkills = buildHookSkills(allowedSkills);
+      const hookTools = buildHookTools(toolDefs, allowedSkills);
+      const provider = this.createProvider(stats, hookTools, hookSkills);
       const context = new AgentContext({
         provider,
         modelId: this.config.llm.model,
@@ -328,6 +349,8 @@ export class AgentEngine {
       for (const tool of this.createRunTools(filteredTools, stats)) {
         engine.registerTool(tool);
       }
+
+      engine.registerSkills(allowedSkills);
 
       const result = await engine.run(
         {

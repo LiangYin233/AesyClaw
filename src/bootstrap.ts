@@ -6,7 +6,6 @@ import { configManager } from './features/config/config-manager.js';
 import { logger } from './platform/observability/logger.js';
 import { McpClientManager } from './platform/tools/mcp/mcp-client-manager.js';
 import { pluginManager } from './features/plugins/plugin-manager.js';
-import { loadSkillTool } from './features/skills/index.js';
 import { cronJobScheduler, initializePromptExecutor } from './features/cron/index.js';
 import { commandMiddleware, registerSystemCommands } from './features/commands/index.js';
 import { subAgentTools } from './features/subagent/index.js';
@@ -75,7 +74,6 @@ export class Bootstrap {
         logger.info({}, '[5/16] Initializing SkillManager...');
         const { skillManager } = await import('./features/skills/index.js');
         await skillManager.initialize();
-        toolRegistryInstance.register(loadSkillTool);
         logger.info(skillManager.getStats(), 'Skills system loaded');
       }
 
@@ -250,6 +248,8 @@ export class Bootstrap {
     }
 
     try {
+      const { skillManager } = await import('./features/skills/index.js');
+      await skillManager.shutdown();
       logger.info({}, '[6/9] SkillManager stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping SkillManager');
