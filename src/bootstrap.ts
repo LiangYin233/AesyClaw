@@ -35,8 +35,6 @@ export interface BootstrapOptions {
 let pipeline: ChannelPipeline | null = null;
 let toolRegistryInstance: ToolRegistry | null = null;
 let sessionRegistryInstance: SessionRegistry | null = null;
-let mcpManager: McpClientManager | null = null;
-let initialized = false;
 
 export class Bootstrap {
   private static initialized: boolean = false;
@@ -136,7 +134,6 @@ export class Bootstrap {
       if (!options.skipMCP) {
         logger.info({}, '[15/16] Connecting MCP servers...');
         this.mcpManager = McpClientManager.getInstance(toolRegistryInstance as any);
-        mcpManager = this.mcpManager;
         const config = configManager.config;
         if (config?.mcp?.servers) {
           await this.mcpManager.connectConfiguredServers(config.mcp.servers);
@@ -152,7 +149,6 @@ export class Bootstrap {
       await configManager.syncAllDefaultConfigs();
 
       this.initialized = true;
-      initialized = true;
       logger.info({}, 'AesyClaw started successfully');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -284,9 +280,7 @@ export class Bootstrap {
     }
 
     this.mcpManager = null;
-    mcpManager = null;
     this.initialized = false;
-    initialized = false;
 
     logger.info({}, 'AesyClaw shutdown completed');
   }

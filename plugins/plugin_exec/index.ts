@@ -1,5 +1,4 @@
 import { spawn } from 'child_process';
-import { execFile } from 'child_process';
 import { IPlugin, PluginContext } from '../../src/features/plugins/types';
 import { ITool, ToolExecuteContext, ToolExecutionResult } from '../../src/platform/tools/types';
 import { z } from 'zod';
@@ -75,7 +74,6 @@ function executeCommand(command: string, cwd: string): Promise<{ output: string;
     let stdout = '';
     let stderr = '';
     let truncated = false;
-    let killed = false;
 
     const proc = spawn(cmd, args, {
       cwd: cwd,
@@ -85,7 +83,6 @@ function executeCommand(command: string, cwd: string): Promise<{ output: string;
     });
 
     const timeout = setTimeout(() => {
-      killed = true;
       proc.kill('SIGKILL');
     }, EXEC_TIMEOUT_MS);
 
@@ -162,7 +159,7 @@ const execTool: ITool = {
 
       return {
         success: true,
-        content: output || '(no output)' + (truncated ? '\n[Output was truncated]' : '')
+        content: (output || '(no output)') + (truncated ? '\n[Output was truncated]' : '')
       };
     } catch (error) {
       return {

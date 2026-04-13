@@ -153,7 +153,7 @@ export class PluginManager {
   }
 
   private async loadPluginFromSource(
-    pluginName: string,
+    _pluginName: string,
     sourcePath: string,
     options: Record<string, unknown>
   ): Promise<void> {
