@@ -1,2 +1,2 @@
-export { EventBus, eventBus } from './event-bus';
-export { SystemEvents, type SystemEvent } from './event-bus';
+export { EventBus, eventBus } from './event-bus.js';
+export { SystemEvents, type SystemEvent } from './event-bus.js';

@@ -5,16 +5,16 @@ import type {
   IChannelWithSend,
   ChannelPluginContext,
   IOutboundPayload,
-   ChannelPluginLogger
-} from '../../src/channels/channel-plugin';
-import type { IUnifiedMessage } from '../../src/agent/types';
-import type { DownloadedMedia, MediaDownloader } from '../../src/platform/utils/index.js';
+  ChannelPluginLogger,
+} from '@/sdk/channel.js';
+import type { IUnifiedMessage } from '@/sdk/agent.js';
+import type { DownloadedMedia, MediaDownloader } from '@/sdk/media.js';
 
 let mediaDownloader: MediaDownloader | null = null;
 
 async function getMediaDownloader(): Promise<MediaDownloader> {
   if (!mediaDownloader) {
-    const module = await import('../../src/platform/utils/media-downloader.js');
+    const module = await import('@/sdk/media.js');
     mediaDownloader = module.mediaDownloader;
   }
   return mediaDownloader;

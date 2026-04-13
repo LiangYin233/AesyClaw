@@ -1,23 +1,24 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import { pathResolver } from './platform/utils/paths.js';
-import { sqliteManager } from './platform/db/sqlite-manager.js';
-import { configManager } from './features/config/config-manager.js';
-import { logger } from './platform/observability/logger.js';
-import { McpClientManager } from './platform/tools/mcp/mcp-client-manager.js';
-import { pluginManager } from './features/plugins/plugin-manager.js';
-import { cronJobScheduler, initializePromptExecutor } from './features/cron/index.js';
-import { commandMiddleware, registerSystemCommands } from './features/commands/index.js';
-import { subAgentTools } from './features/subagent/index.js';
-import { speechToTextTool, imageUnderstandingTool } from './platform/tools/multimodal-tools.js';
-import { channelManager } from './channels/channel-manager.js';
-import { roleManager } from './features/roles/role-manager.js';
-import { configInjectionMiddleware } from './middlewares/config.middleware.js';
-import { sessionMiddleware } from './middlewares/session.middleware.js';
-import { agentMiddleware } from './middlewares/agent.middleware.js';
-import { ChannelPipeline } from './agent/pipeline.js';
-import { sessionRegistry, type SessionRegistry } from './agent/session/session-registry.js';
-import { ToolRegistry, toolRegistry as sharedToolRegistry } from './platform/tools/registry.js';
+import { sessionRegistry, type SessionRegistry } from '@/app/session-registry.js';
+import { ChannelPipeline } from '@/agent/pipeline.js';
+import { channelManager } from '@/channels/channel-manager.js';
+import { commandMiddleware, registerSystemCommands } from '@/features/commands/index.js';
+import { configManager } from '@/features/config/config-manager.js';
+import { initializePromptExecutor } from '@/features/cron/index.js';
+import { pluginManager } from '@/features/plugins/plugin-manager.js';
+import { roleManager } from '@/features/roles/role-manager.js';
+import { subAgentTools } from '@/features/subagent/index.js';
+import { agentMiddleware } from '@/middlewares/agent.middleware.js';
+import { configInjectionMiddleware } from '@/middlewares/config.middleware.js';
+import { sessionMiddleware } from '@/middlewares/session.middleware.js';
+import { cronJobScheduler } from '@/platform/db/cron-scheduler.js';
+import { sqliteManager } from '@/platform/db/sqlite-manager.js';
+import { logger } from '@/platform/observability/logger.js';
+import { createMultimodalTools } from '@/platform/tools/multimodal-tools.js';
+import { McpClientManager } from '@/platform/tools/mcp/mcp-client-manager.js';
+import { ToolRegistry, toolRegistry as sharedToolRegistry } from '@/platform/tools/registry.js';
+import { pathResolver } from '@/platform/utils/paths.js';
 
 export interface BootstrapOptions {
   skipDb?: boolean;
@@ -68,6 +69,10 @@ export class Bootstrap {
 
       toolRegistryInstance = sharedToolRegistry;
       sessionRegistryInstance = sessionRegistry;
+
+      const { speechToTextTool, imageUnderstandingTool } = createMultimodalTools(
+        () => configManager.config
+      );
 
       pipeline = new ChannelPipeline();
 
@@ -132,7 +137,7 @@ export class Bootstrap {
 
       if (!options.skipMCP) {
         logger.info({}, '[15/16] Connecting MCP servers...');
-        this.mcpManager = McpClientManager.getInstance(toolRegistryInstance as any);
+        this.mcpManager = McpClientManager.getInstance(sharedToolRegistry);
         const config = configManager.config;
         if (config?.mcp?.servers) {
           await this.mcpManager.connectConfiguredServers(config.mcp.servers);
@@ -169,7 +174,7 @@ export class Bootstrap {
       logger.error({}, 'Pipeline not initialized, cannot load channel plugins');
       return;
     }
-    channelManager.setPipeline(pipeline as any);
+    channelManager.setPipeline(pipeline);
 
     const pluginsDir = path.join(process.cwd(), 'plugins');
 

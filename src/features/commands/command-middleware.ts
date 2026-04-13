@@ -1,8 +1,8 @@
-import { MiddlewareFunc } from '../../agent/types.js';
-import { IChannelContext } from '../../agent/types.js';
+import { MiddlewareFunc } from '@/agent/types.js';
+import { IChannelContext } from '@/agent/types.js';
 import { commandParser } from './command-parser.js';
 import { commandRegistry } from './command-registry.js';
-import { logger } from '../../platform/observability/logger.js';
+import { logger } from '@/platform/observability/logger.js';
 
 export const commandMiddleware: MiddlewareFunc = async (
   ctx: IChannelContext,

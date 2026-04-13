@@ -1,6 +1,6 @@
-import { logger } from '../../platform/observability/logger.js';
+import { logger } from '@/platform/observability/logger.js';
 import { roleManager, DEFAULT_ROLE_ID } from './role-manager.js';
-import { toolRegistry } from '../../platform/tools/registry.js';
+import { toolRegistry } from '@/platform/tools/registry.js';
 import type { SystemPromptBuildOptions, SystemVariables } from './system-prompt-types.js';
 
 const OS_NAMES: Record<string, string> = {

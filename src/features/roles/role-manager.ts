@@ -1,10 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { logger } from '@/platform/observability/logger.js';
+import { pathResolver } from '@/platform/utils/paths.js';
 import { RoleConfig, RoleConfigSchema, RoleWithMetadata, RoleMetadata, DEFAULT_ROLE_ID, DEFAULT_ROLE_CONFIG } from './types.js';
 
 export { DEFAULT_ROLE_ID } from './types.js';
-import { logger } from '../../platform/observability/logger.js';
-import { pathResolver } from '../../platform/utils/paths.js';
 
 export class RoleManager {
   private roles: Map<string, RoleWithMetadata> = new Map();

@@ -1,5 +1,4 @@
-export { PluginManager, pluginManager } from './plugin-manager.js';
-export {
+export type {
   IPlugin,
   PluginContext,
   PluginInfo,
@@ -14,4 +13,4 @@ export {
   HookPayloadToolCall,
   HookPayloadAfterToolCall,
   HookPayloadMessageSend,
-} from './types.js';
+} from '@/features/plugins/types.js';

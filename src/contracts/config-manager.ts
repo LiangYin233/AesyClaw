@@ -1,4 +1,4 @@
-import type { FullConfig } from '../features/config/schema.js';
+import type { FullConfig } from '@/features/config/schema.js';
 
 export interface IConfigManager {
   readonly config: FullConfig;

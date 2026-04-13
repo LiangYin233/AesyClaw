@@ -11,16 +11,16 @@ import {
   type ModelDefinition,
   type Tool as AesyiuTool,
 } from 'aesyiu';
-import { toolRegistry } from '../../platform/tools/registry.js';
-import { ITool, ToolExecuteContext } from '../../platform/tools/types.js';
-import { logger } from '../../platform/observability/logger.js';
-import { LLMProviderType, MessageRole, type LLMConfig, type StandardMessage } from '../../platform/llm/types.js';
+import { resolveLLMConfig } from '@/middlewares/agent.middleware.js';
+import { LLMProviderType, MessageRole, type LLMConfig, type StandardMessage } from '@/platform/llm/types.js';
+import { logger } from '@/platform/observability/logger.js';
+import { toolRegistry } from '@/platform/tools/registry.js';
+import { ITool, ToolExecuteContext } from '@/platform/tools/types.js';
 import { pluginManager } from '../plugins/plugin-manager.js';
 import { buildHookSkills, buildHookTools } from '../plugins/hook-utils.js';
 import { roleManager, DEFAULT_ROLE_ID } from '../roles/role-manager.js';
 import { skillManager } from '../skills/skill-manager.js';
 import { configManager } from '../config/config-manager.js';
-import { resolveLLMConfig } from '../../middlewares/agent.middleware.js';
 import type { SandboxConfig, SubAgentResult, SandboxContext } from './types.js';
 
 interface SandboxRunStats {

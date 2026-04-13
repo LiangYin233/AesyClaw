@@ -1,9 +1,9 @@
-import { logger } from '../platform/observability/logger.js';
-import type { IChannelContext, MiddlewareFunc, PipelineState } from '../agent/types.js';
-import { SessionId } from '../agent/session/session-id.js';
-import { sessionRegistry } from '../agent/session/session-registry.js';
-import type { SessionContext } from '../agent/session/session-context.js';
-import { sessionRepository } from '../platform/db/repositories/session-repository.js';
+import { sessionRegistry } from '@/app/session-registry.js';
+import { SessionId } from '@/agent/session/session-id.js';
+import type { SessionContext } from '@/agent/session/session-context.js';
+import type { IChannelContext, MiddlewareFunc, PipelineState } from '@/agent/types.js';
+import { sessionRepository } from '@/platform/db/repositories/session-repository.js';
+import { logger } from '@/platform/observability/logger.js';
 
 export interface SessionState {
   sessionContext: SessionContext;

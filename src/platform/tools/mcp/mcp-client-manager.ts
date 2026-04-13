@@ -2,7 +2,16 @@ import { MCPManager, type MCPServerConfig as AesyiuMCPServerConfig } from 'aesyi
 import { logger } from '../../observability/logger.js';
 import { ToolRegistry } from '../registry.js';
 import { McpToolAdapter, MCPServerInfo } from './types.js';
-import type { MCPServerConfig } from '../../../features/config/schema.js';
+
+export interface McpServerConnectionConfig {
+  name: string;
+  command: string;
+  args: string[];
+  env?: Record<string, string>;
+  cwd?: string;
+  stderr?: 'inherit' | 'pipe' | 'ignore' | 'overlapped';
+  enabled: boolean;
+}
 
 export class McpClientManager {
   private static instance: McpClientManager | undefined;
@@ -30,7 +39,7 @@ export class McpClientManager {
     }
   }
 
-  async connectServer(config: MCPServerConfig): Promise<void> {
+  async connectServer(config: McpServerConnectionConfig): Promise<void> {
     if (!config.enabled) {
       logger.info({ serverName: config.name }, 'MCP 服务器已禁用，跳过连接');
       return;
@@ -85,7 +94,7 @@ export class McpClientManager {
     }
   }
 
-  private toAesyiuServerConfig(config: MCPServerConfig): AesyiuMCPServerConfig {
+  private toAesyiuServerConfig(config: McpServerConnectionConfig): AesyiuMCPServerConfig {
     return {
       name: config.name,
       command: config.command,
@@ -114,7 +123,7 @@ export class McpClientManager {
     logger.info({ serverName }, 'MCP 服务器已断开');
   }
 
-  async connectConfiguredServers(configs: MCPServerConfig[]): Promise<void> {
+  async connectConfiguredServers(configs: readonly McpServerConnectionConfig[]): Promise<void> {
     logger.info({ count: configs.length }, '开始连接 MCP 服务器');
 
     for (const config of configs) {

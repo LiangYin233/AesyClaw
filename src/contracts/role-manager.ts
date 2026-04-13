@@ -1,4 +1,4 @@
-import type { RoleConfig } from '../features/roles/types.js';
+import type { RoleConfig } from '@/features/roles/types.js';
 
 export interface IRoleManager {
   getRole(roleId: string): RoleConfig | undefined;

@@ -1,5 +1,5 @@
 import type { AgentSkill } from 'aesyiu';
-import type { ToolDefinition } from '../../platform/tools/types.js';
+import type { ToolDefinition } from '@/platform/tools/types.js';
 import type { HookPayloadLLMSkill, HookPayloadLLMTool } from './types.js';
 
 const LOAD_SKILL_TOOL: HookPayloadLLMTool = {

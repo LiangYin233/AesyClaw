@@ -1,4 +1,4 @@
-import { logger } from '../../platform/observability/logger.js';
+import { logger } from '@/platform/observability/logger.js';
 import { CommandDefinition } from './types.js';
 
 export class CommandRegistry {

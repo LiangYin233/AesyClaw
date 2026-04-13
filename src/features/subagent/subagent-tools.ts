@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { logger } from '../../platform/observability/logger.js';
-import { ToolExecuteContext, ToolParameters, ToolExecutionResult } from '../../platform/tools/types.js';
+import { logger } from '@/platform/observability/logger.js';
+import { ToolExecuteContext, ToolParameters, ToolExecutionResult } from '@/platform/tools/types.js';
 import { roleManager } from '../roles/role-manager.js';
 import { SandboxEngine } from './sandbox-engine.js';
 import {

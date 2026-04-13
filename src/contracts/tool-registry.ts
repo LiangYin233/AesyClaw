@@ -1,4 +1,4 @@
-import type { ToolDefinition, ToolExecuteContext } from '../platform/tools/types.js';
+import type { ToolDefinition, ToolExecuteContext } from '@/platform/tools/types.js';
 
 export interface IToolRegistry {
   getToolDefinitions(): ToolDefinition[];
