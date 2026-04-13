@@ -11,8 +11,8 @@ import {
   type ModelDefinition,
   type Tool as AesyiuTool,
 } from 'aesyiu';
-import { pluginManager } from '@/app/plugin-runtime.js';
-import { resolveLLMConfig } from '@/middlewares/agent.middleware.js';
+import { prepareAgentRun } from '@/agent/runtime/prepare-agent-run.js';
+import { getHookRuntime } from '@/bootstrap.js';
 import { configManager } from '@/features/config/config-manager.js';
 import { buildHookSkills, buildHookTools } from '@/features/plugins/hook-utils.js';
 import { roleManager, DEFAULT_ROLE_ID } from '@/features/roles/role-manager.js';
@@ -220,7 +220,7 @@ export class SandboxEngine {
       stats.steps += 1;
 
       try {
-        await pluginManager.dispatchBeforeLLMRequest({
+        await getHookRuntime().dispatchBeforeLLMRequest({
           messages: messages.map(toStandardMessage),
           tools: hookTools,
           skills: hookSkills,
@@ -269,7 +269,7 @@ export class SandboxEngine {
 
         stats.toolCalls += 1;
 
-        let toolResult = await pluginManager.dispatchBeforeToolCall({
+        let toolResult = await getHookRuntime().dispatchBeforeToolCall({
           id: syntheticToolCallId,
           name: tool.name,
           arguments: parsedArgs,
@@ -279,7 +279,7 @@ export class SandboxEngine {
           toolResult = await tool.execute(parsedArgs, toolContext);
         }
 
-        return pluginManager.dispatchAfterToolCall({
+        return getHookRuntime().dispatchAfterToolCall({
           toolCall: {
             id: syntheticToolCallId,
             name: tool.name,
@@ -400,11 +400,8 @@ export class SandboxEngine {
 
   private getLLMConfig(): LLMConfig {
     try {
-      const config = configManager.config;
       const roleId = this.config.roleId || DEFAULT_ROLE_ID;
-      const roleConfig = roleManager.getRoleConfig(roleId);
-      const modelIdentifier = roleConfig.model;
-      return resolveLLMConfig(modelIdentifier, config);
+      return prepareAgentRun(this.parentChatId, configManager.config, roleId).llmConfig;
     } catch (error) {
       logger.warn({ error }, 'Failed to resolve LLM config from config.json, using fallback');
       return {

@@ -11,18 +11,17 @@ import {
   type ModelDefinition,
   type Tool as AesyiuTool,
 } from 'aesyiu';
-import { pluginManager } from '@/app/plugin-runtime.js';
+import { getHookRuntime } from '@/bootstrap.js';
 import type { IRoleManager } from '@/contracts/role-manager.js';
 import { configManager } from '@/features/config/config-manager.js';
 import { buildHookSkills, buildHookTools } from '@/features/plugins/hook-utils.js';
 import { roleManager } from '@/features/roles/role-manager.js';
 import { skillManager } from '@/features/skills/skill-manager.js';
+import { resolveLLMConfig } from '@/agent/runtime/resolve-llm-config.js';
 import { LLMConfig, LLMProviderType, MessageRole, StandardMessage } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import { toolRegistry } from '@/platform/tools/registry.js';
 import { ITool, ToolExecuteContext, ToolExecutionResult } from '@/platform/tools/types.js';
-import { mapProviderType } from '@/platform/utils/llm-utils.js';
-import { parseModelIdentifier } from '@/platform/utils/model-parser.js';
 import { MessageFactory } from './message-factory.js';
 import { SessionMemoryManager } from './memory/session-memory-manager.js';
 import { MemoryConfig } from './memory/types.js';
@@ -206,7 +205,7 @@ export class AgentEngine {
       stats.steps += 1;
 
       try {
-        await pluginManager.dispatchBeforeLLMRequest({
+        await getHookRuntime().dispatchBeforeLLMRequest({
           messages: messages.map(toStandardMessage),
           tools: hookTools,
           skills: hookSkills,
@@ -281,7 +280,7 @@ export class AgentEngine {
           } satisfies ToolExecutionResult;
         }
 
-        let toolResult = await pluginManager.dispatchBeforeToolCall({
+        let toolResult = await getHookRuntime().dispatchBeforeToolCall({
           id: syntheticToolCallId,
           name: tool.name,
           arguments: parsedArgs,
@@ -291,7 +290,7 @@ export class AgentEngine {
           toolResult = await tool.execute(parsedArgs, toolContext);
         }
 
-        return pluginManager.dispatchAfterToolCall({
+        return getHookRuntime().dispatchAfterToolCall({
           toolCall: {
             id: syntheticToolCallId,
             name: tool.name,
@@ -420,22 +419,14 @@ export class AgentEngine {
 
   updateModel(model: string): void {
     try {
-      const { providerName, modelAlias } = parseModelIdentifier(model);
-      const provider = configManager.config.providers[providerName];
-      const resolvedModel = provider?.models?.[modelAlias];
+      const resolved = resolveLLMConfig(model, configManager.config);
+      this.config.llm = {
+        ...this.config.llm,
+        ...resolved,
+      };
 
-      if (provider && resolvedModel) {
-        this.config.llm = {
-          ...this.config.llm,
-          provider: mapProviderType(provider.type),
-          model: resolvedModel.modelname,
-          apiKey: provider.api_key,
-          baseUrl: provider.base_url,
-        };
-
-        logger.info({ chatId: this.chatId, modelIdentifier: model, model: resolvedModel.modelname }, 'Agent model updated from role config');
-        return;
-      }
+      logger.info({ chatId: this.chatId, modelIdentifier: model, model: resolved.model }, 'Agent model updated from role config');
+      return;
     } catch {
       // Fall back to treating the input as a raw model id.
     }
