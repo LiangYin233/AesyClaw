@@ -3,6 +3,7 @@ import {
   AgentContext,
   AesyiuEngine,
   AnthropicProvider,
+  MemoryManager,
   OpenAICompletionProvider,
   OpenAIResponsesProvider,
   type AgentSkill,
@@ -158,6 +159,7 @@ export class SandboxEngine {
 
   private resolveModelDefinition(modelId: string): ModelDefinition {
     const providers = configManager.config.providers;
+    const contextLimit = configManager.config.memory.max_context_tokens;
 
     for (const providerConfig of Object.values(providers)) {
       if (!providerConfig.models) {
@@ -166,10 +168,11 @@ export class SandboxEngine {
 
       for (const modelConfig of Object.values(providerConfig.models)) {
         if (modelConfig.modelname === modelId) {
+          const contextWindow = Math.min(modelConfig.contextWindow, contextLimit);
           return {
             id: modelConfig.modelname,
-            contextWindow: modelConfig.contextWindow,
-            maxOutputTokens: Math.min(16384, modelConfig.contextWindow),
+            contextWindow,
+            maxOutputTokens: Math.min(16384, contextWindow),
           };
         }
       }
@@ -177,8 +180,8 @@ export class SandboxEngine {
 
     return {
       id: modelId,
-      contextWindow: 128000,
-      maxOutputTokens: 16384,
+      contextWindow: contextLimit,
+      maxOutputTokens: Math.min(16384, contextLimit),
     };
   }
 
@@ -312,6 +315,10 @@ export class SandboxEngine {
       const engine = new AesyiuEngine({
         maxSteps: this.maxSteps,
         compatibilityMode: true,
+        memoryManager: new MemoryManager({
+          compressThresholdRatio: configManager.config.memory.compression_threshold,
+          retainLatestMessages: 8,
+        }),
       });
 
       for (const tool of this.createRunTools(filteredTools, stats)) {

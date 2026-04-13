@@ -91,6 +91,8 @@ export class McpClientManager {
       command: config.command,
       ...(config.args.length > 0 ? { args: config.args } : {}),
       ...(config.env ? { env: config.env } : {}),
+      ...(config.cwd ? { cwd: config.cwd } : {}),
+      ...(config.stderr ? { stderr: config.stderr } : {}),
     };
   }
 

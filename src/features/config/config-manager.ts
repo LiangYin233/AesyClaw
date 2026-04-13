@@ -30,6 +30,8 @@ interface MCPServerExample {
   name: string;
   command: string;
   args: string[];
+  cwd?: string;
+  stderr?: 'inherit' | 'pipe' | 'ignore' | 'overlapped';
   enabled: boolean;
 }
 
