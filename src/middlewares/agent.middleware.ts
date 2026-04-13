@@ -1,5 +1,5 @@
 import type { IChannelContext, MiddlewareFunc, PipelineState } from '@/agent/types.js';
-import { configManager } from '@/features/config/index.js';
+import { configManager } from '@/features/config/config-manager.js';
 import type { FullConfig } from '@/features/config/schema.js';
 import { roleManager } from '@/features/roles/role-manager.js';
 import { systemPromptManager } from '@/features/roles/system-prompt-manager.js';

@@ -1,10 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import type { PluginCommandRegistrar } from '@/contracts/commands.js';
 import type {
+  PluginCommandRegistrar,
   PluginConfigStore,
   PluginRuntimeConfig,
-} from '@/contracts/plugin-config-store.js';
+} from '@/contracts/commands.js';
 import { ToolRegistry } from '@/platform/tools/registry.js';
 import { isPlainObject } from '@/platform/utils/index.js';
 import { logger } from '@/platform/observability/logger.js';
