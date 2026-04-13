@@ -1,4 +1,4 @@
-import { StandardMessage } from '../../llm/types.js';
+import { StandardMessage } from '../../../platform/llm/types.js';
 
 export enum CompressionPhase {
   Idle = 'idle',

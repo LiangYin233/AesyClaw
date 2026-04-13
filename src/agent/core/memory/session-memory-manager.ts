@@ -1,4 +1,4 @@
-import { StandardMessage, MessageRole } from '../../llm/types.js';
+import { StandardMessage, MessageRole } from '../../../platform/llm/types.js';
 import {
   MemoryConfig,
   MemoryStats,

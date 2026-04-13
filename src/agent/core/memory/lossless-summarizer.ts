@@ -1,9 +1,14 @@
-import { StandardMessage, MessageRole, LLMProviderType } from '../../llm/types.js';
+import {
+  AnthropicProvider,
+  OpenAICompletionProvider,
+  OpenAIResponsesProvider,
+  type Message as AesyiuMessage,
+  type ModelDefinition,
+} from 'aesyiu';
+import { StandardMessage, MessageRole } from '../../../platform/llm/types.js';
 import { MessageZone, CompressionResult, MemoryConfig } from './types.js';
 import { TokenBudgetCalculator } from './token-budget-calculator.js';
-import { UnifiedLLMClient } from '../../llm/unified-client.js';
 import { logger } from '../../../platform/observability/logger.js';
-import { mapProviderType } from '../../../platform/utils/llm-utils.js';
 import { MessageFactory } from '../message-factory.js';
 import { RoleUtils } from '../role-utils.js';
 import type { IConfigManager } from '../../../contracts/config-manager.js';
@@ -187,28 +192,42 @@ ${conversationText}
       throw new Error(`Model config not found for provider "${providerName}"`);
     }
 
-    const llmProviderType = mapProviderType(provider.type);
+    const modelDef: ModelDefinition = {
+      id: modelConfig.modelname,
+      contextWindow: modelConfig.contextWindow,
+      maxOutputTokens: Math.min(16384, modelConfig.contextWindow),
+    };
 
-    const client = new UnifiedLLMClient({
-      provider: llmProviderType,
-      model: modelConfig.modelname,
-      apiKey: provider.api_key,
-      baseUrl: provider.base_url,
-      cacheEnabled: false,
-      streamEnabled: false,
-    });
+    const providerConfig = {
+      apiKey: provider.api_key || '',
+      baseURL: provider.base_url,
+    };
 
-    try {
-      const response = await client.generate({
-        messages: [MessageFactory.createUserMessage(prompt)],
-        systemPrompt: '你是一个客观的系统记录员。请将以下 Agent 的执行过程与工具返回结果，浓缩为精简的步骤摘要。',
-        tools: [],
-      });
+    const aesyiuProvider = (() => {
+      switch (provider.type) {
+        case 'openai_completion':
+          return new OpenAICompletionProvider(providerConfig, [modelDef]);
+        case 'anthropic':
+          return new AnthropicProvider(providerConfig, [modelDef]);
+        case 'openai_chat':
+        default:
+          return new OpenAIResponsesProvider(providerConfig, [modelDef]);
+      }
+    })();
 
-      return response.text;
-    } finally {
-      client.destroy();
-    }
+    const messages: AesyiuMessage[] = [
+      {
+        role: 'system',
+        content: '你是一个客观的系统记录员。请将以下 Agent 的执行过程与工具返回结果，浓缩为精简的步骤摘要。',
+      },
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ];
+
+    const response = await aesyiuProvider.generate(modelDef, messages);
+    return response.message.content || '';
   }
 
   private fallbackSummary(messages: StandardMessage[]): string {

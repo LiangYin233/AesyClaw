@@ -1,6 +1,6 @@
 import { z } from 'zod';
+import type { Message as AesyiuMessage } from 'aesyiu';
 import type { ToolExecuteContext } from '../../platform/tools/types.js';
-import type { StandardMessage } from '../../agent/llm/types.js';
 
 export const RunSubAgentInputSchema = z.object({
   role_name: z.string().describe('预定义角色名称，如 coder, translator 等'),
@@ -36,7 +36,7 @@ export interface SandboxContext {
   sandboxId: string;
   parentChatId: string;
   config: SandboxConfig;
-  messages: StandardMessage[];
+  messages: AesyiuMessage[];
   createdAt: Date;
 }
 

@@ -6,7 +6,7 @@ import { configManager } from '../config/config-manager.js';
 import { sessionRegistry } from '../../agent/core/session/session-registry.js';
 import { SessionId } from '../../agent/core/session/session-id.js';
 import { ToolRegistry } from '../../platform/tools/registry.js';
-import { LLMProviderType } from '../../agent/llm/types.js';
+import { LLMProviderType } from '../../platform/llm/types.js';
 
 export interface CreateCronJobInput {
   chatId: string;

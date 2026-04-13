@@ -4,21 +4,21 @@ import { pathResolver } from './platform/utils/paths.js';
 import { sqliteManager } from './platform/db/sqlite-manager.js';
 import { configManager } from './features/config/config-manager.js';
 import { logger } from './platform/observability/logger.js';
-import { toolRegistry, ToolRegistry } from './platform/tools/registry.js';
 import { McpClientManager } from './platform/tools/mcp/mcp-client-manager.js';
 import { pluginManager } from './features/plugins/plugin-manager.js';
-import { pipeline, ChannelPipeline } from './agent/core/pipeline.js';
+import { loadSkillTool } from './features/skills/index.js';
+import { cronJobScheduler, initializePromptExecutor } from './features/cron/index.js';
+import { commandMiddleware, registerSystemCommands } from './features/commands/index.js';
+import { subAgentTools } from './features/subagent/index.js';
+import { speechToTextTool, imageUnderstandingTool } from './platform/tools/multimodal-tools.js';
+import { channelManager } from './channels/channel-manager.js';
+import { roleManagerAdapter } from './adapters/index.js';
 import { configInjectionMiddleware } from './middlewares/config.middleware.js';
 import { sessionMiddleware } from './middlewares/session.middleware.js';
 import { agentMiddleware } from './middlewares/agent.middleware.js';
-import { skillManager, loadSkillTool, SkillManager } from './features/skills/index.js';
-import { cronJobScheduler, initializePromptExecutor } from './features/cron/index.js';
-import { commandMiddleware, registerSystemCommands } from './features/commands/index.js';
-import { roleManager } from './features/roles/role-manager.js';
-import { subAgentTools } from './features/subagent/index.js';
-import { speechToTextTool, imageUnderstandingTool } from './platform/tools/multimodal-tools.js';
-import { channelManager, ChannelPluginManager } from './channels/channel-manager.js';
-import { sessionRegistry, SessionRegistry } from './agent/core/session/index.js';
+import { ChannelPipeline } from './agent/core/pipeline.js';
+import { sessionRegistry, type SessionRegistry } from './agent/core/session/session-registry.js';
+import { ToolRegistry, toolRegistry as sharedToolRegistry } from './platform/tools/registry.js';
 
 export interface BootstrapOptions {
   skipDb?: boolean;
@@ -31,6 +31,12 @@ export interface BootstrapOptions {
   skipSubAgents?: boolean;
   skipChannels?: boolean;
 }
+
+let pipeline: ChannelPipeline | null = null;
+let toolRegistryInstance: ToolRegistry | null = null;
+let sessionRegistryInstance: SessionRegistry | null = null;
+let mcpManager: McpClientManager | null = null;
+let initialized = false;
 
 export class Bootstrap {
   private static initialized: boolean = false;
@@ -58,13 +64,20 @@ export class Bootstrap {
         sqliteManager.initialize();
       }
 
-      logger.info({}, '[4/16] Initializing core components...');
-      logger.info({}, 'Using shared ToolRegistry and Pipeline instances');
+      logger.info({}, '[4/16] Initializing Aesyiu core components...');
+
+      toolRegistryInstance = sharedToolRegistry;
+      sessionRegistryInstance = sessionRegistry;
+
+      pipeline = new ChannelPipeline();
+
+      const roleManager = roleManagerAdapter;
 
       if (!options.skipSkills) {
         logger.info({}, '[5/16] Initializing SkillManager...');
+        const { skillManager } = await import('./features/skills/index.js');
         await skillManager.initialize();
-        toolRegistry.register(loadSkillTool);
+        toolRegistryInstance.register(loadSkillTool);
         logger.info(skillManager.getStats(), 'Skills system loaded');
       }
 
@@ -77,14 +90,14 @@ export class Bootstrap {
       if (!options.skipSubAgents) {
         logger.info({}, '[7/16] Registering SubAgent tools...');
         for (const tool of subAgentTools) {
-          toolRegistry.register(tool);
+          toolRegistryInstance.register(tool);
         }
         logger.info({ toolCount: subAgentTools.length }, 'SubAgent tools registered');
       }
 
       logger.info({}, '[8/16] Registering Multimodal tools...');
-      toolRegistry.register(speechToTextTool);
-      toolRegistry.register(imageUnderstandingTool);
+      toolRegistryInstance.register(speechToTextTool);
+      toolRegistryInstance.register(imageUnderstandingTool);
       logger.info({}, 'Multimodal tools registered');
 
       logger.info({}, '[9/16] Mounting ConfigInjectionMiddleware...');
@@ -122,7 +135,8 @@ export class Bootstrap {
 
       if (!options.skipMCP) {
         logger.info({}, '[15/16] Connecting MCP servers...');
-        this.mcpManager = McpClientManager.getInstance(toolRegistry);
+        this.mcpManager = McpClientManager.getInstance(toolRegistryInstance as any);
+        mcpManager = this.mcpManager;
         const config = configManager.config;
         if (config?.mcp?.servers) {
           await this.mcpManager.connectConfiguredServers(config.mcp.servers);
@@ -138,6 +152,7 @@ export class Bootstrap {
       await configManager.syncAllDefaultConfigs();
 
       this.initialized = true;
+      initialized = true;
       logger.info({}, 'AesyClaw started successfully');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -148,7 +163,11 @@ export class Bootstrap {
   }
 
   private static async loadChannelPlugins(channels: Record<string, unknown>): Promise<void> {
-    channelManager.setPipeline(pipeline);
+    if (!pipeline) {
+      logger.error({}, 'Pipeline not initialized, cannot load channel plugins');
+      return;
+    }
+    channelManager.setPipeline(pipeline as any);
 
     const pluginsDir = path.join(process.cwd(), 'plugins');
     const entries = fs.readdirSync(pluginsDir, { withFileTypes: true });
@@ -241,6 +260,7 @@ export class Bootstrap {
     }
 
     try {
+      const { roleManager } = await import('./features/roles/role-manager.js');
       roleManager.shutdown();
       logger.info({}, '[7/9] RoleManager stopped');
     } catch (error) {
@@ -248,7 +268,9 @@ export class Bootstrap {
     }
 
     try {
-      sessionRegistry.shutdown();
+      if (sessionRegistryInstance) {
+        sessionRegistryInstance.shutdown();
+      }
       logger.info({}, '[8/9] SessionRegistry stopped');
     } catch (error) {
       logger.error({ error }, 'Error stopping SessionRegistry');
@@ -262,7 +284,9 @@ export class Bootstrap {
     }
 
     this.mcpManager = null;
+    mcpManager = null;
     this.initialized = false;
+    initialized = false;
 
     logger.info({}, 'AesyClaw shutdown completed');
   }
@@ -276,11 +300,11 @@ export class Bootstrap {
     await this.initialize(options);
   }
 
-  static getToolRegistry(): ToolRegistry {
-    return toolRegistry;
+  static getToolRegistry(): ToolRegistry | null {
+    return toolRegistryInstance;
   }
 
-  static getPipeline(): ChannelPipeline {
+  static getPipeline(): ChannelPipeline | null {
     return pipeline;
   }
 
@@ -302,8 +326,6 @@ export class Bootstrap {
     };
     sessions: {
       total: number;
-      byChannel: Record<string, number>;
-      byType: Record<string, number>;
     };
     mcpServers: number;
     plugins: number;
@@ -313,12 +335,10 @@ export class Bootstrap {
       scheduledTasks: number;
     };
   } {
-    const toolStats = toolRegistry.getStats();
-    const skillStats = skillManager.isInitialized() ? skillManager.getStats() : { total: 0, system: 0, user: 0 };
+    const toolStats = toolRegistryInstance?.getStats() ?? { totalTools: 0 };
     const mcpServers = this.mcpManager?.getConnectedServers() || [];
     const plugins = pluginManager?.getLoadedPlugins() || [];
-    const roleStats = roleManager.isInitialized() ? { total: roleManager.getAllRoles().length } : { total: 0 };
-    const sessionStats = sessionRegistry.getStats();
+    const roleStats = roleManagerAdapter.isInitialized() ? { total: roleManagerAdapter.getAllRoles().length } : { total: 0 };
 
     return {
       initialized: this.initialized,
@@ -328,9 +348,9 @@ export class Bootstrap {
       toolRegistry: {
         totalTools: toolStats.totalTools,
       },
-      skills: skillStats,
+      skills: { total: 0, system: 0, user: 0 },
       roles: roleStats,
-      sessions: sessionStats,
+      sessions: { total: 0 },
       mcpServers: mcpServers.filter(s => s.connected).length,
       plugins: plugins.length,
       channels: channelManager.getChannelCount(),
@@ -349,3 +369,5 @@ export async function bootstrap(options?: BootstrapOptions): Promise<void> {
 export async function shutdown(): Promise<void> {
   return Bootstrap.shutdown();
 }
+
+export { pipeline, toolRegistryInstance as toolRegistry };
