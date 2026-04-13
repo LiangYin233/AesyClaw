@@ -4,9 +4,9 @@ import { pluginManager } from '@/app/plugin-runtime.js';
 import { sessionRegistry, type SessionRegistry } from '@/app/session-registry.js';
 import { registerSystemCommands } from '@/app/system-commands.js';
 import { ChannelPipeline } from '@/agent/pipeline.js';
-import { subAgentTools } from '@/agent/subagent/index.js';
+import { subAgentTools } from '@/agent/subagent/subagent-tools.js';
 import { channelManager } from '@/channels/channel-manager.js';
-import { commandMiddleware } from '@/features/commands/index.js';
+import { commandMiddleware } from '@/features/commands/command-middleware.js';
 import { configManager } from '@/features/config/config-manager.js';
 import { initializePromptExecutor } from '@/features/cron/index.js';
 import { roleManager } from '@/features/roles/role-manager.js';
@@ -79,7 +79,7 @@ export class Bootstrap {
 
       if (!options.skipSkills) {
         logger.info({}, '[5/16] Initializing SkillManager...');
-        const { skillManager } = await import('./features/skills/index.js');
+        const { skillManager } = await import('./features/skills/skill-manager.js');
         await skillManager.initialize();
         logger.info(skillManager.getStats(), 'Skills system loaded');
       }
@@ -303,7 +303,7 @@ export class Bootstrap {
     }
 
     try {
-      const { skillManager } = await import('./features/skills/index.js');
+      const { skillManager } = await import('./features/skills/skill-manager.js');
       await skillManager.shutdown();
       logger.info({}, '[6/9] SkillManager stopped');
     } catch (error) {

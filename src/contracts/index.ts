@@ -4,12 +4,10 @@ export type {
   CommandDefinition,
   CommandResult,
   ParsedCommand,
-  PluginCommandRegistrar,
-} from './commands.js';
-export type {
   PluginConfigStore,
+  PluginCommandRegistrar,
   PluginRuntimeConfig,
-} from './plugin-config-store.js';
+} from './commands.js';
 export type { IRoleManager } from './role-manager.js';
 export type { IToolRegistry } from './tool-registry.js';
 export type { ISessionRegistry } from './session-registry.js';

@@ -3,7 +3,7 @@ import { SessionId } from '@/agent/session/session-id.js';
 import { cronJobScheduler, generateCronId } from '@/platform/db/cron-scheduler.js';
 import { cronJobRepository, type CronJobRecord } from '@/platform/db/repositories/cron-job-repository.js';
 import { sessionRepository } from '@/platform/db/repositories/session-repository.js';
-import { eventBus, SystemEvents } from '@/platform/events/index.js';
+import { eventBus, SystemEvents } from '@/platform/events/event-bus.js';
 import { logger } from '@/platform/observability/logger.js';
 
 export interface CreateCronJobInput {

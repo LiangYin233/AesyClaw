@@ -1,5 +1,6 @@
 import type { IChannelContext, MiddlewareFunc, PipelineState } from '@/agent/types.js';
-import { configManager, type FullConfig } from '@/features/config/index.js';
+import { configManager } from '@/features/config/config-manager.js';
+import type { FullConfig } from '@/features/config/schema.js';
 import { logger } from '@/platform/observability/logger.js';
 
 export interface ConfigState {
