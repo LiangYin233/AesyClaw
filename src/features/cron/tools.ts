@@ -5,7 +5,6 @@ import { eventBus, SystemEvents } from '../../platform/events/index.js';
 import { configManager } from '../config/config-manager.js';
 import { sessionRegistry } from '../../agent/core/session/session-registry.js';
 import { SessionId } from '../../agent/core/session/session-id.js';
-import { ToolRegistry } from '../../platform/tools/registry.js';
 import { LLMProviderType } from '../../platform/llm/types.js';
 
 export interface CreateCronJobInput {
@@ -100,15 +99,7 @@ export async function updateCronJob(
   return job;
 }
 
-import { toolRegistry } from '../../platform/tools/registry.js';
-
 export class PromptExecutor {
-  private toolRegistry: ToolRegistry;
-
-  constructor() {
-    this.toolRegistry = toolRegistry;
-  }
-
   async execute(job: CronJobRecord): Promise<void> {
     if (!job.prompt) {
       logger.warn({ jobId: job.id }, 'Cron job has no prompt, skipping execution');

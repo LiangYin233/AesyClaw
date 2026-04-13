@@ -76,8 +76,8 @@ export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 export const MemoryConfigSchema = z.object({
   max_context_tokens: z.number().int().positive().default(128000),
   compression_threshold: z.number().min(0).max(1).default(0.75).describe('触发压缩的上下文占比阈值 (0.0-1.0)'),
-  compression_provider: z.string().optional().describe('压缩使用的 provider 名称，如 openai'),
-  compression_model: z.string().optional().describe('压缩使用的模型，如 qwen3.5-plus'),
+  compression_provider: z.string().optional().describe('已废弃，当前版本由 aesyiu 使用活动模型进行压缩，不再单独指定 provider'),
+  compression_model: z.string().optional().describe('已废弃，当前版本由 aesyiu 使用活动模型进行压缩，不再单独指定 model'),
 });
 
 export type MemoryConfig = z.infer<typeof MemoryConfigSchema>;
@@ -122,8 +122,6 @@ export const DEFAULT_CONFIG: FullConfig = {
   memory: {
     max_context_tokens: 128000,
     compression_threshold: 0.75,
-    compression_provider: 'openai',
-    compression_model: 'qwen3.5-plus',
   },
   multimodal: {
     stt_provider: 'openai',

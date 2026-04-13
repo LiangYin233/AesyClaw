@@ -118,13 +118,10 @@ export class SessionRegistry {
       memoryConfig = {
         maxContextTokens: rawConfig.max_context_tokens,
         compressionThreshold: rawConfig.compression_threshold,
-        compressionProvider: rawConfig.compression_provider || 'openai',
-        compressionModel: rawConfig.compression_model || 'qwen3.5-plus',
       };
     }
 
     const manager = new SessionMemoryManager(sessionId, memoryConfig, {
-      configManager: this.deps.configManager,
       systemPromptBuilder: this.deps.systemPromptBuilder,
       roleManager: this.deps.roleManager,
     });

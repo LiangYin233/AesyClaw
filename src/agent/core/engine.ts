@@ -17,7 +17,7 @@ import { configManager } from '../../features/config/config-manager.js';
 import { toolRegistry } from '../../platform/tools/registry.js';
 import { ITool, ToolExecuteContext, ToolExecutionResult } from '../../platform/tools/types.js';
 import { roleManagerAdapter } from '../../adapters/role-manager-adapter.js';
-import { LLMConfig, LLMProviderType, MessageRole, StandardMessage, ToolCall } from '../../platform/llm/types.js';
+import { LLMConfig, LLMProviderType, MessageRole, StandardMessage } from '../../platform/llm/types.js';
 import { MessageFactory } from './message-factory.js';
 import {
   SessionMemoryManager,
@@ -127,7 +127,6 @@ export class AgentEngine {
     };
 
     this.memory = config.memory ?? new SessionMemoryManager(chatId, this.config.memoryConfig, {
-      configManager,
       systemPromptBuilder: {
         buildSystemPrompt: ({ roleId, chatId: currentChatId }) => this.config.systemPrompt || `${roleId}:${currentChatId}`,
       },
@@ -135,9 +134,7 @@ export class AgentEngine {
     });
 
     if (!this.memory.hasMessages()) {
-      this.memory.importMemory({
-        messages: [MessageFactory.createSystemMessage(this.config.systemPrompt)],
-      });
+      this.memory.importMemory([MessageFactory.createSystemMessage(this.config.systemPrompt)]);
     }
 
     logger.info(
@@ -291,9 +288,7 @@ export class AgentEngine {
   }
 
   private syncMemory(messages: readonly AesyiuMessage[]): void {
-    this.memory.importMemory({
-      messages: messages.map(toStandardMessage),
-    });
+    this.memory.importMemory(messages.map(toStandardMessage));
   }
 
   async run(userInput: string): Promise<AgentRunResult> {
