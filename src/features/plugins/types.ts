@@ -1,8 +1,6 @@
 import type { ToolRegistry } from '../../platform/tools/registry.js';
-import type { SkillManager } from '../skills/skill-manager.js';
 import type { StandardMessage } from '../../platform/llm/types.js';
 import type { CommandDefinition } from '../commands/types.js';
-import type { ChannelPipeline } from '../../agent/core/pipeline.js';
 import type { IOutboundPayload } from '../../channels/channel-plugin.js';
 
 export interface ToolExecuteContext {
@@ -47,10 +45,20 @@ export interface PluginContext {
   logger: PluginLogger;
   config: Record<string, unknown>;
   toolRegistry: ToolRegistry;
-  skillManager?: SkillManager;
-  pipeline?: ChannelPipeline;
   sendFn?: (_payload: IOutboundPayload) => Promise<void>;
   channelId?: string;
+}
+
+export interface HookPayloadLLMTool {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}
+
+export interface HookPayloadLLMSkill {
+  name: string;
+  description: string;
+  metadata: Record<string, unknown>;
 }
 
 export interface HookPayloadMessageReceive {
@@ -65,11 +73,8 @@ export interface HookPayloadMessageReceive {
 
 export interface HookPayloadBeforeLLMRequest {
   messages: ReadonlyArray<StandardMessage>;
-  tools: Array<{
-    name: string;
-    description: string;
-    parameters: Record<string, unknown>;
-  }>;
+  tools: HookPayloadLLMTool[];
+  skills: HookPayloadLLMSkill[];
 }
 
 export interface HookPayloadToolCall {

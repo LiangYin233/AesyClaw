@@ -1,9 +1,11 @@
+import { randomUUID } from 'crypto';
 import {
   AgentContext,
   AesyiuEngine,
   AnthropicProvider,
   OpenAICompletionProvider,
   OpenAIResponsesProvider,
+  type AgentSkill,
   type Message as AesyiuMessage,
   type ModelDefinition,
   type Tool as AesyiuTool,
@@ -11,8 +13,11 @@ import {
 import { toolRegistry } from '../../platform/tools/registry.js';
 import { ITool, ToolExecuteContext } from '../../platform/tools/types.js';
 import { logger } from '../../platform/observability/logger.js';
-import { LLMProviderType, type LLMConfig } from '../../platform/llm/types.js';
+import { LLMProviderType, MessageRole, type LLMConfig, type StandardMessage } from '../../platform/llm/types.js';
+import { pluginManager } from '../plugins/plugin-manager.js';
+import { buildHookSkills, buildHookTools } from '../plugins/hook-utils.js';
 import { roleManager, DEFAULT_ROLE_ID } from '../roles/role-manager.js';
+import { skillManager } from '../skills/skill-manager.js';
 import { configManager } from '../config/config-manager.js';
 import { resolveLLMConfig } from '../../middlewares/agent.middleware.js';
 import type { SandboxConfig, SubAgentResult, SandboxContext } from './types.js';
@@ -21,6 +26,32 @@ interface SandboxRunStats {
   steps: number;
   toolCalls: number;
   error?: string;
+}
+
+function parseToolArguments(argumentsText: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(argumentsText);
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+function toStandardMessage(message: AesyiuMessage): StandardMessage {
+  return {
+    role: message.role as MessageRole,
+    content: message.content ?? '',
+    ...(message.tool_calls && message.tool_calls.length > 0
+      ? {
+          toolCalls: message.tool_calls.map(toolCall => ({
+            id: toolCall.id,
+            name: toolCall.name,
+            arguments: parseToolArguments(toolCall.arguments),
+          })),
+        }
+      : {}),
+    ...(message.tool_call_id ? { toolCallId: message.tool_call_id } : {}),
+  };
 }
 
 function getFinalAssistantText(messages: readonly AesyiuMessage[]): string {
@@ -117,6 +148,14 @@ export class SandboxEngine {
       .filter((tool): tool is ITool => Boolean(tool));
   }
 
+  private getAllowedSkills(): AgentSkill[] {
+    if (!skillManager.isInitialized()) {
+      return [];
+    }
+
+    return skillManager.getSkillsForRole(this.config.allowedSkills);
+  }
+
   private resolveModelDefinition(modelId: string): ModelDefinition {
     const providers = configManager.config.providers;
 
@@ -143,7 +182,12 @@ export class SandboxEngine {
     };
   }
 
-  private createProvider(stats: SandboxRunStats, llmConfig: LLMConfig) {
+  private createProvider(
+    stats: SandboxRunStats,
+    llmConfig: LLMConfig,
+    hookTools: ReturnType<typeof buildHookTools>,
+    hookSkills: ReturnType<typeof buildHookSkills>
+  ) {
     const modelId = llmConfig.model || 'gpt-4o-mini';
     const modelDef = this.resolveModelDefinition(modelId);
     const providerConfig = {
@@ -168,6 +212,17 @@ export class SandboxEngine {
       stats.steps += 1;
 
       try {
+        await pluginManager.dispatchBeforeLLMRequest({
+          messages: messages.map(toStandardMessage),
+          tools: hookTools,
+          skills: hookSkills,
+        });
+      } catch (error) {
+        stats.error = error instanceof Error ? error.message : String(error);
+        throw error;
+      }
+
+      try {
         return await originalGenerate(activeModel, messages, tools);
       } catch (error) {
         stats.error = error instanceof Error ? error.message : String(error);
@@ -184,6 +239,7 @@ export class SandboxEngine {
       description: tool.description,
       parameters: tool.parametersSchema,
       execute: async (args, ctx) => {
+        const syntheticToolCallId = randomUUID();
         const parsedArgs = args && typeof args === 'object' ? args as Record<string, unknown> : {};
         const toolContext: ToolExecuteContext = {
           chatId: this.agentId,
@@ -201,7 +257,25 @@ export class SandboxEngine {
         }
 
         stats.toolCalls += 1;
-        return tool.execute(parsedArgs, toolContext);
+
+        let toolResult = await pluginManager.dispatchBeforeToolCall({
+          id: syntheticToolCallId,
+          name: tool.name,
+          arguments: parsedArgs,
+        });
+
+        if (!toolResult) {
+          toolResult = await tool.execute(parsedArgs, toolContext);
+        }
+
+        return pluginManager.dispatchAfterToolCall({
+          toolCall: {
+            id: syntheticToolCallId,
+            name: tool.name,
+            arguments: parsedArgs,
+          },
+          result: toolResult,
+        });
       },
     }));
   }
@@ -216,13 +290,16 @@ export class SandboxEngine {
 
     try {
       const filteredTools = this.getFilteredTools();
+      const allowedSkills = this.getAllowedSkills();
+      const hookSkills = buildHookSkills(allowedSkills);
+      const hookTools = buildHookTools(filteredTools.map(tool => tool.getDefinition()), allowedSkills);
       const llmConfig = this.getLLMConfig();
       const stats: SandboxRunStats = {
         steps: 0,
         toolCalls: 0,
       };
 
-      const provider = this.createProvider(stats, llmConfig);
+      const provider = this.createProvider(stats, llmConfig, hookTools, hookSkills);
       const context = new AgentContext({
         provider,
         modelId: llmConfig.model,
@@ -241,6 +318,8 @@ export class SandboxEngine {
         engine.registerTool(tool);
       }
 
+      engine.registerSkills(allowedSkills);
+
       const result = await engine.run(
         {
           role: 'user',
@@ -249,7 +328,7 @@ export class SandboxEngine {
         context
       );
 
-      this.memory = [...result.messages];
+      this.memory = result.messages.filter(message => !message._meta?.skillPrompt);
 
       let lastAssistantMessage = getFinalAssistantText(result.messages);
       if (!lastAssistantMessage) {

@@ -7,6 +7,8 @@ export {
   PluginToolDefinition,
   ToolExecuteContext,
   HookName,
+  HookPayloadLLMTool,
+  HookPayloadLLMSkill,
   HookPayloadMessageReceive,
   HookPayloadBeforeLLMRequest,
   HookPayloadToolCall,

@@ -1,6 +1,5 @@
 import { logger } from '../../platform/observability/logger.js';
 import { roleManager, DEFAULT_ROLE_ID } from './role-manager.js';
-import { skillManager } from '../skills/skill-manager.js';
 import { toolRegistry } from '../../platform/tools/registry.js';
 import type { SystemPromptBuildOptions, SystemVariables } from './system-prompt-types.js';
 
@@ -31,37 +30,8 @@ export class SystemPromptManager {
       .replace(/\{\{systemLang\}\}/g, vars.systemLang);
   }
 
-  private buildCapabilitiesSection(roleId: string): { skills: string; tools: string } {
+  private buildCapabilitiesSection(roleId: string): { tools: string } {
     const roleConfig = roleManager.getRoleConfig(roleId);
-    const lines: string[] = [];
-
-    if (skillManager.isInitialized()) {
-      const allSkillNames = skillManager.getSkillNames();
-      const allowedSkills = roleConfig.allowed_skills;
-
-      if (allSkillNames.length > 0) {
-        lines.push('');
-        lines.push('【可用技能】');
-
-        const filteredSkills = allowedSkills.includes('*')
-          ? allSkillNames
-          : allSkillNames.filter(name => allowedSkills.includes(name));
-
-        for (const skillName of filteredSkills) {
-          const route = skillManager.getSkillRoute(skillName);
-          if (route) {
-            lines.push(`- ${skillName}: ${route.shortDescription}`);
-          }
-        }
-
-        if (filteredSkills.length === 0) {
-          lines.push('（该角色未配置任何技能）');
-        }
-      }
-    }
-
-    const skills = lines.join('\n');
-
     const toolLines: string[] = [];
     try {
       const allTools = toolRegistry.getAllToolDefinitions();
@@ -90,7 +60,7 @@ export class SystemPromptManager {
 
     const tools = toolLines.join('\n');
 
-    return { skills, tools };
+    return { tools };
   }
 
   buildSystemPrompt(options: SystemPromptBuildOptions): string {
@@ -103,7 +73,7 @@ export class SystemPromptManager {
     const vars = this.getSystemVariables();
     let prompt = this.replaceVariables(basePrompt, vars);
 
-    const { skills, tools } = this.buildCapabilitiesSection(actualRoleId);
+    const { tools } = this.buildCapabilitiesSection(actualRoleId);
 
     const systemInfoLines: string[] = [];
     systemInfoLines.push('');
@@ -113,7 +83,7 @@ export class SystemPromptManager {
     systemInfoLines.push(`- 系统语言: ${vars.systemLang}`);
 
     const systemInfo = systemInfoLines.join('\n');
-    const capabilities = skills + tools;
+    const capabilities = tools;
 
     prompt = prompt + '\n' + systemInfo + capabilities;
 
@@ -121,7 +91,6 @@ export class SystemPromptManager {
       {
         roleId: actualRoleId,
         promptLength: prompt.length,
-        hasSkills: skills.length > 0,
         hasTools: tools.length > 0,
       },
       'System prompt built'
