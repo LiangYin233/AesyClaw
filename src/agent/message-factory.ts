@@ -1,4 +1,4 @@
-import { StandardMessage, MessageRole, ToolCall } from '../../platform/llm/types.js';
+import { StandardMessage, MessageRole, ToolCall } from '../platform/llm/types.js';
 
 export class MessageFactory {
   static createSystemMessage(content: string): StandardMessage {

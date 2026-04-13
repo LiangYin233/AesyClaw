@@ -1,6 +1,6 @@
 import { CommandDefinition, CommandContext, CommandResult } from './types.js';
 import { commandRegistry } from './command-registry.js';
-import { sessionRegistry } from '../../agent/core/session/session-registry.js';
+import { sessionRegistry } from '../../agent/session/session-registry.js';
 import { logger } from '../../platform/observability/logger.js';
 import { pluginManager } from '../plugins/plugin-manager.js';
 import { roleManager } from '../roles/role-manager.js';

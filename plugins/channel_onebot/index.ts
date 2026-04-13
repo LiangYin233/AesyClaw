@@ -7,7 +7,7 @@ import type {
   IOutboundPayload,
    ChannelPluginLogger
 } from '../../src/channels/channel-plugin';
-import type { IUnifiedMessage } from '../../src/agent/core/types';
+import type { IUnifiedMessage } from '../../src/agent/types';
 import type { DownloadedMedia, MediaDownloader } from '../../src/platform/utils/index.js';
 
 let mediaDownloader: MediaDownloader | null = null;

@@ -1,5 +1,5 @@
-import type { ToolDefinition } from '../../../platform/tools/types.js';
-import type { LLMConfig } from '../../../platform/llm/types.js';
+import type { ToolDefinition } from '../../platform/tools/types.js';
+import type { LLMConfig } from '../../platform/llm/types.js';
 import type { MemoryConfig } from '../memory/types.js';
 
 export interface SessionOptions {

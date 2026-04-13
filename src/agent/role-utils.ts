@@ -1,4 +1,4 @@
-import { MessageRole } from '../../platform/llm/types.js';
+import { MessageRole } from '../platform/llm/types.js';
 
 export class RoleUtils {
   private static readonly LABELS: Record<MessageRole, string> = {
