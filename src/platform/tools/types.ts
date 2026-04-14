@@ -1,6 +1,4 @@
-
-
-import { ZodType } from 'zod';
+import { z, ZodType } from 'zod';
 
 export interface ToolParameterProperty {
   type: string;
@@ -59,6 +57,7 @@ export interface ToolCallRequest {
 
 export interface ToolCallResult {
   toolCallId: string;
+  chatId: string;
   toolName: string;
   success: boolean;
   content: string;
@@ -67,14 +66,7 @@ export interface ToolCallResult {
 }
 
 export function zodToToolParameters(schema: ZodType): ToolParameters {
-  const parsed = schema.safeParse({});
-  if (!parsed.success) {
-    return {
-      type: 'object',
-      properties: {},
-    };
-  }
-  return convertJsonSchemaToToolParameters(parsed.data as Record<string, unknown>);
+  return convertJsonSchemaToToolParameters(z.toJSONSchema(schema) as Record<string, unknown>);
 }
 
 function convertJsonSchemaToToolParameters(jsonSchema: Record<string, unknown>): ToolParameters {
@@ -97,7 +89,8 @@ function convertJsonSchemaToToolParameters(jsonSchema: Record<string, unknown>):
     type: 'object',
     properties,
     required: required.length > 0 ? required : undefined,
-    additionalProperties: true,
+    additionalProperties:
+      typeof jsonSchema.additionalProperties === 'boolean' ? jsonSchema.additionalProperties : true,
   };
 }
 
@@ -120,11 +113,13 @@ function convertProperty(prop: Record<string, unknown>): ToolParameterProperty {
 
   if (prop.type === 'object' && prop.properties) {
     const nestedProps: Record<string, ToolParameterProperty> = {};
+    const nestedRequired = Array.isArray(prop.required) ? prop.required as string[] : [];
     const nestedPropsObj = prop.properties as Record<string, unknown>;
     for (const [key, value] of Object.entries(nestedPropsObj)) {
       nestedProps[key] = convertProperty(value as Record<string, unknown>);
     }
     result.properties = nestedProps;
+    result.required = nestedRequired.length > 0 ? nestedRequired : undefined;
   }
 
   return result;

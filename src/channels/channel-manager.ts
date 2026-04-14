@@ -2,7 +2,7 @@ import type { IChannelPlugin, IChannelWithSend, IOutboundPayload, ChannelPluginL
 import type { ChannelPipeline } from '@/agent/pipeline.js';
 import { configManager } from '@/features/config/config-manager.js';
 import { logger } from '@/platform/observability/logger.js';
-import { isPlainObject } from '@/platform/utils/index.js';
+import { mergeDefaultOptions } from '@/platform/utils/merge-default-options.js';
 
 export class ChannelPluginManager {
   private channels: Map<string, IChannelPlugin> = new Map();
@@ -23,31 +23,52 @@ export class ChannelPluginManager {
     this.pipeline = pipeline;
   }
 
+  private getPipeline(): ChannelPipeline {
+    if (!this.pipeline) {
+      throw new Error('Cannot register channel: pipeline not initialized');
+    }
+
+    return this.pipeline;
+  }
+
   private mergeChannelOptions(
     plugin: IChannelPlugin,
     userConfig?: Record<string, unknown>
   ): Record<string, unknown> {
-    const defaultOptions = plugin.defaultOptions || {};
-    const merged = { ...defaultOptions };
+    return mergeDefaultOptions(plugin.defaultOptions || {}, userConfig);
+  }
 
-    if (!userConfig) {
-      return merged;
+  private registerChannelDefaults(plugin: IChannelPlugin): void {
+    if (plugin.defaultOptions && Object.keys(plugin.defaultOptions).length > 0) {
+      configManager.registerChannelDefaults(plugin.name, plugin.defaultOptions);
+    }
+  }
+
+  private createChannelContext(config: Record<string, unknown>): ChannelPluginContext {
+    return {
+      config,
+      logger: this.pluginLogger,
+      pipeline: this.getPipeline(),
+    };
+  }
+
+  private resolveSendFunction(
+    plugin: IChannelPlugin,
+    sendFn?: (_payload: IOutboundPayload) => Promise<void>
+  ): ((_payload: IOutboundPayload) => Promise<void>) | undefined {
+    if (sendFn) {
+      return sendFn;
     }
 
-    for (const key in userConfig) {
-      if (Object.hasOwn(userConfig, key)) {
-        const userValue = userConfig[key];
-        const defaultValue = defaultOptions[key];
-
-        if (isPlainObject(userValue) && isPlainObject(defaultValue)) {
-          merged[key] = { ...defaultValue, ...userValue };
-        } else {
-          merged[key] = userValue;
-        }
-      }
+    if ('getSendFn' in plugin) {
+      return (plugin as IChannelWithSend).getSendFn();
     }
 
-    return merged;
+    return undefined;
+  }
+
+  private getRegisteredChannelNames(): string[] {
+    return Array.from(this.channels.keys());
   }
 
   async registerChannel(
@@ -55,9 +76,7 @@ export class ChannelPluginManager {
     config?: Record<string, unknown>,
     sendFn?: (_payload: IOutboundPayload) => Promise<void>
   ): Promise<void> {
-    if (!this.pipeline) {
-      throw new Error('Cannot register channel: pipeline not initialized');
-    }
+    this.getPipeline();
 
     if (this.channels.has(plugin.name)) {
       logger.warn({ channelName: plugin.name }, 'Channel plugin already registered, skipping');
@@ -66,27 +85,19 @@ export class ChannelPluginManager {
 
     logger.info({ channelName: plugin.name, version: plugin.version }, 'Registering channel plugin');
 
-    if (plugin.defaultOptions && Object.keys(plugin.defaultOptions).length > 0) {
-      configManager.registerChannelDefaults(plugin.name, plugin.defaultOptions);
-    }
+    this.registerChannelDefaults(plugin);
 
     const mergedConfig = this.mergeChannelOptions(plugin, config);
-
-    const ctx: ChannelPluginContext = {
-      config: mergedConfig,
-      logger: this.pluginLogger,
-      pipeline: this.pipeline,
-    };
+    const ctx = this.createChannelContext(mergedConfig);
 
     try {
       await plugin.init(ctx);
 
       this.channels.set(plugin.name, plugin);
 
-      if (sendFn) {
-        this.sendFunctions.set(plugin.name, sendFn);
-      } else if ('getSendFn' in plugin) {
-        this.sendFunctions.set(plugin.name, (plugin as IChannelWithSend).getSendFn());
+      const resolvedSendFunction = this.resolveSendFunction(plugin, sendFn);
+      if (resolvedSendFunction) {
+        this.sendFunctions.set(plugin.name, resolvedSendFunction);
       }
 
       logger.info({ channelName: plugin.name }, 'Channel plugin registered successfully');
@@ -126,10 +137,7 @@ export class ChannelPluginManager {
   async shutdown(): Promise<void> {
     logger.info({}, 'Shutting down all channel plugins');
 
-    const unregisterPromises: Promise<void>[] = [];
-    for (const name of this.channels.keys()) {
-      unregisterPromises.push(this.unregisterChannel(name));
-    }
+    const unregisterPromises = this.getRegisteredChannelNames().map(name => this.unregisterChannel(name));
 
     await Promise.all(unregisterPromises);
 

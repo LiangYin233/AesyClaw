@@ -2,9 +2,10 @@ import { sqliteManager } from '../sqlite-manager.js';
 import { logger } from '../../../platform/observability/logger.js';
 
 export interface SessionRecord {
+  sessionId: string;
   chatId: string;
-  channelType: string;
-  channelId?: string;
+  channel: string;
+  type: string;
   userId?: string;
   createdAt: string;
   updatedAt: string;
@@ -12,17 +13,19 @@ export interface SessionRecord {
 }
 
 export interface CreateSessionInput {
+  sessionId: string;
   chatId: string;
-  channelType: string;
-  channelId?: string;
+  channel: string;
+  type: string;
   userId?: string;
   metadata?: Record<string, unknown>;
 }
 
 export type SessionRow = {
+  session_id: string;
   chat_id: string;
-  channel_type: string;
-  channel_id?: string;
+  channel: string;
+  type: string;
   user_id?: string;
   created_at: string;
   updated_at: string;
@@ -35,38 +38,53 @@ export class SessionRepository {
     const metadata = JSON.stringify(input.metadata || {});
 
     const stmt = db.prepare(`
-      INSERT INTO sessions (chat_id, channel_type, channel_id, user_id, metadata)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO sessions (session_id, chat_id, channel, type, user_id, metadata)
+      VALUES (?, ?, ?, ?, ?, ?)
     `);
 
-    stmt.run(input.chatId, input.channelType, input.channelId || null, input.userId || null, metadata);
-    logger.info({ chatId: input.chatId }, 'Session created');
+    stmt.run(input.sessionId, input.chatId, input.channel, input.type, input.userId || null, metadata);
+    logger.info({ sessionId: input.sessionId, chatId: input.chatId }, 'Session created');
 
-    return this.findByChatId(input.chatId)!;
+    return this.findBySessionId(input.sessionId)!;
   }
 
-  findByChatId(chatId: string): SessionRecord | null {
+  findBySessionId(sessionId: string): SessionRecord | null {
     const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('SELECT * FROM sessions WHERE chat_id = ?');
-    const row = stmt.get(chatId) as SessionRow;
+    const stmt = db.prepare('SELECT * FROM sessions WHERE session_id = ?');
+    const row = stmt.get(sessionId) as SessionRow;
 
     if (!row) return null;
 
     return this.mapRowToRecord(row);
   }
 
-  update(chatId: string, updates: Partial<Omit<CreateSessionInput, 'chatId'>>): SessionRecord | null {
+  findByChatId(chatId: string): SessionRecord[] {
+    const db = sqliteManager.getDatabase();
+    const stmt = db.prepare('SELECT * FROM sessions WHERE chat_id = ? ORDER BY created_at DESC');
+    const rows = stmt.all(chatId) as SessionRow[];
+
+    return rows.map(row => this.mapRowToRecord(row));
+  }
+
+  update(
+    sessionId: string,
+    updates: Partial<Omit<CreateSessionInput, 'sessionId'>>
+  ): SessionRecord | null {
     const db = sqliteManager.getDatabase();
     const fields: string[] = ['updated_at = datetime("now")'];
     const values: Array<string | null> = [];
 
-    if (updates.channelType !== undefined) {
-      fields.push('channel_type = ?');
-      values.push(updates.channelType);
+    if (updates.chatId !== undefined) {
+      fields.push('chat_id = ?');
+      values.push(updates.chatId);
     }
-    if (updates.channelId !== undefined) {
-      fields.push('channel_id = ?');
-      values.push(updates.channelId);
+    if (updates.channel !== undefined) {
+      fields.push('channel = ?');
+      values.push(updates.channel);
+    }
+    if (updates.type !== undefined) {
+      fields.push('type = ?');
+      values.push(updates.type);
     }
     if (updates.userId !== undefined) {
       fields.push('user_id = ?');
@@ -77,24 +95,24 @@ export class SessionRepository {
       values.push(JSON.stringify(updates.metadata));
     }
 
-    values.push(chatId);
+    values.push(sessionId);
 
-    const stmt = db.prepare(`UPDATE sessions SET ${fields.join(', ')} WHERE chat_id = ?`);
+    const stmt = db.prepare(`UPDATE sessions SET ${fields.join(', ')} WHERE session_id = ?`);
     const result = stmt.run(...values);
 
     if (result.changes === 0) return null;
 
-    logger.info({ chatId }, 'Session updated');
-    return this.findByChatId(chatId);
+    logger.info({ sessionId }, 'Session updated');
+    return this.findBySessionId(sessionId);
   }
 
-  delete(chatId: string): boolean {
+  delete(sessionId: string): boolean {
     const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('DELETE FROM sessions WHERE chat_id = ?');
-    const result = stmt.run(chatId);
+    const stmt = db.prepare('DELETE FROM sessions WHERE session_id = ?');
+    const result = stmt.run(sessionId);
 
     if (result.changes > 0) {
-      logger.info({ chatId }, 'Session deleted');
+      logger.info({ sessionId }, 'Session deleted');
       return true;
     }
     return false;
@@ -108,14 +126,19 @@ export class SessionRepository {
     return rows.map(row => this.mapRowToRecord(row));
   }
 
-  findByChannel(channelType: string, channelId?: string): SessionRecord[] {
+  findByScope(channel: string, type?: string, chatId?: string): SessionRecord[] {
     const db = sqliteManager.getDatabase();
-    let query = 'SELECT * FROM sessions WHERE channel_type = ?';
-    const params: Array<string> = [channelType];
+    let query = 'SELECT * FROM sessions WHERE channel = ?';
+    const params: Array<string> = [channel];
 
-    if (channelId) {
-      query += ' AND channel_id = ?';
-      params.push(channelId);
+    if (type) {
+      query += ' AND type = ?';
+      params.push(type);
+    }
+
+    if (chatId) {
+      query += ' AND chat_id = ?';
+      params.push(chatId);
     }
 
     query += ' ORDER BY created_at DESC';
@@ -126,9 +149,9 @@ export class SessionRepository {
   }
 
   upsert(input: CreateSessionInput): SessionRecord {
-    const existing = this.findByChatId(input.chatId);
+    const existing = this.findBySessionId(input.sessionId);
     if (existing) {
-      return this.update(input.chatId, input) || existing;
+      return this.update(input.sessionId, input) || existing;
     }
     return this.create(input);
   }
@@ -139,9 +162,10 @@ export class SessionRepository {
 
   private mapRowToRecord(row: SessionRow): SessionRecord {
     return {
+      sessionId: row.session_id,
       chatId: row.chat_id,
-      channelType: row.channel_type,
-      channelId: row.channel_id,
+      channel: row.channel,
+      type: row.type,
       userId: row.user_id,
       createdAt: row.created_at,
       updatedAt: row.updated_at,

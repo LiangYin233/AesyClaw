@@ -40,6 +40,7 @@ export interface PluginRuntimeConfig {
 }
 
 export interface PluginConfigStore {
+  getPluginConfig(name: string): PluginRuntimeConfig | undefined;
   registerPluginDefaults(name: string, defaults: Record<string, unknown>): void;
   updatePluginConfig(
     name: string,
