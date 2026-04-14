@@ -22,6 +22,66 @@ export interface MultimodalRuntimeConfig {
 
 type MultimodalConfigResolver = () => MultimodalRuntimeConfig;
 
+const AUDIO_MIME_TYPES: Record<string, string> = {
+  '.mp3': 'audio/mpeg',
+  '.mp4': 'audio/mp4',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.m4a': 'audio/mp4',
+  '.flac': 'audio/flac',
+  '.aac': 'audio/aac',
+};
+
+const IMAGE_MIME_TYPES: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  bmp: 'image/bmp',
+  svg: 'image/svg+xml',
+};
+
+function isRemoteMediaPath(mediaPath: string): boolean {
+  return mediaPath.startsWith('http://') || mediaPath.startsWith('https://');
+}
+
+function readFileAsArrayBuffer(filePath: string): ArrayBuffer {
+  const buffer = fs.readFileSync(filePath);
+  return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+}
+
+function getAudioMimeType(ext: string): string {
+  return AUDIO_MIME_TYPES[ext] || 'audio/mpeg';
+}
+
+function getImageMimeType(ext: string): string {
+  return IMAGE_MIME_TYPES[ext.toLowerCase()] || 'image/jpeg';
+}
+
+function readImageAsDataUrl(imagePath: string): string {
+  const absolutePath = path.resolve(imagePath);
+  const base64 = fs.readFileSync(absolutePath).toString('base64');
+  const ext = path.extname(imagePath).toLowerCase().slice(1);
+  const mimeType = getImageMimeType(ext);
+  return `data:${mimeType};base64,${base64}`;
+}
+
+function createOpenAIClient(provider: ProviderRuntimeConfig): OpenAI {
+  return new OpenAI({
+    apiKey: provider.api_key,
+    baseURL: provider.base_url,
+  });
+}
+
+function buildMissingProviderResult(providerType: string, providerName: string): ToolExecutionResult {
+  return {
+    success: false,
+    content: '',
+    error: `未找到 ${providerType} provider: ${providerName}`,
+  };
+}
+
 const SpeechToTextSchema = z.object({
   audio_path: z.string().describe('语音文件路径，支持本地路径或URL'),
 });
@@ -46,6 +106,52 @@ export class SpeechToTextTool implements ITool {
     };
   }
 
+  private resolveProvider(config: MultimodalRuntimeConfig): ProviderRuntimeConfig | ToolExecutionResult {
+    const providerName = config.multimodal.stt_provider;
+    const provider = config.providers[providerName];
+
+    if (!provider) {
+      return buildMissingProviderResult('STT', providerName);
+    }
+
+    return provider;
+  }
+
+  private async resolveAudioInput(
+    audioPath: string
+  ): Promise<{ fileBuffer: ArrayBuffer; mimeType: string; fileName: string } | ToolExecutionResult> {
+    if (isRemoteMediaPath(audioPath)) {
+      const response = await fetch(audioPath);
+      if (!response.ok) {
+        return {
+          success: false,
+          content: '',
+          error: `下载音频文件失败: HTTP ${response.status}`,
+        };
+      }
+
+      return {
+        fileBuffer: await response.arrayBuffer(),
+        mimeType: response.headers.get('content-type') || 'audio/mpeg',
+        fileName: path.basename(audioPath),
+      };
+    }
+
+    if (!fs.existsSync(audioPath)) {
+      return {
+        success: false,
+        content: '',
+        error: `音频文件不存在: ${audioPath}`,
+      };
+    }
+
+    return {
+      fileBuffer: readFileAsArrayBuffer(audioPath),
+      mimeType: getAudioMimeType(path.extname(audioPath).toLowerCase()),
+      fileName: path.basename(audioPath),
+    };
+  }
+
   async execute(args: unknown, context: ToolExecuteContext): Promise<ToolExecutionResult> {
     const parsed = this.parametersSchema.safeParse(args);
     if (!parsed.success) {
@@ -64,52 +170,20 @@ export class SpeechToTextTool implements ITool {
       const config = this.getConfig();
       const multimodalConfig = config.multimodal;
 
-      const sttProvider = config.providers[multimodalConfig.stt_provider];
-      if (!sttProvider) {
-        return {
-          success: false,
-          content: '',
-          error: `未找到 STT provider: ${multimodalConfig.stt_provider}`,
-        };
+      const sttProvider = this.resolveProvider(config);
+      if ('success' in sttProvider) {
+        return sttProvider;
       }
 
-      const client = new OpenAI({
-        apiKey: sttProvider.api_key,
-        baseURL: sttProvider.base_url,
-      });
+      const client = createOpenAIClient(sttProvider);
 
-      let fileBuffer: ArrayBuffer;
-      let mimeType: string;
-
-      if (audio_path.startsWith('http://') || audio_path.startsWith('https://')) {
-        const response = await fetch(audio_path);
-        if (!response.ok) {
-          return {
-            success: false,
-            content: '',
-            error: `下载音频文件失败: HTTP ${response.status}`,
-          };
-        }
-        fileBuffer = await response.arrayBuffer();
-        mimeType = response.headers.get('content-type') || 'audio/mpeg';
-      } else {
-        if (!fs.existsSync(audio_path)) {
-          return {
-            success: false,
-            content: '',
-            error: `音频文件不存在: ${audio_path}`,
-          };
-        }
-        const buffer = fs.readFileSync(audio_path);
-        fileBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
-        const ext = path.extname(audio_path).toLowerCase();
-        mimeType = this.getMimeType(ext);
+      const audioInput = await this.resolveAudioInput(audio_path);
+      if ('success' in audioInput) {
+        return audioInput;
       }
-
-      const fileName = path.basename(audio_path);
 
       const transcription = await client.audio.transcriptions.create({
-        file: new File([fileBuffer], fileName, { type: mimeType }),
+        file: new File([audioInput.fileBuffer], audioInput.fileName, { type: audioInput.mimeType }),
         model: multimodalConfig.stt_model,
       });
 
@@ -130,18 +204,6 @@ export class SpeechToTextTool implements ITool {
     }
   }
 
-  private getMimeType(ext: string): string {
-    const mimeTypes: Record<string, string> = {
-      '.mp3': 'audio/mpeg',
-      '.mp4': 'audio/mp4',
-      '.wav': 'audio/wav',
-      '.ogg': 'audio/ogg',
-      '.m4a': 'audio/mp4',
-      '.flac': 'audio/flac',
-      '.aac': 'audio/aac',
-    };
-    return mimeTypes[ext] || 'audio/mpeg';
-  }
 }
 
 export class ImageUnderstandingTool implements ITool {
@@ -157,6 +219,40 @@ export class ImageUnderstandingTool implements ITool {
       description: this.description,
       parameters: zodToToolParameters(this.parametersSchema),
     };
+  }
+
+  private resolveProvider(config: MultimodalRuntimeConfig): ProviderRuntimeConfig | ToolExecutionResult {
+    const providerName = config.multimodal.vision_provider;
+    const provider = config.providers[providerName];
+
+    if (!provider) {
+      return buildMissingProviderResult('vision', providerName);
+    }
+
+    return provider;
+  }
+
+  private resolveImageUrl(imagePath: string): { imageUrl: string } | ToolExecutionResult {
+    if (isRemoteMediaPath(imagePath)) {
+      return { imageUrl: imagePath };
+    }
+
+    if (!fs.existsSync(imagePath)) {
+      return {
+        success: false,
+        content: '',
+        error: `图片文件不存在: ${imagePath}`,
+      };
+    }
+
+    return {
+      imageUrl: readImageAsDataUrl(imagePath),
+    };
+  }
+
+  private resolvePrompt(prompt: string): string {
+    const defaultPrompt = '请详细描述这张图片的内容，包括场景、人物、物品、颜色等细节。';
+    return prompt || defaultPrompt;
   }
 
   async execute(args: unknown, context: ToolExecuteContext): Promise<ToolExecutionResult> {
@@ -177,42 +273,19 @@ export class ImageUnderstandingTool implements ITool {
       const config = this.getConfig();
       const multimodalConfig = config.multimodal;
 
-      const visionProvider = config.providers[multimodalConfig.vision_provider];
-      if (!visionProvider) {
-        return {
-          success: false,
-          content: '',
-          error: `未找到 vision provider: ${multimodalConfig.vision_provider}`,
-        };
+      const visionProvider = this.resolveProvider(config);
+      if ('success' in visionProvider) {
+        return visionProvider;
       }
 
-      const client = new OpenAI({
-        apiKey: visionProvider.api_key,
-        baseURL: visionProvider.base_url,
-      });
+      const client = createOpenAIClient(visionProvider);
 
-      let imageUrl: string;
-
-      if (image_path.startsWith('http://') || image_path.startsWith('https://')) {
-        imageUrl = image_path;
-      } else {
-        if (!fs.existsSync(image_path)) {
-          return {
-            success: false,
-            content: '',
-            error: `图片文件不存在: ${image_path}`,
-          };
-        }
-
-        const absolutePath = path.resolve(image_path);
-        const base64 = fs.readFileSync(absolutePath).toString('base64');
-        const ext = path.extname(image_path).toLowerCase().slice(1);
-        const mimeType = this.getMimeType(ext);
-        imageUrl = `data:${mimeType};base64,${base64}`;
+      const imageInput = this.resolveImageUrl(image_path);
+      if ('success' in imageInput) {
+        return imageInput;
       }
 
-      const defaultPrompt = '请详细描述这张图片的内容，包括场景、人物、物品、颜色等细节。';
-      const userPrompt = prompt || defaultPrompt;
+      const userPrompt = this.resolvePrompt(prompt);
 
       const response = await client.chat.completions.create({
         model: multimodalConfig.vision_model,
@@ -227,7 +300,7 @@ export class ImageUnderstandingTool implements ITool {
               {
                 type: 'image_url',
                 image_url: {
-                  url: imageUrl,
+                  url: imageInput.imageUrl,
                 },
               },
             ],
@@ -254,18 +327,6 @@ export class ImageUnderstandingTool implements ITool {
     }
   }
 
-  private getMimeType(ext: string): string {
-    const mimeTypes: Record<string, string> = {
-      jpg: 'image/jpeg',
-      jpeg: 'image/jpeg',
-      png: 'image/png',
-      gif: 'image/gif',
-      webp: 'image/webp',
-      bmp: 'image/bmp',
-      svg: 'image/svg+xml',
-    };
-    return mimeTypes[ext.toLowerCase()] || 'image/jpeg';
-  }
 }
 
 export function createMultimodalTools(getConfig: MultimodalConfigResolver): {

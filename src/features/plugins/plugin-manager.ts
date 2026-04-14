@@ -6,8 +6,14 @@ import type {
   PluginRuntimeConfig,
 } from '@/contracts/commands.js';
 import { ToolRegistry } from '@/platform/tools/registry.js';
-import { isPlainObject } from '@/platform/utils/index.js';
 import { logger } from '@/platform/observability/logger.js';
+import { normalizeImportPath } from '@/platform/utils/import-path.js';
+import { mergeDefaultOptions } from '@/platform/utils/merge-default-options.js';
+import {
+  assertPackageNameMatchesExportedName,
+  type PackageManifest,
+  readPackageManifest,
+} from '@/platform/utils/package-manifest.js';
 import {
   IPlugin,
   PluginContext,
@@ -27,6 +33,16 @@ export interface PluginManagerDependencies {
   configStore: PluginConfigStore;
 }
 
+interface PluginPathInfo {
+  dir: string;
+  packageJson: PackageManifest;
+}
+
+interface PluginDirectoryInfo extends PluginPathInfo {
+  pluginName: string;
+  dirName: string;
+}
+
 export class PluginManager {
   private toolRegistry: ToolRegistry;
   private deps: PluginManagerDependencies;
@@ -34,7 +50,7 @@ export class PluginManager {
   private pluginInfos: Map<string, PluginInfo> = new Map();
   private initialized: boolean = false;
   private pluginsDir: string;
-  private pluginPaths: Map<string, { dir: string; packageJson: Record<string, unknown> }> = new Map();
+  private pluginPaths: Map<string, PluginPathInfo> = new Map();
 
   constructor(toolRegistry: ToolRegistry, deps: PluginManagerDependencies) {
     this.toolRegistry = toolRegistry;
@@ -61,53 +77,36 @@ export class PluginManager {
       return;
     }
 
-    const entries = fs.readdirSync(this.pluginsDir, { withFileTypes: true });
-    const pluginDirs = entries.filter(
-      entry => entry.isDirectory() && entry.name.startsWith('plugin_')
-    );
+    const pluginDirs = this.getPluginDirectories();
 
     logger.info({ found: pluginDirs.length }, 'Found plugin directories');
 
     for (const dir of pluginDirs) {
-      const pluginDir = path.join(this.pluginsDir, dir.name);
-
       try {
-        const packageJsonPath = path.join(pluginDir, 'package.json');
-        if (!fs.existsSync(packageJsonPath)) {
-          logger.warn({ pluginDir }, 'Plugin missing package.json, skipping');
+        const pluginInfo = this.readPluginDirectoryInfo(dir);
+        if (!pluginInfo) {
           continue;
         }
 
-        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-        const pluginName = packageJson.name || dir.name;
-
-        this.pluginPaths.set(pluginName, { dir: pluginDir, packageJson });
-
-        const config = enabledPlugins.find(p => {
-          return p.name === pluginName || p.name === dir.name;
+        this.pluginPaths.set(pluginInfo.pluginName, {
+          dir: pluginInfo.dir,
+          packageJson: pluginInfo.packageJson,
         });
 
+        const config = this.findPluginRuntimeConfig(
+          enabledPlugins,
+          pluginInfo.pluginName,
+          pluginInfo.dirName
+        );
+
         if (config && !config.enabled) {
-          logger.info({ pluginName }, 'Plugin disabled in config, skipping');
+          logger.info({ pluginName: pluginInfo.pluginName }, 'Plugin disabled in config, skipping');
           continue;
         }
 
-        const mainFile = packageJson.main || 'dist/index.js';
-        const pluginPath = path.join(pluginDir, mainFile);
-
-        if (!fs.existsSync(pluginPath)) {
-          logger.warn({ pluginPath }, 'Plugin main file not found, trying source path');
-          const srcPath = path.join(pluginDir, 'src/index.ts');
-          if (fs.existsSync(srcPath)) {
-            await this.loadPluginFromSource(pluginName, srcPath, config?.options || {});
-          } else {
-            logger.warn({ pluginName }, 'Plugin entry point not found');
-          }
-        } else {
-          await this.loadPluginFromDist(pluginName, pluginPath, config?.options || {});
-        }
+        await this.loadPluginFromEntry(pluginInfo, config?.options || {});
       } catch (error) {
-        logger.error({ pluginDir, error }, 'Failed to load plugin from directory');
+        logger.error({ pluginDir: path.join(this.pluginsDir, dir.name), error }, 'Failed to load plugin from directory');
       }
     }
 
@@ -117,13 +116,106 @@ export class PluginManager {
     );
   }
 
+  private getPluginDirectories(): fs.Dirent[] {
+    return fs.readdirSync(this.pluginsDir, { withFileTypes: true }).filter(
+      entry => entry.isDirectory() && entry.name.startsWith('plugin_')
+    );
+  }
+
+  private readPluginDirectoryInfo(entry: fs.Dirent): PluginDirectoryInfo | null {
+    const pluginDir = path.join(this.pluginsDir, entry.name);
+    const packageJsonPath = path.join(pluginDir, 'package.json');
+    const packageJson = readPackageManifest(packageJsonPath);
+    if (!packageJson) {
+      logger.warn({ pluginDir }, 'Plugin missing package.json, skipping');
+      return null;
+    }
+
+    return {
+      dir: pluginDir,
+      dirName: entry.name,
+      packageJson,
+      pluginName: packageJson.name || entry.name,
+    };
+  }
+
+  private findPluginRuntimeConfig(
+    enabledPlugins: readonly PluginRuntimeConfig[],
+    pluginName: string,
+    dirName: string
+  ): PluginRuntimeConfig | undefined {
+    return enabledPlugins.find(p => {
+      return p.name === pluginName || p.name === dirName;
+    });
+  }
+
+  private resolvePluginEntryPaths(pluginDir: string, packageJson: PackageManifest): {
+    distPath: string;
+    sourcePath: string;
+  } {
+    const mainFile = packageJson.main || 'dist/index.js';
+
+    return {
+      distPath: path.join(pluginDir, mainFile),
+      sourcePath: path.join(pluginDir, 'src/index.ts'),
+    };
+  }
+
+  private async loadPluginFromEntry(
+    pluginInfo: PluginDirectoryInfo | PluginPathInfo & { pluginName: string },
+    options: Record<string, unknown>
+  ): Promise<void> {
+    const { distPath, sourcePath } = this.resolvePluginEntryPaths(
+      pluginInfo.dir,
+      pluginInfo.packageJson
+    );
+
+    if (!fs.existsSync(distPath)) {
+      logger.warn({ pluginPath: distPath }, 'Plugin main file not found, trying source path');
+      if (fs.existsSync(sourcePath)) {
+        await this.loadPluginFromSource(pluginInfo.pluginName, sourcePath, options);
+      } else {
+        logger.warn({ pluginName: pluginInfo.pluginName }, 'Plugin entry point not found');
+      }
+
+      return;
+    }
+
+    await this.loadPluginFromDist(pluginInfo.pluginName, distPath, options);
+  }
+
+  private findPluginInDirectoryScan(pluginName: string): PluginPathInfo | undefined {
+    for (const dir of this.getPluginDirectories()) {
+      const pluginInfo = this.readPluginDirectoryInfo(dir);
+      if (!pluginInfo) {
+        continue;
+      }
+
+      if (!this.pluginPaths.has(pluginInfo.pluginName)) {
+        this.pluginPaths.set(pluginInfo.pluginName, {
+          dir: pluginInfo.dir,
+          packageJson: pluginInfo.packageJson,
+        });
+      }
+
+      if (pluginInfo.pluginName === pluginName) {
+        return {
+          dir: pluginInfo.dir,
+          packageJson: pluginInfo.packageJson,
+        };
+      }
+    }
+
+    return undefined;
+  }
+
   private async loadPluginFromDist(
     pluginName: string,
     pluginPath: string,
     options: Record<string, unknown>
   ): Promise<void> {
     try {
-      const normalizedPath = this.normalizePath(pluginPath);
+      const normalizedPath = normalizeImportPath(pluginPath);
       const pluginModule = await import(normalizedPath);
       const plugin = pluginModule.default || pluginModule;
 
@@ -133,14 +225,11 @@ export class PluginManager {
       }
 
       const packageJsonPath = path.join(path.dirname(pluginPath), 'package.json');
-      if (fs.existsSync(packageJsonPath)) {
-        const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-        if (pkg.name && pkg.name !== plugin.name) {
-          throw new Error(
-            `Plugin name mismatch: package.json name is "${pkg.name}" but plugin.name is "${plugin.name}". They must match.`
-          );
-        }
-      }
+      assertPackageNameMatchesExportedName(
+        readPackageManifest(packageJsonPath),
+        plugin.name,
+        'Plugin'
+      );
 
       await this.initializePlugin(plugin, options);
     } catch (error) {
@@ -154,20 +243,13 @@ export class PluginManager {
     }
   }
 
-  private normalizePath(filePath: string): string {
-    if (path.isAbsolute(filePath)) {
-      return `file:///${filePath.replace(/\\/g, '/')}`;
-    }
-    return filePath;
-  }
-
   private async loadPluginFromSource(
     _pluginName: string,
     sourcePath: string,
     options: Record<string, unknown>
   ): Promise<void> {
     try {
-      const normalizedPath = this.normalizePath(sourcePath);
+      const normalizedPath = normalizeImportPath(sourcePath);
       const tsxModule = await import(normalizedPath);
       const plugin = tsxModule.default || tsxModule;
 
@@ -177,12 +259,14 @@ export class PluginManager {
       }
 
       const packageJsonPath = path.join(path.dirname(sourcePath), 'package.json');
-      if (fs.existsSync(packageJsonPath)) {
-        const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-        if (pkg.name && pkg.name !== plugin.name) {
+      const packageManifest = readPackageManifest(packageJsonPath);
+      if (packageManifest) {
+        try {
+          assertPackageNameMatchesExportedName(packageManifest, plugin.name, 'Plugin');
+        } catch (error) {
           logger.error(
-            { packageName: pkg.name, pluginName: plugin.name },
-            `Plugin name mismatch: package.json name is "${pkg.name}" but plugin.name is "${plugin.name}". They must match.`
+            { packageName: packageManifest.name, pluginName: plugin.name },
+            error instanceof Error ? error.message : String(error)
           );
           return;
         }
@@ -258,23 +342,7 @@ export class PluginManager {
     plugin: IPlugin,
     userOptions: Record<string, unknown>
   ): Record<string, unknown> {
-    const defaultOptions = plugin.defaultOptions || {};
-    const merged = { ...defaultOptions };
-
-    for (const key in userOptions) {
-      if (Object.hasOwn(userOptions, key)) {
-        const userValue = userOptions[key];
-        const defaultValue = defaultOptions[key];
-
-        if (isPlainObject(userValue) && isPlainObject(defaultValue)) {
-          merged[key] = { ...defaultValue, ...userValue };
-        } else {
-          merged[key] = userValue;
-        }
-      }
-    }
-
-    return merged;
+    return mergeDefaultOptions(plugin.defaultOptions || {}, userOptions);
   }
 
   private getPluginHookNames(plugin: IPlugin): string[] {
@@ -407,33 +475,9 @@ export class PluginManager {
         };
       }
 
-      const entries = fs.readdirSync(this.pluginsDir, { withFileTypes: true });
-      const pluginDirs = entries.filter(
-        entry => entry.isDirectory() && entry.name.startsWith('plugin_')
-      );
+      pluginInfo = this.findPluginInDirectoryScan(pluginName);
 
-      let foundInScan = false;
-      for (const dir of pluginDirs) {
-        const pluginDir = path.join(this.pluginsDir, dir.name);
-        const packageJsonPath = path.join(pluginDir, 'package.json');
-
-        if (fs.existsSync(packageJsonPath)) {
-          const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-          const pkgName = packageJson.name || dir.name;
-
-          if (!this.pluginPaths.has(pkgName)) {
-            this.pluginPaths.set(pkgName, { dir: pluginDir, packageJson });
-          }
-
-          if (pkgName === pluginName) {
-            pluginInfo = { dir: pluginDir, packageJson };
-            foundInScan = true;
-            break;
-          }
-        }
-      }
-
-      if (!foundInScan && !pluginInfo) {
+      if (!pluginInfo) {
         return {
           success: false,
           message: `未找到插件 "${pluginName}"，请确认插件已存在于 plugins/ 目录`,
@@ -450,22 +494,17 @@ export class PluginManager {
 
     try {
       const { dir: pluginDir, packageJson } = pluginInfo;
-      const mainFile = (packageJson.main as string | undefined) || 'dist/index.js';
-      const pluginPath = path.join(pluginDir, mainFile);
+      const existingConfig = this.deps.configStore.getPluginConfig(pluginName);
+      const options = existingConfig?.options || {};
 
-      if (fs.existsSync(pluginPath)) {
-        await this.loadPluginFromDist(pluginName, pluginPath, {});
-      } else {
-        const srcPath = path.join(pluginDir, 'src/index.ts');
-        if (fs.existsSync(srcPath)) {
-          await this.loadPluginFromSource(pluginName, srcPath, {});
-        } else {
-          return {
-            success: false,
-            message: `插件 "${pluginName}" 入口文件不存在`,
-          };
-        }
-      }
+      await this.loadPluginFromEntry(
+        {
+          dir: pluginDir,
+          packageJson,
+          pluginName,
+        },
+        options
+      );
 
       if (!this.loadedPlugins.has(pluginName)) {
         return {
@@ -474,7 +513,7 @@ export class PluginManager {
         };
       }
 
-      await this.deps.configStore.updatePluginConfig(pluginName, true);
+      await this.deps.configStore.updatePluginConfig(pluginName, true, options);
 
       logger.info({ pluginName: pluginName }, 'Plugin enabled successfully');
       return {

@@ -43,9 +43,10 @@ export class SQLiteManager {
 
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS sessions (
-        chat_id TEXT PRIMARY KEY,
-        channel_type TEXT NOT NULL DEFAULT 'unknown',
-        channel_id TEXT,
+        session_id TEXT PRIMARY KEY,
+        chat_id TEXT NOT NULL,
+        channel TEXT NOT NULL DEFAULT 'unknown',
+        type TEXT NOT NULL DEFAULT 'default',
         user_id TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -64,12 +65,12 @@ export class SQLiteManager {
         last_run_at TEXT,
         next_run_at TEXT,
         run_count INTEGER NOT NULL DEFAULT 0,
-        metadata TEXT DEFAULT '{}',
-        FOREIGN KEY (chat_id) REFERENCES sessions(chat_id) ON DELETE CASCADE
+        metadata TEXT DEFAULT '{}'
       );
 
       CREATE INDEX IF NOT EXISTS idx_sessions_created_at ON sessions(created_at);
-      CREATE INDEX IF NOT EXISTS idx_sessions_channel ON sessions(channel_type, channel_id);
+      CREATE INDEX IF NOT EXISTS idx_sessions_chat_id ON sessions(chat_id);
+      CREATE INDEX IF NOT EXISTS idx_sessions_scope ON sessions(channel, type, chat_id);
       CREATE INDEX IF NOT EXISTS idx_cron_jobs_chat_id ON cron_jobs(chat_id);
       CREATE INDEX IF NOT EXISTS idx_cron_jobs_next_run ON cron_jobs(next_run_at) WHERE enabled = 1;
     `);

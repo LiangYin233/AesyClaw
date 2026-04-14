@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import type { PluginRuntimeConfig } from '@/contracts/commands.js';
 import { ZodError } from 'zod';
 import { logger } from '@/platform/observability/logger.js';
 import { PathResolver, pathResolver } from '@/platform/utils/paths.js';
@@ -92,21 +93,12 @@ export class ConfigManager {
     try {
       const content = await fs.promises.readFile(this.configPath, 'utf-8');
       const parsed = this.parseConfig(content);
-      if (parsed.config) {
-        const originalContent = content.trim();
-        const newContent = this.serializeToJSON(parsed.config).trim();
-
-        if (parsed.shouldWriteBack && originalContent !== newContent) {
-          logger.info({}, 'Config was incomplete, added missing fields with defaults');
-          await this.saveMergedConfig(parsed.config);
-          logger.info({ path: this.configPath }, 'Updated config file with default values');
-        }
-
-        this._config = parsed.config;
-        logger.info({ path: this.configPath }, 'Config loaded successfully');
-      } else {
-        logger.warn({}, 'Config parse failed, using cached/default config');
-      }
+      await this.applyParsedConfigResult(content, parsed, {
+        parseFailureMessage: 'Config parse failed, using cached/default config',
+        successMessage: 'Config loaded successfully',
+        writeBackMessage: 'Updated config file with default values',
+        beforeWriteBackMessage: 'Config was incomplete, added missing fields with defaults',
+      });
     } catch (error) {
       this.gracefulDegradation(error as Error);
     }
@@ -133,19 +125,19 @@ export class ConfigManager {
       if (result.success) {
         let shouldWriteBack = false;
 
-        if (this.shouldAddDefault(parsed, config => config.providers, providers => !providers || Object.keys(providers).length === 0)) {
+        if (this.shouldAddDefaultProviders(parsed)) {
           result.data.providers = this.getDefaultProviderExample();
           shouldWriteBack = true;
           logger.info({}, 'No providers configured, adding default provider example');
         }
 
-        if (this.shouldAddDefault(parsed, config => config.mcp?.servers, servers => !servers || !Array.isArray(servers) || servers.length === 0)) {
+        if (this.shouldAddDefaultMcpServers(parsed)) {
           result.data.mcp = { servers: this.getDefaultMCPServerExample() };
           shouldWriteBack = true;
           logger.info({}, 'No MCP servers configured, adding default MCP server example');
         }
 
-        if (this.shouldAddDefault(parsed, config => config.channels, channels => !channels || Object.keys(channels).length === 0)) {
+        if (this.shouldAddDefaultChannels(parsed)) {
           result.data.channels = {};
           shouldWriteBack = true;
           logger.info({}, 'No channels configured, channels will be loaded from plugins');
@@ -160,9 +152,9 @@ export class ConfigManager {
       logger.warn({ issues: this.formatZodErrors(result.error) }, 'Zod validation failed, attempting to fill missing fields with defaults');
 
       const parsedConfig = parsed as ParsedConfig;
-      const hasProviders = !this.shouldAddDefault(parsedConfig, config => config.providers, providers => !providers || Object.keys(providers).length === 0);
-      const hasMCPServers = !this.shouldAddDefault(parsedConfig, config => config.mcp?.servers, servers => !servers || !Array.isArray(servers) || servers.length === 0);
-      const hasChannels = !this.shouldAddDefault(parsedConfig, config => config.channels, channels => !channels || Object.keys(channels).length === 0);
+      const hasProviders = !this.shouldAddDefaultProviders(parsedConfig);
+      const hasMCPServers = !this.shouldAddDefaultMcpServers(parsedConfig);
+      const hasChannels = !this.shouldAddDefaultChannels(parsedConfig);
 
       const mergedProviders = hasProviders ? parsedConfig.providers : this.getDefaultProviderExample();
       const mergedMCPServers = hasMCPServers ? parsedConfig.mcp?.servers : this.getDefaultMCPServerExample();
@@ -214,6 +206,30 @@ export class ConfigManager {
   private shouldAddDefault<T>(parsedConfig: ParsedConfig, getter: (config: ParsedConfig) => T | undefined, isEmpty: (value: T) => boolean): boolean {
     const value = getter(parsedConfig);
     return value === undefined || isEmpty(value);
+  }
+
+  private shouldAddDefaultProviders(parsedConfig: ParsedConfig): boolean {
+    return this.shouldAddDefault(
+      parsedConfig,
+      config => config.providers,
+      providers => !providers || Object.keys(providers).length === 0
+    );
+  }
+
+  private shouldAddDefaultMcpServers(parsedConfig: ParsedConfig): boolean {
+    return this.shouldAddDefault(
+      parsedConfig,
+      config => config.mcp?.servers,
+      servers => !servers || !Array.isArray(servers) || servers.length === 0
+    );
+  }
+
+  private shouldAddDefaultChannels(parsedConfig: ParsedConfig): boolean {
+    return this.shouldAddDefault(
+      parsedConfig,
+      config => config.channels,
+      channels => !channels || Object.keys(channels).length === 0
+    );
   }
 
   private getDefaultProviderExample(): ProviderExample {
@@ -290,27 +306,68 @@ export class ConfigManager {
     try {
       const content = await fs.promises.readFile(this.configPath, 'utf-8');
       const parsed = this.parseConfig(content);
-      if (parsed.config) {
-        const previousConfig = this._config;
-        const originalContent = content.trim();
-        const newContent = this.serializeToJSON(parsed.config).trim();
-
-        if (parsed.shouldWriteBack && originalContent !== newContent) {
-          await this.saveMergedConfig(parsed.config);
-          logger.info({ path: this.configPath }, 'Updated config file with default values after reload');
-        }
-
-        this._config = parsed.config;
-        logger.info({}, 'Configuration reloaded successfully');
-
-        if (previousConfig) {
-          await this.notifyConfigChange(parsed.config, previousConfig);
-        }
-      } else {
-        logger.warn({}, 'Config reload failed, keeping old config');
-      }
+      await this.applyParsedConfigResult(content, parsed, {
+        parseFailureMessage: 'Config reload failed, keeping old config',
+        successMessage: 'Configuration reloaded successfully',
+        writeBackMessage: 'Updated config file with default values after reload',
+        previousConfig: this._config,
+      });
     } catch (error) {
       this.gracefulDegradation(error as Error);
+    }
+  }
+
+  private async applyParsedConfigResult(
+    content: string,
+    parsed: ParseConfigResult,
+    options: {
+      parseFailureMessage: string;
+      successMessage: string;
+      writeBackMessage: string;
+      beforeWriteBackMessage?: string;
+      previousConfig?: FullConfig | null;
+    }
+  ): Promise<void> {
+    if (!parsed.config) {
+      logger.warn({}, options.parseFailureMessage);
+      return;
+    }
+
+    await this.maybeWriteBackParsedConfig(
+      content,
+      parsed,
+      options.writeBackMessage,
+      options.beforeWriteBackMessage
+    );
+
+    this._config = parsed.config;
+    logger.info({ path: this.configPath }, options.successMessage);
+
+    if (options.previousConfig) {
+      await this.notifyConfigChange(parsed.config, options.previousConfig);
+    }
+  }
+
+  private async maybeWriteBackParsedConfig(
+    content: string,
+    parsed: ParseConfigResult,
+    writeBackMessage: string,
+    beforeWriteBackMessage?: string
+  ): Promise<void> {
+    if (!parsed.config) {
+      return;
+    }
+
+    const originalContent = content.trim();
+    const newContent = this.serializeToJSON(parsed.config).trim();
+
+    if (parsed.shouldWriteBack && originalContent !== newContent) {
+      if (beforeWriteBackMessage) {
+        logger.info({}, beforeWriteBackMessage);
+      }
+
+      await this.saveMergedConfig(parsed.config);
+      logger.info({ path: this.configPath }, writeBackMessage);
     }
   }
 
@@ -348,15 +405,8 @@ export class ConfigManager {
     }
 
     try {
-      const channels = this._config.channels || {};
-
-      channels[channelName] = {
-        ...channels[channelName],
-        ...config,
-      };
-
       return this.updateConfig({
-        channels: channels,
+        channels: this.createUpdatedChannels(channelName, config),
       });
     } catch (error) {
       logger.error({ error, channelName }, 'Failed to update channel config');
@@ -366,6 +416,19 @@ export class ConfigManager {
 
   registerPluginDefaults(name: string, defaults: Record<string, unknown>): void {
     this.pendingPluginDefaults.set(name, defaults);
+  }
+
+  getPluginConfig(name: string): PluginRuntimeConfig | undefined {
+    const plugin = this.config.plugins.find(entry => entry.name === name);
+    if (!plugin) {
+      return undefined;
+    }
+
+    return {
+      name: plugin.name,
+      enabled: plugin.enabled,
+      options: plugin.options,
+    };
   }
 
   registerChannelDefaults(name: string, defaults: Record<string, unknown>): void {
@@ -429,29 +492,8 @@ export class ConfigManager {
     }
 
     try {
-      const plugins = this._config.plugins || [];
-
-      const existingIndex = plugins.findIndex(p => {
-        return p.name === name;
-      });
-
-      if (existingIndex >= 0) {
-        plugins[existingIndex].enabled = enabled;
-        if (options) {
-          plugins[existingIndex].options = options;
-        }
-      } else {
-        plugins.push({
-          name: name,
-          enabled,
-          options: options || {},
-        });
-      }
-
-      this._config.plugins = plugins;
-
       return this.updateConfig({
-        plugins: plugins,
+        plugins: this.createUpdatedPlugins(name, enabled, options),
       });
     } catch (error) {
       logger.error({ error, name, enabled }, 'Failed to update plugin config');
@@ -467,24 +509,72 @@ export class ConfigManager {
 
     try {
       const merged = this.mergeConfig(this._config, updates);
-      const result = FullConfigSchema.safeParse(merged);
-      if (!result.success) {
-        logger.warn({ issues: this.formatZodErrors(result.error) }, 'Update validation failed');
-        return false;
-      }
-      const previousConfig = this._config;
-      this._config = result.data;
-      this.saveToDisk();
-
-      if (previousConfig) {
-        await this.notifyConfigChange(result.data, previousConfig);
-      }
-
-      return true;
+      return this.validateAndApplyUpdatedConfig(merged, this._config);
     } catch (error) {
       logger.error({ error }, 'Update config failed');
       return false;
     }
+  }
+
+  private createUpdatedChannels(
+    channelName: string,
+    config: Record<string, unknown>
+  ): Record<string, Record<string, unknown>> {
+    const channels: Record<string, Record<string, unknown>> = { ...(this._config?.channels || {}) };
+
+    channels[channelName] = {
+      ...channels[channelName],
+      ...config,
+    };
+
+    return channels;
+  }
+
+  private createUpdatedPlugins(
+    name: string,
+    enabled: boolean,
+    options?: Record<string, unknown>
+  ): PluginRuntimeConfig[] {
+    const plugins = (this._config?.plugins || []).map(plugin => ({
+      ...plugin,
+      ...(plugin.options ? { options: { ...plugin.options } } : {}),
+    }));
+
+    const existingIndex = plugins.findIndex(plugin => {
+      return plugin.name === name;
+    });
+
+    if (existingIndex >= 0) {
+      plugins[existingIndex].enabled = enabled;
+      if (options) {
+        plugins[existingIndex].options = options;
+      }
+    } else {
+      plugins.push({
+        name,
+        enabled,
+        options: options || {},
+      });
+    }
+
+    return plugins;
+  }
+
+  private async validateAndApplyUpdatedConfig(
+    merged: FullConfig,
+    previousConfig: FullConfig
+  ): Promise<boolean> {
+    const result = FullConfigSchema.safeParse(merged);
+    if (!result.success) {
+      logger.warn({ issues: this.formatZodErrors(result.error) }, 'Update validation failed');
+      return false;
+    }
+
+    this._config = result.data;
+    this.saveToDisk();
+    await this.notifyConfigChange(result.data, previousConfig);
+
+    return true;
   }
 
   private mergeConfig(current: FullConfig, updates: Partial<FullConfig>): FullConfig {

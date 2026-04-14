@@ -207,6 +207,7 @@ export class ToolRegistry {
 
       const toolCallResult: ToolCallResult = {
         toolCallId: request.id,
+        chatId: context.chatId,
         toolName: request.name,
         success: result.success,
         content: result.content,
@@ -267,7 +268,7 @@ export class ToolRegistry {
 
   getToolCallHistoryByChatId(chatId: string): ToolCallResult[] {
     return this.toolCallHistory.filter(
-      result => result.toolCallId === chatId
+      result => result.chatId === chatId
     );
   }
 

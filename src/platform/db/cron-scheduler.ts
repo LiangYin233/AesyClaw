@@ -60,7 +60,7 @@ class PriorityQueue<T> {
     if (index < this.heap.length) {
       this.heap[index] = last;
       const parentIndex = Math.floor((index - 1) / 2);
-      if (this.comparator(this.heap[index], this.heap[parentIndex]) < 0) {
+      if (index > 0 && this.comparator(this.heap[index], this.heap[parentIndex]) < 0) {
         this.bubbleUp(index);
       } else {
         this.bubbleDown(index);

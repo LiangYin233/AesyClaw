@@ -71,9 +71,10 @@ export function resolveSessionForInbound(inbound: IUnifiedMessage): ResolvedSess
   });
 
   sessionRepository.ensure({
+    sessionId,
     chatId: components.chatId,
-    channelType: components.channel,
-    channelId: components.type,
+    channel: components.channel,
+    type: components.type,
     metadata: {
       sessionId,
       session: components.session,
