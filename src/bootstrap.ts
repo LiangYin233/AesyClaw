@@ -5,7 +5,7 @@ import { getSessionForCommandContext, sessionMessageStage, sessionRegistry, type
 import { ChannelPipeline } from '@/agent/pipeline.js';
 import { subAgentTools } from '@/agent/subagent/subagent-tools.js';
 import type { IChannelPlugin } from '@/channels/channel-plugin.js';
-import { channelManager } from '@/channels/channel-manager.js';
+import { ChannelPluginManager } from '@/channels/channel-manager.js';
 import type { CommandDefinition } from '@/contracts/commands.js';
 import type { IPluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
 import { commandMiddleware } from '@/features/commands/command-middleware.js';
@@ -16,7 +16,7 @@ import { configMessageStage } from '@/features/config/config-message-stage.js';
 import { configManager } from '@/features/config/config-manager.js';
 import { initializePromptExecutor } from '@/features/cron/index.js';
 import { createPluginCommandGroup } from '@/features/plugins/plugin-command-group.js';
-import { createPluginManager } from '@/features/plugins/create-plugin-manager.js';
+import { PluginManager } from '@/features/plugins/plugin-manager.js';
 import { roleManager } from '@/features/roles/role-manager.js';
 import { createRoleCommandGroup } from '@/features/roles/role-command-group.js';
 import { cronJobScheduler } from '@/platform/db/cron-scheduler.js';
@@ -48,10 +48,12 @@ let pipeline: ChannelPipeline | null = null;
 let toolRegistryInstance: ToolRegistry | null = null;
 let sessionRegistryInstance: SessionRegistry | null = null;
 
-export const pluginManager = createPluginManager(sharedToolRegistry, {
+export const pluginManager = new PluginManager(sharedToolRegistry, {
   commandRegistrar: commandRegistry,
   configStore: configManager,
 });
+
+export const channelManager = new ChannelPluginManager(configManager);
 
 export function getHookRuntime(): IPluginHookRuntime {
   return pluginManager;
@@ -247,14 +249,14 @@ export class Bootstrap {
   }
 
   private static async loadChannelPlugins(channels: Record<string, unknown>): Promise<void> {
-    const activePipeline = this.getPipelineOrLog();
-    if (!activePipeline) {
+    if (!pipeline) {
+      logger.error({}, 'Pipeline not initialized, cannot load channel plugins');
       return;
     }
 
-    channelManager.setPipeline(activePipeline);
+    channelManager.setPipeline(pipeline);
 
-    const pluginsDir = this.getPluginsDir();
+    const pluginsDir = path.join(process.cwd(), 'plugins');
 
     if (!fs.existsSync(pluginsDir)) {
       logger.warn({ pluginsDir }, 'Plugins directory not found, skipping channel plugin loading');
@@ -268,35 +270,14 @@ export class Bootstrap {
     logger.info({ loadedChannels: channelManager.getChannelCount() }, 'Channel system initialized');
   }
 
-  private static getPipelineOrLog(): ChannelPipeline | null {
-    if (!pipeline) {
-      logger.error({}, 'Pipeline not initialized, cannot load channel plugins');
-      return null;
-    }
-
-    return pipeline;
-  }
-
-  private static getPluginsDir(): string {
-    return path.join(process.cwd(), 'plugins');
-  }
-
   private static getChannelPluginEntries(pluginsDir: string): fs.Dirent[] {
     return fs.readdirSync(pluginsDir, { withFileTypes: true }).filter(entry => {
       return entry.isDirectory() && entry.name.startsWith('channel_');
     });
   }
 
-  private static getChannelPluginPath(pluginsDir: string, pluginName: string): string {
-    return path.join(pluginsDir, pluginName, 'index.ts');
-  }
-
-  private static getChannelPackageJsonPath(pluginsDir: string, pluginName: string): string {
-    return path.join(pluginsDir, pluginName, 'package.json');
-  }
-
   private static async importChannelPlugin(pluginsDir: string, pluginName: string): Promise<IChannelPlugin> {
-    const pluginPath = this.getChannelPluginPath(pluginsDir, pluginName);
+    const pluginPath = path.join(pluginsDir, pluginName, 'index.ts');
     const normalizedPath = normalizeImportPath(pluginPath);
     const { default: channelPlugin } = await import(normalizedPath);
 
@@ -304,19 +285,12 @@ export class Bootstrap {
   }
 
   private static validateChannelPlugin(pluginsDir: string, pluginName: string, channelPlugin: IChannelPlugin): void {
-    const packageJsonPath = this.getChannelPackageJsonPath(pluginsDir, pluginName);
+    const packageJsonPath = path.join(pluginsDir, pluginName, 'package.json');
     assertPackageNameMatchesExportedName(
       readPackageManifest(packageJsonPath),
       channelPlugin.name,
       'Channel plugin'
     );
-  }
-
-  private static getChannelPluginConfig(
-    channels: Record<string, unknown>,
-    channelName: string
-  ): Record<string, unknown> {
-    return (channels[channelName] as Record<string, unknown> | undefined) || {};
   }
 
   private static async loadChannelPluginEntry(
@@ -328,7 +302,7 @@ export class Bootstrap {
       const channelPlugin = await this.importChannelPlugin(pluginsDir, pluginName);
       this.validateChannelPlugin(pluginsDir, pluginName, channelPlugin);
 
-      const channelConfig = this.getChannelPluginConfig(channels, channelPlugin.name);
+      const channelConfig = (channels[channelPlugin.name] as Record<string, unknown> | undefined) || {};
 
       await channelManager.registerChannel(channelPlugin, channelConfig);
       logger.info({ channelName: channelPlugin.name }, `${channelPlugin.name} channel plugin loaded`);
@@ -394,6 +368,14 @@ export class Bootstrap {
     logger.info({}, 'Channel config changed, reloading channel plugins');
     await channelManager.shutdown();
     await this.loadChannelPlugins(nextConfig.channels || {});
+
+    const previousHotReloadState = this.channelHotReloadEnabled;
+    this.channelHotReloadEnabled = false;
+    try {
+      await configManager.syncAllDefaultConfigs();
+    } finally {
+      this.channelHotReloadEnabled = previousHotReloadState;
+    }
   }
 
   private static hasSerializedConfigChanged(previousValue: unknown, nextValue: unknown): boolean {

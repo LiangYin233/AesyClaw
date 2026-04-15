@@ -45,7 +45,9 @@ export class CommandRegistry {
 
     if (command.aliases) {
       for (const alias of command.aliases) {
-        this.aliasMap.delete(alias.toLowerCase());
+        if (this.aliasMap.get(alias.toLowerCase()) === name) {
+          this.aliasMap.delete(alias.toLowerCase());
+        }
       }
     }
 
@@ -91,8 +93,7 @@ export class CommandRegistry {
     }
 
     for (const command of commands) {
-      const namespacedName = `${pluginName}:${command.name}`;
-      this.unregister(namespacedName);
+      this.unregister(command.name);
     }
 
     this.pluginCommands.delete(pluginName);
