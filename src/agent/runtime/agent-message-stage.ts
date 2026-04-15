@@ -1,21 +1,11 @@
 import type { SessionContext } from '@/agent/session/session-context.js';
-import type { IChannelContext, IUnifiedMessage, MiddlewareFunc, PipelineState } from '@/agent/types.js';
-import { prepareAgentRun } from '@/agent/runtime/prepare-agent-run.js';
-import type { FullConfig } from '@/features/config/schema.js';
+import type { IChannelContext, IUnifiedMessage, MiddlewareFunc } from '@/agent/types.js';
 import { logger } from '@/platform/observability/logger.js';
 
 interface MediaAttachment {
   type: string;
   url: string;
   filename?: string;
-}
-
-function getConfigFromContext(ctx: IChannelContext): FullConfig {
-  const configState = ctx.state?.config;
-  if (!configState?.config) {
-    throw new Error('No config available in context');
-  }
-  return configState.config as FullConfig;
 }
 
 function getSessionFromContext(ctx: IChannelContext): SessionContext | null {
@@ -56,7 +46,6 @@ function normalizeUserInput(inbound: IUnifiedMessage): string {
 }
 
 export const agentMessageStage: MiddlewareFunc = async (ctx: IChannelContext, next: () => Promise<void>) => {
-  const config = getConfigFromContext(ctx);
   const sessionContext = getSessionFromContext(ctx);
   const sessionId = getSessionIdFromContext(ctx);
 
@@ -68,16 +57,7 @@ export const agentMessageStage: MiddlewareFunc = async (ctx: IChannelContext, ne
   }
 
   const agent = sessionContext.agent;
-  const prepared = prepareAgentRun(ctx.inbound.chatId, config);
-
-  if (!ctx.state) {
-    ctx.state = {} as PipelineState;
-  }
-
-  ctx.state.agent = {
-    llmConfig: prepared.llmConfig,
-    systemPrompt: prepared.systemPrompt,
-  };
+  const runtimeInfo = agent.getRuntimeInfo();
 
   logger.info(
     {
@@ -85,9 +65,8 @@ export const agentMessageStage: MiddlewareFunc = async (ctx: IChannelContext, ne
       chatId: ctx.inbound.chatId,
       channel: sessionContext.metadata.channel,
       type: sessionContext.metadata.type,
-      modelIdentifier: prepared.modelIdentifier,
-      provider: prepared.llmConfig.provider,
-      model: prepared.llmConfig.model,
+      provider: runtimeInfo.llm.provider,
+      model: runtimeInfo.llm.model,
     },
     'Agent stage: starting agent processing'
   );

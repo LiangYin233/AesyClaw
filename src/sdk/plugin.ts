@@ -4,7 +4,7 @@ export type {
   PluginInfo,
   PluginHooks,
   PluginToolDefinition,
-  ToolExecuteContext,
+  PluginToolExecuteContext,
   HookName,
   HookPayloadLLMTool,
   HookPayloadLLMSkill,

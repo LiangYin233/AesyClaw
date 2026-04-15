@@ -4,7 +4,7 @@ import { cronJobRepository, type CronJobRecord } from '@/platform/db/repositorie
 import { eventBus, SystemEvents } from '@/platform/events/event-bus.js';
 import { logger } from '@/platform/observability/logger.js';
 
-export interface CreateCronJobInput {
+export interface CreateCronJobRequest {
   chatId: string;
   name: string;
   cronExpression: string;
@@ -13,7 +13,7 @@ export interface CreateCronJobInput {
   metadata?: Record<string, unknown>;
 }
 
-export async function createCronJob(input: CreateCronJobInput): Promise<CronJobRecord> {
+export async function createCronJob(input: CreateCronJobRequest): Promise<CronJobRecord> {
   if (!cronJobScheduler.validateCronExpression(input.cronExpression)) {
     throw new Error(`Invalid cron expression: ${input.cronExpression}`);
   }

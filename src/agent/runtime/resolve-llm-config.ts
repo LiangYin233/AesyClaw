@@ -1,7 +1,12 @@
 import type { FullConfig } from '@/features/config/schema.js';
-import type { LLMConfig, ModelCapabilities } from '@/platform/llm/types.js';
+import { LLMProviderType, type LLMConfig, type ModelCapabilities } from '@/platform/llm/types.js';
 import { mapProviderType } from '@/platform/utils/llm-utils.js';
 import { parseModelIdentifier } from '@/platform/utils/model-parser.js';
+
+export const DEFAULT_FALLBACK_LLM_CONFIG: Readonly<LLMConfig> = {
+  provider: LLMProviderType.OpenAIChat,
+  model: 'gpt-4o-mini',
+};
 
 export function resolveLLMConfig(modelIdentifier: string, config: FullConfig): LLMConfig {
   const { providerName, modelAlias } = parseModelIdentifier(modelIdentifier);

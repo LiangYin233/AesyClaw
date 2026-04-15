@@ -1,37 +1,37 @@
-import { randomUUID } from 'crypto';
 import {
   AgentContext,
   AesyiuEngine,
-  AnthropicProvider,
   MemoryManager,
-  OpenAICompletionProvider,
-  OpenAIResponsesProvider,
   type AgentSkill,
   type Message as AesyiuMessage,
-  type ModelDefinition,
-  type Tool as AesyiuTool,
 } from 'aesyiu';
-import { getHookRuntime } from '@/bootstrap.js';
 import { configManager } from '@/features/config/config-manager.js';
 import { buildHookSkills, buildHookTools } from '@/features/plugins/hook-utils.js';
 import { roleManager } from '@/features/roles/role-manager.js';
 import { skillManager } from '@/features/skills/skill-manager.js';
 import { resolveLLMConfig } from '@/agent/runtime/resolve-llm-config.js';
-import { LLMConfig, LLMProviderType, MessageRole, StandardMessage } from '@/platform/llm/types.js';
+import { LLMConfig, MessageRole } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import { toolRegistry } from '@/platform/tools/registry.js';
 import { ITool, ToolExecuteContext, ToolExecutionResult } from '@/platform/tools/types.js';
-import { MessageFactory } from './message-factory.js';
+import {
+  createHookAwareProvider,
+  createHookAwareRunTools,
+  getFinalAssistantText,
+  resolveModelDefinition,
+  toAesyiuMessage,
+  toStandardMessage,
+} from './runtime/aesyiu-runtime-helpers.js';
 import { SessionMemoryManager } from './memory/session-memory-manager.js';
-import { MemoryConfig } from './memory/types.js';
+import { SessionMemoryConfig } from './memory/types.js';
 
-export interface AgentConfig {
+export interface AgentEngineConfig {
   llm: LLMConfig;
   maxSteps?: number;
   systemPrompt?: string;
   memory?: SessionMemoryManager;
   tools?: string[];
-  memoryConfig?: Partial<MemoryConfig>;
+  memoryConfig?: Partial<SessionMemoryConfig>;
 }
 
 export interface AgentRunResult {
@@ -53,67 +53,13 @@ interface RunStats {
   error?: string;
 }
 
-function parseToolArguments(argumentsText: string): Record<string, unknown> {
-  try {
-    const parsed = JSON.parse(argumentsText);
-    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
-  } catch {
-    return {};
-  }
-}
-
-function toAesyiuMessage(message: StandardMessage): AesyiuMessage {
-  return {
-    role: message.role,
-    content: message.content,
-    ...(message.toolCalls && message.toolCalls.length > 0
-      ? {
-          tool_calls: message.toolCalls.map(toolCall => ({
-            id: toolCall.id,
-            name: toolCall.name,
-            arguments: JSON.stringify(toolCall.arguments ?? {}),
-          })),
-        }
-      : {}),
-    ...(message.toolCallId ? { tool_call_id: message.toolCallId } : {}),
-  };
-}
-
-function toStandardMessage(message: AesyiuMessage): StandardMessage {
-  return {
-    role: message.role as MessageRole,
-    content: message.content ?? '',
-    ...(message.tool_calls && message.tool_calls.length > 0
-      ? {
-          toolCalls: message.tool_calls.map(toolCall => ({
-            id: toolCall.id,
-            name: toolCall.name,
-            arguments: parseToolArguments(toolCall.arguments),
-          })),
-        }
-      : {}),
-    ...(message.tool_call_id ? { toolCallId: message.tool_call_id } : {}),
-  };
-}
-
-function getFinalAssistantText(messages: readonly AesyiuMessage[]): string {
-  for (let index = messages.length - 1; index >= 0; index--) {
-    const message = messages[index];
-    if (message.role === 'assistant' && !message.tool_calls?.length) {
-      return message.content ?? '';
-    }
-  }
-
-  return '';
-}
-
 export class AgentEngine {
   readonly chatId: string;
   private instanceId: string;
-  private config: Required<Omit<AgentConfig, 'memory'>> & { memory?: SessionMemoryManager };
+  private config: Required<Omit<AgentEngineConfig, 'memory'>> & { memory?: SessionMemoryManager };
   private memory: SessionMemoryManager;
 
-  constructor(chatId: string, config: AgentConfig) {
+  constructor(chatId: string, config: AgentEngineConfig) {
     this.chatId = chatId;
     this.instanceId = `agent-${chatId}-${Date.now()}`;
     this.config = {
@@ -133,7 +79,7 @@ export class AgentEngine {
     });
 
     if (!this.memory.hasMessages()) {
-      this.memory.importMemory([MessageFactory.createSystemMessage(this.config.systemPrompt)]);
+      this.memory.importMemory([{ role: MessageRole.System, content: this.config.systemPrompt }]);
     }
 
     logger.info(
@@ -147,82 +93,19 @@ export class AgentEngine {
     );
   }
 
-  private resolveModelDefinition(modelId: string): ModelDefinition {
-    const providers = configManager.config.providers;
-    const contextLimit = this.config.memoryConfig.maxContextTokens || 128000;
-
-    for (const providerConfig of Object.values(providers)) {
-      if (!providerConfig.models) {
-        continue;
-      }
-
-      for (const modelConfig of Object.values(providerConfig.models)) {
-        if (modelConfig.modelname === modelId) {
-          const contextWindow = Math.min(modelConfig.contextWindow, contextLimit);
-          return {
-            id: modelConfig.modelname,
-            contextWindow,
-            maxOutputTokens: Math.min(16384, contextWindow),
-          };
-        }
-      }
-    }
-
-    return {
-      id: modelId,
-      contextWindow: contextLimit,
-      maxOutputTokens: Math.min(16384, contextLimit),
-    };
-  }
-
   private createProvider(
     stats: RunStats,
     hookTools: ReturnType<typeof buildHookTools>,
     hookSkills: ReturnType<typeof buildHookSkills>
   ) {
     const modelId = this.config.llm.model || 'gpt-4o-mini';
-    const modelDef = this.resolveModelDefinition(modelId);
-    const providerConfig = {
-      apiKey: this.config.llm.apiKey || '',
-      baseURL: this.config.llm.baseUrl,
-    };
+    const modelDef = resolveModelDefinition(
+      modelId,
+      configManager.config.providers,
+      this.config.memoryConfig.maxContextTokens || 128000
+    );
 
-    const provider = (() => {
-      switch (this.config.llm.provider) {
-        case LLMProviderType.OpenAICompletion:
-          return new OpenAICompletionProvider(providerConfig, [modelDef]);
-        case LLMProviderType.Anthropic:
-          return new AnthropicProvider(providerConfig, [modelDef]);
-        case LLMProviderType.OpenAIChat:
-        default:
-          return new OpenAIResponsesProvider(providerConfig, [modelDef]);
-      }
-    })();
-
-    const originalGenerate = provider.generate.bind(provider);
-    provider.generate = async (activeModel, messages, tools) => {
-      stats.steps += 1;
-
-      try {
-        await getHookRuntime().dispatchBeforeLLMRequest({
-          messages: messages.map(toStandardMessage),
-          tools: hookTools,
-          skills: hookSkills,
-        });
-      } catch (error) {
-        stats.error = error instanceof Error ? error.message : String(error);
-        throw error;
-      }
-
-      try {
-        return await originalGenerate(activeModel, messages, tools);
-      } catch (error) {
-        stats.error = error instanceof Error ? error.message : String(error);
-        throw error;
-      }
-    };
-
-    return provider;
+    return createHookAwareProvider(this.config.llm, modelDef, stats, hookTools, hookSkills);
   }
 
   private getFilteredTools(): ITool[] {
@@ -250,55 +133,30 @@ export class AgentEngine {
     return skillManager.getSkillsForRole(allowedSkillIds);
   }
 
-  private createRunTools(tools: readonly ITool[], stats: RunStats): AesyiuTool[] {
-    return tools.map(tool => ({
-      name: tool.name,
-      description: tool.description,
-      parameters: tool.parametersSchema,
-      execute: async (args, ctx) => {
-        const syntheticToolCallId = randomUUID();
-        const parsedArgs = args && typeof args === 'object' ? args as Record<string, unknown> : {};
-        const toolContext: ToolExecuteContext = {
-          roleId: this.memory.getActiveRoleId(),
-          allowedTools: tools.map(registeredTool => registeredTool.name),
-          allowedSkills: this.getAllowedSkills(this.memory.getActiveRoleId()).map(skill => skill.name),
-          chatId: this.chatId,
-          senderId: 'user',
-          traceId: this.instanceId,
-          agentContext: ctx,
-        };
-
-        stats.toolCalls += 1;
-
+  private createRunTools(tools: readonly ITool[], stats: RunStats) {
+    return createHookAwareRunTools(tools, stats, {
+      createToolContext: (ctx): ToolExecuteContext => ({
+        roleId: this.memory.getActiveRoleId(),
+        allowedTools: tools.map(registeredTool => registeredTool.name),
+        allowedSkills: this.getAllowedSkills(this.memory.getActiveRoleId()).map(skill => skill.name),
+        chatId: this.chatId,
+        senderId: 'user',
+        traceId: this.instanceId,
+        agentContext: ctx,
+      }),
+      checkToolAllowed: (tool): ToolExecutionResult | null => {
         const roleId = this.memory.getActiveRoleId();
         if (!roleManager.isToolAllowed(roleId, tool.name)) {
           return {
             success: false,
             content: '',
             error: `角色 "${roleId}" 不允许使用工具 "${tool.name}"。`,
-          } satisfies ToolExecutionResult;
+          };
         }
 
-        let toolResult = await getHookRuntime().dispatchBeforeToolCall({
-          id: syntheticToolCallId,
-          name: tool.name,
-          arguments: parsedArgs,
-        });
-
-        if (!toolResult) {
-          toolResult = await tool.execute(parsedArgs, toolContext);
-        }
-
-        return getHookRuntime().dispatchAfterToolCall({
-          toolCall: {
-            id: syntheticToolCallId,
-            name: tool.name,
-            arguments: parsedArgs,
-          },
-          result: toolResult,
-        });
+        return null;
       },
-    }));
+    });
   }
 
   private syncMemory(messages: readonly AesyiuMessage[]): void {
@@ -432,5 +290,12 @@ export class AgentEngine {
 
     this.config.llm.model = model;
     logger.info({ chatId: this.chatId, model }, 'Agent model updated');
+  }
+
+  getRuntimeInfo(): { llm: LLMConfig; systemPrompt: string } {
+    return {
+      llm: { ...this.config.llm },
+      systemPrompt: this.config.systemPrompt,
+    };
   }
 }

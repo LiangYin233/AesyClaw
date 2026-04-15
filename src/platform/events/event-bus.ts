@@ -4,23 +4,15 @@ type EventHandler<T = unknown> = (_payload: T) => void | Promise<void>;
 
 interface EventSubscription {
   id: string;
-  event: string;
   handler: EventHandler;
-  once: boolean;
 }
 
 export class EventBus {
   private subscriptions: Map<string, EventSubscription[]> = new Map();
   private subscriptionIdCounter: number = 0;
 
-  constructor() {}
-
   on<T = unknown>(event: string, handler: EventHandler<T>): string {
-    return this.addSubscription(event, handler as EventHandler<unknown>, false);
-  }
-
-  once<T = unknown>(event: string, handler: EventHandler<T>): string {
-    return this.addSubscription(event, handler as EventHandler<unknown>, true);
+    return this.addSubscription(event, handler as EventHandler<unknown>);
   }
 
   off(event: string, subscriptionId?: string): void {
@@ -44,8 +36,6 @@ export class EventBus {
     const subs = this.subscriptions.get(event);
     if (!subs || subs.length === 0) return;
 
-    const toRemove: string[] = [];
-
     for (const sub of subs) {
       try {
         const result = sub.handler(payload as T);
@@ -57,10 +47,6 @@ export class EventBus {
             );
           });
         }
-
-        if (sub.once) {
-          toRemove.push(sub.id);
-        }
       } catch (error) {
         logger.error(
           { error, event, handlerName: sub.handler.name || 'anonymous' },
@@ -68,13 +54,9 @@ export class EventBus {
         );
       }
     }
-
-    for (const id of toRemove) {
-      this.off(event, id);
-    }
   }
 
-  private addSubscription(event: string, handler: EventHandler, once: boolean): string {
+  private addSubscription(event: string, handler: EventHandler): string {
     const id = `sub_${++this.subscriptionIdCounter}`;
 
     if (!this.subscriptions.has(event)) {
@@ -83,27 +65,10 @@ export class EventBus {
 
     this.subscriptions.get(event)!.push({
       id,
-      event,
       handler: handler as EventHandler,
-      once,
     });
 
     return id;
-  }
-
-  getSubscriptionCount(event?: string): number {
-    if (event) {
-      return this.subscriptions.get(event)?.length || 0;
-    }
-    let total = 0;
-    for (const subs of this.subscriptions.values()) {
-      total += subs.length;
-    }
-    return total;
-  }
-
-  clear(): void {
-    this.subscriptions.clear();
   }
 }
 
