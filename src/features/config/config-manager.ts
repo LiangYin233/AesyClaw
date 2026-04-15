@@ -1,413 +1,280 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import type { PluginRuntimeConfig } from '@/contracts/commands.js';
 import { ZodError } from 'zod';
 import { logger } from '@/platform/observability/logger.js';
-import { PathResolver, pathResolver } from '@/platform/utils/paths.js';
-import { FullConfigSchema, DEFAULT_CONFIG, type FullConfig } from './schema.js';
+import { pathResolver } from '@/platform/utils/paths.js';
+import { FullConfigSchema, DEFAULT_CONFIG, type FullConfig, type ProvidersConfig, type ChannelsConfig, type MCPServerConfig } from './schema.js';
+import { ConfigStore } from './config-store.js';
+import { loadConfig, watchConfig } from 'c12';
+import defu from 'defu';
 
 interface ParsedConfig {
   providers?: Record<string, unknown>;
-  mcp?: {
-    servers?: unknown[];
-  };
+  mcp?: { servers?: unknown[] };
   channels?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
-interface ParseConfigResult {
+interface ParseResult {
   config: FullConfig | null;
   shouldWriteBack: boolean;
 }
 
-type ConfigChangeListener = (_nextConfig: FullConfig, _previousConfig: FullConfig) => void | Promise<void>;
-
-
-
-type ProviderExample = Record<string, {
-  type: 'openai_chat' | 'openai_completion' | 'anthropic';
-  api_key: string;
-  base_url: string;
-  models: Record<string, {
-    modelname: string;
-    contextWindow: number;
-    reasoning: boolean;
-  }>;
-}>
-
-interface MCPServerExample {
-  name: string;
-  command: string;
-  args: string[];
-  cwd?: string;
-  stderr?: 'inherit' | 'pipe' | 'ignore' | 'overlapped';
-  enabled: boolean;
-}
-
+type ConfigChangeListener = (_next: FullConfig, _prev: FullConfig) => void | Promise<void>;
 
 export class ConfigManager {
-  private _config: FullConfig | null = null;
-  private initialized: boolean = false;
+  private store: ConfigStore;
+  private initialized = false;
   private configPath: string;
-  private selfUpdating: boolean = false;
-  private watcher: fs.FSWatcher | null = null;
-  private debounceTimer: NodeJS.Timeout | null = null;
-  private pendingPluginDefaults: Map<string, Record<string, unknown>> = new Map();
-  private pendingChannelDefaults: Map<string, Record<string, unknown>> = new Map();
-  private configChangeListeners: Set<ConfigChangeListener> = new Set();
+  private selfUpdating = false;
+  private watcher: { unwatch: () => void } | null = null;
+  private pendingPluginDefaults = new Map<string, Record<string, unknown>>();
+  private pendingChannelDefaults = new Map<string, Record<string, unknown>>();
+  private configChangeListeners = new Set<ConfigChangeListener>();
+  private enableDotenv: boolean;
+  private layers: Array<{ config: unknown; configFile?: string; cwd?: string }> = [];
 
   get config(): FullConfig {
-    if (!this._config) {
-      throw new Error('ConfigManager not initialized');
-    }
-    return this._config;
+    if (!this.initialized) throw new Error('ConfigManager not initialized');
+    return this.store.readonlyView;
   }
 
-  constructor(pathResolverInstance?: PathResolver) {
-    this.configPath = (pathResolverInstance || pathResolver).getConfigFilePath();
+  constructor(options: { enableDotenv?: boolean } = {}) {
+    this.configPath = pathResolver.getConfigFilePath();
+    this.store = new ConfigStore(DEFAULT_CONFIG);
+    this.enableDotenv = options.enableDotenv ?? false;
   }
 
   async initialize(): Promise<void> {
-    if (this.initialized) {
-      return;
-    }
+    if (this.initialized) return;
 
     try {
-      await this.loadConfig();
-      this.setupFileWatcher();
+      await this.initializeWithC12();
       this.initialized = true;
-      logger.info({ configPath: this.configPath }, 'ConfigManager initialized with hot-reload');
+      logger.info({ configPath: this.configPath }, 'ConfigManager initialized with c12 hot-reload');
     } catch (error) {
       logger.error({ error }, 'Failed to initialize ConfigManager');
       throw error;
     }
   }
 
-  private async loadConfig(): Promise<void> {
-    if (!fs.existsSync(this.configPath)) {
-      logger.info({ path: this.configPath }, 'Config file not found, generating default');
-      await this.writeDefaultConfig();
-      this._config = DEFAULT_CONFIG;
-      return;
-    }
+  private async initializeWithC12(): Promise<void> {
+    const result = await loadConfig({
+      cwd: path.dirname(this.configPath),
+      configFile: path.basename(this.configPath),
+      name: 'config',
+      defaults: DEFAULT_CONFIG,
+      dotenv: this.enableDotenv ? { fileName: '.env' } : false,
+    });
 
-    try {
-      const content = await fs.promises.readFile(this.configPath, 'utf-8');
-      const parsed = this.parseConfig(content);
-      await this.applyParsedConfigResult(content, parsed, {
-        parseFailureMessage: 'Config parse failed, using cached/default config',
-        successMessage: 'Config loaded successfully',
-        writeBackMessage: 'Updated config file with default values',
-        beforeWriteBackMessage: 'Config was incomplete, added missing fields with defaults',
+    if (result.config) {
+      this.layers = result.layers || [];
+      const parsed = this.parseConfigFromRaw(result.config);
+      await this.applyParsedResult(parsed, {
+        failureMsg: 'Config parse failed, using cached/default config',
+        successMsg: 'Config loaded successfully',
+        writeBackMsg: 'Updated config file with default values',
+        beforeWriteBackMsg: 'Config was incomplete, added missing fields with defaults',
       });
-    } catch (error) {
-      this.gracefulDegradation(error as Error);
+    } else {
+      this.store.replace(DEFAULT_CONFIG);
+      await this.writeDefaultConfig();
     }
+
+    this.setupWatchWithC12();
   }
 
-  private async saveMergedConfig(config: FullConfig): Promise<void> {
-    this.selfUpdating = true;
-
+  private parseConfigFromRaw(raw: unknown): ParseResult {
     try {
-      const jsonString = this.serializeToJSON(config);
-      await fs.promises.writeFile(this.configPath, jsonString, 'utf-8');
-    } finally {
-      setTimeout(() => {
-        this.selfUpdating = false;
-      }, 100);
-    }
-  }
-
-  private parseConfig(content: string): ParseConfigResult {
-    try {
-      const parsed = JSON.parse(content);
+      const parsed = raw as ParsedConfig;
       const result = FullConfigSchema.safeParse(parsed);
 
       if (result.success) {
         let shouldWriteBack = false;
 
-        if (this.shouldAddDefaultProviders(parsed)) {
-          result.data.providers = this.getDefaultProviderExample();
+        if (this.isEmpty(parsed.providers)) {
+          result.data.providers = { openai: { type: 'openai_chat', api_key: 'your-api-key', base_url: 'https://api.openai.com/v1', models: { default: { modelname: 'gpt-4o', contextWindow: 128000, reasoning: false } } } };
           shouldWriteBack = true;
           logger.info({}, 'No providers configured, adding default provider example');
         }
-
-        if (this.shouldAddDefaultMcpServers(parsed)) {
-          result.data.mcp = { servers: this.getDefaultMCPServerExample() };
+        if (this.isEmpty(parsed.mcp?.servers)) {
+          result.data.mcp = { servers: [{ name: 'example', command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', './skills'], enabled: false }] };
           shouldWriteBack = true;
           logger.info({}, 'No MCP servers configured, adding default MCP server example');
         }
-
-        if (this.shouldAddDefaultChannels(parsed)) {
+        if (this.isEmpty(parsed.channels)) {
           result.data.channels = {};
           shouldWriteBack = true;
           logger.info({}, 'No channels configured, channels will be loaded from plugins');
         }
 
-        return {
-          config: result.data,
-          shouldWriteBack,
-        };
+        return { config: result.data, shouldWriteBack };
       }
 
       logger.warn({ issues: this.formatZodErrors(result.error) }, 'Zod validation failed, attempting to fill missing fields with defaults');
 
-      const parsedConfig = parsed as ParsedConfig;
-      const hasProviders = !this.shouldAddDefaultProviders(parsedConfig);
-      const hasMCPServers = !this.shouldAddDefaultMcpServers(parsedConfig);
-      const hasChannels = !this.shouldAddDefaultChannels(parsedConfig);
+      const rawProviders: unknown = parsed.providers;
+      const rawMCPServers: unknown = parsed.mcp?.servers;
+      const rawChannels: unknown = parsed.channels;
+      const hasProviders = !this.isEmpty(rawProviders);
+      const hasMCPServers = !this.isEmpty(rawMCPServers);
+      const hasChannels = !this.isEmpty(rawChannels);
 
-      const mergedProviders = hasProviders ? parsedConfig.providers : this.getDefaultProviderExample();
-      const mergedMCPServers = hasMCPServers ? parsedConfig.mcp?.servers : this.getDefaultMCPServerExample();
-      const mergedChannels = hasChannels ? parsedConfig.channels : {};
+      const mcpServersDefault = [{ name: 'example', command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', './skills'], enabled: false }];
+      const mcpServersVal: MCPServerConfig[] = hasMCPServers ? (rawMCPServers as MCPServerConfig[]) : mcpServersDefault;
 
       const merged = {
         ...DEFAULT_CONFIG,
-        ...parsedConfig,
-        providers: mergedProviders,
-        mcp: { servers: mergedMCPServers },
-        channels: mergedChannels,
-      };
+        ...(parsed as unknown as Record<string, unknown>),
+        providers: hasProviders ? (rawProviders as ProvidersConfig) : { openai: { type: 'openai_chat', api_key: 'your-api-key', base_url: 'https://api.openai.com/v1', models: { default: { modelname: 'gpt-4o', contextWindow: 128000, reasoning: false } } } },
+        mcp: { servers: mcpServersVal },
+        channels: hasChannels ? (rawChannels as ChannelsConfig) : {},
+      } as unknown as FullConfig;
 
       const mergedResult = FullConfigSchema.safeParse(merged);
-
       if (mergedResult.success) {
-        if (!hasProviders) {
-          logger.info({}, 'No providers configured, adding default provider example');
-        }
-        if (!hasMCPServers) {
-          logger.info({}, 'No MCP servers configured, adding default MCP server example');
-        }
-        if (!hasChannels) {
-          logger.info({}, 'No channels configured, adding default channel example');
-        }
-        if (hasProviders || hasMCPServers || hasChannels) {
-          logger.info({}, 'Successfully merged user config with defaults');
-        }
-        return {
-          config: mergedResult.data,
-          shouldWriteBack: true,
-        };
+        if (!hasProviders) logger.info({}, 'No providers configured, adding default provider example');
+        if (!hasMCPServers) logger.info({}, 'No MCP servers configured, adding default MCP server example');
+        if (!hasChannels) logger.info({}, 'No channels configured, adding default channel example');
+        if (hasProviders || hasMCPServers || hasChannels) logger.info({}, 'Successfully merged user config with defaults');
+        return { config: mergedResult.data, shouldWriteBack: true };
       }
 
       logger.warn({}, 'Partial config merge also failed, keeping existing config');
-      return {
-        config: null,
-        shouldWriteBack: false,
-      };
+      return { config: null, shouldWriteBack: false };
     } catch (error) {
       logger.error({ error }, 'Config parse error, keeping existing config');
-      return {
-        config: null,
-        shouldWriteBack: false,
-      };
+      return { config: null, shouldWriteBack: false };
     }
   }
 
-  private shouldAddDefault<T>(parsedConfig: ParsedConfig, getter: (config: ParsedConfig) => T | undefined, isEmpty: (value: T) => boolean): boolean {
-    const value = getter(parsedConfig);
-    return value === undefined || isEmpty(value);
-  }
-
-  private shouldAddDefaultProviders(parsedConfig: ParsedConfig): boolean {
-    return this.shouldAddDefault(
-      parsedConfig,
-      config => config.providers,
-      providers => !providers || Object.keys(providers).length === 0
-    );
-  }
-
-  private shouldAddDefaultMcpServers(parsedConfig: ParsedConfig): boolean {
-    return this.shouldAddDefault(
-      parsedConfig,
-      config => config.mcp?.servers,
-      servers => !servers || !Array.isArray(servers) || servers.length === 0
-    );
-  }
-
-  private shouldAddDefaultChannels(parsedConfig: ParsedConfig): boolean {
-    return this.shouldAddDefault(
-      parsedConfig,
-      config => config.channels,
-      channels => !channels || Object.keys(channels).length === 0
-    );
-  }
-
-  private getDefaultProviderExample(): ProviderExample {
-    return {
-      openai: {
-        type: 'openai_chat',
-        api_key: 'your-api-key',
-        base_url: 'https://api.openai.com/v1',
-        models: {
-          default: {
-            modelname: 'gpt-4o',
-            contextWindow: 128000,
-            reasoning: false,
-          },
-        },
-      },
-    };
-  }
-
-  private getDefaultMCPServerExample(): MCPServerExample[] {
-    return [
-      {
-        name: 'example',
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-filesystem', './skills'],
-        enabled: false,
-      },
-    ];
+  private isEmpty(value: unknown): boolean {
+    if (value === undefined) return true;
+    if (typeof value === 'object' && value !== null && !Array.isArray(value) && Object.keys(value).length === 0) return true;
+    if (Array.isArray(value) && value.length === 0) return true;
+    return false;
   }
 
   private async writeDefaultConfig(): Promise<void> {
-    const defaultConfig = {
-      ...DEFAULT_CONFIG,
-      channels: {},
-    };
-    const jsonString = this.serializeToJSON(defaultConfig);
-    await fs.promises.writeFile(this.configPath, jsonString, 'utf-8');
+    const defaultConfig = { ...DEFAULT_CONFIG, channels: {} };
+    await fs.promises.writeFile(this.configPath, JSON.stringify(defaultConfig, null, 2), 'utf-8');
     logger.info({ path: this.configPath }, 'Default config file generated');
   }
 
-  private setupFileWatcher(): void {
-    if (this.watcher) {
-      return;
-    }
+  private async setupWatchWithC12(): Promise<void> {
+    if (this.watcher) return;
 
     try {
-      this.watcher = fs.watch(this.configPath, (eventType) => {
-        if (eventType !== 'change') return;
-        this.handleFileChange();
+      const watchResult = await watchConfig({
+        cwd: path.dirname(this.configPath),
+        configFile: path.basename(this.configPath),
+        name: 'config',
+        defaults: DEFAULT_CONFIG,
+        dotenv: this.enableDotenv ? { fileName: '.env' } : false,
+        debounce: 200,
+        onWatch: (event) => {
+          logger.debug({}, `Config file ${event.type}: ${event.path}`);
+        },
+        acceptHMR: async ({ newConfig }) => {
+          try {
+            const parsed = this.parseConfigFromRaw(newConfig);
+            if (!parsed.config) {
+              logger.warn({}, 'HMR rejected: merged config failed Zod validation, keeping previous snapshot');
+              return true;
+            }
+            return false;
+          } catch {
+            logger.warn({}, 'HMR rejected: exception during validation, keeping previous snapshot');
+            return true;
+          }
+        },
+        onUpdate: async ({ newConfig }) => {
+          if (this.selfUpdating) {
+            logger.debug({}, 'Ignoring self-triggered config update');
+            return;
+          }
+          logger.info({}, 'Reloading configuration via c12...');
+          try {
+            const parsed = this.parseConfigFromRaw(newConfig);
+            await this.applyParsedResult(parsed, {
+              failureMsg: 'Config reload failed, keeping old config',
+              successMsg: 'Configuration reloaded successfully',
+              writeBackMsg: 'Updated config file with default values after reload',
+            });
+          } catch (error) {
+            this.gracefulDegradation(error as Error);
+          }
+        },
       });
-      logger.info({}, 'File watcher setup successfully');
+
+      this.watcher = watchResult;
+      logger.info({}, 'c12 watchConfig setup successfully');
     } catch (error) {
-      logger.error({ error }, 'Failed to setup file watcher');
+      logger.error({ error }, 'Failed to setup c12 watchConfig');
     }
   }
 
-  private handleFileChange(): void {
-    if (this.selfUpdating) {
-      logger.debug({}, 'Ignoring self-triggered file change');
+  private async applyParsedResult(
+    parsed: ParseResult,
+    opts: { failureMsg: string; successMsg: string; writeBackMsg: string; beforeWriteBackMsg?: string }
+  ): Promise<void> {
+    if (!parsed.config) {
+      logger.warn({}, opts.failureMsg);
       return;
     }
 
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
+    if (parsed.shouldWriteBack) {
+      if (opts.beforeWriteBackMsg) logger.info({}, opts.beforeWriteBackMsg);
+      await this.saveToDisk(parsed.config);
+      logger.info({ path: this.configPath }, opts.writeBackMsg);
     }
 
-    this.debounceTimer = setTimeout(async () => {
-      await this.reload();
-    }, 500);
+    const prev = this.store.snapshot;
+    this.store.replace(parsed.config);
+    logger.info({ path: this.configPath }, opts.successMsg);
+
+    if (prev !== this.store.snapshot) {
+      await this.notifyConfigChange(parsed.config, prev);
+    }
   }
 
-  private async reload(): Promise<void> {
-    logger.info({}, 'Reloading configuration...');
+  private async saveToDisk(config: FullConfig): Promise<void> {
+    this.selfUpdating = true;
     try {
-      const content = await fs.promises.readFile(this.configPath, 'utf-8');
-      const parsed = this.parseConfig(content);
-      await this.applyParsedConfigResult(content, parsed, {
-        parseFailureMessage: 'Config reload failed, keeping old config',
-        successMessage: 'Configuration reloaded successfully',
-        writeBackMessage: 'Updated config file with default values after reload',
-        previousConfig: this._config,
-      });
-    } catch (error) {
-      this.gracefulDegradation(error as Error);
-    }
-  }
-
-  private async applyParsedConfigResult(
-    content: string,
-    parsed: ParseConfigResult,
-    options: {
-      parseFailureMessage: string;
-      successMessage: string;
-      writeBackMessage: string;
-      beforeWriteBackMessage?: string;
-      previousConfig?: FullConfig | null;
-    }
-  ): Promise<void> {
-    if (!parsed.config) {
-      logger.warn({}, options.parseFailureMessage);
-      return;
-    }
-
-    await this.maybeWriteBackParsedConfig(
-      content,
-      parsed,
-      options.writeBackMessage,
-      options.beforeWriteBackMessage
-    );
-
-    this._config = parsed.config;
-    logger.info({ path: this.configPath }, options.successMessage);
-
-    if (options.previousConfig) {
-      await this.notifyConfigChange(parsed.config, options.previousConfig);
-    }
-  }
-
-  private async maybeWriteBackParsedConfig(
-    content: string,
-    parsed: ParseConfigResult,
-    writeBackMessage: string,
-    beforeWriteBackMessage?: string
-  ): Promise<void> {
-    if (!parsed.config) {
-      return;
-    }
-
-    const originalContent = content.trim();
-    const newContent = this.serializeToJSON(parsed.config).trim();
-
-    if (parsed.shouldWriteBack && originalContent !== newContent) {
-      if (beforeWriteBackMessage) {
-        logger.info({}, beforeWriteBackMessage);
-      }
-
-      await this.saveMergedConfig(parsed.config);
-      logger.info({ path: this.configPath }, writeBackMessage);
+      await fs.promises.writeFile(this.configPath, JSON.stringify(config, null, 2), 'utf-8');
+    } finally {
+      setTimeout(() => { this.selfUpdating = false; }, 100);
     }
   }
 
   private gracefulDegradation(error: Error): void {
     logger.error({ error }, 'Config system error, using cached config');
-    if (!this._config) {
-      this._config = DEFAULT_CONFIG;
-      logger.info({}, 'Using default config as fallback');
-    }
+    this.store.replace(DEFAULT_CONFIG);
+    logger.info({}, 'Using default config as fallback');
   }
 
   private formatZodErrors(error: ZodError): string {
-    return error.issues.map((e) => `${e.path?.join('.') || 'unknown'}: ${e.message}`).join('; ');
+    return error.issues.map(e => `${e.path?.join('.') || 'unknown'}: ${e.message}`).join('; ');
   }
 
   getConfig(): FullConfig {
     return this.config;
   }
 
-  onConfigChange(listener: ConfigChangeListener): () => void {
-    this.configChangeListeners.add(listener);
-
-    return () => {
-      this.configChangeListeners.delete(listener);
-    };
+  getConfigLayers(): Array<{ config: unknown; configFile?: string; cwd?: string }> {
+    return this.layers;
   }
 
-  async updateChannelConfig(
-    channelName: string,
-    config: Record<string, unknown>
-  ): Promise<boolean> {
-    if (!this._config) {
-      logger.error({}, 'ConfigManager not initialized');
-      return false;
-    }
+  onConfigChange(listener: ConfigChangeListener): () => void {
+    this.configChangeListeners.add(listener);
+    return () => { this.configChangeListeners.delete(listener); };
+  }
 
+  async updateChannelConfig(channelName: string, config: Record<string, unknown>): Promise<boolean> {
+    if (!this.initialized) { logger.error({}, 'ConfigManager not initialized'); return false; }
     try {
-      return this.updateConfig({
-        channels: this.createUpdatedChannels(channelName, config),
-      });
+      return this.updateConfig({ channels: { ...this.store.snapshot.channels, [channelName]: { ...this.store.snapshot.channels?.[channelName], ...config } } });
     } catch (error) {
       logger.error({ error, channelName }, 'Failed to update channel config');
       return false;
@@ -419,16 +286,9 @@ export class ConfigManager {
   }
 
   getPluginConfig(name: string): PluginRuntimeConfig | undefined {
-    const plugin = this.config.plugins.find(entry => entry.name === name);
-    if (!plugin) {
-      return undefined;
-    }
-
-    return {
-      name: plugin.name,
-      enabled: plugin.enabled,
-      options: plugin.options,
-    };
+    const plugin = this.config.plugins.find(e => e.name === name);
+    if (!plugin) return undefined;
+    return { name: plugin.name, enabled: plugin.enabled, options: plugin.options };
   }
 
   registerChannelDefaults(name: string, defaults: Record<string, unknown>): void {
@@ -436,65 +296,43 @@ export class ConfigManager {
   }
 
   async syncAllDefaultConfigs(): Promise<void> {
-    if (!this._config) {
-      logger.error({}, 'ConfigManager not initialized');
-      return;
-    }
-
+    if (!this.initialized) { logger.error({}, 'ConfigManager not initialized'); return; }
     await this.syncPluginDefaults();
     await this.syncChannelDefaults();
   }
 
   private async syncPluginDefaults(): Promise<void> {
-    if (!this._config || this.pendingPluginDefaults.size === 0) {
-      return;
-    }
-
-    const plugins = this._config.plugins || [];
-
+    if (this.pendingPluginDefaults.size === 0) return;
     for (const [name, defaults] of this.pendingPluginDefaults) {
-      const existingConfig = plugins.find(p => {
-        return p.name === name;
-      });
-
-      if (!existingConfig || !existingConfig.options || Object.keys(existingConfig.options).length === 0) {
-        logger.info({ pluginName: name, defaults }, 'Adding plugin default options to config');
+      const existing = (this.store.snapshot.plugins || []).find(p => p.name === name);
+      if (!existing || !existing.options || Object.keys(existing.options).length === 0) {
         await this.updatePluginConfig(name, true, defaults);
       }
     }
   }
 
   private async syncChannelDefaults(): Promise<void> {
-    if (!this._config || this.pendingChannelDefaults.size === 0) {
-      return;
-    }
-
-    const channels = this._config.channels || {};
-
+    if (this.pendingChannelDefaults.size === 0) return;
     for (const [name, defaults] of this.pendingChannelDefaults) {
-      const existingConfig = channels[name];
-
-      if (!existingConfig || Object.keys(existingConfig).length === 0) {
-        logger.info({ channelName: name, defaults }, 'Adding channel default options to config');
+      const existing = this.store.snapshot.channels?.[name];
+      if (!existing || Object.keys(existing).length === 0) {
         await this.updateChannelConfig(name, defaults);
       }
     }
   }
 
-  async updatePluginConfig(
-    name: string,
-    enabled: boolean,
-    options?: Record<string, unknown>
-  ): Promise<boolean> {
-    if (!this._config) {
-      logger.error({}, 'ConfigManager not initialized');
-      return false;
-    }
-
+  async updatePluginConfig(name: string, enabled: boolean, options?: Record<string, unknown>): Promise<boolean> {
+    if (!this.initialized) { logger.error({}, 'ConfigManager not initialized'); return false; }
     try {
-      return this.updateConfig({
-        plugins: this.createUpdatedPlugins(name, enabled, options),
-      });
+      const plugins = (this.store.snapshot.plugins || []).map(p => ({ ...p, options: p.options ? { ...p.options } : {} }));
+      const idx = plugins.findIndex(p => p.name === name);
+      if (idx >= 0) {
+        plugins[idx].enabled = enabled;
+        if (options) plugins[idx].options = options;
+      } else {
+        plugins.push({ name, enabled, options: options || {} });
+      }
+      return this.updateConfig({ plugins });
     } catch (error) {
       logger.error({ error, name, enabled }, 'Failed to update plugin config');
       return false;
@@ -502,134 +340,29 @@ export class ConfigManager {
   }
 
   async updateConfig(updates: Partial<FullConfig>): Promise<boolean> {
-    if (!this._config) {
-      logger.error({}, 'ConfigManager not initialized');
-      return false;
-    }
-
+    if (!this.initialized) { logger.error({}, 'ConfigManager not initialized'); return false; }
     try {
-      const merged = this.mergeConfig(this._config, updates);
-      return this.validateAndApplyUpdatedConfig(merged, this._config);
+      const merged = defu(updates, this.store.snapshot) as FullConfig;
+      const result = FullConfigSchema.safeParse(merged);
+      if (!result.success) {
+        logger.warn({ issues: this.formatZodErrors(result.error) }, 'Update validation failed');
+        return false;
+      }
+      const prev = this.store.snapshot;
+      this.store.replace(result.data);
+      this.saveToDisk(result.data);
+      await this.notifyConfigChange(result.data, prev);
+      return true;
     } catch (error) {
       logger.error({ error }, 'Update config failed');
       return false;
     }
   }
 
-  private createUpdatedChannels(
-    channelName: string,
-    config: Record<string, unknown>
-  ): Record<string, Record<string, unknown>> {
-    const channels: Record<string, Record<string, unknown>> = { ...(this._config?.channels || {}) };
-
-    channels[channelName] = {
-      ...channels[channelName],
-      ...config,
-    };
-
-    return channels;
-  }
-
-  private createUpdatedPlugins(
-    name: string,
-    enabled: boolean,
-    options?: Record<string, unknown>
-  ): PluginRuntimeConfig[] {
-    const plugins = (this._config?.plugins || []).map(plugin => ({
-      ...plugin,
-      ...(plugin.options ? { options: { ...plugin.options } } : {}),
-    }));
-
-    const existingIndex = plugins.findIndex(plugin => {
-      return plugin.name === name;
-    });
-
-    if (existingIndex >= 0) {
-      plugins[existingIndex].enabled = enabled;
-      if (options) {
-        plugins[existingIndex].options = options;
-      }
-    } else {
-      plugins.push({
-        name,
-        enabled,
-        options: options || {},
-      });
-    }
-
-    return plugins;
-  }
-
-  private async validateAndApplyUpdatedConfig(
-    merged: FullConfig,
-    previousConfig: FullConfig
-  ): Promise<boolean> {
-    const result = FullConfigSchema.safeParse(merged);
-    if (!result.success) {
-      logger.warn({ issues: this.formatZodErrors(result.error) }, 'Update validation failed');
-      return false;
-    }
-
-    this._config = result.data;
-    this.saveToDisk();
-    await this.notifyConfigChange(result.data, previousConfig);
-
-    return true;
-  }
-
-  private mergeConfig(current: FullConfig, updates: Partial<FullConfig>): FullConfig {
-    const result = { ...current };
-    
-    if (updates.server) {
-      result.server = { ...current.server, ...updates.server };
-    }
-    if (updates.providers) {
-      result.providers = { ...current.providers, ...updates.providers };
-    }
-    if (updates.agent) {
-      result.agent = { ...current.agent, ...updates.agent };
-    }
-    if (updates.memory) {
-      result.memory = { ...current.memory, ...updates.memory };
-    }
-    if (updates.channels !== undefined) {
-      result.channels = updates.channels ? { ...current.channels, ...updates.channels } : current.channels;
-    }
-    if (updates.mcp !== undefined) {
-      result.mcp = updates.mcp ? { ...current.mcp, ...updates.mcp } : current.mcp;
-    }
-    if (updates.plugins !== undefined) {
-      result.plugins = updates.plugins || current.plugins;
-    }
-    
-    return result;
-  }
-
-  private saveToDisk(): void {
-    if (!this._config) return;
-
-    this.selfUpdating = true;
-    try {
-      const jsonString = this.serializeToJSON(this._config);
-      fs.writeFileSync(this.configPath, jsonString, 'utf-8');
-      logger.info({ path: this.configPath }, 'Configuration updated and saved to disk');
-    } catch (error) {
-      logger.error({ error }, 'Failed to save config to disk');
-    } finally {
-      setTimeout(() => {
-        this.selfUpdating = false;
-      }, 100);
-    }
-  }
-
-  private serializeToJSON(config: FullConfig): string {
-    return JSON.stringify(config, null, 2);
-  }
-
-  private async notifyConfigChange(nextConfig: FullConfig, previousConfig: FullConfig): Promise<void> {
+  private async notifyConfigChange(next: FullConfig, prev: FullConfig): Promise<void> {
     for (const listener of this.configChangeListeners) {
       try {
-        await listener(nextConfig, previousConfig);
+        await listener(next, prev);
       } catch (error) {
         logger.error({ error }, 'Config change listener failed');
       }
@@ -645,14 +378,7 @@ export class ConfigManager {
   }
 
   destroy(): void {
-    if (this.watcher) {
-      this.watcher.close();
-      this.watcher = null;
-    }
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = null;
-    }
+    if (this.watcher) { this.watcher.unwatch(); this.watcher = null; }
     this.configChangeListeners.clear();
     logger.info({}, 'ConfigManager destroyed');
   }
