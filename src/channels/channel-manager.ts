@@ -1,16 +1,22 @@
 import type { IChannelPlugin, IChannelWithSend, IOutboundPayload, ChannelPluginLogger, ChannelPluginContext } from './channel-plugin.js';
 import type { ChannelPipeline } from '@/agent/pipeline.js';
-import { configManager } from '@/features/config/config-manager.js';
+import type { ConfigDefaultsScope } from '@/contracts/commands.js';
 import { logger } from '@/platform/observability/logger.js';
 import { mergeDefaultOptions } from '@/platform/utils/merge-default-options.js';
+
+export interface ChannelConfigDefaultsStore {
+  registerDefaults(scope: ConfigDefaultsScope, name: string, defaults: Record<string, unknown>): void;
+}
 
 export class ChannelPluginManager {
   private channels: Map<string, IChannelPlugin> = new Map();
   private sendFunctions: Map<string, (_payload: IOutboundPayload) => Promise<void>> = new Map();
   private pluginLogger: ChannelPluginLogger;
   private pipeline: ChannelPipeline | null = null;
+  private configStore: ChannelConfigDefaultsStore;
 
-  constructor() {
+  constructor(configStore: ChannelConfigDefaultsStore) {
+    this.configStore = configStore;
     this.pluginLogger = {
       info: (msg, data) => logger.info(data || {}, msg),
       warn: (msg, data) => logger.warn(data || {}, msg),
@@ -38,9 +44,9 @@ export class ChannelPluginManager {
     return mergeDefaultOptions(plugin.defaultOptions || {}, userConfig);
   }
 
-  private registerChannelDefaults(plugin: IChannelPlugin): void {
+  private collectChannelDefaults(plugin: IChannelPlugin): void {
     if (plugin.defaultOptions && Object.keys(plugin.defaultOptions).length > 0) {
-      configManager.registerChannelDefaults(plugin.name, plugin.defaultOptions);
+      this.configStore.registerDefaults('channel', plugin.name, plugin.defaultOptions);
     }
   }
 
@@ -67,10 +73,6 @@ export class ChannelPluginManager {
     return undefined;
   }
 
-  private getRegisteredChannelNames(): string[] {
-    return Array.from(this.channels.keys());
-  }
-
   async registerChannel(
     plugin: IChannelPlugin,
     config?: Record<string, unknown>,
@@ -85,8 +87,6 @@ export class ChannelPluginManager {
 
     logger.info({ channelName: plugin.name, version: plugin.version }, 'Registering channel plugin');
 
-    this.registerChannelDefaults(plugin);
-
     const mergedConfig = this.mergeChannelOptions(plugin, config);
     const ctx = this.createChannelContext(mergedConfig);
 
@@ -100,8 +100,15 @@ export class ChannelPluginManager {
         this.sendFunctions.set(plugin.name, resolvedSendFunction);
       }
 
+      this.collectChannelDefaults(plugin);
+
       logger.info({ channelName: plugin.name }, 'Channel plugin registered successfully');
     } catch (error) {
+      try {
+        await plugin.destroy();
+      } catch (cleanupError) {
+        logger.error({ channelName: plugin.name, error: cleanupError }, 'Channel plugin cleanup after registration failure failed');
+      }
       logger.error({ channelName: plugin.name, error }, 'Failed to register channel plugin');
       throw error;
     }
@@ -118,11 +125,12 @@ export class ChannelPluginManager {
 
     try {
       await plugin.destroy();
-      this.channels.delete(name);
-      this.sendFunctions.delete(name);
       logger.info({ channelName: name }, 'Channel plugin unregistered successfully');
     } catch (error) {
       logger.error({ channelName: name, error }, 'Error during channel plugin unregister');
+    } finally {
+      this.channels.delete(name);
+      this.sendFunctions.delete(name);
     }
   }
 
@@ -137,12 +145,10 @@ export class ChannelPluginManager {
   async shutdown(): Promise<void> {
     logger.info({}, 'Shutting down all channel plugins');
 
-    const unregisterPromises = this.getRegisteredChannelNames().map(name => this.unregisterChannel(name));
+    const unregisterPromises = Array.from(this.channels.keys()).map(name => this.unregisterChannel(name));
 
     await Promise.all(unregisterPromises);
 
     logger.info({}, 'All channel plugins shut down');
   }
 }
-
-export const channelManager = new ChannelPluginManager();

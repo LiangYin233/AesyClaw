@@ -1,3 +1,5 @@
+import type { FullConfig } from '@/features/config/schema.js';
+
 export interface CommandDefinition {
   name: string;
   description: string;
@@ -39,12 +41,10 @@ export interface PluginRuntimeConfig {
   options?: Record<string, unknown>;
 }
 
+export type ConfigDefaultsScope = 'plugin' | 'channel';
+
 export interface PluginConfigStore {
-  getPluginConfig(name: string): PluginRuntimeConfig | undefined;
-  registerPluginDefaults(name: string, defaults: Record<string, unknown>): void;
-  updatePluginConfig(
-    name: string,
-    enabled: boolean,
-    options?: Record<string, unknown>
-  ): Promise<boolean>;
+  readonly config: FullConfig;
+  registerDefaults(scope: ConfigDefaultsScope, name: string, defaults: Record<string, unknown>): void;
+  updateConfig(updates: Partial<FullConfig>): Promise<boolean>;
 }

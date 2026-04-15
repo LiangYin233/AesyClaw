@@ -70,6 +70,7 @@ export class PluginManager {
 
   async scanAndLoad(enabledPlugins: readonly PluginRuntimeConfig[]): Promise<void> {
     logger.info({ pluginsDir: this.pluginsDir }, 'Scanning plugins directory');
+    this.pluginPaths.clear();
 
     if (!fs.existsSync(this.pluginsDir)) {
       logger.warn({ pluginsDir: this.pluginsDir }, 'Plugins directory does not exist, creating...');
@@ -163,7 +164,8 @@ export class PluginManager {
 
   private async loadPluginFromEntry(
     pluginInfo: PluginDirectoryInfo | PluginPathInfo & { pluginName: string },
-    options: Record<string, unknown>
+    options: Record<string, unknown>,
+    registerDefaults = true
   ): Promise<void> {
     const { distPath, sourcePath } = this.resolvePluginEntryPaths(
       pluginInfo.dir,
@@ -173,7 +175,7 @@ export class PluginManager {
     if (!fs.existsSync(distPath)) {
       logger.warn({ pluginPath: distPath }, 'Plugin main file not found, trying source path');
       if (fs.existsSync(sourcePath)) {
-        await this.loadPluginFromSource(pluginInfo.pluginName, sourcePath, options);
+        await this.loadPluginFromSource(pluginInfo.pluginName, sourcePath, options, registerDefaults);
       } else {
         logger.warn({ pluginName: pluginInfo.pluginName }, 'Plugin entry point not found');
       }
@@ -181,7 +183,7 @@ export class PluginManager {
       return;
     }
 
-    await this.loadPluginFromDist(pluginInfo.pluginName, distPath, options);
+    await this.loadPluginFromDist(pluginInfo.pluginName, distPath, options, registerDefaults);
   }
 
   private findPluginInDirectoryScan(pluginName: string): PluginPathInfo | undefined {
@@ -212,7 +214,8 @@ export class PluginManager {
   private async loadPluginFromDist(
     pluginName: string,
     pluginPath: string,
-    options: Record<string, unknown>
+    options: Record<string, unknown>,
+    registerDefaults = true
   ): Promise<void> {
     try {
       const normalizedPath = normalizeImportPath(pluginPath);
@@ -231,7 +234,7 @@ export class PluginManager {
         'Plugin'
       );
 
-      await this.initializePlugin(plugin, options);
+      await this.initializePlugin(plugin, options, registerDefaults);
     } catch (error) {
       if (error instanceof Error && error.message.includes('name mismatch')) {
         logger.error({ error: error.message }, 'Plugin validation failed');
@@ -239,14 +242,15 @@ export class PluginManager {
       }
       logger.error({ pluginPath, error: String(error) }, 'Failed to dynamically import plugin');
       logger.info({ pluginName, pluginPath }, 'Trying to load as TypeScript source...');
-      await this.loadPluginFromSource(pluginName, pluginPath.replace('.js', '.ts'), options);
+      await this.loadPluginFromSource(pluginName, pluginPath.replace('.js', '.ts'), options, registerDefaults);
     }
   }
 
   private async loadPluginFromSource(
     _pluginName: string,
     sourcePath: string,
-    options: Record<string, unknown>
+    options: Record<string, unknown>,
+    registerDefaults = true
   ): Promise<void> {
     try {
       const normalizedPath = normalizeImportPath(sourcePath);
@@ -272,7 +276,7 @@ export class PluginManager {
         }
       }
 
-      await this.initializePlugin(plugin, options);
+      await this.initializePlugin(plugin, options, registerDefaults);
     } catch (error) {
       logger.error({ sourcePath, error }, 'Failed to load plugin from source');
     }
@@ -280,7 +284,8 @@ export class PluginManager {
 
   private async initializePlugin(
     plugin: IPlugin,
-    options: Record<string, unknown>
+    options: Record<string, unknown>,
+    registerDefaults = true
   ): Promise<void> {
     if (this.loadedPlugins.has(plugin.name)) {
       logger.warn({ pluginName: plugin.name }, 'Plugin already loaded, skipping');
@@ -291,10 +296,6 @@ export class PluginManager {
       { pluginName: plugin.name, version: plugin.version },
       'Loading plugin'
     );
-
-    if (plugin.defaultOptions !== undefined) {
-      this.deps.configStore.registerPluginDefaults(plugin.name, plugin.defaultOptions);
-    }
 
     const mergedOptions = this.mergePluginOptions(plugin, options);
 
@@ -332,8 +333,19 @@ export class PluginManager {
         commands: plugin.commands?.length || 0,
       });
 
+      if (registerDefaults && plugin.defaultOptions !== undefined) {
+        this.deps.configStore.registerDefaults('plugin', plugin.name, plugin.defaultOptions);
+      }
+
       logger.info({ pluginName: plugin.name }, 'Plugin loaded successfully');
     } catch (error) {
+      if (plugin.destroy) {
+        try {
+          await plugin.destroy();
+        } catch (cleanupError) {
+          logger.error({ pluginName: plugin.name, error: cleanupError }, 'Plugin cleanup after initialization failure failed');
+        }
+      }
       logger.error({ pluginName: plugin.name, error }, 'Plugin initialization failed');
     }
   }
@@ -343,6 +355,46 @@ export class PluginManager {
     userOptions: Record<string, unknown>
   ): Record<string, unknown> {
     return mergeDefaultOptions(plugin.defaultOptions || {}, userOptions);
+  }
+
+  private getConfiguredPlugin(pluginName: string): PluginRuntimeConfig | undefined {
+    return this.deps.configStore.config.plugins.find((plugin) => plugin.name === pluginName);
+  }
+
+  private buildUpdatedPluginConfigs(
+    pluginName: string,
+    enabled: boolean,
+    options?: Record<string, unknown>
+  ): PluginRuntimeConfig[] {
+    const plugins = this.deps.configStore.config.plugins.map((plugin) => ({
+      ...plugin,
+      options: plugin.options ? { ...plugin.options } : {},
+    }));
+    const index = plugins.findIndex((plugin) => plugin.name === pluginName);
+
+    if (index >= 0) {
+      plugins[index].enabled = enabled;
+      if (options) {
+        plugins[index].options = options;
+      }
+      return plugins;
+    }
+
+    plugins.push({ name: pluginName, enabled, options: options || {} });
+    return plugins;
+  }
+
+  private async persistPluginConfig(
+    pluginName: string,
+    enabled: boolean,
+    options?: Record<string, unknown>
+  ): Promise<void> {
+    const updated = await this.deps.configStore.updateConfig({
+      plugins: this.buildUpdatedPluginConfigs(pluginName, enabled, options),
+    });
+    if (!updated) {
+      throw new Error(`Failed to persist plugin config for "${pluginName}"`);
+    }
   }
 
   private getPluginHookNames(plugin: IPlugin): string[] {
@@ -454,6 +506,7 @@ export class PluginManager {
       logger.info({ pluginName }, 'Plugin unloaded successfully');
     } catch (error) {
       logger.error({ pluginName, error }, 'Plugin unload failed');
+      throw error;
     }
   }
 
@@ -494,7 +547,7 @@ export class PluginManager {
 
     try {
       const { dir: pluginDir, packageJson } = pluginInfo;
-      const existingConfig = this.deps.configStore.getPluginConfig(pluginName);
+      const existingConfig = this.getConfiguredPlugin(pluginName);
       const options = existingConfig?.options || {};
 
       await this.loadPluginFromEntry(
@@ -503,7 +556,8 @@ export class PluginManager {
           packageJson,
           pluginName,
         },
-        options
+        options,
+        false
       );
 
       if (!this.loadedPlugins.has(pluginName)) {
@@ -513,7 +567,10 @@ export class PluginManager {
         };
       }
 
-      await this.deps.configStore.updatePluginConfig(pluginName, true, options);
+      const loadedPlugin = this.loadedPlugins.get(pluginName);
+      const persistedOptions = loadedPlugin ? this.mergePluginOptions(loadedPlugin, options) : options;
+
+      await this.persistPluginConfig(pluginName, true, persistedOptions);
 
       logger.info({ pluginName: pluginName }, 'Plugin enabled successfully');
       return {
@@ -521,9 +578,13 @@ export class PluginManager {
         message: `插件 "${pluginName}" 已开启`,
       };
     } catch (error) {
-      this.pluginPaths.delete(pluginName);
-      this.loadedPlugins.delete(pluginName);
-      this.pluginInfos.delete(pluginName);
+      if (this.loadedPlugins.has(pluginName)) {
+        try {
+          await this.unloadPlugin(pluginName);
+        } catch (rollbackError) {
+          logger.error({ pluginName, error: rollbackError }, 'Failed to rollback plugin after enable error');
+        }
+      }
       logger.error({ pluginName: pluginName, error }, 'Failed to enable plugin');
       return {
         success: false,
@@ -540,9 +601,12 @@ export class PluginManager {
       };
     }
 
+    const existingConfig = this.getConfiguredPlugin(pluginName);
+    const options = existingConfig?.options || {};
+
     try {
+      await this.persistPluginConfig(pluginName, false);
       await this.unloadPlugin(pluginName);
-      await this.deps.configStore.updatePluginConfig(pluginName, false);
 
       logger.info({ pluginName: pluginName }, 'Plugin disabled successfully');
       return {
@@ -550,6 +614,13 @@ export class PluginManager {
         message: `插件 "${pluginName}" 已关闭`,
       };
     } catch (error) {
+      if (this.loadedPlugins.has(pluginName)) {
+        try {
+          await this.persistPluginConfig(pluginName, true, options);
+        } catch (rollbackError) {
+          logger.error({ pluginName, error: rollbackError }, 'Failed to rollback plugin config after disable error');
+        }
+      }
       logger.error({ pluginName: pluginName, error }, 'Failed to disable plugin');
       return {
         success: false,
@@ -562,18 +633,14 @@ export class PluginManager {
     return Array.from(this.pluginInfos.values());
   }
 
-  getPluginInfo(pluginName: string): PluginInfo | undefined {
-    return this.pluginInfos.get(pluginName);
-  }
-
-  isPluginLoaded(pluginName: string): boolean {
-    return this.loadedPlugins.has(pluginName);
-  }
-
   shutdown(): void {
     logger.info({}, 'Shutting down PluginManager');
 
     for (const [name, plugin] of this.loadedPlugins.entries()) {
+      if (plugin.commands && plugin.commands.length > 0) {
+        this.deps.commandRegistrar.unregisterFromPlugin(name);
+      }
+
       if (plugin.destroy) {
         plugin.destroy().catch((err) => {
           logger.error({ pluginName: name, error: err }, 'Plugin destroy failed');
@@ -583,19 +650,11 @@ export class PluginManager {
 
     this.loadedPlugins.clear();
     this.pluginInfos.clear();
+    this.pluginPaths.clear();
     this.initialized = false;
   }
 
   getPluginCount(): number {
     return this.loadedPlugins.size;
-  }
-
-  getPluginsDir(): string {
-    return this.pluginsDir;
-  }
-
-  setPluginsDir(dir: string): void {
-    this.pluginsDir = dir;
-    logger.info({ pluginsDir: this.pluginsDir }, 'Plugins directory updated');
   }
 }
