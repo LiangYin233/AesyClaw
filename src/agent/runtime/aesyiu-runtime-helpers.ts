@@ -1,0 +1,200 @@
+import { randomUUID } from 'crypto';
+import {
+  AnthropicProvider,
+  OpenAICompletionProvider,
+  OpenAIResponsesProvider,
+  type Message as AesyiuMessage,
+  type ModelDefinition,
+  type Tool as AesyiuTool,
+} from 'aesyiu';
+import { getHookRuntime } from '@/bootstrap.js';
+import type { ProvidersConfig } from '@/features/config/schema.js';
+import type { HookPayloadLLMSkill, HookPayloadLLMTool } from '@/features/plugins/types.js';
+import { LLMProviderType, MessageRole, type LLMConfig, type StandardMessage } from '@/platform/llm/types.js';
+import type { ITool, ToolExecuteContext, ToolExecutionResult } from '@/platform/tools/types.js';
+
+export interface AesyiuRunStats {
+  steps: number;
+  toolCalls: number;
+  error?: string;
+}
+
+export function parseToolArguments(argumentsText: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(argumentsText);
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+export function toAesyiuMessage(message: StandardMessage): AesyiuMessage {
+  return {
+    role: message.role,
+    content: message.content,
+    ...(message.toolCalls && message.toolCalls.length > 0
+      ? {
+          tool_calls: message.toolCalls.map(toolCall => ({
+            id: toolCall.id,
+            name: toolCall.name,
+            arguments: JSON.stringify(toolCall.arguments ?? {}),
+          })),
+        }
+      : {}),
+    ...(message.toolCallId ? { tool_call_id: message.toolCallId } : {}),
+  };
+}
+
+export function toStandardMessage(message: AesyiuMessage): StandardMessage {
+  return {
+    role: message.role as MessageRole,
+    content: message.content ?? '',
+    ...(message.tool_calls && message.tool_calls.length > 0
+      ? {
+          toolCalls: message.tool_calls.map(toolCall => ({
+            id: toolCall.id,
+            name: toolCall.name,
+            arguments: parseToolArguments(toolCall.arguments),
+          })),
+        }
+      : {}),
+    ...(message.tool_call_id ? { toolCallId: message.tool_call_id } : {}),
+  };
+}
+
+export function getFinalAssistantText(messages: readonly AesyiuMessage[]): string {
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index];
+    if (message.role === 'assistant' && !message.tool_calls?.length) {
+      return message.content ?? '';
+    }
+  }
+
+  return '';
+}
+
+export function resolveModelDefinition(
+  modelId: string,
+  providers: ProvidersConfig,
+  contextLimit: number
+): ModelDefinition {
+  for (const providerConfig of Object.values(providers)) {
+    if (!providerConfig.models) {
+      continue;
+    }
+
+    for (const modelConfig of Object.values(providerConfig.models)) {
+      if (modelConfig.modelname === modelId) {
+        const contextWindow = Math.min(modelConfig.contextWindow, contextLimit);
+        return {
+          id: modelConfig.modelname,
+          contextWindow,
+          maxOutputTokens: Math.min(16384, contextWindow),
+        };
+      }
+    }
+  }
+
+  return {
+    id: modelId,
+    contextWindow: contextLimit,
+    maxOutputTokens: Math.min(16384, contextLimit),
+  };
+}
+
+export function createHookAwareProvider(
+  llmConfig: LLMConfig,
+  modelDef: ModelDefinition,
+  stats: Pick<AesyiuRunStats, 'steps' | 'error'>,
+  hookTools: HookPayloadLLMTool[],
+  hookSkills: HookPayloadLLMSkill[]
+) {
+  const providerConfig = {
+    apiKey: llmConfig.apiKey || '',
+    baseURL: llmConfig.baseUrl,
+  };
+
+  const provider = (() => {
+    switch (llmConfig.provider) {
+      case LLMProviderType.OpenAICompletion:
+        return new OpenAICompletionProvider(providerConfig, [modelDef]);
+      case LLMProviderType.Anthropic:
+        return new AnthropicProvider(providerConfig, [modelDef]);
+      case LLMProviderType.OpenAIChat:
+      default:
+        return new OpenAIResponsesProvider(providerConfig, [modelDef]);
+    }
+  })();
+
+  const originalGenerate = provider.generate.bind(provider);
+  provider.generate = async (activeModel, messages, tools) => {
+    stats.steps += 1;
+
+    try {
+      await getHookRuntime().dispatchBeforeLLMRequest({
+        messages: messages.map(toStandardMessage),
+        tools: hookTools,
+        skills: hookSkills,
+      });
+    } catch (error) {
+      stats.error = error instanceof Error ? error.message : String(error);
+      throw error;
+    }
+
+    try {
+      return await originalGenerate(activeModel, messages, tools);
+    } catch (error) {
+      stats.error = error instanceof Error ? error.message : String(error);
+      throw error;
+    }
+  };
+
+  return provider;
+}
+
+export function createHookAwareRunTools(
+  tools: readonly ITool[],
+  stats: Pick<AesyiuRunStats, 'toolCalls'>,
+  options: {
+    createToolContext: (_ctx: unknown, _tool: ITool) => ToolExecuteContext;
+    checkToolAllowed?: (_tool: ITool) => ToolExecutionResult | null;
+  }
+): AesyiuTool[] {
+  return tools.map(tool => ({
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.parametersSchema,
+    execute: async (args, ctx) => {
+      const syntheticToolCallId = randomUUID();
+      const parsedArgs = args && typeof args === 'object' ? args as Record<string, unknown> : {};
+      const rejectedResult = options.checkToolAllowed?.(tool);
+
+      if (rejectedResult) {
+        return rejectedResult;
+      }
+
+      const toolContext = options.createToolContext(ctx, tool);
+
+      stats.toolCalls += 1;
+
+      let toolResult = await getHookRuntime().dispatchBeforeToolCall({
+        id: syntheticToolCallId,
+        name: tool.name,
+        arguments: parsedArgs,
+      });
+
+      if (!toolResult) {
+        toolResult = await tool.execute(parsedArgs, toolContext);
+      }
+
+      return getHookRuntime().dispatchAfterToolCall({
+        toolCall: {
+          id: syntheticToolCallId,
+          name: tool.name,
+          arguments: parsedArgs,
+        },
+        result: toolResult,
+      });
+    },
+  }));
+}

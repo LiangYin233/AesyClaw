@@ -1,9 +1,10 @@
+import type { IOutboundMessage, IUnifiedMessage } from '@/agent/types.js';
 import type { IOutboundPayload } from '@/channels/channel-plugin.js';
 import type { CommandDefinition } from '@/contracts/commands.js';
 import type { StandardMessage } from '@/platform/llm/types.js';
 import type { ToolRegistry } from '@/platform/tools/registry.js';
 
-export interface ToolExecuteContext {
+export interface PluginToolExecuteContext {
   chatId: string;
   senderId: string;
   traceId: string;
@@ -30,7 +31,7 @@ export interface PluginToolDefinition {
   };
   execute: (
     _args: unknown,
-    _context: ToolExecuteContext
+    _context: PluginToolExecuteContext
   ) => Promise<{ success: boolean; content: string; error?: string }>;
 }
 
@@ -62,13 +63,7 @@ export interface HookPayloadLLMSkill {
 }
 
 export interface HookPayloadMessageReceive {
-  message: {
-    channelId: string;
-    chatId: string;
-    text: string;
-    timestamp?: number;
-    metadata?: Record<string, unknown>;
-  };
+  message: IUnifiedMessage;
 }
 
 export interface HookPayloadBeforeLLMRequest {
@@ -93,15 +88,7 @@ export interface HookPayloadAfterToolCall {
 }
 
 export interface HookPayloadMessageSend {
-  message: {
-    chatId: string;
-    text: string;
-    mediaFiles?: Array<{
-      type: string;
-      url: string;
-    }>;
-    error?: string;
-  };
+  message: IOutboundMessage & { chatId: string };
 }
 
 export interface PluginHooks {

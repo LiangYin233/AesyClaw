@@ -1,69 +1,32 @@
-import { randomUUID } from 'crypto';
 import {
   AgentContext,
   AesyiuEngine,
-  AnthropicProvider,
   MemoryManager,
-  OpenAICompletionProvider,
-  OpenAIResponsesProvider,
   type AgentSkill,
   type Message as AesyiuMessage,
-  type ModelDefinition,
-  type Tool as AesyiuTool,
 } from 'aesyiu';
 import { prepareAgentRun } from '@/agent/runtime/prepare-agent-run.js';
-import { getHookRuntime } from '@/bootstrap.js';
+import {
+  createHookAwareProvider,
+  createHookAwareRunTools,
+  getFinalAssistantText,
+  resolveModelDefinition,
+} from '@/agent/runtime/aesyiu-runtime-helpers.js';
 import { configManager } from '@/features/config/config-manager.js';
 import { buildHookSkills, buildHookTools } from '@/features/plugins/hook-utils.js';
 import { roleManager, DEFAULT_ROLE_ID } from '@/features/roles/role-manager.js';
 import { skillManager } from '@/features/skills/skill-manager.js';
-import { LLMProviderType, MessageRole, type LLMConfig, type StandardMessage } from '@/platform/llm/types.js';
+import { type LLMConfig } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import { toolRegistry } from '@/platform/tools/registry.js';
 import { ITool, ToolExecuteContext } from '@/platform/tools/types.js';
+import { DEFAULT_FALLBACK_LLM_CONFIG } from '@/agent/runtime/resolve-llm-config.js';
 import type { SandboxConfig, SubAgentResult, SandboxContext } from './types.js';
 
 interface SandboxRunStats {
   steps: number;
   toolCalls: number;
   error?: string;
-}
-
-function parseToolArguments(argumentsText: string): Record<string, unknown> {
-  try {
-    const parsed = JSON.parse(argumentsText);
-    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
-  } catch {
-    return {};
-  }
-}
-
-function toStandardMessage(message: AesyiuMessage): StandardMessage {
-  return {
-    role: message.role as MessageRole,
-    content: message.content ?? '',
-    ...(message.tool_calls && message.tool_calls.length > 0
-      ? {
-          toolCalls: message.tool_calls.map(toolCall => ({
-            id: toolCall.id,
-            name: toolCall.name,
-            arguments: parseToolArguments(toolCall.arguments),
-          })),
-        }
-      : {}),
-    ...(message.tool_call_id ? { toolCallId: message.tool_call_id } : {}),
-  };
-}
-
-function getFinalAssistantText(messages: readonly AesyiuMessage[]): string {
-  for (let index = messages.length - 1; index >= 0; index--) {
-    const message = messages[index];
-    if (message.role === 'assistant' && !message.tool_calls?.length) {
-      return message.content ?? '';
-    }
-  }
-
-  return '';
 }
 
 export class SandboxEngine {
@@ -162,34 +125,6 @@ export class SandboxEngine {
     return skillManager.getSkillsForRole(this.config.allowedSkills);
   }
 
-  private resolveModelDefinition(modelId: string): ModelDefinition {
-    const providers = configManager.config.providers;
-    const contextLimit = configManager.config.memory.max_context_tokens;
-
-    for (const providerConfig of Object.values(providers)) {
-      if (!providerConfig.models) {
-        continue;
-      }
-
-      for (const modelConfig of Object.values(providerConfig.models)) {
-        if (modelConfig.modelname === modelId) {
-          const contextWindow = Math.min(modelConfig.contextWindow, contextLimit);
-          return {
-            id: modelConfig.modelname,
-            contextWindow,
-            maxOutputTokens: Math.min(16384, contextWindow),
-          };
-        }
-      }
-    }
-
-    return {
-      id: modelId,
-      contextWindow: contextLimit,
-      maxOutputTokens: Math.min(16384, contextLimit),
-    };
-  }
-
   private createProvider(
     stats: SandboxRunStats,
     llmConfig: LLMConfig,
@@ -197,68 +132,27 @@ export class SandboxEngine {
     hookSkills: ReturnType<typeof buildHookSkills>
   ) {
     const modelId = llmConfig.model || 'gpt-4o-mini';
-    const modelDef = this.resolveModelDefinition(modelId);
-    const providerConfig = {
-      apiKey: llmConfig.apiKey || '',
-      baseURL: llmConfig.baseUrl,
-    };
+    const modelDef = resolveModelDefinition(
+      modelId,
+      configManager.config.providers,
+      configManager.config.memory.max_context_tokens
+    );
 
-    const provider = (() => {
-      switch (llmConfig.provider) {
-        case LLMProviderType.OpenAICompletion:
-          return new OpenAICompletionProvider(providerConfig, [modelDef]);
-        case LLMProviderType.Anthropic:
-          return new AnthropicProvider(providerConfig, [modelDef]);
-        case LLMProviderType.OpenAIChat:
-        default:
-          return new OpenAIResponsesProvider(providerConfig, [modelDef]);
-      }
-    })();
-
-    const originalGenerate = provider.generate.bind(provider);
-    provider.generate = async (activeModel, messages, tools) => {
-      stats.steps += 1;
-
-      try {
-        await getHookRuntime().dispatchBeforeLLMRequest({
-          messages: messages.map(toStandardMessage),
-          tools: hookTools,
-          skills: hookSkills,
-        });
-      } catch (error) {
-        stats.error = error instanceof Error ? error.message : String(error);
-        throw error;
-      }
-
-      try {
-        return await originalGenerate(activeModel, messages, tools);
-      } catch (error) {
-        stats.error = error instanceof Error ? error.message : String(error);
-        throw error;
-      }
-    };
-
-    return provider;
+    return createHookAwareProvider(llmConfig, modelDef, stats, hookTools, hookSkills);
   }
 
-  private createRunTools(tools: readonly ITool[], stats: SandboxRunStats): AesyiuTool[] {
-    return tools.map(tool => ({
-      name: tool.name,
-      description: tool.description,
-      parameters: tool.parametersSchema,
-      execute: async (args, ctx) => {
-        const syntheticToolCallId = randomUUID();
-        const parsedArgs = args && typeof args === 'object' ? args as Record<string, unknown> : {};
-        const toolContext: ToolExecuteContext = {
-          roleId: this.config.roleId,
-          allowedTools: this.config.allowedTools,
-          allowedSkills: this.config.allowedSkills,
-          chatId: this.agentId,
-          senderId: 'subagent',
-          traceId: this.sandboxId,
-          agentContext: ctx,
-        };
-
+  private createRunTools(tools: readonly ITool[], stats: SandboxRunStats) {
+    return createHookAwareRunTools(tools, stats, {
+      createToolContext: (ctx): ToolExecuteContext => ({
+        roleId: this.config.roleId,
+        allowedTools: this.config.allowedTools,
+        allowedSkills: this.config.allowedSkills,
+        chatId: this.agentId,
+        senderId: 'subagent',
+        traceId: this.sandboxId,
+        agentContext: ctx,
+      }),
+      checkToolAllowed: (tool) => {
         if (!this.config.allowedTools.includes('*') && !this.config.allowedTools.includes(tool.name)) {
           return {
             success: false,
@@ -267,28 +161,9 @@ export class SandboxEngine {
           };
         }
 
-        stats.toolCalls += 1;
-
-        let toolResult = await getHookRuntime().dispatchBeforeToolCall({
-          id: syntheticToolCallId,
-          name: tool.name,
-          arguments: parsedArgs,
-        });
-
-        if (!toolResult) {
-          toolResult = await tool.execute(parsedArgs, toolContext);
-        }
-
-        return getHookRuntime().dispatchAfterToolCall({
-          toolCall: {
-            id: syntheticToolCallId,
-            name: tool.name,
-            arguments: parsedArgs,
-          },
-          result: toolResult,
-        });
+        return null;
       },
-    }));
+    });
   }
 
   async execute(): Promise<SubAgentResult> {
@@ -404,10 +279,7 @@ export class SandboxEngine {
       return prepareAgentRun(this.parentChatId, configManager.config, roleId).llmConfig;
     } catch (error) {
       logger.warn({ error }, 'Failed to resolve LLM config from config.json, using fallback');
-      return {
-        provider: LLMProviderType.OpenAIChat,
-        model: 'gpt-4o-mini',
-      };
+      return { ...DEFAULT_FALLBACK_LLM_CONFIG };
     }
   }
 

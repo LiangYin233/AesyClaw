@@ -1,5 +1,5 @@
 import { StandardMessage, MessageRole } from '@/platform/llm/types.js';
-import { MemoryConfig, createMemoryConfig } from './types.js';
+import { SessionMemoryConfig, createSessionMemoryConfig } from './types.js';
 import type { RoleManager } from '@/features/roles/role-manager.js';
 import type { SystemPromptManager } from '@/features/roles/system-prompt-manager.js';
 import { DEFAULT_ROLE_ID } from '@/features/roles/types.js';
@@ -17,12 +17,12 @@ export class SessionMemoryManager {
   readonly chatId: string;
   private messages: StandardMessage[] = [];
   private activeRoleId: string = DEFAULT_ROLE_ID;
-  private readonly config: MemoryConfig;
+  private readonly config: SessionMemoryConfig;
   private readonly deps: SessionMemoryManagerDependencies;
 
   constructor(
     chatId: string,
-    config: Partial<MemoryConfig> | undefined,
+    config: Partial<SessionMemoryConfig> | undefined,
     deps: SessionMemoryManagerDependencies
   ) {
     if (!deps.systemPromptBuilder) {
@@ -30,7 +30,7 @@ export class SessionMemoryManager {
     }
 
     this.chatId = chatId;
-    this.config = createMemoryConfig(config);
+    this.config = createSessionMemoryConfig(config);
     this.deps = deps;
 
     logger.info(

@@ -1,13 +1,13 @@
 import { logger } from '@/platform/observability/logger.js';
-import { LLMProviderType, type LLMConfig } from '@/platform/llm/types.js';
+import type { LLMConfig } from '@/platform/llm/types.js';
 import type { ToolDefinition } from '@/platform/tools/types.js';
 import type { ConfigManager } from '@/features/config/config-manager.js';
 import type { RoleManager } from '@/features/roles/role-manager.js';
 import type { SystemPromptManager } from '@/features/roles/system-prompt-manager.js';
 import type { SessionConfig, SessionContext } from './session-context.js';
 import { createSessionMetadata } from './session-context.js';
-import type { MemoryConfig as MemoryConfigInternal } from '../memory/types.js';
-import { resolveLLMConfig } from '../runtime/resolve-llm-config.js';
+import type { SessionMemoryConfig } from '../memory/types.js';
+import { DEFAULT_FALLBACK_LLM_CONFIG, resolveLLMConfig } from '../runtime/resolve-llm-config.js';
 import { SessionMemoryManager } from '../memory/session-memory-manager.js';
 import { AgentEngine } from '../engine.js';
 import { DEFAULT_ROLE_ID } from '@/features/roles/types.js';
@@ -30,7 +30,7 @@ export interface SessionOptions {
   maxSteps?: number;
   systemPrompt?: string;
   tools?: ToolDefinition[];
-  memoryConfig?: Partial<MemoryConfigInternal>;
+  memoryConfig?: Partial<SessionMemoryConfig>;
 }
 
 const DEFAULT_SESSION_CONFIG: SessionConfig = {
@@ -69,10 +69,7 @@ export class SessionRegistry {
       logger.warn({ error }, 'Failed to get LLM config from config, using defaults');
     }
 
-    return {
-      provider: LLMProviderType.OpenAIChat,
-      model: 'gpt-4o-mini',
-    };
+    return { ...DEFAULT_FALLBACK_LLM_CONFIG };
   }
 
   getOrCreate(sessionId: string, options: SessionOptions): SessionContext {
@@ -114,11 +111,11 @@ export class SessionRegistry {
     return this.chatToSession.get(`${channel}:${type}:${chatId}`) || null;
   }
 
-  private createMemory(sessionId: string, options: SessionOptions): { manager: SessionMemoryManager; config: MemoryConfigInternal } {
-    let memoryConfig: MemoryConfigInternal;
+  private createMemory(sessionId: string, options: SessionOptions): { manager: SessionMemoryManager; config: SessionMemoryConfig } {
+    let memoryConfig: SessionMemoryConfig;
 
     if (options.memoryConfig) {
-      memoryConfig = options.memoryConfig as MemoryConfigInternal;
+      memoryConfig = options.memoryConfig as SessionMemoryConfig;
     } else {
       const rawConfig = this.deps.configManager.config.memory as SessionMemoryConfigSource;
       memoryConfig = {
@@ -134,7 +131,7 @@ export class SessionRegistry {
     return { manager, config: memoryConfig };
   }
 
-  private createAgent(sessionId: string, options: SessionOptions, memory: SessionMemoryManager, memoryConfig: MemoryConfigInternal) {
+  private createAgent(sessionId: string, options: SessionOptions, memory: SessionMemoryManager, memoryConfig: SessionMemoryConfig) {
     const llmConfig = options.llm || this.getDefaultLLMConfig();
     const maxSteps = options.maxSteps || this.deps.configManager.config.agent.max_steps || 50;
     const systemPrompt = options.systemPrompt || this.deps.systemPromptBuilder.buildSystemPrompt({

@@ -14,7 +14,7 @@ import { helpCommandGroup } from '@/features/commands/help-command-group.js';
 import { sessionCommandGroup } from '@/features/commands/session-command-group.js';
 import { configMessageStage } from '@/features/config/config-message-stage.js';
 import { configManager } from '@/features/config/config-manager.js';
-import { initializePromptExecutor } from '@/features/cron/index.js';
+import { initializePromptExecutor } from '@/features/cron/tools.js';
 import { createPluginCommandGroup } from '@/features/plugins/plugin-command-group.js';
 import { PluginManager } from '@/features/plugins/plugin-manager.js';
 import { roleManager } from '@/features/roles/role-manager.js';

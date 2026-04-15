@@ -16,7 +16,7 @@ export interface CronJobRecord {
   metadata: Record<string, unknown>;
 }
 
-export interface CreateCronJobInput {
+export interface CreateCronJobRecordInput {
   id: string;
   chatId: string;
   name: string;
@@ -43,7 +43,7 @@ export type CronJobRow = {
 };
 
 export class CronJobRepository {
-  create(input: CreateCronJobInput): CronJobRecord {
+  create(input: CreateCronJobRecordInput): CronJobRecord {
     const db = sqliteManager.getDatabase();
     const metadata = JSON.stringify(input.metadata || {});
 

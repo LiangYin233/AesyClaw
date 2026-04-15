@@ -18,6 +18,3 @@ export function parseModelIdentifier(identifier: string): ModelIdentifier {
   return { providerName, modelAlias };
 }
 
-export function buildModelIdentifier(providerName: string, modelAlias: string): string {
-  return `${providerName}/${modelAlias}`;
-}
