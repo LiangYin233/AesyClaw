@@ -16,9 +16,9 @@ node_modules
 #!.yarn/cache
 .pnp.*
 
-.trae/
+.trellis/
 dist/
 .aesyclaw/
 .opencode/
-openspec/
 docs/
+AGENTS.md
