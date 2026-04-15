@@ -12,7 +12,6 @@ import {
   type Tool as AesyiuTool,
 } from 'aesyiu';
 import { getHookRuntime } from '@/bootstrap.js';
-import type { IRoleManager } from '@/contracts/role-manager.js';
 import { configManager } from '@/features/config/config-manager.js';
 import { buildHookSkills, buildHookTools } from '@/features/plugins/hook-utils.js';
 import { roleManager } from '@/features/roles/role-manager.js';
@@ -130,7 +129,7 @@ export class AgentEngine {
       systemPromptBuilder: {
         buildSystemPrompt: ({ roleId, chatId: currentChatId }) => this.config.systemPrompt || `${roleId}:${currentChatId}`,
       },
-      roleManager: roleManager as unknown as IRoleManager,
+      roleManager,
     });
 
     if (!this.memory.hasMessages()) {

@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { agentMessageStage } from '@/agent/runtime/agent-message-stage.js';
-import { getSessionForCommandContext, sessionMessageStage, sessionRegistry, type SessionRegistry } from '@/agent/session/session-runtime.js';
+import { getSessionForCommandContext, getSessionRegistry, sessionMessageStage, type SessionRegistry } from '@/agent/session/session-runtime.js';
 import { ChannelPipeline } from '@/agent/pipeline.js';
 import { subAgentTools } from '@/agent/subagent/subagent-tools.js';
 import type { IChannelPlugin } from '@/channels/channel-plugin.js';
@@ -24,7 +24,7 @@ import { sqliteManager } from '@/platform/db/sqlite-manager.js';
 import { logger } from '@/platform/observability/logger.js';
 import { createMultimodalTools } from '@/platform/tools/multimodal-tools.js';
 import { McpClientManager } from '@/platform/tools/mcp/mcp-client-manager.js';
-import { ToolRegistry, toolRegistry as sharedToolRegistry } from '@/platform/tools/registry.js';
+import { toolRegistry as sharedToolRegistry } from '@/platform/tools/registry.js';
 import { normalizeImportPath } from '@/platform/utils/import-path.js';
 import {
   assertPackageNameMatchesExportedName,
@@ -45,7 +45,6 @@ export interface BootstrapOptions {
 }
 
 let pipeline: ChannelPipeline | null = null;
-let toolRegistryInstance: ToolRegistry | null = null;
 let sessionRegistryInstance: SessionRegistry | null = null;
 
 export const pluginManager = new PluginManager(sharedToolRegistry, {
@@ -136,8 +135,7 @@ export class Bootstrap {
 
     logger.info({}, '[4/16] Initializing Aesyiu core components...');
 
-    toolRegistryInstance = sharedToolRegistry;
-    sessionRegistryInstance = sessionRegistry;
+    sessionRegistryInstance = getSessionRegistry();
 
     const multimodalTools = createMultimodalTools(() => configManager.config);
     pipeline = new ChannelPipeline(pluginManager);
@@ -166,7 +164,7 @@ export class Bootstrap {
     if (!options.skipSubAgents) {
       logger.info({}, '[7/16] Registering SubAgent tools...');
       for (const tool of subAgentTools) {
-        toolRegistryInstance?.register(tool);
+        sharedToolRegistry.register(tool);
       }
       logger.info({ toolCount: subAgentTools.length }, 'SubAgent tools registered');
     }
@@ -174,8 +172,8 @@ export class Bootstrap {
 
   private static registerMultimodalTools(multimodalTools: ReturnType<typeof createMultimodalTools>): void {
     logger.info({}, '[8/16] Registering Multimodal tools...');
-    toolRegistryInstance?.register(multimodalTools.speechToTextTool);
-    toolRegistryInstance?.register(multimodalTools.imageUnderstandingTool);
+    sharedToolRegistry.register(multimodalTools.speechToTextTool);
+    sharedToolRegistry.register(multimodalTools.imageUnderstandingTool);
     logger.info({}, 'Multimodal tools registered');
   }
 
@@ -386,7 +384,7 @@ export class Bootstrap {
     logger.info({}, 'Shutting down AesyClaw...');
 
     this.disableConfigHotReload();
-    await this.shutdownChannelsPrimary();
+    await this.shutdownChannels();
     this.shutdownCron();
     await this.shutdownMcp();
     this.shutdownPlugins();
@@ -394,7 +392,7 @@ export class Bootstrap {
     await this.shutdownSkills();
     await this.shutdownRoles();
     this.shutdownSessionRegistry();
-    await this.shutdownChannelsFinal();
+    await this.shutdownConfig();
 
     this.mcpManager = null;
     this.initialized = false;
@@ -412,7 +410,7 @@ export class Bootstrap {
     this.channelHotReloadEnabled = false;
   }
 
-  private static async shutdownChannelsPrimary(): Promise<void> {
+  private static async shutdownChannels(): Promise<void> {
     try {
       await channelManager.shutdown();
       logger.info({}, '[1/9] Channel Manager stopped');
@@ -490,12 +488,12 @@ export class Bootstrap {
     }
   }
 
-  private static async shutdownChannelsFinal(): Promise<void> {
+  private static async shutdownConfig(): Promise<void> {
     try {
-      await channelManager.shutdown();
-      logger.info({}, '[9/9] ChannelPluginManager stopped');
+      await configManager.destroy();
+      logger.info({}, '[9/9] ConfigManager stopped');
     } catch (error) {
-      logger.error({ error }, 'Error stopping ChannelPluginManager');
+      logger.error({ error }, 'Error stopping ConfigManager');
     }
   }
 
@@ -506,14 +504,6 @@ export class Bootstrap {
   static async restart(options: BootstrapOptions = {}): Promise<void> {
     await this.shutdown();
     await this.initialize(options);
-  }
-
-  static getToolRegistry(): ToolRegistry | null {
-    return toolRegistryInstance;
-  }
-
-  static getPipeline(): ChannelPipeline | null {
-    return pipeline;
   }
 
   static getStatus(): {
@@ -543,7 +533,7 @@ export class Bootstrap {
       scheduledTasks: number;
     };
   } {
-    const toolStats = toolRegistryInstance?.getStats() ?? { totalTools: 0 };
+    const toolStats = sharedToolRegistry.getStats();
     const mcpServers = this.mcpManager?.getConnectedServers() || [];
     const plugins = pluginManager?.getLoadedPlugins() || [];
     const roleStats = roleManager.isInitialized() ? { total: roleManager.getAllRoles().length } : { total: 0 };
@@ -577,5 +567,3 @@ export async function bootstrap(options?: BootstrapOptions): Promise<void> {
 export async function shutdown(): Promise<void> {
   return Bootstrap.shutdown();
 }
-
-export { pipeline, toolRegistryInstance as toolRegistry };

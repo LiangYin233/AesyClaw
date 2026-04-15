@@ -1,8 +1,5 @@
 import type { IChannelContext, IUnifiedMessage, MiddlewareFunc, PipelineState } from '@/agent/types.js';
 import type { CommandContext } from '@/contracts/commands.js';
-import type { IConfigManager } from '@/contracts/config-manager.js';
-import type { IRoleManager } from '@/contracts/role-manager.js';
-import type { ISystemPromptBuilder } from '@/contracts/system-prompt-builder.js';
 import { configManager } from '@/features/config/config-manager.js';
 import { roleManager } from '@/features/roles/role-manager.js';
 import { systemPromptManager } from '@/features/roles/system-prompt-manager.js';
@@ -34,18 +31,17 @@ export interface ResolvedSessionState {
 export function getSessionRegistry(): SessionRegistry {
   if (!sessionRegistryInstance) {
     sessionRegistryInstance = new SessionRegistry({
-      configManager: configManager as unknown as IConfigManager,
-      roleManager: roleManager as unknown as IRoleManager,
-      systemPromptBuilder: systemPromptManager as unknown as ISystemPromptBuilder,
+      configManager,
+      roleManager,
+      systemPromptBuilder: systemPromptManager,
     });
   }
 
   return sessionRegistryInstance;
 }
 
-export const sessionRegistry = getSessionRegistry();
-
 export function resolveSessionForInbound(inbound: IUnifiedMessage): ResolvedSessionState {
+  const sessionRegistry = getSessionRegistry();
   const channel = inbound.channelId;
   const type = (inbound.metadata?.type as string) || 'default';
   const chatId = inbound.chatId;
@@ -115,6 +111,7 @@ export const sessionMessageStage: MiddlewareFunc = async (ctx: IChannelContext, 
 };
 
 export function getSessionForCommandContext(ctx: CommandContext): SessionContext | null {
+  const sessionRegistry = getSessionRegistry();
   const existingSessionId = sessionRegistry.getSessionIdByChatId(
     ctx.channelId,
     ctx.messageType,
@@ -130,15 +127,17 @@ export function getSessionForCommandContext(ctx: CommandContext): SessionContext
 }
 
 export function getSessionSummaries(): SessionSummary[] {
+  const sessionRegistry = getSessionRegistry();
   return sessionRegistry.getAllSessions().map(s => ({ metadata: s.metadata }));
 }
 
 export function getSessionStats(): SessionStats {
+  const sessionRegistry = getSessionRegistry();
   return sessionRegistry.getStats();
 }
 
 export function clearSessionById(sessionId: string): boolean {
-  return sessionRegistry.removeSession(sessionId);
+  return getSessionRegistry().removeSession(sessionId);
 }
 
 export interface TemporarySessionOptions {
@@ -155,6 +154,7 @@ export function createTemporarySession(
   cronJobId: string,
   options: TemporarySessionOptions
 ): TemporarySessionResult {
+  const sessionRegistry = getSessionRegistry();
   const sessionPart = SessionId.generateSession();
   const sessionId = `cron:cron:${cronJobId}:${sessionPart}`;
 
@@ -169,5 +169,5 @@ export function createTemporarySession(
 }
 
 export function removeTemporarySession(sessionId: string): boolean {
-  return sessionRegistry.removeSession(sessionId);
+  return getSessionRegistry().removeSession(sessionId);
 }

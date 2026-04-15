@@ -1,13 +1,16 @@
 import { StandardMessage, MessageRole } from '@/platform/llm/types.js';
 import { MemoryConfig, createMemoryConfig } from './types.js';
-import type { IRoleManager } from '@/contracts/role-manager.js';
-import type { ISystemPromptBuilder } from '@/contracts/system-prompt-builder.js';
+import type { RoleManager } from '@/features/roles/role-manager.js';
+import type { SystemPromptManager } from '@/features/roles/system-prompt-manager.js';
 import { DEFAULT_ROLE_ID } from '@/features/roles/types.js';
 import { logger } from '@/platform/observability/logger.js';
 
+type SessionPromptBuilder = Pick<SystemPromptManager, 'buildSystemPrompt'>;
+type SessionRoleStore = Pick<RoleManager, 'getRole' | 'getRoleConfig' | 'getAllRoles'>;
+
 export interface SessionMemoryManagerDependencies {
-  systemPromptBuilder: ISystemPromptBuilder;
-  roleManager?: IRoleManager;
+  systemPromptBuilder: SessionPromptBuilder;
+  roleManager?: SessionRoleStore;
 }
 
 export class SessionMemoryManager {

@@ -115,12 +115,6 @@ export const SystemEvents = {
   CRON_JOB_DELETED: 'cron:job:deleted',
   CRON_JOB_TOGGLED: 'cron:job:toggled',
   CRON_JOB_EXECUTED: 'cron:job:executed',
-  SESSION_CREATED: 'session:created',
-  SESSION_UPDATED: 'session:updated',
-  TOOL_REGISTERED: 'tool:registered',
-  TOOL_UNREGISTERED: 'tool:unregistered',
-  PLUGIN_LOADED: 'plugin:loaded',
-  PLUGIN_UNLOADED: 'plugin:unloaded',
 } as const;
 
 export type SystemEvent = typeof SystemEvents[keyof typeof SystemEvents];
