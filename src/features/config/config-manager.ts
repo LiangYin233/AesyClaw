@@ -357,10 +357,14 @@ export class ConfigManager {
     return this.initialized;
   }
 
-  destroy(): void {
-    if (this.watcher) { void this.watcher.unwatch(); this.watcher = null; }
+  async destroy(): Promise<void> {
+    if (this.watcher) {
+      await this.watcher.unwatch();
+      this.watcher = null;
+    }
     this.resetSelfUpdating();
     this.configChangeListeners.clear();
+    this.initialized = false;
     logger.info({}, 'ConfigManager destroyed');
   }
 }

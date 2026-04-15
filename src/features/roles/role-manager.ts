@@ -219,10 +219,6 @@ export class RoleManager {
     return Array.from(this.roles.values());
   }
 
-  getAllRoleIds(): string[] {
-    return Array.from(this.roles.keys());
-  }
-
   getRolesList(): Array<{ id: string; name: string; description: string }> {
     return this.getAllRoles().map(role => ({
       id: role.metadata.id,

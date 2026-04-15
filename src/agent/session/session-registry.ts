@@ -1,9 +1,9 @@
 import { logger } from '@/platform/observability/logger.js';
 import { LLMProviderType, type LLMConfig } from '@/platform/llm/types.js';
 import type { ToolDefinition } from '@/platform/tools/types.js';
-import type { IConfigManager } from '@/contracts/config-manager.js';
-import type { IRoleManager } from '@/contracts/role-manager.js';
-import type { ISystemPromptBuilder } from '@/contracts/system-prompt-builder.js';
+import type { ConfigManager } from '@/features/config/config-manager.js';
+import type { RoleManager } from '@/features/roles/role-manager.js';
+import type { SystemPromptManager } from '@/features/roles/system-prompt-manager.js';
 import type { SessionConfig, SessionContext } from './session-context.js';
 import { createSessionMetadata } from './session-context.js';
 import type { MemoryConfig as MemoryConfigInternal } from '../memory/types.js';
@@ -11,6 +11,10 @@ import { resolveLLMConfig } from '../runtime/resolve-llm-config.js';
 import { SessionMemoryManager } from '../memory/session-memory-manager.js';
 import { AgentEngine } from '../engine.js';
 import { DEFAULT_ROLE_ID } from '@/features/roles/types.js';
+
+type SessionConfigStore = Pick<ConfigManager, 'config' | 'isInitialized'>;
+type SessionRoleStore = Pick<RoleManager, 'getRole' | 'getRoleConfig' | 'getAllRoles' | 'isInitialized'>;
+type SessionPromptBuilder = Pick<SystemPromptManager, 'buildSystemPrompt'>;
 
 interface SessionMemoryConfigSource {
   max_context_tokens: number;
@@ -36,9 +40,9 @@ const DEFAULT_SESSION_CONFIG: SessionConfig = {
 };
 
 export interface SessionRegistryDependencies {
-  configManager: IConfigManager;
-  roleManager: IRoleManager;
-  systemPromptBuilder: ISystemPromptBuilder;
+  configManager: SessionConfigStore;
+  roleManager: SessionRoleStore;
+  systemPromptBuilder: SessionPromptBuilder;
 }
 
 export class SessionRegistry {
@@ -257,6 +261,7 @@ export class SessionRegistry {
       session.memory.clear();
     }
     this.sessions.clear();
+    this.chatToSession.clear();
     logger.info({}, 'SessionRegistry shutdown');
   }
 }

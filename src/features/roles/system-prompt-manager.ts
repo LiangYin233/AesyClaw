@@ -99,13 +99,6 @@ export class SystemPromptManager {
     return prompt;
   }
 
-  buildRoleOnlyPrompt(roleId: string): string {
-    const actualRoleId = roleId || DEFAULT_ROLE_ID;
-    const roleConfig = roleManager.getRoleConfig(actualRoleId);
-    const basePrompt = roleConfig.system_prompt || '你是一个有帮助的AI助手。';
-    const vars = this.getSystemVariables();
-    return this.replaceVariables(basePrompt, vars);
-  }
 }
 
 export const systemPromptManager = new SystemPromptManager();
