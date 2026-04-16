@@ -15,17 +15,18 @@ import {
   readPackageManifest,
 } from '@/platform/utils/package-manifest.js';
 import {
+  BeforeLLMRequestDispatchResult,
+  BeforeToolCallDispatchResult,
+  MessageReceiveDispatchResult,
+  MessageSendDispatchResult,
   IPlugin,
   PluginContext,
   PluginInfo,
-  HookName,
   HookPayloadMessageReceive,
   HookPayloadBeforeLLMRequest,
   HookPayloadToolCall,
   HookPayloadAfterToolCall,
   HookPayloadMessageSend,
-  HookPayloadMap,
-  HookResultMap,
 } from './types.js';
 
 export interface PluginManagerDependencies {
@@ -409,79 +410,167 @@ export class PluginManager {
     return hooks;
   }
 
-  async dispatchHook<K extends HookName>(
-    hookName: K,
-    payload: HookPayloadMap[K] | undefined
-  ): Promise<HookResultMap[K]> {
-    let result: unknown = payload;
+  async dispatchMessageReceive(
+    payload: HookPayloadMessageReceive
+  ): Promise<MessageReceiveDispatchResult> {
+    let message = payload.message;
 
     for (const [, plugin] of this.loadedPlugins) {
-      if (!plugin.hooks) continue;
-
-      const hook = plugin.hooks[hookName];
-      if (!hook) continue;
+      if (!plugin.hooks?.onMessageReceive) continue;
 
       try {
         logger.debug(
-          { pluginName: plugin.name, hookName },
+          { pluginName: plugin.name, hookName: 'onMessageReceive' },
           'Dispatching hook'
         );
 
-        const hookResult = await (hook as (payload: unknown) => Promise<unknown>)(result);
-
-        if (hookResult !== undefined && hookResult !== null) {
-          result = hookResult;
+        const result = await plugin.hooks.onMessageReceive({ message });
+        if (result.action === 'block') {
+          return {
+            blocked: true,
+            reason: result.reason,
+          };
         }
+        message = result.value;
       } catch (error) {
         logger.error(
-          { pluginName: plugin.name, hookName, error },
+          { pluginName: plugin.name, hookName: 'onMessageReceive', error },
           'Hook execution failed'
         );
       }
     }
 
-    return result as HookResultMap[K];
-  }
-
-  async dispatchMessageReceive(
-    payload: HookPayloadMessageReceive
-  ): Promise<HookPayloadMessageReceive['message'] | null> {
-    const result = await this.dispatchHook('onMessageReceive', payload) as HookPayloadMessageReceive | HookPayloadMessageReceive['message'] | null;
-    if (!result) return null;
-    if ('message' in result) return result.message;
-    return result;
+    return {
+      blocked: false,
+      message,
+    };
   }
 
   async dispatchBeforeLLMRequest(
     payload: HookPayloadBeforeLLMRequest
-  ): Promise<void> {
-    await this.dispatchHook('beforeLLMRequest', payload);
+  ): Promise<BeforeLLMRequestDispatchResult> {
+    for (const [, plugin] of this.loadedPlugins) {
+      if (!plugin.hooks?.beforeLLMRequest) continue;
+
+      try {
+        logger.debug(
+          { pluginName: plugin.name, hookName: 'beforeLLMRequest' },
+          'Dispatching hook'
+        );
+
+        const result = await plugin.hooks.beforeLLMRequest(payload);
+        if (result.action === 'block') {
+          return {
+            blocked: true,
+            reason: result.reason,
+          };
+        }
+      } catch (error) {
+        logger.error(
+          { pluginName: plugin.name, hookName: 'beforeLLMRequest', error },
+          'Hook execution failed'
+        );
+      }
+    }
+
+    return { blocked: false };
   }
 
   async dispatchBeforeToolCall(
     toolCall: HookPayloadToolCall
-  ): Promise<{ success: boolean; content: string; error?: string } | null> {
-    const result = await this.dispatchHook('beforeToolCall', toolCall);
-    if (result === null) {
-      return null;
+  ): Promise<BeforeToolCallDispatchResult> {
+    for (const [, plugin] of this.loadedPlugins) {
+      if (!plugin.hooks?.beforeToolCall) continue;
+
+      try {
+        logger.debug(
+          { pluginName: plugin.name, hookName: 'beforeToolCall' },
+          'Dispatching hook'
+        );
+
+        const result = await plugin.hooks.beforeToolCall(toolCall);
+        if (result.action === 'continue') {
+          continue;
+        }
+        return {
+          shortCircuited: true,
+          result: result.result,
+        };
+      } catch (error) {
+        logger.error(
+          { pluginName: plugin.name, hookName: 'beforeToolCall', error },
+          'Hook execution failed'
+        );
+      }
     }
-    return result as { success: boolean; content: string; error?: string } | null;
+
+    return { shortCircuited: false };
   }
 
   async dispatchAfterToolCall(
     payload: HookPayloadAfterToolCall
   ): Promise<HookPayloadAfterToolCall['result']> {
-    const result = await this.dispatchHook('afterToolCall', payload);
-    return result as HookPayloadAfterToolCall['result'];
+    let result = payload.result;
+
+    for (const [, plugin] of this.loadedPlugins) {
+      if (!plugin.hooks?.afterToolCall) continue;
+
+      try {
+        logger.debug(
+          { pluginName: plugin.name, hookName: 'afterToolCall' },
+          'Dispatching hook'
+        );
+
+        const hookResult = await plugin.hooks.afterToolCall({
+          toolCall: payload.toolCall,
+          result,
+        });
+        result = hookResult.value;
+      } catch (error) {
+        logger.error(
+          { pluginName: plugin.name, hookName: 'afterToolCall', error },
+          'Hook execution failed'
+        );
+      }
+    }
+
+    return result;
   }
 
   async dispatchMessageSend(
     payload: HookPayloadMessageSend
-  ): Promise<HookPayloadMessageSend['message'] | null> {
-    const result = await this.dispatchHook('onMessageSend', payload) as HookPayloadMessageSend | HookPayloadMessageSend['message'] | null;
-    if (!result) return null;
-    if ('message' in result) return result.message;
-    return result;
+  ): Promise<MessageSendDispatchResult> {
+    let message = payload.message;
+
+    for (const [, plugin] of this.loadedPlugins) {
+      if (!plugin.hooks?.onMessageSend) continue;
+
+      try {
+        logger.debug(
+          { pluginName: plugin.name, hookName: 'onMessageSend' },
+          'Dispatching hook'
+        );
+
+        const result = await plugin.hooks.onMessageSend({ message });
+        if (result.action === 'block') {
+          return {
+            blocked: true,
+            reason: result.reason,
+          };
+        }
+        message = result.value;
+      } catch (error) {
+        logger.error(
+          { pluginName: plugin.name, hookName: 'onMessageSend', error },
+          'Hook execution failed'
+        );
+      }
+    }
+
+    return {
+      blocked: false,
+      message,
+    };
   }
 
   async unloadPlugin(pluginName: string): Promise<void> {
