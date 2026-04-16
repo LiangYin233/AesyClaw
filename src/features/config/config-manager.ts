@@ -160,8 +160,9 @@ export class ConfigManager {
         beforeWriteBackMsg: 'Config was incomplete, added missing fields with defaults',
       });
     } else {
-      this.store.replace(DEFAULT_CONFIG);
-      const defaultConfig = { ...DEFAULT_CONFIG, channels: {} };
+      const parsed = this.parseConfig({});
+      const defaultConfig = parsed.config ?? { ...DEFAULT_CONFIG, channels: {} };
+      this.store.replace(defaultConfig);
       await fs.promises.writeFile(this.configPath, JSON.stringify(defaultConfig, null, 2), 'utf-8');
       logger.info({ path: this.configPath }, 'Default config file generated');
     }
