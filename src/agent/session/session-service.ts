@@ -41,7 +41,7 @@ type SessionMemoryConfigSource = {
   compression_threshold: number;
 };
 
-export class SessionService {
+class SessionService {
   resolveInteractiveSessionForInbound(inbound: IUnifiedMessage): SessionContext {
     return this.createRuntimeSession(this.getOrCreateInteractiveSession(this.scopeFromInbound(inbound)));
   }
@@ -157,14 +157,6 @@ export class SessionService {
     });
 
     return { sessionId, session };
-  }
-
-  removeTemporarySession(_sessionId: string): boolean {
-    return true;
-  }
-
-  shutdown(): void {
-    logger.info({}, 'SessionService shutdown');
   }
 
   private getOrCreateInteractiveSession(scope: SessionScope): SessionRecord {

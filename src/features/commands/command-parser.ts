@@ -1,6 +1,6 @@
 import { ParsedCommand } from '@/contracts/commands.js';
 
-export class CommandParser {
+class CommandParser {
   private static instance: CommandParser;
 
   private constructor() {}

@@ -5,6 +5,7 @@ import OpenAI from 'openai';
 import { ITool, ToolDefinition, ToolExecuteContext, ToolExecutionResult, zodToToolParameters } from './types.js';
 import { logger } from '../observability/logger.js';
 import { toErrorMessage } from '../utils/errors.js';
+import { pathResolver } from '../utils/paths.js';
 
 interface ProviderRuntimeConfig {
   api_key?: string;
@@ -47,8 +48,18 @@ function isRemoteMediaPath(mediaPath: string): boolean {
   return mediaPath.startsWith('http://') || mediaPath.startsWith('https://');
 }
 
+function assertSafeLocalPath(filePath: string): string {
+  const baseDir = path.resolve(pathResolver.getBasePath());
+  const resolved = path.resolve(filePath);
+  if (!resolved.startsWith(baseDir + path.sep) && resolved !== baseDir) {
+    throw new Error(`路径不在允许的目录内: ${filePath}`);
+  }
+  return resolved;
+}
+
 function readFileAsArrayBuffer(filePath: string): ArrayBuffer {
-  const buffer = fs.readFileSync(filePath);
+  const safePath = assertSafeLocalPath(filePath);
+  const buffer = fs.readFileSync(safePath);
   return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
 }
 
@@ -60,9 +71,11 @@ function getImageMimeType(ext: string): string {
   return IMAGE_MIME_TYPES[ext.toLowerCase()] || 'image/jpeg';
 }
 
-function readImageAsDataUrl(imagePath: string): string {
-  const absolutePath = path.resolve(imagePath);
-  const base64 = fs.readFileSync(absolutePath).toString('base64');
+async function readImageAsDataUrl(imagePath: string): Promise<string> {
+  const safePath = assertSafeLocalPath(imagePath);
+  const { readFile } = await import('fs/promises');
+  const data = await readFile(safePath);
+  const base64 = data.toString('base64');
   const ext = path.extname(imagePath).toLowerCase().slice(1);
   const mimeType = getImageMimeType(ext);
   return `data:${mimeType};base64,${base64}`;
@@ -136,6 +149,12 @@ export class SpeechToTextTool implements ITool {
         mimeType: response.headers.get('content-type') || 'audio/mpeg',
         fileName: path.basename(audioPath),
       };
+    }
+
+    try {
+      assertSafeLocalPath(audioPath);
+    } catch {
+      return { success: false, content: '', error: `音频文件路径不在允许的目录内: ${audioPath}` };
     }
 
     if (!fs.existsSync(audioPath)) {
@@ -233,9 +252,15 @@ export class ImageUnderstandingTool implements ITool {
     return provider;
   }
 
-  private resolveImageUrl(imagePath: string): { imageUrl: string } | ToolExecutionResult {
+  private async resolveImageUrl(imagePath: string): Promise<{ imageUrl: string } | ToolExecutionResult> {
     if (isRemoteMediaPath(imagePath)) {
       return { imageUrl: imagePath };
+    }
+
+    try {
+      assertSafeLocalPath(imagePath);
+    } catch {
+      return { success: false, content: '', error: `图片路径不在允许的目录内: ${imagePath}` };
     }
 
     if (!fs.existsSync(imagePath)) {
@@ -247,7 +272,7 @@ export class ImageUnderstandingTool implements ITool {
     }
 
     return {
-      imageUrl: readImageAsDataUrl(imagePath),
+      imageUrl: await readImageAsDataUrl(imagePath),
     };
   }
 
@@ -281,7 +306,7 @@ export class ImageUnderstandingTool implements ITool {
 
       const client = createOpenAIClient(visionProvider);
 
-      const imageInput = this.resolveImageUrl(image_path);
+      const imageInput = await this.resolveImageUrl(image_path);
       if ('success' in imageInput) {
         return imageInput;
       }

@@ -32,7 +32,7 @@ export interface UpdateCronJobRecordInput {
   nextRunAt?: string | null;
 }
 
-export type CronJobRow = {
+type CronJobRow = {
   id: string;
   chat_id: string;
   name: string;
@@ -45,7 +45,7 @@ export type CronJobRow = {
   next_run_at?: string;
 };
 
-export class CronJobRepository extends BaseRepository<CronJobRow, CronJobRecord> {
+class CronJobRepository extends BaseRepository<CronJobRow, CronJobRecord> {
   create(input: CreateCronJobRecordInput): CronJobRecord {
     const now = new Date().toISOString();
 

@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import {
   type AgentSkill,
   type Message as AesyiuMessage,
@@ -23,12 +24,9 @@ import {
   SUBAGENT_TOOL_NAME_TEMP,
   type SandboxConfig,
   type SubAgentResult,
-  type SandboxContext,
 } from './types.js';
 
 export class SandboxEngine {
-  private static activeSandboxes: Map<string, SandboxContext> = new Map();
-
   private sandboxId: string;
   private parentChatId: string;
   private config: SandboxConfig;
@@ -42,20 +40,12 @@ export class SandboxEngine {
   ]);
 
   constructor(parentChatId: string, config: SandboxConfig) {
-    this.sandboxId = `sandbox_${parentChatId}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    this.sandboxId = `sandbox_${parentChatId}_${randomUUID()}`;
     this.parentChatId = parentChatId;
     this.config = config;
     this.agentId = `subagent_${this.sandboxId}`;
 
     this.initializeMemory();
-
-    SandboxEngine.activeSandboxes.set(this.sandboxId, {
-      sandboxId: this.sandboxId,
-      parentChatId: this.parentChatId,
-      config: this.config,
-      messages: this.memory,
-      createdAt: new Date(),
-    });
 
     logger.info(
       {
@@ -242,7 +232,6 @@ export class SandboxEngine {
   }
 
   destroy(): void {
-    SandboxEngine.activeSandboxes.delete(this.sandboxId);
     this.memory = [];
 
     logger.debug({ sandboxId: this.sandboxId }, 'Sandbox destroyed');

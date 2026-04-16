@@ -3,7 +3,7 @@ import { pathResolver } from '../utils/paths.js';
 import { logger } from '../observability/logger.js';
 import { toErrorMessage } from '../utils/errors.js';
 
-export class SQLiteManager {
+class SQLiteManager {
   private static instance: SQLiteManager;
   private db: Database.Database | null = null;
   private initialized: boolean = false;

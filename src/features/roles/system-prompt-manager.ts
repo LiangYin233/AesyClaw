@@ -12,7 +12,7 @@ const OS_NAMES: Record<string, string> = {
 
 export class SystemPromptManager {
   constructor() {
-    logger.info('SystemPromptManager initialized');
+    logger.info({}, 'SystemPromptManager initialized');
   }
 
   getSystemVariables(): SystemVariables {

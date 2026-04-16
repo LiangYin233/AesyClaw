@@ -113,7 +113,7 @@ export class MediaDownloader {
     filename?: string,
     headers?: Record<string, string>
   ): Promise<MediaDownloadResult> {
-    const finalFilename = filename || this.generateFilename(url, type);
+    const finalFilename = path.basename(filename || this.generateFilename(url, type));
     const localPath = path.join(this.mediaDir, finalFilename);
 
     if (fs.existsSync(localPath)) {
@@ -170,11 +170,9 @@ export class MediaDownloader {
     const contentDisposition = response.headers.get('content-disposition');
     if (contentDisposition) {
       const match = contentDisposition.match(/filename[^;=\n]*=(?:(\\?['"])(.*?)\1|([^;\n]*))/i);
-      if (match && match[2]) {
-        const filename = match[2].trim();
-        if (filename) {
-          return path.basename(filename);
-        }
+      const rawFilename = match?.[2] || match?.[3];
+      if (rawFilename?.trim()) {
+        return path.basename(rawFilename.trim());
       }
     }
 

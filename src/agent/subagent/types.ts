@@ -7,14 +7,10 @@ export const RunSubAgentInputSchema = z.object({
   task_description: z.string().describe('详细的任务描述'),
 });
 
-export type RunSubAgentInput = z.infer<typeof RunSubAgentInputSchema>;
-
 export const RunTempSubAgentInputSchema = z.object({
   system_prompt: z.string().describe('临时分身的系统提示词'),
   task_description: z.string().describe('详细的任务描述'),
 });
-
-export type RunTempSubAgentInput = z.infer<typeof RunTempSubAgentInputSchema>;
 
 export interface SubAgentResult {
   success: boolean;
@@ -30,14 +26,6 @@ export interface SandboxConfig {
   allowedTools: string[];
   allowedSkills: string[];
   parentContext?: ToolExecuteContext;
-}
-
-export interface SandboxContext {
-  sandboxId: string;
-  parentChatId: string;
-  config: SandboxConfig;
-  messages: AesyiuMessage[];
-  createdAt: Date;
 }
 
 export const SUBAGENT_TOOL_NAME_RUN = 'runSubAgent';

@@ -10,12 +10,12 @@ import {
   type TemporarySessionResult,
 } from './session-service.js';
 
-export interface ResolvedSessionState {
+interface ResolvedSessionState {
   sessionContext: SessionContext;
   sessionId: string;
 }
 
-export function resolveSessionForInbound(ctx: IChannelContext): ResolvedSessionState {
+function resolveSessionForInbound(ctx: IChannelContext): ResolvedSessionState {
   const sessionContext = sessionService.resolveInteractiveSessionForInbound(ctx.inbound);
 
   return {
@@ -84,12 +84,4 @@ export function createTemporarySession(
   options: TemporarySessionOptions
 ): TemporarySessionResult {
   return sessionService.createTemporarySession(cronJobId, options);
-}
-
-export function removeTemporarySession(sessionId: string): boolean {
-  return sessionService.removeTemporarySession(sessionId);
-}
-
-export function shutdownSessionRuntime(): void {
-  sessionService.shutdown();
 }

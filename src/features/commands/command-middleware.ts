@@ -1,5 +1,4 @@
-import { MiddlewareFunc } from '@/agent/types.js';
-import { IChannelContext } from '@/agent/types.js';
+import { MiddlewareFunc, IChannelContext } from '@/agent/types.js';
 import { commandParser } from './command-parser.js';
 import { commandRegistry } from './command-registry.js';
 import { logger } from '@/platform/observability/logger.js';
