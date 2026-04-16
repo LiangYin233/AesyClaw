@@ -1,5 +1,5 @@
-import { sqliteManager } from '../sqlite-manager.js';
-import { logger } from '../../../platform/observability/logger.js';
+import { logger } from '@/platform/observability/logger.js';
+import { BaseRepository } from './base-repository.js';
 
 export interface CronJobRecord {
   id: string;
@@ -42,25 +42,16 @@ export type CronJobRow = {
   metadata: string;
 };
 
-export class CronJobRepository {
+export class CronJobRepository extends BaseRepository<CronJobRow, CronJobRecord> {
   create(input: CreateCronJobRecordInput): CronJobRecord {
-    const db = sqliteManager.getDatabase();
     const metadata = JSON.stringify(input.metadata || {});
 
-    const stmt = db.prepare(`
+    this.db.prepare(`
       INSERT INTO cron_jobs (id, chat_id, name, cron_expression, command, prompt, next_run_at, metadata)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(
-      input.id,
-      input.chatId,
-      input.name,
-      input.cronExpression,
-      input.command,
-      input.prompt,
-      input.nextRunAt || null,
-      metadata
+    `).run(
+      input.id, input.chatId, input.name, input.cronExpression,
+      input.command, input.prompt, input.nextRunAt || null, metadata
     );
 
     logger.info({ id: input.id, chatId: input.chatId }, 'Cron job created');
@@ -68,46 +59,26 @@ export class CronJobRepository {
   }
 
   findById(id: string): CronJobRecord | null {
-    const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('SELECT * FROM cron_jobs WHERE id = ?');
-    const row = stmt.get(id) as CronJobRow;
-
-    if (!row) return null;
-
-    return this.mapRowToRecord(row);
+    return this.queryOne('SELECT * FROM cron_jobs WHERE id = ?', id);
   }
 
   findByChatId(chatId: string): CronJobRecord[] {
-    const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('SELECT * FROM cron_jobs WHERE chat_id = ? ORDER BY created_at DESC');
-    const rows = stmt.all(chatId) as CronJobRow[];
-
-    return rows.map(row => this.mapRowToRecord(row));
+    return this.queryMany('SELECT * FROM cron_jobs WHERE chat_id = ? ORDER BY created_at DESC', chatId);
   }
 
   findEnabled(): CronJobRecord[] {
-    const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('SELECT * FROM cron_jobs WHERE enabled = 1 ORDER BY next_run_at ASC');
-    const rows = stmt.all() as CronJobRow[];
-
-    return rows.map(row => this.mapRowToRecord(row));
+    return this.queryMany('SELECT * FROM cron_jobs WHERE enabled = 1 ORDER BY next_run_at ASC');
   }
 
   findDueJobs(): CronJobRecord[] {
-    const db = sqliteManager.getDatabase();
     const now = new Date().toISOString();
-    const stmt = db.prepare(`
-      SELECT * FROM cron_jobs 
-      WHERE enabled = 1 AND next_run_at IS NOT NULL AND next_run_at <= ?
-      ORDER BY next_run_at ASC
-    `);
-    const rows = stmt.all(now) as CronJobRow[];
-
-    return rows.map(row => this.mapRowToRecord(row));
+    return this.queryMany(
+      'SELECT * FROM cron_jobs WHERE enabled = 1 AND next_run_at IS NOT NULL AND next_run_at <= ? ORDER BY next_run_at ASC',
+      now
+    );
   }
 
   update(id: string, updates: Partial<Omit<CronJobRecord, 'id' | 'createdAt'>>): CronJobRecord | null {
-    const db = sqliteManager.getDatabase();
     const fields: string[] = [];
     const values: Array<string | number | null> = [];
 
@@ -147,9 +118,7 @@ export class CronJobRepository {
     if (fields.length === 0) return this.findById(id);
 
     values.push(id);
-    const stmt = db.prepare(`UPDATE cron_jobs SET ${fields.join(', ')} WHERE id = ?`);
-    const result = stmt.run(...values);
-
+    const result = this.db.prepare(`UPDATE cron_jobs SET ${fields.join(', ')} WHERE id = ?`).run(...values);
     if (result.changes === 0) return null;
 
     logger.info({ id }, 'Cron job updated');
@@ -157,9 +126,7 @@ export class CronJobRepository {
   }
 
   delete(id: string): boolean {
-    const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('DELETE FROM cron_jobs WHERE id = ?');
-    const result = stmt.run(id);
+    const result = this.db.prepare('DELETE FROM cron_jobs WHERE id = ?').run(id);
 
     if (result.changes > 0) {
       logger.info({ id }, 'Cron job deleted');
@@ -169,9 +136,7 @@ export class CronJobRepository {
   }
 
   deleteByChatId(chatId: string): number {
-    const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('DELETE FROM cron_jobs WHERE chat_id = ?');
-    const result = stmt.run(chatId);
+    const result = this.db.prepare('DELETE FROM cron_jobs WHERE chat_id = ?').run(chatId);
 
     if (result.changes > 0) {
       logger.info({ chatId, count: result.changes }, 'Cron jobs deleted for chat');
@@ -180,33 +145,27 @@ export class CronJobRepository {
   }
 
   incrementRunCount(id: string): void {
-    const db = sqliteManager.getDatabase();
-    const stmt = db.prepare(`
-      UPDATE cron_jobs 
+    this.db.prepare(`
+      UPDATE cron_jobs
       SET run_count = run_count + 1, last_run_at = datetime('now')
       WHERE id = ?
-    `);
-    stmt.run(id);
+    `).run(id);
   }
 
   incrementErrorCount(id: string): void {
-    const db = sqliteManager.getDatabase();
-    const stmt = db.prepare(`
-      UPDATE cron_jobs 
+    this.db.prepare(`
+      UPDATE cron_jobs
       SET last_run_at = datetime('now'),
           metadata = JSON_SET(COALESCE(metadata, '{}'), '$.lastError', datetime('now'))
       WHERE id = ?
-    `);
-    stmt.run(id);
+    `).run(id);
   }
 
   setNextRunTime(id: string, nextRunAt: string): void {
-    const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('UPDATE cron_jobs SET next_run_at = ? WHERE id = ?');
-    stmt.run(nextRunAt, id);
+    this.db.prepare('UPDATE cron_jobs SET next_run_at = ? WHERE id = ?').run(nextRunAt, id);
   }
 
-  private mapRowToRecord(row: CronJobRow): CronJobRecord {
+  protected mapRow(row: CronJobRow): CronJobRecord {
     return {
       id: row.id,
       chatId: row.chat_id,

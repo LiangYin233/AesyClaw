@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import type { MessageRole, StandardMessage } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import { sqliteManager } from '../sqlite-manager.js';
+import { BaseRepository } from './base-repository.js';
 
 export interface SessionMessageRow {
   id: string;
@@ -35,29 +36,21 @@ export interface ReplaceSessionMessagesInput {
   name?: string;
 }
 
-export class SessionMessageRepository {
+export class SessionMessageRepository extends BaseRepository<SessionMessageRow, PersistedSessionMessage> {
   findBySessionId(sessionId: string): PersistedSessionMessage[] {
-    const db = sqliteManager.getDatabase();
-    const stmt = db.prepare(`
-      SELECT * FROM session_messages
-      WHERE session_id = ?
-      ORDER BY sequence ASC
-    `);
-    const rows = stmt.all(sessionId) as SessionMessageRow[];
-
-    return rows.map(row => this.mapRow(row));
+    return this.queryMany(
+      'SELECT * FROM session_messages WHERE session_id = ? ORDER BY sequence ASC',
+      sessionId
+    );
   }
 
   replaceForSession(sessionId: string, messages: ReplaceSessionMessagesInput[]): void {
     sqliteManager.transaction(() => {
-      const db = sqliteManager.getDatabase();
-      db.prepare('DELETE FROM session_messages WHERE session_id = ?').run(sessionId);
+      this.db.prepare('DELETE FROM session_messages WHERE session_id = ?').run(sessionId);
 
-      if (messages.length === 0) {
-        return;
-      }
+      if (messages.length === 0) return;
 
-      const stmt = db.prepare(`
+      const stmt = this.db.prepare(`
         INSERT INTO session_messages (
           id, session_id, sequence, role, content, tool_calls, tool_call_id, name
         )
@@ -82,9 +75,7 @@ export class SessionMessageRepository {
   }
 
   deleteBySessionId(sessionId: string): number {
-    const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('DELETE FROM session_messages WHERE session_id = ?');
-    const result = stmt.run(sessionId);
+    const result = this.db.prepare('DELETE FROM session_messages WHERE session_id = ?').run(sessionId);
 
     if (result.changes > 0) {
       logger.info({ sessionId, count: result.changes }, 'Session messages deleted');
@@ -93,7 +84,7 @@ export class SessionMessageRepository {
     return result.changes;
   }
 
-  private mapRow(row: SessionMessageRow): PersistedSessionMessage {
+  protected mapRow(row: SessionMessageRow): PersistedSessionMessage {
     return {
       id: row.id,
       sessionId: row.session_id,

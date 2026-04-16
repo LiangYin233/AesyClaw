@@ -40,9 +40,7 @@ export class SQLiteManager {
   }
 
   private initializeTables(): void {
-    if (!this.db) throw new Error('Database not initialized');
-
-    this.db.exec(`
+    this.getDatabase().exec(`
       CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
         chat_id TEXT NOT NULL,
@@ -87,9 +85,7 @@ export class SQLiteManager {
   }
 
   private ensureIndexes(): void {
-    if (!this.db) throw new Error('Database not initialized');
-
-    this.db.exec(`
+    this.getDatabase().exec(`
       CREATE INDEX IF NOT EXISTS idx_sessions_scope ON sessions(channel, type, chat_id);
       CREATE INDEX IF NOT EXISTS idx_sessions_updated_at ON sessions(updated_at);
       CREATE INDEX IF NOT EXISTS idx_session_messages_session_id ON session_messages(session_id, sequence);
@@ -128,13 +124,11 @@ export class SQLiteManager {
   }
 
   transaction<T>(fn: () => T): T {
-    if (!this.db) throw new Error('Database not initialized');
-    return this.db.transaction(fn)();
+    return this.getDatabase().transaction(fn)();
   }
 
   vacuum(): void {
-    if (!this.db) throw new Error('Database not initialized');
-    this.db.exec('VACUUM');
+    this.getDatabase().exec('VACUUM');
     logger.info({}, 'Database vacuumed');
   }
 }

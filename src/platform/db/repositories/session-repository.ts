@@ -1,5 +1,5 @@
 import { logger } from '@/platform/observability/logger.js';
-import { sqliteManager } from '../sqlite-manager.js';
+import { BaseRepository } from './base-repository.js';
 
 export interface SessionRecord {
   id: string;
@@ -37,59 +37,38 @@ export type SessionRow = {
   updated_at: string;
 };
 
-export class SessionRepository {
-  create(input: CreateSessionInput): SessionRecord {
-    const db = sqliteManager.getDatabase();
+const ORDER = 'ORDER BY updated_at DESC, created_at DESC';
 
-    const stmt = db.prepare(`
+export class SessionRepository extends BaseRepository<SessionRow, SessionRecord> {
+  create(input: CreateSessionInput): SessionRecord {
+    this.db.prepare(`
       INSERT INTO sessions (id, chat_id, channel, type, role_id)
       VALUES (?, ?, ?, ?, ?)
-    `);
+    `).run(input.id, input.chatId, input.channel, input.type, input.roleId);
 
-    stmt.run(input.id, input.chatId, input.channel, input.type, input.roleId);
     logger.info({ sessionId: input.id, chatId: input.chatId }, 'Session created');
-
     return this.findById(input.id)!;
   }
 
   findById(sessionId: string): SessionRecord | null {
-    const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('SELECT * FROM sessions WHERE id = ?');
-    const row = stmt.get(sessionId) as SessionRow | undefined;
-
-    if (!row) return null;
-
-    return this.mapRowToRecord(row);
+    return this.queryOne('SELECT * FROM sessions WHERE id = ?', sessionId);
   }
 
   findLatestByScope(scope: SessionScope): SessionRecord | null {
-    const db = sqliteManager.getDatabase();
-    const stmt = db.prepare(`
-      SELECT * FROM sessions
-      WHERE channel = ? AND type = ? AND chat_id = ?
-      ORDER BY updated_at DESC, created_at DESC
-      LIMIT 1
-    `);
-    const row = stmt.get(scope.channel, scope.type, scope.chatId) as SessionRow | undefined;
-
-    if (!row) return null;
-
-    return this.mapRowToRecord(row);
+    return this.queryOne(
+      `SELECT * FROM sessions WHERE channel = ? AND type = ? AND chat_id = ? ${ORDER} LIMIT 1`,
+      scope.channel, scope.type, scope.chatId
+    );
   }
 
   findByChatId(chatId: string): SessionRecord[] {
-    const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('SELECT * FROM sessions WHERE chat_id = ? ORDER BY updated_at DESC, created_at DESC');
-    const rows = stmt.all(chatId) as SessionRow[];
-
-    return rows.map(row => this.mapRowToRecord(row));
+    return this.queryMany(`SELECT * FROM sessions WHERE chat_id = ? ${ORDER}`, chatId);
   }
 
   updateState(
     sessionId: string,
     updates: Partial<Pick<SessionRecord, 'roleId' | 'messageCount'>>
   ): SessionRecord | null {
-    const db = sqliteManager.getDatabase();
     const fields: string[] = ["updated_at = datetime('now')"];
     const values: Array<string | number> = [];
 
@@ -104,9 +83,7 @@ export class SessionRepository {
 
     values.push(sessionId);
 
-    const stmt = db.prepare(`UPDATE sessions SET ${fields.join(', ')} WHERE id = ?`);
-    const result = stmt.run(...values);
-
+    const result = this.db.prepare(`UPDATE sessions SET ${fields.join(', ')} WHERE id = ?`).run(...values);
     if (result.changes === 0) return null;
 
     logger.info({ sessionId }, 'Session updated');
@@ -114,9 +91,7 @@ export class SessionRepository {
   }
 
   delete(sessionId: string): boolean {
-    const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('DELETE FROM sessions WHERE id = ?');
-    const result = stmt.run(sessionId);
+    const result = this.db.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId);
 
     if (result.changes > 0) {
       logger.info({ sessionId }, 'Session deleted');
@@ -126,15 +101,10 @@ export class SessionRepository {
   }
 
   findAll(): SessionRecord[] {
-    const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('SELECT * FROM sessions ORDER BY updated_at DESC, created_at DESC');
-    const rows = stmt.all() as SessionRow[];
-
-    return rows.map(row => this.mapRowToRecord(row));
+    return this.queryMany(`SELECT * FROM sessions ${ORDER}`);
   }
 
   findByScope(channel: string, type?: string, chatId?: string): SessionRecord[] {
-    const db = sqliteManager.getDatabase();
     let query = 'SELECT * FROM sessions WHERE channel = ?';
     const params: Array<string> = [channel];
 
@@ -148,14 +118,10 @@ export class SessionRepository {
       params.push(chatId);
     }
 
-    query += ' ORDER BY updated_at DESC, created_at DESC';
-    const stmt = db.prepare(query);
-    const rows = stmt.all(...params) as SessionRow[];
-
-    return rows.map(row => this.mapRowToRecord(row));
+    return this.queryMany(`${query} ${ORDER}`, ...params);
   }
 
-  private mapRowToRecord(row: SessionRow): SessionRecord {
+  protected mapRow(row: SessionRow): SessionRecord {
     return {
       id: row.id,
       chatId: row.chat_id,
