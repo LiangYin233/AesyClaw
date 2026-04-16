@@ -28,12 +28,13 @@ export class SQLiteManager {
       this.db.pragma('foreign_keys = ON');
 
       this.initializeTables();
-      this.runMigrations();
+      this.ensureIndexes();
 
       this.initialized = true;
       logger.info({ dbPath }, 'SQLiteManager initialized');
     } catch (error) {
-      logger.error({ error }, 'Failed to initialize SQLiteManager');
+      const hint = this.getNativeBindingRepairHint(error);
+      logger.error(hint ? { error, hint } : { error }, 'Failed to initialize SQLiteManager');
       throw error;
     }
   }
@@ -67,31 +68,30 @@ export class SQLiteManager {
         run_count INTEGER NOT NULL DEFAULT 0,
         metadata TEXT DEFAULT '{}'
       );
+    `);
 
+    logger.info({}, 'Database tables initialized');
+  }
+
+  private ensureIndexes(): void {
+    if (!this.db) throw new Error('Database not initialized');
+
+    this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_sessions_created_at ON sessions(created_at);
       CREATE INDEX IF NOT EXISTS idx_sessions_chat_id ON sessions(chat_id);
       CREATE INDEX IF NOT EXISTS idx_sessions_scope ON sessions(channel, type, chat_id);
       CREATE INDEX IF NOT EXISTS idx_cron_jobs_chat_id ON cron_jobs(chat_id);
       CREATE INDEX IF NOT EXISTS idx_cron_jobs_next_run ON cron_jobs(next_run_at) WHERE enabled = 1;
     `);
-
-    logger.info({}, 'Database tables initialized');
   }
 
-  private runMigrations(): void {
-    if (!this.db) throw new Error('Database not initialized');
-
-    try {
-      const result = this.db.prepare("PRAGMA table_info(cron_jobs)").all() as Array<{name: string}>;
-      const columns = new Set(result.map(r => r.name));
-
-      if (!columns.has('prompt')) {
-        this.db.exec('ALTER TABLE cron_jobs ADD COLUMN prompt TEXT');
-        logger.info({}, 'Migration: Added prompt column to cron_jobs');
-      }
-    } catch (error) {
-      logger.warn({ error }, 'Migration check failed (table may not exist yet)');
+  private getNativeBindingRepairHint(error: unknown): string | undefined {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes('Could not locate the bindings file')) {
+      return undefined;
     }
+
+    return 'better-sqlite3 native bindings are missing; run `npm rebuild better-sqlite3` or reinstall dependencies.';
   }
 
   getDatabase(): Database.Database {
