@@ -3,7 +3,7 @@ import type { Message as AesyiuMessage } from 'aesyiu';
 import type { ToolExecuteContext } from '@/platform/tools/types.js';
 
 export const RunSubAgentInputSchema = z.object({
-  role_name: z.string().describe('预定义角色名称，如 coder, translator 等'),
+  role_name: z.string().describe('预定义角色名称，必须是当前已存在的角色 ID'),
   task_description: z.string().describe('详细的任务描述'),
 });
 
@@ -44,10 +44,8 @@ export const SUBAGENT_TOOL_NAME_RUN = 'runSubAgent';
 export const SUBAGENT_TOOL_NAME_TEMP = 'runTempSubAgent';
 export const SUBAGENT_TOOL_DESCRIPTION_RUN = `加载 .aesyclaw/roles/ 中预定义的角色专家来执行专业任务。
 使用场景：
-- 需要代码编写、代码审查时使用 coder 角色
-- 需要翻译时使用 translator 角色
-- 需要数据分析时使用 analyst 角色
-- 其他专业领域任务
+- 当任务适合交给某个已存在的预定义角色处理时使用
+- 其他需要专业分工的任务
 
 参数：
 - role_name: 角色名称（必须是已存在的角色）

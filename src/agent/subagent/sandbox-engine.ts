@@ -7,9 +7,11 @@ import {
 } from 'aesyiu';
 import { prepareAgentRun } from '@/agent/runtime/prepare-agent-run.js';
 import {
+  createRolesPromptMessage,
   createHookAwareProvider,
   createHookAwareRunTools,
   getFinalAssistantText,
+  isRolePromptMessage,
   resolveModelDefinition,
 } from '@/agent/runtime/aesyiu-runtime-helpers.js';
 import { configManager } from '@/features/config/config-manager.js';
@@ -194,6 +196,10 @@ export class SandboxEngine {
       context.state.chatId = this.agentId;
       context.state.traceId = this.sandboxId;
       context.addMessages(this.memory);
+      const rolesPrompt = createRolesPromptMessage(filteredTools);
+      if (rolesPrompt) {
+        context.addMessage(rolesPrompt);
+      }
 
       const engine = new AesyiuEngine({
         maxSteps: this.maxSteps,
@@ -218,7 +224,7 @@ export class SandboxEngine {
         context
       );
 
-      this.memory = result.messages.filter(message => !message._meta?.skillPrompt);
+      this.memory = result.messages.filter(message => !message._meta?.skillPrompt && !isRolePromptMessage(message));
 
       let lastAssistantMessage = getFinalAssistantText(result.messages);
       if (!lastAssistantMessage) {
