@@ -13,6 +13,7 @@ import type { HookPayloadLLMSkill, HookPayloadLLMTool } from '@/features/plugins
 import { roleManager } from '@/features/roles/role-manager.js';
 import { SUBAGENT_TOOL_NAME_RUN } from '@/agent/subagent/types.js';
 import { LLMProviderType, MessageRole, type LLMConfig, type StandardMessage } from '@/platform/llm/types.js';
+import { logger } from '@/platform/observability/logger.js';
 import type { ITool, ToolExecuteContext, ToolExecutionResult } from '@/platform/tools/types.js';
 
 export interface AesyiuRunStats {
@@ -210,12 +211,34 @@ export function createHookAwareRunTools(
       const rejectedResult = options.checkToolAllowed?.(tool);
 
       if (rejectedResult) {
+        logger.info(
+          {
+            toolName: tool.name,
+            toolCallId: syntheticToolCallId,
+            args: parsedArgs,
+            success: rejectedResult.success,
+            error: rejectedResult.error,
+          },
+          'Tool call rejected before execution'
+        );
         return rejectedResult;
       }
 
       const toolContext = options.createToolContext(ctx, tool);
 
       stats.toolCalls += 1;
+
+      logger.info(
+        {
+          toolName: tool.name,
+          toolCallId: syntheticToolCallId,
+          args: parsedArgs,
+          chatId: toolContext.chatId,
+          traceId: toolContext.traceId,
+          roleId: toolContext.roleId,
+        },
+        'Starting tool execution via aesyiu runtime'
+      );
 
       const beforeToolResult = await getHookRuntime().dispatchBeforeToolCall({
         id: syntheticToolCallId,
@@ -227,11 +250,20 @@ export function createHookAwareRunTools(
 
       if (beforeToolResult.shortCircuited) {
         toolResult = beforeToolResult.result;
+        logger.info(
+          {
+            toolName: tool.name,
+            toolCallId: syntheticToolCallId,
+            chatId: toolContext.chatId,
+            traceId: toolContext.traceId,
+          },
+          'Tool execution short-circuited by hook'
+        );
       } else {
         toolResult = await tool.execute(parsedArgs, toolContext);
       }
 
-      return getHookRuntime().dispatchAfterToolCall({
+      const finalResult = await getHookRuntime().dispatchAfterToolCall({
         toolCall: {
           id: syntheticToolCallId,
           name: tool.name,
@@ -239,6 +271,20 @@ export function createHookAwareRunTools(
         },
         result: toolResult,
       });
+
+      logger.info(
+        {
+          toolName: tool.name,
+          toolCallId: syntheticToolCallId,
+          chatId: toolContext.chatId,
+          traceId: toolContext.traceId,
+          success: finalResult.success,
+          error: finalResult.error,
+        },
+        'Tool execution completed via aesyiu runtime'
+      );
+
+      return finalResult;
     },
   }));
 }

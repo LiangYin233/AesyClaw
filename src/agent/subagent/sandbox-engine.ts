@@ -23,7 +23,13 @@ import { logger } from '@/platform/observability/logger.js';
 import { toolRegistry } from '@/platform/tools/registry.js';
 import { ITool, ToolExecuteContext } from '@/platform/tools/types.js';
 import { DEFAULT_FALLBACK_LLM_CONFIG } from '@/agent/runtime/resolve-llm-config.js';
-import type { SandboxConfig, SubAgentResult, SandboxContext } from './types.js';
+import {
+  SUBAGENT_TOOL_NAME_RUN,
+  SUBAGENT_TOOL_NAME_TEMP,
+  type SandboxConfig,
+  type SubAgentResult,
+  type SandboxContext,
+} from './types.js';
 
 interface SandboxRunStats {
   steps: number;
@@ -40,6 +46,11 @@ export class SandboxEngine {
   private agentId: string;
   private memory: AesyiuMessage[] = [];
   private maxSteps: number = 10;
+
+  private static readonly DISALLOWED_SANDBOX_TOOLS = new Set([
+    SUBAGENT_TOOL_NAME_RUN,
+    SUBAGENT_TOOL_NAME_TEMP,
+  ]);
 
   constructor(parentChatId: string, config: SandboxConfig) {
     this.sandboxId = `sandbox_${parentChatId}_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -72,9 +83,10 @@ export class SandboxEngine {
     const toolPermissionText = this.config.allowedTools.includes('*')
       ? '你有权限使用所有工具。'
       : `你只能使用以下工具: ${this.config.allowedTools.join(', ')}。`;
+    const sandboxRestrictionText = '你当前运行在子代理沙箱中，禁止再次调用任何 subagent 工具。';
 
     const taskDescription = this.getTaskFromConfig();
-    const fullSystemPrompt = `${this.config.systemPrompt}\n\n${toolPermissionText}\n\n任务：${taskDescription}`;
+    const fullSystemPrompt = `${this.config.systemPrompt}\n\n${toolPermissionText}\n${sandboxRestrictionText}\n\n任务：${taskDescription}`;
 
     this.memory = [
       {
@@ -115,6 +127,7 @@ export class SandboxEngine {
       : allTools.filter(tool => this.config.allowedTools.includes(tool.name)).map(tool => tool.name);
 
     return allowedNames
+      .filter(toolName => !SandboxEngine.DISALLOWED_SANDBOX_TOOLS.has(toolName))
       .map(toolName => toolRegistry.getTool(toolName))
       .filter((tool): tool is ITool => Boolean(tool));
   }

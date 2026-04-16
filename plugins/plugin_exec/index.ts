@@ -13,26 +13,15 @@ if (!fs.existsSync(WORKSPACE_DIR)) {
 const EXEC_TIMEOUT_MS = 30_000;
 const MAX_OUTPUT_SIZE = 1024 * 1024;
 
-const FORBIDDEN_CHARS = /[;&|`$<>(){}\\!#*?"'[\]]/;
-const PATH_TRAVERSAL = /\.\./;
+const USE_SHELL_EXECUTION = process.platform === 'win32';
+const POWERSHELL_UTF8_PREFIX = [
+  '[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)',
+  '[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)',
+  '$OutputEncoding = [Console]::OutputEncoding',
+  'chcp 65001 > $null',
+].join('; ');
 
 function validateCommand(cmd: string): { valid: boolean; error?: string; parsedCommand?: string; parsedArgs?: string[] } {
-  if (cmd.length > 4096) {
-    return { valid: false, error: 'Command too long (max 4096 characters)' };
-  }
-
-  if (cmd.includes('\n') || cmd.includes('\r')) {
-    return { valid: false, error: 'Command cannot contain newlines' };
-  }
-
-  if (FORBIDDEN_CHARS.test(cmd)) {
-    return { valid: false, error: 'Command contains forbidden shell characters' };
-  }
-
-  if (PATH_TRAVERSAL.test(cmd)) {
-    return { valid: false, error: 'Command contains path traversal sequences' };
-  }
-
   const parts = cmd.trim().split(/\s+/);
   const baseCommand = parts[0];
 
@@ -59,12 +48,19 @@ function executeCommand(command: string, cwd: string): Promise<{ output: string;
     let stderr = '';
     let truncated = false;
 
-    const proc = spawn(cmd, args, {
-      cwd: cwd,
-      env: { ...process.env, HOME: process.env.HOME || '/tmp' },
-      windowsHide: true,
-      timeout: EXEC_TIMEOUT_MS,
-    });
+    const proc = USE_SHELL_EXECUTION
+      ? spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `${POWERSHELL_UTF8_PREFIX}; ${command}`], {
+          cwd,
+          env: { ...process.env, HOME: process.env.HOME || '/tmp' },
+          windowsHide: true,
+          timeout: EXEC_TIMEOUT_MS,
+        })
+      : spawn(cmd, args, {
+          cwd,
+          env: { ...process.env, HOME: process.env.HOME || '/tmp' },
+          windowsHide: true,
+          timeout: EXEC_TIMEOUT_MS,
+        });
 
     const timeout = setTimeout(() => {
       proc.kill('SIGKILL');
