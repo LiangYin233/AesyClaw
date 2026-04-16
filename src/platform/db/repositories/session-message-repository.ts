@@ -39,7 +39,7 @@ export class SessionMessageRepository {
   findBySessionId(sessionId: string): PersistedSessionMessage[] {
     const db = sqliteManager.getDatabase();
     const stmt = db.prepare(`
-      SELECT * FROM session_messages_v2
+      SELECT * FROM session_messages
       WHERE session_id = ?
       ORDER BY sequence ASC
     `);
@@ -51,14 +51,14 @@ export class SessionMessageRepository {
   replaceForSession(sessionId: string, messages: ReplaceSessionMessagesInput[]): void {
     sqliteManager.transaction(() => {
       const db = sqliteManager.getDatabase();
-      db.prepare('DELETE FROM session_messages_v2 WHERE session_id = ?').run(sessionId);
+      db.prepare('DELETE FROM session_messages WHERE session_id = ?').run(sessionId);
 
       if (messages.length === 0) {
         return;
       }
 
       const stmt = db.prepare(`
-        INSERT INTO session_messages_v2 (
+        INSERT INTO session_messages (
           id, session_id, sequence, role, content, tool_calls, tool_call_id, name
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -83,7 +83,7 @@ export class SessionMessageRepository {
 
   deleteBySessionId(sessionId: string): number {
     const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('DELETE FROM session_messages_v2 WHERE session_id = ?');
+    const stmt = db.prepare('DELETE FROM session_messages WHERE session_id = ?');
     const result = stmt.run(sessionId);
 
     if (result.changes > 0) {
