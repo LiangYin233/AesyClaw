@@ -36,11 +36,12 @@ interface ConfigParserOptions {
   logMergedDefaults: () => void;
 }
 
-function isEmpty(value: unknown): boolean {
-  if (value === undefined) return true;
-  if (typeof value === 'object' && value !== null && !Array.isArray(value) && Object.keys(value).length === 0) return true;
-  if (Array.isArray(value) && value.length === 0) return true;
-  return false;
+function hasObjectEntries(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) && Object.keys(value).length > 0;
+}
+
+function hasArrayEntries(value: unknown): value is unknown[] {
+  return Array.isArray(value) && value.length > 0;
 }
 
 function getExampleProviderConfig(): ProvidersConfig {
@@ -66,9 +67,10 @@ function getExampleMcpServers(): MCPServerConfig[] {
 
 function getExampleDefaultsStatus(parsed: ParsedConfig): ExampleDefaultsStatus {
   return {
-    hasProviders: !isEmpty(parsed.providers),
-    hasMCPServers: !isEmpty(parsed.mcp?.servers),
-    hasChannels: !isEmpty(parsed.channels),
+    hasProviders: hasObjectEntries(parsed.providers),
+    hasMCPServers: hasArrayEntries(parsed.mcp?.servers),
+    // An explicit empty channels object is a valid persisted state and should not trigger rewrite loops.
+    hasChannels: parsed.channels !== undefined,
   };
 }
 

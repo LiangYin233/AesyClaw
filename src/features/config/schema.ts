@@ -132,14 +132,7 @@ export const DEFAULT_CONFIG: FullConfig = {
     vision_model: 'gpt-4o-mini',
   },
   mcp: {
-    servers: [
-      {
-        name: 'example',
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-filesystem', './skills'],
-        enabled: false,
-      },
-    ],
+    servers: [],
   },
   plugins: [],
 };
