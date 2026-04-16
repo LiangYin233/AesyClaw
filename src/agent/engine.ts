@@ -15,9 +15,11 @@ import { logger } from '@/platform/observability/logger.js';
 import { toolRegistry } from '@/platform/tools/registry.js';
 import { ITool, ToolExecuteContext, ToolExecutionResult } from '@/platform/tools/types.js';
 import {
+  createRolesPromptMessage,
   createHookAwareProvider,
   createHookAwareRunTools,
   getFinalAssistantText,
+  isRolePromptMessage,
   resolveModelDefinition,
   toAesyiuMessage,
   toStandardMessage,
@@ -162,7 +164,7 @@ export class AgentEngine {
   private syncMemory(messages: readonly AesyiuMessage[]): void {
     this.memory.importMemory(
       messages
-        .filter(message => !message._meta?.skillPrompt)
+        .filter(message => !message._meta?.skillPrompt && !isRolePromptMessage(message))
         .map(toStandardMessage)
     );
   }
@@ -195,6 +197,10 @@ export class AgentEngine {
       context.state.traceId = this.instanceId;
 
       context.addMessages(this.memory.getMessages().map(toAesyiuMessage));
+      const rolesPrompt = createRolesPromptMessage(filteredTools);
+      if (rolesPrompt) {
+        context.addMessage(rolesPrompt);
+      }
 
       const engine = new AesyiuEngine({
         maxSteps: this.config.maxSteps,
