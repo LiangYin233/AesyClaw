@@ -1,19 +1,26 @@
 import { randomUUID } from 'crypto';
 import {
+  AgentContext,
+  AesyiuEngine,
   AnthropicProvider,
+  MemoryManager,
   OpenAICompletionProvider,
   OpenAIResponsesProvider,
+  type AgentSkill,
   type Message as AesyiuMessage,
   type ModelDefinition,
   type Tool as AesyiuTool,
 } from 'aesyiu';
 import { getHookRuntime } from '@/bootstrap.js';
+import { configManager } from '@/features/config/config-manager.js';
 import type { ProvidersConfig } from '@/features/config/schema.js';
+import { buildHookSkills, buildHookTools } from '@/features/plugins/hook-utils.js';
 import type { HookPayloadLLMSkill, HookPayloadLLMTool } from '@/features/plugins/types.js';
 import { roleManager } from '@/features/roles/role-manager.js';
 import { SUBAGENT_TOOL_NAME_RUN } from '@/agent/subagent/types.js';
 import { LLMProviderType, MessageRole, type LLMConfig, type StandardMessage } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
+import { toErrorMessage } from '@/platform/utils/errors.js';
 import type { ITool, ToolExecuteContext, ToolExecutionResult } from '@/platform/tools/types.js';
 
 export interface AesyiuRunStats {
@@ -178,14 +185,14 @@ export function createHookAwareProvider(
         throw new Error(beforeLLMResult.reason || 'LLM request blocked by plugin hook');
       }
     } catch (error) {
-      stats.error = error instanceof Error ? error.message : String(error);
+      stats.error = toErrorMessage(error);
       throw error;
     }
 
     try {
       return await originalGenerate(activeModel, messages, tools);
     } catch (error) {
-      stats.error = error instanceof Error ? error.message : String(error);
+      stats.error = toErrorMessage(error);
       throw error;
     }
   };
@@ -287,4 +294,61 @@ export function createHookAwareRunTools(
       return finalResult;
     },
   }));
+}
+
+export interface BuildAesyiuEngineOptions {
+  chatId: string;
+  traceId: string;
+  llmConfig: LLMConfig;
+  maxContextTokens: number;
+  compressionThreshold: number;
+  maxSteps: number;
+  filteredTools: ITool[];
+  allowedSkills: AgentSkill[];
+  messages: AesyiuMessage[];
+  stats: AesyiuRunStats;
+  createToolContext: (_ctx: unknown, _tool: ITool) => ToolExecuteContext;
+  checkToolAllowed?: (_tool: ITool) => ToolExecutionResult | null;
+}
+
+export function buildAesyiuEngine(options: BuildAesyiuEngineOptions): {
+  engine: AesyiuEngine;
+  context: AgentContext;
+} {
+  const toolDefs = options.filteredTools.map(tool => tool.getDefinition());
+  const hookSkills = buildHookSkills(options.allowedSkills);
+  const hookTools = buildHookTools(toolDefs, options.allowedSkills);
+
+  const modelDef = resolveModelDefinition(
+    options.llmConfig.model || 'gpt-4o-mini',
+    configManager.config.providers,
+    options.maxContextTokens
+  );
+  const provider = createHookAwareProvider(options.llmConfig, modelDef, options.stats, hookTools, hookSkills);
+
+  const context = new AgentContext({ provider, modelId: options.llmConfig.model });
+  context.state.chatId = options.chatId;
+  context.state.traceId = options.traceId;
+  context.addMessages(options.messages);
+
+  const rolesPrompt = createRolesPromptMessage(options.filteredTools);
+  if (rolesPrompt) context.addMessage(rolesPrompt);
+
+  const engine = new AesyiuEngine({
+    maxSteps: options.maxSteps,
+    compatibilityMode: true,
+    memoryManager: new MemoryManager({
+      compressThresholdRatio: options.compressionThreshold,
+      retainLatestMessages: 8,
+    }),
+  });
+
+  const runTools = createHookAwareRunTools(options.filteredTools, options.stats, {
+    createToolContext: options.createToolContext,
+    checkToolAllowed: options.checkToolAllowed,
+  });
+  for (const tool of runTools) engine.registerTool(tool);
+  engine.registerSkills(options.allowedSkills);
+
+  return { engine, context };
 }

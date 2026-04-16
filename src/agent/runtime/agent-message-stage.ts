@@ -1,6 +1,7 @@
 import type { SessionContext } from '@/agent/session/session-context.js';
 import type { IChannelContext, IUnifiedMessage, MiddlewareFunc } from '@/agent/types.js';
 import { logger } from '@/platform/observability/logger.js';
+import { toErrorMessage } from '@/platform/utils/errors.js';
 
 interface MediaAttachment {
   type: string;
@@ -91,7 +92,7 @@ export const agentMessageStage: MiddlewareFunc = async (ctx: IChannelContext, ne
       logger.error({ sessionId, chatId: ctx.inbound.chatId, error: result.error }, 'Agent processing failed');
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = toErrorMessage(error);
     ctx.outbound.text = `Agent error: ${errorMessage}`;
     ctx.outbound.error = errorMessage;
     logger.error({ sessionId, chatId: ctx.inbound.chatId, error: errorMessage }, 'Agent exception');

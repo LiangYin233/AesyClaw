@@ -1,7 +1,6 @@
-import { z } from 'zod';
 import { roleManager } from '@/features/roles/role-manager.js';
 import { logger } from '@/platform/observability/logger.js';
-import { ToolExecuteContext, ToolParameters, ToolExecutionResult } from '@/platform/tools/types.js';
+import { ToolExecuteContext, ToolExecutionResult, zodToToolParameters } from '@/platform/tools/types.js';
 import { SandboxEngine } from './sandbox-engine.js';
 import {
   RunSubAgentInputSchema,
@@ -18,7 +17,7 @@ export async function runSubAgent(
   context: ToolExecuteContext
 ): Promise<{ success: boolean; content: string; error?: string }> {
   const parsed = RunSubAgentInputSchema.safeParse(args);
-  
+
   if (!parsed.success) {
     return {
       success: false,
@@ -76,7 +75,7 @@ export async function runTempSubAgent(
   context: ToolExecuteContext
 ): Promise<{ success: boolean; content: string; error?: string }> {
   const parsed = RunTempSubAgentInputSchema.safeParse(args);
-  
+
   if (!parsed.success) {
     return {
       success: false,
@@ -133,21 +132,10 @@ ${result.finalText}
 执行时间: ${result.executionTime}ms`;
 }
 
-const RunSubAgentSchema = z.object({
-  role_name: z.string().describe('预定义角色名称'),
-  task_description: z.string().describe('详细的任务描述'),
-});
-
-const RunTempSubAgentSchema = z.object({
-  system_prompt: z.string().describe('临时分身的系统提示词'),
-  task_description: z.string().describe('详细的任务描述'),
-});
-
 function createSubAgentTool(
   name: string,
   description: string,
-  schema: z.ZodType,
-  parameters: ToolParameters,
+  schema: typeof RunSubAgentInputSchema | typeof RunTempSubAgentInputSchema,
   executeFn: (_args: unknown, _context: ToolExecuteContext) => Promise<ToolExecutionResult>
 ) {
   return {
@@ -157,7 +145,7 @@ function createSubAgentTool(
     getDefinition: () => ({
       name,
       description,
-      parameters,
+      parameters: zodToToolParameters(schema),
     }),
     execute: executeFn,
   };
@@ -167,29 +155,13 @@ export const subAgentTools = [
   createSubAgentTool(
     SUBAGENT_TOOL_NAME_RUN,
     SUBAGENT_TOOL_DESCRIPTION_RUN,
-    RunSubAgentSchema,
-    {
-      type: 'object' as const,
-      properties: {
-        role_name: { type: 'string', description: '预定义角色名称' },
-        task_description: { type: 'string', description: '详细的任务描述' },
-      },
-      required: ['role_name', 'task_description'],
-    },
+    RunSubAgentInputSchema,
     runSubAgent
   ),
   createSubAgentTool(
     SUBAGENT_TOOL_NAME_TEMP,
     SUBAGENT_TOOL_DESCRIPTION_TEMP,
-    RunTempSubAgentSchema,
-    {
-      type: 'object' as const,
-      properties: {
-        system_prompt: { type: 'string', description: '临时分身的系统提示词' },
-        task_description: { type: 'string', description: '详细的任务描述' },
-      },
-      required: ['system_prompt', 'task_description'],
-    },
+    RunTempSubAgentInputSchema,
     runTempSubAgent
   ),
 ];

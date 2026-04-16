@@ -1,26 +1,21 @@
 import {
-  AgentContext,
-  AesyiuEngine,
-  MemoryManager,
   type AgentSkill,
   type Message as AesyiuMessage,
 } from 'aesyiu';
 import { configManager } from '@/features/config/config-manager.js';
-import { buildHookSkills, buildHookTools } from '@/features/plugins/hook-utils.js';
 import { roleManager } from '@/features/roles/role-manager.js';
 import { skillManager } from '@/features/skills/skill-manager.js';
 import { resolveLLMConfig } from '@/agent/runtime/resolve-llm-config.js';
 import { LLMConfig, MessageRole } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
+import { toErrorMessage } from '@/platform/utils/errors.js';
 import { toolRegistry } from '@/platform/tools/registry.js';
 import { ITool, ToolExecuteContext, ToolExecutionResult } from '@/platform/tools/types.js';
 import {
-  createRolesPromptMessage,
-  createHookAwareProvider,
-  createHookAwareRunTools,
+  buildAesyiuEngine,
+  type AesyiuRunStats,
   getFinalAssistantText,
   isRolePromptMessage,
-  resolveModelDefinition,
   toAesyiuMessage,
   toStandardMessage,
 } from './runtime/aesyiu-runtime-helpers.js';
@@ -46,12 +41,6 @@ export interface AgentRunResult {
     completionTokens: number;
     totalTokens: number;
   };
-  error?: string;
-}
-
-interface RunStats {
-  steps: number;
-  toolCalls: number;
   error?: string;
 }
 
@@ -95,21 +84,6 @@ export class AgentEngine {
     );
   }
 
-  private createProvider(
-    stats: RunStats,
-    hookTools: ReturnType<typeof buildHookTools>,
-    hookSkills: ReturnType<typeof buildHookSkills>
-  ) {
-    const modelId = this.config.llm.model || 'gpt-4o-mini';
-    const modelDef = resolveModelDefinition(
-      modelId,
-      configManager.config.providers,
-      this.config.memoryConfig.maxContextTokens || 128000
-    );
-
-    return createHookAwareProvider(this.config.llm, modelDef, stats, hookTools, hookSkills);
-  }
-
   private getFilteredTools(): ITool[] {
     const allToolDefs = toolRegistry.getAllToolDefinitions();
     const roleId = this.memory.getActiveRoleId();
@@ -127,38 +101,8 @@ export class AgentEngine {
   }
 
   private getAllowedSkills(roleId: string): AgentSkill[] {
-    if (!skillManager.isInitialized()) {
-      return [];
-    }
-
-    const allowedSkillIds = roleManager.getRoleConfig(roleId).allowed_skills;
-    return skillManager.getSkillsForRole(allowedSkillIds);
-  }
-
-  private createRunTools(tools: readonly ITool[], stats: RunStats) {
-    return createHookAwareRunTools(tools, stats, {
-      createToolContext: (ctx): ToolExecuteContext => ({
-        roleId: this.memory.getActiveRoleId(),
-        allowedTools: tools.map(registeredTool => registeredTool.name),
-        allowedSkills: this.getAllowedSkills(this.memory.getActiveRoleId()).map(skill => skill.name),
-        chatId: this.chatId,
-        senderId: 'user',
-        traceId: this.instanceId,
-        agentContext: ctx,
-      }),
-      checkToolAllowed: (tool): ToolExecutionResult | null => {
-        const roleId = this.memory.getActiveRoleId();
-        if (!roleManager.isToolAllowed(roleId, tool.name)) {
-          return {
-            success: false,
-            content: '',
-            error: `角色 "${roleId}" 不允许使用工具 "${tool.name}"。`,
-          };
-        }
-
-        return null;
-      },
-    });
+    if (!skillManager.isInitialized()) return [];
+    return skillManager.getSkillsForRole(roleManager.getRoleConfig(roleId).allowed_skills);
   }
 
   private syncMemory(messages: readonly AesyiuMessage[]): void {
@@ -175,47 +119,41 @@ export class AgentEngine {
       'AgentEngine starting request processing via aesyiu'
     );
 
-    const stats: RunStats = {
-      steps: 0,
-      toolCalls: 0,
-    };
+    const stats: AesyiuRunStats = { steps: 0, toolCalls: 0 };
 
     try {
       const filteredTools = this.getFilteredTools();
       const roleId = this.memory.getActiveRoleId();
       const allowedSkills = this.getAllowedSkills(roleId);
-      const toolDefs = filteredTools.map(tool => tool.getDefinition());
-      const hookSkills = buildHookSkills(allowedSkills);
-      const hookTools = buildHookTools(toolDefs, allowedSkills);
-      const provider = this.createProvider(stats, hookTools, hookSkills);
-      const context = new AgentContext({
-        provider,
-        modelId: this.config.llm.model,
-      });
 
-      context.state.chatId = this.chatId;
-      context.state.traceId = this.instanceId;
-
-      context.addMessages(this.memory.getMessages().map(toAesyiuMessage));
-      const rolesPrompt = createRolesPromptMessage(filteredTools);
-      if (rolesPrompt) {
-        context.addMessage(rolesPrompt);
-      }
-
-      const engine = new AesyiuEngine({
+      const { engine, context } = buildAesyiuEngine({
+        chatId: this.chatId,
+        traceId: this.instanceId,
+        llmConfig: this.config.llm,
+        maxContextTokens: this.config.memoryConfig.maxContextTokens || 128000,
+        compressionThreshold: this.config.memoryConfig.compressionThreshold || 0.75,
         maxSteps: this.config.maxSteps,
-        compatibilityMode: true,
-        memoryManager: new MemoryManager({
-          compressThresholdRatio: this.config.memoryConfig.compressionThreshold || 0.75,
-          retainLatestMessages: 8,
+        filteredTools,
+        allowedSkills,
+        messages: this.memory.getMessages().map(toAesyiuMessage),
+        stats,
+        createToolContext: (ctx): ToolExecuteContext => ({
+          roleId: this.memory.getActiveRoleId(),
+          allowedTools: filteredTools.map(t => t.name),
+          allowedSkills: allowedSkills.map(s => s.name),
+          chatId: this.chatId,
+          senderId: 'user',
+          traceId: this.instanceId,
+          agentContext: ctx,
         }),
+        checkToolAllowed: (tool): ToolExecutionResult | null => {
+          const currentRoleId = this.memory.getActiveRoleId();
+          if (!roleManager.isToolAllowed(currentRoleId, tool.name)) {
+            return { success: false, content: '', error: `角色 "${currentRoleId}" 不允许使用工具 "${tool.name}"。` };
+          }
+          return null;
+        },
       });
-
-      for (const tool of this.createRunTools(filteredTools, stats)) {
-        engine.registerTool(tool);
-      }
-
-      engine.registerSkills(allowedSkills);
 
       const result = await engine.run(
         {
@@ -263,7 +201,7 @@ export class AgentEngine {
         tokenUsage: result.usage,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = toErrorMessage(error);
 
       logger.error(
         { chatId: this.chatId, instanceId: this.instanceId, error: errorMessage },

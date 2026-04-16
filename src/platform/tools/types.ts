@@ -49,22 +49,6 @@ export interface ITool {
   execute(_args: unknown, _context: ToolExecuteContext): Promise<ToolExecutionResult>;
 }
 
-export interface ToolCallRequest {
-  id: string;
-  name: string;
-  arguments: Record<string, unknown>;
-}
-
-export interface ToolCallResult {
-  toolCallId: string;
-  chatId: string;
-  toolName: string;
-  success: boolean;
-  content: string;
-  error?: string;
-  executionTime?: number;
-}
-
 export function zodToToolParameters(schema: ZodType): ToolParameters {
   return convertJsonSchemaToToolParameters(z.toJSONSchema(schema) as Record<string, unknown>);
 }

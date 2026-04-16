@@ -2,12 +2,9 @@ import { ZodError } from 'zod';
 import {
   ITool,
   ToolDefinition,
-  ToolExecuteContext,
-  ToolExecutionResult,
-  ToolCallResult,
-  ToolCallRequest,
 } from './types.js';
 import { logger } from '../observability/logger.js';
+import { toErrorMessage } from '../utils/errors.js';
 
 export interface ToolValidationError {
   toolName: string;
@@ -18,17 +15,8 @@ export interface ToolValidationError {
   }>;
 }
 
-export interface ToolExecutionReport {
-  success: boolean;
-  toolName: string;
-  executionTime: number;
-  result: ToolExecutionResult;
-}
-
 export class ToolRegistry {
-  private static readonly MAX_HISTORY_SIZE = 1000;
   private tools: Map<string, ITool> = new Map();
-  private toolCallHistory: ToolCallResult[] = [];
 
   constructor() {
     logger.info('ToolRegistry initialized');
@@ -66,19 +54,6 @@ export class ToolRegistry {
 
   getAllToolDefinitions(): ToolDefinition[] {
     return Array.from(this.tools.values()).map(tool => tool.getDefinition());
-  }
-
-  getToolDefinitionsByNames(names: string[]): ToolDefinition[] {
-    const definitions: ToolDefinition[] = [];
-    for (const name of names) {
-      const tool = this.tools.get(name);
-      if (tool) {
-        definitions.push(tool.getDefinition());
-      } else {
-        logger.warn({ toolName: name }, '请求了未注册的工具定义');
-      }
-    }
-    return definitions;
   }
 
   validateToolArguments(
@@ -119,183 +94,17 @@ export class ToolRegistry {
         valid: false,
         errors: {
           toolName,
-          error: error instanceof Error ? error.message : '未知验证错误',
+          error: toErrorMessage(error),
         },
       };
     }
   }
 
-  async executeTool(
-    toolName: string,
-    args: Record<string, unknown>,
-    context: ToolExecuteContext
-  ): Promise<ToolExecutionResult> {
-    const startTime = Date.now();
-
-    logger.info(
-      { toolName, args, chatId: context.chatId, traceId: context.traceId },
-      ' 开始执行工具'
-    );
-
-    const tool = this.tools.get(toolName);
-    if (!tool) {
-      const errorResult: ToolExecutionResult = {
-        success: false,
-        content: '',
-        error: `工具 "${toolName}" 未注册`,
-      };
-      logger.error({ toolName }, '工具不存在');
-      return errorResult;
-    }
-
-    const validation = this.validateToolArguments(toolName, args);
-    if (!validation.valid) {
-      const errorResult: ToolExecutionResult = {
-        success: false,
-        content: '',
-        error: validation.errors!.error,
-        metadata: { validationIssues: validation.errors!.issues },
-      };
-      logger.warn(
-        { toolName, errors: validation.errors },
-        '工具参数验证失败'
-      );
-      return errorResult;
-    }
-
-    try {
-      const result = await tool.execute(validation.parsedArgs, context);
-      const executionTime = Date.now() - startTime;
-
-      logger.info(
-        { toolName, executionTime, success: result.success },
-        '工具执行完成'
-      );
-
-      return result;
-    } catch (error) {
-      const executionTime = Date.now() - startTime;
-      const errorResult: ToolExecutionResult = {
-        success: false,
-        content: '',
-        error: error instanceof Error ? error.message : String(error),
-        metadata: { executionTime },
-      };
-
-      logger.error(
-        { toolName, executionTime, error },
-        '工具执行出错'
-      );
-
-      return errorResult;
-    }
-  }
-
-  async executeTools(
-    requests: ToolCallRequest[],
-    context: ToolExecuteContext
-  ): Promise<ToolCallResult[]> {
-    const results: ToolCallResult[] = [];
-
-    logger.info(
-      { toolCount: requests.length, chatId: context.chatId },
-      ' 开始批量执行工具'
-    );
-
-    for (const request of requests) {
-      const result = await this.executeTool(request.name, request.arguments, context);
-
-      const toolCallResult: ToolCallResult = {
-        toolCallId: request.id,
-        chatId: context.chatId,
-        toolName: request.name,
-        success: result.success,
-        content: result.content,
-        error: result.error,
-        executionTime: result.metadata?.executionTime as number,
-      };
-
-      results.push(toolCallResult);
-      this.toolCallHistory.push(toolCallResult);
-
-      if (this.toolCallHistory.length > ToolRegistry.MAX_HISTORY_SIZE) {
-        this.toolCallHistory.shift();
-      }
-
-      this.pruneOldRecords();
-    }
-
-    logger.info(
-      { totalTools: requests.length, successCount: results.filter(r => r.success).length },
-      ' 批量工具执行完成'
-    );
-
-    return results;
-  }
-
-  generateHallucinationFeedback(
-    toolName: string,
-    validationErrors: ToolValidationError
-  ): string {
-    const tool = this.tools.get(toolName);
-    if (!tool) {
-      return `工具 "${toolName}" 不存在或未注册。`;
-    }
-
-    let feedback = `工具 "${toolName}" 调用失败。`;
-
-    if (validationErrors.issues && validationErrors.issues.length > 0) {
-      feedback += '\n\n参数错误详情：';
-      for (const issue of validationErrors.issues) {
-        const pathStr = issue.path.join('.') || 'root';
-        feedback += `\n- ${pathStr}: ${issue.message}`;
-      }
-    }
-
-    feedback += '\n\n请重新调用该工具，提供正确的参数。';
-
-    logger.debug(
-      { toolName, feedback },
-      '💬 生成反幻觉反馈消息'
-    );
-
-    return feedback;
-  }
-
-  getToolCallHistory(): ToolCallResult[] {
-    return [...this.toolCallHistory];
-  }
-
-  getToolCallHistoryByChatId(chatId: string): ToolCallResult[] {
-    return this.toolCallHistory.filter(
-      result => result.chatId === chatId
-    );
-  }
-
-  private pruneOldRecords(): void {
-    if (this.toolCallHistory.length > ToolRegistry.MAX_HISTORY_SIZE) {
-      const excess = this.toolCallHistory.length - ToolRegistry.MAX_HISTORY_SIZE;
-      this.toolCallHistory.splice(0, excess);
-    }
-  }
-
-  clearHistory(): void {
-    this.toolCallHistory = [];
-    logger.debug('Tool call history cleared');
-  }
-
   getStats(): {
     totalTools: number;
-    totalCalls: number;
-    successRate: number;
   } {
-    const totalCalls = this.toolCallHistory.length;
-    const successCalls = this.toolCallHistory.filter(r => r.success).length;
-
     return {
       totalTools: this.tools.size,
-      totalCalls,
-      successRate: totalCalls > 0 ? successCalls / totalCalls : 0,
     };
   }
 }

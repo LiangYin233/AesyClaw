@@ -124,11 +124,6 @@ export class PathResolver {
   isInitialized(): boolean {
     return this.initialized;
   }
-
-  reset(): void {
-    this.initialized = false;
-    PathResolver.instance = new PathResolver();
-  }
 }
 
 export const pathResolver = PathResolver.getInstance();

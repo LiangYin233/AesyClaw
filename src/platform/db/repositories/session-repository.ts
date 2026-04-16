@@ -104,23 +104,6 @@ export class SessionRepository extends BaseRepository<SessionRow, SessionRecord>
     return this.queryMany(`SELECT * FROM sessions ${ORDER}`);
   }
 
-  findByScope(channel: string, type?: string, chatId?: string): SessionRecord[] {
-    let query = 'SELECT * FROM sessions WHERE channel = ?';
-    const params: Array<string> = [channel];
-
-    if (type) {
-      query += ' AND type = ?';
-      params.push(type);
-    }
-
-    if (chatId) {
-      query += ' AND chat_id = ?';
-      params.push(chatId);
-    }
-
-    return this.queryMany(`${query} ${ORDER}`, ...params);
-  }
-
   protected mapRow(row: SessionRow): SessionRecord {
     return {
       id: row.id,

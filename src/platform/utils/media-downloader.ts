@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { pathResolver } from './paths.js';
 import { logger } from '../observability/logger.js';
+import { toErrorMessage } from './errors.js';
 
 export interface MediaDownloadOptions {
   url: string;
@@ -155,7 +156,7 @@ export class MediaDownloader {
 
       return { success: true, localPath: finalPath, filename: actualFilename };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = toErrorMessage(error);
       logger.error({ url, error: errorMessage }, 'Error downloading media');
       return { success: false, error: errorMessage };
     }
@@ -212,32 +213,6 @@ export class MediaDownloader {
 
   getMediaDir(): string {
     return this.mediaDir;
-  }
-
-  async downloadMediaBatch(
-    items: Array<{ url: string; type: string }>
-  ): Promise<DownloadedMedia[]> {
-    const results: DownloadedMedia[] = [];
-
-    for (const item of items) {
-      if (!item.url) continue;
-
-      const result = await this.download({
-        url: item.url,
-        type: item.type as 'image' | 'file' | 'video' | 'audio',
-      });
-
-      if (result.success && result.localPath) {
-        results.push({
-          type: item.type,
-          url: item.url,
-          localPath: result.localPath,
-          filename: result.filename!,
-        });
-      }
-    }
-
-    return results;
   }
 }
 

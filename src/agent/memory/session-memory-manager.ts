@@ -138,19 +138,6 @@ export class SessionMemoryManager {
     };
   }
 
-  async clear(): Promise<void> {
-    this.messages = [];
-    this.activeRoleId = DEFAULT_ROLE_ID;
-
-    try {
-      await this.rebuildSystemContext();
-    } catch (error) {
-      logger.error({ chatId: this.chatId, error }, 'Failed to rebuild system context');
-    }
-
-    logger.debug({ chatId: this.chatId }, 'Session memory cleared');
-  }
-
   hasMessages(): boolean {
     return this.messages.length > 0;
   }

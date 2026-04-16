@@ -3,6 +3,7 @@ import type { IPluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
 import { IUnifiedMessage, IChannelContext, IOutboundMessage, MiddlewareFunc } from './types.js';
 import type { IOutboundPayload } from '@/channels/channel-plugin.js';
 import { logger } from '@/platform/observability/logger.js';
+import { toErrorMessage } from '@/platform/utils/errors.js';
 
 export class ChannelPipeline {
   private middlewares: MiddlewareFunc[] = [];
@@ -131,7 +132,7 @@ export class ChannelPipeline {
       );
     } catch (error) {
       const duration = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = toErrorMessage(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
       logger.error(
         { traceId, chatId: ctx.inbound.chatId, duration, error: errorMessage, stack: errorStack },

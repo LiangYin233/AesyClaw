@@ -127,13 +127,6 @@ export class CommandRegistry {
     return this.commands.has(name) || this.aliasMap.has(name.toLowerCase());
   }
 
-  clearAll(): void {
-    this.commands.clear();
-    this.aliasMap.clear();
-    this.pluginCommands.clear();
-    logger.info('All commands cleared');
-  }
-
   getCommandCount(): number {
     return this.commands.size;
   }
