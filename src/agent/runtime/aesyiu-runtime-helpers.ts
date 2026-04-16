@@ -31,7 +31,7 @@ export interface AesyiuRunStats {
 
 type RolePromptMeta = NonNullable<AesyiuMessage['_meta']> & { rolePrompt?: boolean };
 
-export function parseToolArguments(argumentsText: string): Record<string, unknown> {
+function parseToolArguments(argumentsText: string): Record<string, unknown> {
   try {
     const parsed = JSON.parse(argumentsText);
     return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
@@ -85,7 +85,7 @@ export function getFinalAssistantText(messages: readonly AesyiuMessage[]): strin
   return '';
 }
 
-export function createRolesPromptMessage(tools: readonly ITool[]): AesyiuMessage | null {
+function createRolesPromptMessage(tools: readonly ITool[]): AesyiuMessage | null {
   if (!tools.some(tool => tool.name === SUBAGENT_TOOL_NAME_RUN)) {
     return null;
   }
@@ -117,7 +117,7 @@ export function isRolePromptMessage(message: AesyiuMessage): boolean {
   return Boolean((message._meta as RolePromptMeta | undefined)?.rolePrompt);
 }
 
-export function resolveModelDefinition(
+function resolveModelDefinition(
   modelId: string,
   providers: ProvidersConfig,
   contextLimit: number
@@ -146,7 +146,7 @@ export function resolveModelDefinition(
   };
 }
 
-export function createHookAwareProvider(
+function createHookAwareProvider(
   llmConfig: LLMConfig,
   modelDef: ModelDefinition,
   stats: Pick<AesyiuRunStats, 'steps' | 'error'>,
@@ -200,7 +200,7 @@ export function createHookAwareProvider(
   return provider;
 }
 
-export function createHookAwareRunTools(
+function createHookAwareRunTools(
   tools: readonly ITool[],
   stats: Pick<AesyiuRunStats, 'toolCalls'>,
   options: {
@@ -296,7 +296,7 @@ export function createHookAwareRunTools(
   }));
 }
 
-export interface BuildAesyiuEngineOptions {
+interface BuildAesyiuEngineOptions {
   chatId: string;
   traceId: string;
   llmConfig: LLMConfig;

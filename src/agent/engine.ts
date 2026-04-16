@@ -228,8 +228,8 @@ export class AgentEngine {
 
       logger.info({ chatId: this.chatId, modelIdentifier: model, model: resolved.model }, 'Agent model updated from role config');
       return;
-    } catch {
-      // Fall back to treating the input as a raw model id.
+    } catch (error) {
+      logger.warn({ chatId: this.chatId, modelIdentifier: model, error }, 'Failed to resolve model from config, using as raw model id');
     }
 
     this.config.llm.model = model;

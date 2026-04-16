@@ -19,7 +19,7 @@ export class ToolRegistry {
   private tools: Map<string, ITool> = new Map();
 
   constructor() {
-    logger.info('ToolRegistry initialized');
+    logger.info({}, 'ToolRegistry initialized');
   }
 
   register(tool: ITool): void {

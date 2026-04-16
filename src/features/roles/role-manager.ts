@@ -148,6 +148,8 @@ export class RoleManager {
             } else {
               logger.info({ roleId }, 'Role removed or disabled after reload');
             }
+          }).catch(error => {
+            logger.error({ roleId, error }, 'Failed to hot-reload role');
           });
         }
       });

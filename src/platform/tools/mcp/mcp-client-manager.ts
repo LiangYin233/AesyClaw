@@ -140,7 +140,7 @@ export class McpClientManager {
   }
 
   async shutdown(): Promise<void> {
-    logger.info('关闭 MCP 客户端管理器');
+    logger.info({}, '关闭 MCP 客户端管理器');
 
     for (const serverName of Array.from(this.managers.keys())) {
       try {

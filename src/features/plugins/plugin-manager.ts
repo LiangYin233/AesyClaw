@@ -658,8 +658,10 @@ export class PluginManager {
     return Array.from(this.pluginInfos.values());
   }
 
-  shutdown(): void {
+  async shutdown(): Promise<void> {
     logger.info({}, 'Shutting down PluginManager');
+
+    const destroyPromises: Promise<void>[] = [];
 
     for (const [name, plugin] of this.loadedPlugins.entries()) {
       if (plugin.commands && plugin.commands.length > 0) {
@@ -667,11 +669,15 @@ export class PluginManager {
       }
 
       if (plugin.destroy) {
-        plugin.destroy().catch((err) => {
-          logger.error({ pluginName: name, error: err }, 'Plugin destroy failed');
-        });
+        destroyPromises.push(
+          plugin.destroy().catch((err) => {
+            logger.error({ pluginName: name, error: err }, 'Plugin destroy failed');
+          })
+        );
       }
     }
+
+    await Promise.allSettled(destroyPromises);
 
     this.loadedPlugins.clear();
     this.pluginInfos.clear();

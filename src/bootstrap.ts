@@ -4,7 +4,6 @@ import { agentMessageStage } from '@/agent/runtime/agent-message-stage.js';
 import {
   getRoleInfoForCommandContext,
   sessionMessageStage,
-  shutdownSessionRuntime,
   switchRoleForCommandContext,
 } from '@/agent/session/session-runtime.js';
 import { ChannelPipeline } from '@/agent/pipeline.js';
@@ -24,7 +23,7 @@ import { createPluginCommandGroup } from '@/features/plugins/plugin-command-grou
 import { PluginManager } from '@/features/plugins/plugin-manager.js';
 import { roleManager } from '@/features/roles/role-manager.js';
 import { createRoleCommandGroup } from '@/features/roles/role-command-group.js';
-import { cronJobScheduler } from '@/platform/db/cron-scheduler.js';
+import { cronService } from '@/platform/db/cron-service.js';
 import { sessionRepository } from '@/platform/db/repositories/session-repository.js';
 import { sqliteManager } from '@/platform/db/sqlite-manager.js';
 import { logger } from '@/platform/observability/logger.js';
@@ -217,8 +216,8 @@ export class Bootstrap {
     if (!options.skipCron) {
       logger.info({}, '[14/16] Initializing Cron system with PromptExecutor...');
       await initializePromptExecutor();
-      cronJobScheduler.start();
-      const status = cronJobScheduler.isRunning();
+      cronService.start();
+      const status = cronService.isRunning();
       logger.info({ schedulerRunning: status }, 'Cron system initialized');
     }
   }
@@ -384,7 +383,12 @@ export class Bootstrap {
   }
 
   private static hasSerializedConfigChanged(previousValue: unknown, nextValue: unknown): boolean {
-    return JSON.stringify(previousValue) !== JSON.stringify(nextValue);
+    try {
+      return JSON.stringify(previousValue, Object.keys(previousValue as object).sort())
+        !== JSON.stringify(nextValue, Object.keys(nextValue as object).sort());
+    } catch {
+      return JSON.stringify(previousValue) !== JSON.stringify(nextValue);
+    }
   }
 
   static async shutdown(): Promise<void> {
@@ -399,13 +403,12 @@ export class Bootstrap {
 
     const steps: Array<[string, () => void | Promise<void>]> = [
       ['Channel Manager', () => channelManager.shutdown()],
-      ['Cron scheduler', () => cronJobScheduler.stop()],
+      ['Cron scheduler', () => cronService.stop()],
       ['MCP Manager', async () => { if (this.mcpManager) await this.mcpManager.shutdown(); }],
       ['Plugin Manager', () => pluginManager.shutdown()],
       ['SQLiteManager', () => sqliteManager.close()],
       ['SkillManager', async () => { const { skillManager } = await import('./features/skills/skill-manager.js'); await skillManager.shutdown(); }],
       ['RoleManager', async () => { const { roleManager } = await import('./features/roles/role-manager.js'); roleManager.shutdown(); }],
-      ['Session runtime', () => shutdownSessionRuntime()],
       ['ConfigManager', () => configManager.destroy()],
     ];
 
@@ -481,8 +484,8 @@ export class Bootstrap {
       plugins: plugins.length,
       channels: channelManager.getChannelCount(),
       cron: {
-        running: cronJobScheduler.isRunning(),
-        scheduledTasks: cronJobScheduler.getScheduledTaskCount(),
+        running: cronService.isRunning(),
+        scheduledTasks: cronService.getScheduledTaskCount(),
       },
     };
   }
