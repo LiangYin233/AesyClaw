@@ -1,97 +1,51 @@
 import { createTemporarySession, removeTemporarySession } from '@/agent/session/session-runtime.js';
-import { cronJobScheduler, generateCronId } from '@/platform/db/cron-scheduler.js';
-import { cronJobRepository, type CronJobRecord } from '@/platform/db/repositories/cron-job-repository.js';
-import { eventBus, SystemEvents } from '@/platform/events/event-bus.js';
+import { cronJobScheduler } from '@/platform/db/cron-scheduler.js';
+import { cronService } from '@/platform/db/cron-service.js';
+import type { CronJobRecord } from '@/platform/db/repositories/cron-job-repository.js';
 import { logger } from '@/platform/observability/logger.js';
 
 export interface CreateCronJobRequest {
   chatId: string;
   name: string;
   cronExpression: string;
-  command: string;
   prompt: string;
-  metadata?: Record<string, unknown>;
 }
 
 export async function createCronJob(input: CreateCronJobRequest): Promise<CronJobRecord> {
-  if (!cronJobScheduler.validateCronExpression(input.cronExpression)) {
-    throw new Error(`Invalid cron expression: ${input.cronExpression}`);
-  }
-
-  if (!input.prompt || input.prompt.trim().length === 0) {
-    throw new Error('Prompt is required for cron job execution');
-  }
-
-  const id = generateCronId();
-  const nextRunAt = cronJobScheduler.calculateNextRunTime(input.cronExpression) || undefined;
-
-  const job = cronJobRepository.create({
-    id,
-    chatId: input.chatId,
-    name: input.name,
-    cronExpression: input.cronExpression,
-    command: input.command,
-    prompt: input.prompt,
-    nextRunAt,
-    metadata: input.metadata,
-  });
+  const job = cronService.createJob(input);
 
   logger.info({ id: job.id, name: job.name }, 'Cron job created with prompt');
-
-  eventBus.emit(SystemEvents.CRON_JOB_CREATED, { job });
 
   return job;
 }
 
 export async function listCronJobs(chatId?: string): Promise<CronJobRecord[]> {
-  if (chatId) {
-    return cronJobRepository.findByChatId(chatId);
-  }
-  return cronJobRepository.findEnabled();
+  return cronService.listJobs(chatId);
 }
 
 export async function deleteCronJob(id: string): Promise<boolean> {
-  const result = cronJobRepository.delete(id);
+  const result = cronService.deleteJob(id);
   if (result) {
     logger.info({ id }, 'Cron job deleted via tool');
-    eventBus.emit(SystemEvents.CRON_JOB_DELETED, { jobId: id });
   }
   return result;
 }
 
 export async function toggleCronJob(id: string, enabled: boolean): Promise<CronJobRecord | null> {
-  const job = cronJobRepository.update(id, { enabled });
+  const job = cronService.toggleJob(id, enabled);
   if (job) {
     logger.info({ id, enabled }, 'Cron job toggled via tool');
-    eventBus.emit(SystemEvents.CRON_JOB_TOGGLED, { job, enabled });
   }
   return job;
 }
 
 export async function updateCronJob(
   id: string,
-  updates: Partial<Pick<CronJobRecord, 'name' | 'cronExpression' | 'command' | 'prompt'>>
+  updates: Partial<Pick<CronJobRecord, 'name' | 'cronExpression' | 'prompt'>>
 ): Promise<CronJobRecord | null> {
-  if (updates.cronExpression && !cronJobScheduler.validateCronExpression(updates.cronExpression)) {
-    throw new Error(`Invalid cron expression: ${updates.cronExpression}`);
-  }
-
-  if (updates.prompt !== undefined && updates.prompt.trim().length === 0) {
-    throw new Error('Prompt cannot be empty');
-  }
-
-  const updateData: Partial<CronJobRecord> = { ...updates };
-  if (updates.cronExpression) {
-    const nextRunAt = cronJobScheduler.calculateNextRunTime(updates.cronExpression);
-    if (nextRunAt) {
-      updateData.nextRunAt = nextRunAt;
-    }
-  }
-
-  const job = cronJobRepository.update(id, updateData);
+  const job = cronService.updateJob(id, updates);
   if (job) {
     logger.info({ id }, 'Cron job updated via tool');
-    eventBus.emit(SystemEvents.CRON_JOB_UPDATED, { job });
   }
   return job;
 }

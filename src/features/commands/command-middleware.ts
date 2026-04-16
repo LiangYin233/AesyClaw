@@ -3,6 +3,7 @@ import { IChannelContext } from '@/agent/types.js';
 import { commandParser } from './command-parser.js';
 import { commandRegistry } from './command-registry.js';
 import { logger } from '@/platform/observability/logger.js';
+import { toErrorMessage } from '@/platform/utils/errors.js';
 
 export const commandMiddleware: MiddlewareFunc = async (
   ctx: IChannelContext,
@@ -65,7 +66,7 @@ export const commandMiddleware: MiddlewareFunc = async (
       '命令执行失败'
     );
 
-    ctx.outbound.text = `命令执行失败: ${error instanceof Error ? error.message : '未知错误'}`;
-    ctx.outbound.error = error instanceof Error ? error.message : String(error);
+    ctx.outbound.text = `命令执行失败: ${toErrorMessage(error)}`;
+    ctx.outbound.error = toErrorMessage(error);
   }
 };

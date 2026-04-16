@@ -4,6 +4,7 @@ import { z } from 'zod';
 import OpenAI from 'openai';
 import { ITool, ToolDefinition, ToolExecuteContext, ToolExecutionResult, zodToToolParameters } from './types.js';
 import { logger } from '../observability/logger.js';
+import { toErrorMessage } from '../utils/errors.js';
 
 interface ProviderRuntimeConfig {
   api_key?: string;
@@ -194,7 +195,7 @@ export class SpeechToTextTool implements ITool {
         content: transcription.text,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = toErrorMessage(error);
       logger.error({ error: errorMessage, audioPath: audio_path }, '语音转文字失败');
       return {
         success: false,
@@ -317,7 +318,7 @@ export class ImageUnderstandingTool implements ITool {
         content: result,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = toErrorMessage(error);
       logger.error({ error: errorMessage, imagePath: image_path }, '图片理解失败');
       return {
         success: false,

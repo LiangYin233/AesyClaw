@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { pathResolver } from '../utils/paths.js';
 import { logger } from '../observability/logger.js';
+import { toErrorMessage } from '../utils/errors.js';
 
 export class SQLiteManager {
   private static instance: SQLiteManager;
@@ -70,14 +71,23 @@ export class SQLiteManager {
         chat_id TEXT NOT NULL,
         name TEXT NOT NULL,
         cron_expression TEXT NOT NULL,
-        command TEXT NOT NULL,
-        prompt TEXT,
+        prompt TEXT NOT NULL,
         enabled INTEGER NOT NULL DEFAULT 1,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
         last_run_at TEXT,
         next_run_at TEXT,
-        run_count INTEGER NOT NULL DEFAULT 0,
-        metadata TEXT DEFAULT '{}'
+        CHECK(length(trim(prompt)) > 0)
+      );
+
+      CREATE TABLE IF NOT EXISTS cron_runs (
+        id TEXT PRIMARY KEY,
+        job_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        finished_at TEXT,
+        error TEXT,
+        FOREIGN KEY (job_id) REFERENCES cron_jobs(id) ON DELETE CASCADE
       );
     `);
 
@@ -91,11 +101,12 @@ export class SQLiteManager {
       CREATE INDEX IF NOT EXISTS idx_session_messages_session_id ON session_messages(session_id, sequence);
       CREATE INDEX IF NOT EXISTS idx_cron_jobs_chat_id ON cron_jobs(chat_id);
       CREATE INDEX IF NOT EXISTS idx_cron_jobs_next_run ON cron_jobs(next_run_at) WHERE enabled = 1;
+      CREATE INDEX IF NOT EXISTS idx_cron_runs_job_id ON cron_runs(job_id, started_at DESC);
     `);
   }
 
   private getNativeBindingRepairHint(error: unknown): string | undefined {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = toErrorMessage(error);
     if (!message.includes('Could not locate the bindings file')) {
       return undefined;
     }
@@ -125,11 +136,6 @@ export class SQLiteManager {
 
   transaction<T>(fn: () => T): T {
     return this.getDatabase().transaction(fn)();
-  }
-
-  vacuum(): void {
-    this.getDatabase().exec('VACUUM');
-    logger.info({}, 'Database vacuumed');
   }
 }
 

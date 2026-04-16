@@ -28,6 +28,7 @@ import { cronJobScheduler } from '@/platform/db/cron-scheduler.js';
 import { sessionRepository } from '@/platform/db/repositories/session-repository.js';
 import { sqliteManager } from '@/platform/db/sqlite-manager.js';
 import { logger } from '@/platform/observability/logger.js';
+import { toErrorMessage } from '@/platform/utils/errors.js';
 import { createMultimodalTools } from '@/platform/tools/multimodal-tools.js';
 import { McpClientManager } from '@/platform/tools/mcp/mcp-client-manager.js';
 import { toolRegistry as sharedToolRegistry } from '@/platform/tools/registry.js';
@@ -120,7 +121,7 @@ export class Bootstrap {
       this.initialized = true;
       logger.info({}, 'AesyClaw started successfully');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = toErrorMessage(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
       logger.error({ error: errorMessage, stack: errorStack }, 'Bootstrap failed');
       throw error;
@@ -311,7 +312,7 @@ export class Bootstrap {
       await channelManager.registerChannel(channelPlugin, channelConfig);
       logger.info({ channelName: channelPlugin.name }, `${channelPlugin.name} channel plugin loaded`);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = toErrorMessage(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
       logger.error({ error: errorMessage, stack: errorStack, pluginName }, 'Failed to load channel plugin');
     }
@@ -389,116 +390,38 @@ export class Bootstrap {
   static async shutdown(): Promise<void> {
     logger.info({}, 'Shutting down AesyClaw...');
 
-    this.disableConfigHotReload();
-    await this.shutdownChannels();
-    this.shutdownCron();
-    await this.shutdownMcp();
-    this.shutdownPlugins();
-    this.shutdownDatabase();
-    await this.shutdownSkills();
-    await this.shutdownRoles();
-    this.shutdownSessionRegistry();
-    await this.shutdownConfig();
+    if (this.configChangeUnsubscribe) {
+      this.configChangeUnsubscribe();
+      this.configChangeUnsubscribe = null;
+    }
+    this.mcpHotReloadEnabled = false;
+    this.channelHotReloadEnabled = false;
+
+    const steps: Array<[string, () => void | Promise<void>]> = [
+      ['Channel Manager', () => channelManager.shutdown()],
+      ['Cron scheduler', () => cronJobScheduler.stop()],
+      ['MCP Manager', async () => { if (this.mcpManager) await this.mcpManager.shutdown(); }],
+      ['Plugin Manager', () => pluginManager.shutdown()],
+      ['SQLiteManager', () => sqliteManager.close()],
+      ['SkillManager', async () => { const { skillManager } = await import('./features/skills/skill-manager.js'); await skillManager.shutdown(); }],
+      ['RoleManager', async () => { const { roleManager } = await import('./features/roles/role-manager.js'); roleManager.shutdown(); }],
+      ['Session runtime', () => shutdownSessionRuntime()],
+      ['ConfigManager', () => configManager.destroy()],
+    ];
+
+    for (const [i, [label, fn]] of steps.entries()) {
+      try {
+        await fn();
+        logger.info({}, `[${i + 1}/${steps.length}] ${label} stopped`);
+      } catch (error) {
+        logger.error({ error }, `Error stopping ${label}`);
+      }
+    }
 
     this.mcpManager = null;
     this.initialized = false;
 
     logger.info({}, 'AesyClaw shutdown completed');
-  }
-
-  private static disableConfigHotReload(): void {
-    if (this.configChangeUnsubscribe) {
-      this.configChangeUnsubscribe();
-      this.configChangeUnsubscribe = null;
-    }
-
-    this.mcpHotReloadEnabled = false;
-    this.channelHotReloadEnabled = false;
-  }
-
-  private static async shutdownChannels(): Promise<void> {
-    try {
-      await channelManager.shutdown();
-      logger.info({}, '[1/9] Channel Manager stopped');
-    } catch (error) {
-      logger.error({ error }, 'Error stopping Channel Manager');
-    }
-  }
-
-  private static shutdownCron(): void {
-    try {
-      cronJobScheduler.stop();
-      logger.info({}, '[2/9] Cron scheduler stopped');
-    } catch (error) {
-      logger.error({ error }, 'Error stopping Cron scheduler');
-    }
-  }
-
-  private static async shutdownMcp(): Promise<void> {
-    try {
-      if (this.mcpManager) {
-        await this.mcpManager.shutdown();
-        logger.info({}, '[3/9] MCP Manager stopped');
-      }
-    } catch (error) {
-      logger.error({ error }, 'Error stopping MCP Manager');
-    }
-  }
-
-  private static shutdownPlugins(): void {
-    try {
-      pluginManager.shutdown();
-      logger.info({}, '[4/9] Plugin Manager stopped');
-    } catch (error) {
-      logger.error({ error }, 'Error stopping Plugin Manager');
-    }
-  }
-
-  private static shutdownDatabase(): void {
-    try {
-      sqliteManager.close();
-      logger.info({}, '[5/9] SQLiteManager closed');
-    } catch (error) {
-      logger.error({ error }, 'Error closing SQLiteManager');
-    }
-  }
-
-  private static async shutdownSkills(): Promise<void> {
-    try {
-      const { skillManager } = await import('./features/skills/skill-manager.js');
-      await skillManager.shutdown();
-      logger.info({}, '[6/9] SkillManager stopped');
-    } catch (error) {
-      logger.error({ error }, 'Error stopping SkillManager');
-    }
-  }
-
-  private static async shutdownRoles(): Promise<void> {
-    try {
-      const { roleManager } = await import('./features/roles/role-manager.js');
-      roleManager.shutdown();
-      logger.info({}, '[7/9] RoleManager stopped');
-    } catch (error) {
-      logger.error({ error }, 'Error stopping RoleManager');
-    }
-  }
-
-  private static shutdownSessionRegistry(): void {
-    try {
-      shutdownSessionRuntime();
-      logger.info({}, '[8/9] Session runtime stopped');
-    } catch (error) {
-      logger.error({ error }, 'Error stopping session runtime');
-    }
-  }
-
-  private static async shutdownConfig(): Promise<void> {
-    try {
-      await configManager.destroy();
-      logger.info({}, '[9/9] ConfigManager stopped');
-    } catch (error) {
-      logger.error({ error }, 'Error stopping ConfigManager');
-    }
   }
 
   static isInitialized(): boolean {

@@ -11,14 +11,3 @@ export interface SystemVariables {
   os: string;
   systemLang: string;
 }
-
-export interface CapabilityDescription {
-  name: string;
-  description: string;
-}
-
-export interface BuildResult {
-  raw: string;
-  withVariables: string;
-  full: string;
-}

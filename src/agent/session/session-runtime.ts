@@ -2,7 +2,7 @@ import type { IChannelContext, MiddlewareFunc, PipelineState } from '@/agent/typ
 import type { CommandContext } from '@/contracts/commands.js';
 import { commandParser } from '@/features/commands/command-parser.js';
 import { logger } from '@/platform/observability/logger.js';
-import type { SessionContext, SessionRecord } from './session-context.js';
+import type { SessionContext } from './session-context.js';
 import {
   sessionService,
   type SessionSummary,
@@ -69,10 +69,6 @@ export function getRoleInfoForCommandContext(ctx: CommandContext): {
   allowedTools: string[];
 } {
   return sessionService.getRoleInfoForCommandContext(ctx);
-}
-
-export function getSessionRecordForCommandContext(ctx: CommandContext): SessionRecord | null {
-  return sessionService.getCurrentSessionForCommandContext(ctx);
 }
 
 export function getSessionSummaries(): SessionSummary[] {

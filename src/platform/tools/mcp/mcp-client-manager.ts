@@ -1,5 +1,6 @@
 import { MCPManager, type MCPServerConfig as AesyiuMCPServerConfig } from 'aesyiu';
 import { logger } from '../../observability/logger.js';
+import { toErrorMessage } from '../../utils/errors.js';
 import { ToolRegistry } from '../registry.js';
 import { McpToolAdapter, MCPServerInfo } from './types.js';
 
@@ -88,7 +89,7 @@ export class McpClientManager {
         name: config.name,
         connected: false,
         lastChecked: new Date(),
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
         toolCount: 0,
       });
     }
@@ -136,10 +137,6 @@ export class McpClientManager {
 
   getConnectedServers(): MCPServerInfo[] {
     return Array.from(this.serverInfos.values());
-  }
-
-  getServerStatus(serverName: string): MCPServerInfo | undefined {
-    return this.serverInfos.get(serverName);
   }
 
   async shutdown(): Promise<void> {

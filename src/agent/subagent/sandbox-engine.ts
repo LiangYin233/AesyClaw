@@ -1,25 +1,20 @@
 import {
-  AgentContext,
-  AesyiuEngine,
-  MemoryManager,
   type AgentSkill,
   type Message as AesyiuMessage,
 } from 'aesyiu';
 import { prepareAgentRun } from '@/agent/runtime/prepare-agent-run.js';
 import {
-  createRolesPromptMessage,
-  createHookAwareProvider,
-  createHookAwareRunTools,
+  buildAesyiuEngine,
+  type AesyiuRunStats,
   getFinalAssistantText,
   isRolePromptMessage,
-  resolveModelDefinition,
 } from '@/agent/runtime/aesyiu-runtime-helpers.js';
 import { configManager } from '@/features/config/config-manager.js';
-import { buildHookSkills, buildHookTools } from '@/features/plugins/hook-utils.js';
 import { roleManager, DEFAULT_ROLE_ID } from '@/features/roles/role-manager.js';
 import { skillManager } from '@/features/skills/skill-manager.js';
 import { type LLMConfig } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
+import { toErrorMessage } from '@/platform/utils/errors.js';
 import { toolRegistry } from '@/platform/tools/registry.js';
 import { ITool, ToolExecuteContext } from '@/platform/tools/types.js';
 import { DEFAULT_FALLBACK_LLM_CONFIG } from '@/agent/runtime/resolve-llm-config.js';
@@ -30,12 +25,6 @@ import {
   type SubAgentResult,
   type SandboxContext,
 } from './types.js';
-
-interface SandboxRunStats {
-  steps: number;
-  toolCalls: number;
-  error?: string;
-}
 
 export class SandboxEngine {
   private static activeSandboxes: Map<string, SandboxContext> = new Map();
@@ -133,52 +122,8 @@ export class SandboxEngine {
   }
 
   private getAllowedSkills(): AgentSkill[] {
-    if (!skillManager.isInitialized()) {
-      return [];
-    }
-
+    if (!skillManager.isInitialized()) return [];
     return skillManager.getSkillsForRole(this.config.allowedSkills);
-  }
-
-  private createProvider(
-    stats: SandboxRunStats,
-    llmConfig: LLMConfig,
-    hookTools: ReturnType<typeof buildHookTools>,
-    hookSkills: ReturnType<typeof buildHookSkills>
-  ) {
-    const modelId = llmConfig.model || 'gpt-4o-mini';
-    const modelDef = resolveModelDefinition(
-      modelId,
-      configManager.config.providers,
-      configManager.config.memory.max_context_tokens
-    );
-
-    return createHookAwareProvider(llmConfig, modelDef, stats, hookTools, hookSkills);
-  }
-
-  private createRunTools(tools: readonly ITool[], stats: SandboxRunStats) {
-    return createHookAwareRunTools(tools, stats, {
-      createToolContext: (ctx): ToolExecuteContext => ({
-        roleId: this.config.roleId,
-        allowedTools: this.config.allowedTools,
-        allowedSkills: this.config.allowedSkills,
-        chatId: this.agentId,
-        senderId: 'subagent',
-        traceId: this.sandboxId,
-        agentContext: ctx,
-      }),
-      checkToolAllowed: (tool) => {
-        if (!this.config.allowedTools.includes('*') && !this.config.allowedTools.includes(tool.name)) {
-          return {
-            success: false,
-            content: '',
-            error: `工具 "${tool.name}" 不在允许列表中`,
-          };
-        }
-
-        return null;
-      },
-    });
   }
 
   async execute(): Promise<SubAgentResult> {
@@ -192,42 +137,36 @@ export class SandboxEngine {
     try {
       const filteredTools = this.getFilteredTools();
       const allowedSkills = this.getAllowedSkills();
-      const hookSkills = buildHookSkills(allowedSkills);
-      const hookTools = buildHookTools(filteredTools.map(tool => tool.getDefinition()), allowedSkills);
       const llmConfig = this.getLLMConfig();
-      const stats: SandboxRunStats = {
-        steps: 0,
-        toolCalls: 0,
-      };
+      const stats: AesyiuRunStats = { steps: 0, toolCalls: 0 };
 
-      const provider = this.createProvider(stats, llmConfig, hookTools, hookSkills);
-      const context = new AgentContext({
-        provider,
-        modelId: llmConfig.model,
-      });
-
-      context.state.chatId = this.agentId;
-      context.state.traceId = this.sandboxId;
-      context.addMessages(this.memory);
-      const rolesPrompt = createRolesPromptMessage(filteredTools);
-      if (rolesPrompt) {
-        context.addMessage(rolesPrompt);
-      }
-
-      const engine = new AesyiuEngine({
+      const { engine, context } = buildAesyiuEngine({
+        chatId: this.agentId,
+        traceId: this.sandboxId,
+        llmConfig,
+        maxContextTokens: configManager.config.memory.max_context_tokens,
+        compressionThreshold: configManager.config.memory.compression_threshold,
         maxSteps: this.maxSteps,
-        compatibilityMode: true,
-        memoryManager: new MemoryManager({
-          compressThresholdRatio: configManager.config.memory.compression_threshold,
-          retainLatestMessages: 8,
+        filteredTools,
+        allowedSkills,
+        messages: this.memory,
+        stats,
+        createToolContext: (ctx): ToolExecuteContext => ({
+          roleId: this.config.roleId,
+          allowedTools: this.config.allowedTools,
+          allowedSkills: this.config.allowedSkills,
+          chatId: this.agentId,
+          senderId: 'subagent',
+          traceId: this.sandboxId,
+          agentContext: ctx,
         }),
+        checkToolAllowed: (tool) => {
+          if (!this.config.allowedTools.includes('*') && !this.config.allowedTools.includes(tool.name)) {
+            return { success: false, content: '', error: `工具 "${tool.name}" 不在允许列表中` };
+          }
+          return null;
+        },
       });
-
-      for (const tool of this.createRunTools(filteredTools, stats)) {
-        engine.registerTool(tool);
-      }
-
-      engine.registerSkills(allowedSkills);
 
       const result = await engine.run(
         {
@@ -273,7 +212,7 @@ export class SandboxEngine {
       };
     } catch (error) {
       const executionTime = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = toErrorMessage(error);
 
       logger.error(
         { sandboxId: this.sandboxId, error: errorMessage },

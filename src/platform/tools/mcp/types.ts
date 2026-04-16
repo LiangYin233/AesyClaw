@@ -1,6 +1,7 @@
 import type { Tool as AesyiuTool } from 'aesyiu';
 import { ZodType, z } from 'zod';
 import { ITool, ToolExecuteContext, ToolExecutionResult, ToolDefinition, type ToolParameters } from '../types.js';
+import { toErrorMessage } from '../../utils/errors.js';
 
 export interface MCPServerInfo {
   name: string;
@@ -139,7 +140,7 @@ export class McpToolAdapter implements ITool {
       return {
         success: false,
         content: '',
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       };
     }
   }
