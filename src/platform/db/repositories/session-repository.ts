@@ -42,7 +42,7 @@ export class SessionRepository {
     const db = sqliteManager.getDatabase();
 
     const stmt = db.prepare(`
-      INSERT INTO sessions_v2 (id, chat_id, channel, type, role_id)
+      INSERT INTO sessions (id, chat_id, channel, type, role_id)
       VALUES (?, ?, ?, ?, ?)
     `);
 
@@ -54,7 +54,7 @@ export class SessionRepository {
 
   findById(sessionId: string): SessionRecord | null {
     const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('SELECT * FROM sessions_v2 WHERE id = ?');
+    const stmt = db.prepare('SELECT * FROM sessions WHERE id = ?');
     const row = stmt.get(sessionId) as SessionRow | undefined;
 
     if (!row) return null;
@@ -65,7 +65,7 @@ export class SessionRepository {
   findLatestByScope(scope: SessionScope): SessionRecord | null {
     const db = sqliteManager.getDatabase();
     const stmt = db.prepare(`
-      SELECT * FROM sessions_v2
+      SELECT * FROM sessions
       WHERE channel = ? AND type = ? AND chat_id = ?
       ORDER BY updated_at DESC, created_at DESC
       LIMIT 1
@@ -79,7 +79,7 @@ export class SessionRepository {
 
   findByChatId(chatId: string): SessionRecord[] {
     const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('SELECT * FROM sessions_v2 WHERE chat_id = ? ORDER BY updated_at DESC, created_at DESC');
+    const stmt = db.prepare('SELECT * FROM sessions WHERE chat_id = ? ORDER BY updated_at DESC, created_at DESC');
     const rows = stmt.all(chatId) as SessionRow[];
 
     return rows.map(row => this.mapRowToRecord(row));
@@ -104,7 +104,7 @@ export class SessionRepository {
 
     values.push(sessionId);
 
-    const stmt = db.prepare(`UPDATE sessions_v2 SET ${fields.join(', ')} WHERE id = ?`);
+    const stmt = db.prepare(`UPDATE sessions SET ${fields.join(', ')} WHERE id = ?`);
     const result = stmt.run(...values);
 
     if (result.changes === 0) return null;
@@ -115,7 +115,7 @@ export class SessionRepository {
 
   delete(sessionId: string): boolean {
     const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('DELETE FROM sessions_v2 WHERE id = ?');
+    const stmt = db.prepare('DELETE FROM sessions WHERE id = ?');
     const result = stmt.run(sessionId);
 
     if (result.changes > 0) {
@@ -127,7 +127,7 @@ export class SessionRepository {
 
   findAll(): SessionRecord[] {
     const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('SELECT * FROM sessions_v2 ORDER BY updated_at DESC, created_at DESC');
+    const stmt = db.prepare('SELECT * FROM sessions ORDER BY updated_at DESC, created_at DESC');
     const rows = stmt.all() as SessionRow[];
 
     return rows.map(row => this.mapRowToRecord(row));
@@ -135,7 +135,7 @@ export class SessionRepository {
 
   findByScope(channel: string, type?: string, chatId?: string): SessionRecord[] {
     const db = sqliteManager.getDatabase();
-    let query = 'SELECT * FROM sessions_v2 WHERE channel = ?';
+    let query = 'SELECT * FROM sessions WHERE channel = ?';
     const params: Array<string> = [channel];
 
     if (type) {

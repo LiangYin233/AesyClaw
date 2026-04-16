@@ -44,14 +44,27 @@ export class SQLiteManager {
 
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS sessions (
-        session_id TEXT PRIMARY KEY,
+        id TEXT PRIMARY KEY,
         chat_id TEXT NOT NULL,
-        channel TEXT NOT NULL DEFAULT 'unknown',
+        channel TEXT NOT NULL,
         type TEXT NOT NULL DEFAULT 'default',
-        user_id TEXT,
+        role_id TEXT NOT NULL,
+        message_count INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-        metadata TEXT DEFAULT '{}'
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS session_messages (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        sequence INTEGER NOT NULL,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        tool_calls TEXT,
+        tool_call_id TEXT,
+        name TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
       );
 
       CREATE TABLE IF NOT EXISTS cron_jobs (
@@ -68,30 +81,6 @@ export class SQLiteManager {
         run_count INTEGER NOT NULL DEFAULT 0,
         metadata TEXT DEFAULT '{}'
       );
-
-      CREATE TABLE IF NOT EXISTS sessions_v2 (
-        id TEXT PRIMARY KEY,
-        chat_id TEXT NOT NULL,
-        channel TEXT NOT NULL,
-        type TEXT NOT NULL DEFAULT 'default',
-        role_id TEXT NOT NULL,
-        message_count INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-      );
-
-      CREATE TABLE IF NOT EXISTS session_messages_v2 (
-        id TEXT PRIMARY KEY,
-        session_id TEXT NOT NULL,
-        sequence INTEGER NOT NULL,
-        role TEXT NOT NULL,
-        content TEXT NOT NULL,
-        tool_calls TEXT,
-        tool_call_id TEXT,
-        name TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        FOREIGN KEY (session_id) REFERENCES sessions_v2(id) ON DELETE CASCADE
-      );
     `);
 
     logger.info({}, 'Database tables initialized');
@@ -101,12 +90,9 @@ export class SQLiteManager {
     if (!this.db) throw new Error('Database not initialized');
 
     this.db.exec(`
-      CREATE INDEX IF NOT EXISTS idx_sessions_created_at ON sessions(created_at);
-      CREATE INDEX IF NOT EXISTS idx_sessions_chat_id ON sessions(chat_id);
       CREATE INDEX IF NOT EXISTS idx_sessions_scope ON sessions(channel, type, chat_id);
-      CREATE INDEX IF NOT EXISTS idx_sessions_v2_scope ON sessions_v2(channel, type, chat_id);
-      CREATE INDEX IF NOT EXISTS idx_sessions_v2_updated_at ON sessions_v2(updated_at);
-      CREATE INDEX IF NOT EXISTS idx_session_messages_v2_session_id ON session_messages_v2(session_id, sequence);
+      CREATE INDEX IF NOT EXISTS idx_sessions_updated_at ON sessions(updated_at);
+      CREATE INDEX IF NOT EXISTS idx_session_messages_session_id ON session_messages(session_id, sequence);
       CREATE INDEX IF NOT EXISTS idx_cron_jobs_chat_id ON cron_jobs(chat_id);
       CREATE INDEX IF NOT EXISTS idx_cron_jobs_next_run ON cron_jobs(next_run_at) WHERE enabled = 1;
     `);
