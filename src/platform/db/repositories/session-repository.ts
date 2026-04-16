@@ -71,7 +71,7 @@ export class SessionRepository {
     updates: Partial<Omit<CreateSessionInput, 'sessionId'>>
   ): SessionRecord | null {
     const db = sqliteManager.getDatabase();
-    const fields: string[] = ['updated_at = datetime("now")'];
+    const fields: string[] = ["updated_at = datetime('now')"];
     const values: Array<string | null> = [];
 
     if (updates.chatId !== undefined) {
