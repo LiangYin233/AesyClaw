@@ -3,16 +3,11 @@ import { roleManager } from './role-manager.js';
 import { logger } from '@/platform/observability/logger.js';
 
 interface RoleCommandSession {
-  memory: {
-    switchRole: (_roleId: string) => Promise<{ success: boolean; message: string }>;
-    getRoleInfo: () => {
-      roleId: string;
-      roleName: string;
-      allowedTools: string[];
-    };
-  };
-  agent: {
-    updateModel: (_model: string) => void;
+  switchRole: (_roleId: string) => { success: boolean; message: string };
+  getRoleInfo: () => {
+    roleId: string;
+    roleName: string;
+    allowedTools: string[];
   };
 }
 
@@ -25,7 +20,7 @@ export function createRoleCommandGroup(deps: RoleCommandGroupDeps): CommandDefin
     {
       name: 'role',
       description: '角色管理命令',
-      usage: '/role <list|info|switch> [args...]',
+      usage: '/role <list|info|switch|current> [args...]',
       category: 'system',
       aliases: ['roles'],
       execute: async (ctx: CommandContext): Promise<CommandResult> => {
@@ -117,14 +112,7 @@ export function createRoleCommandGroup(deps: RoleCommandGroupDeps): CommandDefin
               };
             }
 
-            const result = await session.memory.switchRole(targetRoleId);
-
-            if (result.success) {
-              const role = roleManager.getRole(targetRoleId);
-              if (role?.model) {
-                session.agent.updateModel(role.model);
-              }
-            }
+            const result = session.switchRole(targetRoleId);
 
             return {
               success: result.success,
@@ -141,7 +129,7 @@ export function createRoleCommandGroup(deps: RoleCommandGroupDeps): CommandDefin
               };
             }
 
-            const roleInfo = session.memory.getRoleInfo();
+            const roleInfo = session.getRoleInfo();
             let output = `当前角色: **${roleInfo.roleName}**\n\n`;
             output += `**ID**: \`${roleInfo.roleId}\`\n`;
             output += '\n**可用工具**: ';

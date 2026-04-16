@@ -1,57 +1,76 @@
+import { logger } from '@/platform/observability/logger.js';
 import { sqliteManager } from '../sqlite-manager.js';
-import { logger } from '../../../platform/observability/logger.js';
 
 export interface SessionRecord {
-  sessionId: string;
+  id: string;
   chatId: string;
   channel: string;
   type: string;
-  userId?: string;
+  roleId: string;
+  messageCount: number;
   createdAt: string;
   updatedAt: string;
-  metadata: Record<string, unknown>;
 }
 
 export interface CreateSessionInput {
-  sessionId: string;
+  id: string;
   chatId: string;
   channel: string;
   type: string;
-  userId?: string;
-  metadata?: Record<string, unknown>;
+  roleId: string;
+}
+
+export interface SessionScope {
+  channel: string;
+  type: string;
+  chatId: string;
 }
 
 export type SessionRow = {
-  session_id: string;
+  id: string;
   chat_id: string;
   channel: string;
   type: string;
-  user_id?: string;
+  role_id: string;
+  message_count: number;
   created_at: string;
   updated_at: string;
-  metadata: string;
 };
 
 export class SessionRepository {
   create(input: CreateSessionInput): SessionRecord {
     const db = sqliteManager.getDatabase();
-    const metadata = JSON.stringify(input.metadata || {});
 
     const stmt = db.prepare(`
-      INSERT INTO sessions (session_id, chat_id, channel, type, user_id, metadata)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO sessions_v2 (id, chat_id, channel, type, role_id)
+      VALUES (?, ?, ?, ?, ?)
     `);
 
-    stmt.run(input.sessionId, input.chatId, input.channel, input.type, input.userId || null, metadata);
-    logger.info({ sessionId: input.sessionId, chatId: input.chatId }, 'Session created');
+    stmt.run(input.id, input.chatId, input.channel, input.type, input.roleId);
+    logger.info({ sessionId: input.id, chatId: input.chatId }, 'Session created');
 
-    return this.findBySessionId(input.sessionId)!;
+    return this.findById(input.id)!;
   }
 
-  findBySessionId(sessionId: string): SessionRecord | null {
+  findById(sessionId: string): SessionRecord | null {
     const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('SELECT * FROM sessions WHERE session_id = ?');
-    const row = stmt.get(sessionId) as SessionRow;
+    const stmt = db.prepare('SELECT * FROM sessions_v2 WHERE id = ?');
+    const row = stmt.get(sessionId) as SessionRow | undefined;
+
+    if (!row) return null;
+
+    return this.mapRowToRecord(row);
+  }
+
+  findLatestByScope(scope: SessionScope): SessionRecord | null {
+    const db = sqliteManager.getDatabase();
+    const stmt = db.prepare(`
+      SELECT * FROM sessions_v2
+      WHERE channel = ? AND type = ? AND chat_id = ?
+      ORDER BY updated_at DESC, created_at DESC
+      LIMIT 1
+    `);
+    const row = stmt.get(scope.channel, scope.type, scope.chatId) as SessionRow | undefined;
 
     if (!row) return null;
 
@@ -60,55 +79,43 @@ export class SessionRepository {
 
   findByChatId(chatId: string): SessionRecord[] {
     const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('SELECT * FROM sessions WHERE chat_id = ? ORDER BY created_at DESC');
+    const stmt = db.prepare('SELECT * FROM sessions_v2 WHERE chat_id = ? ORDER BY updated_at DESC, created_at DESC');
     const rows = stmt.all(chatId) as SessionRow[];
 
     return rows.map(row => this.mapRowToRecord(row));
   }
 
-  update(
+  updateState(
     sessionId: string,
-    updates: Partial<Omit<CreateSessionInput, 'sessionId'>>
+    updates: Partial<Pick<SessionRecord, 'roleId' | 'messageCount'>>
   ): SessionRecord | null {
     const db = sqliteManager.getDatabase();
     const fields: string[] = ["updated_at = datetime('now')"];
-    const values: Array<string | null> = [];
+    const values: Array<string | number> = [];
 
-    if (updates.chatId !== undefined) {
-      fields.push('chat_id = ?');
-      values.push(updates.chatId);
+    if (updates.roleId !== undefined) {
+      fields.push('role_id = ?');
+      values.push(updates.roleId);
     }
-    if (updates.channel !== undefined) {
-      fields.push('channel = ?');
-      values.push(updates.channel);
-    }
-    if (updates.type !== undefined) {
-      fields.push('type = ?');
-      values.push(updates.type);
-    }
-    if (updates.userId !== undefined) {
-      fields.push('user_id = ?');
-      values.push(updates.userId);
-    }
-    if (updates.metadata !== undefined) {
-      fields.push('metadata = ?');
-      values.push(JSON.stringify(updates.metadata));
+    if (updates.messageCount !== undefined) {
+      fields.push('message_count = ?');
+      values.push(updates.messageCount);
     }
 
     values.push(sessionId);
 
-    const stmt = db.prepare(`UPDATE sessions SET ${fields.join(', ')} WHERE session_id = ?`);
+    const stmt = db.prepare(`UPDATE sessions_v2 SET ${fields.join(', ')} WHERE id = ?`);
     const result = stmt.run(...values);
 
     if (result.changes === 0) return null;
 
     logger.info({ sessionId }, 'Session updated');
-    return this.findBySessionId(sessionId);
+    return this.findById(sessionId);
   }
 
   delete(sessionId: string): boolean {
     const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('DELETE FROM sessions WHERE session_id = ?');
+    const stmt = db.prepare('DELETE FROM sessions_v2 WHERE id = ?');
     const result = stmt.run(sessionId);
 
     if (result.changes > 0) {
@@ -120,7 +127,7 @@ export class SessionRepository {
 
   findAll(): SessionRecord[] {
     const db = sqliteManager.getDatabase();
-    const stmt = db.prepare('SELECT * FROM sessions ORDER BY created_at DESC');
+    const stmt = db.prepare('SELECT * FROM sessions_v2 ORDER BY updated_at DESC, created_at DESC');
     const rows = stmt.all() as SessionRow[];
 
     return rows.map(row => this.mapRowToRecord(row));
@@ -128,7 +135,7 @@ export class SessionRepository {
 
   findByScope(channel: string, type?: string, chatId?: string): SessionRecord[] {
     const db = sqliteManager.getDatabase();
-    let query = 'SELECT * FROM sessions WHERE channel = ?';
+    let query = 'SELECT * FROM sessions_v2 WHERE channel = ?';
     const params: Array<string> = [channel];
 
     if (type) {
@@ -141,35 +148,23 @@ export class SessionRepository {
       params.push(chatId);
     }
 
-    query += ' ORDER BY created_at DESC';
+    query += ' ORDER BY updated_at DESC, created_at DESC';
     const stmt = db.prepare(query);
     const rows = stmt.all(...params) as SessionRow[];
 
     return rows.map(row => this.mapRowToRecord(row));
   }
 
-  upsert(input: CreateSessionInput): SessionRecord {
-    const existing = this.findBySessionId(input.sessionId);
-    if (existing) {
-      return this.update(input.sessionId, input) || existing;
-    }
-    return this.create(input);
-  }
-
-  ensure(input: CreateSessionInput): SessionRecord {
-    return this.upsert(input);
-  }
-
   private mapRowToRecord(row: SessionRow): SessionRecord {
     return {
-      sessionId: row.session_id,
+      id: row.id,
       chatId: row.chat_id,
       channel: row.channel,
       type: row.type,
-      userId: row.user_id,
+      roleId: row.role_id,
+      messageCount: row.message_count,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-      metadata: JSON.parse(row.metadata || '{}'),
     };
   }
 }

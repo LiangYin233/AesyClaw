@@ -60,14 +60,14 @@ export const agentMessageStage: MiddlewareFunc = async (ctx: IChannelContext, ne
   const runtimeInfo = agent.getRuntimeInfo();
 
   logger.info(
-    {
-      sessionId,
-      chatId: ctx.inbound.chatId,
-      channel: sessionContext.metadata.channel,
-      type: sessionContext.metadata.type,
-      provider: runtimeInfo.llm.provider,
-      model: runtimeInfo.llm.model,
-    },
+      {
+        sessionId,
+        chatId: ctx.inbound.chatId,
+        channel: sessionContext.session.channel,
+        type: sessionContext.session.type,
+        provider: runtimeInfo.llm.provider,
+        model: runtimeInfo.llm.model,
+      },
     'Agent stage: starting agent processing'
   );
 
