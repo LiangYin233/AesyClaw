@@ -113,7 +113,6 @@ export class PromptExecutor {
     try {
       const { sessionId: sid, session } = createTemporarySession(job.id, {
         chatId: job.chatId,
-        prompt: job.prompt,
       });
       sessionId = sid;
 

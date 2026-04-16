@@ -1,91 +1,32 @@
-import type { IChannelContext, IUnifiedMessage, MiddlewareFunc, PipelineState } from '@/agent/types.js';
+import type { IChannelContext, MiddlewareFunc, PipelineState } from '@/agent/types.js';
 import type { CommandContext } from '@/contracts/commands.js';
-import { configManager } from '@/features/config/config-manager.js';
-import { roleManager } from '@/features/roles/role-manager.js';
-import { systemPromptManager } from '@/features/roles/system-prompt-manager.js';
-import { sessionRepository } from '@/platform/db/repositories/session-repository.js';
+import { commandParser } from '@/features/commands/command-parser.js';
 import { logger } from '@/platform/observability/logger.js';
-import type { SessionContext, SessionMetadata } from './session-context.js';
-import { SessionId } from './session-id.js';
-import { SessionRegistry } from './session-registry.js';
-
-let sessionRegistryInstance: SessionRegistry | null = null;
-
-export type { SessionRegistry };
-
-export interface SessionSummary {
-  metadata: SessionMetadata;
-}
-
-export interface SessionStats {
-  total: number;
-  byChannel: Record<string, number>;
-  byType: Record<string, number>;
-}
+import type { SessionContext, SessionRecord } from './session-context.js';
+import {
+  sessionService,
+  type SessionSummary,
+  type TemporarySessionOptions,
+  type TemporarySessionResult,
+} from './session-service.js';
 
 export interface ResolvedSessionState {
   sessionContext: SessionContext;
   sessionId: string;
 }
 
-export function getSessionRegistry(): SessionRegistry {
-  if (!sessionRegistryInstance) {
-    sessionRegistryInstance = new SessionRegistry({
-      configManager,
-      roleManager,
-      systemPromptBuilder: systemPromptManager,
-    });
-  }
-
-  return sessionRegistryInstance;
-}
-
-export function resolveSessionForInbound(inbound: IUnifiedMessage): ResolvedSessionState {
-  const sessionRegistry = getSessionRegistry();
-  const channel = inbound.channelId;
-  const type = (inbound.metadata?.type as string) || 'default';
-  const chatId = inbound.chatId;
-
-  const existingSessionId = sessionRegistry.getSessionIdByChatId(channel, type, chatId);
-  let sessionId: string;
-  let components: { channel: string; type: string; chatId: string; session: string };
-
-  if (existingSessionId) {
-    sessionId = existingSessionId;
-    components = SessionId.parse(sessionId);
-    logger.debug({ sessionId, channel, type, chatId }, '复用已有会话');
-  } else {
-    sessionId = SessionId.fromUnifiedMessage(inbound);
-    components = SessionId.parse(sessionId);
-  }
-
-  const sessionContext = sessionRegistry.getOrCreate(sessionId, {
-    channel: components.channel,
-    type: components.type,
-    chatId: components.chatId,
-    session: components.session,
-  });
-
-  sessionRepository.ensure({
-    sessionId,
-    chatId: components.chatId,
-    channel: components.channel,
-    type: components.type,
-    metadata: {
-      sessionId,
-      session: components.session,
-    },
-  });
+export function resolveSessionForInbound(ctx: IChannelContext): ResolvedSessionState {
+  const sessionContext = sessionService.resolveInteractiveSessionForInbound(ctx.inbound);
 
   return {
     sessionContext,
-    sessionId,
+    sessionId: sessionContext.session.id,
   };
 }
 
 export const sessionMessageStage: MiddlewareFunc = async (ctx: IChannelContext, next: () => Promise<void>) => {
   try {
-    const resolved = resolveSessionForInbound(ctx.inbound);
+    const resolved = resolveSessionForInbound(ctx);
 
     if (!ctx.state) {
       ctx.state = {} as PipelineState;
@@ -96,78 +37,63 @@ export const sessionMessageStage: MiddlewareFunc = async (ctx: IChannelContext, 
     logger.debug(
       {
         sessionId: resolved.sessionId,
-        channel: resolved.sessionContext.metadata.channel,
-        type: resolved.sessionContext.metadata.type,
-        chatId: resolved.sessionContext.metadata.chatId,
+        channel: resolved.sessionContext.session.channel,
+        type: resolved.sessionContext.session.type,
+        chatId: resolved.sessionContext.session.chatId,
       },
       'Session stage: session injected'
     );
 
     await next();
+
+    if (!commandParser.isCommand(ctx.inbound.text ?? '')) {
+      sessionService.persistRuntimeSession(resolved.sessionContext);
+    }
   } catch (error) {
-    logger.error({ error }, 'Session stage: failed to create session');
+    logger.error({ error }, 'Session stage: failed to resolve session');
     throw error;
   }
 };
 
 export function getSessionForCommandContext(ctx: CommandContext): SessionContext | null {
-  const sessionRegistry = getSessionRegistry();
-  const existingSessionId = sessionRegistry.getSessionIdByChatId(
-    ctx.channelId,
-    ctx.messageType,
-    ctx.chatId
-  );
+  return sessionService.getRuntimeSessionForCommandContext(ctx);
+}
 
-  if (existingSessionId) {
-    return sessionRegistry.getSession(existingSessionId) || null;
-  }
+export function switchRoleForCommandContext(ctx: CommandContext, roleId: string): { success: boolean; message: string } {
+  return sessionService.switchRoleForCommandContext(ctx, roleId);
+}
 
-  const sessions = sessionRegistry.getSessionsByChatId(ctx.chatId);
-  return sessions.length > 0 ? sessions[0] : null;
+export function getRoleInfoForCommandContext(ctx: CommandContext): {
+  roleId: string;
+  roleName: string;
+  allowedTools: string[];
+} {
+  return sessionService.getRoleInfoForCommandContext(ctx);
+}
+
+export function getSessionRecordForCommandContext(ctx: CommandContext): SessionRecord | null {
+  return sessionService.getCurrentSessionForCommandContext(ctx);
 }
 
 export function getSessionSummaries(): SessionSummary[] {
-  const sessionRegistry = getSessionRegistry();
-  return sessionRegistry.getAllSessions().map(s => ({ metadata: s.metadata }));
-}
-
-export function getSessionStats(): SessionStats {
-  const sessionRegistry = getSessionRegistry();
-  return sessionRegistry.getStats();
+  return sessionService.listSessionSummaries();
 }
 
 export function clearSessionById(sessionId: string): boolean {
-  return getSessionRegistry().removeSession(sessionId);
-}
-
-export interface TemporarySessionOptions {
-  chatId: string;
-  prompt: string;
-}
-
-export interface TemporarySessionResult {
-  sessionId: string;
-  session: SessionContext;
+  return sessionService.clearSession(sessionId);
 }
 
 export function createTemporarySession(
   cronJobId: string,
   options: TemporarySessionOptions
 ): TemporarySessionResult {
-  const sessionRegistry = getSessionRegistry();
-  const sessionPart = SessionId.generateSession();
-  const sessionId = `cron:cron:${cronJobId}:${sessionPart}`;
-
-  const session = sessionRegistry.getOrCreate(sessionId, {
-    channel: 'cron',
-    type: 'cron',
-    chatId: options.chatId,
-    session: sessionPart,
-  });
-
-  return { sessionId, session };
+  return sessionService.createTemporarySession(cronJobId, options);
 }
 
 export function removeTemporarySession(sessionId: string): boolean {
-  return getSessionRegistry().removeSession(sessionId);
+  return sessionService.removeTemporarySession(sessionId);
+}
+
+export function shutdownSessionRuntime(): void {
+  sessionService.shutdown();
 }

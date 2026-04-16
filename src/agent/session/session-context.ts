@@ -1,45 +1,32 @@
 import type { AgentEngine } from '../engine.js';
 import type { SessionMemoryManager } from '../memory/session-memory-manager.js';
+import type { MessageRole, StandardMessage } from '@/platform/llm/types.js';
 
-export interface SessionConfig {
-  maxSessionsPerChat: number;
-  sessionTTL: number;
-  autoCleanup: boolean;
-}
-
-export interface SessionMetadata {
-  sessionId: string;
+export interface SessionRecord {
+  id: string;
   channel: string;
   type: string;
   chatId: string;
-  session: string;
+  roleId: string;
   createdAt: Date;
-  lastActiveAt: Date;
+  updatedAt: Date;
   messageCount: number;
 }
 
-export interface SessionContext {
-  metadata: SessionMetadata;
-  agent: AgentEngine;
-  memory: SessionMemoryManager;
-  config: SessionConfig;
+export interface SessionMessageRecord {
+  id: string;
+  sessionId: string;
+  sequence: number;
+  role: MessageRole;
+  content: string;
+  toolCalls?: StandardMessage['toolCalls'];
+  toolCallId?: string;
+  name?: string;
+  createdAt: Date;
 }
 
-export function createSessionMetadata(
-  sessionId: string,
-  channel: string,
-  type: string,
-  chatId: string,
-  session: string
-): SessionMetadata {
-  return {
-    sessionId,
-    channel,
-    type,
-    chatId,
-    session,
-    createdAt: new Date(),
-    lastActiveAt: new Date(),
-    messageCount: 0,
-  };
+export interface SessionContext {
+  session: SessionRecord;
+  agent: AgentEngine;
+  memory: SessionMemoryManager;
 }

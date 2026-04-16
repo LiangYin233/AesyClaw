@@ -1,7 +1,12 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { agentMessageStage } from '@/agent/runtime/agent-message-stage.js';
-import { getSessionForCommandContext, getSessionRegistry, sessionMessageStage, type SessionRegistry } from '@/agent/session/session-runtime.js';
+import {
+  getRoleInfoForCommandContext,
+  sessionMessageStage,
+  shutdownSessionRuntime,
+  switchRoleForCommandContext,
+} from '@/agent/session/session-runtime.js';
 import { ChannelPipeline } from '@/agent/pipeline.js';
 import { subAgentTools } from '@/agent/subagent/subagent-tools.js';
 import type { IChannelPlugin } from '@/channels/channel-plugin.js';
@@ -20,6 +25,7 @@ import { PluginManager } from '@/features/plugins/plugin-manager.js';
 import { roleManager } from '@/features/roles/role-manager.js';
 import { createRoleCommandGroup } from '@/features/roles/role-command-group.js';
 import { cronJobScheduler } from '@/platform/db/cron-scheduler.js';
+import { sessionRepository } from '@/platform/db/repositories/session-repository.js';
 import { sqliteManager } from '@/platform/db/sqlite-manager.js';
 import { logger } from '@/platform/observability/logger.js';
 import { createMultimodalTools } from '@/platform/tools/multimodal-tools.js';
@@ -45,7 +51,6 @@ export interface BootstrapOptions {
 }
 
 let pipeline: ChannelPipeline | null = null;
-let sessionRegistryInstance: SessionRegistry | null = null;
 
 export const pluginManager = new PluginManager(sharedToolRegistry, {
   commandRegistrar: commandRegistry,
@@ -68,7 +73,10 @@ function buildSystemCommands(): CommandDefinition[] {
     }),
     ...sessionCommandGroup,
     ...createRoleCommandGroup({
-      getSessionForCommand: getSessionForCommandContext,
+      getSessionForCommand: (ctx) => ({
+        switchRole: (roleId) => switchRoleForCommandContext(ctx, roleId),
+        getRoleInfo: () => getRoleInfoForCommandContext(ctx),
+      }),
     }),
   ];
 }
@@ -134,8 +142,6 @@ export class Bootstrap {
     }
 
     logger.info({}, '[4/16] Initializing Aesyiu core components...');
-
-    sessionRegistryInstance = getSessionRegistry();
 
     const multimodalTools = createMultimodalTools(() => configManager.config);
     pipeline = new ChannelPipeline(pluginManager);
@@ -479,12 +485,10 @@ export class Bootstrap {
 
   private static shutdownSessionRegistry(): void {
     try {
-      if (sessionRegistryInstance) {
-        sessionRegistryInstance.shutdown();
-      }
-      logger.info({}, '[8/9] SessionRegistry stopped');
+      shutdownSessionRuntime();
+      logger.info({}, '[8/9] Session runtime stopped');
     } catch (error) {
-      logger.error({ error }, 'Error stopping SessionRegistry');
+      logger.error({ error }, 'Error stopping session runtime');
     }
   }
 
@@ -537,6 +541,7 @@ export class Bootstrap {
     const mcpServers = this.mcpManager?.getConnectedServers() || [];
     const plugins = pluginManager?.getLoadedPlugins() || [];
     const roleStats = roleManager.isInitialized() ? { total: roleManager.getAllRoles().length } : { total: 0 };
+    const sessionTotal = sqliteManager.isInitialized() ? sessionRepository.findAll().length : 0;
 
     return {
       initialized: this.initialized,
@@ -548,7 +553,7 @@ export class Bootstrap {
       },
       skills: { total: 0, system: 0, user: 0 },
       roles: roleStats,
-      sessions: { total: 0 },
+      sessions: { total: sessionTotal },
       mcpServers: mcpServers.filter(s => s.connected).length,
       plugins: plugins.length,
       channels: channelManager.getChannelCount(),
