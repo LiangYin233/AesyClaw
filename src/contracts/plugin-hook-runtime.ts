@@ -1,29 +1,34 @@
 import type {
+  BeforeLLMRequestDispatchResult,
+  BeforeToolCallDispatchResult,
+  MessageReceiveDispatchResult,
+  MessageSendDispatchResult,
   HookPayloadMessageReceive,
   HookPayloadMessageSend,
   HookPayloadBeforeLLMRequest,
   HookPayloadToolCall,
   HookPayloadAfterToolCall,
 } from '@/features/plugins/types.js';
+import type { ToolExecutionResult } from '@/platform/tools/types.js';
 
 export interface IPluginHookRuntime {
   dispatchMessageReceive(
     payload: HookPayloadMessageReceive
-  ): Promise<HookPayloadMessageReceive['message'] | null>;
+  ): Promise<MessageReceiveDispatchResult>;
 
   dispatchMessageSend(
     payload: HookPayloadMessageSend
-  ): Promise<HookPayloadMessageSend['message'] | null>;
+  ): Promise<MessageSendDispatchResult>;
 
   dispatchBeforeLLMRequest(
     payload: HookPayloadBeforeLLMRequest
-  ): Promise<void>;
+  ): Promise<BeforeLLMRequestDispatchResult>;
 
   dispatchBeforeToolCall(
     toolCall: HookPayloadToolCall
-  ): Promise<{ success: boolean; content: string; error?: string } | null>;
+  ): Promise<BeforeToolCallDispatchResult>;
 
   dispatchAfterToolCall(
     payload: HookPayloadAfterToolCall
-  ): Promise<HookPayloadAfterToolCall['result']>;
+  ): Promise<ToolExecutionResult>;
 }

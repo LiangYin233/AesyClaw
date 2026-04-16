@@ -2,6 +2,7 @@ import type { IOutboundMessage, IUnifiedMessage } from '@/agent/types.js';
 import type { IOutboundPayload } from '@/channels/channel-plugin.js';
 import type { CommandDefinition } from '@/contracts/commands.js';
 import type { StandardMessage } from '@/platform/llm/types.js';
+import type { ToolExecutionResult } from '@/platform/tools/types.js';
 import type { ToolRegistry } from '@/platform/tools/registry.js';
 
 export interface PluginToolExecuteContext {
@@ -91,22 +92,59 @@ export interface HookPayloadMessageSend {
   message: IOutboundMessage & { chatId: string };
 }
 
+export interface HookBlockResult {
+  action: 'block';
+  reason?: string;
+}
+
+export interface HookContinueResult<T> {
+  action: 'continue';
+  value: T;
+}
+
+export interface HookShortCircuitResult {
+  action: 'shortCircuit';
+  result: ToolExecutionResult;
+}
+
+export type HookMessageReceiveResult = HookContinueResult<IUnifiedMessage> | HookBlockResult;
+export type HookMessageSendResult = HookContinueResult<IOutboundMessage & { chatId: string }> | HookBlockResult;
+export type HookBeforeLLMRequestResult = { action: 'continue' } | HookBlockResult;
+export type HookBeforeToolCallResult = { action: 'continue' } | HookShortCircuitResult;
+export type HookAfterToolCallResult = HookContinueResult<ToolExecutionResult>;
+
+export type MessageReceiveDispatchResult =
+  | { blocked: true; reason?: string }
+  | { blocked: false; message: HookPayloadMessageReceive['message'] };
+
+export type MessageSendDispatchResult =
+  | { blocked: true; reason?: string }
+  | { blocked: false; message: HookPayloadMessageSend['message'] };
+
+export type BeforeLLMRequestDispatchResult =
+  | { blocked: true; reason?: string }
+  | { blocked: false };
+
+export type BeforeToolCallDispatchResult =
+  | { shortCircuited: true; result: ToolExecutionResult }
+  | { shortCircuited: false };
+
 export interface PluginHooks {
   onMessageReceive?: (
     _payload: HookPayloadMessageReceive
-  ) => Promise<HookPayloadMessageReceive['message'] | null>;
+  ) => Promise<HookMessageReceiveResult>;
   beforeLLMRequest?: (
     _payload: HookPayloadBeforeLLMRequest
-  ) => Promise<void>;
+  ) => Promise<HookBeforeLLMRequestResult>;
   beforeToolCall?: (
     _toolCall: HookPayloadToolCall
-  ) => Promise<{ success: boolean; content: string; error?: string } | null>;
+  ) => Promise<HookBeforeToolCallResult>;
   afterToolCall?: (
     _payload: HookPayloadAfterToolCall
-  ) => Promise<HookPayloadAfterToolCall['result']>;
+  ) => Promise<HookAfterToolCallResult>;
   onMessageSend?: (
     _payload: HookPayloadMessageSend
-  ) => Promise<HookPayloadMessageSend['message'] | null>;
+  ) => Promise<HookMessageSendResult>;
 }
 
 export interface IPlugin {
@@ -128,21 +166,3 @@ export interface PluginInfo {
   hooks: string[];
   commands?: number;
 }
-
-export type HookName = keyof PluginHooks;
-
-export type HookPayloadMap = {
-  onMessageReceive: HookPayloadMessageReceive;
-  beforeLLMRequest: HookPayloadBeforeLLMRequest;
-  beforeToolCall: HookPayloadToolCall;
-  afterToolCall: HookPayloadAfterToolCall;
-  onMessageSend: HookPayloadMessageSend;
-};
-
-export type HookResultMap = {
-  onMessageReceive: HookPayloadMessageReceive['message'] | null;
-  beforeLLMRequest: void;
-  beforeToolCall: { success: boolean; content: string; error?: string } | null;
-  afterToolCall: HookPayloadAfterToolCall['result'];
-  onMessageSend: HookPayloadMessageSend['message'] | null;
-};

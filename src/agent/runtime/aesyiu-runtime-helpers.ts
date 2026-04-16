@@ -10,6 +10,8 @@ import {
 import { getHookRuntime } from '@/bootstrap.js';
 import type { ProvidersConfig } from '@/features/config/schema.js';
 import type { HookPayloadLLMSkill, HookPayloadLLMTool } from '@/features/plugins/types.js';
+import { roleManager } from '@/features/roles/role-manager.js';
+import { SUBAGENT_TOOL_NAME_RUN } from '@/agent/subagent/types.js';
 import { LLMProviderType, MessageRole, type LLMConfig, type StandardMessage } from '@/platform/llm/types.js';
 import type { ITool, ToolExecuteContext, ToolExecutionResult } from '@/platform/tools/types.js';
 
@@ -18,6 +20,8 @@ export interface AesyiuRunStats {
   toolCalls: number;
   error?: string;
 }
+
+type RolePromptMeta = NonNullable<AesyiuMessage['_meta']> & { rolePrompt?: boolean };
 
 export function parseToolArguments(argumentsText: string): Record<string, unknown> {
   try {
@@ -71,6 +75,38 @@ export function getFinalAssistantText(messages: readonly AesyiuMessage[]): strin
   }
 
   return '';
+}
+
+export function createRolesPromptMessage(tools: readonly ITool[]): AesyiuMessage | null {
+  if (!tools.some(tool => tool.name === SUBAGENT_TOOL_NAME_RUN)) {
+    return null;
+  }
+
+  const roles = roleManager.getRolesList();
+  if (roles.length === 0) {
+    return null;
+  }
+
+  const listing = roles
+    .map(role => `- ${role.id}: ${role.name}${role.description ? ` - ${role.description}` : ''}`)
+    .join('\n');
+
+  return {
+    role: 'system',
+    content: [
+      'Available roles:',
+      listing,
+      'If a task matches one of these roles, call `runSubAgent` with one of the listed role IDs only.',
+    ].join('\n'),
+    _meta: {
+      isPinned: true,
+      rolePrompt: true,
+    } as RolePromptMeta,
+  };
+}
+
+export function isRolePromptMessage(message: AesyiuMessage): boolean {
+  return Boolean((message._meta as RolePromptMeta | undefined)?.rolePrompt);
 }
 
 export function resolveModelDefinition(
@@ -131,11 +167,15 @@ export function createHookAwareProvider(
     stats.steps += 1;
 
     try {
-      await getHookRuntime().dispatchBeforeLLMRequest({
+      const beforeLLMResult = await getHookRuntime().dispatchBeforeLLMRequest({
         messages: messages.map(toStandardMessage),
         tools: hookTools,
         skills: hookSkills,
       });
+
+      if (beforeLLMResult.blocked) {
+        throw new Error(beforeLLMResult.reason || 'LLM request blocked by plugin hook');
+      }
     } catch (error) {
       stats.error = error instanceof Error ? error.message : String(error);
       throw error;
@@ -163,7 +203,7 @@ export function createHookAwareRunTools(
   return tools.map(tool => ({
     name: tool.name,
     description: tool.description,
-    parameters: tool.parametersSchema,
+    parameters: tool.getDefinition().parameters,
     execute: async (args, ctx) => {
       const syntheticToolCallId = randomUUID();
       const parsedArgs = args && typeof args === 'object' ? args as Record<string, unknown> : {};
@@ -177,13 +217,17 @@ export function createHookAwareRunTools(
 
       stats.toolCalls += 1;
 
-      let toolResult = await getHookRuntime().dispatchBeforeToolCall({
+      const beforeToolResult = await getHookRuntime().dispatchBeforeToolCall({
         id: syntheticToolCallId,
         name: tool.name,
         arguments: parsedArgs,
       });
 
-      if (!toolResult) {
+      let toolResult: ToolExecutionResult;
+
+      if (beforeToolResult.shortCircuited) {
+        toolResult = beforeToolResult.result;
+      } else {
         toolResult = await tool.execute(parsedArgs, toolContext);
       }
 

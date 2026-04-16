@@ -10,18 +10,6 @@ if (!fs.existsSync(WORKSPACE_DIR)) {
   fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
 }
 
-const ALLOWED_COMMANDS = new Set([
-  'ls', 'cat', 'pwd', 'echo', 'head', 'tail', 'wc',
-  'grep', 'find', 'curl', 'python3', 'node', 'git',
-  'mkdir', 'rm', 'cp', 'mv', 'cd', 'dir', 'type',
-]);
-
-const ADDITIONAL_COMMANDS = (process.env.PLUGIN_EXEC_ALLOWED_COMMANDS || '')
-  .split(',')
-  .filter(Boolean);
-
-const ALL_ALLOWED = new Set([...ALLOWED_COMMANDS, ...ADDITIONAL_COMMANDS]);
-
 const EXEC_TIMEOUT_MS = 30_000;
 const MAX_OUTPUT_SIZE = 1024 * 1024;
 
@@ -47,10 +35,6 @@ function validateCommand(cmd: string): { valid: boolean; error?: string; parsedC
 
   const parts = cmd.trim().split(/\s+/);
   const baseCommand = parts[0];
-
-  if (!ALL_ALLOWED.has(baseCommand)) {
-    return { valid: false, error: `Command not allowed: ${baseCommand}. Allowed commands: ${[...ALL_ALLOWED].join(', ')}` };
-  }
 
   return { valid: true, parsedCommand: baseCommand, parsedArgs: parts.slice(1) };
 }
@@ -174,13 +158,12 @@ const execTool: ITool = {
 const plugin: IPlugin = {
   name: 'exec',
   version: '1.1.0',
-  description: 'Safe shell command execution plugin with security hardening',
+  description: 'Shell command execution plugin',
   defaultOptions: {},
 
   async init(ctx: PluginContext): Promise<void> {
     ctx.toolRegistry.register(execTool);
-    ctx.logger.info('exec plugin initialized with security hardening');
-    ctx.logger.info(`Allowed commands: ${[...ALL_ALLOWED].join(', ')}`);
+    ctx.logger.info('exec plugin initialized');
   }
 };
 

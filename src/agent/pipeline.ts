@@ -43,9 +43,9 @@ export class ChannelPipeline {
       },
     });
 
-    if (!hookResult) {
+    if (hookResult.blocked) {
       logger.info(
-        { traceId, chatId: message.chatId },
+        { traceId, chatId: message.chatId, reason: hookResult.reason },
         'Message blocked by plugin, skipping further processing'
       );
       return {
@@ -59,7 +59,7 @@ export class ChannelPipeline {
 
     const ctx: IChannelContext = {
       traceId,
-      inbound: hookResult as typeof message,
+      inbound: hookResult.message,
       outbound: {
         text: '',
         mediaFiles: [],
@@ -100,11 +100,19 @@ export class ChannelPipeline {
         },
       });
 
-      if (processedOutbound) {
-        ctx.outbound.text = processedOutbound.text;
-        ctx.outbound.mediaFiles = processedOutbound.mediaFiles;
-        ctx.outbound.error = processedOutbound.error;
+      if (processedOutbound.blocked) {
+        logger.info(
+          { traceId, chatId: ctx.inbound.chatId, reason: processedOutbound.reason },
+          'Outbound message blocked by plugin'
+        );
+        ctx.outbound.text = '';
+        ctx.outbound.mediaFiles = [];
+        return ctx;
       }
+
+      ctx.outbound.text = processedOutbound.message.text;
+      ctx.outbound.mediaFiles = processedOutbound.message.mediaFiles;
+      ctx.outbound.error = processedOutbound.message.error;
 
       if (sendFn && ctx.outbound?.text) {
         await sendFn({
