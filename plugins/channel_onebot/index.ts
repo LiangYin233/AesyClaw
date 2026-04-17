@@ -2,7 +2,6 @@ import WebSocket from 'ws';
 import { z } from 'zod';
 import type {
   IChannelPlugin,
-  IChannelWithSend,
   ChannelPluginContext,
   IOutboundPayload,
   ChannelPluginLogger,
@@ -117,7 +116,7 @@ const state: PluginState = {
   connected: false,
 };
 
-export const onebotPlugin: IChannelPlugin & IChannelWithSend = {
+export const onebotPlugin: IChannelPlugin = {
   name: 'onebot',
   version: '1.0.0',
   description: 'OneBot Channel Plugin - 支持 OneBot v11/v12 协议',
@@ -168,10 +167,6 @@ export const onebotPlugin: IChannelPlugin & IChannelWithSend = {
     state.connected = false;
     
     state.logger?.info('OneBot plugin destroyed', {});
-  },
-
-  getSendFn(): (payload: IOutboundPayload) => Promise<void> {
-    return createSendFn('0', 'private');
   },
 };
 

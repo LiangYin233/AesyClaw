@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as path from 'path';
 import { agentMessageStage } from '@/agent/runtime/agent-message-stage.js';
 import {
@@ -252,7 +253,12 @@ async function loadChannelPluginEntry(
 ): Promise<void> {
   const pluginName = discovered.dirName;
   try {
-    const entryPath = path.join(discovered.dir, 'index.ts');
+    const entryPath = resolveChannelEntry(discovered);
+    if (!entryPath) {
+      logger.warn({ pluginName }, 'Channel plugin entry point not found');
+      return;
+    }
+
     const { default: channelPlugin } = await import(normalizeImportPath(entryPath)) as {
       default: IChannelPlugin;
     };
@@ -267,6 +273,23 @@ async function loadChannelPluginEntry(
     const errorStack = error instanceof Error ? error.stack : undefined;
     logger.error({ error: errorMessage, stack: errorStack, pluginName }, 'Failed to load channel plugin');
   }
+}
+
+function resolveChannelEntry(discovered: DiscoveredPlugin): string | undefined {
+  const mainFile = discovered.packageJson.main || 'dist/index.js';
+  const candidates = [
+    path.join(discovered.dir, mainFile),
+    path.join(discovered.dir, 'index.ts'),
+    path.join(discovered.dir, 'src/index.ts'),
+  ];
+
+  return candidates.find(candidate => {
+    try {
+      return fs.existsSync(candidate);
+    } catch {
+      return false;
+    }
+  });
 }
 
 function registerConfigChangeListener(opts: { mcp: boolean; channels: boolean }): void {

@@ -1,6 +1,5 @@
 export type {
   IChannelPlugin,
-  IChannelWithSend,
   ChannelPluginContext,
   IOutboundPayload,
   ChannelPluginLogger,

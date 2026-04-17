@@ -6,6 +6,7 @@ import type {
   PluginRuntimeConfig,
 } from '@/contracts/commands.js';
 import { ToolRegistry } from '@/platform/tools/registry.js';
+import type { ITool } from '@/platform/tools/types.js';
 import { logger, createScopedLogger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
 import { normalizeImportPath } from '@/platform/utils/import-path.js';
@@ -37,6 +38,7 @@ export class PluginManager {
   private toolRegistry: ToolRegistry;
   private deps: PluginManagerDependencies;
   private loadedPlugins: Map<string, IPlugin> = new Map();
+  private pluginToolNames: Map<string, Set<string>> = new Map();
   private initialized: boolean = false;
   private pluginsDir: string;
   private discovered: Map<string, DiscoveredPlugin> = new Map();
@@ -93,8 +95,59 @@ export class PluginManager {
     const mainFile = info.packageJson.main || 'dist/index.js';
     return [
       path.join(info.dir, mainFile),
+      path.join(info.dir, 'index.ts'),
       path.join(info.dir, 'src/index.ts'),
     ];
+  }
+
+  private trackPluginTool(pluginName: string, toolName: string): void {
+    const toolNames = this.pluginToolNames.get(pluginName) ?? new Set<string>();
+    toolNames.add(toolName);
+    this.pluginToolNames.set(pluginName, toolNames);
+  }
+
+  private untrackPluginTool(pluginName: string, toolName: string): void {
+    const toolNames = this.pluginToolNames.get(pluginName);
+    if (!toolNames) return;
+
+    toolNames.delete(toolName);
+    if (toolNames.size === 0) {
+      this.pluginToolNames.delete(pluginName);
+    }
+  }
+
+  private unregisterPluginTools(pluginName: string): void {
+    const toolNames = this.pluginToolNames.get(pluginName);
+    if (!toolNames) return;
+
+    for (const toolName of toolNames) {
+      this.toolRegistry.unregister(toolName);
+    }
+
+    this.pluginToolNames.delete(pluginName);
+  }
+
+  private createScopedToolRegistry(pluginName: string): ToolRegistry {
+    return new Proxy(this.toolRegistry, {
+      get: (target, prop, receiver) => {
+        if (prop === 'register') {
+          return (tool: ITool): void => {
+            this.trackPluginTool(pluginName, tool.name);
+            target.register(tool);
+          };
+        }
+
+        if (prop === 'unregister') {
+          return (toolName: string): boolean => {
+            this.untrackPluginTool(pluginName, toolName);
+            return target.unregister(toolName);
+          };
+        }
+
+        const value = Reflect.get(target, prop, receiver);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    }) as ToolRegistry;
   }
 
   private async loadPluginEntry(
@@ -147,7 +200,7 @@ export class PluginManager {
     const context: PluginContext = {
       logger: this.createPluginLogger(plugin.name),
       config: mergedOptions,
-      toolRegistry: this.toolRegistry,
+      toolRegistry: this.createScopedToolRegistry(plugin.name),
     };
 
     try {
@@ -309,6 +362,8 @@ export class PluginManager {
         this.deps.commandRegistrar.unregisterFromPlugin(pluginName);
       }
 
+      this.unregisterPluginTools(pluginName);
+
       this.loadedPlugins.delete(pluginName);
 
       logger.info({ pluginName }, 'Plugin unloaded successfully');
@@ -435,7 +490,12 @@ export class PluginManager {
 
     await Promise.allSettled(destroyPromises);
 
+    for (const name of this.loadedPlugins.keys()) {
+      this.unregisterPluginTools(name);
+    }
+
     this.loadedPlugins.clear();
+    this.pluginToolNames.clear();
     this.discovered.clear();
     this.initialized = false;
   }

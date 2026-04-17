@@ -36,7 +36,7 @@ export class McpToolAdapter implements ITool {
     this.parametersSchema = this.parseInputSchema(this.toolParameters);
   }
 
-  private normalizeToolParameters(parameters: Record<string, unknown>): ToolParameters {
+  private normalizeToolParameters(parameters: unknown): ToolParameters {
     if (!parameters || typeof parameters !== 'object') {
       return {
         type: 'object',
