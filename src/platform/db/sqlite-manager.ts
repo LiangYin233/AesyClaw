@@ -4,18 +4,8 @@ import { logger } from '../observability/logger.js';
 import { toErrorMessage } from '../utils/errors.js';
 
 class SQLiteManager {
-  private static instance: SQLiteManager;
   private db: Database.Database | null = null;
   private initialized: boolean = false;
-
-  private constructor() {}
-
-  static getInstance(): SQLiteManager {
-    if (!SQLiteManager.instance) {
-      SQLiteManager.instance = new SQLiteManager();
-    }
-    return SQLiteManager.instance;
-  }
 
   initialize(): void {
     if (this.initialized) {
@@ -134,9 +124,13 @@ class SQLiteManager {
     }
   }
 
+  [Symbol.dispose](): void {
+    this.close();
+  }
+
   transaction<T>(fn: () => T): T {
     return this.getDatabase().transaction(fn)();
   }
 }
 
-export const sqliteManager = SQLiteManager.getInstance();
+export const sqliteManager = new SQLiteManager();

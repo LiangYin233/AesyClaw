@@ -15,29 +15,13 @@ export interface McpServerConnectionConfig {
 }
 
 export class McpClientManager {
-  private static instance: McpClientManager | undefined;
-  
   private managers: Map<string, MCPManager> = new Map();
   private serverToolNames: Map<string, string[]> = new Map();
   private toolRegistry: ToolRegistry;
   private serverInfos: Map<string, MCPServerInfo> = new Map();
 
-  private constructor(toolRegistry: ToolRegistry) {
+  constructor(toolRegistry: ToolRegistry) {
     this.toolRegistry = toolRegistry;
-  }
-
-  static getInstance(toolRegistry: ToolRegistry): McpClientManager {
-    if (!McpClientManager.instance) {
-      McpClientManager.instance = new McpClientManager(toolRegistry);
-    }
-    return McpClientManager.instance;
-  }
-
-  static async resetInstance(): Promise<void> {
-    if (McpClientManager.instance) {
-      await McpClientManager.instance.shutdown();
-      McpClientManager.instance = undefined;
-    }
   }
 
   async connectServer(config: McpServerConnectionConfig): Promise<void> {
@@ -153,5 +137,9 @@ export class McpClientManager {
     this.managers.clear();
     this.serverToolNames.clear();
     this.serverInfos.clear();
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.shutdown();
   }
 }

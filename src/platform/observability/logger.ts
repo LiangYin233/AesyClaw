@@ -16,6 +16,27 @@ export const logger = pino({
     : undefined,
 });
 
+export interface ScopedLogger {
+  info(msg: string, data?: Record<string, unknown>): void;
+  warn(msg: string, data?: Record<string, unknown>): void;
+  error(msg: string, data?: Record<string, unknown>): void;
+  debug(msg: string, data?: Record<string, unknown>): void;
+}
+
+const LOG_LEVELS = ['info', 'warn', 'error', 'debug'] as const;
+
+export function createScopedLogger(scope: string, scopeKey: string = 'scope'): ScopedLogger {
+  const make = (level: (typeof LOG_LEVELS)[number]) =>
+    (msg: string, data?: Record<string, unknown>) =>
+      logger[level]({ [scopeKey]: scope, ...data }, `[${scope}] ${msg}`);
+  return {
+    info: make('info'),
+    warn: make('warn'),
+    error: make('error'),
+    debug: make('debug'),
+  };
+}
+
 process.on('uncaughtException', (err) => {
   logger.fatal({ err }, 'Uncaught Exception detected');
   process.exit(1);

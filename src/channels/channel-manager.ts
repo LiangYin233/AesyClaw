@@ -1,7 +1,7 @@
-import type { IChannelPlugin, IChannelWithSend, IOutboundPayload, ChannelPluginLogger, ChannelPluginContext } from './channel-plugin.js';
+import type { IChannelPlugin, IChannelWithSend, IOutboundPayload, ChannelPluginContext } from './channel-plugin.js';
 import type { ChannelPipeline } from '@/agent/pipeline.js';
 import type { ConfigDefaultsScope } from '@/contracts/commands.js';
-import { logger } from '@/platform/observability/logger.js';
+import { logger, createScopedLogger } from '@/platform/observability/logger.js';
 import { mergeDefaultOptions } from '@/platform/utils/merge-default-options.js';
 
 export interface ChannelConfigDefaultsStore {
@@ -11,18 +11,11 @@ export interface ChannelConfigDefaultsStore {
 export class ChannelPluginManager {
   private channels: Map<string, IChannelPlugin> = new Map();
   private sendFunctions: Map<string, (_payload: IOutboundPayload) => Promise<void>> = new Map();
-  private pluginLogger: ChannelPluginLogger;
   private pipeline: ChannelPipeline | null = null;
   private configStore: ChannelConfigDefaultsStore;
 
   constructor(configStore: ChannelConfigDefaultsStore) {
     this.configStore = configStore;
-    this.pluginLogger = {
-      info: (msg, data) => logger.info(data || {}, msg),
-      warn: (msg, data) => logger.warn(data || {}, msg),
-      error: (msg, data) => logger.error(data || {}, msg),
-      debug: (msg, data) => logger.debug(data || {}, msg),
-    };
   }
 
   setPipeline(pipeline: ChannelPipeline): void {
@@ -50,10 +43,10 @@ export class ChannelPluginManager {
     }
   }
 
-  private createChannelContext(config: Record<string, unknown>): ChannelPluginContext {
+  private createChannelContext(name: string, config: Record<string, unknown>): ChannelPluginContext {
     return {
       config,
-      logger: this.pluginLogger,
+      logger: createScopedLogger(name, 'channel'),
       pipeline: this.getPipeline(),
     };
   }
@@ -88,7 +81,7 @@ export class ChannelPluginManager {
     logger.info({ channelName: plugin.name, version: plugin.version }, 'Registering channel plugin');
 
     const mergedConfig = this.mergeChannelOptions(plugin, config);
-    const ctx = this.createChannelContext(mergedConfig);
+    const ctx = this.createChannelContext(plugin.name, mergedConfig);
 
     try {
       await plugin.init(ctx);
@@ -150,5 +143,9 @@ export class ChannelPluginManager {
     await Promise.all(unregisterPromises);
 
     logger.info({}, 'All channel plugins shut down');
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.shutdown();
   }
 }

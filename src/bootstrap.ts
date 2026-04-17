@@ -48,6 +48,11 @@ export interface BootstrapOptions {
 }
 
 let pipeline: ChannelPipeline | null = null;
+let mcpManager: McpClientManager | null = null;
+let initialized = false;
+let configChangeUnsubscribe: (() => void) | null = null;
+let mcpHotReloadEnabled = false;
+let channelHotReloadEnabled = false;
 
 function canonicalStringify(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value);
@@ -96,323 +101,286 @@ function registerSystemCommands(): void {
   logger.info({ count: systemCommands.length }, '系统命令已注册');
 }
 
-export class Bootstrap {
-  private static initialized: boolean = false;
-  private static mcpManager: McpClientManager | null = null;
-  private static configChangeUnsubscribe: (() => void) | null = null;
-  private static mcpHotReloadEnabled: boolean = false;
-  private static channelHotReloadEnabled: boolean = false;
-
-  static async initialize(options: BootstrapOptions = {}): Promise<void> {
-    if (this.initialized) {
-      logger.warn({}, 'Bootstrap already initialized, skipping...');
-      return;
-    }
-
-    try {
-      logger.info({}, 'AesyClaw starting...');
-      await this.runInitStages(options);
-      this.initialized = true;
-      logger.info({}, 'AesyClaw started successfully');
-    } catch (error) {
-      const errorMessage = toErrorMessage(error);
-      const errorStack = error instanceof Error ? error.stack : undefined;
-      logger.error({ error: errorMessage, stack: errorStack }, 'Bootstrap failed');
-      throw error;
-    }
+export async function bootstrap(options: BootstrapOptions = {}): Promise<void> {
+  if (initialized) {
+    logger.warn({}, 'Bootstrap already initialized, skipping...');
+    return;
   }
 
-  private static async runInitStages(options: BootstrapOptions): Promise<void> {
-    let multimodalTools: ReturnType<typeof createMultimodalTools> | null = null;
-
-    const stages: Array<{ name: string; skip?: boolean; run: () => void | Promise<void> }> = [
-      { name: 'PathResolver', run: () => pathResolver.initialize() },
-      { name: 'Config', skip: options.skipConfig, run: () => configManager.initialize() },
-      { name: 'SQLite', skip: options.skipDb, run: () => { sqliteManager.initialize(); } },
-      {
-        name: 'Aesyiu core',
-        run: () => {
-          multimodalTools = createMultimodalTools(() => configManager.config);
-          pipeline = new ChannelPipeline(pluginManager);
-        },
-      },
-      {
-        name: 'SkillManager',
-        skip: options.skipSkills,
-        run: async () => {
-          const { skillManager } = await import('@/features/skills/skill-manager.js');
-          await skillManager.initialize();
-          logger.info(skillManager.getStats(), 'Skills system loaded');
-        },
-      },
-      {
-        name: 'RoleManager',
-        skip: options.skipRoles,
-        run: async () => {
-          await roleManager.initialize();
-          logger.info({ roleCount: roleManager.getAllRoles().length }, 'Role system loaded');
-        },
-      },
-      {
-        name: 'SubAgent tools',
-        skip: options.skipSubAgents,
-        run: () => {
-          for (const tool of subAgentTools) sharedToolRegistry.register(tool);
-          logger.info({ toolCount: subAgentTools.length }, 'SubAgent tools registered');
-        },
-      },
-      {
-        name: 'Multimodal tools',
-        run: () => {
-          if (!multimodalTools) return;
-          sharedToolRegistry.register(multimodalTools.speechToTextTool);
-          sharedToolRegistry.register(multimodalTools.imageUnderstandingTool);
-        },
-      },
-      {
-        name: 'Pipeline stages',
-        run: () => {
-          pipeline?.use(configMessageStage);
-          registerSystemCommands();
-          pipeline?.use(commandMiddleware);
-          pipeline?.use(sessionMessageStage);
-          pipeline?.use(agentMessageStage);
-        },
-      },
-      {
-        name: 'Plugins',
-        skip: options.skipPlugins,
-        run: async () => {
-          await pluginManager.initialize();
-          await pluginManager.scanAndLoad(configManager.config?.plugins || []);
-          logger.info({ loadedPlugins: pluginManager.getPluginCount() }, 'Plugins system loaded');
-        },
-      },
-      {
-        name: 'Cron',
-        skip: options.skipCron,
-        run: async () => {
-          await initializePromptExecutor();
-          cronService.start();
-          logger.info({ schedulerRunning: cronService.isRunning() }, 'Cron system initialized');
-        },
-      },
-      {
-        name: 'MCP servers',
-        skip: options.skipMCP,
-        run: async () => {
-          this.mcpManager = McpClientManager.getInstance(sharedToolRegistry);
-          const servers = configManager.config?.mcp?.servers;
-          if (servers) await this.mcpManager.connectConfiguredServers(servers);
-        },
-      },
-      {
-        name: 'Channels',
-        skip: options.skipChannels,
-        run: () => this.loadChannelPlugins(configManager.config?.channels || {}),
-      },
-      {
-        name: 'Finalize',
-        run: async () => {
-          await configManager.syncAllDefaultConfigs();
-          if (!options.skipConfig) {
-            this.registerConfigChangeListener({
-              mcp: !options.skipMCP,
-              channels: !options.skipChannels,
-            });
-          }
-        },
-      },
-    ];
-
-    const active = stages.filter(s => !s.skip);
-    for (const [i, stage] of active.entries()) {
-      logger.info({}, `[${i + 1}/${active.length}] ${stage.name}...`);
-      await stage.run();
-    }
-  }
-
-  private static async loadChannelPlugins(channels: Record<string, unknown>): Promise<void> {
-    if (!pipeline) {
-      logger.error({}, 'Pipeline not initialized, cannot load channel plugins');
-      return;
-    }
-
-    channelManager.setPipeline(pipeline);
-
-    const pluginsDir = path.join(process.cwd(), 'plugins');
-    for (const discovered of discoverPluginsByPrefix(pluginsDir, 'channel_')) {
-      await this.loadChannelPluginEntry(discovered, channels);
-    }
-
-    logger.info({ loadedChannels: channelManager.getChannelCount() }, 'Channel system initialized');
-  }
-
-  private static async loadChannelPluginEntry(
-    discovered: DiscoveredPlugin,
-    channels: Record<string, unknown>
-  ): Promise<void> {
-    const pluginName = discovered.dirName;
-    try {
-      const entryPath = path.join(discovered.dir, 'index.ts');
-      const { default: channelPlugin } = await import(normalizeImportPath(entryPath)) as {
-        default: IChannelPlugin;
-      };
-
-      assertPackageNameMatchesExportedName(discovered.packageJson, channelPlugin.name, 'Channel plugin');
-
-      const channelConfig = (channels[channelPlugin.name] as Record<string, unknown> | undefined) || {};
-      await channelManager.registerChannel(channelPlugin, channelConfig);
-      logger.info({ channelName: channelPlugin.name }, `${channelPlugin.name} channel plugin loaded`);
-    } catch (error) {
-      const errorMessage = toErrorMessage(error);
-      const errorStack = error instanceof Error ? error.stack : undefined;
-      logger.error({ error: errorMessage, stack: errorStack, pluginName }, 'Failed to load channel plugin');
-    }
-  }
-
-  private static registerConfigChangeListener(options: { mcp: boolean; channels: boolean }): void {
-    if (this.configChangeUnsubscribe) {
-      this.configChangeUnsubscribe();
-      this.configChangeUnsubscribe = null;
-    }
-
-    this.mcpHotReloadEnabled = options.mcp;
-    this.channelHotReloadEnabled = options.channels;
-
-    this.configChangeUnsubscribe = configManager.onConfigChange(async (nextConfig, previousConfig) => {
-      const mcpChanged = this.hasSerializedConfigChanged(
-        previousConfig.mcp?.servers || [],
-        nextConfig.mcp?.servers || []
-      );
-      const channelsChanged = this.hasSerializedConfigChanged(
-        previousConfig.channels || {},
-        nextConfig.channels || {}
-      );
-
-      await this.handleConfigHotReload(nextConfig, mcpChanged, channelsChanged);
-    });
-  }
-
-  private static async handleConfigHotReload(
-    nextConfig: typeof configManager.config,
-    mcpChanged: boolean,
-    channelsChanged: boolean
-  ): Promise<void> {
-    if (mcpChanged) {
-      await this.reloadMcpServers(nextConfig);
-    }
-
-    if (channelsChanged) {
-      await this.reloadChannelPlugins(nextConfig);
-    }
-  }
-
-  private static async reloadMcpServers(nextConfig: typeof configManager.config): Promise<void> {
-    if (!this.mcpHotReloadEnabled || !this.mcpManager) {
-      return;
-    }
-
-    logger.info({}, 'MCP config changed, reconnecting MCP servers');
-    await this.mcpManager.shutdown();
-    await this.mcpManager.connectConfiguredServers(nextConfig.mcp?.servers || []);
-  }
-
-  private static async reloadChannelPlugins(nextConfig: typeof configManager.config): Promise<void> {
-    if (!this.channelHotReloadEnabled) {
-      return;
-    }
-
-    logger.info({}, 'Channel config changed, reloading channel plugins');
-    await channelManager.shutdown();
-    await this.loadChannelPlugins(nextConfig.channels || {});
-
-    const previousHotReloadState = this.channelHotReloadEnabled;
-    this.channelHotReloadEnabled = false;
-    try {
-      await configManager.syncAllDefaultConfigs();
-    } finally {
-      this.channelHotReloadEnabled = previousHotReloadState;
-    }
-  }
-
-  private static hasSerializedConfigChanged(previousValue: unknown, nextValue: unknown): boolean {
-    return canonicalStringify(previousValue) !== canonicalStringify(nextValue);
-  }
-
-  static async shutdown(): Promise<void> {
-    logger.info({}, 'Shutting down AesyClaw...');
-
-    if (this.configChangeUnsubscribe) {
-      this.configChangeUnsubscribe();
-      this.configChangeUnsubscribe = null;
-    }
-    this.mcpHotReloadEnabled = false;
-    this.channelHotReloadEnabled = false;
-
-    const steps: Array<[string, () => void | Promise<void>]> = [
-      ['Channel Manager', () => channelManager.shutdown()],
-      ['Cron scheduler', () => cronService.stop()],
-      ['MCP Manager', async () => { if (this.mcpManager) await this.mcpManager.shutdown(); }],
-      ['Plugin Manager', () => pluginManager.shutdown()],
-      ['SQLiteManager', () => sqliteManager.close()],
-      ['SkillManager', async () => {
-        const { skillManager } = await import('@/features/skills/skill-manager.js');
-        await skillManager.shutdown();
-      }],
-      ['RoleManager', () => roleManager.shutdown()],
-      ['ConfigManager', () => configManager.destroy()],
-    ];
-
-    for (const [i, [label, fn]] of steps.entries()) {
-      try {
-        await fn();
-        logger.info({}, `[${i + 1}/${steps.length}] ${label} stopped`);
-      } catch (error) {
-        logger.error({ error }, `Error stopping ${label}`);
-      }
-    }
-
-    this.mcpManager = null;
-    this.initialized = false;
-
-    logger.info({}, 'AesyClaw shutdown completed');
-  }
-
-  static isInitialized(): boolean {
-    return this.initialized;
-  }
-
-  static async restart(options: BootstrapOptions = {}): Promise<void> {
-    await this.shutdown();
-    await this.initialize(options);
-  }
-
-  static getStatus() {
-    const mcpServers = this.mcpManager?.getConnectedServers() || [];
-    return {
-      initialized: this.initialized,
-      pathResolver: pathResolver.isInitialized(),
-      configManager: configManager.isInitialized(),
-      sqliteManager: sqliteManager.isInitialized(),
-      toolRegistry: { totalTools: sharedToolRegistry.getStats().totalTools },
-      roles: { total: roleManager.isInitialized() ? roleManager.getAllRoles().length : 0 },
-      sessions: { total: sqliteManager.isInitialized() ? sessionRepository.findAll().length : 0 },
-      mcpServers: mcpServers.filter(s => s.connected).length,
-      plugins: pluginManager.getLoadedPlugins().length,
-      channels: channelManager.getChannelCount(),
-      cron: {
-        running: cronService.isRunning(),
-        scheduledTasks: cronService.getScheduledTaskCount(),
-      },
-    };
+  try {
+    logger.info({}, 'AesyClaw starting...');
+    await runInitStages(options);
+    initialized = true;
+    logger.info({}, 'AesyClaw started successfully');
+  } catch (error) {
+    const errorMessage = toErrorMessage(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    logger.error({ error: errorMessage, stack: errorStack }, 'Bootstrap failed');
+    throw error;
   }
 }
 
-export async function bootstrap(options?: BootstrapOptions): Promise<void> {
-  return Bootstrap.initialize(options);
+async function runInitStages(options: BootstrapOptions): Promise<void> {
+  let multimodalTools: ReturnType<typeof createMultimodalTools> | null = null;
+
+  const stages: Array<{ name: string; skip?: boolean; run: () => void | Promise<void> }> = [
+    { name: 'PathResolver', run: () => pathResolver.initialize() },
+    { name: 'Config', skip: options.skipConfig, run: () => configManager.initialize() },
+    { name: 'SQLite', skip: options.skipDb, run: () => { sqliteManager.initialize(); } },
+    {
+      name: 'Aesyiu core',
+      run: () => {
+        multimodalTools = createMultimodalTools(() => configManager.config);
+        pipeline = new ChannelPipeline(pluginManager);
+      },
+    },
+    {
+      name: 'SkillManager',
+      skip: options.skipSkills,
+      run: async () => {
+        const { skillManager } = await import('@/features/skills/skill-manager.js');
+        await skillManager.initialize();
+        logger.info(skillManager.getStats(), 'Skills system loaded');
+      },
+    },
+    {
+      name: 'RoleManager',
+      skip: options.skipRoles,
+      run: async () => {
+        await roleManager.initialize();
+        logger.info({ roleCount: roleManager.getAllRoles().length }, 'Role system loaded');
+      },
+    },
+    {
+      name: 'SubAgent tools',
+      skip: options.skipSubAgents,
+      run: () => {
+        for (const tool of subAgentTools) sharedToolRegistry.register(tool);
+        logger.info({ toolCount: subAgentTools.length }, 'SubAgent tools registered');
+      },
+    },
+    {
+      name: 'Multimodal tools',
+      run: () => {
+        if (!multimodalTools) return;
+        sharedToolRegistry.register(multimodalTools.speechToTextTool);
+        sharedToolRegistry.register(multimodalTools.imageUnderstandingTool);
+      },
+    },
+    {
+      name: 'Pipeline stages',
+      run: () => {
+        pipeline?.use(configMessageStage);
+        registerSystemCommands();
+        pipeline?.use(commandMiddleware);
+        pipeline?.use(sessionMessageStage);
+        pipeline?.use(agentMessageStage);
+      },
+    },
+    {
+      name: 'Plugins',
+      skip: options.skipPlugins,
+      run: async () => {
+        await pluginManager.initialize();
+        await pluginManager.scanAndLoad(configManager.config?.plugins || []);
+        logger.info({ loadedPlugins: pluginManager.getPluginCount() }, 'Plugins system loaded');
+      },
+    },
+    {
+      name: 'Cron',
+      skip: options.skipCron,
+      run: async () => {
+        await initializePromptExecutor();
+        cronService.start();
+        logger.info({ schedulerRunning: cronService.isRunning() }, 'Cron system initialized');
+      },
+    },
+    {
+      name: 'MCP servers',
+      skip: options.skipMCP,
+      run: async () => {
+        mcpManager = new McpClientManager(sharedToolRegistry);
+        const servers = configManager.config?.mcp?.servers;
+        if (servers) await mcpManager.connectConfiguredServers(servers);
+      },
+    },
+    {
+      name: 'Channels',
+      skip: options.skipChannels,
+      run: () => loadChannelPlugins(configManager.config?.channels || {}),
+    },
+    {
+      name: 'Finalize',
+      run: async () => {
+        await configManager.syncAllDefaultConfigs();
+        if (!options.skipConfig) {
+          registerConfigChangeListener({
+            mcp: !options.skipMCP,
+            channels: !options.skipChannels,
+          });
+        }
+      },
+    },
+  ];
+
+  const active = stages.filter(s => !s.skip);
+  for (const [i, stage] of active.entries()) {
+    logger.info({}, `[${i + 1}/${active.length}] ${stage.name}...`);
+    await stage.run();
+  }
+}
+
+async function loadChannelPlugins(channels: Record<string, unknown>): Promise<void> {
+  if (!pipeline) {
+    logger.error({}, 'Pipeline not initialized, cannot load channel plugins');
+    return;
+  }
+
+  channelManager.setPipeline(pipeline);
+
+  const pluginsDir = path.join(process.cwd(), 'plugins');
+  for (const discovered of discoverPluginsByPrefix(pluginsDir, 'channel_')) {
+    await loadChannelPluginEntry(discovered, channels);
+  }
+
+  logger.info({ loadedChannels: channelManager.getChannelCount() }, 'Channel system initialized');
+}
+
+async function loadChannelPluginEntry(
+  discovered: DiscoveredPlugin,
+  channels: Record<string, unknown>
+): Promise<void> {
+  const pluginName = discovered.dirName;
+  try {
+    const entryPath = path.join(discovered.dir, 'index.ts');
+    const { default: channelPlugin } = await import(normalizeImportPath(entryPath)) as {
+      default: IChannelPlugin;
+    };
+
+    assertPackageNameMatchesExportedName(discovered.packageJson, channelPlugin.name, 'Channel plugin');
+
+    const channelConfig = (channels[channelPlugin.name] as Record<string, unknown> | undefined) || {};
+    await channelManager.registerChannel(channelPlugin, channelConfig);
+    logger.info({ channelName: channelPlugin.name }, `${channelPlugin.name} channel plugin loaded`);
+  } catch (error) {
+    const errorMessage = toErrorMessage(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    logger.error({ error: errorMessage, stack: errorStack, pluginName }, 'Failed to load channel plugin');
+  }
+}
+
+function registerConfigChangeListener(opts: { mcp: boolean; channels: boolean }): void {
+  configChangeUnsubscribe?.();
+  configChangeUnsubscribe = null;
+
+  mcpHotReloadEnabled = opts.mcp;
+  channelHotReloadEnabled = opts.channels;
+
+  configChangeUnsubscribe = configManager.onConfigChange(async (nextConfig, previousConfig) => {
+    const mcpChanged = hasSerializedConfigChanged(
+      previousConfig.mcp?.servers || [],
+      nextConfig.mcp?.servers || []
+    );
+    const channelsChanged = hasSerializedConfigChanged(
+      previousConfig.channels || {},
+      nextConfig.channels || {}
+    );
+
+    if (mcpChanged) await reloadMcpServers(nextConfig);
+    if (channelsChanged) await reloadChannelPlugins(nextConfig);
+  });
+}
+
+async function reloadMcpServers(nextConfig: typeof configManager.config): Promise<void> {
+  if (!mcpHotReloadEnabled || !mcpManager) return;
+
+  logger.info({}, 'MCP config changed, reconnecting MCP servers');
+  await mcpManager.shutdown();
+  await mcpManager.connectConfiguredServers(nextConfig.mcp?.servers || []);
+}
+
+async function reloadChannelPlugins(nextConfig: typeof configManager.config): Promise<void> {
+  if (!channelHotReloadEnabled) return;
+
+  logger.info({}, 'Channel config changed, reloading channel plugins');
+  await channelManager.shutdown();
+  await loadChannelPlugins(nextConfig.channels || {});
+
+  const previous = channelHotReloadEnabled;
+  channelHotReloadEnabled = false;
+  try {
+    await configManager.syncAllDefaultConfigs();
+  } finally {
+    channelHotReloadEnabled = previous;
+  }
+}
+
+function hasSerializedConfigChanged(previousValue: unknown, nextValue: unknown): boolean {
+  return canonicalStringify(previousValue) !== canonicalStringify(nextValue);
 }
 
 export async function shutdown(): Promise<void> {
-  return Bootstrap.shutdown();
+  logger.info({}, 'Shutting down AesyClaw...');
+
+  configChangeUnsubscribe?.();
+  configChangeUnsubscribe = null;
+  mcpHotReloadEnabled = false;
+  channelHotReloadEnabled = false;
+
+  const steps: Array<[string, () => void | Promise<void>]> = [
+    ['Channel Manager', () => channelManager.shutdown()],
+    ['Cron scheduler', () => cronService.stop()],
+    ['MCP Manager', async () => { if (mcpManager) await mcpManager.shutdown(); }],
+    ['Plugin Manager', () => pluginManager.shutdown()],
+    ['SQLiteManager', () => sqliteManager.close()],
+    ['SkillManager', async () => {
+      const { skillManager } = await import('@/features/skills/skill-manager.js');
+      await skillManager.shutdown();
+    }],
+    ['RoleManager', () => roleManager.shutdown()],
+    ['ConfigManager', () => configManager.destroy()],
+  ];
+
+  for (const [i, [label, fn]] of steps.entries()) {
+    try {
+      await fn();
+      logger.info({}, `[${i + 1}/${steps.length}] ${label} stopped`);
+    } catch (error) {
+      logger.error({ error }, `Error stopping ${label}`);
+    }
+  }
+
+  mcpManager = null;
+  initialized = false;
+
+  logger.info({}, 'AesyClaw shutdown completed');
+}
+
+export function isInitialized(): boolean {
+  return initialized;
+}
+
+export async function restart(options: BootstrapOptions = {}): Promise<void> {
+  await shutdown();
+  await bootstrap(options);
+}
+
+export function getStatus() {
+  const mcpServers = mcpManager?.getConnectedServers() || [];
+  return {
+    initialized,
+    pathResolver: pathResolver.isInitialized(),
+    configManager: configManager.isInitialized(),
+    sqliteManager: sqliteManager.isInitialized(),
+    toolRegistry: { totalTools: sharedToolRegistry.getStats().totalTools },
+    roles: { total: roleManager.isInitialized() ? roleManager.getAllRoles().length : 0 },
+    sessions: { total: sqliteManager.isInitialized() ? sessionRepository.findAll().length : 0 },
+    mcpServers: mcpServers.filter(s => s.connected).length,
+    plugins: pluginManager.getLoadedPlugins().length,
+    channels: channelManager.getChannelCount(),
+    cron: {
+      running: cronService.isRunning(),
+      scheduledTasks: cronService.getScheduledTaskCount(),
+    },
+  };
 }

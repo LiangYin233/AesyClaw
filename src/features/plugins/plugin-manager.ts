@@ -6,7 +6,7 @@ import type {
   PluginRuntimeConfig,
 } from '@/contracts/commands.js';
 import { ToolRegistry } from '@/platform/tools/registry.js';
-import { logger } from '@/platform/observability/logger.js';
+import { logger, createScopedLogger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
 import { normalizeImportPath } from '@/platform/utils/import-path.js';
 import { mergeDefaultOptions } from '@/platform/utils/merge-default-options.js';
@@ -21,7 +21,6 @@ import {
   PluginContext,
   PluginInfo,
   PluginHooks,
-  PluginLogger,
   HookPayloadMessageReceive,
   HookPayloadBeforeLLMRequest,
   HookPayloadToolCall,
@@ -33,8 +32,6 @@ export interface PluginManagerDependencies {
   commandRegistrar: PluginCommandRegistrar;
   configStore: PluginConfigStore;
 }
-
-const LOG_LEVELS = ['info', 'warn', 'error', 'debug'] as const;
 
 export class PluginManager {
   private toolRegistry: ToolRegistry;
@@ -129,16 +126,8 @@ export class PluginManager {
     }
   }
 
-  private createPluginLogger(pluginName: string): PluginLogger {
-    const make = (level: (typeof LOG_LEVELS)[number]) =>
-      (msg: string, data?: Record<string, unknown>) =>
-        logger[level]({ plugin: pluginName, ...data }, `[${pluginName}] ${msg}`);
-    return {
-      info: make('info'),
-      warn: make('warn'),
-      error: make('error'),
-      debug: make('debug'),
-    };
+  private createPluginLogger(pluginName: string) {
+    return createScopedLogger(pluginName, 'plugin');
   }
 
   private async initializePlugin(
@@ -196,43 +185,12 @@ export class PluginManager {
     return mergeDefaultOptions(plugin.defaultOptions || {}, userOptions);
   }
 
-  private getConfiguredPlugin(pluginName: string): PluginRuntimeConfig | undefined {
-    return this.deps.configStore.config.plugins.find((plugin) => plugin.name === pluginName);
-  }
-
-  private buildUpdatedPluginConfigs(
-    pluginName: string,
-    enabled: boolean,
-    options?: Record<string, unknown>
-  ): PluginRuntimeConfig[] {
-    const plugins = this.deps.configStore.config.plugins;
-    let matched = false;
-    const next = plugins.map((plugin) => {
-      if (plugin.name !== pluginName) {
-        return { ...plugin, options: plugin.options ? { ...plugin.options } : {} };
-      }
-      matched = true;
-      return {
-        ...plugin,
-        enabled,
-        options: options ?? (plugin.options ? { ...plugin.options } : {}),
-      };
-    });
-
-    if (!matched) {
-      next.push({ name: pluginName, enabled, options: options || {} });
-    }
-    return next;
-  }
-
   private async persistPluginConfig(
     pluginName: string,
     enabled: boolean,
     options?: Record<string, unknown>
   ): Promise<void> {
-    const updated = await this.deps.configStore.updateConfig({
-      plugins: this.buildUpdatedPluginConfigs(pluginName, enabled, options),
-    });
+    const updated = await this.deps.configStore.updatePluginRuntimeConfig(pluginName, { enabled, options });
     if (!updated) {
       throw new Error(`Failed to persist plugin config for "${pluginName}"`);
     }
@@ -383,7 +341,7 @@ export class PluginManager {
     }
 
     try {
-      const existingConfig = this.getConfiguredPlugin(pluginName);
+      const existingConfig = this.deps.configStore.getPluginRuntimeConfig(pluginName);
       const options = existingConfig?.options || {};
 
       await this.loadPluginEntry(info, options, false);
@@ -420,7 +378,7 @@ export class PluginManager {
       return { success: false, message: `插件 "${pluginName}" 未加载或不存在` };
     }
 
-    const existingConfig = this.getConfiguredPlugin(pluginName);
+    const existingConfig = this.deps.configStore.getPluginRuntimeConfig(pluginName);
     const options = existingConfig?.options || {};
 
     try {
@@ -484,5 +442,9 @@ export class PluginManager {
 
   getPluginCount(): number {
     return this.loadedPlugins.size;
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.shutdown();
   }
 }
