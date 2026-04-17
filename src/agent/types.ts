@@ -1,6 +1,6 @@
-import type { IOutboundPayload } from '@/channels/channel-plugin.js';
+import type { ChannelSendPayload } from '@/channels/channel-plugin.js';
 
-export interface IUnifiedMessage {
+export interface ChannelReceiveMessage {
   channelId: string;
   chatId: string;
   text: string;
@@ -8,7 +8,7 @@ export interface IUnifiedMessage {
   metadata?: Record<string, unknown>;
 }
 
-export interface IOutboundMessage {
+export interface ChannelSendMessage {
   text: string;
   mediaFiles?: Array<{
     type: string;
@@ -27,17 +27,17 @@ export interface PipelineState {
   };
 }
 
-export interface IChannelContext {
+export interface ChannelContext {
   traceId: string;
-  inbound: IUnifiedMessage;
-  outbound: IOutboundMessage;
+  received: ChannelReceiveMessage;
+  sendMessage: ChannelSendMessage;
   createdAt: number;
   state?: PipelineState;
   blocked?: boolean;
-  sendFn?: (_payload: IOutboundPayload) => Promise<void>;
+  send?: (_payload: ChannelSendPayload) => Promise<void>;
 }
 
 export type MiddlewareFunc = (
-  _ctx: IChannelContext,
+  _ctx: ChannelContext,
   _next: () => Promise<void>
 ) => Promise<void>;

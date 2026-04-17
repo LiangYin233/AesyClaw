@@ -1,14 +1,14 @@
-import { MiddlewareFunc, IChannelContext } from '@/agent/types.js';
+import type { ChannelContext, MiddlewareFunc } from '@/agent/types.js';
 import { commandParser } from './command-parser.js';
 import { commandRegistry } from './command-registry.js';
 import { logger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
 
 export const commandMiddleware: MiddlewareFunc = async (
-  ctx: IChannelContext,
+  ctx: ChannelContext,
   next: () => Promise<void>
 ): Promise<void> => {
-  const text = ctx.inbound.text;
+  const text = ctx.received.text;
 
   if (!text || !commandParser.isCommand(text)) {
     await next();
@@ -25,34 +25,34 @@ export const commandMiddleware: MiddlewareFunc = async (
   const command = commandRegistry.getCommand(parsed.name);
 
   if (!command) {
-    ctx.outbound.text = `未知的命令: /${parsed.name}\n\n输入 /help 查看可用命令`;
-    ctx.outbound.error = `Unknown command: ${parsed.name}`;
+    ctx.sendMessage.text = `未知的命令: /${parsed.name}\n\n输入 /help 查看可用命令`;
+    ctx.sendMessage.error = `Unknown command: ${parsed.name}`;
     logger.warn(
-      { commandName: parsed.name, chatId: ctx.inbound.chatId },
+      { commandName: parsed.name, chatId: ctx.received.chatId },
       '未知命令'
     );
     return;
   }
 
   logger.info(
-    { commandName: command.name, chatId: ctx.inbound.chatId, args: parsed.args },
+    { commandName: command.name, chatId: ctx.received.chatId, args: parsed.args },
     '执行命令'
   );
 
   try {
     const result = await command.execute({
-      chatId: ctx.inbound.chatId,
-      channelId: ctx.inbound.channelId,
-      messageType: (ctx.inbound.metadata?.type as string) || 'default',
+      chatId: ctx.received.chatId,
+      channelId: ctx.received.channelId,
+      messageType: (ctx.received.metadata?.type as string) || 'default',
       args: parsed.args,
       rawArgs: parsed.rawArgs,
       traceId: ctx.traceId,
     });
 
-    ctx.outbound.text = result.message;
+    ctx.sendMessage.text = result.message;
 
     if (!result.success) {
-      ctx.outbound.error = result.message;
+      ctx.sendMessage.error = result.message;
     }
 
     logger.info(
@@ -65,7 +65,7 @@ export const commandMiddleware: MiddlewareFunc = async (
       '命令执行失败'
     );
 
-    ctx.outbound.text = `命令执行失败: ${toErrorMessage(error)}`;
-    ctx.outbound.error = toErrorMessage(error);
+    ctx.sendMessage.text = `命令执行失败: ${toErrorMessage(error)}`;
+    ctx.sendMessage.error = toErrorMessage(error);
   }
 };

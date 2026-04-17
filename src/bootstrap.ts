@@ -1,22 +1,22 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { agentMessageStage } from '@/agent/runtime/agent-message-stage.js';
+import { agentStage } from '@/agent/runtime/agent-message-stage.js';
 import {
   getRoleInfoForCommandContext,
-  sessionMessageStage,
+  sessionStage,
   switchRoleForCommandContext,
 } from '@/agent/session/session-runtime.js';
 import { ChannelPipeline } from '@/agent/pipeline.js';
 import { subAgentTools } from '@/agent/subagent/subagent-tools.js';
-import type { IChannelPlugin } from '@/channels/channel-plugin.js';
+import type { ChannelPlugin } from '@/channels/channel-plugin.js';
 import { ChannelPluginManager } from '@/channels/channel-manager.js';
 import type { CommandDefinition } from '@/contracts/commands.js';
-import type { IPluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
+import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
 import { commandMiddleware } from '@/features/commands/command-middleware.js';
 import { commandRegistry } from '@/features/commands/command-registry.js';
 import { helpCommandGroup } from '@/features/commands/help-command-group.js';
 import { sessionCommandGroup } from '@/features/commands/session-command-group.js';
-import { configMessageStage } from '@/features/config/config-message-stage.js';
+import { configStage } from '@/features/config/config-message-stage.js';
 import { configManager } from '@/features/config/config-manager.js';
 import { initializePromptExecutor } from '@/features/cron/tools.js';
 import { createPluginCommandGroup } from '@/features/plugins/plugin-command-group.js';
@@ -72,7 +72,7 @@ export const pluginManager = new PluginManager(sharedToolRegistry, {
 
 export const channelManager = new ChannelPluginManager(configManager);
 
-export function getHookRuntime(): IPluginHookRuntime {
+export function getHookRuntime(): PluginHookRuntime {
   return pluginManager;
 }
 
@@ -171,11 +171,11 @@ async function runInitStages(options: BootstrapOptions): Promise<void> {
     {
       name: 'Pipeline stages',
       run: () => {
-        pipeline?.use(configMessageStage);
+        pipeline?.use(configStage);
         registerSystemCommands();
         pipeline?.use(commandMiddleware);
-        pipeline?.use(sessionMessageStage);
-        pipeline?.use(agentMessageStage);
+        pipeline?.use(sessionStage);
+        pipeline?.use(agentStage);
       },
     },
     {
@@ -260,7 +260,7 @@ async function loadChannelPluginEntry(
     }
 
     const { default: channelPlugin } = await import(normalizeImportPath(entryPath)) as {
-      default: IChannelPlugin;
+      default: ChannelPlugin;
     };
 
     assertPackageNameMatchesExportedName(discovered.packageJson, channelPlugin.name, 'Channel plugin');

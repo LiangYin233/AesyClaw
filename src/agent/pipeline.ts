@@ -1,15 +1,20 @@
 import { randomUUID } from 'crypto';
-import type { IPluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
-import { IUnifiedMessage, IChannelContext, IOutboundMessage, MiddlewareFunc } from './types.js';
-import type { IOutboundPayload } from '@/channels/channel-plugin.js';
+import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
+import type {
+  ChannelContext,
+  ChannelReceiveMessage,
+  ChannelSendMessage,
+  MiddlewareFunc,
+} from './types.js';
+import type { ChannelSendPayload } from '@/channels/channel-plugin.js';
 import { logger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
 
 export class ChannelPipeline {
   private middlewares: MiddlewareFunc[] = [];
-  private hookRuntime: IPluginHookRuntime;
+  private hookRuntime: PluginHookRuntime;
 
-  constructor(hookRuntime: IPluginHookRuntime) {
+  constructor(hookRuntime: PluginHookRuntime) {
     this.hookRuntime = hookRuntime;
   }
 
@@ -18,14 +23,14 @@ export class ChannelPipeline {
     logger.debug({ middlewareCount: this.middlewares.length }, 'Middleware registered');
   }
 
-  async handleInbound(message: IUnifiedMessage): Promise<IChannelContext> {
-    return this.handleInboundWithSend(message, undefined);
+  async receive(message: ChannelReceiveMessage): Promise<ChannelContext> {
+    return this.receiveWithSend(message, undefined);
   }
 
-  async handleInboundWithSend(
-    message: IUnifiedMessage,
-    sendFn?: (_payload: IOutboundPayload) => Promise<void>
-  ): Promise<IChannelContext> {
+  async receiveWithSend(
+    message: ChannelReceiveMessage,
+    send?: (_payload: ChannelSendPayload) => Promise<void>
+  ): Promise<ChannelContext> {
     const traceId = randomUUID();
     const startTime = Date.now();
 
@@ -34,7 +39,7 @@ export class ChannelPipeline {
       'Received inbound message, dispatching to middleware chain'
     );
 
-    const hookResult = await this.hookRuntime.dispatchMessageReceive({
+    const hookResult = await this.hookRuntime.dispatchReceive({
       message: {
         channelId: message.channelId,
         chatId: message.chatId,
@@ -51,22 +56,22 @@ export class ChannelPipeline {
       );
       return {
         traceId,
-        inbound: message,
-        outbound: { text: '', mediaFiles: [] },
+        received: message,
+        sendMessage: { text: '', mediaFiles: [] },
         createdAt: Date.now(),
         blocked: true,
-      } as IChannelContext & { blocked?: boolean };
+      } as ChannelContext & { blocked?: boolean };
     }
 
-    const ctx: IChannelContext = {
+    const ctx: ChannelContext = {
       traceId,
-      inbound: hookResult.message,
-      outbound: {
+      received: hookResult.message,
+      sendMessage: {
         text: '',
         mediaFiles: [],
-      } as IOutboundMessage,
+      } as ChannelSendMessage,
       createdAt: Date.now(),
-      sendFn,
+      send,
     };
 
     if (this.middlewares.length === 0) {
@@ -92,42 +97,42 @@ export class ChannelPipeline {
     try {
       await next();
 
-      const processedOutbound = await this.hookRuntime.dispatchMessageSend({
+      const processedSendMessage = await this.hookRuntime.dispatchSend({
         message: {
-          chatId: ctx.inbound.chatId,
-          text: ctx.outbound?.text,
-          mediaFiles: ctx.outbound?.mediaFiles,
-          error: ctx.outbound?.error,
+          chatId: ctx.received.chatId,
+          text: ctx.sendMessage?.text,
+          mediaFiles: ctx.sendMessage?.mediaFiles,
+          error: ctx.sendMessage?.error,
         },
       });
 
-      if (processedOutbound.blocked) {
+      if (processedSendMessage.blocked) {
         logger.info(
-          { traceId, chatId: ctx.inbound.chatId, reason: processedOutbound.reason },
-          'Outbound message blocked by plugin'
+          { traceId, chatId: ctx.received.chatId, reason: processedSendMessage.reason },
+          'Send message blocked by plugin'
         );
-        ctx.outbound.text = '';
-        ctx.outbound.mediaFiles = [];
+        ctx.sendMessage.text = '';
+        ctx.sendMessage.mediaFiles = [];
         return ctx;
       }
 
-      ctx.outbound.text = processedOutbound.message.text;
-      ctx.outbound.mediaFiles = processedOutbound.message.mediaFiles;
-      ctx.outbound.error = processedOutbound.message.error;
+      ctx.sendMessage.text = processedSendMessage.message.text;
+      ctx.sendMessage.mediaFiles = processedSendMessage.message.mediaFiles;
+      ctx.sendMessage.error = processedSendMessage.message.error;
 
-      if (sendFn && ctx.outbound?.text) {
-        await sendFn({
-          text: ctx.outbound.text,
-          mediaFiles: ctx.outbound.mediaFiles,
+      if (ctx.send && ctx.sendMessage?.text) {
+        await ctx.send({
+          text: ctx.sendMessage.text,
+          mediaFiles: ctx.sendMessage.mediaFiles,
         });
-        logger.debug({ traceId, chatId: ctx.inbound.chatId }, 'Response sent via sendFn');
+        logger.debug({ traceId, chatId: ctx.received.chatId }, 'Response sent via channel send');
       }
 
       const duration = Date.now() - startTime;
-      const outboundText = ctx.outbound?.text ?? '';
-      const outboundLength = outboundText.length;
+      const sendText = ctx.sendMessage?.text ?? '';
+      const sendLength = sendText.length;
       logger.info(
-        { traceId, chatId: ctx.inbound.chatId, duration, outboundLength },
+        { traceId, chatId: ctx.received.chatId, duration, sendLength },
         'Message processing completed, returning response'
       );
     } catch (error) {
@@ -135,19 +140,19 @@ export class ChannelPipeline {
       const errorMessage = toErrorMessage(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
       logger.error(
-        { traceId, chatId: ctx.inbound.chatId, duration, error: errorMessage, stack: errorStack },
+        { traceId, chatId: ctx.received.chatId, duration, error: errorMessage, stack: errorStack },
         'Error during message processing'
       );
-      if (!ctx.outbound) {
-        ctx.outbound = { text: '', mediaFiles: [] };
+      if (!ctx.sendMessage) {
+        ctx.sendMessage = { text: '', mediaFiles: [] };
       }
-      ctx.outbound.text = 'Internal system error, please try again later';
-      ctx.outbound.error = errorMessage;
+      ctx.sendMessage.text = 'Internal system error, please try again later';
+      ctx.sendMessage.error = errorMessage;
 
-      if (sendFn && ctx.outbound?.text) {
-        await sendFn({
-          text: ctx.outbound.text,
-          mediaFiles: ctx.outbound.mediaFiles ?? [],
+      if (ctx.send && ctx.sendMessage?.text) {
+        await ctx.send({
+          text: ctx.sendMessage.text,
+          mediaFiles: ctx.sendMessage.mediaFiles ?? [],
         });
       }
     }

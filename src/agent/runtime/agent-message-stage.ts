@@ -1,5 +1,5 @@
 import type { SessionContext } from '@/agent/session/session-context.js';
-import type { IChannelContext, IUnifiedMessage, MiddlewareFunc } from '@/agent/types.js';
+import type { ChannelContext, ChannelReceiveMessage, MiddlewareFunc } from '@/agent/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
 
@@ -9,19 +9,19 @@ interface MediaAttachment {
   filename?: string;
 }
 
-function getSessionFromContext(ctx: IChannelContext): SessionContext | null {
+function getSessionFromContext(ctx: ChannelContext): SessionContext | null {
   const state = ctx.state?.session;
   if (!state) return null;
   return state.sessionContext as SessionContext;
 }
 
-function getSessionIdFromContext(ctx: IChannelContext): string | null {
+function getSessionIdFromContext(ctx: ChannelContext): string | null {
   return ctx.state?.session?.sessionId || null;
 }
 
-function normalizeUserInput(inbound: IUnifiedMessage): string {
-  let userInput = inbound.text ?? '';
-  const media = inbound.metadata?.media as MediaAttachment[] | undefined;
+function normalizeUserInput(received: ChannelReceiveMessage): string {
+  let userInput = received.text ?? '';
+  const media = received.metadata?.media as MediaAttachment[] | undefined;
 
   if (media && Array.isArray(media) && media.length > 0) {
     const mediaDescriptions: string[] = [];
@@ -46,13 +46,13 @@ function normalizeUserInput(inbound: IUnifiedMessage): string {
   return userInput;
 }
 
-export const agentMessageStage: MiddlewareFunc = async (ctx: IChannelContext, next: () => Promise<void>) => {
+export const agentStage: MiddlewareFunc = async (ctx: ChannelContext, next: () => Promise<void>) => {
   const sessionContext = getSessionFromContext(ctx);
   const sessionId = getSessionIdFromContext(ctx);
 
   if (!sessionContext) {
     logger.error({}, 'SessionContext not found, ensure session message stage is registered before agent stage');
-    ctx.outbound.text = 'System error: Session not initialized';
+    ctx.sendMessage.text = 'System error: Session not initialized';
     await next();
     return;
   }
@@ -63,7 +63,7 @@ export const agentMessageStage: MiddlewareFunc = async (ctx: IChannelContext, ne
   logger.info(
       {
         sessionId,
-        chatId: ctx.inbound.chatId,
+        chatId: ctx.received.chatId,
         channel: sessionContext.session.channel,
         type: sessionContext.session.type,
         provider: runtimeInfo.llm.provider,
@@ -73,10 +73,10 @@ export const agentMessageStage: MiddlewareFunc = async (ctx: IChannelContext, ne
   );
 
   try {
-    const userInput = normalizeUserInput(ctx.inbound);
+    const userInput = normalizeUserInput(ctx.received);
 
     if (!userInput.trim()) {
-      ctx.outbound.text = '';
+      ctx.sendMessage.text = '';
       await next();
       return;
     }
@@ -84,18 +84,18 @@ export const agentMessageStage: MiddlewareFunc = async (ctx: IChannelContext, ne
     const result = await agent.run(userInput);
 
     if (result.success) {
-      ctx.outbound.text = result.finalText;
-      logger.info({ sessionId, chatId: ctx.inbound.chatId }, 'Agent processing completed');
+      ctx.sendMessage.text = result.finalText;
+      logger.info({ sessionId, chatId: ctx.received.chatId }, 'Agent processing completed');
     } else {
-      ctx.outbound.text = `Error: ${result.error}`;
-      ctx.outbound.error = result.error;
-      logger.error({ sessionId, chatId: ctx.inbound.chatId, error: result.error }, 'Agent processing failed');
+      ctx.sendMessage.text = `Error: ${result.error}`;
+      ctx.sendMessage.error = result.error;
+      logger.error({ sessionId, chatId: ctx.received.chatId, error: result.error }, 'Agent processing failed');
     }
   } catch (error) {
     const errorMessage = toErrorMessage(error);
-    ctx.outbound.text = `Agent error: ${errorMessage}`;
-    ctx.outbound.error = errorMessage;
-    logger.error({ sessionId, chatId: ctx.inbound.chatId, error: errorMessage }, 'Agent exception');
+    ctx.sendMessage.text = `Agent error: ${errorMessage}`;
+    ctx.sendMessage.error = errorMessage;
+    logger.error({ sessionId, chatId: ctx.received.chatId, error: errorMessage }, 'Agent exception');
   }
 
   await next();

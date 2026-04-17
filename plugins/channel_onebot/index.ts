@@ -1,12 +1,12 @@
 import WebSocket from 'ws';
 import { z } from 'zod';
 import type {
-  IChannelPlugin,
+  ChannelPlugin,
   ChannelPluginContext,
-  IOutboundPayload,
+  ChannelSendPayload,
   ChannelPluginLogger,
 } from '@/sdk/channel.js';
-import type { IUnifiedMessage } from '@/sdk/agent.js';
+import type { ChannelReceiveMessage } from '@/sdk/agent.js';
 import type { DownloadedMedia, MediaDownloader } from '@/sdk/media.js';
 
 let mediaDownloader: MediaDownloader | null = null;
@@ -116,7 +116,7 @@ const state: PluginState = {
   connected: false,
 };
 
-export const onebotPlugin: IChannelPlugin = {
+export const onebotPlugin: ChannelPlugin = {
   name: 'onebot',
   version: '1.0.0',
   description: 'OneBot Channel Plugin - 支持 OneBot v11/v12 协议',
@@ -276,7 +276,7 @@ function handleGroupMessage(event: OneBotMessage): void {
     const rawMessage = extractRawMessage(processedEvent.message);
     const media = extractMedia(processedEvent.message);
 
-    const unifiedMsg: IUnifiedMessage = {
+    const receivedMessage: ChannelReceiveMessage = {
       channelId: 'onebot',
       chatId: groupIdStr,
       text: rawMessage,
@@ -292,8 +292,8 @@ function handleGroupMessage(event: OneBotMessage): void {
       },
     };
 
-    const sendFn = createSendFn(groupIdStr, 'group');
-    emitInbound(unifiedMsg, sendFn, state.pipeline);
+    const send = createSend(groupIdStr, 'group');
+    emitReceivedMessage(receivedMessage, send, state.pipeline);
   }).catch(err => {
     logger.error('Error processing media in group message', { error: err });
   });
@@ -318,7 +318,7 @@ function handlePrivateMessage(event: OneBotMessage): void {
     const rawMessage = extractRawMessage(processedEvent.message);
     const media = extractMedia(processedEvent.message);
 
-    const unifiedMsg: IUnifiedMessage = {
+    const receivedMessage: ChannelReceiveMessage = {
       channelId: 'onebot',
       chatId: userIdStr,
       text: rawMessage,
@@ -333,8 +333,8 @@ function handlePrivateMessage(event: OneBotMessage): void {
       },
     };
 
-    const sendFn = createSendFn(userIdStr, 'private');
-    emitInbound(unifiedMsg, sendFn, state.pipeline);
+    const send = createSend(userIdStr, 'private');
+    emitReceivedMessage(receivedMessage, send, state.pipeline);
   }).catch(err => {
     logger.error('Error processing media in private message', { error: err });
   });
@@ -534,8 +534,8 @@ async function processMediaInMessage(event: OneBotMessage): Promise<OneBotMessag
   };
 }
 
-function createSendFn(targetId: string, messageType: 'group' | 'private'): (payload: IOutboundPayload) => Promise<void> {
-  return async (payload: IOutboundPayload): Promise<void> => {
+function createSend(targetId: string, messageType: 'group' | 'private'): (payload: ChannelSendPayload) => Promise<void> {
+  return async (payload: ChannelSendPayload): Promise<void> => {
     const ws = state.ws;
     const logger = state.logger!;
 
@@ -564,7 +564,7 @@ function createSendFn(targetId: string, messageType: 'group' | 'private'): (payl
   };
 }
 
-function buildMessage(payload: IOutboundPayload): string | Array<unknown> {
+function buildMessage(payload: ChannelSendPayload): string | Array<unknown> {
   if (!payload.mediaFiles || payload.mediaFiles.length === 0) {
     return payload.text;
   }
@@ -631,24 +631,28 @@ async function sendApi(action: string, params: Record<string, unknown>, echo?: s
   });
 }
 
-function emitInbound(
-  message: IUnifiedMessage,
-  sendFn: (payload: IOutboundPayload) => Promise<void>,
+function emitReceivedMessage(
+  message: ChannelReceiveMessage,
+  send: (payload: ChannelSendPayload) => Promise<void>,
   pipeline: ChannelPluginContext['pipeline'] | null
 ): void {
   const logger = state.logger!;
 
-  logger.info('Emitting inbound message to pipeline', {
+  logger.info('Emitting received message to pipeline', {
     channelId: message.channelId,
     chatId: message.chatId,
     text: message.text
   });
 
-  if (pipeline && typeof pipeline.handleInboundWithSend === 'function') {
-    pipeline.handleInboundWithSend(message, sendFn);
-  } else if (pipeline && typeof pipeline.handleInbound === 'function') {
-    pipeline.handleInbound(message);
+  if (!pipeline) {
+    logger.warn('Cannot emit received message: pipeline not initialized', {
+      channelId: message.channelId,
+      chatId: message.chatId,
+    });
+    return;
   }
+
+  void pipeline.receiveWithSend(message, send);
 }
 
 export default onebotPlugin;

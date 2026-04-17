@@ -1,6 +1,6 @@
 import type { Tool as AesyiuTool } from 'aesyiu';
 import { ZodType, z } from 'zod';
-import { ITool, ToolExecuteContext, ToolExecutionResult, ToolDefinition, type ToolParameters } from '../types.js';
+import { Tool, ToolExecuteContext, ToolExecutionResult, ToolDefinition, type ToolParameters } from '../types.js';
 import { toErrorMessage } from '../../utils/errors.js';
 
 export interface MCPServerInfo {
@@ -15,7 +15,7 @@ export function buildMcpToolName(serverName: string, toolName: string): string {
   return `${serverName}.${toolName}`;
 }
 
-export class McpToolAdapter implements ITool {
+export class McpToolAdapter implements Tool {
   readonly name: string;
   readonly description: string;
   readonly parametersSchema: ZodType;

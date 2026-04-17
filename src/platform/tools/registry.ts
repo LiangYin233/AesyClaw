@@ -1,6 +1,6 @@
 import { ZodError } from 'zod';
 import {
-  ITool,
+  Tool,
   ToolDefinition,
 } from './types.js';
 import { logger } from '../observability/logger.js';
@@ -16,13 +16,13 @@ export interface ToolValidationError {
 }
 
 export class ToolRegistry {
-  private tools: Map<string, ITool> = new Map();
+  private tools: Map<string, Tool> = new Map();
 
   constructor() {
     logger.info({}, 'ToolRegistry initialized');
   }
 
-  register(tool: ITool): void {
+  register(tool: Tool): void {
     if (this.tools.has(tool.name)) {
       logger.warn({ toolName: tool.name }, '工具已存在，将被覆盖');
     }
@@ -44,7 +44,7 @@ export class ToolRegistry {
     return deleted;
   }
 
-  getTool(toolName: string): ITool | undefined {
+  getTool(toolName: string): Tool | undefined {
     return this.tools.get(toolName);
   }
 

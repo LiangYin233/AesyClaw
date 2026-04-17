@@ -24,7 +24,7 @@ import { SUBAGENT_TOOL_NAME_RUN } from '@/agent/subagent/types.js';
 import { LLMProviderType, MessageRole, type LLMConfig, type StandardMessage } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
-import type { ITool, ToolExecuteContext, ToolExecutionResult } from '@/platform/tools/types.js';
+import type { Tool, ToolExecuteContext, ToolExecutionResult } from '@/platform/tools/types.js';
 
 export interface AesyiuRunStats {
   steps: number;
@@ -88,7 +88,7 @@ export function getFinalAssistantText(messages: readonly AesyiuMessage[]): strin
   return '';
 }
 
-function injectRolesPrompt(ctx: AgentContext, tools: readonly ITool[]): void {
+function injectRolesPrompt(ctx: AgentContext, tools: readonly Tool[]): void {
   if (!tools.some(tool => tool.name === SUBAGENT_TOOL_NAME_RUN)) {
     ctx.removePromptSection(ROLES_PROMPT_SECTION);
     return;
@@ -192,12 +192,12 @@ function createHookAwareLLMMiddleware(
 }
 
 function createHookAwareToolMiddleware(
-  toolIndex: Map<string, ITool>,
+  toolIndex: Map<string, Tool>,
   stats: Pick<AesyiuRunStats, 'toolCalls'>,
   options: {
     traceId: string;
     chatId: string;
-    checkToolAllowed?: (_tool: ITool) => ToolExecutionResult | null;
+    checkToolAllowed?: (_tool: Tool) => ToolExecutionResult | null;
     getRoleId: () => string;
   },
 ): ToolMiddleware {
@@ -288,8 +288,8 @@ function createHookAwareToolMiddleware(
 }
 
 function toAesyiuTool(
-  tool: ITool,
-  createToolContext: (ctx: unknown, tool: ITool) => ToolExecuteContext,
+  tool: Tool,
+  createToolContext: (ctx: unknown, tool: Tool) => ToolExecuteContext,
 ): AesyiuTool {
   return {
     name: tool.name,
@@ -309,12 +309,12 @@ interface BuildAesyiuEngineOptions {
   maxContextTokens: number;
   compressionThreshold: number;
   maxSteps: number;
-  filteredTools: ITool[];
+  filteredTools: Tool[];
   allowedSkills: AgentSkill[];
   messages: AesyiuMessage[];
   stats: AesyiuRunStats;
-  createToolContext: (_ctx: unknown, _tool: ITool) => ToolExecuteContext;
-  checkToolAllowed?: (_tool: ITool) => ToolExecutionResult | null;
+  createToolContext: (_ctx: unknown, _tool: Tool) => ToolExecuteContext;
+  checkToolAllowed?: (_tool: Tool) => ToolExecutionResult | null;
   getRoleId?: () => string;
 }
 

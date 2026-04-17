@@ -1,6 +1,6 @@
 export type {
-  IChannelPlugin,
+  ChannelPlugin,
   ChannelPluginContext,
-  IOutboundPayload,
+  ChannelSendPayload,
   ChannelPluginLogger,
 } from '@/channels/channel-plugin.js';

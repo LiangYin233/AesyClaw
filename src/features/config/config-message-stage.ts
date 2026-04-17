@@ -1,8 +1,8 @@
-import type { IChannelContext, MiddlewareFunc, PipelineState } from '@/agent/types.js';
+import type { ChannelContext, MiddlewareFunc, PipelineState } from '@/agent/types.js';
 import { configManager } from './config-manager.js';
 import { logger } from '@/platform/observability/logger.js';
 
-export const configMessageStage: MiddlewareFunc = async (ctx: IChannelContext, next: () => Promise<void>) => {
+export const configStage: MiddlewareFunc = async (ctx: ChannelContext, next: () => Promise<void>) => {
   if (!configManager.isInitialized()) {
     logger.warn({}, 'ConfigManager not initialized, attempting to initialize...');
     await configManager.initialize();
