@@ -10,11 +10,8 @@ import { logger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
 import { normalizeImportPath } from '@/platform/utils/import-path.js';
 import { mergeDefaultOptions } from '@/platform/utils/merge-default-options.js';
-import {
-  assertPackageNameMatchesExportedName,
-  type PackageManifest,
-  readPackageManifest,
-} from '@/platform/utils/package-manifest.js';
+import { assertPackageNameMatchesExportedName } from '@/platform/utils/package-manifest.js';
+import { discoverPluginsByPrefix, type DiscoveredPlugin } from '@/platform/utils/plugin-discovery.js';
 import {
   BeforeLLMRequestDispatchResult,
   BeforeToolCallDispatchResult,
@@ -24,6 +21,7 @@ import {
   PluginContext,
   PluginInfo,
   PluginHooks,
+  PluginLogger,
   HookPayloadMessageReceive,
   HookPayloadBeforeLLMRequest,
   HookPayloadToolCall,
@@ -36,24 +34,15 @@ export interface PluginManagerDependencies {
   configStore: PluginConfigStore;
 }
 
-interface PluginPathInfo {
-  dir: string;
-  packageJson: PackageManifest;
-}
-
-interface PluginDirectoryInfo extends PluginPathInfo {
-  pluginName: string;
-  dirName: string;
-}
+const LOG_LEVELS = ['info', 'warn', 'error', 'debug'] as const;
 
 export class PluginManager {
   private toolRegistry: ToolRegistry;
   private deps: PluginManagerDependencies;
   private loadedPlugins: Map<string, IPlugin> = new Map();
-  private pluginInfos: Map<string, PluginInfo> = new Map();
   private initialized: boolean = false;
   private pluginsDir: string;
-  private pluginPaths: Map<string, PluginPathInfo> = new Map();
+  private discovered: Map<string, DiscoveredPlugin> = new Map();
 
   constructor(toolRegistry: ToolRegistry, deps: PluginManagerDependencies) {
     this.toolRegistry = toolRegistry;
@@ -73,7 +62,6 @@ export class PluginManager {
 
   async scanAndLoad(enabledPlugins: readonly PluginRuntimeConfig[]): Promise<void> {
     logger.info({ pluginsDir: this.pluginsDir }, 'Scanning plugins directory');
-    this.pluginPaths.clear();
 
     if (!fs.existsSync(this.pluginsDir)) {
       logger.warn({ pluginsDir: this.pluginsDir }, 'Plugins directory does not exist, creating...');
@@ -81,208 +69,76 @@ export class PluginManager {
       return;
     }
 
-    const pluginDirs = this.getPluginDirectories();
+    this.rediscoverPlugins();
+    logger.info({ found: this.discovered.size }, 'Found plugin directories');
 
-    logger.info({ found: pluginDirs.length }, 'Found plugin directories');
-
-    for (const dir of pluginDirs) {
-      try {
-        const pluginInfo = this.readPluginDirectoryInfo(dir);
-        if (!pluginInfo) {
-          continue;
-        }
-
-        this.pluginPaths.set(pluginInfo.pluginName, {
-          dir: pluginInfo.dir,
-          packageJson: pluginInfo.packageJson,
-        });
-
-        const config = this.findPluginRuntimeConfig(
-          enabledPlugins,
-          pluginInfo.pluginName,
-          pluginInfo.dirName
-        );
-
-        if (config && !config.enabled) {
-          logger.info({ pluginName: pluginInfo.pluginName }, 'Plugin disabled in config, skipping');
-          continue;
-        }
-
-        await this.loadPluginFromEntry(pluginInfo, config?.options || {});
-      } catch (error) {
-        logger.error({ pluginDir: path.join(this.pluginsDir, dir.name), error }, 'Failed to load plugin from directory');
-      }
-    }
-
-    logger.info(
-      { loaded: this.loadedPlugins.size },
-      'Plugin scanning and loading completed'
-    );
-  }
-
-  private getPluginDirectories(): fs.Dirent[] {
-    return fs.readdirSync(this.pluginsDir, { withFileTypes: true }).filter(
-      entry => entry.isDirectory() && entry.name.startsWith('plugin_')
-    );
-  }
-
-  private readPluginDirectoryInfo(entry: fs.Dirent): PluginDirectoryInfo | null {
-    const pluginDir = path.join(this.pluginsDir, entry.name);
-    const packageJsonPath = path.join(pluginDir, 'package.json');
-    const packageJson = readPackageManifest(packageJsonPath);
-    if (!packageJson) {
-      logger.warn({ pluginDir }, 'Plugin missing package.json, skipping');
-      return null;
-    }
-
-    return {
-      dir: pluginDir,
-      dirName: entry.name,
-      packageJson,
-      pluginName: packageJson.name || entry.name,
-    };
-  }
-
-  private findPluginRuntimeConfig(
-    enabledPlugins: readonly PluginRuntimeConfig[],
-    pluginName: string,
-    dirName: string
-  ): PluginRuntimeConfig | undefined {
-    return enabledPlugins.find(p => {
-      return p.name === pluginName || p.name === dirName;
-    });
-  }
-
-  private resolvePluginEntryPaths(pluginDir: string, packageJson: PackageManifest): {
-    distPath: string;
-    sourcePath: string;
-  } {
-    const mainFile = packageJson.main || 'dist/index.js';
-
-    return {
-      distPath: path.join(pluginDir, mainFile),
-      sourcePath: path.join(pluginDir, 'src/index.ts'),
-    };
-  }
-
-  private async loadPluginFromEntry(
-    pluginInfo: PluginDirectoryInfo | PluginPathInfo & { pluginName: string },
-    options: Record<string, unknown>,
-    registerDefaults = true
-  ): Promise<void> {
-    const { distPath, sourcePath } = this.resolvePluginEntryPaths(
-      pluginInfo.dir,
-      pluginInfo.packageJson
-    );
-
-    if (!fs.existsSync(distPath)) {
-      logger.warn({ pluginPath: distPath }, 'Plugin main file not found, trying source path');
-      if (fs.existsSync(sourcePath)) {
-        await this.loadPluginFromSource(pluginInfo.pluginName, sourcePath, options, registerDefaults);
-      } else {
-        logger.warn({ pluginName: pluginInfo.pluginName }, 'Plugin entry point not found');
-      }
-
-      return;
-    }
-
-    await this.loadPluginFromDist(pluginInfo.pluginName, distPath, options, registerDefaults);
-  }
-
-  private findPluginInDirectoryScan(pluginName: string): PluginPathInfo | undefined {
-    for (const dir of this.getPluginDirectories()) {
-      const pluginInfo = this.readPluginDirectoryInfo(dir);
-      if (!pluginInfo) {
+    for (const info of this.discovered.values()) {
+      const config = enabledPlugins.find(p => p.name === info.name || p.name === info.dirName);
+      if (config && !config.enabled) {
+        logger.info({ pluginName: info.name }, 'Plugin disabled in config, skipping');
         continue;
       }
 
-      if (!this.pluginPaths.has(pluginInfo.pluginName)) {
-        this.pluginPaths.set(pluginInfo.pluginName, {
-          dir: pluginInfo.dir,
-          packageJson: pluginInfo.packageJson,
-        });
-      }
-
-      if (pluginInfo.pluginName === pluginName) {
-        return {
-          dir: pluginInfo.dir,
-          packageJson: pluginInfo.packageJson,
-        };
-      }
+      await this.loadPluginEntry(info, config?.options || {});
     }
 
-    return undefined;
+    logger.info({ loaded: this.loadedPlugins.size }, 'Plugin scanning and loading completed');
   }
 
-  private async loadPluginFromDist(
-    pluginName: string,
-    pluginPath: string,
-    options: Record<string, unknown>,
-    registerDefaults = true
-  ): Promise<void> {
-    try {
-      const normalizedPath = normalizeImportPath(pluginPath);
-      const pluginModule = await import(normalizedPath);
-      const plugin = pluginModule.default || pluginModule;
-
-      if (!plugin || !plugin.name) {
-        logger.warn({ pluginPath }, 'Invalid plugin module, missing name');
-        return;
-      }
-
-      const packageJsonPath = path.join(path.dirname(pluginPath), 'package.json');
-      assertPackageNameMatchesExportedName(
-        readPackageManifest(packageJsonPath),
-        plugin.name,
-        'Plugin'
-      );
-
-      await this.initializePlugin(plugin, options, registerDefaults);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('name mismatch')) {
-        logger.error({ error: error.message }, 'Plugin validation failed');
-        return;
-      }
-      logger.error({ pluginPath, error: String(error) }, 'Failed to dynamically import plugin');
-      logger.info({ pluginName, pluginPath }, 'Trying to load as TypeScript source...');
-      await this.loadPluginFromSource(pluginName, pluginPath.replace('.js', '.ts'), options, registerDefaults);
+  private rediscoverPlugins(): void {
+    this.discovered.clear();
+    for (const found of discoverPluginsByPrefix(this.pluginsDir, 'plugin_')) {
+      this.discovered.set(found.name, found);
     }
   }
 
-  private async loadPluginFromSource(
-    _pluginName: string,
-    sourcePath: string,
+  private resolveEntryCandidates(info: DiscoveredPlugin): string[] {
+    const mainFile = info.packageJson.main || 'dist/index.js';
+    return [
+      path.join(info.dir, mainFile),
+      path.join(info.dir, 'src/index.ts'),
+    ];
+  }
+
+  private async loadPluginEntry(
+    info: DiscoveredPlugin,
     options: Record<string, unknown>,
     registerDefaults = true
   ): Promise<void> {
+    const candidates = this.resolveEntryCandidates(info);
+    const entryPath = candidates.find(fs.existsSync);
+
+    if (!entryPath) {
+      logger.warn({ pluginName: info.name, candidates }, 'Plugin entry point not found');
+      return;
+    }
+
     try {
-      const normalizedPath = normalizeImportPath(sourcePath);
-      const tsxModule = await import(normalizedPath);
-      const plugin = tsxModule.default || tsxModule;
+      const mod = await import(normalizeImportPath(entryPath));
+      const plugin: IPlugin | undefined = mod.default || mod;
 
       if (!plugin || !plugin.name) {
-        logger.warn({ sourcePath }, 'Invalid plugin module, missing name');
+        logger.warn({ entryPath }, 'Invalid plugin module, missing name');
         return;
       }
 
-      const packageJsonPath = path.join(path.dirname(sourcePath), 'package.json');
-      const packageManifest = readPackageManifest(packageJsonPath);
-      if (packageManifest) {
-        try {
-          assertPackageNameMatchesExportedName(packageManifest, plugin.name, 'Plugin');
-        } catch (error) {
-          logger.error(
-            { packageName: packageManifest.name, pluginName: plugin.name },
-            toErrorMessage(error)
-          );
-          return;
-        }
-      }
-
+      assertPackageNameMatchesExportedName(info.packageJson, plugin.name, 'Plugin');
       await this.initializePlugin(plugin, options, registerDefaults);
     } catch (error) {
-      logger.error({ sourcePath, error }, 'Failed to load plugin from source');
+      logger.error({ entryPath, error: toErrorMessage(error) }, 'Failed to load plugin');
     }
+  }
+
+  private createPluginLogger(pluginName: string): PluginLogger {
+    const make = (level: (typeof LOG_LEVELS)[number]) =>
+      (msg: string, data?: Record<string, unknown>) =>
+        logger[level]({ plugin: pluginName, ...data }, `[${pluginName}] ${msg}`);
+    return {
+      info: make('info'),
+      warn: make('warn'),
+      error: make('error'),
+      debug: make('debug'),
+    };
   }
 
   private async initializePlugin(
@@ -295,24 +151,12 @@ export class PluginManager {
       return;
     }
 
-    logger.info(
-      { pluginName: plugin.name, version: plugin.version },
-      'Loading plugin'
-    );
+    logger.info({ pluginName: plugin.name, version: plugin.version }, 'Loading plugin');
 
     const mergedOptions = this.mergePluginOptions(plugin, options);
 
     const context: PluginContext = {
-      logger: {
-        info: (msg: string, data?: Record<string, unknown>) =>
-          logger.info({ plugin: plugin.name, ...data }, `[${plugin.name}] ${msg}`),
-        warn: (msg: string, data?: Record<string, unknown>) =>
-          logger.warn({ plugin: plugin.name, ...data }, `[${plugin.name}] ${msg}`),
-        error: (msg: string, data?: Record<string, unknown>) =>
-          logger.error({ plugin: plugin.name, ...data }, `[${plugin.name}] ${msg}`),
-        debug: (msg: string, data?: Record<string, unknown>) =>
-          logger.debug({ plugin: plugin.name, ...data }, `[${plugin.name}] ${msg}`),
-      },
+      logger: this.createPluginLogger(plugin.name),
       config: mergedOptions,
       toolRegistry: this.toolRegistry,
     };
@@ -327,14 +171,6 @@ export class PluginManager {
       }
 
       this.loadedPlugins.set(plugin.name, plugin);
-      this.pluginInfos.set(plugin.name, {
-        name: plugin.name,
-        description: plugin.description,
-        version: plugin.version,
-        loaded: true,
-        hooks: this.getPluginHookNames(plugin),
-        commands: plugin.commands?.length || 0,
-      });
 
       if (registerDefaults && plugin.defaultOptions !== undefined) {
         this.deps.configStore.registerDefaults('plugin', plugin.name, plugin.defaultOptions);
@@ -369,22 +205,24 @@ export class PluginManager {
     enabled: boolean,
     options?: Record<string, unknown>
   ): PluginRuntimeConfig[] {
-    const plugins = this.deps.configStore.config.plugins.map((plugin) => ({
-      ...plugin,
-      options: plugin.options ? { ...plugin.options } : {},
-    }));
-    const index = plugins.findIndex((plugin) => plugin.name === pluginName);
-
-    if (index >= 0) {
-      plugins[index].enabled = enabled;
-      if (options) {
-        plugins[index].options = options;
+    const plugins = this.deps.configStore.config.plugins;
+    let matched = false;
+    const next = plugins.map((plugin) => {
+      if (plugin.name !== pluginName) {
+        return { ...plugin, options: plugin.options ? { ...plugin.options } : {} };
       }
-      return plugins;
-    }
+      matched = true;
+      return {
+        ...plugin,
+        enabled,
+        options: options ?? (plugin.options ? { ...plugin.options } : {}),
+      };
+    });
 
-    plugins.push({ name: pluginName, enabled, options: options || {} });
-    return plugins;
+    if (!matched) {
+      next.push({ name: pluginName, enabled, options: options || {} });
+    }
+    return next;
   }
 
   private async persistPluginConfig(
@@ -398,18 +236,6 @@ export class PluginManager {
     if (!updated) {
       throw new Error(`Failed to persist plugin config for "${pluginName}"`);
     }
-  }
-
-  private getPluginHookNames(plugin: IPlugin): string[] {
-    const hooks: string[] = [];
-    if (plugin.hooks) {
-      if (plugin.hooks.onMessageReceive) hooks.push('onMessageReceive');
-      if (plugin.hooks.beforeLLMRequest) hooks.push('beforeLLMRequest');
-      if (plugin.hooks.beforeToolCall) hooks.push('beforeToolCall');
-      if (plugin.hooks.afterToolCall) hooks.push('afterToolCall');
-      if (plugin.hooks.onMessageSend) hooks.push('onMessageSend');
-    }
-    return hooks;
   }
 
   private async forEachPluginHook<K extends keyof PluginHooks>(
@@ -526,7 +352,6 @@ export class PluginManager {
       }
 
       this.loadedPlugins.delete(pluginName);
-      this.pluginInfos.delete(pluginName);
 
       logger.info({ pluginName }, 'Plugin unloaded successfully');
     } catch (error) {
@@ -537,33 +362,20 @@ export class PluginManager {
 
   async enablePlugin(pluginName: string): Promise<{ success: boolean; message: string }> {
     if (this.loadedPlugins.has(pluginName)) {
-      return {
-        success: false,
-        message: `插件 "${pluginName}" 已经加载`,
-      };
+      return { success: false, message: `插件 "${pluginName}" 已经加载` };
     }
 
-    let pluginInfo = this.pluginPaths.get(pluginName);
-
-    if (!pluginInfo) {
-      if (!fs.existsSync(this.pluginsDir)) {
-        return {
-          success: false,
-          message: `未找到插件 "${pluginName}"，插件目录不存在`,
-        };
-      }
-
-      pluginInfo = this.findPluginInDirectoryScan(pluginName);
-
-      if (!pluginInfo) {
-        return {
-          success: false,
-          message: `未找到插件 "${pluginName}"，请确认插件已存在于 plugins/ 目录`,
-        };
-      }
+    if (!fs.existsSync(this.pluginsDir)) {
+      return { success: false, message: `未找到插件 "${pluginName}"，插件目录不存在` };
     }
 
-    if (!pluginInfo) {
+    let info = this.discovered.get(pluginName);
+    if (!info) {
+      this.rediscoverPlugins();
+      info = this.discovered.get(pluginName);
+    }
+
+    if (!info) {
       return {
         success: false,
         message: `未找到插件 "${pluginName}"，请确认插件已存在于 plugins/ 目录`,
@@ -571,25 +383,13 @@ export class PluginManager {
     }
 
     try {
-      const { dir: pluginDir, packageJson } = pluginInfo;
       const existingConfig = this.getConfiguredPlugin(pluginName);
       const options = existingConfig?.options || {};
 
-      await this.loadPluginFromEntry(
-        {
-          dir: pluginDir,
-          packageJson,
-          pluginName,
-        },
-        options,
-        false
-      );
+      await this.loadPluginEntry(info, options, false);
 
       if (!this.loadedPlugins.has(pluginName)) {
-        return {
-          success: false,
-          message: `插件 "${pluginName}" 加载失败`,
-        };
+        return { success: false, message: `插件 "${pluginName}" 加载失败` };
       }
 
       const loadedPlugin = this.loadedPlugins.get(pluginName);
@@ -597,11 +397,8 @@ export class PluginManager {
 
       await this.persistPluginConfig(pluginName, true, persistedOptions);
 
-      logger.info({ pluginName: pluginName }, 'Plugin enabled successfully');
-      return {
-        success: true,
-        message: `插件 "${pluginName}" 已开启`,
-      };
+      logger.info({ pluginName }, 'Plugin enabled successfully');
+      return { success: true, message: `插件 "${pluginName}" 已开启` };
     } catch (error) {
       if (this.loadedPlugins.has(pluginName)) {
         try {
@@ -610,7 +407,7 @@ export class PluginManager {
           logger.error({ pluginName, error: rollbackError }, 'Failed to rollback plugin after enable error');
         }
       }
-      logger.error({ pluginName: pluginName, error }, 'Failed to enable plugin');
+      logger.error({ pluginName, error }, 'Failed to enable plugin');
       return {
         success: false,
         message: `插件 "${pluginName}" 开启失败: ${toErrorMessage(error)}`,
@@ -620,10 +417,7 @@ export class PluginManager {
 
   async disablePlugin(pluginName: string): Promise<{ success: boolean; message: string }> {
     if (!this.loadedPlugins.has(pluginName)) {
-      return {
-        success: false,
-        message: `插件 "${pluginName}" 未加载或不存在`,
-      };
+      return { success: false, message: `插件 "${pluginName}" 未加载或不存在` };
     }
 
     const existingConfig = this.getConfiguredPlugin(pluginName);
@@ -633,11 +427,8 @@ export class PluginManager {
       await this.persistPluginConfig(pluginName, false);
       await this.unloadPlugin(pluginName);
 
-      logger.info({ pluginName: pluginName }, 'Plugin disabled successfully');
-      return {
-        success: true,
-        message: `插件 "${pluginName}" 已关闭`,
-      };
+      logger.info({ pluginName }, 'Plugin disabled successfully');
+      return { success: true, message: `插件 "${pluginName}" 已关闭` };
     } catch (error) {
       if (this.loadedPlugins.has(pluginName)) {
         try {
@@ -646,7 +437,7 @@ export class PluginManager {
           logger.error({ pluginName, error: rollbackError }, 'Failed to rollback plugin config after disable error');
         }
       }
-      logger.error({ pluginName: pluginName, error }, 'Failed to disable plugin');
+      logger.error({ pluginName, error }, 'Failed to disable plugin');
       return {
         success: false,
         message: `插件 "${pluginName}" 关闭失败: ${toErrorMessage(error)}`,
@@ -655,7 +446,14 @@ export class PluginManager {
   }
 
   getLoadedPlugins(): PluginInfo[] {
-    return Array.from(this.pluginInfos.values());
+    return Array.from(this.loadedPlugins.values(), plugin => ({
+      name: plugin.name,
+      description: plugin.description,
+      version: plugin.version,
+      loaded: true,
+      hooks: Object.keys(plugin.hooks ?? {}),
+      commands: plugin.commands?.length || 0,
+    }));
   }
 
   async shutdown(): Promise<void> {
@@ -680,8 +478,7 @@ export class PluginManager {
     await Promise.allSettled(destroyPromises);
 
     this.loadedPlugins.clear();
-    this.pluginInfos.clear();
-    this.pluginPaths.clear();
+    this.discovered.clear();
     this.initialized = false;
   }
 
