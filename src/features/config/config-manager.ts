@@ -8,7 +8,7 @@ import { FullConfigSchema, DEFAULT_CONFIG, type FullConfig } from './schema.js';
 import { ConfigStore } from './config-store.js';
 import { loadConfig, watchConfig, type ResolvedConfig } from 'c12';
 import { createDefu } from 'defu';
-import { parseConfigFromRaw, type ConfigParseResult } from './config-parser.js';
+import { parseConfigFromRaw } from './config-parser.js';
 
 const mergeConfigUpdates = createDefu((object, key, currentValue) => {
   if (Array.isArray(currentValue)) {
@@ -171,7 +171,7 @@ export class ConfigManager {
     this.resetSelfUpdating();
   }
 
-  private parseConfig(raw: unknown): ConfigParseResult {
+  private parseConfig(raw: unknown) {
     return parseConfigFromRaw(raw, {
       onValidationFailure: (error) => {
         logger.warn({ issues: this.formatZodErrors(error) }, 'Zod validation failed, attempting to fill missing fields with defaults');
@@ -251,13 +251,6 @@ export class ConfigManager {
     opts: { failureMsg: string; successMsg: string; writeBackMsg: string; beforeWriteBackMsg?: string }
   ): Promise<void> {
     const parsed = this.parseConfig(resolved.config);
-    await this.applyParsedResult(parsed, opts);
-  }
-
-  private async applyParsedResult(
-    parsed: ConfigParseResult,
-    opts: { failureMsg: string; successMsg: string; writeBackMsg: string; beforeWriteBackMsg?: string }
-  ): Promise<void> {
     if (!parsed.config) {
       logger.warn({}, opts.failureMsg);
       return;

@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from '@/platform/observability/logger.js';
 import { pathResolver } from '@/platform/utils/paths.js';
-import { RoleConfig, RoleConfigSchema, RoleWithMetadata, RoleMetadata, DEFAULT_ROLE_ID, DEFAULT_ROLE_CONFIG } from './types.js';
+import { RoleConfig, RoleConfigSchema, RoleWithMetadata, DEFAULT_ROLE_ID, DEFAULT_ROLE_CONFIG } from './types.js';
 
 export { DEFAULT_ROLE_ID } from './types.js';
 
@@ -53,22 +53,22 @@ export class RoleManager {
 
   private async loadAllRoles(): Promise<void> {
     try {
-      const files = fs.readdirSync(this.rolesDir);
-      const jsonFiles = files.filter(f => f.endsWith('.json'));
+      const files = await fs.promises.readdir(this.rolesDir);
+      const roleIds = files
+        .filter(f => f.endsWith('.json'))
+        .map(f => path.basename(f, '.json'));
 
-      for (const file of jsonFiles) {
-        const roleId = path.basename(file, '.json');
-        await this.loadRole(roleId);
-      }
+      await Promise.all(roleIds.map(id => this.loadRole(id)));
 
       if (!this.roles.has(DEFAULT_ROLE_ID)) {
+        const now = new Date();
         this.roles.set(DEFAULT_ROLE_ID, {
           ...DEFAULT_ROLE_CONFIG,
           metadata: {
             id: DEFAULT_ROLE_ID,
             fileName: `${DEFAULT_ROLE_ID}.json`,
-            loadedAt: new Date(),
-            updatedAt: new Date(),
+            loadedAt: now,
+            updatedAt: now,
           },
         });
       }
@@ -83,16 +83,13 @@ export class RoleManager {
   private async loadRole(roleId: string): Promise<RoleWithMetadata | null> {
     const filePath = this.getRoleFilePath(roleId);
 
-    if (!fs.existsSync(filePath)) {
-      this.roles.delete(roleId);
-      logger.debug({ roleId }, 'Role file not found');
-      return null;
-    }
-
     try {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const rawConfig = JSON.parse(content) as Partial<RoleConfig>;
+      const [content, stats] = await Promise.all([
+        fs.promises.readFile(filePath, 'utf-8'),
+        fs.promises.stat(filePath),
+      ]);
 
+      const rawConfig = JSON.parse(content) as Partial<RoleConfig>;
       const result = RoleConfigSchema.safeParse(rawConfig);
 
       if (!result.success) {
@@ -102,31 +99,31 @@ export class RoleManager {
       }
 
       const config = result.data;
-
       if (!config.enabled) {
         logger.debug({ roleId }, 'Role is disabled, skipping');
         this.roles.delete(roleId);
         return null;
       }
 
-      const stats = fs.statSync(filePath);
-      const metadata: RoleMetadata = {
-        id: roleId,
-        fileName: `${roleId}.json`,
-        loadedAt: new Date(),
-        updatedAt: stats.mtime,
-      };
-
       const roleWithMeta: RoleWithMetadata = {
         ...config,
-        metadata,
+        metadata: {
+          id: roleId,
+          fileName: `${roleId}.json`,
+          loadedAt: new Date(),
+          updatedAt: stats.mtime,
+        },
       };
 
       this.roles.set(roleId, roleWithMeta);
       logger.debug({ roleId, name: config.name }, 'Role loaded');
-
       return roleWithMeta;
     } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        this.roles.delete(roleId);
+        logger.debug({ roleId }, 'Role file not found');
+        return null;
+      }
       this.roles.delete(roleId);
       logger.error({ roleId, error }, 'Failed to load role');
       return null;
