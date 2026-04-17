@@ -27,21 +27,13 @@ export interface DownloadedMedia {
 }
 
 export class MediaDownloader {
-  private static instance: MediaDownloader;
   private mediaDir: string;
   private pendingDownloads: Map<string, Promise<MediaDownloadResult>>;
 
-  private constructor() {
+  constructor() {
     this.mediaDir = path.join(pathResolver.getBasePath(), 'media');
     this.pendingDownloads = new Map();
     this.ensureMediaDirectory();
-  }
-
-  static getInstance(): MediaDownloader {
-    if (!MediaDownloader.instance) {
-      MediaDownloader.instance = new MediaDownloader();
-    }
-    return MediaDownloader.instance;
   }
 
   private ensureMediaDirectory(): void {
@@ -214,4 +206,4 @@ export class MediaDownloader {
   }
 }
 
-export const mediaDownloader = MediaDownloader.getInstance();
+export const mediaDownloader = new MediaDownloader();

@@ -27,6 +27,10 @@ export class SkillManager {
     this.initialized = false;
   }
 
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.shutdown();
+  }
+
   async reload(): Promise<void> {
     const systemDir = pathResolver.getSystemSkillsDir();
     const userDir = pathResolver.getUserSkillsDir();

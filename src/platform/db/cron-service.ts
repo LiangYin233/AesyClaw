@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import cron from 'node-cron';
 import { logger } from '@/platform/observability/logger.js';
+import { toErrorMessage } from '@/platform/utils/errors.js';
 import type { CronJobRecord } from './repositories/cron-job-repository.js';
 import { cronJobRepository } from './repositories/cron-job-repository.js';
 import { CRON_RUN_STATUS, cronRunRepository } from './repositories/cron-run-repository.js';
@@ -273,8 +274,7 @@ class CronService {
       cronRunRepository.finish(run.id, CRON_RUN_STATUS.Succeeded, new Date().toISOString());
       logger.info({ jobId: job.id }, 'Cron job executed successfully');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      cronRunRepository.finish(run.id, CRON_RUN_STATUS.Failed, new Date().toISOString(), errorMessage);
+      cronRunRepository.finish(run.id, CRON_RUN_STATUS.Failed, new Date().toISOString(), toErrorMessage(error));
       logger.error({ jobId: job.id, error }, 'Cron job execution failed');
     }
 

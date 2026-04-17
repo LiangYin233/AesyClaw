@@ -1,17 +1,6 @@
 import { ParsedCommand } from '@/contracts/commands.js';
 
 class CommandParser {
-  private static instance: CommandParser;
-
-  private constructor() {}
-
-  static getInstance(): CommandParser {
-    if (!CommandParser.instance) {
-      CommandParser.instance = new CommandParser();
-    }
-    return CommandParser.instance;
-  }
-
   parse(input: string): ParsedCommand | null {
     const trimmed = input.trim();
 
@@ -42,4 +31,4 @@ class CommandParser {
   }
 }
 
-export const commandParser = CommandParser.getInstance();
+export const commandParser = new CommandParser();

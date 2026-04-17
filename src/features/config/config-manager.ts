@@ -324,6 +324,33 @@ export class ConfigManager {
     await this.defaultsRegistry.sync(this);
   }
 
+  getPluginRuntimeConfig(name: string) {
+    return this.config.plugins.find(p => p.name === name);
+  }
+
+  async updatePluginRuntimeConfig(
+    name: string,
+    changes: { enabled: boolean; options?: Record<string, unknown> }
+  ): Promise<boolean> {
+    const current = this.config.plugins;
+    let matched = false;
+    const next = current.map(p => {
+      if (p.name !== name) {
+        return { ...p, options: p.options ? { ...p.options } : {} };
+      }
+      matched = true;
+      return {
+        ...p,
+        enabled: changes.enabled,
+        options: changes.options ?? (p.options ? { ...p.options } : {}),
+      };
+    });
+    if (!matched) {
+      next.push({ name, enabled: changes.enabled, options: changes.options || {} });
+    }
+    return this.updateConfig({ plugins: next });
+  }
+
   async updateConfig(updates: Partial<FullConfig>): Promise<boolean> {
     if (!this.initialized) { logger.error({}, 'ConfigManager not initialized'); return false; }
     try {
@@ -367,6 +394,10 @@ export class ConfigManager {
     this.configChangeListeners.clear();
     this.initialized = false;
     logger.info({}, 'ConfigManager destroyed');
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.destroy();
   }
 }
 

@@ -2,20 +2,12 @@ import { logger } from '@/platform/observability/logger.js';
 import { CommandDefinition } from '@/contracts/commands.js';
 
 class CommandRegistry {
-  private static instance: CommandRegistry;
   private commands: Map<string, CommandDefinition> = new Map();
   private aliasMap: Map<string, string> = new Map();
   private pluginCommands: Map<string, CommandDefinition[]> = new Map();
 
-  private constructor() {
+  constructor() {
     logger.info({}, 'CommandRegistry singleton initialized');
-  }
-
-  static getInstance(): CommandRegistry {
-    if (!CommandRegistry.instance) {
-      CommandRegistry.instance = new CommandRegistry();
-    }
-    return CommandRegistry.instance;
   }
 
   register(command: CommandDefinition): void {
@@ -132,4 +124,4 @@ class CommandRegistry {
   }
 }
 
-export const commandRegistry = CommandRegistry.getInstance();
+export const commandRegistry = new CommandRegistry();

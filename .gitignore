@@ -20,5 +20,6 @@ node_modules
 dist/
 .aesyclaw/
 .opencode/
+.claude/
 docs/
 AGENTS.md

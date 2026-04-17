@@ -1,3 +1,4 @@
+import type { ScopedLogger } from '@/platform/observability/logger.js';
 import type { IOutboundMessage, IUnifiedMessage } from '@/agent/types.js';
 import type { IOutboundPayload } from '@/channels/channel-plugin.js';
 import type { CommandDefinition } from '@/contracts/commands.js';
@@ -36,16 +37,11 @@ export interface PluginToolDefinition {
   ) => Promise<{ success: boolean; content: string; error?: string }>;
 }
 
-export interface PluginLogger {
-  info: (_msg: string, _data?: Record<string, unknown>) => void;
-  warn: (_msg: string, _data?: Record<string, unknown>) => void;
-  error: (_msg: string, _data?: Record<string, unknown>) => void;
-  debug: (_msg: string, _data?: Record<string, unknown>) => void;
-}
+export type PluginLogger = ScopedLogger;
 
-export interface PluginContext {
+export interface PluginContext<TOptions = Record<string, unknown>> {
   logger: PluginLogger;
-  config: Record<string, unknown>;
+  config: TOptions;
   toolRegistry: ToolRegistry;
   sendFn?: (_payload: IOutboundPayload) => Promise<void>;
   channelId?: string;
@@ -147,12 +143,12 @@ export interface PluginHooks {
   ) => Promise<HookMessageSendResult>;
 }
 
-export interface IPlugin {
+export interface IPlugin<TOptions = Record<string, unknown>> {
   name: string;
   version: string;
   description?: string;
-  defaultOptions?: Record<string, unknown>;
-  init?: (_ctx: PluginContext) => Promise<void>;
+  defaultOptions?: TOptions;
+  init?: (_ctx: PluginContext<TOptions>) => Promise<void>;
   hooks?: PluginHooks;
   commands?: CommandDefinition[];
   destroy?: () => Promise<void>;

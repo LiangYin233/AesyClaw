@@ -1,32 +1,28 @@
 import type { ChannelPipeline } from '@/agent/pipeline.js';
+import type { ScopedLogger } from '@/platform/observability/logger.js';
 
 export interface IOutboundPayload {
   text: string;
   mediaFiles?: Array<{ type: string; url: string }>;
 }
 
-export interface ChannelPluginLogger {
-  info: (_msg: string, _data?: Record<string, unknown>) => void;
-  warn: (_msg: string, _data?: Record<string, unknown>) => void;
-  error: (_msg: string, _data?: Record<string, unknown>) => void;
-  debug: (_msg: string, _data?: Record<string, unknown>) => void;
-}
+export type ChannelPluginLogger = ScopedLogger;
 
-export interface ChannelPluginContext {
-  config?: Record<string, unknown>;
+export interface ChannelPluginContext<TOptions = Record<string, unknown>> {
+  config?: TOptions;
   logger: ChannelPluginLogger;
   pipeline: ChannelPipeline;
 }
 
-export interface IChannelPlugin {
+export interface IChannelPlugin<TOptions = Record<string, unknown>> {
   name: string;
   version: string;
   description?: string;
-  defaultOptions?: Record<string, unknown>;
-  init(_ctx: ChannelPluginContext): Promise<void>;
+  defaultOptions?: TOptions;
+  init(_ctx: ChannelPluginContext<TOptions>): Promise<void>;
   destroy(): Promise<void>;
 }
 
-export interface IChannelWithSend extends IChannelPlugin {
+export interface IChannelWithSend<TOptions = Record<string, unknown>> extends IChannelPlugin<TOptions> {
   getSendFn(): (_payload: IOutboundPayload) => Promise<void>;
 }

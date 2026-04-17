@@ -13,7 +13,6 @@ const DEFAULT_USER_SKILLS_DIR = 'user_skills';
 const DEFAULT_WORKSPACE_DIR = 'workspace';
 
 export class PathResolver {
-  private static instance: PathResolver;
   private basePath: string;
   private configDir: string;
   private dataDir: string;
@@ -23,7 +22,7 @@ export class PathResolver {
   private workspaceDir: string;
   private initialized: boolean = false;
 
-  private constructor() {
+  constructor() {
     this.basePath = path.join(process.cwd(), AESYCCLAW_DIR);
     this.configDir = this.basePath;
     this.dataDir = path.join(this.basePath, DEFAULT_DATA_DIR);
@@ -31,13 +30,6 @@ export class PathResolver {
     this.systemSkillsDir = path.join(process.cwd(), DEFAULT_SYSTEM_SKILLS_DIR);
     this.userSkillsDir = path.join(this.basePath, DEFAULT_USER_SKILLS_DIR);
     this.workspaceDir = path.join(this.basePath, DEFAULT_WORKSPACE_DIR);
-  }
-
-  static getInstance(): PathResolver {
-    if (!PathResolver.instance) {
-      PathResolver.instance = new PathResolver();
-    }
-    return PathResolver.instance;
   }
 
   initialize(): void {
@@ -126,4 +118,4 @@ export class PathResolver {
   }
 }
 
-export const pathResolver = PathResolver.getInstance();
+export const pathResolver = new PathResolver();
