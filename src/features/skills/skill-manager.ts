@@ -19,7 +19,7 @@ export class SkillManager {
 
     await this.reload();
     this.initialized = true;
-    logger.info(this.getStats(), 'SkillManager initialized via aesyiu');
+    logger.info(this.getStats(), 'SkillManager initialized');
   }
 
   async shutdown(): Promise<void> {
@@ -35,7 +35,7 @@ export class SkillManager {
     const systemDir = pathResolver.getSystemSkillsDir();
     const userDir = pathResolver.getUserSkillsDir();
 
-    logger.info({ systemDir, userDir }, 'Loading skills via aesyiu');
+    logger.info({ systemDir, userDir }, 'Loading skills');
 
     const [systemSkills, userSkills] = await Promise.all([
       this.loadDirectory(systemDir, 'system'),

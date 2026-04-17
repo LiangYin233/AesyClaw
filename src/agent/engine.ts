@@ -111,7 +111,7 @@ export class AgentEngine {
   async run(userInput: string): Promise<AgentRunResult> {
     logger.info(
       { chatId: this.chatId, instanceId: this.instanceId, inputLength: userInput.length },
-      'AgentEngine starting request processing via aesyiu'
+      'AgentEngine starting request processing'
     );
 
     const stats: AesyiuRunStats = { steps: 0, toolCalls: 0 };
@@ -175,7 +175,7 @@ export class AgentEngine {
           toolCalls: stats.toolCalls,
           tokenUsage: result.usage,
         },
-        'AgentEngine run completed via aesyiu'
+        'AgentEngine run completed'
       );
 
       if (result.status === 'error') {
