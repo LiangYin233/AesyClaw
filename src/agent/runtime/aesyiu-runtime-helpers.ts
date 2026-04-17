@@ -236,7 +236,7 @@ function createHookAwareToolMiddleware(
         traceId: options.traceId,
         roleId: options.getRoleId(),
       },
-      'Starting tool execution via aesyiu runtime'
+      'Starting tool execution'
     );
 
     const beforeToolResult = await getHookRuntime().dispatchBeforeToolCall({
@@ -280,7 +280,7 @@ function createHookAwareToolMiddleware(
         success: finalResult.success,
         error: finalResult.error,
       },
-      'Tool execution completed via aesyiu runtime'
+      'Tool execution completed'
     );
 
     return finalResult;

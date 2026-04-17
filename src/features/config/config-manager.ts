@@ -132,7 +132,7 @@ export class ConfigManager {
     try {
       await this.initializeWithC12();
       this.initialized = true;
-      logger.info({ configPath: this.configPath }, 'ConfigManager initialized with c12 hot-reload');
+      logger.info({ configPath: this.configPath }, 'ConfigManager initialized with hot-reload');
     } catch (error) {
       logger.error({ error }, 'Failed to initialize ConfigManager');
       throw error;
@@ -225,7 +225,7 @@ export class ConfigManager {
             logger.debug({}, 'Ignoring self-triggered config update');
             return;
           }
-          logger.info({}, 'Reloading configuration via c12...');
+          logger.info({}, 'Reloading configuration...');
           try {
             await this.applyResolvedConfig(newConfig, {
               failureMsg: 'Config reload failed, keeping old config',

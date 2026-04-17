@@ -120,7 +120,7 @@ export class SandboxEngine {
 
     logger.info(
       { sandboxId: this.sandboxId },
-      'Starting sub-agent execution via aesyiu'
+      'Starting sub-agent execution'
     );
 
     try {
