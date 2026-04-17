@@ -22,7 +22,3 @@ export interface IChannelPlugin<TOptions = Record<string, unknown>> {
   init(_ctx: ChannelPluginContext<TOptions>): Promise<void>;
   destroy(): Promise<void>;
 }
-
-export interface IChannelWithSend<TOptions = Record<string, unknown>> extends IChannelPlugin<TOptions> {
-  getSendFn(): (_payload: IOutboundPayload) => Promise<void>;
-}

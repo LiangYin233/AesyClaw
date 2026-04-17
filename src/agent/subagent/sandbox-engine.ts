@@ -8,7 +8,6 @@ import {
   buildAesyiuEngine,
   type AesyiuRunStats,
   getFinalAssistantText,
-  isRolePromptMessage,
 } from '@/agent/runtime/aesyiu-runtime-helpers.js';
 import { configManager } from '@/features/config/config-manager.js';
 import { roleManager, DEFAULT_ROLE_ID } from '@/features/roles/role-manager.js';
@@ -156,6 +155,7 @@ export class SandboxEngine {
           }
           return null;
         },
+        getRoleId: () => this.config.roleId ?? '',
       });
 
       const result = await engine.run(
@@ -166,9 +166,9 @@ export class SandboxEngine {
         context
       );
 
-      this.memory = result.messages.filter(message => !message._meta?.skillPrompt && !isRolePromptMessage(message));
+      this.memory = [...result.visibleMessages];
 
-      let lastAssistantMessage = getFinalAssistantText(result.messages);
+      let lastAssistantMessage = getFinalAssistantText(result.visibleMessages);
       if (!lastAssistantMessage) {
         lastAssistantMessage = result.status === 'max_steps_reached'
           ? '[无输出] 子代理达到最大步数，未能产出最终结果'

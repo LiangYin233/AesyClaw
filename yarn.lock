@@ -424,10 +424,10 @@ acorn@^8.16.0:
   resolved "https://mirrors.cloud.tencent.com/npm/acorn/-/acorn-8.16.0.tgz"
   integrity sha512-UVJyE9MttOsBQIDKw1skb9nAwQuR5wuGD3+82K6JgJlm/Y+KI92oNsMNGZCYdDsVtRHSak0pcV5Dno5+4jh9sw==
 
-aesyiu@^0.1.2:
-  version "0.1.2"
-  resolved "https://registry.npmjs.org/aesyiu/-/aesyiu-0.1.2.tgz"
-  integrity sha512-k0k3jkGsarWmrpPIMuYqGT2RS3kozRJBYUCQNVHcVS6AdjfaXcNDevC55H3qnM/kwn87i2lBC0Lb6ik3mcl8EQ==
+aesyiu@^0.2.0:
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/aesyiu/-/aesyiu-0.2.0.tgz#4ef7c0b0b09d7755600ebe1d8e7e770b1f8fbcae"
+  integrity sha512-7nrx41VDL9/TK2jTG6vol9M/RtReO8+IKPqauBN+PxQvoAL1VVxAs1Yvlsn9CfdtRJwqm+oxMOZ/4jA1d5YBAg==
   dependencies:
     "@anthropic-ai/sdk" "^0.88.0"
     "@modelcontextprotocol/sdk" "^1.29.0"

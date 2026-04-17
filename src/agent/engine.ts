@@ -15,7 +15,6 @@ import {
   buildAesyiuEngine,
   type AesyiuRunStats,
   getFinalAssistantText,
-  isRolePromptMessage,
   toAesyiuMessage,
   toStandardMessage,
 } from './runtime/aesyiu-runtime-helpers.js';
@@ -106,11 +105,7 @@ export class AgentEngine {
   }
 
   private syncMemory(messages: readonly AesyiuMessage[]): void {
-    this.memory.importMemory(
-      messages
-        .filter(message => !message._meta?.skillPrompt && !isRolePromptMessage(message))
-        .map(toStandardMessage)
-    );
+    this.memory.importMemory(messages.map(toStandardMessage));
   }
 
   async run(userInput: string): Promise<AgentRunResult> {
@@ -153,6 +148,7 @@ export class AgentEngine {
           }
           return null;
         },
+        getRoleId: () => this.memory.getActiveRoleId(),
       });
 
       const result = await engine.run(
@@ -163,12 +159,12 @@ export class AgentEngine {
         context
       );
 
-      this.syncMemory(result.messages);
+      this.syncMemory(result.visibleMessages);
 
       const finalText =
         result.status === 'max_steps_reached'
           ? `抱歉，任务在 ${this.config.maxSteps} 步后仍未完成。请简化您的请求或分步进行。`
-          : getFinalAssistantText(result.messages);
+          : getFinalAssistantText(result.visibleMessages);
 
       logger.info(
         {

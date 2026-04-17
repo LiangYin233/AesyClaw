@@ -7,9 +7,12 @@ import {
   OpenAICompletionProvider,
   OpenAIResponsesProvider,
   type AgentSkill,
+  type LLMMiddleware,
+  type LLMProvider,
   type Message as AesyiuMessage,
   type ModelDefinition,
   type Tool as AesyiuTool,
+  type ToolMiddleware,
 } from 'aesyiu';
 import { getHookRuntime } from '@/bootstrap.js';
 import { configManager } from '@/features/config/config-manager.js';
@@ -29,7 +32,7 @@ export interface AesyiuRunStats {
   error?: string;
 }
 
-type RolePromptMeta = NonNullable<AesyiuMessage['_meta']> & { rolePrompt?: boolean };
+export const ROLES_PROMPT_SECTION = 'aesyclaw:roles';
 
 function parseToolArguments(argumentsText: string): Record<string, unknown> {
   try {
@@ -85,36 +88,29 @@ export function getFinalAssistantText(messages: readonly AesyiuMessage[]): strin
   return '';
 }
 
-function createRolesPromptMessage(tools: readonly ITool[]): AesyiuMessage | null {
+function injectRolesPrompt(ctx: AgentContext, tools: readonly ITool[]): void {
   if (!tools.some(tool => tool.name === SUBAGENT_TOOL_NAME_RUN)) {
-    return null;
+    ctx.removePromptSection(ROLES_PROMPT_SECTION);
+    return;
   }
 
   const roles = roleManager.getRolesList();
   if (roles.length === 0) {
-    return null;
+    ctx.removePromptSection(ROLES_PROMPT_SECTION);
+    return;
   }
 
   const listing = roles
     .map(role => `- ${role.id}: ${role.name}${role.description ? ` - ${role.description}` : ''}`)
     .join('\n');
 
-  return {
-    role: 'system',
-    content: [
-      'Available roles:',
-      listing,
-      'If a task matches one of these roles, call `runSubAgent` with one of the listed role IDs only.',
-    ].join('\n'),
-    _meta: {
-      isPinned: true,
-      rolePrompt: true,
-    } as RolePromptMeta,
-  };
-}
+  const content = [
+    'Available roles:',
+    listing,
+    'If a task matches one of these roles, call `runSubAgent` with one of the listed role IDs only.',
+  ].join('\n');
 
-export function isRolePromptMessage(message: AesyiuMessage): boolean {
-  return Boolean((message._meta as RolePromptMeta | undefined)?.rolePrompt);
+  ctx.registerPromptSection(ROLES_PROMPT_SECTION, { content, pinned: true });
 }
 
 function resolveModelDefinition(
@@ -146,37 +142,34 @@ function resolveModelDefinition(
   };
 }
 
-function createHookAwareProvider(
-  llmConfig: LLMConfig,
-  modelDef: ModelDefinition,
-  stats: Pick<AesyiuRunStats, 'steps' | 'error'>,
-  hookTools: HookPayloadLLMTool[],
-  hookSkills: HookPayloadLLMSkill[]
-) {
+function buildProvider(llmConfig: LLMConfig, modelDef: ModelDefinition): LLMProvider {
   const providerConfig = {
     apiKey: llmConfig.apiKey || '',
     baseURL: llmConfig.baseUrl,
   };
 
-  const provider = (() => {
-    switch (llmConfig.provider) {
-      case LLMProviderType.OpenAICompletion:
-        return new OpenAICompletionProvider(providerConfig, [modelDef]);
-      case LLMProviderType.Anthropic:
-        return new AnthropicProvider(providerConfig, [modelDef]);
-      case LLMProviderType.OpenAIChat:
-      default:
-        return new OpenAIResponsesProvider(providerConfig, [modelDef]);
-    }
-  })();
+  switch (llmConfig.provider) {
+    case LLMProviderType.OpenAICompletion:
+      return new OpenAICompletionProvider(providerConfig, [modelDef]);
+    case LLMProviderType.Anthropic:
+      return new AnthropicProvider(providerConfig, [modelDef]);
+    case LLMProviderType.OpenAIChat:
+    default:
+      return new OpenAIResponsesProvider(providerConfig, [modelDef]);
+  }
+}
 
-  const originalGenerate = provider.generate.bind(provider);
-  provider.generate = async (activeModel, messages, tools) => {
+function createHookAwareLLMMiddleware(
+  stats: Pick<AesyiuRunStats, 'steps' | 'error'>,
+  hookTools: HookPayloadLLMTool[],
+  hookSkills: HookPayloadLLMSkill[],
+): LLMMiddleware {
+  return async (ctx, next) => {
     stats.steps += 1;
 
     try {
       const beforeLLMResult = await getHookRuntime().dispatchBeforeLLMRequest({
-        messages: messages.map(toStandardMessage),
+        messages: ctx.messages.map(toStandardMessage),
         tools: hookTools,
         skills: hookSkills,
       });
@@ -190,110 +183,123 @@ function createHookAwareProvider(
     }
 
     try {
-      return await originalGenerate(activeModel, messages, tools);
+      return await next();
     } catch (error) {
       stats.error = toErrorMessage(error);
       throw error;
     }
   };
-
-  return provider;
 }
 
-function createHookAwareRunTools(
-  tools: readonly ITool[],
+function createHookAwareToolMiddleware(
+  toolIndex: Map<string, ITool>,
   stats: Pick<AesyiuRunStats, 'toolCalls'>,
   options: {
-    createToolContext: (_ctx: unknown, _tool: ITool) => ToolExecuteContext;
+    traceId: string;
+    chatId: string;
     checkToolAllowed?: (_tool: ITool) => ToolExecutionResult | null;
-  }
-): AesyiuTool[] {
-  return tools.map(tool => ({
+    getRoleId: () => string;
+  },
+): ToolMiddleware {
+  return async (ctx, next) => {
+    const iTool = toolIndex.get(ctx.tool.name);
+    if (!iTool) {
+      return next();
+    }
+
+    const syntheticToolCallId = randomUUID();
+    const parsedArgs = ctx.args && typeof ctx.args === 'object' ? ctx.args as Record<string, unknown> : {};
+    const rejectedResult = options.checkToolAllowed?.(iTool);
+
+    if (rejectedResult) {
+      logger.info(
+        {
+          toolName: iTool.name,
+          toolCallId: syntheticToolCallId,
+          args: parsedArgs,
+          success: rejectedResult.success,
+          error: rejectedResult.error,
+        },
+        'Tool call rejected before execution'
+      );
+      return rejectedResult;
+    }
+
+    stats.toolCalls += 1;
+
+    logger.info(
+      {
+        toolName: iTool.name,
+        toolCallId: syntheticToolCallId,
+        args: parsedArgs,
+        chatId: options.chatId,
+        traceId: options.traceId,
+        roleId: options.getRoleId(),
+      },
+      'Starting tool execution via aesyiu runtime'
+    );
+
+    const beforeToolResult = await getHookRuntime().dispatchBeforeToolCall({
+      id: syntheticToolCallId,
+      name: iTool.name,
+      arguments: parsedArgs,
+    });
+
+    let toolResult: ToolExecutionResult;
+
+    if (beforeToolResult.shortCircuited) {
+      toolResult = beforeToolResult.result;
+      logger.info(
+        {
+          toolName: iTool.name,
+          toolCallId: syntheticToolCallId,
+          chatId: options.chatId,
+          traceId: options.traceId,
+        },
+        'Tool execution short-circuited by hook'
+      );
+    } else {
+      toolResult = await next() as ToolExecutionResult;
+    }
+
+    const finalResult = await getHookRuntime().dispatchAfterToolCall({
+      toolCall: {
+        id: syntheticToolCallId,
+        name: iTool.name,
+        arguments: parsedArgs,
+      },
+      result: toolResult,
+    });
+
+    logger.info(
+      {
+        toolName: iTool.name,
+        toolCallId: syntheticToolCallId,
+        chatId: options.chatId,
+        traceId: options.traceId,
+        success: finalResult.success,
+        error: finalResult.error,
+      },
+      'Tool execution completed via aesyiu runtime'
+    );
+
+    return finalResult;
+  };
+}
+
+function toAesyiuTool(
+  tool: ITool,
+  createToolContext: (ctx: unknown, tool: ITool) => ToolExecuteContext,
+): AesyiuTool {
+  return {
     name: tool.name,
     description: tool.description,
     parameters: tool.getDefinition().parameters,
-    execute: async (args, ctx) => {
-      const syntheticToolCallId = randomUUID();
-      const parsedArgs = args && typeof args === 'object' ? args as Record<string, unknown> : {};
-      const rejectedResult = options.checkToolAllowed?.(tool);
-
-      if (rejectedResult) {
-        logger.info(
-          {
-            toolName: tool.name,
-            toolCallId: syntheticToolCallId,
-            args: parsedArgs,
-            success: rejectedResult.success,
-            error: rejectedResult.error,
-          },
-          'Tool call rejected before execution'
-        );
-        return rejectedResult;
-      }
-
-      const toolContext = options.createToolContext(ctx, tool);
-
-      stats.toolCalls += 1;
-
-      logger.info(
-        {
-          toolName: tool.name,
-          toolCallId: syntheticToolCallId,
-          args: parsedArgs,
-          chatId: toolContext.chatId,
-          traceId: toolContext.traceId,
-          roleId: toolContext.roleId,
-        },
-        'Starting tool execution via aesyiu runtime'
-      );
-
-      const beforeToolResult = await getHookRuntime().dispatchBeforeToolCall({
-        id: syntheticToolCallId,
-        name: tool.name,
-        arguments: parsedArgs,
-      });
-
-      let toolResult: ToolExecutionResult;
-
-      if (beforeToolResult.shortCircuited) {
-        toolResult = beforeToolResult.result;
-        logger.info(
-          {
-            toolName: tool.name,
-            toolCallId: syntheticToolCallId,
-            chatId: toolContext.chatId,
-            traceId: toolContext.traceId,
-          },
-          'Tool execution short-circuited by hook'
-        );
-      } else {
-        toolResult = await tool.execute(parsedArgs, toolContext);
-      }
-
-      const finalResult = await getHookRuntime().dispatchAfterToolCall({
-        toolCall: {
-          id: syntheticToolCallId,
-          name: tool.name,
-          arguments: parsedArgs,
-        },
-        result: toolResult,
-      });
-
-      logger.info(
-        {
-          toolName: tool.name,
-          toolCallId: syntheticToolCallId,
-          chatId: toolContext.chatId,
-          traceId: toolContext.traceId,
-          success: finalResult.success,
-          error: finalResult.error,
-        },
-        'Tool execution completed via aesyiu runtime'
-      );
-
-      return finalResult;
+    execute: async (args, agentContext) => {
+      const toolContext = createToolContext(agentContext, tool);
+      return tool.execute(args as Record<string, unknown>, toolContext);
     },
-  }));
+  };
 }
 
 interface BuildAesyiuEngineOptions {
@@ -309,6 +315,7 @@ interface BuildAesyiuEngineOptions {
   stats: AesyiuRunStats;
   createToolContext: (_ctx: unknown, _tool: ITool) => ToolExecuteContext;
   checkToolAllowed?: (_tool: ITool) => ToolExecutionResult | null;
+  getRoleId?: () => string;
 }
 
 export function buildAesyiuEngine(options: BuildAesyiuEngineOptions): {
@@ -324,15 +331,14 @@ export function buildAesyiuEngine(options: BuildAesyiuEngineOptions): {
     configManager.config.providers,
     options.maxContextTokens
   );
-  const provider = createHookAwareProvider(options.llmConfig, modelDef, options.stats, hookTools, hookSkills);
+  const provider = buildProvider(options.llmConfig, modelDef);
 
   const context = new AgentContext({ provider, modelId: options.llmConfig.model });
   context.state.chatId = options.chatId;
   context.state.traceId = options.traceId;
   context.addMessages(options.messages);
 
-  const rolesPrompt = createRolesPromptMessage(options.filteredTools);
-  if (rolesPrompt) context.addMessage(rolesPrompt);
+  injectRolesPrompt(context, options.filteredTools);
 
   const engine = new AesyiuEngine({
     maxSteps: options.maxSteps,
@@ -343,11 +349,20 @@ export function buildAesyiuEngine(options: BuildAesyiuEngineOptions): {
     }),
   });
 
-  const runTools = createHookAwareRunTools(options.filteredTools, options.stats, {
-    createToolContext: options.createToolContext,
+  const toolIndex = new Map(options.filteredTools.map(tool => [tool.name, tool] as const));
+  const getRoleId = options.getRoleId ?? (() => '');
+
+  engine.useLLM(createHookAwareLLMMiddleware(options.stats, hookTools, hookSkills));
+  engine.useTool(createHookAwareToolMiddleware(toolIndex, options.stats, {
+    chatId: options.chatId,
+    traceId: options.traceId,
     checkToolAllowed: options.checkToolAllowed,
-  });
-  for (const tool of runTools) engine.registerTool(tool);
+    getRoleId,
+  }));
+
+  for (const tool of options.filteredTools) {
+    engine.registerTool(toAesyiuTool(tool, options.createToolContext));
+  }
   engine.registerSkills(options.allowedSkills);
 
   return { engine, context };

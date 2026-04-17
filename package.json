@@ -14,7 +14,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "aesyiu": "^0.1.2",
+    "aesyiu": "^0.2.0",
     "better-sqlite3": "^12.9.0",
     "c12": "^4.0.0-beta.4",
     "defu": "^6.1.7",

@@ -1,4 +1,4 @@
-import type { IChannelPlugin, IChannelWithSend, IOutboundPayload, ChannelPluginContext } from './channel-plugin.js';
+import type { IChannelPlugin, ChannelPluginContext } from './channel-plugin.js';
 import type { ChannelPipeline } from '@/agent/pipeline.js';
 import type { ConfigDefaultsScope } from '@/contracts/commands.js';
 import { logger, createScopedLogger } from '@/platform/observability/logger.js';
@@ -10,7 +10,6 @@ export interface ChannelConfigDefaultsStore {
 
 export class ChannelPluginManager {
   private channels: Map<string, IChannelPlugin> = new Map();
-  private sendFunctions: Map<string, (_payload: IOutboundPayload) => Promise<void>> = new Map();
   private pipeline: ChannelPipeline | null = null;
   private configStore: ChannelConfigDefaultsStore;
 
@@ -51,25 +50,9 @@ export class ChannelPluginManager {
     };
   }
 
-  private resolveSendFunction(
-    plugin: IChannelPlugin,
-    sendFn?: (_payload: IOutboundPayload) => Promise<void>
-  ): ((_payload: IOutboundPayload) => Promise<void>) | undefined {
-    if (sendFn) {
-      return sendFn;
-    }
-
-    if ('getSendFn' in plugin) {
-      return (plugin as IChannelWithSend).getSendFn();
-    }
-
-    return undefined;
-  }
-
   async registerChannel(
     plugin: IChannelPlugin,
-    config?: Record<string, unknown>,
-    sendFn?: (_payload: IOutboundPayload) => Promise<void>
+    config?: Record<string, unknown>
   ): Promise<void> {
     this.getPipeline();
 
@@ -87,11 +70,6 @@ export class ChannelPluginManager {
       await plugin.init(ctx);
 
       this.channels.set(plugin.name, plugin);
-
-      const resolvedSendFunction = this.resolveSendFunction(plugin, sendFn);
-      if (resolvedSendFunction) {
-        this.sendFunctions.set(plugin.name, resolvedSendFunction);
-      }
 
       this.collectChannelDefaults(plugin);
 
@@ -123,12 +101,7 @@ export class ChannelPluginManager {
       logger.error({ channelName: name, error }, 'Error during channel plugin unregister');
     } finally {
       this.channels.delete(name);
-      this.sendFunctions.delete(name);
     }
-  }
-
-  getSendFn(name: string): ((_payload: IOutboundPayload) => Promise<void>) | undefined {
-    return this.sendFunctions.get(name);
   }
 
   getChannelCount(): number {
