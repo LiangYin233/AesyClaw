@@ -1,4 +1,4 @@
-import type { IChannelContext, MiddlewareFunc, PipelineState } from '@/agent/types.js';
+import type { ChannelContext, MiddlewareFunc, PipelineState } from '@/agent/types.js';
 import type { CommandContext } from '@/contracts/commands.js';
 import { commandParser } from '@/features/commands/command-parser.js';
 import { logger } from '@/platform/observability/logger.js';
@@ -15,8 +15,8 @@ interface ResolvedSessionState {
   sessionId: string;
 }
 
-function resolveSessionForInbound(ctx: IChannelContext): ResolvedSessionState {
-  const sessionContext = sessionService.resolveInteractiveSessionForInbound(ctx.inbound);
+function resolveSessionForReceive(ctx: ChannelContext): ResolvedSessionState {
+  const sessionContext = sessionService.resolveInteractiveSessionForReceive(ctx.received);
 
   return {
     sessionContext,
@@ -24,9 +24,9 @@ function resolveSessionForInbound(ctx: IChannelContext): ResolvedSessionState {
   };
 }
 
-export const sessionMessageStage: MiddlewareFunc = async (ctx: IChannelContext, next: () => Promise<void>) => {
+export const sessionStage: MiddlewareFunc = async (ctx: ChannelContext, next: () => Promise<void>) => {
   try {
-    const resolved = resolveSessionForInbound(ctx);
+    const resolved = resolveSessionForReceive(ctx);
 
     if (!ctx.state) {
       ctx.state = {} as PipelineState;
@@ -46,7 +46,7 @@ export const sessionMessageStage: MiddlewareFunc = async (ctx: IChannelContext, 
 
     await next();
 
-    if (!commandParser.isCommand(ctx.inbound.text ?? '')) {
+    if (!commandParser.isCommand(ctx.received.text ?? '')) {
       sessionService.persistRuntimeSession(resolved.sessionContext);
     }
   } catch (error) {

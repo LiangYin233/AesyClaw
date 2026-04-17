@@ -1,4 +1,4 @@
-import type { IChannelPlugin, ChannelPluginContext } from './channel-plugin.js';
+import type { ChannelPlugin, ChannelPluginContext } from './channel-plugin.js';
 import type { ChannelPipeline } from '@/agent/pipeline.js';
 import type { ConfigDefaultsScope } from '@/contracts/commands.js';
 import { logger, createScopedLogger } from '@/platform/observability/logger.js';
@@ -9,7 +9,7 @@ export interface ChannelConfigDefaultsStore {
 }
 
 export class ChannelPluginManager {
-  private channels: Map<string, IChannelPlugin> = new Map();
+  private channels: Map<string, ChannelPlugin> = new Map();
   private pipeline: ChannelPipeline | null = null;
   private configStore: ChannelConfigDefaultsStore;
 
@@ -30,13 +30,13 @@ export class ChannelPluginManager {
   }
 
   private mergeChannelOptions(
-    plugin: IChannelPlugin,
+    plugin: ChannelPlugin,
     userConfig?: Record<string, unknown>
   ): Record<string, unknown> {
     return mergeDefaultOptions(plugin.defaultOptions || {}, userConfig);
   }
 
-  private collectChannelDefaults(plugin: IChannelPlugin): void {
+  private collectChannelDefaults(plugin: ChannelPlugin): void {
     if (plugin.defaultOptions && Object.keys(plugin.defaultOptions).length > 0) {
       this.configStore.registerDefaults('channel', plugin.name, plugin.defaultOptions);
     }
@@ -51,7 +51,7 @@ export class ChannelPluginManager {
   }
 
   async registerChannel(
-    plugin: IChannelPlugin,
+    plugin: ChannelPlugin,
     config?: Record<string, unknown>
   ): Promise<void> {
     this.getPipeline();

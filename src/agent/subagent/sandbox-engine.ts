@@ -16,7 +16,7 @@ import { type LLMConfig } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
 import { toolRegistry } from '@/platform/tools/registry.js';
-import { ITool, ToolExecuteContext } from '@/platform/tools/types.js';
+import { Tool, ToolExecuteContext } from '@/platform/tools/types.js';
 import { DEFAULT_FALLBACK_LLM_CONFIG } from '@/agent/runtime/resolve-llm-config.js';
 import {
   SUBAGENT_TOOL_NAME_RUN,
@@ -98,7 +98,7 @@ export class SandboxEngine {
     return '执行指定任务';
   }
 
-  private getFilteredTools(): ITool[] {
+  private getFilteredTools(): Tool[] {
     const allTools = toolRegistry.getAllToolDefinitions();
     const allowedNames = this.config.allowedTools.includes('*')
       ? allTools.map(tool => tool.name)
@@ -107,7 +107,7 @@ export class SandboxEngine {
     return allowedNames
       .filter(toolName => !SandboxEngine.DISALLOWED_SANDBOX_TOOLS.has(toolName))
       .map(toolName => toolRegistry.getTool(toolName))
-      .filter((tool): tool is ITool => Boolean(tool));
+      .filter((tool): tool is Tool => Boolean(tool));
   }
 
   private getAllowedSkills(): AgentSkill[] {

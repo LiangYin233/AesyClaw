@@ -1,1 +1,1 @@
-export type { IUnifiedMessage } from '@/agent/types.js';
+export type { ChannelReceiveMessage } from '@/agent/types.js';

@@ -40,7 +40,7 @@ export interface ToolExecutionResult {
   metadata?: Record<string, unknown>;
 }
 
-export interface ITool {
+export interface Tool {
   readonly name: string;
   readonly description: string;
   readonly parametersSchema: ZodType;

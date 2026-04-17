@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { z } from 'zod';
 import OpenAI from 'openai';
-import { ITool, ToolDefinition, ToolExecuteContext, ToolExecutionResult, zodToToolParameters } from './types.js';
+import { Tool, ToolDefinition, ToolExecuteContext, ToolExecutionResult, zodToToolParameters } from './types.js';
 import { logger } from '../observability/logger.js';
 import { toErrorMessage } from '../utils/errors.js';
 import { pathResolver } from '../utils/paths.js';
@@ -105,7 +105,7 @@ const ImageUnderstandingSchema = z.object({
   prompt: z.string().describe('关于想要了解图片的方面的描述，例如"详细描述图片内容"或"这张图片有什么特别之处"'),
 });
 
-export class SpeechToTextTool implements ITool {
+export class SpeechToTextTool implements Tool {
   constructor(private readonly getConfig: MultimodalConfigResolver) {}
 
   readonly name = 'speech_to_text';
@@ -226,7 +226,7 @@ export class SpeechToTextTool implements ITool {
 
 }
 
-export class ImageUnderstandingTool implements ITool {
+export class ImageUnderstandingTool implements Tool {
   constructor(private readonly getConfig: MultimodalConfigResolver) {}
 
   readonly name = 'image_understanding';

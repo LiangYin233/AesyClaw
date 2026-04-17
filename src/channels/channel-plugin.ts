@@ -1,7 +1,7 @@
 import type { ChannelPipeline } from '@/agent/pipeline.js';
 import type { ScopedLogger } from '@/platform/observability/logger.js';
 
-export interface IOutboundPayload {
+export interface ChannelSendPayload {
   text: string;
   mediaFiles?: Array<{ type: string; url: string }>;
 }
@@ -14,7 +14,7 @@ export interface ChannelPluginContext<TOptions = Record<string, unknown>> {
   pipeline: ChannelPipeline;
 }
 
-export interface IChannelPlugin<TOptions = Record<string, unknown>> {
+export interface ChannelPlugin<TOptions = Record<string, unknown>> {
   name: string;
   version: string;
   description?: string;

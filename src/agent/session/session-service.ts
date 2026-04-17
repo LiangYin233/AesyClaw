@@ -3,7 +3,7 @@ import { AgentEngine } from '@/agent/engine.js';
 import { SessionMemoryManager } from '@/agent/memory/session-memory-manager.js';
 import type { SessionMemoryConfig } from '@/agent/memory/types.js';
 import { resolveLLMConfig } from '@/agent/runtime/resolve-llm-config.js';
-import type { IUnifiedMessage } from '@/agent/types.js';
+import type { ChannelReceiveMessage } from '@/agent/types.js';
 import type { CommandContext } from '@/contracts/commands.js';
 import { configManager } from '@/features/config/config-manager.js';
 import { roleManager } from '@/features/roles/role-manager.js';
@@ -42,8 +42,8 @@ type SessionMemoryConfigSource = {
 };
 
 class SessionService {
-  resolveInteractiveSessionForInbound(inbound: IUnifiedMessage): SessionContext {
-    return this.createRuntimeSession(this.getOrCreateInteractiveSession(this.scopeFromInbound(inbound)));
+  resolveInteractiveSessionForReceive(received: ChannelReceiveMessage): SessionContext {
+    return this.createRuntimeSession(this.getOrCreateInteractiveSession(this.scopeFromReceive(received)));
   }
 
   getCurrentSessionForCommandContext(ctx: CommandContext): SessionRecord | null {
@@ -247,11 +247,11 @@ class SessionService {
     };
   }
 
-  private scopeFromInbound(inbound: IUnifiedMessage): SessionScope {
+  private scopeFromReceive(received: ChannelReceiveMessage): SessionScope {
     return {
-      channel: inbound.channelId,
-      type: (inbound.metadata?.type as string) || 'default',
-      chatId: inbound.chatId,
+      channel: received.channelId,
+      type: (received.metadata?.type as string) || 'default',
+      chatId: received.chatId,
     };
   }
 

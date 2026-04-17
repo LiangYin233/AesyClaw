@@ -10,7 +10,7 @@ import { LLMConfig, MessageRole } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
 import { toolRegistry } from '@/platform/tools/registry.js';
-import { ITool, ToolExecuteContext, ToolExecutionResult } from '@/platform/tools/types.js';
+import { Tool, ToolExecuteContext, ToolExecutionResult } from '@/platform/tools/types.js';
 import {
   buildAesyiuEngine,
   type AesyiuRunStats,
@@ -83,7 +83,7 @@ export class AgentEngine {
     );
   }
 
-  private getFilteredTools(): ITool[] {
+  private getFilteredTools(): Tool[] {
     const allToolDefs = toolRegistry.getAllToolDefinitions();
     const roleId = this.memory.getActiveRoleId();
     const allowedToolNames = roleManager.getAllowedTools(
@@ -96,7 +96,7 @@ export class AgentEngine {
     return allowedToolNames
       .filter(toolName => !configuredToolSet || configuredToolSet.has(toolName))
       .map(toolName => toolRegistry.getTool(toolName))
-      .filter((tool): tool is ITool => Boolean(tool));
+      .filter((tool): tool is Tool => Boolean(tool));
   }
 
   private getAllowedSkills(roleId: string): AgentSkill[] {

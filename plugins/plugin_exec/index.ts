@@ -2,8 +2,8 @@ import { spawn } from 'child_process';
 import { z } from 'zod';
 import * as path from 'path';
 import * as fs from 'fs';
-import type { IPlugin, PluginContext } from '@/sdk/plugin.js';
-import type { ITool, ToolExecuteContext, ToolExecutionResult } from '@/sdk/tools.js';
+import type { Plugin, PluginContext } from '@/sdk/plugin.js';
+import type { Tool, ToolExecuteContext, ToolExecutionResult } from '@/sdk/tools.js';
 
 const WORKSPACE_DIR = path.join(process.cwd(), '.aesyclaw', 'workspace');
 if (!fs.existsSync(WORKSPACE_DIR)) {
@@ -102,7 +102,7 @@ function executeCommand(command: string, cwd: string): Promise<{ output: string;
   });
 }
 
-const execTool: ITool = {
+const execTool: Tool = {
   name: 'exec',
   description: 'Execute safe shell commands in workspace directory',
   parametersSchema: z.object({
@@ -151,7 +151,7 @@ const execTool: ITool = {
   }
 };
 
-const plugin: IPlugin = {
+const plugin: Plugin = {
   name: 'exec',
   version: '1.1.0',
   description: 'Shell command execution plugin',

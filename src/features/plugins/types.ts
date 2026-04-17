@@ -1,6 +1,6 @@
 import type { ScopedLogger } from '@/platform/observability/logger.js';
-import type { IOutboundMessage, IUnifiedMessage } from '@/agent/types.js';
-import type { IOutboundPayload } from '@/channels/channel-plugin.js';
+import type { ChannelReceiveMessage, ChannelSendMessage } from '@/agent/types.js';
+import type { ChannelSendPayload } from '@/channels/channel-plugin.js';
 import type { CommandDefinition } from '@/contracts/commands.js';
 import type { StandardMessage } from '@/platform/llm/types.js';
 import type { ToolExecutionResult } from '@/platform/tools/types.js';
@@ -43,7 +43,7 @@ export interface PluginContext<TOptions = Record<string, unknown>> {
   logger: PluginLogger;
   config: TOptions;
   toolRegistry: ToolRegistry;
-  sendFn?: (_payload: IOutboundPayload) => Promise<void>;
+  send?: (_payload: ChannelSendPayload) => Promise<void>;
   channelId?: string;
 }
 
@@ -59,8 +59,8 @@ export interface HookPayloadLLMSkill {
   metadata: Record<string, unknown>;
 }
 
-export interface HookPayloadMessageReceive {
-  message: IUnifiedMessage;
+export interface HookPayloadReceive {
+  message: ChannelReceiveMessage;
 }
 
 export interface HookPayloadBeforeLLMRequest {
@@ -84,8 +84,8 @@ export interface HookPayloadAfterToolCall {
   };
 }
 
-export interface HookPayloadMessageSend {
-  message: IOutboundMessage & { chatId: string };
+export interface HookPayloadSend {
+  message: ChannelSendMessage & { chatId: string };
 }
 
 export interface HookBlockResult {
@@ -103,19 +103,19 @@ export interface HookShortCircuitResult {
   result: ToolExecutionResult;
 }
 
-export type HookMessageReceiveResult = HookContinueResult<IUnifiedMessage> | HookBlockResult;
-export type HookMessageSendResult = HookContinueResult<IOutboundMessage & { chatId: string }> | HookBlockResult;
+export type HookReceiveResult = HookContinueResult<ChannelReceiveMessage> | HookBlockResult;
+export type HookSendResult = HookContinueResult<ChannelSendMessage & { chatId: string }> | HookBlockResult;
 export type HookBeforeLLMRequestResult = { action: 'continue' } | HookBlockResult;
 export type HookBeforeToolCallResult = { action: 'continue' } | HookShortCircuitResult;
 export type HookAfterToolCallResult = HookContinueResult<ToolExecutionResult>;
 
-export type MessageReceiveDispatchResult =
+export type ReceiveDispatchResult =
   | { blocked: true; reason?: string }
-  | { blocked: false; message: HookPayloadMessageReceive['message'] };
+  | { blocked: false; message: HookPayloadReceive['message'] };
 
-export type MessageSendDispatchResult =
+export type SendDispatchResult =
   | { blocked: true; reason?: string }
-  | { blocked: false; message: HookPayloadMessageSend['message'] };
+  | { blocked: false; message: HookPayloadSend['message'] };
 
 export type BeforeLLMRequestDispatchResult =
   | { blocked: true; reason?: string }
@@ -126,9 +126,9 @@ export type BeforeToolCallDispatchResult =
   | { shortCircuited: false };
 
 export interface PluginHooks {
-  onMessageReceive?: (
-    _payload: HookPayloadMessageReceive
-  ) => Promise<HookMessageReceiveResult>;
+  onReceive?: (
+    _payload: HookPayloadReceive
+  ) => Promise<HookReceiveResult>;
   beforeLLMRequest?: (
     _payload: HookPayloadBeforeLLMRequest
   ) => Promise<HookBeforeLLMRequestResult>;
@@ -138,12 +138,12 @@ export interface PluginHooks {
   afterToolCall?: (
     _payload: HookPayloadAfterToolCall
   ) => Promise<HookAfterToolCallResult>;
-  onMessageSend?: (
-    _payload: HookPayloadMessageSend
-  ) => Promise<HookMessageSendResult>;
+  onSend?: (
+    _payload: HookPayloadSend
+  ) => Promise<HookSendResult>;
 }
 
-export interface IPlugin<TOptions = Record<string, unknown>> {
+export interface Plugin<TOptions = Record<string, unknown>> {
   name: string;
   version: string;
   description?: string;

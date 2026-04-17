@@ -6,7 +6,7 @@ import type {
   PluginRuntimeConfig,
 } from '@/contracts/commands.js';
 import { ToolRegistry } from '@/platform/tools/registry.js';
-import type { ITool } from '@/platform/tools/types.js';
+import type { Tool } from '@/platform/tools/types.js';
 import { logger, createScopedLogger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
 import { normalizeImportPath } from '@/platform/utils/import-path.js';
@@ -16,17 +16,17 @@ import { discoverPluginsByPrefix, type DiscoveredPlugin } from '@/platform/utils
 import {
   BeforeLLMRequestDispatchResult,
   BeforeToolCallDispatchResult,
-  MessageReceiveDispatchResult,
-  MessageSendDispatchResult,
-  IPlugin,
+  ReceiveDispatchResult,
+  SendDispatchResult,
+  Plugin,
   PluginContext,
   PluginInfo,
   PluginHooks,
-  HookPayloadMessageReceive,
+  HookPayloadReceive,
   HookPayloadBeforeLLMRequest,
   HookPayloadToolCall,
   HookPayloadAfterToolCall,
-  HookPayloadMessageSend,
+  HookPayloadSend,
 } from './types.js';
 
 export interface PluginManagerDependencies {
@@ -37,7 +37,7 @@ export interface PluginManagerDependencies {
 export class PluginManager {
   private toolRegistry: ToolRegistry;
   private deps: PluginManagerDependencies;
-  private loadedPlugins: Map<string, IPlugin> = new Map();
+  private loadedPlugins: Map<string, Plugin> = new Map();
   private pluginToolNames: Map<string, Set<string>> = new Map();
   private initialized: boolean = false;
   private pluginsDir: string;
@@ -131,7 +131,7 @@ export class PluginManager {
     return new Proxy(this.toolRegistry, {
       get: (target, prop, receiver) => {
         if (prop === 'register') {
-          return (tool: ITool): void => {
+          return (tool: Tool): void => {
             this.trackPluginTool(pluginName, tool.name);
             target.register(tool);
           };
@@ -165,7 +165,7 @@ export class PluginManager {
 
     try {
       const mod = await import(normalizeImportPath(entryPath));
-      const plugin: IPlugin | undefined = mod.default || mod;
+      const plugin: Plugin | undefined = mod.default || mod;
 
       if (!plugin || !plugin.name) {
         logger.warn({ entryPath }, 'Invalid plugin module, missing name');
@@ -184,7 +184,7 @@ export class PluginManager {
   }
 
   private async initializePlugin(
-    plugin: IPlugin,
+    plugin: Plugin,
     options: Record<string, unknown>,
     registerDefaults = true
   ): Promise<void> {
@@ -232,7 +232,7 @@ export class PluginManager {
   }
 
   private mergePluginOptions(
-    plugin: IPlugin,
+    plugin: Plugin,
     userOptions: Record<string, unknown>
   ): Record<string, unknown> {
     return mergeDefaultOptions(plugin.defaultOptions || {}, userOptions);
@@ -265,13 +265,13 @@ export class PluginManager {
     }
   }
 
-  async dispatchMessageReceive(
-    payload: HookPayloadMessageReceive
-  ): Promise<MessageReceiveDispatchResult> {
+  async dispatchReceive(
+    payload: HookPayloadReceive
+  ): Promise<ReceiveDispatchResult> {
     let message = payload.message;
-    let blockResult: MessageReceiveDispatchResult | undefined;
+    let blockResult: ReceiveDispatchResult | undefined;
 
-    await this.forEachPluginHook('onMessageReceive', async (hookFn) => {
+    await this.forEachPluginHook('onReceive', async (hookFn) => {
       const result = await hookFn({ message });
       if (result.action === 'block') {
         blockResult = { blocked: true, reason: result.reason };
@@ -328,13 +328,13 @@ export class PluginManager {
     return result;
   }
 
-  async dispatchMessageSend(
-    payload: HookPayloadMessageSend
-  ): Promise<MessageSendDispatchResult> {
+  async dispatchSend(
+    payload: HookPayloadSend
+  ): Promise<SendDispatchResult> {
     let message = payload.message;
-    let blockResult: MessageSendDispatchResult | undefined;
+    let blockResult: SendDispatchResult | undefined;
 
-    await this.forEachPluginHook('onMessageSend', async (hookFn) => {
+    await this.forEachPluginHook('onSend', async (hookFn) => {
       const result = await hookFn({ message });
       if (result.action === 'block') {
         blockResult = { blocked: true, reason: result.reason };

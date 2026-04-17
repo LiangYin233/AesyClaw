@@ -1,5 +1,5 @@
 export type {
-  ITool,
+  Tool,
   ToolDefinition,
   ToolExecuteContext,
   ToolExecutionResult,
