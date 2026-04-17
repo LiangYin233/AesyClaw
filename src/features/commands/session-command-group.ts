@@ -25,14 +25,18 @@ export const sessionCommandGroup: CommandDefinition[] = [
             };
           }
 
+          const currentScope = `${ctx.channelId}:${ctx.messageType}:${ctx.chatId}`;
           let output = '会话列表：\n\n';
           for (const summary of summaries) {
             const { id, channel, type, chatId, messageCount, updatedAt } = summary.session;
+            const scope = `${channel}:${type}:${chatId}`;
+            const isCurrentScope = scope === currentScope;
+
             output += `${id}\n`;
             output += `  - 范围: ${channel}:${type}:${chatId}\n`;
             output += `  - 消息数: ${messageCount}\n`;
             output += `  - 最后活跃: ${updatedAt.toLocaleString()}\n`;
-            output += `  - 状态: ${summary.isCurrent ? '当前会话' : '历史会话'}\n\n`;
+            output += `  - 状态: ${isCurrentScope && summary.isCurrent ? '当前会话' : '历史会话'}\n\n`;
           }
 
           return {
