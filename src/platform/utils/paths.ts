@@ -11,6 +11,8 @@ const DEFAULT_LOG_FILE = 'aesyclaw.log';
 const DEFAULT_SYSTEM_SKILLS_DIR = 'skills';
 const DEFAULT_USER_SKILLS_DIR = 'user_skills';
 const DEFAULT_WORKSPACE_DIR = 'workspace';
+const DEFAULT_MEDIA_DIR = 'media';
+const DEFAULT_ROLES_DIR = 'roles';
 
 export class PathResolver {
   private basePath: string;
@@ -20,6 +22,8 @@ export class PathResolver {
   private systemSkillsDir: string;
   private userSkillsDir: string;
   private workspaceDir: string;
+  private mediaDir: string;
+  private rolesDir: string;
   private initialized: boolean = false;
 
   constructor() {
@@ -30,6 +34,8 @@ export class PathResolver {
     this.systemSkillsDir = path.join(process.cwd(), DEFAULT_SYSTEM_SKILLS_DIR);
     this.userSkillsDir = path.join(this.basePath, DEFAULT_USER_SKILLS_DIR);
     this.workspaceDir = path.join(this.basePath, DEFAULT_WORKSPACE_DIR);
+    this.mediaDir = path.join(this.basePath, DEFAULT_MEDIA_DIR);
+    this.rolesDir = path.join(this.basePath, DEFAULT_ROLES_DIR);
   }
 
   initialize(): void {
@@ -44,6 +50,8 @@ export class PathResolver {
       this.ensureDirectoryExists(this.logDir);
       this.ensureDirectoryExists(this.userSkillsDir);
       this.ensureDirectoryExists(this.workspaceDir);
+      this.ensureDirectoryExists(this.mediaDir);
+      this.ensureDirectoryExists(this.rolesDir);
 
       this.initialized = true;
       logger.info({
@@ -53,6 +61,8 @@ export class PathResolver {
         logDir: this.logDir,
         systemSkillsDir: this.systemSkillsDir,
         userSkillsDir: this.userSkillsDir,
+        mediaDir: this.mediaDir,
+        rolesDir: this.rolesDir,
       }, 'PathResolver initialized');
     } catch (error) {
       logger.error({ error }, 'Failed to initialize PathResolver');
@@ -60,7 +70,7 @@ export class PathResolver {
     }
   }
 
-  private ensureDirectoryExists(dirPath: string): void {
+  public ensureDirectoryExists(dirPath: string): void {
     if (!fs.existsSync(dirPath)) {
       fs.mkdirSync(dirPath, { recursive: true });
       logger.info({ path: dirPath }, 'Created directory');
@@ -111,6 +121,14 @@ export class PathResolver {
 
   getWorkspaceDir(): string {
     return this.workspaceDir;
+  }
+
+  getMediaDir(): string {
+    return this.mediaDir;
+  }
+
+  getRolesDir(): string {
+    return this.rolesDir;
   }
 
   isInitialized(): boolean {

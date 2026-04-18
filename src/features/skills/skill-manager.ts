@@ -1,10 +1,11 @@
 import { loadSkills, type AgentSkill } from 'aesyiu';
 import { logger } from '@/platform/observability/logger.js';
 import { pathResolver } from '@/platform/utils/paths.js';
+import { toErrorMessage } from '@/platform/utils/errors.js';
 import type { RegisteredSkill, SkillSource } from './types.js';
 
 function isMissingSkillsDirectory(error: unknown): boolean {
-  return error instanceof Error && error.message.includes('Skills root directory not found');
+  return toErrorMessage(error).includes('Skills root directory not found');
 }
 
 export class SkillManager {

@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import type { Plugin, PluginContext } from '@/sdk/plugin.js';
 import type { Tool, ToolExecuteContext, ToolExecutionResult } from '@/sdk/tools.js';
+import { toErrorMessage } from '@/sdk/errors.js';
 
 const WORKSPACE_DIR = path.join(process.cwd(), '.aesyclaw', 'workspace');
 if (!fs.existsSync(WORKSPACE_DIR)) {
@@ -125,7 +126,7 @@ const execTool: Tool = {
       return {
         success: false,
         content: '',
-        error: error instanceof Error ? error.message : String(error)
+        error: toErrorMessage(error)
       };
     }
   }

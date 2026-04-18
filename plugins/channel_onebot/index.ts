@@ -11,6 +11,7 @@ import type {
 } from '@/sdk/channel.js';
 import type { ChannelReceiveMessage } from '@/sdk/agent.js';
 import type { DownloadedMedia, MediaDownloader } from '@/sdk/media.js';
+import { toErrorMessage } from '@/sdk/errors.js';
 
 let mediaDownloader: MediaDownloader | null = null;
 
@@ -656,7 +657,7 @@ function createSend(targetId: string, messageType: 'group' | 'private'): (payloa
       await sendApi(params.action, params.params, params.echo);
       logger.debug('Message sent successfully', { targetId, messageType });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = toErrorMessage(error);
       logger.error('Failed to send message', { error: errorMessage, targetId, messageType });
       throw error;
     }

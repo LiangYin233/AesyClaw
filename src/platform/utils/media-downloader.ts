@@ -31,16 +31,8 @@ export class MediaDownloader {
   private pendingDownloads: Map<string, Promise<MediaDownloadResult>>;
 
   constructor() {
-    this.mediaDir = path.join(pathResolver.getBasePath(), 'media');
+    this.mediaDir = pathResolver.getMediaDir();
     this.pendingDownloads = new Map();
-    this.ensureMediaDirectory();
-  }
-
-  private ensureMediaDirectory(): void {
-    if (!fs.existsSync(this.mediaDir)) {
-      fs.mkdirSync(this.mediaDir, { recursive: true });
-      logger.info({ mediaDir: this.mediaDir }, 'Created media directory');
-    }
   }
 
   private generateFilename(url: string, type: string): string {

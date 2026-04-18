@@ -13,7 +13,7 @@ export class RoleManager {
   private initialized: boolean = false;
 
   constructor() {
-    this.rolesDir = path.join(pathResolver.getConfigDir(), 'roles');
+    this.rolesDir = pathResolver.getRolesDir();
   }
 
   async initialize(): Promise<void> {
@@ -35,10 +35,7 @@ export class RoleManager {
   }
 
   private ensureRolesDirectory(): void {
-    if (!fs.existsSync(this.rolesDir)) {
-      fs.mkdirSync(this.rolesDir, { recursive: true });
-      logger.info({ rolesDir: this.rolesDir }, 'Created roles directory');
-    }
+    pathResolver.ensureDirectoryExists(this.rolesDir);
 
     const defaultPath = this.getRoleFilePath(DEFAULT_ROLE_ID);
     if (!fs.existsSync(defaultPath)) {
