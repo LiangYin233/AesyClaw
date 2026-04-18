@@ -86,7 +86,7 @@ class SQLiteManager {
 
   private ensureIndexes(): void {
     this.getDatabase().exec(`
-      CREATE INDEX IF NOT EXISTS idx_sessions_scope ON sessions(channel, type, chat_id);
+      CREATE INDEX IF NOT EXISTS idx_sessions_chat_id ON sessions(chat_id);
       CREATE INDEX IF NOT EXISTS idx_sessions_updated_at ON sessions(updated_at);
       CREATE INDEX IF NOT EXISTS idx_session_messages_session_id ON session_messages(session_id, sequence);
       CREATE INDEX IF NOT EXISTS idx_cron_jobs_chat_id ON cron_jobs(chat_id);

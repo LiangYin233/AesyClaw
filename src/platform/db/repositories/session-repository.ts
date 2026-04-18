@@ -20,12 +20,6 @@ export interface CreateSessionInput {
   roleId: string;
 }
 
-export interface SessionScope {
-  channel: string;
-  type: string;
-  chatId: string;
-}
-
 export type SessionRow = {
   id: string;
   chat_id: string;
@@ -54,10 +48,10 @@ export class SessionRepository extends BaseRepository<SessionRow, SessionRecord>
     return this.queryOne('SELECT * FROM sessions WHERE id = ?', sessionId);
   }
 
-  findLatestByScope(scope: SessionScope): SessionRecord | null {
+  findLatestByChatId(chatId: string): SessionRecord | null {
     return this.queryOne(
-      `SELECT * FROM sessions WHERE channel = ? AND type = ? AND chat_id = ? ${ORDER} LIMIT 1`,
-      scope.channel, scope.type, scope.chatId
+      `SELECT * FROM sessions WHERE chat_id = ? ${ORDER} LIMIT 1`,
+      chatId
     );
   }
 

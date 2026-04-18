@@ -5,7 +5,6 @@ import { logger } from '@/platform/observability/logger.js';
 import type { SessionContext } from './session-context.js';
 import {
   sessionService,
-  type SessionSummary,
   type TemporarySessionOptions,
   type TemporarySessionResult,
 } from './session-service.js';
@@ -71,12 +70,12 @@ export function getRoleInfoForCommandContext(ctx: CommandContext): {
   return sessionService.getRoleInfoForCommandContext(ctx);
 }
 
-export function getSessionSummaries(): SessionSummary[] {
-  return sessionService.listSessionSummaries();
-}
-
 export function clearSessionById(sessionId: string): boolean {
   return sessionService.clearSession(sessionId);
+}
+
+export async function compactSessionForCommandContext(ctx: CommandContext): Promise<{ success: boolean; message: string }> {
+  return sessionService.compactSessionForCommandContext(ctx);
 }
 
 export function createTemporarySession(

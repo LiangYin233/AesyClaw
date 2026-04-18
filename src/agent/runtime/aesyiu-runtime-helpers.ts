@@ -11,6 +11,7 @@ import {
   type LLMProvider,
   type Message as AesyiuMessage,
   type ModelDefinition,
+  type TokenUsage,
   type Tool as AesyiuTool,
   type ToolMiddleware,
 } from 'aesyiu';
@@ -24,6 +25,7 @@ import { SUBAGENT_TOOL_NAME_RUN } from '@/agent/subagent/types.js';
 import { LLMProviderType, MessageRole, type LLMConfig, type StandardMessage } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
+import { SESSION_MEMORY_RETAIN_LATEST_MESSAGES } from '@/agent/memory/types.js';
 import {
   zodToToolParameters,
   type Tool,
@@ -390,7 +392,7 @@ export function buildAesyiuEngine(options: BuildAesyiuEngineOptions): {
     compatibilityMode: true,
     memoryManager: new MemoryManager({
       compressThresholdRatio: options.compressionThreshold,
-      retainLatestMessages: 8,
+      retainLatestMessages: SESSION_MEMORY_RETAIN_LATEST_MESSAGES,
     }),
   });
 
@@ -411,4 +413,37 @@ export function buildAesyiuEngine(options: BuildAesyiuEngineOptions): {
   normalizeEngineToolParameters(engine);
 
   return { engine, context };
+}
+
+export async function manuallyCompactMessages(options: {
+  chatId: string;
+  llmConfig: LLMConfig;
+  maxContextTokens: number;
+  compressionThreshold: number;
+  messages: StandardMessage[];
+}): Promise<StandardMessage[]> {
+  const modelDef = resolveModelDefinition(
+    options.llmConfig.model || 'gpt-4o-mini',
+    configManager.config.providers,
+    options.maxContextTokens
+  );
+  const provider = buildProvider(options.llmConfig, modelDef);
+  const context = new AgentContext({ provider, modelId: options.llmConfig.model });
+
+  context.state.chatId = options.chatId;
+  context.addMessages(options.messages.map(toAesyiuMessage));
+
+  const memoryManager = new MemoryManager({
+    compressThresholdRatio: options.compressionThreshold,
+    retainLatestMessages: SESSION_MEMORY_RETAIN_LATEST_MESSAGES,
+  });
+
+  const forceCompressionUsage: TokenUsage = {
+    promptTokens: modelDef.contextWindow + 1,
+    completionTokens: 0,
+    totalTokens: modelDef.contextWindow + 1,
+  };
+
+  await memoryManager.checkAndOptimize(context, forceCompressionUsage);
+  return context.getVisibleMessages().map(toStandardMessage);
 }

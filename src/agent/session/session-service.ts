@@ -1,7 +1,8 @@
 import { randomUUID } from 'crypto';
 import { AgentEngine } from '@/agent/engine.js';
 import { SessionMemoryManager } from '@/agent/memory/session-memory-manager.js';
-import type { SessionMemoryConfig } from '@/agent/memory/types.js';
+import { type SessionMemoryConfig } from '@/agent/memory/types.js';
+import { manuallyCompactMessages } from '@/agent/runtime/aesyiu-runtime-helpers.js';
 import { resolveLLMConfig } from '@/agent/runtime/resolve-llm-config.js';
 import type { ChannelReceiveMessage } from '@/agent/types.js';
 import type { CommandContext } from '@/contracts/commands.js';
@@ -13,13 +14,8 @@ import { MessageRole, type StandardMessage } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import type { SessionContext, SessionRecord } from './session-context.js';
 import { sessionMessageRepository, type ReplaceSessionMessagesInput } from '@/platform/db/repositories/session-message-repository.js';
-import { sessionRepository, type SessionRecord as PersistedSessionRecord, type SessionScope } from '@/platform/db/repositories/session-repository.js';
+import { sessionRepository, type SessionRecord as PersistedSessionRecord } from '@/platform/db/repositories/session-repository.js';
 import { sqliteManager } from '@/platform/db/sqlite-manager.js';
-
-export interface SessionSummary {
-  session: SessionRecord;
-  isCurrent: boolean;
-}
 
 export interface TemporarySessionOptions {
   chatId: string;
@@ -55,11 +51,11 @@ class SessionService {
   }
 
   resolveInteractiveSessionForReceive(received: ChannelReceiveMessage): SessionContext {
-    return this.createRuntimeSession(this.getOrCreateInteractiveSession(this.scopeFromReceive(received)));
+    return this.createRuntimeSession(this.getOrCreateInteractiveSession(received));
   }
 
   getCurrentSessionForCommandContext(ctx: CommandContext): SessionRecord | null {
-    const record = sessionRepository.findLatestByScope(this.scopeFromCommand(ctx));
+    const record = sessionRepository.findLatestByChatId(ctx.chatId);
     return record ? this.toDomainSession(record) : null;
   }
 
@@ -72,27 +68,36 @@ class SessionService {
     return this.createRuntimeSession(record);
   }
 
-  listSessionSummaries(): SessionSummary[] {
-    const sessions = sessionRepository.findAll().map(record => this.toDomainSession(record));
-
-    const latestByScope = new Set<string>();
-    const seenScopes = new Set<string>();
-    for (const session of sessions) {
-      const scopeKey = this.scopeKey(session);
-      if (!seenScopes.has(scopeKey)) {
-        seenScopes.add(scopeKey);
-        latestByScope.add(session.id);
-      }
-    }
-
-    return sessions.map(session => ({
-      session,
-      isCurrent: latestByScope.has(session.id),
-    }));
-  }
-
   clearSession(sessionId: string): boolean {
     return sqliteDeleteSession(sessionId);
+  }
+
+  async compactSessionForCommandContext(ctx: CommandContext): Promise<{ success: boolean; message: string }> {
+    const session = this.getRuntimeSessionForCommandContext(ctx);
+    if (!session) {
+      return {
+        success: false,
+        message: '会话不存在',
+      };
+    }
+
+    const roleConfig = roleManager.getRoleConfig(session.memory.getActiveRoleId());
+    const memoryConfig = this.getMemoryConfig();
+    const compacted = await manuallyCompactMessages({
+      chatId: session.session.chatId,
+      llmConfig: resolveLLMConfig(roleConfig.model, configManager.config),
+      maxContextTokens: memoryConfig.maxContextTokens,
+      compressionThreshold: memoryConfig.compressionThreshold,
+      messages: [...session.memory.getMessages()],
+    });
+
+    session.memory.importMemory(compacted);
+    const persisted = this.persistRuntimeSession(session);
+
+    return {
+      success: true,
+      message: `会话已压缩（session: ${persisted.id}）`,
+    };
   }
 
   persistRuntimeSession(session: SessionContext): SessionRecord {
@@ -139,7 +144,11 @@ class SessionService {
       };
     }
 
-    const current = this.getOrCreateInteractiveSession(this.scopeFromCommand(ctx));
+    const current = this.getOrCreateInteractiveSession({
+      channelId: ctx.channelId,
+      chatId: ctx.chatId,
+      metadata: { type: ctx.messageType },
+    });
     const updated = sessionRepository.updateState(current.id, { roleId });
     if (!updated) {
       return {
@@ -171,17 +180,17 @@ class SessionService {
     return { sessionId, session };
   }
 
-  private getOrCreateInteractiveSession(scope: SessionScope): SessionRecord {
-    const existing = sessionRepository.findLatestByScope(scope);
-    return existing ? this.toDomainSession(existing) : this.createInteractiveSession(scope);
+  private getOrCreateInteractiveSession(source: Pick<ChannelReceiveMessage, 'channelId' | 'chatId' | 'metadata'>): SessionRecord {
+    const existing = sessionRepository.findLatestByChatId(source.chatId);
+    return existing ? this.toDomainSession(existing) : this.createInteractiveSession(source);
   }
 
-  private createInteractiveSession(scope: SessionScope): SessionRecord {
+  private createInteractiveSession(source: Pick<ChannelReceiveMessage, 'channelId' | 'chatId' | 'metadata'>): SessionRecord {
     return this.toDomainSession(sessionRepository.create({
       id: randomUUID(),
-      chatId: scope.chatId,
-      channel: scope.channel,
-      type: scope.type,
+      chatId: source.chatId,
+      channel: source.channelId,
+      type: this.getMessageType(source.metadata),
       roleId: DEFAULT_ROLE_ID,
     }));
   }
@@ -264,24 +273,8 @@ class SessionService {
     };
   }
 
-  private scopeFromReceive(received: ChannelReceiveMessage): SessionScope {
-    return {
-      channel: received.channelId,
-      type: (received.metadata?.type as string) || 'default',
-      chatId: received.chatId,
-    };
-  }
-
-  private scopeFromCommand(ctx: CommandContext): SessionScope {
-    return {
-      channel: ctx.channelId,
-      type: ctx.messageType,
-      chatId: ctx.chatId,
-    };
-  }
-
-  private scopeKey(session: Pick<SessionRecord, 'channel' | 'type' | 'chatId'>): string {
-    return `${session.channel}:${session.type}:${session.chatId}`;
+  private getMessageType(metadata: ChannelReceiveMessage['metadata']): string {
+    return (metadata?.type as string) || 'default';
   }
 
   private toDomainSession(record: PersistedSessionRecord | SessionRecord): SessionRecord {
