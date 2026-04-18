@@ -331,6 +331,10 @@ function normalizeLocalFilePath(fileUrlOrPath: string): string {
   return fileUrlOrPath;
 }
 
+async function resolveOutgoingMediaFile(urlOrPath: string, filename?: string): Promise<string> {
+  return isLikelyRemoteUrl(urlOrPath) ? urlOrPath : uploadFileStream(urlOrPath, filename);
+}
+
 async function uploadFileStream(fileUrlOrPath: string, filename?: string): Promise<string> {
   const logger = state.logger!;
   const filePath = normalizeLocalFilePath(fileUrlOrPath);
@@ -678,19 +682,28 @@ async function buildMessage(payload: ChannelSendPayload): Promise<string | Array
   for (const media of payload.mediaFiles) {
     switch (media.type) {
       case 'image':
-        message.push({ type: 'image', data: { file: media.url } });
+        message.push({
+          type: 'image',
+          data: { file: await resolveOutgoingMediaFile(media.url, media.filename) },
+        });
         break;
       case 'video':
-        message.push({ type: 'video', data: { file: media.url } });
+        message.push({
+          type: 'video',
+          data: { file: await resolveOutgoingMediaFile(media.url, media.filename) },
+        });
         break;
       case 'audio':
-        message.push({ type: 'record', data: { file: media.url } });
+        message.push({
+          type: 'record',
+          data: { file: await resolveOutgoingMediaFile(media.url, media.filename) },
+        });
         break;
       default:
         message.push({
           type: 'file',
           data: {
-            file: isLikelyRemoteUrl(media.url) ? media.url : await uploadFileStream(media.url, media.filename),
+            file: await resolveOutgoingMediaFile(media.url, media.filename),
           },
         });
     }
