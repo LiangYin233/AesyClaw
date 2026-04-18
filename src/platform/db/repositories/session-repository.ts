@@ -55,10 +55,6 @@ export class SessionRepository extends BaseRepository<SessionRow, SessionRecord>
     );
   }
 
-  findByChatId(chatId: string): SessionRecord[] {
-    return this.queryMany(`SELECT * FROM sessions WHERE chat_id = ? ${ORDER}`, chatId);
-  }
-
   updateState(
     sessionId: string,
     updates: Partial<Pick<SessionRecord, 'roleId' | 'messageCount'>>
