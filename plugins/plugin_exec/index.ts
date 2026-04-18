@@ -14,19 +14,7 @@ const EXEC_TIMEOUT_MS = 30_000;
 const MAX_OUTPUT_SIZE = 1024 * 1024;
 
 const USE_SHELL_EXECUTION = process.platform === 'win32';
-const POWERSHELL_UTF8_PREFIX = [
-  '[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)',
-  '[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)',
-  '$OutputEncoding = [Console]::OutputEncoding',
-  'chcp 65001 > $null',
-].join('; ');
-
-function validateCommand(cmd: string): { valid: boolean; error?: string; parsedCommand?: string; parsedArgs?: string[] } {
-  const parts = cmd.trim().split(/\s+/);
-  const baseCommand = parts[0];
-
-  return { valid: true, parsedCommand: baseCommand, parsedArgs: parts.slice(1) };
-}
+const CMD_UTF8_PREFIX = 'chcp 65001 > nul &&';
 
 function autoDecode(buffer: Buffer): string {
   if (buffer.length === 0) return '';
@@ -35,27 +23,18 @@ function autoDecode(buffer: Buffer): string {
 
 function executeCommand(command: string, cwd: string): Promise<{ output: string; exitCode: number; truncated?: boolean }> {
   return new Promise((resolve, reject) => {
-    const validation = validateCommand(command);
-    if (!validation.valid) {
-      reject(new Error(validation.error));
-      return;
-    }
-
-    const cmd = validation.parsedCommand!;
-    const args = validation.parsedArgs || [];
-
     let stdout = '';
     let stderr = '';
     let truncated = false;
 
     const proc = USE_SHELL_EXECUTION
-      ? spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `${POWERSHELL_UTF8_PREFIX}; ${command}`], {
+      ? spawn('cmd.exe', ['/d', '/s', '/c', `${CMD_UTF8_PREFIX} ${command}`], {
           cwd,
           env: { ...process.env, HOME: process.env.HOME || '/tmp' },
           windowsHide: true,
           timeout: EXEC_TIMEOUT_MS,
         })
-      : spawn(cmd, args, {
+      : spawn('/bin/sh', ['-lc', command], {
           cwd,
           env: { ...process.env, HOME: process.env.HOME || '/tmp' },
           windowsHide: true,
@@ -104,7 +83,7 @@ function executeCommand(command: string, cwd: string): Promise<{ output: string;
 
 const execTool: Tool = {
   name: 'exec',
-  description: 'Execute safe shell commands in workspace directory',
+  description: 'Execute shell commands in the workspace directory.',
   parametersSchema: z.object({
     command: z.string().describe('Command to execute')
   }),
@@ -128,18 +107,19 @@ const execTool: Tool = {
       const { command } = args as { command: string };
 
       const { output, exitCode, truncated } = await executeCommand(command, WORKSPACE_DIR);
+      const finalOutput = (output || '(no output)') + (truncated ? '\n[Output was truncated]' : '');
 
-      if (exitCode !== 0) {
+      if (exitCode !== 0 && exitCode !== 1) {
         return {
           success: false,
-          content: output + (truncated ? '\n[Output was truncated]' : ''),
+          content: finalOutput,
           error: `Command failed with exit code: ${exitCode}`
         };
       }
 
       return {
         success: true,
-        content: (output || '(no output)') + (truncated ? '\n[Output was truncated]' : '')
+        content: finalOutput
       };
     } catch (error) {
       return {
