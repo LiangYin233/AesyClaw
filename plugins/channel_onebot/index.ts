@@ -1,3 +1,6 @@
+import { createHash, randomUUID } from 'crypto';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import WebSocket from 'ws';
 import { z } from 'zod';
 import type {
@@ -96,6 +99,19 @@ interface OneBotApiResponse {
   msg?: string;
   wording?: string;
   echo?: string;
+  stream?: string;
+}
+
+interface OneBotUploadStreamProgress {
+  received_chunks?: number;
+  total_chunks?: number;
+}
+
+interface OneBotUploadStreamComplete {
+  status?: string;
+  file_path?: string;
+  file_size?: number;
+  sha256?: string;
 }
 
 interface PluginState {
@@ -115,6 +131,9 @@ const state: PluginState = {
   pendingRequests: new Map(),
   connected: false,
 };
+
+const STREAM_UPLOAD_CHUNK_SIZE = 64 * 1024;
+const STREAM_FILE_RETENTION_MS = 30 * 1000;
 
 export const onebotPlugin: ChannelPlugin = {
   name: 'onebot',
@@ -297,6 +316,84 @@ function handleGroupMessage(event: OneBotMessage): void {
   }).catch(err => {
     logger.error('Error processing media in group message', { error: err });
   });
+}
+
+function isLikelyRemoteUrl(value: string): boolean {
+  return value.startsWith('http://') || value.startsWith('https://');
+}
+
+function normalizeLocalFilePath(fileUrlOrPath: string): string {
+  if (fileUrlOrPath.startsWith('file:///')) {
+    return decodeURIComponent(new URL(fileUrlOrPath).pathname.replace(/^\//, ''));
+  }
+
+  return fileUrlOrPath;
+}
+
+async function uploadFileStream(fileUrlOrPath: string, filename?: string): Promise<string> {
+  const logger = state.logger!;
+  const filePath = normalizeLocalFilePath(fileUrlOrPath);
+  const fileBuffer = await fs.readFile(filePath);
+  const sha256 = createHash('sha256').update(fileBuffer).digest('hex');
+  const streamId = randomUUID();
+  const totalChunks = Math.max(1, Math.ceil(fileBuffer.length / STREAM_UPLOAD_CHUNK_SIZE));
+  const resolvedFilename = filename || path.basename(filePath) || `${streamId}.bin`;
+
+  logger.info('Uploading OneBot file via stream API', {
+    filePath,
+    filename: resolvedFilename,
+    fileSize: fileBuffer.length,
+    totalChunks,
+  });
+
+  for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex += 1) {
+    const start = chunkIndex * STREAM_UPLOAD_CHUNK_SIZE;
+    const end = Math.min(start + STREAM_UPLOAD_CHUNK_SIZE, fileBuffer.length);
+    const chunkData = fileBuffer.subarray(start, end).toString('base64');
+    const response = await sendApi(
+      'upload_file_stream',
+      {
+        stream_id: streamId,
+        chunk_data: chunkData,
+        chunk_index: chunkIndex,
+        total_chunks: totalChunks,
+        file_size: fileBuffer.length,
+        expected_sha256: sha256,
+        filename: resolvedFilename,
+        file_retention: STREAM_FILE_RETENTION_MS,
+      },
+      `stream-upload-${Date.now()}-${chunkIndex}-${Math.random().toString(36).slice(2)}`
+    );
+
+    const progress = (response ?? {}) as OneBotUploadStreamProgress;
+    logger.debug('Uploaded OneBot file chunk', {
+      filename: resolvedFilename,
+      chunkIndex,
+      totalChunks,
+      receivedChunks: progress.received_chunks,
+    });
+  }
+
+  const completed = (await sendApi(
+    'upload_file_stream',
+    {
+      stream_id: streamId,
+      is_complete: true,
+    },
+    `stream-complete-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  )) as OneBotUploadStreamComplete;
+
+  if (completed.status !== 'file_complete' || !completed.file_path) {
+    throw new Error(`OneBot file upload returned invalid completion payload: ${JSON.stringify(completed)}`);
+  }
+
+  logger.info('OneBot file stream upload completed', {
+    filename: resolvedFilename,
+    filePath: completed.file_path,
+    fileSize: completed.file_size,
+  });
+
+  return completed.file_path;
 }
 
 function handlePrivateMessage(event: OneBotMessage): void {
@@ -544,7 +641,7 @@ function createSend(targetId: string, messageType: 'group' | 'private'): (payloa
       return;
     }
 
-    const message = buildMessage(payload);
+    const message = await buildMessage(payload);
 
     const params: OneBotApiParams = {
       action: messageType === 'group' ? 'send_group_msg' : 'send_private_msg',
@@ -559,12 +656,14 @@ function createSend(targetId: string, messageType: 'group' | 'private'): (payloa
       await sendApi(params.action, params.params, params.echo);
       logger.debug('Message sent successfully', { targetId, messageType });
     } catch (error) {
-      logger.error('Failed to send message', { error, targetId, messageType });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Failed to send message', { error: errorMessage, targetId, messageType });
+      throw error;
     }
   };
 }
 
-function buildMessage(payload: ChannelSendPayload): string | Array<unknown> {
+async function buildMessage(payload: ChannelSendPayload): Promise<string | Array<unknown>> {
   if (!payload.mediaFiles || payload.mediaFiles.length === 0) {
     return payload.text;
   }
@@ -587,7 +686,12 @@ function buildMessage(payload: ChannelSendPayload): string | Array<unknown> {
         message.push({ type: 'record', data: { file: media.url } });
         break;
       default:
-        message.push({ type: 'file', data: { file: media.url } });
+        message.push({
+          type: 'file',
+          data: {
+            file: isLikelyRemoteUrl(media.url) ? media.url : await uploadFileStream(media.url, media.filename),
+          },
+        });
     }
   }
 
