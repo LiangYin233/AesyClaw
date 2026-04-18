@@ -166,6 +166,7 @@ async function runInitStages(options: BootstrapOptions): Promise<void> {
         if (!multimodalTools) return;
         sharedToolRegistry.register(multimodalTools.speechToTextTool);
         sharedToolRegistry.register(multimodalTools.imageUnderstandingTool);
+        sharedToolRegistry.register(multimodalTools.sendMsgTool);
       },
     },
     {

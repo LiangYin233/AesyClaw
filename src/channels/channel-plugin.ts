@@ -3,7 +3,7 @@ import type { ScopedLogger } from '@/platform/observability/logger.js';
 
 export interface ChannelSendPayload {
   text: string;
-  mediaFiles?: Array<{ type: string; url: string }>;
+  mediaFiles?: Array<{ type: string; url: string; filename?: string }>;
 }
 
 export type ChannelPluginLogger = ScopedLogger;

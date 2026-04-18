@@ -3,5 +3,7 @@ export type {
   ToolDefinition,
   ToolExecuteContext,
   ToolExecutionResult,
+  ToolMediaFile,
   ToolParameters,
+  ToolSendPayload,
 } from '@/platform/tools/types.js';

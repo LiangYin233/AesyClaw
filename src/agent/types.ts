@@ -13,6 +13,7 @@ export interface ChannelSendMessage {
   mediaFiles?: Array<{
     type: string;
     url: string;
+    filename?: string;
   }>;
   error?: string;
 }
@@ -28,7 +29,6 @@ export interface PipelineState {
 }
 
 export interface ChannelContext {
-  traceId: string;
   received: ChannelReceiveMessage;
   sendMessage: ChannelSendMessage;
   createdAt: number;

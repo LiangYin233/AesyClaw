@@ -2,7 +2,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { z } from 'zod';
 import OpenAI from 'openai';
-import { Tool, ToolDefinition, ToolExecuteContext, ToolExecutionResult, zodToToolParameters } from './types.js';
+import {
+  Tool,
+  ToolDefinition,
+  ToolExecuteContext,
+  ToolExecutionResult,
+  zodToToolParameters,
+} from './types.js';
 import { logger } from '../observability/logger.js';
 import { toErrorMessage } from '../utils/errors.js';
 import { pathResolver } from '../utils/paths.js';
@@ -105,6 +111,20 @@ const ImageUnderstandingSchema = z.object({
   prompt: z.string().describe('关于想要了解图片的方面的描述，例如"详细描述图片内容"或"这张图片有什么特别之处"'),
 });
 
+const SendMsgSchema = z.object({
+  text: z.string().optional().describe('要额外发送的文字内容，可为空'),
+  media_files: z.array(
+    z.object({
+      type: z.enum(['image', 'video', 'audio', 'file']).describe('媒体类型'),
+      url: z.string().min(1).describe('媒体文件路径或URL'),
+      filename: z.string().optional().describe('可选的文件名，仅用于描述'),
+    })
+  ).optional().describe('要额外发送的媒体文件列表'),
+}).refine(
+  value => Boolean(value.text?.trim()) || Boolean(value.media_files?.length),
+  'text 和 media_files 至少需要提供一项'
+);
+
 export class SpeechToTextTool implements Tool {
   constructor(private readonly getConfig: MultimodalConfigResolver) {}
 
@@ -184,7 +204,7 @@ export class SpeechToTextTool implements Tool {
 
     const { audio_path } = parsed.data;
 
-    logger.info({ audioPath: audio_path, traceId: context.traceId }, '开始语音转文字');
+    logger.info({ audioPath: audio_path }, '开始语音转文字');
 
     try {
       const config = this.getConfig();
@@ -293,7 +313,7 @@ export class ImageUnderstandingTool implements Tool {
 
     const { image_path, prompt } = parsed.data;
 
-    logger.info({ imagePath: image_path, prompt, traceId: context.traceId }, '开始图片理解');
+    logger.info({ imagePath: image_path, prompt }, '开始图片理解');
 
     try {
       const config = this.getConfig();
@@ -355,12 +375,86 @@ export class ImageUnderstandingTool implements Tool {
 
 }
 
+export class SendMsgTool implements Tool {
+  readonly name = 'sendMsg';
+  readonly description = '立即额外发送一条消息到当前会话，可包含文字和媒体文件。适用于先发送补充说明、阶段性结果、图片、音频、视频或文件。注意：这会立刻发送，不会替代最终回复。';
+  readonly parametersSchema = SendMsgSchema;
+
+  getDefinition(): ToolDefinition {
+    return {
+      name: this.name,
+      description: this.description,
+      parameters: zodToToolParameters(this.parametersSchema),
+    };
+  }
+
+  async execute(args: unknown, context: ToolExecuteContext): Promise<ToolExecutionResult> {
+    const parsed = this.parametersSchema.safeParse(args);
+    if (!parsed.success) {
+      return {
+        success: false,
+        content: '',
+        error: `参数验证失败: ${parsed.error.message}`,
+      };
+    }
+
+    if (!context.send) {
+      return {
+        success: false,
+        content: '',
+        error: '当前会话不支持主动发送消息',
+      };
+    }
+
+    const text = parsed.data.text?.trim() ?? '';
+    const mediaFiles = parsed.data.media_files?.map(file => ({
+      type: file.type,
+      url: file.url,
+      filename: file.filename,
+    }));
+
+    logger.info(
+      {
+        chatId: context.chatId,
+        sendTextLength: text.length,
+        mediaCount: mediaFiles?.length ?? 0,
+      },
+      '开始发送额外消息'
+    );
+
+    try {
+      await context.send({
+        text,
+        mediaFiles,
+      });
+
+      return {
+        success: true,
+        content: `已发送额外消息（文字长度: ${text.length}, 媒体数量: ${mediaFiles?.length ?? 0}）`,
+      };
+    } catch (error) {
+      const errorMessage = toErrorMessage(error);
+      logger.error(
+        { chatId: context.chatId, error: errorMessage },
+        '发送额外消息失败'
+      );
+      return {
+        success: false,
+        content: '',
+        error: errorMessage,
+      };
+    }
+  }
+}
+
 export function createMultimodalTools(getConfig: MultimodalConfigResolver): {
   speechToTextTool: SpeechToTextTool;
   imageUnderstandingTool: ImageUnderstandingTool;
+  sendMsgTool: SendMsgTool;
 } {
   return {
     speechToTextTool: new SpeechToTextTool(getConfig),
     imageUnderstandingTool: new ImageUnderstandingTool(getConfig),
+    sendMsgTool: new SendMsgTool(),
   };
 }

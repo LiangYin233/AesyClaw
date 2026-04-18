@@ -29,7 +29,7 @@ export async function runSubAgent(
   const { role_name, task_description } = parsed.data;
 
   logger.info(
-    { roleName: role_name, taskDescription: task_description, parentTraceId: context.traceId },
+    { roleName: role_name, taskDescription: task_description },
     ' runSubAgent called'
   );
 
@@ -87,7 +87,7 @@ export async function runTempSubAgent(
   const { system_prompt, task_description } = parsed.data;
 
   logger.info(
-    { systemPromptPreview: system_prompt.substring(0, 50), parentTraceId: context.traceId },
+    { systemPromptPreview: system_prompt.substring(0, 50) },
     ' runTempSubAgent called'
   );
 

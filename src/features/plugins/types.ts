@@ -9,7 +9,6 @@ import type { ToolRegistry } from '@/platform/tools/registry.js';
 export interface PluginToolExecuteContext {
   chatId: string;
   senderId: string;
-  traceId: string;
   [key: string]: unknown;
 }
 

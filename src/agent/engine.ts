@@ -22,6 +22,10 @@ import {
 import { SessionMemoryManager } from './memory/session-memory-manager.js';
 import { SessionMemoryConfig } from './memory/types.js';
 
+export interface AgentRunOptions {
+  send?: ToolExecuteContext['send'];
+}
+
 export interface AgentEngineConfig {
   llm: LLMConfig;
   maxSteps?: number;
@@ -109,7 +113,7 @@ export class AgentEngine {
     this.memory.importMemory(messages.map(toStandardMessage));
   }
 
-  async run(userInput: string): Promise<AgentRunResult> {
+  async run(userInput: string, options: AgentRunOptions = {}): Promise<AgentRunResult> {
     logger.info(
       { chatId: this.chatId, instanceId: this.instanceId, inputLength: userInput.length },
       'AgentEngine starting request processing'
@@ -124,7 +128,6 @@ export class AgentEngine {
 
       const { engine, context } = buildAesyiuEngine({
         chatId: this.chatId,
-        traceId: this.instanceId,
         llmConfig: this.config.llm,
         maxContextTokens: this.config.memoryConfig.maxContextTokens || 128000,
         compressionThreshold: this.config.memoryConfig.compressionThreshold || 0.75,
@@ -139,7 +142,7 @@ export class AgentEngine {
           allowedSkills: allowedSkills.map(s => s.name),
           chatId: this.chatId,
           senderId: 'user',
-          traceId: this.instanceId,
+          send: options.send,
           agentContext: ctx,
         }),
         checkToolAllowed: (tool): ToolExecutionResult | null => {

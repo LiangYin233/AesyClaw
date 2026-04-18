@@ -13,7 +13,6 @@ export interface CommandContext {
   messageType: string;
   args: string[];
   rawArgs: string;
-  traceId: string;
 }
 
 export interface CommandResult {

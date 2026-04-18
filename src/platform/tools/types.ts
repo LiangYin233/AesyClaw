@@ -23,13 +23,24 @@ export interface ToolDefinition {
   parameters: ToolParameters;
 }
 
+export interface ToolMediaFile {
+  type: string;
+  url: string;
+  filename?: string;
+}
+
+export interface ToolSendPayload {
+  text: string;
+  mediaFiles?: ToolMediaFile[];
+}
+
 export interface ToolExecuteContext {
   chatId: string;
   senderId: string;
-  traceId: string;
   roleId?: string;
   allowedTools?: string[];
   allowedSkills?: string[];
+  send?: (_payload: ToolSendPayload) => Promise<void>;
   [key: string]: unknown;
 }
 

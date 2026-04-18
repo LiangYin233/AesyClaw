@@ -46,7 +46,6 @@ export const commandMiddleware: MiddlewareFunc = async (
       messageType: (ctx.received.metadata?.type as string) || 'default',
       args: parsed.args,
       rawArgs: parsed.rawArgs,
-      traceId: ctx.traceId,
     });
 
     ctx.sendMessage.text = result.message;

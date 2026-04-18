@@ -131,7 +131,6 @@ export class SandboxEngine {
 
       const { engine, context } = buildAesyiuEngine({
         chatId: this.agentId,
-        traceId: this.sandboxId,
         llmConfig,
         maxContextTokens: configManager.config.memory.max_context_tokens,
         compressionThreshold: configManager.config.memory.compression_threshold,
@@ -146,7 +145,6 @@ export class SandboxEngine {
           allowedSkills: this.config.allowedSkills,
           chatId: this.agentId,
           senderId: 'subagent',
-          traceId: this.sandboxId,
           agentContext: ctx,
         }),
         checkToolAllowed: (tool) => {

@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
 import type {
   ChannelContext,
@@ -31,11 +30,10 @@ export class ChannelPipeline {
     message: ChannelReceiveMessage,
     send?: (_payload: ChannelSendPayload) => Promise<void>
   ): Promise<ChannelContext> {
-    const traceId = randomUUID();
     const startTime = Date.now();
 
     logger.info(
-      { traceId, chatId: message.chatId, text: message.text },
+      { chatId: message.chatId, text: message.text },
       'Received inbound message, dispatching to middleware chain'
     );
 
@@ -51,11 +49,10 @@ export class ChannelPipeline {
 
     if (hookResult.blocked) {
       logger.info(
-        { traceId, chatId: message.chatId, reason: hookResult.reason },
+        { chatId: message.chatId, reason: hookResult.reason },
         'Message blocked by plugin, skipping further processing'
       );
       return {
-        traceId,
         received: message,
         sendMessage: { text: '', mediaFiles: [] },
         createdAt: Date.now(),
@@ -64,7 +61,6 @@ export class ChannelPipeline {
     }
 
     const ctx: ChannelContext = {
-      traceId,
       received: hookResult.message,
       sendMessage: {
         text: '',
@@ -75,7 +71,7 @@ export class ChannelPipeline {
     };
 
     if (this.middlewares.length === 0) {
-      logger.warn({ traceId }, 'Warning: No middleware registered, returning empty response');
+      logger.warn({}, 'Warning: No middleware registered, returning empty response');
       return ctx;
     }
 
@@ -85,12 +81,12 @@ export class ChannelPipeline {
       if (index < this.middlewares.length) {
         const currentMiddleware = this.middlewares[index++];
         logger.debug(
-          { traceId, middlewareIndex: index - 1, remaining: this.middlewares.length - index },
+          { middlewareIndex: index - 1, remaining: this.middlewares.length - index },
           `Executing middleware ${index}/${this.middlewares.length}`
         );
         await currentMiddleware(ctx, next);
       } else {
-        logger.debug({ traceId }, 'Middleware chain completed');
+        logger.debug({}, 'Middleware chain completed');
       }
     };
 
@@ -108,7 +104,7 @@ export class ChannelPipeline {
 
       if (processedSendMessage.blocked) {
         logger.info(
-          { traceId, chatId: ctx.received.chatId, reason: processedSendMessage.reason },
+          { chatId: ctx.received.chatId, reason: processedSendMessage.reason },
           'Send message blocked by plugin'
         );
         ctx.sendMessage.text = '';
@@ -125,14 +121,14 @@ export class ChannelPipeline {
           text: ctx.sendMessage.text,
           mediaFiles: ctx.sendMessage.mediaFiles,
         });
-        logger.debug({ traceId, chatId: ctx.received.chatId }, 'Response sent via channel send');
+        logger.debug({ chatId: ctx.received.chatId }, 'Response sent via channel send');
       }
 
       const duration = Date.now() - startTime;
       const sendText = ctx.sendMessage?.text ?? '';
       const sendLength = sendText.length;
       logger.info(
-        { traceId, chatId: ctx.received.chatId, duration, sendLength },
+        { chatId: ctx.received.chatId, duration, sendLength },
         'Message processing completed, returning response'
       );
     } catch (error) {
@@ -140,7 +136,7 @@ export class ChannelPipeline {
       const errorMessage = toErrorMessage(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
       logger.error(
-        { traceId, chatId: ctx.received.chatId, duration, error: errorMessage, stack: errorStack },
+        { chatId: ctx.received.chatId, duration, error: errorMessage, stack: errorStack },
         'Error during message processing'
       );
       if (!ctx.sendMessage) {

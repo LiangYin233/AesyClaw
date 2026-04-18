@@ -38,6 +38,15 @@ export interface AesyiuRunStats {
 }
 
 export const ROLES_PROMPT_SECTION = 'aesyclaw:roles';
+const TOOL_LOG_CONTENT_LIMIT = 1000;
+
+function truncateToolLogContent(content: string): string {
+  if (content.length <= TOOL_LOG_CONTENT_LIMIT) {
+    return content;
+  }
+
+  return `${content.slice(0, TOOL_LOG_CONTENT_LIMIT)}...[truncated ${content.length - TOOL_LOG_CONTENT_LIMIT} chars]`;
+}
 
 function normalizeEngineToolParameters(engine: AesyiuEngine): void {
   for (const tool of engine.getTools()) {
@@ -235,7 +244,6 @@ function createHookAwareToolMiddleware(
   toolIndex: Map<string, Tool>,
   stats: Pick<AesyiuRunStats, 'toolCalls'>,
   options: {
-    traceId: string;
     chatId: string;
     checkToolAllowed?: (_tool: Tool) => ToolExecutionResult | null;
     getRoleId: () => string;
@@ -273,7 +281,6 @@ function createHookAwareToolMiddleware(
         toolCallId: syntheticToolCallId,
         args: parsedArgs,
         chatId: options.chatId,
-        traceId: options.traceId,
         roleId: options.getRoleId(),
       },
       'Starting tool execution'
@@ -294,7 +301,6 @@ function createHookAwareToolMiddleware(
           toolName: iTool.name,
           toolCallId: syntheticToolCallId,
           chatId: options.chatId,
-          traceId: options.traceId,
         },
         'Tool execution short-circuited by hook'
       );
@@ -316,9 +322,10 @@ function createHookAwareToolMiddleware(
         toolName: iTool.name,
         toolCallId: syntheticToolCallId,
         chatId: options.chatId,
-        traceId: options.traceId,
         success: finalResult.success,
+        content: truncateToolLogContent(finalResult.content),
         error: finalResult.error,
+        metadata: finalResult.metadata,
       },
       'Tool execution completed'
     );
@@ -344,7 +351,6 @@ function toAesyiuTool(
 
 interface BuildAesyiuEngineOptions {
   chatId: string;
-  traceId: string;
   llmConfig: LLMConfig;
   maxContextTokens: number;
   compressionThreshold: number;
@@ -375,7 +381,6 @@ export function buildAesyiuEngine(options: BuildAesyiuEngineOptions): {
 
   const context = new AgentContext({ provider, modelId: options.llmConfig.model });
   context.state.chatId = options.chatId;
-  context.state.traceId = options.traceId;
   context.addMessages(options.messages);
 
   injectRolesPrompt(context, options.filteredTools);
@@ -395,7 +400,6 @@ export function buildAesyiuEngine(options: BuildAesyiuEngineOptions): {
   engine.useLLM(createHookAwareLLMMiddleware(options.stats, hookTools, hookSkills));
   engine.useTool(createHookAwareToolMiddleware(toolIndex, options.stats, {
     chatId: options.chatId,
-    traceId: options.traceId,
     checkToolAllowed: options.checkToolAllowed,
     getRoleId,
   }));

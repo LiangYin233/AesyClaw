@@ -81,7 +81,7 @@ export const agentStage: MiddlewareFunc = async (ctx: ChannelContext, next: () =
       return;
     }
 
-    const result = await agent.run(userInput);
+    const result = await agent.run(userInput, { send: ctx.send });
 
     if (result.success) {
       ctx.sendMessage.text = result.finalText;
