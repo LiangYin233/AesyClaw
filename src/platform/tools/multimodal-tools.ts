@@ -54,21 +54,6 @@ function isRemoteMediaPath(mediaPath: string): boolean {
   return mediaPath.startsWith('http://') || mediaPath.startsWith('https://');
 }
 
-function assertSafeLocalPath(filePath: string): string {
-  const baseDir = path.resolve(pathResolver.getBasePath());
-  const resolved = path.resolve(filePath);
-  if (!resolved.startsWith(baseDir + path.sep) && resolved !== baseDir) {
-    throw new Error(`路径不在允许的目录内: ${filePath}`);
-  }
-  return resolved;
-}
-
-function readFileAsArrayBuffer(filePath: string): ArrayBuffer {
-  const safePath = assertSafeLocalPath(filePath);
-  const buffer = fs.readFileSync(safePath);
-  return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
-}
-
 function getAudioMimeType(ext: string): string {
   return AUDIO_MIME_TYPES[ext] || 'audio/mpeg';
 }
@@ -78,9 +63,8 @@ function getImageMimeType(ext: string): string {
 }
 
 async function readImageAsDataUrl(imagePath: string): Promise<string> {
-  const safePath = assertSafeLocalPath(imagePath);
   const { readFile } = await import('fs/promises');
-  const data = await readFile(safePath);
+  const data = await readFile(imagePath);
   const base64 = data.toString('base64');
   const ext = path.extname(imagePath).toLowerCase().slice(1);
   const mimeType = getImageMimeType(ext);
@@ -171,12 +155,6 @@ export class SpeechToTextTool implements Tool {
       };
     }
 
-    try {
-      assertSafeLocalPath(audioPath);
-    } catch {
-      return { success: false, content: '', error: `音频文件路径不在允许的目录内: ${audioPath}` };
-    }
-
     if (!fs.existsSync(audioPath)) {
       return {
         success: false,
@@ -185,8 +163,9 @@ export class SpeechToTextTool implements Tool {
       };
     }
 
+    const buffer = fs.readFileSync(audioPath);
     return {
-      fileBuffer: readFileAsArrayBuffer(audioPath),
+      fileBuffer: buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
       mimeType: getAudioMimeType(path.extname(audioPath).toLowerCase()),
       fileName: path.basename(audioPath),
     };
@@ -275,12 +254,6 @@ export class ImageUnderstandingTool implements Tool {
   private async resolveImageUrl(imagePath: string): Promise<{ imageUrl: string } | ToolExecutionResult> {
     if (isRemoteMediaPath(imagePath)) {
       return { imageUrl: imagePath };
-    }
-
-    try {
-      assertSafeLocalPath(imagePath);
-    } catch {
-      return { success: false, content: '', error: `图片路径不在允许的目录内: ${imagePath}` };
     }
 
     if (!fs.existsSync(imagePath)) {
