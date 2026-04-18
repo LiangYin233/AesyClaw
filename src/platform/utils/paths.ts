@@ -4,10 +4,8 @@ import { logger } from '../observability/logger.js';
 
 const AESYCCLAW_DIR = '.aesyclaw';
 const DEFAULT_DATA_DIR = 'data';
-const DEFAULT_LOG_DIR = 'logs';
 const DEFAULT_CONFIG_FILE = 'config.json';
 const DEFAULT_DATA_FILE = 'aesyclaw.db';
-const DEFAULT_LOG_FILE = 'aesyclaw.log';
 const DEFAULT_SYSTEM_SKILLS_DIR = 'skills';
 const DEFAULT_USER_SKILLS_DIR = 'user_skills';
 const DEFAULT_WORKSPACE_DIR = 'workspace';
@@ -18,7 +16,6 @@ export class PathResolver {
   private basePath: string;
   private configDir: string;
   private dataDir: string;
-  private logDir: string;
   private systemSkillsDir: string;
   private userSkillsDir: string;
   private workspaceDir: string;
@@ -30,7 +27,6 @@ export class PathResolver {
     this.basePath = path.join(process.cwd(), AESYCCLAW_DIR);
     this.configDir = this.basePath;
     this.dataDir = path.join(this.basePath, DEFAULT_DATA_DIR);
-    this.logDir = path.join(this.basePath, DEFAULT_LOG_DIR);
     this.systemSkillsDir = path.join(process.cwd(), DEFAULT_SYSTEM_SKILLS_DIR);
     this.userSkillsDir = path.join(this.basePath, DEFAULT_USER_SKILLS_DIR);
     this.workspaceDir = path.join(this.basePath, DEFAULT_WORKSPACE_DIR);
@@ -47,7 +43,6 @@ export class PathResolver {
       this.ensureDirectoryExists(this.basePath);
       this.ensureDirectoryExists(this.configDir);
       this.ensureDirectoryExists(this.dataDir);
-      this.ensureDirectoryExists(this.logDir);
       this.ensureDirectoryExists(this.userSkillsDir);
       this.ensureDirectoryExists(this.workspaceDir);
       this.ensureDirectoryExists(this.mediaDir);
@@ -58,7 +53,6 @@ export class PathResolver {
         basePath: this.basePath,
         configDir: this.configDir,
         dataDir: this.dataDir,
-        logDir: this.logDir,
         systemSkillsDir: this.systemSkillsDir,
         userSkillsDir: this.userSkillsDir,
         mediaDir: this.mediaDir,
@@ -89,20 +83,12 @@ export class PathResolver {
     return this.dataDir;
   }
 
-  getLogDir(): string {
-    return this.logDir;
-  }
-
   getConfigFilePath(): string {
     return path.join(this.basePath, DEFAULT_CONFIG_FILE);
   }
 
   getDataFilePath(): string {
     return path.join(this.dataDir, DEFAULT_DATA_FILE);
-  }
-
-  getLogFilePath(): string {
-    return path.join(this.logDir, DEFAULT_LOG_FILE);
   }
 
   getSystemSkillsDir(): string {
