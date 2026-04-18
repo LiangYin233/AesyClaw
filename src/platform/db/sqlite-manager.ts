@@ -32,28 +32,25 @@ class SQLiteManager {
 
   private initializeTables(): void {
     this.getDatabase().exec(`
-      CREATE TABLE IF NOT EXISTS sessions (
-        id TEXT PRIMARY KEY,
-        chat_id TEXT NOT NULL,
+      CREATE TABLE IF NOT EXISTS chat_sessions (
         channel TEXT NOT NULL,
-        type TEXT NOT NULL DEFAULT 'default',
-        role_id TEXT NOT NULL,
-        message_count INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        type TEXT NOT NULL,
+        chat_id TEXT NOT NULL,
+        role_id TEXT NOT NULL DEFAULT 'default',
+        PRIMARY KEY (channel, type, chat_id)
       );
 
-      CREATE TABLE IF NOT EXISTS session_messages (
-        id TEXT PRIMARY KEY,
-        session_id TEXT NOT NULL,
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        channel TEXT NOT NULL,
+        type TEXT NOT NULL,
+        chat_id TEXT NOT NULL,
         sequence INTEGER NOT NULL,
         role TEXT NOT NULL,
         content TEXT NOT NULL,
         tool_calls TEXT,
         tool_call_id TEXT,
         name TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+        PRIMARY KEY (channel, type, chat_id, sequence)
       );
 
       CREATE TABLE IF NOT EXISTS cron_jobs (
@@ -86,9 +83,6 @@ class SQLiteManager {
 
   private ensureIndexes(): void {
     this.getDatabase().exec(`
-      CREATE INDEX IF NOT EXISTS idx_sessions_chat_id ON sessions(chat_id);
-      CREATE INDEX IF NOT EXISTS idx_sessions_updated_at ON sessions(updated_at);
-      CREATE INDEX IF NOT EXISTS idx_session_messages_session_id ON session_messages(session_id, sequence);
       CREATE INDEX IF NOT EXISTS idx_cron_jobs_chat_id ON cron_jobs(chat_id);
       CREATE INDEX IF NOT EXISTS idx_cron_jobs_next_run ON cron_jobs(next_run_at) WHERE enabled = 1;
       CREATE INDEX IF NOT EXISTS idx_cron_runs_job_id ON cron_runs(job_id, started_at DESC);

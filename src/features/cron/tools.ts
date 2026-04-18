@@ -18,9 +18,7 @@ class PromptExecutor {
     let sessionId: string | undefined;
 
     try {
-      const { sessionId: sid, session } = createTemporarySession(job.id, {
-        chatId: job.chatId,
-      });
+      const { chatId: sid, context: session } = createTemporarySession(job.id, {});
       sessionId = sid;
 
       logger.info(

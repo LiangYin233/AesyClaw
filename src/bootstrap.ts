@@ -24,7 +24,7 @@ import { PluginManager } from '@/features/plugins/plugin-manager.js';
 import { roleManager } from '@/features/roles/role-manager.js';
 import { createRoleCommandGroup } from '@/features/roles/role-command-group.js';
 import { cronService } from '@/platform/db/cron-service.js';
-import { sessionRepository } from '@/platform/db/repositories/session-repository.js';
+import { chatStore } from '@/platform/db/repositories/session-repository.js';
 import { sqliteManager } from '@/platform/db/sqlite-manager.js';
 import { logger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
@@ -398,7 +398,7 @@ export function getStatus() {
     sqliteManager: sqliteManager.isInitialized(),
     toolRegistry: { totalTools: sharedToolRegistry.getStats().totalTools },
     roles: { total: roleManager.isInitialized() ? roleManager.getAllRoles().length : 0 },
-    sessions: { total: sqliteManager.isInitialized() ? sessionRepository.findAll().length : 0 },
+    sessions: { total: sqliteManager.isInitialized() ? chatStore.count() : 0 },
     mcpServers: mcpServers.filter(s => s.connected).length,
     plugins: pluginManager.getLoadedPlugins().length,
     channels: channelManager.getChannelCount(),

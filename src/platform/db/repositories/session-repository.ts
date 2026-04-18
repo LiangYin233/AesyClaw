@@ -1,111 +1,130 @@
+import { randomUUID } from 'crypto';
 import { logger } from '@/platform/observability/logger.js';
-import { BaseRepository } from './base-repository.js';
+import { sqliteManager } from '../sqlite-manager.js';
+import { MessageRole, type StandardMessage } from '@/platform/llm/types.js';
 
-export interface SessionRecord {
-  id: string;
-  chatId: string;
+export interface ChatKey {
   channel: string;
   type: string;
-  roleId: string;
-  messageCount: number;
-  createdAt: string;
-  updatedAt: string;
+  chatId: string;
 }
 
-export interface CreateSessionInput {
-  id: string;
-  chatId: string;
+export interface ChatSession {
   channel: string;
   type: string;
+  chatId: string;
   roleId: string;
 }
 
-export type SessionRow = {
-  id: string;
-  chat_id: string;
-  channel: string;
-  type: string;
-  role_id: string;
-  message_count: number;
-  created_at: string;
-  updated_at: string;
-};
+export interface ReplaceMessagesInput {
+  role: MessageRole;
+  content: string;
+  toolCalls?: StandardMessage['toolCalls'];
+  toolCallId?: string;
+  name?: string;
+}
 
-const ORDER = 'ORDER BY updated_at DESC, created_at DESC';
-
-export class SessionRepository extends BaseRepository<SessionRow, SessionRecord> {
-  create(input: CreateSessionInput): SessionRecord {
-    this.db.prepare(`
-      INSERT INTO sessions (id, chat_id, channel, type, role_id)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(input.id, input.chatId, input.channel, input.type, input.roleId);
-
-    logger.info({ sessionId: input.id, chatId: input.chatId }, 'Session created');
-    return this.findById(input.id)!;
+class ChatStore {
+  count(): number {
+    const row = sqliteManager.getDatabase()
+      .prepare('SELECT COUNT(*) as cnt FROM chat_sessions')
+      .get() as { cnt: number };
+    return row.cnt;
   }
 
-  findById(sessionId: string): SessionRecord | null {
-    return this.queryOne('SELECT * FROM sessions WHERE id = ?', sessionId);
-  }
+  get(key: ChatKey): ChatSession | null {
+    const row = sqliteManager.getDatabase()
+      .prepare('SELECT * FROM chat_sessions WHERE channel = ? AND type = ? AND chat_id = ?')
+      .get(key.channel, key.type, key.chatId) as {
+        channel: string;
+        type: string;
+        chat_id: string;
+        role_id: string;
+      } | undefined;
 
-  findLatestByChatId(chatId: string): SessionRecord | null {
-    return this.queryOne(
-      `SELECT * FROM sessions WHERE chat_id = ? ${ORDER} LIMIT 1`,
-      chatId
-    );
-  }
-
-  updateState(
-    sessionId: string,
-    updates: Partial<Pick<SessionRecord, 'roleId' | 'messageCount'>>
-  ): SessionRecord | null {
-    const fields: string[] = ["updated_at = datetime('now')"];
-    const values: Array<string | number> = [];
-
-    if (updates.roleId !== undefined) {
-      fields.push('role_id = ?');
-      values.push(updates.roleId);
-    }
-    if (updates.messageCount !== undefined) {
-      fields.push('message_count = ?');
-      values.push(updates.messageCount);
-    }
-
-    values.push(sessionId);
-
-    const result = this.db.prepare(`UPDATE sessions SET ${fields.join(', ')} WHERE id = ?`).run(...values);
-    if (result.changes === 0) return null;
-
-    logger.info({ sessionId }, 'Session updated');
-    return this.findById(sessionId);
-  }
-
-  delete(sessionId: string): boolean {
-    const result = this.db.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId);
-
-    if (result.changes > 0) {
-      logger.info({ sessionId }, 'Session deleted');
-      return true;
-    }
-    return false;
-  }
-
-  findAll(): SessionRecord[] {
-    return this.queryMany(`SELECT * FROM sessions ${ORDER}`);
-  }
-
-  protected mapRow(row: SessionRow): SessionRecord {
+    if (!row) return null;
     return {
-      id: row.id,
-      chatId: row.chat_id,
       channel: row.channel,
       type: row.type,
+      chatId: row.chat_id,
       roleId: row.role_id,
-      messageCount: row.message_count,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
     };
+  }
+
+  create(key: ChatKey): ChatSession {
+    sqliteManager.getDatabase()
+      .prepare('INSERT INTO chat_sessions (channel, type, chat_id, role_id) VALUES (?, ?, ?, ?)')
+      .run(key.channel, key.type, key.chatId, 'default');
+
+    logger.info({ channel: key.channel, type: key.type, chatId: key.chatId }, 'Chat session created');
+    return { ...key, roleId: 'default' };
+  }
+
+  updateRole(key: ChatKey, roleId: string): void {
+    sqliteManager.getDatabase()
+      .prepare('UPDATE chat_sessions SET role_id = ? WHERE channel = ? AND type = ? AND chat_id = ?')
+      .run(roleId, key.channel, key.type, key.chatId);
+
+    logger.info({ channel: key.channel, type: key.type, chatId: key.chatId, roleId }, 'Chat role updated');
+  }
+
+  getMessages(key: ChatKey): StandardMessage[] {
+    const rows = sqliteManager.getDatabase()
+      .prepare(
+        'SELECT * FROM chat_messages WHERE channel = ? AND type = ? AND chat_id = ? ORDER BY sequence ASC'
+      )
+      .all(key.channel, key.type, key.chatId) as Array<{
+        role: string;
+        content: string;
+        tool_calls: string | null;
+        tool_call_id: string | null;
+        name: string | null;
+      }>;
+
+    return rows.map(row => ({
+      role: row.role as MessageRole,
+      content: row.content,
+      toolCalls: row.tool_calls ? (JSON.parse(row.tool_calls) as StandardMessage['toolCalls']) : undefined,
+      toolCallId: row.tool_call_id || undefined,
+      name: row.name || undefined,
+    }));
+  }
+
+  saveMessages(key: ChatKey, messages: StandardMessage[]): void {
+    const db = sqliteManager.getDatabase();
+
+    db.prepare('DELETE FROM chat_messages WHERE channel = ? AND type = ? AND chat_id = ?')
+      .run(key.channel, key.type, key.chatId);
+
+    if (messages.length === 0) {
+      logger.debug({ channel: key.channel, type: key.type, chatId: key.chatId }, 'Chat messages cleared');
+      return;
+    }
+
+    const stmt = db.prepare(`
+      INSERT INTO chat_messages (channel, type, chat_id, sequence, role, content, tool_calls, tool_call_id, name)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const [index, message] of messages.entries()) {
+      stmt.run(
+        key.channel,
+        key.type,
+        key.chatId,
+        index,
+        message.role,
+        message.content,
+        message.toolCalls ? JSON.stringify(message.toolCalls) : null,
+        message.toolCallId || null,
+        message.name || null
+      );
+    }
+
+    logger.debug(
+      { channel: key.channel, type: key.type, chatId: key.chatId, count: messages.length },
+      'Chat messages saved'
+    );
   }
 }
 
-export const sessionRepository = new SessionRepository();
+export const chatStore = new ChatStore();

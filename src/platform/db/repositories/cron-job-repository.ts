@@ -1,5 +1,5 @@
 import { logger } from '@/platform/observability/logger.js';
-import { BaseRepository } from './base-repository.js';
+import { sqliteManager } from '../sqlite-manager.js';
 
 export interface CronJobRecord {
   id: string;
@@ -45,10 +45,28 @@ type CronJobRow = {
   next_run_at?: string;
 };
 
-class CronJobRepository extends BaseRepository<CronJobRow, CronJobRecord> {
+class CronJobRepository {
+  private get db() {
+    return sqliteManager.getDatabase();
+  }
+
+  private mapRow(row: CronJobRow): CronJobRecord {
+    return {
+      id: row.id,
+      chatId: row.chat_id,
+      name: row.name,
+      cronExpression: row.cron_expression,
+      prompt: row.prompt || '',
+      enabled: row.enabled === 1,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      lastRunAt: row.last_run_at,
+      nextRunAt: row.next_run_at,
+    };
+  }
+
   create(input: CreateCronJobRecordInput): CronJobRecord {
     const now = new Date().toISOString();
-
     this.db.prepare(`
       INSERT INTO cron_jobs (id, chat_id, name, cron_expression, prompt, next_run_at, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -56,27 +74,30 @@ class CronJobRepository extends BaseRepository<CronJobRow, CronJobRecord> {
       input.id, input.chatId, input.name, input.cronExpression,
       input.prompt, input.nextRunAt || null, now, now
     );
-
     logger.info({ id: input.id, chatId: input.chatId }, 'Cron job created');
     return this.findById(input.id)!;
   }
 
   findById(id: string): CronJobRecord | null {
-    return this.queryOne('SELECT * FROM cron_jobs WHERE id = ?', id);
+    const row = this.db.prepare('SELECT * FROM cron_jobs WHERE id = ?').get(id) as CronJobRow | undefined;
+    return row ? this.mapRow(row) : null;
   }
 
   findByChatId(chatId: string): CronJobRecord[] {
-    return this.queryMany('SELECT * FROM cron_jobs WHERE chat_id = ? ORDER BY created_at DESC', chatId);
+    const rows = this.db.prepare('SELECT * FROM cron_jobs WHERE chat_id = ? ORDER BY created_at DESC').all(chatId) as CronJobRow[];
+    return rows.map(row => this.mapRow(row));
   }
 
   findEnabled(): CronJobRecord[] {
-    return this.queryMany('SELECT * FROM cron_jobs WHERE enabled = 1 ORDER BY next_run_at ASC');
+    const rows = this.db.prepare('SELECT * FROM cron_jobs WHERE enabled = 1 ORDER BY next_run_at ASC').all() as CronJobRow[];
+    return rows.map(row => this.mapRow(row));
   }
 
   findNextScheduled(): CronJobRecord | null {
-    return this.queryOne(
+    const row = this.db.prepare(
       'SELECT * FROM cron_jobs WHERE enabled = 1 AND next_run_at IS NOT NULL ORDER BY next_run_at ASC LIMIT 1'
-    );
+    ).get() as CronJobRow | undefined;
+    return row ? this.mapRow(row) : null;
   }
 
   update(id: string, updates: UpdateCronJobRecordInput): CronJobRecord | null {
@@ -121,7 +142,6 @@ class CronJobRepository extends BaseRepository<CronJobRow, CronJobRecord> {
 
   delete(id: string): boolean {
     const result = this.db.prepare('DELETE FROM cron_jobs WHERE id = ?').run(id);
-
     if (result.changes > 0) {
       logger.info({ id }, 'Cron job deleted');
       return true;
@@ -131,9 +151,7 @@ class CronJobRepository extends BaseRepository<CronJobRow, CronJobRecord> {
 
   markRunStarted(id: string, startedAt: string): void {
     this.db.prepare(`
-      UPDATE cron_jobs
-      SET last_run_at = ?, updated_at = ?
-      WHERE id = ?
+      UPDATE cron_jobs SET last_run_at = ?, updated_at = ? WHERE id = ?
     `).run(startedAt, startedAt, id);
   }
 
@@ -156,21 +174,6 @@ class CronJobRepository extends BaseRepository<CronJobRow, CronJobRecord> {
 
     values.push(id);
     this.db.prepare(`UPDATE cron_jobs SET ${fields.join(', ')} WHERE id = ?`).run(...values);
-  }
-
-  protected mapRow(row: CronJobRow): CronJobRecord {
-    return {
-      id: row.id,
-      chatId: row.chat_id,
-      name: row.name,
-      cronExpression: row.cron_expression,
-      prompt: row.prompt || '',
-      enabled: row.enabled === 1,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-      lastRunAt: row.last_run_at,
-      nextRunAt: row.next_run_at,
-    };
   }
 }
 

@@ -2,7 +2,6 @@ import type { CommandContext, CommandDefinition, CommandResult } from '@/contrac
 import {
   clearSessionById,
   compactSessionForCommandContext,
-  getSessionForCommandContext,
 } from '@/agent/session/session-runtime.js';
 
 export const sessionCommandGroup: CommandDefinition[] = [
@@ -17,15 +16,7 @@ export const sessionCommandGroup: CommandDefinition[] = [
 
       switch (subCommand) {
         case 'clear': {
-          const session = getSessionForCommandContext(ctx);
-          if (!session) {
-            return {
-              success: false,
-              message: '会话不存在',
-            };
-          }
-
-          clearSessionById(session.session.id);
+          clearSessionById(ctx);
           return {
             success: true,
             message: '会话历史已清除',

@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import { AgentEngine } from '@/agent/engine.js';
 import { SessionMemoryManager } from '@/agent/memory/session-memory-manager.js';
 import { type SessionMemoryConfig } from '@/agent/memory/types.js';
@@ -12,18 +11,16 @@ import { systemPromptManager } from '@/features/roles/system-prompt-manager.js';
 import { DEFAULT_ROLE_ID } from '@/features/roles/types.js';
 import { MessageRole, type StandardMessage } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
-import type { SessionContext, SessionRecord } from './session-context.js';
-import { sessionMessageRepository, type ReplaceSessionMessagesInput } from '@/platform/db/repositories/session-message-repository.js';
-import { sessionRepository, type SessionRecord as PersistedSessionRecord } from '@/platform/db/repositories/session-repository.js';
-import { sqliteManager } from '@/platform/db/sqlite-manager.js';
+import type { ChatContext, ChatSession } from './session-context.js';
+import { chatStore, type ChatKey } from '@/platform/db/repositories/session-repository.js';
 
-export interface TemporarySessionOptions {
+export interface TempChatOptions {
   chatId: string;
 }
 
-export interface TemporarySessionResult {
-  sessionId: string;
-  session: SessionContext;
+export interface TempChatResult {
+  chatId: string;
+  context: ChatContext;
 }
 
 export interface RoleInfo {
@@ -32,53 +29,31 @@ export interface RoleInfo {
   allowedTools: string[];
 }
 
-type SessionMemoryConfigSource = {
+type MemoryConfigSource = {
   max_context_tokens: number;
   compression_threshold: number;
 };
 
-class SessionService {
-  private isConversationalMessage(message: StandardMessage): boolean {
-    if (message.role === MessageRole.System || message.role === MessageRole.User) {
-      return true;
-    }
-
-    if (message.role === MessageRole.Tool) {
-      return false;
-    }
-
-    return !message.toolCalls?.length && message.content.trim().length > 0;
+class ChatService {
+  resolveForReceive(received: ChannelReceiveMessage): ChatContext {
+    return this.buildContext(this.getOrCreate(toChatKey(received)));
   }
 
-  resolveInteractiveSessionForReceive(received: ChannelReceiveMessage): SessionContext {
-    return this.createRuntimeSession(this.getOrCreateInteractiveSession(received));
+  getForCommand(ctx: CommandContext): ChatContext | null {
+    const session = chatStore.get(toChatKeyFromCommand(ctx));
+    return session ? this.buildContext(session) : null;
   }
 
-  getCurrentSessionForCommandContext(ctx: CommandContext): SessionRecord | null {
-    const record = sessionRepository.findLatestByChatId(ctx.chatId);
-    return record ? this.toDomainSession(record) : null;
+  clearChat(ctx: CommandContext): boolean {
+    const key = toChatKeyFromCommand(ctx);
+    chatStore.saveMessages(key, []);
+    return true;
   }
 
-  getRuntimeSessionForCommandContext(ctx: CommandContext): SessionContext | null {
-    const record = this.getCurrentSessionForCommandContext(ctx);
-    if (!record) {
-      return null;
-    }
-
-    return this.createRuntimeSession(record);
-  }
-
-  clearSession(sessionId: string): boolean {
-    return sqliteDeleteSession(sessionId);
-  }
-
-  async compactSessionForCommandContext(ctx: CommandContext): Promise<{ success: boolean; message: string }> {
-    const session = this.getRuntimeSessionForCommandContext(ctx);
+  async compactChat(ctx: CommandContext): Promise<{ success: boolean; message: string }> {
+    const session = this.getForCommand(ctx);
     if (!session) {
-      return {
-        success: false,
-        message: '会话不存在',
-      };
+      return { success: false, message: '会话不存在' };
     }
 
     const roleConfig = roleManager.getRoleConfig(session.memory.getActiveRoleId());
@@ -92,155 +67,74 @@ class SessionService {
     });
 
     session.memory.importMemory(compacted);
-    const persisted = this.persistRuntimeSession(session);
-
-    return {
-      success: true,
-      message: `会话已压缩（session: ${persisted.id}）`,
-    };
+    this.save(session);
+    return { success: true, message: `会话已压缩（session: ${session.session.chatId}）` };
   }
 
-  persistRuntimeSession(session: SessionContext): SessionRecord {
-    const messages = session.memory.getMessages().filter(message => this.isConversationalMessage(message));
-    const persistableMessages = messages.map<ReplaceSessionMessagesInput>(message => ({
-      role: message.role,
-      content: message.content,
-      toolCalls: message.toolCalls,
-      toolCallId: message.toolCallId,
-      name: message.name,
-    }));
-
-    sessionMessageRepository.replaceForSession(session.session.id, persistableMessages);
-
-    const updated = sessionRepository.updateState(session.session.id, {
-      roleId: session.memory.getActiveRoleId(),
-      messageCount: messages.filter(message => message.role === MessageRole.User).length,
-    });
-
-    const nextRecord = updated ?? session.session;
-    session.session = this.toDomainSession(nextRecord);
-    return session.session;
-  }
-
-  getRoleInfoForCommandContext(ctx: CommandContext): RoleInfo {
-    const session = this.getCurrentSessionForCommandContext(ctx);
-    const roleId = session?.roleId ?? DEFAULT_ROLE_ID;
-    const roleConfig = roleManager.getRoleConfig(roleId);
-
-    return {
-      roleId,
-      roleName: roleConfig.name,
-      allowedTools: roleConfig.allowed_tools,
-    };
-  }
-
-  switchRoleForCommandContext(ctx: CommandContext, roleId: string): { success: boolean; message: string } {
+  switchRole(ctx: CommandContext, roleId: string): { success: boolean; message: string } {
     const role = roleManager.getRole(roleId);
     if (!role) {
       const roleNames = roleManager.getAllRoles().map(item => item.name).join(', ');
-      return {
-        success: false,
-        message: `角色 "${roleId}" 不存在。可用角色: ${roleNames}`,
-      };
+      return { success: false, message: `角色 "${roleId}" 不存在。可用角色: ${roleNames}` };
     }
 
-    const current = this.getOrCreateInteractiveSession({
-      channelId: ctx.channelId,
-      chatId: ctx.chatId,
-      metadata: { type: ctx.messageType },
-    });
-    const updated = sessionRepository.updateState(current.id, { roleId });
-    if (!updated) {
-      return {
-        success: false,
-        message: `切换到角色 "${roleId}" 失败`,
-      };
-    }
+    const key = toChatKeyFromCommand(ctx);
+    chatStore.updateRole(key, roleId);
 
     const allowedTools = role.allowed_tools.includes('*') ? '所有工具' : role.allowed_tools.join(', ');
-    return {
-      success: true,
-      message: `已成功切换至角色：${role.name}\n可用工具: ${allowedTools}`,
-    };
+    return { success: true, message: `已成功切换至角色：${role.name}\n可用工具: ${allowedTools}` };
   }
 
-  createTemporarySession(_cronJobId: string, options: TemporarySessionOptions): TemporarySessionResult {
-    const sessionId = `temp-${randomUUID()}`;
-    const session = this.createEphemeralRuntimeSession({
-      id: sessionId,
-      channel: 'cron',
-      type: 'cron',
-      chatId: options.chatId,
-      roleId: DEFAULT_ROLE_ID,
-      messageCount: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-
-    return { sessionId, session };
+  getRoleInfo(ctx: CommandContext): RoleInfo {
+    const session = chatStore.get(toChatKeyFromCommand(ctx));
+    const roleId = session?.roleId ?? DEFAULT_ROLE_ID;
+    const roleConfig = roleManager.getRoleConfig(roleId);
+    return { roleId, roleName: roleConfig.name, allowedTools: roleConfig.allowed_tools };
   }
 
-  private getOrCreateInteractiveSession(source: Pick<ChannelReceiveMessage, 'channelId' | 'chatId' | 'metadata'>): SessionRecord {
-    const existing = sessionRepository.findLatestByChatId(source.chatId);
-    return existing ? this.toDomainSession(existing) : this.createInteractiveSession(source);
+  createTempChat(jobId: string): TempChatResult {
+    const key: ChatKey = { channel: 'cron', type: 'cron', chatId: jobId };
+    const session = chatStore.create(key);
+    const context = this.buildContext(session);
+    return { chatId: jobId, context };
   }
 
-  private createInteractiveSession(source: Pick<ChannelReceiveMessage, 'channelId' | 'chatId' | 'metadata'>): SessionRecord {
-    return this.toDomainSession(sessionRepository.create({
-      id: randomUUID(),
-      chatId: source.chatId,
-      channel: source.channelId,
-      type: this.getMessageType(source.metadata),
-      roleId: DEFAULT_ROLE_ID,
-    }));
+  private getOrCreate(key: ChatKey): ChatSession {
+    const existing = chatStore.get(key);
+    if (existing) return existing;
+    return chatStore.create(key);
   }
 
-  private createRuntimeSession(record: SessionRecord): SessionContext {
-    return this.createRuntimeSessionFromRecord(
-      record,
-      sessionMessageRepository.findBySessionId(record.id)
-        .map(message => ({
-          role: message.role,
-          content: message.content,
-          toolCalls: message.toolCalls,
-          toolCallId: message.toolCallId,
-          name: message.name,
-        }))
-        .filter(message => this.isConversationalMessage(message))
+  save(context: ChatContext): void {
+    const messages = context.memory.getMessages().filter(message => shouldPersistMessage(message));
+    chatStore.saveMessages(
+      { channel: context.session.channel, type: context.session.type, chatId: context.session.chatId },
+      messages
     );
   }
 
-  private createEphemeralRuntimeSession(record: SessionRecord): SessionContext {
-    return this.createRuntimeSessionFromRecord(record, []);
-  }
-
-  private createRuntimeSessionFromRecord(record: SessionRecord, messages: StandardMessage[]): SessionContext {
-    const normalizedRecord = this.normalizeSession(record);
+  private buildContext(session: ChatSession): ChatContext {
+    const key = { channel: session.channel, type: session.type, chatId: session.chatId };
     const memoryConfig = this.getMemoryConfig();
-    const memory = new SessionMemoryManager(normalizedRecord.id, memoryConfig, {
+    const memory = new SessionMemoryManager(session.chatId, memoryConfig, {
       systemPromptBuilder: systemPromptManager,
       roleManager,
     });
 
-    if (normalizedRecord.roleId !== DEFAULT_ROLE_ID) {
-      memory.setActiveRole(normalizedRecord.roleId);
+    if (session.roleId !== DEFAULT_ROLE_ID) {
+      memory.setActiveRole(session.roleId);
     }
 
     const systemPrompt = systemPromptManager.buildSystemPrompt({
-      roleId: normalizedRecord.roleId,
-      chatId: normalizedRecord.chatId,
+      roleId: session.roleId,
+      chatId: session.chatId,
     });
 
-    memory.importMemory([
-      {
-        role: MessageRole.System,
-        content: systemPrompt,
-      },
-      ...messages,
-    ]);
+    const savedMessages = chatStore.getMessages(key);
+    memory.importMemory([{ role: MessageRole.System, content: systemPrompt }, ...savedMessages]);
 
-    const roleConfig = roleManager.getRoleConfig(normalizedRecord.roleId);
-    const agent = new AgentEngine(normalizedRecord.id, {
+    const roleConfig = roleManager.getRoleConfig(session.roleId);
+    const agent = new AgentEngine(session.chatId, {
       llm: resolveLLMConfig(roleConfig.model, configManager.config),
       maxSteps: configManager.config.agent.max_steps,
       systemPrompt,
@@ -248,53 +142,42 @@ class SessionService {
       memoryConfig,
     });
 
-    return {
-      session: normalizedRecord,
-      memory,
-      agent,
-    };
-  }
-
-  private normalizeSession(record: SessionRecord): SessionRecord {
-    const roleId = roleManager.getRole(record.roleId) ? record.roleId : DEFAULT_ROLE_ID;
-    if (roleId === record.roleId) {
-      return this.toDomainSession(record);
-    }
-
-    const updated = sessionRepository.updateState(record.id, { roleId });
-    return this.toDomainSession(updated ?? { ...record, roleId });
+    return { session, memory, agent };
   }
 
   private getMemoryConfig(): SessionMemoryConfig {
-    const rawConfig = configManager.config.memory as SessionMemoryConfigSource;
+    const raw = configManager.config.memory as MemoryConfigSource;
     return {
-      maxContextTokens: rawConfig.max_context_tokens,
-      compressionThreshold: rawConfig.compression_threshold,
-    };
-  }
-
-  private getMessageType(metadata: ChannelReceiveMessage['metadata']): string {
-    return (metadata?.type as string) || 'default';
-  }
-
-  private toDomainSession(record: PersistedSessionRecord | SessionRecord): SessionRecord {
-    return {
-      ...record,
-      createdAt: record.createdAt instanceof Date ? record.createdAt : new Date(record.createdAt),
-      updatedAt: record.updatedAt instanceof Date ? record.updatedAt : new Date(record.updatedAt),
+      maxContextTokens: raw.max_context_tokens,
+      compressionThreshold: raw.compression_threshold,
     };
   }
 }
 
-function sqliteDeleteSession(sessionId: string): boolean {
-  let deleted = false;
-
-  sqliteManager.transaction(() => {
-    sessionMessageRepository.deleteBySessionId(sessionId);
-    deleted = sessionRepository.delete(sessionId);
-  });
-
-  return deleted;
+function shouldPersistMessage(message: StandardMessage): boolean {
+  if (message.role === MessageRole.System || message.role === MessageRole.User) {
+    return true;
+  }
+  if (message.role === MessageRole.Tool) {
+    return false;
+  }
+  return !message.toolCalls?.length && message.content.trim().length > 0;
 }
 
-export const sessionService = new SessionService();
+function toChatKey(received: Pick<ChannelReceiveMessage, 'channelId' | 'chatId' | 'metadata'>): ChatKey {
+  return {
+    channel: received.channelId,
+    type: (received.metadata?.type as string) || 'default',
+    chatId: received.chatId,
+  };
+}
+
+function toChatKeyFromCommand(ctx: CommandContext): ChatKey {
+  return {
+    channel: ctx.channelId,
+    type: ctx.messageType,
+    chatId: ctx.chatId,
+  };
+}
+
+export const chatService = new ChatService();

@@ -2,24 +2,23 @@ import type { ChannelContext, MiddlewareFunc, PipelineState } from '@/agent/type
 import type { CommandContext } from '@/contracts/commands.js';
 import { commandParser } from '@/features/commands/command-parser.js';
 import { logger } from '@/platform/observability/logger.js';
-import type { SessionContext } from './session-context.js';
+import type { ChatContext } from './session-context.js';
 import {
-  sessionService,
-  type TemporarySessionOptions,
-  type TemporarySessionResult,
+  chatService,
+  type TempChatResult,
 } from './session-service.js';
 
 interface ResolvedSessionState {
-  sessionContext: SessionContext;
+  sessionContext: ChatContext;
   sessionId: string;
 }
 
 function resolveSessionForReceive(ctx: ChannelContext): ResolvedSessionState {
-  const sessionContext = sessionService.resolveInteractiveSessionForReceive(ctx.received);
+  const sessionContext = chatService.resolveForReceive(ctx.received);
 
   return {
     sessionContext,
-    sessionId: sessionContext.session.id,
+    sessionId: sessionContext.session.chatId,
   };
 }
 
@@ -38,15 +37,14 @@ export const sessionStage: MiddlewareFunc = async (ctx: ChannelContext, next: ()
         sessionId: resolved.sessionId,
         channel: resolved.sessionContext.session.channel,
         type: resolved.sessionContext.session.type,
-        chatId: resolved.sessionContext.session.chatId,
       },
-      'Session stage: session injected'
+      'Session stage: chat context injected'
     );
 
     await next();
 
     if (!commandParser.isCommand(ctx.received.text ?? '')) {
-      sessionService.persistRuntimeSession(resolved.sessionContext);
+      chatService.save(resolved.sessionContext);
     }
   } catch (error) {
     logger.error({ error }, 'Session stage: failed to resolve session');
@@ -54,12 +52,12 @@ export const sessionStage: MiddlewareFunc = async (ctx: ChannelContext, next: ()
   }
 };
 
-export function getSessionForCommandContext(ctx: CommandContext): SessionContext | null {
-  return sessionService.getRuntimeSessionForCommandContext(ctx);
+export function getSessionForCommandContext(ctx: CommandContext): ChatContext | null {
+  return chatService.getForCommand(ctx);
 }
 
 export function switchRoleForCommandContext(ctx: CommandContext, roleId: string): { success: boolean; message: string } {
-  return sessionService.switchRoleForCommandContext(ctx, roleId);
+  return chatService.switchRole(ctx, roleId);
 }
 
 export function getRoleInfoForCommandContext(ctx: CommandContext): {
@@ -67,20 +65,20 @@ export function getRoleInfoForCommandContext(ctx: CommandContext): {
   roleName: string;
   allowedTools: string[];
 } {
-  return sessionService.getRoleInfoForCommandContext(ctx);
+  return chatService.getRoleInfo(ctx);
 }
 
-export function clearSessionById(sessionId: string): boolean {
-  return sessionService.clearSession(sessionId);
+export function clearSessionById(ctx: CommandContext): boolean {
+  return chatService.clearChat(ctx);
 }
 
 export async function compactSessionForCommandContext(ctx: CommandContext): Promise<{ success: boolean; message: string }> {
-  return sessionService.compactSessionForCommandContext(ctx);
+  return chatService.compactChat(ctx);
 }
 
 export function createTemporarySession(
   cronJobId: string,
-  options: TemporarySessionOptions
-): TemporarySessionResult {
-  return sessionService.createTemporarySession(cronJobId, options);
+  _options?: { chatId?: string }
+): TempChatResult {
+  return chatService.createTempChat(cronJobId);
 }

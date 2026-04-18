@@ -1,4 +1,4 @@
-import type { SessionContext } from '@/agent/session/session-context.js';
+import type { ChatContext } from '@/agent/session/session-context.js';
 import type { ChannelContext, ChannelReceiveMessage, MiddlewareFunc } from '@/agent/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
@@ -9,10 +9,10 @@ interface MediaAttachment {
   filename?: string;
 }
 
-function getSessionFromContext(ctx: ChannelContext): SessionContext | null {
+function getSessionFromContext(ctx: ChannelContext): ChatContext | null {
   const state = ctx.state?.session;
   if (!state) return null;
-  return state.sessionContext as SessionContext;
+  return state.sessionContext as ChatContext;
 }
 
 function getSessionIdFromContext(ctx: ChannelContext): string | null {
