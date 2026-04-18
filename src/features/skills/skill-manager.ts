@@ -11,6 +11,16 @@ export class SkillManager {
   private skills: Map<string, RegisteredSkill> = new Map();
   private initialized = false;
 
+  private getAllSkills(): AgentSkill[] {
+    return Array.from(this.skills.values(), entry => entry.skill);
+  }
+
+  private getSystemSkills(): AgentSkill[] {
+    return Array.from(this.skills.values())
+      .filter(entry => entry.source === 'system')
+      .map(entry => entry.skill);
+  }
+
   async initialize(): Promise<void> {
     if (this.initialized) {
       logger.warn({}, 'SkillManager already initialized');
@@ -96,12 +106,15 @@ export class SkillManager {
 
   getSkillsForRole(allowedSkillIds: string[]): AgentSkill[] {
     if (allowedSkillIds.includes('*')) {
-      return Array.from(this.skills.values()).map(entry => entry.skill);
+      return this.getAllSkills();
     }
 
-    return allowedSkillIds
-      .map(skillName => this.skills.get(skillName)?.skill)
-      .filter((skill): skill is AgentSkill => Boolean(skill));
+    const allowedUserSkills = allowedSkillIds
+      .map(skillName => this.skills.get(skillName))
+      .filter((entry): entry is RegisteredSkill => Boolean(entry && entry.source === 'user'))
+      .map(entry => entry.skill);
+
+    return [...this.getSystemSkills(), ...allowedUserSkills];
   }
 }
 

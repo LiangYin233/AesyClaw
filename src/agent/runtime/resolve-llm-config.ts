@@ -4,7 +4,7 @@ import { mapProviderType } from '@/platform/utils/llm-utils.js';
 import { parseModelIdentifier } from '@/platform/utils/model-parser.js';
 
 export const DEFAULT_FALLBACK_LLM_CONFIG: Readonly<LLMConfig> = {
-  provider: LLMProviderType.OpenAIChat,
+  provider: LLMProviderType.OpenAIResponses,
   model: 'gpt-4o-mini',
 };
 

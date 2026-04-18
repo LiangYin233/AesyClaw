@@ -42,6 +42,18 @@ type SessionMemoryConfigSource = {
 };
 
 class SessionService {
+  private isConversationalMessage(message: StandardMessage): boolean {
+    if (message.role === MessageRole.System || message.role === MessageRole.User) {
+      return true;
+    }
+
+    if (message.role === MessageRole.Tool) {
+      return false;
+    }
+
+    return !message.toolCalls?.length && message.content.trim().length > 0;
+  }
+
   resolveInteractiveSessionForReceive(received: ChannelReceiveMessage): SessionContext {
     return this.createRuntimeSession(this.getOrCreateInteractiveSession(this.scopeFromReceive(received)));
   }
@@ -84,7 +96,7 @@ class SessionService {
   }
 
   persistRuntimeSession(session: SessionContext): SessionRecord {
-    const messages = session.memory.getMessages().filter(message => message.role !== MessageRole.System);
+    const messages = session.memory.getMessages().filter(message => this.isConversationalMessage(message));
     const persistableMessages = messages.map<ReplaceSessionMessagesInput>(message => ({
       role: message.role,
       content: message.content,
@@ -175,13 +187,18 @@ class SessionService {
   }
 
   private createRuntimeSession(record: SessionRecord): SessionContext {
-    return this.createRuntimeSessionFromRecord(record, sessionMessageRepository.findBySessionId(record.id).map(message => ({
-      role: message.role,
-      content: message.content,
-      toolCalls: message.toolCalls,
-      toolCallId: message.toolCallId,
-      name: message.name,
-    })));
+    return this.createRuntimeSessionFromRecord(
+      record,
+      sessionMessageRepository.findBySessionId(record.id)
+        .map(message => ({
+          role: message.role,
+          content: message.content,
+          toolCalls: message.toolCalls,
+          toolCallId: message.toolCallId,
+          name: message.name,
+        }))
+        .filter(message => this.isConversationalMessage(message))
+    );
   }
 
   private createEphemeralRuntimeSession(record: SessionRecord): SessionContext {

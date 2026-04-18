@@ -15,6 +15,7 @@ import {
   buildAesyiuEngine,
   type AesyiuRunStats,
   getFinalAssistantText,
+  inspectEngineToolParameters,
   toAesyiuMessage,
   toStandardMessage,
 } from './runtime/aesyiu-runtime-helpers.js';
@@ -165,6 +166,24 @@ export class AgentEngine {
         result.status === 'max_steps_reached'
           ? `抱歉，任务在 ${this.config.maxSteps} 步后仍未完成。请简化您的请求或分步进行。`
           : getFinalAssistantText(result.visibleMessages);
+
+      if (!finalText || !result.usage || result.usage.totalTokens === 0) {
+        logger.warn(
+          {
+            chatId: this.chatId,
+            instanceId: this.instanceId,
+            finalTextLength: finalText.length,
+            usage: result.usage,
+            visibleMessages: result.visibleMessages.map(message => ({
+              role: message.role,
+              contentLength: message.content?.length ?? 0,
+              hasToolCalls: Boolean(message.tool_calls?.length),
+            })),
+            diagnostics: inspectEngineToolParameters(engine),
+          },
+          'AgentEngine returned empty output or zero usage'
+        );
+      }
 
       logger.info(
         {

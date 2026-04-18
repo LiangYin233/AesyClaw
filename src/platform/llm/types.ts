@@ -20,7 +20,7 @@ export interface StandardMessage {
 }
 
 export enum LLMProviderType {
-  OpenAIChat = 'openai-chat',
+  OpenAIResponses = 'openai-responses',
   OpenAICompletion = 'openai-completion',
   Anthropic = 'anthropic',
 }

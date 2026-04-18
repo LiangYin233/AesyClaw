@@ -47,7 +47,7 @@ function hasArrayEntries(value: unknown): value is unknown[] {
 function getExampleProviderConfig(): ProvidersConfig {
   return {
     openai: {
-      type: 'openai_chat',
+      type: 'openai_responses',
       api_key: 'your-api-key',
       base_url: 'https://api.openai.com/v1',
       models: {

@@ -24,7 +24,12 @@ import { SUBAGENT_TOOL_NAME_RUN } from '@/agent/subagent/types.js';
 import { LLMProviderType, MessageRole, type LLMConfig, type StandardMessage } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
-import type { Tool, ToolExecuteContext, ToolExecutionResult } from '@/platform/tools/types.js';
+import {
+  zodToToolParameters,
+  type Tool,
+  type ToolExecuteContext,
+  type ToolExecutionResult,
+} from '@/platform/tools/types.js';
 
 export interface AesyiuRunStats {
   steps: number;
@@ -33,6 +38,41 @@ export interface AesyiuRunStats {
 }
 
 export const ROLES_PROMPT_SECTION = 'aesyclaw:roles';
+
+function normalizeEngineToolParameters(engine: AesyiuEngine): void {
+  for (const tool of engine.getTools()) {
+    const parameters = tool.parameters as unknown;
+    if (
+      parameters &&
+      typeof parameters === 'object' &&
+      'safeParse' in parameters &&
+      typeof (parameters as { safeParse?: unknown }).safeParse === 'function'
+    ) {
+      tool.parameters = zodToToolParameters(parameters as never);
+    }
+  }
+}
+
+export function inspectEngineToolParameters(engine: AesyiuEngine): {
+  toolNames: string[];
+  invalidParameterTools: string[];
+} {
+  const tools = engine.getTools();
+  return {
+    toolNames: tools.map(tool => tool.name),
+    invalidParameterTools: tools
+      .filter(tool => {
+        const parameters = tool.parameters as unknown;
+        return (
+          parameters &&
+          typeof parameters === 'object' &&
+          'safeParse' in parameters &&
+          typeof (parameters as { safeParse?: unknown }).safeParse === 'function'
+        );
+      })
+      .map(tool => tool.name),
+  };
+}
 
 function parseToolArguments(argumentsText: string): Record<string, unknown> {
   try {
@@ -153,7 +193,7 @@ function buildProvider(llmConfig: LLMConfig, modelDef: ModelDefinition): LLMProv
       return new OpenAICompletionProvider(providerConfig, [modelDef]);
     case LLMProviderType.Anthropic:
       return new AnthropicProvider(providerConfig, [modelDef]);
-    case LLMProviderType.OpenAIChat:
+    case LLMProviderType.OpenAIResponses:
     default:
       return new OpenAIResponsesProvider(providerConfig, [modelDef]);
   }
@@ -364,6 +404,7 @@ export function buildAesyiuEngine(options: BuildAesyiuEngineOptions): {
     engine.registerTool(toAesyiuTool(tool, options.createToolContext));
   }
   engine.registerSkills(options.allowedSkills);
+  normalizeEngineToolParameters(engine);
 
   return { engine, context };
 }

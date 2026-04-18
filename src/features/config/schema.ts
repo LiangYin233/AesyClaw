@@ -21,7 +21,7 @@ const MultimodalConfigSchema = z.object({
 });
 
 const CustomProviderSchema = z.object({
-  type: z.enum(['openai_chat', 'openai_completion', 'anthropic']).describe('Provider 类型'),
+  type: z.enum(['openai_responses', 'openai_completion', 'anthropic']).describe('Provider 类型'),
   api_key: z.string().optional().describe('API Key'),
   base_url: z.string().url().optional().describe('API Base URL'),
   models: z.record(z.string(), ModelConfigSchema).optional().describe('模型能力预设字典'),
@@ -89,7 +89,7 @@ export const DEFAULT_CONFIG: FullConfig = {
   },
   providers: {
     openai: {
-      type: 'openai_chat',
+      type: 'openai_responses',
       api_key: 'your-api-key',
       base_url: 'https://api.openai.com/v1',
       models: {
