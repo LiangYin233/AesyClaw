@@ -25,6 +25,7 @@ export class RoleManager {
     logger.info({}, 'Initializing RoleManager...');
 
     this.ensureRolesDirectory();
+    this.ensureDefaultRole();
 
     await this.loadAllRoles();
 
@@ -36,7 +37,9 @@ export class RoleManager {
 
   private ensureRolesDirectory(): void {
     pathResolver.ensureDirectoryExists(this.rolesDir);
+  }
 
+  private ensureDefaultRole(): void {
     const defaultPath = this.getRoleFilePath(DEFAULT_ROLE_ID);
     if (!fs.existsSync(defaultPath)) {
       this.saveRoleFile(DEFAULT_ROLE_ID, DEFAULT_ROLE_CONFIG);

@@ -105,12 +105,6 @@ export class PathResolver {
     return path.join(this.logDir, DEFAULT_LOG_FILE);
   }
 
-  getTempDir(): string {
-    const tempDir = path.join(this.basePath, 'temp');
-    this.ensureDirectoryExists(tempDir);
-    return tempDir;
-  }
-
   getSystemSkillsDir(): string {
     return this.systemSkillsDir;
   }

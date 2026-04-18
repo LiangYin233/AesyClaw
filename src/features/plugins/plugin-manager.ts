@@ -9,7 +9,7 @@ import { ToolRegistry } from '@/platform/tools/registry.js';
 import type { Tool } from '@/platform/tools/types.js';
 import { logger, createScopedLogger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
-import { normalizeImportPath } from '@/platform/utils/import-path.js';
+import { pathToFileURL } from 'url';
 import { mergeDefaultOptions } from '@/platform/utils/merge-default-options.js';
 import { assertPackageNameMatchesExportedName } from '@/platform/utils/package-manifest.js';
 import { discoverPluginsByPrefix, type DiscoveredPlugin } from '@/platform/utils/plugin-discovery.js';
@@ -164,7 +164,7 @@ export class PluginManager {
     }
 
     try {
-      const mod = await import(normalizeImportPath(entryPath));
+      const mod = await import(pathToFileURL(entryPath).href);
       const plugin: Plugin | undefined = mod.default || mod;
 
       if (!plugin || !plugin.name) {

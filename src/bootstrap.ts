@@ -31,7 +31,7 @@ import { toErrorMessage } from '@/platform/utils/errors.js';
 import { createMultimodalTools } from '@/platform/tools/multimodal-tools.js';
 import { McpClientManager } from '@/platform/tools/mcp/mcp-client-manager.js';
 import { toolRegistry as sharedToolRegistry } from '@/platform/tools/registry.js';
-import { normalizeImportPath } from '@/platform/utils/import-path.js';
+import { pathToFileURL } from 'url';
 import { assertPackageNameMatchesExportedName } from '@/platform/utils/package-manifest.js';
 import { discoverPluginsByPrefix, type DiscoveredPlugin } from '@/platform/utils/plugin-discovery.js';
 import { pathResolver } from '@/platform/utils/paths.js';
@@ -260,7 +260,7 @@ async function loadChannelPluginEntry(
       return;
     }
 
-    const { default: channelPlugin } = await import(normalizeImportPath(entryPath)) as {
+    const { default: channelPlugin } = await import(pathToFileURL(entryPath).href) as {
       default: ChannelPlugin;
     };
 
