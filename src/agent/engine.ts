@@ -2,16 +2,14 @@ import {
   type AgentSkill,
   type Message as AesyiuMessage,
 } from 'aesyiu';
-import { configManager } from '@/features/config/config-manager.js';
 import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
-import { roleManager } from '@/features/roles/role-manager.js';
-import { skillManager } from '@/features/skills/skill-manager.js';
 import { resolveLLMConfig } from '@/agent/runtime/resolve-llm-config.js';
 import { LLMConfig, MessageRole } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
 import type { ToolCatalog } from '@/platform/tools/registry.js';
 import { Tool, ToolExecuteContext, ToolExecutionResult } from '@/platform/tools/types.js';
+import type { ConfigSource, RoleStore, SkillStore } from '@/runtime-dependencies.js';
 import {
   buildAesyiuEngine,
   type AesyiuRunStats,
@@ -36,6 +34,9 @@ export interface AgentEngineConfig {
   memoryConfig?: Partial<SessionMemoryConfig>;
   toolCatalog: ToolCatalog;
   hookRuntime: PluginHookRuntime;
+  configSource: ConfigSource;
+  roleStore: RoleStore;
+  skillStore: SkillStore;
 }
 
 export interface AgentRunResult {
@@ -71,6 +72,9 @@ export class AgentEngine {
       memoryConfig: config.memoryConfig || {},
       toolCatalog: config.toolCatalog,
       hookRuntime: config.hookRuntime,
+      configSource: config.configSource,
+      roleStore: config.roleStore,
+      skillStore: config.skillStore,
     };
     this.toolCatalog = config.toolCatalog;
     this.hookRuntime = config.hookRuntime;
@@ -79,7 +83,7 @@ export class AgentEngine {
       systemPromptBuilder: {
         buildSystemPrompt: ({ roleId, chatId: currentChatId }) => this.config.systemPrompt || `${roleId}:${currentChatId}`,
       },
-      roleManager,
+      roleManager: this.config.roleStore,
       toolCatalog: this.toolCatalog,
     });
 
@@ -101,7 +105,7 @@ export class AgentEngine {
   private getFilteredTools(): Tool[] {
     const allToolDefs = this.toolCatalog.getAllToolDefinitions();
     const roleId = this.memory.getActiveRoleId();
-    const allowedToolNames = roleManager.getAllowedTools(
+    const allowedToolNames = this.config.roleStore.getAllowedTools(
       roleId,
       allToolDefs.map(tool => tool.name)
     );
@@ -115,8 +119,8 @@ export class AgentEngine {
   }
 
   private getAllowedSkills(roleId: string): AgentSkill[] {
-    if (!skillManager.isInitialized()) return [];
-    return skillManager.getSkillsForRole(roleManager.getRoleConfig(roleId).allowed_skills);
+    if (!this.config.skillStore.isInitialized()) return [];
+    return this.config.skillStore.getSkillsForRole(this.config.roleStore.getRoleConfig(roleId).allowed_skills);
   }
 
   private syncMemory(messages: readonly AesyiuMessage[]): void {
@@ -139,6 +143,7 @@ export class AgentEngine {
       const { engine, context } = buildAesyiuEngine({
         chatId: this.chatId,
         llmConfig: this.config.llm,
+        providers: this.config.configSource.getConfig().providers,
         maxContextTokens: this.config.memoryConfig.maxContextTokens || 128000,
         compressionThreshold: this.config.memoryConfig.compressionThreshold || 0.75,
         maxSteps: this.config.maxSteps,
@@ -158,12 +163,13 @@ export class AgentEngine {
         }),
         checkToolAllowed: (tool): ToolExecutionResult | null => {
           const currentRoleId = this.memory.getActiveRoleId();
-          if (!roleManager.isToolAllowed(currentRoleId, tool.name)) {
+          if (!this.config.roleStore.isToolAllowed(currentRoleId, tool.name)) {
             return { success: false, content: '', error: `角色 "${currentRoleId}" 不允许使用工具 "${tool.name}"。` };
           }
           return null;
         },
         getRoleId: () => this.memory.getActiveRoleId(),
+        roleCatalog: this.config.roleStore,
       });
 
       const result = await engine.run(
@@ -249,7 +255,7 @@ export class AgentEngine {
 
   updateModel(model: string): void {
     try {
-      const resolved = resolveLLMConfig(model, configManager.config);
+      const resolved = resolveLLMConfig(model, this.config.configSource.getConfig());
       this.config.llm = {
         ...this.config.llm,
         ...resolved,

@@ -10,15 +10,14 @@ import {
   getFinalAssistantText,
 } from '@/agent/runtime/aesyiu-runtime-helpers.js';
 import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
-import { configManager } from '@/features/config/config-manager.js';
-import { roleManager, DEFAULT_ROLE_ID } from '@/features/roles/role-manager.js';
-import { skillManager } from '@/features/skills/skill-manager.js';
+import { DEFAULT_ROLE_ID } from '@/features/roles/types.js';
 import { type LLMConfig } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
 import type { ToolCatalog } from '@/platform/tools/registry.js';
 import { Tool, ToolExecuteContext } from '@/platform/tools/types.js';
 import { DEFAULT_FALLBACK_LLM_CONFIG } from '@/agent/runtime/resolve-llm-config.js';
+import type { ConfigSource, RoleStore, SkillStore } from '@/runtime-dependencies.js';
 import {
   SUBAGENT_TOOL_NAME_RUN,
   SUBAGENT_TOOL_NAME_TEMP,
@@ -35,19 +34,35 @@ export class SandboxEngine {
   private maxSteps: number = 10;
   private readonly toolCatalog: ToolCatalog;
   private readonly hookRuntime: PluginHookRuntime;
+  private readonly configSource: ConfigSource;
+  private readonly roleStore: RoleStore;
+  private readonly skillStore: SkillStore;
 
   private static readonly DISALLOWED_SANDBOX_TOOLS = new Set([
     SUBAGENT_TOOL_NAME_RUN,
     SUBAGENT_TOOL_NAME_TEMP,
   ]);
 
-  constructor(parentChatId: string, config: SandboxConfig, deps: { toolCatalog: ToolCatalog; hookRuntime: PluginHookRuntime }) {
+  constructor(
+    parentChatId: string,
+    config: SandboxConfig,
+    deps: {
+      toolCatalog: ToolCatalog;
+      hookRuntime: PluginHookRuntime;
+      configSource: ConfigSource;
+      roleStore: RoleStore;
+      skillStore: SkillStore;
+    }
+  ) {
     this.sandboxId = `sandbox_${parentChatId}_${randomUUID()}`;
     this.parentChatId = parentChatId;
     this.config = config;
     this.agentId = `subagent_${this.sandboxId}`;
     this.toolCatalog = deps.toolCatalog;
     this.hookRuntime = deps.hookRuntime;
+    this.configSource = deps.configSource;
+    this.roleStore = deps.roleStore;
+    this.skillStore = deps.skillStore;
 
     this.initializeMemory();
 
@@ -81,7 +96,7 @@ export class SandboxEngine {
 
   private getTaskFromConfig(): string {
     if (this.config.roleId) {
-      const role = roleManager.getRole(this.config.roleId);
+      const role = this.roleStore.getRole(this.config.roleId);
       return role?.name
         ? `你当前扮演的是【${role.name}】角色。\n\n任务要求：\n${this.extractTaskDescription()}`
         : this.extractTaskDescription();
@@ -116,8 +131,8 @@ export class SandboxEngine {
   }
 
   private getAllowedSkills(): AgentSkill[] {
-    if (!skillManager.isInitialized()) return [];
-    return skillManager.getSkillsForRole(this.config.allowedSkills);
+    if (!this.skillStore.isInitialized()) return [];
+    return this.skillStore.getSkillsForRole(this.config.allowedSkills);
   }
 
   async execute(): Promise<SubAgentResult> {
@@ -137,8 +152,9 @@ export class SandboxEngine {
       const { engine, context } = buildAesyiuEngine({
         chatId: this.agentId,
         llmConfig,
-        maxContextTokens: configManager.config.memory.max_context_tokens,
-        compressionThreshold: configManager.config.memory.compression_threshold,
+        providers: this.configSource.getConfig().providers,
+        maxContextTokens: this.configSource.getConfig().memory.max_context_tokens,
+        compressionThreshold: this.configSource.getConfig().memory.compression_threshold,
         maxSteps: this.maxSteps,
         filteredTools,
         allowedSkills,
@@ -228,9 +244,9 @@ export class SandboxEngine {
   private getLLMConfig(): LLMConfig {
     try {
       const roleId = this.config.roleId || DEFAULT_ROLE_ID;
-      return prepareAgentRun(this.parentChatId, configManager.config, {
+      return prepareAgentRun(this.parentChatId, this.configSource.getConfig(), {
         buildSystemPrompt: () => this.config.systemPrompt,
-      }, roleId).llmConfig;
+      }, this.roleStore, roleId).llmConfig;
     } catch (error) {
       logger.warn({ error }, 'Failed to resolve LLM config from config.json, using fallback');
       return { ...DEFAULT_FALLBACK_LLM_CONFIG };

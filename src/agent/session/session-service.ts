@@ -6,15 +6,14 @@ import { resolveLLMConfig } from '@/agent/runtime/resolve-llm-config.js';
 import type { ChannelReceiveMessage } from '@/agent/types.js';
 import type { CommandContext } from '@/contracts/commands.js';
 import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
-import { configManager } from '@/features/config/config-manager.js';
-import { roleManager } from '@/features/roles/role-manager.js';
 import type { SystemPromptManager } from '@/features/roles/system-prompt-manager.js';
 import { DEFAULT_ROLE_ID } from '@/features/roles/types.js';
 import { MessageRole, type StandardMessage } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import type { ChatContext, ChatSession } from './session-context.js';
-import { chatStore, type ChatKey } from '@/platform/db/repositories/session-repository.js';
+import type { ChatKey } from '@/platform/db/repositories/session-repository.js';
 import type { ToolCatalog } from '@/platform/tools/registry.js';
+import type { ChatSessionStore, ConfigSource, RoleStore, SkillStore } from '@/runtime-dependencies.js';
 
 export interface RoleInfo {
   roleId: string;
@@ -31,6 +30,10 @@ export interface ChatServiceDependencies {
   systemPromptManager: SystemPromptManager;
   toolCatalog: ToolCatalog;
   hookRuntime: PluginHookRuntime;
+  configSource: ConfigSource;
+  roleStore: RoleStore;
+  chatStore: Pick<ChatSessionStore, 'get' | 'create' | 'updateRole' | 'getMessages' | 'saveMessages'>;
+  skillStore: SkillStore;
 }
 
 export class ChatService {
@@ -41,13 +44,13 @@ export class ChatService {
   }
 
   getForCommand(ctx: CommandContext): ChatContext | null {
-    const session = chatStore.get(toChatKeyFromCommand(ctx));
+    const session = this.deps.chatStore.get(toChatKeyFromCommand(ctx));
     return session ? this.buildContext(session) : null;
   }
 
   clearChat(ctx: CommandContext): boolean {
     const key = toChatKeyFromCommand(ctx);
-    chatStore.saveMessages(key, []);
+    this.deps.chatStore.saveMessages(key, []);
     return true;
   }
 
@@ -57,11 +60,13 @@ export class ChatService {
       return { success: false, message: '会话不存在' };
     }
 
-    const roleConfig = roleManager.getRoleConfig(session.memory.getActiveRoleId());
+    const roleConfig = this.deps.roleStore.getRoleConfig(session.memory.getActiveRoleId());
     const memoryConfig = this.getMemoryConfig();
+    const config = this.deps.configSource.getConfig();
     const compacted = await manuallyCompactMessages({
       chatId: session.session.chatId,
-      llmConfig: resolveLLMConfig(roleConfig.model, configManager.config),
+      llmConfig: resolveLLMConfig(roleConfig.model, config),
+      providers: config.providers,
       maxContextTokens: memoryConfig.maxContextTokens,
       compressionThreshold: memoryConfig.compressionThreshold,
       messages: [...session.memory.getMessages()],
@@ -73,14 +78,14 @@ export class ChatService {
   }
 
   switchRole(ctx: CommandContext, roleId: string): { success: boolean; message: string } {
-    const role = roleManager.getRole(roleId);
+    const role = this.deps.roleStore.getRole(roleId);
     if (!role) {
-      const roleNames = roleManager.getAllRoles().map(item => item.name).join(', ');
+      const roleNames = this.deps.roleStore.getAllRoles().map(item => item.name).join(', ');
       return { success: false, message: `角色 "${roleId}" 不存在。可用角色: ${roleNames}` };
     }
 
     const key = toChatKeyFromCommand(ctx);
-    chatStore.updateRole(key, roleId);
+    this.deps.chatStore.updateRole(key, roleId);
 
     const allowedTools = this.getAllowedToolsForRole(roleId);
     const allowedToolsText = allowedTools.length > 0 ? allowedTools.join(', ') : '无';
@@ -88,28 +93,28 @@ export class ChatService {
   }
 
   getRoleInfo(ctx: CommandContext): RoleInfo {
-    const session = chatStore.get(toChatKeyFromCommand(ctx));
+    const session = this.deps.chatStore.get(toChatKeyFromCommand(ctx));
     const roleId = session?.roleId ?? DEFAULT_ROLE_ID;
-    const roleConfig = roleManager.getRoleConfig(roleId);
+    const roleConfig = this.deps.roleStore.getRoleConfig(roleId);
     return { roleId, roleName: roleConfig.name, allowedTools: this.getAllowedToolsForRole(roleId) };
   }
 
   private getAllowedToolsForRole(roleId: string): string[] {
-    return roleManager.getAllowedTools(
+    return this.deps.roleStore.getAllowedTools(
       roleId,
       this.deps.toolCatalog.getAllToolDefinitions().map(tool => tool.name)
     );
   }
 
   private getOrCreate(key: ChatKey): ChatSession {
-    const existing = chatStore.get(key);
+    const existing = this.deps.chatStore.get(key);
     if (existing) return existing;
-    return chatStore.create(key);
+    return this.deps.chatStore.create(key);
   }
 
   save(context: ChatContext): void {
     const messages = context.memory.getMessages().filter(message => shouldPersistMessage(message));
-    chatStore.saveMessages(
+    this.deps.chatStore.saveMessages(
       { channel: context.session.channel, type: context.session.type, chatId: context.session.chatId },
       messages
     );
@@ -120,7 +125,7 @@ export class ChatService {
     const memoryConfig = this.getMemoryConfig();
     const memory = new SessionMemoryManager(session.chatId, memoryConfig, {
       systemPromptBuilder: this.deps.systemPromptManager,
-      roleManager,
+      roleManager: this.deps.roleStore,
       toolCatalog: this.deps.toolCatalog,
     });
 
@@ -133,25 +138,30 @@ export class ChatService {
       chatId: session.chatId,
     });
 
-    const savedMessages = chatStore.getMessages(key).filter(message => message.role !== MessageRole.System);
+    const savedMessages = this.deps.chatStore.getMessages(key)
+      .filter(message => message.role !== MessageRole.System);
     memory.importMemory([{ role: MessageRole.System, content: systemPrompt }, ...savedMessages]);
 
-    const roleConfig = roleManager.getRoleConfig(session.roleId);
+    const roleConfig = this.deps.roleStore.getRoleConfig(session.roleId);
+    const config = this.deps.configSource.getConfig();
     const agent = new AgentEngine(session.chatId, {
-      llm: resolveLLMConfig(roleConfig.model, configManager.config),
-      maxSteps: configManager.config.agent.max_steps,
+      llm: resolveLLMConfig(roleConfig.model, config),
+      maxSteps: config.agent.max_steps,
       systemPrompt,
       memory,
       memoryConfig,
       toolCatalog: this.deps.toolCatalog,
       hookRuntime: this.deps.hookRuntime,
+      configSource: this.deps.configSource,
+      roleStore: this.deps.roleStore,
+      skillStore: this.deps.skillStore,
     });
 
     return { session, memory, agent };
   }
 
   private getMemoryConfig(): SessionMemoryConfig {
-    const raw = configManager.config.memory as MemoryConfigSource;
+    const raw = this.deps.configSource.getConfig().memory as MemoryConfigSource;
     return {
       maxContextTokens: raw.max_context_tokens,
       compressionThreshold: raw.compression_threshold,

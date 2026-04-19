@@ -16,11 +16,9 @@ import {
   type ToolMiddleware,
 } from 'aesyiu';
 import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
-import { configManager } from '@/features/config/config-manager.js';
 import type { ProvidersConfig } from '@/features/config/schema.js';
 import { buildHookSkills, buildHookTools } from '@/features/plugins/hook-utils.js';
 import type { HookPayloadLLMSkill, HookPayloadLLMTool } from '@/features/plugins/types.js';
-import { roleManager } from '@/features/roles/role-manager.js';
 import { SUBAGENT_TOOL_NAME_RUN } from '@/agent/subagent/types.js';
 import { LLMProviderType, MessageRole, type LLMConfig, type StandardMessage } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
@@ -32,6 +30,7 @@ import {
   type ToolExecuteContext,
   type ToolExecutionResult,
 } from '@/platform/tools/types.js';
+import type { RoleCatalog } from '@/runtime-dependencies.js';
 
 export interface AesyiuRunStats {
   steps: number;
@@ -139,13 +138,17 @@ export function getFinalAssistantText(messages: readonly AesyiuMessage[]): strin
   return '';
 }
 
-function injectRolesPrompt(ctx: AgentContext, tools: readonly Tool[]): void {
+function injectRolesPrompt(
+  ctx: AgentContext,
+  tools: readonly Tool[],
+  roleCatalog?: RoleCatalog
+): void {
   if (!tools.some(tool => tool.name === SUBAGENT_TOOL_NAME_RUN)) {
     ctx.removePromptSection(ROLES_PROMPT_SECTION);
     return;
   }
 
-  const roles = roleManager.getRolesList();
+  const roles = roleCatalog?.getRolesList() ?? [];
   if (roles.length === 0) {
     ctx.removePromptSection(ROLES_PROMPT_SECTION);
     return;
@@ -356,6 +359,7 @@ function toAesyiuTool(
 interface BuildAesyiuEngineOptions {
   chatId: string;
   llmConfig: LLMConfig;
+  providers: ProvidersConfig;
   maxContextTokens: number;
   compressionThreshold: number;
   maxSteps: number;
@@ -367,6 +371,7 @@ interface BuildAesyiuEngineOptions {
   createToolContext: (_ctx: unknown, _tool: Tool) => ToolExecuteContext;
   checkToolAllowed?: (_tool: Tool) => ToolExecutionResult | null;
   getRoleId?: () => string;
+  roleCatalog?: RoleCatalog;
 }
 
 export function buildAesyiuEngine(options: BuildAesyiuEngineOptions): {
@@ -379,7 +384,7 @@ export function buildAesyiuEngine(options: BuildAesyiuEngineOptions): {
 
   const modelDef = resolveModelDefinition(
     options.llmConfig.model || 'gpt-4o-mini',
-    configManager.config.providers,
+    options.providers,
     options.maxContextTokens
   );
   const provider = buildProvider(options.llmConfig, modelDef);
@@ -388,7 +393,7 @@ export function buildAesyiuEngine(options: BuildAesyiuEngineOptions): {
   context.state.chatId = options.chatId;
   context.addMessages(options.messages);
 
-  injectRolesPrompt(context, options.filteredTools);
+  injectRolesPrompt(context, options.filteredTools, options.roleCatalog);
 
   const engine = new AesyiuEngine({
     maxSteps: options.maxSteps,
@@ -421,13 +426,14 @@ export function buildAesyiuEngine(options: BuildAesyiuEngineOptions): {
 export async function manuallyCompactMessages(options: {
   chatId: string;
   llmConfig: LLMConfig;
+  providers: ProvidersConfig;
   maxContextTokens: number;
   compressionThreshold: number;
   messages: StandardMessage[];
 }): Promise<StandardMessage[]> {
   const modelDef = resolveModelDefinition(
     options.llmConfig.model || 'gpt-4o-mini',
-    configManager.config.providers,
+    options.providers,
     options.maxContextTokens
   );
   const provider = buildProvider(options.llmConfig, modelDef);

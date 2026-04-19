@@ -1,9 +1,9 @@
-import { roleManager } from '@/features/roles/role-manager.js';
 import { logger } from '@/platform/observability/logger.js';
 import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
 import type { ToolCatalog } from '@/platform/tools/registry.js';
 import { ToolExecuteContext, ToolExecutionResult, zodToToolParameters } from '@/platform/tools/types.js';
 import { SandboxEngine } from './sandbox-engine.js';
+import type { ConfigSource, RoleStore, SkillStore } from '@/runtime-dependencies.js';
 import {
   RunSubAgentInputSchema,
   RunTempSubAgentInputSchema,
@@ -17,6 +17,9 @@ import {
 interface SubAgentToolDeps {
   toolCatalog: ToolCatalog;
   hookRuntime: PluginHookRuntime;
+  configSource: ConfigSource;
+  roleStore: RoleStore;
+  skillStore: SkillStore;
 }
 
 export async function runSubAgent(
@@ -41,9 +44,9 @@ export async function runSubAgent(
     ' runSubAgent called'
   );
 
-  const role = roleManager.getRole(role_name);
+  const role = deps.roleStore.getRole(role_name);
   if (!role) {
-    const availableRoles = roleManager.getRolesList();
+    const availableRoles = deps.roleStore.getRolesList();
     const roleList = availableRoles.map(r => r.id).join(', ') || '无';
     return {
       success: false,
@@ -53,7 +56,7 @@ export async function runSubAgent(
   }
 
   const systemPrompt = `${role.system_prompt}\n\n【任务】\n${task_description}`;
-  const allowedTools = roleManager.getAllowedTools(
+  const allowedTools = deps.roleStore.getAllowedTools(
     role_name,
     deps.toolCatalog.getAllToolDefinitions().map(tool => tool.name)
   );

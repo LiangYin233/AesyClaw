@@ -1,0 +1,74 @@
+import { logger } from '@/platform/observability/logger.js';
+import type { ToolManager } from '../registry.js';
+import { McpClientManager, type McpServerConnectionConfig } from './mcp-client-manager.js';
+
+export interface McpRuntimeConfigSource {
+  getServerConfigs(): readonly McpServerConnectionConfig[];
+  onServerConfigChange(
+    listener: (
+      next: readonly McpServerConnectionConfig[],
+      previous: readonly McpServerConnectionConfig[]
+    ) => Promise<void>
+  ): () => void;
+}
+
+interface McpRuntimeDependencies {
+  toolManager: ToolManager;
+  configSource: McpRuntimeConfigSource;
+}
+
+export class McpRuntime {
+  private manager: McpClientManager | null = null;
+  private configChangeUnsubscribe: (() => void) | null = null;
+  private hotReloadEnabled = false;
+
+  constructor(private readonly deps: McpRuntimeDependencies) {}
+
+  getConnectedServers() {
+    return this.manager?.getConnectedServers() || [];
+  }
+
+  async start(options: { watchConfig?: boolean } = {}): Promise<void> {
+    const { watchConfig = true } = options;
+
+    this.manager = new McpClientManager(this.deps.toolManager);
+    await this.manager.connectConfiguredServers(this.deps.configSource.getServerConfigs());
+
+    if (watchConfig) {
+      this.watchConfigChanges();
+    }
+  }
+
+  watchConfigChanges(): void {
+    this.registerConfigChangeListener();
+  }
+
+  async stop(): Promise<void> {
+    this.configChangeUnsubscribe?.();
+    this.configChangeUnsubscribe = null;
+    this.hotReloadEnabled = false;
+
+    if (this.manager) {
+      await this.manager.shutdown();
+      this.manager = null;
+    }
+  }
+
+  private registerConfigChangeListener(): void {
+    this.configChangeUnsubscribe?.();
+    this.configChangeUnsubscribe = null;
+    this.hotReloadEnabled = true;
+
+    this.configChangeUnsubscribe = this.deps.configSource.onServerConfigChange(
+      async (nextServers, previousServers) => {
+        if (!this.hotReloadEnabled || nextServers === previousServers || !this.manager) {
+          return;
+        }
+
+        logger.info({}, 'MCP config changed, reconnecting MCP servers');
+        await this.manager.shutdown();
+        await this.manager.connectConfiguredServers(nextServers);
+      }
+    );
+  }
+}
