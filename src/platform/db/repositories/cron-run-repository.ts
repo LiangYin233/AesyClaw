@@ -1,16 +1,9 @@
 import { randomUUID } from 'crypto';
 import { logger } from '@/platform/observability/logger.js';
 import { sqliteManager } from '../sqlite-manager.js';
+export type CronRunStatus = 'running' | 'succeeded' | 'failed' | 'abandoned';
 
-export const CRON_RUN_STATUS = {
-  Running: 'running',
-  Succeeded: 'succeeded',
-  Failed: 'failed',
-} as const;
-
-type CronRunStatus = typeof CRON_RUN_STATUS[keyof typeof CRON_RUN_STATUS];
-
-interface CronRunRecord {
+export interface CronRun {
   id: string;
   jobId: string;
   status: CronRunStatus;
@@ -33,7 +26,7 @@ class CronRunRepository {
     return sqliteManager.getDatabase();
   }
 
-  private mapRow(row: CronRunRow): CronRunRecord {
+  private mapRow(row: CronRunRow): CronRun {
     return {
       id: row.id,
       jobId: row.job_id,
@@ -44,17 +37,17 @@ class CronRunRepository {
     };
   }
 
-  createRunning(jobId: string, startedAt: string): CronRunRecord {
+  createRunning(jobId: string, startedAt: string): CronRun {
     const id = randomUUID();
     this.db.prepare(`
       INSERT INTO cron_runs (id, job_id, status, started_at)
       VALUES (?, ?, ?, ?)
-    `).run(id, jobId, CRON_RUN_STATUS.Running, startedAt);
+    `).run(id, jobId, 'running', startedAt);
     logger.info({ runId: id, jobId }, 'Cron run created');
     return this.findById(id)!;
   }
 
-  finish(runId: string, status: Exclude<CronRunStatus, 'running'>, finishedAt: string, error?: string): CronRunRecord | null {
+  finish(runId: string, status: Exclude<CronRunStatus, 'running'>, finishedAt: string, error?: string): CronRun | null {
     const result = this.db.prepare(`
       UPDATE cron_runs SET status = ?, finished_at = ?, error = ? WHERE id = ?
     `).run(status, finishedAt, error || null, runId);
@@ -67,12 +60,23 @@ class CronRunRepository {
     return this.findById(runId);
   }
 
-  findById(id: string): CronRunRecord | null {
+  markAllRunningAsAbandoned(finishedAt: string): number {
+    const result = this.db.prepare(`
+      UPDATE cron_runs SET status = 'abandoned', finished_at = ? WHERE status = 'running'
+    `).run(finishedAt);
+    const count = result.changes || 0;
+    if (count > 0) {
+      logger.info({ count }, 'Marked stale cron runs as abandoned');
+    }
+    return count;
+  }
+
+  findById(id: string): CronRun | null {
     const row = this.db.prepare('SELECT * FROM cron_runs WHERE id = ?').get(id) as CronRunRow | undefined;
     return row ? this.mapRow(row) : null;
   }
 
-  findLatestByJobId(jobId: string, limit: number = 20): CronRunRecord[] {
+  findLatestByJobId(jobId: string, limit: number = 20): CronRun[] {
     const rows = this.db.prepare(
       'SELECT * FROM cron_runs WHERE job_id = ? ORDER BY started_at DESC LIMIT ?'
     ).all(jobId, limit) as CronRunRow[];

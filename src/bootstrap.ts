@@ -18,12 +18,13 @@ import { helpCommandGroup } from '@/features/commands/help-command-group.js';
 import { sessionCommandGroup } from '@/features/commands/session-command-group.js';
 import { configStage } from '@/features/config/config-message-stage.js';
 import { configManager } from '@/features/config/config-manager.js';
-import { initializePromptExecutor } from '@/features/cron/tools.js';
+import { agentCronExecutor } from '@/agent/runtime/cron-executor.js';
+import { cronTools } from '@/features/cron/cron-tools.js';
 import { createPluginCommandGroup } from '@/features/plugins/plugin-command-group.js';
 import { PluginManager } from '@/features/plugins/plugin-manager.js';
 import { roleManager } from '@/features/roles/role-manager.js';
 import { createRoleCommandGroup } from '@/features/roles/role-command-group.js';
-import { cronService } from '@/platform/db/cron-service.js';
+import { cronService } from '@/features/cron/cron-service.js';
 import { chatStore } from '@/platform/db/repositories/session-repository.js';
 import { sqliteManager } from '@/platform/db/sqlite-manager.js';
 import { logger } from '@/platform/observability/logger.js';
@@ -170,6 +171,13 @@ async function runInitStages(options: BootstrapOptions): Promise<void> {
       },
     },
     {
+      name: 'Cron tools',
+      run: () => {
+        for (const tool of cronTools) sharedToolRegistry.register(tool);
+        logger.info({ toolCount: cronTools.length }, 'Cron tools registered');
+      },
+    },
+    {
       name: 'Pipeline stages',
       run: () => {
         pipeline?.use(configStage);
@@ -192,7 +200,7 @@ async function runInitStages(options: BootstrapOptions): Promise<void> {
       name: 'Cron',
       skip: options.skipCron,
       run: async () => {
-        await initializePromptExecutor();
+        cronService.setExecutor(agentCronExecutor);
         cronService.start();
         logger.info({ schedulerRunning: cronService.isRunning() }, 'Cron system initialized');
       },

@@ -14,15 +14,6 @@ import { logger } from '@/platform/observability/logger.js';
 import type { ChatContext, ChatSession } from './session-context.js';
 import { chatStore, type ChatKey } from '@/platform/db/repositories/session-repository.js';
 
-export interface TempChatOptions {
-  chatId: string;
-}
-
-export interface TempChatResult {
-  chatId: string;
-  context: ChatContext;
-}
-
 export interface RoleInfo {
   roleId: string;
   roleName: string;
@@ -90,13 +81,6 @@ class ChatService {
     const roleId = session?.roleId ?? DEFAULT_ROLE_ID;
     const roleConfig = roleManager.getRoleConfig(roleId);
     return { roleId, roleName: roleConfig.name, allowedTools: roleConfig.allowed_tools };
-  }
-
-  createTempChat(jobId: string): TempChatResult {
-    const key: ChatKey = { channel: 'cron', type: 'cron', chatId: jobId };
-    const session = chatStore.create(key);
-    const context = this.buildContext(session);
-    return { chatId: jobId, context };
   }
 
   private getOrCreate(key: ChatKey): ChatSession {

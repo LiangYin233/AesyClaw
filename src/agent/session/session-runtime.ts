@@ -5,7 +5,6 @@ import { logger } from '@/platform/observability/logger.js';
 import type { ChatContext } from './session-context.js';
 import {
   chatService,
-  type TempChatResult,
 } from './session-service.js';
 
 interface ResolvedSessionState {
@@ -76,9 +75,4 @@ export async function compactSessionForCommandContext(ctx: CommandContext): Prom
   return chatService.compactChat(ctx);
 }
 
-export function createTemporarySession(
-  cronJobId: string,
-  _options?: { chatId?: string }
-): TempChatResult {
-  return chatService.createTempChat(cronJobId);
-}
+

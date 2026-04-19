@@ -55,7 +55,6 @@ class SQLiteManager {
 
       CREATE TABLE IF NOT EXISTS cron_jobs (
         id TEXT PRIMARY KEY,
-        chat_id TEXT NOT NULL,
         name TEXT NOT NULL,
         cron_expression TEXT NOT NULL,
         prompt TEXT NOT NULL,
@@ -83,9 +82,9 @@ class SQLiteManager {
 
   private ensureIndexes(): void {
     this.getDatabase().exec(`
-      CREATE INDEX IF NOT EXISTS idx_cron_jobs_chat_id ON cron_jobs(chat_id);
       CREATE INDEX IF NOT EXISTS idx_cron_jobs_next_run ON cron_jobs(next_run_at) WHERE enabled = 1;
-      CREATE INDEX IF NOT EXISTS idx_cron_runs_job_id ON cron_runs(job_id, started_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_cron_runs_job_id_started_at ON cron_runs(job_id, started_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_cron_runs_status ON cron_runs(status);
     `);
   }
 
