@@ -1,10 +1,10 @@
 import { StandardMessage, MessageRole } from '@/platform/llm/types.js';
+import type { ToolCatalog } from '@/platform/tools/registry.js';
 import { SessionMemoryConfig, createSessionMemoryConfig } from './types.js';
 import type { RoleManager } from '@/features/roles/role-manager.js';
 import type { SystemPromptManager } from '@/features/roles/system-prompt-manager.js';
 import { DEFAULT_ROLE_ID } from '@/features/roles/types.js';
 import { logger } from '@/platform/observability/logger.js';
-import { toolRegistry } from '@/platform/tools/registry.js';
 
 type SessionPromptBuilder = Pick<SystemPromptManager, 'buildSystemPrompt'>;
 type SessionRoleStore = Pick<RoleManager, 'getRole' | 'getRoleConfig' | 'getAllRoles' | 'getAllowedTools'>;
@@ -12,6 +12,7 @@ type SessionRoleStore = Pick<RoleManager, 'getRole' | 'getRoleConfig' | 'getAllR
 export interface SessionMemoryManagerDependencies {
   systemPromptBuilder: SessionPromptBuilder;
   roleManager?: SessionRoleStore;
+  toolCatalog: ToolCatalog;
 }
 
 export class SessionMemoryManager {
@@ -118,7 +119,7 @@ export class SessionMemoryManager {
     const roleConfig = this.deps.roleManager.getRoleConfig(roleId);
     const allowedTools = this.deps.roleManager.getAllowedTools(
       roleId,
-      toolRegistry.getAllToolDefinitions().map(tool => tool.name)
+      this.deps.toolCatalog.getAllToolDefinitions().map(tool => tool.name)
     );
     const allowedToolsText = allowedTools.length > 0 ? allowedTools.join(', ') : '无';
 
@@ -139,7 +140,7 @@ export class SessionMemoryManager {
       roleName: roleConfig.name,
       allowedTools: this.deps.roleManager.getAllowedTools(
         this.activeRoleId,
-        toolRegistry.getAllToolDefinitions().map(tool => tool.name)
+        this.deps.toolCatalog.getAllToolDefinitions().map(tool => tool.name)
       ),
     };
   }

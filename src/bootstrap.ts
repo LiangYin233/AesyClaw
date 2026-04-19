@@ -2,36 +2,39 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { agentStage } from '@/agent/runtime/agent-message-stage.js';
 import {
+  createSessionStage,
   getRoleInfoForCommandContext,
-  sessionStage,
   switchRoleForCommandContext,
 } from '@/agent/session/session-runtime.js';
+import { ChatService } from '@/agent/session/session-service.js';
 import { ChannelPipeline } from '@/agent/pipeline.js';
-import { subAgentTools } from '@/agent/subagent/subagent-tools.js';
+import { createSubAgentTools } from '@/agent/subagent/subagent-tools.js';
 import type { ChannelPlugin } from '@/channels/channel-plugin.js';
 import { ChannelPluginManager } from '@/channels/channel-manager.js';
 import type { CommandDefinition } from '@/contracts/commands.js';
 import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
-import { commandMiddleware } from '@/features/commands/command-middleware.js';
-import { commandRegistry } from '@/features/commands/command-registry.js';
-import { helpCommandGroup } from '@/features/commands/help-command-group.js';
-import { sessionCommandGroup } from '@/features/commands/session-command-group.js';
+import { createCommandMiddleware } from '@/features/commands/command-middleware.js';
+import { CommandManager } from '@/features/commands/command-registry.js';
+import { createHelpCommandGroup } from '@/features/commands/help-command-group.js';
+import { createSessionCommandGroup } from '@/features/commands/session-command-group.js';
 import { configStage } from '@/features/config/config-message-stage.js';
 import { configManager } from '@/features/config/config-manager.js';
-import { agentCronExecutor } from '@/agent/runtime/cron-executor.js';
+import { AgentCronExecutor } from '@/agent/runtime/cron-executor.js';
 import { cronTools } from '@/features/cron/cron-tools.js';
 import { createPluginCommandGroup } from '@/features/plugins/plugin-command-group.js';
 import { PluginManager } from '@/features/plugins/plugin-manager.js';
 import { roleManager } from '@/features/roles/role-manager.js';
 import { createRoleCommandGroup } from '@/features/roles/role-command-group.js';
+import { SystemPromptManager } from '@/features/roles/system-prompt-manager.js';
 import { cronService } from '@/features/cron/cron-service.js';
 import { chatStore } from '@/platform/db/repositories/session-repository.js';
 import { sqliteManager } from '@/platform/db/sqlite-manager.js';
 import { logger } from '@/platform/observability/logger.js';
+import { createRegistrationOwner } from '@/platform/registration/types.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
 import { createMultimodalTools } from '@/platform/tools/multimodal-tools.js';
 import { McpClientManager } from '@/platform/tools/mcp/mcp-client-manager.js';
-import { toolRegistry as sharedToolRegistry } from '@/platform/tools/registry.js';
+import { ToolManager } from '@/platform/tools/registry.js';
 import { pathToFileURL } from 'url';
 import { assertPackageNameMatchesExportedName } from '@/platform/utils/package-manifest.js';
 import { discoverPluginsByPrefix, type DiscoveredPlugin } from '@/platform/utils/plugin-discovery.js';
@@ -55,6 +58,14 @@ let initialized = false;
 let configChangeUnsubscribe: (() => void) | null = null;
 let mcpHotReloadEnabled = false;
 let channelHotReloadEnabled = false;
+const toolManager = new ToolManager();
+const commandManager = new CommandManager();
+const systemPromptManager = new SystemPromptManager(toolManager);
+const chatService = new ChatService({
+  systemPromptManager,
+  toolCatalog: toolManager,
+  hookRuntime: undefined as unknown as PluginHookRuntime,
+});
 
 function canonicalStringify(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value);
@@ -66,10 +77,13 @@ function canonicalStringify(value: unknown): string {
   return `{${body}}`;
 }
 
-export const pluginManager = new PluginManager(sharedToolRegistry, {
-  commandRegistrar: commandRegistry,
+export const pluginManager = new PluginManager({
+  commandManager,
+  toolManager,
   configStore: configManager,
 });
+
+(chatService as unknown as { deps: { hookRuntime: PluginHookRuntime } }).deps.hookRuntime = pluginManager;
 
 export const channelManager = new ChannelPluginManager(configManager);
 
@@ -79,27 +93,27 @@ export function getHookRuntime(): PluginHookRuntime {
 
 function buildSystemCommands(): CommandDefinition[] {
   return [
-    ...helpCommandGroup,
+    ...createHelpCommandGroup(commandManager),
     ...createPluginCommandGroup({
-      getPluginCommands: () => commandRegistry.getPluginCommands(),
+      getPluginCommands: () => commandManager.getPluginCommands(),
       enablePlugin: (pluginName) => pluginManager.enablePlugin(pluginName),
       disablePlugin: (pluginName) => pluginManager.disablePlugin(pluginName),
     }),
-    ...sessionCommandGroup,
+    ...createSessionCommandGroup(chatService),
     ...createRoleCommandGroup({
       getSessionForCommand: (ctx) => ({
-        switchRole: (roleId) => switchRoleForCommandContext(ctx, roleId),
-        getRoleInfo: () => getRoleInfoForCommandContext(ctx),
+        switchRole: (roleId) => switchRoleForCommandContext(chatService, ctx, roleId),
+        getRoleInfo: () => getRoleInfoForCommandContext(chatService, ctx),
       }),
+      toolCatalog: toolManager,
     }),
   ];
 }
 
 function registerSystemCommands(): void {
+  const systemScope = commandManager.createScope(createRegistrationOwner('system', 'bootstrap'));
   const systemCommands = buildSystemCommands();
-  for (const command of systemCommands) {
-    commandRegistry.register(command);
-  }
+  systemScope.registerMany(systemCommands);
   logger.info({ count: systemCommands.length }, '系统命令已注册');
 }
 
@@ -157,7 +171,9 @@ async function runInitStages(options: BootstrapOptions): Promise<void> {
       name: 'SubAgent tools',
       skip: options.skipSubAgents,
       run: () => {
-        for (const tool of subAgentTools) sharedToolRegistry.register(tool);
+        const subAgentTools = createSubAgentTools({ toolCatalog: toolManager, hookRuntime: pluginManager });
+        const scope = toolManager.createScope(createRegistrationOwner('system', 'subagent-tools'));
+        for (const tool of subAgentTools) scope.register(tool);
         logger.info({ toolCount: subAgentTools.length }, 'SubAgent tools registered');
       },
     },
@@ -165,15 +181,17 @@ async function runInitStages(options: BootstrapOptions): Promise<void> {
       name: 'Multimodal tools',
       run: () => {
         if (!multimodalTools) return;
-        sharedToolRegistry.register(multimodalTools.speechToTextTool);
-        sharedToolRegistry.register(multimodalTools.imageUnderstandingTool);
-        sharedToolRegistry.register(multimodalTools.sendMsgTool);
+        const scope = toolManager.createScope(createRegistrationOwner('system', 'multimodal-tools'));
+        scope.register(multimodalTools.speechToTextTool);
+        scope.register(multimodalTools.imageUnderstandingTool);
+        scope.register(multimodalTools.sendMsgTool);
       },
     },
     {
       name: 'Cron tools',
       run: () => {
-        for (const tool of cronTools) sharedToolRegistry.register(tool);
+        const scope = toolManager.createScope(createRegistrationOwner('system', 'cron-tools'));
+        for (const tool of cronTools) scope.register(tool);
         logger.info({ toolCount: cronTools.length }, 'Cron tools registered');
       },
     },
@@ -182,8 +200,8 @@ async function runInitStages(options: BootstrapOptions): Promise<void> {
       run: () => {
         pipeline?.use(configStage);
         registerSystemCommands();
-        pipeline?.use(commandMiddleware);
-        pipeline?.use(sessionStage);
+        pipeline?.use(createCommandMiddleware(commandManager));
+        pipeline?.use(createSessionStage(chatService));
         pipeline?.use(agentStage);
       },
     },
@@ -200,7 +218,11 @@ async function runInitStages(options: BootstrapOptions): Promise<void> {
       name: 'Cron',
       skip: options.skipCron,
       run: async () => {
-        cronService.setExecutor(agentCronExecutor);
+        cronService.setExecutor(new AgentCronExecutor({
+          systemPromptManager,
+          toolCatalog: toolManager,
+          hookRuntime: pluginManager,
+        }));
         cronService.start();
         logger.info({ schedulerRunning: cronService.isRunning() }, 'Cron system initialized');
       },
@@ -209,7 +231,7 @@ async function runInitStages(options: BootstrapOptions): Promise<void> {
       name: 'MCP servers',
       skip: options.skipMCP,
       run: async () => {
-        mcpManager = new McpClientManager(sharedToolRegistry);
+        mcpManager = new McpClientManager(toolManager);
         const servers = configManager.config?.mcp?.servers;
         if (servers) await mcpManager.connectConfiguredServers(servers);
       },
@@ -404,7 +426,7 @@ export function getStatus() {
     pathResolver: pathResolver.isInitialized(),
     configManager: configManager.isInitialized(),
     sqliteManager: sqliteManager.isInitialized(),
-    toolRegistry: { totalTools: sharedToolRegistry.getStats().totalTools },
+    toolRegistry: { totalTools: toolManager.getStats().totalTools },
     roles: { total: roleManager.isInitialized() ? roleManager.getAllRoles().length : 0 },
     sessions: { total: sqliteManager.isInitialized() ? chatStore.count() : 0 },
     mcpServers: mcpServers.filter(s => s.connected).length,

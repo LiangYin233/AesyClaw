@@ -3,13 +3,14 @@ import {
   type Message as AesyiuMessage,
 } from 'aesyiu';
 import { configManager } from '@/features/config/config-manager.js';
+import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
 import { roleManager } from '@/features/roles/role-manager.js';
 import { skillManager } from '@/features/skills/skill-manager.js';
 import { resolveLLMConfig } from '@/agent/runtime/resolve-llm-config.js';
 import { LLMConfig, MessageRole } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
-import { toolRegistry } from '@/platform/tools/registry.js';
+import type { ToolCatalog } from '@/platform/tools/registry.js';
 import { Tool, ToolExecuteContext, ToolExecutionResult } from '@/platform/tools/types.js';
 import {
   buildAesyiuEngine,
@@ -33,6 +34,8 @@ export interface AgentEngineConfig {
   memory?: SessionMemoryManager;
   tools?: string[];
   memoryConfig?: Partial<SessionMemoryConfig>;
+  toolCatalog: ToolCatalog;
+  hookRuntime: PluginHookRuntime;
 }
 
 export interface AgentRunResult {
@@ -53,6 +56,8 @@ export class AgentEngine {
   private instanceId: string;
   private config: Required<Omit<AgentEngineConfig, 'memory'>> & { memory?: SessionMemoryManager };
   private memory: SessionMemoryManager;
+  private readonly toolCatalog: ToolCatalog;
+  private readonly hookRuntime: PluginHookRuntime;
 
   constructor(chatId: string, config: AgentEngineConfig) {
     this.chatId = chatId;
@@ -64,13 +69,18 @@ export class AgentEngine {
       llm: config.llm,
       memory: config.memory,
       memoryConfig: config.memoryConfig || {},
+      toolCatalog: config.toolCatalog,
+      hookRuntime: config.hookRuntime,
     };
+    this.toolCatalog = config.toolCatalog;
+    this.hookRuntime = config.hookRuntime;
 
     this.memory = config.memory ?? new SessionMemoryManager(chatId, this.config.memoryConfig, {
       systemPromptBuilder: {
         buildSystemPrompt: ({ roleId, chatId: currentChatId }) => this.config.systemPrompt || `${roleId}:${currentChatId}`,
       },
       roleManager,
+      toolCatalog: this.toolCatalog,
     });
 
     if (!this.memory.hasMessages()) {
@@ -89,7 +99,7 @@ export class AgentEngine {
   }
 
   private getFilteredTools(): Tool[] {
-    const allToolDefs = toolRegistry.getAllToolDefinitions();
+    const allToolDefs = this.toolCatalog.getAllToolDefinitions();
     const roleId = this.memory.getActiveRoleId();
     const allowedToolNames = roleManager.getAllowedTools(
       roleId,
@@ -100,7 +110,7 @@ export class AgentEngine {
 
     return allowedToolNames
       .filter(toolName => !configuredToolSet || configuredToolSet.has(toolName))
-      .map(toolName => toolRegistry.getTool(toolName))
+      .map(toolName => this.toolCatalog.getTool(toolName))
       .filter((tool): tool is Tool => Boolean(tool));
   }
 
@@ -136,6 +146,7 @@ export class AgentEngine {
         allowedSkills,
         messages: this.memory.getMessages().map(toAesyiuMessage),
         stats,
+        hookRuntime: this.hookRuntime,
         createToolContext: (ctx): ToolExecuteContext => ({
           roleId: this.memory.getActiveRoleId(),
           allowedTools: filteredTools.map(t => t.name),

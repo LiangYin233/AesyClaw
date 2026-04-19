@@ -1,6 +1,7 @@
 import { roleManager } from '@/features/roles/role-manager.js';
 import { logger } from '@/platform/observability/logger.js';
-import { toolRegistry } from '@/platform/tools/registry.js';
+import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
+import type { ToolCatalog } from '@/platform/tools/registry.js';
 import { ToolExecuteContext, ToolExecutionResult, zodToToolParameters } from '@/platform/tools/types.js';
 import { SandboxEngine } from './sandbox-engine.js';
 import {
@@ -13,9 +14,15 @@ import {
   type SubAgentResult,
 } from './types.js';
 
+interface SubAgentToolDeps {
+  toolCatalog: ToolCatalog;
+  hookRuntime: PluginHookRuntime;
+}
+
 export async function runSubAgent(
   args: unknown,
-  context: ToolExecuteContext
+  context: ToolExecuteContext,
+  deps: SubAgentToolDeps
 ): Promise<{ success: boolean; content: string; error?: string }> {
   const parsed = RunSubAgentInputSchema.safeParse(args);
 
@@ -48,16 +55,20 @@ export async function runSubAgent(
   const systemPrompt = `${role.system_prompt}\n\n【任务】\n${task_description}`;
   const allowedTools = roleManager.getAllowedTools(
     role_name,
-    toolRegistry.getAllToolDefinitions().map(tool => tool.name)
+    deps.toolCatalog.getAllToolDefinitions().map(tool => tool.name)
   );
 
-  const sandbox = new SandboxEngine(context.chatId, {
-    roleId: role_name,
-    systemPrompt,
-    allowedTools,
-    allowedSkills: role.allowed_skills,
-    parentContext: context,
-  });
+  const sandbox = new SandboxEngine(
+    context.chatId,
+    {
+      roleId: role_name,
+      systemPrompt,
+      allowedTools,
+      allowedSkills: role.allowed_skills,
+      parentContext: context,
+    },
+    deps
+  );
 
   const result: SubAgentResult = await sandbox.execute();
 
@@ -77,7 +88,8 @@ export async function runSubAgent(
 
 export async function runTempSubAgent(
   args: unknown,
-  context: ToolExecuteContext
+  context: ToolExecuteContext,
+  deps: SubAgentToolDeps
 ): Promise<{ success: boolean; content: string; error?: string }> {
   const parsed = RunTempSubAgentInputSchema.safeParse(args);
 
@@ -105,13 +117,17 @@ export async function runTempSubAgent(
 
   const fullSystemPrompt = `${system_prompt}\n\n【任务】\n${task_description}`;
 
-  const sandbox = new SandboxEngine(context.chatId, {
-    roleId: undefined,
-    systemPrompt: fullSystemPrompt,
-    allowedTools: inheritedTools,
-    allowedSkills: inheritedSkills,
-    parentContext: context,
-  });
+  const sandbox = new SandboxEngine(
+    context.chatId,
+    {
+      roleId: undefined,
+      systemPrompt: fullSystemPrompt,
+      allowedTools: inheritedTools,
+      allowedSkills: inheritedSkills,
+      parentContext: context,
+    },
+    deps
+  );
 
   const result: SubAgentResult = await sandbox.execute();
 
@@ -156,17 +172,19 @@ function createSubAgentTool(
   };
 }
 
-export const subAgentTools = [
-  createSubAgentTool(
-    SUBAGENT_TOOL_NAME_RUN,
-    SUBAGENT_TOOL_DESCRIPTION_RUN,
-    RunSubAgentInputSchema,
-    runSubAgent
-  ),
-  createSubAgentTool(
-    SUBAGENT_TOOL_NAME_TEMP,
-    SUBAGENT_TOOL_DESCRIPTION_TEMP,
-    RunTempSubAgentInputSchema,
-    runTempSubAgent
-  ),
-];
+export function createSubAgentTools(deps: SubAgentToolDeps) {
+  return [
+    createSubAgentTool(
+      SUBAGENT_TOOL_NAME_RUN,
+      SUBAGENT_TOOL_DESCRIPTION_RUN,
+      RunSubAgentInputSchema,
+      (args, context) => runSubAgent(args, context, deps)
+    ),
+    createSubAgentTool(
+      SUBAGENT_TOOL_NAME_TEMP,
+      SUBAGENT_TOOL_DESCRIPTION_TEMP,
+      RunTempSubAgentInputSchema,
+      (args, context) => runTempSubAgent(args, context, deps)
+    ),
+  ];
+}

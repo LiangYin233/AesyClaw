@@ -5,15 +5,16 @@ import { manuallyCompactMessages } from '@/agent/runtime/aesyiu-runtime-helpers.
 import { resolveLLMConfig } from '@/agent/runtime/resolve-llm-config.js';
 import type { ChannelReceiveMessage } from '@/agent/types.js';
 import type { CommandContext } from '@/contracts/commands.js';
+import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
 import { configManager } from '@/features/config/config-manager.js';
 import { roleManager } from '@/features/roles/role-manager.js';
-import { systemPromptManager } from '@/features/roles/system-prompt-manager.js';
+import type { SystemPromptManager } from '@/features/roles/system-prompt-manager.js';
 import { DEFAULT_ROLE_ID } from '@/features/roles/types.js';
 import { MessageRole, type StandardMessage } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import type { ChatContext, ChatSession } from './session-context.js';
 import { chatStore, type ChatKey } from '@/platform/db/repositories/session-repository.js';
-import { toolRegistry } from '@/platform/tools/registry.js';
+import type { ToolCatalog } from '@/platform/tools/registry.js';
 
 export interface RoleInfo {
   roleId: string;
@@ -26,7 +27,15 @@ type MemoryConfigSource = {
   compression_threshold: number;
 };
 
-class ChatService {
+export interface ChatServiceDependencies {
+  systemPromptManager: SystemPromptManager;
+  toolCatalog: ToolCatalog;
+  hookRuntime: PluginHookRuntime;
+}
+
+export class ChatService {
+  constructor(private readonly deps: ChatServiceDependencies) {}
+
   resolveForReceive(received: ChannelReceiveMessage): ChatContext {
     return this.buildContext(this.getOrCreate(toChatKey(received)));
   }
@@ -88,7 +97,7 @@ class ChatService {
   private getAllowedToolsForRole(roleId: string): string[] {
     return roleManager.getAllowedTools(
       roleId,
-      toolRegistry.getAllToolDefinitions().map(tool => tool.name)
+      this.deps.toolCatalog.getAllToolDefinitions().map(tool => tool.name)
     );
   }
 
@@ -110,15 +119,16 @@ class ChatService {
     const key = { channel: session.channel, type: session.type, chatId: session.chatId };
     const memoryConfig = this.getMemoryConfig();
     const memory = new SessionMemoryManager(session.chatId, memoryConfig, {
-      systemPromptBuilder: systemPromptManager,
+      systemPromptBuilder: this.deps.systemPromptManager,
       roleManager,
+      toolCatalog: this.deps.toolCatalog,
     });
 
     if (session.roleId !== DEFAULT_ROLE_ID) {
       memory.setActiveRole(session.roleId);
     }
 
-    const systemPrompt = systemPromptManager.buildSystemPrompt({
+    const systemPrompt = this.deps.systemPromptManager.buildSystemPrompt({
       roleId: session.roleId,
       chatId: session.chatId,
     });
@@ -133,6 +143,8 @@ class ChatService {
       systemPrompt,
       memory,
       memoryConfig,
+      toolCatalog: this.deps.toolCatalog,
+      hookRuntime: this.deps.hookRuntime,
     });
 
     return { session, memory, agent };
@@ -172,5 +184,3 @@ function toChatKeyFromCommand(ctx: CommandContext): ChatKey {
     chatId: ctx.chatId,
   };
 }
-
-export const chatService = new ChatService();

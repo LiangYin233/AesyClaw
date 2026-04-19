@@ -1,7 +1,7 @@
 import type { CommandContext, CommandDefinition, CommandResult } from '@/contracts/commands.js';
+import type { ToolCatalog } from '@/platform/tools/registry.js';
 import { roleManager } from './role-manager.js';
 import { logger } from '@/platform/observability/logger.js';
-import { toolRegistry } from '@/platform/tools/registry.js';
 
 interface RoleCommandSession {
   switchRole: (_roleId: string) => { success: boolean; message: string };
@@ -14,6 +14,7 @@ interface RoleCommandSession {
 
 export interface RoleCommandGroupDeps {
   getSessionForCommand: (_ctx: CommandContext) => RoleCommandSession | null;
+  toolCatalog: ToolCatalog;
 }
 
 export function createRoleCommandGroup(deps: RoleCommandGroupDeps): CommandDefinition[] {
@@ -72,7 +73,7 @@ export function createRoleCommandGroup(deps: RoleCommandGroupDeps): CommandDefin
             }
             const toolAccess = roleManager.describeToolAccess(
               role.metadata.id,
-              toolRegistry.getAllToolDefinitions().map(tool => tool.name)
+              deps.toolCatalog.getAllToolDefinitions().map(tool => tool.name)
             );
             output += `\n**工具权限模式**: ${toolAccess.mode}\n`;
             output += '**配置的工具列表**: ';

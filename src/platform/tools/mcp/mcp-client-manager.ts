@@ -1,7 +1,8 @@
 import { MCPManager, type MCPServerConfig as AesyiuMCPServerConfig } from 'aesyiu';
 import { logger } from '../../observability/logger.js';
 import { toErrorMessage } from '../../utils/errors.js';
-import { ToolRegistry } from '../registry.js';
+import { createRegistrationOwner } from '@/platform/registration/types.js';
+import type { ToolManager } from '../registry.js';
 import { McpToolAdapter, MCPServerInfo } from './types.js';
 
 export interface McpServerConnectionConfig {
@@ -16,12 +17,11 @@ export interface McpServerConnectionConfig {
 
 export class McpClientManager {
   private managers: Map<string, MCPManager> = new Map();
-  private serverToolNames: Map<string, string[]> = new Map();
-  private toolRegistry: ToolRegistry;
+  private toolManager: ToolManager;
   private serverInfos: Map<string, MCPServerInfo> = new Map();
 
-  constructor(toolRegistry: ToolRegistry) {
-    this.toolRegistry = toolRegistry;
+  constructor(toolManager: ToolManager) {
+    this.toolManager = toolManager;
   }
 
   async connectServer(config: McpServerConnectionConfig): Promise<void> {
@@ -38,20 +38,17 @@ export class McpClientManager {
     logger.info({ serverName: config.name, command: config.command }, '正在连接 MCP 服务器');
 
     const manager = new MCPManager();
+    const toolScope = this.toolManager.createScope(createRegistrationOwner('mcp', config.name));
 
     try {
       const tools = await manager.registerServer(this.toAesyiuServerConfig(config));
       const adapters = tools.map(tool => new McpToolAdapter(config.name, tool));
 
       for (const adapter of adapters) {
-        this.toolRegistry.register(adapter);
+        toolScope.register(adapter);
       }
 
       this.managers.set(config.name, manager);
-      this.serverToolNames.set(
-        config.name,
-        adapters.map(adapter => adapter.name)
-      );
 
       this.serverInfos.set(config.name, {
         name: config.name,
@@ -62,6 +59,8 @@ export class McpClientManager {
 
       logger.info({ serverName: config.name, toolCount: adapters.length }, 'MCP 服务器连接成功');
     } catch (error) {
+      toolScope.dispose();
+
       try {
         await manager.dispose();
       } catch (disposeError) {
@@ -92,18 +91,13 @@ export class McpClientManager {
 
   async disconnectServer(serverName: string): Promise<void> {
     const manager = this.managers.get(serverName);
-    const toolNames = this.serverToolNames.get(serverName) || [];
-
-    for (const toolName of toolNames) {
-      this.toolRegistry.unregister(toolName);
-    }
+    this.toolManager.createScope(createRegistrationOwner('mcp', serverName)).dispose();
 
     if (manager) {
       await manager.dispose();
       this.managers.delete(serverName);
     }
 
-    this.serverToolNames.delete(serverName);
     this.serverInfos.delete(serverName);
     logger.info({ serverName }, 'MCP 服务器已断开');
   }
@@ -135,7 +129,6 @@ export class McpClientManager {
     }
 
     this.managers.clear();
-    this.serverToolNames.clear();
     this.serverInfos.clear();
   }
 

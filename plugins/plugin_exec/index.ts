@@ -139,7 +139,7 @@ const plugin: Plugin = {
   defaultOptions: {},
 
   async init(ctx: PluginContext): Promise<void> {
-    ctx.toolRegistry.register(execTool);
+    ctx.tools.register(execTool);
     ctx.logger.info('exec plugin initialized');
   }
 };

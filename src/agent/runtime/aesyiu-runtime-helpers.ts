@@ -15,7 +15,7 @@ import {
   type Tool as AesyiuTool,
   type ToolMiddleware,
 } from 'aesyiu';
-import { getHookRuntime } from '@/bootstrap.js';
+import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
 import { configManager } from '@/features/config/config-manager.js';
 import type { ProvidersConfig } from '@/features/config/schema.js';
 import { buildHookSkills, buildHookTools } from '@/features/plugins/hook-utils.js';
@@ -212,6 +212,7 @@ function buildProvider(llmConfig: LLMConfig, modelDef: ModelDefinition): LLMProv
 
 function createHookAwareLLMMiddleware(
   stats: Pick<AesyiuRunStats, 'steps' | 'error'>,
+  hookRuntime: PluginHookRuntime,
   hookTools: HookPayloadLLMTool[],
   hookSkills: HookPayloadLLMSkill[],
 ): LLMMiddleware {
@@ -219,7 +220,7 @@ function createHookAwareLLMMiddleware(
     stats.steps += 1;
 
     try {
-      const beforeLLMResult = await getHookRuntime().dispatchBeforeLLMRequest({
+      const beforeLLMResult = await hookRuntime.dispatchBeforeLLMRequest({
         messages: ctx.messages.map(toStandardMessage),
         tools: hookTools,
         skills: hookSkills,
@@ -245,6 +246,7 @@ function createHookAwareLLMMiddleware(
 function createHookAwareToolMiddleware(
   toolIndex: Map<string, Tool>,
   stats: Pick<AesyiuRunStats, 'toolCalls'>,
+  hookRuntime: PluginHookRuntime,
   options: {
     chatId: string;
     checkToolAllowed?: (_tool: Tool) => ToolExecutionResult | null;
@@ -288,7 +290,7 @@ function createHookAwareToolMiddleware(
       'Starting tool execution'
     );
 
-    const beforeToolResult = await getHookRuntime().dispatchBeforeToolCall({
+    const beforeToolResult = await hookRuntime.dispatchBeforeToolCall({
       id: syntheticToolCallId,
       name: iTool.name,
       arguments: parsedArgs,
@@ -310,7 +312,7 @@ function createHookAwareToolMiddleware(
       toolResult = await next() as ToolExecutionResult;
     }
 
-    const finalResult = await getHookRuntime().dispatchAfterToolCall({
+    const finalResult = await hookRuntime.dispatchAfterToolCall({
       toolCall: {
         id: syntheticToolCallId,
         name: iTool.name,
@@ -361,6 +363,7 @@ interface BuildAesyiuEngineOptions {
   allowedSkills: AgentSkill[];
   messages: AesyiuMessage[];
   stats: AesyiuRunStats;
+  hookRuntime: PluginHookRuntime;
   createToolContext: (_ctx: unknown, _tool: Tool) => ToolExecuteContext;
   checkToolAllowed?: (_tool: Tool) => ToolExecutionResult | null;
   getRoleId?: () => string;
@@ -399,8 +402,8 @@ export function buildAesyiuEngine(options: BuildAesyiuEngineOptions): {
   const toolIndex = new Map(options.filteredTools.map(tool => [tool.name, tool] as const));
   const getRoleId = options.getRoleId ?? (() => '');
 
-  engine.useLLM(createHookAwareLLMMiddleware(options.stats, hookTools, hookSkills));
-  engine.useTool(createHookAwareToolMiddleware(toolIndex, options.stats, {
+  engine.useLLM(createHookAwareLLMMiddleware(options.stats, options.hookRuntime, hookTools, hookSkills));
+  engine.useTool(createHookAwareToolMiddleware(toolIndex, options.stats, options.hookRuntime, {
     chatId: options.chatId,
     checkToolAllowed: options.checkToolAllowed,
     getRoleId,

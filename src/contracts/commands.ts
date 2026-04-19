@@ -1,3 +1,5 @@
+import type { CommandRegistrationScope } from '@/platform/commands/command-manager.js';
+
 export interface CommandDefinition {
   name: string;
   description: string;
@@ -27,10 +29,7 @@ export interface ParsedCommand {
   rawArgs: string;
 }
 
-export interface PluginCommandRegistrar {
-  registerFromPlugin(pluginName: string, commands: CommandDefinition[]): void;
-  unregisterFromPlugin(pluginName: string): void;
-}
+export type PluginCommandRegistrar = Pick<CommandRegistrationScope, 'register' | 'registerMany' | 'unregister' | 'listOwnedNames' | 'dispose'>;
 
 export interface PluginRuntimeConfig {
   name: string;

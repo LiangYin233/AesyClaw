@@ -9,13 +9,14 @@ import {
   type AesyiuRunStats,
   getFinalAssistantText,
 } from '@/agent/runtime/aesyiu-runtime-helpers.js';
+import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
 import { configManager } from '@/features/config/config-manager.js';
 import { roleManager, DEFAULT_ROLE_ID } from '@/features/roles/role-manager.js';
 import { skillManager } from '@/features/skills/skill-manager.js';
 import { type LLMConfig } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
-import { toolRegistry } from '@/platform/tools/registry.js';
+import type { ToolCatalog } from '@/platform/tools/registry.js';
 import { Tool, ToolExecuteContext } from '@/platform/tools/types.js';
 import { DEFAULT_FALLBACK_LLM_CONFIG } from '@/agent/runtime/resolve-llm-config.js';
 import {
@@ -32,17 +33,21 @@ export class SandboxEngine {
   private agentId: string;
   private memory: AesyiuMessage[] = [];
   private maxSteps: number = 10;
+  private readonly toolCatalog: ToolCatalog;
+  private readonly hookRuntime: PluginHookRuntime;
 
   private static readonly DISALLOWED_SANDBOX_TOOLS = new Set([
     SUBAGENT_TOOL_NAME_RUN,
     SUBAGENT_TOOL_NAME_TEMP,
   ]);
 
-  constructor(parentChatId: string, config: SandboxConfig) {
+  constructor(parentChatId: string, config: SandboxConfig, deps: { toolCatalog: ToolCatalog; hookRuntime: PluginHookRuntime }) {
     this.sandboxId = `sandbox_${parentChatId}_${randomUUID()}`;
     this.parentChatId = parentChatId;
     this.config = config;
     this.agentId = `subagent_${this.sandboxId}`;
+    this.toolCatalog = deps.toolCatalog;
+    this.hookRuntime = deps.hookRuntime;
 
     this.initializeMemory();
 
@@ -99,14 +104,14 @@ export class SandboxEngine {
   }
 
   private getFilteredTools(): Tool[] {
-    const allTools = toolRegistry.getAllToolDefinitions();
+    const allTools = this.toolCatalog.getAllToolDefinitions();
     const allowedNames = this.config.allowedTools.includes('*')
       ? allTools.map(tool => tool.name)
       : allTools.filter(tool => this.config.allowedTools.includes(tool.name)).map(tool => tool.name);
 
     return allowedNames
       .filter(toolName => !SandboxEngine.DISALLOWED_SANDBOX_TOOLS.has(toolName))
-      .map(toolName => toolRegistry.getTool(toolName))
+      .map(toolName => this.toolCatalog.getTool(toolName))
       .filter((tool): tool is Tool => Boolean(tool));
   }
 
@@ -139,6 +144,7 @@ export class SandboxEngine {
         allowedSkills,
         messages: this.memory,
         stats,
+        hookRuntime: this.hookRuntime,
         createToolContext: (ctx): ToolExecuteContext => ({
           roleId: this.config.roleId,
           allowedTools: this.config.allowedTools,
@@ -222,7 +228,9 @@ export class SandboxEngine {
   private getLLMConfig(): LLMConfig {
     try {
       const roleId = this.config.roleId || DEFAULT_ROLE_ID;
-      return prepareAgentRun(this.parentChatId, configManager.config, roleId).llmConfig;
+      return prepareAgentRun(this.parentChatId, configManager.config, {
+        buildSystemPrompt: () => this.config.systemPrompt,
+      }, roleId).llmConfig;
     } catch (error) {
       logger.warn({ error }, 'Failed to resolve LLM config from config.json, using fallback');
       return { ...DEFAULT_FALLBACK_LLM_CONFIG };

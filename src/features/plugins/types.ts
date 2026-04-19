@@ -2,9 +2,10 @@ import type { ScopedLogger } from '@/platform/observability/logger.js';
 import type { ChannelReceiveMessage, ChannelSendMessage } from '@/agent/types.js';
 import type { ChannelSendPayload } from '@/channels/channel-plugin.js';
 import type { CommandDefinition } from '@/contracts/commands.js';
+import type { PluginCommandRegistrar } from '@/contracts/commands.js';
 import type { StandardMessage } from '@/platform/llm/types.js';
 import type { ToolExecutionResult } from '@/platform/tools/types.js';
-import type { ToolRegistry } from '@/platform/tools/registry.js';
+import type { ToolRegistrationPort } from '@/platform/tools/registry.js';
 
 export interface PluginToolExecuteContext {
   chatId: string;
@@ -41,10 +42,13 @@ export type PluginLogger = ScopedLogger;
 export interface PluginContext<TOptions = Record<string, unknown>> {
   logger: PluginLogger;
   config: TOptions;
-  toolRegistry: ToolRegistry;
+  tools: PluginToolRegistrar;
+  commands: PluginCommandRegistrar;
   send?: (_payload: ChannelSendPayload) => Promise<void>;
   channelId?: string;
 }
+
+export type PluginToolRegistrar = Pick<ToolRegistrationPort, 'register' | 'unregister' | 'listOwnedNames' | 'dispose'>;
 
 export interface HookPayloadLLMTool {
   name: string;
