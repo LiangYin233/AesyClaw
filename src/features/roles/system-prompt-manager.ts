@@ -35,15 +35,16 @@ export class SystemPromptManager {
     const toolLines: string[] = [];
     try {
       const allTools = toolRegistry.getAllToolDefinitions();
-      const allowedTools = roleConfig.allowed_tools;
 
       if (allTools.length > 0) {
         toolLines.push('');
         toolLines.push('【可用工具】');
 
-        const filteredTools = allowedTools.includes('*')
-          ? allTools
-          : allTools.filter(tool => allowedTools.includes(tool.name));
+        const filteredToolNames = roleManager.getAllowedTools(
+          roleId,
+          allTools.map(tool => tool.name)
+        );
+        const filteredTools = allTools.filter(tool => filteredToolNames.includes(tool.name));
 
         for (const tool of filteredTools) {
           const description = tool.description?.split('\n')[0] || '无描述';

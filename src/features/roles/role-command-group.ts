@@ -1,6 +1,7 @@
 import type { CommandContext, CommandDefinition, CommandResult } from '@/contracts/commands.js';
 import { roleManager } from './role-manager.js';
 import { logger } from '@/platform/observability/logger.js';
+import { toolRegistry } from '@/platform/tools/registry.js';
 
 interface RoleCommandSession {
   switchRole: (_roleId: string) => { success: boolean; message: string };
@@ -69,14 +70,19 @@ export function createRoleCommandGroup(deps: RoleCommandGroupDeps): CommandDefin
             if (role.description) {
               output += `**描述**: ${role.description}\n`;
             }
-            output += '\n**可用工具**: ';
-            if (role.allowed_tools.includes('*')) {
-              output += '所有工具\n';
-            } else {
-              output += role.allowed_tools.length > 0
-                ? `${role.allowed_tools.join(', ')}\n`
-                : '无限制\n';
-            }
+            const toolAccess = roleManager.describeToolAccess(
+              role.metadata.id,
+              toolRegistry.getAllToolDefinitions().map(tool => tool.name)
+            );
+            output += `\n**工具权限模式**: ${toolAccess.mode}\n`;
+            output += '**配置的工具列表**: ';
+            output += toolAccess.configuredTools.length > 0
+              ? `${toolAccess.configuredTools.join(', ')}\n`
+              : '空\n';
+            output += '**最终可用工具**: ';
+            output += toolAccess.allowedTools.length > 0
+              ? `${toolAccess.allowedTools.join(', ')}\n`
+              : '无\n';
             output += '\n**可用技能**: ';
             if (role.allowed_skills.length > 0) {
               output += `${role.allowed_skills.join(', ')}\n`;

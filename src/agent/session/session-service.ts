@@ -13,6 +13,7 @@ import { MessageRole, type StandardMessage } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import type { ChatContext, ChatSession } from './session-context.js';
 import { chatStore, type ChatKey } from '@/platform/db/repositories/session-repository.js';
+import { toolRegistry } from '@/platform/tools/registry.js';
 
 export interface RoleInfo {
   roleId: string;
@@ -72,15 +73,23 @@ class ChatService {
     const key = toChatKeyFromCommand(ctx);
     chatStore.updateRole(key, roleId);
 
-    const allowedTools = role.allowed_tools.includes('*') ? '所有工具' : role.allowed_tools.join(', ');
-    return { success: true, message: `已成功切换至角色：${role.name}\n可用工具: ${allowedTools}` };
+    const allowedTools = this.getAllowedToolsForRole(roleId);
+    const allowedToolsText = allowedTools.length > 0 ? allowedTools.join(', ') : '无';
+    return { success: true, message: `已成功切换至角色：${role.name}\n可用工具: ${allowedToolsText}` };
   }
 
   getRoleInfo(ctx: CommandContext): RoleInfo {
     const session = chatStore.get(toChatKeyFromCommand(ctx));
     const roleId = session?.roleId ?? DEFAULT_ROLE_ID;
     const roleConfig = roleManager.getRoleConfig(roleId);
-    return { roleId, roleName: roleConfig.name, allowedTools: roleConfig.allowed_tools };
+    return { roleId, roleName: roleConfig.name, allowedTools: this.getAllowedToolsForRole(roleId) };
+  }
+
+  private getAllowedToolsForRole(roleId: string): string[] {
+    return roleManager.getAllowedTools(
+      roleId,
+      toolRegistry.getAllToolDefinitions().map(tool => tool.name)
+    );
   }
 
   private getOrCreate(key: ChatKey): ChatSession {

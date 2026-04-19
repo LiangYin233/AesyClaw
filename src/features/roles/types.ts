@@ -1,5 +1,12 @@
 import { z } from 'zod';
 
+export const ToolAccessSchema = z.object({
+  mode: z.enum(['allowlist', 'denylist']).default('denylist'),
+  tools: z.array(z.string()).default([]),
+});
+
+export type ToolAccessConfig = z.infer<typeof ToolAccessSchema>;
+
 export const RoleConfigSchema = z.object({
   name: z.string().min(1, '角色名称不能为空'),
   description: z.string().optional().default(''),
@@ -7,7 +14,7 @@ export const RoleConfigSchema = z.object({
   model: z.string()
     .includes('/', { message: "模型配置必须遵循 'provider_name/model_name' 格式" })
     .describe("模型标识 (格式: provider_name/model_name)"),
-  allowed_tools: z.array(z.string()).default(['*']),
+  tool_access: ToolAccessSchema.default({ mode: 'denylist', tools: [] }),
   allowed_skills: z.array(z.string()).default([]),
   enabled: z.boolean().default(true),
 });
@@ -32,7 +39,10 @@ export const DEFAULT_ROLE_CONFIG: RoleConfig = {
   description: '通用助手角色',
   system_prompt: '你是一个有帮助的AI助手。',
   model: 'openai/default',
-  allowed_tools: ['*'],
+  tool_access: {
+    mode: 'denylist',
+    tools: [],
+  },
   allowed_skills: [],
   enabled: true,
 };

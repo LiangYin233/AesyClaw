@@ -1,5 +1,6 @@
 import { roleManager } from '@/features/roles/role-manager.js';
 import { logger } from '@/platform/observability/logger.js';
+import { toolRegistry } from '@/platform/tools/registry.js';
 import { ToolExecuteContext, ToolExecutionResult, zodToToolParameters } from '@/platform/tools/types.js';
 import { SandboxEngine } from './sandbox-engine.js';
 import {
@@ -45,11 +46,15 @@ export async function runSubAgent(
   }
 
   const systemPrompt = `${role.system_prompt}\n\n【任务】\n${task_description}`;
+  const allowedTools = roleManager.getAllowedTools(
+    role_name,
+    toolRegistry.getAllToolDefinitions().map(tool => tool.name)
+  );
 
   const sandbox = new SandboxEngine(context.chatId, {
     roleId: role_name,
     systemPrompt,
-    allowedTools: role.allowed_tools,
+    allowedTools,
     allowedSkills: role.allowed_skills,
     parentContext: context,
   });

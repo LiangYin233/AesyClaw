@@ -2,7 +2,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from '@/platform/observability/logger.js';
 import { pathResolver } from '@/platform/utils/paths.js';
-import { RoleConfig, RoleConfigSchema, RoleWithMetadata, DEFAULT_ROLE_ID, DEFAULT_ROLE_CONFIG } from './types.js';
+import {
+  RoleConfig,
+  RoleConfigSchema,
+  RoleWithMetadata,
+  DEFAULT_ROLE_ID,
+  DEFAULT_ROLE_CONFIG,
+  type ToolAccessConfig,
+} from './types.js';
 
 export { DEFAULT_ROLE_ID } from './types.js';
 
@@ -207,7 +214,7 @@ export class RoleManager {
       name: role.name,
       description: role.description,
       system_prompt: role.system_prompt,
-      allowed_tools: role.allowed_tools,
+      tool_access: role.tool_access,
       allowed_skills: role.allowed_skills,
       model: role.model,
       enabled: role.enabled,
@@ -227,24 +234,36 @@ export class RoleManager {
   }
 
   isToolAllowed(roleId: string, toolName: string): boolean {
-    const config = this.getRoleConfig(roleId);
-    const allowed = config.allowed_tools;
-
-    if (allowed.includes('*')) {
-      return true;
-    }
-
-    return allowed.includes(toolName);
+    return this.matchesToolAccess(this.getRoleConfig(roleId).tool_access, toolName);
   }
 
   getAllowedTools(roleId: string, allTools: string[]): string[] {
-    const config = this.getRoleConfig(roleId);
+    return this.filterAllowedTools(this.getRoleConfig(roleId).tool_access, allTools);
+  }
 
-    if (config.allowed_tools.includes('*')) {
-      return allTools;
+  describeToolAccess(roleId: string, allTools: string[]): {
+    mode: ToolAccessConfig['mode'];
+    configuredTools: string[];
+    allowedTools: string[];
+  } {
+    const toolAccess = this.getRoleConfig(roleId).tool_access;
+    return {
+      mode: toolAccess.mode,
+      configuredTools: [...toolAccess.tools],
+      allowedTools: this.filterAllowedTools(toolAccess, allTools),
+    };
+  }
+
+  private matchesToolAccess(toolAccess: ToolAccessConfig, toolName: string): boolean {
+    if (toolAccess.mode === 'allowlist') {
+      return toolAccess.tools.includes(toolName);
     }
 
-    return allTools.filter(tool => config.allowed_tools.includes(tool));
+    return !toolAccess.tools.includes(toolName);
+  }
+
+  private filterAllowedTools(toolAccess: ToolAccessConfig, allTools: string[]): string[] {
+    return allTools.filter(toolName => this.matchesToolAccess(toolAccess, toolName));
   }
 
   shutdown(): void {

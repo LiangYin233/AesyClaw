@@ -4,9 +4,10 @@ import type { RoleManager } from '@/features/roles/role-manager.js';
 import type { SystemPromptManager } from '@/features/roles/system-prompt-manager.js';
 import { DEFAULT_ROLE_ID } from '@/features/roles/types.js';
 import { logger } from '@/platform/observability/logger.js';
+import { toolRegistry } from '@/platform/tools/registry.js';
 
 type SessionPromptBuilder = Pick<SystemPromptManager, 'buildSystemPrompt'>;
-type SessionRoleStore = Pick<RoleManager, 'getRole' | 'getRoleConfig' | 'getAllRoles'>;
+type SessionRoleStore = Pick<RoleManager, 'getRole' | 'getRoleConfig' | 'getAllRoles' | 'getAllowedTools'>;
 
 export interface SessionMemoryManagerDependencies {
   systemPromptBuilder: SessionPromptBuilder;
@@ -115,13 +116,15 @@ export class SessionMemoryManager {
     await this.rebuildSystemContext();
 
     const roleConfig = this.deps.roleManager.getRoleConfig(roleId);
-    const allowedTools = roleConfig.allowed_tools.includes('*')
-      ? '所有工具'
-      : roleConfig.allowed_tools.join(', ');
+    const allowedTools = this.deps.roleManager.getAllowedTools(
+      roleId,
+      toolRegistry.getAllToolDefinitions().map(tool => tool.name)
+    );
+    const allowedToolsText = allowedTools.length > 0 ? allowedTools.join(', ') : '无';
 
     return {
       success: true,
-      message: `已成功切换至角色：${roleConfig.name}\n可用工具: ${allowedTools}`,
+      message: `已成功切换至角色：${roleConfig.name}\n可用工具: ${allowedToolsText}`,
     };
   }
 
@@ -134,7 +137,10 @@ export class SessionMemoryManager {
     return {
       roleId: this.activeRoleId,
       roleName: roleConfig.name,
-      allowedTools: roleConfig.allowed_tools,
+      allowedTools: this.deps.roleManager.getAllowedTools(
+        this.activeRoleId,
+        toolRegistry.getAllToolDefinitions().map(tool => tool.name)
+      ),
     };
   }
 
