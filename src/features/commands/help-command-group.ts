@@ -41,8 +41,7 @@ export function createHelpCommandGroup(commandCatalog: CommandCatalog): CommandD
         if (pluginCmds.length > 0) {
           output += '\n插件命令\n';
           for (const cmd of pluginCmds) {
-            const displayName = cmd.name.replace(/^[^:]+:/, '');
-            output += `  /${displayName} - ${cmd.description}\n`;
+            output += `  /${cmd.name} - ${cmd.description}\n`;
           }
         }
 

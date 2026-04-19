@@ -52,12 +52,17 @@ export interface BootstrapOptions {
   skipChannels?: boolean;
 }
 
+type DisposableRegistrationScope = {
+  dispose(): void;
+};
+
 let pipeline: ChannelPipeline | null = null;
 let mcpManager: McpClientManager | null = null;
 let initialized = false;
 let configChangeUnsubscribe: (() => void) | null = null;
 let mcpHotReloadEnabled = false;
 let channelHotReloadEnabled = false;
+let systemRegistrationScopes: DisposableRegistrationScope[] = [];
 const toolManager = new ToolManager();
 const commandManager = new CommandManager();
 const systemPromptManager = new SystemPromptManager(toolManager);
@@ -110,8 +115,56 @@ function buildSystemCommands(): CommandDefinition[] {
   ];
 }
 
+function trackSystemScope<T extends DisposableRegistrationScope>(scope: T): T {
+  systemRegistrationScopes.push(scope);
+  return scope;
+}
+
+function disposeSystemScopes(): void {
+  const scopes = systemRegistrationScopes.reverse();
+  systemRegistrationScopes = [];
+
+  for (const scope of scopes) {
+    try {
+      scope.dispose();
+    } catch (error) {
+      logger.error({ error }, 'Failed to dispose system registration scope');
+    }
+  }
+}
+
+function normalizeBootstrapOptions(options: BootstrapOptions): Required<BootstrapOptions> {
+  const normalized: Required<BootstrapOptions> = {
+    skipDb: false,
+    skipConfig: false,
+    skipPlugins: false,
+    skipMCP: false,
+    skipSkills: false,
+    skipCron: false,
+    skipRoles: false,
+    skipSubAgents: false,
+    skipChannels: false,
+    ...options,
+  };
+
+  if (normalized.skipConfig) {
+    normalized.skipPlugins = true;
+    normalized.skipMCP = true;
+    normalized.skipCron = true;
+    normalized.skipChannels = true;
+  }
+
+  if (normalized.skipDb) {
+    normalized.skipCron = true;
+  }
+
+  return normalized;
+}
+
 function registerSystemCommands(): void {
-  const systemScope = commandManager.createScope(createRegistrationOwner('system', 'bootstrap'));
+  const systemScope = trackSystemScope(
+    commandManager.createScope(createRegistrationOwner('system', 'bootstrap'))
+  );
   const systemCommands = buildSystemCommands();
   systemScope.registerMany(systemCommands);
   logger.info({ count: systemCommands.length }, '系统命令已注册');
@@ -124,19 +177,27 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<void> {
   }
 
   try {
+    const normalizedOptions = normalizeBootstrapOptions(options);
     logger.info({}, 'AesyClaw starting...');
-    await runInitStages(options);
+    await runInitStages(normalizedOptions);
     initialized = true;
     logger.info({}, 'AesyClaw started successfully');
   } catch (error) {
     const errorMessage = toErrorMessage(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
     logger.error({ error: errorMessage, stack: errorStack }, 'Bootstrap failed');
+
+    try {
+      await shutdown();
+    } catch (cleanupError) {
+      logger.error({ error: cleanupError }, 'Bootstrap cleanup failed');
+    }
+
     throw error;
   }
 }
 
-async function runInitStages(options: BootstrapOptions): Promise<void> {
+async function runInitStages(options: Required<BootstrapOptions>): Promise<void> {
   let multimodalTools: ReturnType<typeof createMultimodalTools> | null = null;
 
   const stages: Array<{ name: string; skip?: boolean; run: () => void | Promise<void> }> = [
@@ -172,7 +233,9 @@ async function runInitStages(options: BootstrapOptions): Promise<void> {
       skip: options.skipSubAgents,
       run: () => {
         const subAgentTools = createSubAgentTools({ toolCatalog: toolManager, hookRuntime: pluginManager });
-        const scope = toolManager.createScope(createRegistrationOwner('system', 'subagent-tools'));
+        const scope = trackSystemScope(
+          toolManager.createScope(createRegistrationOwner('system', 'subagent-tools'))
+        );
         for (const tool of subAgentTools) scope.register(tool);
         logger.info({ toolCount: subAgentTools.length }, 'SubAgent tools registered');
       },
@@ -181,7 +244,9 @@ async function runInitStages(options: BootstrapOptions): Promise<void> {
       name: 'Multimodal tools',
       run: () => {
         if (!multimodalTools) return;
-        const scope = toolManager.createScope(createRegistrationOwner('system', 'multimodal-tools'));
+        const scope = trackSystemScope(
+          toolManager.createScope(createRegistrationOwner('system', 'multimodal-tools'))
+        );
         scope.register(multimodalTools.speechToTextTool);
         scope.register(multimodalTools.imageUnderstandingTool);
         scope.register(multimodalTools.sendMsgTool);
@@ -189,8 +254,11 @@ async function runInitStages(options: BootstrapOptions): Promise<void> {
     },
     {
       name: 'Cron tools',
+      skip: options.skipDb || options.skipCron,
       run: () => {
-        const scope = toolManager.createScope(createRegistrationOwner('system', 'cron-tools'));
+        const scope = trackSystemScope(
+          toolManager.createScope(createRegistrationOwner('system', 'cron-tools'))
+        );
         for (const tool of cronTools) scope.register(tool);
         logger.info({ toolCount: cronTools.length }, 'Cron tools registered');
       },
@@ -200,8 +268,8 @@ async function runInitStages(options: BootstrapOptions): Promise<void> {
       run: () => {
         pipeline?.use(configStage);
         registerSystemCommands();
-        pipeline?.use(createCommandMiddleware(commandManager));
         pipeline?.use(createSessionStage(chatService));
+        pipeline?.use(createCommandMiddleware(commandManager));
         pipeline?.use(agentStage);
       },
     },
@@ -243,14 +311,13 @@ async function runInitStages(options: BootstrapOptions): Promise<void> {
     },
     {
       name: 'Finalize',
+      skip: options.skipConfig,
       run: async () => {
         await configManager.syncAllDefaultConfigs();
-        if (!options.skipConfig) {
-          registerConfigChangeListener({
-            mcp: !options.skipMCP,
-            channels: !options.skipChannels,
-          });
-        }
+        registerConfigChangeListener({
+          mcp: !options.skipMCP,
+          channels: !options.skipChannels,
+        });
       },
     },
   ];
@@ -386,6 +453,7 @@ export async function shutdown(): Promise<void> {
     ['Cron scheduler', () => cronService.stop()],
     ['MCP Manager', async () => { if (mcpManager) await mcpManager.shutdown(); }],
     ['Plugin Manager', () => pluginManager.shutdown()],
+    ['System registrations', () => disposeSystemScopes()],
     ['SQLiteManager', () => sqliteManager.close()],
     ['SkillManager', async () => {
       const { skillManager } = await import('@/features/skills/skill-manager.js');
@@ -405,6 +473,7 @@ export async function shutdown(): Promise<void> {
   }
 
   mcpManager = null;
+  pipeline = null;
   initialized = false;
 
   logger.info({}, 'AesyClaw shutdown completed');

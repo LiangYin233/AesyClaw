@@ -133,6 +133,13 @@ const state: PluginState = {
   connected: false,
 };
 
+function rejectPendingRequests(error: Error): void {
+  for (const [, deferred] of state.pendingRequests) {
+    deferred.reject(error);
+  }
+  state.pendingRequests.clear();
+}
+
 const STREAM_UPLOAD_CHUNK_SIZE = 64 * 1024;
 const STREAM_FILE_RETENTION_MS = 30 * 1000;
 
@@ -179,11 +186,8 @@ export const onebotPlugin: ChannelPlugin = {
       state.ws.close(1000, 'Plugin shutdown');
       state.ws = null;
     }
-    
-    for (const [, deferred] of state.pendingRequests) {
-      deferred.reject(new Error('Plugin shutdown'));
-    }
-    state.pendingRequests.clear();
+
+    rejectPendingRequests(new Error('Plugin shutdown'));
     state.connected = false;
     
     state.logger?.info('OneBot plugin destroyed', {});
@@ -230,8 +234,15 @@ async function connect(): Promise<void> {
     });
 
     ws.on('close', (code, reason) => {
+      const wasConnected = state.connected;
+      const closeError = new Error(`OneBot WebSocket closed: ${code} ${reason.toString()}`);
       logger.warn('OneBot WebSocket closed', { code, reason: reason.toString() });
       state.connected = false;
+      rejectPendingRequests(closeError);
+
+      if (!wasConnected) {
+        reject(closeError);
+      }
     });
 
     ws.on('error', (error) => {

@@ -93,32 +93,33 @@ class ChatStore {
   saveMessages(key: ChatKey, messages: StandardMessage[]): void {
     const db = sqliteManager.getDatabase();
 
-    db.prepare('DELETE FROM chat_messages WHERE channel = ? AND type = ? AND chat_id = ?')
-      .run(key.channel, key.type, key.chatId);
+    sqliteManager.transaction(() => {
+      db.prepare('DELETE FROM chat_messages WHERE channel = ? AND type = ? AND chat_id = ?')
+        .run(key.channel, key.type, key.chatId);
 
-    if (messages.length === 0) {
-      logger.debug({ channel: key.channel, type: key.type, chatId: key.chatId }, 'Chat messages cleared');
-      return;
-    }
+      if (messages.length === 0) {
+        return;
+      }
 
-    const stmt = db.prepare(`
-      INSERT INTO chat_messages (channel, type, chat_id, sequence, role, content, tool_calls, tool_call_id, name)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+      const stmt = db.prepare(`
+        INSERT INTO chat_messages (channel, type, chat_id, sequence, role, content, tool_calls, tool_call_id, name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
 
-    for (const [index, message] of messages.entries()) {
-      stmt.run(
-        key.channel,
-        key.type,
-        key.chatId,
-        index,
-        message.role,
-        message.content,
-        message.toolCalls ? JSON.stringify(message.toolCalls) : null,
-        message.toolCallId || null,
-        message.name || null
-      );
-    }
+      for (const [index, message] of messages.entries()) {
+        stmt.run(
+          key.channel,
+          key.type,
+          key.chatId,
+          index,
+          message.role,
+          message.content,
+          message.toolCalls ? JSON.stringify(message.toolCalls) : null,
+          message.toolCallId || null,
+          message.name || null
+        );
+      }
+    });
 
     logger.debug(
       { channel: key.channel, type: key.type, chatId: key.chatId, count: messages.length },

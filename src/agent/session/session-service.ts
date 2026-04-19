@@ -133,7 +133,7 @@ export class ChatService {
       chatId: session.chatId,
     });
 
-    const savedMessages = chatStore.getMessages(key);
+    const savedMessages = chatStore.getMessages(key).filter(message => message.role !== MessageRole.System);
     memory.importMemory([{ role: MessageRole.System, content: systemPrompt }, ...savedMessages]);
 
     const roleConfig = roleManager.getRoleConfig(session.roleId);
@@ -160,8 +160,11 @@ export class ChatService {
 }
 
 function shouldPersistMessage(message: StandardMessage): boolean {
-  if (message.role === MessageRole.System || message.role === MessageRole.User) {
+  if (message.role === MessageRole.User) {
     return true;
+  }
+  if (message.role === MessageRole.System) {
+    return false;
   }
   if (message.role === MessageRole.Tool) {
     return false;

@@ -57,9 +57,34 @@ export class CommandManager implements CommandCatalog {
     };
   }
 
+  private resolveNamespacedCommandBySuffix(name: string): CommandDefinition | undefined {
+    const target = name.toLowerCase();
+    let matched: CommandDefinition | undefined;
+
+    for (const { command } of this.commands.values()) {
+      const separatorIndex = command.name.indexOf(':');
+      if (separatorIndex < 0) {
+        continue;
+      }
+
+      const suffix = command.name.slice(separatorIndex + 1).toLowerCase();
+      if (suffix !== target) {
+        continue;
+      }
+
+      if (matched) {
+        return undefined;
+      }
+
+      matched = command;
+    }
+
+    return matched;
+  }
+
   getCommand(name: string): CommandDefinition | undefined {
     const resolvedName = this.aliasMap.get(name.toLowerCase()) ?? name;
-    return this.commands.get(resolvedName)?.command;
+    return this.commands.get(resolvedName)?.command ?? this.resolveNamespacedCommandBySuffix(name);
   }
 
   getAllCommands(): CommandDefinition[] {
@@ -79,7 +104,7 @@ export class CommandManager implements CommandCatalog {
   }
 
   hasCommand(name: string): boolean {
-    return this.aliasMap.has(name.toLowerCase()) || this.commands.has(name);
+    return this.aliasMap.has(name.toLowerCase()) || this.commands.has(name) || Boolean(this.resolveNamespacedCommandBySuffix(name));
   }
 
   getCommandCount(): number {

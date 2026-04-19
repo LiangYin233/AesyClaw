@@ -24,7 +24,7 @@ function formatPluginList(getPluginCommands: () => CommandDefinition[]): string 
       pluginMap.set(pluginName, { loaded: true, commands: [] });
     }
     pluginMap.get(pluginName)!.commands.push(
-      `  /${cmd.name.replace(/^[^:]+:/, '')} - ${cmd.description}`
+      `  /${cmd.name} - ${cmd.description}`
     );
   }
 

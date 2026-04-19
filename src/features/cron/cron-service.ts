@@ -150,6 +150,23 @@ export class CronService {
     this.scheduleNext();
   }
 
+  private findNextSchedulableJob(referenceTimeMs: number): CronJob | null {
+    for (const job of cronJobRepository.findEnabled()) {
+      if (!job.nextRunAt) {
+        continue;
+      }
+
+      const isDue = new Date(job.nextRunAt).getTime() <= referenceTimeMs;
+      if (isDue && this.activeJobs.has(job.id)) {
+        continue;
+      }
+
+      return job;
+    }
+
+    return null;
+  }
+
   private scheduleNext(): void {
     if (!this.running) return;
 
@@ -158,13 +175,14 @@ export class CronService {
       this.nextTimeoutId = null;
     }
 
-    const nextJob = cronJobRepository.findNextScheduled();
+    const nowMs = Date.now();
+    const nextJob = this.findNextSchedulableJob(nowMs);
     if (!nextJob?.nextRunAt) {
       logger.debug({}, 'No scheduled cron jobs');
       return;
     }
 
-    const delay = Math.max(0, new Date(nextJob.nextRunAt).getTime() - Date.now());
+    const delay = Math.max(0, new Date(nextJob.nextRunAt).getTime() - nowMs);
     logger.debug({ jobId: nextJob.id, delayMs: delay }, 'Next cron job scheduled');
 
     this.nextTimeoutId = setTimeout(() => {
