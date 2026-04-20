@@ -1,27 +1,29 @@
 /** @file Cron 调度服务
  *
- * CronService 实现基于内存的定时任务调度引擎，支持：
- * - 创建/删除/更新/切换启用的定时任务
- * - 启动时恢复状态（将上次运行中标记为 running 的记录标记为 abandoned）
- * - 重建调度计划（将过期的下次运行时间重新计算）
+ * CronService 实现简化后的持久化调度器，支持：
+ * - 创建/删除任务
+ * - 启动时恢复运行记录并跳过过期任务
+ * - `once` / `daily` / `interval` 三种调度类型
  * - 单任务并发控制（同一任务不会同时执行两次）
  * - 优雅关闭（等待当前执行中的任务完成）
  *
- * 调度策略：遍历所有已启用任务，找到下一个将要运行的任务，设置 setTimeout 等待执行。
- * 任务执行完成后重新调度下一个任务。
+ * 调度策略：根据 `nextRunAt` 查找最近任务，使用单个 `setTimeout` 等待触发。
+ * 任务执行完成后推进下一次运行时间并重新调度。
  */
 
 import { randomUUID } from 'crypto';
 import { logger } from '@/platform/observability/logger.js';
+import {
+  getNextFutureRunAt,
+  normalizeScheduleInput,
+} from '@/platform/cron/schedule-engine.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
-import { validateExpression, getNextRunAt } from '@/platform/cron/schedule-engine.js';
 import { cronJobRepository } from '@/platform/db/repositories/cron-job-repository.js';
 import { cronRunRepository } from '@/platform/db/repositories/cron-run-repository.js';
 import type { CronJob } from '@/platform/db/repositories/cron-job-repository.js';
 import type { CronRun } from '@/platform/db/repositories/cron-run-repository.js';
 import type {
   CreateCronJobInput,
-  UpdateCronJobInput,
   CronExecutor,
 } from './types.js';
 
@@ -43,14 +45,14 @@ export class CronService {
   /** 创建定时任务 */
   createJob(input: CreateCronJobInput): CronJob {
     this.assertValidPrompt(input.prompt);
-    this.assertValidCronExpression(input.cronExpression);
+    const { schedule, nextRunAt } = normalizeScheduleInput(input.schedule);
 
     const job = cronJobRepository.create({
       id: randomUUID(),
       name: input.name,
-      cronExpression: input.cronExpression,
+      schedule,
       prompt: input.prompt,
-      nextRunAt: getNextRunAt(input.cronExpression) || undefined,
+      nextRunAt,
     });
 
     this.rescheduleIfRunning();
@@ -69,45 +71,6 @@ export class CronService {
       this.rescheduleIfRunning();
     }
     return deleted;
-  }
-
-  /** 启用/禁用定时任务 */
-  toggleJob(id: string, enabled: boolean): CronJob | null {
-    const job = cronJobRepository.findById(id);
-    if (!job) return null;
-
-    const nextRunAt = enabled ? getNextRunAt(job.cronExpression) : null;
-    const updated = cronJobRepository.update(id, {
-      enabled,
-      nextRunAt: enabled ? nextRunAt || undefined : null,
-    });
-
-    this.rescheduleIfRunning();
-    return updated;
-  }
-
-  /** 更新定时任务 */
-  updateJob(id: string, updates: UpdateCronJobInput): CronJob | null {
-    const existing = cronJobRepository.findById(id);
-    if (!existing) return null;
-
-    if (updates.prompt !== undefined) {
-      this.assertValidPrompt(updates.prompt);
-    }
-    if (updates.cronExpression !== undefined) {
-      this.assertValidCronExpression(updates.cronExpression);
-    }
-
-    const cronExpression = updates.cronExpression ?? existing.cronExpression;
-    const nextRunAt = existing.enabled ? getNextRunAt(cronExpression) : existing.nextRunAt;
-
-    const updated = cronJobRepository.update(id, {
-      ...updates,
-      nextRunAt: nextRunAt || null,
-    });
-
-    this.rescheduleIfRunning();
-    return updated;
   }
 
   /** 启动调度器 */
@@ -148,12 +111,7 @@ export class CronService {
 
   /** 获取当前已调度的任务数量 */
   getScheduledTaskCount(): number {
-    return cronJobRepository.findEnabled().filter(job => Boolean(job.nextRunAt)).length;
-  }
-
-  /** 验证 Cron 表达式是否有效 */
-  validateCronExpression(expression: string): boolean {
-    return validateExpression(expression);
+    return cronJobRepository.findScheduled().length;
   }
 
   /** 启动时恢复：将上次运行中未完成的任务标记为 abandoned */
@@ -165,13 +123,13 @@ export class CronService {
   /** 重建调度计划：将已过期的下次运行时间重新计算 */
   private rebuildSchedules(): void {
     const now = new Date();
-    for (const job of cronJobRepository.findEnabled()) {
+    for (const job of cronJobRepository.findScheduled()) {
       const nextRunAt = job.nextRunAt ? new Date(job.nextRunAt) : null;
       if (nextRunAt && nextRunAt.getTime() > now.getTime()) {
         continue;
       }
 
-      const nextScheduledAt = getNextRunAt(job.cronExpression, now);
+      const nextScheduledAt = getNextFutureRunAt(job.schedule, now, job.nextRunAt);
       cronJobRepository.updateSchedule(job.id, {
         nextRunAt: nextScheduledAt,
       });
@@ -180,13 +138,13 @@ export class CronService {
 
   /** 若调度器正在运行，重新调度下一个任务 */
   private rescheduleIfRunning(): void {
-    if (!this.running) return;
+    if (!this.running) {return;}
     this.scheduleNext();
   }
 
   /** 查找下一个将要运行的任务（跳过正在执行中的） */
   private findNextJobToSchedule(): CronJob | null {
-    for (const job of cronJobRepository.findEnabled()) {
+    for (const job of cronJobRepository.findScheduled()) {
       if (!job.nextRunAt) {
         continue;
       }
@@ -207,7 +165,7 @@ export class CronService {
    * 任务执行完成后会自动再次调用 scheduleNext()。
    */
   private scheduleNext(): void {
-    if (!this.running) return;
+    if (!this.running) {return;}
 
     if (this.nextTimeoutId) {
       clearTimeout(this.nextTimeoutId);
@@ -232,10 +190,11 @@ export class CronService {
 
   /** 执行所有到期的任务 */
   private runDueJobs(): void {
-    if (!this.running) return;
+    if (!this.running) {return;}
 
     const now = new Date().toISOString();
     const dueJobs = cronJobRepository.findDue(now);
+    let startedCount = 0;
 
     for (const job of dueJobs) {
       if (this.activeJobs.has(job.id)) {
@@ -243,6 +202,11 @@ export class CronService {
         continue;
       }
       this.executeJob(job);
+      startedCount += 1;
+    }
+
+    if (startedCount === 0) {
+      this.scheduleNext();
     }
   }
 
@@ -277,7 +241,7 @@ export class CronService {
       const error = 'Cron executor is not configured';
       cronRunRepository.finish(run.id, 'failed', new Date().toISOString(), error);
       logger.error({ jobId: job.id }, error);
-      this.advanceSchedule(job, startedAt);
+      this.advanceSchedule(job, new Date(), startedAt);
       return;
     }
 
@@ -292,25 +256,19 @@ export class CronService {
       logger.error({ jobId: job.id, error: errorMessage }, 'Cron job execution failed');
     }
 
-    this.advanceSchedule(job, startedAt);
+    this.advanceSchedule(job, new Date(), startedAt);
   }
 
   /** 推进任务的调度计划：计算下次运行时间 */
-  private advanceSchedule(job: CronJob, startedAt: string): void {
-    const nextRunAt = getNextRunAt(job.cronExpression, new Date());
+  private advanceSchedule(job: CronJob, referenceTime: Date, startedAt: string): void {
+    const nextRunAt = getNextFutureRunAt(job.schedule, referenceTime, job.nextRunAt);
     cronJobRepository.updateSchedule(job.id, {
       lastRunAt: startedAt,
       nextRunAt,
     });
 
     if (nextRunAt === null) {
-      logger.warn({ jobId: job.id }, 'Cron job disabled because no next run time could be calculated');
-    }
-  }
-
-  private assertValidCronExpression(expression: string): void {
-    if (!validateExpression(expression)) {
-      throw new Error(`Invalid cron expression: ${expression}`);
+      logger.info({ jobId: job.id, scheduleType: job.schedule.type }, 'Cron job reached terminal schedule state');
     }
   }
 

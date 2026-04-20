@@ -68,9 +68,9 @@ class SQLiteManager {
       CREATE TABLE IF NOT EXISTS cron_jobs (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        cron_expression TEXT NOT NULL,
         prompt TEXT NOT NULL,
-        enabled INTEGER NOT NULL DEFAULT 1,
+        schedule_type TEXT NOT NULL,
+        schedule_data TEXT NOT NULL DEFAULT '{}',
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         last_run_at TEXT,
@@ -95,7 +95,9 @@ class SQLiteManager {
   /** 创建数据库索引 */
   private ensureIndexes(): void {
     this.getDatabase().exec(`
-      CREATE INDEX IF NOT EXISTS idx_cron_jobs_next_run ON cron_jobs(next_run_at) WHERE enabled = 1;
+      DROP INDEX IF EXISTS idx_cron_jobs_next_run;
+      CREATE INDEX IF NOT EXISTS idx_cron_jobs_next_run ON cron_jobs(next_run_at)
+        WHERE schedule_type IS NOT NULL AND next_run_at IS NOT NULL;
       CREATE INDEX IF NOT EXISTS idx_cron_runs_job_id_started_at ON cron_runs(job_id, started_at DESC);
       CREATE INDEX IF NOT EXISTS idx_cron_runs_status ON cron_runs(status);
     `);

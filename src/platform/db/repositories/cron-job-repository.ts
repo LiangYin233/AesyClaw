@@ -1,11 +1,12 @@
 import { logger } from '@/platform/observability/logger.js';
+import { parseSchedule, serializeSchedule } from '@/platform/cron/schedule-engine.js';
+import type { CronSchedule } from '@/platform/cron/schedule-engine.js';
 import { sqliteManager } from '../sqlite-manager.js';
 export interface CronJob {
   id: string;
   name: string;
-  cronExpression: string;
   prompt: string;
-  enabled: boolean;
+  schedule: CronSchedule;
   createdAt: string;
   updatedAt: string;
   lastRunAt?: string;
@@ -15,9 +16,9 @@ export interface CronJob {
 type CronJobRow = {
   id: string;
   name: string;
-  cron_expression: string;
   prompt: string;
-  enabled: number;
+  schedule_type?: string;
+  schedule_data?: string;
   created_at: string;
   updated_at: string;
   last_run_at?: string;
@@ -27,16 +28,14 @@ type CronJobRow = {
 export interface CreateCronJobRecordInput {
   id: string;
   name: string;
-  cronExpression: string;
   prompt: string;
+  schedule: CronSchedule;
   nextRunAt?: string;
 }
 
 export interface UpdateCronJobRecordInput {
   name?: string;
-  cronExpression?: string;
   prompt?: string;
-  enabled?: boolean;
   lastRunAt?: string;
   nextRunAt?: string | null;
 }
@@ -68,13 +67,18 @@ class CronJobRepository {
     return { fields, values, hasChanges };
   }
 
-  private mapRow(row: CronJobRow): CronJob {
+  private mapRow(row: CronJobRow): CronJob | null {
+    const schedule = parseSchedule(row.schedule_type, row.schedule_data);
+    if (!schedule) {
+      logger.warn({ jobId: row.id, scheduleType: row.schedule_type }, 'Skipping cron job row with invalid schedule metadata');
+      return null;
+    }
+
     return {
       id: row.id,
       name: row.name,
-      cronExpression: row.cron_expression,
       prompt: row.prompt,
-      enabled: row.enabled === 1,
+      schedule,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       lastRunAt: row.last_run_at,
@@ -82,12 +86,38 @@ class CronJobRepository {
     };
   }
 
+  private mapRows(rows: CronJobRow[]): CronJob[] {
+    return rows.flatMap(row => {
+      const job = this.mapRow(row);
+      return job ? [job] : [];
+    });
+  }
+
   create(input: CreateCronJobRecordInput): CronJob {
     const now = new Date().toISOString();
+    const persistedSchedule = serializeSchedule(input.schedule);
     this.db.prepare(`
-      INSERT INTO cron_jobs (id, name, cron_expression, prompt, next_run_at, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(input.id, input.name, input.cronExpression, input.prompt, input.nextRunAt || null, now, now);
+      INSERT INTO cron_jobs (
+        id,
+        name,
+        prompt,
+        schedule_type,
+        schedule_data,
+        next_run_at,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      input.id,
+      input.name,
+      input.prompt,
+      persistedSchedule.scheduleType,
+      persistedSchedule.scheduleData,
+      input.nextRunAt || null,
+      now,
+      now
+    );
     logger.info({ id: input.id }, 'Cron job created');
     return this.findById(input.id)!;
   }
@@ -99,43 +129,40 @@ class CronJobRepository {
 
   findAll(): CronJob[] {
     const rows = this.db.prepare('SELECT * FROM cron_jobs ORDER BY created_at DESC').all() as CronJobRow[];
-    return rows.map(row => this.mapRow(row));
+    return this.mapRows(rows);
   }
 
-  findEnabled(): CronJob[] {
-    const rows = this.db.prepare('SELECT * FROM cron_jobs WHERE enabled = 1 ORDER BY next_run_at ASC').all() as CronJobRow[];
-    return rows.map(row => this.mapRow(row));
+  findScheduled(): CronJob[] {
+    const rows = this.db.prepare(
+      `SELECT * FROM cron_jobs
+       WHERE schedule_type IS NOT NULL AND next_run_at IS NOT NULL
+       ORDER BY next_run_at ASC`
+    ).all() as CronJobRow[];
+    return this.mapRows(rows);
   }
 
   findDue(beforeIso: string): CronJob[] {
     const rows = this.db.prepare(
-      'SELECT * FROM cron_jobs WHERE enabled = 1 AND next_run_at IS NOT NULL AND next_run_at <= ? ORDER BY next_run_at ASC'
+      `SELECT * FROM cron_jobs
+       WHERE schedule_type IS NOT NULL AND next_run_at IS NOT NULL AND next_run_at <= ?
+       ORDER BY next_run_at ASC`
     ).all(beforeIso) as CronJobRow[];
-    return rows.map(row => this.mapRow(row));
-  }
-
-  findNextScheduled(): CronJob | null {
-    const row = this.db.prepare(
-      'SELECT * FROM cron_jobs WHERE enabled = 1 AND next_run_at IS NOT NULL ORDER BY next_run_at ASC LIMIT 1'
-    ).get() as CronJobRow | undefined;
-    return row ? this.mapRow(row) : null;
+    return this.mapRows(rows);
   }
 
   update(id: string, updates: UpdateCronJobRecordInput): CronJob | null {
     const { fields, values, hasChanges } = this.buildUpdateStatement([
       ['name', updates.name],
-      ['cron_expression', updates.cronExpression],
       ['prompt', updates.prompt],
-      ['enabled', updates.enabled === undefined ? undefined : (updates.enabled ? 1 : 0)],
       ['last_run_at', updates.lastRunAt],
       ['next_run_at', updates.nextRunAt],
     ]);
 
-    if (!hasChanges) return this.findById(id);
+    if (!hasChanges) {return this.findById(id);}
 
     values.push(id);
     const result = this.db.prepare(`UPDATE cron_jobs SET ${fields.join(', ')} WHERE id = ?`).run(...values);
-    if (result.changes === 0) return null;
+    if (result.changes === 0) {return null;}
 
     logger.info({ id }, 'Cron job updated');
     return this.findById(id);

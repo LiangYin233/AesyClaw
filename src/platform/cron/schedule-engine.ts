@@ -1,178 +1,225 @@
-export function validateExpression(expression: string): boolean {
-  if (!expression || typeof expression !== 'string') return false;
-  const parts = tokenize(expression);
-  if (parts.length !== 5) return false;
+export type CronSchedule =
+  | { type: 'once' }
+  | { type: 'daily'; hour: number; minute: number }
+  | { type: 'interval'; intervalMinutes: number };
 
-  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
-  return (
-    validateField(minute, 0, 59) &&
-    validateField(hour, 0, 23) &&
-    validateField(dayOfMonth, 1, 31) &&
-    validateField(month, 1, 12) &&
-    validateDayOfWeekField(dayOfWeek)
-  );
+export type CreateCronScheduleInput =
+  | { type: 'once'; runAt: string }
+  | { type: 'delay'; delayMinutes: number }
+  | { type: 'daily'; dailyTime: string }
+  | { type: 'interval'; intervalMinutes: number };
+
+type SchedulePayload = Record<string, unknown>;
+
+export function parseDailyTime(value: string): { hour: number; minute: number } | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(value.trim());
+  if (!match) {
+    return null;
+  }
+
+  const hour = Number.parseInt(match[1], 10);
+  const minute = Number.parseInt(match[2], 10);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) {
+    return null;
+  }
+
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    return null;
+  }
+
+  return { hour, minute };
 }
 
-export function getNextRunAt(expression: string, from: Date = new Date()): string | null {
-  if (!validateExpression(expression)) return null;
+export function serializeSchedule(schedule: CronSchedule): { scheduleType: string; scheduleData: string } {
+  return {
+    scheduleType: schedule.type,
+    scheduleData: JSON.stringify(toSchedulePayload(schedule)),
+  };
+}
 
-  const parts = tokenize(expression);
-  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+export function parseSchedule(scheduleType: string | null | undefined, scheduleData: string | null | undefined): CronSchedule | null {
+  if (scheduleType === 'once') {
+    return { type: 'once' };
+  }
 
-  const next = new Date(from);
-  next.setSeconds(0);
-  next.setMilliseconds(0);
-  next.setMinutes(next.getMinutes() + 1);
+  const payload = parseSchedulePayload(scheduleData);
+  if (!payload) {
+    return null;
+  }
 
-  for (let i = 0; i < 366 * 24 * 60; i++) {
-    if (
-      matches(next.getMinutes(), minute) &&
-      matches(next.getHours(), hour) &&
-      matches(next.getDate(), dayOfMonth) &&
-      matches(next.getMonth() + 1, month) &&
-      matchesDayOfWeek(next.getDay(), dayOfWeek)
-    ) {
-      return next.toISOString();
+  if (scheduleType === 'daily') {
+    const hour = getInteger(payload.hour);
+    const minute = getInteger(payload.minute);
+    if (hour === null || minute === null) {
+      return null;
     }
-    next.setMinutes(next.getMinutes() + 1);
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+      return null;
+    }
+
+    return { type: 'daily', hour, minute };
+  }
+
+  if (scheduleType === 'interval') {
+    const intervalMinutes = getInteger(payload.intervalMinutes);
+    if (intervalMinutes === null || intervalMinutes <= 0) {
+      return null;
+    }
+
+    return { type: 'interval', intervalMinutes };
   }
 
   return null;
 }
 
-function matches(value: number, pattern: string): boolean {
-  if (pattern === '*') return true;
+export function getNextDailyRunAt(hour: number, minute: number, from: Date): string {
+  const next = new Date(from);
+  next.setSeconds(0, 0);
+  next.setHours(hour, minute, 0, 0);
 
-  if (pattern.includes(',')) {
-    return pattern.split(',').some(part => matches(value, part.trim()));
+  if (next.getTime() <= from.getTime()) {
+    next.setDate(next.getDate() + 1);
   }
 
-  if (pattern.includes('/')) {
-    const [range, stepStr] = pattern.split('/');
-    const step = parseInt(stepStr, 10);
-    if (isNaN(step) || step <= 0) return false;
-
-    if (range === '*') {
-      return value % step === 0;
-    }
-    if (range.includes('-')) {
-      const [start, end] = range.split('-').map(Number);
-      if (isNaN(start) || isNaN(end)) return false;
-      return value >= start && value <= end && (value - start) % step === 0;
-    }
-    const start = parseInt(range, 10);
-    if (isNaN(start)) return false;
-    return value >= start && (value - start) % step === 0;
-  }
-
-  if (pattern.includes('-')) {
-    const [start, end] = pattern.split('-').map(Number);
-    if (isNaN(start) || isNaN(end)) return false;
-    return value >= start && value <= end;
-  }
-
-  return parseInt(pattern, 10) === value;
+  return next.toISOString();
 }
 
-function tokenize(expression: string): string[] {
-  return expression.trim().split(/\s+/);
+export function getNextFutureRunAt(
+  schedule: CronSchedule,
+  from: Date,
+  currentNextRunAt?: string | null
+): string | null {
+  if (schedule.type === 'once') {
+    return null;
+  }
+
+  if (schedule.type === 'daily') {
+    return getNextDailyRunAt(schedule.hour, schedule.minute, from);
+  }
+
+  const intervalMs = schedule.intervalMinutes * 60_000;
+  let next = parseRunAt(currentNextRunAt) ?? new Date(from);
+
+  while (next.getTime() <= from.getTime()) {
+    next = new Date(next.getTime() + intervalMs);
+  }
+
+  return next.toISOString();
 }
 
-function validateField(pattern: string, min: number, max: number): boolean {
-  if (pattern === '*') {
-    return true;
+export function normalizeScheduleInput(
+  input: CreateCronScheduleInput,
+  from: Date = new Date()
+): { schedule: CronSchedule; nextRunAt: string } {
+  if (input.type === 'once') {
+    return {
+      schedule: { type: 'once' },
+      nextRunAt: parseFutureRunAt(input.runAt, from),
+    };
   }
 
-  if (pattern.includes(',')) {
-    return pattern.split(',').every(part => validateField(part.trim(), min, max));
-  }
-
-  if (pattern.includes('/')) {
-    const [range, stepStr] = pattern.split('/');
-    const step = parseInt(stepStr, 10);
-    if (isNaN(step) || step <= 0) {
-      return false;
+  if (input.type === 'delay') {
+    if (!Number.isInteger(input.delayMinutes) || input.delayMinutes <= 0) {
+      throw new Error('delayMinutes must be a positive integer');
     }
 
-    if (range === '*') {
-      return true;
-    }
-
-    if (range.includes('-')) {
-      const [start, end] = range.split('-').map(Number);
-      return isValidRange(start, end, min, max);
-    }
-
-    const start = parseInt(range, 10);
-    return !isNaN(start) && start >= min && start <= max;
+    return {
+      schedule: { type: 'once' },
+      nextRunAt: new Date(from.getTime() + input.delayMinutes * 60_000).toISOString(),
+    };
   }
 
-  if (pattern.includes('-')) {
-    const [start, end] = pattern.split('-').map(Number);
-    return isValidRange(start, end, min, max);
+  if (input.type === 'daily') {
+    const parsed = parseDailyTime(input.dailyTime);
+    if (!parsed) {
+      throw new Error(`Invalid daily time: ${input.dailyTime}`);
+    }
+
+    return {
+      schedule: { type: 'daily', hour: parsed.hour, minute: parsed.minute },
+      nextRunAt: getNextDailyRunAt(parsed.hour, parsed.minute, from),
+    };
   }
 
-  const value = parseInt(pattern, 10);
-  return !isNaN(value) && value >= min && value <= max;
+  if (!Number.isInteger(input.intervalMinutes) || input.intervalMinutes <= 0) {
+    throw new Error('intervalMinutes must be a positive integer');
+  }
+
+  const schedule: CronSchedule = {
+    type: 'interval',
+    intervalMinutes: input.intervalMinutes,
+  };
+
+  return {
+    schedule,
+    nextRunAt: getNextFutureRunAt(schedule, from)!,
+  };
 }
 
-function validateDayOfWeekField(pattern: string): boolean {
-  return validateField(pattern, 0, 7);
-}
-
-function matchesDayOfWeek(value: number, pattern: string): boolean {
-  if (pattern === '*') return true;
-
-  if (pattern.includes(',')) {
-    return pattern.split(',').some(part => matchesDayOfWeek(value, part.trim()));
+function toSchedulePayload(schedule: CronSchedule): SchedulePayload {
+  if (schedule.type === 'once') {
+    return {};
   }
 
-  if (pattern.includes('/')) {
-    const [range, stepStr] = pattern.split('/');
-    const step = parseInt(stepStr, 10);
-    if (isNaN(step) || step <= 0) return false;
+  if (schedule.type === 'daily') {
+    return {
+      hour: schedule.hour,
+      minute: schedule.minute,
+    };
+  }
 
-    if (range === '*') {
-      return normalizedDayOfWeek(value) % step === 0;
+  return {
+    intervalMinutes: schedule.intervalMinutes,
+  };
+}
+
+function parseSchedulePayload(scheduleData: string | null | undefined): SchedulePayload | null {
+  if (!scheduleData) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(scheduleData) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return null;
     }
-    if (range.includes('-')) {
-      const [start, end] = range.split('-').map(Number);
-      if (isNaN(start) || isNaN(end)) return false;
 
-      const normalizedValue = normalizedDayOfWeek(value);
-      const normalizedStart = normalizedDayOfWeek(start);
-      const normalizedEnd = normalizedDayOfWeek(end);
-      return normalizedValue >= normalizedStart && normalizedValue <= normalizedEnd && (normalizedValue - normalizedStart) % step === 0;
-    }
-
-    const start = parseInt(range, 10);
-    if (isNaN(start)) return false;
-    const normalizedValue = normalizedDayOfWeek(value);
-    const normalizedStart = normalizedDayOfWeek(start);
-    return normalizedValue >= normalizedStart && (normalizedValue - normalizedStart) % step === 0;
+    return parsed as SchedulePayload;
+  } catch {
+    return null;
   }
-
-  if (pattern.includes('-')) {
-    const [start, end] = pattern.split('-').map(Number);
-    if (isNaN(start) || isNaN(end)) return false;
-
-    const normalizedValue = normalizedDayOfWeek(value);
-    const normalizedStart = normalizedDayOfWeek(start);
-    const normalizedEnd = normalizedDayOfWeek(end);
-    return normalizedValue >= normalizedStart && normalizedValue <= normalizedEnd;
-  }
-
-  return normalizedDayOfWeek(parseInt(pattern, 10)) === normalizedDayOfWeek(value);
 }
 
-function isValidRange(start: number, end: number, min: number, max: number): boolean {
-  if (isNaN(start) || isNaN(end)) {
-    return false;
+function parseRunAt(value: string | null | undefined): Date | null {
+  if (!value) {
+    return null;
   }
 
-  return start >= min && end <= max && start <= end;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
 }
 
-function normalizedDayOfWeek(value: number): number {
-  return value === 7 ? 0 : value;
+function parseFutureRunAt(value: string, from: Date): string {
+  const runAt = parseRunAt(value);
+  if (!runAt) {
+    throw new Error(`Invalid runAt value: ${value}`);
+  }
+
+  if (runAt.getTime() <= from.getTime()) {
+    throw new Error('runAt must be in the future');
+  }
+
+  return runAt.toISOString();
+}
+
+function getInteger(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isInteger(value)) {
+    return null;
+  }
+
+  return value;
 }
