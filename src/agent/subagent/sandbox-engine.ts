@@ -155,7 +155,7 @@ export class SandboxEngine {
 
   /** 获取沙箱允许使用的技能 */
   private getAllowedSkills(): AgentSkill[] {
-    if (!this.skillStore.isInitialized()) return [];
+    if (!this.skillStore.isInitialized()) {return [];}
     return this.skillStore.getSkillsForRole(this.config.allowedSkills);
   }
 

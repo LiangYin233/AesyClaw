@@ -23,11 +23,11 @@ export interface DiscoveredPlugin {
  * 读取 package.json 并返回发现的插件列表。
  */
 export function discoverPluginsByPrefix(pluginsDir: string, prefix: string): DiscoveredPlugin[] {
-  if (!fs.existsSync(pluginsDir)) return [];
+  if (!fs.existsSync(pluginsDir)) {return [];}
 
   const results: DiscoveredPlugin[] = [];
   for (const entry of fs.readdirSync(pluginsDir, { withFileTypes: true })) {
-    if (!entry.isDirectory() || !entry.name.startsWith(prefix)) continue;
+    if (!entry.isDirectory() || !entry.name.startsWith(prefix)) {continue;}
 
     const dir = path.join(pluginsDir, entry.name);
     const packageJson = readPackageManifest(path.join(dir, 'package.json'));

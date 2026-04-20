@@ -41,7 +41,7 @@ class ChatStore {
         role_id: string;
       } | undefined;
 
-    if (!row) return null;
+    if (!row) {return null;}
     return {
       channel: row.channel,
       type: row.type,

@@ -97,7 +97,7 @@ class ConfigDefaultsRegistry {
     applyDefault: (_current: T, _name: string, _defaults: Record<string, unknown>) => boolean,
     buildUpdates: (_current: T) => Partial<FullConfig>
   ): Promise<void> {
-    if (pending.size === 0) return;
+    if (pending.size === 0) {return;}
 
     const current = createCurrent(target.config);
     let changed = false;
@@ -183,7 +183,7 @@ export class ConfigManager {
   private configChangeListeners = new Set<ConfigChangeListener>();
 
   get config(): FullConfig {
-    if (!this.initialized) throw new Error('ConfigManager not initialized');
+    if (!this.initialized) {throw new Error('ConfigManager not initialized');}
     return this.store.readonlyView;
   }
 
@@ -194,7 +194,7 @@ export class ConfigManager {
 
   /** 初始化配置管理器：加载配置、设置热重载监听 */
   async initialize(): Promise<void> {
-    if (this.initialized) return;
+    if (this.initialized) {return;}
 
     try {
       await this.initializeWithC12();
@@ -272,7 +272,7 @@ export class ConfigManager {
 
   /** 设置 c12 配置文件变更监听 */
   private async setupWatchWithC12(): Promise<void> {
-    if (this.watcher) return;
+    if (this.watcher) {return;}
 
     try {
       const watchResult = await watchConfig({
@@ -335,7 +335,7 @@ export class ConfigManager {
     }
 
     if (parsed.shouldWriteBack) {
-      if (opts.beforeWriteBackMsg) logger.info({}, opts.beforeWriteBackMsg);
+      if (opts.beforeWriteBackMsg) {logger.info({}, opts.beforeWriteBackMsg);}
       await this.saveToDisk(parsed.config);
       logger.info({ path: this.configPath }, opts.writeBackMsg);
     }

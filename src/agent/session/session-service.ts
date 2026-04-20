@@ -134,7 +134,7 @@ export class ChatService {
 
   private getOrCreate(key: ChatKey): ChatSession {
     const existing = this.deps.chatStore.get(key);
-    if (existing) return existing;
+    if (existing) {return existing;}
     return this.deps.chatStore.create(key);
   }
 

@@ -166,7 +166,7 @@ export class AgentEngine {
 
   /** 获取角色允许使用的技能列表 */
   private getAllowedSkills(roleId: string): AgentSkill[] {
-    if (!this.config.skillStore.isInitialized()) return [];
+    if (!this.config.skillStore.isInitialized()) {return [];}
     return this.config.skillStore.getSkillsForRole(this.config.roleStore.getRoleConfig(roleId).allowed_skills);
   }
 

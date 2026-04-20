@@ -11,7 +11,7 @@ interface MediaAttachment {
 
 function getSessionFromContext(ctx: ChannelContext): ChatContext | null {
   const state = ctx.state?.session;
-  if (!state) return null;
+  if (!state) {return null;}
   return state.sessionContext as ChatContext;
 }
 

@@ -31,7 +31,7 @@ const CMD_UTF8_PREFIX = 'chcp 65001 > nul &&';
 
 /** 将 Buffer 解码为 UTF-8 字符串 */
 function autoDecode(buffer: Buffer): string {
-  if (buffer.length === 0) return '';
+  if (buffer.length === 0) {return '';}
   return buffer.toString('utf-8');
 }
 

@@ -387,10 +387,10 @@ export class PluginManager {
   ): Promise<void> {
     for (const { plugin } of this.loadedPlugins.values()) {
       const hookFn = plugin.hooks?.[hookName];
-      if (!hookFn) continue;
+      if (!hookFn) {continue;}
       try {
         logger.debug({ pluginName: plugin.name, hookName }, 'Dispatching hook');
-        if (await callback(plugin, hookFn)) return;
+        if (await callback(plugin, hookFn)) {return;}
       } catch (error) {
         logger.error({ pluginName: plugin.name, hookName, error }, 'Hook execution failed');
       }

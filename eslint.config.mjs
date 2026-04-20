@@ -1,7 +1,7 @@
 import eslint from '@eslint/js';
+import globals from 'globals';
 import tseslint from '@typescript-eslint/eslint-plugin';
 import tsparser from '@typescript-eslint/parser';
-import localImportRules from './eslint/local-rules/import-boundaries.mjs';
 
 export default [
   eslint.configs.recommended,
@@ -14,36 +14,26 @@ export default [
         sourceType: 'module',
       },
       globals: {
-        process: 'readonly',
-        console: 'readonly',
-        setTimeout: 'readonly',
-        setInterval: 'readonly',
-        clearTimeout: 'readonly',
-        clearInterval: 'readonly',
-        global: 'readonly',
+        ...globals.node,
         NodeJS: 'readonly',
-        require: 'readonly',
         fetch: 'readonly',
         File: 'readonly',
-        URL: 'readonly',
         RequestInit: 'readonly',
-        Buffer: 'readonly',
         Response: 'readonly',
       },
     },
     plugins: {
       '@typescript-eslint': tseslint,
-      local: localImportRules,
     },
     rules: {
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       'no-unused-vars': 'off',
-      '@typescript-eslint/no-explicit-any': 'warn',
-      'no-console': 'off',
+      '@typescript-eslint/no-explicit-any': 'error',
+      'no-console': 'error',
       'prefer-const': 'error',
       'no-var': 'error',
-      'local/no-invalid-import-boundaries': 'error',
-      'local/no-invalid-barrel-exports': 'error',
+      'curly': ['error', 'all'],
+      'eqeqeq': ['error', 'always'],
     },
     ignores: ['dist/**', 'node_modules/**', '**/*.js'],
   },

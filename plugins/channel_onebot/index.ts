@@ -362,7 +362,7 @@ async function connect(): Promise<void> {
 /** 处理 OneBot API 响应（匹配 echo 的待处理请求） */
 function handleApiResponse(response: OneBotApiResponse): void {
   const deferred = state.pendingRequests.get(response.echo!);
-  if (!deferred) return;
+  if (!deferred) {return;}
 
   state.pendingRequests.delete(response.echo!);
 
@@ -594,12 +594,12 @@ function extractMedia(message: string | Array<OneBotMessageSegment>): Array<{ ty
 
   for (const seg of message) {
     const mediaDescriptor = getOneBotMediaDescriptor(seg.type);
-    if (!mediaDescriptor) continue;
+    if (!mediaDescriptor) {continue;}
 
     const url = getSegmentFileReference(seg);
     const filename = seg.data.filename as string | undefined;
 
-    if (!url) continue;
+    if (!url) {continue;}
 
     media.push({
       type: mediaDescriptor.outgoingType,
