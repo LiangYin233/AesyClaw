@@ -4,11 +4,11 @@
  * 使用方式：`import type { Tool, ToolExecuteContext } from '@/sdk/tools.js'`
  */
 export type {
-  Tool,
-  ToolDefinition,
-  ToolExecuteContext,
-  ToolExecutionResult,
-  ToolMediaFile,
-  ToolParameters,
-  ToolSendPayload,
+    Tool,
+    ToolDefinition,
+    ToolExecuteContext,
+    ToolExecutionResult,
+    ToolMediaFile,
+    ToolParameters,
+    ToolSendPayload,
 } from '@/platform/tools/types.js';

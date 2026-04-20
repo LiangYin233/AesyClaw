@@ -11,10 +11,10 @@ import { type PackageManifest, readPackageManifest } from './package-manifest.js
 
 /** 发现的插件信息 */
 export interface DiscoveredPlugin {
-  dir: string;
-  dirName: string;
-  packageJson: PackageManifest;
-  name: string;
+    dir: string;
+    dirName: string;
+    packageJson: PackageManifest;
+    name: string;
 }
 
 /** 按前缀扫描目录并发现插件
@@ -23,25 +23,29 @@ export interface DiscoveredPlugin {
  * 读取 package.json 并返回发现的插件列表。
  */
 export function discoverPluginsByPrefix(pluginsDir: string, prefix: string): DiscoveredPlugin[] {
-  if (!fs.existsSync(pluginsDir)) {return [];}
-
-  const results: DiscoveredPlugin[] = [];
-  for (const entry of fs.readdirSync(pluginsDir, { withFileTypes: true })) {
-    if (!entry.isDirectory() || !entry.name.startsWith(prefix)) {continue;}
-
-    const dir = path.join(pluginsDir, entry.name);
-    const packageJson = readPackageManifest(path.join(dir, 'package.json'));
-    if (!packageJson) {
-      logger.warn({ dir }, 'Plugin missing package.json, skipping');
-      continue;
+    if (!fs.existsSync(pluginsDir)) {
+        return [];
     }
 
-    results.push({
-      dir,
-      dirName: entry.name,
-      packageJson,
-      name: packageJson.name || entry.name,
-    });
-  }
-  return results;
+    const results: DiscoveredPlugin[] = [];
+    for (const entry of fs.readdirSync(pluginsDir, { withFileTypes: true })) {
+        if (!entry.isDirectory() || !entry.name.startsWith(prefix)) {
+            continue;
+        }
+
+        const dir = path.join(pluginsDir, entry.name);
+        const packageJson = readPackageManifest(path.join(dir, 'package.json'));
+        if (!packageJson) {
+            logger.warn({ dir }, 'Plugin missing package.json, skipping');
+            continue;
+        }
+
+        results.push({
+            dir,
+            dirName: entry.name,
+            packageJson,
+            name: packageJson.name || entry.name,
+        });
+    }
+    return results;
 }

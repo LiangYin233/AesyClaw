@@ -1,6 +1,6 @@
 export type {
-  CommandCatalog,
-  CommandRegistrationScope,
+    CommandCatalog,
+    CommandRegistrationScope,
 } from '@/platform/commands/command-manager.js';
 
 export { CommandManager } from '@/platform/commands/command-manager.js';

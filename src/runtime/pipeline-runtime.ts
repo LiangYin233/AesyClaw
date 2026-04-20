@@ -21,11 +21,11 @@ import { createConfigStage } from '@/features/config/config-message-stage.js';
 import { PluginManager } from '@/features/plugins/plugin-manager.js';
 
 interface PipelineRuntimeDependencies {
-  pluginManager: PluginManager;
-  chatService: ChatService;
-  commandManager: CommandManager;
-  configManager: ConfigManagerService;
-  pipelineRef: { current: ChannelPipeline | null };
+    pluginManager: PluginManager;
+    chatService: ChatService;
+    commandManager: CommandManager;
+    configManager: ConfigManagerService;
+    pipelineRef: { current: ChannelPipeline | null };
 }
 
 /** 消息处理流水线运行时
@@ -34,24 +34,26 @@ interface PipelineRuntimeDependencies {
  * stop() 释放管道引用使频道插件无法再注入消息。
  */
 export class PipelineRuntime {
-  constructor(private readonly deps: PipelineRuntimeDependencies) {}
+    constructor(private readonly deps: PipelineRuntimeDependencies) {}
 
-  /** 创建管道并按顺序注册中间件 */
-  start(): void {
-    const pipeline = new ChannelPipeline(this.deps.pluginManager);
-    pipeline.use(createConfigStage({
-      isInitialized: () => this.deps.configManager.isInitialized(),
-      initialize: () => this.deps.configManager.initialize(),
-      getConfig: () => this.deps.configManager.config,
-    }));
-    pipeline.use(createSessionStage(this.deps.chatService));
-    pipeline.use(createCommandMiddleware(this.deps.commandManager));
-    pipeline.use(agentStage);
-    this.deps.pipelineRef.current = pipeline;
-  }
+    /** 创建管道并按顺序注册中间件 */
+    start(): void {
+        const pipeline = new ChannelPipeline(this.deps.pluginManager);
+        pipeline.use(
+            createConfigStage({
+                isInitialized: () => this.deps.configManager.isInitialized(),
+                initialize: () => this.deps.configManager.initialize(),
+                getConfig: () => this.deps.configManager.config,
+            }),
+        );
+        pipeline.use(createSessionStage(this.deps.chatService));
+        pipeline.use(createCommandMiddleware(this.deps.commandManager));
+        pipeline.use(agentStage);
+        this.deps.pipelineRef.current = pipeline;
+    }
 
-  /** 释放管道引用，使后续消息注入失败 */
-  stop(): void {
-    this.deps.pipelineRef.current = null;
-  }
+    /** 释放管道引用，使后续消息注入失败 */
+    stop(): void {
+        this.deps.pipelineRef.current = null;
+    }
 }

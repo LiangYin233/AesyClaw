@@ -31,8 +31,10 @@ const CMD_UTF8_PREFIX = 'chcp 65001 > nul &&';
 
 /** 将 Buffer 解码为 UTF-8 字符串 */
 function autoDecode(buffer: Buffer): string {
-  if (buffer.length === 0) {return '';}
-  return buffer.toString('utf-8');
+    if (buffer.length === 0) {
+        return '';
+    }
+    return buffer.toString('utf-8');
 }
 
 /** 执行 shell 命令
@@ -40,126 +42,130 @@ function autoDecode(buffer: Buffer): string {
  * 根据平台选择 cmd.exe 或 /bin/sh 执行命令，
  * 收集 stdout/stderr 输出，支持大小限制与超时终止。
  */
-function executeCommand(command: string, cwd: string): Promise<{ output: string; exitCode: number; truncated?: boolean }> {
-  return new Promise((resolve, reject) => {
-    let stdout = '';
-    let stderr = '';
-    let truncated = false;
+function executeCommand(
+    command: string,
+    cwd: string,
+): Promise<{ output: string; exitCode: number; truncated?: boolean }> {
+    return new Promise((resolve, reject) => {
+        let stdout = '';
+        let stderr = '';
+        let truncated = false;
 
-    const proc = USE_SHELL_EXECUTION
-      ? spawn('cmd.exe', ['/d', '/s', '/c', `${CMD_UTF8_PREFIX} ${command}`], {
-          cwd,
-          env: { ...process.env, HOME: process.env.HOME || '/tmp' },
-          windowsHide: true,
-        })
-      : spawn('/bin/sh', ['-lc', command], {
-          cwd,
-          env: { ...process.env, HOME: process.env.HOME || '/tmp' },
-          windowsHide: true,
+        const proc = USE_SHELL_EXECUTION
+            ? spawn('cmd.exe', ['/d', '/s', '/c', `${CMD_UTF8_PREFIX} ${command}`], {
+                  cwd,
+                  env: { ...process.env, HOME: process.env.HOME || '/tmp' },
+                  windowsHide: true,
+              })
+            : spawn('/bin/sh', ['-lc', command], {
+                  cwd,
+                  env: { ...process.env, HOME: process.env.HOME || '/tmp' },
+                  windowsHide: true,
+              });
+
+        const timeout = setTimeout(() => {
+            proc.kill('SIGKILL');
+        }, EXEC_TIMEOUT_MS);
+
+        proc.stdout?.on('data', (data: Buffer) => {
+            if (stdout.length + data.length > MAX_OUTPUT_SIZE) {
+                if (!truncated) {
+                    stdout += '\n[Output truncated due to size limit]';
+                    truncated = true;
+                }
+                return;
+            }
+            stdout += autoDecode(data);
         });
 
-    const timeout = setTimeout(() => {
-      proc.kill('SIGKILL');
-    }, EXEC_TIMEOUT_MS);
+        proc.stderr?.on('data', (data: Buffer) => {
+            if (stderr.length + data.length > MAX_OUTPUT_SIZE) {
+                if (!truncated) {
+                    stderr += '\n[Error output truncated due to size limit]';
+                    truncated = true;
+                }
+                return;
+            }
+            stderr += autoDecode(data);
+        });
 
-    proc.stdout?.on('data', (data: Buffer) => {
-      if (stdout.length + data.length > MAX_OUTPUT_SIZE) {
-        if (!truncated) {
-          stdout += '\n[Output truncated due to size limit]';
-          truncated = true;
-        }
-        return;
-      }
-      stdout += autoDecode(data);
-    });
+        proc.on('close', (code: number | null) => {
+            clearTimeout(timeout);
+            const exitCode = code ?? 0;
+            const combined = stdout + (stderr ? (stdout ? '\n' : '') + stderr : '');
+            resolve({ output: combined, exitCode, truncated });
+        });
 
-    proc.stderr?.on('data', (data: Buffer) => {
-      if (stderr.length + data.length > MAX_OUTPUT_SIZE) {
-        if (!truncated) {
-          stderr += '\n[Error output truncated due to size limit]';
-          truncated = true;
-        }
-        return;
-      }
-      stderr += autoDecode(data);
+        proc.on('error', (error: Error) => {
+            clearTimeout(timeout);
+            reject(error);
+        });
     });
-
-    proc.on('close', (code: number | null) => {
-      clearTimeout(timeout);
-      const exitCode = code ?? 0;
-      const combined = stdout + (stderr ? (stdout ? '\n' : '') + stderr : '');
-      resolve({ output: combined, exitCode, truncated });
-    });
-
-    proc.on('error', (error: Error) => {
-      clearTimeout(timeout);
-      reject(error);
-    });
-  });
 }
 
 /** exec 工具定义 */
 const execTool: Tool = {
-  name: 'exec',
-  description: 'Execute shell commands in the workspace directory.',
-  parametersSchema: z.object({
-    command: z.string().describe('Command to execute')
-  }),
+    name: 'exec',
+    description: 'Execute shell commands in the workspace directory.',
+    parametersSchema: z.object({
+        command: z.string().describe('Command to execute'),
+    }),
 
-  getDefinition() {
-    return {
-      name: this.name,
-      description: this.description,
-      parameters: {
-        type: 'object',
-        properties: {
-          command: { type: 'string', description: 'Command to execute' }
-        },
-        required: ['command']
-      }
-    };
-  },
-
-  async execute(args: unknown, _context: ToolExecuteContext): Promise<ToolExecutionResult> {
-    try {
-      const { command } = args as { command: string };
-
-      const { output, exitCode, truncated } = await executeCommand(command, WORKSPACE_DIR);
-      const finalOutput = (output || '(no output)') + (truncated ? '\n[Output was truncated]' : '');
-
-      if (exitCode !== 0 && exitCode !== 1) {
+    getDefinition() {
         return {
-          success: false,
-          content: finalOutput,
-          error: `Command failed with exit code: ${exitCode}`
+            name: this.name,
+            description: this.description,
+            parameters: {
+                type: 'object',
+                properties: {
+                    command: { type: 'string', description: 'Command to execute' },
+                },
+                required: ['command'],
+            },
         };
-      }
+    },
 
-      return {
-        success: true,
-        content: finalOutput
-      };
-    } catch (error) {
-      return {
-        success: false,
-        content: '',
-        error: toErrorMessage(error)
-      };
-    }
-  }
+    async execute(args: unknown, _context: ToolExecuteContext): Promise<ToolExecutionResult> {
+        try {
+            const { command } = args as { command: string };
+
+            const { output, exitCode, truncated } = await executeCommand(command, WORKSPACE_DIR);
+            const finalOutput =
+                (output || '(no output)') + (truncated ? '\n[Output was truncated]' : '');
+
+            if (exitCode !== 0 && exitCode !== 1) {
+                return {
+                    success: false,
+                    content: finalOutput,
+                    error: `Command failed with exit code: ${exitCode}`,
+                };
+            }
+
+            return {
+                success: true,
+                content: finalOutput,
+            };
+        } catch (error) {
+            return {
+                success: false,
+                content: '',
+                error: toErrorMessage(error),
+            };
+        }
+    },
 };
 
 /** exec 插件 */
 const plugin: Plugin = {
-  name: 'exec',
-  version: '1.1.0',
-  description: 'Shell command execution plugin',
-  defaultOptions: {},
+    name: 'exec',
+    version: '1.1.0',
+    description: 'Shell command execution plugin',
+    defaultOptions: {},
 
-  async init(ctx: PluginContext): Promise<void> {
-    ctx.tools.register(execTool);
-    ctx.logger.info('exec plugin initialized');
-  }
+    async init(ctx: PluginContext): Promise<void> {
+        ctx.tools.register(execTool);
+        ctx.logger.info('exec plugin initialized');
+    },
 };
 
 export default plugin;

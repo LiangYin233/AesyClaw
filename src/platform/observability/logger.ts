@@ -13,25 +13,25 @@ const isDev = process.env.NODE_ENV !== 'production';
 
 /** 全局日志器实例 */
 export const logger = pino({
-  level: process.env.LOG_LEVEL || 'info',
-  transport: isDev
-    ? {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          translateTime: 'SYS:yyyy-mm-dd HH:MM:ss.l',
-          ignore: 'pid,hostname',
-        },
-      }
-    : undefined,
+    level: process.env.LOG_LEVEL || 'info',
+    transport: isDev
+        ? {
+              target: 'pino-pretty',
+              options: {
+                  colorize: true,
+                  translateTime: 'SYS:yyyy-mm-dd HH:MM:ss.l',
+                  ignore: 'pid,hostname',
+              },
+          }
+        : undefined,
 });
 
 /** 带作用域前缀的日志器接口 */
 export interface ScopedLogger {
-  info(msg: string, data?: Record<string, unknown>): void;
-  warn(msg: string, data?: Record<string, unknown>): void;
-  error(msg: string, data?: Record<string, unknown>): void;
-  debug(msg: string, data?: Record<string, unknown>): void;
+    info(msg: string, data?: Record<string, unknown>): void;
+    warn(msg: string, data?: Record<string, unknown>): void;
+    error(msg: string, data?: Record<string, unknown>): void;
+    debug(msg: string, data?: Record<string, unknown>): void;
 }
 
 type LogLevel = 'info' | 'warn' | 'error' | 'debug';
@@ -41,13 +41,12 @@ type LogLevel = 'info' | 'warn' | 'error' | 'debug';
  * 输出格式：`[scope] message`，并自动在日志数据中附加 scope 字段。
  */
 export function createScopedLogger(scope: string, scopeKey: string = 'scope'): ScopedLogger {
-  const make = (level: LogLevel) =>
-    (msg: string, data?: Record<string, unknown>) =>
-      logger[level]({ [scopeKey]: scope, ...data }, `[${scope}] ${msg}`);
-  return {
-    info: make('info'),
-    warn: make('warn'),
-    error: make('error'),
-    debug: make('debug'),
-  };
+    const make = (level: LogLevel) => (msg: string, data?: Record<string, unknown>) =>
+        logger[level]({ [scopeKey]: scope, ...data }, `[${scope}] ${msg}`);
+    return {
+        info: make('info'),
+        warn: make('warn'),
+        error: make('error'),
+        debug: make('debug'),
+    };
 }

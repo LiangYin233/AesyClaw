@@ -6,19 +6,22 @@
  */
 
 import { pathToFileURL } from 'url';
-import { getDiscoveredPluginEntryCandidates, resolveDiscoveredPluginEntry } from './plugin-entry.js';
+import {
+    getDiscoveredPluginEntryCandidates,
+    resolveDiscoveredPluginEntry,
+} from './plugin-entry.js';
 import { assertPackageNameMatchesExportedName } from './package-manifest.js';
 import type { DiscoveredPlugin } from './plugin-discovery.js';
 
 interface NamedDiscoveredModule {
-  name?: string;
+    name?: string;
 }
 
 /** 已加载的发现模块结果 */
 export interface LoadedDiscoveredModule<TModule extends NamedDiscoveredModule> {
-  entryPath: string | null;
-  candidates: string[];
-  module: TModule | null;
+    entryPath: string | null;
+    candidates: string[];
+    module: TModule | null;
 }
 
 /** 加载已发现的模块
@@ -27,30 +30,30 @@ export interface LoadedDiscoveredModule<TModule extends NamedDiscoveredModule> {
  * 并校验 package.json 名称与导出名称的一致性。
  */
 export async function loadDiscoveredModule<TModule extends NamedDiscoveredModule>(
-  discovered: DiscoveredPlugin,
-  moduleLabel: string
+    discovered: DiscoveredPlugin,
+    moduleLabel: string,
 ): Promise<LoadedDiscoveredModule<TModule>> {
-  const candidates = getDiscoveredPluginEntryCandidates(discovered);
-  const entryPath = resolveDiscoveredPluginEntry(discovered);
-  if (!entryPath) {
+    const candidates = getDiscoveredPluginEntryCandidates(discovered);
+    const entryPath = resolveDiscoveredPluginEntry(discovered);
+    if (!entryPath) {
+        return {
+            entryPath: null,
+            candidates,
+            module: null,
+        };
+    }
+
+    const imported = await import(pathToFileURL(entryPath).href);
+    const loadedModule = (imported.default || imported) as TModule | undefined;
+    if (!loadedModule?.name) {
+        throw new Error(`Invalid ${moduleLabel.toLowerCase()} module, missing name`);
+    }
+
+    assertPackageNameMatchesExportedName(discovered.packageJson, loadedModule.name, moduleLabel);
+
     return {
-      entryPath: null,
-      candidates,
-      module: null,
+        entryPath,
+        candidates,
+        module: loadedModule,
     };
-  }
-
-  const imported = await import(pathToFileURL(entryPath).href);
-  const loadedModule = (imported.default || imported) as TModule | undefined;
-  if (!loadedModule?.name) {
-    throw new Error(`Invalid ${moduleLabel.toLowerCase()} module, missing name`);
-  }
-
-  assertPackageNameMatchesExportedName(discovered.packageJson, loadedModule.name, moduleLabel);
-
-  return {
-    entryPath,
-    candidates,
-    module: loadedModule,
-  };
 }

@@ -2,29 +2,29 @@ import { z } from 'zod';
 import type { ToolExecuteContext } from '@/platform/tools/types.js';
 
 export const RunSubAgentInputSchema = z.object({
-  role_name: z.string().describe('预定义角色名称，必须是当前已存在的角色 ID'),
-  task_description: z.string().describe('详细的任务描述'),
+    role_name: z.string().describe('预定义角色名称，必须是当前已存在的角色 ID'),
+    task_description: z.string().describe('详细的任务描述'),
 });
 
 export const RunTempSubAgentInputSchema = z.object({
-  system_prompt: z.string().describe('临时分身的系统提示词'),
-  task_description: z.string().describe('详细的任务描述'),
+    system_prompt: z.string().describe('临时分身的系统提示词'),
+    task_description: z.string().describe('详细的任务描述'),
 });
 
 export interface SubAgentResult {
-  success: boolean;
-  finalText: string;
-  roleId: string;
-  executionTime: number;
-  error?: string;
+    success: boolean;
+    finalText: string;
+    roleId: string;
+    executionTime: number;
+    error?: string;
 }
 
 export interface SandboxConfig {
-  roleId?: string;
-  systemPrompt: string;
-  allowedTools: string[];
-  allowedSkills: string[];
-  parentContext?: ToolExecuteContext;
+    roleId?: string;
+    systemPrompt: string;
+    allowedTools: string[];
+    allowedSkills: string[];
+    parentContext?: ToolExecuteContext;
 }
 
 export const SUBAGENT_TOOL_NAME_RUN = 'runSubAgent';

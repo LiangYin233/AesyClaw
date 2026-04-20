@@ -39,93 +39,98 @@ import { SystemRuntime } from '@/runtime/system-runtime.js';
  * 调用方只需执行 appRuntime.start() 即可启动系统。
  */
 export function createApp(): AppRuntime {
-  const toolManager = new ToolManager();
-  const commandManager = new CommandManager();
-  const systemPromptManager = new SystemPromptManager(toolManager);
-  const pluginManager = new PluginManager({
-    commandManager,
-    toolManager,
-    configStore: configManager,
-  });
+    const toolManager = new ToolManager();
+    const commandManager = new CommandManager();
+    const systemPromptManager = new SystemPromptManager(toolManager);
+    const pluginManager = new PluginManager({
+        commandManager,
+        toolManager,
+        configStore: configManager,
+    });
 
-  const chatService = new ChatService({
-    systemPromptManager,
-    toolCatalog: toolManager,
-    hookRuntime: pluginManager,
-    configSource: {
-      getConfig: () => configManager.config,
-    },
-    roleStore: roleManager,
-    chatStore,
-    skillStore: skillManager,
-  });
+    const chatService = new ChatService({
+        systemPromptManager,
+        toolCatalog: toolManager,
+        hookRuntime: pluginManager,
+        configSource: {
+            getConfig: () => configManager.config,
+        },
+        roleStore: roleManager,
+        chatStore,
+        skillStore: skillManager,
+    });
 
-  const channelManager = new ChannelPluginManager(configManager);
+    const channelManager = new ChannelPluginManager(configManager);
 
-  /** 管道引用对象，用于 PipelineRuntime 与 ChannelRuntime 之间共享管道实例 */
-  const pipelineRef: { current: import('@/agent/pipeline.js').ChannelPipeline | null } = { current: null };
+    /** 管道引用对象，用于 PipelineRuntime 与 ChannelRuntime 之间共享管道实例 */
+    const pipelineRef: {
+        current: import('@/agent/pipeline.js').ChannelPipeline | null;
+    } = { current: null };
 
-  const pluginRuntime = new PluginRuntime({
-    pluginManager,
-    configSource: {
-      getPluginConfigs: () => getConfigSlice(configManager, config => config.plugins, []),
-    },
-  });
-  const pipelineRuntime = new PipelineRuntime({
-    pluginManager,
-    chatService,
-    commandManager,
-    configManager,
-    pipelineRef,
-  });
-  const channelRuntime = new ChannelRuntime({
-    channelManager,
-    configSource: {
-      getChannelsConfig: () => getConfigSlice(configManager, config => config.channels, {}),
-      onChannelsConfigChange: listener => onConfigSliceChange(configManager, config => config.channels, {}, listener),
-      syncDefaultConfigs: () => configManager.syncAllDefaultConfigs(),
-    },
-    getPipeline: () => pipelineRef.current,
-  });
-  const mcpRuntime = new McpRuntime({
-    toolManager,
-    configSource: {
-      getServerConfigs: () => getConfigSlice(configManager, config => config.mcp?.servers, []),
-      onServerConfigChange: listener => onConfigSliceChange(configManager, config => config.mcp?.servers, [], listener),
-    },
-  });
-  const cronRuntime = new CronRuntime({
-    cronService,
-    systemPromptManager,
-    toolManager,
-    pluginManager,
-    configManager,
-    roleManager,
-    skillManager,
-  });
-  const systemRuntime = new SystemRuntime({
-    toolManager,
-    commandManager,
-    pluginManager,
-    chatService,
-    configManager,
-    roleManager,
-    skillManager,
-  });
+    const pluginRuntime = new PluginRuntime({
+        pluginManager,
+        configSource: {
+            getPluginConfigs: () => getConfigSlice(configManager, (config) => config.plugins, []),
+        },
+    });
+    const pipelineRuntime = new PipelineRuntime({
+        pluginManager,
+        chatService,
+        commandManager,
+        configManager,
+        pipelineRef,
+    });
+    const channelRuntime = new ChannelRuntime({
+        channelManager,
+        configSource: {
+            getChannelsConfig: () => getConfigSlice(configManager, (config) => config.channels, {}),
+            onChannelsConfigChange: (listener) =>
+                onConfigSliceChange(configManager, (config) => config.channels, {}, listener),
+            syncDefaultConfigs: () => configManager.syncAllDefaultConfigs(),
+        },
+        getPipeline: () => pipelineRef.current,
+    });
+    const mcpRuntime = new McpRuntime({
+        toolManager,
+        configSource: {
+            getServerConfigs: () =>
+                getConfigSlice(configManager, (config) => config.mcp?.servers, []),
+            onServerConfigChange: (listener) =>
+                onConfigSliceChange(configManager, (config) => config.mcp?.servers, [], listener),
+        },
+    });
+    const cronRuntime = new CronRuntime({
+        cronService,
+        systemPromptManager,
+        toolManager,
+        pluginManager,
+        configManager,
+        roleManager,
+        skillManager,
+    });
+    const systemRuntime = new SystemRuntime({
+        toolManager,
+        commandManager,
+        pluginManager,
+        chatService,
+        configManager,
+        roleManager,
+        skillManager,
+    });
 
-  return new AppRuntime({
-    toolManager,
-    pluginRuntime,
-    pipelineRuntime,
-    channelRuntime,
-    mcpRuntime,
-    cronRuntime,
-    systemRuntime,
-    pathResolver,
-    configManager,
-    sqliteManager,
-    roleManager,
-    skillManager,
-    chatStore,
-  });
+    return new AppRuntime({
+        toolManager,
+        pluginRuntime,
+        pipelineRuntime,
+        channelRuntime,
+        mcpRuntime,
+        cronRuntime,
+        systemRuntime,
+        pathResolver,
+        configManager,
+        sqliteManager,
+        roleManager,
+        skillManager,
+        chatStore,
+    });
 }

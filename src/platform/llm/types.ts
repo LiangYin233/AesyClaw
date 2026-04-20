@@ -1,39 +1,39 @@
 export enum MessageRole {
-  System = 'system',
-  User = 'user',
-  Assistant = 'assistant',
-  Tool = 'tool',
+    System = 'system',
+    User = 'user',
+    Assistant = 'assistant',
+    Tool = 'tool',
 }
 
 export interface ToolCall {
-  id: string;
-  name: string;
-  arguments: Record<string, unknown>;
+    id: string;
+    name: string;
+    arguments: Record<string, unknown>;
 }
 
 export interface StandardMessage {
-  role: MessageRole;
-  content: string;
-  toolCalls?: ToolCall[];
-  toolCallId?: string;
-  name?: string;
+    role: MessageRole;
+    content: string;
+    toolCalls?: ToolCall[];
+    toolCallId?: string;
+    name?: string;
 }
 
 export enum LLMProviderType {
-  OpenAIResponses = 'openai-responses',
-  OpenAICompletion = 'openai-completion',
-  Anthropic = 'anthropic',
+    OpenAIResponses = 'openai-responses',
+    OpenAICompletion = 'openai-completion',
+    Anthropic = 'anthropic',
 }
 
 export interface ModelCapabilities {
-  reasoning: boolean;
+    reasoning: boolean;
 }
 
 export interface LLMConfig {
-  provider: LLMProviderType;
-  model?: string;
-  apiKey?: string;
-  baseUrl?: string;
-  timeout?: number;
-  capabilities?: ModelCapabilities;
+    provider: LLMProviderType;
+    model?: string;
+    apiKey?: string;
+    baseUrl?: string;
+    timeout?: number;
+    capabilities?: ModelCapabilities;
 }

@@ -4,8 +4,8 @@
  * 使用方式：`import type { ChannelPlugin, ChannelPluginContext } from '@/sdk/channel.js'`
  */
 export type {
-  ChannelPlugin,
-  ChannelPluginContext,
-  ChannelSendPayload,
-  ChannelPluginLogger,
+    ChannelPlugin,
+    ChannelPluginContext,
+    ChannelSendPayload,
+    ChannelPluginLogger,
 } from '@/channels/channel-plugin.js';

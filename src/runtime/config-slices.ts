@@ -17,15 +17,15 @@ import type { ConfigManagerService } from '@/contracts/runtime-services.js';
  * selector 函数从完整配置中选取目标子集（如 config.plugins）。
  */
 export function getConfigSlice<T>(
-  configManager: ConfigManagerService,
-  selector: (_config: ConfigManagerService['config']) => T | undefined,
-  fallback: T
+    configManager: ConfigManagerService,
+    selector: (_config: ConfigManagerService['config']) => T | undefined,
+    fallback: T,
 ): T {
-  if (!configManager.isInitialized()) {
-    return fallback;
-  }
+    if (!configManager.isInitialized()) {
+        return fallback;
+    }
 
-  return selector(configManager.config) ?? fallback;
+    return selector(configManager.config) ?? fallback;
 }
 
 /** 监听配置切片变更
@@ -36,18 +36,18 @@ export function getConfigSlice<T>(
  * 返回取消监听函数，调用方可在此切片不再需要监听时调用。
  */
 export function onConfigSliceChange<T>(
-  configManager: ConfigManagerService,
-  selector: (_config: ConfigManagerService['config']) => T | undefined,
-  fallback: T,
-  listener: (_next: T, _prev: T) => Promise<void>
+    configManager: ConfigManagerService,
+    selector: (_config: ConfigManagerService['config']) => T | undefined,
+    fallback: T,
+    listener: (_next: T, _prev: T) => Promise<void>,
 ): () => void {
-  return configManager.onConfigChange(async (nextConfig, previousConfig) => {
-    const nextValue = selector(nextConfig) ?? fallback;
-    const previousValue = selector(previousConfig) ?? fallback;
-    if (!hasCanonicalValueChanged(previousValue, nextValue)) {
-      return;
-    }
+    return configManager.onConfigChange(async (nextConfig, previousConfig) => {
+        const nextValue = selector(nextConfig) ?? fallback;
+        const previousValue = selector(previousConfig) ?? fallback;
+        if (!hasCanonicalValueChanged(previousValue, nextValue)) {
+            return;
+        }
 
-    await listener(nextValue, previousValue);
-  });
+        await listener(nextValue, previousValue);
+    });
 }
