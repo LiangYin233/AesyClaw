@@ -1,9 +1,9 @@
 import { logger } from '@/platform/observability/logger.js';
 import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
+import type { ConfigSource, RoleStore, SkillStore } from '@/contracts/runtime-services.js';
 import type { ToolCatalog } from '@/platform/tools/registry.js';
 import { ToolExecuteContext, ToolExecutionResult, zodToToolParameters } from '@/platform/tools/types.js';
 import { SandboxEngine } from './sandbox-engine.js';
-import type { ConfigSource, RoleStore, SkillStore } from '@/runtime-dependencies.js';
 import {
   RunSubAgentInputSchema,
   RunTempSubAgentInputSchema,

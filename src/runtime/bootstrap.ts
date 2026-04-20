@@ -1,4 +1,4 @@
-import { createApp } from '@/create-app.js';
+import { createApp } from '@/runtime/create-app.js';
 
 const appRuntime = createApp();
 

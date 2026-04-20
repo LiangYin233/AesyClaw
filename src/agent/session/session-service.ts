@@ -6,6 +6,7 @@ import { resolveLLMConfig } from '@/agent/runtime/resolve-llm-config.js';
 import type { ChannelReceiveMessage } from '@/agent/types.js';
 import type { CommandContext } from '@/contracts/commands.js';
 import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
+import type { ChatSessionStore, ConfigSource, RoleStore, SkillStore } from '@/contracts/runtime-services.js';
 import type { SystemPromptManager } from '@/features/roles/system-prompt-manager.js';
 import { DEFAULT_ROLE_ID } from '@/features/roles/types.js';
 import { MessageRole, type StandardMessage } from '@/platform/llm/types.js';
@@ -13,7 +14,6 @@ import { logger } from '@/platform/observability/logger.js';
 import type { ChatContext, ChatSession } from './session-context.js';
 import type { ChatKey } from '@/platform/db/repositories/session-repository.js';
 import type { ToolCatalog } from '@/platform/tools/registry.js';
-import type { ChatSessionStore, ConfigSource, RoleStore, SkillStore } from '@/runtime-dependencies.js';
 
 export interface RoleInfo {
   roleId: string;

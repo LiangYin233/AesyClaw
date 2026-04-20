@@ -2,6 +2,7 @@ import { SessionMemoryManager } from '@/agent/memory/session-memory-manager.js';
 import { resolveLLMConfig } from '@/agent/runtime/resolve-llm-config.js';
 import { AgentEngine } from '@/agent/engine.js';
 import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
+import type { ConfigSource, RoleStore, SkillStore } from '@/contracts/runtime-services.js';
 import type { SystemPromptManager } from '@/features/roles/system-prompt-manager.js';
 import type { CronExecutor } from '@/features/cron/types.js';
 import { MessageRole } from '@/platform/llm/types.js';
@@ -9,7 +10,6 @@ import { logger } from '@/platform/observability/logger.js';
 import type { ToolCatalog } from '@/platform/tools/registry.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
 import type { CronJob } from '@/platform/db/repositories/cron-job-repository.js';
-import type { ConfigSource, RoleStore, SkillStore } from '@/runtime-dependencies.js';
 
 export class AgentCronExecutor implements CronExecutor {
   constructor(

@@ -1,4 +1,4 @@
-import { bootstrap, getStatus, shutdown } from '@/bootstrap.js';
+import { bootstrap, getStatus, shutdown } from '@/runtime/bootstrap.js';
 import { logger } from '@/platform/observability/logger.js';
 
 let shutdownPromise: Promise<void> | null = null;
@@ -59,5 +59,3 @@ async function main(): Promise<void> {
 
 registerProcessHandlers();
 void main();
-
-export { bootstrap, shutdown } from '@/bootstrap.js';

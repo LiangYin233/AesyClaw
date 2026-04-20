@@ -1,9 +1,7 @@
 import * as path from 'path';
-import { pathToFileURL } from 'url';
 import type { ChannelPipeline } from '@/agent/pipeline.js';
 import { logger } from '@/platform/observability/logger.js';
-import { assertPackageNameMatchesExportedName } from '@/platform/utils/package-manifest.js';
-import { getDiscoveredPluginEntryCandidates, resolveDiscoveredPluginEntry } from '@/platform/utils/plugin-entry.js';
+import { loadDiscoveredModule } from '@/platform/utils/discovered-module-loader.js';
 import { discoverPluginsByPrefix, type DiscoveredPlugin } from '@/platform/utils/plugin-discovery.js';
 import { hasCanonicalValueChanged } from '@/platform/utils/canonical-stringify.js';
 import type { ChannelPlugin } from './channel-plugin.js';
@@ -70,23 +68,15 @@ export class ChannelRuntime {
     channels: Record<string, unknown>
   ): Promise<void> {
     const pluginName = discovered.dirName;
-    const candidates = getDiscoveredPluginEntryCandidates(discovered);
 
     try {
-      const entryPath = resolveDiscoveredPluginEntry(discovered);
-      if (!entryPath) {
-        logger.warn({ pluginName, candidates }, 'Channel plugin entry point not found');
+      const loaded = await loadDiscoveredModule<ChannelPlugin>(discovered, 'Channel plugin');
+      if (!loaded.entryPath || !loaded.module) {
+        logger.warn({ pluginName, candidates: loaded.candidates }, 'Channel plugin entry point not found');
         return;
       }
 
-      const mod = await import(pathToFileURL(entryPath).href);
-      const channelPlugin: ChannelPlugin | undefined = mod.default || mod;
-      if (!channelPlugin || !channelPlugin.name) {
-        logger.warn({ entryPath }, 'Invalid channel plugin module, missing name');
-        return;
-      }
-
-      assertPackageNameMatchesExportedName(discovered.packageJson, channelPlugin.name, 'Channel plugin');
+      const channelPlugin = loaded.module;
 
       const channelConfig = (channels[channelPlugin.name] as Record<string, unknown> | undefined) || {};
       const registered = await this.deps.channelManager.registerChannel(channelPlugin, channelConfig);

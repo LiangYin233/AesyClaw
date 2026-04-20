@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { ZodError } from 'zod';
-import type { ConfigDefaultsScope } from '@/contracts/commands.js';
+import type { ConfigDefaultsScope, PluginRuntimeConfig } from '@/contracts/commands.js';
 import { logger } from '@/platform/observability/logger.js';
 import { pathResolver } from '@/platform/utils/paths.js';
 import { FullConfigSchema, DEFAULT_CONFIG, type FullConfig } from './schema.js';
@@ -360,6 +360,15 @@ export class ConfigManager {
 
   getPluginRuntimeConfig(name: string) {
     return this.config.plugins.find(p => p.name === name);
+  }
+
+  onPluginConfigChange(
+    listener: (
+      _next: readonly PluginRuntimeConfig[],
+      _prev: readonly PluginRuntimeConfig[]
+    ) => void | Promise<void>
+  ): () => void {
+    return this.onConfigChange((next, prev) => listener(next.plugins, prev.plugins));
   }
 
   async updatePluginRuntimeConfig(

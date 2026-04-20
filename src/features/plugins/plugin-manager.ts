@@ -1,15 +1,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { pathToFileURL } from 'url';
 import type { PluginConfigStore, PluginRuntimeConfig } from '@/contracts/commands.js';
 import type { CommandManager } from '@/platform/commands/command-manager.js';
 import { createRegistrationOwner } from '@/platform/registration/types.js';
 import { logger, createScopedLogger } from '@/platform/observability/logger.js';
 import type { ToolManager } from '@/platform/tools/registry.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
+import { hasCanonicalValueChanged } from '@/platform/utils/canonical-stringify.js';
+import { loadDiscoveredModule } from '@/platform/utils/discovered-module-loader.js';
 import { mergeDefaultOptions } from '@/platform/utils/merge-default-options.js';
-import { assertPackageNameMatchesExportedName } from '@/platform/utils/package-manifest.js';
-import { getDiscoveredPluginEntryCandidates, resolveDiscoveredPluginEntry } from '@/platform/utils/plugin-entry.js';
 import { discoverPluginsByPrefix, type DiscoveredPlugin } from '@/platform/utils/plugin-discovery.js';
 import {
   BeforeLLMRequestDispatchResult,
@@ -47,6 +46,9 @@ export class PluginManager {
   private initialized = false;
   private readonly pluginsDir: string;
   private discovered: Map<string, DiscoveredPlugin> = new Map();
+  private configChangeUnsubscribe: (() => void) | null = null;
+  private hotReloadEnabled = false;
+  private suspendedConfigReloads = 0;
 
   constructor(deps: PluginManagerDependencies) {
     this.deps = deps;
@@ -87,6 +89,10 @@ export class PluginManager {
     }
 
     logger.info({ loaded: this.loadedPlugins.size }, 'Plugin scanning and loading completed');
+  }
+
+  watchConfigChanges(): void {
+    this.registerConfigChangeListener();
   }
 
   private rediscoverPlugins(): void {
@@ -150,27 +156,16 @@ export class PluginManager {
     options: Record<string, unknown>,
     registerDefaults = true
   ): Promise<void> {
-    const candidates = getDiscoveredPluginEntryCandidates(info);
-    const entryPath = resolveDiscoveredPluginEntry(info);
-
-    if (!entryPath) {
-      logger.warn({ pluginName: info.name, candidates }, 'Plugin entry point not found');
-      return;
-    }
-
     try {
-      const mod = await import(pathToFileURL(entryPath).href);
-      const plugin: Plugin | undefined = mod.default || mod;
-
-      if (!plugin || !plugin.name) {
-        logger.warn({ entryPath }, 'Invalid plugin module, missing name');
+      const loaded = await loadDiscoveredModule<Plugin>(info, 'Plugin');
+      if (!loaded.entryPath || !loaded.module) {
+        logger.warn({ pluginName: info.name, candidates: loaded.candidates }, 'Plugin entry point not found');
         return;
       }
 
-      assertPackageNameMatchesExportedName(info.packageJson, plugin.name, 'Plugin');
-      await this.initializePlugin(plugin, info, options, registerDefaults);
+      await this.initializePlugin(loaded.module, info, options, registerDefaults);
     } catch (error) {
-      logger.error({ entryPath, error: toErrorMessage(error) }, 'Failed to load plugin');
+      logger.error({ pluginName: info.name, error: toErrorMessage(error) }, 'Failed to load plugin');
     }
   }
 
@@ -261,10 +256,73 @@ export class PluginManager {
     enabled: boolean,
     options?: Record<string, unknown>
   ): Promise<void> {
-    const updated = await this.deps.configStore.updatePluginRuntimeConfig(pluginName, { enabled, options });
+    const updated = await this.runWithConfigReloadSuspended(() =>
+      this.deps.configStore.updatePluginRuntimeConfig(pluginName, { enabled, options })
+    );
     if (!updated) {
       throw new Error(`Failed to persist plugin config for "${pluginName}"`);
     }
+  }
+
+  private async runWithConfigReloadSuspended<T>(action: () => Promise<T>): Promise<T> {
+    this.suspendedConfigReloads += 1;
+    try {
+      return await action();
+    } finally {
+      this.suspendedConfigReloads -= 1;
+    }
+  }
+
+  private async unloadAllPlugins(): Promise<void> {
+    const names = Array.from(this.loadedPlugins.keys());
+    const shutdownErrors: unknown[] = [];
+
+    for (const name of names) {
+      try {
+        await this.unloadPlugin(name);
+      } catch (error) {
+        logger.error({ pluginName: name, error }, 'Plugin shutdown unload failed');
+        shutdownErrors.push(error);
+      }
+    }
+
+    if (shutdownErrors.length === 1) {
+      throw shutdownErrors[0];
+    }
+
+    if (shutdownErrors.length > 1) {
+      throw new AggregateError(shutdownErrors, 'One or more plugins failed to shut down cleanly');
+    }
+  }
+
+  private registerConfigChangeListener(): void {
+    this.configChangeUnsubscribe?.();
+    this.configChangeUnsubscribe = null;
+    this.hotReloadEnabled = false;
+
+    this.configChangeUnsubscribe = this.deps.configStore.onPluginConfigChange(async (nextPlugins, previousPlugins) => {
+      if (!this.hotReloadEnabled || this.suspendedConfigReloads > 0) {
+        return;
+      }
+      if (!hasCanonicalValueChanged(previousPlugins, nextPlugins)) {
+        return;
+      }
+
+      logger.info({}, 'Plugin config changed, reloading plugins');
+      this.hotReloadEnabled = false;
+      try {
+        await this.unloadAllPlugins();
+        await this.scanAndLoad(nextPlugins);
+        await this.runWithConfigReloadSuspended(() => this.deps.configStore.syncAllDefaultConfigs());
+      } catch (error) {
+        logger.error({ error }, 'Plugin config reload failed');
+        throw error;
+      } finally {
+        this.hotReloadEnabled = true;
+      }
+    });
+
+    this.hotReloadEnabled = true;
   }
 
   private async forEachPluginHook<K extends keyof PluginHooks>(
@@ -506,28 +564,14 @@ export class PluginManager {
   async shutdown(): Promise<void> {
     logger.info({}, 'Shutting down PluginManager');
 
-    const names = Array.from(this.loadedPlugins.keys());
-    const shutdownErrors: unknown[] = [];
+    this.configChangeUnsubscribe?.();
+    this.configChangeUnsubscribe = null;
+    this.hotReloadEnabled = false;
 
-    for (const name of names) {
-      try {
-        await this.unloadPlugin(name);
-      } catch (error) {
-        logger.error({ pluginName: name, error }, 'Plugin shutdown unload failed');
-        shutdownErrors.push(error);
-      }
-    }
+    await this.unloadAllPlugins();
 
     this.discovered.clear();
     this.initialized = false;
-
-    if (shutdownErrors.length === 1) {
-      throw shutdownErrors[0];
-    }
-
-    if (shutdownErrors.length > 1) {
-      throw new AggregateError(shutdownErrors, 'One or more plugins failed to shut down cleanly');
-    }
   }
 
   getPluginCount(): number {

@@ -10,6 +10,7 @@ import {
   getFinalAssistantText,
 } from '@/agent/runtime/aesyiu-runtime-helpers.js';
 import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
+import type { ConfigSource, RoleStore, SkillStore } from '@/contracts/runtime-services.js';
 import { DEFAULT_ROLE_ID } from '@/features/roles/types.js';
 import { type LLMConfig } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
@@ -17,7 +18,6 @@ import { toErrorMessage } from '@/platform/utils/errors.js';
 import type { ToolCatalog } from '@/platform/tools/registry.js';
 import { Tool, ToolExecuteContext } from '@/platform/tools/types.js';
 import { DEFAULT_FALLBACK_LLM_CONFIG } from '@/agent/runtime/resolve-llm-config.js';
-import type { ConfigSource, RoleStore, SkillStore } from '@/runtime-dependencies.js';
 import {
   SUBAGENT_TOOL_NAME_RUN,
   SUBAGENT_TOOL_NAME_TEMP,

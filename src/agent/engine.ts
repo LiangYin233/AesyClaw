@@ -3,13 +3,13 @@ import {
   type Message as AesyiuMessage,
 } from 'aesyiu';
 import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
+import type { ConfigSource, RoleStore, SkillStore } from '@/contracts/runtime-services.js';
 import { resolveLLMConfig } from '@/agent/runtime/resolve-llm-config.js';
 import { LLMConfig, MessageRole } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
 import type { ToolCatalog } from '@/platform/tools/registry.js';
 import { Tool, ToolExecuteContext, ToolExecutionResult } from '@/platform/tools/types.js';
-import type { ConfigSource, RoleStore, SkillStore } from '@/runtime-dependencies.js';
 import {
   buildAesyiuEngine,
   type AesyiuRunStats,

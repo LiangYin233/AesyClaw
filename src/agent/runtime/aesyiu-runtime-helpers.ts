@@ -16,6 +16,7 @@ import {
   type ToolMiddleware,
 } from 'aesyiu';
 import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
+import type { RoleCatalog } from '@/contracts/runtime-services.js';
 import type { ProvidersConfig } from '@/features/config/schema.js';
 import { buildHookSkills, buildHookTools } from '@/features/plugins/hook-utils.js';
 import type { HookPayloadLLMSkill, HookPayloadLLMTool } from '@/features/plugins/types.js';
@@ -30,7 +31,6 @@ import {
   type ToolExecuteContext,
   type ToolExecutionResult,
 } from '@/platform/tools/types.js';
-import type { RoleCatalog } from '@/runtime-dependencies.js';
 
 export interface AesyiuRunStats {
   steps: number;

@@ -1,9 +1,9 @@
 import type { FullConfig } from '@/features/config/schema.js';
+import type { RoleStore } from '@/contracts/runtime-services.js';
 import type { SystemPromptManager } from '@/features/roles/system-prompt-manager.js';
 import { DEFAULT_ROLE_ID } from '@/features/roles/types.js';
 import type { LLMConfig } from '@/platform/llm/types.js';
 import { resolveLLMConfig } from './resolve-llm-config.js';
-import type { RoleStore } from '@/runtime-dependencies.js';
 
 export interface PreparedAgentRun {
   llmConfig: LLMConfig;
