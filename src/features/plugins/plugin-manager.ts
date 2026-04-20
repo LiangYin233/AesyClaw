@@ -109,8 +109,68 @@ export class PluginManager {
     return this.aliasToPluginName.get(name) ?? (this.loadedPlugins.has(name) ? name : undefined);
   }
 
+  private findDiscoveredPlugin(name: string): DiscoveredPlugin | undefined {
+    let info = this.discovered.get(name);
+    if (!info) {
+      this.rediscoverPlugins();
+      info = this.discovered.get(name);
+    }
+
+    return info;
+  }
+
+  private getStoredPluginConfig(...names: string[]): PluginRuntimeConfig | undefined {
+    for (const name of names) {
+      const config = this.deps.configStore.getPluginRuntimeConfig(name);
+      if (config) {
+        return config;
+      }
+    }
+
+    return undefined;
+  }
+
   private createPluginLogger(pluginName: string) {
     return createScopedLogger(pluginName, 'plugin');
+  }
+
+  private setPluginAliases(pluginName: string, aliases: Iterable<string>): void {
+    for (const alias of aliases) {
+      this.aliasToPluginName.set(alias, pluginName);
+    }
+  }
+
+  private removePluginAliases(pluginName: string, aliases: Iterable<string>): void {
+    for (const alias of aliases) {
+      if (this.aliasToPluginName.get(alias) === pluginName) {
+        this.aliasToPluginName.delete(alias);
+      }
+    }
+  }
+
+  private async destroyPlugin(
+    pluginName: string,
+    plugin: Plugin,
+    errorMessage: string,
+    rethrow = false
+  ): Promise<void> {
+    if (!plugin.destroy) {
+      return;
+    }
+
+    try {
+      await plugin.destroy();
+    } catch (cleanupError) {
+      logger.error({ pluginName, error: cleanupError }, errorMessage);
+      if (rethrow) {
+        throw cleanupError;
+      }
+    }
+  }
+
+  private disposePluginScopes(record: Pick<LoadedPluginRecord, 'commandScope' | 'toolScope'>): void {
+    record.commandScope.dispose();
+    record.toolScope.dispose();
   }
 
   private async loadPluginEntry(
@@ -179,9 +239,7 @@ export class PluginManager {
         toolScope,
       });
 
-      this.aliasToPluginName.set(plugin.name, plugin.name);
-      this.aliasToPluginName.set(discovered.name, plugin.name);
-      this.aliasToPluginName.set(discovered.dirName, plugin.name);
+      this.setPluginAliases(plugin.name, [plugin.name, discovered.name, discovered.dirName]);
 
       if (registerDefaults && plugin.defaultOptions !== undefined) {
         this.deps.configStore.registerDefaults('plugin', plugin.name, plugin.defaultOptions);
@@ -189,16 +247,8 @@ export class PluginManager {
 
       logger.info({ pluginName: plugin.name }, 'Plugin loaded successfully');
     } catch (error) {
-      commandScope.dispose();
-      toolScope.dispose();
-
-      if (plugin.destroy) {
-        try {
-          await plugin.destroy();
-        } catch (cleanupError) {
-          logger.error({ pluginName: plugin.name, error: cleanupError }, 'Plugin cleanup after initialization failure failed');
-        }
-      }
+      this.disposePluginScopes({ commandScope, toolScope });
+      await this.destroyPlugin(plugin.name, plugin, 'Plugin cleanup after initialization failure failed');
 
       logger.error({ pluginName: plugin.name, error }, 'Plugin initialization failed');
     }
@@ -238,22 +288,36 @@ export class PluginManager {
     }
   }
 
-  async dispatchReceive(
-    payload: HookPayloadReceive
-  ): Promise<ReceiveDispatchResult> {
-    let message = payload.message;
-    let blockResult: ReceiveDispatchResult | undefined;
+  private async dispatchMessageHook<TMessage>(
+    hookName: 'onReceive' | 'onSend',
+    initialMessage: TMessage
+  ): Promise<{ blocked: true; reason?: string } | { blocked: false; message: TMessage }> {
+    let message = initialMessage;
+    let blockResult: { blocked: true; reason?: string } | undefined;
 
-    await this.forEachPluginHook('onReceive', async (_plugin, hookFn) => {
-      const result = await hookFn({ message });
+    await this.forEachPluginHook(hookName, async (_plugin, hookFn) => {
+      const result = await (
+        hookFn as (_payload: { message: TMessage }) => Promise<
+          | { action: 'block'; reason?: string }
+          | { action: 'continue'; value: TMessage }
+        >
+      )({ message });
+
       if (result.action === 'block') {
         blockResult = { blocked: true, reason: result.reason };
         return true;
       }
+
       message = result.value;
     });
 
     return blockResult ?? { blocked: false, message };
+  }
+
+  async dispatchReceive(
+    payload: HookPayloadReceive
+  ): Promise<ReceiveDispatchResult> {
+    return this.dispatchMessageHook('onReceive', payload.message);
   }
 
   async dispatchBeforeLLMRequest(
@@ -304,19 +368,7 @@ export class PluginManager {
   async dispatchSend(
     payload: HookPayloadSend
   ): Promise<SendDispatchResult> {
-    let message = payload.message;
-    let blockResult: SendDispatchResult | undefined;
-
-    await this.forEachPluginHook('onSend', async (_plugin, hookFn) => {
-      const result = await hookFn({ message });
-      if (result.action === 'block') {
-        blockResult = { blocked: true, reason: result.reason };
-        return true;
-      }
-      message = result.value;
-    });
-
-    return blockResult ?? { blocked: false, message };
+    return this.dispatchMessageHook('onSend', payload.message);
   }
 
   async unloadPlugin(pluginNameOrAlias: string): Promise<void> {
@@ -328,19 +380,11 @@ export class PluginManager {
     }
 
     try {
-      if (record.plugin.destroy) {
-        await record.plugin.destroy();
-      }
-
-      record.commandScope.dispose();
-      record.toolScope.dispose();
+      await this.destroyPlugin(pluginName, record.plugin, 'Plugin unload cleanup failed', true);
+      this.disposePluginScopes(record);
 
       this.loadedPlugins.delete(pluginName);
-      for (const alias of record.aliases) {
-        if (this.aliasToPluginName.get(alias) === pluginName) {
-          this.aliasToPluginName.delete(alias);
-        }
-      }
+      this.removePluginAliases(pluginName, record.aliases);
 
       logger.info({ pluginName }, 'Plugin unloaded successfully');
     } catch (error) {
@@ -359,11 +403,7 @@ export class PluginManager {
       return { success: false, message: `未找到插件 "${pluginNameOrAlias}"，插件目录不存在` };
     }
 
-    let info = this.discovered.get(pluginNameOrAlias);
-    if (!info) {
-      this.rediscoverPlugins();
-      info = this.discovered.get(pluginNameOrAlias);
-    }
+    const info = this.findDiscoveredPlugin(pluginNameOrAlias);
 
     if (!info) {
       return {
@@ -373,9 +413,7 @@ export class PluginManager {
     }
 
     try {
-      const existingConfig = this.deps.configStore.getPluginRuntimeConfig(info.name)
-        ?? this.deps.configStore.getPluginRuntimeConfig(info.dirName)
-        ?? this.deps.configStore.getPluginRuntimeConfig(pluginNameOrAlias);
+      const existingConfig = this.getStoredPluginConfig(info.name, info.dirName, pluginNameOrAlias);
       const options = existingConfig?.options || {};
 
       await this.loadPluginEntry(info, options, false);

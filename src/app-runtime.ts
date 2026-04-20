@@ -58,6 +58,8 @@ type DisposableRegistrationScope = {
   dispose(): void;
 };
 
+type SystemTool = Parameters<ReturnType<ToolManager['createScope']>['register']>[0];
+
 export class AppRuntime {
   private pipeline: ChannelPipeline | null = null;
   private initialized = false;
@@ -84,18 +86,8 @@ export class AppRuntime {
     this.channelRuntime = new ChannelRuntime({
       channelManager: this.channelManager,
       configSource: {
-        getChannelsConfig: () => {
-          if (!this.deps.configManager.isInitialized()) return {};
-          return this.deps.configManager.config?.channels || {};
-        },
-        onChannelsConfigChange: listener => this.deps.configManager.onConfigChange(async (nextConfig, previousConfig) => {
-          const nextChannels = nextConfig.channels || {};
-          const previousChannels = previousConfig.channels || {};
-          if (!hasCanonicalValueChanged(previousChannels, nextChannels)) {
-            return;
-          }
-          await listener(nextChannels, previousChannels);
-        }),
+        getChannelsConfig: () => this.getConfigSlice(config => config.channels, {}),
+        onChannelsConfigChange: listener => this.onConfigSliceChange(config => config.channels, {}, listener),
         syncDefaultConfigs: () => this.deps.configManager.syncAllDefaultConfigs(),
       },
       getPipeline: () => this.pipeline,
@@ -103,18 +95,8 @@ export class AppRuntime {
     this.mcpRuntime = new McpRuntime({
       toolManager: this.toolManager,
       configSource: {
-        getServerConfigs: () => {
-          if (!this.deps.configManager.isInitialized()) return [];
-          return this.deps.configManager.config?.mcp?.servers || [];
-        },
-        onServerConfigChange: listener => this.deps.configManager.onConfigChange(async (nextConfig, previousConfig) => {
-          const nextServers = nextConfig.mcp?.servers || [];
-          const previousServers = previousConfig.mcp?.servers || [];
-          if (!hasCanonicalValueChanged(previousServers, nextServers)) {
-            return;
-          }
-          await listener(nextServers, previousServers);
-        }),
+        getServerConfigs: () => this.getConfigSlice(config => config.mcp?.servers, []),
+        onServerConfigChange: listener => this.onConfigSliceChange(config => config.mcp?.servers, [], listener),
       },
     });
   }
@@ -219,6 +201,30 @@ export class AppRuntime {
     ];
   }
 
+  private getConfigSlice<T>(selector: (_config: ConfigManagerService['config']) => T | undefined, fallback: T): T {
+    if (!this.deps.configManager.isInitialized()) {
+      return fallback;
+    }
+
+    return selector(this.deps.configManager.config) ?? fallback;
+  }
+
+  private onConfigSliceChange<T>(
+    selector: (_config: ConfigManagerService['config']) => T | undefined,
+    fallback: T,
+    listener: (_next: T, _prev: T) => Promise<void>
+  ): () => void {
+    return this.deps.configManager.onConfigChange(async (nextConfig, previousConfig) => {
+      const nextValue = selector(nextConfig) ?? fallback;
+      const previousValue = selector(previousConfig) ?? fallback;
+      if (!hasCanonicalValueChanged(previousValue, nextValue)) {
+        return;
+      }
+
+      await listener(nextValue, previousValue);
+    });
+  }
+
   private trackSystemScope<T extends DisposableRegistrationScope>(scope: T): T {
     this.systemRegistrationScopes.push(scope);
     return scope;
@@ -246,6 +252,20 @@ export class AppRuntime {
     logger.info({ count: systemCommands.length }, '系统命令已注册');
   }
 
+  private registerSystemTools(ownerId: string, tools: Iterable<SystemTool>, logMessage: string): void {
+    const scope = this.trackSystemScope(
+      this.toolManager.createScope(createRegistrationOwner('system', ownerId))
+    );
+    let toolCount = 0;
+
+    for (const tool of tools) {
+      scope.register(tool);
+      toolCount += 1;
+    }
+
+    logger.info({ toolCount }, logMessage);
+  }
+
   private async runInitStages(): Promise<void> {
     const multimodalTools = createMultimodalTools(() => this.deps.configManager.config);
 
@@ -270,28 +290,17 @@ export class AppRuntime {
       roleStore: this.deps.roleManager,
       skillStore: this.deps.skillManager,
     });
-    const subAgentScope = this.trackSystemScope(
-      this.toolManager.createScope(createRegistrationOwner('system', 'subagent-tools'))
+    this.registerSystemTools('subagent-tools', subAgentTools, 'SubAgent tools registered');
+    this.registerSystemTools(
+      'multimodal-tools',
+      [
+        multimodalTools.speechToTextTool,
+        multimodalTools.imageUnderstandingTool,
+        multimodalTools.sendMsgTool,
+      ],
+      'Multimodal tools registered'
     );
-    for (const tool of subAgentTools) {
-      subAgentScope.register(tool);
-    }
-    logger.info({ toolCount: subAgentTools.length }, 'SubAgent tools registered');
-
-    const multimodalScope = this.trackSystemScope(
-      this.toolManager.createScope(createRegistrationOwner('system', 'multimodal-tools'))
-    );
-    multimodalScope.register(multimodalTools.speechToTextTool);
-    multimodalScope.register(multimodalTools.imageUnderstandingTool);
-    multimodalScope.register(multimodalTools.sendMsgTool);
-
-    const cronScope = this.trackSystemScope(
-      this.toolManager.createScope(createRegistrationOwner('system', 'cron-tools'))
-    );
-    for (const tool of cronTools) {
-      cronScope.register(tool);
-    }
-    logger.info({ toolCount: cronTools.length }, 'Cron tools registered');
+    this.registerSystemTools('cron-tools', cronTools, 'Cron tools registered');
 
     this.pipeline.use(createConfigStage({
       isInitialized: () => this.deps.configManager.isInitialized(),

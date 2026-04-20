@@ -53,61 +53,80 @@ class ConfigDefaultsRegistry {
     }
   }
 
-  private async syncPluginDefaults(target: ConfigDefaultsSyncTarget): Promise<void> {
-    if (this.pendingDefaults.plugin.size === 0) return;
+  private async syncPendingDefaults<T>(
+    target: ConfigDefaultsSyncTarget,
+    scope: ConfigDefaultsScope,
+    pending: Map<string, Record<string, unknown>>,
+    createCurrent: (_config: FullConfig) => T,
+    applyDefault: (_current: T, _name: string, _defaults: Record<string, unknown>) => boolean,
+    buildUpdates: (_current: T) => Partial<FullConfig>
+  ): Promise<void> {
+    if (pending.size === 0) return;
 
-    const plugins = target.config.plugins.map((plugin) => ({
-      ...plugin,
-      options: plugin.options ? { ...plugin.options } : {},
-    }));
+    const current = createCurrent(target.config);
     let changed = false;
 
-    for (const [name, defaults] of this.pendingDefaults.plugin) {
-      const index = plugins.findIndex((plugin) => plugin.name === name);
-      const existing = index >= 0 ? plugins[index] : undefined;
-      const mergedOptions = mergeDefaultOptions(defaults, existing?.options);
-      if (!existing) {
-        changed = true;
-        plugins.push({ name, enabled: true, options: mergedOptions });
-        continue;
-      }
+    for (const [name, defaults] of pending) {
+      changed = applyDefault(current, name, defaults) || changed;
+    }
 
-      if (hasCanonicalValueChanged(existing.options || {}, mergedOptions)) {
-        changed = true;
+    if (changed) {
+      await this.persistDefaultsUpdate(target, buildUpdates(current), scope);
+    }
+
+    pending.clear();
+  }
+
+  private async syncPluginDefaults(target: ConfigDefaultsSyncTarget): Promise<void> {
+    await this.syncPendingDefaults(
+      target,
+      'plugin',
+      this.pendingDefaults.plugin,
+      config => config.plugins.map((plugin) => ({
+        ...plugin,
+        options: plugin.options ? { ...plugin.options } : {},
+      })),
+      (plugins, name, defaults) => {
+        const index = plugins.findIndex((plugin) => plugin.name === name);
+        const existing = index >= 0 ? plugins[index] : undefined;
+        const mergedOptions = mergeDefaultOptions(defaults, existing?.options);
+        if (!existing) {
+          plugins.push({ name, enabled: true, options: mergedOptions });
+          return true;
+        }
+
+        if (!hasCanonicalValueChanged(existing.options || {}, mergedOptions)) {
+          return false;
+        }
+
         plugins[index] = {
           ...existing,
           options: mergedOptions,
         };
-      }
-    }
-
-    if (changed) {
-      await this.persistDefaultsUpdate(target, { plugins }, 'plugin');
-    }
-
-    this.pendingDefaults.plugin.clear();
+        return true;
+      },
+      plugins => ({ plugins })
+    );
   }
 
   private async syncChannelDefaults(target: ConfigDefaultsSyncTarget): Promise<void> {
-    if (this.pendingDefaults.channel.size === 0) return;
+    await this.syncPendingDefaults(
+      target,
+      'channel',
+      this.pendingDefaults.channel,
+      config => ({ ...config.channels }),
+      (channels, name, defaults) => {
+        const existing = channels[name];
+        const mergedChannelConfig = mergeDefaultOptions(defaults, existing);
+        if (existing && !hasCanonicalValueChanged(existing, mergedChannelConfig)) {
+          return false;
+        }
 
-    const channels = { ...target.config.channels };
-    let changed = false;
-
-    for (const [name, defaults] of this.pendingDefaults.channel) {
-      const existing = channels[name];
-      const mergedChannelConfig = mergeDefaultOptions(defaults, existing);
-      if (!existing || hasCanonicalValueChanged(existing, mergedChannelConfig)) {
-        changed = true;
         channels[name] = mergedChannelConfig;
-      }
-    }
-
-    if (changed) {
-      await this.persistDefaultsUpdate(target, { channels }, 'channel');
-    }
-
-    this.pendingDefaults.channel.clear();
+        return true;
+      },
+      channels => ({ channels })
+    );
   }
 }
 

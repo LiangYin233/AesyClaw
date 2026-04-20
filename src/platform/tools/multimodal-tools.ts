@@ -86,6 +86,44 @@ function buildMissingProviderResult(providerType: string, providerName: string):
   };
 }
 
+function buildToolDefinition(
+  name: string,
+  description: string,
+  parametersSchema: z.ZodTypeAny
+): ToolDefinition {
+  return {
+    name,
+    description,
+    parameters: zodToToolParameters(parametersSchema),
+  };
+}
+
+function buildValidationErrorResult(message: string): ToolExecutionResult {
+  return {
+    success: false,
+    content: '',
+    error: message,
+  };
+}
+
+function validateToolArgs<T>(
+  parametersSchema: z.ZodType<T>,
+  args: unknown
+): { success: true; data: T } | { success: false; result: ToolExecutionResult } {
+  const parsed = parametersSchema.safeParse(args);
+  if (!parsed.success) {
+    return {
+      success: false,
+      result: buildValidationErrorResult(`参数验证失败: ${parsed.error.message}`),
+    };
+  }
+
+  return {
+    success: true,
+    data: parsed.data,
+  };
+}
+
 const SpeechToTextSchema = z.object({
   audio_path: z.string().describe('语音文件路径，支持本地路径或URL'),
 });
@@ -117,11 +155,7 @@ export class SpeechToTextTool implements Tool {
   readonly parametersSchema = SpeechToTextSchema;
 
   getDefinition(): ToolDefinition {
-    return {
-      name: this.name,
-      description: this.description,
-      parameters: zodToToolParameters(this.parametersSchema),
-    };
+    return buildToolDefinition(this.name, this.description, this.parametersSchema);
   }
 
   private resolveProvider(config: MultimodalRuntimeConfig): ProviderRuntimeConfig | ToolExecutionResult {
@@ -172,13 +206,9 @@ export class SpeechToTextTool implements Tool {
   }
 
   async execute(args: unknown, context: ToolExecuteContext): Promise<ToolExecutionResult> {
-    const parsed = this.parametersSchema.safeParse(args);
+    const parsed = validateToolArgs(this.parametersSchema, args);
     if (!parsed.success) {
-      return {
-        success: false,
-        content: '',
-        error: `参数验证失败: ${parsed.error.message}`,
-      };
+      return parsed.result;
     }
 
     const { audio_path } = parsed.data;
@@ -233,11 +263,7 @@ export class ImageUnderstandingTool implements Tool {
   readonly parametersSchema = ImageUnderstandingSchema;
 
   getDefinition(): ToolDefinition {
-    return {
-      name: this.name,
-      description: this.description,
-      parameters: zodToToolParameters(this.parametersSchema),
-    };
+    return buildToolDefinition(this.name, this.description, this.parametersSchema);
   }
 
   private resolveProvider(config: MultimodalRuntimeConfig): ProviderRuntimeConfig | ToolExecutionResult {
@@ -275,13 +301,9 @@ export class ImageUnderstandingTool implements Tool {
   }
 
   async execute(args: unknown, context: ToolExecuteContext): Promise<ToolExecutionResult> {
-    const parsed = this.parametersSchema.safeParse(args);
+    const parsed = validateToolArgs(this.parametersSchema, args);
     if (!parsed.success) {
-      return {
-        success: false,
-        content: '',
-        error: `参数验证失败: ${parsed.error.message}`,
-      };
+      return parsed.result;
     }
 
     const { image_path, prompt } = parsed.data;
@@ -354,29 +376,17 @@ export class SendMsgTool implements Tool {
   readonly parametersSchema = SendMsgSchema;
 
   getDefinition(): ToolDefinition {
-    return {
-      name: this.name,
-      description: this.description,
-      parameters: zodToToolParameters(this.parametersSchema),
-    };
+    return buildToolDefinition(this.name, this.description, this.parametersSchema);
   }
 
   async execute(args: unknown, context: ToolExecuteContext): Promise<ToolExecutionResult> {
-    const parsed = this.parametersSchema.safeParse(args);
+    const parsed = validateToolArgs(this.parametersSchema, args);
     if (!parsed.success) {
-      return {
-        success: false,
-        content: '',
-        error: `参数验证失败: ${parsed.error.message}`,
-      };
+      return parsed.result;
     }
 
     if (!context.send) {
-      return {
-        success: false,
-        content: '',
-        error: '当前会话不支持主动发送消息',
-      };
+      return buildValidationErrorResult('当前会话不支持主动发送消息');
     }
 
     const text = parsed.data.text?.trim() ?? '';
