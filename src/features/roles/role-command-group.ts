@@ -2,7 +2,7 @@ import type { CommandContext, CommandDefinition, CommandResult } from '@/contrac
 import type { ToolCatalog } from '@/platform/tools/registry.js';
 import { roleManager } from './role-manager.js';
 import { logger } from '@/platform/observability/logger.js';
-import { createMissingArgumentResult, createUnknownSubcommandResult } from '@/platform/commands/subcommand-utils.js';
+import { createMissingArgumentResult, dispatchSubcommand } from '@/platform/commands/subcommand-utils.js';
 
 interface RoleCommandSession {
   switchRole: (_roleId: string) => { success: boolean; message: string };
@@ -34,10 +34,8 @@ export function createRoleCommandGroup(deps: RoleCommandGroupDeps): CommandDefin
       category: 'system',
       aliases: ['roles'],
       execute: async (ctx: CommandContext): Promise<CommandResult> => {
-        const subCommand = ctx.args[0]?.toLowerCase();
-
-        switch (subCommand) {
-          case 'list': {
+        return dispatchSubcommand(ctx, ROLE_SUBCOMMANDS, {
+          list: () => {
             const roles = roleManager.getRolesList();
             let output = '可用角色列表：\n\n';
 
@@ -55,9 +53,8 @@ export function createRoleCommandGroup(deps: RoleCommandGroupDeps): CommandDefin
               success: true,
               message: output,
             };
-          }
-
-          case 'info': {
+          },
+          info: () => {
             const roleId = ctx.args[1];
             if (!roleId) {
               return createMissingArgumentResult('请指定角色ID', '/role info <role-id>');
@@ -103,9 +100,8 @@ export function createRoleCommandGroup(deps: RoleCommandGroupDeps): CommandDefin
               success: true,
               message: output,
             };
-          }
-
-          case 'switch': {
+          },
+          switch: () => {
             const targetRoleId = ctx.args[1];
             if (!targetRoleId) {
               return createMissingArgumentResult('请指定要切换的角色ID', '/role switch <role-id>');
@@ -127,9 +123,8 @@ export function createRoleCommandGroup(deps: RoleCommandGroupDeps): CommandDefin
               success: result.success,
               message: result.message,
             };
-          }
-
-          case 'current': {
+          },
+          current: () => {
             const session = deps.getSessionForCommand(ctx);
             if (!session) {
               return {
@@ -154,12 +149,8 @@ export function createRoleCommandGroup(deps: RoleCommandGroupDeps): CommandDefin
               success: true,
               message: output,
             };
-          }
-
-          default: {
-            return createUnknownSubcommandResult(subCommand, ROLE_SUBCOMMANDS);
-          }
-        }
+          },
+        });
       },
     },
   ];

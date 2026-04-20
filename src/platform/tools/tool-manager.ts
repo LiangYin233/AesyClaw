@@ -1,5 +1,6 @@
 import { ZodError } from 'zod';
 import { logger } from '@/platform/observability/logger.js';
+import { OwnedNameRegistry } from '@/platform/registration/owned-name-registry.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
 import {
   type RegistrationHandle,
@@ -42,7 +43,7 @@ interface RegisteredToolRecord {
 
 export class ToolManager implements ToolCatalog {
   private tools: Map<string, RegisteredToolRecord> = new Map();
-  private ownerToolNames: Map<string, Set<string>> = new Map();
+  private ownerToolNames = new OwnedNameRegistry();
 
   constructor() {
     logger.info({}, 'ToolManager initialized');
@@ -191,26 +192,14 @@ export class ToolManager implements ToolCatalog {
   }
 
   private listOwnedNames(owner: RegistrationOwner): string[] {
-    return Array.from(this.ownerToolNames.get(getRegistrationOwnerKey(owner)) ?? []);
+    return this.ownerToolNames.list(owner);
   }
 
   private trackOwnerName(owner: RegistrationOwner, toolName: string): void {
-    const ownerKey = getRegistrationOwnerKey(owner);
-    const names = this.ownerToolNames.get(ownerKey) ?? new Set<string>();
-    names.add(toolName);
-    this.ownerToolNames.set(ownerKey, names);
+    this.ownerToolNames.add(owner, toolName);
   }
 
   private untrackOwnerName(owner: RegistrationOwner, toolName: string): void {
-    const ownerKey = getRegistrationOwnerKey(owner);
-    const names = this.ownerToolNames.get(ownerKey);
-    if (!names) {
-      return;
-    }
-
-    names.delete(toolName);
-    if (names.size === 0) {
-      this.ownerToolNames.delete(ownerKey);
-    }
+    this.ownerToolNames.remove(owner, toolName);
   }
 }

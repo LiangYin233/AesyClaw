@@ -2,6 +2,7 @@ import type { ChannelPlugin, ChannelPluginContext } from './channel-plugin.js';
 import type { ChannelPipeline } from '@/agent/pipeline.js';
 import type { ConfigDefaultsScope } from '@/contracts/commands.js';
 import { logger, createScopedLogger } from '@/platform/observability/logger.js';
+import { runDestroy } from '@/platform/utils/lifecycle.js';
 import { mergeDefaultOptions } from '@/platform/utils/merge-default-options.js';
 
 export interface ChannelConfigDefaultsStore {
@@ -75,11 +76,11 @@ export class ChannelPluginManager {
 
       logger.info({ channelName: plugin.name }, 'Channel plugin registered successfully');
     } catch (error) {
-      try {
-        await plugin.destroy();
-      } catch (cleanupError) {
-        logger.error({ channelName: plugin.name, error: cleanupError }, 'Channel plugin cleanup after registration failure failed');
-      }
+      await runDestroy({
+        destroy: plugin.destroy,
+        errorContext: { channelName: plugin.name },
+        errorMessage: 'Channel plugin cleanup after registration failure failed',
+      });
       logger.error({ channelName: plugin.name, error }, 'Failed to register channel plugin');
       throw error;
     }
@@ -95,10 +96,14 @@ export class ChannelPluginManager {
     logger.info({ channelName: name }, 'Unregistering channel plugin');
 
     try {
-      await plugin.destroy();
-      logger.info({ channelName: name }, 'Channel plugin unregistered successfully');
-    } catch (error) {
-      logger.error({ channelName: name, error }, 'Error during channel plugin unregister');
+      const destroyed = await runDestroy({
+        destroy: plugin.destroy,
+        errorContext: { channelName: name },
+        errorMessage: 'Error during channel plugin unregister',
+      });
+      if (destroyed) {
+        logger.info({ channelName: name }, 'Channel plugin unregistered successfully');
+      }
     } finally {
       this.channels.delete(name);
     }

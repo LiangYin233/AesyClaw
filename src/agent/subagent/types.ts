@@ -30,7 +30,7 @@ export interface SandboxConfig {
 
 export const SUBAGENT_TOOL_NAME_RUN = 'runSubAgent';
 export const SUBAGENT_TOOL_NAME_TEMP = 'runTempSubAgent';
-export const SUBAGENT_TOOL_DESCRIPTION_RUN = `加载 .aesyclaw/roles/ 中预定义的角色专家来执行专业任务。
+export const SUBAGENT_TOOL_DESCRIPTION_RUN = `加载预定义的角色专家来执行专业任务。
 使用场景：
 - 当任务适合交给某个已存在的预定义角色处理时使用
 - 其他需要专业分工的任务

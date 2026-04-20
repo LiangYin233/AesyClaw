@@ -1,6 +1,6 @@
 import type { CommandContext, CommandDefinition, CommandResult } from '@/contracts/commands.js';
 import { logger } from '@/platform/observability/logger.js';
-import { createMissingArgumentResult, createUnknownSubcommandResult } from '@/platform/commands/subcommand-utils.js';
+import { createMissingArgumentResult, dispatchSubcommand } from '@/platform/commands/subcommand-utils.js';
 
 export interface PluginCommandGroupDeps {
   getPluginCommands: () => CommandDefinition[];
@@ -27,12 +27,11 @@ function formatPluginList(getPluginCommands: () => CommandDefinition[]): string 
   for (const cmd of plugins) {
     const parts = cmd.name.split(':');
     const pluginName = parts[0];
-    if (!pluginMap.has(pluginName)) {
-      pluginMap.set(pluginName, { loaded: true, commands: [] });
-    }
-    pluginMap.get(pluginName)!.commands.push(
+    const pluginInfo = pluginMap.get(pluginName) ?? { loaded: true, commands: [] };
+    pluginInfo.commands.push(
       `  /${cmd.name} - ${cmd.description}`
     );
+    pluginMap.set(pluginName, pluginInfo);
   }
 
   for (const [pluginName, info] of pluginMap) {
@@ -54,17 +53,12 @@ export function createPluginCommandGroup(deps: PluginCommandGroupDeps): CommandD
       category: 'system',
       aliases: ['plugins'],
       execute: async (ctx: CommandContext): Promise<CommandResult> => {
-        const subCommand = ctx.args[0]?.toLowerCase();
-
-        switch (subCommand) {
-          case 'list': {
-            return {
-              success: true,
-              message: formatPluginList(deps.getPluginCommands),
-            };
-          }
-
-          case 'enable': {
+        return dispatchSubcommand(ctx, PLUGIN_SUBCOMMANDS, {
+          list: () => ({
+            success: true,
+            message: formatPluginList(deps.getPluginCommands),
+          }),
+          enable: async () => {
             const pluginName = ctx.args[1];
             if (!pluginName) {
               return createMissingArgumentResult('请指定要开启的插件名称', '/plugin enable <plugin-name>');
@@ -72,9 +66,8 @@ export function createPluginCommandGroup(deps: PluginCommandGroupDeps): CommandD
 
             logger.info({ pluginName }, '正在开启插件');
             return deps.enablePlugin(pluginName);
-          }
-
-          case 'disable': {
+          },
+          disable: async () => {
             const pluginName = ctx.args[1];
             if (!pluginName) {
               return createMissingArgumentResult('请指定要关闭的插件名称', '/plugin disable <plugin-name>');
@@ -82,12 +75,8 @@ export function createPluginCommandGroup(deps: PluginCommandGroupDeps): CommandD
 
             logger.info({ pluginName }, '正在关闭插件');
             return deps.disablePlugin(pluginName);
-          }
-
-          default: {
-            return createUnknownSubcommandResult(subCommand, PLUGIN_SUBCOMMANDS);
-          }
-        }
+          },
+        });
       },
     },
   ];

@@ -27,6 +27,11 @@ interface ConfigDefaultsSyncTarget {
   updateConfig(updates: Partial<FullConfig>): Promise<boolean>;
 }
 
+interface MergedDefaultsResult {
+  merged: Record<string, unknown>;
+  changed: boolean;
+}
+
 class ConfigDefaultsRegistry {
   private pendingDefaults: Record<ConfigDefaultsScope, Map<string, Record<string, unknown>>> = {
     plugin: new Map<string, Record<string, unknown>>(),
@@ -51,6 +56,18 @@ class ConfigDefaultsRegistry {
     if (!updated) {
       throw new Error(`Failed to persist ${scope} defaults`);
     }
+  }
+
+  private mergeRegisteredDefaults(
+    defaults: Record<string, unknown>,
+    existing?: Record<string, unknown>
+  ): MergedDefaultsResult {
+    const merged = mergeDefaultOptions(defaults, existing);
+    if (existing && !hasCanonicalValueChanged(existing, merged)) {
+      return { merged, changed: false };
+    }
+
+    return { merged, changed: true };
   }
 
   private async syncPendingDefaults<T>(
@@ -89,19 +106,19 @@ class ConfigDefaultsRegistry {
       (plugins, name, defaults) => {
         const index = plugins.findIndex((plugin) => plugin.name === name);
         const existing = index >= 0 ? plugins[index] : undefined;
-        const mergedOptions = mergeDefaultOptions(defaults, existing?.options);
+        const { merged, changed } = this.mergeRegisteredDefaults(defaults, existing?.options);
         if (!existing) {
-          plugins.push({ name, enabled: true, options: mergedOptions });
+          plugins.push({ name, enabled: true, options: merged });
           return true;
         }
 
-        if (!hasCanonicalValueChanged(existing.options || {}, mergedOptions)) {
+        if (!changed) {
           return false;
         }
 
         plugins[index] = {
           ...existing,
-          options: mergedOptions,
+          options: merged,
         };
         return true;
       },
@@ -117,12 +134,12 @@ class ConfigDefaultsRegistry {
       config => ({ ...config.channels }),
       (channels, name, defaults) => {
         const existing = channels[name];
-        const mergedChannelConfig = mergeDefaultOptions(defaults, existing);
-        if (existing && !hasCanonicalValueChanged(existing, mergedChannelConfig)) {
+        const { merged, changed } = this.mergeRegisteredDefaults(defaults, existing);
+        if (!changed) {
           return false;
         }
 
-        channels[name] = mergedChannelConfig;
+        channels[name] = merged;
         return true;
       },
       channels => ({ channels })

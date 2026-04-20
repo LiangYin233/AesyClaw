@@ -1,9 +1,9 @@
-import * as fs from 'fs';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
 import type { ChannelPipeline } from '@/agent/pipeline.js';
 import { logger } from '@/platform/observability/logger.js';
 import { assertPackageNameMatchesExportedName } from '@/platform/utils/package-manifest.js';
+import { getDiscoveredPluginEntryCandidates, resolveDiscoveredPluginEntry } from '@/platform/utils/plugin-entry.js';
 import { discoverPluginsByPrefix, type DiscoveredPlugin } from '@/platform/utils/plugin-discovery.js';
 import { hasCanonicalValueChanged } from '@/platform/utils/canonical-stringify.js';
 import type { ChannelPlugin } from './channel-plugin.js';
@@ -70,17 +70,21 @@ export class ChannelRuntime {
     channels: Record<string, unknown>
   ): Promise<void> {
     const pluginName = discovered.dirName;
+    const candidates = getDiscoveredPluginEntryCandidates(discovered);
 
     try {
-      const entryPath = this.resolveChannelEntry(discovered);
+      const entryPath = resolveDiscoveredPluginEntry(discovered);
       if (!entryPath) {
-        logger.warn({ pluginName }, 'Channel plugin entry point not found');
+        logger.warn({ pluginName, candidates }, 'Channel plugin entry point not found');
         return;
       }
 
-      const { default: channelPlugin } = await import(pathToFileURL(entryPath).href) as {
-        default: ChannelPlugin;
-      };
+      const mod = await import(pathToFileURL(entryPath).href);
+      const channelPlugin: ChannelPlugin | undefined = mod.default || mod;
+      if (!channelPlugin || !channelPlugin.name) {
+        logger.warn({ entryPath }, 'Invalid channel plugin module, missing name');
+        return;
+      }
 
       assertPackageNameMatchesExportedName(discovered.packageJson, channelPlugin.name, 'Channel plugin');
 
@@ -92,23 +96,6 @@ export class ChannelRuntime {
       const errorStack = error instanceof Error ? error.stack : undefined;
       logger.error({ error: errorMessage, stack: errorStack, pluginName }, 'Failed to load channel plugin');
     }
-  }
-
-  private resolveChannelEntry(discovered: DiscoveredPlugin): string | undefined {
-    const mainFile = discovered.packageJson.main || 'dist/index.js';
-    const candidates = [
-      path.join(discovered.dir, mainFile),
-      path.join(discovered.dir, 'index.ts'),
-      path.join(discovered.dir, 'src/index.ts'),
-    ];
-
-    return candidates.find(candidate => {
-      try {
-        return fs.existsSync(candidate);
-      } catch {
-        return false;
-      }
-    });
   }
 
   private registerConfigChangeListener(): void {

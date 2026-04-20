@@ -7,8 +7,10 @@ import { createRegistrationOwner } from '@/platform/registration/types.js';
 import { logger, createScopedLogger } from '@/platform/observability/logger.js';
 import type { ToolManager } from '@/platform/tools/registry.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
+import { runDestroy } from '@/platform/utils/lifecycle.js';
 import { mergeDefaultOptions } from '@/platform/utils/merge-default-options.js';
 import { assertPackageNameMatchesExportedName } from '@/platform/utils/package-manifest.js';
+import { getDiscoveredPluginEntryCandidates, resolveDiscoveredPluginEntry } from '@/platform/utils/plugin-entry.js';
 import { discoverPluginsByPrefix, type DiscoveredPlugin } from '@/platform/utils/plugin-discovery.js';
 import {
   BeforeLLMRequestDispatchResult,
@@ -96,15 +98,6 @@ export class PluginManager {
     }
   }
 
-  private resolveEntryCandidates(info: DiscoveredPlugin): string[] {
-    const mainFile = info.packageJson.main || 'dist/index.js';
-    return [
-      path.join(info.dir, mainFile),
-      path.join(info.dir, 'index.ts'),
-      path.join(info.dir, 'src/index.ts'),
-    ];
-  }
-
   private resolvePluginName(name: string): string | undefined {
     return this.aliasToPluginName.get(name) ?? (this.loadedPlugins.has(name) ? name : undefined);
   }
@@ -148,26 +141,6 @@ export class PluginManager {
     }
   }
 
-  private async destroyPlugin(
-    pluginName: string,
-    plugin: Plugin,
-    errorMessage: string,
-    rethrow = false
-  ): Promise<void> {
-    if (!plugin.destroy) {
-      return;
-    }
-
-    try {
-      await plugin.destroy();
-    } catch (cleanupError) {
-      logger.error({ pluginName, error: cleanupError }, errorMessage);
-      if (rethrow) {
-        throw cleanupError;
-      }
-    }
-  }
-
   private disposePluginScopes(record: Pick<LoadedPluginRecord, 'commandScope' | 'toolScope'>): void {
     record.commandScope.dispose();
     record.toolScope.dispose();
@@ -178,8 +151,8 @@ export class PluginManager {
     options: Record<string, unknown>,
     registerDefaults = true
   ): Promise<void> {
-    const candidates = this.resolveEntryCandidates(info);
-    const entryPath = candidates.find(fs.existsSync);
+    const candidates = getDiscoveredPluginEntryCandidates(info);
+    const entryPath = resolveDiscoveredPluginEntry(info);
 
     if (!entryPath) {
       logger.warn({ pluginName: info.name, candidates }, 'Plugin entry point not found');
@@ -248,7 +221,11 @@ export class PluginManager {
       logger.info({ pluginName: plugin.name }, 'Plugin loaded successfully');
     } catch (error) {
       this.disposePluginScopes({ commandScope, toolScope });
-      await this.destroyPlugin(plugin.name, plugin, 'Plugin cleanup after initialization failure failed');
+      await runDestroy({
+        destroy: plugin.destroy,
+        errorContext: { pluginName: plugin.name },
+        errorMessage: 'Plugin cleanup after initialization failure failed',
+      });
 
       logger.error({ pluginName: plugin.name, error }, 'Plugin initialization failed');
     }
@@ -380,7 +357,12 @@ export class PluginManager {
     }
 
     try {
-      await this.destroyPlugin(pluginName, record.plugin, 'Plugin unload cleanup failed', true);
+      await runDestroy({
+        destroy: record.plugin.destroy,
+        errorContext: { pluginName },
+        errorMessage: 'Plugin unload cleanup failed',
+        rethrow: true,
+      });
       this.disposePluginScopes(record);
 
       this.loadedPlugins.delete(pluginName);

@@ -1,4 +1,5 @@
 import { logger } from '@/platform/observability/logger.js';
+import { OwnedNameRegistry } from '@/platform/registration/owned-name-registry.js';
 import {
   type RegistrationHandle,
   type RegistrationOwner,
@@ -38,7 +39,7 @@ interface RegisteredCommandRecord {
 export class CommandManager implements CommandCatalog {
   private commands: Map<string, RegisteredCommandRecord> = new Map();
   private aliasMap: Map<string, string> = new Map();
-  private ownerCommandNames: Map<string, Set<string>> = new Map();
+  private ownerCommandNames = new OwnedNameRegistry();
 
   constructor() {
     logger.info({}, 'CommandManager initialized');
@@ -213,27 +214,15 @@ export class CommandManager implements CommandCatalog {
   }
 
   private listOwnedNames(owner: RegistrationOwner): string[] {
-    return Array.from(this.ownerCommandNames.get(getRegistrationOwnerKey(owner)) ?? []);
+    return this.ownerCommandNames.list(owner);
   }
 
   private trackOwnerName(owner: RegistrationOwner, commandName: string): void {
-    const ownerKey = getRegistrationOwnerKey(owner);
-    const names = this.ownerCommandNames.get(ownerKey) ?? new Set<string>();
-    names.add(commandName);
-    this.ownerCommandNames.set(ownerKey, names);
+    this.ownerCommandNames.add(owner, commandName);
   }
 
   private untrackOwnerName(owner: RegistrationOwner, commandName: string): void {
-    const ownerKey = getRegistrationOwnerKey(owner);
-    const names = this.ownerCommandNames.get(ownerKey);
-    if (!names) {
-      return;
-    }
-
-    names.delete(commandName);
-    if (names.size === 0) {
-      this.ownerCommandNames.delete(ownerKey);
-    }
+    this.ownerCommandNames.remove(owner, commandName);
   }
 
   private toStoredName(name: string, namespace?: string): string {

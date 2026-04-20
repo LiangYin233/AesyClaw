@@ -1,15 +1,11 @@
 import { spawn } from 'child_process';
 import { z } from 'zod';
-import * as path from 'path';
-import * as fs from 'fs';
 import type { Plugin, PluginContext } from '@/sdk/plugin.js';
 import type { Tool, ToolExecuteContext, ToolExecutionResult } from '@/sdk/tools.js';
 import { toErrorMessage } from '@/sdk/errors.js';
+import { ensureWorkspaceDir } from '@/sdk/paths.js';
 
-const WORKSPACE_DIR = path.join(process.cwd(), '.aesyclaw', 'workspace');
-if (!fs.existsSync(WORKSPACE_DIR)) {
-  fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
-}
+const WORKSPACE_DIR = ensureWorkspaceDir();
 
 const EXEC_TIMEOUT_MS = 30_000;
 const MAX_OUTPUT_SIZE = 1024 * 1024;
