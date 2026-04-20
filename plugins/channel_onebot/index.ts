@@ -238,13 +238,36 @@ export const onebotPlugin: ChannelPlugin = {
     const logger = state.logger;
 
     try {
-      if (ws) {
-        ws.close(1000, 'Plugin shutdown');
-      }
-    } finally {
       rejectPendingRequests(new Error('Plugin shutdown'));
-      resetState();
+    } catch {
+      // already cleared
     }
+
+    if (ws) {
+      await new Promise<void>((resolve) => {
+        if (ws.readyState === WebSocket.CLOSED) {
+          ws.removeAllListeners();
+          resolve();
+          return;
+        }
+
+        const onClose = () => {
+          ws.removeAllListeners();
+          resolve();
+        };
+
+        ws.once('close', onClose);
+        ws.once('error', onClose);
+        ws.close(1000, 'Plugin shutdown');
+
+        setTimeout(() => {
+          ws.removeAllListeners();
+          resolve();
+        }, 5000);
+      });
+    }
+
+    resetState();
 
     logger?.info('OneBot plugin destroyed', {});
   },
@@ -703,19 +726,23 @@ async function sendApi(action: string, params: Record<string, unknown>, echo?: s
 
   return new Promise((resolve, reject) => {
     if (echo) {
-      state.pendingRequests.set(echo, { resolve, reject });
-      
       const timeout = setTimeout(() => {
         if (state.pendingRequests.has(echo)) {
           state.pendingRequests.delete(echo);
           reject(new Error(`API call timeout: ${action}`));
         }
       }, 30000);
-      
-      state.pendingRequests.get(echo)!.reject = (err: Error) => {
-        clearTimeout(timeout);
-        reject(err);
-      };
+
+      state.pendingRequests.set(echo, {
+        resolve: (value: unknown) => {
+          clearTimeout(timeout);
+          resolve(value);
+        },
+        reject: (err: Error) => {
+          clearTimeout(timeout);
+          reject(err);
+        },
+      });
     }
 
     ws.send(JSON.stringify(request));

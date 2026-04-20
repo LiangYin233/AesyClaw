@@ -255,13 +255,20 @@ export class PluginManager {
     pluginName: string,
     enabled: boolean,
     options?: Record<string, unknown>
-  ): Promise<void> {
+  ): Promise<boolean> {
+    const record = this.loadedPlugins.get(pluginName);
+    const aliasNames = record ? Array.from(record.aliases) : [pluginName];
+
+    const existingConfig = this.getStoredPluginConfig(...aliasNames);
+    const canonicalName = existingConfig?.name ?? pluginName;
+
     const updated = await this.runWithConfigReloadSuspended(() =>
-      this.deps.configStore.updatePluginRuntimeConfig(pluginName, { enabled, options })
+      this.deps.configStore.updatePluginRuntimeConfig(canonicalName, { enabled, options })
     );
     if (!updated) {
-      throw new Error(`Failed to persist plugin config for "${pluginName}"`);
+      throw new Error(`Failed to persist plugin config for "${canonicalName}"`);
     }
+    return true;
   }
 
   private async runWithConfigReloadSuspended<T>(action: () => Promise<T>): Promise<T> {

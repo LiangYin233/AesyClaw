@@ -377,21 +377,32 @@ export class ConfigManager {
   ): Promise<boolean> {
     const current = this.config.plugins;
     let matched = false;
-    const next = current.map(p => {
-      if (p.name !== name) {
-        return { ...p, options: p.options ? { ...p.options } : {} };
+    const deduplicated: PluginRuntimeConfig[] = [];
+    const seenNames = new Set<string>();
+
+    for (const p of current) {
+      if (seenNames.has(p.name)) {
+        continue;
       }
-      matched = true;
-      return {
-        ...p,
-        enabled: changes.enabled,
-        options: changes.options ?? (p.options ? { ...p.options } : {}),
-      };
-    });
-    if (!matched) {
-      next.push({ name, enabled: changes.enabled, options: changes.options || {} });
+      seenNames.add(p.name);
+
+      if (p.name === name) {
+        matched = true;
+        deduplicated.push({
+          ...p,
+          enabled: changes.enabled,
+          options: changes.options ?? (p.options ? { ...p.options } : {}),
+        });
+      } else {
+        deduplicated.push({ ...p, options: p.options ? { ...p.options } : {} });
+      }
     }
-    return this.updateConfig({ plugins: next });
+
+    if (!matched) {
+      deduplicated.push({ name, enabled: changes.enabled, options: changes.options || {} });
+    }
+
+    return this.updateConfig({ plugins: deduplicated });
   }
 
   async updateConfig(updates: Partial<FullConfig>): Promise<boolean> {

@@ -18,6 +18,7 @@ export class CronService {
   private running = false;
   private nextTimeoutId: NodeJS.Timeout | null = null;
   private activeJobs = new Set<string>();
+  private activeJobPromises = new Map<string, Promise<void>>();
   private executor: CronExecutor | null = null;
 
   setExecutor(executor: CronExecutor): void {
@@ -102,12 +103,18 @@ export class CronService {
     logger.info({}, 'Cron service started');
   }
 
-  stop(): void {
+  async stop(): Promise<void> {
     this.running = false;
 
     if (this.nextTimeoutId) {
       clearTimeout(this.nextTimeoutId);
       this.nextTimeoutId = null;
+    }
+
+    const pending = Array.from(this.activeJobPromises.values());
+    if (pending.length > 0) {
+      logger.info({ activeJobCount: pending.length }, 'Waiting for active cron jobs to complete');
+      await Promise.allSettled(pending);
     }
 
     logger.info({}, 'Cron service stopped');
@@ -213,14 +220,17 @@ export class CronService {
     const run = cronRunRepository.createRunning(job.id, startedAt);
     cronJobRepository.updateSchedule(job.id, { lastRunAt: startedAt });
 
-    this.runExecutor(job, run, startedAt)
+    const jobPromise = this.runExecutor(job, run, startedAt)
       .catch(() => {
         // Errors are already logged and recorded inside runExecutor
       })
       .finally(() => {
         this.activeJobs.delete(job.id);
+        this.activeJobPromises.delete(job.id);
         this.scheduleNext();
       });
+
+    this.activeJobPromises.set(job.id, jobPromise);
   }
 
   private async runExecutor(job: CronJob, run: CronRun, startedAt: string): Promise<void> {

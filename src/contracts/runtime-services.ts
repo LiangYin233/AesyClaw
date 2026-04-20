@@ -70,7 +70,7 @@ export interface SkillManagerService extends SkillStore {
 export interface CronServiceRuntime {
   setExecutor(executor: CronExecutor): void;
   start(): void;
-  stop(): void;
+  stop(): Promise<void>;
   isRunning(): boolean;
   getScheduledTaskCount(): number;
 }

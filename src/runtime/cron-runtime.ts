@@ -38,8 +38,8 @@ export class CronRuntime {
     logger.info({ schedulerRunning: this.isRunning() }, 'Cron system initialized');
   }
 
-  stop(): void {
-    this.deps.cronService.stop();
+  async stop(): Promise<void> {
+    await this.deps.cronService.stop();
   }
 
   isRunning(): boolean {
