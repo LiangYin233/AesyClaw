@@ -117,10 +117,6 @@ class SQLiteManager {
     }
   }
 
-  [Symbol.dispose](): void {
-    this.close();
-  }
-
   transaction<T>(fn: () => T): T {
     return this.getDatabase().transaction(fn)();
   }

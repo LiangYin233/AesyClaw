@@ -29,15 +29,9 @@ export class McpRuntime {
     return this.manager?.getConnectedServers() || [];
   }
 
-  async start(options: { watchConfig?: boolean } = {}): Promise<void> {
-    const { watchConfig = true } = options;
-
+  async start(): Promise<void> {
     this.manager = new McpClientManager(this.deps.toolManager);
     await this.manager.connectConfiguredServers(this.deps.configSource.getServerConfigs());
-
-    if (watchConfig) {
-      this.watchConfigChanges();
-    }
   }
 
   watchConfigChanges(): void {

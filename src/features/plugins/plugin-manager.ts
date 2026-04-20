@@ -474,7 +474,4 @@ export class PluginManager {
     return this.loadedPlugins.size;
   }
 
-  async [Symbol.asyncDispose](): Promise<void> {
-    await this.shutdown();
-  }
 }

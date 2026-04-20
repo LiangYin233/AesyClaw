@@ -33,13 +33,8 @@ export class ChannelRuntime {
     return this.deps.channelManager.getChannelCount();
   }
 
-  async start(options: { watchConfig?: boolean } = {}): Promise<void> {
-    const { watchConfig = true } = options;
-
+  async start(): Promise<void> {
     await this.loadChannelPlugins(this.deps.configSource.getChannelsConfig());
-    if (watchConfig) {
-      this.watchConfigChanges();
-    }
   }
 
   watchConfigChanges(): void {

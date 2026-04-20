@@ -11,7 +11,6 @@ import { createSubAgentTools } from '@/agent/subagent/subagent-tools.js';
 import { ChannelRuntime } from '@/channels/channel-runtime.js';
 import { ChannelPluginManager } from '@/channels/channel-manager.js';
 import type { CommandDefinition } from '@/contracts/commands.js';
-import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
 import { createCommandMiddleware } from '@/features/commands/command-middleware.js';
 import { CommandManager } from '@/features/commands/command-registry.js';
 import { createHelpCommandGroup } from '@/features/commands/help-command-group.js';
@@ -39,7 +38,7 @@ import type {
   SQLiteManagerService,
 } from '@/runtime-dependencies.js';
 
-export interface AppRuntimeDependencies {
+interface AppRuntimeDependencies {
   toolManager: ToolManager;
   commandManager: CommandManager;
   systemPromptManager: SystemPromptManager;
@@ -64,14 +63,14 @@ export class AppRuntime {
   private initialized = false;
   private systemRegistrationScopes: DisposableRegistrationScope[] = [];
 
-  readonly toolManager: ToolManager;
-  readonly commandManager: CommandManager;
-  readonly systemPromptManager: SystemPromptManager;
-  readonly pluginManager: PluginManager;
-  readonly chatService: ChatService;
-  readonly channelManager: ChannelPluginManager;
-  readonly channelRuntime: ChannelRuntime;
-  readonly mcpRuntime: McpRuntime;
+  private readonly toolManager: ToolManager;
+  private readonly commandManager: CommandManager;
+  private readonly systemPromptManager: SystemPromptManager;
+  private readonly pluginManager: PluginManager;
+  private readonly chatService: ChatService;
+  private readonly channelManager: ChannelPluginManager;
+  private readonly channelRuntime: ChannelRuntime;
+  private readonly mcpRuntime: McpRuntime;
   private readonly deps: AppRuntimeDependencies;
 
   constructor(deps: AppRuntimeDependencies) {
@@ -118,14 +117,6 @@ export class AppRuntime {
         }),
       },
     });
-  }
-
-  getHookRuntime(): PluginHookRuntime {
-    return this.pluginManager;
-  }
-
-  isInitialized(): boolean {
-    return this.initialized;
   }
 
   async start(): Promise<void> {
@@ -182,15 +173,6 @@ export class AppRuntime {
     this.initialized = false;
 
     logger.info({}, 'AesyClaw shutdown completed');
-  }
-
-  async restart(): Promise<void> {
-    try {
-      await this.stop();
-    } catch (error) {
-      logger.warn({ error: toErrorMessage(error) }, 'restart: stop() failed, attempting start anyway');
-    }
-    await this.start();
   }
 
   getStatus() {
@@ -338,9 +320,9 @@ export class AppRuntime {
     this.deps.cronService.start();
     logger.info({ schedulerRunning: this.deps.cronService.isRunning() }, 'Cron system initialized');
 
-    await this.mcpRuntime.start({ watchConfig: false });
-    await this.channelRuntime.start({ watchConfig: false });
-
+    await this.mcpRuntime.start();
+    await this.channelRuntime.start();
+    
     await this.deps.configManager.syncAllDefaultConfigs();
     this.mcpRuntime.watchConfigChanges();
     this.channelRuntime.watchConfigChanges();

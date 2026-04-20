@@ -389,9 +389,6 @@ export class ConfigManager {
     logger.info({}, 'ConfigManager destroyed');
   }
 
-  async [Symbol.asyncDispose](): Promise<void> {
-    await this.destroy();
-  }
 }
 
 export const configManager = new ConfigManager();

@@ -118,7 +118,4 @@ export class ChannelPluginManager {
     logger.info({}, 'All channel plugins shut down');
   }
 
-  async [Symbol.asyncDispose](): Promise<void> {
-    await this.shutdown();
-  }
 }

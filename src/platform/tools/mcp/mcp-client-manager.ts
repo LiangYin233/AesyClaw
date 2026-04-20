@@ -132,7 +132,4 @@ export class McpClientManager {
     this.serverInfos.clear();
   }
 
-  async [Symbol.asyncDispose](): Promise<void> {
-    await this.shutdown();
-  }
 }
