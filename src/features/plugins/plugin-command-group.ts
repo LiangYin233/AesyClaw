@@ -1,3 +1,9 @@
+/** @file 插件管理命令组
+ *
+ * 提供 /plugin list、/plugin enable、/plugin disable 三个子命令，
+ * 用于运行时查看插件状态、启用和禁用插件。
+ */
+
 import type { CommandContext, CommandDefinition, CommandResult } from '@/contracts/commands.js';
 import { logger } from '@/platform/observability/logger.js';
 import { createMissingArgumentResult, dispatchSubcommand } from '@/platform/commands/subcommand-utils.js';
@@ -14,6 +20,7 @@ const PLUGIN_SUBCOMMANDS = [
   '  /plugin disable  - 关闭插件',
 ];
 
+/** 格式化插件列表，按插件名称分组显示命令 */
 function formatPluginList(getPluginCommands: () => CommandDefinition[]): string {
   const plugins = getPluginCommands();
 
@@ -44,6 +51,7 @@ function formatPluginList(getPluginCommands: () => CommandDefinition[]): string 
   return output.trim();
 }
 
+/** 创建插件管理命令组 */
 export function createPluginCommandGroup(deps: PluginCommandGroupDeps): CommandDefinition[] {
   return [
     {

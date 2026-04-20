@@ -1,3 +1,16 @@
+/** @file 会话服务
+ *
+ * ChatService 管理聊天会话的生命周期，包括：
+ * - 会话获取/创建（resolveForReceive、getOrCreate）
+ * - 会话上下文构建（buildContext）：加载历史消息、构建系统提示词、创建 AgentEngine
+ * - 角色切换（switchRole）与角色信息查询（getRoleInfo）
+ * - 会话压缩（compactChat）：将历史消息压缩为摘要
+ * - 会话清理（clearChat）
+ *
+ * 会话通过 ChatKey（channel + type + chatId）唯一标识，
+ * 持久化到 SQLite 数据库中。
+ */
+
 import { AgentEngine } from '@/agent/engine.js';
 import { SessionMemoryManager } from '@/agent/memory/session-memory-manager.js';
 import { type SessionMemoryConfig } from '@/agent/memory/types.js';
@@ -15,6 +28,7 @@ import type { ChatContext, ChatSession } from './session-context.js';
 import type { ChatKey } from '@/platform/db/repositories/session-repository.js';
 import type { ToolCatalog } from '@/platform/tools/registry.js';
 
+/** 角色信息摘要 */
 export interface RoleInfo {
   roleId: string;
   roleName: string;
@@ -36,24 +50,35 @@ export interface ChatServiceDependencies {
   skillStore: SkillStore;
 }
 
+/** 会话服务
+ *
+ * 管理会话的创建、查询、角色切换与 AgentEngine 构建。
+ */
 export class ChatService {
   constructor(private readonly deps: ChatServiceDependencies) {}
 
+  /** 根据收到的消息解析或创建会话上下文 */
   resolveForReceive(received: ChannelReceiveMessage): ChatContext {
     return this.buildContext(this.getOrCreate(toChatKey(received)));
   }
 
+  /** 根据命令上下文获取会话上下文 */
   getForCommand(ctx: CommandContext): ChatContext | null {
     const session = this.deps.chatStore.get(toChatKeyFromCommand(ctx));
     return session ? this.buildContext(session) : null;
   }
 
+  /** 清空会话历史消息 */
   clearChat(ctx: CommandContext): boolean {
     const key = toChatKeyFromCommand(ctx);
     this.deps.chatStore.saveMessages(key, []);
     return true;
   }
 
+  /** 压缩会话历史消息
+   *
+   * 使用 LLM 将历史消息压缩为摘要，减少上下文占用。
+   */
   async compactChat(ctx: CommandContext): Promise<{ success: boolean; message: string }> {
     const session = this.getForCommand(ctx);
     if (!session) {
@@ -77,6 +102,7 @@ export class ChatService {
     return { success: true, message: `会话已压缩（session: ${session.session.chatId}）` };
   }
 
+  /** 切换会话角色 */
   switchRole(ctx: CommandContext, roleId: string): { success: boolean; message: string } {
     const role = this.deps.roleStore.getRole(roleId);
     if (!role) {
@@ -92,6 +118,7 @@ export class ChatService {
     return { success: true, message: `已成功切换至角色：${role.name}\n可用工具: ${allowedToolsText}` };
   }
 
+  /** 获取当前会话的角色信息 */
   getRoleInfo(ctx: CommandContext): RoleInfo {
     const session = this.deps.chatStore.get(toChatKeyFromCommand(ctx));
     const roleId = session?.roleId ?? DEFAULT_ROLE_ID;
@@ -112,6 +139,10 @@ export class ChatService {
     return this.deps.chatStore.create(key);
   }
 
+  /** 保存会话消息到持久化存储
+   *
+   * 过滤掉不应持久化的消息（系统消息、工具调用结果、空内容）。
+   */
   save(context: ChatContext): void {
     const messages = context.memory.getMessages().filter(message => shouldPersistMessage(message));
     this.deps.chatStore.saveMessages(
@@ -120,6 +151,11 @@ export class ChatService {
     );
   }
 
+  /** 构建会话上下文
+   *
+   * 加载历史消息、构建系统提示词、创建 AgentEngine。
+   * AgentEngine 持有独立的 SessionMemoryManager 与配置。
+   */
   private buildContext(session: ChatSession): ChatContext {
     const key = { channel: session.channel, type: session.type, chatId: session.chatId };
     const memoryConfig = this.getMemoryConfig();
@@ -169,6 +205,7 @@ export class ChatService {
   }
 }
 
+/** 判断消息是否应持久化到存储 */
 function shouldPersistMessage(message: StandardMessage): boolean {
   if (message.role === MessageRole.User) {
     return true;

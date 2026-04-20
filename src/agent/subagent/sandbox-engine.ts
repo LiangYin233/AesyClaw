@@ -1,3 +1,17 @@
+/** @file 子代理沙箱引擎
+ *
+ * SandboxEngine 为子代理（SubAgent）提供隔离的执行环境：
+ * - 独立的记忆空间（不与父会话共享）
+ * - 受限的工具集（通过 allowedTools 过滤，禁止递归调用 subagent 工具）
+ * - 独立的 AgentEngine 实例，支持多步工具调用
+ *
+ * 沙箱初始化时会构建系统提示词，包含：
+ * - 角色系统提示词（或临时提示词）
+ * - 工具权限说明
+ * - 沙箱限制说明（禁止调用 subagent 工具）
+ * - 任务描述
+ */
+
 import { randomUUID } from 'crypto';
 import {
   type AgentSkill,
@@ -25,6 +39,10 @@ import {
   type SubAgentResult,
 } from './types.js';
 
+/** 子代理沙箱引擎
+ *
+ * 为子代理提供隔离的执行环境，限制工具集并禁止递归调用 subagent 工具。
+ */
 export class SandboxEngine {
   private sandboxId: string;
   private parentChatId: string;
@@ -38,6 +56,7 @@ export class SandboxEngine {
   private readonly roleStore: RoleStore;
   private readonly skillStore: SkillStore;
 
+  /** 沙箱中禁止使用的工具（防止递归调用 subagent） */
   private static readonly DISALLOWED_SANDBOX_TOOLS = new Set([
     SUBAGENT_TOOL_NAME_RUN,
     SUBAGENT_TOOL_NAME_TEMP,
@@ -77,6 +96,7 @@ export class SandboxEngine {
     );
   }
 
+  /** 初始化沙箱记忆，构建系统提示词 */
   private initializeMemory(): void {
     const toolPermissionText = this.config.allowedTools.includes('*')
       ? '你有权限使用所有工具。'
@@ -94,6 +114,7 @@ export class SandboxEngine {
     ];
   }
 
+  /** 从配置中提取任务描述 */
   private getTaskFromConfig(): string {
     if (this.config.roleId) {
       const role = this.roleStore.getRole(this.config.roleId);
@@ -104,6 +125,7 @@ export class SandboxEngine {
     return this.extractTaskDescription();
   }
 
+  /** 从系统提示词中提取任务描述 */
   private extractTaskDescription(): string {
     const systemPrompt = this.config.systemPrompt;
     const blockTaskMatch = systemPrompt.match(/【任务】\s*([\s\S]+)$/i);
@@ -118,6 +140,7 @@ export class SandboxEngine {
     return '执行指定任务';
   }
 
+  /** 获取沙箱允许使用的工具（过滤掉禁止的工具） */
   private getFilteredTools(): Tool[] {
     const allTools = this.toolCatalog.getAllToolDefinitions();
     const allowedNames = this.config.allowedTools.includes('*')
@@ -130,11 +153,17 @@ export class SandboxEngine {
       .filter((tool): tool is Tool => Boolean(tool));
   }
 
+  /** 获取沙箱允许使用的技能 */
   private getAllowedSkills(): AgentSkill[] {
     if (!this.skillStore.isInitialized()) return [];
     return this.skillStore.getSkillsForRole(this.config.allowedSkills);
   }
 
+  /** 执行子代理任务
+   *
+   * 构建独立的 AgentEngine，执行多步工具调用循环，
+   * 返回执行结果。执行完成后自动销毁沙箱。
+   */
   async execute(): Promise<SubAgentResult> {
     const startTime = Date.now();
 
@@ -241,6 +270,7 @@ export class SandboxEngine {
     }
   }
 
+  /** 获取 LLM 配置（优先从角色配置解析，失败时使用回退配置） */
   private getLLMConfig(): LLMConfig {
     try {
       const roleId = this.config.roleId || DEFAULT_ROLE_ID;
@@ -253,6 +283,7 @@ export class SandboxEngine {
     }
   }
 
+  /** 销毁沙箱，释放记忆 */
   destroy(): void {
     this.memory = [];
 

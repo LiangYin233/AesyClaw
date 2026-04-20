@@ -1,3 +1,14 @@
+/** @file 配置管理器
+ *
+ * ConfigManager 基于 c12 实现热重载配置管理，职责包括：
+ * - 从配置文件加载配置，支持层级合并（c12 的默认行为）
+ * - 使用 Zod 验证配置结构，验证失败时尝试用默认值填充缺失字段
+ * - 注册插件/频道的默认值，并在适当时机同步到配置文件
+ * - 监听配置文件变更，触发配置重载与变更通知
+ * - 提供 selfUpdating 守卫，防止写入配置文件时触发自身的热重载回调
+ * - 管理配置变更监听器，通知各子系统配置已更新
+ */
+
 import * as fs from 'fs';
 import * as path from 'path';
 import { ZodError } from 'zod';
@@ -12,6 +23,7 @@ import { parseConfigFromRaw } from './config-parser.js';
 import { mergeDefaultOptions } from '@/platform/utils/merge-default-options.js';
 import { hasCanonicalValueChanged } from '@/platform/utils/canonical-stringify.js';
 
+/** 自定义 defu 合并策略：数组字段直接替换而非合并 */
 const mergeConfigUpdates = createDefu((object, key, currentValue) => {
   if (Array.isArray(currentValue)) {
     object[key] = currentValue;
@@ -22,16 +34,23 @@ const mergeConfigUpdates = createDefu((object, key, currentValue) => {
 
 type ConfigChangeListener = (_next: FullConfig, _prev: FullConfig) => void | Promise<void>;
 
+/** 默认值同步目标接口，由 ConfigManager 自身实现 */
 interface ConfigDefaultsSyncTarget {
   readonly config: FullConfig;
   updateConfig(updates: Partial<FullConfig>): Promise<boolean>;
 }
 
+/** 默认值合并结果 */
 interface MergedDefaultsResult {
   merged: Record<string, unknown>;
   changed: boolean;
 }
 
+/** 默认值注册表
+ *
+ * 收集各插件/频道注册的默认值，在 sync() 时批量合并到配置文件。
+ * 合并策略：使用 mergeDefaultOptions（递归合并，数组替换）。
+ */
 class ConfigDefaultsRegistry {
   private pendingDefaults: Record<ConfigDefaultsScope, Map<string, Record<string, unknown>>> = {
     plugin: new Map<string, Record<string, unknown>>(),
@@ -147,10 +166,16 @@ class ConfigDefaultsRegistry {
   }
 }
 
+/** 配置管理器
+ *
+ * 基于 c12 实现热重载配置管理，支持默认值注册与配置变更监听。
+ * selfUpdating 守卫防止写入配置文件时触发自身的热重载回调。
+ */
 export class ConfigManager {
   private store: ConfigStore;
   private initialized = false;
   private configPath: string;
+  /** 标记当前是否正在写入配置文件，用于忽略自身触发的文件变更事件 */
   private selfUpdating = false;
   private selfUpdateResetTimer: ReturnType<typeof setTimeout> | null = null;
   private watcher: { unwatch: () => Promise<void> } | null = null;
@@ -167,6 +192,7 @@ export class ConfigManager {
     this.store = new ConfigStore(DEFAULT_CONFIG);
   }
 
+  /** 初始化配置管理器：加载配置、设置热重载监听 */
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
@@ -180,6 +206,7 @@ export class ConfigManager {
     }
   }
 
+  /** 构建 c12 加载/监听选项 */
   private buildC12Options() {
     const parsed = path.parse(this.configPath);
     return {
@@ -190,6 +217,7 @@ export class ConfigManager {
     };
   }
 
+  /** 使用 c12 加载配置并设置热重载监听 */
   private async initializeWithC12(): Promise<void> {
     const result = await loadConfig(this.buildC12Options());
 
@@ -212,6 +240,10 @@ export class ConfigManager {
     this.resetSelfUpdating();
   }
 
+  /** 解析并验证原始配置
+   *
+   * 使用 Zod 验证，验证失败时尝试用默认值填充缺失字段。
+   */
   private parseConfig(raw: unknown) {
     return parseConfigFromRaw(raw, {
       onValidationFailure: (error) => {
@@ -238,6 +270,7 @@ export class ConfigManager {
     });
   }
 
+  /** 设置 c12 配置文件变更监听 */
   private async setupWatchWithC12(): Promise<void> {
     if (this.watcher) return;
 
@@ -287,6 +320,10 @@ export class ConfigManager {
     }
   }
 
+  /** 应用解析后的配置
+   *
+   * 验证通过后替换内存中的配置，并在配置发生变化时通知监听器。
+   */
   private async applyResolvedConfig(
     resolved: ResolvedConfig<Record<string, unknown>>,
     opts: { failureMsg: string; successMsg: string; writeBackMsg: string; beforeWriteBackMsg?: string }
@@ -312,6 +349,11 @@ export class ConfigManager {
     }
   }
 
+  /** 调度 selfUpdating 标志重置
+   *
+   * 写入配置文件后设置 selfUpdating = true，延迟重置为 false。
+   * 若多次写入，重置计时器会重新计时。
+   */
   private scheduleSelfUpdateReset(delayMs = 500): void {
     this.selfUpdating = true;
     if (this.selfUpdateResetTimer) {
@@ -323,6 +365,7 @@ export class ConfigManager {
     }, delayMs);
   }
 
+  /** 立即重置 selfUpdating 标志 */
   private resetSelfUpdating(): void {
     if (this.selfUpdateResetTimer) {
       clearTimeout(this.selfUpdateResetTimer);
@@ -331,6 +374,11 @@ export class ConfigManager {
     this.selfUpdating = false;
   }
 
+  /** 将配置写入磁盘
+   *
+   * 写入前设置 selfUpdating = true，写入完成后调度重置。
+   * 确保文件变更事件不会触发自身的热重载回调。
+   */
   private async saveToDisk(config: FullConfig): Promise<void> {
     this.selfUpdating = true;
     try {
@@ -344,24 +392,29 @@ export class ConfigManager {
     return error.issues.map(e => `${e.path?.join('.') || 'unknown'}: ${e.message}`).join('; ');
   }
 
+  /** 注册配置变更监听器，返回取消监听函数 */
   onConfigChange(listener: ConfigChangeListener): () => void {
     this.configChangeListeners.add(listener);
     return () => { this.configChangeListeners.delete(listener); };
   }
 
+  /** 注册插件/频道的默认值 */
   registerDefaults(scope: ConfigDefaultsScope, name: string, defaults: Record<string, unknown>): void {
     this.defaultsRegistry.register(scope, name, defaults);
   }
 
+  /** 将所有已注册的默认值同步到配置文件 */
   async syncAllDefaultConfigs(): Promise<void> {
     if (!this.initialized) { logger.error({}, 'ConfigManager not initialized'); return; }
     await this.defaultsRegistry.sync(this);
   }
 
+  /** 查询指定插件的运行时配置 */
   getPluginRuntimeConfig(name: string) {
     return this.config.plugins.find(p => p.name === name);
   }
 
+  /** 监听插件配置变更（仅 plugins 数组部分） */
   onPluginConfigChange(
     listener: (
       _next: readonly PluginRuntimeConfig[],
@@ -371,6 +424,10 @@ export class ConfigManager {
     return this.onConfigChange((next, prev) => listener(next.plugins, prev.plugins));
   }
 
+  /** 更新插件的运行时配置并持久化
+   *
+   * 自动去重 plugins 数组中的重复项。
+   */
   async updatePluginRuntimeConfig(
     name: string,
     changes: { enabled: boolean; options?: Record<string, unknown> }
@@ -405,6 +462,10 @@ export class ConfigManager {
     return this.updateConfig({ plugins: deduplicated });
   }
 
+  /** 更新配置并持久化
+   *
+   * 使用自定义 defu 策略合并更新，验证通过后写入磁盘并通知监听器。
+   */
   async updateConfig(updates: Partial<FullConfig>): Promise<boolean> {
     if (!this.initialized) { logger.error({}, 'ConfigManager not initialized'); return false; }
     try {
@@ -425,6 +486,7 @@ export class ConfigManager {
     }
   }
 
+  /** 通知所有配置变更监听器 */
   private async notifyConfigChange(next: FullConfig, prev: FullConfig): Promise<void> {
     for (const listener of this.configChangeListeners) {
       try {
@@ -439,6 +501,10 @@ export class ConfigManager {
     return this.initialized;
   }
 
+  /** 销毁配置管理器
+   *
+   * 取消文件监听、重置 selfUpdating、清除监听器。
+   */
   async destroy(): Promise<void> {
     if (this.watcher) {
       await this.watcher.unwatch();

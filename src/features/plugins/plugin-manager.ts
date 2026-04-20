@@ -1,3 +1,17 @@
+/** @file 插件管理器
+ *
+ * PluginManager 是插件系统的核心，负责：
+ * - 扫描与加载 plugin_* 目录下的插件模块
+ * - 管理插件生命周期（init/destroy）与注册作用域（工具/命令）
+ * - 维护插件别名映射（支持通过目录名或插件名引用）
+ * - 实现 PluginHookRuntime 接口，分发钩子调用
+ * - 支持配置热重载：监听插件配置变更，卸载全部插件后重新加载
+ * - 提供启用/禁用插件的运行时操作（含配置持久化与回滚）
+ *
+ * 钩子分发策略：按插件加载顺序依次调用，任一插件返回
+ * block/shortCircuit 即终止后续插件的分发。
+ */
+
 import * as fs from 'fs';
 import * as path from 'path';
 import type { PluginConfigStore, PluginRuntimeConfig } from '@/contracts/commands.js';
@@ -26,12 +40,14 @@ import {
   HookPayloadSend,
 } from './types.js';
 
+/** PluginManager 的依赖注入接口 */
 export interface PluginManagerDependencies {
   commandManager: CommandManager;
   toolManager: ToolManager;
   configStore: PluginConfigStore;
 }
 
+/** 已加载插件的记录，包含插件实例、别名集与注册作用域 */
 interface LoadedPluginRecord {
   plugin: Plugin;
   aliases: Set<string>;
@@ -39,6 +55,11 @@ interface LoadedPluginRecord {
   toolScope: ReturnType<ToolManager['createScope']>;
 }
 
+/** 插件管理器
+ *
+ * 管理插件的加载、卸载、钩子分发与配置热重载。
+ * 同时实现 PluginHookRuntime 接口，供 Pipeline 在消息生命周期各阶段调用。
+ */
 export class PluginManager {
   private deps: PluginManagerDependencies;
   private loadedPlugins: Map<string, LoadedPluginRecord> = new Map();
@@ -55,6 +76,7 @@ export class PluginManager {
     this.pluginsDir = path.join(process.cwd(), 'plugins');
   }
 
+  /** 初始化插件管理器（仅标记为已初始化） */
   async initialize(): Promise<void> {
     if (this.initialized) {
       logger.warn({}, 'PluginManager already initialized');
@@ -65,6 +87,7 @@ export class PluginManager {
     this.initialized = true;
   }
 
+  /** 扫描插件目录并加载所有已启用的插件 */
   async scanAndLoad(enabledPlugins: readonly PluginRuntimeConfig[]): Promise<void> {
     logger.info({ pluginsDir: this.pluginsDir }, 'Scanning plugins directory');
 
@@ -91,10 +114,12 @@ export class PluginManager {
     logger.info({ loaded: this.loadedPlugins.size }, 'Plugin scanning and loading completed');
   }
 
+  /** 启用配置变更热重载监听 */
   watchConfigChanges(): void {
     this.registerConfigChangeListener();
   }
 
+  /** 重新扫描 plugin_* 目录，更新已发现插件映射（支持通过目录名和插件名双向查找） */
   private rediscoverPlugins(): void {
     this.discovered.clear();
     for (const found of discoverPluginsByPrefix(this.pluginsDir, 'plugin_')) {
@@ -103,6 +128,7 @@ export class PluginManager {
     }
   }
 
+  /** 通过名称或别名解析出规范插件名 */
   private resolvePluginName(name: string): string | undefined {
     return this.aliasToPluginName.get(name) ?? (this.loadedPlugins.has(name) ? name : undefined);
   }
@@ -251,6 +277,11 @@ export class PluginManager {
     return mergeDefaultOptions(plugin.defaultOptions || {}, userOptions);
   }
 
+  /** 持久化插件配置到配置文件
+   *
+   * 使用 runWithConfigReloadSuspended 包裹，防止持久化操作触发热重载。
+   * 优先使用已存储配置中的规范名称（可能是别名），确保配置一致性。
+   */
   private async persistPluginConfig(
     pluginName: string,
     enabled: boolean,
@@ -271,6 +302,12 @@ export class PluginManager {
     return true;
   }
 
+  /** 在操作期间暂停配置热重载
+   *
+   * 防止 enable/disable 等操作修改配置文件时，
+   * 触发 onPluginConfigChange 导致插件被意外重载。
+   * 通过计数器支持嵌套暂停。
+   */
   private async runWithConfigReloadSuspended<T>(action: () => Promise<T>): Promise<T> {
     this.suspendedConfigReloads += 1;
     try {
@@ -302,6 +339,13 @@ export class PluginManager {
     }
   }
 
+  /** 注册配置变更监听器
+   *
+   * 当插件配置的规范值发生变化时，卸载所有插件并重新加载。
+   * 使用 hotReloadEnabled 标志控制：监听器注册后立即启用，
+   * 重载期间禁用，防止递归触发。suspendedConfigReloads 计数器
+   * 用于在 enable/disable 操作期间抑制重载。
+   */
   private registerConfigChangeListener(): void {
     this.configChangeUnsubscribe?.();
     this.configChangeUnsubscribe = null;
@@ -332,6 +376,11 @@ export class PluginManager {
     this.hotReloadEnabled = true;
   }
 
+  /** 遍历所有已加载插件的指定钩子
+   *
+   * 按加载顺序调用，若任一回调返回 true 则终止遍历。
+   * 单个插件钩子失败不影响其他插件的执行。
+   */
   private async forEachPluginHook<K extends keyof PluginHooks>(
     hookName: K,
     callback: (plugin: Plugin, hookFn: NonNullable<PluginHooks[K]>) => Promise<boolean | void>
@@ -348,6 +397,11 @@ export class PluginManager {
     }
   }
 
+  /** 消息钩子通用分发器（onReceive / onSend）
+   *
+   * 按顺序调用各插件的钩子，支持消息修改与阻止。
+   * 返回 block 时终止后续分发，返回 continue 时传递修改后的消息。
+   */
   private async dispatchMessageHook<TMessage>(
     hookName: 'onReceive' | 'onSend',
     initialMessage: TMessage
@@ -374,12 +428,14 @@ export class PluginManager {
     return blockResult ?? { blocked: false, message };
   }
 
+  /** 分发 onReceive 钩子 */
   async dispatchReceive(
     payload: HookPayloadReceive
   ): Promise<ReceiveDispatchResult> {
     return this.dispatchMessageHook('onReceive', payload.message);
   }
 
+  /** 分发 beforeLLMRequest 钩子 */
   async dispatchBeforeLLMRequest(
     payload: HookPayloadBeforeLLMRequest
   ): Promise<BeforeLLMRequestDispatchResult> {
@@ -396,6 +452,7 @@ export class PluginManager {
     return blockResult ?? { blocked: false };
   }
 
+  /** 分发 beforeToolCall 钩子 */
   async dispatchBeforeToolCall(
     toolCall: HookPayloadToolCall
   ): Promise<BeforeToolCallDispatchResult> {
@@ -412,6 +469,7 @@ export class PluginManager {
     return shortCircuitResult ?? { shortCircuited: false };
   }
 
+  /** 分发 afterToolCall 钩子 */
   async dispatchAfterToolCall(
     payload: HookPayloadAfterToolCall
   ): Promise<HookPayloadAfterToolCall['result']> {
@@ -425,12 +483,18 @@ export class PluginManager {
     return result;
   }
 
+  /** 分发 onSend 钩子 */
   async dispatchSend(
     payload: HookPayloadSend
   ): Promise<SendDispatchResult> {
     return this.dispatchMessageHook('onSend', payload.message);
   }
 
+  /** 卸载指定插件
+   *
+   * 先调用 destroy() 释放插件资源，再释放命令/工具注册作用域。
+   * 两个步骤独立 try-catch，确保即使 destroy 失败也能清理注册作用域。
+   */
   async unloadPlugin(pluginNameOrAlias: string): Promise<void> {
     const pluginName = this.resolvePluginName(pluginNameOrAlias) ?? pluginNameOrAlias;
     const record = this.loadedPlugins.get(pluginName);
@@ -471,6 +535,11 @@ export class PluginManager {
     logger.info({ pluginName }, 'Plugin unloaded successfully');
   }
 
+  /** 启用插件
+   *
+   * 流程：发现 → 加载 → 持久化配置为 enabled。
+   * 加载失败时自动回滚（卸载已加载的插件）。
+   */
   async enablePlugin(pluginNameOrAlias: string): Promise<{ success: boolean; message: string }> {
     const resolvedLoadedName = this.resolvePluginName(pluginNameOrAlias);
     if (resolvedLoadedName && this.loadedPlugins.has(resolvedLoadedName)) {
@@ -525,6 +594,11 @@ export class PluginManager {
     }
   }
 
+  /** 禁用插件
+   *
+   * 流程：持久化配置为 disabled → 卸载。
+   * 卸载失败时自动回滚（恢复配置为 enabled）。
+   */
   async disablePlugin(pluginNameOrAlias: string): Promise<{ success: boolean; message: string }> {
     const pluginName = this.resolvePluginName(pluginNameOrAlias);
     if (!pluginName || !this.loadedPlugins.has(pluginName)) {
@@ -557,6 +631,7 @@ export class PluginManager {
     }
   }
 
+  /** 获取所有已加载插件的摘要信息 */
   getLoadedPlugins(): PluginInfo[] {
     return Array.from(this.loadedPlugins.values(), ({ plugin, commandScope }) => ({
       name: plugin.name,
@@ -568,6 +643,10 @@ export class PluginManager {
     }));
   }
 
+  /** 关闭插件管理器
+   *
+   * 取消配置变更监听、禁用热重载、卸载所有插件。
+   */
   async shutdown(): Promise<void> {
     logger.info({}, 'Shutting down PluginManager');
 
@@ -581,6 +660,7 @@ export class PluginManager {
     this.initialized = false;
   }
 
+  /** 获取当前已加载的插件数量 */
   getPluginCount(): number {
     return this.loadedPlugins.size;
   }

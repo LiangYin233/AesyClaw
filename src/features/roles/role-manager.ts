@@ -1,3 +1,12 @@
+/** @file 角色管理器
+ *
+ * RoleManager 负责从 roles/ 目录加载角色配置文件（*.json），
+ * 提供角色查询、工具权限过滤与热重载功能。
+ *
+ * 角色配置包含：名称、描述、系统提示词、工具访问权限、允许的技能、模型等。
+ * 工具权限支持 allowlist（白名单）和 denylist（黑名单）两种模式。
+ */
+
 import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from '@/platform/observability/logger.js';
@@ -13,6 +22,10 @@ import {
 
 export { DEFAULT_ROLE_ID } from './types.js';
 
+/** 角色管理器
+ *
+ * 管理角色的加载、查询、权限过滤与文件热重载。
+ */
 export class RoleManager {
   private roles: Map<string, RoleWithMetadata> = new Map();
   private watchers: Map<string, fs.FSWatcher> = new Map();
@@ -23,6 +36,7 @@ export class RoleManager {
     this.rolesDir = pathResolver.getRolesDir();
   }
 
+  /** 初始化：确保目录存在、创建默认角色、加载所有角色、设置文件监听 */
   async initialize(): Promise<void> {
     if (this.initialized) {
       logger.warn({}, 'RoleManager already initialized');
@@ -86,6 +100,7 @@ export class RoleManager {
     return null;
   }
 
+  /** 获取角色，不存在时回退到默认角色 */
   private getFallbackRole(roleId: string): RoleWithMetadata | null {
     const role = this.getRole(roleId);
     if (role) {
@@ -101,6 +116,7 @@ export class RoleManager {
     return null;
   }
 
+  /** 加载所有角色文件 */
   private async loadAllRoles(): Promise<void> {
     try {
       const files = await fs.promises.readdir(this.rolesDir);
@@ -122,6 +138,7 @@ export class RoleManager {
     }
   }
 
+  /** 加载单个角色文件 */
   private async loadRole(roleId: string): Promise<RoleWithMetadata | null> {
     const filePath = this.getRoleFilePath(roleId);
 
@@ -156,6 +173,7 @@ export class RoleManager {
     }
   }
 
+  /** 处理角色文件变更事件（热重载） */
   private async handleRoleFileChange(roleId: string, eventType: string): Promise<void> {
     logger.info({ roleId, eventType }, 'Role file changed, reloading...');
 
@@ -172,6 +190,7 @@ export class RoleManager {
     }
   }
 
+  /** 设置角色目录文件变更监听 */
   private setupWatchers(): void {
     this.watcherCleanup();
 
@@ -215,10 +234,12 @@ export class RoleManager {
     }
   }
 
+  /** 获取角色完整信息（含元数据），不存在时返回 null */
   getRole(roleId: string): RoleWithMetadata | null {
     return this.roles.get(roleId) || null;
   }
 
+  /** 获取角色配置，不存在时回退到默认角色配置 */
   getRoleConfig(roleId: string): RoleConfig {
     const role = this.getFallbackRole(roleId);
     return role ? this.toRoleConfig(role) : DEFAULT_ROLE_CONFIG;
@@ -236,10 +257,12 @@ export class RoleManager {
     };
   }
 
+  /** 获取所有已加载的角色 */
   getAllRoles(): RoleWithMetadata[] {
     return Array.from(this.roles.values());
   }
 
+  /** 获取角色列表（仅 id/name/description） */
   getRolesList(): Array<{ id: string; name: string; description: string }> {
     return this.getAllRoles().map(role => ({
       id: role.metadata.id,
@@ -248,14 +271,17 @@ export class RoleManager {
     }));
   }
 
+  /** 判断指定工具是否对角色可用 */
   isToolAllowed(roleId: string, toolName: string): boolean {
     return this.matchesToolAccess(this.getRoleConfig(roleId).tool_access, toolName);
   }
 
+  /** 获取角色允许使用的工具名列表 */
   getAllowedTools(roleId: string, allTools: string[]): string[] {
     return this.filterAllowedTools(this.getRoleConfig(roleId).tool_access, allTools);
   }
 
+  /** 获取角色工具访问的详细描述 */
   describeToolAccess(roleId: string, allTools: string[]): {
     mode: ToolAccessConfig['mode'];
     configuredTools: string[];
@@ -269,6 +295,7 @@ export class RoleManager {
     };
   }
 
+  /** 匹配工具访问权限 */
   private matchesToolAccess(toolAccess: ToolAccessConfig, toolName: string): boolean {
     if (toolAccess.mode === 'allowlist') {
       return toolAccess.tools.includes(toolName);
@@ -277,10 +304,12 @@ export class RoleManager {
     return !toolAccess.tools.includes(toolName);
   }
 
+  /** 过滤出角色允许使用的工具 */
   private filterAllowedTools(toolAccess: ToolAccessConfig, allTools: string[]): string[] {
     return allTools.filter(toolName => this.matchesToolAccess(toolAccess, toolName));
   }
 
+  /** 关闭角色管理器 */
   shutdown(): void {
     this.watcherCleanup();
     this.roles.clear();

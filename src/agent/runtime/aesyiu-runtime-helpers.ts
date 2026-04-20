@@ -1,3 +1,10 @@
+/** @file aesyiu 运行时辅助函数
+ *
+ * 提供构建 aesyiu 引擎、消息格式转换、钩子感知中间件等辅助功能。
+ * aesyiu 是底层 LLM Agent 运行时库，本文件负责将其与 AesyClaw 的
+ * 插件系统、角色权限、工具注册等上层概念桥接。
+ */
+
 import { randomUUID } from 'crypto';
 import {
   AgentContext,
@@ -32,15 +39,18 @@ import {
   type ToolExecutionResult,
 } from '@/platform/tools/types.js';
 
+/** Agent 运行统计 */
 export interface AesyiuRunStats {
   steps: number;
   toolCalls: number;
   error?: string;
 }
 
+/** 系统提示词中的角色列表区块标识 */
 export const ROLES_PROMPT_SECTION = 'aesyclaw:roles';
 const TOOL_LOG_CONTENT_LIMIT = 1000;
 
+/** 截断工具执行日志内容，防止日志过大 */
 function truncateToolLogContent(content: string): string {
   if (content.length <= TOOL_LOG_CONTENT_LIMIT) {
     return content;
@@ -49,6 +59,7 @@ function truncateToolLogContent(content: string): string {
   return `${content.slice(0, TOOL_LOG_CONTENT_LIMIT)}...[truncated ${content.length - TOOL_LOG_CONTENT_LIMIT} chars]`;
 }
 
+/** 将引擎中仍保留 Zod schema 的工具参数转换为标准 JSON Schema */
 function normalizeEngineToolParameters(engine: AesyiuEngine): void {
   for (const tool of engine.getTools()) {
     const parameters = tool.parameters as unknown;
@@ -63,6 +74,7 @@ function normalizeEngineToolParameters(engine: AesyiuEngine): void {
   }
 }
 
+/** 检查引擎中是否存在参数未正确转换的工具 */
 export function inspectEngineToolParameters(engine: AesyiuEngine): {
   toolNames: string[];
   invalidParameterTools: string[];
@@ -84,6 +96,7 @@ export function inspectEngineToolParameters(engine: AesyiuEngine): {
   };
 }
 
+/** 安全解析工具参数字符串 */
 function parseToolArguments(argumentsText: string): Record<string, unknown> {
   try {
     const parsed = JSON.parse(argumentsText);
@@ -93,6 +106,7 @@ function parseToolArguments(argumentsText: string): Record<string, unknown> {
   }
 }
 
+/** 将 StandardMessage 转换为 aesyiu 消息格式 */
 export function toAesyiuMessage(message: StandardMessage): AesyiuMessage {
   return {
     role: message.role,
@@ -110,6 +124,7 @@ export function toAesyiuMessage(message: StandardMessage): AesyiuMessage {
   };
 }
 
+/** 将 aesyiu 消息格式转换为 StandardMessage */
 export function toStandardMessage(message: AesyiuMessage): StandardMessage {
   return {
     role: message.role as MessageRole,
@@ -127,6 +142,7 @@ export function toStandardMessage(message: AesyiuMessage): StandardMessage {
   };
 }
 
+/** 从消息列表中提取最后一条非工具调用的助手回复 */
 export function getFinalAssistantText(messages: readonly AesyiuMessage[]): string {
   for (let index = messages.length - 1; index >= 0; index--) {
     const message = messages[index];
@@ -138,6 +154,11 @@ export function getFinalAssistantText(messages: readonly AesyiuMessage[]): strin
   return '';
 }
 
+/** 向 AgentContext 注入角色列表提示词
+ *
+ * 当存在子代理工具时，将可用角色列表注入系统提示词，
+ * 使 LLM 知道可以调用 runSubAgent 并传入哪些角色 ID。
+ */
 function injectRolesPrompt(
   ctx: AgentContext,
   tools: readonly Tool[],
@@ -167,6 +188,7 @@ function injectRolesPrompt(
   ctx.registerPromptSection(ROLES_PROMPT_SECTION, { content, pinned: true });
 }
 
+/** 从 providers 配置中解析模型定义 */
 function resolveModelDefinition(
   modelId: string,
   providers: ProvidersConfig,
@@ -196,6 +218,7 @@ function resolveModelDefinition(
   };
 }
 
+/** 根据 LLM 配置构建对应的 Provider 实例 */
 function buildProvider(llmConfig: LLMConfig, modelDef: ModelDefinition): LLMProvider {
   const providerConfig = {
     apiKey: llmConfig.apiKey || '',
@@ -213,6 +236,11 @@ function buildProvider(llmConfig: LLMConfig, modelDef: ModelDefinition): LLMProv
   }
 }
 
+/** 创建钩子感知的 LLM 中间件
+ *
+ * 在 LLM 请求发送前触发 beforeLLMRequest 钩子，
+ * 若钩子返回 block 则终止请求并抛出错误。
+ */
 function createHookAwareLLMMiddleware(
   stats: Pick<AesyiuRunStats, 'steps' | 'error'>,
   hookRuntime: PluginHookRuntime,
@@ -246,6 +274,11 @@ function createHookAwareLLMMiddleware(
   };
 }
 
+/** 创建钩子感知的工具中间件
+ *
+ * 在工具执行前后触发 beforeToolCall / afterToolCall 钩子，
+ * 支持工具权限二次校验与短路执行。
+ */
 function createHookAwareToolMiddleware(
   toolIndex: Map<string, Tool>,
   stats: Pick<AesyiuRunStats, 'toolCalls'>,
@@ -341,6 +374,7 @@ function createHookAwareToolMiddleware(
   };
 }
 
+/** 将内部 Tool 转换为 aesyiu 工具格式 */
 function toAesyiuTool(
   tool: Tool,
   createToolContext: (ctx: unknown, tool: Tool) => ToolExecuteContext,
@@ -374,6 +408,11 @@ interface BuildAesyiuEngineOptions {
   roleCatalog?: RoleCatalog;
 }
 
+/** 构建 aesyiu 引擎与上下文
+ *
+ * 将 AesyClaw 的工具、技能、配置转换为 aesyiu 格式，
+ * 注册钩子感知的 LLM/Tool 中间件，注入角色列表提示词。
+ */
 export function buildAesyiuEngine(options: BuildAesyiuEngineOptions): {
   engine: AesyiuEngine;
   context: AgentContext;
@@ -423,6 +462,11 @@ export function buildAesyiuEngine(options: BuildAesyiuEngineOptions): {
   return { engine, context };
 }
 
+/** 手动压缩消息
+ *
+ * 强制触发 MemoryManager 的压缩逻辑，将历史消息压缩为摘要。
+ * 用于 /compact 命令手动压缩会话。
+ */
 export async function manuallyCompactMessages(options: {
   chatId: string;
   llmConfig: LLMConfig;

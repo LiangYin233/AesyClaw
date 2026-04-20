@@ -1,3 +1,15 @@
+/** @file 子代理工具
+ *
+ * 提供 runSubAgent 和 runTempSubAgent 两个工具的实现，
+ * 以及 createSubAgentTools 工厂函数。
+ *
+ * - runSubAgent：使用预定义角色创建子代理沙箱
+ * - runTempSubAgent：使用临时系统提示词创建子代理沙箱
+ *
+ * 两个工具都通过 SandboxEngine 执行，SandboxEngine 提供隔离的执行环境
+ * 并限制工具集以防止递归调用 subagent 工具。
+ */
+
 import { logger } from '@/platform/observability/logger.js';
 import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
 import type { ConfigSource, RoleStore, SkillStore } from '@/contracts/runtime-services.js';
@@ -22,6 +34,7 @@ interface SubAgentToolDeps {
   skillStore: SkillStore;
 }
 
+/** 使用预定义角色执行子代理任务 */
 export async function runSubAgent(
   args: unknown,
   context: ToolExecuteContext,
@@ -89,6 +102,7 @@ export async function runSubAgent(
   }
 }
 
+/** 使用临时系统提示词执行子代理任务 */
 export async function runTempSubAgent(
   args: unknown,
   context: ToolExecuteContext,
@@ -148,6 +162,7 @@ export async function runTempSubAgent(
   }
 }
 
+/** 格式化子代理执行结果 */
 function formatSubAgentResult(roleName: string, result: SubAgentResult): string {
   return `【${roleName}】执行报告
 ━━━━━━━━━━━━━━━━━━━━
@@ -156,6 +171,7 @@ ${result.finalText}
 执行时间: ${result.executionTime}ms`;
 }
 
+/** 创建子代理工具定义 */
 function createSubAgentTool(
   name: string,
   description: string,
@@ -175,6 +191,7 @@ function createSubAgentTool(
   };
 }
 
+/** 创建子代理工具集合（runSubAgent + runTempSubAgent） */
 export function createSubAgentTools(deps: SubAgentToolDeps) {
   return [
     createSubAgentTool(

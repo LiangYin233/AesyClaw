@@ -1,13 +1,32 @@
+/** @file 频道插件管理器
+ *
+ * ChannelPluginManager 负责频道插件的注册与反注册，
+ * 管理频道插件的生命周期（init/destroy）与配置合并。
+ *
+ * 注册流程：
+ * 1. 合并 defaultOptions 与用户配置
+ * 2. 注册默认值到 ConfigManager
+ * 3. 检查 enabled 字段，禁用则跳过
+ * 4. 调用 init() 传入上下文（含 pipeline）
+ * 5. 注册成功后将插件加入 channels 映射
+ *
+ * 反注册流程：
+ * 1. 调用 destroy() 释放资源
+ * 2. 从 channels 映射中移除
+ */
+
 import type { ChannelPlugin, ChannelPluginContext } from './channel-plugin.js';
 import type { ChannelPipeline } from '@/agent/pipeline.js';
 import type { ConfigDefaultsScope } from '@/contracts/commands.js';
 import { logger, createScopedLogger } from '@/platform/observability/logger.js';
 import { mergeDefaultOptions } from '@/platform/utils/merge-default-options.js';
 
+/** 频道配置默认值存储接口 */
 export interface ChannelConfigDefaultsStore {
   registerDefaults(scope: ConfigDefaultsScope, name: string, defaults: Record<string, unknown>): void;
 }
 
+/** 频道插件管理器 */
 export class ChannelPluginManager {
   private channels: Map<string, ChannelPlugin> = new Map();
   private pipeline: ChannelPipeline | null = null;
@@ -17,6 +36,7 @@ export class ChannelPluginManager {
     this.configStore = configStore;
   }
 
+  /** 设置消息处理流水线引用 */
   setPipeline(pipeline: ChannelPipeline): void {
     this.pipeline = pipeline;
   }
@@ -29,6 +49,7 @@ export class ChannelPluginManager {
     return this.pipeline;
   }
 
+  /** 合并频道插件的默认配置与用户配置 */
   private mergeChannelOptions(
     plugin: ChannelPlugin,
     userConfig?: Record<string, unknown>
@@ -36,16 +57,19 @@ export class ChannelPluginManager {
     return mergeDefaultOptions(plugin.defaultOptions || {}, userConfig);
   }
 
+  /** 收集频道插件的默认值并注册到 ConfigManager */
   private collectChannelDefaults(plugin: ChannelPlugin): void {
     if (plugin.defaultOptions && Object.keys(plugin.defaultOptions).length > 0) {
       this.configStore.registerDefaults('channel', plugin.name, plugin.defaultOptions);
     }
   }
 
+  /** 判断频道是否已启用（enabled !== false） */
   private isChannelEnabled(config: Record<string, unknown>): boolean {
     return config.enabled !== false;
   }
 
+  /** 创建频道插件初始化上下文 */
   private createChannelContext(name: string, config: Record<string, unknown>): ChannelPluginContext {
     return {
       config,
@@ -54,6 +78,11 @@ export class ChannelPluginManager {
     };
   }
 
+  /** 注册频道插件
+   *
+   * 合并配置、注册默认值、检查启用状态、调用 init()。
+   * 初始化失败时调用 destroy() 清理并抛出错误。
+   */
   async registerChannel(
     plugin: ChannelPlugin,
     config?: Record<string, unknown>
@@ -104,6 +133,10 @@ export class ChannelPluginManager {
     }
   }
 
+  /** 反注册频道插件
+   *
+   * 调用 destroy() 释放资源后从 channels 映射中移除。
+   */
   async unregisterChannel(name: string): Promise<void> {
     const plugin = this.channels.get(name);
     if (!plugin) {
@@ -124,10 +157,12 @@ export class ChannelPluginManager {
     logger.info({ channelName: name }, 'Channel plugin unregistered successfully');
   }
 
+  /** 获取当前已注册的频道数量 */
   getChannelCount(): number {
     return this.channels.size;
   }
 
+  /** 关闭所有频道插件 */
   async shutdown(): Promise<void> {
     logger.info({}, 'Shutting down all channel plugins');
 
