@@ -204,8 +204,6 @@ export class CronService {
       }
       this.executeJob(job);
     }
-
-    this.scheduleNext();
   }
 
   private executeJob(job: CronJob): void {

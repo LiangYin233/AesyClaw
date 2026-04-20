@@ -1,4 +1,5 @@
 import { logger } from '@/platform/observability/logger.js';
+import { hasCanonicalValueChanged } from '@/platform/utils/canonical-stringify.js';
 import type { ToolManager } from '../registry.js';
 import { McpClientManager, type McpServerConnectionConfig } from './mcp-client-manager.js';
 
@@ -57,11 +58,14 @@ export class McpRuntime {
   private registerConfigChangeListener(): void {
     this.configChangeUnsubscribe?.();
     this.configChangeUnsubscribe = null;
-    this.hotReloadEnabled = true;
+    this.hotReloadEnabled = false;
 
     this.configChangeUnsubscribe = this.deps.configSource.onServerConfigChange(
       async (nextServers, previousServers) => {
-        if (!this.hotReloadEnabled || nextServers === previousServers || !this.manager) {
+        if (!this.hotReloadEnabled || !this.manager) {
+          return;
+        }
+        if (!hasCanonicalValueChanged(previousServers, nextServers)) {
           return;
         }
 
@@ -70,5 +74,7 @@ export class McpRuntime {
         await this.manager.connectConfiguredServers(nextServers);
       }
     );
+
+    this.hotReloadEnabled = true;
   }
 }

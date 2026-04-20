@@ -5,6 +5,7 @@ import type { ChannelPipeline } from '@/agent/pipeline.js';
 import { logger } from '@/platform/observability/logger.js';
 import { assertPackageNameMatchesExportedName } from '@/platform/utils/package-manifest.js';
 import { discoverPluginsByPrefix, type DiscoveredPlugin } from '@/platform/utils/plugin-discovery.js';
+import { hasCanonicalValueChanged } from '@/platform/utils/canonical-stringify.js';
 import type { ChannelPlugin } from './channel-plugin.js';
 import { ChannelPluginManager } from './channel-manager.js';
 
@@ -118,11 +119,14 @@ export class ChannelRuntime {
   private registerConfigChangeListener(): void {
     this.configChangeUnsubscribe?.();
     this.configChangeUnsubscribe = null;
-    this.hotReloadEnabled = true;
+    this.hotReloadEnabled = false;
 
     this.configChangeUnsubscribe = this.deps.configSource.onChannelsConfigChange(
       async (nextChannels, previousChannels) => {
-        if (!this.hotReloadEnabled || nextChannels === previousChannels) {
+        if (!this.hotReloadEnabled) {
+          return;
+        }
+        if (!hasCanonicalValueChanged(previousChannels, nextChannels)) {
           return;
         }
 
@@ -130,14 +134,15 @@ export class ChannelRuntime {
         await this.deps.channelManager.shutdown();
         await this.loadChannelPlugins(nextChannels);
 
-        const previous = this.hotReloadEnabled;
         this.hotReloadEnabled = false;
         try {
           await this.deps.configSource.syncDefaultConfigs();
         } finally {
-          this.hotReloadEnabled = previous;
+          this.hotReloadEnabled = true;
         }
       }
     );
+
+    this.hotReloadEnabled = true;
   }
 }

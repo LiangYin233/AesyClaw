@@ -1,7 +1,6 @@
-import { AppRuntime, type BootstrapOptions } from '@/app-runtime.js';
+import { AppRuntime } from '@/app-runtime.js';
 import { createApp } from '@/create-app.js';
 
-export type { BootstrapOptions } from '@/app-runtime.js';
 export { AppRuntime } from '@/app-runtime.js';
 export { createApp } from '@/create-app.js';
 
@@ -13,8 +12,8 @@ export function getHookRuntime() {
   return appRuntime.getHookRuntime();
 }
 
-export async function bootstrap(options: BootstrapOptions = {}): Promise<void> {
-  await appRuntime.start(options);
+export async function bootstrap(): Promise<void> {
+  await appRuntime.start();
 }
 
 export async function shutdown(): Promise<void> {
@@ -25,8 +24,8 @@ export function isInitialized(): boolean {
   return appRuntime.isInitialized();
 }
 
-export async function restart(options: BootstrapOptions = {}): Promise<void> {
-  await appRuntime.restart(options);
+export async function restart(): Promise<void> {
+  await appRuntime.restart();
 }
 
 export function getStatus() {

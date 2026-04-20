@@ -12,7 +12,6 @@ import { ChannelRuntime } from '@/channels/channel-runtime.js';
 import { ChannelPluginManager } from '@/channels/channel-manager.js';
 import type { CommandDefinition } from '@/contracts/commands.js';
 import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
-import type { AgentSkill } from 'aesyiu';
 import { createCommandMiddleware } from '@/features/commands/command-middleware.js';
 import { CommandManager } from '@/features/commands/command-registry.js';
 import { createHelpCommandGroup } from '@/features/commands/help-command-group.js';
@@ -40,18 +39,6 @@ import type {
   SQLiteManagerService,
 } from '@/runtime-dependencies.js';
 
-export interface BootstrapOptions {
-  skipDb?: boolean;
-  skipConfig?: boolean;
-  skipPlugins?: boolean;
-  skipMCP?: boolean;
-  skipSkills?: boolean;
-  skipCron?: boolean;
-  skipRoles?: boolean;
-  skipSubAgents?: boolean;
-  skipChannels?: boolean;
-}
-
 export interface AppRuntimeDependencies {
   toolManager: ToolManager;
   commandManager: CommandManager;
@@ -71,34 +58,6 @@ export interface AppRuntimeDependencies {
 type DisposableRegistrationScope = {
   dispose(): void;
 };
-
-function normalizeBootstrapOptions(options: BootstrapOptions): Required<BootstrapOptions> {
-  const normalized: Required<BootstrapOptions> = {
-    skipDb: false,
-    skipConfig: false,
-    skipPlugins: false,
-    skipMCP: false,
-    skipSkills: false,
-    skipCron: false,
-    skipRoles: false,
-    skipSubAgents: false,
-    skipChannels: false,
-    ...options,
-  };
-
-  if (normalized.skipConfig) {
-    normalized.skipPlugins = true;
-    normalized.skipMCP = true;
-    normalized.skipCron = true;
-    normalized.skipChannels = true;
-  }
-
-  if (normalized.skipDb) {
-    normalized.skipCron = true;
-  }
-
-  return normalized;
-}
 
 export class AppRuntime {
   private pipeline: ChannelPipeline | null = null;
@@ -126,7 +85,10 @@ export class AppRuntime {
     this.channelRuntime = new ChannelRuntime({
       channelManager: this.channelManager,
       configSource: {
-        getChannelsConfig: () => this.deps.configManager.config?.channels || {},
+        getChannelsConfig: () => {
+          if (!this.deps.configManager.isInitialized()) return {};
+          return this.deps.configManager.config?.channels || {};
+        },
         onChannelsConfigChange: listener => this.deps.configManager.onConfigChange(async (nextConfig, previousConfig) => {
           const nextChannels = nextConfig.channels || {};
           const previousChannels = previousConfig.channels || {};
@@ -142,7 +104,10 @@ export class AppRuntime {
     this.mcpRuntime = new McpRuntime({
       toolManager: this.toolManager,
       configSource: {
-        getServerConfigs: () => this.deps.configManager.config?.mcp?.servers || [],
+        getServerConfigs: () => {
+          if (!this.deps.configManager.isInitialized()) return [];
+          return this.deps.configManager.config?.mcp?.servers || [];
+        },
         onServerConfigChange: listener => this.deps.configManager.onConfigChange(async (nextConfig, previousConfig) => {
           const nextServers = nextConfig.mcp?.servers || [];
           const previousServers = previousConfig.mcp?.servers || [];
@@ -163,16 +128,15 @@ export class AppRuntime {
     return this.initialized;
   }
 
-  async start(options: BootstrapOptions = {}): Promise<void> {
+  async start(): Promise<void> {
     if (this.initialized) {
       logger.warn({}, 'Bootstrap already initialized, skipping...');
       return;
     }
 
     try {
-      const normalizedOptions = normalizeBootstrapOptions(options);
       logger.info({}, 'AesyClaw starting...');
-      await this.runInitStages(normalizedOptions);
+      await this.runInitStages();
       this.initialized = true;
       logger.info({}, 'AesyClaw started successfully');
     } catch (error) {
@@ -220,9 +184,13 @@ export class AppRuntime {
     logger.info({}, 'AesyClaw shutdown completed');
   }
 
-  async restart(options: BootstrapOptions = {}): Promise<void> {
-    await this.stop();
-    await this.start(options);
+  async restart(): Promise<void> {
+    try {
+      await this.stop();
+    } catch (error) {
+      logger.warn({ error: toErrorMessage(error) }, 'restart: stop() failed, attempting start anyway');
+    }
+    await this.start();
   }
 
   getStatus() {
@@ -296,156 +264,85 @@ export class AppRuntime {
     logger.info({ count: systemCommands.length }, '系统命令已注册');
   }
 
-  private async runInitStages(options: Required<BootstrapOptions>): Promise<void> {
-    let multimodalTools: ReturnType<typeof createMultimodalTools> | null = null;
+  private async runInitStages(): Promise<void> {
+    const multimodalTools = createMultimodalTools(() => this.deps.configManager.config);
 
-    const stages: Array<{ name: string; skip?: boolean; run: () => void | Promise<void> }> = [
-      { name: 'PathResolver', run: () => this.deps.pathResolver.initialize() },
-      { name: 'Config', skip: options.skipConfig, run: () => this.deps.configManager.initialize() },
-      { name: 'SQLite', skip: options.skipDb, run: () => { this.deps.sqliteManager.initialize(); } },
-      {
-        name: 'Aesyiu core',
-        run: () => {
-          multimodalTools = createMultimodalTools(() => this.deps.configManager.config);
-          this.pipeline = new ChannelPipeline(this.pluginManager);
-        },
-      },
-      {
-        name: 'SkillManager',
-        skip: options.skipSkills,
-        run: async () => {
-          await this.deps.skillManager.initialize();
-          logger.info(this.deps.skillManager.getStats(), 'Skills system loaded');
-        },
-      },
-      {
-        name: 'RoleManager',
-        skip: options.skipRoles,
-        run: async () => {
-          await this.deps.roleManager.initialize();
-          logger.info({ roleCount: this.deps.roleManager.getAllRoles().length }, 'Role system loaded');
-        },
-      },
-      {
-        name: 'SubAgent tools',
-        skip: options.skipSubAgents,
-        run: () => {
-          const subAgentTools = createSubAgentTools({
-            toolCatalog: this.toolManager,
-            hookRuntime: this.pluginManager,
-            configSource: {
-              getConfig: () => this.deps.configManager.config,
-            },
-            roleStore: this.deps.roleManager,
-            skillStore: this.deps.skillManager,
-          });
-          const scope = this.trackSystemScope(
-            this.toolManager.createScope(createRegistrationOwner('system', 'subagent-tools'))
-          );
-          for (const tool of subAgentTools) {
-            scope.register(tool);
-          }
-          logger.info({ toolCount: subAgentTools.length }, 'SubAgent tools registered');
-        },
-      },
-      {
-        name: 'Multimodal tools',
-        run: () => {
-          if (!multimodalTools) {
-            return;
-          }
-          const scope = this.trackSystemScope(
-            this.toolManager.createScope(createRegistrationOwner('system', 'multimodal-tools'))
-          );
-          scope.register(multimodalTools.speechToTextTool);
-          scope.register(multimodalTools.imageUnderstandingTool);
-          scope.register(multimodalTools.sendMsgTool);
-        },
-      },
-      {
-        name: 'Cron tools',
-        skip: options.skipDb || options.skipCron,
-        run: () => {
-          const scope = this.trackSystemScope(
-            this.toolManager.createScope(createRegistrationOwner('system', 'cron-tools'))
-          );
-          for (const tool of cronTools) {
-            scope.register(tool);
-          }
-          logger.info({ toolCount: cronTools.length }, 'Cron tools registered');
-        },
-      },
-      {
-        name: 'Pipeline stages',
-        run: () => {
-          this.pipeline?.use(createConfigStage({
-            isInitialized: () => this.deps.configManager.isInitialized(),
-            initialize: () => this.deps.configManager.initialize(),
-            getConfig: () => this.deps.configManager.config,
-          }));
-          this.registerSystemCommands();
-          this.pipeline?.use(createSessionStage(this.chatService));
-          this.pipeline?.use(createCommandMiddleware(this.commandManager));
-          this.pipeline?.use(agentStage);
-        },
-      },
-      {
-        name: 'Plugins',
-        skip: options.skipPlugins,
-        run: async () => {
-          await this.pluginManager.initialize();
-          await this.pluginManager.scanAndLoad(this.deps.configManager.config?.plugins || []);
-          logger.info({ loadedPlugins: this.pluginManager.getPluginCount() }, 'Plugins system loaded');
-        },
-      },
-      {
-        name: 'Cron',
-        skip: options.skipCron,
-        run: async () => {
-          this.deps.cronService.setExecutor(new AgentCronExecutor({
-            systemPromptManager: this.systemPromptManager,
-            toolCatalog: this.toolManager,
-            hookRuntime: this.pluginManager,
-            configSource: {
-              getConfig: () => this.deps.configManager.config,
-            },
-            roleStore: this.deps.roleManager,
-            skillStore: this.deps.skillManager,
-          }));
-          this.deps.cronService.start();
-          logger.info({ schedulerRunning: this.deps.cronService.isRunning() }, 'Cron system initialized');
-        },
-      },
-      {
-        name: 'MCP servers',
-        skip: options.skipMCP,
-        run: () => this.mcpRuntime.start({ watchConfig: false }),
-      },
-      {
-        name: 'Channels',
-        skip: options.skipChannels,
-        run: () => this.channelRuntime.start({ watchConfig: false }),
-      },
-      {
-        name: 'Finalize',
-        skip: options.skipConfig,
-        run: async () => {
-          await this.deps.configManager.syncAllDefaultConfigs();
+    await this.deps.pathResolver.initialize();
+    await this.deps.configManager.initialize();
+    this.deps.sqliteManager.initialize();
 
-          if (!options.skipMCP) {
-            this.mcpRuntime.watchConfigChanges();
-          }
-          if (!options.skipChannels) {
-            this.channelRuntime.watchConfigChanges();
-          }
-        },
-      },
-    ];
+    this.pipeline = new ChannelPipeline(this.pluginManager);
 
-    const active = stages.filter(stage => !stage.skip);
-    for (const [i, stage] of active.entries()) {
-      logger.info({}, `[${i + 1}/${active.length}] ${stage.name}...`);
-      await stage.run();
+    await this.deps.skillManager.initialize();
+    logger.info(this.deps.skillManager.getStats(), 'Skills system loaded');
+
+    await this.deps.roleManager.initialize();
+    logger.info({ roleCount: this.deps.roleManager.getAllRoles().length }, 'Role system loaded');
+
+    const subAgentTools = createSubAgentTools({
+      toolCatalog: this.toolManager,
+      hookRuntime: this.pluginManager,
+      configSource: {
+        getConfig: () => this.deps.configManager.config,
+      },
+      roleStore: this.deps.roleManager,
+      skillStore: this.deps.skillManager,
+    });
+    const subAgentScope = this.trackSystemScope(
+      this.toolManager.createScope(createRegistrationOwner('system', 'subagent-tools'))
+    );
+    for (const tool of subAgentTools) {
+      subAgentScope.register(tool);
     }
+    logger.info({ toolCount: subAgentTools.length }, 'SubAgent tools registered');
+
+    const multimodalScope = this.trackSystemScope(
+      this.toolManager.createScope(createRegistrationOwner('system', 'multimodal-tools'))
+    );
+    multimodalScope.register(multimodalTools.speechToTextTool);
+    multimodalScope.register(multimodalTools.imageUnderstandingTool);
+    multimodalScope.register(multimodalTools.sendMsgTool);
+
+    const cronScope = this.trackSystemScope(
+      this.toolManager.createScope(createRegistrationOwner('system', 'cron-tools'))
+    );
+    for (const tool of cronTools) {
+      cronScope.register(tool);
+    }
+    logger.info({ toolCount: cronTools.length }, 'Cron tools registered');
+
+    this.pipeline.use(createConfigStage({
+      isInitialized: () => this.deps.configManager.isInitialized(),
+      initialize: () => this.deps.configManager.initialize(),
+      getConfig: () => this.deps.configManager.config,
+    }));
+    this.registerSystemCommands();
+    this.pipeline.use(createSessionStage(this.chatService));
+    this.pipeline.use(createCommandMiddleware(this.commandManager));
+    this.pipeline.use(agentStage);
+
+    await this.pluginManager.initialize();
+    await this.pluginManager.scanAndLoad(this.deps.configManager.config?.plugins || []);
+    logger.info({ loadedPlugins: this.pluginManager.getPluginCount() }, 'Plugins system loaded');
+
+    this.deps.cronService.setExecutor(new AgentCronExecutor({
+      systemPromptManager: this.systemPromptManager,
+      toolCatalog: this.toolManager,
+      hookRuntime: this.pluginManager,
+      configSource: {
+        getConfig: () => this.deps.configManager.config,
+      },
+      roleStore: this.deps.roleManager,
+      skillStore: this.deps.skillManager,
+    }));
+    this.deps.cronService.start();
+    logger.info({ schedulerRunning: this.deps.cronService.isRunning() }, 'Cron system initialized');
+
+    await this.mcpRuntime.start({ watchConfig: false });
+    await this.channelRuntime.start({ watchConfig: false });
+
+    await this.deps.configManager.syncAllDefaultConfigs();
+    this.mcpRuntime.watchConfigChanges();
+    this.channelRuntime.watchConfigChanges();
   }
 }

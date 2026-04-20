@@ -74,7 +74,8 @@ export class PluginManager {
     this.rediscoverPlugins();
     logger.info({ found: this.discovered.size }, 'Found plugin directories');
 
-    for (const info of this.discovered.values()) {
+    const uniquePlugins = [...new Set(this.discovered.values())];
+    for (const info of uniquePlugins) {
       const config = enabledPlugins.find(p => p.name === info.name || p.name === info.dirName);
       if (config && !config.enabled) {
         logger.info({ pluginName: info.name }, 'Plugin disabled in config, skipping');
