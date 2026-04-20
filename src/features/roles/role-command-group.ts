@@ -2,6 +2,7 @@ import type { CommandContext, CommandDefinition, CommandResult } from '@/contrac
 import type { ToolCatalog } from '@/platform/tools/registry.js';
 import { roleManager } from './role-manager.js';
 import { logger } from '@/platform/observability/logger.js';
+import { createMissingArgumentResult, createUnknownSubcommandResult } from '@/platform/commands/subcommand-utils.js';
 
 interface RoleCommandSession {
   switchRole: (_roleId: string) => { success: boolean; message: string };
@@ -16,6 +17,13 @@ export interface RoleCommandGroupDeps {
   getSessionForCommand: (_ctx: CommandContext) => RoleCommandSession | null;
   toolCatalog: ToolCatalog;
 }
+
+const ROLE_SUBCOMMANDS = [
+  '  /role list     - 列出所有角色',
+  '  /role info     - 查看角色详情',
+  '  /role switch   - 切换角色',
+  '  /role current  - 查看当前角色',
+];
 
 export function createRoleCommandGroup(deps: RoleCommandGroupDeps): CommandDefinition[] {
   return [
@@ -52,10 +60,7 @@ export function createRoleCommandGroup(deps: RoleCommandGroupDeps): CommandDefin
           case 'info': {
             const roleId = ctx.args[1];
             if (!roleId) {
-              return {
-                success: false,
-                message: '请指定角色ID\n\n用法: /role info <role-id>',
-              };
+              return createMissingArgumentResult('请指定角色ID', '/role info <role-id>');
             }
 
             const role = roleManager.getRole(roleId);
@@ -103,10 +108,7 @@ export function createRoleCommandGroup(deps: RoleCommandGroupDeps): CommandDefin
           case 'switch': {
             const targetRoleId = ctx.args[1];
             if (!targetRoleId) {
-              return {
-                success: false,
-                message: '请指定要切换的角色ID\n\n用法: /role switch <role-id>',
-              };
+              return createMissingArgumentResult('请指定要切换的角色ID', '/role switch <role-id>');
             }
 
             logger.info({ targetRoleId, chatId: ctx.chatId }, '正在切换角色');
@@ -155,10 +157,7 @@ export function createRoleCommandGroup(deps: RoleCommandGroupDeps): CommandDefin
           }
 
           default: {
-            return {
-              success: false,
-              message: `未知子命令: ${subCommand || '(无)'}\n\n可用子命令:\n  /role list     - 列出所有角色\n  /role info     - 查看角色详情\n  /role switch   - 切换角色\n  /role current  - 查看当前角色`,
-            };
+            return createUnknownSubcommandResult(subCommand, ROLE_SUBCOMMANDS);
           }
         }
       },

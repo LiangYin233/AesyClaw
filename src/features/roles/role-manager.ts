@@ -58,6 +58,49 @@ export class RoleManager {
     return path.join(this.rolesDir, `${roleId}.json`);
   }
 
+  private buildRoleWithMetadata(
+    roleId: string,
+    config: RoleConfig,
+    updatedAt: Date,
+    loadedAt = new Date()
+  ): RoleWithMetadata {
+    return {
+      ...config,
+      metadata: {
+        id: roleId,
+        fileName: `${roleId}.json`,
+        loadedAt,
+        updatedAt,
+      },
+    };
+  }
+
+  private removeRole(roleId: string, message: string, level: 'debug' | 'error', extra: Record<string, unknown> = {}): null {
+    this.roles.delete(roleId);
+    if (level === 'error') {
+      logger.error({ roleId, ...extra }, message);
+    } else {
+      logger.debug({ roleId, ...extra }, message);
+    }
+
+    return null;
+  }
+
+  private getFallbackRole(roleId: string): RoleWithMetadata | null {
+    const role = this.getRole(roleId);
+    if (role) {
+      return role;
+    }
+
+    const defaultRole = this.getRole(DEFAULT_ROLE_ID);
+    if (defaultRole) {
+      logger.warn({ requestedRoleId: roleId }, 'Role not found, returning default');
+      return defaultRole;
+    }
+
+    return null;
+  }
+
   private async loadAllRoles(): Promise<void> {
     try {
       const files = await fs.promises.readdir(this.rolesDir);
@@ -69,15 +112,7 @@ export class RoleManager {
 
       if (!this.roles.has(DEFAULT_ROLE_ID)) {
         const now = new Date();
-        this.roles.set(DEFAULT_ROLE_ID, {
-          ...DEFAULT_ROLE_CONFIG,
-          metadata: {
-            id: DEFAULT_ROLE_ID,
-            fileName: `${DEFAULT_ROLE_ID}.json`,
-            loadedAt: now,
-            updatedAt: now,
-          },
-        });
+        this.roles.set(DEFAULT_ROLE_ID, this.buildRoleWithMetadata(DEFAULT_ROLE_ID, DEFAULT_ROLE_CONFIG, now, now));
       }
 
       logger.info({ loadedCount: this.roles.size }, 'All roles loaded');
@@ -100,40 +135,40 @@ export class RoleManager {
       const result = RoleConfigSchema.safeParse(rawConfig);
 
       if (!result.success) {
-        this.roles.delete(roleId);
-        logger.error({ roleId, issues: result.error.issues }, 'Role validation failed');
-        return null;
+        return this.removeRole(roleId, 'Role validation failed', 'error', { issues: result.error.issues });
       }
 
       const config = result.data;
       if (!config.enabled) {
-        logger.debug({ roleId }, 'Role is disabled, skipping');
-        this.roles.delete(roleId);
-        return null;
+        return this.removeRole(roleId, 'Role is disabled, skipping', 'debug');
       }
 
-      const roleWithMeta: RoleWithMetadata = {
-        ...config,
-        metadata: {
-          id: roleId,
-          fileName: `${roleId}.json`,
-          loadedAt: new Date(),
-          updatedAt: stats.mtime,
-        },
-      };
+      const roleWithMeta = this.buildRoleWithMetadata(roleId, config, stats.mtime);
 
       this.roles.set(roleId, roleWithMeta);
       logger.debug({ roleId, name: config.name }, 'Role loaded');
       return roleWithMeta;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        this.roles.delete(roleId);
-        logger.debug({ roleId }, 'Role file not found');
-        return null;
+        return this.removeRole(roleId, 'Role file not found', 'debug');
       }
-      this.roles.delete(roleId);
-      logger.error({ roleId, error }, 'Failed to load role');
-      return null;
+      return this.removeRole(roleId, 'Failed to load role', 'error', { error });
+    }
+  }
+
+  private async handleRoleFileChange(roleId: string, eventType: string): Promise<void> {
+    logger.info({ roleId, eventType }, 'Role file changed, reloading...');
+
+    try {
+      const role = await this.loadRole(roleId);
+      if (role) {
+        logger.info({ roleId, name: role.name }, 'Role hot-reloaded');
+        return;
+      }
+
+      logger.info({ roleId }, 'Role removed or disabled after reload');
+    } catch (error) {
+      logger.error({ roleId, error }, 'Failed to hot-reload role');
     }
   }
 
@@ -144,17 +179,7 @@ export class RoleManager {
       const watcher = fs.watch(this.rolesDir, { recursive: false }, (eventType, filename) => {
         if (filename && filename.endsWith('.json')) {
           const roleId = path.basename(filename, '.json');
-          logger.info({ roleId, eventType }, 'Role file changed, reloading...');
-
-          this.loadRole(roleId).then(role => {
-            if (role) {
-              logger.info({ roleId, name: role.name }, 'Role hot-reloaded');
-            } else {
-              logger.info({ roleId }, 'Role removed or disabled after reload');
-            }
-          }).catch(error => {
-            logger.error({ roleId, error }, 'Failed to hot-reload role');
-          });
+          void this.handleRoleFileChange(roleId, eventType);
         }
       });
 
@@ -195,18 +220,8 @@ export class RoleManager {
   }
 
   getRoleConfig(roleId: string): RoleConfig {
-    const role = this.getRole(roleId);
-    if (role) {
-      return this.toRoleConfig(role);
-    }
-
-    const defaultRole = this.getRole(DEFAULT_ROLE_ID);
-    if (defaultRole) {
-      logger.warn({ requestedRoleId: roleId }, 'Role not found, returning default');
-      return this.toRoleConfig(defaultRole);
-    }
-
-    return DEFAULT_ROLE_CONFIG;
+    const role = this.getFallbackRole(roleId);
+    return role ? this.toRoleConfig(role) : DEFAULT_ROLE_CONFIG;
   }
 
   private toRoleConfig(role: RoleWithMetadata): RoleConfig {

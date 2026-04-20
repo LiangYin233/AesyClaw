@@ -46,6 +46,28 @@ class CronJobRepository {
     return sqliteManager.getDatabase();
   }
 
+  private buildUpdateStatement(entries: Array<[string, string | number | null | undefined]>): {
+    fields: string[];
+    values: Array<string | number | null>;
+    hasChanges: boolean;
+  } {
+    const fields: string[] = ['updated_at = ?'];
+    const values: Array<string | number | null> = [new Date().toISOString()];
+    let hasChanges = false;
+
+    for (const [field, value] of entries) {
+      if (value === undefined) {
+        continue;
+      }
+
+      fields.push(`${field} = ?`);
+      values.push(value);
+      hasChanges = true;
+    }
+
+    return { fields, values, hasChanges };
+  }
+
   private mapRow(row: CronJobRow): CronJob {
     return {
       id: row.id,
@@ -100,36 +122,16 @@ class CronJobRepository {
   }
 
   update(id: string, updates: UpdateCronJobRecordInput): CronJob | null {
-    const fields: string[] = ['updated_at = ?'];
-    const values: Array<string | number | null> = [];
-    values.push(new Date().toISOString());
+    const { fields, values, hasChanges } = this.buildUpdateStatement([
+      ['name', updates.name],
+      ['cron_expression', updates.cronExpression],
+      ['prompt', updates.prompt],
+      ['enabled', updates.enabled === undefined ? undefined : (updates.enabled ? 1 : 0)],
+      ['last_run_at', updates.lastRunAt],
+      ['next_run_at', updates.nextRunAt],
+    ]);
 
-    if (updates.name !== undefined) {
-      fields.push('name = ?');
-      values.push(updates.name);
-    }
-    if (updates.cronExpression !== undefined) {
-      fields.push('cron_expression = ?');
-      values.push(updates.cronExpression);
-    }
-    if (updates.prompt !== undefined) {
-      fields.push('prompt = ?');
-      values.push(updates.prompt);
-    }
-    if (updates.enabled !== undefined) {
-      fields.push('enabled = ?');
-      values.push(updates.enabled ? 1 : 0);
-    }
-    if (updates.lastRunAt !== undefined) {
-      fields.push('last_run_at = ?');
-      values.push(updates.lastRunAt);
-    }
-    if (updates.nextRunAt !== undefined) {
-      fields.push('next_run_at = ?');
-      values.push(updates.nextRunAt);
-    }
-
-    if (fields.length === 1) return this.findById(id);
+    if (!hasChanges) return this.findById(id);
 
     values.push(id);
     const result = this.db.prepare(`UPDATE cron_jobs SET ${fields.join(', ')} WHERE id = ?`).run(...values);
@@ -149,17 +151,10 @@ class CronJobRepository {
   }
 
   updateSchedule(id: string, updates: { lastRunAt?: string; nextRunAt?: string | null }): void {
-    const fields: string[] = ['updated_at = ?'];
-    const values: Array<string | number | null> = [new Date().toISOString()];
-
-    if (updates.lastRunAt !== undefined) {
-      fields.push('last_run_at = ?');
-      values.push(updates.lastRunAt);
-    }
-    if (updates.nextRunAt !== undefined) {
-      fields.push('next_run_at = ?');
-      values.push(updates.nextRunAt);
-    }
+    const { fields, values } = this.buildUpdateStatement([
+      ['last_run_at', updates.lastRunAt],
+      ['next_run_at', updates.nextRunAt],
+    ]);
 
     values.push(id);
     this.db.prepare(`UPDATE cron_jobs SET ${fields.join(', ')} WHERE id = ?`).run(...values);

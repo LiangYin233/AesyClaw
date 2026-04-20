@@ -1,5 +1,11 @@
 import type { CommandContext, CommandDefinition, CommandResult } from '@/contracts/commands.js';
 import type { ChatService } from '@/agent/session/session-service.js';
+import { createUnknownSubcommandResult } from '@/platform/commands/subcommand-utils.js';
+
+const SESSION_SUBCOMMANDS = [
+  '  /session clear   - 清除当前会话',
+  '  /session compact - 压缩当前会话',
+];
 
 export function createSessionCommandGroup(chatService: ChatService): CommandDefinition[] {
   return [
@@ -26,10 +32,7 @@ export function createSessionCommandGroup(chatService: ChatService): CommandDefi
           }
 
           default: {
-            return {
-              success: false,
-              message: `未知子命令: ${subCommand || '(无)'}\n\n可用子命令:\n  /session clear   - 清除当前会话\n  /session compact - 压缩当前会话`,
-            };
+            return createUnknownSubcommandResult(subCommand, SESSION_SUBCOMMANDS);
           }
         }
       },

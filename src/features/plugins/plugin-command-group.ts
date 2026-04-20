@@ -1,11 +1,18 @@
 import type { CommandContext, CommandDefinition, CommandResult } from '@/contracts/commands.js';
 import { logger } from '@/platform/observability/logger.js';
+import { createMissingArgumentResult, createUnknownSubcommandResult } from '@/platform/commands/subcommand-utils.js';
 
 export interface PluginCommandGroupDeps {
   getPluginCommands: () => CommandDefinition[];
   enablePlugin: (_pluginName: string) => Promise<{ success: boolean; message: string }>;
   disablePlugin: (_pluginName: string) => Promise<{ success: boolean; message: string }>;
 }
+
+const PLUGIN_SUBCOMMANDS = [
+  '  /plugin list     - 列出所有插件',
+  '  /plugin enable   - 开启插件',
+  '  /plugin disable  - 关闭插件',
+];
 
 function formatPluginList(getPluginCommands: () => CommandDefinition[]): string {
   const plugins = getPluginCommands();
@@ -60,10 +67,7 @@ export function createPluginCommandGroup(deps: PluginCommandGroupDeps): CommandD
           case 'enable': {
             const pluginName = ctx.args[1];
             if (!pluginName) {
-              return {
-                success: false,
-                message: '请指定要开启的插件名称\n\n用法: /plugin enable <plugin-name>',
-              };
+              return createMissingArgumentResult('请指定要开启的插件名称', '/plugin enable <plugin-name>');
             }
 
             logger.info({ pluginName }, '正在开启插件');
@@ -73,10 +77,7 @@ export function createPluginCommandGroup(deps: PluginCommandGroupDeps): CommandD
           case 'disable': {
             const pluginName = ctx.args[1];
             if (!pluginName) {
-              return {
-                success: false,
-                message: '请指定要关闭的插件名称\n\n用法: /plugin disable <plugin-name>',
-              };
+              return createMissingArgumentResult('请指定要关闭的插件名称', '/plugin disable <plugin-name>');
             }
 
             logger.info({ pluginName }, '正在关闭插件');
@@ -84,10 +85,7 @@ export function createPluginCommandGroup(deps: PluginCommandGroupDeps): CommandD
           }
 
           default: {
-            return {
-              success: false,
-              message: `未知子命令: ${subCommand || '(无)'}\n\n可用子命令:\n  /plugin list     - 列出所有插件\n  /plugin enable   - 开启插件\n  /plugin disable  - 关闭插件`,
-            };
+            return createUnknownSubcommandResult(subCommand, PLUGIN_SUBCOMMANDS);
           }
         }
       },
