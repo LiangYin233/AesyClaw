@@ -1,8 +1,15 @@
+/** @file 插件发现工具
+ *
+ * 扫描指定目录下符合前缀（plugin_ / channel_）的子目录，
+ * 读取 package.json 并返回发现的插件信息。
+ */
+
 import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from '@/platform/observability/logger.js';
 import { type PackageManifest, readPackageManifest } from './package-manifest.js';
 
+/** 发现的插件信息 */
 export interface DiscoveredPlugin {
   dir: string;
   dirName: string;
@@ -10,6 +17,11 @@ export interface DiscoveredPlugin {
   name: string;
 }
 
+/** 按前缀扫描目录并发现插件
+ *
+ * 遍历目录下的子目录，筛选名称以 prefix 开头的目录，
+ * 读取 package.json 并返回发现的插件列表。
+ */
 export function discoverPluginsByPrefix(pluginsDir: string, prefix: string): DiscoveredPlugin[] {
   if (!fs.existsSync(pluginsDir)) return [];
 

@@ -1,12 +1,23 @@
+/** @file SQLite 数据库管理器
+ *
+ * SQLiteManager 负责初始化 SQLite 数据库连接，创建表结构与索引，
+ * 并提供事务支持。使用 better-sqlite3 作为底层驱动。
+ *
+ * 数据库文件位于 .aesyclaw/data/aesyclaw.db。
+ * 启用 WAL 模式以提高并发性能，启用外键约束。
+ */
+
 import Database from 'better-sqlite3';
 import { pathResolver } from '../utils/paths.js';
 import { logger } from '../observability/logger.js';
 import { toErrorMessage } from '../utils/errors.js';
 
+/** SQLite 数据库管理器 */
 class SQLiteManager {
   private db: Database.Database | null = null;
   private initialized: boolean = false;
 
+  /** 初始化数据库连接并创建表结构 */
   initialize(): void {
     if (this.initialized) {
       return;
@@ -30,6 +41,7 @@ class SQLiteManager {
     }
   }
 
+  /** 创建数据库表 */
   private initializeTables(): void {
     this.getDatabase().exec(`
       CREATE TABLE IF NOT EXISTS chat_sessions (
@@ -80,6 +92,7 @@ class SQLiteManager {
     logger.info({}, 'Database tables initialized');
   }
 
+  /** 创建数据库索引 */
   private ensureIndexes(): void {
     this.getDatabase().exec(`
       CREATE INDEX IF NOT EXISTS idx_cron_jobs_next_run ON cron_jobs(next_run_at) WHERE enabled = 1;
@@ -88,6 +101,7 @@ class SQLiteManager {
     `);
   }
 
+  /** 获取 better-sqlite3 原生绑定修复提示 */
   private getNativeBindingRepairHint(error: unknown): string | undefined {
     const message = toErrorMessage(error);
     if (!message.includes('Could not locate the bindings file')) {
@@ -97,6 +111,7 @@ class SQLiteManager {
     return 'better-sqlite3 native bindings are missing; run `npm rebuild better-sqlite3` or reinstall dependencies.';
   }
 
+  /** 获取数据库实例（未初始化时抛出错误） */
   getDatabase(): Database.Database {
     if (!this.db) {
       throw new Error('Database not initialized. Call initialize() first.');
@@ -108,6 +123,7 @@ class SQLiteManager {
     return this.initialized;
   }
 
+  /** 关闭数据库连接 */
   close(): void {
     if (this.db) {
       this.db.close();
@@ -117,6 +133,7 @@ class SQLiteManager {
     }
   }
 
+  /** 执行事务 */
   transaction<T>(fn: () => T): T {
     return this.getDatabase().transaction(fn)();
   }

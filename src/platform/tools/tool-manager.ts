@@ -1,3 +1,16 @@
+/** @file 工具管理器
+ *
+ * ToolManager 管理工具的注册、查询与反注册，支持：
+ * - 按所有者（system/plugin/mcp）隔离的工具注册作用域
+ * - 工具参数验证（使用 Zod schema）
+ * - 工具目录查询（供 AgentEngine 获取可用工具列表）
+ *
+ * 注册流程：
+ * 1. createScope() 创建注册作用域
+ * 2. scope.register() 注册工具
+ * 3. scope.dispose() 或 unregister() 反注册
+ */
+
 import { ZodError } from 'zod';
 import { logger } from '@/platform/observability/logger.js';
 import { OwnedNameRegistry } from '@/platform/registration/owned-name-registry.js';
@@ -9,6 +22,7 @@ import {
 } from '@/platform/registration/types.js';
 import type { Tool, ToolDefinition } from './types.js';
 
+/** 工具验证错误信息 */
 export interface ToolValidationError {
   toolName: string;
   error: string;
@@ -18,6 +32,7 @@ export interface ToolValidationError {
   }>;
 }
 
+/** 工具目录，提供工具查询接口 */
 export interface ToolCatalog {
   getTool(toolName: string): Tool | undefined;
   hasTool(toolName: string): boolean;
@@ -28,6 +43,11 @@ export interface ToolCatalog {
   };
 }
 
+/** 工具注册端口
+ *
+ * 每个所有者通过此接口注册和管理自己的工具。
+ * dispose() 时自动反注册该所有者下的所有工具。
+ */
 export interface ToolRegistrationPort {
   readonly owner: RegistrationOwner;
   register(tool: Tool): RegistrationHandle;
@@ -41,6 +61,10 @@ interface RegisteredToolRecord {
   owner: RegistrationOwner;
 }
 
+/** 工具管理器
+ *
+ * 实现 ToolCatalog 接口，管理所有已注册工具。
+ */
 export class ToolManager implements ToolCatalog {
   private tools: Map<string, RegisteredToolRecord> = new Map();
   private ownerToolNames = new OwnedNameRegistry();
@@ -49,6 +73,7 @@ export class ToolManager implements ToolCatalog {
     logger.info({}, 'ToolManager initialized');
   }
 
+  /** 为指定所有者创建工具注册作用域 */
   createScope(owner: RegistrationOwner): ToolRegistrationPort {
     return {
       owner,
@@ -77,6 +102,7 @@ export class ToolManager implements ToolCatalog {
     return Array.from(this.tools.keys());
   }
 
+  /** 验证工具参数是否符合 Zod schema */
   validateToolArguments(
     toolName: string,
     args: Record<string, unknown>

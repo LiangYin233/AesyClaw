@@ -1,3 +1,10 @@
+/** @file 媒体下载器
+ *
+ * MediaDownloader 负责下载远程媒体文件到本地媒体目录，
+ * 支持去重缓存（同一 URL 的并发下载只执行一次）、
+ * 文件名生成（基于 URL hash 与时间戳）、MIME 类型识别。
+ */
+
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -5,6 +12,7 @@ import { pathResolver } from './paths.js';
 import { logger } from '../observability/logger.js';
 import { toErrorMessage } from './errors.js';
 
+/** 媒体下载选项 */
 export interface MediaDownloadOptions {
   url: string;
   type: 'image' | 'file' | 'video' | 'audio';
@@ -12,6 +20,7 @@ export interface MediaDownloadOptions {
   headers?: Record<string, string>;
 }
 
+/** 媒体下载结果 */
 export interface MediaDownloadResult {
   success: boolean;
   localPath?: string;
@@ -19,6 +28,7 @@ export interface MediaDownloadResult {
   error?: string;
 }
 
+/** 已下载的媒体文件信息 */
 export interface DownloadedMedia {
   type: string;
   url: string;
@@ -26,8 +36,13 @@ export interface DownloadedMedia {
   filename: string;
 }
 
+/** 媒体下载器
+ *
+ * 管理远程媒体文件的下载、缓存与存储。
+ */
 export class MediaDownloader {
   private mediaDir: string;
+  /** 正在进行的下载任务映射，用于去重并发请求 */
   private pendingDownloads: Map<string, Promise<MediaDownloadResult>>;
 
   constructor() {
@@ -35,6 +50,7 @@ export class MediaDownloader {
     this.pendingDownloads = new Map();
   }
 
+  /** 生成文件名：type_timestamp_hash.ext */
   private generateFilename(url: string, type: string): string {
     const hash = crypto.createHash('md5').update(url).digest('hex').substring(0, 12);
     const timestamp = Date.now();
@@ -42,6 +58,7 @@ export class MediaDownloader {
     return `${type}_${timestamp}_${hash}${ext}`;
   }
 
+  /** 从 URL 提取扩展名，失败时根据类型返回默认扩展名 */
   private getExtensionFromUrl(url: string, type: string): string {
     try {
       const urlObj = new URL(url);
@@ -64,10 +81,16 @@ export class MediaDownloader {
     return typeExtensions[type] || '.bin';
   }
 
+  /** 生成下载缓存键 */
   private getDownloadCacheKey(options: MediaDownloadOptions): string {
     return `${options.type}:${options.url}`;
   }
 
+  /** 下载媒体文件
+   *
+   * 若同一 URL 正在下载中，返回已有的 Promise（去重）。
+   * 若文件已存在，直接返回缓存结果。
+   */
   async download(options: MediaDownloadOptions): Promise<MediaDownloadResult> {
     const { url, type, filename, headers } = options;
 
@@ -91,6 +114,7 @@ export class MediaDownloader {
     }
   }
 
+  /** 执行实际的下载操作 */
   private async performDownload(
     url: string,
     type: string,
@@ -146,6 +170,7 @@ export class MediaDownloader {
     }
   }
 
+  /** 从响应头提取文件名 */
   private extractFilenameFromResponse(
     response: Response,
     fallbackFilename: string,
@@ -169,6 +194,7 @@ export class MediaDownloader {
     return fallbackFilename;
   }
 
+  /** 根据 MIME 类型获取扩展名 */
   private getExtensionFromMimeType(contentType: string): string | null {
     const mimeMap: Record<string, string> = {
       'image/jpeg': '.jpg',

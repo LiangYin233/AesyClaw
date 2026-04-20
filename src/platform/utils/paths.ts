@@ -1,3 +1,10 @@
+/** @file 项目路径解析器
+ *
+ * PathResolver 管理 AesyClaw 项目的所有路径，
+ * 包括配置目录、数据目录、技能目录、工作区目录、媒体目录、角色目录等。
+ * 初始化时会自动创建不存在的目录。
+ */
+
 import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from '../observability/logger.js';
@@ -12,6 +19,10 @@ const DEFAULT_WORKSPACE_DIR = 'workspace';
 const DEFAULT_MEDIA_DIR = 'media';
 const DEFAULT_ROLES_DIR = 'roles';
 
+/** 项目路径解析器
+ *
+ * 统一管理项目各目录的路径，初始化时自动创建缺失的目录。
+ */
 export class PathResolver {
   private basePath: string;
   private configDir: string;
@@ -34,6 +45,7 @@ export class PathResolver {
     this.rolesDir = path.join(this.basePath, DEFAULT_ROLES_DIR);
   }
 
+  /** 初始化路径解析器，自动创建缺失的目录 */
   initialize(): void {
     if (this.initialized) {
       return;
@@ -64,6 +76,7 @@ export class PathResolver {
     }
   }
 
+  /** 确保目录存在，不存在时递归创建 */
   public ensureDirectoryExists(dirPath: string): void {
     if (!fs.existsSync(dirPath)) {
       fs.mkdirSync(dirPath, { recursive: true });

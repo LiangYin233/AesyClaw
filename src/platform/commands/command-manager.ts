@@ -1,3 +1,17 @@
+/** @file 命令管理器
+ *
+ * CommandManager 管理命令的注册、查询与反注册，支持：
+ * - 按所有者（system/plugin）隔离的命令注册作用域
+ * - 命令别名映射（大小写不敏感）
+ * - 命名空间前缀（插件命令自动加 plugin: 前缀）
+ * - 按后缀模糊匹配（如输入 "help" 可匹配 "system:help"）
+ *
+ * 注册流程：
+ * 1. createScope() 创建注册作用域
+ * 2. scope.register() / registerMany() 注册命令
+ * 3. scope.dispose() 或 unregister() 反注册
+ */
+
 import { logger } from '@/platform/observability/logger.js';
 import { OwnedNameRegistry } from '@/platform/registration/owned-name-registry.js';
 import {
@@ -7,6 +21,7 @@ import {
 } from '@/platform/registration/types.js';
 import type { CommandDefinition } from '@/contracts/commands.js';
 
+/** 命令目录，提供命令查询接口 */
 export interface CommandCatalog {
   getCommand(name: string): CommandDefinition | undefined;
   getAllCommands(): CommandDefinition[];
@@ -17,6 +32,11 @@ export interface CommandCatalog {
   getCommandCount(): number;
 }
 
+/** 命令注册作用域
+ *
+ * 每个所有者（插件/系统）通过此接口注册和管理自己的命令。
+ * dispose() 时自动反注册该所有者下的所有命令。
+ */
 export interface CommandRegistrationScope {
   readonly owner: RegistrationOwner;
   register(command: CommandDefinition): RegistrationHandle;
@@ -36,6 +56,10 @@ interface RegisteredCommandRecord {
   aliasKeys: string[];
 }
 
+/** 命令管理器
+ *
+ * 实现 CommandCatalog 接口，管理所有已注册命令。
+ */
 export class CommandManager implements CommandCatalog {
   private commands: Map<string, RegisteredCommandRecord> = new Map();
   private aliasMap: Map<string, string> = new Map();
@@ -45,6 +69,7 @@ export class CommandManager implements CommandCatalog {
     logger.info({}, 'CommandManager initialized');
   }
 
+  /** 为指定所有者创建命令注册作用域 */
   createScope(owner: RegistrationOwner, options: CommandScopeOptions = {}): CommandRegistrationScope {
     return {
       owner,
@@ -58,6 +83,7 @@ export class CommandManager implements CommandCatalog {
     };
   }
 
+  /** 通过后缀模糊匹配命令（如 "help" 匹配 "system:help"） */
   private resolveNamespacedCommandBySuffix(name: string): CommandDefinition | undefined {
     const target = name.toLowerCase();
     let matched: CommandDefinition | undefined;
@@ -83,6 +109,7 @@ export class CommandManager implements CommandCatalog {
     return matched;
   }
 
+  /** 通过名称或别名获取命令 */
   getCommand(name: string): CommandDefinition | undefined {
     const resolvedName = this.aliasMap.get(name.toLowerCase()) ?? name;
     return this.commands.get(resolvedName)?.command ?? this.resolveNamespacedCommandBySuffix(name);

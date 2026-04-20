@@ -1,3 +1,7 @@
+/** @file 工具管理器公共导出
+ *
+ * 统一导出 ToolManager 及其相关类型。
+ */
 export type {
   ToolCatalog,
   ToolRegistrationPort,
