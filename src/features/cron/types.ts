@@ -4,11 +4,11 @@ import type { CronJob } from '@/platform/db/repositories/cron-job-repository.js'
 export { CronJob };
 
 export interface CreateCronJobInput {
-  name: string;
-  prompt: string;
-  schedule: CreateCronScheduleInput;
+    name: string;
+    prompt: string;
+    schedule: CreateCronScheduleInput;
 }
 
 export interface CronExecutor {
-  execute(job: CronJob): Promise<void>;
+    execute(job: CronJob): Promise<void>;
 }
