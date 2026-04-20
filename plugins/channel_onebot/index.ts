@@ -1,3 +1,16 @@
+/** @file OneBot 频道插件
+ *
+ * 实现 OneBot v11/v12 协议适配，通过 WebSocket 连接到 OneBot 实现（如 go-cqhttp），
+ * 将 QQ 群/私聊消息接入 AesyClaw 处理流水线，并将 Agent 回复发送回 QQ。
+ *
+ * 核心功能：
+ * - WebSocket 连接管理（含 access_token 认证）
+ * - 消息收发（群聊/私聊）
+ * - 媒体文件处理（下载远程图片/视频/语音/文件到本地）
+ * - 文件流上传（通过 upload_file_stream API 发送本地文件）
+ * - 白名单过滤（按 group_ids / private_ids 过滤消息来源）
+ */
+
 import { createHash, randomUUID } from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -15,6 +28,7 @@ import { toErrorMessage } from '@/sdk/errors.js';
 
 let mediaDownloader: MediaDownloader | null = null;
 
+/** 懒加载媒体下载器（避免循环依赖） */
 async function getMediaDownloader(): Promise<MediaDownloader> {
   if (!mediaDownloader) {
     const module = await import('@/sdk/media.js');
@@ -23,6 +37,7 @@ async function getMediaDownloader(): Promise<MediaDownloader> {
   return mediaDownloader;
 }
 
+/** OneBot 频道配置 Zod Schema */
 export const OneBotChannelConfigSchema = z.object({
   enabled: z.boolean().default(false),
   ws_url: z.string().url().optional(),
@@ -173,9 +188,12 @@ const OUTGOING_MEDIA_SEGMENT_TYPES: Record<OutgoingMediaType, OneBotMediaSegment
   file: 'file',
 };
 
+/** 流式上传分块大小（字节） */
 const STREAM_UPLOAD_CHUNK_SIZE = 64 * 1024;
+/** 流式文件保留时间（毫秒） */
 const STREAM_FILE_RETENTION_MS = 30 * 1000;
 
+/** 判断是否为 OneBot 媒体消息段类型 */
 function isOneBotMediaSegmentType(type: string): type is OneBotMediaSegmentType {
   return Object.hasOwn(ONEBOT_MEDIA_DESCRIPTORS, type);
 }
@@ -200,6 +218,7 @@ function getOutgoingSegmentType(mediaType: string): OneBotMediaSegmentType {
   return 'file';
 }
 
+/** OneBot 频道插件 */
 export const onebotPlugin: ChannelPlugin = {
   name: 'onebot',
   version: '1.0.0',
@@ -213,6 +232,7 @@ export const onebotPlugin: ChannelPlugin = {
     private_ids: [],
   },
 
+  /** 初始化：验证配置、建立 WebSocket 连接 */
   async init(ctx: ChannelPluginContext): Promise<void> {
     const rawConfig = ctx.config as Record<string, unknown>;
     const validatedConfig = OneBotChannelConfigSchema.parse(rawConfig);
@@ -233,6 +253,7 @@ export const onebotPlugin: ChannelPlugin = {
     await connect();
   },
 
+  /** 销毁：关闭 WebSocket、拒绝待处理请求、重置状态 */
   async destroy(): Promise<void> {
     const ws = state.ws;
     const logger = state.logger;
@@ -273,6 +294,11 @@ export const onebotPlugin: ChannelPlugin = {
   },
 };
 
+/** 建立 OneBot WebSocket 连接
+ *
+ * 设置认证头（access_token），处理连接、消息、关闭、错误事件。
+ * 连接成功前 resolve，连接失败时 reject。
+ */
 async function connect(): Promise<void> {
   const config = state.config!;
   const logger = state.logger!;
@@ -333,6 +359,7 @@ async function connect(): Promise<void> {
   });
 }
 
+/** 处理 OneBot API 响应（匹配 echo 的待处理请求） */
 function handleApiResponse(response: OneBotApiResponse): void {
   const deferred = state.pendingRequests.get(response.echo!);
   if (!deferred) return;
@@ -346,6 +373,7 @@ function handleApiResponse(response: OneBotApiResponse): void {
   }
 }
 
+/** 处理 OneBot 事件（过滤非消息事件，分发到消息处理器） */
 function handleEvent(event: OneBotMessage): void {
   const logger = state.logger!;
 
@@ -365,6 +393,7 @@ function handleEvent(event: OneBotMessage): void {
   }
 }
 
+/** 将 OneBot 消息转换为系统内部消息格式 */
 function buildReceivedMessage(
   event: OneBotMessage,
   chatId: string,
@@ -401,6 +430,7 @@ function buildReceivedMessage(
   };
 }
 
+/** 处理收到的消息（白名单过滤、媒体处理、注入流水线） */
 function handleIncomingMessage(event: OneBotMessage, messageType: OneBotConversationType): void {
   const logger = state.logger!;
   const config = state.config!;
@@ -433,10 +463,12 @@ function handleIncomingMessage(event: OneBotMessage, messageType: OneBotConversa
     });
 }
 
+/** 判断字符串是否为远程 URL */
 function isLikelyRemoteUrl(value: string): boolean {
   return value.startsWith('http://') || value.startsWith('https://');
 }
 
+/** 将 file:/// 路径或普通路径标准化为本地文件路径 */
 function normalizeLocalFilePath(fileUrlOrPath: string): string {
   if (fileUrlOrPath.startsWith('file:///')) {
     return decodeURIComponent(new URL(fileUrlOrPath).pathname.replace(/^\//, ''));
@@ -445,10 +477,15 @@ function normalizeLocalFilePath(fileUrlOrPath: string): string {
   return fileUrlOrPath;
 }
 
+/** 解析 outgoing 媒体文件：远程 URL 直接使用，本地文件通过流式上传 */
 async function resolveOutgoingMediaFile(urlOrPath: string, filename?: string): Promise<string> {
   return isLikelyRemoteUrl(urlOrPath) ? urlOrPath : uploadFileStream(urlOrPath, filename);
 }
 
+/** 通过 upload_file_stream API 上传本地文件
+ *
+ * 将文件分块（64KB）上传，完成后返回服务器文件路径。
+ */
 async function uploadFileStream(fileUrlOrPath: string, filename?: string): Promise<string> {
   const logger = state.logger!;
   const filePath = normalizeLocalFilePath(fileUrlOrPath);
@@ -515,6 +552,7 @@ async function uploadFileStream(fileUrlOrPath: string, filename?: string): Promi
   return completed.file_path;
 }
 
+/** 从 OneBot 消息段中提取纯文本内容 */
 function extractRawMessage(message: string | Array<OneBotMessageSegment>): string {
   if (typeof message === 'string') {
     return message;
@@ -546,6 +584,7 @@ function extractRawMessage(message: string | Array<OneBotMessageSegment>): strin
     .join('');
 }
 
+/** 从 OneBot 消息段中提取媒体文件列表 */
 function extractMedia(message: string | Array<OneBotMessageSegment>): Array<{ type: string; url: string; filename?: string }> {
   const media: Array<{ type: string; url: string; filename?: string }> = [];
 
@@ -572,6 +611,7 @@ function extractMedia(message: string | Array<OneBotMessageSegment>): Array<{ ty
   return media;
 }
 
+/** 处理消息中的远程媒体文件：下载到本地并替换 URL */
 async function processMediaInMessage(event: OneBotMessage): Promise<OneBotMessage> {
   const logger = state.logger!;
   const mediaToDownload: Array<{ url: string; downloadType: 'image' | 'video' | 'audio' | 'file' }> = [];
@@ -657,6 +697,7 @@ async function processMediaInMessage(event: OneBotMessage): Promise<OneBotMessag
   };
 }
 
+/** 创建消息发送函数（绑定到指定目标群/用户） */
 function createSend(targetId: string, messageType: 'group' | 'private'): (payload: ChannelSendPayload) => Promise<void> {
   return async (payload: ChannelSendPayload): Promise<void> => {
     const ws = state.ws;
@@ -689,6 +730,7 @@ function createSend(targetId: string, messageType: 'group' | 'private'): (payloa
   };
 }
 
+/** 构建 OneBot 消息格式（支持文本与媒体混合） */
 async function buildMessage(payload: ChannelSendPayload): Promise<string | Array<unknown>> {
   if (!payload.mediaFiles || payload.mediaFiles.length === 0) {
     return payload.text;
@@ -712,6 +754,10 @@ async function buildMessage(payload: ChannelSendPayload): Promise<string | Array
   return message;
 }
 
+/** 发送 OneBot API 请求
+ *
+ * 通过 WebSocket 发送请求，若提供 echo 则等待响应（30 秒超时）。
+ */
 async function sendApi(action: string, params: Record<string, unknown>, echo?: string): Promise<unknown> {
   const ws = state.ws;
   
@@ -753,6 +799,7 @@ async function sendApi(action: string, params: Record<string, unknown>, echo?: s
   });
 }
 
+/** 将收到的消息注入系统处理流水线 */
 function emitReceivedMessage(
   message: ChannelReceiveMessage,
   send: (payload: ChannelSendPayload) => Promise<void>,
