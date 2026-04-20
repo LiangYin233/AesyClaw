@@ -7,7 +7,7 @@
  * - 单任务并发控制（同一任务不会同时执行两次）
  * - 优雅关闭（等待当前执行中的任务完成）
  *
- * 调度策略：遍历所有已启用任务，找到最近到期的任务，设置 setTimeout 等待执行。
+ * 调度策略：遍历所有已启用任务，找到下一个将要运行的任务，设置 setTimeout 等待执行。
  * 任务执行完成后重新调度下一个任务。
  */
 
@@ -184,15 +184,14 @@ export class CronService {
     this.scheduleNext();
   }
 
-  /** 查找下一个可调度且已到期的任务 */
-  private findNextSchedulableJob(referenceTimeMs: number): CronJob | null {
+  /** 查找下一个将要运行的任务（跳过正在执行中的） */
+  private findNextJobToSchedule(): CronJob | null {
     for (const job of cronJobRepository.findEnabled()) {
       if (!job.nextRunAt) {
         continue;
       }
 
-      const isDue = new Date(job.nextRunAt).getTime() <= referenceTimeMs;
-      if (isDue && this.activeJobs.has(job.id)) {
+      if (this.activeJobs.has(job.id)) {
         continue;
       }
 
@@ -216,7 +215,7 @@ export class CronService {
     }
 
     const nowMs = Date.now();
-    const nextJob = this.findNextSchedulableJob(nowMs);
+    const nextJob = this.findNextJobToSchedule();
     if (!nextJob?.nextRunAt) {
       logger.debug({}, 'No scheduled cron jobs');
       return;

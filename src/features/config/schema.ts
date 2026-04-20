@@ -64,8 +64,6 @@ const RuntimeAgentConfigSchema = z.object({
 const RuntimeMemoryConfigSchema = z.object({
   max_context_tokens: z.number().int().positive().default(128000),
   compression_threshold: z.number().min(0).max(1).default(0.75).describe('触发压缩的上下文占比阈值 (0.0-1.0)'),
-  compression_provider: z.string().optional().describe('已废弃，当前版本由 aesyiu 使用活动模型进行压缩，不再单独指定 provider'),
-  compression_model: z.string().optional().describe('已废弃，当前版本由 aesyiu 使用活动模型进行压缩，不再单独指定 model'),
 });
 
 export const FullConfigSchema = z.object({

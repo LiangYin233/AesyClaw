@@ -81,13 +81,23 @@ class ChatStore {
         name: string | null;
       }>;
 
-    return rows.map(row => ({
-      role: row.role as MessageRole,
-      content: row.content,
-      toolCalls: row.tool_calls ? (JSON.parse(row.tool_calls) as StandardMessage['toolCalls']) : undefined,
-      toolCallId: row.tool_call_id || undefined,
-      name: row.name || undefined,
-    }));
+    return rows.map(row => {
+      let toolCalls: StandardMessage['toolCalls'] | undefined;
+      if (row.tool_calls) {
+        try {
+          toolCalls = JSON.parse(row.tool_calls) as StandardMessage['toolCalls'];
+        } catch {
+          logger.warn({ channel: key.channel, type: key.type, chatId: key.chatId }, 'Failed to parse tool_calls JSON, skipping');
+        }
+      }
+      return {
+        role: row.role as MessageRole,
+        content: row.content,
+        toolCalls,
+        toolCallId: row.tool_call_id || undefined,
+        name: row.name || undefined,
+      };
+    });
   }
 
   saveMessages(key: ChatKey, messages: StandardMessage[]): void {

@@ -122,7 +122,7 @@ export class AgentEngine {
 
     this.memory = config.memory ?? new SessionMemoryManager(chatId, this.config.memoryConfig, {
       systemPromptBuilder: {
-        buildSystemPrompt: ({ roleId, chatId: currentChatId }) => this.config.systemPrompt || `${roleId}:${currentChatId}`,
+        buildSystemPrompt: ({ roleId, chatId: currentChatId }): string => this.config.systemPrompt || `${roleId}:${currentChatId}`,
       },
       roleManager: this.config.roleStore,
       toolCatalog: this.toolCatalog,

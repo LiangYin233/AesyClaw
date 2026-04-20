@@ -51,13 +51,11 @@ function executeCommand(command: string, cwd: string): Promise<{ output: string;
           cwd,
           env: { ...process.env, HOME: process.env.HOME || '/tmp' },
           windowsHide: true,
-          timeout: EXEC_TIMEOUT_MS,
         })
       : spawn('/bin/sh', ['-lc', command], {
           cwd,
           env: { ...process.env, HOME: process.env.HOME || '/tmp' },
           windowsHide: true,
-          timeout: EXEC_TIMEOUT_MS,
         });
 
     const timeout = setTimeout(() => {

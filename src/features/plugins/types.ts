@@ -7,7 +7,6 @@
 import type { ScopedLogger } from '@/platform/observability/logger.js';
 import type { ChannelReceiveMessage, ChannelSendMessage } from '@/agent/types.js';
 import type { ChannelSendPayload } from '@/channels/channel-plugin.js';
-import type { CommandDefinition } from '@/contracts/commands.js';
 import type { PluginCommandRegistrar } from '@/contracts/commands.js';
 import type { StandardMessage } from '@/platform/llm/types.js';
 import type { ToolExecutionResult } from '@/platform/tools/types.js';
@@ -230,8 +229,6 @@ export interface Plugin<TOptions = Record<string, unknown>> {
   init?: (_ctx: PluginContext<TOptions>) => Promise<void>;
   /** 钩子集合，定义插件在消息生命周期各阶段的行为 */
   hooks?: PluginHooks;
-  /** 静态命令列表（已废弃，建议通过 init 中 ctx.commands 注册） */
-  commands?: CommandDefinition[];
   /** 销毁回调，插件卸载时调用以释放资源 */
   destroy?: () => Promise<void>;
 }
