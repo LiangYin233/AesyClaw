@@ -1,3 +1,22 @@
+/** @file 应用运行时主编排器
+ *
+ * AppRuntime 是整个 AesyClaw 系统的顶层控制器，负责按序启动和关闭所有子系统。
+ *
+ * 启动顺序（runInitStages）：
+ * 1. initializeCoreInfrastructure — PathResolver → ConfigManager → SQLiteManager
+ * 2. initializeDomainServices     — SkillManager → RoleManager
+ * 3. pipelineRuntime.start()      — 创建消息处理中间件链
+ * 4. systemRuntime.register()      — 注册系统工具与命令
+ * 5. pluginRuntime.start()         — 初始化并加载插件
+ * 6. cronRuntime.start()           — 启动定时任务
+ * 7. startManagedRuntimes           — MCP → Channel → 配置同步 → 热重载监听
+ *
+ * 关闭顺序（stop）与启动相反：
+ * 先停止外部连接（Channel → Cron → MCP），再停止内部服务
+ * （Plugin → Pipeline → System → SQLite → Skill → Role → Config），
+ * 确保不再有新消息进入系统后再释放资源。
+ */
+
 import { ChannelRuntime } from '@/channels/channel-runtime.js';
 import { PluginRuntime } from '@/features/plugins/plugin-runtime.js';
 import { logger } from '@/platform/observability/logger.js';
@@ -16,6 +35,7 @@ import { CronRuntime } from '@/runtime/cron-runtime.js';
 import { PipelineRuntime } from '@/runtime/pipeline-runtime.js';
 import { SystemRuntime } from '@/runtime/system-runtime.js';
 
+/** AppRuntime 的依赖注入接口，包含所有子系统与核心服务 */
 interface AppRuntimeDependencies {
   toolManager: ToolManager;
   pluginRuntime: PluginRuntime;
@@ -32,6 +52,11 @@ interface AppRuntimeDependencies {
   chatStore: Pick<ChatSessionStore, 'count'>;
 }
 
+/** 应用运行时主编排器
+ *
+ * 管理所有子系统的生命周期，确保按正确顺序启动与关闭。
+ * 启动失败时会自动执行清理（调用 stop），避免资源泄漏。
+ */
 export class AppRuntime {
   private initialized = false;
 
@@ -55,6 +80,11 @@ export class AppRuntime {
     this.systemRuntime = deps.systemRuntime;
   }
 
+  /** 启动所有子系统
+   *
+   * 按依赖顺序初始化：先基础设施，再领域服务，最后外部连接。
+   * 任何阶段失败都会触发完整清理，防止部分初始化状态。
+   */
   async start(): Promise<void> {
     if (this.initialized) {
       logger.warn({}, 'Bootstrap already initialized, skipping...');
@@ -81,6 +111,12 @@ export class AppRuntime {
     }
   }
 
+  /** 关闭所有子系统
+   *
+   * 按与启动相反的顺序关闭：先断开外部连接（Channel/Cron/MCP），
+   * 再停止内部服务，确保不再有新消息进入后才释放资源。
+   * 每个步骤独立 try-catch，单个失败不影响后续清理。
+   */
   async stop(): Promise<void> {
     logger.info({}, 'Shutting down AesyClaw...');
 
@@ -111,6 +147,7 @@ export class AppRuntime {
     logger.info({}, 'AesyClaw shutdown completed');
   }
 
+  /** 获取当前运行状态摘要，用于诊断与监控 */
   getStatus() {
     const mcpServers = this.mcpRuntime.getConnectedServers();
 
@@ -136,6 +173,7 @@ export class AppRuntime {
     };
   }
 
+  /** 按依赖顺序执行所有初始化阶段 */
   private async runInitStages(): Promise<void> {
     await this.initializeCoreInfrastructure();
     await this.initializeDomainServices();
@@ -146,12 +184,14 @@ export class AppRuntime {
     await this.startManagedRuntimes();
   }
 
+  /** 初始化核心基础设施：路径解析 → 配置管理 → 数据库 */
   private async initializeCoreInfrastructure(): Promise<void> {
     await this.deps.pathResolver.initialize();
     await this.deps.configManager.initialize();
     this.deps.sqliteManager.initialize();
   }
 
+  /** 初始化领域服务：技能系统 → 角色系统 */
   private async initializeDomainServices(): Promise<void> {
     await this.deps.skillManager.initialize();
     logger.info(this.deps.skillManager.getStats(), 'Skills system loaded');
@@ -160,6 +200,13 @@ export class AppRuntime {
     logger.info({ roleCount: this.deps.roleManager.getAllRoles().length }, 'Role system loaded');
   }
 
+  /** 启动托管运行时：MCP → 频道 → 配置同步 → 热重载监听
+   *
+   * 配置同步必须在所有插件与频道加载后执行，
+   * 以确保 registerDefaults() 已收集所有默认值。
+   * 热重载监听必须在配置同步之后启用，
+   * 避免初始同步触发不必要的重载。
+   */
   private async startManagedRuntimes(): Promise<void> {
     await this.mcpRuntime.start();
     await this.channelRuntime.start();
