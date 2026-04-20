@@ -11,7 +11,6 @@ import {
 } from './types.js';
 import { logger } from '../observability/logger.js';
 import { toErrorMessage } from '../utils/errors.js';
-import { pathResolver } from '../utils/paths.js';
 
 interface ProviderRuntimeConfig {
   api_key?: string;
@@ -205,7 +204,7 @@ export class SpeechToTextTool implements Tool {
     };
   }
 
-  async execute(args: unknown, context: ToolExecuteContext): Promise<ToolExecutionResult> {
+  async execute(args: unknown, _context: ToolExecuteContext): Promise<ToolExecutionResult> {
     const parsed = validateToolArgs(this.parametersSchema, args);
     if (!parsed.success) {
       return parsed.result;
@@ -300,7 +299,7 @@ export class ImageUnderstandingTool implements Tool {
     return prompt || defaultPrompt;
   }
 
-  async execute(args: unknown, context: ToolExecuteContext): Promise<ToolExecutionResult> {
+  async execute(args: unknown, _context: ToolExecuteContext): Promise<ToolExecutionResult> {
     const parsed = validateToolArgs(this.parametersSchema, args);
     if (!parsed.success) {
       return parsed.result;

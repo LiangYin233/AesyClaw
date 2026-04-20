@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import type { Message as AesyiuMessage } from 'aesyiu';
 import type { ToolExecuteContext } from '@/platform/tools/types.js';
 
 export const RunSubAgentInputSchema = z.object({

@@ -34,14 +34,14 @@ export interface ScopedLogger {
   debug(msg: string, data?: Record<string, unknown>): void;
 }
 
-const LOG_LEVELS = ['info', 'warn', 'error', 'debug'] as const;
+type LogLevel = 'info' | 'warn' | 'error' | 'debug';
 
 /** 创建带作用域前缀的日志器
  *
  * 输出格式：`[scope] message`，并自动在日志数据中附加 scope 字段。
  */
 export function createScopedLogger(scope: string, scopeKey: string = 'scope'): ScopedLogger {
-  const make = (level: (typeof LOG_LEVELS)[number]) =>
+  const make = (level: LogLevel) =>
     (msg: string, data?: Record<string, unknown>) =>
       logger[level]({ [scopeKey]: scope, ...data }, `[${scope}] ${msg}`);
   return {

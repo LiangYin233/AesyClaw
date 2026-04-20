@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import { logger } from '@/platform/observability/logger.js';
 import { sqliteManager } from '../sqlite-manager.js';
 import { MessageRole, type StandardMessage } from '@/platform/llm/types.js';

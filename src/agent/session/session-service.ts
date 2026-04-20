@@ -23,7 +23,6 @@ import type { ChatSessionStore, ConfigSource, RoleStore, SkillStore } from '@/co
 import type { SystemPromptManager } from '@/features/roles/system-prompt-manager.js';
 import { DEFAULT_ROLE_ID } from '@/features/roles/types.js';
 import { MessageRole, type StandardMessage } from '@/platform/llm/types.js';
-import { logger } from '@/platform/observability/logger.js';
 import type { ChatContext, ChatSession } from './session-context.js';
 import type { ChatKey } from '@/platform/db/repositories/session-repository.js';
 import type { ToolCatalog } from '@/platform/tools/registry.js';

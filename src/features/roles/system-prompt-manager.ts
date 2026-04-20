@@ -31,7 +31,6 @@ export class SystemPromptManager {
   }
 
   private buildCapabilitiesSection(roleId: string): { tools: string } {
-    const roleConfig = roleManager.getRoleConfig(roleId);
     const toolLines: string[] = [];
     try {
       const allTools = this.toolCatalog.getAllToolDefinitions();
