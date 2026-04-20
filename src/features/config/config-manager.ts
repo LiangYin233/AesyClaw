@@ -9,6 +9,8 @@ import { ConfigStore } from './config-store.js';
 import { loadConfig, watchConfig, type ResolvedConfig } from 'c12';
 import { createDefu } from 'defu';
 import { parseConfigFromRaw } from './config-parser.js';
+import { mergeDefaultOptions } from '@/platform/utils/merge-default-options.js';
+import { hasCanonicalValueChanged } from '@/platform/utils/canonical-stringify.js';
 
 const mergeConfigUpdates = createDefu((object, key, currentValue) => {
   if (Array.isArray(currentValue)) {
@@ -63,14 +65,19 @@ class ConfigDefaultsRegistry {
     for (const [name, defaults] of this.pendingDefaults.plugin) {
       const index = plugins.findIndex((plugin) => plugin.name === name);
       const existing = index >= 0 ? plugins[index] : undefined;
-      if (!existing || !existing.options || Object.keys(existing.options).length === 0) {
+      const mergedOptions = mergeDefaultOptions(defaults, existing?.options);
+      if (!existing) {
         changed = true;
-        if (index >= 0) {
-          plugins[index].enabled = true;
-          plugins[index].options = defaults;
-        } else {
-          plugins.push({ name, enabled: true, options: defaults });
-        }
+        plugins.push({ name, enabled: true, options: mergedOptions });
+        continue;
+      }
+
+      if (hasCanonicalValueChanged(existing.options || {}, mergedOptions)) {
+        changed = true;
+        plugins[index] = {
+          ...existing,
+          options: mergedOptions,
+        };
       }
     }
 
@@ -89,12 +96,10 @@ class ConfigDefaultsRegistry {
 
     for (const [name, defaults] of this.pendingDefaults.channel) {
       const existing = channels[name];
-      if (!existing || Object.keys(existing).length === 0) {
+      const mergedChannelConfig = mergeDefaultOptions(defaults, existing);
+      if (!existing || hasCanonicalValueChanged(existing, mergedChannelConfig)) {
         changed = true;
-        channels[name] = {
-          ...channels[name],
-          ...defaults,
-        };
+        channels[name] = mergedChannelConfig;
       }
     }
 

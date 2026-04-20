@@ -36,13 +36,3 @@ export function createScopedLogger(scope: string, scopeKey: string = 'scope'): S
     debug: make('debug'),
   };
 }
-
-process.on('uncaughtException', (err) => {
-  logger.fatal({ err }, 'Uncaught Exception detected');
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason) => {
-  logger.fatal({ reason }, 'Unhandled Promise Rejection detected');
-  process.exit(1);
-});

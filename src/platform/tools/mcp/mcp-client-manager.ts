@@ -3,6 +3,7 @@ import { logger } from '../../observability/logger.js';
 import { toErrorMessage } from '../../utils/errors.js';
 import { createRegistrationOwner } from '@/platform/registration/types.js';
 import type { ToolManager } from '../registry.js';
+import type { ToolRegistrationPort } from '../tool-manager.js';
 import { McpToolAdapter, MCPServerInfo } from './types.js';
 
 export interface McpServerConnectionConfig {
@@ -17,6 +18,7 @@ export interface McpServerConnectionConfig {
 
 export class McpClientManager {
   private managers: Map<string, MCPManager> = new Map();
+  private toolScopes: Map<string, ToolRegistrationPort> = new Map();
   private toolManager: ToolManager;
   private serverInfos: Map<string, MCPServerInfo> = new Map();
 
@@ -49,6 +51,7 @@ export class McpClientManager {
       }
 
       this.managers.set(config.name, manager);
+      this.toolScopes.set(config.name, toolScope);
 
       this.serverInfos.set(config.name, {
         name: config.name,
@@ -91,13 +94,16 @@ export class McpClientManager {
 
   async disconnectServer(serverName: string): Promise<void> {
     const manager = this.managers.get(serverName);
-    this.toolManager.createScope(createRegistrationOwner('mcp', serverName)).dispose();
+    const toolScope = this.toolScopes.get(serverName);
+
+    toolScope?.dispose();
 
     if (manager) {
       await manager.dispose();
-      this.managers.delete(serverName);
     }
 
+    this.toolScopes.delete(serverName);
+    this.managers.delete(serverName);
     this.serverInfos.delete(serverName);
     logger.info({ serverName }, 'MCP 服务器已断开');
   }
@@ -127,9 +133,6 @@ export class McpClientManager {
         logger.error({ serverName, error }, '关闭 MCP 客户端失败');
       }
     }
-
-    this.managers.clear();
-    this.serverInfos.clear();
   }
 
 }
