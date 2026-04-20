@@ -7,7 +7,6 @@ import { createRegistrationOwner } from '@/platform/registration/types.js';
 import { logger, createScopedLogger } from '@/platform/observability/logger.js';
 import type { ToolManager } from '@/platform/tools/registry.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
-import { runDestroy } from '@/platform/utils/lifecycle.js';
 import { mergeDefaultOptions } from '@/platform/utils/merge-default-options.js';
 import { assertPackageNameMatchesExportedName } from '@/platform/utils/package-manifest.js';
 import { getDiscoveredPluginEntryCandidates, resolveDiscoveredPluginEntry } from '@/platform/utils/plugin-entry.js';
@@ -220,14 +219,33 @@ export class PluginManager {
 
       logger.info({ pluginName: plugin.name }, 'Plugin loaded successfully');
     } catch (error) {
-      this.disposePluginScopes({ commandScope, toolScope });
-      await runDestroy({
-        destroy: plugin.destroy,
-        errorContext: { pluginName: plugin.name },
-        errorMessage: 'Plugin cleanup after initialization failure failed',
-      });
+      const cleanupErrors: unknown[] = [];
+
+      try {
+        this.disposePluginScopes({ commandScope, toolScope });
+      } catch (disposeError) {
+        logger.error({ pluginName: plugin.name, error: disposeError }, 'Plugin scope cleanup after initialization failure failed');
+        cleanupErrors.push(disposeError);
+      }
+
+      try {
+        if (plugin.destroy) {
+          await plugin.destroy();
+        }
+      } catch (cleanupError) {
+        logger.error({ pluginName: plugin.name, error: cleanupError }, 'Plugin cleanup after initialization failure failed');
+        cleanupErrors.push(cleanupError);
+      }
 
       logger.error({ pluginName: plugin.name, error }, 'Plugin initialization failed');
+
+      if (cleanupErrors.length === 1) {
+        throw new AggregateError([cleanupErrors[0]], `Plugin "${plugin.name}" initialization cleanup failed`, { cause: error });
+      }
+
+      if (cleanupErrors.length > 1) {
+        throw new AggregateError(cleanupErrors, `Plugin "${plugin.name}" initialization cleanup failed`, { cause: error });
+      }
     }
   }
 
@@ -356,23 +374,36 @@ export class PluginManager {
       return;
     }
 
-    try {
-      await runDestroy({
-        destroy: record.plugin.destroy,
-        errorContext: { pluginName },
-        errorMessage: 'Plugin unload cleanup failed',
-        rethrow: true,
-      });
-      this.disposePluginScopes(record);
+    const cleanupErrors: unknown[] = [];
 
+    try {
+      if (record.plugin.destroy) {
+        await record.plugin.destroy();
+      }
+    } catch (error) {
+      logger.error({ pluginName, error }, 'Plugin unload cleanup failed');
+      cleanupErrors.push(error);
+    }
+
+    try {
+      this.disposePluginScopes(record);
+    } catch (error) {
+      logger.error({ pluginName, error }, 'Plugin scope disposal failed during unload');
+      cleanupErrors.push(error);
+    } finally {
       this.loadedPlugins.delete(pluginName);
       this.removePluginAliases(pluginName, record.aliases);
-
-      logger.info({ pluginName }, 'Plugin unloaded successfully');
-    } catch (error) {
-      logger.error({ pluginName, error }, 'Plugin unload failed');
-      throw error;
     }
+
+    if (cleanupErrors.length === 1) {
+      throw cleanupErrors[0];
+    }
+
+    if (cleanupErrors.length > 1) {
+      throw new AggregateError(cleanupErrors, `Plugin "${pluginName}" unload failed`);
+    }
+
+    logger.info({ pluginName }, 'Plugin unloaded successfully');
   }
 
   async enablePlugin(pluginNameOrAlias: string): Promise<{ success: boolean; message: string }> {
@@ -476,18 +507,27 @@ export class PluginManager {
     logger.info({}, 'Shutting down PluginManager');
 
     const names = Array.from(this.loadedPlugins.keys());
+    const shutdownErrors: unknown[] = [];
+
     for (const name of names) {
       try {
         await this.unloadPlugin(name);
       } catch (error) {
         logger.error({ pluginName: name, error }, 'Plugin shutdown unload failed');
+        shutdownErrors.push(error);
       }
     }
 
-    this.loadedPlugins.clear();
-    this.aliasToPluginName.clear();
     this.discovered.clear();
     this.initialized = false;
+
+    if (shutdownErrors.length === 1) {
+      throw shutdownErrors[0];
+    }
+
+    if (shutdownErrors.length > 1) {
+      throw new AggregateError(shutdownErrors, 'One or more plugins failed to shut down cleanly');
+    }
   }
 
   getPluginCount(): number {

@@ -133,6 +133,15 @@ const state: PluginState = {
   connected: false,
 };
 
+function resetState(): void {
+  state.ws = null;
+  state.config = null;
+  state.logger = null;
+  state.pipeline = null;
+  state.pendingRequests.clear();
+  state.connected = false;
+}
+
 function rejectPendingRequests(error: Error): void {
   for (const [, deferred] of state.pendingRequests) {
     deferred.reject(error);
@@ -208,11 +217,6 @@ export const onebotPlugin: ChannelPlugin = {
     const rawConfig = ctx.config as Record<string, unknown>;
     const validatedConfig = OneBotChannelConfigSchema.parse(rawConfig);
 
-    if (!validatedConfig.enabled) {
-      ctx.logger.info('OneBot channel disabled', {});
-      return;
-    }
-
     if (!validatedConfig.ws_url) {
       throw new Error('OneBot config missing: channels.onebot.ws_url is required');
     }
@@ -230,15 +234,19 @@ export const onebotPlugin: ChannelPlugin = {
   },
 
   async destroy(): Promise<void> {
-    if (state.ws) {
-      state.ws.close(1000, 'Plugin shutdown');
-      state.ws = null;
+    const ws = state.ws;
+    const logger = state.logger;
+
+    try {
+      if (ws) {
+        ws.close(1000, 'Plugin shutdown');
+      }
+    } finally {
+      rejectPendingRequests(new Error('Plugin shutdown'));
+      resetState();
     }
 
-    rejectPendingRequests(new Error('Plugin shutdown'));
-    state.connected = false;
-    
-    state.logger?.info('OneBot plugin destroyed', {});
+    logger?.info('OneBot plugin destroyed', {});
   },
 };
 

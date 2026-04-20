@@ -2,7 +2,6 @@ import type { ChannelPlugin, ChannelPluginContext } from './channel-plugin.js';
 import type { ChannelPipeline } from '@/agent/pipeline.js';
 import type { ConfigDefaultsScope } from '@/contracts/commands.js';
 import { logger, createScopedLogger } from '@/platform/observability/logger.js';
-import { runDestroy } from '@/platform/utils/lifecycle.js';
 import { mergeDefaultOptions } from '@/platform/utils/merge-default-options.js';
 
 export interface ChannelConfigDefaultsStore {
@@ -43,6 +42,10 @@ export class ChannelPluginManager {
     }
   }
 
+  private isChannelEnabled(config: Record<string, unknown>): boolean {
+    return config.enabled !== false;
+  }
+
   private createChannelContext(name: string, config: Record<string, unknown>): ChannelPluginContext {
     return {
       config,
@@ -54,17 +57,24 @@ export class ChannelPluginManager {
   async registerChannel(
     plugin: ChannelPlugin,
     config?: Record<string, unknown>
-  ): Promise<void> {
+  ): Promise<boolean> {
     this.getPipeline();
 
     if (this.channels.has(plugin.name)) {
       logger.warn({ channelName: plugin.name }, 'Channel plugin already registered, skipping');
-      return;
+      return false;
     }
 
     logger.info({ channelName: plugin.name, version: plugin.version }, 'Registering channel plugin');
 
     const mergedConfig = this.mergeChannelOptions(plugin, config);
+    this.collectChannelDefaults(plugin);
+
+    if (!this.isChannelEnabled(mergedConfig)) {
+      logger.info({ channelName: plugin.name }, 'Channel plugin disabled, skipping registration');
+      return false;
+    }
+
     const ctx = this.createChannelContext(plugin.name, mergedConfig);
 
     try {
@@ -72,16 +82,24 @@ export class ChannelPluginManager {
 
       this.channels.set(plugin.name, plugin);
 
-      this.collectChannelDefaults(plugin);
-
       logger.info({ channelName: plugin.name }, 'Channel plugin registered successfully');
+      return true;
     } catch (error) {
-      await runDestroy({
-        destroy: plugin.destroy,
-        errorContext: { channelName: plugin.name },
-        errorMessage: 'Channel plugin cleanup after registration failure failed',
-      });
+      let cleanupError: unknown;
+
+      try {
+        await plugin.destroy();
+      } catch (destroyError) {
+        logger.error({ channelName: plugin.name, error: destroyError }, 'Channel plugin cleanup after registration failure failed');
+        cleanupError = destroyError;
+      }
+
       logger.error({ channelName: plugin.name, error }, 'Failed to register channel plugin');
+
+      if (cleanupError) {
+        throw new AggregateError([cleanupError], `Channel plugin "${plugin.name}" registration cleanup failed`, { cause: error });
+      }
+
       throw error;
     }
   }
@@ -96,17 +114,14 @@ export class ChannelPluginManager {
     logger.info({ channelName: name }, 'Unregistering channel plugin');
 
     try {
-      const destroyed = await runDestroy({
-        destroy: plugin.destroy,
-        errorContext: { channelName: name },
-        errorMessage: 'Error during channel plugin unregister',
-      });
-      if (destroyed) {
-        logger.info({ channelName: name }, 'Channel plugin unregistered successfully');
-      }
-    } finally {
-      this.channels.delete(name);
+      await plugin.destroy();
+    } catch (error) {
+      logger.error({ channelName: name, error }, 'Error during channel plugin unregister');
+      throw error;
     }
+
+    this.channels.delete(name);
+    logger.info({ channelName: name }, 'Channel plugin unregistered successfully');
   }
 
   getChannelCount(): number {
@@ -116,9 +131,23 @@ export class ChannelPluginManager {
   async shutdown(): Promise<void> {
     logger.info({}, 'Shutting down all channel plugins');
 
-    const unregisterPromises = Array.from(this.channels.keys()).map(name => this.unregisterChannel(name));
+    const shutdownErrors: unknown[] = [];
 
-    await Promise.all(unregisterPromises);
+    for (const name of Array.from(this.channels.keys())) {
+      try {
+        await this.unregisterChannel(name);
+      } catch (error) {
+        shutdownErrors.push(error);
+      }
+    }
+
+    if (shutdownErrors.length === 1) {
+      throw shutdownErrors[0];
+    }
+
+    if (shutdownErrors.length > 1) {
+      throw new AggregateError(shutdownErrors, 'One or more channel plugins failed to shut down cleanly');
+    }
 
     logger.info({}, 'All channel plugins shut down');
   }

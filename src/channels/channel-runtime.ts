@@ -89,8 +89,10 @@ export class ChannelRuntime {
       assertPackageNameMatchesExportedName(discovered.packageJson, channelPlugin.name, 'Channel plugin');
 
       const channelConfig = (channels[channelPlugin.name] as Record<string, unknown> | undefined) || {};
-      await this.deps.channelManager.registerChannel(channelPlugin, channelConfig);
-      logger.info({ channelName: channelPlugin.name }, `${channelPlugin.name} channel plugin loaded`);
+      const registered = await this.deps.channelManager.registerChannel(channelPlugin, channelConfig);
+      if (registered) {
+        logger.info({ channelName: channelPlugin.name }, `${channelPlugin.name} channel plugin loaded`);
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
@@ -113,12 +115,14 @@ export class ChannelRuntime {
         }
 
         logger.info({}, 'Channel config changed, reloading channel plugins');
-        await this.deps.channelManager.shutdown();
-        await this.loadChannelPlugins(nextChannels);
-
         this.hotReloadEnabled = false;
         try {
+          await this.deps.channelManager.shutdown();
+          await this.loadChannelPlugins(nextChannels);
           await this.deps.configSource.syncDefaultConfigs();
+        } catch (error) {
+          logger.error({ error }, 'Channel config reload failed');
+          throw error;
         } finally {
           this.hotReloadEnabled = true;
         }
