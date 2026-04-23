@@ -63,6 +63,9 @@ interface OutboundMessage {
   attachments?: MediaAttachment[];
 }
 
+/** Function that sends an outbound message through a channel */
+type SendFn = (message: OutboundMessage) => Promise<void>;
+
 // ─── Pipeline ───────────────────────────────────────────────────
 
 /** Result of processing a message through the pipeline or a hook */
@@ -191,6 +194,7 @@ export type {
   InboundMessage,
   OutboundMessage,
   PipelineResult,
+  SendFn,
   PersistableMessage,
   SessionRecord,
   CronJobRecord,
