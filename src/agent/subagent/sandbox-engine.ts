@@ -13,13 +13,13 @@
  */
 
 import { randomUUID } from 'crypto';
-import { type AgentSkill, type Message as AesyiuMessage } from 'aesyiu';
+import type { AgentMessage } from '@mariozechner/pi-agent-core';
 import { prepareAgentRun } from '@/agent/runtime/prepare-agent-run.js';
 import {
-    buildAesyiuEngine,
-    type AesyiuRunStats,
+    buildPiAgent,
+    type PiRunStats,
     getFinalAssistantText,
-} from '@/agent/runtime/aesyiu-runtime-helpers.js';
+} from '@/agent/runtime/pi-runtime-helpers.js';
 import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
 import type { ConfigSource, RoleStore, SkillStore } from '@/contracts/runtime-services.js';
 import { DEFAULT_ROLE_ID } from '@/features/roles/types.js';
@@ -27,7 +27,7 @@ import { type LLMConfig } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
 import type { ToolCatalog } from '@/platform/tools/registry.js';
-import { Tool, ToolExecuteContext } from '@/platform/tools/types.js';
+import { Tool } from '@/platform/tools/types.js';
 import { DEFAULT_FALLBACK_LLM_CONFIG } from '@/agent/runtime/resolve-llm-config.js';
 import {
     SUBAGENT_TOOL_NAME_RUN,
@@ -45,7 +45,7 @@ export class SandboxEngine {
     private parentChatId: string;
     private config: SandboxConfig;
     private agentId: string;
-    private memory: AesyiuMessage[] = [];
+    private memory: AgentMessage[] = [];
     private maxSteps: number = 10;
     private readonly toolCatalog: ToolCatalog;
     private readonly hookRuntime: PluginHookRuntime;
@@ -89,26 +89,13 @@ export class SandboxEngine {
                 roleId: config.roleId || 'temp',
                 toolCount: config.allowedTools.length,
             },
-            'SandboxEngine created with aesyiu runtime',
+            'SandboxEngine created with pi-agent-core runtime',
         );
     }
 
-    /** 初始化沙箱记忆，构建系统提示词 */
+    /** 初始化沙箱记忆 */
     private initializeMemory(): void {
-        const toolPermissionText = this.config.allowedTools.includes('*')
-            ? '你有权限使用所有工具。'
-            : `你只能使用以下工具: ${this.config.allowedTools.join(', ')}。`;
-        const sandboxRestrictionText = '你当前运行在子代理沙箱中，禁止再次调用任何 subagent 工具。';
-
-        const taskDescription = this.getTaskFromConfig();
-        const fullSystemPrompt = `${this.config.systemPrompt}\n\n${toolPermissionText}\n${sandboxRestrictionText}\n\n任务：${taskDescription}`;
-
-        this.memory = [
-            {
-                role: 'system',
-                content: fullSystemPrompt,
-            },
-        ];
+        this.memory = [];
     }
 
     /** 从配置中提取任务描述 */
@@ -153,16 +140,20 @@ export class SandboxEngine {
     }
 
     /** 获取沙箱允许使用的技能 */
-    private getAllowedSkills(): AgentSkill[] {
+    private getAllowedSkills(): Array<{ name: string; description: string; content: string }> {
         if (!this.skillStore.isInitialized()) {
             return [];
         }
-        return this.skillStore.getSkillsForRole(this.config.allowedSkills);
+        return this.skillStore.getSkillsForRole(this.config.allowedSkills).map((skill) => ({
+            name: skill.name,
+            description: skill.description,
+            content: skill.content,
+        }));
     }
 
     /** 执行子代理任务
      *
-     * 构建独立的 AgentEngine，执行多步工具调用循环，
+     * 构建独立的 Agent，执行多步工具调用循环，
      * 返回执行结果。执行完成后自动销毁沙箱。
      */
     async execute(): Promise<SubAgentResult> {
@@ -174,28 +165,28 @@ export class SandboxEngine {
             const filteredTools = this.getFilteredTools();
             const allowedSkills = this.getAllowedSkills();
             const llmConfig = this.getLLMConfig();
-            const stats: AesyiuRunStats = { steps: 0, toolCalls: 0 };
+            const stats: PiRunStats = { steps: 0, toolCalls: 0 };
 
-            const { engine, context } = buildAesyiuEngine({
+            const toolPermissionText = this.config.allowedTools.includes('*')
+                ? '你有权限使用所有工具。'
+                : `你只能使用以下工具: ${this.config.allowedTools.join(', ')}。`;
+            const sandboxRestrictionText =
+                '你当前运行在子代理沙箱中，禁止再次调用任何 subagent 工具。';
+            const fullSystemPrompt = `${this.config.systemPrompt}\n\n${toolPermissionText}\n${sandboxRestrictionText}`;
+
+            const agent = buildPiAgent({
                 chatId: this.agentId,
                 llmConfig,
                 providers: this.configSource.getConfig().providers,
-                maxContextTokens: this.configSource.getConfig().memory.max_context_tokens,
-                compressionThreshold: this.configSource.getConfig().memory.compression_threshold,
+                systemPrompt: fullSystemPrompt,
                 maxSteps: this.maxSteps,
                 filteredTools,
                 allowedSkills,
                 messages: this.memory,
                 stats,
                 hookRuntime: this.hookRuntime,
-                createToolContext: (ctx): ToolExecuteContext => ({
-                    roleId: this.config.roleId,
-                    allowedTools: this.config.allowedTools,
-                    allowedSkills: this.config.allowedSkills,
-                    chatId: this.agentId,
-                    senderId: 'subagent',
-                    agentContext: ctx,
-                }),
+                send: this.config.parentContext?.send,
+                senderId: 'subagent',
                 checkToolAllowed: (tool) => {
                     if (
                         !this.config.allowedTools.includes('*') &&
@@ -212,22 +203,17 @@ export class SandboxEngine {
                 getRoleId: () => this.config.roleId ?? '',
             });
 
-            const result = await engine.run(
-                {
-                    role: 'user',
-                    content: this.extractTaskDescription(),
-                },
-                context,
-            );
+            await agent.prompt({
+                role: 'user',
+                content: this.extractTaskDescription(),
+                timestamp: Date.now(),
+            });
 
-            this.memory = [...result.visibleMessages];
+            this.memory = [...agent.state.messages];
 
-            let lastAssistantMessage = getFinalAssistantText(result.visibleMessages);
+            let lastAssistantMessage = getFinalAssistantText(agent.state.messages);
             if (!lastAssistantMessage) {
-                lastAssistantMessage =
-                    result.status === 'max_steps_reached'
-                        ? '[无输出] 子代理达到最大步数，未能产出最终结果'
-                        : '[无输出] 子代理未能产生有效输出';
+                lastAssistantMessage = '[无输出] 子代理未能产生有效输出';
             }
 
             const executionTime = Date.now() - startTime;
@@ -235,7 +221,6 @@ export class SandboxEngine {
             logger.info(
                 {
                     sandboxId: this.sandboxId,
-                    status: result.status,
                     steps: stats.steps,
                     toolCalls: stats.toolCalls,
                     executionTime,
@@ -247,11 +232,10 @@ export class SandboxEngine {
             this.destroy();
 
             return {
-                success: result.status !== 'error',
+                success: true,
                 finalText: lastAssistantMessage,
                 roleId: this.config.roleId || 'temp',
                 executionTime,
-                ...(result.status === 'error' ? { error: stats.error || '子代理执行失败' } : {}),
             };
         } catch (error) {
             const executionTime = Date.now() - startTime;
