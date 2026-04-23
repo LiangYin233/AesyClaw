@@ -3,33 +3,30 @@
  * AgentEngine 是与 LLM 交互的核心引擎，负责：
  * - 管理会话记忆（SessionMemoryManager）
  * - 按角色权限过滤可用工具（getFilteredTools）
- * - 构建 aesyiu 运行时上下文并执行 LLM 请求
+ * - 构建 pi-agent-core Agent 并执行 LLM 请求
  * - 分发插件钩子（beforeLLMRequest / beforeToolCall / afterToolCall）
  * - 同步会话记忆与返回最终回复
  *
  * 典型调用流程：
  * 1. 通过 ChatService 创建 AgentEngine 实例
  * 2. 调用 run() 处理用户输入
- * 3. run() 内部：过滤工具 → 构建 aesyiu 引擎 → 执行 → 同步记忆 → 返回结果
+ * 3. run() 内部：过滤工具 → 构建 Agent → 执行 → 同步记忆 → 返回结果
  */
 
-import { type AgentSkill, type Message as AesyiuMessage } from 'aesyiu';
 import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
 import type { ConfigSource, RoleStore, SkillStore } from '@/contracts/runtime-services.js';
 import { resolveLLMConfig } from '@/agent/runtime/resolve-llm-config.js';
-import { LLMConfig, MessageRole } from '@/platform/llm/types.js';
+import { LLMConfig } from '@/platform/llm/types.js';
 import { logger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
 import type { ToolCatalog } from '@/platform/tools/registry.js';
 import { Tool, ToolExecuteContext, ToolExecutionResult } from '@/platform/tools/types.js';
 import {
-    buildAesyiuEngine,
-    type AesyiuRunStats,
+    buildPiAgent,
+    type PiRunStats,
     getFinalAssistantText,
-    inspectEngineToolParameters,
-    toAesyiuMessage,
-    toStandardMessage,
-} from './runtime/aesyiu-runtime-helpers.js';
+    collectTokenUsage,
+} from './runtime/pi-runtime-helpers.js';
 import { SessionMemoryManager } from './memory/session-memory-manager.js';
 import { SessionMemoryConfig } from './memory/types.js';
 
@@ -88,7 +85,7 @@ export interface AgentRunResult {
 /** LLM Agent 引擎
  *
  * 每个会话对应一个 AgentEngine 实例，持有独立的记忆与配置。
- * 通过 aesyiu 库构建引擎，支持多步工具调用循环。
+ * 通过 pi-agent-core 的 Agent 类构建引擎，支持多步工具调用循环。
  */
 export class AgentEngine {
     readonly chatId: string;
@@ -131,9 +128,7 @@ export class AgentEngine {
             });
 
         if (!this.memory.hasMessages()) {
-            this.memory.importMemory([
-                { role: MessageRole.System, content: this.config.systemPrompt },
-            ]);
+            this.memory.setSystemPrompt(this.config.systemPrompt);
         }
 
         logger.info(
@@ -143,7 +138,7 @@ export class AgentEngine {
                 model: this.config.llm.model,
                 maxSteps: this.config.maxSteps,
             },
-            'AgentEngine initialized with aesyiu runtime',
+            'AgentEngine initialized with pi-agent-core runtime',
         );
     }
 
@@ -169,18 +164,19 @@ export class AgentEngine {
     }
 
     /** 获取角色允许使用的技能列表 */
-    private getAllowedSkills(roleId: string): AgentSkill[] {
+    private getAllowedSkills(
+        roleId: string,
+    ): Array<{ name: string; description: string; content: string }> {
         if (!this.config.skillStore.isInitialized()) {
             return [];
         }
-        return this.config.skillStore.getSkillsForRole(
-            this.config.roleStore.getRoleConfig(roleId).allowed_skills,
-        );
-    }
-
-    /** 将 aesyiu 消息同步到会话记忆管理器 */
-    private syncMemory(messages: readonly AesyiuMessage[]): void {
-        this.memory.importMemory(messages.map(toStandardMessage));
+        return this.config.skillStore
+            .getSkillsForRole(this.config.roleStore.getRoleConfig(roleId).allowed_skills)
+            .map((skill) => ({
+                name: skill.name,
+                description: skill.description,
+                content: skill.content,
+            }));
     }
 
     /** 执行 Agent 运行循环
@@ -198,34 +194,25 @@ export class AgentEngine {
             'AgentEngine starting request processing',
         );
 
-        const stats: AesyiuRunStats = { steps: 0, toolCalls: 0 };
+        const stats: PiRunStats = { steps: 0, toolCalls: 0 };
 
         try {
             const filteredTools = this.getFilteredTools();
             const roleId = this.memory.getActiveRoleId();
             const allowedSkills = this.getAllowedSkills(roleId);
 
-            const { engine, context } = buildAesyiuEngine({
+            const agent = buildPiAgent({
                 chatId: this.chatId,
                 llmConfig: this.config.llm,
                 providers: this.config.configSource.getConfig().providers,
-                maxContextTokens: this.config.memoryConfig.maxContextTokens || 128000,
-                compressionThreshold: this.config.memoryConfig.compressionThreshold || 0.75,
+                systemPrompt: this.config.systemPrompt,
                 maxSteps: this.config.maxSteps,
                 filteredTools,
                 allowedSkills,
-                messages: this.memory.getMessages().map(toAesyiuMessage),
+                messages: [...this.memory.getMessages()],
                 stats,
                 hookRuntime: this.hookRuntime,
-                createToolContext: (ctx): ToolExecuteContext => ({
-                    roleId: this.memory.getActiveRoleId(),
-                    allowedTools: filteredTools.map((t) => t.name),
-                    allowedSkills: allowedSkills.map((s) => s.name),
-                    chatId: this.chatId,
-                    senderId: 'user',
-                    send: options.send,
-                    agentContext: ctx,
-                }),
+                send: options.send,
                 // 工具权限二次校验：角色不允许使用的工具直接返回错误
                 checkToolAllowed: (tool): ToolExecutionResult | null => {
                     const currentRoleId = this.memory.getActiveRoleId();
@@ -242,36 +229,40 @@ export class AgentEngine {
                 roleCatalog: this.config.roleStore,
             });
 
-            const result = await engine.run(
-                {
-                    role: 'user',
-                    content: userInput,
-                },
-                context,
-            );
+            await agent.prompt({
+                role: 'user',
+                content: userInput,
+                timestamp: Date.now(),
+            });
 
-            this.syncMemory(result.visibleMessages);
+            const finalMessages = agent.state.messages;
+            this.memory.importMemory(finalMessages);
 
-            const finalText =
-                result.status === 'max_steps_reached'
-                    ? `抱歉，任务在 ${this.config.maxSteps} 步后仍未完成。请简化您的请求或分步进行。`
-                    : getFinalAssistantText(result.visibleMessages);
+            const finalText = getFinalAssistantText(finalMessages);
+            const tokenUsage = collectTokenUsage(finalMessages);
 
-            if (!finalText || !result.usage || result.usage.totalTokens === 0) {
+            if (!finalText) {
                 logger.warn(
                     {
                         chatId: this.chatId,
                         instanceId: this.instanceId,
                         finalTextLength: finalText.length,
-                        usage: result.usage,
-                        visibleMessages: result.visibleMessages.map((message) => ({
+                        usage: tokenUsage,
+                        visibleMessages: finalMessages.map((message) => ({
                             role: message.role,
-                            contentLength: message.content?.length ?? 0,
-                            hasToolCalls: Boolean(message.tool_calls?.length),
+                            contentLength:
+                                message.role === 'assistant'
+                                    ? message.content
+                                          .filter((c) => c.type === 'text')
+                                          .map((c) => c.text)
+                                          .join('').length
+                                    : 0,
+                            hasToolCalls:
+                                message.role === 'assistant' &&
+                                message.content.some((c) => c.type === 'toolCall'),
                         })),
-                        diagnostics: inspectEngineToolParameters(engine),
                     },
-                    'AgentEngine returned empty output or zero usage',
+                    'AgentEngine returned empty output',
                 );
             }
 
@@ -279,31 +270,19 @@ export class AgentEngine {
                 {
                     chatId: this.chatId,
                     instanceId: this.instanceId,
-                    status: result.status,
                     steps: stats.steps,
                     toolCalls: stats.toolCalls,
-                    tokenUsage: result.usage,
+                    tokenUsage,
                 },
                 'AgentEngine run completed',
             );
-
-            if (result.status === 'error') {
-                return {
-                    success: false,
-                    finalText: `执行错误: ${stats.error || '未知错误'}`,
-                    steps: stats.steps,
-                    toolCalls: stats.toolCalls,
-                    tokenUsage: result.usage,
-                    error: stats.error || 'Unknown engine error',
-                };
-            }
 
             return {
                 success: true,
                 finalText,
                 steps: stats.steps,
                 toolCalls: stats.toolCalls,
-                tokenUsage: result.usage,
+                tokenUsage,
             };
         } catch (error) {
             const errorMessage = toErrorMessage(error);

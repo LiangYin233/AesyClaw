@@ -5,7 +5,7 @@ import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
 import type { ConfigSource, RoleStore, SkillStore } from '@/contracts/runtime-services.js';
 import type { SystemPromptManager } from '@/features/roles/system-prompt-manager.js';
 import type { CronExecutor } from '@/features/cron/types.js';
-import { MessageRole } from '@/platform/llm/types.js';
+
 import { logger } from '@/platform/observability/logger.js';
 import type { ToolCatalog } from '@/platform/tools/registry.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
@@ -51,7 +51,7 @@ export class AgentCronExecutor implements CronExecutor {
                     toolCatalog: this.deps.toolCatalog,
                 },
             );
-            memory.importMemory([{ role: MessageRole.System, content: systemPrompt }]);
+            memory.setSystemPrompt(systemPrompt);
 
             const agent = new AgentEngine(chatId, {
                 llm: resolveLLMConfig(roleConfig.model, config),

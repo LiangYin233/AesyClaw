@@ -1,4 +1,4 @@
-import type { AgentSkill } from 'aesyiu';
+import type { AgentSkill } from './skill-loader.js';
 
 export type SkillSource = 'system' | 'user';
 

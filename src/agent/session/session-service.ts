@@ -14,7 +14,7 @@
 import { AgentEngine } from '@/agent/engine.js';
 import { SessionMemoryManager } from '@/agent/memory/session-memory-manager.js';
 import { type SessionMemoryConfig } from '@/agent/memory/types.js';
-import { manuallyCompactMessages } from '@/agent/runtime/aesyiu-runtime-helpers.js';
+import { manuallyCompactMessages } from '@/agent/runtime/compact-messages.js';
 import { resolveLLMConfig } from '@/agent/runtime/resolve-llm-config.js';
 import type { ChannelReceiveMessage } from '@/agent/types.js';
 import type { CommandContext } from '@/contracts/commands.js';
@@ -27,7 +27,7 @@ import type {
 } from '@/contracts/runtime-services.js';
 import type { SystemPromptManager } from '@/features/roles/system-prompt-manager.js';
 import { DEFAULT_ROLE_ID } from '@/features/roles/types.js';
-import { MessageRole, type StandardMessage } from '@/platform/llm/types.js';
+import type { AgentMessage } from '@mariozechner/pi-agent-core';
 import type { ChatContext, ChatSession } from './session-context.js';
 import type { ChatKey } from '@/platform/db/repositories/session-repository.js';
 import type { ToolCatalog } from '@/platform/tools/registry.js';
@@ -93,14 +93,10 @@ export class ChatService {
         }
 
         const roleConfig = this.deps.roleStore.getRoleConfig(session.memory.getActiveRoleId());
-        const memoryConfig = this.getMemoryConfig();
         const config = this.deps.configSource.getConfig();
         const compacted = await manuallyCompactMessages({
             chatId: session.session.chatId,
             llmConfig: resolveLLMConfig(roleConfig.model, config),
-            providers: config.providers,
-            maxContextTokens: memoryConfig.maxContextTokens,
-            compressionThreshold: memoryConfig.compressionThreshold,
             messages: [...session.memory.getMessages()],
         });
 
@@ -209,13 +205,9 @@ export class ChatService {
             chatId: session.chatId,
         });
 
-        const savedMessages = this.deps.chatStore
-            .getMessages(key)
-            .filter((message) => message.role !== MessageRole.System);
-        memory.importMemory([
-            { role: MessageRole.System, content: systemPrompt },
-            ...savedMessages,
-        ]);
+        const savedMessages = this.deps.chatStore.getMessages(key);
+        memory.setSystemPrompt(systemPrompt);
+        memory.importMemory(savedMessages);
 
         const roleConfig = this.deps.roleStore.getRoleConfig(session.roleId);
         const config = this.deps.configSource.getConfig();
@@ -245,17 +237,22 @@ export class ChatService {
 }
 
 /** 判断消息是否应持久化到存储 */
-function shouldPersistMessage(message: StandardMessage): boolean {
-    if (message.role === MessageRole.User) {
+function shouldPersistMessage(message: AgentMessage): boolean {
+    if (message.role === 'user') {
         return true;
     }
-    if (message.role === MessageRole.System) {
+    if (message.role === 'toolResult') {
         return false;
     }
-    if (message.role === MessageRole.Tool) {
-        return false;
+    if (message.role === 'assistant') {
+        const hasToolCalls = message.content.some((c) => c.type === 'toolCall');
+        const textParts = message.content
+            .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+            .map((c) => c.text);
+        const text = textParts.join('');
+        return !hasToolCalls && text.trim().length > 0;
     }
-    return !message.toolCalls?.length && message.content.trim().length > 0;
+    return false;
 }
 
 function toChatKey(

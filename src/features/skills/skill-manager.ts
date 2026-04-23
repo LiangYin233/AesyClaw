@@ -1,4 +1,4 @@
-import { loadSkills, type AgentSkill } from 'aesyiu';
+import { loadSkills, type AgentSkill } from './skill-loader.js';
 import { logger } from '@/platform/observability/logger.js';
 import { pathResolver } from '@/platform/utils/paths.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';

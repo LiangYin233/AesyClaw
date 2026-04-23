@@ -4,7 +4,7 @@
  * 供 beforeLLMRequest 钩子使用。
  */
 
-import type { AgentSkill } from 'aesyiu';
+import type { AgentSkill } from '@/features/skills/skill-loader.js';
 import type { ToolDefinition } from '@/platform/tools/types.js';
 import type { HookPayloadLLMSkill, HookPayloadLLMTool } from './types.js';
 
@@ -30,7 +30,7 @@ export function buildHookSkills(skills: readonly AgentSkill[]): HookPayloadLLMSk
     return skills.map((skill) => ({
         name: skill.name,
         description: skill.description,
-        metadata: skill.metadata as Record<string, unknown>,
+        metadata: skill.metadata,
     }));
 }
 
