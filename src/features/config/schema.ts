@@ -1,93 +1,115 @@
-import { z } from 'zod';
+import { Type, type Static } from '@sinclair/typebox';
+import { Value } from '@sinclair/typebox/value';
 
-const ServerConfigSchema = z.object({
-    port: z.number().int().min(1).max(65535).default(3000),
-    host: z.string().default('0.0.0.0'),
-    log_level: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
-    cors_origin: z.string().optional(),
+const ServerConfigSchema = Type.Object({
+    port: Type.Number({ minimum: 1, maximum: 65535, default: 3000 }),
+    host: Type.String({ default: '0.0.0.0' }),
+    log_level: Type.Union(
+        [Type.Literal('debug'), Type.Literal('info'), Type.Literal('warn'), Type.Literal('error')],
+        { default: 'info' },
+    ),
+    cors_origin: Type.Optional(Type.String()),
 });
 
-const ModelConfigSchema = z.object({
-    modelname: z.string().describe('底层 API 真实识别的模型字符串'),
-    contextWindow: z
-        .number()
-        .int()
-        .positive()
-        .default(128000)
-        .describe('模型最大上下文窗口 token 数'),
-    reasoning: z.boolean().default(false).describe('标识该模型是否具备原生思维链能力'),
+const ModelConfigSchema = Type.Object({
+    modelname: Type.String({ description: '底层 API 真实识别的模型字符串' }),
+    contextWindow: Type.Integer({
+        minimum: 1,
+        default: 128000,
+        description: '模型最大上下文窗口 token 数',
+    }),
+    reasoning: Type.Boolean({
+        default: false,
+        description: '标识该模型是否具备原生思维链能力',
+    }),
 });
 
-const MultimodalConfigSchema = z.object({
-    stt_provider: z.string().describe('语音转文字 provider 名称'),
-    stt_model: z.string().describe('语音转文字模型'),
-    vision_provider: z.string().describe('图片理解 provider 名称'),
-    vision_model: z.string().describe('图片理解模型'),
+const MultimodalConfigSchema = Type.Object({
+    stt_provider: Type.String({ description: '语音转文字 provider 名称' }),
+    stt_model: Type.String({ description: '语音转文字模型' }),
+    vision_provider: Type.String({ description: '图片理解 provider 名称' }),
+    vision_model: Type.String({ description: '图片理解模型' }),
 });
 
-const CustomProviderSchema = z.object({
-    type: z.enum(['openai_responses', 'openai_completion', 'anthropic']).describe('Provider 类型'),
-    api_key: z.string().optional().describe('API Key'),
-    base_url: z.string().url().optional().describe('API Base URL'),
-    models: z.record(z.string(), ModelConfigSchema).optional().describe('模型能力预设字典'),
+const CustomProviderSchema = Type.Object({
+    type: Type.Union(
+        [
+            Type.Literal('openai_responses'),
+            Type.Literal('openai_completion'),
+            Type.Literal('anthropic'),
+        ],
+        { description: 'Provider 类型' },
+    ),
+    api_key: Type.Optional(Type.String({ description: 'API Key' })),
+    base_url: Type.Optional(Type.String({ format: 'uri', description: 'API Base URL' })),
+    models: Type.Optional(
+        Type.Record(Type.String(), ModelConfigSchema, { description: '模型能力预设字典' }),
+    ),
 });
 
-const ProvidersConfigSchema = z.record(z.string(), CustomProviderSchema);
+const ProvidersConfigSchema = Type.Record(Type.String(), CustomProviderSchema);
 
-export type ProvidersConfig = z.infer<typeof ProvidersConfigSchema>;
+export type ProvidersConfig = Static<typeof ProvidersConfigSchema>;
 
-const ChannelsConfigSchema = z.record(z.string(), z.record(z.string(), z.unknown()));
+const ChannelsConfigSchema = Type.Record(Type.String(), Type.Record(Type.String(), Type.Unknown()));
 
-export type ChannelsConfig = z.infer<typeof ChannelsConfigSchema>;
+export type ChannelsConfig = Static<typeof ChannelsConfigSchema>;
 
-const MCPServerConfigSchema = z.object({
-    name: z.string(),
-    command: z.string(),
-    args: z.array(z.string()).default([]),
-    env: z.record(z.string(), z.string()).optional(),
-    cwd: z.string().optional(),
-    stderr: z.enum(['inherit', 'pipe', 'ignore', 'overlapped']).optional(),
-    enabled: z.boolean().default(true),
+const MCPServerConfigSchema = Type.Object({
+    name: Type.String(),
+    command: Type.String(),
+    args: Type.Array(Type.String(), { default: [] }),
+    env: Type.Optional(Type.Record(Type.String(), Type.String())),
+    cwd: Type.Optional(Type.String()),
+    stderr: Type.Optional(
+        Type.Union([
+            Type.Literal('inherit'),
+            Type.Literal('pipe'),
+            Type.Literal('ignore'),
+            Type.Literal('overlapped'),
+        ]),
+    ),
+    enabled: Type.Boolean({ default: true }),
 });
 
-export type MCPServerConfig = z.infer<typeof MCPServerConfigSchema>;
+export type MCPServerConfig = Static<typeof MCPServerConfigSchema>;
 
-const MCPConfigSchema = z.object({
-    servers: z.array(MCPServerConfigSchema).default([]),
+const MCPConfigSchema = Type.Object({
+    servers: Type.Array(MCPServerConfigSchema, { default: [] }),
 });
 
-const PluginConfigSchema = z.object({
-    name: z.string(),
-    enabled: z.boolean().default(true),
-    options: z.record(z.string(), z.unknown()).optional(),
+const PluginConfigSchema = Type.Object({
+    name: Type.String(),
+    enabled: Type.Boolean({ default: true }),
+    options: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
 });
 
-const RuntimeAgentConfigSchema = z.object({
-    max_steps: z.number().int().positive().default(100),
+const RuntimeAgentConfigSchema = Type.Object({
+    max_steps: Type.Integer({ minimum: 1, default: 100 }),
 });
 
-const RuntimeMemoryConfigSchema = z.object({
-    max_context_tokens: z.number().int().positive().default(128000),
-    compression_threshold: z
-        .number()
-        .min(0)
-        .max(1)
-        .default(0.75)
-        .describe('触发压缩的上下文占比阈值 (0.0-1.0)'),
+const RuntimeMemoryConfigSchema = Type.Object({
+    max_context_tokens: Type.Integer({ minimum: 1, default: 128000 }),
+    compression_threshold: Type.Number({
+        minimum: 0,
+        maximum: 1,
+        default: 0.75,
+        description: '触发压缩的上下文占比阈值 (0.0-1.0)',
+    }),
 });
 
-export const FullConfigSchema = z.object({
+export const FullConfigSchema = Type.Object({
     server: ServerConfigSchema,
-    providers: ProvidersConfigSchema.optional().default({}),
-    channels: ChannelsConfigSchema.optional(),
+    providers: ProvidersConfigSchema,
+    channels: ChannelsConfigSchema,
     agent: RuntimeAgentConfigSchema,
     memory: RuntimeMemoryConfigSchema,
     multimodal: MultimodalConfigSchema,
-    mcp: MCPConfigSchema.optional(),
-    plugins: z.array(PluginConfigSchema).optional().default([]),
+    mcp: MCPConfigSchema,
+    plugins: Type.Array(PluginConfigSchema),
 });
 
-export type FullConfig = z.infer<typeof FullConfigSchema>;
+export type FullConfig = Static<typeof FullConfigSchema>;
 
 export const DEFAULT_CONFIG: FullConfig = {
     server: {
@@ -128,3 +150,21 @@ export const DEFAULT_CONFIG: FullConfig = {
     },
     plugins: [],
 };
+
+/** 验证配置并返回结果 */
+export function validateConfig(data: unknown): {
+    success: true;
+    data: FullConfig;
+} | {
+    success: false;
+    errors: Array<{ path: string; message: string }>;
+} {
+    if (!Value.Check(FullConfigSchema, data)) {
+        const errors = [...Value.Errors(FullConfigSchema, data)].map((e) => ({
+            path: e.path || 'unknown',
+            message: e.message,
+        }));
+        return { success: false, errors };
+    }
+    return { success: true, data: data as FullConfig };
+}

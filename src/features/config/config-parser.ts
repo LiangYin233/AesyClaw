@@ -1,7 +1,6 @@
-import type { ZodError } from 'zod';
 import {
     DEFAULT_CONFIG,
-    FullConfigSchema,
+    validateConfig,
     type ChannelsConfig,
     type FullConfig,
     type MCPServerConfig,
@@ -27,7 +26,7 @@ export interface ConfigParseResult {
 }
 
 interface ConfigParserOptions {
-    onValidationFailure: (error: ZodError) => void;
+    onValidationFailure: (errors: Array<{ path: string; message: string }>) => void;
     onParseError: (error: unknown) => void;
     onPartialMergeFailure: () => void;
     logNoProviders: () => void;
@@ -81,7 +80,6 @@ function getExampleDefaultsStatus(parsed: ParsedConfig): ExampleDefaultsStatus {
     return {
         hasProviders: hasObjectEntries(parsed.providers),
         hasMCPServers: hasArrayEntries(parsed.mcp?.servers),
-        // An explicit empty channels object is a valid persisted state and should not trigger rewrite loops.
         hasChannels: parsed.channels !== undefined,
     };
 }
@@ -144,18 +142,16 @@ function finalizeParsedConfig(
 export function parseConfigFromRaw(raw: unknown, options: ConfigParserOptions): ConfigParseResult {
     try {
         const parsed = raw as ParsedConfig;
-        const result = FullConfigSchema.safeParse(parsed);
+        const result = validateConfig(parsed);
 
         if (result.success) {
             return finalizeParsedConfig(result.data, getExampleDefaultsStatus(parsed), options);
         }
 
-        options.onValidationFailure(result.error);
+        options.onValidationFailure(result.errors);
 
         const defaultsStatus = getExampleDefaultsStatus(parsed);
-        const mergedResult = FullConfigSchema.safeParse(
-            mergeMissingSections(parsed, defaultsStatus),
-        );
+        const mergedResult = validateConfig(mergeMissingSections(parsed, defaultsStatus));
         if (mergedResult.success) {
             return finalizeParsedConfig(mergedResult.data, defaultsStatus, options, true);
         }

@@ -2,7 +2,7 @@
  *
  * ConfigManager 基于 c12 实现热重载配置管理，职责包括：
  * - 从配置文件加载配置，支持层级合并（c12 的默认行为）
- * - 使用 Zod 验证配置结构，验证失败时尝试用默认值填充缺失字段
+ * - 使用 Typebox 验证配置结构，验证失败时尝试用默认值填充缺失字段
  * - 注册插件/频道的默认值，并在适当时机同步到配置文件
  * - 监听配置文件变更，触发配置重载与变更通知
  * - 提供 selfUpdating 守卫，防止写入配置文件时触发自身的热重载回调
@@ -11,11 +11,10 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { ZodError } from 'zod';
 import type { ConfigDefaultsScope, PluginRuntimeConfig } from '@/contracts/commands.js';
 import { logger } from '@/platform/observability/logger.js';
 import { pathResolver } from '@/platform/utils/paths.js';
-import { FullConfigSchema, DEFAULT_CONFIG, type FullConfig } from './schema.js';
+import { DEFAULT_CONFIG, validateConfig, type FullConfig } from './schema.js';
 import { ConfigStore } from './config-store.js';
 import { loadConfig, watchConfig, type ResolvedConfig } from 'c12';
 import { createDefu } from 'defu';
@@ -262,14 +261,14 @@ export class ConfigManager {
 
     /** 解析并验证原始配置
      *
-     * 使用 Zod 验证，验证失败时尝试用默认值填充缺失字段。
+     * 使用 Typebox 验证，验证失败时尝试用默认值填充缺失字段。
      */
     private parseConfig(raw: unknown) {
         return parseConfigFromRaw(raw, {
-            onValidationFailure: (error) => {
+            onValidationFailure: (errors) => {
                 logger.warn(
-                    { issues: this.formatZodErrors(error) },
-                    'Zod validation failed, attempting to fill missing fields with defaults',
+                    { issues: errors.map((e) => `${e.path}: ${e.message}`).join('; ') },
+                    'Typebox validation failed, attempting to fill missing fields with defaults',
                 );
             },
             onParseError: (error) => {
@@ -315,10 +314,10 @@ export class ConfigManager {
                     try {
                         const parsed = this.parseConfig(newConfig.config);
                         if (!parsed.config) {
-                            logger.warn(
-                                {},
-                                'HMR rejected: merged config failed Zod validation, keeping previous snapshot',
-                            );
+                        logger.warn(
+                            {},
+                            'HMR rejected: merged config failed Typebox validation, keeping previous snapshot',
+                        );
                             return true;
                         }
                         return false;
@@ -431,12 +430,6 @@ export class ConfigManager {
         }
     }
 
-    private formatZodErrors(error: ZodError): string {
-        return error.issues
-            .map((e) => `${e.path?.join('.') || 'unknown'}: ${e.message}`)
-            .join('; ');
-    }
-
     /** 注册配置变更监听器，返回取消监听函数 */
     onConfigChange(listener: ConfigChangeListener): () => void {
         this.configChangeListeners.add(listener);
@@ -531,10 +524,10 @@ export class ConfigManager {
         }
         try {
             const merged = mergeConfigUpdates(updates, this.store.snapshot) as FullConfig;
-            const result = FullConfigSchema.safeParse(merged);
+            const result = validateConfig(merged);
             if (!result.success) {
                 logger.warn(
-                    { issues: this.formatZodErrors(result.error) },
+                    { issues: result.errors.map((e) => `${e.path}: ${e.message}`).join('; ') },
                     'Update validation failed',
                 );
                 return false;

@@ -1,28 +1,28 @@
-import { z } from 'zod';
+import { Type, type Static } from '@sinclair/typebox';
 
-export const ToolAccessSchema = z.object({
-    mode: z.enum(['allowlist', 'denylist']).default('denylist'),
-    tools: z.array(z.string()).default([]),
+export const ToolAccessSchema = Type.Object({
+    mode: Type.Union([Type.Literal('allowlist'), Type.Literal('denylist')], {
+        default: 'denylist',
+    }),
+    tools: Type.Array(Type.String(), { default: [] }),
 });
 
-export type ToolAccessConfig = z.infer<typeof ToolAccessSchema>;
+export type ToolAccessConfig = Static<typeof ToolAccessSchema>;
 
-export const RoleConfigSchema = z.object({
-    name: z.string().min(1, '角色名称不能为空'),
-    description: z.string().optional().default(''),
-    system_prompt: z.string().min(1, '系统提示词不能为空'),
-    model: z
-        .string()
-        .includes('/', {
-            message: "模型配置必须遵循 'provider_name/model_name' 格式",
-        })
-        .describe('模型标识 (格式: provider_name/model_name)'),
-    tool_access: ToolAccessSchema.default({ mode: 'denylist', tools: [] }),
-    allowed_skills: z.array(z.string()).default([]),
-    enabled: z.boolean().default(true),
+export const RoleConfigSchema = Type.Object({
+    name: Type.String({ minLength: 1, description: '角色名称不能为空' }),
+    description: Type.String({ default: '' }),
+    system_prompt: Type.String({ minLength: 1, description: '系统提示词不能为空' }),
+    model: Type.String({
+        pattern: '^[^/]+/[^/]+$',
+        description: "模型配置必须遵循 'provider_name/model_name' 格式",
+    }),
+    tool_access: ToolAccessSchema,
+    allowed_skills: Type.Array(Type.String(), { default: [] }),
+    enabled: Type.Boolean({ default: true }),
 });
 
-export type RoleConfig = z.infer<typeof RoleConfigSchema>;
+export type RoleConfig = Static<typeof RoleConfigSchema>;
 
 export interface RoleMetadata {
     id: string;
