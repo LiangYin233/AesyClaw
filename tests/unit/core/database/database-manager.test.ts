@@ -1,0 +1,349 @@
+/**
+ * DatabaseManager and Repository unit tests.
+ *
+ * These tests use an in-memory SQLite database.
+ *
+ * NOTE: These tests require better-sqlite3 native addon to be compiled.
+ * If the addon is not available on the current platform, these tests
+ * will be skipped.
+ */
+
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { SessionRepository } from '../../../../src/core/database/repositories/session-repository';
+import { MessageRepository } from '../../../../src/core/database/repositories/message-repository';
+import { RoleBindingRepository } from '../../../../src/core/database/repositories/role-binding-repository';
+import { CronJobRepository, CronRunRepository } from '../../../../src/core/database/repositories/cron-repository';
+import type { SessionKey, PersistableMessage } from '../../../../src/core/types';
+
+// Try to import better-sqlite3; skip tests if not available
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+let Database: typeof import('better-sqlite3') | null = null;
+let nativeAvailable = false;
+
+try {
+  // Use dynamic require for better-sqlite3 which may not be available
+  // due to native compilation issues on some platforms
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const mod = require('better-sqlite3');
+  // Try to actually instantiate it to verify the native addon is available
+  const testDb = new mod(':memory:');
+  testDb.close();
+  Database = mod;
+  nativeAvailable = true;
+} catch {
+  nativeAvailable = false;
+}
+
+// Helper to create an in-memory test database with schema
+function createTestDb() {
+  const db = new Database!(':memory:');
+  db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
+
+  db.exec(`
+    CREATE TABLE sessions (
+      id TEXT PRIMARY KEY,
+      channel TEXT NOT NULL,
+      type TEXT NOT NULL,
+      chat_id TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(channel, type, chat_id)
+    );
+    CREATE TABLE messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT NOT NULL REFERENCES sessions(id),
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE role_bindings (
+      session_id TEXT PRIMARY KEY REFERENCES sessions(id),
+      role_id TEXT NOT NULL,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE cron_jobs (
+      id TEXT PRIMARY KEY,
+      schedule_type TEXT NOT NULL,
+      schedule_value TEXT NOT NULL,
+      prompt TEXT NOT NULL,
+      session_key TEXT NOT NULL,
+      next_run DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE cron_runs (
+      id TEXT PRIMARY KEY,
+      job_id TEXT NOT NULL REFERENCES cron_jobs(id),
+      status TEXT NOT NULL,
+      result TEXT,
+      error TEXT,
+      started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      ended_at DATETIME
+    );
+  `);
+
+  return db;
+}
+
+const describeIf = nativeAvailable ? describe : describe.skip;
+
+describeIf('Database Layer', () => {
+  let db: InstanceType<typeof import('better-sqlite3')>;
+
+  beforeAll(() => {
+    if (!nativeAvailable || !Database) return;
+    db = createTestDb();
+  });
+
+  afterAll(() => {
+    if (db) {
+      db.close();
+    }
+  });
+
+  // ─── SessionRepository ──────────────────────────────────────────
+
+  describe('SessionRepository', () => {
+    let repo: SessionRepository;
+
+    beforeAll(() => {
+      repo = new SessionRepository(db);
+    });
+
+    it('should findOrCreate a new session', async () => {
+      const key: SessionKey = { channel: 'test', type: 'private', chatId: 'user1' };
+      const session = await repo.findOrCreate(key);
+
+      expect(session.channel).toBe('test');
+      expect(session.type).toBe('private');
+      expect(session.chatId).toBe('user1');
+      expect(session.id).toBeDefined();
+    });
+
+    it('should return existing session on findOrCreate with same key', async () => {
+      const key: SessionKey = { channel: 'test', type: 'private', chatId: 'user1' };
+      const session1 = await repo.findOrCreate(key);
+      const session2 = await repo.findOrCreate(key);
+
+      expect(session1.id).toBe(session2.id);
+    });
+
+    it('should find a session by key', async () => {
+      const key: SessionKey = { channel: 'test', type: 'private', chatId: 'user2' };
+      await repo.findOrCreate(key);
+
+      const found = await repo.findByKey(key);
+      expect(found).not.toBeNull();
+      expect(found!.chatId).toBe('user2');
+    });
+
+    it('should return null for non-existent session', async () => {
+      const result = await repo.findByKey({ channel: 'nope', type: 'private', chatId: 'nobody' });
+      expect(result).toBeNull();
+    });
+  });
+
+  // ─── MessageRepository ──────────────────────────────────────────
+
+  describe('MessageRepository', () => {
+    let msgRepo: MessageRepository;
+    let sessionId: string;
+
+    beforeAll(async () => {
+      msgRepo = new MessageRepository(db);
+      const session = await new SessionRepository(db).findOrCreate({
+        channel: 'msgtest',
+        type: 'group',
+        chatId: 'room1',
+      });
+      sessionId = session.id;
+    });
+
+    it('should save and load messages', async () => {
+      const userMsg: PersistableMessage = { role: 'user', content: 'Hello' };
+      const asstMsg: PersistableMessage = { role: 'assistant', content: 'Hi there' };
+
+      await msgRepo.save(sessionId, userMsg);
+      await msgRepo.save(sessionId, asstMsg);
+
+      const history = await msgRepo.loadHistory(sessionId);
+      expect(history.length).toBe(2);
+      expect(history[0].role).toBe('user');
+      expect(history[0].content).toBe('Hello');
+      expect(history[1].role).toBe('assistant');
+    });
+
+    it('should clear history', async () => {
+      await msgRepo.clearHistory(sessionId);
+      const history = await msgRepo.loadHistory(sessionId);
+      expect(history.length).toBe(0);
+    });
+
+    it('should replace history with summary', async () => {
+      await msgRepo.save(sessionId, { role: 'user', content: 'Long conversation...' });
+      await msgRepo.save(sessionId, { role: 'assistant', content: 'Response...' });
+      await msgRepo.save(sessionId, { role: 'user', content: 'More...' });
+
+      await msgRepo.replaceWithSummary(sessionId, 'Summary of conversation');
+
+      const history = await msgRepo.loadHistory(sessionId);
+      expect(history.length).toBe(1);
+      expect(history[0].content).toBe('Summary of conversation');
+      expect(history[0].role).toBe('assistant');
+    });
+  });
+
+  // ─── RoleBindingRepository ──────────────────────────────────────
+
+  describe('RoleBindingRepository', () => {
+    let roleRepo: RoleBindingRepository;
+    let sessionId: string;
+
+    beforeAll(async () => {
+      roleRepo = new RoleBindingRepository(db);
+      const session = await new SessionRepository(db).findOrCreate({
+        channel: 'roletest',
+        type: 'private',
+        chatId: 'userrole',
+      });
+      sessionId = session.id;
+    });
+
+    it('should return null when no role is set', async () => {
+      const result = await roleRepo.getActiveRole(sessionId);
+      expect(result).toBeNull();
+    });
+
+    it('should set and get active role', async () => {
+      await roleRepo.setActiveRole(sessionId, 'default');
+      const roleId = await roleRepo.getActiveRole(sessionId);
+      expect(roleId).toBe('default');
+    });
+
+    it('should change active role', async () => {
+      await roleRepo.setActiveRole(sessionId, 'researcher');
+      const roleId = await roleRepo.getActiveRole(sessionId);
+      expect(roleId).toBe('researcher');
+    });
+  });
+
+  // ─── CronJobRepository ──────────────────────────────────────────
+
+  describe('CronJobRepository', () => {
+    let jobRepo: CronJobRepository;
+
+    beforeAll(() => {
+      jobRepo = new CronJobRepository(db);
+    });
+
+    it('should create a cron job', async () => {
+      const key: SessionKey = { channel: 'cron', type: 'private', chatId: 'cronuser' };
+      const id = await jobRepo.create({
+        scheduleType: 'daily',
+        scheduleValue: '09:00',
+        prompt: 'Good morning!',
+        sessionKey: key,
+        nextRun: new Date('2026-01-01T09:00:00Z'),
+      });
+
+      expect(id).toBeDefined();
+
+      const job = await jobRepo.findById(id);
+      expect(job).not.toBeNull();
+      expect(job!.scheduleType).toBe('daily');
+      expect(job!.prompt).toBe('Good morning!');
+    });
+
+    it('should list all jobs', async () => {
+      const jobs = await jobRepo.findAll();
+      expect(jobs.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should delete a job', async () => {
+      const key: SessionKey = { channel: 'cron2', type: 'private', chatId: 'cronuser2' };
+      const id = await jobRepo.create({
+        scheduleType: 'once',
+        scheduleValue: '2026-12-25T00:00:00Z',
+        prompt: 'Merry Christmas!',
+        sessionKey: key,
+        nextRun: new Date('2026-12-25T00:00:00Z'),
+      });
+
+      const deleted = await jobRepo.delete(id);
+      expect(deleted).toBe(true);
+
+      const job = await jobRepo.findById(id);
+      expect(job).toBeNull();
+    });
+
+    it('should update next_run', async () => {
+      const key: SessionKey = { channel: 'cron3', type: 'private', chatId: 'cronuser3' };
+      const id = await jobRepo.create({
+        scheduleType: 'interval',
+        scheduleValue: '30',
+        prompt: 'Check status',
+        sessionKey: key,
+        nextRun: new Date('2026-06-01T00:00:00Z'),
+      });
+
+      const newDate = new Date('2026-06-01T00:30:00Z');
+      await jobRepo.updateNextRun(id, newDate);
+
+      const job = await jobRepo.findById(id);
+      expect(job!.nextRun).toBe(newDate.toISOString());
+    });
+  });
+
+  // ─── CronRunRepository ──────────────────────────────────────────
+
+  describe('CronRunRepository', () => {
+    let runRepo: CronRunRepository;
+    let jobRepo: CronJobRepository;
+    let jobId: string;
+
+    beforeAll(async () => {
+      runRepo = new CronRunRepository(db);
+      jobRepo = new CronJobRepository(db);
+
+      const key: SessionKey = { channel: 'runtest', type: 'private', chatId: 'runuser' };
+      jobId = await jobRepo.create({
+        scheduleType: 'daily',
+        scheduleValue: '10:00',
+        prompt: 'Daily check',
+        sessionKey: key,
+        nextRun: new Date('2026-01-01T10:00:00Z'),
+      });
+    });
+
+    it('should create a run record', async () => {
+      const runId = await runRepo.create({ jobId });
+      expect(runId).toBeDefined();
+
+      // Verify it appears in running list
+      const running = await runRepo.findRunning();
+      expect(running.some((r) => r.id === runId)).toBe(true);
+    });
+
+    it('should mark a run as completed', async () => {
+      const runId = await runRepo.create({ jobId });
+      await runRepo.markCompleted(runId, 'Task completed successfully');
+
+      const running = await runRepo.findRunning();
+      expect(running.every((r) => r.id !== runId)).toBe(true);
+    });
+
+    it('should mark a run as failed', async () => {
+      const runId = await runRepo.create({ jobId });
+      await runRepo.markFailed(runId, 'Something went wrong');
+    });
+
+    it('should mark runs as abandoned', async () => {
+      const runId1 = await runRepo.create({ jobId });
+      const runId2 = await runRepo.create({ jobId });
+
+      await runRepo.markAbandoned([runId1, runId2]);
+
+      const running = await runRepo.findRunning();
+      expect(running.every((r) => r.id !== runId1 && r.id !== runId2)).toBe(true);
+    });
+  });
+});
