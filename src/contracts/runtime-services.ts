@@ -5,12 +5,12 @@
  * 使消费方不依赖具体实现细节。
  */
 
-import type { AgentSkill } from 'aesyiu';
+import type { AgentSkill } from '@/features/skills/skill-loader.js';
 import type { FullConfig } from '@/features/config/schema.js';
 import type { CronExecutor } from '@/features/cron/types.js';
 import type { RoleConfig, RoleWithMetadata } from '@/features/roles/types.js';
 import type { ChatKey, ChatSession } from '@/platform/db/repositories/session-repository.js';
-import type { StandardMessage } from '@/platform/llm/types.js';
+import type { AgentMessage } from '@mariozechner/pi-agent-core';
 
 /** 配置源，提供当前完整配置的只读访问 */
 export interface ConfigSource {
@@ -48,8 +48,8 @@ export interface ChatSessionStore {
     get(key: ChatKey): ChatSession | null;
     create(key: ChatKey): ChatSession;
     updateRole(key: ChatKey, roleId: string): void;
-    getMessages(key: ChatKey): StandardMessage[];
-    saveMessages(key: ChatKey, messages: StandardMessage[]): void;
+    getMessages(key: ChatKey): AgentMessage[];
+    saveMessages(key: ChatKey, messages: AgentMessage[]): void;
     count(): number;
 }
 

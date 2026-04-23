@@ -11,14 +11,6 @@ export interface ToolCall {
     arguments: Record<string, unknown>;
 }
 
-export interface StandardMessage {
-    role: MessageRole;
-    content: string;
-    toolCalls?: ToolCall[];
-    toolCallId?: string;
-    name?: string;
-}
-
 export enum LLMProviderType {
     OpenAIResponses = 'openai-responses',
     OpenAICompletion = 'openai-completion',

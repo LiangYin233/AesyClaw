@@ -1,10 +1,10 @@
-import { StandardMessage, MessageRole } from '@/platform/llm/types.js';
 import type { ToolCatalog } from '@/platform/tools/registry.js';
 import { SessionMemoryConfig, createSessionMemoryConfig } from './types.js';
 import type { RoleManager } from '@/features/roles/role-manager.js';
 import type { SystemPromptManager } from '@/features/roles/system-prompt-manager.js';
 import { DEFAULT_ROLE_ID } from '@/features/roles/types.js';
 import { logger } from '@/platform/observability/logger.js';
+import type { AgentMessage } from '@mariozechner/pi-agent-core';
 
 type SessionPromptBuilder = Pick<SystemPromptManager, 'buildSystemPrompt'>;
 type SessionRoleStore = Pick<
@@ -20,7 +20,8 @@ export interface SessionMemoryManagerDependencies {
 
 export class SessionMemoryManager {
     readonly chatId: string;
-    private messages: StandardMessage[] = [];
+    private messages: AgentMessage[] = [];
+    private systemPrompt?: string;
     private activeRoleId: string = DEFAULT_ROLE_ID;
     private readonly config: SessionMemoryConfig;
     private readonly deps: SessionMemoryManagerDependencies;
@@ -44,12 +45,20 @@ export class SessionMemoryManager {
                 maxTokens: this.config.maxContextTokens,
                 compressionThreshold: this.config.compressionThreshold,
             },
-            'SessionMemoryManager initialized with aesyiu-backed compression',
+            'SessionMemoryManager initialized with pi-agent-core-backed compression',
         );
     }
 
-    getMessages(): ReadonlyArray<StandardMessage> {
+    getMessages(): ReadonlyArray<AgentMessage> {
         return this.messages;
+    }
+
+    setSystemPrompt(prompt: string): void {
+        this.systemPrompt = prompt;
+    }
+
+    getSystemPrompt(): string | undefined {
+        return this.systemPrompt;
     }
 
     getActiveRoleId(): string {
@@ -90,18 +99,7 @@ export class SessionMemoryManager {
             chatId: this.chatId,
         });
 
-        if (this.messages.length > 0 && this.messages[0].role === MessageRole.System) {
-            this.messages[0] = {
-                role: MessageRole.System,
-                content: systemPrompt,
-            };
-            return;
-        }
-
-        this.messages.unshift({
-            role: MessageRole.System,
-            content: systemPrompt,
-        });
+        this.systemPrompt = systemPrompt;
     }
 
     async switchRole(roleId: string): Promise<{ success: boolean; message: string }> {
@@ -164,7 +162,7 @@ export class SessionMemoryManager {
         return this.messages.length > 0;
     }
 
-    importMemory(messages: StandardMessage[]): void {
+    importMemory(messages: AgentMessage[]): void {
         this.messages = [...messages];
         logger.debug(
             { chatId: this.chatId, importedMessages: this.messages.length },

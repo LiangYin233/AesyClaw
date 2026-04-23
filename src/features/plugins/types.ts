@@ -8,7 +8,7 @@ import type { ScopedLogger } from '@/platform/observability/logger.js';
 import type { ChannelReceiveMessage, ChannelSendMessage } from '@/agent/types.js';
 import type { ChannelSendPayload } from '@/channels/channel-plugin.js';
 import type { PluginCommandRegistrar } from '@/contracts/commands.js';
-import type { StandardMessage } from '@/platform/llm/types.js';
+import type { AgentMessage } from '@mariozechner/pi-agent-core';
 import type { ToolExecutionResult } from '@/platform/tools/types.js';
 import type { ToolRegistrationPort } from '@/platform/tools/registry.js';
 
@@ -95,7 +95,7 @@ export interface HookPayloadReceive {
 
 /** beforeLLMRequest 钩子的载荷，包含即将发送给 LLM 的消息、工具与技能列表 */
 export interface HookPayloadBeforeLLMRequest {
-    messages: ReadonlyArray<StandardMessage>;
+    messages: ReadonlyArray<AgentMessage>;
     tools: HookPayloadLLMTool[];
     skills: HookPayloadLLMSkill[];
 }
