@@ -141,6 +141,32 @@ interface Skill {
   filePath: string;
 }
 
+// ─── Commands ──────────────────────────────────────────────────────
+
+/** Context provided to command execute functions */
+interface CommandContext {
+  sessionKey: SessionKey;
+  /** Will be typed later when SessionManager is implemented */
+  sessionManager: unknown;
+  /** Will be typed later when RoleManager is implemented */
+  roleManager: unknown;
+  /** Will be typed later when PluginManager is implemented */
+  pluginManager: unknown;
+}
+
+/** A command that can be registered with the CommandRegistry */
+interface CommandDefinition {
+  name: string;
+  namespace?: string;
+  description: string;
+  usage?: string;
+  scope: ToolOwner;
+  execute: CommandExecuteFn;
+}
+
+/** Command execute function signature */
+type CommandExecuteFn = (args: string[], context: CommandContext) => Promise<string>;
+
 // ─── DeepPartial utility ─────────────────────────────────────────
 
 /** Recursively make all properties optional */
@@ -172,6 +198,9 @@ export type {
   ToolPermissionConfig,
   RoleConfig,
   Skill,
+  CommandContext,
+  CommandDefinition,
+  CommandExecuteFn,
   DeepPartial,
   ConfigChangeListener,
   Unsubscribe,
