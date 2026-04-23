@@ -14,6 +14,8 @@ import type { PluginHooks } from '../../../src/pipeline/middleware/types';
 import { CommandRegistry } from '../../../src/command/command-registry';
 import type { CommandDefinition } from '../../../src/core/types';
 import { ConfigManager } from '../../../src/core/config/config-manager';
+import type { SessionManager } from '../../../src/agent/session-manager';
+import type { AgentEngine } from '../../../src/agent/agent-engine';
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
@@ -40,10 +42,68 @@ async function createLoadedConfigManager(): Promise<ConfigManager> {
 /** Create pipeline deps with real CommandRegistry and loaded ConfigManager */
 async function createPipelineDeps() {
   const configManager = await createLoadedConfigManager();
+
+  // Mock SessionManager that returns a minimal session context
+  const mockSessionManager = {
+    getOrCreateSession: vi.fn().mockResolvedValue({
+      key: { channel: 'test', type: 'private', chatId: 'user1' },
+      sessionId: 'test-session',
+      activeRole: {
+        id: 'default',
+        name: 'Default',
+        description: 'Test role',
+        systemPrompt: 'You are a test assistant.',
+        model: 'openai/gpt-4o',
+        toolPermission: { mode: 'allowlist' as const, list: ['*'] },
+        skills: ['*' as const],
+        enabled: true,
+      },
+      agent: {
+        state: {
+          systemPrompt: 'You are a test assistant.',
+          model: { provider: 'openai', modelId: 'gpt-4o', contextWindow: 128000, enableThinking: false, apiType: 'openai_responses' },
+          tools: [],
+          messages: [],
+        },
+        prompt: vi.fn(),
+        waitForIdle: vi.fn().mockResolvedValue(undefined),
+        reset: vi.fn(),
+      },
+      memory: {
+        loadHistory: vi.fn().mockResolvedValue([]),
+        persistMessage: vi.fn().mockResolvedValue(undefined),
+        syncFromAgent: vi.fn().mockResolvedValue(undefined),
+        compact: vi.fn().mockResolvedValue(''),
+        clear: vi.fn().mockResolvedValue(undefined),
+      },
+    }),
+    getSession: vi.fn().mockReturnValue(undefined),
+    clearSession: vi.fn().mockResolvedValue(undefined),
+    compactSession: vi.fn().mockResolvedValue(''),
+    switchRole: vi.fn().mockResolvedValue(undefined),
+  } as unknown as SessionManager;
+
+  // Mock AgentEngine
+  const mockAgentEngine = {
+    createAgent: vi.fn().mockReturnValue({
+      state: {
+        systemPrompt: 'You are a test assistant.',
+        model: { provider: 'openai', modelId: 'gpt-4o', contextWindow: 128000, enableThinking: false, apiType: 'openai_responses' },
+        tools: [],
+        messages: [],
+      },
+      prompt: vi.fn(),
+      waitForIdle: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+    }),
+    process: vi.fn().mockResolvedValue({ content: 'Agent response' }),
+    switchModel: vi.fn(),
+  } as unknown as AgentEngine;
+
   return {
     configManager,
-    sessionManager: null,
-    agentEngine: null,
+    sessionManager: mockSessionManager,
+    agentEngine: mockAgentEngine,
     commandRegistry: new CommandRegistry(),
     pluginManager: null,
   };

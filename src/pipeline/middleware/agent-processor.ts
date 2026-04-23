@@ -1,36 +1,50 @@
 /**
- * AgentProcessorMiddleware — calls the AI agent to process the message.
+ * AgentProcessorMiddleware — processes the inbound message through the AI agent.
  *
- * This is a stub implementation that will be completed when
- * AgentEngine is implemented. For now, it produces a placeholder
- * outbound response and passes the state through.
+ * Uses the SessionContext from the previous middleware (SessionResolver)
+ * to process the inbound message via AgentEngine. The resulting outbound
+ * message is placed on the pipeline state.
  *
  * @see project.md §5.5
  */
 
 import type { PipelineState, NextFn } from './types';
+import type { AgentEngine } from '../../agent/agent-engine';
+import type { SessionContext } from '../../agent/session-manager';
 
 /**
  * Processes the inbound message through the AI agent.
  *
- * Stub — depends on AgentEngine which is not yet implemented.
- * When AgentEngine is available, this middleware will:
- *   const outbound = await this.agentEngine.process(state.session, state.inbound);
- *   state.outbound = outbound;
+ * Expects `state.session` to be a SessionContext (set by SessionResolver).
+ * After processing, sets `state.outbound` with the agent's response.
  */
 export class AgentProcessorMiddleware {
   readonly name = 'AgentProcessor';
 
-  constructor(
-    // Will be typed as AgentEngine when implemented
-    private _agentEngine: unknown,
-  ) {}
+  constructor(private agentEngine: AgentEngine) {}
 
   async execute(state: PipelineState, next: NextFn): Promise<PipelineState> {
-    // TODO: Implement with real AgentEngine
-    // const outbound = await this.agentEngine.process(state.session, state.inbound);
-    // state.outbound = outbound;
-    state.outbound = { content: '[Agent processing not yet implemented]' };
+    const session = state.session as SessionContext | undefined;
+
+    if (!session) {
+      // No session context — skip agent processing
+      state.outbound = { content: '[Error: No session context available]' };
+      return next(state);
+    }
+
+    try {
+      const outbound = await this.agentEngine.process(
+        session.agent,
+        state.inbound,
+        session.memory,
+        session.activeRole,
+      );
+      state.outbound = outbound;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      state.outbound = { content: `[Agent processing error: ${message}]` };
+    }
+
     return next(state);
   }
 }

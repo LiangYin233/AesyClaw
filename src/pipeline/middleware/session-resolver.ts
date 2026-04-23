@@ -1,33 +1,30 @@
 /**
  * SessionResolverMiddleware — resolves or creates a session context.
  *
- * This is a stub implementation that will be completed when
- * SessionManager is implemented. For now, it simply passes
- * the state through to the next middleware.
+ * Looks up or creates a SessionContext for the inbound message's
+ * SessionKey, then attaches it to the pipeline state for use by
+ * subsequent middlewares (e.g. AgentProcessor).
  *
  * @see project.md §5.5
  */
 
 import type { PipelineState, NextFn } from './types';
+import type { SessionManager } from '../../agent/session-manager';
 
 /**
  * Resolves the session context for the inbound message.
  *
- * Stub — depends on SessionManager which is not yet implemented.
- * When SessionManager is available, this middleware will:
- *   state.session = await this.sessionManager.getOrCreateSession(state.inbound.sessionKey);
+ * If no session exists, one is created (including DB record, role
+ * binding, memory, and agent). The resulting SessionContext is
+ * placed on `state.session`.
  */
 export class SessionResolverMiddleware {
   readonly name = 'SessionResolver';
 
-  constructor(
-    // Will be typed as SessionManager when implemented
-    private _sessionManager: unknown,
-  ) {}
+  constructor(private sessionManager: SessionManager) {}
 
   async execute(state: PipelineState, next: NextFn): Promise<PipelineState> {
-    // TODO: Implement with real SessionManager
-    // state.session = await this.sessionManager.getOrCreateSession(state.inbound.sessionKey);
+    state.session = await this.sessionManager.getOrCreateSession(state.inbound.sessionKey);
     return next(state);
   }
 }

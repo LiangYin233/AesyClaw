@@ -13,6 +13,8 @@ import type { InboundMessage, OutboundMessage } from '../../core/types';
 import type { AppConfig } from '../../core/config/schema';
 import type { CommandRegistry } from '../../command/command-registry';
 import type { ConfigManager } from '../../core/config/config-manager';
+import type { SessionManager } from '../../agent/session-manager';
+import type { AgentEngine } from '../../agent/agent-engine';
 
 // ─── Pipeline State ──────────────────────────────────────────────
 
@@ -67,10 +69,8 @@ interface Middleware {
  */
 interface PipelineDependencies {
   configManager: ConfigManager;
-  /** Will be typed as SessionManager when implemented */
-  sessionManager: unknown;
-  /** Will be typed as AgentEngine when implemented */
-  agentEngine: unknown;
+  sessionManager: SessionManager;
+  agentEngine: AgentEngine;
   commandRegistry: CommandRegistry;
   /** Will be typed as PluginManager when implemented */
   pluginManager: unknown;
