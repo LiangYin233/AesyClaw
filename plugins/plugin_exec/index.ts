@@ -10,9 +10,10 @@
  */
 
 import { spawn } from 'child_process';
-import { z } from 'zod';
+import { Type } from '@sinclair/typebox';
 import type { Plugin, PluginContext } from '@/sdk/plugin.js';
 import type { Tool, ToolExecuteContext, ToolExecutionResult } from '@/sdk/tools.js';
+import { typeboxToToolParameters } from '@/sdk/tools.js';
 import { toErrorMessage } from '@/sdk/errors.js';
 import { ensureWorkspaceDir } from '@/sdk/paths.js';
 
@@ -107,21 +108,15 @@ function executeCommand(
 const execTool: Tool = {
     name: 'exec',
     description: 'Execute shell commands in the workspace directory.',
-    parametersSchema: z.object({
-        command: z.string().describe('Command to execute'),
+    parametersSchema: Type.Object({
+        command: Type.String({ description: 'Command to execute' }),
     }),
 
     getDefinition() {
         return {
             name: this.name,
             description: this.description,
-            parameters: {
-                type: 'object',
-                properties: {
-                    command: { type: 'string', description: 'Command to execute' },
-                },
-                required: ['command'],
-            },
+            parameters: typeboxToToolParameters(this.parametersSchema),
         };
     },
 

@@ -1,14 +1,14 @@
-import { z } from 'zod';
+import { Type } from '@sinclair/typebox';
 import type { ToolExecuteContext } from '@/platform/tools/types.js';
 
-export const RunSubAgentInputSchema = z.object({
-    role_name: z.string().describe('预定义角色名称，必须是当前已存在的角色 ID'),
-    task_description: z.string().describe('详细的任务描述'),
+export const RunSubAgentInputSchema = Type.Object({
+    role_name: Type.String({ description: '预定义角色名称，必须是当前已存在的角色 ID' }),
+    task_description: Type.String({ description: '详细的任务描述' }),
 });
 
-export const RunTempSubAgentInputSchema = z.object({
-    system_prompt: z.string().describe('临时分身的系统提示词'),
-    task_description: z.string().describe('详细的任务描述'),
+export const RunTempSubAgentInputSchema = Type.Object({
+    system_prompt: Type.String({ description: '临时分身的系统提示词' }),
+    task_description: Type.String({ description: '详细的任务描述' }),
 });
 
 export interface SubAgentResult {

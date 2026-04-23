@@ -4,7 +4,8 @@
  * 是工具注册与执行的基础合约。
  */
 
-import { z, ZodType } from 'zod';
+import { type TSchema } from '@sinclair/typebox';
+import { Value } from '@sinclair/typebox/value';
 
 /** 工具参数中单个属性的 schema 定义 */
 export interface ToolParameterProperty {
@@ -81,15 +82,15 @@ export interface ToolExecutionResult {
 /** 工具接口
  *
  * 所有注册到系统中的工具均需实现此接口。
- * 使用 Zod schema 定义参数，运行时自动转换为 JSON Schema 供 LLM 调用。
+ * 使用 Typebox schema 定义参数，运行时自动转换为 JSON Schema 供 LLM 调用。
  */
 export interface Tool {
     /** 工具唯一标识名称 */
     readonly name: string;
     /** 工具功能描述，供 LLM 理解何时调用此工具 */
     readonly description: string;
-    /** 参数的 Zod schema，用于验证与 JSON Schema 生成 */
-    readonly parametersSchema: ZodType;
+    /** 参数的 Typebox schema，用于验证与 JSON Schema 生成 */
+    readonly parametersSchema: TSchema;
 
     /** 返回供 LLM function calling 使用的工具定义 */
     getDefinition(): ToolDefinition;
@@ -97,9 +98,10 @@ export interface Tool {
     execute(_args: unknown, _context: ToolExecuteContext): Promise<ToolExecutionResult>;
 }
 
-/** 将 Zod schema 转换为工具参数定义格式 */
-export function zodToToolParameters(schema: ZodType): ToolParameters {
-    return convertJsonSchemaToToolParameters(z.toJSONSchema(schema) as Record<string, unknown>);
+/** 将 Typebox schema 转换为工具参数定义格式 */
+export function typeboxToToolParameters(schema: TSchema): ToolParameters {
+    const jsonSchema = schema as unknown as Record<string, unknown>;
+    return convertJsonSchemaToToolParameters(jsonSchema);
 }
 
 /** 将 JSON Schema 对象递归转换为 ToolParameters 格式 */
@@ -160,4 +162,18 @@ function convertProperty(prop: Record<string, unknown>): ToolParameterProperty {
     }
 
     return result;
+}
+
+/** 使用 Typebox schema 验证工具参数 */
+export function validateToolArgs<T>(
+    schema: TSchema,
+    args: unknown,
+): { success: true; data: T } | { success: false; error: string } {
+    if (!Value.Check(schema, args)) {
+        const errors = [...Value.Errors(schema, args)];
+        const messages = errors.map((e) => `${e.path}: ${e.message}`).join('; ');
+        return { success: false, error: `参数验证失败: ${messages}` };
+    }
+
+    return { success: true, data: args as T };
 }

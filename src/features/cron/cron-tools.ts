@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { Type } from '@sinclair/typebox';
 import { logger } from '@/platform/observability/logger.js';
 import type {
     Tool,
@@ -6,113 +6,48 @@ import type {
     ToolExecuteContext,
     ToolExecutionResult,
 } from '@/platform/tools/types.js';
-import { zodToToolParameters } from '@/platform/tools/types.js';
+import { typeboxToToolParameters, validateToolArgs } from '@/platform/tools/types.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
 import type { CronJob } from '@/platform/db/repositories/cron-job-repository.js';
 import { cronService } from './cron-service.js';
 
-const CreateCronSchema = z
-    .object({
-        name: z.string().trim().min(1, '任务名称不能为空').describe('调度任务名称'),
-        prompt: z
-            .string()
-            .trim()
-            .min(1, 'prompt 不能为空')
-            .describe('到点后交给 agent 执行的提示词'),
-        schedule_type: z
-            .enum(['once', 'daily', 'interval'])
-            .describe('调度类型：once、daily 或 interval'),
-        run_at: z
-            .string()
-            .trim()
-            .min(1)
-            .optional()
-            .describe('仅 once 可用。未来时间的 ISO 时间字符串，例如 2026-04-20T15:30:00+08:00'),
-        delay_minutes: z
-            .number()
-            .int()
-            .positive()
-            .optional()
-            .describe('仅 once 可用。多少分钟后执行，传入后会立即转换为一次性任务'),
-        daily_time: z
-            .string()
-            .trim()
-            .regex(/^\d{2}:\d{2}$/)
-            .optional()
-            .describe('仅 daily 可用。系统本地时区的 HH:MM，例如 09:30'),
-        interval_minutes: z
-            .number()
-            .int()
-            .positive()
-            .optional()
-            .describe('仅 interval 可用。按固定节拍每隔多少分钟执行一次'),
-    })
-    .superRefine((value, ctx) => {
-        if (value.schedule_type === 'once') {
-            const onceFieldCount =
-                Number(Boolean(value.run_at)) + Number(value.delay_minutes !== undefined);
-            if (onceFieldCount !== 1) {
-                ctx.addIssue({
-                    code: 'custom',
-                    message: 'once 任务必须且只能提供 run_at 或 delay_minutes 其中一个',
-                });
-            }
+const CreateCronSchema = Type.Object({
+    name: Type.String({ minLength: 1, description: '调度任务名称' }),
+    prompt: Type.String({ minLength: 1, description: '到点后交给 agent 执行的提示词' }),
+    schedule_type: Type.Union(
+        [Type.Literal('once'), Type.Literal('daily'), Type.Literal('interval')],
+        { description: '调度类型：once、daily 或 interval' },
+    ),
+    run_at: Type.Optional(
+        Type.String({
+            minLength: 1,
+            description: '仅 once 可用。未来时间的 ISO 时间字符串，例如 2026-04-20T15:30:00+08:00',
+        }),
+    ),
+    delay_minutes: Type.Optional(
+        Type.Integer({
+            exclusiveMinimum: 0,
+            description: '仅 once 可用。多少分钟后执行，传入后会立即转换为一次性任务',
+        }),
+    ),
+    daily_time: Type.Optional(
+        Type.String({
+            pattern: '^\\d{2}:\\d{2}$',
+            description: '仅 daily 可用。系统本地时区的 HH:MM，例如 09:30',
+        }),
+    ),
+    interval_minutes: Type.Optional(
+        Type.Integer({
+            exclusiveMinimum: 0,
+            description: '仅 interval 可用。按固定节拍每隔多少分钟执行一次',
+        }),
+    ),
+});
 
-            if (value.daily_time !== undefined || value.interval_minutes !== undefined) {
-                ctx.addIssue({
-                    code: 'custom',
-                    message: 'once 任务不能提供 daily_time 或 interval_minutes',
-                });
-            }
+const ListCronSchema = Type.Object({});
 
-            return;
-        }
-
-        if (value.schedule_type === 'daily') {
-            if (!value.daily_time) {
-                ctx.addIssue({
-                    code: 'custom',
-                    message: 'daily 任务必须提供 daily_time',
-                });
-            }
-
-            if (
-                value.run_at !== undefined ||
-                value.delay_minutes !== undefined ||
-                value.interval_minutes !== undefined
-            ) {
-                ctx.addIssue({
-                    code: 'custom',
-                    message: 'daily 任务只能提供 daily_time',
-                });
-            }
-
-            return;
-        }
-
-        if (value.interval_minutes === undefined) {
-            ctx.addIssue({
-                code: 'custom',
-                message: 'interval 任务必须提供 interval_minutes',
-            });
-        }
-
-        if (
-            value.run_at !== undefined ||
-            value.delay_minutes !== undefined ||
-            value.daily_time !== undefined
-        ) {
-            ctx.addIssue({
-                code: 'custom',
-                message: 'interval 任务只能提供 interval_minutes',
-            });
-        }
-    });
-
-const ListCronSchema = z.object({});
-
-const DeleteCronSchema = z.object({
-    id: z.string().trim().min(1, '任务 id 不能为空').describe('要删除的 cron 任务 id'),
+const DeleteCronSchema = Type.Object({
+    id: Type.String({ minLength: 1, description: '要删除的 cron 任务 id' }),
 });
 
 class CreateCronTool implements Tool {
@@ -125,22 +60,42 @@ class CreateCronTool implements Tool {
         return {
             name: this.name,
             description: this.description,
-            parameters: zodToToolParameters(this.parametersSchema),
+            parameters: typeboxToToolParameters(this.parametersSchema),
         };
     }
 
     async execute(args: unknown, _context: ToolExecuteContext): Promise<ToolExecutionResult> {
-        const parsed = this.parametersSchema.safeParse(args);
+        const parsed = validateToolArgs<{
+            name: string;
+            prompt: string;
+            schedule_type: 'once' | 'daily' | 'interval';
+            run_at?: string;
+            delay_minutes?: number;
+            daily_time?: string;
+            interval_minutes?: number;
+        }>(this.parametersSchema, args);
         if (!parsed.success) {
             return {
                 success: false,
                 content: '',
-                error: `参数验证失败: ${parsed.error.message}`,
+                error: parsed.error,
+            };
+        }
+
+        const data = parsed.data;
+
+        // 手动校验跨字段约束
+        const validationError = this.validateScheduleFields(data);
+        if (validationError) {
+            return {
+                success: false,
+                content: '',
+                error: validationError,
             };
         }
 
         try {
-            const job = cronService.createJob(this.buildCreateInput(parsed.data));
+            const job = cronService.createJob(this.buildCreateInput(data));
 
             logger.info(
                 { jobId: job.id, scheduleType: job.schedule.type },
@@ -172,7 +127,65 @@ class CreateCronTool implements Tool {
         }
     }
 
-    private buildCreateInput(input: z.infer<typeof CreateCronSchema>) {
+    private validateScheduleFields(data: {
+        schedule_type: string;
+        run_at?: string;
+        delay_minutes?: number;
+        daily_time?: string;
+        interval_minutes?: number;
+    }): string | null {
+        if (data.schedule_type === 'once') {
+            const onceFieldCount =
+                Number(Boolean(data.run_at)) + Number(data.delay_minutes !== undefined);
+            if (onceFieldCount !== 1) {
+                return 'once 任务必须且只能提供 run_at 或 delay_minutes 其中一个';
+            }
+            if (data.daily_time !== undefined || data.interval_minutes !== undefined) {
+                return 'once 任务不能提供 daily_time 或 interval_minutes';
+            }
+            return null;
+        }
+
+        if (data.schedule_type === 'daily') {
+            if (!data.daily_time) {
+                return 'daily 任务必须提供 daily_time';
+            }
+            if (
+                data.run_at !== undefined ||
+                data.delay_minutes !== undefined ||
+                data.interval_minutes !== undefined
+            ) {
+                return 'daily 任务只能提供 daily_time';
+            }
+            return null;
+        }
+
+        if (data.schedule_type === 'interval') {
+            if (data.interval_minutes === undefined) {
+                return 'interval 任务必须提供 interval_minutes';
+            }
+            if (
+                data.run_at !== undefined ||
+                data.delay_minutes !== undefined ||
+                data.daily_time !== undefined
+            ) {
+                return 'interval 任务只能提供 interval_minutes';
+            }
+            return null;
+        }
+
+        return null;
+    }
+
+    private buildCreateInput(input: {
+        name: string;
+        prompt: string;
+        schedule_type: 'once' | 'daily' | 'interval';
+        run_at?: string;
+        delay_minutes?: number;
+        daily_time?: string;
+        interval_minutes?: number;
+    }) {
         if (input.schedule_type === 'once') {
             return {
                 name: input.name,
@@ -212,20 +225,11 @@ class ListCronTool implements Tool {
         return {
             name: this.name,
             description: this.description,
-            parameters: zodToToolParameters(this.parametersSchema),
+            parameters: typeboxToToolParameters(this.parametersSchema),
         };
     }
 
-    async execute(args: unknown, _context: ToolExecuteContext): Promise<ToolExecutionResult> {
-        const parsed = this.parametersSchema.safeParse(args);
-        if (!parsed.success) {
-            return {
-                success: false,
-                content: '',
-                error: `参数验证失败: ${parsed.error.message}`,
-            };
-        }
-
+    async execute(_args: unknown, _context: ToolExecuteContext): Promise<ToolExecutionResult> {
         try {
             const jobs = cronService.listJobs();
             if (jobs.length === 0) {
@@ -270,17 +274,17 @@ class DeleteCronTool implements Tool {
         return {
             name: this.name,
             description: this.description,
-            parameters: zodToToolParameters(this.parametersSchema),
+            parameters: typeboxToToolParameters(this.parametersSchema),
         };
     }
 
     async execute(args: unknown, _context: ToolExecuteContext): Promise<ToolExecutionResult> {
-        const parsed = this.parametersSchema.safeParse(args);
+        const parsed = validateToolArgs<{ id: string }>(this.parametersSchema, args);
         if (!parsed.success) {
             return {
                 success: false,
                 content: '',
-                error: `参数验证失败: ${parsed.error.message}`,
+                error: parsed.error,
             };
         }
 

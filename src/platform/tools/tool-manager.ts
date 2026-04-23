@@ -2,7 +2,7 @@
  *
  * ToolManager 管理工具的注册、查询与反注册，支持：
  * - 按所有者（system/plugin/mcp）隔离的工具注册作用域
- * - 工具参数验证（使用 Zod schema）
+ * - 工具参数验证（使用 Typebox schema）
  * - 工具目录查询（供 AgentEngine 获取可用工具列表）
  *
  * 注册流程：
@@ -11,7 +11,8 @@
  * 3. scope.dispose() 或 unregister() 反注册
  */
 
-import { ZodError } from 'zod';
+import { type TSchema } from '@sinclair/typebox';
+import { Value } from '@sinclair/typebox/value';
 import { logger } from '@/platform/observability/logger.js';
 import { OwnedNameRegistry } from '@/platform/registration/owned-name-registry.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
@@ -102,7 +103,7 @@ export class ToolManager implements ToolCatalog {
         return Array.from(this.tools.keys());
     }
 
-    /** 验证工具参数是否符合 Zod schema */
+    /** 验证工具参数是否符合 Typebox schema */
     validateToolArguments(
         toolName: string,
         args: Record<string, unknown>,
@@ -124,23 +125,24 @@ export class ToolManager implements ToolCatalog {
         }
 
         try {
-            const parsedArgs = tool.parametersSchema.parse(args);
-            return { valid: true, parsedArgs: parsedArgs as Record<string, unknown> };
-        } catch (error) {
-            if (error instanceof ZodError) {
+            const schema = tool.parametersSchema as TSchema;
+            if (!Value.Check(schema, args)) {
+                const errors = [...Value.Errors(schema, args)];
                 return {
                     valid: false,
                     errors: {
                         toolName,
-                        error: `参数验证失败: ${error.message}`,
-                        issues: error.issues.map((issue) => ({
-                            path: issue.path.map(String),
-                            message: issue.message,
+                        error: `参数验证失败: ${errors.map((e) => `${e.path}: ${e.message}`).join('; ')}`,
+                        issues: errors.map((e) => ({
+                            path: e.path.split('/').filter(Boolean),
+                            message: e.message,
                         })),
                     },
                 };
             }
 
+            return { valid: true, parsedArgs: args };
+        } catch (error) {
             return {
                 valid: false,
                 errors: {

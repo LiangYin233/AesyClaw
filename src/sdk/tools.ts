@@ -12,3 +12,5 @@ export type {
     ToolParameters,
     ToolSendPayload,
 } from '@/platform/tools/types.js';
+
+export { typeboxToToolParameters } from '@/platform/tools/types.js';

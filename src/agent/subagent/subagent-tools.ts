@@ -17,7 +17,8 @@ import type { ToolCatalog } from '@/platform/tools/registry.js';
 import {
     ToolExecuteContext,
     ToolExecutionResult,
-    zodToToolParameters,
+    typeboxToToolParameters,
+    validateToolArgs,
 } from '@/platform/tools/types.js';
 import { SandboxEngine } from './sandbox-engine.js';
 import {
@@ -44,13 +45,16 @@ export async function runSubAgent(
     context: ToolExecuteContext,
     deps: SubAgentToolDeps,
 ): Promise<{ success: boolean; content: string; error?: string }> {
-    const parsed = RunSubAgentInputSchema.safeParse(args);
+    const parsed = validateToolArgs<{ role_name: string; task_description: string }>(
+        RunSubAgentInputSchema,
+        args,
+    );
 
     if (!parsed.success) {
         return {
             success: false,
             content: '',
-            error: `参数错误: ${parsed.error.message}`,
+            error: `参数错误: ${parsed.error}`,
         };
     }
 
@@ -109,13 +113,16 @@ export async function runTempSubAgent(
     context: ToolExecuteContext,
     deps: SubAgentToolDeps,
 ): Promise<{ success: boolean; content: string; error?: string }> {
-    const parsed = RunTempSubAgentInputSchema.safeParse(args);
+    const parsed = validateToolArgs<{ system_prompt: string; task_description: string }>(
+        RunTempSubAgentInputSchema,
+        args,
+    );
 
     if (!parsed.success) {
         return {
             success: false,
             content: '',
-            error: `参数错误: ${parsed.error.message}`,
+            error: `参数错误: ${parsed.error}`,
         };
     }
 
@@ -187,7 +194,7 @@ function createSubAgentTool(
         getDefinition: () => ({
             name,
             description,
-            parameters: zodToToolParameters(schema),
+            parameters: typeboxToToolParameters(schema),
         }),
         execute: executeFn,
     };

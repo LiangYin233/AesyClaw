@@ -1,11 +1,15 @@
-import type { Tool as AesyiuTool } from 'aesyiu';
-import { ZodType, z } from 'zod';
+/** @file MCP 类型与适配器
+ *
+ * 定义 MCP 服务器信息，以及将 MCP 工具适配为 AesyClaw Tool 的 McpToolAdapter。
+ */
+
+import { Type, type TSchema } from '@sinclair/typebox';
 import {
     Tool,
+    ToolDefinition,
     ToolExecuteContext,
     ToolExecutionResult,
-    ToolDefinition,
-    type ToolParameters,
+    typeboxToToolParameters,
 } from '../types.js';
 import { toErrorMessage } from '../../utils/errors.js';
 
@@ -21,158 +25,141 @@ export function buildMcpToolName(serverName: string, toolName: string): string {
     return `${serverName}.${toolName}`;
 }
 
+/** 将 JSON Schema 转换为 Typebox TSchema */
+function jsonSchemaToTypebox(schema: unknown): TSchema {
+    if (!schema || typeof schema !== 'object') {
+        return Type.Object({});
+    }
+
+    const s = schema as Record<string, unknown>;
+    const type = s.type as string;
+
+    switch (type) {
+        case 'string': {
+            const enumValues = s.enum;
+            if (Array.isArray(enumValues) && enumValues.every((v) => typeof v === 'string')) {
+                return Type.Union(enumValues.map((v) => Type.Literal(v)));
+            }
+            const opts: Record<string, unknown> = {};
+            if (s.description) {
+                opts.description = s.description;
+            }
+            if (s.minLength !== undefined) {
+                opts.minLength = s.minLength;
+            }
+            if (s.maxLength !== undefined) {
+                opts.maxLength = s.maxLength;
+            }
+            if (s.pattern) {
+                opts.pattern = s.pattern;
+            }
+            return Type.String(opts);
+        }
+        case 'number':
+        case 'integer': {
+            const opts: Record<string, unknown> = {};
+            if (s.description) {
+                opts.description = s.description;
+            }
+            if (s.minimum !== undefined) {
+                opts.minimum = s.minimum;
+            }
+            if (s.maximum !== undefined) {
+                opts.maximum = s.maximum;
+            }
+            if (s.exclusiveMinimum !== undefined) {
+                opts.exclusiveMinimum = s.exclusiveMinimum;
+            }
+            if (s.exclusiveMaximum !== undefined) {
+                opts.exclusiveMaximum = s.exclusiveMaximum;
+            }
+            return type === 'integer' ? Type.Integer(opts) : Type.Number(opts);
+        }
+        case 'boolean': {
+            const opts: Record<string, unknown> = {};
+            if (s.description) {
+                opts.description = s.description;
+            }
+            return Type.Boolean(opts);
+        }
+        case 'array': {
+            const items = s.items;
+            const opts: Record<string, unknown> = {};
+            if (s.description) {
+                opts.description = s.description;
+            }
+            return Type.Array(items ? jsonSchemaToTypebox(items) : Type.Any(), opts);
+        }
+        case 'object': {
+            const properties = (s.properties as Record<string, unknown>) || {};
+            const required = Array.isArray(s.required) ? (s.required as string[]) : [];
+            const props: Record<string, TSchema> = {};
+
+            for (const [key, propSchema] of Object.entries(properties)) {
+                const propTypebox = jsonSchemaToTypebox(propSchema);
+                props[key] = required.includes(key) ? propTypebox : Type.Optional(propTypebox);
+            }
+
+            const opts: Record<string, unknown> = {};
+            if (s.description) {
+                opts.description = s.description;
+            }
+            if (s.additionalProperties !== undefined) {
+                opts.additionalProperties = s.additionalProperties;
+            }
+            return Type.Object(props, opts);
+        }
+        default:
+            return Type.Any();
+    }
+}
+
+/** MCP 工具调用函数类型 */
+export type McpToolCallFn = (
+    toolName: string,
+    args: Record<string, unknown>,
+) => Promise<ToolExecutionResult>;
+
 export class McpToolAdapter implements Tool {
     readonly name: string;
     readonly description: string;
-    readonly parametersSchema: ZodType;
+    readonly parametersSchema: TSchema;
     readonly serverName: string;
+    readonly originalName: string;
 
-    private readonly tool: AesyiuTool;
-    private readonly toolParameters: ToolParameters;
+    private readonly callTool: McpToolCallFn;
 
-    constructor(serverName: string, tool: AesyiuTool) {
+    constructor(
+        serverName: string,
+        tool: { name: string; description?: string; inputSchema: unknown },
+        callTool: McpToolCallFn,
+    ) {
         this.serverName = serverName;
-        this.tool = tool;
+        this.originalName = tool.name;
         this.name = buildMcpToolName(serverName, tool.name);
         this.description = tool.description || `Tool from ${serverName}: ${tool.name}`;
-        this.toolParameters = this.normalizeToolParameters(tool.parameters);
-        this.parametersSchema = this.parseInputSchema(this.toolParameters);
-    }
-
-    private normalizeToolParameters(parameters: unknown): ToolParameters {
-        if (!parameters || typeof parameters !== 'object') {
-            return {
-                type: 'object',
-                properties: {},
-            };
-        }
-
-        const rawParameters = parameters as Record<string, unknown>;
-        const properties = rawParameters.properties;
-        const required = rawParameters.required;
-
-        return {
-            ...rawParameters,
-            type: 'object',
-            properties:
-                properties && typeof properties === 'object' && !Array.isArray(properties)
-                    ? (properties as ToolParameters['properties'])
-                    : {},
-            ...(Array.isArray(required)
-                ? {
-                      required: required.filter((item): item is string => typeof item === 'string'),
-                  }
-                : {}),
-        } as ToolParameters;
-    }
-
-    private parseInputSchema(schema: ToolParameters): ZodType {
-        if (!schema || typeof schema !== 'object') {
-            return z.object({});
-        }
-
-        const properties = (schema.properties as Record<string, unknown>) || {};
-        const required = (schema.required as string[]) || [];
-
-        const shape: Record<string, ZodType> = {};
-
-        for (const [key, prop] of Object.entries(properties)) {
-            const propertySchema = this.zodFromJsonSchema(prop as Record<string, unknown>);
-            shape[key] = required.includes(key) ? propertySchema : propertySchema.optional();
-        }
-
-        return z.object(shape);
-    }
-
-    private zodFromJsonSchema(prop: Record<string, unknown>): ZodType {
-        if (
-            Array.isArray(prop.enum) &&
-            prop.enum.length > 0 &&
-            prop.enum.every((value) => typeof value === 'string')
-        ) {
-            const enumValues = prop.enum as [string, ...string[]];
-            return z.enum(enumValues);
-        }
-
-        const type = prop.type as string;
-
-        switch (type) {
-            case 'string':
-                return z.string();
-            case 'number':
-                return z.number();
-            case 'integer':
-                return z.number().int();
-            case 'boolean':
-                return z.boolean();
-            case 'array': {
-                const items = prop.items as Record<string, unknown>;
-                return z.array(items ? this.zodFromJsonSchema(items) : z.any());
-            }
-            case 'object': {
-                const props = (prop.properties as Record<string, unknown>) || {};
-                const required = Array.isArray(prop.required)
-                    ? prop.required.filter((item): item is string => typeof item === 'string')
-                    : [];
-                const shape: Record<string, ZodType> = {};
-
-                for (const [k, v] of Object.entries(props)) {
-                    const nestedSchema = this.zodFromJsonSchema(v as Record<string, unknown>);
-                    shape[k] = required.includes(k) ? nestedSchema : nestedSchema.optional();
-                }
-
-                return z.object(shape);
-            }
-            default:
-                return z.any();
-        }
+        this.parametersSchema = jsonSchemaToTypebox(tool.inputSchema);
+        this.callTool = callTool;
     }
 
     getDefinition(): ToolDefinition {
         return {
             name: this.name,
             description: this.description,
-            parameters: this.toolParameters,
+            parameters: typeboxToToolParameters(this.parametersSchema),
         };
     }
 
     async execute(args: unknown, _context: ToolExecuteContext): Promise<ToolExecutionResult> {
         try {
-            const result = await this.tool.execute(args as Record<string, unknown>, _context);
-            return {
-                success: true,
-                content: this.normalizeToolContent(result),
-            };
+            const result = await this.callTool(this.originalName, args as Record<string, unknown>);
+            return result;
         } catch (error) {
             return {
                 success: false,
                 content: '',
                 error: toErrorMessage(error),
             };
-        }
-    }
-
-    private normalizeToolContent(result: unknown): string {
-        if (result === undefined || result === null) {
-            return '(no output)';
-        }
-
-        if (typeof result === 'string') {
-            return result;
-        }
-
-        if (
-            typeof result === 'number' ||
-            typeof result === 'boolean' ||
-            typeof result === 'bigint'
-        ) {
-            return String(result);
-        }
-
-        try {
-            return JSON.stringify(result, null, 2);
-        } catch {
-            return String(result);
         }
     }
 }

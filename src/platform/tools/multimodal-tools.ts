@@ -1,13 +1,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { z } from 'zod';
+import { Type } from '@sinclair/typebox';
 import OpenAI from 'openai';
 import {
     Tool,
     ToolDefinition,
     ToolExecuteContext,
     ToolExecutionResult,
-    zodToToolParameters,
+    typeboxToToolParameters,
+    validateToolArgs,
 } from './types.js';
 import { logger } from '../observability/logger.js';
 import { toErrorMessage } from '../utils/errors.js';
@@ -91,12 +92,12 @@ function buildMissingProviderResult(
 function buildToolDefinition(
     name: string,
     description: string,
-    parametersSchema: z.ZodTypeAny,
+    parametersSchema: Parameters<typeof typeboxToToolParameters>[0],
 ): ToolDefinition {
     return {
         name,
         description,
-        parameters: zodToToolParameters(parametersSchema),
+        parameters: typeboxToToolParameters(parametersSchema),
     };
 }
 
@@ -108,53 +109,40 @@ function buildValidationErrorResult(message: string): ToolExecutionResult {
     };
 }
 
-function validateToolArgs<T>(
-    parametersSchema: z.ZodType<T>,
-    args: unknown,
-): { success: true; data: T } | { success: false; result: ToolExecutionResult } {
-    const parsed = parametersSchema.safeParse(args);
-    if (!parsed.success) {
-        return {
-            success: false,
-            result: buildValidationErrorResult(`参数验证失败: ${parsed.error.message}`),
-        };
-    }
-
-    return {
-        success: true,
-        data: parsed.data,
-    };
-}
-
-const SpeechToTextSchema = z.object({
-    audio_path: z.string().describe('语音文件路径，支持本地路径或URL'),
+const SpeechToTextSchema = Type.Object({
+    audio_path: Type.String({ description: '语音文件路径，支持本地路径或URL' }),
 });
 
-const ImageUnderstandingSchema = z.object({
-    image_path: z.string().describe('图片文件路径，支持本地路径或URL'),
-    prompt: z
-        .string()
-        .describe('关于想要了解图片的方面的描述，例如"详细描述图片内容"或"这张图片有什么特别之处"'),
+const ImageUnderstandingSchema = Type.Object({
+    image_path: Type.String({ description: '图片文件路径，支持本地路径或URL' }),
+    prompt: Type.String({
+        description:
+            '关于想要了解图片的方面的描述，例如"详细描述图片内容"或"这张图片有什么特别之处"',
+    }),
 });
 
-const SendMsgSchema = z
-    .object({
-        text: z.string().optional().describe('要额外发送的文字内容，可为空'),
-        media_files: z
-            .array(
-                z.object({
-                    type: z.enum(['image', 'video', 'audio', 'file']).describe('媒体类型'),
-                    url: z.string().min(1).describe('媒体文件路径或URL'),
-                    filename: z.string().optional().describe('可选的文件名，仅用于描述'),
+const SendMsgSchema = Type.Object(
+    {
+        text: Type.Optional(Type.String({ description: '要额外发送的文字内容，可为空' })),
+        media_files: Type.Optional(
+            Type.Array(
+                Type.Object({
+                    type: Type.Union([
+                        Type.Literal('image'),
+                        Type.Literal('video'),
+                        Type.Literal('audio'),
+                        Type.Literal('file'),
+                    ]),
+                    url: Type.String({ minLength: 1, description: '媒体文件路径或URL' }),
+                    filename: Type.Optional(
+                        Type.String({ description: '可选的文件名，仅用于描述' }),
+                    ),
                 }),
-            )
-            .optional()
-            .describe('要额外发送的媒体文件列表'),
-    })
-    .refine(
-        (value) => Boolean(value.text?.trim()) || Boolean(value.media_files?.length),
-        'text 和 media_files 至少需要提供一项',
-    );
+            ),
+        ),
+    },
+    { description: 'text 和 media_files 至少需要提供一项' },
+);
 
 export class SpeechToTextTool implements Tool {
     constructor(private readonly getConfig: MultimodalConfigResolver) {}
@@ -223,9 +211,9 @@ export class SpeechToTextTool implements Tool {
     }
 
     async execute(args: unknown, _context: ToolExecuteContext): Promise<ToolExecutionResult> {
-        const parsed = validateToolArgs(this.parametersSchema, args);
+        const parsed = validateToolArgs<{ audio_path: string }>(this.parametersSchema, args);
         if (!parsed.success) {
-            return parsed.result;
+            return buildValidationErrorResult(parsed.error);
         }
 
         const { audio_path } = parsed.data;
@@ -327,9 +315,12 @@ export class ImageUnderstandingTool implements Tool {
     }
 
     async execute(args: unknown, _context: ToolExecuteContext): Promise<ToolExecutionResult> {
-        const parsed = validateToolArgs(this.parametersSchema, args);
+        const parsed = validateToolArgs<{ image_path: string; prompt: string }>(
+            this.parametersSchema,
+            args,
+        );
         if (!parsed.success) {
-            return parsed.result;
+            return buildValidationErrorResult(parsed.error);
         }
 
         const { image_path, prompt } = parsed.data;
@@ -406,9 +397,12 @@ export class SendMsgTool implements Tool {
     }
 
     async execute(args: unknown, context: ToolExecuteContext): Promise<ToolExecutionResult> {
-        const parsed = validateToolArgs(this.parametersSchema, args);
+        const parsed = validateToolArgs<{
+            text?: string;
+            media_files?: Array<{ type: string; url: string; filename?: string }>;
+        }>(this.parametersSchema, args);
         if (!parsed.success) {
-            return parsed.result;
+            return buildValidationErrorResult(parsed.error);
         }
 
         if (!context.send) {
@@ -421,6 +415,10 @@ export class SendMsgTool implements Tool {
             url: file.url,
             filename: file.filename,
         }));
+
+        if (!text && (!mediaFiles || mediaFiles.length === 0)) {
+            return buildValidationErrorResult('text 和 media_files 至少需要提供一项');
+        }
 
         logger.info(
             {
