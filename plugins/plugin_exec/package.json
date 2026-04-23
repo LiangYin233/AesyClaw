@@ -1,7 +1,0 @@
-{
-  "name": "exec",
-  "version": "1.0.0",
-  "description": "Shell command execution tool",
-  "main": "../../dist/plugins/plugin_exec/index.js",
-  "type": "module"
-}
