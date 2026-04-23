@@ -15,11 +15,9 @@
 import { randomUUID } from 'crypto';
 import type { AgentMessage } from '@mariozechner/pi-agent-core';
 import { prepareAgentRun } from '@/agent/runtime/prepare-agent-run.js';
-import {
-    buildPiAgent,
-    type PiRunStats,
-    getFinalAssistantText,
-} from '@/agent/runtime/pi-runtime-helpers.js';
+import { buildPiAgent } from '@/agent/runtime/agent-builder.js';
+import type { PiRunStats } from '@/agent/runtime/agent-tool-adapter.js';
+import { getFinalAssistantText } from '@/agent/runtime/message-utils.js';
 import type { PluginHookRuntime } from '@/contracts/plugin-hook-runtime.js';
 import type { ConfigSource, RoleStore, SkillStore } from '@/contracts/runtime-services.js';
 import { DEFAULT_ROLE_ID } from '@/features/roles/types.js';

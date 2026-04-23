@@ -21,12 +21,9 @@ import { logger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
 import type { ToolCatalog } from '@/platform/tools/registry.js';
 import { Tool, ToolExecuteContext, ToolExecutionResult } from '@/platform/tools/types.js';
-import {
-    buildPiAgent,
-    type PiRunStats,
-    getFinalAssistantText,
-    collectTokenUsage,
-} from './runtime/pi-runtime-helpers.js';
+import { buildPiAgent } from './runtime/agent-builder.js';
+import type { PiRunStats } from './runtime/agent-tool-adapter.js';
+import { getFinalAssistantText, collectTokenUsage } from './runtime/message-utils.js';
 import { SessionMemoryManager } from './memory/session-memory-manager.js';
 import { SessionMemoryConfig } from './memory/types.js';
 

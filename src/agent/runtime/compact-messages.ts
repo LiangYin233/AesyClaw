@@ -10,7 +10,7 @@ import { type LLMConfig } from '@/platform/llm/types.js';
 import type { AgentMessage } from '@mariozechner/pi-agent-core';
 import { logger } from '@/platform/observability/logger.js';
 import { toErrorMessage } from '@/platform/utils/errors.js';
-import { buildModel } from './pi-runtime-helpers.js';
+import { buildModel } from './model-builder.js';
 
 /** 手动压缩消息
  *
