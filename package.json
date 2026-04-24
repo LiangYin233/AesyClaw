@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "@sinclair/typebox": "^0.34.0",
-    "better-sqlite3": "^11.0.0"
+    "better-sqlite3": "^11.0.0",
+    "front-matter": "^4.0.2"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.0",
