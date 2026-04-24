@@ -74,7 +74,7 @@ export class AgentEngine {
       initialState: {
         systemPrompt: prompt,
         model,
-        tools: [],
+        tools,
         messages: [],
       },
       streamFn: this.llmAdapter.createStreamFn(role.model),
@@ -86,7 +86,7 @@ export class AgentEngine {
       role: role.id,
       model: role.model,
       toolCount: tools.length,
-      runtimeToolCount: 0,
+      runtimeToolCount: tools.length,
     });
 
     return agent;
@@ -117,7 +117,7 @@ export class AgentEngine {
 
     const { prompt, tools } = this.promptBuilder.buildSystemPrompt(role, executionContext);
     agent.state.systemPrompt = prompt;
-    agent.state.tools = [];
+    agent.state.tools = tools;
     agent.state.model = this.llmAdapter.resolveModel(role.model);
 
     await agent.prompt(message.content);

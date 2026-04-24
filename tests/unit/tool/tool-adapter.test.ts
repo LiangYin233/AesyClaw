@@ -141,6 +141,20 @@ describe('ToolAdapter', () => {
       expect(result.content).toEqual([{ type: 'text', text: 'Short-circuited' }]);
     });
 
+    it('should surface short-circuit error results as runtime tool failures', async () => {
+      const tool = makeTool({
+        execute: async () => ({ content: 'should not run' }),
+      });
+
+      const agentTool = ToolAdapter.toAgentTool(
+        tool,
+        makeShortCircuitHookDispatcher({ content: 'Cached failure', isError: true }),
+        {},
+      );
+
+      await expect(agentTool.execute('call-1', {})).rejects.toThrow('Cached failure');
+    });
+
     it('should allow after hook to override result', async () => {
       const tool = makeTool({
         execute: async () => ({ content: 'original result' }),
@@ -148,12 +162,36 @@ describe('ToolAdapter', () => {
 
       const agentTool = ToolAdapter.toAgentTool(
         tool,
-        makeOverrideHookDispatcher({ content: 'overridden result', isError: true }),
+        makeOverrideHookDispatcher({ content: 'overridden result' }),
         {},
       );
       const result = await agentTool.execute('call-1', {});
 
       expect(result.content).toEqual([{ type: 'text', text: 'overridden result' }]);
+    });
+
+    it('should treat tool error results as runtime failures', async () => {
+      const tool = makeTool({
+        execute: async () => ({ content: 'Tool failed', isError: true }),
+      });
+
+      const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
+
+      await expect(agentTool.execute('call-1', {})).rejects.toThrow('Tool failed');
+    });
+
+    it('should respect after hook isError overrides', async () => {
+      const tool = makeTool({
+        execute: async () => ({ content: 'original result' }),
+      });
+
+      const agentTool = ToolAdapter.toAgentTool(
+        tool,
+        makeOverrideHookDispatcher({ content: 'overridden failure', isError: true }),
+        {},
+      );
+
+      await expect(agentTool.execute('call-1', {})).rejects.toThrow('overridden failure');
     });
 
     it('should catch thrown errors from tool execute and return error result', async () => {

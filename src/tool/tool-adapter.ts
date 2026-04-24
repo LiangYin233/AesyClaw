@@ -61,11 +61,7 @@ export class ToolAdapter {
 
         // If a hook provides a short-circuit result, use it directly
         if (beforeResult.shortCircuit) {
-          return {
-            content: [{ type: 'text', text: beforeResult.shortCircuit.content }],
-            details: beforeResult.shortCircuit.details,
-            terminate: beforeResult.shortCircuit.terminate,
-          };
+          return ToolAdapter.toRuntimeResult(beforeResult.shortCircuit);
         }
 
         // 2. Execute the actual tool
@@ -78,7 +74,6 @@ export class ToolAdapter {
 
           result = await tool.execute(params, executionContext as ToolExecutionContext);
         } catch (err) {
-          // The pi runtime expects thrown tool errors rather than encoded error results.
           const message = err instanceof Error ? err.message : String(err);
           throw new Error(message);
         }
@@ -96,16 +91,25 @@ export class ToolAdapter {
           result = {
             content: override.content ?? result.content,
             details: override.details ?? result.details,
+            isError: override.isError ?? result.isError,
             terminate: override.terminate ?? result.terminate,
           };
         }
 
-        return {
-          content: [{ type: 'text', text: result.content }],
-          details: result.details,
-          terminate: result.terminate,
-        };
+        return ToolAdapter.toRuntimeResult(result);
       },
+    };
+  }
+
+  private static toRuntimeResult(result: ToolExecutionResult): AgentToolResult {
+    if (result.isError) {
+      throw new Error(result.content);
+    }
+
+    return {
+      content: [{ type: 'text', text: result.content }],
+      details: result.details,
+      terminate: result.terminate,
     };
   }
 }

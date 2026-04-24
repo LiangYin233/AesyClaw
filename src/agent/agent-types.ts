@@ -32,7 +32,7 @@ export interface AgentTool {
 
 export interface AgentToolResult {
   content: TextContent[];
-  details?: unknown;
+  details: unknown;
   terminate?: boolean;
 }
 
