@@ -8,6 +8,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { AgentMessage, MemoryConfig } from '../../../src/agent/agent-types';
 import { MemoryManager } from '../../../src/agent/memory-manager';
+import { createPersistedAssistantMessage, createUserMessage } from '../../../src/agent/agent-types';
 import type { MessageRepository } from '../../../src/core/database/repositories/message-repository';
 import type { LlmAdapter } from '../../../src/agent/llm-adapter';
 
@@ -45,10 +46,7 @@ describe('MemoryManager', () => {
       const messageRepo = makeMockMessageRepo();
       const manager = new MemoryManager(sessionId, messageRepo, defaultConfig);
 
-      const message: AgentMessage = {
-        role: 'user',
-        text: 'Hello, assistant!',
-      };
+      const message: AgentMessage = createUserMessage('Hello, assistant!');
 
       await manager.persistMessage(message);
 
@@ -65,10 +63,7 @@ describe('MemoryManager', () => {
       const messageRepo = makeMockMessageRepo();
       const manager = new MemoryManager(sessionId, messageRepo, defaultConfig);
 
-      const message: AgentMessage = {
-        role: 'assistant',
-        text: 'I can help with that.',
-      };
+      const message: AgentMessage = createPersistedAssistantMessage('I can help with that.');
 
       await manager.persistMessage(message);
 
@@ -87,8 +82,23 @@ describe('MemoryManager', () => {
 
       const message: AgentMessage = {
         role: 'assistant',
-        text: 'Let me look that up.',
-        toolCalls: [{ id: 'call-1', name: 'search', arguments: '{}' }],
+        content: [
+          { type: 'text', text: 'Let me look that up.' },
+          { type: 'toolCall', id: 'call-1', name: 'search', arguments: {} },
+        ],
+        api: 'openai-responses',
+        provider: 'openai',
+        model: 'gpt-4o',
+        usage: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        stopReason: 'toolUse',
+        timestamp: Date.now(),
       };
 
       await manager.persistMessage(message);
@@ -102,9 +112,11 @@ describe('MemoryManager', () => {
 
       const message: AgentMessage = {
         role: 'toolResult',
-        text: 'Search results here...',
+        content: [{ type: 'text', text: 'Search results here...' }],
         toolCallId: 'call-1',
         toolName: 'search',
+        isError: false,
+        timestamp: Date.now(),
       };
 
       await manager.persistMessage(message);
@@ -116,10 +128,11 @@ describe('MemoryManager', () => {
       const messageRepo = makeMockMessageRepo();
       const manager = new MemoryManager(sessionId, messageRepo, defaultConfig);
 
-      const message: AgentMessage = {
+      const message = {
         role: 'system',
-        text: 'System prompt here',
-      };
+        content: 'System prompt here',
+        timestamp: Date.now(),
+      } as AgentMessage;
 
       await manager.persistMessage(message);
 
@@ -130,10 +143,7 @@ describe('MemoryManager', () => {
       const messageRepo = makeMockMessageRepo();
       const manager = new MemoryManager(sessionId, messageRepo, defaultConfig);
 
-      const message: AgentMessage = {
-        role: 'user',
-        text: '',
-      };
+      const message: AgentMessage = createUserMessage('');
 
       await manager.persistMessage(message);
 
@@ -144,10 +154,7 @@ describe('MemoryManager', () => {
       const messageRepo = makeMockMessageRepo();
       const manager = new MemoryManager(sessionId, messageRepo, defaultConfig);
 
-      const message: AgentMessage = {
-        role: 'user',
-        text: '   \n\t  ',
-      };
+      const message: AgentMessage = createUserMessage('   \n\t  ');
 
       await manager.persistMessage(message);
 
@@ -169,13 +176,10 @@ describe('MemoryManager', () => {
       const history = await manager.loadHistory();
 
       expect(history).toHaveLength(2);
-      expect(history[0]).toEqual({
-        role: 'user',
-        text: 'Hello!',
-      });
-      expect(history[1]).toEqual({
+      expect(history[0]).toMatchObject({ role: 'user', content: 'Hello!' });
+      expect(history[1]).toMatchObject({
         role: 'assistant',
-        text: 'Hi there!',
+        content: [{ type: 'text', text: 'Hi there!' }],
       });
     });
 
@@ -198,10 +202,36 @@ describe('MemoryManager', () => {
       const manager = new MemoryManager(sessionId, messageRepo, defaultConfig);
 
       const messages: AgentMessage[] = [
-        { role: 'user', text: 'What is the weather?' },
-        { role: 'assistant', text: 'Let me check.', toolCalls: [{ id: 'c1', name: 'weather', arguments: '{}' }] },
-        { role: 'toolResult', text: 'Sunny, 72°F', toolCallId: 'c1', toolName: 'weather' },
-        { role: 'assistant', text: 'The weather is sunny and 72°F.' },
+        createUserMessage('What is the weather?'),
+        {
+          role: 'assistant',
+          content: [
+            { type: 'text', text: 'Let me check.' },
+            { type: 'toolCall', id: 'c1', name: 'weather', arguments: {} },
+          ],
+          api: 'openai-responses',
+          provider: 'openai',
+          model: 'gpt-4o',
+          usage: {
+            input: 0,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 0,
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+          },
+          stopReason: 'toolUse',
+          timestamp: Date.now(),
+        },
+        {
+          role: 'toolResult',
+          content: [{ type: 'text', text: 'Sunny, 72°F' }],
+          toolCallId: 'c1',
+          toolName: 'weather',
+          isError: false,
+          timestamp: Date.now(),
+        },
+        createPersistedAssistantMessage('The weather is sunny and 72°F.'),
       ];
 
       await manager.syncFromAgent(messages);

@@ -37,6 +37,7 @@ export class ToolAdapter {
   ): AgentTool {
     return {
       name: tool.name,
+      label: tool.name,
       description: tool.description,
       parameters: tool.parameters,
       execute: async (_toolCallId: string, params: unknown, signal?: AbortSignal): Promise<AgentToolResult> => {
@@ -55,17 +56,15 @@ export class ToolAdapter {
 
         // If a hook blocks the call, return an error result
         if (beforeResult.block) {
-          return {
-            content: beforeResult.reason ?? `Tool call "${tool.name}" was blocked by a hook`,
-            isError: true,
-          };
+          throw new Error(beforeResult.reason ?? `Tool call "${tool.name}" was blocked by a hook`);
         }
 
         // If a hook provides a short-circuit result, use it directly
         if (beforeResult.shortCircuit) {
           return {
-            content: beforeResult.shortCircuit.content,
-            ...(beforeResult.shortCircuit.isError ? { isError: true } : {}),
+            content: [{ type: 'text', text: beforeResult.shortCircuit.content }],
+            details: beforeResult.shortCircuit.details,
+            terminate: beforeResult.shortCircuit.terminate,
           };
         }
 
@@ -74,18 +73,14 @@ export class ToolAdapter {
         try {
           // If the signal is already aborted, don't execute
           if (signal?.aborted) {
-            return {
-              content: `Tool call "${tool.name}" was aborted`,
-              isError: true,
-            };
+            throw new Error(`Tool call "${tool.name}" was aborted`);
           }
 
           result = await tool.execute(params, executionContext as ToolExecutionContext);
         } catch (err) {
-          // Tool execute should never throw — it should return { content, isError: true }.
-          // But if it does, we catch it and return a structured error result.
+          // The pi runtime expects thrown tool errors rather than encoded error results.
           const message = err instanceof Error ? err.message : String(err);
-          result = { content: message, isError: true };
+          throw new Error(message);
         }
 
         // 3. Dispatch afterToolCall hooks — may override the result
@@ -101,14 +96,14 @@ export class ToolAdapter {
           result = {
             content: override.content ?? result.content,
             details: override.details ?? result.details,
-            isError: override.isError ?? result.isError,
             terminate: override.terminate ?? result.terminate,
           };
         }
 
         return {
-          content: result.content,
-          isError: result.isError,
+          content: [{ type: 'text', text: result.content }],
+          details: result.details,
+          terminate: result.terminate,
         };
       },
     };

@@ -48,18 +48,37 @@ function makeMockAgent(): Agent {
     state: {
       systemPrompt: 'You are a test assistant.',
       model: {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
         provider: 'openai',
-        modelId: 'gpt-4o',
+        api: 'openai-responses',
+        baseUrl: 'https://api.openai.com/v1',
+        reasoning: false,
+        input: ['text'],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
         contextWindow: 128000,
-        enableThinking: false,
-        apiType: 'openai_responses',
+        maxTokens: 8192,
+        modelId: 'gpt-4o',
+        apiType: 'openai-responses',
       },
       tools: [],
       messages: [],
+      thinkingLevel: 'low',
+      isStreaming: false,
+      pendingToolCalls: new Set(),
     },
-    prompt: vi.fn(),
+    prompt: vi.fn().mockResolvedValue(undefined),
     waitForIdle: vi.fn().mockResolvedValue(undefined),
     reset: vi.fn(),
+    abort: vi.fn(),
+    continue: vi.fn().mockResolvedValue(undefined),
+    followUp: vi.fn(),
+    steer: vi.fn(),
+    clearSteeringQueue: vi.fn(),
+    clearFollowUpQueue: vi.fn(),
+    clearAllQueues: vi.fn(),
+    hasQueuedMessages: vi.fn().mockReturnValue(false),
+    subscribe: vi.fn().mockReturnValue(() => {}),
   };
 }
 
@@ -276,7 +295,24 @@ describe('SessionManager', () => {
       // Override memory.loadHistory to return enough messages for compaction
       const longHistory = Array.from({ length: 10 }, (_, i) => ({
         role: i % 2 === 0 ? 'user' : 'assistant' as const,
-        text: `Message ${i + 1}`,
+        ...(i % 2 === 0
+          ? { content: `Message ${i + 1}` }
+          : {
+              content: [{ type: 'text' as const, text: `Message ${i + 1}` }],
+              api: 'openai-responses' as const,
+              provider: 'openai',
+              model: 'gpt-4o',
+              usage: {
+                input: 0,
+                output: 0,
+                cacheRead: 0,
+                cacheWrite: 0,
+                totalTokens: 0,
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+              },
+              stopReason: 'stop' as const,
+            }),
+        timestamp: Date.now(),
       }));
       vi.spyOn(session.memory, 'loadHistory').mockResolvedValue(longHistory);
       vi.spyOn(session.memory, 'compact').mockResolvedValue('Summary of conversation');

@@ -18,6 +18,12 @@
  */
 
 import type { MessageRepository } from '../core/database/repositories/message-repository';
+import {
+  assistantHasToolCalls,
+  createPersistedAssistantMessage,
+  createUserMessage,
+  extractMessageText,
+} from './agent-types';
 import type { AgentMessage, MemoryConfig } from './agent-types';
 import type { LlmAdapter } from './llm-adapter';
 import { createScopedLogger } from '../core/logger';
@@ -50,10 +56,11 @@ export class MemoryManager {
   async loadHistory(): Promise<AgentMessage[]> {
     const records = await this.messageRepo.loadHistory(this.sessionId);
 
-    return records.map((record) => ({
-      role: record.role as 'user' | 'assistant',
-      text: record.content,
-    }));
+    return records.map((record) =>
+      record.role === 'user'
+        ? createUserMessage(record.content, this.parseTimestamp(record.timestamp))
+        : createPersistedAssistantMessage(record.content, this.parseTimestamp(record.timestamp)),
+    );
   }
 
   // ─── Write ────────────────────────────────────────────────────
@@ -71,29 +78,25 @@ export class MemoryManager {
    * @param message - The AgentMessage to potentially persist
    */
   async persistMessage(message: AgentMessage): Promise<void> {
-    // Skip system messages
-    if (message.role === 'system') {
-      return;
-    }
-
     // Skip toolResult messages
     if (message.role === 'toolResult') {
       return;
     }
 
     // Skip assistant messages that contain tool calls
-    if (message.role === 'assistant' && message.toolCalls && message.toolCalls.length > 0) {
+    if (message.role === 'assistant' && assistantHasToolCalls(message)) {
       return;
     }
 
-    // Skip empty content
-    if (!message.text || message.text.trim().length === 0) {
+    const text = extractMessageText(message).trim();
+
+    if (text.length === 0) {
       return;
     }
 
     await this.messageRepo.save(this.sessionId, {
       role: message.role as 'user' | 'assistant',
-      content: message.text,
+      content: text,
       timestamp: new Date().toISOString(),
     });
   }
@@ -182,21 +185,26 @@ export class MemoryManager {
    * Check if a message should be persisted based on the filtering strategy.
    */
   private shouldPersist(message: AgentMessage): boolean {
-    // Never persist system messages
-    if (message.role === 'system') return false;
-
     // Never persist tool result messages
     if (message.role === 'toolResult') return false;
 
     // Never persist assistant messages with tool calls
-    if (message.role === 'assistant' && message.toolCalls && message.toolCalls.length > 0) {
+    if (message.role === 'assistant' && assistantHasToolCalls(message)) {
       return false;
     }
 
-    // Never persist empty content
-    if (!message.text || message.text.trim().length === 0) return false;
+    if (extractMessageText(message).trim().length === 0) return false;
 
     // Persist user messages and pure-text assistant messages
     return true;
+  }
+
+  private parseTimestamp(timestamp?: string): number {
+    if (!timestamp) {
+      return Date.now();
+    }
+
+    const parsed = Date.parse(timestamp);
+    return Number.isNaN(parsed) ? Date.now() : parsed;
   }
 }

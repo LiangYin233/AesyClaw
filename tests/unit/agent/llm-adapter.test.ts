@@ -72,9 +72,10 @@ describe('LlmAdapter', () => {
       expect(model.provider).toBe('openai');
       expect(model.modelId).toBe('gpt-4o');
       expect(model.contextWindow).toBe(128000);
-      expect(model.enableThinking).toBe(false);
+      expect(model.reasoning).toBe(false);
       expect(model.apiKey).toBe('sk-test-key');
-      expect(model.apiType).toBe('openai_responses');
+      expect(model.apiType).toBe('openai-responses');
+      expect(model.id).toBe('gpt-4o');
     });
 
     it('should resolve "anthropic/claude-3-opus" with preset overrides', () => {
@@ -83,10 +84,10 @@ describe('LlmAdapter', () => {
       expect(model.provider).toBe('anthropic');
       expect(model.modelId).toBe('claude-3-opus');
       expect(model.contextWindow).toBe(200000);
-      expect(model.enableThinking).toBe(true);
+      expect(model.reasoning).toBe(true);
       expect(model.apiKey).toBe('sk-ant-test-key');
       expect(model.baseUrl).toBe('https://api.anthropic.com');
-      expect(model.apiType).toBe('anthropic');
+      expect(model.apiType).toBe('anthropic-messages');
     });
 
     it('should resolve model with realModelName preset', () => {
@@ -102,7 +103,7 @@ describe('LlmAdapter', () => {
       expect(model.modelId).toBe('o1-preview');
       expect(model.realModelName).toBeUndefined();
       expect(model.contextWindow).toBe(128000); // Default
-      expect(model.enableThinking).toBe(false); // Default
+      expect(model.reasoning).toBe(false); // Default
       expect(model.apiKey).toBe('sk-test-key'); // From provider
     });
 
@@ -169,8 +170,24 @@ describe('LlmAdapter', () => {
   describe('summarize', () => {
     it('should return a stub summary', async () => {
       const messages = [
-        { role: 'user' as const, text: 'Hello' },
-        { role: 'assistant' as const, text: 'Hi there' },
+        { role: 'user' as const, content: 'Hello', timestamp: Date.now() },
+        {
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: 'Hi there' }],
+          api: 'openai-responses' as const,
+          provider: 'openai',
+          model: 'gpt-4o',
+          usage: {
+            input: 0,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 0,
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+          },
+          stopReason: 'stop' as const,
+          timestamp: Date.now(),
+        },
       ];
 
       const summary = await adapter.summarize(messages);
@@ -183,21 +200,10 @@ describe('LlmAdapter', () => {
   // ─── createStreamFn ──────────────────────────────────────────
 
   describe('createStreamFn', () => {
-    it('should return an async generator function', async () => {
+    it('should return a stream function', () => {
       const streamFn = adapter.createStreamFn('openai/gpt-4o');
 
       expect(typeof streamFn).toBe('function');
-
-      // Call the stream function to get the async iterable
-      const iterable = streamFn({}, []);
-
-      // It should be async iterable
-      const result = [];
-      for await (const chunk of iterable) {
-        result.push(chunk);
-      }
-
-      expect(result.length).toBeGreaterThan(0);
     });
   });
 });

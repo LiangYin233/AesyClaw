@@ -82,6 +82,7 @@ describe('ToolAdapter', () => {
       const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
 
       expect(agentTool.name).toBe('test-tool');
+      expect(agentTool.label).toBe('test-tool');
       expect(agentTool.description).toBe('A test tool');
       expect(typeof agentTool.execute).toBe('function');
     });
@@ -94,8 +95,7 @@ describe('ToolAdapter', () => {
       const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
       const result = await agentTool.execute('call-1', { input: 'test' });
 
-      expect(result.content).toBe('Hello from tool');
-      expect(result.isError).toBeUndefined();
+      expect(result.content).toEqual([{ type: 'text', text: 'Hello from tool' }]);
     });
 
     it('should pass through execution context', async () => {
@@ -123,10 +123,7 @@ describe('ToolAdapter', () => {
       });
 
       const agentTool = ToolAdapter.toAgentTool(tool, makeBlockingHookDispatcher('Blocked by policy'), {});
-      const result = await agentTool.execute('call-1', {});
-
-      expect(result.content).toBe('Blocked by policy');
-      expect(result.isError).toBe(true);
+      await expect(agentTool.execute('call-1', {})).rejects.toThrow('Blocked by policy');
     });
 
     it('should short-circuit when before hook provides result', async () => {
@@ -141,8 +138,7 @@ describe('ToolAdapter', () => {
       );
       const result = await agentTool.execute('call-1', {});
 
-      expect(result.content).toBe('Short-circuited');
-      expect(result.isError).toBeUndefined();
+      expect(result.content).toEqual([{ type: 'text', text: 'Short-circuited' }]);
     });
 
     it('should allow after hook to override result', async () => {
@@ -157,8 +153,7 @@ describe('ToolAdapter', () => {
       );
       const result = await agentTool.execute('call-1', {});
 
-      expect(result.content).toBe('overridden result');
-      expect(result.isError).toBe(true);
+      expect(result.content).toEqual([{ type: 'text', text: 'overridden result' }]);
     });
 
     it('should catch thrown errors from tool execute and return error result', async () => {
@@ -169,10 +164,7 @@ describe('ToolAdapter', () => {
       });
 
       const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
-      const result = await agentTool.execute('call-1', {});
-
-      expect(result.content).toBe('Tool crashed');
-      expect(result.isError).toBe(true);
+      await expect(agentTool.execute('call-1', {})).rejects.toThrow('Tool crashed');
     });
 
     it('should return aborted result when signal is already aborted', async () => {
@@ -184,10 +176,7 @@ describe('ToolAdapter', () => {
       controller.abort();
 
       const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
-      const result = await agentTool.execute('call-1', {}, controller.signal);
-
-      expect(result.content).toContain('aborted');
-      expect(result.isError).toBe(true);
+      await expect(agentTool.execute('call-1', {}, controller.signal)).rejects.toThrow(/aborted/);
     });
 
     it('should use default sessionKey when not provided in context', async () => {
@@ -198,7 +187,7 @@ describe('ToolAdapter', () => {
       const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
       // Should not throw — just uses empty sessionKey
       const result = await agentTool.execute('call-1', {});
-      expect(result.content).toBe('ok');
+      expect(result.content).toEqual([{ type: 'text', text: 'ok' }]);
     });
   });
 });

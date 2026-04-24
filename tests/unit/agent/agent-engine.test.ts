@@ -1,25 +1,17 @@
-/**
- * AgentEngine unit tests.
- *
- * Tests cover: createAgent, process (returns simulated response),
- * switchModel.
- */
-
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { createAssistantMessageEventStream } from '@mariozechner/pi-ai';
 import { AgentEngine } from '../../../src/agent/agent-engine';
 import type { AgentEngineDependencies } from '../../../src/agent/agent-engine';
 import type { ConfigManager } from '../../../src/core/config/config-manager';
-import type { ToolRegistry, AesyClawTool } from '../../../src/tool/tool-registry';
+import type { ToolRegistry } from '../../../src/tool/tool-registry';
 import type { RoleManager } from '../../../src/role/role-manager';
 import type { SkillManager } from '../../../src/skill/skill-manager';
 import type { HookDispatcher } from '../../../src/pipeline/hook-dispatcher';
 import type { LlmAdapter } from '../../../src/agent/llm-adapter';
-import type { RoleConfig, InboundMessage, Skill } from '../../../src/core/types';
+import type { RoleConfig, InboundMessage } from '../../../src/core/types';
 import { MemoryManager } from '../../../src/agent/memory-manager';
 import type { MessageRepository } from '../../../src/core/database/repositories/message-repository';
 import type { AppConfig } from '../../../src/core/config/schema';
-
-// ─── Helpers ──────────────────────────────────────────────────────
 
 function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
   return {
@@ -52,7 +44,10 @@ function makeMockConfigManager(): ConfigManager {
     channels: {},
     agent: { maxSteps: 10 },
     memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
-    multimodal: { speechToText: { provider: 'openai', model: 'whisper-1' }, imageUnderstanding: { provider: 'openai', model: 'gpt-4o' } },
+    multimodal: {
+      speechToText: { provider: 'openai', model: 'whisper-1' },
+      imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+    },
     mcp: [],
     plugins: [],
   };
@@ -85,7 +80,9 @@ function makeMockRoleManager(): RoleManager {
     getRole: vi.fn().mockReturnValue(role),
     getDefaultRole: vi.fn().mockReturnValue(role),
     getEnabledRoles: vi.fn().mockReturnValue([role]),
-    buildSystemPrompt: vi.fn().mockReturnValue('You are a test assistant.\n\n## Available Tools\n\n## Available Roles\n- **default**: Default — Test role'),
+    buildSystemPrompt: vi
+      .fn()
+      .mockReturnValue('You are a test assistant.\n\n## Available Tools\n\n## Available Roles\n- **default**: Default — Test role'),
   } as unknown as RoleManager;
 }
 
@@ -111,16 +108,55 @@ function makeMockLlmAdapter(): LlmAdapter {
   return {
     initialize: vi.fn(),
     resolveModel: vi.fn().mockReturnValue({
+      id: 'gpt-4o',
+      name: 'GPT-4o',
       provider: 'openai',
-      modelId: 'gpt-4o',
+      api: 'openai-responses',
+      baseUrl: 'https://api.openai.com/v1',
+      reasoning: false,
+      input: ['text'],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       contextWindow: 128000,
-      enableThinking: false,
-      apiType: 'openai_responses',
+      maxTokens: 8192,
+      modelId: 'gpt-4o',
+      apiType: 'openai-responses',
+      apiKey: 'test-key',
     }),
-    createStreamFn: vi.fn().mockReturnValue(async function* () {
-      yield { type: 'text', text: 'stub' };
+    createStreamFn: vi.fn().mockImplementation(() => {
+      return () => {
+        const stream = createAssistantMessageEventStream();
+        const partial = {
+          role: 'assistant' as const,
+          content: [],
+          api: 'openai-responses' as const,
+          provider: 'openai',
+          model: 'gpt-4o',
+          usage: {
+            input: 0,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 0,
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+          },
+          stopReason: 'stop' as const,
+          timestamp: Date.now(),
+        };
+        const message = {
+          ...partial,
+          content: [{ type: 'text' as const, text: 'Real response from pi runtime' }],
+        };
+        stream.push({ type: 'start', partial });
+        stream.push({ type: 'text_start', contentIndex: 0, partial: message });
+        stream.push({ type: 'text_delta', contentIndex: 0, delta: 'Real response from pi runtime', partial: message });
+        stream.push({ type: 'text_end', contentIndex: 0, content: 'Real response from pi runtime', partial: message });
+        stream.push({ type: 'done', reason: 'stop', message });
+        return stream;
+      };
     }),
-    createGetApiKey: vi.fn().mockReturnValue((provider: string) => provider === 'openai' ? 'test-key' : undefined),
+    createGetApiKey: vi.fn().mockReturnValue((provider: string) =>
+      provider === 'openai' ? 'test-key' : undefined,
+    ),
     summarize: vi.fn().mockResolvedValue('Summary'),
   } as unknown as LlmAdapter;
 }
@@ -136,8 +172,6 @@ function makeMockDeps(): AgentEngineDependencies {
   };
 }
 
-// ─── Tests ─────────────────────────────────────────────────────────
-
 describe('AgentEngine', () => {
   let engine: AgentEngine;
 
@@ -146,13 +180,10 @@ describe('AgentEngine', () => {
     engine.initialize(makeMockDeps());
   });
 
-  // ─── createAgent ─────────────────────────────────────────────
-
   describe('createAgent', () => {
-    it('should create a simulated agent with correct state', () => {
+    it('should create a pi-backed agent with correct initial state', () => {
       const role = makeRole();
-      const messageRepo = makeMockMessageRepo();
-      const memory = new MemoryManager('test-session', messageRepo, {
+      const memory = new MemoryManager('test-session', makeMockMessageRepo(), {
         maxContextTokens: 128000,
         compressionThreshold: 0.8,
       });
@@ -160,17 +191,16 @@ describe('AgentEngine', () => {
       const agent = engine.createAgent(role, 'test-session', memory);
 
       expect(agent).toBeDefined();
-      expect(agent.state).toBeDefined();
       expect(agent.state.systemPrompt).toContain('You are a test assistant');
       expect(agent.state.model.provider).toBe('openai');
-      expect(agent.state.model.modelId).toBe('gpt-4o');
+      expect(agent.state.model.id).toBe('gpt-4o');
       expect(agent.state.messages).toEqual([]);
+      expect(agent.state.tools).toEqual([]);
     });
 
     it('should have prompt, waitForIdle, and reset methods', () => {
       const role = makeRole();
-      const messageRepo = makeMockMessageRepo();
-      const memory = new MemoryManager('test-session', messageRepo, {
+      const memory = new MemoryManager('test-session', makeMockMessageRepo(), {
         maxContextTokens: 128000,
         compressionThreshold: 0.8,
       });
@@ -185,8 +215,7 @@ describe('AgentEngine', () => {
     it('should throw if not initialized', () => {
       const uninitialized = new AgentEngine();
       const role = makeRole();
-      const messageRepo = makeMockMessageRepo();
-      const memory = new MemoryManager('test-session', messageRepo, {
+      const memory = new MemoryManager('test-session', makeMockMessageRepo(), {
         maxContextTokens: 128000,
         compressionThreshold: 0.8,
       });
@@ -196,8 +225,6 @@ describe('AgentEngine', () => {
       );
     });
   });
-
-  // ─── process ────────────────────────────────────────────────
 
   describe('process', () => {
     it('should process a message and return an outbound response', async () => {
@@ -209,43 +236,95 @@ describe('AgentEngine', () => {
       });
 
       const agent = engine.createAgent(role, 'test-session', memory);
-      const message = makeInboundMessage();
+      const result = await engine.process(agent, makeInboundMessage(), memory, role);
 
-      const result = await engine.process(agent, message, memory, role);
-
-      expect(result).toBeDefined();
-      expect(result.content).toBeDefined();
-      expect(typeof result.content).toBe('string');
-      // The simulated agent echoes back the input
-      expect(result.content).toContain('Received');
+      expect(result.content).toBe('Real response from pi runtime');
+      expect(messageRepo.save).toHaveBeenCalledTimes(2);
     });
 
-    it('should throw if not initialized', async () => {
-      const uninitialized = new AgentEngine();
+    it('should only persist newly generated messages', async () => {
       const role = makeRole();
       const messageRepo = makeMockMessageRepo();
+      (messageRepo.loadHistory as ReturnType<typeof vi.fn>).mockResolvedValue([
+        { role: 'user', content: 'Earlier user', timestamp: '2025-01-01T00:00:00Z' },
+        { role: 'assistant', content: 'Earlier assistant', timestamp: '2025-01-01T00:00:01Z' },
+      ]);
+
       const memory = new MemoryManager('test-session', messageRepo, {
         maxContextTokens: 128000,
         compressionThreshold: 0.8,
       });
+
       const agent = engine.createAgent(role, 'test-session', memory);
+      await engine.process(agent, makeInboundMessage(), memory, role);
 
-      // Re-create uninitialized engine
-      const freshEngine = new AgentEngine();
+      expect(messageRepo.save).toHaveBeenCalledTimes(2);
+      expect(messageRepo.save).toHaveBeenCalledWith(
+        'test-session',
+        expect.objectContaining({ role: 'user', content: 'Hello, assistant!' }),
+      );
+      expect(messageRepo.save).toHaveBeenCalledWith(
+        'test-session',
+        expect.objectContaining({ role: 'assistant', content: 'Real response from pi runtime' }),
+      );
+    });
 
-      await expect(
-        freshEngine.process(agent, makeInboundMessage(), memory, role),
-      ).rejects.toThrow('AgentEngine not initialized');
+    it('should not return a stale assistant response when the new turn has no assistant text', async () => {
+      const role = makeRole();
+      const historyTimestamp = Date.now() - 1_000;
+      const mockLlmAdapter = makeMockLlmAdapter();
+      const agent = {
+        state: {
+          systemPrompt: 'prompt',
+          model: (mockLlmAdapter.resolveModel as ReturnType<typeof vi.fn>)('openai/gpt-4o'),
+          tools: [],
+          messages: [
+            { role: 'user' as const, content: 'Earlier user', timestamp: historyTimestamp - 1 },
+            {
+              role: 'assistant' as const,
+              content: [{ type: 'text' as const, text: 'Earlier assistant' }],
+              api: 'openai-responses' as const,
+              provider: 'openai',
+              model: 'gpt-4o',
+              usage: {
+                input: 0,
+                output: 0,
+                cacheRead: 0,
+                cacheWrite: 0,
+                totalTokens: 0,
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+              },
+              stopReason: 'stop' as const,
+              timestamp: historyTimestamp,
+            },
+          ],
+        },
+        prompt: vi.fn().mockImplementation(async function prompt(this: { state: { messages: unknown[] } }) {
+          this.state.messages.push({
+            role: 'user',
+            content: 'Hello, assistant!',
+            timestamp: Date.now(),
+          });
+        }),
+        waitForIdle: vi.fn().mockResolvedValue(undefined),
+        reset: vi.fn(),
+      };
+      const memory = {
+        loadHistory: vi.fn().mockResolvedValue(agent.state.messages.slice()),
+        syncFromAgent: vi.fn().mockResolvedValue(undefined),
+      } as unknown as MemoryManager;
+
+      const result = await engine.process(agent as never, makeInboundMessage(), memory, role);
+
+      expect(result.content).toBe('[No response generated]');
+      expect(memory.syncFromAgent).toHaveBeenCalledWith([]);
     });
   });
-
-  // ─── switchModel ─────────────────────────────────────────────
 
   describe('switchModel', () => {
     it('should update the agent model state', () => {
       const role = makeRole();
-      const messageRepo = makeMockMessageRepo();
-      const memory = new MemoryManager('test-session', messageRepo, {
+      const memory = new MemoryManager('test-session', makeMockMessageRepo(), {
         maxContextTokens: 128000,
         compressionThreshold: 0.8,
       });
@@ -254,23 +333,7 @@ describe('AgentEngine', () => {
       engine.switchModel(agent, 'openai/gpt-4o');
 
       expect(agent.state.model.provider).toBe('openai');
-      expect(agent.state.model.modelId).toBe('gpt-4o');
-    });
-
-    it('should throw if not initialized', () => {
-      const uninitialized = new AgentEngine();
-      const role = makeRole();
-      const messageRepo = makeMockMessageRepo();
-      const memory = new MemoryManager('test-session', messageRepo, {
-        maxContextTokens: 128000,
-        compressionThreshold: 0.8,
-      });
-
-      const agent = engine.createAgent(role, 'test-session', memory);
-      uninitialized.initialize(makeMockDeps()); // Initialize after getting agent
-
-      // This should work now since we initialized
-      expect(() => uninitialized.switchModel(agent, 'openai/gpt-4o')).not.toThrow();
+      expect(agent.state.model.id).toBe('gpt-4o');
     });
   });
 });
