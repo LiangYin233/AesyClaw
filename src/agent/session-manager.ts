@@ -215,7 +215,7 @@ export class SessionManager {
       throw new Error(`Session not found: ${cacheKey}`);
     }
 
-    const summary = await session.memory.compact(this.deps.llmAdapter);
+    const summary = await session.memory.compact(this.deps.llmAdapter, session.activeRole.model);
     logger.info('Session compacted', { cacheKey });
     return summary;
   }

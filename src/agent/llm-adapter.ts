@@ -1,4 +1,4 @@
-import { getModel, streamSimple } from '@mariozechner/pi-ai';
+import { completeSimple, getModel, streamSimple } from '@mariozechner/pi-ai';
 import type { Api, KnownProvider, Model } from '@mariozechner/pi-ai';
 import type { ConfigManager } from '../core/config/config-manager';
 import type { ProviderConfig } from '../core/config/schema';
@@ -113,18 +113,51 @@ export class LlmAdapter {
     };
   }
 
-  async summarize(messages: AgentMessage[]): Promise<string> {
-    const userMessages = messages.filter((message) => message.role === 'user').length;
-    const assistantMessages = messages.filter((message) => message.role === 'assistant').length;
-    const preview = messages
-      .map((message) => `${message.role}: ${extractMessageText(message)}`)
-      .filter((line) => line.trim().length > 0)
-      .slice(-4)
-      .join(' | ');
+  async summarize(
+    messages: AgentMessage[],
+    modelIdentifier: string,
+    sessionId?: string,
+  ): Promise<string> {
+    const model = this.resolveModel(modelIdentifier);
+    const prompt = this.buildSummaryPrompt(messages);
 
-    logger.debug(`Summarizing ${messages.length} messages (stub)`);
+    logger.debug('Summarizing conversation history', {
+      messageCount: messages.length,
+      model: modelIdentifier,
+      sessionId,
+    });
 
-    return `Conversation summary: ${messages.length} messages (${userMessages} user, ${assistantMessages} assistant). This is a stub summary — real implementation will use the LLM. Recent context: ${preview}`;
+    try {
+      const response = await completeSimple(
+        model,
+        {
+          systemPrompt:
+            'You compact conversation history for future turns. Produce a concise plain-text summary that preserves user goals, constraints, decisions, important facts, and unresolved follow-ups. Do not mention missing context or that you are summarizing.',
+          messages: [
+            {
+              role: 'user',
+              content: prompt,
+              timestamp: Date.now(),
+            },
+          ],
+        },
+        {
+          apiKey: model.apiKey,
+          sessionId,
+        },
+      );
+
+      const summary = extractMessageText(response).trim();
+
+      if (summary.length === 0) {
+        throw new Error('LLM returned an empty summary');
+      }
+
+      return summary;
+    } catch (error: unknown) {
+      logger.error('Failed to summarize conversation history', error);
+      throw error;
+    }
   }
 
   private tryGetBuiltInModel(provider: string, modelId: string): Model<Api> | null {
@@ -133,5 +166,20 @@ export class LlmAdapter {
     } catch {
       return null;
     }
+  }
+
+  private buildSummaryPrompt(messages: AgentMessage[]): string {
+    const transcript = messages
+      .map((message) => `${message.role.toUpperCase()}: ${extractMessageText(message).trim()}`)
+      .filter((line) => !line.endsWith(':'))
+      .join('\n\n');
+
+    return [
+      'Summarize the following conversation for future continuation.',
+      'Focus on enduring context: goals, requirements, constraints, decisions, and any pending follow-ups.',
+      'Keep it concise but specific.',
+      '',
+      transcript,
+    ].join('\n');
   }
 }

@@ -319,7 +319,7 @@ describe('SessionManager', () => {
 
       const summary = await manager.compactSession(key);
       expect(summary).toBe('Summary of conversation');
-      expect(session.memory.compact).toHaveBeenCalledWith(deps.llmAdapter);
+      expect(session.memory.compact).toHaveBeenCalledWith(deps.llmAdapter, session.activeRole.model);
     });
 
     it('should throw if session not found', async () => {

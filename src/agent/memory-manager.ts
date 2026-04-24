@@ -138,9 +138,10 @@ export class MemoryManager {
    * 5. Return the summary
    *
    * @param llmAdapter - The LLM adapter for summarization
+   * @param modelIdentifier - The active role model to reuse for summarization
    * @returns The generated summary, or a skip message if too short
    */
-  async compact(llmAdapter: LlmAdapter): Promise<string> {
+  async compact(llmAdapter: LlmAdapter, modelIdentifier: string): Promise<string> {
     const messages = await this.loadHistory();
 
     if (messages.length <= 2) {
@@ -156,7 +157,7 @@ export class MemoryManager {
       messageCount: messages.length,
     });
 
-    const summary = await llmAdapter.summarize(messages);
+    const summary = await llmAdapter.summarize(messages, modelIdentifier, this.sessionId);
 
     await this.messageRepo.replaceWithSummary(this.sessionId, summary);
 

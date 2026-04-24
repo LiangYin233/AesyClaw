@@ -260,7 +260,7 @@ describe('MemoryManager', () => {
 
       const manager = new MemoryManager(sessionId, messageRepo, defaultConfig);
       const llmAdapter = makeMockLlmAdapter();
-      const result = await manager.compact(llmAdapter);
+      const result = await manager.compact(llmAdapter, 'openai/gpt-4o');
 
       expect(result).toBe('Session history too short to compress.');
       expect(llmAdapter.summarize).not.toHaveBeenCalled();
@@ -279,9 +279,13 @@ describe('MemoryManager', () => {
 
       const manager = new MemoryManager(sessionId, messageRepo, defaultConfig);
       const llmAdapter = makeMockLlmAdapter();
-      const result = await manager.compact(llmAdapter);
+      const result = await manager.compact(llmAdapter, 'openai/gpt-4o');
 
-      expect(llmAdapter.summarize).toHaveBeenCalled();
+      expect(llmAdapter.summarize).toHaveBeenCalledWith(
+        expect.any(Array),
+        'openai/gpt-4o',
+        sessionId,
+      );
       expect(messageRepo.replaceWithSummary).toHaveBeenCalledWith(sessionId, result);
     });
   });

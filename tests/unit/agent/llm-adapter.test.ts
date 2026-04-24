@@ -5,11 +5,20 @@
  * createGetApiKey, summarize stub, createStreamFn.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { completeSimple } from '@mariozechner/pi-ai';
 import { LlmAdapter } from '../../../src/agent/llm-adapter';
 import type { LlmAdapterDependencies } from '../../../src/agent/llm-adapter';
 import type { ConfigManager } from '../../../src/core/config/config-manager';
 import type { AppConfig } from '../../../src/core/config/schema';
+
+vi.mock('@mariozechner/pi-ai', async () => {
+  const actual = await vi.importActual<typeof import('@mariozechner/pi-ai')>('@mariozechner/pi-ai');
+  return {
+    ...actual,
+    completeSimple: vi.fn(),
+  };
+});
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
@@ -55,8 +64,10 @@ function makeMockConfigManager(config: AppConfig): ConfigManager {
 
 describe('LlmAdapter', () => {
   let adapter: LlmAdapter;
+  const mockedCompleteSimple = vi.mocked(completeSimple);
 
   beforeEach(() => {
+    mockedCompleteSimple.mockReset();
     adapter = new LlmAdapter();
     const config = makeConfigWithProviders();
     const configManager = makeMockConfigManager(config);
@@ -168,7 +179,7 @@ describe('LlmAdapter', () => {
   // ─── summarize ──────────────────────────────────────────────
 
   describe('summarize', () => {
-    it('should return a stub summary', async () => {
+    it('should generate a summary with the selected role model', async () => {
       const messages = [
         { role: 'user' as const, content: 'Hello', timestamp: Date.now() },
         {
@@ -190,10 +201,66 @@ describe('LlmAdapter', () => {
         },
       ];
 
-      const summary = await adapter.summarize(messages);
+      mockedCompleteSimple.mockResolvedValue({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'User greeted the assistant and started the conversation.' }],
+        api: 'openai-responses',
+        provider: 'openai',
+        model: 'gpt-4o',
+        usage: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        stopReason: 'stop',
+        timestamp: Date.now(),
+      });
 
-      expect(summary).toContain('2 messages');
-      expect(summary).toContain('stub');
+      const summary = await adapter.summarize(messages, 'openai/gpt-4o', 'session-123');
+
+      expect(summary).toBe('User greeted the assistant and started the conversation.');
+      expect(mockedCompleteSimple).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: 'openai', modelId: 'gpt-4o' }),
+        expect.objectContaining({
+          messages: [
+            expect.objectContaining({
+              role: 'user',
+              content: expect.stringContaining('Summarize the following conversation'),
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          apiKey: 'sk-test-key',
+          sessionId: 'session-123',
+        }),
+      );
+    });
+
+    it('should throw when the model returns an empty summary', async () => {
+      mockedCompleteSimple.mockResolvedValue({
+        role: 'assistant',
+        content: [{ type: 'text', text: '   ' }],
+        api: 'openai-responses',
+        provider: 'openai',
+        model: 'gpt-4o',
+        usage: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        stopReason: 'stop',
+        timestamp: Date.now(),
+      });
+
+      await expect(adapter.summarize([], 'openai/gpt-4o')).rejects.toThrow(
+        'LLM returned an empty summary',
+      );
     });
   });
 
