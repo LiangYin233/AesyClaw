@@ -21,6 +21,10 @@ export class CronScheduler {
     }
 
     const nextRun = new Date(job.nextRun);
+    if (Number.isNaN(nextRun.getTime())) {
+      logger.warn('Skipping cron job with invalid next_run', { jobId: job.id, nextRun: job.nextRun });
+      return;
+    }
     const delay = Math.max(0, nextRun.getTime() - Date.now());
     const timeout = Math.min(delay, MAX_TIMEOUT_MS);
     const timer = setTimeout(() => {

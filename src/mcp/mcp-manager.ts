@@ -1,6 +1,6 @@
 /** MCP manager — connects configured MCP servers and exposes their tools. */
 
-import { Type } from '@sinclair/typebox';
+import { Type, type TSchema } from '@sinclair/typebox';
 import { createScopedLogger } from '../core/logger';
 import type { McpServerConfig } from '../core/config/schema';
 import type { DeepPartial, ToolOwner } from '../core/types';
@@ -218,7 +218,7 @@ export class McpManager {
     return {
       name: registeredName,
       description: tool.description ?? `MCP tool ${tool.name}`,
-      parameters: Type.Record(Type.String(), Type.Unknown()),
+      parameters: toToolSchema(tool.inputSchema),
       owner,
       execute: async (params: unknown): Promise<ToolExecutionResult> => {
         try {
@@ -300,6 +300,21 @@ function formatMcpResult(result: unknown): string {
     return '';
   }
   return JSON.stringify(result);
+}
+
+function toToolSchema(inputSchema: unknown): TSchema {
+  if (isMcpInputSchema(inputSchema)) {
+    return Type.Unsafe(inputSchema);
+  }
+  return Type.Record(Type.String(), Type.Unknown());
+}
+
+function isMcpInputSchema(value: unknown): value is Record<string, unknown> {
+  return isRecord(value) && value.type === 'object';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 async function closeQuietly(client: McpClient, serverName: string): Promise<void> {

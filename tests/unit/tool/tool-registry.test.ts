@@ -187,6 +187,17 @@ describe('ToolRegistry', () => {
       expect(agentTools.map((t) => t.name)).toContain('create_cron');
     });
 
+    it('should return all AgentTools for allowlist wildcard *', async () => {
+      registry.register(makeTool({ name: 'send_msg' }));
+      registry.register(makeTool({ name: 'run_sub_agent' }));
+      registry.register(makeTool({ name: 'create_cron' }));
+
+      const agentTools = registry.resolveForRole(makeRole(), hookDispatcher, {});
+
+      expect(agentTools).toHaveLength(3);
+      expect(agentTools.map((t) => t.name)).toEqual(['send_msg', 'run_sub_agent', 'create_cron']);
+    });
+
     it('should return all tools minus denied for denylist mode', async () => {
       registry.register(makeTool({ name: 'send_msg' }));
       registry.register(makeTool({ name: 'run_sub_agent' }));
@@ -276,9 +287,8 @@ describe('filterToolsByRole', () => {
     const role = makeRole({
       toolPermission: { mode: 'allowlist', list: ['*'] },
     });
-    // Note: '*' is just a string — it does NOT match all tools
-    // unless the tool is literally named '*'
     const filtered = filterToolsByRole(tools, role);
-    expect(filtered).toHaveLength(0);
+    expect(filtered).toHaveLength(3);
+    expect(filtered.map((t) => t.name)).toEqual(['send_msg', 'run_sub_agent', 'create_cron']);
   });
 });

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CronJobRecord, SessionKey } from '../../../src/core/types';
 import { CronManager, type CronJobRepositoryLike } from '../../../src/cron/cron-manager';
 import type { CronRunRepositoryLike } from '../../../src/cron/cron-executor';
-import { computeNextRun } from '../../../src/cron/cron-scheduler';
+import { computeNextRun, CronScheduler } from '../../../src/cron/cron-scheduler';
 import { createCreateCronTool, createDeleteCronTool, createListCronTool } from '../../../src/tool/builtin/cron-tools';
 
 class FakeCronJobRepo implements CronJobRepositoryLike {
@@ -85,6 +85,24 @@ describe('Cron', () => {
     expect(computeNextRun('once', '2026-04-24T09:00:00Z', from)).toBeNull();
     expect(computeNextRun('interval', '30m', from)?.toISOString()).toBe('2026-04-24T10:30:00.000Z');
     expect(computeNextRun('daily', '09:30', new Date('2026-04-24T10:00:00'))).not.toBeNull();
+  });
+
+  it('does not schedule jobs with invalid nextRun values', () => {
+    const scheduler = new CronScheduler();
+    const callback = vi.fn();
+
+    scheduler.schedule({
+      id: 'bad-next-run',
+      scheduleType: 'once',
+      scheduleValue: 'not-a-date',
+      prompt: 'bad',
+      sessionKey: '{}',
+      nextRun: 'not-a-date',
+      createdAt: new Date().toISOString(),
+    }, callback);
+
+    expect(scheduler.count()).toBe(0);
+    expect(callback).not.toHaveBeenCalled();
   });
 
   it('creates, lists, runs, and deletes cron jobs', async () => {

@@ -184,6 +184,9 @@ export function filterToolsByRole(tools: AesyClawTool[], role: RoleConfig): Aesy
   const { mode, list } = role.toolPermission;
 
   if (mode === 'allowlist') {
+    if (list.includes('*')) {
+      return tools;
+    }
     return tools.filter((tool) => list.includes(tool.name));
   }
 
