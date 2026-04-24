@@ -103,7 +103,7 @@ type McpServerConfig = Static<typeof McpServerConfigSchema>;
 const PluginConfigEntrySchema = Type.Object({
   name: Type.String(),
   enabled: Type.Boolean({ default: true }),
-  options: Type.Optional(Type.Record(Type.String(), Type.Any())),
+  options: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
 });
 
 type PluginConfigEntry = Static<typeof PluginConfigEntrySchema>;
