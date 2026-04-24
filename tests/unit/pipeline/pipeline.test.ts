@@ -12,7 +12,6 @@ import type { Middleware, NextFn, PipelineState } from '../../../src/pipeline/mi
 import type { InboundMessage, OutboundMessage } from '../../../src/core/types';
 import type { PluginHooks } from '../../../src/pipeline/middleware/types';
 import { CommandRegistry } from '../../../src/command/command-registry';
-import type { CommandDefinition } from '../../../src/core/types';
 import { ConfigManager } from '../../../src/core/config/config-manager';
 import type { SessionManager } from '../../../src/agent/session-manager';
 import type { AgentEngine } from '../../../src/agent/agent-engine';
@@ -199,10 +198,6 @@ describe('Pipeline', () => {
     it('should call send with outbound from middleware chain', async () => {
       const deps = await createPipelineDeps();
       pipeline.initialize(deps);
-
-      // Replace middlewares with a simple one that sets outbound
-      pipeline.destroy();
-      pipeline.initialize(deps);
       pipeline.use(new SetOutboundMiddleware('test response'));
 
       const sent: OutboundMessage[] = [];
@@ -224,27 +219,6 @@ describe('Pipeline', () => {
       expect(processMock).toHaveBeenCalled();
       expect(processMock.mock.calls[0]?.[4]).toEqual(expect.any(Function));
     });
-  
-    it('should not call send if no outbound is produced', async () => {
-      const deps = await createPipelineDeps();
-      pipeline.initialize(deps);
-
-      // The default middlewares with stub AgentProcessor produce an outbound
-      // Let's test with a custom pipeline that has no outbound-producing middleware
-      pipeline.destroy();
-      const emptyPipeline = new Pipeline();
-      emptyPipeline.initialize(deps);
-      // Remove all default middlewares by destroying and using custom ones
-      emptyPipeline.destroy();
-
-      // Re-initialize with only non-outbound middlewares
-      emptyPipeline.initialize(deps);
-      // The default chain includes AgentProcessor stub which sets outbound
-      // We need to test the no-outbound case specifically
-
-      const send = vi.fn();
-      // This test verifies that when blocked, send is not called
-    });
   });
 
   // ─── Middleware chain order ──────────────────────────────────────
@@ -252,32 +226,13 @@ describe('Pipeline', () => {
   describe('middleware chain order', () => {
     it('should execute middlewares in registration order', async () => {
       const deps = await createPipelineDeps();
-      pipeline.destroy();
-
-      const testPipeline = new Pipeline();
-      // Don't use initialize — manually set up to avoid default middlewares
-      // Instead, use initialize and then clear middlewares
-      testPipeline.initialize(deps);
-      testPipeline.destroy();
-
-      // Re-create and manually configure
       const customPipeline = new Pipeline();
-      // We need to use initialize to set deps, then use our own middlewares
-      customPipeline.initialize(deps);
-
-      // Clear default middlewares and add our recording ones
-      // Since we can't clear after init, let's test with the default ones
-      // and verify the order includes them
-
-      // Actually, let's just test the middleware chain directly
       const order: string[] = [];
       const m1 = new RecordingMiddleware('m1', order);
       const m2 = new RecordingMiddleware('m2', order);
       const m3 = new RecordingMiddleware('m3', order);
 
-      customPipeline.destroy();
       customPipeline.initialize(deps);
-      // Add custom middlewares after default ones
       customPipeline.use(m1);
       customPipeline.use(m2);
       customPipeline.use(m3);
@@ -285,8 +240,6 @@ describe('Pipeline', () => {
       const send = vi.fn();
       await customPipeline.receiveWithSend(makeInbound(), send);
 
-      // Default middlewares + our custom ones
-      // ConfigInjection, SessionResolver, CommandDetector, AgentProcessor, m1, m2, m3
       expect(order).toEqual(['m1', 'm2', 'm3']);
     });
   });
@@ -432,7 +385,6 @@ describe('Pipeline', () => {
   describe('middleware error handling', () => {
     it('should mark state as blocked when a middleware throws', async () => {
       const deps = await createPipelineDeps();
-      pipeline.destroy();
 
       const customPipeline = new Pipeline();
       customPipeline.initialize(deps);

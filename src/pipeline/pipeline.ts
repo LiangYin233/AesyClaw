@@ -35,7 +35,6 @@ const logger = createScopedLogger('pipeline');
 export class Pipeline {
   private middlewares: Middleware[] = [];
   private hookDispatcher: HookDispatcher = new HookDispatcher();
-  private deps: PipelineDependencies | null = null;
   private initialized = false;
 
   // ─── Lifecycle ─────────────────────────────────────────────────
@@ -54,8 +53,6 @@ export class Pipeline {
       logger.warn('Pipeline already initialized — skipping');
       return;
     }
-
-    this.deps = deps;
 
     // Register default middleware chain
     this.middlewares = [
@@ -78,7 +75,6 @@ export class Pipeline {
    */
   destroy(): void {
     this.middlewares = [];
-    this.deps = null;
     this.initialized = false;
     logger.info('Pipeline destroyed');
   }

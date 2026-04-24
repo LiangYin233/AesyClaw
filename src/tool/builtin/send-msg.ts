@@ -35,9 +35,7 @@ const SendMessageParamsSchema = Type.Object({
 
 type SendMessageParams = Static<typeof SendMessageParamsSchema>;
 
-export interface SendMsgDeps {}
-
-export function createSendMsgTool(_deps: SendMsgDeps = {}): AesyClawTool {
+export function createSendMsgTool(): AesyClawTool {
   return {
     name: 'send_msg',
     description: '向当前会话发送文本消息，可附带媒体附件',

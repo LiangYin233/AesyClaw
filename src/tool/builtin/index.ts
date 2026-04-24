@@ -9,7 +9,6 @@
  */
 
 import type { ToolRegistry, ToolExecutionContext } from '../tool-registry';
-import type { SendMsgDeps } from './send-msg';
 import type { CronToolsDeps } from './cron-tools';
 import type { CronManager } from '../../cron/cron-manager';
 import type { AgentEngine } from '../../agent/agent-engine';
@@ -47,14 +46,13 @@ export function registerBuiltinTools(
   registry: ToolRegistry,
   deps: BuiltinToolDependencies,
 ): void {
-  const sendMsgDeps: SendMsgDeps = {};
   const cronDeps: CronToolsDeps = { cronManager: deps.cronManager };
   const sandbox = new SubAgentSandbox({
     agentEngine: deps.agentEngine,
     roleManager: deps.roleManager,
   });
 
-  registry.register(createSendMsgTool(sendMsgDeps));
+  registry.register(createSendMsgTool());
   registry.register(createCreateCronTool(cronDeps));
   registry.register(createListCronTool(cronDeps));
   registry.register(createDeleteCronTool(cronDeps));

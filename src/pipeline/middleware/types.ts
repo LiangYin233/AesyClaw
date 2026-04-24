@@ -9,7 +9,7 @@
  * @see project.md §5.5
  */
 
-import type { InboundMessage, OutboundMessage, SendFn } from '../../core/types';
+import type { InboundMessage, OutboundMessage } from '../../core/types';
 import type { AppConfig } from '../../core/config/schema';
 import type { CommandRegistry } from '../../command/command-registry';
 import type { ConfigManager } from '../../core/config/config-manager';
