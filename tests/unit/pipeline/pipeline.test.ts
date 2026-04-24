@@ -391,6 +391,40 @@ describe('Pipeline', () => {
       expect(send).toHaveBeenCalledTimes(1);
       expect(sent[0].content).toBe('modified output');
     });
+
+    it('should block live agent processing on beforeLLMRequest hook', async () => {
+      const deps = await createPipelineDeps();
+      pipeline.initialize(deps);
+
+      const processMock = deps.agentEngine.process as ReturnType<typeof vi.fn>;
+      pipeline.getHookDispatcher().register('llm-blocker', {
+        beforeLLMRequest: async () => ({ action: 'block' as const, reason: 'rate limited' }),
+      });
+
+      const send = vi.fn();
+      await pipeline.receiveWithSend(makeInbound(), send);
+
+      expect(processMock).not.toHaveBeenCalled();
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it('should return hook responses from beforeLLMRequest without calling the agent', async () => {
+      const deps = await createPipelineDeps();
+      pipeline.initialize(deps);
+
+      const processMock = deps.agentEngine.process as ReturnType<typeof vi.fn>;
+      pipeline.getHookDispatcher().register('llm-responder', {
+        beforeLLMRequest: async () => ({ action: 'respond' as const, content: 'cached answer' }),
+      });
+
+      const sent: OutboundMessage[] = [];
+      const send = vi.fn(async (msg: OutboundMessage) => { sent.push(msg); });
+      await pipeline.receiveWithSend(makeInbound(), send);
+
+      expect(processMock).not.toHaveBeenCalled();
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(sent[0].content).toBe('cached answer');
+    });
   });
 
   // ─── Middleware error handling ──────────────────────────────────

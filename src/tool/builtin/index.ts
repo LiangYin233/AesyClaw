@@ -12,8 +12,17 @@ import type { ToolRegistry, ToolExecutionContext } from '../tool-registry';
 import type { SendMsgDeps } from './send-msg';
 import type { CronToolsDeps } from './cron-tools';
 import type { CronManager } from '../../cron/cron-manager';
+import type { AgentEngine } from '../../agent/agent-engine';
+import type { RoleManager } from '../../role/role-manager';
+import type { LlmAdapter } from '../../agent/llm-adapter';
+import type { ConfigManager } from '../../core/config/config-manager';
 import { createSendMsgTool } from './send-msg';
 import { createCreateCronTool, createListCronTool, createDeleteCronTool } from './cron-tools';
+import { createRunSubAgentTool } from './run-sub-agent';
+import { createRunTempSubAgentTool } from './run-temp-sub-agent';
+import { createSpeechToTextTool } from './speech-to-text';
+import { createImageUnderstandingTool } from './image-understanding';
+import { SubAgentSandbox } from '../../agent/sub-agent-sandbox';
 
 /**
  * Dependencies for built-in tools.
@@ -22,6 +31,10 @@ import { createCreateCronTool, createListCronTool, createDeleteCronTool } from '
  */
 export interface BuiltinToolDependencies {
   cronManager: Pick<CronManager, 'createJob' | 'listJobs' | 'deleteJob'>;
+  agentEngine: Pick<AgentEngine, 'createAgent' | 'process'>;
+  roleManager: Pick<RoleManager, 'getRole' | 'getDefaultRole'>;
+  llmAdapter: Pick<LlmAdapter, 'analyzeImage' | 'transcribeAudio'>;
+  configManager: Pick<ConfigManager, 'get'>;
 }
 
 /**
@@ -36,9 +49,23 @@ export function registerBuiltinTools(
 ): void {
   const sendMsgDeps: SendMsgDeps = {};
   const cronDeps: CronToolsDeps = { cronManager: deps.cronManager };
+  const sandbox = new SubAgentSandbox({
+    agentEngine: deps.agentEngine,
+    roleManager: deps.roleManager,
+  });
 
   registry.register(createSendMsgTool(sendMsgDeps));
   registry.register(createCreateCronTool(cronDeps));
   registry.register(createListCronTool(cronDeps));
   registry.register(createDeleteCronTool(cronDeps));
+  registry.register(createRunSubAgentTool({ sandbox }));
+  registry.register(createRunTempSubAgentTool({ sandbox }));
+  registry.register(createSpeechToTextTool({
+    configManager: deps.configManager,
+    llmAdapter: deps.llmAdapter,
+  }));
+  registry.register(createImageUnderstandingTool({
+    configManager: deps.configManager,
+    llmAdapter: deps.llmAdapter,
+  }));
 }

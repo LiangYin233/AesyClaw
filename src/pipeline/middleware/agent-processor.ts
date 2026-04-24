@@ -11,6 +11,7 @@
 import type { PipelineState, NextFn } from './types';
 import type { AgentEngine } from '../../agent/agent-engine';
 import type { SessionContext } from '../../agent/session-manager';
+import type { HookDispatcher } from '../hook-dispatcher';
 
 /**
  * Processes the inbound message through the AI agent.
@@ -21,7 +22,10 @@ import type { SessionContext } from '../../agent/session-manager';
 export class AgentProcessorMiddleware {
   readonly name = 'AgentProcessor';
 
-  constructor(private agentEngine: AgentEngine) {}
+  constructor(
+    private agentEngine: AgentEngine,
+    private hookDispatcher: HookDispatcher,
+  ) {}
 
   async execute(state: PipelineState, next: NextFn): Promise<PipelineState> {
     const session = state.session as SessionContext | undefined;
@@ -33,6 +37,24 @@ export class AgentProcessorMiddleware {
     }
 
     try {
+      const beforeResult = await this.hookDispatcher.dispatchBeforeLLMRequest({
+        message: state.inbound,
+        session,
+        agent: session.agent,
+        role: session.activeRole,
+      });
+
+      if (beforeResult.action === 'block') {
+        state.blocked = true;
+        state.blockReason = beforeResult.reason ?? 'Blocked by beforeLLMRequest hook';
+        return next(state);
+      }
+
+      if (beforeResult.action === 'respond') {
+        state.outbound = { content: beforeResult.content };
+        return next(state);
+      }
+
       const outbound = await this.agentEngine.process(
         session.agent,
         state.inbound,

@@ -66,7 +66,7 @@ export class Pipeline {
         roleManager: deps.roleManager,
         pluginManager: deps.pluginManager,
       }),
-      new AgentProcessorMiddleware(deps.agentEngine),
+      new AgentProcessorMiddleware(deps.agentEngine, this.hookDispatcher),
     ];
 
     this.initialized = true;

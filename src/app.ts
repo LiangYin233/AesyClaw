@@ -138,6 +138,10 @@ export class Application {
     await this.startStep('Built-in registration', async () => {
       registerBuiltinTools(this.toolRegistry, {
         cronManager: this.cronManager,
+        agentEngine: this.agentEngine,
+        roleManager: this.roleManager,
+        llmAdapter: this.llmAdapter,
+        configManager: this.configManager,
       });
       registerBuiltinCommands(this.commandRegistry, {
         roleManager: this.roleManager,

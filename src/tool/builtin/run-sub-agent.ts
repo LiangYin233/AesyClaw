@@ -1,8 +1,7 @@
 /**
  * Built-in run_sub_agent tool.
  *
- * Runs a sub-agent with a specified role ID and prompt.
- * Stub until AgentEngine/SubAgentSandbox is implemented.
+ * Runs a delegated sub-agent turn with a specified role ID and prompt.
  *
  * @see project.md §5.15
  */
@@ -10,6 +9,7 @@
 import { Type, Static } from '@sinclair/typebox';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
 import type { ToolOwner } from '../../core/types';
+import type { SubAgentSandbox } from '../../agent/sub-agent-sandbox';
 
 /** Parameter schema for run_sub_agent */
 const RunSubAgentParamsSchema = Type.Object({
@@ -19,25 +19,32 @@ const RunSubAgentParamsSchema = Type.Object({
 
 type RunSubAgentParams = Static<typeof RunSubAgentParamsSchema>;
 
-/** Dependencies needed by run_sub_agent (typed as unknown until AgentEngine is implemented) */
 export interface RunSubAgentDeps {
-  /** Will be AgentEngine when implemented */
-  agentEngine: unknown;
+  sandbox: Pick<SubAgentSandbox, 'runWithRole'>;
 }
 
-export function createRunSubAgentTool(_deps: RunSubAgentDeps): AesyClawTool {
+export function createRunSubAgentTool(deps: RunSubAgentDeps): AesyClawTool {
   return {
     name: 'run_sub_agent',
     description: '使用指定角色运行子代理',
     parameters: RunSubAgentParamsSchema,
     owner: 'system' as ToolOwner,
-    execute: async (params: unknown, _context: ToolExecutionContext): Promise<ToolExecutionResult> => {
+    execute: async (params: unknown, context: ToolExecutionContext): Promise<ToolExecutionResult> => {
       const { roleId, prompt } = params as RunSubAgentParams;
-      // Stub — depends on AgentEngine and SubAgentSandbox
-      return {
-        content: `Sub-agent not available (would run role "${roleId}" with prompt: "${prompt.substring(0, 50)}")`,
-        isError: true,
-      };
+
+      try {
+        const content = await deps.sandbox.runWithRole(
+          { roleId, prompt },
+          { sessionKey: context.sessionKey, sendMessage: context.sendMessage },
+        );
+        return { content };
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: `Sub-agent execution failed: ${message}`,
+          isError: true,
+        };
+      }
     },
   };
 }

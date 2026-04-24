@@ -1,8 +1,7 @@
 /**
  * Built-in speech_to_text tool.
  *
- * Transcribes audio from a URL or file path. Stub until LlmAdapter
- * is implemented.
+ * Transcribes audio from a URL or file path.
  *
  * @see project.md §5.15
  */
@@ -10,6 +9,9 @@
 import { Type, Static } from '@sinclair/typebox';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
 import type { ToolOwner } from '../../core/types';
+import type { ConfigManager } from '../../core/config/config-manager';
+import type { LlmAdapter } from '../../agent/llm-adapter';
+import { loadMediaSource } from './media-source';
 
 /** Parameter schema for speech_to_text */
 const SpeechToTextParamsSchema = Type.Object({
@@ -18,24 +20,42 @@ const SpeechToTextParamsSchema = Type.Object({
 
 type SpeechToTextParams = Static<typeof SpeechToTextParamsSchema>;
 
-/** Dependencies needed by speech_to_text (typed as unknown until LlmAdapter is implemented) */
 export interface SpeechToTextDeps {
-  /** Will be LlmAdapter when implemented */
-  llmAdapter: unknown;
+  configManager: Pick<ConfigManager, 'get'>;
+  llmAdapter: Pick<LlmAdapter, 'transcribeAudio'>;
 }
 
-export function createSpeechToTextTool(_deps: SpeechToTextDeps): AesyClawTool {
+export function createSpeechToTextTool(deps: SpeechToTextDeps): AesyClawTool {
   return {
     name: 'speech_to_text',
     description: '将音频转录为文本（支持 URL 或本地文件路径）',
     parameters: SpeechToTextParamsSchema,
     owner: 'system' as ToolOwner,
-    execute: async (_params: unknown, _context: ToolExecutionContext): Promise<ToolExecutionResult> => {
-      // Stub — depends on LlmAdapter for actual STT
-      return {
-        content: 'Transcription not available — speech-to-text service not yet connected.',
-        isError: true,
-      };
+    execute: async (params: unknown, context: ToolExecutionContext): Promise<ToolExecutionResult> => {
+      const { source } = params as SpeechToTextParams;
+
+      try {
+        const audio = await loadMediaSource(source, 'audio');
+        const multimodal = deps.configManager.get('multimodal');
+        const modelIdentifier = `${multimodal.speechToText.provider}/${multimodal.speechToText.model}`;
+        const transcription = await deps.llmAdapter.transcribeAudio(
+          modelIdentifier,
+          {
+            data: audio.data,
+            mimeType: audio.mimeType,
+            fileName: audio.fileName,
+          },
+          `${context.sessionKey.channel}:${context.sessionKey.type}:${context.sessionKey.chatId}`,
+        );
+
+        return { content: transcription };
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: `Speech-to-text failed: ${message}`,
+          isError: true,
+        };
+      }
     },
   };
 }

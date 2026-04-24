@@ -1,8 +1,7 @@
 /**
  * Built-in image_understanding tool.
  *
- * Analyzes an image from a URL or file path. Stub until LlmAdapter
- * is implemented.
+ * Analyzes an image from a URL or file path.
  *
  * @see project.md §5.15
  */
@@ -10,6 +9,9 @@
 import { Type, Static } from '@sinclair/typebox';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
 import type { ToolOwner } from '../../core/types';
+import type { ConfigManager } from '../../core/config/config-manager';
+import type { LlmAdapter } from '../../agent/llm-adapter';
+import { loadMediaSource } from './media-source';
 
 /** Parameter schema for image_understanding */
 const ImageUnderstandingParamsSchema = Type.Object({
@@ -19,24 +21,39 @@ const ImageUnderstandingParamsSchema = Type.Object({
 
 type ImageUnderstandingParams = Static<typeof ImageUnderstandingParamsSchema>;
 
-/** Dependencies needed by image_understanding (typed as unknown until LlmAdapter is implemented) */
 export interface ImageUnderstandingDeps {
-  /** Will be LlmAdapter when implemented */
-  llmAdapter: unknown;
+  configManager: Pick<ConfigManager, 'get'>;
+  llmAdapter: Pick<LlmAdapter, 'analyzeImage'>;
 }
 
-export function createImageUnderstandingTool(_deps: ImageUnderstandingDeps): AesyClawTool {
+export function createImageUnderstandingTool(deps: ImageUnderstandingDeps): AesyClawTool {
   return {
     name: 'image_understanding',
     description: '分析图片内容，可针对图片提出问题',
     parameters: ImageUnderstandingParamsSchema,
     owner: 'system' as ToolOwner,
-    execute: async (_params: unknown, _context: ToolExecutionContext): Promise<ToolExecutionResult> => {
-      // Stub — depends on LlmAdapter for actual image analysis
-      return {
-        content: 'Image analysis not available — vision service not yet connected.',
-        isError: true,
-      };
+    execute: async (params: unknown, context: ToolExecutionContext): Promise<ToolExecutionResult> => {
+      const { source, question } = params as ImageUnderstandingParams;
+
+      try {
+        const image = await loadMediaSource(source, 'image');
+        const multimodal = deps.configManager.get('multimodal');
+        const modelIdentifier = `${multimodal.imageUnderstanding.provider}/${multimodal.imageUnderstanding.model}`;
+        const answer = await deps.llmAdapter.analyzeImage(
+          modelIdentifier,
+          question ?? 'Describe this image in detail.',
+          { data: image.base64, mimeType: image.mimeType },
+          `${context.sessionKey.channel}:${context.sessionKey.type}:${context.sessionKey.chatId}`,
+        );
+
+        return { content: answer };
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: `Image understanding failed: ${message}`,
+          isError: true,
+        };
+      }
     },
   };
 }

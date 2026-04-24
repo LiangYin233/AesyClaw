@@ -1,8 +1,7 @@
 /**
  * Built-in run_temp_sub_agent tool.
  *
- * Runs a temporary sub-agent with an ad-hoc system prompt.
- * Stub until AgentEngine/SubAgentSandbox is implemented.
+ * Runs a temporary delegated sub-agent with an ad-hoc system prompt.
  *
  * @see project.md §5.15
  */
@@ -10,6 +9,7 @@
 import { Type, Static } from '@sinclair/typebox';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
 import type { ToolOwner } from '../../core/types';
+import type { SubAgentSandbox } from '../../agent/sub-agent-sandbox';
 
 /** Parameter schema for run_temp_sub_agent */
 const RunTempSubAgentParamsSchema = Type.Object({
@@ -19,25 +19,32 @@ const RunTempSubAgentParamsSchema = Type.Object({
 
 type RunTempSubAgentParams = Static<typeof RunTempSubAgentParamsSchema>;
 
-/** Dependencies needed by run_temp_sub_agent (typed as unknown until AgentEngine is implemented) */
 export interface RunTempSubAgentDeps {
-  /** Will be AgentEngine when implemented */
-  agentEngine: unknown;
+  sandbox: Pick<SubAgentSandbox, 'runWithPrompt'>;
 }
 
-export function createRunTempSubAgentTool(_deps: RunTempSubAgentDeps): AesyClawTool {
+export function createRunTempSubAgentTool(deps: RunTempSubAgentDeps): AesyClawTool {
   return {
     name: 'run_temp_sub_agent',
     description: '使用自定义系统提示运行临时子代理',
     parameters: RunTempSubAgentParamsSchema,
     owner: 'system' as ToolOwner,
-    execute: async (params: unknown, _context: ToolExecutionContext): Promise<ToolExecutionResult> => {
+    execute: async (params: unknown, context: ToolExecutionContext): Promise<ToolExecutionResult> => {
       const { systemPrompt, prompt } = params as RunTempSubAgentParams;
-      // Stub — depends on AgentEngine and SubAgentSandbox
-      return {
-        content: `Temp sub-agent not available (would run with system prompt: "${systemPrompt.substring(0, 50)}")`,
-        isError: true,
-      };
+
+      try {
+        const content = await deps.sandbox.runWithPrompt(
+          { systemPrompt, prompt },
+          { sessionKey: context.sessionKey, sendMessage: context.sendMessage },
+        );
+        return { content };
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: `Temp sub-agent execution failed: ${message}`,
+          isError: true,
+        };
+      }
     },
   };
 }

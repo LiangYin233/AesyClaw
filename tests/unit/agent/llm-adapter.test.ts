@@ -5,7 +5,7 @@
  * createGetApiKey, summarize stub, createStreamFn.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { completeSimple } from '@mariozechner/pi-ai';
 import { LlmAdapter } from '../../../src/agent/llm-adapter';
 import type { LlmAdapterDependencies } from '../../../src/agent/llm-adapter';
@@ -72,6 +72,10 @@ describe('LlmAdapter', () => {
     const config = makeConfigWithProviders();
     const configManager = makeMockConfigManager(config);
     adapter.initialize({ configManager });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   // ─── resolveModel ────────────────────────────────────────────
@@ -261,6 +265,93 @@ describe('LlmAdapter', () => {
       await expect(adapter.summarize([], 'openai/gpt-4o')).rejects.toThrow(
         'LLM returned an empty summary',
       );
+    });
+  });
+
+  describe('analyzeImage', () => {
+    it('should call completeSimple with image content and return text', async () => {
+      mockedCompleteSimple.mockResolvedValue({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'A small blue square.' }],
+        api: 'openai-responses',
+        provider: 'openai',
+        model: 'gpt-4o',
+        usage: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        stopReason: 'stop',
+        timestamp: Date.now(),
+      });
+
+      const result = await adapter.analyzeImage(
+        'openai/gpt-4o',
+        'What is this?',
+        { data: 'ZmFrZQ==', mimeType: 'image/png' },
+        'session-vision',
+      );
+
+      expect(result).toBe('A small blue square.');
+      expect(mockedCompleteSimple).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: 'openai', modelId: 'gpt-4o' }),
+        expect.objectContaining({
+          messages: [
+            expect.objectContaining({
+              role: 'user',
+              content: [
+                { type: 'text', text: 'What is this?' },
+                { type: 'image', data: 'ZmFrZQ==', mimeType: 'image/png' },
+              ],
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          apiKey: 'sk-test-key',
+          sessionId: 'session-vision',
+        }),
+      );
+    });
+  });
+
+  describe('transcribeAudio', () => {
+    it('should call the provider transcription endpoint and return text', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({ text: 'hello world' }),
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const result = await adapter.transcribeAudio(
+        'openai/gpt-4o-audio-preview',
+        {
+          data: new Uint8Array([1, 2, 3]),
+          mimeType: 'audio/wav',
+          fileName: 'sample.wav',
+        },
+        'session-audio',
+      );
+
+      expect(result).toBe('hello world');
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.openai.com/v1/audio/transcriptions',
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+
+    it('should reject unsupported provider API types', async () => {
+      await expect(
+        adapter.transcribeAudio('anthropic/claude-3-opus', {
+          data: new Uint8Array([1, 2, 3]),
+          mimeType: 'audio/wav',
+          fileName: 'sample.wav',
+        }),
+      ).rejects.toThrow('Speech-to-text is not supported');
     });
   });
 

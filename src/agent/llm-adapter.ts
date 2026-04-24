@@ -6,6 +6,17 @@ import { createScopedLogger } from '../core/logger';
 import { extractMessageText } from './agent-types';
 import type { ResolvedModel, StreamFn, AgentMessage } from './agent-types';
 
+export interface ImageAnalysisInput {
+  data: string;
+  mimeType: string;
+}
+
+export interface AudioTranscriptionInput {
+  data: Uint8Array;
+  mimeType: string;
+  fileName: string;
+}
+
 const logger = createScopedLogger('llm-adapter');
 
 const API_TYPE_MAP = {
@@ -160,6 +171,93 @@ export class LlmAdapter {
     }
   }
 
+  async analyzeImage(
+    modelIdentifier: string,
+    question: string,
+    image: ImageAnalysisInput,
+    sessionId?: string,
+  ): Promise<string> {
+    const model = this.resolveModel(modelIdentifier);
+
+    if (!model.input.includes('image')) {
+      throw new Error(`Configured model "${modelIdentifier}" does not support image input`);
+    }
+
+    const response = await completeSimple(
+      model,
+      {
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: question },
+              { type: 'image', data: image.data, mimeType: image.mimeType },
+            ],
+            timestamp: Date.now(),
+          },
+        ],
+      },
+      {
+        apiKey: model.apiKey,
+        sessionId,
+      },
+    );
+
+    const answer = extractMessageText(response).trim();
+    if (answer.length === 0) {
+      throw new Error('LLM returned an empty image analysis response');
+    }
+
+    return answer;
+  }
+
+  async transcribeAudio(
+    modelIdentifier: string,
+    audio: AudioTranscriptionInput,
+    sessionId?: string,
+  ): Promise<string> {
+    const model = this.resolveModel(modelIdentifier);
+
+    if (model.apiType !== 'openai-responses' && model.apiType !== 'openai-completions') {
+      throw new Error(`Speech-to-text is not supported for provider API type "${model.apiType}"`);
+    }
+
+    if (!model.apiKey) {
+      throw new Error(`No API key configured for speech-to-text provider "${model.provider}"`);
+    }
+
+    const endpoint = new URL('audio/transcriptions', getProviderBaseUrl(model)).toString();
+    const formData = new FormData();
+    formData.append('model', model.id);
+    formData.append(
+      'file',
+      new File([Buffer.from(audio.data)], audio.fileName, { type: audio.mimeType }),
+    );
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${model.apiKey}`,
+        ...(sessionId ? { 'x-session-id': sessionId } : {}),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`Speech-to-text request failed (${response.status}): ${body || response.statusText}`);
+    }
+
+    const payload = await response.json() as { text?: unknown };
+    const text = typeof payload.text === 'string' ? payload.text.trim() : '';
+
+    if (text.length === 0) {
+      throw new Error('Speech-to-text response did not include transcription text');
+    }
+
+    return text;
+  }
+
   private tryGetBuiltInModel(provider: string, modelId: string): Model<Api> | null {
     try {
       return getModel(provider as KnownProvider, modelId as never) as Model<Api>;
@@ -182,4 +280,20 @@ export class LlmAdapter {
       transcript,
     ].join('\n');
   }
+}
+
+function ensureTrailingSlash(url: string): string {
+  return url.endsWith('/') ? url : `${url}/`;
+}
+
+function getProviderBaseUrl(model: ResolvedModel): string {
+  if (model.baseUrl.trim().length > 0) {
+    return ensureTrailingSlash(model.baseUrl);
+  }
+
+  if (model.provider === 'openai') {
+    return 'https://api.openai.com/v1/';
+  }
+
+  throw new Error(`No base URL configured for provider "${model.provider}"`);
 }
