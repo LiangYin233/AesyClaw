@@ -113,7 +113,7 @@ type PluginConfigEntry = Static<typeof PluginConfigEntrySchema>;
 const AppConfigSchema = Type.Object({
   server: ServerConfigSchema,
   providers: Type.Record(Type.String(), ProviderConfigSchema),
-  channels: Type.Record(Type.String(), Type.Any()),
+  channels: Type.Record(Type.String(), Type.Unknown()),
   agent: AgentConfigSchema,
   memory: MemoryConfigSchema,
   multimodal: MultimodalConfigSchema,

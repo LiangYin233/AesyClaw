@@ -13,6 +13,12 @@ import type { PipelineState, NextFn } from './types';
 import type { CommandRegistry } from '../../command/command-registry';
 import type { CommandContext } from '../../core/types';
 
+export interface CommandDetectorDependencies {
+  sessionManager?: unknown;
+  roleManager?: unknown;
+  pluginManager?: unknown;
+}
+
 /**
  * Detects slash commands and executes them via CommandRegistry.
  *
@@ -26,15 +32,18 @@ import type { CommandContext } from '../../core/types';
 export class CommandDetectorMiddleware {
   readonly name = 'CommandDetector';
 
-  constructor(private commandRegistry: CommandRegistry) {}
+  constructor(
+    private commandRegistry: CommandRegistry,
+    private dependencies: CommandDetectorDependencies = {},
+  ) {}
 
   async execute(state: PipelineState, next: NextFn): Promise<PipelineState> {
     if (this.commandRegistry.isCommand(state.inbound.content)) {
       const commandContext: CommandContext = {
         sessionKey: state.inbound.sessionKey,
-        sessionManager: null,
-        roleManager: null,
-        pluginManager: null,
+        sessionManager: this.dependencies.sessionManager ?? null,
+        roleManager: this.dependencies.roleManager ?? null,
+        pluginManager: this.dependencies.pluginManager ?? null,
       };
 
       const result = await this.commandRegistry.execute(state.inbound.content, commandContext);

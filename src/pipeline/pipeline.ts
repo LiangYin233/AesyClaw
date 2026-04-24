@@ -61,7 +61,11 @@ export class Pipeline {
     this.middlewares = [
       new ConfigInjectionMiddleware(deps.configManager),
       new SessionResolverMiddleware(deps.sessionManager),
-      new CommandDetectorMiddleware(deps.commandRegistry),
+      new CommandDetectorMiddleware(deps.commandRegistry, {
+        sessionManager: deps.sessionManager,
+        roleManager: deps.roleManager,
+        pluginManager: deps.pluginManager,
+      }),
       new AgentProcessorMiddleware(deps.agentEngine),
     ];
 

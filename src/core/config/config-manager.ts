@@ -237,7 +237,12 @@ export class ConfigManager {
         return;
       }
 
-      const oldConfig = this.config!;
+      const oldConfig = this.config;
+      if (!oldConfig) {
+        this.config = newConfig;
+        logger.info('Config reloaded from file');
+        return;
+      }
       this.config = newConfig;
       this.notifyListeners(oldConfig);
       logger.info('Config reloaded from file');
@@ -279,20 +284,30 @@ export class ConfigManager {
   }
 
   private notifyListeners(oldConfig: AppConfig): void {
-    const newConfig = this.config!;
+    const newConfig = this.config;
+    if (!newConfig) {
+      return;
+    }
 
     for (const entry of this.listeners) {
       try {
+        let result: void | Promise<void> = undefined;
         if (entry.key) {
           // Key-specific listener
           const oldVal = oldConfig[entry.key];
           const newVal = newConfig[entry.key];
           if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
-            (entry.listener as ConfigChangeListener<unknown>)(newVal, oldVal);
+            result = (entry.listener as ConfigChangeListener<unknown>)(newVal, oldVal);
           }
         } else {
           // Global listener
-          (entry.listener as ConfigChangeListener<AppConfig>)(newConfig, oldConfig);
+          result = (entry.listener as ConfigChangeListener<AppConfig>)(newConfig, oldConfig);
+        }
+
+        if (isPromiseLike(result)) {
+          result.catch((err: unknown) => {
+            logger.error('Error in async config change listener', err);
+          });
         }
       } catch (err) {
         logger.error('Error in config change listener', err);
@@ -352,4 +367,8 @@ export class ConfigManager {
 
     return result;
   }
+}
+
+function isPromiseLike(value: unknown): value is Promise<void> {
+  return value !== null && typeof value === 'object' && typeof (value as { catch?: unknown }).catch === 'function';
 }

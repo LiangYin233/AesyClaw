@@ -15,6 +15,7 @@ import type { ImageUnderstandingDeps } from './image-understanding';
 import type { RunSubAgentDeps } from './run-sub-agent';
 import type { RunTempSubAgentDeps } from './run-temp-sub-agent';
 import type { CronToolsDeps } from './cron-tools';
+import type { CronManager } from '../../cron/cron-manager';
 import { createSendMsgTool } from './send-msg';
 import { createSpeechToTextTool } from './speech-to-text';
 import { createImageUnderstandingTool } from './image-understanding';
@@ -33,8 +34,7 @@ export interface BuiltinToolDependencies {
   pipeline: unknown;
   /** Will be AgentEngine when implemented */
   agentEngine: unknown;
-  /** Will be CronManager when implemented */
-  cronManager: unknown;
+  cronManager: Pick<CronManager, 'createJob' | 'listJobs' | 'deleteJob'>;
   /** Will be LlmAdapter when implemented */
   llmAdapter: unknown;
 }

@@ -1,20 +1,24 @@
-/**
- * Application — the main orchestrator that owns all subsystem manager instances.
- *
- * Startup order (§3.2 of project.md):
- *   1.  PathResolver.resolve()
- *   2.  ConfigManager.load()
- *   3.  DatabaseManager.initialize()
- *   4.  … (subsequent steps not yet implemented)
- *
- * Shutdown order is the reverse. Each step is independently try-caught
- * so that a failure in one step does not prevent cleanup of the others.
- */
+/** Application — the main orchestrator that owns all subsystem manager instances. */
 
-import { PathResolver } from './core/path-resolver';
+import { AgentEngine } from './agent/agent-engine';
+import { LlmAdapter } from './agent/llm-adapter';
+import { SessionManager } from './agent/session-manager';
+import { ChannelManager } from './channel/channel-manager';
+import { CommandRegistry } from './command/command-registry';
+import { registerBuiltinCommands } from './command/builtin';
 import { ConfigManager } from './core/config/config-manager';
 import { DatabaseManager } from './core/database/database-manager';
 import { createScopedLogger, setLogLevel } from './core/logger';
+import { PathResolver } from './core/path-resolver';
+import type { Unsubscribe } from './core/types';
+import { CronManager } from './cron/cron-manager';
+import { McpManager } from './mcp/mcp-manager';
+import { Pipeline } from './pipeline/pipeline';
+import { PluginManager } from './plugin/plugin-manager';
+import { RoleManager } from './role/role-manager';
+import { SkillManager } from './skill/skill-manager';
+import { ToolRegistry } from './tool/tool-registry';
+import { registerBuiltinTools } from './tool/builtin';
 
 const logger = createScopedLogger('app');
 
@@ -22,22 +26,36 @@ export class Application {
   private pathResolver: PathResolver;
   private configManager: ConfigManager;
   private databaseManager: DatabaseManager;
-
-  // --- Managers not yet implemented ---
-  // private skillManager: SkillManager;
-  // private roleManager: RoleManager;
-  // private pipeline: Pipeline;
-  // private pluginManager: PluginManager;
-  // private cronManager: CronManager;
-  // private mcpManager: McpManager;
-  // private channelManager: ChannelManager;
-
+  private skillManager: SkillManager;
+  private roleManager: RoleManager;
+  private toolRegistry: ToolRegistry;
+  private commandRegistry: CommandRegistry;
+  private llmAdapter: LlmAdapter;
+  private agentEngine: AgentEngine;
+  private sessionManager: SessionManager;
+  private pipeline: Pipeline;
+  private pluginManager: PluginManager | null = null;
+  private cronManager: CronManager;
+  private mcpManager: McpManager;
+  private channelManager: ChannelManager;
+  private unsubscribers: Unsubscribe[] = [];
   private started = false;
 
   constructor() {
     this.pathResolver = new PathResolver();
     this.configManager = new ConfigManager();
     this.databaseManager = new DatabaseManager();
+    this.skillManager = new SkillManager();
+    this.roleManager = new RoleManager();
+    this.toolRegistry = new ToolRegistry();
+    this.commandRegistry = new CommandRegistry();
+    this.llmAdapter = new LlmAdapter();
+    this.agentEngine = new AgentEngine();
+    this.sessionManager = new SessionManager();
+    this.pipeline = new Pipeline();
+    this.cronManager = new CronManager();
+    this.mcpManager = new McpManager();
+    this.channelManager = new ChannelManager();
   }
 
   async start(): Promise<void> {
@@ -46,56 +64,144 @@ export class Application {
       return;
     }
 
-    logger.info('Starting AesyClaw…');
+    logger.info('Starting AesyClaw...');
 
-    // 1. PathResolver
-    try {
+    await this.startStep('Path resolution', async () => {
       const root = process.cwd();
       this.pathResolver.resolve(root);
       logger.info('Path resolution complete', { root });
-    } catch (err) {
-      logger.error('Path resolution failed', err);
-      await this.shutdown();
-      throw err;
-    }
+    });
 
-    // 2. ConfigManager
-    try {
+    await this.startStep('Config loading', async () => {
       await this.configManager.load(this.pathResolver.configFile);
-      const config = this.configManager.getConfig();
-      setLogLevel(config.server.logLevel);
+      setLogLevel(this.configManager.getConfig().server.logLevel);
       logger.info('Configuration loaded');
-    } catch (err) {
-      logger.error('Config loading failed', err);
-      await this.shutdown();
-      throw err;
-    }
+    });
 
-    // 3. DatabaseManager
-    try {
+    await this.startStep('Database initialization', async () => {
       await this.databaseManager.initialize(this.pathResolver.dbFile);
-      logger.info('Database initialised');
-    } catch (err) {
-      logger.error('Database initialisation failed', err);
-      await this.shutdown();
-      throw err;
-    }
+    });
 
-    // --- Steps 4–13 not yet implemented ---
-    logger.info('Infrastructure layer initialised (steps 4+ not yet implemented)');
+    await this.startStep('Skill loading', async () => {
+      await this.skillManager.loadAll(this.pathResolver.systemSkillsDir, this.pathResolver.skillsDir);
+    });
+
+    await this.startStep('Role loading', async () => {
+      await this.roleManager.loadAll(this.pathResolver.rolesDir);
+    });
+
+    await this.startStep('LLM adapter initialization', async () => {
+      this.llmAdapter.initialize({ configManager: this.configManager });
+    });
+
+    await this.startStep('Agent engine initialization', async () => {
+      this.agentEngine.initialize({
+        configManager: this.configManager,
+        toolRegistry: this.toolRegistry,
+        roleManager: this.roleManager,
+        skillManager: this.skillManager,
+        hookDispatcher: this.pipeline.getHookDispatcher(),
+        llmAdapter: this.llmAdapter,
+      });
+    });
+
+    await this.startStep('Session manager initialization', async () => {
+      this.sessionManager.initialize({
+        databaseManager: this.databaseManager,
+        roleManager: this.roleManager,
+        agentEngine: this.agentEngine,
+        configManager: this.configManager,
+        llmAdapter: this.llmAdapter,
+      });
+    });
+
+    await this.startStep('Plugin manager initialization', async () => {
+      this.pluginManager = new PluginManager({
+        configManager: this.configManager,
+        toolRegistry: this.toolRegistry,
+        commandRegistry: this.commandRegistry,
+        hookDispatcher: this.pipeline.getHookDispatcher(),
+      });
+    });
+
+    await this.startStep('Pipeline initialization', async () => {
+      this.pipeline.initialize({
+        configManager: this.configManager,
+        sessionManager: this.sessionManager,
+        agentEngine: this.agentEngine,
+        commandRegistry: this.commandRegistry,
+        roleManager: this.roleManager,
+        pluginManager: this.getPluginManager(),
+      });
+    });
+
+    await this.startStep('Built-in registration', async () => {
+      registerBuiltinTools(this.toolRegistry, {
+        pipeline: this.pipeline,
+        agentEngine: this.agentEngine,
+        cronManager: this.cronManager,
+        llmAdapter: this.llmAdapter,
+      });
+      registerBuiltinCommands(this.commandRegistry, {
+        roleManager: this.roleManager,
+        pluginManager: this.pluginManager,
+        sessionManager: this.sessionManager,
+      });
+    });
+
+    await this.startStep('Plugin loading', async () => {
+      await this.getPluginManager().loadAll();
+    });
+
+    await this.startStep('Cron manager initialization', async () => {
+      await this.cronManager.initialize({
+        databaseManager: this.databaseManager,
+        pipeline: this.pipeline,
+      });
+    });
+
+    await this.startStep('MCP manager initialization', async () => {
+      this.mcpManager.initialize({
+        configManager: this.configManager,
+        toolRegistry: this.toolRegistry,
+      });
+      await this.mcpManager.connectAll();
+    });
+
+    await this.startStep('Channel manager initialization', async () => {
+      this.channelManager.initialize({
+        configManager: this.configManager,
+        pipeline: this.pipeline,
+      });
+      await this.channelManager.startAll();
+    });
+
+    await this.startStep('Config synchronization', async () => {
+      await this.configManager.syncDefaults();
+      this.installConfigSubscriptions();
+    });
+
+    await this.startStep('Hot reload startup', async () => {
+      this.configManager.startHotReload();
+      this.roleManager.startWatching();
+    });
 
     this.started = true;
     logger.info('AesyClaw started successfully');
   }
 
   async shutdown(): Promise<void> {
-    logger.info('Shutting down AesyClaw…');
+    logger.info('Shutting down AesyClaw...');
 
-    // Each step is independently try-caught — a failure in one
-    // does NOT prevent subsequent cleanup.
     const steps: Array<() => Promise<void> | void> = [
-      // Reverse order of startup
       () => this.configManager.stopHotReload(),
+      () => this.roleManager.stopWatching(),
+      () => this.clearConfigSubscriptions(),
+      () => this.channelManager.stopAll(),
+      () => this.mcpManager.disconnectAll(),
+      () => this.cronManager.destroy(),
+      () => this.pluginManager?.unloadAll(),
+      () => this.pipeline.destroy(),
       () => this.databaseManager.close(),
     ];
 
@@ -104,11 +210,55 @@ export class Application {
         await step();
       } catch (err) {
         logger.error('Shutdown step failed', err);
-        // Continue to next step
       }
     }
 
     this.started = false;
     logger.info('AesyClaw shutdown complete');
+  }
+
+  private async startStep(name: string, step: () => Promise<void> | void): Promise<void> {
+    try {
+      await step();
+    } catch (err) {
+      logger.error(`${name} failed`, err);
+      await this.shutdown();
+      throw err;
+    }
+  }
+
+  private installConfigSubscriptions(): void {
+    this.clearConfigSubscriptions();
+    this.unsubscribers.push(
+      this.configManager.subscribe('server', (server) => {
+        setLogLevel(server.logLevel);
+      }),
+      this.configManager.subscribe('plugins', async () => {
+        await this.pluginManager?.handleConfigReload();
+      }),
+      this.configManager.subscribe('mcp', async () => {
+        await this.mcpManager.handleConfigReload();
+      }),
+      this.configManager.subscribe('channels', async () => {
+        await this.channelManager.handleConfigReload();
+      }),
+    );
+  }
+
+  private clearConfigSubscriptions(): void {
+    for (const unsubscribe of this.unsubscribers.splice(0)) {
+      try {
+        unsubscribe();
+      } catch (err) {
+        logger.error('Config unsubscribe failed', err);
+      }
+    }
+  }
+
+  private getPluginManager(): PluginManager {
+    if (!this.pluginManager) {
+      throw new Error('PluginManager not initialized');
+    }
+    return this.pluginManager;
   }
 }

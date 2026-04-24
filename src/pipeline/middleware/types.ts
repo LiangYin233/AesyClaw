@@ -72,7 +72,7 @@ interface PipelineDependencies {
   sessionManager: SessionManager;
   agentEngine: AgentEngine;
   commandRegistry: CommandRegistry;
-  /** Will be typed as PluginManager when implemented */
+  roleManager?: unknown;
   pluginManager: unknown;
 }
 
