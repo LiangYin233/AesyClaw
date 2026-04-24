@@ -9,7 +9,7 @@
  * @see project.md §5.5
  */
 
-import type { InboundMessage, OutboundMessage } from '../../core/types';
+import type { InboundMessage, OutboundMessage, SendFn } from '../../core/types';
 import type { AppConfig } from '../../core/config/schema';
 import type { CommandRegistry } from '../../command/command-registry';
 import type { ConfigManager } from '../../core/config/config-manager';
@@ -29,6 +29,8 @@ interface PipelineState {
   inbound: InboundMessage;
   /** The outbound response, if produced by a middleware */
   outbound?: OutboundMessage;
+  /** onSend-aware outbound delivery callback for tool execution */
+  sendMessage?: (message: OutboundMessage) => Promise<boolean>;
   /** Current application config snapshot */
   config?: Readonly<AppConfig>;
   /** Session context — will be typed when SessionManager is implemented */

@@ -2,15 +2,14 @@
  * Built-in send_msg tool.
  *
  * Sends a text message to the current session, optionally with
- * media attachments. For now returns a formatted message string
- * since actual channel sending depends on Pipeline.
+ * media attachments, via the pipeline's normal outbound delivery path.
  *
  * @see project.md §5.15
  */
 
 import { Type, Static } from '@sinclair/typebox';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
-import type { ToolOwner } from '../../core/types';
+import type { MediaAttachment, OutboundMessage, ToolOwner } from '../../core/types';
 
 /** Parameter schema for send_msg */
 const SendMessageParamsSchema = Type.Object({
@@ -36,30 +35,34 @@ const SendMessageParamsSchema = Type.Object({
 
 type SendMessageParams = Static<typeof SendMessageParamsSchema>;
 
-/** Dependencies needed by send_msg tool (typed as unknown until Pipeline is implemented) */
-export interface SendMsgDeps {
-  /** Will be Pipeline when implemented */
-  pipeline: unknown;
-}
+export interface SendMsgDeps {}
 
-export function createSendMsgTool(deps: SendMsgDeps): AesyClawTool {
+export function createSendMsgTool(_deps: SendMsgDeps = {}): AesyClawTool {
   return {
     name: 'send_msg',
     description: '向当前会话发送文本消息，可附带媒体附件',
     parameters: SendMessageParamsSchema,
     owner: 'system' as ToolOwner,
-    execute: async (params: unknown, _context: ToolExecutionContext): Promise<ToolExecutionResult> => {
+    execute: async (params: unknown, context: ToolExecutionContext): Promise<ToolExecutionResult> => {
       const { text, media } = params as SendMessageParams;
       try {
-        const hasMedia = media && media.length > 0;
-        const mediaCount = hasMedia ? media!.length : 0;
-
-        // TODO: When Pipeline is implemented, actually send the message
-        // through the channel.
-
-        if (hasMedia) {
+        if (!context.sendMessage) {
           return {
-            content: `Message sent: "${text}" (with ${mediaCount} media attachment(s))`,
+            content: 'send_msg is unavailable in this context because no outbound send function is available.',
+            isError: true,
+          };
+        }
+
+        const outbound: OutboundMessage = {
+          content: text,
+          ...(media && media.length > 0 ? { attachments: media as MediaAttachment[] } : {}),
+        };
+        const delivered = await context.sendMessage(outbound);
+
+        if (!delivered) {
+          return {
+            content: 'Message was blocked before delivery.',
+            isError: true,
           };
         }
 

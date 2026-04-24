@@ -38,6 +38,7 @@ export class AgentProcessorMiddleware {
         state.inbound,
         session.memory,
         session.activeRole,
+        state.sendMessage,
       );
       state.outbound = outbound;
     } catch (err) {

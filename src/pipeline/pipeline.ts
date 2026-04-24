@@ -117,7 +117,11 @@ export class Pipeline {
       }
 
       // 2. Execute middleware chain
-      const initialState: PipelineState = { inbound: message };
+      const initialState: PipelineState = {
+        inbound: message,
+        sendMessage: async (outbound: OutboundMessage): Promise<boolean> =>
+          this.dispatchOnSendAndDeliver(outbound, send),
+      };
       const finalState = await this.executeChain(initialState);
 
       // 3. After chain: if state is blocked, stop
@@ -200,13 +204,13 @@ export class Pipeline {
   private async dispatchOnSendAndDeliver(
     outbound: OutboundMessage,
     send: SendFn,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const sendResult = await this.hookDispatcher.dispatchOnSend(outbound);
     if (sendResult.action === 'block') {
       logger.info('Outbound blocked by onSend hook', {
         reason: sendResult.reason,
       });
-      return;
+      return false;
     }
 
     // If a hook responds, use that content instead
@@ -216,5 +220,6 @@ export class Pipeline {
         : outbound;
 
     await send(finalOutbound);
+    return true;
   }
 }

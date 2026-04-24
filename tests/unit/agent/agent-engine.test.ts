@@ -305,6 +305,29 @@ describe('AgentEngine', () => {
       expect(agent.state.tools[0]?.name).toBe('refreshed-tool');
       expect(deps.toolRegistry.resolveForRole).toHaveBeenNthCalledWith(2, role, deps.hookDispatcher, {
         sessionKey: makeInboundMessage().sessionKey,
+        sendMessage: undefined,
+      });
+    });
+
+    it('should thread an outbound send callback into runtime tool context when provided', async () => {
+      const role = makeRole();
+      const deps = makeMockDeps();
+      const runtimeEngine = new AgentEngine();
+      runtimeEngine.initialize(deps);
+
+      const messageRepo = makeMockMessageRepo();
+      const memory = new MemoryManager('test-session', messageRepo, {
+        maxContextTokens: 128000,
+        compressionThreshold: 0.8,
+      });
+      const agent = runtimeEngine.createAgent(role, 'test-session', memory);
+      const sendMessage = vi.fn().mockResolvedValue(true);
+
+      await runtimeEngine.process(agent, makeInboundMessage(), memory, role, sendMessage);
+
+      expect(deps.toolRegistry.resolveForRole).toHaveBeenLastCalledWith(role, deps.hookDispatcher, {
+        sessionKey: makeInboundMessage().sessionKey,
+        sendMessage,
       });
     });
 

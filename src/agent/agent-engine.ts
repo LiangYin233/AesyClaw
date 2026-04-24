@@ -97,6 +97,7 @@ export class AgentEngine {
     message: InboundMessage,
     memory: MemoryManager,
     role: RoleConfig,
+    sendMessage?: ToolExecutionContext['sendMessage'],
   ): Promise<OutboundMessage> {
     if (!this.initialized || !this.promptBuilder || !this.llmAdapter) {
       throw new Error('AgentEngine not initialized');
@@ -113,6 +114,7 @@ export class AgentEngine {
 
     const executionContext: Partial<ToolExecutionContext> = {
       sessionKey: message.sessionKey,
+      sendMessage,
     };
 
     const { prompt, tools } = this.promptBuilder.buildSystemPrompt(role, executionContext);

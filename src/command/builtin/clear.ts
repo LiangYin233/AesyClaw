@@ -1,21 +1,26 @@
 /**
  * Built-in clear command.
  *
- * Clears session history. Stub until SessionManager is implemented.
+ * Clears session history.
  *
  * @see project.md §5.9
  */
 
 import type { CommandDefinition, CommandContext } from '../../core/types';
+import type { SessionManager } from '../../agent/session-manager';
 
-export function createClearCommand(): CommandDefinition {
+export interface ClearCommandDeps {
+  sessionManager: Pick<SessionManager, 'clearSession'>;
+}
+
+export function createClearCommand(deps: ClearCommandDeps): CommandDefinition {
   return {
     name: 'clear',
     description: '清除当前会话历史',
     scope: 'system',
-    execute: async (_args: string[], _context: CommandContext): Promise<string> => {
-      // Stub — depends on SessionManager
-      return 'Session clear not yet implemented.';
+    execute: async (_args: string[], context: CommandContext): Promise<string> => {
+      await deps.sessionManager.clearSession(context.sessionKey);
+      return '当前会话历史已清除。';
     },
   };
 }

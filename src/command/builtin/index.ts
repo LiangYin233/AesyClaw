@@ -12,6 +12,9 @@ import type { CommandContext } from '../../core/types';
 import type { CommandRegistry } from '../command-registry';
 import type { RoleCommandDeps } from './role-commands';
 import type { PluginCommandDeps } from './plugin-commands';
+import type { SessionManager } from '../../agent/session-manager';
+import type { RoleManager } from '../../role/role-manager';
+import type { PluginManager } from '../../plugin/plugin-manager';
 import { createHelpCommand } from './help';
 import { createClearCommand } from './clear';
 import { createCompactCommand } from './compact';
@@ -29,16 +32,12 @@ import {
 /**
  * Dependencies for built-in commands.
  *
- * Most are typed as `unknown` because the subsystems (RoleManager,
- * PluginManager, SessionManager) are not yet implemented.
+ * Dependencies for built-in commands.
  */
 export interface BuiltinCommandDependencies {
-  /** Will be RoleManager when implemented */
-  roleManager: unknown;
-  /** Will be PluginManager when implemented */
-  pluginManager: unknown;
-  /** Will be SessionManager when implemented */
-  sessionManager: unknown;
+  roleManager: Pick<RoleManager, 'getEnabledRoles' | 'getRole'>;
+  pluginManager: Pick<PluginManager, 'listPlugins' | 'enable' | 'disable'>;
+  sessionManager: Pick<SessionManager, 'clearSession' | 'compactSession' | 'getOrCreateSession' | 'switchRole'>;
 }
 
 /**
@@ -51,12 +50,15 @@ export function registerBuiltinCommands(
   registry: CommandRegistry,
   deps: BuiltinCommandDependencies,
 ): void {
-  const roleDeps: RoleCommandDeps = { roleManager: deps.roleManager };
+  const roleDeps: RoleCommandDeps = {
+    roleManager: deps.roleManager,
+    sessionManager: deps.sessionManager,
+  };
   const pluginDeps: PluginCommandDeps = { pluginManager: deps.pluginManager };
 
   registry.register(createHelpCommand(() => registry.getAll()));
-  registry.register(createClearCommand());
-  registry.register(createCompactCommand());
+  registry.register(createClearCommand({ sessionManager: deps.sessionManager }));
+  registry.register(createCompactCommand({ sessionManager: deps.sessionManager }));
   registry.register(createRoleListCommand(roleDeps));
   registry.register(createRoleSwitchCommand(roleDeps));
   registry.register(createRoleInfoCommand(roleDeps));

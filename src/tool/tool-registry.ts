@@ -9,7 +9,7 @@
  */
 
 import { Type, Static, TSchema } from '@sinclair/typebox';
-import type { ToolOwner, SessionKey, RoleConfig } from '../core/types';
+import type { ToolOwner, SessionKey, RoleConfig, OutboundMessage } from '../core/types';
 import { createScopedLogger } from '../core/logger';
 import type { HookDispatcher } from '../pipeline/hook-dispatcher';
 import type { AgentTool } from '../agent/agent-types';
@@ -45,8 +45,8 @@ export interface ToolExecutionContext {
   agentEngine: unknown;
   /** Will be typed later when CronManager is implemented */
   cronManager: unknown;
-  /** Will be typed later when Pipeline is implemented */
-  pipeline: unknown;
+  /** Sends through the pipeline's onSend-aware delivery path when available */
+  sendMessage?: (message: OutboundMessage) => Promise<boolean>;
 }
 
 /**

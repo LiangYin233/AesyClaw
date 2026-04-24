@@ -213,6 +213,18 @@ describe('Pipeline', () => {
       expect(sent[0].content).toBe('test response');
     });
 
+    it('should pass an onSend-aware callback into agent processing', async () => {
+      const deps = await createPipelineDeps();
+      pipeline.initialize(deps);
+
+      const send = vi.fn(async (_msg: OutboundMessage) => undefined);
+      await pipeline.receiveWithSend(makeInbound(), send);
+
+      const processMock = deps.agentEngine.process as ReturnType<typeof vi.fn>;
+      expect(processMock).toHaveBeenCalled();
+      expect(processMock.mock.calls[0]?.[4]).toEqual(expect.any(Function));
+    });
+  
     it('should not call send if no outbound is produced', async () => {
       const deps = await createPipelineDeps();
       pipeline.initialize(deps);
