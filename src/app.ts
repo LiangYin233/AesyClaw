@@ -1,5 +1,6 @@
 /** Application — the main orchestrator that owns all subsystem manager instances. */
 
+import { mkdirSync } from 'node:fs';
 import { AgentEngine } from './agent/agent-engine';
 import { LlmAdapter } from './agent/llm-adapter';
 import { SessionManager } from './agent/session-manager';
@@ -14,7 +15,9 @@ import type { Unsubscribe } from './core/types';
 import { CronManager } from './cron/cron-manager';
 import { McpManager } from './mcp/mcp-manager';
 import { Pipeline } from './pipeline/pipeline';
+import { PluginLoader } from './plugin/plugin-loader';
 import { PluginManager } from './plugin/plugin-manager';
+import { ensureDefaultRoleFile } from './role/default-role';
 import { RoleManager } from './role/role-manager';
 import { SkillManager } from './skill/skill-manager';
 import { ToolRegistry } from './tool/tool-registry';
@@ -72,6 +75,22 @@ export class Application {
       logger.info('Path resolution complete', { root });
     });
 
+    await this.startStep('Runtime directory preparation', async () => {
+      const runtimeDirs = [
+        this.pathResolver.runtimeRoot,
+        this.pathResolver.dataDir,
+        this.pathResolver.rolesDir,
+        this.pathResolver.mediaDir,
+        this.pathResolver.workspaceDir,
+      ];
+
+      for (const runtimeDir of runtimeDirs) {
+        mkdirSync(runtimeDir, { recursive: true });
+      }
+
+      ensureDefaultRoleFile(this.pathResolver.rolesDir);
+    });
+
     await this.startStep('Config loading', async () => {
       await this.configManager.load(this.pathResolver.configFile);
       setLogLevel(this.configManager.getConfig().server.logLevel);
@@ -121,6 +140,7 @@ export class Application {
         toolRegistry: this.toolRegistry,
         commandRegistry: this.commandRegistry,
         hookDispatcher: this.pipeline.getHookDispatcher(),
+        pluginLoader: new PluginLoader({ extensionDir: this.pathResolver.extensionDir }),
       });
     });
 

@@ -8,6 +8,8 @@
  */
 
 import fs from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import path from 'node:path';
 import { Value } from '@sinclair/typebox/value';
 import { createScopedLogger } from '../core/logger';
 import { ConfigValidationError } from '../core/errors';
@@ -36,10 +38,7 @@ export class RoleManager {
     this.rolesDir = rolesDir;
     this.roles.clear();
 
-    if (!fs.existsSync(rolesDir)) {
-      logger.warn(`Roles directory does not exist: ${rolesDir}`);
-      return;
-    }
+    mkdirSync(rolesDir, { recursive: true });
 
     let entries: fs.Dirent[];
     try {
@@ -54,7 +53,7 @@ export class RoleManager {
         continue;
       }
 
-      const filePath = `${rolesDir}/${entry.name}`;
+      const filePath = path.join(rolesDir, entry.name);
       try {
         const role = this.parseRoleFile(filePath);
         if (role) {

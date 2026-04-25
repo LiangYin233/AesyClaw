@@ -7,8 +7,11 @@ export const APP_VERSION = '0.1.0';
 
 /** Default directory names (relative to root) */
 export const DIR_NAMES = {
+  runtimeRoot: '.aesyclaw',
   data: 'data',
   roles: 'roles',
+  media: 'media',
+  workspace: 'workspace',
   skills: 'skills',
   systemSkills: 'skills/system',
   extension: 'extension',

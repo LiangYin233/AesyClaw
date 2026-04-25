@@ -11,6 +11,8 @@
  */
 
 import fs from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { Value } from '@sinclair/typebox/value';
 import type { DeepPartial, ConfigChangeListener, Unsubscribe } from '../types';
 import { createScopedLogger } from '../logger';
@@ -280,6 +282,7 @@ export class ConfigManager {
   private async persistConfig(): Promise<void> {
     if (!this.configPath) return;
     const json = JSON.stringify(this.config, null, 2);
+    mkdirSync(dirname(this.configPath), { recursive: true });
     fs.writeFileSync(this.configPath, json, 'utf-8');
   }
 
