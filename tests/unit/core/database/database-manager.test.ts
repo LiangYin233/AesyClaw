@@ -5,7 +5,7 @@
  *
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import { SessionRepository } from '../../../../src/core/database/repositories/session-repository';
 import { MessageRepository } from '../../../../src/core/database/repositories/message-repository';
@@ -64,25 +64,19 @@ function createTestDb() {
 }
 
 describe('Database Layer', () => {
-  let db: DatabaseSync;
-
-  beforeAll(() => {
-    db = createTestDb();
-  });
-
-  afterAll(() => {
-    if (db) {
-      db.close();
-    }
-  });
-
   // ─── SessionRepository ──────────────────────────────────────────
 
   describe('SessionRepository', () => {
+    let db: DatabaseSync;
     let repo: SessionRepository;
 
-    beforeAll(() => {
+    beforeEach(() => {
+      db = createTestDb();
       repo = new SessionRepository(db);
+    });
+
+    afterEach(() => {
+      db.close();
     });
 
     it('should findOrCreate a new session', async () => {
@@ -121,10 +115,12 @@ describe('Database Layer', () => {
   // ─── MessageRepository ──────────────────────────────────────────
 
   describe('MessageRepository', () => {
+    let db: DatabaseSync;
     let msgRepo: MessageRepository;
     let sessionId: string;
 
-    beforeAll(async () => {
+    beforeEach(async () => {
+      db = createTestDb();
       msgRepo = new MessageRepository(db);
       const session = await new SessionRepository(db).findOrCreate({
         channel: 'msgtest',
@@ -132,6 +128,10 @@ describe('Database Layer', () => {
         chatId: 'room1',
       });
       sessionId = session.id;
+    });
+
+    afterEach(() => {
+      db.close();
     });
 
     it('should save and load messages', async () => {
@@ -142,10 +142,11 @@ describe('Database Layer', () => {
       await msgRepo.save(sessionId, asstMsg);
 
       const history = await msgRepo.loadHistory(sessionId);
-      expect(history.length).toBe(2);
+      expect(history).toHaveLength(2);
       expect(history[0].role).toBe('user');
       expect(history[0].content).toBe('Hello');
       expect(history[1].role).toBe('assistant');
+      expect(history[1].content).toBe('Hi there');
     });
 
     it('should clear history', async () => {
@@ -162,19 +163,54 @@ describe('Database Layer', () => {
       await msgRepo.replaceWithSummary(sessionId, 'Summary of conversation');
 
       const history = await msgRepo.loadHistory(sessionId);
-      expect(history.length).toBe(1);
-      expect(history[0].content).toBe('Summary of conversation');
-      expect(history[0].role).toBe('assistant');
+      expect(history).toHaveLength(1);
+      expect(history[0]).toMatchObject({
+        role: 'assistant',
+        content: 'Summary of conversation',
+      });
+    });
+
+    it('should roll back summary replacement when insert fails', async () => {
+      const failingSession = await new SessionRepository(db).findOrCreate({
+        channel: 'msgtest',
+        type: 'group',
+        chatId: 'rollback-room',
+      });
+
+      await msgRepo.save(failingSession.id, { role: 'user', content: 'Original question' });
+      await msgRepo.save(failingSession.id, { role: 'assistant', content: 'Original answer' });
+
+      db.exec(`
+        CREATE TRIGGER fail_message_summary_insert
+        BEFORE INSERT ON messages
+        WHEN NEW.session_id = '${failingSession.id}' AND NEW.content = 'BROKEN_SUMMARY'
+        BEGIN
+          SELECT RAISE(FAIL, 'summary insert failed');
+        END;
+      `);
+
+      await expect(msgRepo.replaceWithSummary(failingSession.id, 'BROKEN_SUMMARY')).rejects.toThrow(
+        'summary insert failed',
+      );
+
+      const history = await msgRepo.loadHistory(failingSession.id);
+      expect(history).toHaveLength(2);
+      expect(history.map(({ role, content }) => ({ role, content }))).toEqual([
+        { role: 'user', content: 'Original question' },
+        { role: 'assistant', content: 'Original answer' },
+      ]);
     });
   });
 
   // ─── RoleBindingRepository ──────────────────────────────────────
 
   describe('RoleBindingRepository', () => {
+    let db: DatabaseSync;
     let roleRepo: RoleBindingRepository;
     let sessionId: string;
 
-    beforeAll(async () => {
+    beforeEach(async () => {
+      db = createTestDb();
       roleRepo = new RoleBindingRepository(db);
       const session = await new SessionRepository(db).findOrCreate({
         channel: 'roletest',
@@ -182,6 +218,10 @@ describe('Database Layer', () => {
         chatId: 'userrole',
       });
       sessionId = session.id;
+    });
+
+    afterEach(() => {
+      db.close();
     });
 
     it('should return null when no role is set', async () => {
@@ -205,10 +245,16 @@ describe('Database Layer', () => {
   // ─── CronJobRepository ──────────────────────────────────────────
 
   describe('CronJobRepository', () => {
+    let db: DatabaseSync;
     let jobRepo: CronJobRepository;
 
-    beforeAll(() => {
+    beforeEach(() => {
+      db = createTestDb();
       jobRepo = new CronJobRepository(db);
+    });
+
+    afterEach(() => {
+      db.close();
     });
 
     it('should create a cron job', async () => {
@@ -230,8 +276,25 @@ describe('Database Layer', () => {
     });
 
     it('should list all jobs', async () => {
+      const firstId = await jobRepo.create({
+        scheduleType: 'daily',
+        scheduleValue: '09:00',
+        prompt: 'Morning check',
+        sessionKey: { channel: 'cron', type: 'private', chatId: 'list-user-1' },
+        nextRun: new Date('2026-01-01T09:00:00Z'),
+      });
+      const secondId = await jobRepo.create({
+        scheduleType: 'interval',
+        scheduleValue: '30',
+        prompt: 'Status check',
+        sessionKey: { channel: 'cron', type: 'private', chatId: 'list-user-2' },
+        nextRun: new Date('2026-01-01T09:30:00Z'),
+      });
+
       const jobs = await jobRepo.findAll();
-      expect(jobs.length).toBeGreaterThanOrEqual(1);
+
+      expect(jobs).toHaveLength(2);
+      expect(jobs.map((job) => job.id)).toEqual([firstId, secondId]);
     });
 
     it('should delete a job', async () => {
@@ -272,11 +335,13 @@ describe('Database Layer', () => {
   // ─── CronRunRepository ──────────────────────────────────────────
 
   describe('CronRunRepository', () => {
+    let db: DatabaseSync;
     let runRepo: CronRunRepository;
     let jobRepo: CronJobRepository;
     let jobId: string;
 
-    beforeAll(async () => {
+    beforeEach(async () => {
+      db = createTestDb();
       runRepo = new CronRunRepository(db);
       jobRepo = new CronJobRepository(db);
 
@@ -290,13 +355,17 @@ describe('Database Layer', () => {
       });
     });
 
+    afterEach(() => {
+      db.close();
+    });
+
     it('should create a run record', async () => {
       const runId = await runRepo.create({ jobId });
       expect(runId).toBeDefined();
 
-      // Verify it appears in running list
       const running = await runRepo.findRunning();
-      expect(running.some((r) => r.id === runId)).toBe(true);
+      expect(running).toHaveLength(1);
+      expect(running[0]).toMatchObject({ id: runId, jobId, status: 'running' });
     });
 
     it('should mark a run as completed', async () => {
@@ -304,12 +373,32 @@ describe('Database Layer', () => {
       await runRepo.markCompleted(runId, 'Task completed successfully');
 
       const running = await runRepo.findRunning();
-      expect(running.every((r) => r.id !== runId)).toBe(true);
+      expect(running).toHaveLength(0);
+
+      const completed = db.prepare('SELECT status, result, ended_at FROM cron_runs WHERE id = ?').get(runId) as {
+        status: string;
+        result: string | null;
+        ended_at: string | null;
+      };
+
+      expect(completed.status).toBe('completed');
+      expect(completed.result).toBe('Task completed successfully');
+      expect(completed.ended_at).not.toBeNull();
     });
 
     it('should mark a run as failed', async () => {
       const runId = await runRepo.create({ jobId });
       await runRepo.markFailed(runId, 'Something went wrong');
+
+      const failed = db.prepare('SELECT status, error, ended_at FROM cron_runs WHERE id = ?').get(runId) as {
+        status: string;
+        error: string | null;
+        ended_at: string | null;
+      };
+
+      expect(failed.status).toBe('failed');
+      expect(failed.error).toBe('Something went wrong');
+      expect(failed.ended_at).not.toBeNull();
     });
 
     it('should mark runs as abandoned', async () => {
@@ -319,7 +408,43 @@ describe('Database Layer', () => {
       await runRepo.markAbandoned([runId1, runId2]);
 
       const running = await runRepo.findRunning();
-      expect(running.every((r) => r.id !== runId1 && r.id !== runId2)).toBe(true);
+      expect(running).toHaveLength(0);
+
+      const abandonedRuns = db
+        .prepare('SELECT id, status, ended_at FROM cron_runs WHERE id IN (?, ?) ORDER BY id ASC')
+        .all(runId1, runId2) as Array<{ id: string; status: string; ended_at: string | null }>;
+
+      expect(abandonedRuns).toHaveLength(2);
+      expect(abandonedRuns.map((run) => run.id).sort()).toEqual([runId1, runId2].sort());
+      expect(abandonedRuns.every((run) => run.status === 'abandoned' && run.ended_at !== null)).toBe(true);
+    });
+
+    it('should roll back abandoned updates when one run update fails', async () => {
+      const runId1 = await runRepo.create({ jobId });
+      const runId2 = await runRepo.create({ jobId });
+
+      db.exec(`
+        CREATE TRIGGER fail_cron_run_abandon_update
+        BEFORE UPDATE ON cron_runs
+        WHEN NEW.id = '${runId2}' AND NEW.status = 'abandoned'
+        BEGIN
+          SELECT RAISE(FAIL, 'abandon update failed');
+        END;
+      `);
+
+      await expect(runRepo.markAbandoned([runId1, runId2])).rejects.toThrow('abandon update failed');
+
+      const run1 = db.prepare('SELECT status, ended_at FROM cron_runs WHERE id = ?').get(runId1) as {
+        status: string;
+        ended_at: string | null;
+      };
+      const run2 = db.prepare('SELECT status, ended_at FROM cron_runs WHERE id = ?').get(runId2) as {
+        status: string;
+        ended_at: string | null;
+      };
+
+      expect(run1).toEqual({ status: 'running', ended_at: null });
+      expect(run2).toEqual({ status: 'running', ended_at: null });
     });
   });
 });
