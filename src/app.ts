@@ -143,7 +143,8 @@ export class Application {
         toolRegistry: this.toolRegistry,
         commandRegistry: this.commandRegistry,
         hookDispatcher: this.pipeline.getHookDispatcher(),
-        pluginLoader: new PluginLoader({ extensionDir: this.pathResolver.extensionDir }),
+        channelManager: this.channelManager,
+        pluginLoader: new PluginLoader({ extensionsDir: this.pathResolver.extensionsDir }),
       });
     });
 

@@ -7,6 +7,7 @@ data/
 *.db-journal
 .env
 *.log
+# Local AI workflow artifacts should never be committed.
 .trellis/
 .opencode/
 AGENTS.md

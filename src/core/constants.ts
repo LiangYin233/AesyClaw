@@ -14,7 +14,7 @@ export const DIR_NAMES = {
   workspace: 'workspace',
   skills: 'skills',
   systemSkills: 'skills/system',
-  extension: 'extension',
+  extensions: 'extensions',
 } as const;
 
 /** Default file names */

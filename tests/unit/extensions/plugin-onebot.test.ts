@@ -1,0 +1,698 @@
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { OutboundMessage, SessionKey } from '../../../src/core/types';
+import {
+  createOneBotChannel,
+  extractOneBotText,
+  mapOneBotEventToInbound,
+  sendOneBotMessage,
+} from '../../../extensions/plugin_onebot/index';
+
+describe('plugin_onebot', () => {
+  let tempDir: string | null = null;
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  afterEach(async () => {
+    if (tempDir) {
+      await rm(tempDir, { recursive: true, force: true });
+      tempDir = null;
+    }
+  });
+
+  it('maps private and group OneBot message events into inbound messages', () => {
+    const privateInbound = mapOneBotEventToInbound(
+      {
+        post_type: 'message',
+        message_type: 'private',
+        user_id: 12345,
+        message: [
+          { type: 'text', data: { text: 'hello' } },
+          { type: 'image', data: { url: 'https://example.com/image.png' } },
+        ],
+        sender: { nickname: 'alice' },
+      },
+      'onebot',
+    );
+
+    expect(privateInbound).toEqual(
+      expect.objectContaining({
+        sessionKey: { channel: 'onebot', type: 'private', chatId: '12345' },
+        content: 'hello',
+        attachments: [{ type: 'image', url: 'https://example.com/image.png' }],
+        sender: { id: '12345', name: 'alice' },
+      }),
+    );
+
+    const groupInbound = mapOneBotEventToInbound(
+      {
+        post_type: 'message',
+        message_type: 'group',
+        group_id: 67890,
+        user_id: '23456',
+        message: [
+          { type: 'at', data: { qq: 11111 } },
+          { type: 'text', data: { text: 'hi group' } },
+          { type: 'file', data: { file_path: 'C:/NapCatTemp/report.pdf' } },
+        ],
+        sender: { card: 'member-card', nickname: 'bob', role: 'admin' },
+      },
+      'onebot',
+    );
+
+    expect(groupInbound).toEqual(
+      expect.objectContaining({
+        sessionKey: { channel: 'onebot', type: 'group', chatId: '67890' },
+        content: 'hi group',
+        attachments: [{ type: 'file', path: 'C:/NapCatTemp/report.pdf' }],
+        sender: { id: '23456', name: 'member-card', role: 'admin' },
+      }),
+    );
+  });
+
+  it('ignores non-message events and unsupported message types', () => {
+    expect(mapOneBotEventToInbound({ post_type: 'meta_event' })).toBeNull();
+    expect(
+      mapOneBotEventToInbound({ post_type: 'message', message_type: 'guild', user_id: 1 }),
+    ).toBeNull();
+  });
+
+  it('extracts text from strings, segment arrays, and raw fallbacks', () => {
+    expect(extractOneBotText('hello')).toBe('hello');
+    expect(
+      extractOneBotText([
+        { type: 'text', data: { text: 'hello' } },
+        { type: 'image', data: { file: 'image.png' } },
+        { type: 'text', data: { text: ' world' } },
+      ]),
+    ).toBe('hello world');
+    expect(extractOneBotText([{ type: 'image', data: { file: 'image.png' } }], '[CQ:image]')).toBe(
+      '[CQ:image]',
+    );
+  });
+
+  it('keeps reconnect timing internal and exposes only remote websocket config', () => {
+    const channel = createOneBotChannel();
+
+    expect(channel.defaultConfig).toEqual({
+      enabled: false,
+      serverUrl: 'ws://127.0.0.1:3001/',
+      accessToken: '',
+    });
+    expect(channel.defaultConfig).not.toHaveProperty('reconnectIntervalMs');
+    expect(channel.defaultConfig).not.toHaveProperty('requestTimeoutMs');
+    expect(channel.defaultConfig).not.toHaveProperty('listenHost');
+    expect(channel.defaultConfig).not.toHaveProperty('listenPort');
+    expect(channel.defaultConfig).not.toHaveProperty('eventPath');
+  });
+
+  it('sends private and group messages through OneBot websocket actions', async () => {
+    const sendAction = vi.fn(async () => ({ status: 'ok', retcode: 0 }));
+
+    await sendOneBotMessage(privateSession('12345'), outbound('hello'), { sendAction });
+    await sendOneBotMessage(groupSession('67890'), outbound('hi'), { sendAction });
+
+    expect(sendAction.mock.calls).toEqual([
+      ['send_private_msg', { user_id: 12345, message: 'hello' }],
+      ['send_group_msg', { group_id: 67890, message: 'hi' }],
+    ]);
+  });
+
+  it('uploads attachments through upload_file_stream before sending the message', async () => {
+    const sendAction = vi.fn(async (action: string, params: Record<string, unknown>) => {
+      if (action === 'upload_file_stream' && params.is_complete === true) {
+        return {
+          status: 'ok',
+          retcode: 0,
+          data: {
+            type: 'response',
+            file_path: 'C:/NapCatTemp/image.png',
+          },
+        };
+      }
+
+      return {
+        status: 'ok',
+        retcode: 0,
+        data: {
+          type: 'stream',
+        },
+      };
+    });
+
+    await sendOneBotMessage(
+      groupSession('67890'),
+      {
+        content: 'hello',
+        attachments: [
+          {
+            type: 'image',
+            base64: Buffer.from('image-bytes').toString('base64'),
+            mimeType: 'image/png',
+          },
+        ],
+      },
+      { sendAction },
+    );
+
+    expect(sendAction).toHaveBeenNthCalledWith(
+      1,
+      'upload_file_stream',
+      expect.objectContaining({
+        chunk_index: 0,
+        total_chunks: 1,
+        filename: expect.stringMatching(/^image-.*\.png$/),
+      }),
+    );
+    expect(sendAction).toHaveBeenNthCalledWith(
+      2,
+      'upload_file_stream',
+      expect.objectContaining({
+        is_complete: true,
+      }),
+    );
+    expect(sendAction).toHaveBeenNthCalledWith(3, 'send_group_msg', {
+      group_id: 67890,
+      message: [
+        { type: 'text', data: { text: 'hello' } },
+        {
+          type: 'image',
+          data: {
+            file: 'C:/NapCatTemp/image.png',
+            file_path: 'C:/NapCatTemp/image.png',
+            name: expect.stringMatching(/^image-.*\.png$/),
+          },
+        },
+      ],
+    });
+  });
+
+  it('rejects logical OneBot send failures', async () => {
+    await expect(
+      sendOneBotMessage(privateSession('12345'), outbound('hello'), {
+        sendAction: async () => ({ status: 'failed', retcode: 1400, wording: 'bad request' }),
+      }),
+    ).rejects.toThrow(/retcode 1400/);
+  });
+
+  it('connects to a remote websocket server and replies over the same connection', async () => {
+    const socket = new FakeWebSocket();
+    let connectedUrl = '';
+    const channel = createOneBotChannel({
+      createSocket: (url) => {
+        connectedUrl = url;
+        return socket;
+      },
+    });
+    const receiveWithSend = vi.fn(async (message, send) => {
+      expect(message).toEqual(
+        expect.objectContaining({
+          sessionKey: { channel: 'onebot', type: 'private', chatId: '12345' },
+          content: 'ping',
+          sender: { id: '12345', name: 'alice' },
+        }),
+      );
+      await send({ content: 'pong' });
+    });
+
+    const initPromise = channel.init({
+      name: 'onebot',
+      config: {
+        serverUrl: 'ws://napcat.remote:3001/',
+        accessToken: 'secret-token',
+      },
+      receiveWithSend,
+      logger: makeLogger(),
+    });
+    socket.dispatchOpen();
+    await initPromise;
+
+    expect(connectedUrl).toBe('ws://napcat.remote:3001/?access_token=secret-token');
+
+    socket.dispatchMessage(
+      JSON.stringify({
+        post_type: 'message',
+        message_type: 'private',
+        user_id: 12345,
+        message: 'ping',
+        sender: { nickname: 'alice' },
+      }),
+    );
+
+    await waitForCondition(() => receiveWithSend.mock.calls.length === 1);
+
+    expect(receiveWithSend).toHaveBeenCalledOnce();
+    const sentAction = JSON.parse(socket.sent[0] ?? '{}') as {
+      action?: string;
+      params?: Record<string, unknown>;
+      echo?: string;
+    };
+    expect(sentAction.action).toBe('send_private_msg');
+    expect(sentAction.params).toEqual({ user_id: 12345, message: 'pong' });
+
+    socket.dispatchMessage(
+      JSON.stringify({
+        status: 'ok',
+        retcode: 0,
+        echo: sentAction.echo,
+      }),
+    );
+
+    await flushMicrotasks();
+    await expect(channel.destroy?.()).resolves.toBeUndefined();
+  });
+
+  it('downloads inbound attachment bytes to local media storage and appends file paths to content', async () => {
+    tempDir = await mkdtemp(path.join(tmpdir(), 'aesyclaw-onebot-download-'));
+    vi.spyOn(process, 'cwd').mockReturnValue(tempDir);
+
+    const socket = new FakeWebSocket();
+    const receiveWithSend = vi.fn(async () => undefined);
+    const channel = createOneBotChannel({ createSocket: () => socket });
+
+    const initPromise = channel.init({
+      name: 'onebot',
+      config: {
+        serverUrl: 'ws://napcat.remote:3001/',
+      },
+      receiveWithSend,
+      logger: makeLogger(),
+    });
+    socket.dispatchOpen();
+    await initPromise;
+
+    socket.dispatchMessage(
+      JSON.stringify({
+        post_type: 'message',
+        message_type: 'private',
+        user_id: 12345,
+        message: [
+          { type: 'text', data: { text: 'see file' } },
+          { type: 'image', data: { file: 'img-token', url: 'https://example.com/remote.png' } },
+        ],
+        sender: { nickname: 'alice' },
+      }),
+    );
+
+    await flushMicrotasks();
+
+    const downloadAction = JSON.parse(socket.sent[0] ?? '{}') as {
+      action?: string;
+      echo?: string;
+      params?: Record<string, unknown>;
+    };
+    expect(downloadAction.action).toBe('download_file_image_stream');
+    expect(downloadAction.params).toEqual({ file: 'img-token', chunk_size: 65536 });
+
+    socket.dispatchMessage(
+      JSON.stringify({
+        status: 'ok',
+        retcode: 0,
+        echo: downloadAction.echo,
+        stream: 'stream-action',
+        data: {
+          type: 'stream',
+          data_type: 'file_info',
+          file_name: 'downloaded.png',
+          file_size: 11,
+          chunk_size: 65536,
+        },
+      }),
+    );
+    socket.dispatchMessage(
+      JSON.stringify({
+        status: 'ok',
+        retcode: 0,
+        echo: downloadAction.echo,
+        stream: 'stream-action',
+        data: {
+          type: 'stream',
+          data_type: 'file_chunk',
+          index: 0,
+          data: Buffer.from('image-bytes').toString('base64'),
+          size: 11,
+        },
+      }),
+    );
+    socket.dispatchMessage(
+      JSON.stringify({
+        status: 'ok',
+        retcode: 0,
+        echo: downloadAction.echo,
+        stream: 'stream-action',
+        data: {
+          type: 'response',
+          data_type: 'file_complete',
+          total_chunks: 1,
+          total_bytes: 11,
+        },
+      }),
+    );
+
+    await waitForCondition(() => receiveWithSend.mock.calls.length === 1);
+
+    expect(receiveWithSend).toHaveBeenCalledOnce();
+    const inbound = receiveWithSend.mock.calls[0]?.[0] as {
+      content: string;
+      attachments?: Array<{ path?: string; url?: string }>;
+    };
+    const localPath = inbound.attachments?.[0]?.path;
+
+    expect(localPath).toBeTruthy();
+    expect(localPath).toContain(path.join('.aesyclaw', 'media', 'onebot', 'inbound'));
+    expect(inbound.attachments).toEqual([
+      expect.objectContaining({
+        type: 'image',
+        path: localPath,
+        url: 'https://example.com/remote.png',
+      }),
+    ]);
+    expect(inbound.content).toContain('see file');
+    expect(inbound.content).toContain('[Attachments]');
+    expect(inbound.content).toContain(String(localPath));
+    await expect(readFile(String(localPath), 'utf-8')).resolves.toBe('image-bytes');
+
+    await expect(channel.destroy?.()).resolves.toBeUndefined();
+  });
+
+  it('prefers file_id when requesting generic inbound file downloads', async () => {
+    const socket = new FakeWebSocket();
+    const receiveWithSend = vi.fn(async () => undefined);
+    const channel = createOneBotChannel({ createSocket: () => socket });
+
+    const initPromise = channel.init({
+      name: 'onebot',
+      config: {
+        serverUrl: 'ws://napcat.remote:3001/',
+      },
+      receiveWithSend,
+      logger: makeLogger(),
+    });
+    socket.dispatchOpen();
+    await initPromise;
+
+    socket.dispatchMessage(
+      JSON.stringify({
+        post_type: 'message',
+        message_type: 'group',
+        group_id: 67890,
+        user_id: 12345,
+        message: [{ type: 'file', data: { file_id: 'remote-file-id', file: 'fallback-file' } }],
+      }),
+    );
+
+    await flushMicrotasks();
+
+    const downloadAction = JSON.parse(socket.sent[0] ?? '{}') as {
+      action?: string;
+      params?: Record<string, unknown>;
+    };
+    expect(downloadAction.action).toBe('download_file_stream');
+    expect(downloadAction.params).toEqual({ file_id: 'remote-file-id', chunk_size: 65536 });
+
+    await expect(channel.destroy?.()).resolves.toBeUndefined();
+  });
+
+  it('annotates inbound download failures when the stream never completes', async () => {
+    const socket = new FakeWebSocket();
+    const receiveWithSend = vi.fn(async () => undefined);
+    const channel = createOneBotChannel({ createSocket: () => socket });
+
+    const initPromise = channel.init({
+      name: 'onebot',
+      config: {
+        serverUrl: 'ws://napcat.remote:3001/',
+      },
+      receiveWithSend,
+      logger: makeLogger(),
+    });
+    socket.dispatchOpen();
+    await initPromise;
+
+    socket.dispatchMessage(
+      JSON.stringify({
+        post_type: 'message',
+        message_type: 'private',
+        user_id: 12345,
+        message: [
+          { type: 'image', data: { file: 'img-token', url: 'https://example.com/remote.png' } },
+        ],
+      }),
+    );
+
+    await flushMicrotasks();
+
+    const downloadAction = JSON.parse(socket.sent[0] ?? '{}') as {
+      echo?: string;
+    };
+
+    socket.dispatchMessage(
+      JSON.stringify({
+        status: 'ok',
+        retcode: 0,
+        echo: downloadAction.echo,
+        stream: 'stream-action',
+        data: {
+          type: 'stream',
+          data_type: 'file_chunk',
+          index: 0,
+          data: Buffer.from('image-bytes').toString('base64'),
+          size: 11,
+        },
+      }),
+    );
+    socket.dispatchMessage(
+      JSON.stringify({
+        status: 'ok',
+        retcode: 0,
+        echo: downloadAction.echo,
+        stream: 'stream-action',
+        data: {
+          type: 'response',
+        },
+      }),
+    );
+
+    await waitForCondition(() => receiveWithSend.mock.calls.length === 1);
+
+    const inbound = receiveWithSend.mock.calls[0]?.[0] as {
+      content: string;
+      attachments?: Array<{ path?: string; url?: string }>;
+    };
+    expect(inbound.attachments).toEqual([
+      expect.objectContaining({
+        type: 'image',
+        url: 'https://example.com/remote.png',
+      }),
+    ]);
+    expect(inbound.attachments?.[0]?.path).toBeUndefined();
+    expect(inbound.content).toContain('[Attachment download errors]');
+    expect(inbound.content).toContain('did not return a completion response');
+
+    await expect(channel.destroy?.()).resolves.toBeUndefined();
+  });
+
+  it('sends outbound channel messages through the remote websocket connection', async () => {
+    const socket = new FakeWebSocket();
+    const channel = createOneBotChannel({ createSocket: () => socket });
+
+    const initPromise = channel.init({
+      name: 'onebot',
+      config: {
+        serverUrl: 'ws://napcat.remote:3001/',
+      },
+      receiveWithSend: vi.fn(),
+      logger: makeLogger(),
+    });
+    socket.dispatchOpen();
+    await initPromise;
+
+    const sendPromise = channel.send(groupSession('67890'), outbound('hello group'));
+    await flushMicrotasks();
+
+    const sentAction = JSON.parse(socket.sent[0] ?? '{}') as {
+      action?: string;
+      params?: Record<string, unknown>;
+      echo?: string;
+    };
+    expect(sentAction.action).toBe('send_group_msg');
+    expect(sentAction.params).toEqual({ group_id: 67890, message: 'hello group' });
+
+    socket.dispatchMessage(
+      JSON.stringify({
+        status: 'ok',
+        retcode: 0,
+        echo: sentAction.echo,
+      }),
+    );
+
+    await expect(sendPromise).resolves.toBeUndefined();
+    await expect(channel.destroy?.()).resolves.toBeUndefined();
+  });
+
+  it('rejects pending sends on disconnect and reconnects with a new remote websocket', async () => {
+    vi.useFakeTimers();
+
+    const firstSocket = new FakeWebSocket();
+    const secondSocket = new FakeWebSocket();
+    const sockets = [firstSocket, secondSocket];
+    const createSocket = vi.fn(() => {
+      const next = sockets.shift();
+      if (!next) {
+        throw new Error('No websocket prepared');
+      }
+      return next;
+    });
+    const channel = createOneBotChannel({
+      createSocket,
+    });
+
+    const initPromise = channel.init({
+      name: 'onebot',
+      config: {
+        serverUrl: 'ws://napcat.remote:3001/',
+      },
+      receiveWithSend: vi.fn(),
+      logger: makeLogger(),
+    });
+    firstSocket.dispatchOpen();
+    await initPromise;
+
+    const firstSendPromise = channel.send(groupSession('67890'), outbound('hello group'));
+    await flushMicrotasks();
+    expect(firstSocket.sent).toHaveLength(1);
+
+    firstSocket.dispatchClose({ code: 1006, reason: 'network lost' });
+    await expect(firstSendPromise).rejects.toThrow(/disconnected/);
+
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(createSocket).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(createSocket).toHaveBeenCalledTimes(2);
+    secondSocket.dispatchOpen();
+    await flushMicrotasks();
+
+    const secondSendPromise = channel.send(groupSession('67890'), outbound('hello again'));
+    await flushMicrotasks();
+
+    const sentAction = JSON.parse(secondSocket.sent[0] ?? '{}') as {
+      echo?: string;
+    };
+    secondSocket.dispatchMessage(
+      JSON.stringify({
+        status: 'ok',
+        retcode: 0,
+        echo: sentAction.echo,
+      }),
+    );
+
+    await expect(secondSendPromise).resolves.toBeUndefined();
+    await expect(channel.destroy?.()).resolves.toBeUndefined();
+  });
+
+  it('fails fast when the remote websocket closes before opening', async () => {
+    const socket = new FakeWebSocket();
+    const channel = createOneBotChannel({ createSocket: () => socket });
+
+    const initPromise = channel.init({
+      name: 'onebot',
+      config: {
+        serverUrl: 'ws://napcat.remote:3001/',
+      },
+      receiveWithSend: vi.fn(),
+      logger: makeLogger(),
+    });
+
+    socket.dispatchClose({ code: 1006, reason: 'refused' });
+
+    await expect(initPromise).rejects.toThrow(/closed before opening/);
+  });
+});
+
+class FakeWebSocket {
+  readyState = 0;
+  sent: string[] = [];
+  private readonly listeners = new Map<string, Set<(event: unknown) => void>>();
+
+  send(data: string): void {
+    this.sent.push(data);
+  }
+
+  close(): void {
+    this.readyState = 3;
+    this.dispatch('close', { code: 1000, reason: 'closed' });
+  }
+
+  addEventListener(type: string, listener: (event: unknown) => void): void {
+    const listeners = this.listeners.get(type) ?? new Set<(event: unknown) => void>();
+    listeners.add(listener);
+    this.listeners.set(type, listeners);
+  }
+
+  removeEventListener(type: string, listener: (event: unknown) => void): void {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  dispatchOpen(): void {
+    this.readyState = 1;
+    this.dispatch('open', {});
+  }
+
+  dispatchMessage(data: string): void {
+    this.dispatch('message', { data });
+  }
+
+  dispatchClose(event: { code?: number; reason?: string } = {}): void {
+    this.readyState = 3;
+    this.dispatch('close', { code: event.code ?? 1000, reason: event.reason ?? 'closed' });
+  }
+
+  private dispatch(type: string, event: unknown): void {
+    for (const listener of this.listeners.get(type) ?? []) {
+      listener(event);
+    }
+  }
+}
+
+function privateSession(chatId: string): SessionKey {
+  return { channel: 'onebot', type: 'private', chatId };
+}
+
+function groupSession(chatId: string): SessionKey {
+  return { channel: 'onebot', type: 'group', chatId };
+}
+
+function outbound(content: string): OutboundMessage {
+  return { content };
+}
+
+function makeLogger() {
+  return {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  };
+}
+
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+async function waitForCondition(predicate: () => boolean, attempts = 20): Promise<void> {
+  for (let index = 0; index < attempts; index += 1) {
+    if (predicate()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  throw new Error('Condition not met in time');
+}

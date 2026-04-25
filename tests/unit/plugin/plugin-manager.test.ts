@@ -4,6 +4,7 @@ import { PluginManager } from '../../../src/plugin/plugin-manager';
 import type { PluginModule } from '../../../src/plugin/plugin-types';
 import type { PluginConfigEntry } from '../../../src/core/config/schema';
 import type { DeepPartial } from '../../../src/core/types';
+import type { ChannelPlugin } from '../../../src/channel/channel-types';
 import { ToolRegistry } from '../../../src/tool/tool-registry';
 import { CommandRegistry } from '../../../src/command/command-registry';
 import { HookDispatcher } from '../../../src/pipeline/hook-dispatcher';
@@ -47,8 +48,29 @@ class FakePluginLoader {
   }
 }
 
+class FakeChannelManager {
+  registered = new Map<string, ChannelPlugin>();
+  unregistered: string[] = [];
+
+  register(channel: ChannelPlugin): void {
+    if (this.registered.has(channel.name)) {
+      throw new Error(`Channel "${channel.name}" is already registered`);
+    }
+    this.registered.set(channel.name, channel);
+  }
+
+  async unregister(channelName: string): Promise<void> {
+    this.unregistered.push(channelName);
+    this.registered.delete(channelName);
+  }
+
+  has(channelName: string): boolean {
+    return this.registered.has(channelName);
+  }
+}
+
 function makeModule(overrides: Partial<PluginModule> = {}): PluginModule {
-  const directory = overrides.directory ?? '/extension/plugin_alpha';
+  const directory = overrides.directory ?? '/extensions/plugin_alpha';
   const directoryName = overrides.directoryName ?? 'plugin_alpha';
   return {
     directory,
@@ -87,15 +109,17 @@ function makeManager(module: PluginModule, config = new FakeConfigManager()) {
   const toolRegistry = new ToolRegistry();
   const commandRegistry = new CommandRegistry();
   const hookDispatcher = new HookDispatcher();
+  const channelManager = new FakeChannelManager();
   const pluginLoader = new FakePluginLoader(new Map([[module.directory, module]]));
   const manager = new PluginManager({
     configManager: config,
     toolRegistry,
     commandRegistry,
     hookDispatcher,
+    channelManager,
     pluginLoader,
   });
-  return { manager, config, toolRegistry, commandRegistry, hookDispatcher };
+  return { manager, config, toolRegistry, commandRegistry, hookDispatcher, channelManager };
 }
 
 describe('PluginManager', () => {
@@ -166,6 +190,57 @@ describe('PluginManager', () => {
     ).resolves.toEqual({ action: 'continue' });
   });
 
+  it('registers plugin channels and unregisters them during unload', async () => {
+    const module = makeModule({
+      definition: {
+        ...makeModule().definition,
+        init: async (ctx) => {
+          ctx.registerChannel({
+            name: 'alpha_channel',
+            version: '1.0.0',
+            init: async () => undefined,
+          });
+        },
+      },
+    });
+    const { manager, channelManager } = makeManager(module);
+
+    await manager.load(module.directory);
+    expect(channelManager.registered.has('alpha_channel')).toBe(true);
+
+    await manager.unload('alpha');
+
+    expect(channelManager.registered.has('alpha_channel')).toBe(false);
+    expect(channelManager.unregistered).toEqual(['alpha_channel']);
+  });
+
+  it('rejects duplicate plugin channel names without unregistering the existing channel', async () => {
+    const module = makeModule({
+      definition: {
+        ...makeModule().definition,
+        init: async (ctx) => {
+          ctx.registerChannel({
+            name: 'existing_channel',
+            version: '1.0.0',
+            init: async () => undefined,
+          });
+        },
+      },
+    });
+    const { manager, channelManager } = makeManager(module);
+    const existingChannel = {
+      name: 'existing_channel',
+      version: '1.0.0',
+      init: async () => undefined,
+    } satisfies ChannelPlugin;
+    channelManager.register(existingChannel);
+
+    await expect(manager.load(module.directory)).rejects.toThrow(/already registered/);
+
+    expect(channelManager.registered.get('existing_channel')).toBe(existingChannel);
+    expect(channelManager.unregistered).toEqual([]);
+  });
+
   it('updates config for enable and disable', async () => {
     const module = makeModule();
     const { manager, config } = makeManager(module);
@@ -206,7 +281,7 @@ describe('PluginManager', () => {
       },
     });
     const goodModule = makeModule({
-      directory: '/extension/plugin_good',
+      directory: '/extensions/plugin_good',
       directoryName: 'plugin_good',
       definition: {
         ...makeModule().definition,
@@ -228,6 +303,7 @@ describe('PluginManager', () => {
       toolRegistry,
       commandRegistry,
       hookDispatcher,
+      channelManager: new FakeChannelManager(),
       pluginLoader,
     });
 

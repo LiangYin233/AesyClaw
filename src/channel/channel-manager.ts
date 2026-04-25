@@ -30,6 +30,9 @@ export class ChannelManager {
 
     this.configManager = dependencies.configManager;
     this.pipeline = dependencies.pipeline;
+    for (const channel of this.definitions.values()) {
+      this.registerDefaults(channel);
+    }
     for (const channel of dependencies.channels ?? []) {
       this.register(channel);
     }
@@ -39,11 +42,25 @@ export class ChannelManager {
   }
 
   register(channel: ChannelPlugin): void {
-    this.definitions.set(channel.name, channel);
-    if (channel.defaultConfig && this.configManager?.registerDefaults) {
-      this.configManager.registerDefaults(`channels.${channel.name}`, channel.defaultConfig);
+    const existing = this.definitions.get(channel.name);
+    if (existing && existing !== channel) {
+      throw new Error(`Channel "${channel.name}" is already registered`);
     }
+
+    this.definitions.set(channel.name, channel);
+    this.registerDefaults(channel);
     logger.debug('Channel registered', { channel: channel.name });
+  }
+
+  has(channelName: string): boolean {
+    return this.definitions.has(channelName);
+  }
+
+  async unregister(channelName: string): Promise<void> {
+    await this.stop(channelName);
+    this.definitions.delete(channelName);
+    this.failedChannels.delete(channelName);
+    logger.debug('Channel unregistered', { channel: channelName });
   }
 
   async startAll(): Promise<void> {
@@ -189,6 +206,12 @@ export class ChannelManager {
       },
       logger: createScopedLogger(`channel:${channelName}`),
     };
+  }
+
+  private registerDefaults(channel: ChannelPlugin): void {
+    if (channel.defaultConfig && this.configManager?.registerDefaults) {
+      this.configManager.registerDefaults(`channels.${channel.name}`, channel.defaultConfig);
+    }
   }
 
   private getMergedConfig(definition: ChannelPlugin): Record<string, unknown> {

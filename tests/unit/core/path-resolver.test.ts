@@ -16,5 +16,8 @@ describe('PathResolver', () => {
     expect(resolver.rolesDir).toBe(path.join(root, '.aesyclaw', 'roles'));
     expect(resolver.mediaDir).toBe(path.join(root, '.aesyclaw', 'media'));
     expect(resolver.workspaceDir).toBe(path.join(root, '.aesyclaw', 'workspace'));
+    expect(resolver.skillsDir).toBe(path.join(root, 'skills'));
+    expect(resolver.systemSkillsDir).toBe(path.join(root, 'skills', 'system'));
+    expect(resolver.extensionsDir).toBe(path.join(root, 'extensions'));
   });
 });

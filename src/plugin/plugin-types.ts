@@ -1,7 +1,7 @@
 /**
  * Plugin interface definitions.
  *
- * Plugins are external modules under `extension/plugin_*` that receive a
+ * Plugins are external modules under `extensions/plugin_*` that receive a
  * scoped context and can register tools, commands, and pipeline hooks.
  */
 
@@ -11,6 +11,7 @@ import type { AppConfig, PluginConfigEntry } from '../core/config/schema';
 import type { AesyClawTool } from '../tool/tool-registry';
 import type { ToolRegistry } from '../tool/tool-registry';
 import type { CommandRegistry } from '../command/command-registry';
+import type { ChannelPlugin } from '../channel/channel-types';
 import type { HookDispatcher } from '../pipeline/hook-dispatcher';
 import type { PluginHooks } from '../pipeline/middleware/types';
 
@@ -21,6 +22,7 @@ export interface PluginContext {
   registerTool(tool: AesyClawTool): void;
   unregisterTool(name: string): void;
   registerCommand(command: CommandDefinition): void;
+  registerChannel(channel: ChannelPlugin): void;
   logger: Logger;
 }
 
@@ -64,7 +66,7 @@ export interface PluginModule {
 }
 
 export interface PluginLoaderOptions {
-  extensionDir?: string;
+  extensionsDir?: string;
 }
 
 export interface PluginManagerDependencies {
@@ -72,7 +74,14 @@ export interface PluginManagerDependencies {
   toolRegistry: ToolRegistry;
   commandRegistry: CommandRegistry;
   hookDispatcher: HookDispatcher;
+  channelManager?: PluginChannelRegistryLike;
   pluginLoader?: PluginLoaderLike;
+}
+
+export interface PluginChannelRegistryLike {
+  register(channel: ChannelPlugin): void;
+  unregister(channelName: string): Promise<void>;
+  has?(channelName: string): boolean;
 }
 
 export interface PluginConfigManagerLike {

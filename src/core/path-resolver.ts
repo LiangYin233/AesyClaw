@@ -19,7 +19,7 @@ export class PathResolver {
   private _workspaceDir: string = '';
   private _skillsDir: string = '';
   private _systemSkillsDir: string = '';
-  private _extensionDir: string = '';
+  private _extensionsDir: string = '';
 
   /**
    * Resolve all paths from the given root directory.
@@ -36,7 +36,7 @@ export class PathResolver {
     this._workspaceDir = path.join(this._runtimeRoot, DIR_NAMES.workspace);
     this._skillsDir = path.join(root, DIR_NAMES.skills);
     this._systemSkillsDir = path.join(root, DIR_NAMES.systemSkills);
-    this._extensionDir = path.join(root, DIR_NAMES.extension);
+    this._extensionsDir = path.join(root, DIR_NAMES.extensions);
   }
 
   get runtimeRoot(): string {
@@ -75,7 +75,7 @@ export class PathResolver {
     return this._systemSkillsDir;
   }
 
-  get extensionDir(): string {
-    return this._extensionDir;
+  get extensionsDir(): string {
+    return this._extensionsDir;
   }
 }

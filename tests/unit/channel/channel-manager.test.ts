@@ -119,4 +119,15 @@ describe('ChannelManager', () => {
     expect(channel.destroy).toHaveBeenCalledOnce();
     expect(manager.getLoaded('test')).toBeUndefined();
   });
+
+  it('rejects duplicate channel registrations to avoid unsafe ownership cleanup', () => {
+    const manager = new ChannelManager();
+    const first = makeChannel({ name: 'duplicate' });
+    const second = makeChannel({ name: 'duplicate' });
+
+    manager.register(first);
+
+    expect(() => manager.register(second)).toThrow(/already registered/);
+    expect(manager.has('duplicate')).toBe(true);
+  });
 });

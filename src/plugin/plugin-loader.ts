@@ -10,19 +10,19 @@ import { isPluginDefinition, isRecord } from './plugin-types';
 const logger = createScopedLogger('plugin-loader');
 
 export class PluginLoader {
-  private readonly extensionDir: string;
+  private readonly extensionsDir: string;
 
   constructor(options: PluginLoaderOptions = {}) {
-    this.extensionDir = options.extensionDir ?? path.resolve(process.cwd(), 'extension');
+    this.extensionsDir = options.extensionsDir ?? path.resolve(process.cwd(), 'extensions');
   }
 
   async discover(): Promise<string[]> {
     let entries: string[];
     try {
-      entries = await readdir(this.extensionDir);
+      entries = await readdir(this.extensionsDir);
     } catch (err) {
-      logger.warn('Plugin extension directory is not readable', {
-        extensionDir: this.extensionDir,
+      logger.warn('Plugin extensions directory is not readable', {
+        extensionsDir: this.extensionsDir,
         error: errorMessage(err),
       });
       return [];
@@ -34,7 +34,7 @@ export class PluginLoader {
         continue;
       }
 
-      const fullPath = path.join(this.extensionDir, entry);
+      const fullPath = path.join(this.extensionsDir, entry);
       try {
         const entryStat = await stat(fullPath);
         if (entryStat.isDirectory()) {

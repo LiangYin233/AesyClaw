@@ -23,9 +23,11 @@ export class PluginManager {
   private readonly toolRegistry;
   private readonly commandRegistry;
   private readonly hookDispatcher;
+  private readonly channelManager;
   private readonly pluginLoader;
   private readonly loadedPlugins = new Map<string, LoadedPlugin>();
   private readonly failedPlugins = new Map<string, string>();
+  private readonly pluginChannels = new Map<string, Set<string>>();
   private reloading = false;
 
   constructor(dependencies: PluginManagerDependencies) {
@@ -33,6 +35,7 @@ export class PluginManager {
     this.toolRegistry = dependencies.toolRegistry;
     this.commandRegistry = dependencies.commandRegistry;
     this.hookDispatcher = dependencies.hookDispatcher;
+    this.channelManager = dependencies.channelManager;
     this.pluginLoader = dependencies.pluginLoader ?? new PluginLoader();
   }
 
@@ -93,7 +96,7 @@ export class PluginManager {
         this.hookDispatcher.register(pluginName, module.definition.hooks);
       }
     } catch (err) {
-      this.cleanupOwner(pluginName);
+      await this.cleanupOwner(pluginName);
       this.failedPlugins.set(pluginName, errorMessage(err));
       throw err;
     }
@@ -125,7 +128,7 @@ export class PluginManager {
         await loaded.definition.destroy();
       }
     } finally {
-      this.cleanupOwner(actualName);
+      await this.cleanupOwner(actualName);
       this.loadedPlugins.delete(actualName);
       logger.info('Plugin unloaded', { pluginName: actualName });
     }
@@ -260,15 +263,37 @@ export class PluginManager {
       registerCommand: (command: CommandDefinition): void => {
         this.commandRegistry.register({ ...command, scope: owner });
       },
+      registerChannel: (channel): void => {
+        if (!this.channelManager) {
+          throw new Error('ChannelManager is not available to plugins');
+        }
+        this.channelManager.register(channel);
+        const channels = this.pluginChannels.get(pluginName) ?? new Set<string>();
+        channels.add(channel.name);
+        this.pluginChannels.set(pluginName, channels);
+      },
       logger: createScopedLogger(owner),
     };
   }
 
-  private cleanupOwner(pluginName: string): void {
+  private async cleanupOwner(pluginName: string): Promise<void> {
     const owner = pluginOwner(pluginName);
     this.hookDispatcher.unregister(pluginName);
     this.toolRegistry.unregisterByOwner(owner);
     this.commandRegistry.unregisterByScope(owner);
+    const channels = this.pluginChannels.get(pluginName) ?? new Set<string>();
+    this.pluginChannels.delete(pluginName);
+    for (const channelName of channels) {
+      try {
+        await this.channelManager?.unregister(channelName);
+      } catch (err) {
+        logger.error('Failed to unregister plugin channel', {
+          pluginName,
+          channelName,
+          error: errorMessage(err),
+        });
+      }
+    }
   }
 
   private findLoadedPlugin(nameOrAlias: string): LoadedPlugin | undefined {
