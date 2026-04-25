@@ -112,7 +112,10 @@ export class ConfigManager {
     }
 
     const oldConfig = structuredClone(this.config);
-    this.config = this.deepMerge(this.config, partial as Partial<AppConfig> & DeepPartial<AppConfig>);
+    this.config = this.deepMerge(
+      this.config,
+      partial as Partial<AppConfig> & DeepPartial<AppConfig>,
+    );
 
     // Set guard before writing to disk
     this.selfUpdating = true;
@@ -153,7 +156,10 @@ export class ConfigManager {
     for (const [key, defaults] of this.registeredDefaults) {
       // Support dot-notation keys like 'channels.testchannel'
       const nestedPartial = this.buildNestedObject(key, defaults);
-      this.config = this.deepMerge(this.config, nestedPartial as Partial<AppConfig> & DeepPartial<AppConfig>);
+      this.config = this.deepMerge(
+        this.config,
+        nestedPartial as Partial<AppConfig> & DeepPartial<AppConfig>,
+      );
     }
 
     this.selfUpdating = true;
@@ -322,7 +328,10 @@ export class ConfigManager {
    * Deep merge source into target. Source values override target values.
    * Arrays are replaced, not concatenated.
    */
-  private deepMerge<T extends Record<string, unknown>>(target: T, source: Partial<T> & DeepPartial<T>): T {
+  private deepMerge<T extends Record<string, unknown>>(
+    target: T,
+    source: Partial<T> & DeepPartial<T>,
+  ): T {
     const result = structuredClone(target) as Record<string, unknown>;
 
     for (const key of Object.keys(source)) {
@@ -373,5 +382,9 @@ export class ConfigManager {
 }
 
 function isPromiseLike(value: unknown): value is Promise<void> {
-  return value !== null && typeof value === 'object' && typeof (value as { catch?: unknown }).catch === 'function';
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    typeof (value as { catch?: unknown }).catch === 'function'
+  );
 }

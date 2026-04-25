@@ -15,10 +15,7 @@ export interface PluginCommandDeps {
   pluginManager: Pick<PluginManager, 'listPlugins' | 'enable' | 'disable'>;
 }
 
-async function resolvePluginName(
-  deps: PluginCommandDeps,
-  rawName: string,
-): Promise<string | null> {
+async function resolvePluginName(deps: PluginCommandDeps, rawName: string): Promise<string | null> {
   const plugins = await deps.pluginManager.listPlugins();
   const plugin = plugins.find(
     (candidate) => candidate.name === rawName || candidate.directoryName === rawName,

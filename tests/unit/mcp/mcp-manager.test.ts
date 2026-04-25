@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { McpManager, mcpToolName, type McpClient, type McpClientFactory } from '../../../src/mcp/mcp-manager';
+import {
+  McpManager,
+  mcpToolName,
+  type McpClient,
+  type McpClientFactory,
+} from '../../../src/mcp/mcp-manager';
 import type { McpServerConfig } from '../../../src/core/config/schema';
 import { ToolRegistry } from '../../../src/tool/tool-registry';
 
@@ -53,7 +58,11 @@ describe('McpManager', () => {
     const client = makeClient({
       listTools: vi.fn(async () => [
         { name: 'missing', description: 'Missing schema' },
-        { name: 'invalid', description: 'Invalid schema', inputSchema: { properties: { text: { type: 'string' } } } },
+        {
+          name: 'invalid',
+          description: 'Invalid schema',
+          inputSchema: { properties: { text: { type: 'string' } } },
+        },
       ]),
     });
     const toolRegistry = new ToolRegistry();
@@ -70,7 +79,9 @@ describe('McpManager', () => {
     const invalidSchema = toolRegistry.get(mcpToolName('local', 'invalid'))?.parameters;
     expect(missingSchema).toEqual(expect.objectContaining({ type: 'object' }));
     expect(invalidSchema).toEqual(expect.objectContaining({ type: 'object' }));
-    expect(invalidSchema).not.toEqual(expect.objectContaining({ properties: { text: { type: 'string' } } }));
+    expect(invalidSchema).not.toEqual(
+      expect.objectContaining({ properties: { text: { type: 'string' } } }),
+    );
   });
 
   it('executes MCP tools through the owning client and returns structured failures', async () => {
@@ -85,7 +96,15 @@ describe('McpManager', () => {
     await manager.connectAll();
 
     const tool = toolRegistry.get(mcpToolName('local', 'echo'));
-    const result = await tool?.execute({ text: 'hi' }, { sessionKey: { channel: 'test', type: 'private', chatId: '1' }, agentEngine: null, cronManager: null, pipeline: null });
+    const result = await tool?.execute(
+      { text: 'hi' },
+      {
+        sessionKey: { channel: 'test', type: 'private', chatId: '1' },
+        agentEngine: null,
+        cronManager: null,
+        pipeline: null,
+      },
+    );
 
     expect(client.callTool).toHaveBeenCalledWith('echo', { text: 'hi' });
     expect(result).toEqual({ content: JSON.stringify({ ok: true, params: { text: 'hi' } }) });
@@ -112,10 +131,12 @@ describe('McpManager', () => {
     await manager.connectAll();
     expect(manager.getConnected('good')).toBeDefined();
     expect(manager.getConnected('bad')).toBeUndefined();
-    expect(manager.listServers()).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'bad', state: 'failed' }),
-      expect.objectContaining({ name: 'good', state: 'connected' }),
-    ]));
+    expect(manager.listServers()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'bad', state: 'failed' }),
+        expect.objectContaining({ name: 'good', state: 'connected' }),
+      ]),
+    );
 
     await manager.disconnect('good');
     expect(toolRegistry.has(mcpToolName('good', 'echo'))).toBe(false);

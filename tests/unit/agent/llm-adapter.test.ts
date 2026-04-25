@@ -8,12 +8,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { completeSimple } from '@mariozechner/pi-ai';
 import { LlmAdapter } from '../../../src/agent/llm-adapter';
-import type { LlmAdapterDependencies } from '../../../src/agent/llm-adapter';
+import type * as PiAiModule from '@mariozechner/pi-ai';
 import type { ConfigManager } from '../../../src/core/config/config-manager';
 import type { AppConfig } from '../../../src/core/config/schema';
 
 vi.mock('@mariozechner/pi-ai', async () => {
-  const actual = await vi.importActual<typeof import('@mariozechner/pi-ai')>('@mariozechner/pi-ai');
+  const actual = await vi.importActual<typeof PiAiModule>('@mariozechner/pi-ai');
   return {
     ...actual,
     completeSimple: vi.fn(),
@@ -47,7 +47,10 @@ function makeConfigWithProviders(providers: Record<string, unknown> = {}): AppCo
     channels: {},
     agent: { maxSteps: 10 },
     memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
-    multimodal: { speechToText: { provider: 'openai', model: 'whisper-1' }, imageUnderstanding: { provider: 'openai', model: 'gpt-4o' } },
+    multimodal: {
+      speechToText: { provider: 'openai', model: 'whisper-1' },
+      imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+    },
     mcp: [],
     plugins: [],
   };
@@ -146,9 +149,7 @@ describe('LlmAdapter', () => {
     });
 
     it('should throw for unknown provider', () => {
-      expect(() => adapter.resolveModel('unknown/model')).toThrow(
-        /Provider "unknown" not found/,
-      );
+      expect(() => adapter.resolveModel('unknown/model')).toThrow(/Provider "unknown" not found/);
     });
 
     it('should throw if not initialized', () => {
@@ -207,7 +208,9 @@ describe('LlmAdapter', () => {
 
       mockedCompleteSimple.mockResolvedValue({
         role: 'assistant',
-        content: [{ type: 'text', text: 'User greeted the assistant and started the conversation.' }],
+        content: [
+          { type: 'text', text: 'User greeted the assistant and started the conversation.' },
+        ],
         api: 'openai-responses',
         provider: 'openai',
         model: 'gpt-4o',

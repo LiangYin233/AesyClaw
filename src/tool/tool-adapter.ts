@@ -39,7 +39,11 @@ export class ToolAdapter {
       label: tool.name,
       description: tool.description,
       parameters: tool.parameters,
-      execute: async (_toolCallId: string, params: unknown, signal?: AbortSignal): Promise<AgentToolResult> => {
+      execute: async (
+        _toolCallId: string,
+        params: unknown,
+        signal?: AbortSignal,
+      ): Promise<AgentToolResult> => {
         const sessionKey = executionContext.sessionKey ?? {
           channel: '',
           type: '',
@@ -74,7 +78,7 @@ export class ToolAdapter {
           result = await tool.execute(params, executionContext as ToolExecutionContext);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
-          throw new Error(message);
+          throw new Error(message, { cause: err });
         }
 
         // 3. Dispatch afterToolCall hooks — may override the result

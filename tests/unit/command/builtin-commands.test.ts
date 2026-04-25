@@ -25,7 +25,10 @@ function makeContext(): CommandContext {
 
 function createRegistry() {
   const registry = new CommandRegistry();
-  const roles = [makeRole(), makeRole({ id: 'analyst', name: 'Analyst', description: 'Analysis role' })];
+  const roles = [
+    makeRole(),
+    makeRole({ id: 'analyst', name: 'Analyst', description: 'Analysis role' }),
+  ];
   const session = {
     activeRole: roles[0],
   };
@@ -41,12 +44,29 @@ function createRegistry() {
     },
     roleManager: {
       getEnabledRoles: vi.fn().mockReturnValue(roles),
-      getRole: vi.fn().mockImplementation((roleId: string) => roles.find((role) => role.id === roleId) ?? roles[0]),
+      getRole: vi
+        .fn()
+        .mockImplementation(
+          (roleId: string) => roles.find((role) => role.id === roleId) ?? roles[0],
+        ),
     },
     pluginManager: {
       listPlugins: vi.fn().mockResolvedValue([
-        { name: 'alpha', directoryName: 'plugin_alpha', enabled: true, state: 'loaded', directory: '/plugin_alpha', version: '1.0.0' },
-        { name: 'beta', directoryName: 'plugin_beta', enabled: false, state: 'disabled', directory: '/plugin_beta' },
+        {
+          name: 'alpha',
+          directoryName: 'plugin_alpha',
+          enabled: true,
+          state: 'loaded',
+          directory: '/plugin_alpha',
+          version: '1.0.0',
+        },
+        {
+          name: 'beta',
+          directoryName: 'plugin_beta',
+          enabled: false,
+          state: 'disabled',
+          directory: '/plugin_beta',
+        },
       ]),
       enable: vi.fn().mockResolvedValue(undefined),
       disable: vi.fn().mockResolvedValue(undefined),
@@ -91,7 +111,9 @@ describe('built-in commands', () => {
     const { registry, deps } = createRegistry();
     const context = makeContext();
 
-    await expect(registry.execute('/role switch missing', context)).resolves.toBe('未找到可用角色：missing');
+    await expect(registry.execute('/role switch missing', context)).resolves.toBe(
+      '未找到可用角色：missing',
+    );
     expect(deps.sessionManager.switchRole).not.toHaveBeenCalled();
   });
 
@@ -100,8 +122,12 @@ describe('built-in commands', () => {
     const context = makeContext();
 
     await expect(registry.execute('/plugin list', context)).resolves.toContain('alpha');
-    await expect(registry.execute('/plugin enable alpha', context)).resolves.toBe('插件已启用：alpha');
-    await expect(registry.execute('/plugin disable beta', context)).resolves.toBe('插件已禁用：beta');
+    await expect(registry.execute('/plugin enable alpha', context)).resolves.toBe(
+      '插件已启用：alpha',
+    );
+    await expect(registry.execute('/plugin disable beta', context)).resolves.toBe(
+      '插件已禁用：beta',
+    );
 
     expect(deps.pluginManager.listPlugins).toHaveBeenCalledTimes(3);
     expect(deps.pluginManager.enable).toHaveBeenCalledWith('alpha');
@@ -112,8 +138,12 @@ describe('built-in commands', () => {
     const { registry, deps } = createRegistry();
     const context = makeContext();
 
-    await expect(registry.execute('/plugin enable missing', context)).resolves.toBe('未找到插件：missing');
-    await expect(registry.execute('/plugin disable missing', context)).resolves.toBe('未找到插件：missing');
+    await expect(registry.execute('/plugin enable missing', context)).resolves.toBe(
+      '未找到插件：missing',
+    );
+    await expect(registry.execute('/plugin disable missing', context)).resolves.toBe(
+      '未找到插件：missing',
+    );
 
     expect(deps.pluginManager.enable).not.toHaveBeenCalled();
     expect(deps.pluginManager.disable).not.toHaveBeenCalled();

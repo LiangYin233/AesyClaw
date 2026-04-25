@@ -5,7 +5,8 @@
  *
  */
 
-import { Type, Static } from '@sinclair/typebox';
+import type { Static } from '@sinclair/typebox';
+import { Type } from '@sinclair/typebox';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
 import type { ToolOwner } from '../../core/types';
 import type { ConfigManager } from '../../core/config/config-manager';
@@ -31,7 +32,10 @@ export function createImageUnderstandingTool(deps: ImageUnderstandingDeps): Aesy
     description: '分析图片内容，可针对图片提出问题',
     parameters: ImageUnderstandingParamsSchema,
     owner: 'system' as ToolOwner,
-    execute: async (params: unknown, context: ToolExecutionContext): Promise<ToolExecutionResult> => {
+    execute: async (
+      params: unknown,
+      context: ToolExecutionContext,
+    ): Promise<ToolExecutionResult> => {
       const { source, question } = params as ImageUnderstandingParams;
 
       try {

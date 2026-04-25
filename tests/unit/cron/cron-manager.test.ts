@@ -3,13 +3,23 @@ import type { CronJobRecord, SessionKey } from '../../../src/core/types';
 import { CronManager, type CronJobRepositoryLike } from '../../../src/cron/cron-manager';
 import type { CronRunRepositoryLike } from '../../../src/cron/cron-executor';
 import { computeNextRun, CronScheduler } from '../../../src/cron/cron-scheduler';
-import { createCreateCronTool, createDeleteCronTool, createListCronTool } from '../../../src/tool/builtin/cron-tools';
+import {
+  createCreateCronTool,
+  createDeleteCronTool,
+  createListCronTool,
+} from '../../../src/tool/builtin/cron-tools';
 
 class FakeCronJobRepo implements CronJobRepositoryLike {
   jobs = new Map<string, CronJobRecord>();
   nextId = 1;
 
-  async create(params: { scheduleType: string; scheduleValue: string; prompt: string; sessionKey: SessionKey; nextRun: Date | null }): Promise<string> {
+  async create(params: {
+    scheduleType: string;
+    scheduleValue: string;
+    prompt: string;
+    sessionKey: SessionKey;
+    nextRun: Date | null;
+  }): Promise<string> {
     const id = `job-${this.nextId++}`;
     this.jobs.set(id, {
       id,
@@ -81,7 +91,9 @@ function makePipeline(response = 'done') {
 describe('Cron', () => {
   it('computes next run times for supported schedule types', () => {
     const from = new Date('2026-04-24T10:00:00Z');
-    expect(computeNextRun('once', '2026-04-24T11:00:00Z', from)?.toISOString()).toBe('2026-04-24T11:00:00.000Z');
+    expect(computeNextRun('once', '2026-04-24T11:00:00Z', from)?.toISOString()).toBe(
+      '2026-04-24T11:00:00.000Z',
+    );
     expect(computeNextRun('once', '2026-04-24T09:00:00Z', from)).toBeNull();
     expect(computeNextRun('interval', '30m', from)?.toISOString()).toBe('2026-04-24T10:30:00.000Z');
     expect(computeNextRun('daily', '09:30', new Date('2026-04-24T10:00:00'))).not.toBeNull();
@@ -91,15 +103,18 @@ describe('Cron', () => {
     const scheduler = new CronScheduler();
     const callback = vi.fn();
 
-    scheduler.schedule({
-      id: 'bad-next-run',
-      scheduleType: 'once',
-      scheduleValue: 'not-a-date',
-      prompt: 'bad',
-      sessionKey: '{}',
-      nextRun: 'not-a-date',
-      createdAt: new Date().toISOString(),
-    }, callback);
+    scheduler.schedule(
+      {
+        id: 'bad-next-run',
+        scheduleType: 'once',
+        scheduleValue: 'not-a-date',
+        prompt: 'bad',
+        sessionKey: '{}',
+        nextRun: 'not-a-date',
+        createdAt: new Date().toISOString(),
+      },
+      callback,
+    );
 
     expect(scheduler.count()).toBe(0);
     expect(callback).not.toHaveBeenCalled();
@@ -126,7 +141,10 @@ describe('Cron', () => {
     expect(result).toBe('cron response');
     expect(runs.completed).toEqual([{ runId: 'run-1', result: 'cron response' }]);
     expect(pipeline.receiveWithSend).toHaveBeenCalledWith(
-      expect.objectContaining({ content: 'check status', sessionKey: { channel: 'test', type: 'private', chatId: '1' } }),
+      expect.objectContaining({
+        content: 'check status',
+        sessionKey: { channel: 'test', type: 'private', chatId: '1' },
+      }),
       expect.any(Function),
     );
 
@@ -141,7 +159,11 @@ describe('Cron', () => {
     await manager.initialize({
       cronJobs: jobs,
       cronRuns: runs,
-      pipeline: { receiveWithSend: vi.fn(async () => { throw new Error('pipeline boom'); }) },
+      pipeline: {
+        receiveWithSend: vi.fn(async () => {
+          throw new Error('pipeline boom');
+        }),
+      },
     });
     const jobId = await manager.createJob({
       scheduleType: 'interval',
@@ -158,13 +180,37 @@ describe('Cron', () => {
   it('cron tools call CronManager', async () => {
     const cronManager = {
       createJob: vi.fn(async () => 'job-1'),
-      listJobs: vi.fn(async () => [{ id: 'job-1', scheduleType: 'interval', scheduleValue: '30m', prompt: 'ping', sessionKey: '{}', nextRun: null, createdAt: '' }]),
+      listJobs: vi.fn(async () => [
+        {
+          id: 'job-1',
+          scheduleType: 'interval',
+          scheduleValue: '30m',
+          prompt: 'ping',
+          sessionKey: '{}',
+          nextRun: null,
+          createdAt: '',
+        },
+      ]),
       deleteJob: vi.fn(async () => true),
     };
-    const context = { sessionKey: { channel: 'test', type: 'private', chatId: '1' }, agentEngine: null, cronManager: null, pipeline: null };
+    const context = {
+      sessionKey: { channel: 'test', type: 'private', chatId: '1' },
+      agentEngine: null,
+      cronManager: null,
+      pipeline: null,
+    };
 
-    await expect(createCreateCronTool({ cronManager }).execute({ scheduleType: 'interval', scheduleValue: '30m', prompt: 'ping' }, context)).resolves.toEqual({ content: 'Cron job created: job-1' });
-    await expect(createListCronTool({ cronManager }).execute({}, context)).resolves.toEqual({ content: expect.stringContaining('job-1') });
-    await expect(createDeleteCronTool({ cronManager }).execute({ jobId: 'job-1' }, context)).resolves.toEqual({ content: 'Cron job deleted: job-1' });
+    await expect(
+      createCreateCronTool({ cronManager }).execute(
+        { scheduleType: 'interval', scheduleValue: '30m', prompt: 'ping' },
+        context,
+      ),
+    ).resolves.toEqual({ content: 'Cron job created: job-1' });
+    await expect(createListCronTool({ cronManager }).execute({}, context)).resolves.toEqual({
+      content: expect.stringContaining('job-1'),
+    });
+    await expect(
+      createDeleteCronTool({ cronManager }).execute({ jobId: 'job-1' }, context),
+    ).resolves.toEqual({ content: 'Cron job deleted: job-1' });
   });
 });

@@ -10,7 +10,10 @@ import { DatabaseSync } from 'node:sqlite';
 import { SessionRepository } from '../../../../src/core/database/repositories/session-repository';
 import { MessageRepository } from '../../../../src/core/database/repositories/message-repository';
 import { RoleBindingRepository } from '../../../../src/core/database/repositories/role-binding-repository';
-import { CronJobRepository, CronRunRepository } from '../../../../src/core/database/repositories/cron-repository';
+import {
+  CronJobRepository,
+  CronRunRepository,
+} from '../../../../src/core/database/repositories/cron-repository';
 import type { SessionKey, PersistableMessage } from '../../../../src/core/types';
 
 // Helper to create an in-memory test database with schema
@@ -375,7 +378,9 @@ describe('Database Layer', () => {
       const running = await runRepo.findRunning();
       expect(running).toHaveLength(0);
 
-      const completed = db.prepare('SELECT status, result, ended_at FROM cron_runs WHERE id = ?').get(runId) as {
+      const completed = db
+        .prepare('SELECT status, result, ended_at FROM cron_runs WHERE id = ?')
+        .get(runId) as {
         status: string;
         result: string | null;
         ended_at: string | null;
@@ -390,7 +395,9 @@ describe('Database Layer', () => {
       const runId = await runRepo.create({ jobId });
       await runRepo.markFailed(runId, 'Something went wrong');
 
-      const failed = db.prepare('SELECT status, error, ended_at FROM cron_runs WHERE id = ?').get(runId) as {
+      const failed = db
+        .prepare('SELECT status, error, ended_at FROM cron_runs WHERE id = ?')
+        .get(runId) as {
         status: string;
         error: string | null;
         ended_at: string | null;
@@ -416,7 +423,9 @@ describe('Database Layer', () => {
 
       expect(abandonedRuns).toHaveLength(2);
       expect(abandonedRuns.map((run) => run.id).sort()).toEqual([runId1, runId2].sort());
-      expect(abandonedRuns.every((run) => run.status === 'abandoned' && run.ended_at !== null)).toBe(true);
+      expect(
+        abandonedRuns.every((run) => run.status === 'abandoned' && run.ended_at !== null),
+      ).toBe(true);
     });
 
     it('should roll back abandoned updates when one run update fails', async () => {
@@ -432,13 +441,19 @@ describe('Database Layer', () => {
         END;
       `);
 
-      await expect(runRepo.markAbandoned([runId1, runId2])).rejects.toThrow('abandon update failed');
+      await expect(runRepo.markAbandoned([runId1, runId2])).rejects.toThrow(
+        'abandon update failed',
+      );
 
-      const run1 = db.prepare('SELECT status, ended_at FROM cron_runs WHERE id = ?').get(runId1) as {
+      const run1 = db
+        .prepare('SELECT status, ended_at FROM cron_runs WHERE id = ?')
+        .get(runId1) as {
         status: string;
         ended_at: string | null;
       };
-      const run2 = db.prepare('SELECT status, ended_at FROM cron_runs WHERE id = ?').get(runId2) as {
+      const run2 = db
+        .prepare('SELECT status, ended_at FROM cron_runs WHERE id = ?')
+        .get(runId2) as {
         status: string;
         ended_at: string | null;
       };

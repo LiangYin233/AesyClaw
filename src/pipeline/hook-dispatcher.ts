@@ -142,7 +142,9 @@ export class HookDispatcher {
    *
    * Hooks may block the call or provide a short-circuit result.
    */
-  async dispatchBeforeToolCall(context: BeforeToolCallHookContext): Promise<BeforeToolCallHookResult> {
+  async dispatchBeforeToolCall(
+    context: BeforeToolCallHookContext,
+  ): Promise<BeforeToolCallHookResult> {
     for (const entry of this.entries) {
       if (!entry.hooks.beforeToolCall) continue;
       try {

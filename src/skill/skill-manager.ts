@@ -64,9 +64,7 @@ export class SkillManager {
 
     // Specific list: system skills + matching user skills
     const skillSet = new Set(role.skills);
-    const userSkills = [...this.skills.values()].filter(
-      (s) => !s.isSystem && skillSet.has(s.name),
-    );
+    const userSkills = [...this.skills.values()].filter((s) => !s.isSystem && skillSet.has(s.name));
 
     return [...systemSkills, ...userSkills];
   }
@@ -87,9 +85,7 @@ export class SkillManager {
       return '';
     }
 
-    return skills
-      .map((skill) => `## Skill: ${skill.name}\n${skill.content}`)
-      .join('\n\n');
+    return skills.map((skill) => `## Skill: ${skill.name}\n${skill.content}`).join('\n\n');
   }
 
   // ─── Private helpers ───────────────────────────────────────────

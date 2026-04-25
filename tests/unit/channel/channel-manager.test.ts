@@ -47,16 +47,20 @@ describe('ChannelManager', () => {
     const channel = makeChannel({
       init: vi.fn(async (ctx) => {
         expect(ctx.config).toEqual({ enabled: true, token: 'configured' });
-        received = (message) => ctx.receiveWithSend(message, async (outbound) => {
-          sent.push(outbound);
-        });
+        received = (message) =>
+          ctx.receiveWithSend(message, async (outbound) => {
+            sent.push(outbound);
+          });
       }),
     });
     const manager = new ChannelManager();
     manager.initialize({ configManager: config, pipeline, channels: [channel] });
 
     await manager.startAll();
-    await received?.({ sessionKey: { channel: 'test', type: 'private', chatId: '1' }, content: 'hi' });
+    await received?.({
+      sessionKey: { channel: 'test', type: 'private', chatId: '1' },
+      content: 'hi',
+    });
 
     expect(channel.init).toHaveBeenCalledOnce();
     expect(pipeline.receiveWithSend).toHaveBeenCalledOnce();
@@ -76,23 +80,33 @@ describe('ChannelManager', () => {
       }),
     });
     const manager = new ChannelManager();
-    manager.initialize({ configManager: config, pipeline: makePipeline(), channels: [bad, disabled, good] });
+    manager.initialize({
+      configManager: config,
+      pipeline: makePipeline(),
+      channels: [bad, disabled, good],
+    });
 
     await expect(manager.startAll()).resolves.toBeUndefined();
 
     expect(manager.getLoaded('good')).toBeDefined();
     expect(manager.getLoaded('bad')).toBeUndefined();
-    expect(manager.listChannels()).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'bad', state: 'failed' }),
-      expect.objectContaining({ name: 'disabled', state: 'disabled' }),
-      expect.objectContaining({ name: 'good', state: 'loaded' }),
-    ]));
+    expect(manager.listChannels()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'bad', state: 'failed' }),
+        expect.objectContaining({ name: 'disabled', state: 'disabled' }),
+        expect.objectContaining({ name: 'good', state: 'loaded' }),
+      ]),
+    );
   });
 
   it('sends through the loaded channel and stops with cleanup', async () => {
     const channel = makeChannel();
     const manager = new ChannelManager();
-    manager.initialize({ configManager: new FakeConfigManager(), pipeline: makePipeline(), channels: [channel] });
+    manager.initialize({
+      configManager: new FakeConfigManager(),
+      pipeline: makePipeline(),
+      channels: [channel],
+    });
 
     await manager.start('test');
     await manager.send({ channel: 'test', type: 'private', chatId: '1' }, { content: 'hello' });

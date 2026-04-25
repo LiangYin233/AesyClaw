@@ -6,7 +6,8 @@
  * derived with `Static<typeof Schema>` — never hand-write both.
  */
 
-import { Type, Static } from '@sinclair/typebox';
+import type { Static } from '@sinclair/typebox';
+import { Type } from '@sinclair/typebox';
 
 // ─── Provider / Model ────────────────────────────────────────────
 
@@ -84,11 +85,7 @@ type MultimodalConfig = Static<typeof MultimodalConfigSchema>;
 
 const McpServerConfigSchema = Type.Object({
   name: Type.String(),
-  transport: Type.Union([
-    Type.Literal('stdio'),
-    Type.Literal('sse'),
-    Type.Literal('http'),
-  ]),
+  transport: Type.Union([Type.Literal('stdio'), Type.Literal('sse'), Type.Literal('http')]),
   command: Type.Optional(Type.String()),
   args: Type.Optional(Type.Array(Type.String())),
   env: Type.Optional(Type.Record(Type.String(), Type.String())),

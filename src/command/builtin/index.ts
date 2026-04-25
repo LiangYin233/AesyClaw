@@ -7,7 +7,6 @@
  *
  */
 
-import type { CommandContext } from '../../core/types';
 import type { CommandRegistry } from '../command-registry';
 import type { RoleCommandDeps } from './role-commands';
 import type { PluginCommandDeps } from './plugin-commands';
@@ -36,7 +35,10 @@ import {
 export interface BuiltinCommandDependencies {
   roleManager: Pick<RoleManager, 'getEnabledRoles' | 'getRole'>;
   pluginManager: Pick<PluginManager, 'listPlugins' | 'enable' | 'disable'>;
-  sessionManager: Pick<SessionManager, 'clearSession' | 'compactSession' | 'getOrCreateSession' | 'switchRole'>;
+  sessionManager: Pick<
+    SessionManager,
+    'clearSession' | 'compactSession' | 'getOrCreateSession' | 'switchRole'
+  >;
 }
 
 /**

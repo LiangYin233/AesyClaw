@@ -282,7 +282,8 @@ export class PluginManager {
   private getPluginConfig(module: PluginModule): PluginConfigLookup {
     const plugins = this.getConfigEntries();
     const entry = plugins.find(
-      (candidate) => candidate.name === module.definition.name || candidate.name === module.directoryName,
+      (candidate) =>
+        candidate.name === module.definition.name || candidate.name === module.directoryName,
     );
     return {
       entry,
@@ -328,7 +329,10 @@ export class PluginManager {
     }
   }
 
-  private createUnloadedPlugin(module: PluginModule, config: Record<string, unknown>): LoadedPlugin {
+  private createUnloadedPlugin(
+    module: PluginModule,
+    config: Record<string, unknown>,
+  ): LoadedPlugin {
     return {
       definition: module.definition,
       directory: module.directory,

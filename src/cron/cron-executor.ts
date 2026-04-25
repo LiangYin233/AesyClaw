@@ -14,7 +14,10 @@ export interface CronRunRepositoryLike {
 }
 
 export interface CronPipelineLike {
-  receiveWithSend(message: InboundMessage, send: (message: OutboundMessage) => Promise<void>): Promise<void>;
+  receiveWithSend(
+    message: InboundMessage,
+    send: (message: OutboundMessage) => Promise<void>,
+  ): Promise<void>;
 }
 
 export interface CronExecutorDependencies {

@@ -30,10 +30,7 @@ class ConfigValidationError extends AesyClawError {
 /** Plugin initialization error — should be caught and skipped */
 class PluginInitError extends AesyClawError {
   constructor(pluginName: string, cause: Error) {
-    super(
-      `Plugin "${pluginName}" failed to initialize: ${cause.message}`,
-      'PLUGIN_INIT_ERROR',
-    );
+    super(`Plugin "${pluginName}" failed to initialize: ${cause.message}`, 'PLUGIN_INIT_ERROR');
     this.name = 'PluginInitError';
   }
 }
@@ -41,10 +38,7 @@ class PluginInitError extends AesyClawError {
 /** Channel initialization error — should be caught and skipped */
 class ChannelInitError extends AesyClawError {
   constructor(channelName: string, cause: Error) {
-    super(
-      `Channel "${channelName}" failed to initialize: ${cause.message}`,
-      'CHANNEL_INIT_ERROR',
-    );
+    super(`Channel "${channelName}" failed to initialize: ${cause.message}`, 'CHANNEL_INIT_ERROR');
     this.name = 'ChannelInitError';
   }
 }
@@ -52,10 +46,7 @@ class ChannelInitError extends AesyClawError {
 /** MCP server connection error — should be caught and skipped */
 class McpConnectionError extends AesyClawError {
   constructor(serverName: string, cause: Error) {
-    super(
-      `MCP server "${serverName}" connection failed: ${cause.message}`,
-      'MCP_CONNECTION_ERROR',
-    );
+    super(`MCP server "${serverName}" connection failed: ${cause.message}`, 'MCP_CONNECTION_ERROR');
     this.name = 'McpConnectionError';
   }
 }

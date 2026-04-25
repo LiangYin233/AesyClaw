@@ -7,7 +7,7 @@
  *
  */
 
-import { Type, Static, TSchema } from '@sinclair/typebox';
+import type { TSchema } from '@sinclair/typebox';
 import type { ToolOwner, SessionKey, RoleConfig, OutboundMessage } from '../core/types';
 import { createScopedLogger } from '../core/logger';
 import type { HookDispatcher } from '../pipeline/hook-dispatcher';
@@ -161,9 +161,7 @@ export class ToolRegistry {
   ): AgentTool[] {
     const allTools = this.getAll();
     const filtered = filterToolsByRole(allTools, role);
-    return filtered.map((tool) =>
-      ToolAdapter.toAgentTool(tool, hookDispatcher, executionContext),
-    );
+    return filtered.map((tool) => ToolAdapter.toAgentTool(tool, hookDispatcher, executionContext));
   }
 }
 

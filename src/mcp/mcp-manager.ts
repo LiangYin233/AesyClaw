@@ -149,7 +149,10 @@ export class McpManager {
       };
       this.connectedServers.set(serverName, connected);
       this.failedServers.delete(serverName);
-      logger.info('MCP server connected', { server: serverName, toolCount: registeredToolNames.length });
+      logger.info('MCP server connected', {
+        server: serverName,
+        toolCount: registeredToolNames.length,
+      });
       return connected;
     } catch (err) {
       toolRegistry.unregisterByOwner(owner);
@@ -196,7 +199,13 @@ export class McpManager {
       statuses.push({
         name: config.name,
         enabled: config.enabled,
-        state: error ? 'failed' : connected ? 'connected' : config.enabled ? 'disconnected' : 'disabled',
+        state: error
+          ? 'failed'
+          : connected
+            ? 'connected'
+            : config.enabled
+              ? 'disconnected'
+              : 'disabled',
         transport: config.transport,
         toolCount: connected?.tools.length ?? 0,
         error,
@@ -331,8 +340,12 @@ function errorMessage(err: unknown): string {
 
 class EmptyMcpClient implements McpClient {
   async connect(): Promise<void> {}
-  async listTools(): Promise<McpToolDefinition[]> { return []; }
-  async callTool(): Promise<unknown> { return ''; }
+  async listTools(): Promise<McpToolDefinition[]> {
+    return [];
+  }
+  async callTool(): Promise<unknown> {
+    return '';
+  }
   async close(): Promise<void> {}
 }
 

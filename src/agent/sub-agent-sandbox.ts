@@ -9,6 +9,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PersistableMessage, RoleConfig, SessionKey } from '../core/types';
 import { DEFAULT_CONFIG } from '../core/config/defaults';
+import type { MessageRepository } from '../core/database/repositories/message-repository';
 import { MemoryManager } from './memory-manager';
 import type { SubAgentRoleParams, SubAgentTempParams } from './agent-types';
 import type { AgentEngine } from './agent-engine';
@@ -39,9 +40,9 @@ export class SubAgentSandbox {
    * tool permissions, but runs in an isolated context with its own
    * conversation history.
    *
- * @param params - Parameters specifying the role and prompt
- * @returns The sub-agent's response text
- */
+   * @param params - Parameters specifying the role and prompt
+   * @returns The sub-agent's response text
+   */
   async runWithRole(
     params: SubAgentRoleParams,
     executionContext?: Pick<ToolExecutionContext, 'sessionKey' | 'sendMessage'>,
@@ -56,9 +57,9 @@ export class SubAgentSandbox {
    * The sub-agent uses the provided system prompt instead of a role
    * configuration, allowing ad-hoc task delegation.
    *
- * @param params - Parameters specifying the prompt and options
- * @returns The sub-agent's response text
- */
+   * @param params - Parameters specifying the prompt and options
+   * @returns The sub-agent's response text
+   */
   async runWithPrompt(
     params: SubAgentTempParams,
     executionContext?: Pick<ToolExecutionContext, 'sessionKey' | 'sendMessage'>,
@@ -85,7 +86,7 @@ export class SubAgentSandbox {
     const sessionId = `sub-agent:${randomUUID()}`;
     const memory = new MemoryManager(
       sessionId,
-      new InMemoryMessageRepository() as unknown as import('../core/database/repositories/message-repository').MessageRepository,
+      new InMemoryMessageRepository() as unknown as MessageRepository,
       DEFAULT_CONFIG.memory,
     );
     const sessionKey = executionContext?.sessionKey ?? EMPTY_SESSION_KEY;

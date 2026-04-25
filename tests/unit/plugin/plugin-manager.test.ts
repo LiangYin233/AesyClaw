@@ -158,10 +158,12 @@ describe('PluginManager', () => {
     expect(destroy).toHaveBeenCalledOnce();
     expect(toolRegistry.has('alpha_tool')).toBe(false);
     expect(commandRegistry.getAll()).toHaveLength(0);
-    await expect(hookDispatcher.dispatchOnReceive({
-      sessionKey: { channel: 'test', type: 'private', chatId: '1' },
-      content: 'hi',
-    })).resolves.toEqual({ action: 'continue' });
+    await expect(
+      hookDispatcher.dispatchOnReceive({
+        sessionKey: { channel: 'test', type: 'private', chatId: '1' },
+        content: 'hi',
+      }),
+    ).resolves.toEqual({ action: 'continue' });
   });
 
   it('updates config for enable and disable', async () => {

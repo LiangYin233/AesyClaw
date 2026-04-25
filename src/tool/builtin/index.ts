@@ -7,7 +7,7 @@
  *
  */
 
-import type { ToolRegistry, ToolExecutionContext } from '../tool-registry';
+import type { ToolRegistry } from '../tool-registry';
 import type { CronToolsDeps } from './cron-tools';
 import type { CronManager } from '../../cron/cron-manager';
 import type { AgentEngine } from '../../agent/agent-engine';
@@ -41,10 +41,7 @@ export interface BuiltinToolDependencies {
  * @param registry - The ToolRegistry to register tools into
  * @param deps - Dependencies required by the tool implementations
  */
-export function registerBuiltinTools(
-  registry: ToolRegistry,
-  deps: BuiltinToolDependencies,
-): void {
+export function registerBuiltinTools(registry: ToolRegistry, deps: BuiltinToolDependencies): void {
   const cronDeps: CronToolsDeps = { cronManager: deps.cronManager };
   const sandbox = new SubAgentSandbox({
     agentEngine: deps.agentEngine,
@@ -57,12 +54,16 @@ export function registerBuiltinTools(
   registry.register(createDeleteCronTool(cronDeps));
   registry.register(createRunSubAgentTool({ sandbox }));
   registry.register(createRunTempSubAgentTool({ sandbox }));
-  registry.register(createSpeechToTextTool({
-    configManager: deps.configManager,
-    llmAdapter: deps.llmAdapter,
-  }));
-  registry.register(createImageUnderstandingTool({
-    configManager: deps.configManager,
-    llmAdapter: deps.llmAdapter,
-  }));
+  registry.register(
+    createSpeechToTextTool({
+      configManager: deps.configManager,
+      llmAdapter: deps.llmAdapter,
+    }),
+  );
+  registry.register(
+    createImageUnderstandingTool({
+      configManager: deps.configManager,
+      llmAdapter: deps.llmAdapter,
+    }),
+  );
 }

@@ -96,7 +96,9 @@ function makeMockRoleManager(): RoleManager {
     getEnabledRoles: vi.fn().mockReturnValue([role]),
     buildSystemPrompt: vi
       .fn()
-      .mockReturnValue('You are a test assistant.\n\n## Available Tools\n\n## Available Roles\n- **default**: Default — Test role'),
+      .mockReturnValue(
+        'You are a test assistant.\n\n## Available Tools\n\n## Available Roles\n- **default**: Default — Test role',
+      ),
   } as unknown as RoleManager;
 }
 
@@ -162,15 +164,25 @@ function makeMockLlmAdapter(): LlmAdapter {
         };
         stream.push({ type: 'start', partial });
         stream.push({ type: 'text_start', contentIndex: 0, partial: message });
-        stream.push({ type: 'text_delta', contentIndex: 0, delta: 'Real response from pi runtime', partial: message });
-        stream.push({ type: 'text_end', contentIndex: 0, content: 'Real response from pi runtime', partial: message });
+        stream.push({
+          type: 'text_delta',
+          contentIndex: 0,
+          delta: 'Real response from pi runtime',
+          partial: message,
+        });
+        stream.push({
+          type: 'text_end',
+          contentIndex: 0,
+          content: 'Real response from pi runtime',
+          partial: message,
+        });
         stream.push({ type: 'done', reason: 'stop', message });
         return stream;
       };
     }),
-    createGetApiKey: vi.fn().mockReturnValue((provider: string) =>
-      provider === 'openai' ? 'test-key' : undefined,
-    ),
+    createGetApiKey: vi
+      .fn()
+      .mockReturnValue((provider: string) => (provider === 'openai' ? 'test-key' : undefined)),
     summarize: vi.fn().mockResolvedValue('Summary'),
   } as unknown as LlmAdapter;
 }
@@ -303,10 +315,15 @@ describe('AgentEngine', () => {
       expect(result.content).toBe('Real response from pi runtime');
       expect(agent.state.tools).toHaveLength(1);
       expect(agent.state.tools[0]?.name).toBe('refreshed-tool');
-      expect(deps.toolRegistry.resolveForRole).toHaveBeenNthCalledWith(2, role, deps.hookDispatcher, {
-        sessionKey: makeInboundMessage().sessionKey,
-        sendMessage: undefined,
-      });
+      expect(deps.toolRegistry.resolveForRole).toHaveBeenNthCalledWith(
+        2,
+        role,
+        deps.hookDispatcher,
+        {
+          sessionKey: makeInboundMessage().sessionKey,
+          sendMessage: undefined,
+        },
+      );
     });
 
     it('should thread an outbound send callback into runtime tool context when provided', async () => {
@@ -388,7 +405,9 @@ describe('AgentEngine', () => {
             },
           ],
         },
-        prompt: vi.fn().mockImplementation(async function prompt(this: { state: { messages: unknown[] } }) {
+        prompt: vi.fn().mockImplementation(async function prompt(this: {
+          state: { messages: unknown[] };
+        }) {
           this.state.messages.push({
             role: 'user',
             content: 'Hello, assistant!',

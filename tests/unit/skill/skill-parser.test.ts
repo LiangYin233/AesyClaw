@@ -158,11 +158,14 @@ describe('parseSkillFile', () => {
 
   it('should parse a valid skill file', () => {
     const filePath = join(TEST_DIR, 'valid-skill.md');
-    writeFileSync(filePath, `---
+    writeFileSync(
+      filePath,
+      `---
 name: file-skill
 description: Skill from file
 ---
-File content.`);
+File content.`,
+    );
 
     const result = parseSkillFile(filePath, true);
     expect(result).not.toBeNull();
@@ -188,11 +191,14 @@ File content.`);
 
   it('should mark user skills as isSystem=false', () => {
     const filePath = join(TEST_DIR, 'user-skill.md');
-    writeFileSync(filePath, `---
+    writeFileSync(
+      filePath,
+      `---
 name: user-skill
 description: A user skill
 ---
-User content.`);
+User content.`,
+    );
 
     const result = parseSkillFile(filePath, false);
     expect(result).not.toBeNull();

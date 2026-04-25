@@ -5,7 +5,8 @@
  *
  */
 
-import { Type, Static } from '@sinclair/typebox';
+import type { Static } from '@sinclair/typebox';
+import { Type } from '@sinclair/typebox';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
 import type { SessionKey, ToolOwner } from '../../core/types';
 import type { CronManager, CreateCronJobParams } from '../../cron/cron-manager';
@@ -13,12 +14,13 @@ import type { CronManager, CreateCronJobParams } from '../../cron/cron-manager';
 // ─── Parameter schemas ─────────────────────────────────────────────
 
 const CreateCronParamsSchema = Type.Object({
-  scheduleType: Type.Union([
-    Type.Literal('once'),
-    Type.Literal('daily'),
-    Type.Literal('interval'),
-  ], { description: '调度类型' }),
-  scheduleValue: Type.String({ description: '调度值（如 "2025-01-01T00:00:00Z"、"08:00"、"30m"）' }),
+  scheduleType: Type.Union(
+    [Type.Literal('once'), Type.Literal('daily'), Type.Literal('interval')],
+    { description: '调度类型' },
+  ),
+  scheduleValue: Type.String({
+    description: '调度值（如 "2025-01-01T00:00:00Z"、"08:00"、"30m"）',
+  }),
   prompt: Type.String({ description: '定时任务的提示内容' }),
 });
 
@@ -29,7 +31,6 @@ const DeleteCronParamsSchema = Type.Object({
 });
 
 type CreateCronParams = Static<typeof CreateCronParamsSchema>;
-type ListCronParams = Static<typeof ListCronParamsSchema>;
 type DeleteCronParams = Static<typeof DeleteCronParamsSchema>;
 
 // ─── Dependencies ──────────────────────────────────────────────────
@@ -49,7 +50,10 @@ export function createCreateCronTool(deps: CronToolsDeps): AesyClawTool {
     description: '创建一个定时任务',
     parameters: CreateCronParamsSchema,
     owner: 'system' as ToolOwner,
-    execute: async (params: unknown, context: ToolExecutionContext): Promise<ToolExecutionResult> => {
+    execute: async (
+      params: unknown,
+      context: ToolExecutionContext,
+    ): Promise<ToolExecutionResult> => {
       try {
         const cronParams = params as CreateCronParams;
         const sessionKey = requireSessionKey(context.sessionKey);
@@ -76,7 +80,10 @@ export function createListCronTool(deps: CronToolsDeps): AesyClawTool {
     description: '列出所有定时任务',
     parameters: ListCronParamsSchema,
     owner: 'system' as ToolOwner,
-    execute: async (_params: unknown, _context: ToolExecutionContext): Promise<ToolExecutionResult> => {
+    execute: async (
+      _params: unknown,
+      _context: ToolExecutionContext,
+    ): Promise<ToolExecutionResult> => {
       try {
         const jobs = await deps.cronManager.listJobs();
         if (jobs.length === 0) {
@@ -103,7 +110,10 @@ export function createDeleteCronTool(deps: CronToolsDeps): AesyClawTool {
     description: '删除指定定时任务',
     parameters: DeleteCronParamsSchema,
     owner: 'system' as ToolOwner,
-    execute: async (params: unknown, _context: ToolExecutionContext): Promise<ToolExecutionResult> => {
+    execute: async (
+      params: unknown,
+      _context: ToolExecutionContext,
+    ): Promise<ToolExecutionResult> => {
       try {
         const { jobId } = params as DeleteCronParams;
         const deleted = await deps.cronManager.deleteJob(jobId);

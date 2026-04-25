@@ -32,7 +32,10 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   '.flac': 'audio/flac',
 };
 
-export async function loadMediaSource(source: string, kind: 'image' | 'audio'): Promise<LoadedMediaSource> {
+export async function loadMediaSource(
+  source: string,
+  kind: 'image' | 'audio',
+): Promise<LoadedMediaSource> {
   const loaded = /^https?:\/\//i.test(source)
     ? await loadRemoteMediaSource(source)
     : await loadLocalMediaSource(source);

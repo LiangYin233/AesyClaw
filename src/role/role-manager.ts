@@ -163,17 +163,13 @@ export class RoleManager {
 
     // 3. Append skill sections
     if (skills.length > 0) {
-      const skillLines = skills.map(
-        (skill) => `## Skill: ${skill.name}\n${skill.content}`,
-      );
+      const skillLines = skills.map((skill) => `## Skill: ${skill.name}\n${skill.content}`);
       prompt += `\n\n${skillLines.join('\n\n')}`;
     }
 
     // 4. Append available roles
     if (allRoles.length > 0) {
-      const roleLines = allRoles.map(
-        (r) => `- **${r.id}**: ${r.name} — ${r.description}`,
-      );
+      const roleLines = allRoles.map((r) => `- **${r.id}**: ${r.name} — ${r.description}`);
       prompt += `\n\n## Available Roles\n${roleLines.join('\n')}`;
     }
 
@@ -201,9 +197,7 @@ export class RoleManager {
    * Build the tool description section for the system prompt.
    */
   private buildToolSection(tools: AesyClawTool[]): string {
-    const toolLines = tools.map(
-      (tool) => `- **${tool.name}**: ${tool.description}`,
-    );
+    const toolLines = tools.map((tool) => `- **${tool.name}**: ${tool.description}`);
     return `## Available Tools\n${toolLines.join('\n')}`;
   }
 
@@ -244,7 +238,9 @@ export class RoleManager {
       if (toolPerm && typeof toolPerm.mode === 'string') {
         const validModes = ['allowlist', 'denylist'];
         if (!validModes.includes(toolPerm.mode)) {
-          logger.warn(`Role "${filePath}" has invalid toolPermission.mode: "${toolPerm.mode}" — must be 'allowlist' or 'denylist'`);
+          logger.warn(
+            `Role "${filePath}" has invalid toolPermission.mode: "${toolPerm.mode}" — must be 'allowlist' or 'denylist'`,
+          );
           return null;
         }
       }

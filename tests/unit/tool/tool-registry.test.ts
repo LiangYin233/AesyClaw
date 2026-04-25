@@ -7,10 +7,9 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ToolRegistry, filterToolsByRole } from '../../../src/tool/tool-registry';
-import type { AesyClawTool, ToolExecutionResult } from '../../../src/tool/tool-registry';
+import type { AesyClawTool } from '../../../src/tool/tool-registry';
 import type { RoleConfig } from '../../../src/core/types';
 import type { HookDispatcher } from '../../../src/pipeline/hook-dispatcher';
-import type { AgentToolResult } from '../../../src/agent/agent-types';
 import { Type } from '@sinclair/typebox';
 
 // ─── Helpers ──────────────────────────────────────────────────────

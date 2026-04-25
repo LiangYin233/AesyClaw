@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { RoleManager } from '../../../src/role/role-manager';
 import type { RoleConfig } from '../../../src/core/types';
-import type { AesyClawTool, ToolExecutionResult } from '../../../src/tool/tool-registry';
+import type { AesyClawTool } from '../../../src/tool/tool-registry';
 import type { TSchema } from '@sinclair/typebox';
 import type { Skill } from '../../../src/core/types';
 
@@ -277,12 +277,8 @@ describe('RoleManager', () => {
         id: 'test',
         systemPrompt: 'You are AesyClaw. Date: {{date}}',
       });
-      const tools: AesyClawTool[] = [
-        makeTool({ name: 'run-code', description: 'Execute code' }),
-      ];
-      const skills: Skill[] = [
-        makeSkill({ name: 'analysis', content: 'Analyze data.' }),
-      ];
+      const tools: AesyClawTool[] = [makeTool({ name: 'run-code', description: 'Execute code' })];
+      const skills: Skill[] = [makeSkill({ name: 'analysis', content: 'Analyze data.' })];
       const allRoles: RoleConfig[] = [
         makeRole({ id: 'default', name: 'Default', description: 'Default role' }),
       ];

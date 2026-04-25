@@ -36,8 +36,12 @@ describe('SubAgentSandbox', () => {
       },
     });
 
-    await expect(sandbox.runWithRole({ roleId: 'researcher', prompt: 'first' })).resolves.toBe('history:0');
-    await expect(sandbox.runWithRole({ roleId: 'researcher', prompt: 'second' })).resolves.toBe('history:0');
+    await expect(sandbox.runWithRole({ roleId: 'researcher', prompt: 'first' })).resolves.toBe(
+      'history:0',
+    );
+    await expect(sandbox.runWithRole({ roleId: 'researcher', prompt: 'second' })).resolves.toBe(
+      'history:0',
+    );
     await expect(
       sandbox.runWithPrompt({ systemPrompt: 'Temporary prompt', prompt: 'third' }),
     ).resolves.toBe('history:0');

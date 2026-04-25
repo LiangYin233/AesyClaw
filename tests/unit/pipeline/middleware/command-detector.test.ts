@@ -78,7 +78,7 @@ describe('CommandDetectorMiddleware', () => {
       };
 
       const state = makeState('/unknown');
-      const result = await middleware.execute(state, next);
+      await middleware.execute(state, next);
 
       // isCommand returns false for unregistered commands, so it passes through
       expect(nextCalled).toBe(true);

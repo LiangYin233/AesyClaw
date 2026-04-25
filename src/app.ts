@@ -102,7 +102,10 @@ export class Application {
     });
 
     await this.startStep('Skill loading', async () => {
-      await this.skillManager.loadAll(this.pathResolver.systemSkillsDir, this.pathResolver.skillsDir);
+      await this.skillManager.loadAll(
+        this.pathResolver.systemSkillsDir,
+        this.pathResolver.skillsDir,
+      );
     });
 
     await this.startStep('Role loading', async () => {

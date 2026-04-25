@@ -15,7 +15,6 @@ import type { AgentEngine } from '../../../src/agent/agent-engine';
 import type { ConfigManager } from '../../../src/core/config/config-manager';
 import type { LlmAdapter } from '../../../src/agent/llm-adapter';
 import type { Agent } from '../../../src/agent/agent-types';
-import type { MemoryManager } from '../../../src/agent/memory-manager';
 import type { AppConfig } from '../../../src/core/config/schema';
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -82,7 +81,9 @@ function makeMockAgent(): Agent {
   };
 }
 
-function makeMockDeps(overrides: Partial<SessionManagerDependencies> = {}): SessionManagerDependencies {
+function makeMockDeps(
+  overrides: Partial<SessionManagerDependencies> = {},
+): SessionManagerDependencies {
   const mockConfig = {
     server: { port: 3000, host: '0.0.0.0', logLevel: 'info', cors: true },
     providers: {
@@ -91,7 +92,10 @@ function makeMockDeps(overrides: Partial<SessionManagerDependencies> = {}): Sess
     channels: {},
     agent: { maxSteps: 10 },
     memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
-    multimodal: { speechToText: { provider: 'openai', model: 'whisper-1' }, imageUnderstanding: { provider: 'openai', model: 'gpt-4o' } },
+    multimodal: {
+      speechToText: { provider: 'openai', model: 'whisper-1' },
+      imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+    },
     mcp: [],
     plugins: [],
   } as AppConfig;
@@ -199,12 +203,12 @@ describe('SessionManager', () => {
     });
 
     it('should use role binding from DB if available', async () => {
-      (deps.databaseManager.roleBindings.getActiveRole as ReturnType<typeof vi.fn>)
-        .mockResolvedValue('custom-role');
+      (
+        deps.databaseManager.roleBindings.getActiveRole as ReturnType<typeof vi.fn>
+      ).mockResolvedValue('custom-role');
 
       const customRole = makeRole({ id: 'custom-role', name: 'Custom Role' });
-      (deps.roleManager.getRole as ReturnType<typeof vi.fn>)
-        .mockReturnValue(customRole);
+      (deps.roleManager.getRole as ReturnType<typeof vi.fn>).mockReturnValue(customRole);
 
       const key = makeSessionKey();
       const session = await manager.getOrCreateSession(key);
@@ -213,8 +217,9 @@ describe('SessionManager', () => {
     });
 
     it('should fall back to default role when no binding exists', async () => {
-      (deps.databaseManager.roleBindings.getActiveRole as ReturnType<typeof vi.fn>)
-        .mockResolvedValue(null);
+      (
+        deps.databaseManager.roleBindings.getActiveRole as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(null);
 
       const key = makeSessionKey();
       const session = await manager.getOrCreateSession(key);
@@ -294,7 +299,7 @@ describe('SessionManager', () => {
 
       // Override memory.loadHistory to return enough messages for compaction
       const longHistory = Array.from({ length: 10 }, (_, i) => ({
-        role: i % 2 === 0 ? 'user' : 'assistant' as const,
+        role: i % 2 === 0 ? 'user' : ('assistant' as const),
         ...(i % 2 === 0
           ? { content: `Message ${i + 1}` }
           : {
@@ -319,7 +324,10 @@ describe('SessionManager', () => {
 
       const summary = await manager.compactSession(key);
       expect(summary).toBe('Summary of conversation');
-      expect(session.memory.compact).toHaveBeenCalledWith(deps.llmAdapter, session.activeRole.model);
+      expect(session.memory.compact).toHaveBeenCalledWith(
+        deps.llmAdapter,
+        session.activeRole.model,
+      );
     });
 
     it('should throw if session not found', async () => {

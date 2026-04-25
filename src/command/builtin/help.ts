@@ -7,9 +7,7 @@
 
 import type { CommandDefinition, CommandContext } from '../../core/types';
 
-export function createHelpCommand(
-  getAllCommands: () => CommandDefinition[],
-): CommandDefinition {
+export function createHelpCommand(getAllCommands: () => CommandDefinition[]): CommandDefinition {
   return {
     name: 'help',
     description: '列出所有可用命令',

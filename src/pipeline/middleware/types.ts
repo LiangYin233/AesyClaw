@@ -106,10 +106,4 @@ import type {
 // Re-export PipelineResult for convenience
 import type { PipelineResult } from '../../core/types';
 
-export type {
-  PipelineState,
-  NextFn,
-  Middleware,
-  PipelineDependencies,
-  PluginHooks,
-};
+export type { PipelineState, NextFn, Middleware, PipelineDependencies, PluginHooks };

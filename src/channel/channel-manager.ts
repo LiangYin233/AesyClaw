@@ -159,7 +159,13 @@ export class ChannelManager {
         version: definition.version,
         description: definition.description,
         enabled,
-        state: error ? 'failed' : this.loadedChannels.has(definition.name) ? 'loaded' : enabled ? 'unloaded' : 'disabled',
+        state: error
+          ? 'failed'
+          : this.loadedChannels.has(definition.name)
+            ? 'loaded'
+            : enabled
+              ? 'unloaded'
+              : 'disabled',
         error,
       });
     }
@@ -210,7 +216,10 @@ export class ChannelManager {
     return isChannelEnabled(this.getConfigRecord(channelName));
   }
 
-  private createUnloadedChannel(definition: ChannelPlugin, config: Record<string, unknown>): LoadedChannel {
+  private createUnloadedChannel(
+    definition: ChannelPlugin,
+    config: Record<string, unknown>,
+  ): LoadedChannel {
     return {
       definition,
       config,

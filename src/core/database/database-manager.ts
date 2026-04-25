@@ -27,9 +27,7 @@ interface Migration {
   up: (db: DatabaseSync) => void;
 }
 
-const migrations: Migration[] = [
-  { id: 1, up: migration001.up },
-];
+const migrations: Migration[] = [{ id: 1, up: migration001.up }];
 
 export class DatabaseManager {
   private db: DatabaseSync | null = null;
@@ -122,9 +120,7 @@ export class DatabaseManager {
     `);
 
     for (const migration of migrations) {
-      const applied = this.db
-        .prepare('SELECT id FROM _migrations WHERE id = ?')
-        .get(migration.id);
+      const applied = this.db.prepare('SELECT id FROM _migrations WHERE id = ?').get(migration.id);
 
       if (!applied) {
         logger.info(`Running migration ${migration.id}`);

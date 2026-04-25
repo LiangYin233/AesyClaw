@@ -46,7 +46,10 @@ function makeBlockingHookDispatcher(reason: string): HookDispatcher {
   };
 }
 
-function makeShortCircuitHookDispatcher(result: { content: string; isError?: boolean }): HookDispatcher {
+function makeShortCircuitHookDispatcher(result: {
+  content: string;
+  isError?: boolean;
+}): HookDispatcher {
   return {
     async dispatchBeforeToolCall() {
       return {
@@ -62,7 +65,10 @@ function makeShortCircuitHookDispatcher(result: { content: string; isError?: boo
   };
 }
 
-function makeOverrideHookDispatcher(override: { content?: string; isError?: boolean }): HookDispatcher {
+function makeOverrideHookDispatcher(override: {
+  content?: string;
+  isError?: boolean;
+}): HookDispatcher {
   return {
     async dispatchBeforeToolCall() {
       return {};
@@ -122,7 +128,11 @@ describe('ToolAdapter', () => {
         execute: async () => ({ content: 'should not run' }),
       });
 
-      const agentTool = ToolAdapter.toAgentTool(tool, makeBlockingHookDispatcher('Blocked by policy'), {});
+      const agentTool = ToolAdapter.toAgentTool(
+        tool,
+        makeBlockingHookDispatcher('Blocked by policy'),
+        {},
+      );
       await expect(agentTool.execute('call-1', {})).rejects.toThrow('Blocked by policy');
     });
 

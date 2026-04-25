@@ -44,7 +44,9 @@ export class SessionRepository {
   /** Find a session by composite key. Returns null if not found. */
   async findByKey(key: SessionKey): Promise<SessionRecord | null> {
     const row = this.db
-      .prepare('SELECT id, channel, type, chat_id, created_at FROM sessions WHERE channel = ? AND type = ? AND chat_id = ?')
+      .prepare(
+        'SELECT id, channel, type, chat_id, created_at FROM sessions WHERE channel = ? AND type = ? AND chat_id = ?',
+      )
       .get(key.channel, key.type, key.chatId) as
       | { id: string; channel: string; type: string; chat_id: string; created_at: string }
       | undefined;

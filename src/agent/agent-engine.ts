@@ -9,7 +9,7 @@ import type { SkillManager } from '../skill/skill-manager';
 import type { HookDispatcher } from '../pipeline/hook-dispatcher';
 import type { LlmAdapter } from './llm-adapter';
 import { PromptBuilder } from './prompt-builder';
-import { MemoryManager } from './memory-manager';
+import type { MemoryManager } from './memory-manager';
 import { createScopedLogger } from '../core/logger';
 
 const logger = createScopedLogger('agent-engine');
@@ -130,7 +130,11 @@ export class AgentEngine {
 
     const lastAssistant = [...newMessages]
       .reverse()
-      .find((runtimeMessage) => runtimeMessage.role === 'assistant' && extractMessageText(runtimeMessage).trim().length > 0);
+      .find(
+        (runtimeMessage) =>
+          runtimeMessage.role === 'assistant' &&
+          extractMessageText(runtimeMessage).trim().length > 0,
+      );
 
     if (lastAssistant) {
       return {
@@ -138,7 +142,8 @@ export class AgentEngine {
       };
     }
 
-    const lastMessage = newMessages[newMessages.length - 1] ?? agent.state.messages[agent.state.messages.length - 1];
+    const lastMessage =
+      newMessages[newMessages.length - 1] ?? agent.state.messages[agent.state.messages.length - 1];
 
     logger.warn('Agent produced no assistant text response', {
       role: role.id,
@@ -147,7 +152,9 @@ export class AgentEngine {
 
     return {
       content:
-        lastMessage && lastMessage.role !== 'user' && extractMessageText(lastMessage).trim().length > 0
+        lastMessage &&
+        lastMessage.role !== 'user' &&
+        extractMessageText(lastMessage).trim().length > 0
           ? extractMessageText(lastMessage)
           : '[No response generated]',
     };

@@ -269,7 +269,7 @@ describe('MemoryManager', () => {
 
     it('should summarize and replace history when enough messages exist', async () => {
       const longHistory = Array.from({ length: 10 }, (_, i) => ({
-        role: i % 2 === 0 ? 'user' : 'assistant' as const,
+        role: i % 2 === 0 ? 'user' : ('assistant' as const),
         content: `Message ${i + 1}`,
         timestamp: new Date().toISOString(),
       }));

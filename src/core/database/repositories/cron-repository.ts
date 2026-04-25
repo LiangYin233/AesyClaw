@@ -46,9 +46,9 @@ export class CronJobRepository {
 
   /** Find a cron job by ID. Returns null if not found. */
   async findById(id: string): Promise<CronJobRecord | null> {
-    const row = this.db
-      .prepare('SELECT * FROM cron_jobs WHERE id = ?')
-      .get(id) as CronJobRow | undefined;
+    const row = this.db.prepare('SELECT * FROM cron_jobs WHERE id = ?').get(id) as
+      | CronJobRow
+      | undefined;
 
     return row ? mapJobRow(row) : null;
   }
@@ -71,9 +71,7 @@ export class CronJobRepository {
   /** Update the next_run time for a cron job */
   async updateNextRun(id: string, nextRun: Date | null): Promise<void> {
     const nextRunStr = nextRun?.toISOString() ?? null;
-    this.db
-      .prepare('UPDATE cron_jobs SET next_run = ? WHERE id = ?')
-      .run(nextRunStr, id);
+    this.db.prepare('UPDATE cron_jobs SET next_run = ? WHERE id = ?').run(nextRunStr, id);
   }
 }
 
@@ -88,9 +86,7 @@ export class CronRunRepository {
     const now = new Date().toISOString();
 
     this.db
-      .prepare(
-        'INSERT INTO cron_runs (id, job_id, status, started_at) VALUES (?, ?, ?, ?)',
-      )
+      .prepare('INSERT INTO cron_runs (id, job_id, status, started_at) VALUES (?, ?, ?, ?)')
       .run(id, params.jobId, 'running', now);
 
     return id;
@@ -117,8 +113,7 @@ export class CronRunRepository {
     if (runIds.length === 0) return;
 
     const now = new Date().toISOString();
-    const stmt = this.db
-      .prepare('UPDATE cron_runs SET status = ?, ended_at = ? WHERE id = ?');
+    const stmt = this.db.prepare('UPDATE cron_runs SET status = ?, ended_at = ? WHERE id = ?');
 
     this.db.exec('BEGIN');
 

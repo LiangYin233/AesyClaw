@@ -4,7 +4,7 @@
  * Tests cover: load, get, subscribe, update, hot-reload, defaults sync.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -175,9 +175,7 @@ describe('ConfigManager', () => {
       // Read the file to verify persistence
       const fileContent = JSON.parse(
         // Re-read from disk to confirm
-        await import('node:fs').then((fs) =>
-          fs.readFileSync(configPath, 'utf-8'),
-        ),
+        await import('node:fs').then((fs) => fs.readFileSync(configPath, 'utf-8')),
       );
       expect(fileContent.agent.maxSteps).toBe(50);
     });

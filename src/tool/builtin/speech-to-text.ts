@@ -5,7 +5,8 @@
  *
  */
 
-import { Type, Static } from '@sinclair/typebox';
+import type { Static } from '@sinclair/typebox';
+import { Type } from '@sinclair/typebox';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
 import type { ToolOwner } from '../../core/types';
 import type { ConfigManager } from '../../core/config/config-manager';
@@ -30,7 +31,10 @@ export function createSpeechToTextTool(deps: SpeechToTextDeps): AesyClawTool {
     description: '将音频转录为文本（支持 URL 或本地文件路径）',
     parameters: SpeechToTextParamsSchema,
     owner: 'system' as ToolOwner,
-    execute: async (params: unknown, context: ToolExecutionContext): Promise<ToolExecutionResult> => {
+    execute: async (
+      params: unknown,
+      context: ToolExecutionContext,
+    ): Promise<ToolExecutionResult> => {
       const { source } = params as SpeechToTextParams;
 
       try {

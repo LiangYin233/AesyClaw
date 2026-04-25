@@ -245,10 +245,12 @@ export class LlmAdapter {
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(`Speech-to-text request failed (${response.status}): ${body || response.statusText}`);
+      throw new Error(
+        `Speech-to-text request failed (${response.status}): ${body || response.statusText}`,
+      );
     }
 
-    const payload = await response.json() as { text?: unknown };
+    const payload = (await response.json()) as { text?: unknown };
     const text = typeof payload.text === 'string' ? payload.text.trim() : '';
 
     if (text.length === 0) {

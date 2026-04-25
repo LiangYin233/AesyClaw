@@ -23,7 +23,9 @@ export class MessageRepository {
   /** Load all messages for a session, ordered chronologically */
   async loadHistory(sessionId: string): Promise<PersistableMessage[]> {
     const rows = this.db
-      .prepare('SELECT role, content, timestamp FROM messages WHERE session_id = ? ORDER BY timestamp ASC, id ASC')
+      .prepare(
+        'SELECT role, content, timestamp FROM messages WHERE session_id = ? ORDER BY timestamp ASC, id ASC',
+      )
       .all(sessionId) as Array<{ role: string; content: string; timestamp: string }>;
 
     return rows.map((row) => ({
@@ -35,9 +37,7 @@ export class MessageRepository {
 
   /** Clear all messages for a session */
   async clearHistory(sessionId: string): Promise<void> {
-    this.db
-      .prepare('DELETE FROM messages WHERE session_id = ?')
-      .run(sessionId);
+    this.db.prepare('DELETE FROM messages WHERE session_id = ?').run(sessionId);
   }
 
   /**
@@ -46,8 +46,9 @@ export class MessageRepository {
    */
   async replaceWithSummary(sessionId: string, summary: string): Promise<void> {
     const deleteStmt = this.db.prepare('DELETE FROM messages WHERE session_id = ?');
-    const insertStmt = this.db
-      .prepare('INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)');
+    const insertStmt = this.db.prepare(
+      'INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)',
+    );
 
     this.db.exec('BEGIN');
 

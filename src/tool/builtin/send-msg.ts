@@ -6,7 +6,8 @@
  *
  */
 
-import { Type, Static } from '@sinclair/typebox';
+import type { Static } from '@sinclair/typebox';
+import { Type } from '@sinclair/typebox';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
 import type { MediaAttachment, OutboundMessage, ToolOwner } from '../../core/types';
 
@@ -40,12 +41,16 @@ export function createSendMsgTool(): AesyClawTool {
     description: '向当前会话发送文本消息，可附带媒体附件',
     parameters: SendMessageParamsSchema,
     owner: 'system' as ToolOwner,
-    execute: async (params: unknown, context: ToolExecutionContext): Promise<ToolExecutionResult> => {
+    execute: async (
+      params: unknown,
+      context: ToolExecutionContext,
+    ): Promise<ToolExecutionResult> => {
       const { text, media } = params as SendMessageParams;
       try {
         if (!context.sendMessage) {
           return {
-            content: 'send_msg is unavailable in this context because no outbound send function is available.',
+            content:
+              'send_msg is unavailable in this context because no outbound send function is available.',
             isError: true,
           };
         }

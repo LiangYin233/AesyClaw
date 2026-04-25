@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.yarn/
+.aesyclaw/
+.trellis/
+.opencode/
+skills/
+coverage/
+yarn.lock
+AGENTS.md

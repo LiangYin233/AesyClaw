@@ -102,7 +102,9 @@ export class Pipeline {
 
       // If a hook provides a response, send it directly (skip middleware chain)
       if (receiveResult.action === 'respond') {
-        const outbound: OutboundMessage = { content: (receiveResult as { action: 'respond'; content: string }).content };
+        const outbound: OutboundMessage = {
+          content: (receiveResult as { action: 'respond'; content: string }).content,
+        };
         await this.dispatchOnSendAndDeliver(outbound, send);
         return;
       }

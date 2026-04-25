@@ -5,7 +5,7 @@
  * scoped context and can register tools, commands, and pipeline hooks.
  */
 
-import type { CommandDefinition, DeepPartial, ToolOwner } from '../core/types';
+import type { CommandDefinition, DeepPartial } from '../core/types';
 import type { Logger } from '../core/logger';
 import type { AppConfig, PluginConfigEntry } from '../core/config/schema';
 import type { AesyClawTool } from '../tool/tool-registry';

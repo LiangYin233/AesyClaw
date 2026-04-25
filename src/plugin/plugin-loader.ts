@@ -73,7 +73,9 @@ export class PluginLoader {
   }
 
   private async resolveEntry(pluginDir: string): Promise<string> {
-    const candidates = ['index.ts', 'index.js', 'index.mjs'].map((file) => path.join(pluginDir, file));
+    const candidates = ['index.ts', 'index.js', 'index.mjs'].map((file) =>
+      path.join(pluginDir, file),
+    );
     for (const candidate of candidates) {
       try {
         const candidateStat = await stat(candidate);
@@ -85,7 +87,9 @@ export class PluginLoader {
       }
     }
 
-    throw new Error(`Plugin directory "${pluginDir}" has no index.ts, index.js, or index.mjs entry`);
+    throw new Error(
+      `Plugin directory "${pluginDir}" has no index.ts, index.js, or index.mjs entry`,
+    );
   }
 }
 

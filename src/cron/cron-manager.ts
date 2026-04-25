@@ -81,7 +81,9 @@ export class CronManager {
     this.assertInitialized();
     const nextRun = computeNextRun(params.scheduleType, params.scheduleValue);
     if (!nextRun) {
-      throw new Error(`Invalid or expired cron schedule: ${params.scheduleType} ${params.scheduleValue}`);
+      throw new Error(
+        `Invalid or expired cron schedule: ${params.scheduleType} ${params.scheduleValue}`,
+      );
     }
 
     const cronJobs = this.getCronJobs();

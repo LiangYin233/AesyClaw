@@ -5,7 +5,8 @@
  *
  */
 
-import { Type, Static } from '@sinclair/typebox';
+import type { Static } from '@sinclair/typebox';
+import { Type } from '@sinclair/typebox';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
 import type { ToolOwner } from '../../core/types';
 import type { SubAgentSandbox } from '../../agent/sub-agent-sandbox';
@@ -28,7 +29,10 @@ export function createRunSubAgentTool(deps: RunSubAgentDeps): AesyClawTool {
     description: '使用指定角色运行子代理',
     parameters: RunSubAgentParamsSchema,
     owner: 'system' as ToolOwner,
-    execute: async (params: unknown, context: ToolExecutionContext): Promise<ToolExecutionResult> => {
+    execute: async (
+      params: unknown,
+      context: ToolExecutionContext,
+    ): Promise<ToolExecutionResult> => {
       const { roleId, prompt } = params as RunSubAgentParams;
 
       try {

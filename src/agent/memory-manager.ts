@@ -121,7 +121,9 @@ export class MemoryManager {
       }
     }
 
-    logger.debug(`Synced ${agentMessages.length} messages: ${persisted} persisted, ${filtered} filtered`);
+    logger.debug(
+      `Synced ${agentMessages.length} messages: ${persisted} persisted, ${filtered} filtered`,
+    );
   }
 
   // ─── Compact ──────────────────────────────────────────────────

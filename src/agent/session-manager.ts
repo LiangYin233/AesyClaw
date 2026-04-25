@@ -111,7 +111,7 @@ export class SessionManager {
     const sessionId = sessionRecord.id;
 
     // Load active role (from binding or default)
-    let roleId = await this.deps.databaseManager.roleBindings.getActiveRole(sessionId);
+    const roleId = await this.deps.databaseManager.roleBindings.getActiveRole(sessionId);
     let activeRole: RoleConfig;
 
     if (roleId) {
@@ -128,11 +128,7 @@ export class SessionManager {
     };
 
     // Create MemoryManager
-    const memory = new MemoryManager(
-      sessionId,
-      this.deps.databaseManager.messages,
-      memoryConfig,
-    );
+    const memory = new MemoryManager(sessionId, this.deps.databaseManager.messages, memoryConfig);
 
     // Create Agent
     const agent = this.deps.agentEngine.createAgent(activeRole, sessionId, memory, {

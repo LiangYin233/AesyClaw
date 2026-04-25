@@ -60,7 +60,13 @@ async function createPipelineDeps() {
       agent: {
         state: {
           systemPrompt: 'You are a test assistant.',
-          model: { provider: 'openai', modelId: 'gpt-4o', contextWindow: 128000, enableThinking: false, apiType: 'openai_responses' },
+          model: {
+            provider: 'openai',
+            modelId: 'gpt-4o',
+            contextWindow: 128000,
+            enableThinking: false,
+            apiType: 'openai_responses',
+          },
           tools: [],
           messages: [],
         },
@@ -87,7 +93,13 @@ async function createPipelineDeps() {
     createAgent: vi.fn().mockReturnValue({
       state: {
         systemPrompt: 'You are a test assistant.',
-        model: { provider: 'openai', modelId: 'gpt-4o', contextWindow: 128000, enableThinking: false, apiType: 'openai_responses' },
+        model: {
+          provider: 'openai',
+          modelId: 'gpt-4o',
+          contextWindow: 128000,
+          enableThinking: false,
+          apiType: 'openai_responses',
+        },
         tools: [],
         messages: [],
       },
@@ -138,17 +150,6 @@ class SetOutboundMiddleware implements Middleware {
   }
 }
 
-/** A middleware that blocks the pipeline */
-class BlockingMiddleware implements Middleware {
-  readonly name = 'Blocking';
-
-  async execute(state: PipelineState, _next: NextFn): Promise<PipelineState> {
-    state.blocked = true;
-    state.blockReason = 'blocked by test middleware';
-    return state;
-  }
-}
-
 // ─── Tests ─────────────────────────────────────────────────────────
 
 describe('Pipeline', () => {
@@ -187,7 +188,9 @@ describe('Pipeline', () => {
   describe('receiveWithSend', () => {
     it('should not process if not initialized', async () => {
       const sent: OutboundMessage[] = [];
-      const send = vi.fn(async (msg: OutboundMessage) => { sent.push(msg); });
+      const send = vi.fn(async (msg: OutboundMessage) => {
+        sent.push(msg);
+      });
 
       // Pipeline not initialized — should not throw, just return
       await pipeline.receiveWithSend(makeInbound(), send);
@@ -200,7 +203,9 @@ describe('Pipeline', () => {
       pipeline.use(new SetOutboundMiddleware('test response'));
 
       const sent: OutboundMessage[] = [];
-      const send = vi.fn(async (msg: OutboundMessage) => { sent.push(msg); });
+      const send = vi.fn(async (msg: OutboundMessage) => {
+        sent.push(msg);
+      });
 
       await pipeline.receiveWithSend(makeInbound(), send);
       expect(send).toHaveBeenCalledTimes(1);
@@ -260,7 +265,9 @@ describe('Pipeline', () => {
       pipeline.initialize(deps);
 
       const sent: OutboundMessage[] = [];
-      const send = vi.fn(async (msg: OutboundMessage) => { sent.push(msg); });
+      const send = vi.fn(async (msg: OutboundMessage) => {
+        sent.push(msg);
+      });
 
       await pipeline.receiveWithSend(makeInbound('/greet'), send);
       expect(send).toHaveBeenCalledTimes(1);
@@ -306,7 +313,9 @@ describe('Pipeline', () => {
       pipeline.getHookDispatcher().register('responder', hooks);
 
       const sent: OutboundMessage[] = [];
-      const send = vi.fn(async (msg: OutboundMessage) => { sent.push(msg); });
+      const send = vi.fn(async (msg: OutboundMessage) => {
+        sent.push(msg);
+      });
 
       await pipeline.receiveWithSend(makeInbound(), send);
       expect(send).toHaveBeenCalledTimes(1);
@@ -337,7 +346,9 @@ describe('Pipeline', () => {
       pipeline.getHookDispatcher().register('modifier', hooks);
 
       const sent: OutboundMessage[] = [];
-      const send = vi.fn(async (msg: OutboundMessage) => { sent.push(msg); });
+      const send = vi.fn(async (msg: OutboundMessage) => {
+        sent.push(msg);
+      });
 
       await pipeline.receiveWithSend(makeInbound(), send);
       expect(send).toHaveBeenCalledTimes(1);
@@ -370,7 +381,9 @@ describe('Pipeline', () => {
       });
 
       const sent: OutboundMessage[] = [];
-      const send = vi.fn(async (msg: OutboundMessage) => { sent.push(msg); });
+      const send = vi.fn(async (msg: OutboundMessage) => {
+        sent.push(msg);
+      });
       await pipeline.receiveWithSend(makeInbound(), send);
 
       expect(processMock).not.toHaveBeenCalled();
