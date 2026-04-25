@@ -5,7 +5,6 @@
  * Validation uses TypeBox so we get both runtime checking and
  * TypeScript type inference via `Static<>`.
  *
- * @see project.md §4.3
  */
 
 import { Type, Static } from '@sinclair/typebox';

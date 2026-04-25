@@ -150,8 +150,6 @@ export class Application {
         sessionManager: this.sessionManager,
         agentEngine: this.agentEngine,
         commandRegistry: this.commandRegistry,
-        roleManager: this.roleManager,
-        pluginManager: this.getPluginManager(),
       });
     });
 

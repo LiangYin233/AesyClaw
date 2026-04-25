@@ -3,7 +3,6 @@
  *
  * Lists all registered commands with their name and description.
  *
- * @see project.md §5.9
  */
 
 import type { CommandDefinition, CommandContext } from '../../core/types';

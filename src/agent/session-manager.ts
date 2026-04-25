@@ -7,7 +7,6 @@
  * - An Agent instance
  * - A MemoryManager for conversation history
  *
- * @see project.md §5.7.1
  */
 
 import type { SessionKey, RoleConfig } from '../core/types';

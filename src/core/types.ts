@@ -149,12 +149,6 @@ interface Skill {
 /** Context provided to command execute functions */
 interface CommandContext {
   sessionKey: SessionKey;
-  /** Will be typed later when SessionManager is implemented */
-  sessionManager: unknown;
-  /** Will be typed later when RoleManager is implemented */
-  roleManager: unknown;
-  /** Will be typed later when PluginManager is implemented */
-  pluginManager: unknown;
 }
 
 /** A command that can be registered with the CommandRegistry */

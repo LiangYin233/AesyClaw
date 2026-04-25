@@ -6,7 +6,6 @@
  *   /role switch — Switch current role
  *   /role info   — Show current role info
  *
- * @see project.md §5.9
  */
 
 import type { CommandDefinition, CommandContext } from '../../core/types';

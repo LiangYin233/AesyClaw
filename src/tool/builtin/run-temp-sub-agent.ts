@@ -3,7 +3,6 @@
  *
  * Runs a temporary delegated sub-agent with an ad-hoc system prompt.
  *
- * @see project.md §5.15
  */
 
 import { Type, Static } from '@sinclair/typebox';

@@ -6,7 +6,6 @@
  * sections, and role descriptions. PromptBuilder adds the responsibility
  * of resolving which tools and skills are available for a given role.
  *
- * @see project.md §5.4
  */
 
 import type { RoleManager } from '../role/role-manager';

@@ -7,14 +7,13 @@
  * - Compact history via LLM summarization when it grows too long
  * - Clear session history
  *
- * Filtering strategy (per project.md §5.7.3):
+ * Filtering strategy:
  * - `role === 'user'` → always save
  * - `role === 'assistant'` with NO toolCalls → save
  * - `role === 'assistant'` WITH toolCalls → skip (internal reasoning, not user-visible)
  * - `role === 'toolResult'` → skip (internal results)
  * - Empty content → skip
  *
- * @see project.md §5.7.3
  */
 
 import type { MessageRepository } from '../core/database/repositories/message-repository';

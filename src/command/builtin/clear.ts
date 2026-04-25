@@ -3,7 +3,6 @@
  *
  * Clears session history.
  *
- * @see project.md §5.9
  */
 
 import type { CommandDefinition, CommandContext } from '../../core/types';

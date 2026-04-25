@@ -104,7 +104,6 @@ async function createPipelineDeps() {
     sessionManager: mockSessionManager,
     agentEngine: mockAgentEngine,
     commandRegistry: new CommandRegistry(),
-    pluginManager: null,
   };
 }
 

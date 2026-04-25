@@ -20,9 +20,6 @@ function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
 function makeContext(): CommandContext {
   return {
     sessionKey: { channel: 'test', type: 'private', chatId: 'user-1' },
-    sessionManager: null,
-    roleManager: null,
-    pluginManager: null,
   };
 }
 

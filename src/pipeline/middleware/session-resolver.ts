@@ -5,7 +5,6 @@
  * SessionKey, then attaches it to the pipeline state for use by
  * subsequent middlewares (e.g. AgentProcessor).
  *
- * @see project.md §5.5
  */
 
 import type { PipelineState, NextFn } from './types';

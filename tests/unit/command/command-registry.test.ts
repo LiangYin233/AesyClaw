@@ -14,9 +14,6 @@ import type { CommandDefinition, CommandContext } from '../../../src/core/types'
 function makeContext(): CommandContext {
   return {
     sessionKey: { channel: 'test', type: 'private', chatId: 'user1' },
-    sessionManager: null,
-    roleManager: null,
-    pluginManager: null,
   };
 }
 

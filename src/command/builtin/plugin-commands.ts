@@ -6,7 +6,6 @@
  *   /plugin enable  — Enable a plugin
  *   /plugin disable — Disable a plugin
  *
- * @see project.md §5.9
  */
 
 import type { CommandDefinition, CommandContext } from '../../core/types';

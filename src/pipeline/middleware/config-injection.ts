@@ -4,7 +4,6 @@
  * This middleware reads the current config from ConfigManager and sets
  * it on the state, making it available to subsequent middlewares.
  *
- * @see project.md §5.5
  */
 
 import type { PipelineState, NextFn } from './types';

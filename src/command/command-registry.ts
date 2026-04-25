@@ -5,7 +5,6 @@
  * They are registered with a scope (ToolOwner) for automatic cleanup
  * when the owning subsystem is unloaded.
  *
- * @see project.md §5.9
  */
 
 import type { ToolOwner, CommandDefinition, CommandContext } from '../core/types';

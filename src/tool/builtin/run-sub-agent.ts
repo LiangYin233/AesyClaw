@@ -3,7 +3,6 @@
  *
  * Runs a delegated sub-agent turn with a specified role ID and prompt.
  *
- * @see project.md §5.15
  */
 
 import { Type, Static } from '@sinclair/typebox';

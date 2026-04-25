@@ -3,7 +3,6 @@
  *
  * Analyzes an image from a URL or file path.
  *
- * @see project.md §5.15
  */
 
 import { Type, Static } from '@sinclair/typebox';

@@ -3,7 +3,6 @@
  *
  * Compacts session history to reduce context size.
  *
- * @see project.md §5.9
  */
 
 import type { CommandDefinition, CommandContext } from '../../core/types';

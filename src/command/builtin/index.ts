@@ -5,7 +5,6 @@
  * the CommandRegistry. Dependencies are injected through the
  * BuiltinCommandDependencies interface.
  *
- * @see project.md §5.9
  */
 
 import type { CommandContext } from '../../core/types';

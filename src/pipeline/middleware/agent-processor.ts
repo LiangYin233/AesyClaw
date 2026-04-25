@@ -5,7 +5,6 @@
  * to process the inbound message via AgentEngine. The resulting outbound
  * message is placed on the pipeline state.
  *
- * @see project.md §5.5
  */
 
 import type { PipelineState, NextFn } from './types';
@@ -28,7 +27,7 @@ export class AgentProcessorMiddleware {
   ) {}
 
   async execute(state: PipelineState, next: NextFn): Promise<PipelineState> {
-    const session = state.session as SessionContext | undefined;
+    const session: SessionContext | undefined = state.session;
 
     if (!session) {
       // No session context — skip agent processing

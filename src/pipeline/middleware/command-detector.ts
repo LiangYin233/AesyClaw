@@ -6,18 +6,11 @@
  * Command handling is terminal — it does NOT call next(), so subsequent
  * middlewares (like AgentProcessor) are skipped.
  *
- * @see project.md §5.5
  */
 
 import type { PipelineState, NextFn } from './types';
 import type { CommandRegistry } from '../../command/command-registry';
 import type { CommandContext } from '../../core/types';
-
-export interface CommandDetectorDependencies {
-  sessionManager?: unknown;
-  roleManager?: unknown;
-  pluginManager?: unknown;
-}
 
 /**
  * Detects slash commands and executes them via CommandRegistry.
@@ -32,18 +25,12 @@ export interface CommandDetectorDependencies {
 export class CommandDetectorMiddleware {
   readonly name = 'CommandDetector';
 
-  constructor(
-    private commandRegistry: CommandRegistry,
-    private dependencies: CommandDetectorDependencies = {},
-  ) {}
+  constructor(private commandRegistry: CommandRegistry) {}
 
   async execute(state: PipelineState, next: NextFn): Promise<PipelineState> {
     if (this.commandRegistry.isCommand(state.inbound.content)) {
       const commandContext: CommandContext = {
         sessionKey: state.inbound.sessionKey,
-        sessionManager: this.dependencies.sessionManager ?? null,
-        roleManager: this.dependencies.roleManager ?? null,
-        pluginManager: this.dependencies.pluginManager ?? null,
       };
 
       const result = await this.commandRegistry.execute(state.inbound.content, commandContext);

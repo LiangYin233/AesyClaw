@@ -10,7 +10,6 @@
  * - If any hook returns `{ action: 'respond', content }`, dispatch stops and returns that response
  * - Otherwise returns `{ action: 'continue' }`
  *
- * @see project.md §5.5
  */
 
 import type { InboundMessage, OutboundMessage, PipelineResult } from '../core/types';

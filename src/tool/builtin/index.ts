@@ -5,7 +5,6 @@
  * the ToolRegistry. Dependencies are injected through the
  * BuiltinToolDependencies interface.
  *
- * @see project.md §5.15
  */
 
 import type { ToolRegistry, ToolExecutionContext } from '../tool-registry';

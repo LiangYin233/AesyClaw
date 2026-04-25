@@ -12,7 +12,6 @@
  *   4. HookDispatcher.dispatchOnSend(outbound) → if block, stop
  *   5. send(outbound)
  *
- * @see project.md §5.5
  */
 
 import type { InboundMessage, OutboundMessage, SendFn } from '../core/types';
@@ -58,11 +57,7 @@ export class Pipeline {
     this.middlewares = [
       new ConfigInjectionMiddleware(deps.configManager),
       new SessionResolverMiddleware(deps.sessionManager),
-      new CommandDetectorMiddleware(deps.commandRegistry, {
-        sessionManager: deps.sessionManager,
-        roleManager: deps.roleManager,
-        pluginManager: deps.pluginManager,
-      }),
+      new CommandDetectorMiddleware(deps.commandRegistry),
       new AgentProcessorMiddleware(deps.agentEngine, this.hookDispatcher),
     ];
 

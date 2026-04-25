@@ -6,14 +6,13 @@
  * Middlewares must either call `next(state)` to pass control to the
  * next middleware, or return the state directly to short-circuit the chain.
  *
- * @see project.md §5.5
  */
 
 import type { InboundMessage, OutboundMessage } from '../../core/types';
 import type { AppConfig } from '../../core/config/schema';
 import type { CommandRegistry } from '../../command/command-registry';
 import type { ConfigManager } from '../../core/config/config-manager';
-import type { SessionManager } from '../../agent/session-manager';
+import type { SessionContext, SessionManager } from '../../agent/session-manager';
 import type { AgentEngine } from '../../agent/agent-engine';
 
 // ─── Pipeline State ──────────────────────────────────────────────
@@ -33,8 +32,8 @@ interface PipelineState {
   sendMessage?: (message: OutboundMessage) => Promise<boolean>;
   /** Current application config snapshot */
   config?: Readonly<AppConfig>;
-  /** Session context — will be typed when SessionManager is implemented */
-  session?: unknown;
+  /** Session context resolved for the inbound message */
+  session?: SessionContext;
   /** Whether the pipeline should stop processing */
   blocked?: boolean;
   /** Reason for blocking, if blocked */
@@ -74,8 +73,6 @@ interface PipelineDependencies {
   sessionManager: SessionManager;
   agentEngine: AgentEngine;
   commandRegistry: CommandRegistry;
-  roleManager?: unknown;
-  pluginManager: unknown;
 }
 
 // ─── Plugin Hooks ────────────────────────────────────────────────

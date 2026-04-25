@@ -4,7 +4,6 @@
  * Sends a text message to the current session, optionally with
  * media attachments, via the pipeline's normal outbound delivery path.
  *
- * @see project.md §5.15
  */
 
 import { Type, Static } from '@sinclair/typebox';

@@ -5,7 +5,6 @@
  * and role-based permission filtering. Converts registered tools
  * to the Pi-mono AgentTool format via ToolAdapter.
  *
- * @see project.md §5.6
  */
 
 import { Type, Static, TSchema } from '@sinclair/typebox';
@@ -41,10 +40,6 @@ export interface ToolExecutionResult {
  */
 export interface ToolExecutionContext {
   sessionKey: SessionKey;
-  /** Will be typed later when AgentEngine is implemented */
-  agentEngine: unknown;
-  /** Will be typed later when CronManager is implemented */
-  cronManager: unknown;
   /** Sends through the pipeline's onSend-aware delivery path when available */
   sendMessage?: (message: OutboundMessage) => Promise<boolean>;
 }

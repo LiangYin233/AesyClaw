@@ -6,7 +6,6 @@
  * 2. Calls the actual tool.execute
  * 3. Dispatches afterToolCall hooks — may override the result
  *
- * @see project.md §5.6
  */
 
 import type { AgentTool, AgentToolResult } from '../agent/agent-types';

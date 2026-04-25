@@ -4,7 +4,6 @@
  * Executes delegated turns with temporary in-memory history so the caller's
  * persisted session transcript is not mutated.
  *
- * @see project.md §5.14
  */
 
 import { randomUUID } from 'node:crypto';
