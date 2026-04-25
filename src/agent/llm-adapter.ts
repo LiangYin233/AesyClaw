@@ -74,6 +74,13 @@ export class LlmAdapter {
     const realModelName = preset?.realModelName;
     const effectiveModelId = realModelName ?? modelId;
     const builtInModel = this.tryGetBuiltInModel(provider, effectiveModelId);
+    const apiKey = preset?.apiKey ?? providerConfig.apiKey;
+
+    if (!apiKey) {
+      throw new Error(
+        `No API key configured for provider "${provider}". Add apiKey under config.json > providers.${provider}.`,
+      );
+    }
 
     return {
       id: effectiveModelId,
@@ -95,7 +102,7 @@ export class LlmAdapter {
       compat: builtInModel?.compat,
       modelId,
       realModelName,
-      apiKey: preset?.apiKey ?? providerConfig.apiKey,
+      apiKey,
       apiType,
     };
   }
@@ -103,9 +110,14 @@ export class LlmAdapter {
   createStreamFn(_modelIdentifier: string): StreamFn {
     return (model, context, options) => {
       const runtimeModel = model as ResolvedModel;
+      if (!runtimeModel.apiKey) {
+        throw new Error(
+          `No API key configured for provider "${runtimeModel.provider}". Add apiKey under config.json > providers.${runtimeModel.provider}.`,
+        );
+      }
       return streamSimple(runtimeModel, context, {
         ...options,
-        apiKey: runtimeModel.apiKey ?? options?.apiKey,
+        apiKey: runtimeModel.apiKey,
       });
     };
   }

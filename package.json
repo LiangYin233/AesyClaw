@@ -9,6 +9,7 @@
   "main": "./dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "config:edit": "tsx tools/config-editor.ts",
     "build": "tsup",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -16,7 +17,7 @@
     "format:check": "prettier . --check",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tools.json"
   },
   "dependencies": {
     "@mariozechner/pi-agent-core": "^0.70.0",

@@ -142,6 +142,21 @@ describe('LlmAdapter', () => {
       expect(model.apiKey).toBe('model-specific-key');
     });
 
+    it('should not fall back to environment variables when no config apiKey exists', () => {
+      vi.stubEnv('OPENAI_API_KEY', 'env-key-must-not-be-used');
+      const config = makeConfigWithProviders({
+        custom: {
+          apiType: 'openai_responses',
+        },
+      });
+      const customAdapter = new LlmAdapter();
+      customAdapter.initialize({ configManager: makeMockConfigManager(config) });
+
+      expect(() => customAdapter.resolveModel('custom/gpt-4o')).toThrow(
+        'No API key configured for provider "custom"',
+      );
+    });
+
     it('should throw for invalid format (missing slash)', () => {
       expect(() => adapter.resolveModel('invalid-format')).toThrow(
         /Invalid model identifier format/,
@@ -365,6 +380,19 @@ describe('LlmAdapter', () => {
       const streamFn = adapter.createStreamFn('openai/gpt-4o');
 
       expect(typeof streamFn).toBe('function');
+    });
+
+    it('should reject missing model apiKey before provider env fallback can run', () => {
+      vi.stubEnv('OPENAI_API_KEY', 'env-key-must-not-be-used');
+      const streamFn = adapter.createStreamFn('openai/gpt-4o');
+      const model = {
+        ...adapter.resolveModel('openai/gpt-4o'),
+        apiKey: undefined,
+      };
+
+      expect(() => streamFn(model, { messages: [] })).toThrow(
+        'No API key configured for provider "openai"',
+      );
     });
   });
 });
