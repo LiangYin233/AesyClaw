@@ -2,6 +2,7 @@ node_modules/
 .yarn/install-state.gz
 dist/
 data/
+.aesyclaw/
 *.db
 *.db-journal
 .env

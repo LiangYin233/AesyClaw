@@ -3,42 +3,21 @@
  *
  * These tests use an in-memory SQLite database.
  *
- * NOTE: These tests require better-sqlite3 native addon to be compiled.
- * If the addon is not available on the current platform, these tests
- * will be skipped.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { DatabaseSync } from 'node:sqlite';
 import { SessionRepository } from '../../../../src/core/database/repositories/session-repository';
 import { MessageRepository } from '../../../../src/core/database/repositories/message-repository';
 import { RoleBindingRepository } from '../../../../src/core/database/repositories/role-binding-repository';
 import { CronJobRepository, CronRunRepository } from '../../../../src/core/database/repositories/cron-repository';
 import type { SessionKey, PersistableMessage } from '../../../../src/core/types';
 
-// Try to import better-sqlite3; skip tests if not available
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-let Database: typeof import('better-sqlite3') | null = null;
-let nativeAvailable = false;
-
-try {
-  // Use dynamic require for better-sqlite3 which may not be available
-  // due to native compilation issues on some platforms
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const mod = require('better-sqlite3');
-  // Try to actually instantiate it to verify the native addon is available
-  const testDb = new mod(':memory:');
-  testDb.close();
-  Database = mod;
-  nativeAvailable = true;
-} catch {
-  nativeAvailable = false;
-}
-
 // Helper to create an in-memory test database with schema
 function createTestDb() {
-  const db = new Database!(':memory:');
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+  const db = new DatabaseSync(':memory:');
+  db.exec('PRAGMA journal_mode = WAL');
+  db.exec('PRAGMA foreign_keys = ON');
 
   db.exec(`
     CREATE TABLE sessions (
@@ -84,13 +63,10 @@ function createTestDb() {
   return db;
 }
 
-const describeIf = nativeAvailable ? describe : describe.skip;
-
-describeIf('Database Layer', () => {
-  let db: InstanceType<typeof import('better-sqlite3')>;
+describe('Database Layer', () => {
+  let db: DatabaseSync;
 
   beforeAll(() => {
-    if (!nativeAvailable || !Database) return;
     db = createTestDb();
   });
 

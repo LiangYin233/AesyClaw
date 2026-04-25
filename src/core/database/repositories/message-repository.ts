@@ -5,11 +5,11 @@
  * Tool calls and tool results are filtered out by MemoryManager.
  */
 
-import type Database from 'better-sqlite3';
+import type { DatabaseSync } from 'node:sqlite';
 import type { PersistableMessage } from '../../types';
 
 export class MessageRepository {
-  constructor(private db: Database.Database) {}
+  constructor(private db: DatabaseSync) {}
 
   /** Save a persistable message to the session history */
   async save(sessionId: string, message: PersistableMessage): Promise<void> {
@@ -49,11 +49,16 @@ export class MessageRepository {
     const insertStmt = this.db
       .prepare('INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)');
 
-    const transaction = this.db.transaction(() => {
+    this.db.exec('BEGIN');
+
+    try {
       deleteStmt.run(sessionId);
       insertStmt.run(sessionId, 'assistant', summary, new Date().toISOString());
-    });
 
-    transaction();
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
   }
 }

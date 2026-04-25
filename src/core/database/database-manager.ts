@@ -9,9 +9,9 @@
  *   await db.close();
  */
 
-import BetterSqlite3 from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { createScopedLogger } from '../logger';
 import { SessionRepository } from './repositories/session-repository';
 import { MessageRepository } from './repositories/message-repository';
@@ -24,7 +24,7 @@ const logger = createScopedLogger('db');
 /** Migration definition */
 interface Migration {
   id: number;
-  up: (db: BetterSqlite3.Database) => void;
+  up: (db: DatabaseSync) => void;
 }
 
 const migrations: Migration[] = [
@@ -32,7 +32,7 @@ const migrations: Migration[] = [
 ];
 
 export class DatabaseManager {
-  private db: BetterSqlite3.Database | null = null;
+  private db: DatabaseSync | null = null;
   private _sessions: SessionRepository | null = null;
   private _messages: MessageRepository | null = null;
   private _roleBindings: RoleBindingRepository | null = null;
@@ -48,12 +48,12 @@ export class DatabaseManager {
     mkdirSync(dirname(dbPath), { recursive: true });
 
     logger.info('Opening database', { path: dbPath });
-    this.db = new BetterSqlite3(dbPath);
+    this.db = new DatabaseSync(dbPath);
 
     // Enable WAL mode for better concurrent read performance
-    this.db.pragma('journal_mode = WAL');
+    this.db.exec('PRAGMA journal_mode = WAL');
     // Enable foreign keys
-    this.db.pragma('foreign_keys = ON');
+    this.db.exec('PRAGMA foreign_keys = ON');
 
     this.runMigrations();
 

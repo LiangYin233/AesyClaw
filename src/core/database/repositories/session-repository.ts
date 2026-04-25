@@ -5,12 +5,12 @@
  * for future flexibility and consistent async patterns.
  */
 
-import type Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
+import type { DatabaseSync } from 'node:sqlite';
 import type { SessionKey, SessionRecord } from '../../types';
 
 export class SessionRepository {
-  constructor(private db: Database.Database) {}
+  constructor(private db: DatabaseSync) {}
 
   /**
    * Find an existing session by its composite key, or create one if not found.

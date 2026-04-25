@@ -5,9 +5,9 @@
  * safely (e.g. during development).
  */
 
-import type Database from 'better-sqlite3';
+import type { DatabaseSync } from 'node:sqlite';
 
-export function up(db: Database.Database): void {
+export function up(db: DatabaseSync): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS sessions (
       id         TEXT PRIMARY KEY,
@@ -54,7 +54,7 @@ export function up(db: Database.Database): void {
   `);
 }
 
-export function down(db: Database.Database): void {
+export function down(db: DatabaseSync): void {
   db.exec(`
     DROP TABLE IF EXISTS cron_runs;
     DROP TABLE IF EXISTS cron_jobs;

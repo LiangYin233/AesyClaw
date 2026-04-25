@@ -4,10 +4,10 @@
  * Stores which role is active for each session.
  */
 
-import type Database from 'better-sqlite3';
+import type { DatabaseSync } from 'node:sqlite';
 
 export class RoleBindingRepository {
-  constructor(private db: Database.Database) {}
+  constructor(private db: DatabaseSync) {}
 
   /** Get the active role ID for a session. Returns null if not set. */
   async getActiveRole(sessionId: string): Promise<string | null> {

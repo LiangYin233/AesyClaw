@@ -5,14 +5,14 @@
  * All methods return Promises for consistent async patterns.
  */
 
-import type Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
+import type { DatabaseSync } from 'node:sqlite';
 import type { CronJobRecord, CronRunRecord, SessionKey } from '../../types';
 
 // ─── CronJobRepository ────────────────────────────────────────────
 
 export class CronJobRepository {
-  constructor(private db: Database.Database) {}
+  constructor(private db: DatabaseSync) {}
 
   /** Create a new cron job and return its generated ID */
   async create(params: {
@@ -57,7 +57,7 @@ export class CronJobRepository {
   async findAll(): Promise<CronJobRecord[]> {
     const rows = this.db
       .prepare('SELECT * FROM cron_jobs ORDER BY next_run ASC')
-      .all() as CronJobRow[];
+      .all() as unknown as CronJobRow[];
 
     return rows.map(mapJobRow);
   }
@@ -80,7 +80,7 @@ export class CronJobRepository {
 // ─── CronRunRepository ───────────────────────────────────────────
 
 export class CronRunRepository {
-  constructor(private db: Database.Database) {}
+  constructor(private db: DatabaseSync) {}
 
   /** Create a new cron run record. Returns the generated run ID. */
   async create(params: { jobId: string }): Promise<string> {
@@ -120,20 +120,25 @@ export class CronRunRepository {
     const stmt = this.db
       .prepare('UPDATE cron_runs SET status = ?, ended_at = ? WHERE id = ?');
 
-    const transaction = this.db.transaction(() => {
+    this.db.exec('BEGIN');
+
+    try {
       for (const id of runIds) {
         stmt.run('abandoned', now, id);
       }
-    });
 
-    transaction();
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
   }
 
   /** Find all currently running runs */
   async findRunning(): Promise<CronRunRecord[]> {
     const rows = this.db
       .prepare("SELECT * FROM cron_runs WHERE status = 'running'")
-      .all() as CronRunRow[];
+      .all() as unknown as CronRunRow[];
 
     return rows.map(mapRunRow);
   }
