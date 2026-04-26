@@ -61,9 +61,7 @@ describe('loadMediaSource', () => {
       const filePath = join(TEST_DIR, 'disguised.png');
       writeFileSync(filePath, Buffer.from([0x89, 0x50]));
 
-      await expect(loadMediaSource(filePath, 'audio')).rejects.toThrow(
-        'Expected an audio source',
-      );
+      await expect(loadMediaSource(filePath, 'audio')).rejects.toThrow('Expected an audio source');
     });
 
     it('should throw when extension is unknown', async () => {
@@ -118,11 +116,14 @@ describe('loadMediaSource', () => {
 
   describe('remote source', () => {
     it('should load media from a remote URL via fetch', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-        ok: true,
-        headers: new Map([['content-type', 'image/png']]),
-        arrayBuffer: async () => new Uint8Array([0x89, 0x50]).buffer,
-      }));
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          headers: new Map([['content-type', 'image/png']]),
+          arrayBuffer: async () => new Uint8Array([0x89, 0x50]).buffer,
+        }),
+      );
 
       const result = await loadMediaSource('https://example.com/images/photo.png', 'image');
       expect(result.mimeType).toBe('image/png');
@@ -132,23 +133,29 @@ describe('loadMediaSource', () => {
     });
 
     it('should throw on non-ok fetch responses', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-        ok: false,
-        status: 404,
-        statusText: 'Not Found',
-      }));
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+        }),
+      );
 
-      await expect(
-        loadMediaSource('https://example.com/missing.png', 'image'),
-      ).rejects.toThrow('Failed to fetch media source (404): Not Found');
+      await expect(loadMediaSource('https://example.com/missing.png', 'image')).rejects.toThrow(
+        'Failed to fetch media source (404): Not Found',
+      );
     });
 
     it('should strip content-type charset parameters', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-        ok: true,
-        headers: new Map([['content-type', 'audio/mpeg; charset=binary']]),
-        arrayBuffer: async () => new Uint8Array([0xff]).buffer,
-      }));
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          headers: new Map([['content-type', 'audio/mpeg; charset=binary']]),
+          arrayBuffer: async () => new Uint8Array([0xff]).buffer,
+        }),
+      );
 
       const result = await loadMediaSource('https://example.com/song.mp3', 'audio');
       expect(result.mimeType).toBe('audio/mpeg');

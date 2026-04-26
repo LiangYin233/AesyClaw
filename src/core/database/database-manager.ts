@@ -107,8 +107,7 @@ export class DatabaseManager {
   get cronJobs() {
     const db = this.getDb();
     return {
-      create: (params: Parameters<typeof cron.createCronJob>[1]) =>
-        cron.createCronJob(db, params),
+      create: (params: Parameters<typeof cron.createCronJob>[1]) => cron.createCronJob(db, params),
       findById: (id: string) => cron.findCronJobById(db, id),
       findAll: () => cron.findAllCronJobs(db),
       delete: (id: string) => cron.deleteCronJob(db, id),
@@ -124,8 +123,7 @@ export class DatabaseManager {
       create: (params: { jobId: string }) => cron.createCronRun(db, params),
       markCompleted: (runId: string, result: string) =>
         cron.markCronRunCompleted(db, runId, result),
-      markFailed: (runId: string, error: string) =>
-        cron.markCronRunFailed(db, runId, error),
+      markFailed: (runId: string, error: string) => cron.markCronRunFailed(db, runId, error),
       markAbandoned: (runIds: string[]) => cron.markCronRunsAbandoned(db, runIds),
       findRunning: () => cron.findRunningCronRuns(db),
     };

@@ -233,11 +233,7 @@ describe('CronScheduler', () => {
 
   describe('clearAll', () => {
     it('should cancel all scheduled jobs', () => {
-      const jobs = [
-        makeJob({ id: 'job-1' }),
-        makeJob({ id: 'job-2' }),
-        makeJob({ id: 'job-3' }),
-      ];
+      const jobs = [makeJob({ id: 'job-1' }), makeJob({ id: 'job-2' }), makeJob({ id: 'job-3' })];
       const callback = vi.fn();
 
       for (const job of jobs) {

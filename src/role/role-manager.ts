@@ -122,7 +122,10 @@ export class RoleManager {
     const firstEnabled = this.getEnabledRoles()[0];
     if (firstEnabled) return firstEnabled;
 
-    throw new AppError('No roles available — at least one role must be defined', 'CONFIG_VALIDATION');
+    throw new AppError(
+      'No roles available — at least one role must be defined',
+      'CONFIG_VALIDATION',
+    );
   }
 
   /** Get all enabled roles. */

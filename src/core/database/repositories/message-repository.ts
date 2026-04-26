@@ -16,8 +16,12 @@ export async function saveMessage(
 ): Promise<void> {
   const timestamp = message.timestamp ?? new Date().toISOString();
 
-  db.prepare('INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)')
-    .run(sessionId, message.role, message.content, timestamp);
+  db.prepare('INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)').run(
+    sessionId,
+    message.role,
+    message.content,
+    timestamp,
+  );
 }
 
 /** Load all messages for a session, ordered chronologically */

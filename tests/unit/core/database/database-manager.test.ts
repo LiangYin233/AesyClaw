@@ -127,7 +127,11 @@ describe('Database Layer', () => {
     });
 
     it('should return null for non-existent session', async () => {
-      const result = await findSessionByKey(db, { channel: 'nope', type: 'private', chatId: 'nobody' });
+      const result = await findSessionByKey(db, {
+        channel: 'nope',
+        type: 'private',
+        chatId: 'nobody',
+      });
       expect(result).toBeNull();
     });
   });

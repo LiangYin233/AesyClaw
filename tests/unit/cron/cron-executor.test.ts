@@ -1,9 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import {
-  CronExecutor,
-  parseSessionKey,
-  formatResult,
-} from '../../../src/cron/cron-executor';
+import { CronExecutor, parseSessionKey, formatResult } from '../../../src/cron/cron-executor';
 import type { CronJobRecord } from '../../../src/core/types';
 
 function makeJob(overrides: Partial<CronJobRecord> = {}): CronJobRecord {
@@ -73,11 +69,11 @@ describe('CronExecutor', () => {
       markFailed: vi.fn().mockResolvedValue(undefined),
     };
     const pipeline = {
-      receiveWithSend: vi.fn().mockImplementation(
-        async (_msg: unknown, send: (m: unknown) => Promise<void>) => {
+      receiveWithSend: vi
+        .fn()
+        .mockImplementation(async (_msg: unknown, send: (m: unknown) => Promise<void>) => {
           await send({ content: 'pipeline response' });
-        },
-      ),
+        }),
     };
     const executor = new CronExecutor({ cronRuns, pipeline });
     return { executor, cronRuns, pipeline };
@@ -133,4 +129,3 @@ describe('CronExecutor', () => {
     });
   });
 });
-

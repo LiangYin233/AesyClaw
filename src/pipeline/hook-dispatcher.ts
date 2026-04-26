@@ -148,9 +148,7 @@ export class HookDispatcher {
     );
   }
 
-  async dispatchAfterToolCall(
-    context: AfterToolCallHookContext,
-  ): Promise<AfterToolCallHookResult> {
+  async dispatchAfterToolCall(context: AfterToolCallHookContext): Promise<AfterToolCallHookResult> {
     return dispatchHooks(
       this.entries,
       (hooks) => hooks.afterToolCall,

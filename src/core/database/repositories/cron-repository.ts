@@ -75,16 +75,21 @@ export async function createCronJob(
 
   db.prepare(
     'INSERT INTO cron_jobs (id, schedule_type, schedule_value, prompt, session_key, next_run, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-  ).run(id, params.scheduleType, params.scheduleValue, params.prompt, sessionKeyJson, nextRunStr, now);
+  ).run(
+    id,
+    params.scheduleType,
+    params.scheduleValue,
+    params.prompt,
+    sessionKeyJson,
+    nextRunStr,
+    now,
+  );
 
   return id;
 }
 
 /** Find a cron job by ID. Returns null if not found. */
-export async function findCronJobById(
-  db: DatabaseSync,
-  id: string,
-): Promise<CronJobRecord | null> {
+export async function findCronJobById(db: DatabaseSync, id: string): Promise<CronJobRecord | null> {
   const row = db.prepare('SELECT * FROM cron_jobs WHERE id = ?').get(id) as CronJobRow | undefined;
   return row ? mapJobRow(row) : null;
 }
@@ -116,15 +121,16 @@ export async function updateCronJobNextRun(
 // ─── Cron Runs ────────────────────────────────────────────────────
 
 /** Create a new cron run record. Returns the generated run ID. */
-export async function createCronRun(
-  db: DatabaseSync,
-  params: { jobId: string },
-): Promise<string> {
+export async function createCronRun(db: DatabaseSync, params: { jobId: string }): Promise<string> {
   const id = randomUUID();
   const now = new Date().toISOString();
 
-  db.prepare('INSERT INTO cron_runs (id, job_id, status, started_at) VALUES (?, ?, ?, ?)')
-    .run(id, params.jobId, 'running', now);
+  db.prepare('INSERT INTO cron_runs (id, job_id, status, started_at) VALUES (?, ?, ?, ?)').run(
+    id,
+    params.jobId,
+    'running',
+    now,
+  );
 
   return id;
 }
@@ -136,8 +142,12 @@ export async function markCronRunCompleted(
   result: string,
 ): Promise<void> {
   const now = new Date().toISOString();
-  db.prepare('UPDATE cron_runs SET status = ?, result = ?, ended_at = ? WHERE id = ?')
-    .run('completed', result, now, runId);
+  db.prepare('UPDATE cron_runs SET status = ?, result = ?, ended_at = ? WHERE id = ?').run(
+    'completed',
+    result,
+    now,
+    runId,
+  );
 }
 
 /** Mark a run as failed */
@@ -147,15 +157,16 @@ export async function markCronRunFailed(
   error: string,
 ): Promise<void> {
   const now = new Date().toISOString();
-  db.prepare('UPDATE cron_runs SET status = ?, error = ?, ended_at = ? WHERE id = ?')
-    .run('failed', error, now, runId);
+  db.prepare('UPDATE cron_runs SET status = ?, error = ?, ended_at = ? WHERE id = ?').run(
+    'failed',
+    error,
+    now,
+    runId,
+  );
 }
 
 /** Mark multiple runs as abandoned (e.g. on startup for leftover 'running' runs) */
-export async function markCronRunsAbandoned(
-  db: DatabaseSync,
-  runIds: string[],
-): Promise<void> {
+export async function markCronRunsAbandoned(db: DatabaseSync, runIds: string[]): Promise<void> {
   if (runIds.length === 0) return;
 
   const now = new Date().toISOString();
