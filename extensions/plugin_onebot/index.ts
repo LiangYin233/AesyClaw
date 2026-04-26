@@ -1004,12 +1004,7 @@ function mapOneBotAttachmentSegment(segment: unknown): MediaAttachment | null {
   }
 
   const url = typeof segment.data.url === 'string' ? segment.data.url : undefined;
-  const pathValue =
-    typeof segment.data.path === 'string'
-      ? segment.data.path
-      : typeof segment.data.file_path === 'string'
-        ? segment.data.file_path
-        : undefined;
+  const pathValue = typeof segment.data.path === 'string' ? segment.data.path : undefined;
 
   if (!url && !pathValue) {
     return null;

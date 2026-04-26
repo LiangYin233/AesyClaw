@@ -58,7 +58,6 @@ describe('plugin_onebot', () => {
         message: [
           { type: 'at', data: { qq: 11111 } },
           { type: 'text', data: { text: 'hi group' } },
-          { type: 'file', data: { file_path: 'C:/NapCatTemp/report.pdf' } },
         ],
         sender: { card: 'member-card', nickname: 'bob', role: 'admin' },
       },
@@ -69,7 +68,6 @@ describe('plugin_onebot', () => {
       expect.objectContaining({
         sessionKey: { channel: 'onebot', type: 'group', chatId: '67890' },
         content: 'hi group',
-        attachments: [{ type: 'file', path: 'C:/NapCatTemp/report.pdf' }],
         sender: { id: '23456', name: 'member-card', role: 'admin' },
       }),
     );
@@ -493,6 +491,101 @@ describe('plugin_onebot', () => {
     expect(inbound.attachments?.[0]?.path).toBeUndefined();
     expect(inbound.content).toContain('[Attachment download errors]');
     expect(inbound.content).toContain('did not return a completion response');
+
+    await expect(channel.destroy?.()).resolves.toBeUndefined();
+  });
+
+  it('does not expose file_path-only inbound files as local attachment paths', async () => {
+    const socket = new FakeWebSocket();
+    const receiveWithSend = vi.fn(async () => undefined);
+    const channel = createOneBotChannel({ createSocket: () => socket });
+
+    const initPromise = channel.init({
+      name: 'onebot',
+      config: {
+        serverUrl: 'ws://napcat.remote:3001/',
+      },
+      receiveWithSend,
+      logger: makeLogger(),
+    });
+    socket.dispatchOpen();
+    await initPromise;
+
+    socket.dispatchMessage(
+      JSON.stringify({
+        post_type: 'message',
+        message_type: 'private',
+        user_id: 12345,
+        message: [
+          { type: 'text', data: { text: 'see file' } },
+          { type: 'file', data: { file_path: 'C:/NapCatTemp/report.pdf' } },
+        ],
+      }),
+    );
+
+    await waitForCondition(() => receiveWithSend.mock.calls.length === 1);
+
+    const inbound = receiveWithSend.mock.calls[0]?.[0] as {
+      content: string;
+      attachments?: Array<{ path?: string }>;
+    };
+    expect(inbound.attachments).toBeUndefined();
+    expect(inbound.content).toContain('see file');
+    expect(inbound.content).toContain('[Attachment download errors]');
+    expect(inbound.content).toContain('No OneBot download identifier available for file attachment');
+    expect(inbound.content).not.toContain('C:/NapCatTemp/report.pdf');
+    expect(socket.sent).toHaveLength(0);
+
+    await expect(channel.destroy?.()).resolves.toBeUndefined();
+  });
+
+  it('preserves URL metadata when file_path-only inbound file downloads are unsupported', async () => {
+    const socket = new FakeWebSocket();
+    const receiveWithSend = vi.fn(async () => undefined);
+    const channel = createOneBotChannel({ createSocket: () => socket });
+
+    const initPromise = channel.init({
+      name: 'onebot',
+      config: {
+        serverUrl: 'ws://napcat.remote:3001/',
+      },
+      receiveWithSend,
+      logger: makeLogger(),
+    });
+    socket.dispatchOpen();
+    await initPromise;
+
+    socket.dispatchMessage(
+      JSON.stringify({
+        post_type: 'message',
+        message_type: 'private',
+        user_id: 12345,
+        message: [
+          { type: 'text', data: { text: 'see file' } },
+          {
+            type: 'file',
+            data: {
+              file_path: 'C:/NapCatTemp/report.pdf',
+              url: 'https://example.com/report.pdf',
+            },
+          },
+        ],
+      }),
+    );
+
+    await waitForCondition(() => receiveWithSend.mock.calls.length === 1);
+
+    const inbound = receiveWithSend.mock.calls[0]?.[0] as {
+      content: string;
+      attachments?: Array<{ type?: string; path?: string; url?: string }>;
+    };
+    expect(inbound.attachments).toEqual([
+      { type: 'file', url: 'https://example.com/report.pdf' },
+    ]);
+    expect(inbound.attachments?.[0]?.path).toBeUndefined();
+    expect(inbound.content).toContain('[Attachment download errors]');
+    expect(inbound.content).not.toContain('C:/NapCatTemp/report.pdf');
+    expect(socket.sent).toHaveLength(0);
 
     await expect(channel.destroy?.()).resolves.toBeUndefined();
   });
