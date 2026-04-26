@@ -1,0 +1,16 @@
+{
+  "name": "@aesyclaw/tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "config:edit": "tsx config-editor.ts --root .."
+  },
+  "dependencies": {
+    "ink": "^7.0.1",
+    "react": "^19.2.5"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14"
+  }
+}

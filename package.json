@@ -2,14 +2,18 @@
   "name": "aesyclaw",
   "version": "0.1.0",
   "description": "An extensible AI Agent runtime platform",
+  "private": true,
   "type": "module",
+  "workspaces": [
+    "tools"
+  ],
   "engines": {
     "node": ">=22.13.0"
   },
   "main": "./dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "config:edit": "tsx tools/config-editor.ts",
+    "config:edit": "yarn workspace @aesyclaw/tools config:edit",
     "build": "tsup",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

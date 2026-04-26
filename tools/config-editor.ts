@@ -1,12 +1,14 @@
 #!/usr/bin/env tsx
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { EventEmitter } from 'node:events';
 import path from 'node:path';
 import process from 'node:process';
-import { createInterface, type Interface } from 'node:readline/promises';
 import { pathToFileURL } from 'node:url';
 import type { TSchema } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
+import React, { useEffect, useState } from 'react';
+import { Box, render, Text, useApp, useInput } from 'ink';
 import { PathResolver } from '../src/core/path-resolver';
 import { DEFAULT_CONFIG } from '../src/core/config/defaults';
 import {
@@ -28,7 +30,47 @@ import type {
 
 type ConfigSection = keyof AppConfig;
 
-type SectionEditor = (rl: Interface, config: AppConfig) => Promise<AppConfig>;
+interface PromptController {
+  choose<T>(title: string, options: ReadonlyArray<MenuOption<T>>, current?: T): Promise<T>;
+  input(label: string, current?: string, options?: InputOptions): Promise<string>;
+  message(message: string): void;
+  stop(): void;
+}
+
+type Interface = PromptController;
+
+interface MenuOption<T> {
+  label: string;
+  value: T;
+}
+
+interface InputOptions {
+  secret?: boolean;
+}
+
+type SectionEditor = (ui: PromptController, config: AppConfig) => Promise<AppConfig>;
+
+type PromptRequest =
+  | {
+      kind: 'menu';
+      title: string;
+      options: ReadonlyArray<MenuOption<unknown>>;
+      current?: unknown;
+      resolve: (value: unknown) => void;
+    }
+  | {
+      kind: 'input';
+      label: string;
+      current?: string;
+      secret: boolean;
+      resolve: (value: string) => void;
+    };
+
+interface TuiSnapshot {
+  request: PromptRequest | null;
+  messages: readonly string[];
+  done: boolean;
+}
 
 const SECTION_DEFINITIONS: ReadonlyArray<{
   key: ConfigSection;
@@ -158,18 +200,216 @@ export function removePlugin(config: AppConfig, name: string): AppConfig {
   return { ...config, plugins: config.plugins.filter((plugin) => plugin.name !== name) };
 }
 
+class InkPromptController implements PromptController {
+  private readonly events = new EventEmitter();
+  private snapshot: TuiSnapshot = { request: null, messages: [], done: false };
+
+  subscribe(listener: () => void): () => void {
+    this.events.on('change', listener);
+    return () => {
+      this.events.off('change', listener);
+    };
+  }
+
+  getSnapshot(): TuiSnapshot {
+    return this.snapshot;
+  }
+
+  choose<T>(title: string, options: ReadonlyArray<MenuOption<T>>, current?: T): Promise<T> {
+    return new Promise<T>((resolve) => {
+      this.update({
+        request: {
+          kind: 'menu',
+          title,
+          options: options as ReadonlyArray<MenuOption<unknown>>,
+          current,
+          resolve: (value) => resolve(value as T),
+        },
+      });
+    });
+  }
+
+  input(label: string, current?: string, options: InputOptions = {}): Promise<string> {
+    return new Promise<string>((resolve) => {
+      this.update({
+        request: {
+          kind: 'input',
+          label,
+          current,
+          secret: options.secret ?? false,
+          resolve,
+        },
+      });
+    });
+  }
+
+  message(message: string): void {
+    this.update({ messages: [...this.snapshot.messages.slice(-7), message] });
+  }
+
+  stop(): void {
+    this.update({ request: null, done: true });
+  }
+
+  private completeRequest(value: unknown): void {
+    const request = this.snapshot.request;
+    if (!request) return;
+
+    this.update({ request: null });
+    request.resolve(value as never);
+  }
+
+  selectMenuIndex(index: number): void {
+    const request = this.snapshot.request;
+    if (request?.kind !== 'menu') return;
+    this.completeRequest(request.options[index]?.value);
+  }
+
+  submitInput(value: string): void {
+    if (this.snapshot.request?.kind !== 'input') return;
+    this.completeRequest(value);
+  }
+
+  private update(partial: Partial<TuiSnapshot>): void {
+    this.snapshot = { ...this.snapshot, ...partial };
+    this.events.emit('change');
+  }
+}
+
+function ConfigEditorApp({ controller }: { controller: InkPromptController }): React.ReactElement {
+  const [snapshot, setSnapshot] = useState(controller.getSnapshot());
+  const { exit } = useApp();
+
+  useEffect(() => controller.subscribe(() => setSnapshot(controller.getSnapshot())), [controller]);
+  useEffect(() => {
+    if (snapshot.done) exit();
+  }, [exit, snapshot.done]);
+
+  return React.createElement(
+    Box,
+    { flexDirection: 'column' },
+    React.createElement(Text, { bold: true, color: 'cyan' }, 'AesyClaw Config Editor'),
+    snapshot.messages.length > 0
+      ? React.createElement(
+          Box,
+          { flexDirection: 'column', marginY: 1 },
+          snapshot.messages.map((message, index) =>
+            React.createElement(Text, { key: `${index}-${message}`, color: 'gray' }, message),
+          ),
+        )
+      : null,
+    snapshot.request
+      ? React.createElement(PromptView, { request: snapshot.request, controller })
+      : React.createElement(Text, null, snapshot.done ? 'Done.' : 'Loading config...'),
+  );
+}
+
+function PromptView({
+  request,
+  controller,
+}: {
+  request: PromptRequest;
+  controller: InkPromptController;
+}): React.ReactElement {
+  if (request.kind === 'menu') {
+    return React.createElement(MenuPrompt, { request, controller });
+  }
+
+  return React.createElement(InputPrompt, { request, controller });
+}
+
+function MenuPrompt({
+  request,
+  controller,
+}: {
+  request: Extract<PromptRequest, { kind: 'menu' }>;
+  controller: InkPromptController;
+}): React.ReactElement {
+  const currentIndex = Math.max(
+    0,
+    request.options.findIndex((option) => option.value === request.current),
+  );
+  const [selected, setSelected] = useState(currentIndex);
+
+  useEffect(() => setSelected(currentIndex), [currentIndex, request]);
+  useInput((input, key) => {
+    if (key.upArrow) setSelected((value) => Math.max(0, value - 1));
+    if (key.downArrow) setSelected((value) => Math.min(request.options.length - 1, value + 1));
+    if (key.return) controller.selectMenuIndex(selected);
+
+    const numeric = Number(input);
+    if (Number.isInteger(numeric) && numeric >= 1 && numeric <= request.options.length) {
+      controller.selectMenuIndex(numeric - 1);
+    }
+  });
+
+  return React.createElement(
+    Box,
+    { flexDirection: 'column' },
+    React.createElement(Text, { bold: true }, request.title),
+    ...request.options.map((option, index) => {
+      const isSelected = index === selected;
+      const suffix = option.value === request.current ? ' [current]' : '';
+      return React.createElement(
+        Text,
+        { key: `${index}-${option.label}`, color: isSelected ? 'green' : undefined },
+        `${isSelected ? '›' : ' '} ${index + 1}. ${option.label}${suffix}`,
+      );
+    }),
+    React.createElement(Text, { color: 'gray' }, 'Use ↑/↓ and Enter, or press a number.'),
+  );
+}
+
+function InputPrompt({
+  request,
+  controller,
+}: {
+  request: Extract<PromptRequest, { kind: 'input' }>;
+  controller: InkPromptController;
+}): React.ReactElement {
+  const [draft, setDraft] = useState('');
+
+  useEffect(() => setDraft(''), [request]);
+  useInput((input, key) => {
+    if (key.return) {
+      controller.submitInput(draft.trim());
+      return;
+    }
+
+    if (key.backspace || key.delete) {
+      setDraft((value) => value.slice(0, -1));
+      return;
+    }
+
+    if (!key.ctrl && !key.meta && input) {
+      setDraft((value) => `${value}${input}`);
+    }
+  });
+
+  const suffix =
+    request.current === undefined || request.current === '' ? '' : ` [${request.current}]`;
+  const displayValue = request.secret ? '*'.repeat(draft.length) : draft;
+
+  return React.createElement(
+    Box,
+    { flexDirection: 'column' },
+    React.createElement(Text, null, `${request.label}${suffix}: ${displayValue}`),
+    React.createElement(Text, { color: 'gray' }, 'Press Enter to submit.'),
+  );
+}
+
 export async function runConfigEditor(configPath = resolveConfigPath()): Promise<void> {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const controller = new InkPromptController();
+  const app = render(React.createElement(ConfigEditorApp, { controller }));
 
   try {
     let config = await loadConfig(configPath);
     let dirty = false;
 
-    writeLine('AesyClaw Config Editor');
-    writeLine(`Config: ${configPath}`);
+    controller.message(`Config: ${configPath}`);
 
     while (true) {
-      const action = await choose(rl, 'Main menu', [
+      const action = await choose(controller, 'Main menu', [
         ...SECTION_DEFINITIONS.map((section) => ({ label: section.label, value: section.key })),
         { label: 'Preview config', value: 'preview' as const },
         { label: 'Save and exit', value: 'save' as const },
@@ -178,27 +418,28 @@ export async function runConfigEditor(configPath = resolveConfigPath()): Promise
 
       if (action === 'save') {
         await saveConfig(configPath, config);
-        writeLine('Config saved.');
+        controller.message('Config saved.');
         return;
       }
 
       if (action === 'exit') {
-        if (!dirty || (await promptBoolean(rl, 'Discard unsaved changes?', false))) {
+        if (!dirty || (await promptBoolean(controller, 'Discard unsaved changes?', false))) {
           return;
         }
         continue;
       }
 
       if (action === 'preview') {
-        writeLine(JSON.stringify(config, null, 2));
+        controller.message(JSON.stringify(config, null, 2));
         continue;
       }
 
-      config = await editSection(rl, action, config);
+      config = await editSection(controller, action, config);
       dirty = true;
     }
   } finally {
-    rl.close();
+    controller.stop();
+    app.unmount();
   }
 }
 
@@ -655,20 +896,7 @@ async function choose<T>(
   title: string,
   options: ReadonlyArray<{ label: string; value: T }>,
 ): Promise<T> {
-  while (true) {
-    writeLine(`\n${title}`);
-    options.forEach((option, index) => {
-      writeLine(`  ${index + 1}. ${option.label}`);
-    });
-
-    const raw = (await rl.question('Choose: ')).trim();
-    const index = Number(raw) - 1;
-    if (Number.isInteger(index) && index >= 0 && index < options.length) {
-      return options[index].value;
-    }
-
-    writeLine('Invalid choice. Enter the number from the menu.');
-  }
+  return rl.choose(title, options);
 }
 
 async function chooseWithDefault<T>(
@@ -677,23 +905,7 @@ async function chooseWithDefault<T>(
   options: ReadonlyArray<{ label: string; value: T }>,
   current?: T,
 ): Promise<T> {
-  while (true) {
-    writeLine(`\n${title}`);
-    options.forEach((option, index) => {
-      const suffix = current === option.value ? ' [current]' : '';
-      writeLine(`  ${index + 1}. ${option.label}${suffix}`);
-    });
-
-    const raw = (await rl.question('Choose: ')).trim();
-    if (raw === '' && current !== undefined) return current;
-
-    const index = Number(raw) - 1;
-    if (Number.isInteger(index) && index >= 0 && index < options.length) {
-      return options[index].value;
-    }
-
-    writeLine('Invalid choice. Enter the number from the menu.');
-  }
+  return rl.choose(title, options, current);
 }
 
 async function chooseName(
@@ -702,7 +914,7 @@ async function chooseName(
   names: readonly string[],
 ): Promise<string | null> {
   if (names.length === 0) {
-    writeLine('Nothing to remove.');
+    rl.message('Nothing to remove.');
     return null;
   }
 
@@ -718,7 +930,7 @@ async function promptString(rl: Interface, label: string, current?: string): Pro
     const raw = await promptRaw(rl, label, current);
     if (raw !== '') return raw;
     if (current !== undefined) return current;
-    writeLine('Value is required.');
+    rl.message('Value is required.');
   }
 }
 
@@ -739,7 +951,7 @@ async function promptSecretLikeString(
   current?: string,
 ): Promise<string | undefined> {
   const suffix = current ? ' (currently set; blank keeps, - clears)' : ' (blank skips)';
-  const raw = (await rl.question(`${label}${suffix}: `)).trim();
+  const raw = await rl.input(`${label}${suffix}`, undefined, { secret: true });
   if (raw === '') return current;
   if (raw === '-') return undefined;
   return raw;
@@ -758,7 +970,7 @@ async function promptRequiredSecretLikeString(
     if (current && current.length > 0) {
       return current;
     }
-    writeLine('Value is required.');
+    rl.message('Value is required.');
   }
 }
 
@@ -768,7 +980,7 @@ async function promptNumber(rl: Interface, label: string, current: number): Prom
     if (raw === '') return current;
     const value = Number(raw);
     if (Number.isFinite(value)) return value;
-    writeLine('Enter a valid number.');
+    rl.message('Enter a valid number.');
   }
 }
 
@@ -783,7 +995,7 @@ async function promptOptionalNumber(
     if (raw === '-') return undefined;
     const value = Number(raw);
     if (Number.isFinite(value)) return value;
-    writeLine('Enter a valid number.');
+    rl.message('Enter a valid number.');
   }
 }
 
@@ -794,7 +1006,7 @@ async function promptBoolean(rl: Interface, label: string, current: boolean): Pr
     const normalized = raw.toLowerCase();
     if (['y', 'yes', 'true', '1'].includes(normalized)) return true;
     if (['n', 'no', 'false', '0'].includes(normalized)) return false;
-    writeLine('Enter y or n.');
+    rl.message('Enter y or n.');
   }
 }
 
@@ -814,7 +1026,7 @@ async function promptOptionalBoolean(
     const normalized = raw.toLowerCase();
     if (['y', 'yes', 'true', '1'].includes(normalized)) return true;
     if (['n', 'no', 'false', '0'].includes(normalized)) return false;
-    writeLine('Enter y, n, or -.');
+    rl.message('Enter y, n, or -.');
   }
 }
 
@@ -845,7 +1057,7 @@ async function promptJsonObject(
   const currentObject = isRecord(current) ? current : {};
 
   while (true) {
-    writeLine(`Current ${label}: ${JSON.stringify(currentObject)}`);
+    rl.message(`Current ${label}: ${JSON.stringify(currentObject)}`);
     const raw = await promptRaw(rl, `${label} (blank keeps, '-' clears)`, undefined);
     if (raw === '') return { ...currentObject };
     if (raw === '-') return {};
@@ -853,9 +1065,9 @@ async function promptJsonObject(
     try {
       const parsed = JSON.parse(raw) as unknown;
       if (isRecord(parsed)) return parsed;
-      writeLine('Enter a JSON object, for example: {"enabled":true}');
+      rl.message('Enter a JSON object, for example: {"enabled":true}');
     } catch (error) {
-      writeLine(`Invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
+      rl.message(`Invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }
@@ -866,7 +1078,7 @@ async function promptJsonArray(
   current?: readonly unknown[],
 ): Promise<unknown[] | undefined> {
   while (true) {
-    writeLine(`Current ${label}: ${JSON.stringify(current ?? [])}`);
+    rl.message(`Current ${label}: ${JSON.stringify(current ?? [])}`);
     const raw = await promptRaw(rl, `${label} (blank keeps, '-' clears)`, undefined);
     if (raw === '') return current ? [...current] : undefined;
     if (raw === '-') return undefined;
@@ -874,16 +1086,16 @@ async function promptJsonArray(
     try {
       const parsed = JSON.parse(raw) as unknown;
       if (Array.isArray(parsed)) return parsed;
-      writeLine('Enter a JSON array, for example: ["value"]');
+      rl.message('Enter a JSON array, for example: ["value"]');
     } catch (error) {
-      writeLine(`Invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
+      rl.message(`Invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }
 
 async function promptJsonValue(rl: Interface, label: string, current?: unknown): Promise<unknown> {
   while (true) {
-    writeLine(`Current ${label}: ${JSON.stringify(current)}`);
+    rl.message(`Current ${label}: ${JSON.stringify(current)}`);
     const raw = await promptRaw(rl, `${label} (blank keeps, '-' clears)`, undefined);
     if (raw === '') return current;
     if (raw === '-') return undefined;
@@ -891,14 +1103,13 @@ async function promptJsonValue(rl: Interface, label: string, current?: unknown):
     try {
       return JSON.parse(raw) as unknown;
     } catch (error) {
-      writeLine(`Invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
+      rl.message(`Invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }
 
 async function promptRaw(rl: Interface, label: string, current?: string): Promise<string> {
-  const suffix = current === undefined || current === '' ? '' : ` [${current}]`;
-  return (await rl.question(`${label}${suffix}: `)).trim();
+  return rl.input(label, current);
 }
 
 function formatCurrent(value: number | undefined): string | undefined {
