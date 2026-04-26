@@ -12,7 +12,7 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { Value } from '@sinclair/typebox/value';
 import { createScopedLogger } from '../core/logger';
-import { ConfigValidationError } from '../core/errors';
+import { AppError } from '../core/errors';
 import type { RoleConfig, Skill } from '../core/types';
 import { RoleConfigSchema } from './role-schema';
 import type { AesyClawTool } from '../tool/tool-registry';
@@ -73,7 +73,7 @@ export class RoleManager {
   /** Start watching the roles directory for changes. */
   startWatching(): void {
     if (!this.rolesDir) {
-      throw new ConfigValidationError('Roles not loaded — cannot start watching', null);
+      throw new AppError('Roles not loaded — cannot start watching', 'CONFIG_VALIDATION');
     }
 
     if (this.watcher) {
@@ -122,7 +122,7 @@ export class RoleManager {
     const firstEnabled = this.getEnabledRoles()[0];
     if (firstEnabled) return firstEnabled;
 
-    throw new ConfigValidationError('No roles available — at least one role must be defined', null);
+    throw new AppError('No roles available — at least one role must be defined', 'CONFIG_VALIDATION');
   }
 
   /** Get all enabled roles. */

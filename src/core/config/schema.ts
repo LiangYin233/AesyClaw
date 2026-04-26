@@ -26,9 +26,6 @@ const ModelPresetSchema = Type.Object({
   apiKey: Type.Optional(Type.String()),
 });
 
-type ModelPreset = Static<typeof ModelPresetSchema>;
-
-/** LLM provider configuration */
 const ProviderConfigSchema = Type.Object({
   apiKey: Type.Optional(Type.String()),
   baseUrl: Type.Optional(Type.String()),
@@ -47,15 +44,11 @@ const ServerConfigSchema = Type.Object({
   cors: Type.Optional(Type.Boolean({ default: true })),
 });
 
-type ServerConfig = Static<typeof ServerConfigSchema>;
-
 // ─── Agent ───────────────────────────────────────────────────────
 
 const AgentConfigSchema = Type.Object({
   maxSteps: Type.Number({ default: 10 }),
 });
-
-type AgentConfig = Static<typeof AgentConfigSchema>;
 
 // ─── Memory ─────────────────────────────────────────────────────
 
@@ -63,8 +56,6 @@ const MemoryConfigSchema = Type.Object({
   maxContextTokens: Type.Number({ default: 128000 }),
   compressionThreshold: Type.Number({ default: 0.8 }),
 });
-
-type MemoryConfig = Static<typeof MemoryConfigSchema>;
 
 // ─── Multimodal ──────────────────────────────────────────────────
 
@@ -78,8 +69,6 @@ const MultimodalConfigSchema = Type.Object({
     model: Type.String(),
   }),
 });
-
-type MultimodalConfig = Static<typeof MultimodalConfigSchema>;
 
 // ─── MCP ─────────────────────────────────────────────────────────
 
@@ -133,12 +122,7 @@ export {
   PluginConfigEntrySchema,
   AppConfigSchema,
   // Derived types
-  type ModelPreset,
   type ProviderConfig,
-  type ServerConfig,
-  type AgentConfig,
-  type MemoryConfig,
-  type MultimodalConfig,
   type McpServerConfig,
   type PluginConfigEntry,
   type AppConfig,

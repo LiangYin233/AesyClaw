@@ -9,7 +9,7 @@ import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ConfigManager } from '../../../../src/core/config/config-manager';
-import { ConfigValidationError } from '../../../../src/core/errors';
+import { AppError } from '../../../../src/core/errors';
 
 const TEST_DIR = join(tmpdir(), 'aesyclaw-test-config');
 
@@ -99,7 +99,7 @@ describe('ConfigManager', () => {
 
       writeFileSync(configPath, JSON.stringify(invalidConfig, null, 2));
 
-      await expect(manager.load(configPath)).rejects.toBeInstanceOf(ConfigValidationError);
+      await expect(manager.load(configPath)).rejects.toBeInstanceOf(AppError);
     });
 
     it('should still fill defaults for missing optional fields', async () => {

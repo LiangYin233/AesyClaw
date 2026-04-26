@@ -9,8 +9,8 @@
 import { randomUUID } from 'node:crypto';
 import type { PersistableMessage, RoleConfig, SessionKey } from '../core/types';
 import { DEFAULT_CONFIG } from '../core/config/defaults';
-import type { MessageRepository } from '../core/database/repositories/message-repository';
 import { MemoryManager } from './memory-manager';
+import type { MessageRepositoryLike } from './memory-manager';
 import type { SubAgentRoleParams, SubAgentTempParams } from './agent-types';
 import type { AgentEngine } from './agent-engine';
 import type { RoleManager } from '../role/role-manager';
@@ -86,7 +86,7 @@ export class SubAgentSandbox {
     const sessionId = `sub-agent:${randomUUID()}`;
     const memory = new MemoryManager(
       sessionId,
-      new InMemoryMessageRepository() as unknown as MessageRepository,
+      new InMemoryMessageRepository() as unknown as MessageRepositoryLike,
       DEFAULT_CONFIG.memory,
     );
     const sessionKey = executionContext?.sessionKey ?? EMPTY_SESSION_KEY;

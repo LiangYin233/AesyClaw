@@ -1,13 +1,12 @@
 /**
- * SessionResolverMiddleware — resolves or creates a session context.
+ * Session Resolution — resolves or creates a session context.
  *
  * Looks up or creates a SessionContext for the inbound message's
  * SessionKey, then attaches it to the pipeline state for use by
- * subsequent middlewares (e.g. AgentProcessor).
- *
+ * subsequent steps (e.g., agent processing).
  */
 
-import type { PipelineState, NextFn } from './types';
+import type { PipelineState } from './types';
 import type { SessionManager } from '../../agent/session-manager';
 
 /**
@@ -17,13 +16,10 @@ import type { SessionManager } from '../../agent/session-manager';
  * binding, memory, and agent). The resulting SessionContext is
  * placed on `state.session`.
  */
-export class SessionResolverMiddleware {
-  readonly name = 'SessionResolver';
-
-  constructor(private sessionManager: SessionManager) {}
-
-  async execute(state: PipelineState, next: NextFn): Promise<PipelineState> {
-    state.session = await this.sessionManager.getOrCreateSession(state.inbound.sessionKey);
-    return next(state);
-  }
+export async function sessionResolver(
+  state: PipelineState,
+  sessionManager: SessionManager,
+): Promise<PipelineState> {
+  state.session = await sessionManager.getOrCreateSession(state.inbound.sessionKey);
+  return state;
 }

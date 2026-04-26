@@ -16,7 +16,7 @@ import { dirname } from 'node:path';
 import { Value } from '@sinclair/typebox/value';
 import type { DeepPartial, ConfigChangeListener, Unsubscribe } from '../types';
 import { createScopedLogger } from '../logger';
-import { ConfigValidationError } from '../errors';
+import { AppError } from '../errors';
 import { AppConfigSchema } from './schema';
 import type { AppConfig } from './schema';
 import { DEFAULT_CONFIG } from './defaults';
@@ -63,7 +63,7 @@ export class ConfigManager {
   /** Get a read-only snapshot of the entire config */
   getConfig(): Readonly<AppConfig> {
     if (!this.config) {
-      throw new ConfigValidationError('Config not loaded', null);
+      throw new AppError('Config not loaded', 'CONFIG_VALIDATION');
     }
     return this.config;
   }
@@ -71,7 +71,7 @@ export class ConfigManager {
   /** Get a read-only snapshot of a specific config section */
   get<K extends keyof AppConfig>(key: K): Readonly<AppConfig[K]> {
     if (!this.config) {
-      throw new ConfigValidationError('Config not loaded', null);
+      throw new AppError('Config not loaded', 'CONFIG_VALIDATION');
     }
     return this.config[key];
   }
@@ -108,7 +108,7 @@ export class ConfigManager {
    */
   async update(partial: DeepPartial<AppConfig>): Promise<void> {
     if (!this.config || !this.configPath) {
-      throw new ConfigValidationError('Config not loaded', null);
+      throw new AppError('Config not loaded', 'CONFIG_VALIDATION');
     }
 
     const oldConfig = structuredClone(this.config);
@@ -148,7 +148,7 @@ export class ConfigManager {
    */
   async syncDefaults(): Promise<void> {
     if (!this.config || !this.configPath) {
-      throw new ConfigValidationError('Config not loaded', null);
+      throw new AppError('Config not loaded', 'CONFIG_VALIDATION');
     }
 
     const oldConfig = structuredClone(this.config);
@@ -179,7 +179,7 @@ export class ConfigManager {
   /** Start watching the config file for external changes */
   startHotReload(): void {
     if (!this.configPath) {
-      throw new ConfigValidationError('Config not loaded — cannot start hot reload', null);
+      throw new AppError('Config not loaded — cannot start hot reload', 'CONFIG_VALIDATION');
     }
 
     if (this.watcher) {
@@ -264,12 +264,12 @@ export class ConfigManager {
     try {
       parsed = JSON.parse(raw);
     } catch (err) {
-      throw new ConfigValidationError('Invalid JSON in config file', err);
+      throw new AppError('Invalid JSON in config file', 'CONFIG_VALIDATION', err);
     }
 
     if (!isPlainObject(parsed)) {
       const errors = [...Value.Errors(AppConfigSchema, parsed)];
-      throw new ConfigValidationError('Config validation failed', errors);
+      throw new AppError('Config validation failed', 'CONFIG_VALIDATION', errors);
     }
 
     const mergedWithDefaults = this.deepMerge(
@@ -280,7 +280,7 @@ export class ConfigManager {
 
     if (!Value.Check(AppConfigSchema, validated)) {
       const errors = [...Value.Errors(AppConfigSchema, validated)];
-      throw new ConfigValidationError('Config validation failed', errors);
+      throw new AppError('Config validation failed', 'CONFIG_VALIDATION', errors);
     }
 
     if (JSON.stringify(parsed) !== JSON.stringify(validated)) {

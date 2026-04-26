@@ -2,6 +2,8 @@
 
 import type { InboundMessage, OutboundMessage, SendFn, SessionKey } from '../core/types';
 import type { Logger } from '../core/logger';
+import type { ConfigManager } from '../core/config/config-manager';
+import type { Pipeline } from '../pipeline/pipeline';
 
 export interface ChannelContext {
   name: string;
@@ -38,18 +40,9 @@ export interface ChannelStatus {
 }
 
 export interface ChannelManagerDependencies {
-  configManager: ChannelConfigManagerLike;
-  pipeline: ChannelPipelineLike;
+  configManager: ConfigManager;
+  pipeline: Pipeline;
   channels?: ChannelPlugin[];
-}
-
-export interface ChannelConfigManagerLike {
-  get(key: 'channels'): Readonly<Record<string, unknown>>;
-  registerDefaults?(key: string, defaults: Record<string, unknown>): void;
-}
-
-export interface ChannelPipelineLike {
-  receiveWithSend(message: InboundMessage, send: SendFn): Promise<void>;
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

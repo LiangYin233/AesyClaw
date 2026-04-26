@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { DIR_NAMES, FILE_NAMES } from './constants';
+import { DIR_NAMES, FILE_NAMES } from './types';
 
 /**
  * Resolves project directory paths from a given root directory.

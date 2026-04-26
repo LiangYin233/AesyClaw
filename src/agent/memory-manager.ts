@@ -16,7 +16,7 @@
  *
  */
 
-import type { MessageRepository } from '../core/database/repositories/message-repository';
+import type { PersistableMessage } from '../core/types';
 import {
   assistantHasToolCalls,
   createPersistedAssistantMessage,
@@ -29,14 +29,22 @@ import { createScopedLogger } from '../core/logger';
 
 const logger = createScopedLogger('memory');
 
+/** Shape of the message repository that MemoryManager depends on */
+export interface MessageRepositoryLike {
+  save(sessionId: string, message: PersistableMessage): Promise<void>;
+  loadHistory(sessionId: string): Promise<PersistableMessage[]>;
+  clearHistory(sessionId: string): Promise<void>;
+  replaceWithSummary(sessionId: string, summary: string): Promise<void>;
+}
+
 // ─── MemoryManager ──────────────────────────────────────────────
 
 export class MemoryManager {
   private readonly sessionId: string;
-  private readonly messageRepo: MessageRepository;
+  private readonly messageRepo: MessageRepositoryLike;
   private readonly config: MemoryConfig;
 
-  constructor(sessionId: string, messageRepo: MessageRepository, config: MemoryConfig) {
+  constructor(sessionId: string, messageRepo: MessageRepositoryLike, config: MemoryConfig) {
     this.sessionId = sessionId;
     this.messageRepo = messageRepo;
     this.config = config;

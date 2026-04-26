@@ -1,14 +1,12 @@
 /**
  * Pipeline unit tests.
  *
- * Tests cover: receiveWithSend flow, middleware chain execution order,
- * command detection shortcut, hook blocking, hook respond,
- * and middleware error handling.
+ * Tests cover: receiveWithSend flow, command detection shortcut,
+ * hook blocking, hook respond, and agent processing.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Pipeline } from '../../../src/pipeline/pipeline';
-import type { Middleware, NextFn, PipelineState } from '../../../src/pipeline/middleware/types';
 import type { InboundMessage, OutboundMessage } from '../../../src/core/types';
 import type { PluginHooks } from '../../../src/pipeline/middleware/types';
 import { CommandRegistry } from '../../../src/command/command-registry';
@@ -28,7 +26,6 @@ function makeInbound(content = 'hello'): InboundMessage {
 /** Create a minimal ConfigManager that's been loaded */
 async function createLoadedConfigManager(): Promise<ConfigManager> {
   const cm = new ConfigManager();
-  // Use a temp path for the config file
   const os = await import('node:os');
   const path = await import('node:path');
   const fs = await import('node:fs');
@@ -119,37 +116,6 @@ async function createPipelineDeps() {
   };
 }
 
-/** A simple test middleware that records its execution */
-class RecordingMiddleware implements Middleware {
-  readonly name: string;
-  private orderArr: string[];
-
-  constructor(name: string, orderArr: string[]) {
-    this.name = name;
-    this.orderArr = orderArr;
-  }
-
-  async execute(state: PipelineState, next: NextFn): Promise<PipelineState> {
-    this.orderArr.push(this.name);
-    return next(state);
-  }
-}
-
-/** A middleware that sets outbound content */
-class SetOutboundMiddleware implements Middleware {
-  readonly name = 'SetOutbound';
-  private content: string;
-
-  constructor(content: string) {
-    this.content = content;
-  }
-
-  async execute(state: PipelineState, next: NextFn): Promise<PipelineState> {
-    state.outbound = { content: this.content };
-    return next(state);
-  }
-}
-
 // ─── Tests ─────────────────────────────────────────────────────────
 
 describe('Pipeline', () => {
@@ -197,10 +163,9 @@ describe('Pipeline', () => {
       expect(send).not.toHaveBeenCalled();
     });
 
-    it('should call send with outbound from middleware chain', async () => {
+    it('should call send with outbound from agent processing', async () => {
       const deps = await createPipelineDeps();
       pipeline.initialize(deps);
-      pipeline.use(new SetOutboundMiddleware('test response'));
 
       const sent: OutboundMessage[] = [];
       const send = vi.fn(async (msg: OutboundMessage) => {
@@ -209,7 +174,7 @@ describe('Pipeline', () => {
 
       await pipeline.receiveWithSend(makeInbound(), send);
       expect(send).toHaveBeenCalledTimes(1);
-      expect(sent[0].content).toBe('test response');
+      expect(sent[0].content).toBe('Agent response');
     });
 
     it('should pass an onSend-aware callback into agent processing', async () => {
@@ -222,29 +187,6 @@ describe('Pipeline', () => {
       const processMock = deps.agentEngine.process as ReturnType<typeof vi.fn>;
       expect(processMock).toHaveBeenCalled();
       expect(processMock.mock.calls[0]?.[4]).toEqual(expect.any(Function));
-    });
-  });
-
-  // ─── Middleware chain order ──────────────────────────────────────
-
-  describe('middleware chain order', () => {
-    it('should execute middlewares in registration order', async () => {
-      const deps = await createPipelineDeps();
-      const customPipeline = new Pipeline();
-      const order: string[] = [];
-      const m1 = new RecordingMiddleware('m1', order);
-      const m2 = new RecordingMiddleware('m2', order);
-      const m3 = new RecordingMiddleware('m3', order);
-
-      customPipeline.initialize(deps);
-      customPipeline.use(m1);
-      customPipeline.use(m2);
-      customPipeline.use(m3);
-
-      const send = vi.fn();
-      await customPipeline.receiveWithSend(makeInbound(), send);
-
-      expect(order).toEqual(['m1', 'm2', 'm3']);
     });
   });
 
@@ -280,7 +222,7 @@ describe('Pipeline', () => {
 
       const send = vi.fn();
       await pipeline.receiveWithSend(makeInbound('just chatting'), send);
-      // AgentProcessor stub produces an outbound, so send should be called
+      // Agent processor produces an outbound, so send should be called
       expect(send).toHaveBeenCalledTimes(1);
     });
   });
@@ -389,31 +331,6 @@ describe('Pipeline', () => {
       expect(processMock).not.toHaveBeenCalled();
       expect(send).toHaveBeenCalledTimes(1);
       expect(sent[0].content).toBe('cached answer');
-    });
-  });
-
-  // ─── Middleware error handling ──────────────────────────────────
-
-  describe('middleware error handling', () => {
-    it('should mark state as blocked when a middleware throws', async () => {
-      const deps = await createPipelineDeps();
-
-      const customPipeline = new Pipeline();
-      customPipeline.initialize(deps);
-
-      // Add a middleware that throws
-      class ThrowingMiddleware implements Middleware {
-        readonly name = 'Throwing';
-        async execute(_state: PipelineState, _next: NextFn): Promise<PipelineState> {
-          throw new Error('middleware crashed');
-        }
-      }
-      customPipeline.use(new ThrowingMiddleware());
-
-      const send = vi.fn();
-      await customPipeline.receiveWithSend(makeInbound(), send);
-      // Pipeline should handle the error gracefully — no send
-      expect(send).not.toHaveBeenCalled();
     });
   });
 });

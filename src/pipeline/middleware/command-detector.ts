@@ -1,14 +1,13 @@
 /**
- * CommandDetectorMiddleware — detects and executes slash commands.
+ * Command Detection — detects and executes slash commands.
  *
  * If the inbound message content starts with "/" and matches a registered
- * command, this middleware executes it and sets the outbound response.
- * Command handling is terminal — it does NOT call next(), so subsequent
- * middlewares (like AgentProcessor) are skipped.
- *
+ * command, this step executes it and sets the outbound response.
+ * Command handling is terminal — when an outbound is set, the pipeline
+ * skips subsequent steps (like agent processing).
  */
 
-import type { PipelineState, NextFn } from './types';
+import type { PipelineState } from './types';
 import type { CommandRegistry } from '../../command/command-registry';
 import type { CommandContext } from '../../core/types';
 
@@ -16,36 +15,33 @@ import type { CommandContext } from '../../core/types';
  * Detects slash commands and executes them via CommandRegistry.
  *
  * Commands are user-facing features like /help, /role list, etc.
- * When a command is detected, this middleware:
+ * When a command is detected, this function:
  * 1. Creates a CommandContext from the pipeline state
  * 2. Executes the command via CommandRegistry
  * 3. Sets the outbound response on the state
- * 4. Returns the state WITHOUT calling next() — commands are terminal
+ * 4. Returns the state — the pipeline should skip remaining steps
  */
-export class CommandDetectorMiddleware {
-  readonly name = 'CommandDetector';
+export async function commandDetector(
+  state: PipelineState,
+  commandRegistry: CommandRegistry,
+): Promise<PipelineState> {
+  if (commandRegistry.isCommand(state.inbound.content)) {
+    const commandContext: CommandContext = {
+      sessionKey: state.inbound.sessionKey,
+    };
 
-  constructor(private commandRegistry: CommandRegistry) {}
+    const result = await commandRegistry.execute(state.inbound.content, commandContext);
 
-  async execute(state: PipelineState, next: NextFn): Promise<PipelineState> {
-    if (this.commandRegistry.isCommand(state.inbound.content)) {
-      const commandContext: CommandContext = {
-        sessionKey: state.inbound.sessionKey,
-      };
-
-      const result = await this.commandRegistry.execute(state.inbound.content, commandContext);
-
-      if (result !== null) {
-        state.outbound = { content: result };
-      } else {
-        state.outbound = { content: 'Unknown command' };
-      }
-
-      // Command handling is terminal — don't call next()
-      return state;
+    if (result !== null) {
+      state.outbound = { content: result };
+    } else {
+      state.outbound = { content: 'Unknown command' };
     }
 
-    // Not a command — continue the middleware chain
-    return next(state);
+    // Command handling is terminal — pipeline should skip remaining steps
+    return state;
   }
+
+  // Not a command — continue to the next step
+  return state;
 }

@@ -5,15 +5,18 @@
  * scoped context and can register tools, commands, and pipeline hooks.
  */
 
-import type { CommandDefinition, DeepPartial } from '../core/types';
+import type { CommandDefinition } from '../core/types';
 import type { Logger } from '../core/logger';
-import type { AppConfig, PluginConfigEntry } from '../core/config/schema';
+import type { PluginConfigEntry } from '../core/config/schema';
 import type { AesyClawTool } from '../tool/tool-registry';
 import type { ToolRegistry } from '../tool/tool-registry';
 import type { CommandRegistry } from '../command/command-registry';
 import type { ChannelPlugin } from '../channel/channel-types';
+import type { ChannelManager } from '../channel/channel-manager';
 import type { HookDispatcher } from '../pipeline/hook-dispatcher';
 import type { PluginHooks } from '../pipeline/middleware/types';
+import type { PluginLoader } from './plugin-loader';
+import type { ConfigManager } from '../core/config/config-manager';
 
 export type PluginOwner = `plugin:${string}`;
 
@@ -70,28 +73,12 @@ export interface PluginLoaderOptions {
 }
 
 export interface PluginManagerDependencies {
-  configManager: PluginConfigManagerLike;
+  configManager: ConfigManager;
   toolRegistry: ToolRegistry;
   commandRegistry: CommandRegistry;
   hookDispatcher: HookDispatcher;
-  channelManager?: PluginChannelRegistryLike;
-  pluginLoader?: PluginLoaderLike;
-}
-
-export interface PluginChannelRegistryLike {
-  register(channel: ChannelPlugin): void;
-  unregister(channelName: string): Promise<void>;
-  has?(channelName: string): boolean;
-}
-
-export interface PluginConfigManagerLike {
-  get(key: 'plugins'): ReadonlyArray<Readonly<PluginConfigEntry>>;
-  update(partial: DeepPartial<Pick<AppConfig, 'plugins'>>): Promise<void>;
-}
-
-export interface PluginLoaderLike {
-  discover(): Promise<string[]>;
-  load(pluginDir: string): Promise<PluginModule>;
+  channelManager?: ChannelManager;
+  pluginLoader?: PluginLoader;
 }
 
 export interface PluginConfigLookup {

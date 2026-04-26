@@ -13,10 +13,10 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { createScopedLogger } from '../logger';
-import { SessionRepository } from './repositories/session-repository';
-import { MessageRepository } from './repositories/message-repository';
-import { RoleBindingRepository } from './repositories/role-binding-repository';
-import { CronJobRepository, CronRunRepository } from './repositories/cron-repository';
+import * as sessions from './repositories/session-repository';
+import * as messages from './repositories/message-repository';
+import * as roleBindings from './repositories/role-binding-repository';
+import * as cron from './repositories/cron-repository';
 
 const logger = createScopedLogger('db');
 
@@ -30,11 +30,6 @@ const migrations: Migration[] = [{ id: 1, up: applyInitialMigration }];
 
 export class DatabaseManager {
   private db: DatabaseSync | null = null;
-  private _sessions: SessionRepository | null = null;
-  private _messages: MessageRepository | null = null;
-  private _roleBindings: RoleBindingRepository | null = null;
-  private _cronJobs: CronJobRepository | null = null;
-  private _cronRuns: CronRunRepository | null = null;
 
   /**
    * Initialise the database connection, ensure the parent directory
@@ -54,13 +49,6 @@ export class DatabaseManager {
 
     this.runMigrations();
 
-    // Create repository instances
-    this._sessions = new SessionRepository(this.db);
-    this._messages = new MessageRepository(this.db);
-    this._roleBindings = new RoleBindingRepository(this.db);
-    this._cronJobs = new CronJobRepository(this.db);
-    this._cronRuns = new CronRunRepository(this.db);
-
     logger.info('Database initialised');
   }
 
@@ -70,39 +58,77 @@ export class DatabaseManager {
       logger.info('Closing database');
       this.db.close();
       this.db = null;
-      this._sessions = null;
-      this._messages = null;
-      this._roleBindings = null;
-      this._cronJobs = null;
-      this._cronRuns = null;
     }
+  }
+
+  /** Get the underlying database instance — must be initialised */
+  getDb(): DatabaseSync {
+    if (!this.db) throw new Error('Database not initialised');
+    return this.db;
   }
 
   // ─── Repository accessors ──────────────────────────────────────
 
-  get sessions(): SessionRepository {
-    if (!this._sessions) throw new Error('Database not initialised');
-    return this._sessions;
+  /** Session repository functions bound to the current db */
+  get sessions() {
+    const db = this.getDb();
+    return {
+      findOrCreate: (key: Parameters<typeof sessions.findOrCreateSession>[1]) =>
+        sessions.findOrCreateSession(db, key),
+      findByKey: (key: Parameters<typeof sessions.findSessionByKey>[1]) =>
+        sessions.findSessionByKey(db, key),
+    };
   }
 
-  get messages(): MessageRepository {
-    if (!this._messages) throw new Error('Database not initialised');
-    return this._messages;
+  /** Message repository functions bound to the current db */
+  get messages() {
+    const db = this.getDb();
+    return {
+      save: (sessionId: string, message: Parameters<typeof messages.saveMessage>[2]) =>
+        messages.saveMessage(db, sessionId, message),
+      loadHistory: (sessionId: string) => messages.loadMessageHistory(db, sessionId),
+      clearHistory: (sessionId: string) => messages.clearMessageHistory(db, sessionId),
+      replaceWithSummary: (sessionId: string, summary: string) =>
+        messages.replaceMessageWithSummary(db, sessionId, summary),
+    };
   }
 
-  get roleBindings(): RoleBindingRepository {
-    if (!this._roleBindings) throw new Error('Database not initialised');
-    return this._roleBindings;
+  /** Role binding repository functions bound to the current db */
+  get roleBindings() {
+    const db = this.getDb();
+    return {
+      getActiveRole: (sessionId: string) => roleBindings.getActiveRoleBinding(db, sessionId),
+      setActiveRole: (sessionId: string, roleId: string) =>
+        roleBindings.setActiveRoleBinding(db, sessionId, roleId),
+    };
   }
 
-  get cronJobs(): CronJobRepository {
-    if (!this._cronJobs) throw new Error('Database not initialised');
-    return this._cronJobs;
+  /** Cron job repository functions bound to the current db */
+  get cronJobs() {
+    const db = this.getDb();
+    return {
+      create: (params: Parameters<typeof cron.createCronJob>[1]) =>
+        cron.createCronJob(db, params),
+      findById: (id: string) => cron.findCronJobById(db, id),
+      findAll: () => cron.findAllCronJobs(db),
+      delete: (id: string) => cron.deleteCronJob(db, id),
+      updateNextRun: (id: string, nextRun: Date | null) =>
+        cron.updateCronJobNextRun(db, id, nextRun),
+    };
   }
 
-  get cronRuns(): CronRunRepository {
-    if (!this._cronRuns) throw new Error('Database not initialised');
-    return this._cronRuns;
+  /** Cron run repository functions bound to the current db */
+  get cronRuns() {
+    const db = this.getDb();
+    return {
+      create: (params: { jobId: string }) => cron.createCronRun(db, params),
+      markCompleted: (runId: string, result: string) =>
+        cron.markCronRunCompleted(db, runId, result),
+      markFailed: (runId: string, error: string) =>
+        cron.markCronRunFailed(db, runId, error),
+      markAbandoned: (runIds: string[]) => cron.markCronRunsAbandoned(db, runIds),
+      findRunning: () => cron.findRunningCronRuns(db),
+    };
   }
 
   // ─── Migrations ────────────────────────────────────────────────

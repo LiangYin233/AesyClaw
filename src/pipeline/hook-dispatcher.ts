@@ -6,10 +6,8 @@
  *
  * Dispatch rules:
  * - Hooks are called in registration order
- * - If any hook returns `{ action: 'block' }`, dispatch stops and returns the block result
- * - If any hook returns `{ action: 'respond', content }`, dispatch stops and returns that response
- * - Otherwise returns `{ action: 'continue' }`
- *
+ * - If any hook returns a terminal result, dispatch stops and returns that result
+ * - Otherwise returns the default continue result
  */
 
 import type { InboundMessage, OutboundMessage, PipelineResult } from '../core/types';
@@ -33,10 +31,52 @@ interface HookEntry {
 }
 
 /**
- * Full HookDispatcher implementation.
+ * Dispatch helper — iterates registered hooks and calls `extract` to get
+ * the hook function (or undefined). The `check` function decides whether
+ * a hook result is terminal (stops dispatch) or should continue to the next hook.
  *
- * Replaces the minimal interface previously exported from this module.
- * The old `HookDispatcher` interface is now implemented by this class.
+ * Returns the default value if no hook produced a terminal result.
+ */
+async function dispatchHooks<T, D>(
+  entries: HookEntry[],
+  extract: (hooks: PluginHooks) => ((context: T) => Promise<D>) | undefined,
+  check: (result: D) => boolean,
+  defaultValue: D,
+  context: T,
+): Promise<D> {
+  for (const entry of entries) {
+    const hookFn = extract(entry.hooks);
+    if (!hookFn) continue;
+
+    try {
+      const result = await hookFn(context);
+      if (check(result)) {
+        return result;
+      }
+    } catch (err) {
+      logger.error(`Hook error in plugin "${entry.pluginName}"`, err);
+    }
+  }
+
+  return defaultValue;
+}
+
+/** Check if a PipelineResult is terminal (block or respond) */
+function isPipelineResultTerminal(result: PipelineResult): boolean {
+  return result.action !== 'continue';
+}
+
+/** Default PipelineResult */
+const CONTINUE_RESULT: PipelineResult = { action: 'continue' };
+
+/** Default before tool call result */
+const EMPTY_BEFORE_TOOL: BeforeToolCallHookResult = {};
+
+/** Default after tool call result */
+const EMPTY_AFTER_TOOL: AfterToolCallHookResult = {};
+
+/**
+ * Full HookDispatcher implementation.
  */
 export class HookDispatcher {
   private entries: HookEntry[] = [];
@@ -74,151 +114,59 @@ export class HookDispatcher {
     }
   }
 
-  // ─── Dispatch: onReceive ────────────────────────────────────────
+  // ─── Dispatch methods ───────────────────────────────────────────
 
-  /**
-   * Dispatch onReceive hooks — called before the middleware chain.
-   *
-   * If any hook blocks or responds, the pipeline should skip the
-   * middleware chain entirely.
-   */
   async dispatchOnReceive(message: InboundMessage): Promise<PipelineResult> {
-    for (const entry of this.entries) {
-      if (!entry.hooks.onReceive) continue;
-      try {
-        const result = await entry.hooks.onReceive(message);
-        if (result.action === 'block') {
-          logger.info(`onReceive blocked by plugin "${entry.pluginName}"`, {
-            reason: result.reason,
-          });
-          return result;
-        }
-        if (result.action === 'respond') {
-          logger.info(`onReceive responded by plugin "${entry.pluginName}"`);
-          return result;
-        }
-        // action === 'continue' — proceed to next hook
-      } catch (err) {
-        logger.error(`onReceive hook error in plugin "${entry.pluginName}"`, err);
-        // Continue to next hook — don't let one failing hook break the pipeline
-      }
-    }
-    return { action: 'continue' };
+    return dispatchHooks(
+      this.entries,
+      (hooks) => hooks.onReceive,
+      isPipelineResultTerminal,
+      CONTINUE_RESULT,
+      message,
+    );
   }
 
-  // ─── Dispatch: onSend ───────────────────────────────────────────
-
-  /**
-   * Dispatch onSend hooks — called before sending the outbound message.
-   *
-   * If any hook blocks, the message should not be sent.
-   */
   async dispatchOnSend(message: OutboundMessage): Promise<PipelineResult> {
-    for (const entry of this.entries) {
-      if (!entry.hooks.onSend) continue;
-      try {
-        const result = await entry.hooks.onSend(message);
-        if (result.action === 'block') {
-          logger.info(`onSend blocked by plugin "${entry.pluginName}"`, {
-            reason: result.reason,
-          });
-          return result;
-        }
-        if (result.action === 'respond') {
-          logger.info(`onSend responded by plugin "${entry.pluginName}"`);
-          return result;
-        }
-      } catch (err) {
-        logger.error(`onSend hook error in plugin "${entry.pluginName}"`, err);
-      }
-    }
-    return { action: 'continue' };
+    return dispatchHooks(
+      this.entries,
+      (hooks) => hooks.onSend,
+      isPipelineResultTerminal,
+      CONTINUE_RESULT,
+      message,
+    );
   }
 
-  // ─── Dispatch: beforeToolCall ────────────────────────────────────
-
-  /**
-   * Dispatch beforeToolCall hooks — called before a tool is executed.
-   *
-   * Hooks may block the call or provide a short-circuit result.
-   */
   async dispatchBeforeToolCall(
     context: BeforeToolCallHookContext,
   ): Promise<BeforeToolCallHookResult> {
-    for (const entry of this.entries) {
-      if (!entry.hooks.beforeToolCall) continue;
-      try {
-        const result = await entry.hooks.beforeToolCall(context);
-        if (result.block) {
-          logger.info(`beforeToolCall blocked by plugin "${entry.pluginName}"`, {
-            toolName: context.toolName,
-            reason: result.reason,
-          });
-          return result;
-        }
-        if (result.shortCircuit) {
-          logger.info(`beforeToolCall short-circuited by plugin "${entry.pluginName}"`, {
-            toolName: context.toolName,
-          });
-          return result;
-        }
-      } catch (err) {
-        logger.error(`beforeToolCall hook error in plugin "${entry.pluginName}"`, err);
-      }
-    }
-    return {}; // No block, no short-circuit → proceed
+    return dispatchHooks(
+      this.entries,
+      (hooks) => hooks.beforeToolCall,
+      (result) => result.block === true || result.shortCircuit !== undefined,
+      EMPTY_BEFORE_TOOL,
+      context,
+    );
   }
 
-  // ─── Dispatch: afterToolCall ─────────────────────────────────────
-
-  /**
-   * Dispatch afterToolCall hooks — called after a tool has been executed.
-   *
-   * Hooks may override the tool result.
-   */
-  async dispatchAfterToolCall(context: AfterToolCallHookContext): Promise<AfterToolCallHookResult> {
-    for (const entry of this.entries) {
-      if (!entry.hooks.afterToolCall) continue;
-      try {
-        const result = await entry.hooks.afterToolCall(context);
-        if (result.override) {
-          logger.info(`afterToolCall overridden by plugin "${entry.pluginName}"`, {
-            toolName: context.toolName,
-          });
-          return result;
-        }
-      } catch (err) {
-        logger.error(`afterToolCall hook error in plugin "${entry.pluginName}"`, err);
-      }
-    }
-    return {}; // No override → keep original result
+  async dispatchAfterToolCall(
+    context: AfterToolCallHookContext,
+  ): Promise<AfterToolCallHookResult> {
+    return dispatchHooks(
+      this.entries,
+      (hooks) => hooks.afterToolCall,
+      (result) => result.override !== undefined,
+      EMPTY_AFTER_TOOL,
+      context,
+    );
   }
 
-  // ─── Dispatch: beforeLLMRequest ──────────────────────────────────
-
-  /**
-   * Dispatch beforeLLMRequest hooks — called before sending a request
-   * to the LLM (inside AgentProcessor).
-   */
   async dispatchBeforeLLMRequest(context: unknown): Promise<PipelineResult> {
-    for (const entry of this.entries) {
-      if (!entry.hooks.beforeLLMRequest) continue;
-      try {
-        const result = await entry.hooks.beforeLLMRequest(context);
-        if (result.action === 'block') {
-          logger.info(`beforeLLMRequest blocked by plugin "${entry.pluginName}"`, {
-            reason: result.reason,
-          });
-          return result;
-        }
-        if (result.action === 'respond') {
-          logger.info(`beforeLLMRequest responded by plugin "${entry.pluginName}"`);
-          return result;
-        }
-      } catch (err) {
-        logger.error(`beforeLLMRequest hook error in plugin "${entry.pluginName}"`, err);
-      }
-    }
-    return { action: 'continue' };
+    return dispatchHooks(
+      this.entries,
+      (hooks) => hooks.beforeLLMRequest,
+      isPipelineResultTerminal,
+      CONTINUE_RESULT,
+      context,
+    );
   }
 }

@@ -1,11 +1,8 @@
 /**
- * Middleware type definitions for the message processing pipeline.
+ * Type definitions for the message processing pipeline.
  *
- * The pipeline uses a chain-of-responsibility (洋葱模型) pattern where
- * each middleware receives the current state and a `next` function.
- * Middlewares must either call `next(state)` to pass control to the
- * next middleware, or return the state directly to short-circuit the chain.
- *
+ * The pipeline uses sequential processing steps. Each step receives
+ * the current state and returns a mutated copy.
  */
 
 import type { InboundMessage, OutboundMessage } from '../../core/types';
@@ -18,15 +15,14 @@ import type { AgentEngine } from '../../agent/agent-engine';
 // ─── Pipeline State ──────────────────────────────────────────────
 
 /**
- * State object that flows through the middleware chain.
+ * State object that flows through pipeline processing steps.
  *
- * Each middleware may read and mutate the state before passing it
- * to the next middleware via `next(state)`.
+ * Each step may read and mutate the state before passing it along.
  */
 interface PipelineState {
   /** The inbound message that entered the pipeline */
   inbound: InboundMessage;
-  /** The outbound response, if produced by a middleware */
+  /** The outbound response, if produced by a step */
   outbound?: OutboundMessage;
   /** onSend-aware outbound delivery callback for tool execution */
   sendMessage?: (message: OutboundMessage) => Promise<boolean>;
@@ -38,26 +34,6 @@ interface PipelineState {
   blocked?: boolean;
   /** Reason for blocking, if blocked */
   blockReason?: string;
-}
-
-// ─── Middleware ───────────────────────────────────────────────────
-
-/** Next function — passes control to the next middleware in the chain */
-type NextFn = (state: PipelineState) => Promise<PipelineState>;
-
-/**
- * Middleware interface for the message processing pipeline.
- *
- * Middlewares are executed in registration order. Each one receives
- * the current state and a `next` function. To continue the chain,
- * call `next(state)`. To short-circuit, return the state directly
- * (without calling next).
- */
-interface Middleware {
-  /** Unique name for logging and debugging */
-  name: string;
-  /** Execute the middleware logic */
-  execute(state: PipelineState, next: NextFn): Promise<PipelineState>;
 }
 
 // ─── Pipeline Dependencies ───────────────────────────────────────
@@ -81,8 +57,8 @@ interface PipelineDependencies {
  * Hooks that a plugin can register with the HookDispatcher.
  *
  * Each hook runs at a specific point in the pipeline:
- * - onReceive: before the middleware chain
- * - beforeLLMRequest: before the LLM call (inside AgentProcessor)
+ * - onReceive: before the processing steps
+ * - beforeLLMRequest: before the LLM call (inside agent processing)
  * - beforeToolCall: before a tool is executed
  * - afterToolCall: after a tool has been executed
  * - onSend: before the outbound message is sent
@@ -106,4 +82,4 @@ import type {
 // Re-export PipelineResult for convenience
 import type { PipelineResult } from '../../core/types';
 
-export type { PipelineState, NextFn, Middleware, PipelineDependencies, PluginHooks };
+export type { PipelineState, PipelineDependencies, PluginHooks };
