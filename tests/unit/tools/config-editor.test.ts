@@ -62,6 +62,28 @@ describe('config editor tool helpers', () => {
     expect(validateConfig(JSON.parse(raw) as unknown).agent.maxSteps).toBe(25);
   });
 
+  it('rejects explicitly invalid config instead of casting it', () => {
+    expect(() =>
+      validateConfig({
+        ...structuredClone(DEFAULT_CONFIG),
+        server: { ...DEFAULT_CONFIG.server, port: '3000' },
+      }),
+    ).toThrow('Config validation failed');
+  });
+
+  it('still fills defaults for missing optional fields', () => {
+    const config = validateConfig({
+      ...structuredClone(DEFAULT_CONFIG),
+      server: { port: 3000, host: '0.0.0.0', logLevel: 'info' },
+      mcp: [{ name: 'filesystem', transport: 'stdio' }],
+      plugins: [{ name: 'plugin_example' }],
+    });
+
+    expect(config.server.cors).toBe(true);
+    expect(config.mcp[0]?.enabled).toBe(true);
+    expect(config.plugins[0]?.enabled).toBe(true);
+  });
+
   it('upserts and removes full-form collection sections', () => {
     let config = structuredClone(DEFAULT_CONFIG);
 

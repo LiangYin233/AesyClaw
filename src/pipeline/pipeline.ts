@@ -126,6 +126,7 @@ export class Pipeline {
       }
     } catch (err) {
       logger.error('Pipeline processing error', err);
+      throw err;
     }
   }
 

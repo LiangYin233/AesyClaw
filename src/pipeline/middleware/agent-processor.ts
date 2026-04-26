@@ -30,37 +30,32 @@ export async function agentProcessor(
     return state;
   }
 
-  try {
-    const beforeResult = await hookDispatcher.dispatchBeforeLLMRequest({
-      message: state.inbound,
-      session,
-      agent: session.agent,
-      role: session.activeRole,
-    });
+  const beforeResult = await hookDispatcher.dispatchBeforeLLMRequest({
+    message: state.inbound,
+    session,
+    agent: session.agent,
+    role: session.activeRole,
+  });
 
-    if (beforeResult.action === 'block') {
-      state.blocked = true;
-      state.blockReason = beforeResult.reason ?? 'Blocked by beforeLLMRequest hook';
-      return state;
-    }
-
-    if (beforeResult.action === 'respond') {
-      state.outbound = { content: beforeResult.content };
-      return state;
-    }
-
-    const outbound = await agentEngine.process(
-      session.agent,
-      state.inbound,
-      session.memory,
-      session.activeRole,
-      state.sendMessage,
-    );
-    state.outbound = outbound;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    state.outbound = { content: `[Agent processing error: ${message}]` };
+  if (beforeResult.action === 'block') {
+    state.blocked = true;
+    state.blockReason = beforeResult.reason ?? 'Blocked by beforeLLMRequest hook';
+    return state;
   }
+
+  if (beforeResult.action === 'respond') {
+    state.outbound = { content: beforeResult.content };
+    return state;
+  }
+
+  const outbound = await agentEngine.process(
+    session.agent,
+    state.inbound,
+    session.memory,
+    session.activeRole,
+    state.sendMessage,
+  );
+  state.outbound = outbound;
 
   return state;
 }

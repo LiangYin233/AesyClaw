@@ -52,9 +52,7 @@ export function resolveConfigPath(root = process.cwd()): string {
 }
 
 export function validateConfig(value: unknown): AppConfig {
-  const candidate = Value.Check(AppConfigSchema, value)
-    ? value
-    : Value.Cast(AppConfigSchema, value);
+  const candidate = Value.Default(AppConfigSchema, value);
 
   if (!Value.Check(AppConfigSchema, candidate)) {
     const errors = [...Value.Errors(AppConfigSchema, candidate)]

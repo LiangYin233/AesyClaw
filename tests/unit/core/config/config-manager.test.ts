@@ -224,6 +224,26 @@ describe('ConfigManager', () => {
       );
       expect(fileContent.agent.maxSteps).toBe(50);
     });
+
+    it('should reject invalid merged config before persisting or notifying', async () => {
+      await manager.load(configPath);
+
+      let callCount = 0;
+      manager.subscribeAll(() => {
+        callCount++;
+      });
+
+      await expect(
+        manager.update({ server: { port: '8080' } } as never),
+      ).rejects.toBeInstanceOf(AppError);
+
+      expect(manager.get('server').port).toBe(3000);
+      const fileContent = JSON.parse(
+        await import('node:fs').then((fs) => fs.readFileSync(configPath, 'utf-8')),
+      ) as { server: { port: number } };
+      expect(fileContent.server.port).toBe(3000);
+      expect(callCount).toBe(0);
+    });
   });
 
   describe('registerDefaults and syncDefaults', () => {
@@ -235,6 +255,25 @@ describe('ConfigManager', () => {
 
       const channels = manager.get('channels');
       expect((channels as Record<string, unknown>).testchannel).toBeDefined();
+    });
+
+    it('should reject invalid synced defaults before persisting or notifying', async () => {
+      await manager.load(configPath);
+
+      let callCount = 0;
+      manager.subscribeAll(() => {
+        callCount++;
+      });
+
+      manager.registerDefaults('server', { port: '3000' });
+
+      await expect(manager.syncDefaults()).rejects.toBeInstanceOf(AppError);
+      expect(manager.get('server').port).toBe(3000);
+      const fileContent = JSON.parse(
+        await import('node:fs').then((fs) => fs.readFileSync(configPath, 'utf-8')),
+      ) as { server: { port: number } };
+      expect(fileContent.server.port).toBe(3000);
+      expect(callCount).toBe(0);
     });
   });
 

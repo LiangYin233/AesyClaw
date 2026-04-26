@@ -112,10 +112,13 @@ export class ConfigManager {
     }
 
     const oldConfig = structuredClone(this.config);
-    this.config = this.deepMerge(
-      this.config,
+    const mergedConfig = this.deepMerge(
+      structuredClone(this.config),
       partial as Partial<AppConfig> & DeepPartial<AppConfig>,
     );
+    const validatedConfig = this.validateConfigObject(mergedConfig);
+
+    this.config = validatedConfig;
 
     // Set guard before writing to disk
     this.selfUpdating = true;
@@ -152,15 +155,18 @@ export class ConfigManager {
     }
 
     const oldConfig = structuredClone(this.config);
+    let mergedConfig = structuredClone(this.config);
 
     for (const [key, defaults] of this.registeredDefaults) {
       // Support dot-notation keys like 'channels.testchannel'
       const nestedPartial = this.buildNestedObject(key, defaults);
-      this.config = this.deepMerge(
-        this.config,
+      mergedConfig = this.deepMerge(
+        mergedConfig,
         nestedPartial as Partial<AppConfig> & DeepPartial<AppConfig>,
       );
     }
+
+    this.config = this.validateConfigObject(mergedConfig);
 
     this.selfUpdating = true;
     try {
@@ -276,15 +282,21 @@ export class ConfigManager {
       structuredClone(DEFAULT_CONFIG),
       parsed as Partial<AppConfig> & DeepPartial<AppConfig>,
     );
-    const validated = Value.Default(AppConfigSchema, mergedWithDefaults);
+    const validated = this.validateConfigObject(mergedWithDefaults);
+
+    if (JSON.stringify(parsed) !== JSON.stringify(validated)) {
+      logger.warn('Config had missing fields — patched with defaults');
+    }
+
+    return validated as AppConfig;
+  }
+
+  private validateConfigObject(value: unknown): AppConfig {
+    const validated = Value.Default(AppConfigSchema, value);
 
     if (!Value.Check(AppConfigSchema, validated)) {
       const errors = [...Value.Errors(AppConfigSchema, validated)];
       throw new AppError('Config validation failed', 'CONFIG_VALIDATION', errors);
-    }
-
-    if (JSON.stringify(parsed) !== JSON.stringify(validated)) {
-      logger.warn('Config had missing fields — patched with defaults');
     }
 
     return validated as AppConfig;

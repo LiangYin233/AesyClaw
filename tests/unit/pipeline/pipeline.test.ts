@@ -188,6 +188,17 @@ describe('Pipeline', () => {
       expect(processMock).toHaveBeenCalled();
       expect(processMock.mock.calls[0]?.[4]).toEqual(expect.any(Function));
     });
+
+    it('should propagate processing errors after logging them', async () => {
+      const deps = await createPipelineDeps();
+      const processMock = deps.agentEngine.process as ReturnType<typeof vi.fn>;
+      processMock.mockRejectedValue(new Error('agent boom'));
+      pipeline.initialize(deps);
+
+      await expect(pipeline.receiveWithSend(makeInbound(), vi.fn())).rejects.toThrow(
+        'agent boom',
+      );
+    });
   });
 
   // ─── Command detection ──────────────────────────────────────────
