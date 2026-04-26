@@ -59,7 +59,10 @@ export class ToolAdapter {
 
         // If a hook blocks the call, return an error result
         if (beforeResult.block) {
-          throw new Error(beforeResult.reason ?? `Tool call "${tool.name}" was blocked by a hook`);
+          return ToolAdapter.toRuntimeResult({
+            content: beforeResult.reason ?? `Tool call "${tool.name}" was blocked by a hook`,
+            isError: true,
+          });
         }
 
         // If a hook provides a short-circuit result, use it directly
@@ -72,13 +75,16 @@ export class ToolAdapter {
         try {
           // If the signal is already aborted, don't execute
           if (signal?.aborted) {
-            throw new Error(`Tool call "${tool.name}" was aborted`);
+            return ToolAdapter.toRuntimeResult({
+              content: `Tool call "${tool.name}" was aborted`,
+              isError: true,
+            });
           }
 
           result = await tool.execute(params, executionContext as ToolExecutionContext);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
-          throw new Error(message, { cause: err });
+          return ToolAdapter.toRuntimeResult({ content: message, isError: true });
         }
 
         // 3. Dispatch afterToolCall hooks — may override the result
@@ -105,13 +111,10 @@ export class ToolAdapter {
   }
 
   private static toRuntimeResult(result: ToolExecutionResult): AgentToolResult {
-    if (result.isError) {
-      throw new Error(result.content);
-    }
-
     return {
       content: [{ type: 'text', text: result.content }],
-      details: result.details,
+      details: result.details ?? {},
+      isError: result.isError,
       terminate: result.terminate,
     };
   }

@@ -133,7 +133,12 @@ describe('ToolAdapter', () => {
         makeBlockingHookDispatcher('Blocked by policy'),
         {},
       );
-      await expect(agentTool.execute('call-1', {})).rejects.toThrow('Blocked by policy');
+
+      await expect(agentTool.execute('call-1', {})).resolves.toMatchObject({
+        content: [{ type: 'text', text: 'Blocked by policy' }],
+        details: {},
+        isError: true,
+      });
     });
 
     it('should short-circuit when before hook provides result', async () => {
@@ -151,7 +156,7 @@ describe('ToolAdapter', () => {
       expect(result.content).toEqual([{ type: 'text', text: 'Short-circuited' }]);
     });
 
-    it('should surface short-circuit error results as runtime tool failures', async () => {
+    it('should preserve short-circuit error results as structured failures', async () => {
       const tool = makeTool({
         execute: async () => ({ content: 'should not run' }),
       });
@@ -162,7 +167,11 @@ describe('ToolAdapter', () => {
         {},
       );
 
-      await expect(agentTool.execute('call-1', {})).rejects.toThrow('Cached failure');
+      await expect(agentTool.execute('call-1', {})).resolves.toMatchObject({
+        content: [{ type: 'text', text: 'Cached failure' }],
+        details: {},
+        isError: true,
+      });
     });
 
     it('should allow after hook to override result', async () => {
@@ -180,14 +189,18 @@ describe('ToolAdapter', () => {
       expect(result.content).toEqual([{ type: 'text', text: 'overridden result' }]);
     });
 
-    it('should treat tool error results as runtime failures', async () => {
+    it('should preserve tool error results as structured failures', async () => {
       const tool = makeTool({
         execute: async () => ({ content: 'Tool failed', isError: true }),
       });
 
       const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
 
-      await expect(agentTool.execute('call-1', {})).rejects.toThrow('Tool failed');
+      await expect(agentTool.execute('call-1', {})).resolves.toMatchObject({
+        content: [{ type: 'text', text: 'Tool failed' }],
+        details: {},
+        isError: true,
+      });
     });
 
     it('should respect after hook isError overrides', async () => {
@@ -201,10 +214,14 @@ describe('ToolAdapter', () => {
         {},
       );
 
-      await expect(agentTool.execute('call-1', {})).rejects.toThrow('overridden failure');
+      await expect(agentTool.execute('call-1', {})).resolves.toMatchObject({
+        content: [{ type: 'text', text: 'overridden failure' }],
+        details: {},
+        isError: true,
+      });
     });
 
-    it('should catch thrown errors from tool execute and return error result', async () => {
+    it('should catch thrown errors from tool execute and return structured failures', async () => {
       const tool = makeTool({
         execute: async () => {
           throw new Error('Tool crashed');
@@ -212,10 +229,14 @@ describe('ToolAdapter', () => {
       });
 
       const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
-      await expect(agentTool.execute('call-1', {})).rejects.toThrow('Tool crashed');
+      await expect(agentTool.execute('call-1', {})).resolves.toMatchObject({
+        content: [{ type: 'text', text: 'Tool crashed' }],
+        details: {},
+        isError: true,
+      });
     });
 
-    it('should return aborted result when signal is already aborted', async () => {
+    it('should return structured aborted results when signal is already aborted', async () => {
       const tool = makeTool({
         execute: async () => ({ content: 'should not run' }),
       });
@@ -224,7 +245,11 @@ describe('ToolAdapter', () => {
       controller.abort();
 
       const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
-      await expect(agentTool.execute('call-1', {}, controller.signal)).rejects.toThrow(/aborted/);
+      await expect(agentTool.execute('call-1', {}, controller.signal)).resolves.toMatchObject({
+        content: [{ type: 'text', text: 'Tool call "test-tool" was aborted' }],
+        details: {},
+        isError: true,
+      });
     });
 
     it('should use default sessionKey when not provided in context', async () => {

@@ -5,39 +5,64 @@
  * Registers signal handlers for graceful shutdown.
  */
 
+import { pathToFileURL } from 'node:url';
 import { Application } from './app';
+import { createScopedLogger } from './core/logger';
 
-async function main(): Promise<void> {
-  const app = new Application();
+const logger = createScopedLogger('app');
 
-  // Graceful shutdown on signals
+type AppLifecycle = Pick<Application, 'start' | 'shutdown'>;
+
+export function registerProcessHandlers(
+  app: Pick<AppLifecycle, 'shutdown'>,
+  processRef: Pick<NodeJS.Process, 'on' | 'exit'> = process,
+): void {
   const shutdown = async (signal: string) => {
-    console.log(`Received ${signal}, shutting down…`);
+    logger.info(`Received ${signal}, shutting down…`);
     await app.shutdown();
-    process.exit(0);
+    processRef.exit(0);
   };
 
-  process.on('SIGINT', () => shutdown('SIGINT'));
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  const handleSignal = (signal: string) =>
+    shutdown(signal).catch((err) => {
+      logger.error(`Failed during ${signal} shutdown`, err);
+      processRef.exit(1);
+    });
 
-  process.on('uncaughtException', async (err) => {
-    console.error('Uncaught exception:', err);
-    await app.shutdown();
-    process.exit(1);
+  processRef.on('SIGINT', () => handleSignal('SIGINT'));
+  processRef.on('SIGTERM', () => handleSignal('SIGTERM'));
+
+  processRef.on('uncaughtException', (err) => {
+    void (async () => {
+      logger.error('Uncaught exception', err);
+      await app.shutdown();
+      processRef.exit(1);
+    })();
   });
 
-  process.on('unhandledRejection', async (reason) => {
-    console.error('Unhandled rejection:', reason);
-    await app.shutdown();
-    process.exit(1);
+  processRef.on('unhandledRejection', (reason) => {
+    void (async () => {
+      logger.error('Unhandled rejection', reason);
+      await app.shutdown();
+      processRef.exit(1);
+    })();
   });
+}
+
+export async function main(
+  app: AppLifecycle = new Application(),
+  processRef: Pick<NodeJS.Process, 'on' | 'exit'> = process,
+): Promise<void> {
+  registerProcessHandlers(app, processRef);
 
   try {
     await app.start();
   } catch (err) {
-    console.error('Failed to start AesyClaw:', err);
-    process.exit(1);
+    logger.error('Failed to start AesyClaw', err);
+    processRef.exit(1);
   }
 }
 
-main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  void main();
+}
