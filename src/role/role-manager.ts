@@ -217,36 +217,15 @@ export class RoleManager {
       return null;
     }
 
-    // Apply defaults for missing/optional fields (e.g. enabled: true)
-    // but validate strictly afterwards — do not silently patch invalid values
-    const patched = Value.Cast(RoleConfigSchema, parsed);
+    const role = Value.Default(RoleConfigSchema, parsed);
 
-    // Validate the patched object
-    // Cast fills in defaults but may also replace invalid values;
-    // we perform a strict check and reject roles with invalid field values
-    if (!Value.Check(RoleConfigSchema, patched)) {
-      const errors = [...Value.Errors(RoleConfigSchema, patched)];
+    if (!Value.Check(RoleConfigSchema, role)) {
+      const errors = [...Value.Errors(RoleConfigSchema, role)];
       logger.warn(`Role validation failed for ${filePath}: ${JSON.stringify(errors)}`);
       return null;
     }
 
-    // Additional check: reject roles where Cast overwrote an invalid literal
-    // by comparing the original parsed object's fields that must match exactly
-    if (typeof parsed === 'object' && parsed !== null) {
-      const original = parsed as Record<string, unknown>;
-      const toolPerm = original.toolPermission as Record<string, unknown> | undefined;
-      if (toolPerm && typeof toolPerm.mode === 'string') {
-        const validModes = ['allowlist', 'denylist'];
-        if (!validModes.includes(toolPerm.mode)) {
-          logger.warn(
-            `Role "${filePath}" has invalid toolPermission.mode: "${toolPerm.mode}" — must be 'allowlist' or 'denylist'`,
-          );
-          return null;
-        }
-      }
-    }
-
-    return patched as RoleConfig;
+    return role as RoleConfig;
   }
 
   /**

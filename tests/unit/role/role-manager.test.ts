@@ -118,6 +118,24 @@ describe('RoleManager', () => {
       expect(manager.getAllRoles()).toHaveLength(0);
     });
 
+    it('should skip roles with explicitly invalid values instead of coercing them', async () => {
+      const invalidRole = {
+        id: 'invalid-enabled',
+        name: 'Invalid Enabled',
+        description: 'Bad enabled field',
+        systemPrompt: 'Hello',
+        model: 'openai/gpt-4o',
+        toolPermission: { mode: 'allowlist', list: [123] },
+        skills: ['*'],
+        enabled: 'true',
+      };
+      writeFileSync(join(rolesDir, 'invalid-enabled.json'), JSON.stringify(invalidRole, null, 2));
+
+      await manager.loadAll(rolesDir);
+
+      expect(manager.getAllRoles()).toHaveLength(0);
+    });
+
     it('should apply defaults (e.g. enabled: true)', async () => {
       const roleData = {
         id: 'no-enabled',

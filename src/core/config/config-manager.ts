@@ -267,22 +267,27 @@ export class ConfigManager {
       throw new ConfigValidationError('Invalid JSON in config file', err);
     }
 
-    // Validate with TypeBox
-    if (!Value.Check(AppConfigSchema, parsed)) {
-      // Attempt to fill missing fields with defaults
-      const patched = Value.Cast(AppConfigSchema, parsed);
-
-      // Validate again after patching
-      if (!Value.Check(AppConfigSchema, patched)) {
-        const errors = [...Value.Errors(AppConfigSchema, patched)];
-        throw new ConfigValidationError('Config validation failed', errors);
-      }
-
-      logger.warn('Config had missing fields — patched with defaults');
-      return patched as AppConfig;
+    if (!isPlainObject(parsed)) {
+      const errors = [...Value.Errors(AppConfigSchema, parsed)];
+      throw new ConfigValidationError('Config validation failed', errors);
     }
 
-    return parsed as AppConfig;
+    const mergedWithDefaults = this.deepMerge(
+      structuredClone(DEFAULT_CONFIG),
+      parsed as Partial<AppConfig> & DeepPartial<AppConfig>,
+    );
+    const validated = Value.Default(AppConfigSchema, mergedWithDefaults);
+
+    if (!Value.Check(AppConfigSchema, validated)) {
+      const errors = [...Value.Errors(AppConfigSchema, validated)];
+      throw new ConfigValidationError('Config validation failed', errors);
+    }
+
+    if (JSON.stringify(parsed) !== JSON.stringify(validated)) {
+      logger.warn('Config had missing fields — patched with defaults');
+    }
+
+    return validated as AppConfig;
   }
 
   private async persistConfig(): Promise<void> {
@@ -387,4 +392,8 @@ function isPromiseLike(value: unknown): value is Promise<void> {
     typeof value === 'object' &&
     typeof (value as { catch?: unknown }).catch === 'function'
   );
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }

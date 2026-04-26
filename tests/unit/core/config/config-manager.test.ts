@@ -9,6 +9,7 @@ import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ConfigManager } from '../../../../src/core/config/config-manager';
+import { ConfigValidationError } from '../../../../src/core/errors';
 
 const TEST_DIR = join(tmpdir(), 'aesyclaw-test-config');
 
@@ -79,6 +80,50 @@ describe('ConfigManager', () => {
       writeFileSync(configPath, 'not json');
 
       await expect(manager.load(configPath)).rejects.toThrow();
+    });
+
+    it('should reject explicitly invalid values instead of coercing them', async () => {
+      const invalidConfig = {
+        server: { port: '3000', host: 'localhost', logLevel: 'info' },
+        providers: {},
+        channels: {},
+        agent: { maxSteps: 10 },
+        memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
+        multimodal: {
+          speechToText: { provider: 'openai', model: 'whisper-1' },
+          imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+        },
+        mcp: [],
+        plugins: [],
+      };
+
+      writeFileSync(configPath, JSON.stringify(invalidConfig, null, 2));
+
+      await expect(manager.load(configPath)).rejects.toBeInstanceOf(ConfigValidationError);
+    });
+
+    it('should still fill defaults for missing optional fields', async () => {
+      const partialConfig = {
+        server: { port: 8080, host: 'localhost', logLevel: 'debug' },
+        providers: {},
+        channels: {},
+        agent: { maxSteps: 20 },
+        memory: { maxContextTokens: 64000, compressionThreshold: 0.7 },
+        multimodal: {
+          speechToText: { provider: 'test', model: 'test-model' },
+          imageUnderstanding: { provider: 'test', model: 'test-model' },
+        },
+        mcp: [{ name: 'local', transport: 'stdio' }],
+        plugins: [{ name: 'example-plugin' }],
+      };
+
+      writeFileSync(configPath, JSON.stringify(partialConfig, null, 2));
+
+      await manager.load(configPath);
+
+      expect(manager.get('server').cors).toBe(true);
+      expect(manager.get('mcp')[0]?.enabled).toBe(true);
+      expect(manager.get('plugins')[0]?.enabled).toBe(true);
     });
   });
 
