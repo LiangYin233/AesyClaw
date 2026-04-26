@@ -56,7 +56,7 @@ export class CronExecutor {
   }
 }
 
-function parseSessionKey(value: string): SessionKey {
+export function parseSessionKey(value: string): SessionKey {
   const parsed: unknown = JSON.parse(value);
   if (
     parsed === null ||
@@ -77,7 +77,7 @@ function parseSessionKey(value: string): SessionKey {
   };
 }
 
-function formatResult(messages: OutboundMessage[]): string {
+export function formatResult(messages: OutboundMessage[]): string {
   if (messages.length === 0) {
     return 'Cron job completed without outbound response.';
   }
