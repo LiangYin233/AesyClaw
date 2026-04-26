@@ -176,13 +176,6 @@ export class Application {
       await this.getPluginManager().loadAll();
     });
 
-    await this.startStep('Cron manager initialization', async () => {
-      await this.cronManager.initialize({
-        databaseManager: this.databaseManager,
-        pipeline: this.pipeline,
-      });
-    });
-
     await this.startStep('MCP manager initialization', async () => {
       this.mcpManager.initialize({
         configManager: this.configManager,
@@ -197,6 +190,14 @@ export class Application {
         pipeline: this.pipeline,
       });
       await this.channelManager.startAll();
+    });
+
+    await this.startStep('Cron manager initialization', async () => {
+      await this.cronManager.initialize({
+        databaseManager: this.databaseManager,
+        pipeline: this.pipeline,
+        send: async (sessionKey, message) => this.channelManager.send(sessionKey, message),
+      });
     });
 
     await this.startStep('Config synchronization', async () => {

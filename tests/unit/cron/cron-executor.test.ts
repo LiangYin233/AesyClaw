@@ -68,6 +68,7 @@ describe('CronExecutor', () => {
       markCompleted: vi.fn().mockResolvedValue(undefined),
       markFailed: vi.fn().mockResolvedValue(undefined),
     };
+    const send = vi.fn().mockResolvedValue(undefined);
     const pipeline = {
       receiveWithSend: vi
         .fn()
@@ -75,13 +76,13 @@ describe('CronExecutor', () => {
           await send({ content: 'pipeline response' });
         }),
     };
-    const executor = new CronExecutor({ cronRuns, pipeline });
-    return { executor, cronRuns, pipeline };
+    const executor = new CronExecutor({ cronRuns, pipeline, send });
+    return { executor, cronRuns, pipeline, send };
   }
 
   describe('execute', () => {
     it('should create a run, execute through pipeline, and mark completed', async () => {
-      const { executor, cronRuns, pipeline } = makeMocks();
+      const { executor, cronRuns, pipeline, send } = makeMocks();
       const job = makeJob();
 
       await executor.execute(job);
@@ -91,11 +92,15 @@ describe('CronExecutor', () => {
       const [inbound] = pipeline.receiveWithSend.mock.calls[0] as [Record<string, unknown>];
       expect(inbound.content).toBe('test prompt');
       expect(inbound.rawEvent).toEqual({ cronJobId: 'job-1', cronRunId: 'run-1' });
+      expect(send).toHaveBeenCalledWith(
+        { channel: 'test', type: 'private', chatId: '123' },
+        { content: 'pipeline response' },
+      );
       expect(cronRuns.markCompleted).toHaveBeenCalledWith('run-1', 'pipeline response');
     });
 
     it('should collect multiple outbound messages from the pipeline', async () => {
-      const { executor, cronRuns, pipeline } = makeMocks();
+      const { executor, cronRuns, pipeline, send } = makeMocks();
       pipeline.receiveWithSend.mockImplementation(
         async (_msg: unknown, send: (m: unknown) => Promise<void>) => {
           await send({ content: 'first' });
@@ -106,7 +111,27 @@ describe('CronExecutor', () => {
 
       await executor.execute(job);
 
+      expect(send).toHaveBeenNthCalledWith(
+        1,
+        { channel: 'test', type: 'private', chatId: '123' },
+        { content: 'first' },
+      );
+      expect(send).toHaveBeenNthCalledWith(
+        2,
+        { channel: 'test', type: 'private', chatId: '123' },
+        { content: 'second' },
+      );
       expect(cronRuns.markCompleted).toHaveBeenCalledWith('run-1', 'first\nsecond');
+    });
+
+    it('should mark failed and re-throw when outbound delivery fails', async () => {
+      const { executor, cronRuns, send } = makeMocks();
+      send.mockRejectedValue(new Error('send boom'));
+      const job = makeJob();
+
+      await expect(executor.execute(job)).rejects.toThrow('send boom');
+      expect(cronRuns.markFailed).toHaveBeenCalledWith('run-1', 'send boom');
+      expect(cronRuns.markCompleted).not.toHaveBeenCalled();
     });
 
     it('should mark failed and re-throw on pipeline error', async () => {

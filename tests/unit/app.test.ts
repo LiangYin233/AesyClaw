@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Application } from '../../src/app';
+import { ChannelManager } from '../../src/channel/channel-manager';
+import { CronManager } from '../../src/cron/cron-manager';
 
 const TEST_ROOTS: string[] = [];
 
@@ -38,6 +40,38 @@ describe('Application', () => {
         plugins: [],
         mcp: [],
       });
+    } finally {
+      await app.shutdown();
+    }
+  });
+
+  it('starts channels before cron and injects the real send dependency', async () => {
+    const testRoot = mkdtempSync(path.join(tmpdir(), 'aesyclaw-app-test-'));
+    TEST_ROOTS.push(testRoot);
+    vi.spyOn(process, 'cwd').mockReturnValue(testRoot);
+
+    const order: string[] = [];
+    const originalStartAll = ChannelManager.prototype.startAll;
+    const originalCronInitialize = CronManager.prototype.initialize;
+
+    vi.spyOn(ChannelManager.prototype, 'startAll').mockImplementation(async function () {
+      order.push('channels');
+      await originalStartAll.call(this);
+    });
+
+    vi.spyOn(CronManager.prototype, 'initialize').mockImplementation(async function (dependencies) {
+      order.push('cron');
+      expect(typeof dependencies.send).toBe('function');
+      expect(order).toContain('channels');
+      await originalCronInitialize.call(this, dependencies);
+    });
+
+    const app = new Application();
+
+    try {
+      await app.start();
+      expect(order).toEqual(expect.arrayContaining(['channels', 'cron']));
+      expect(order.indexOf('channels')).toBeLessThan(order.indexOf('cron'));
     } finally {
       await app.shutdown();
     }

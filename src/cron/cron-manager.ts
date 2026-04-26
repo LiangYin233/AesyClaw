@@ -1,9 +1,13 @@
 /** Cron manager — persists jobs, schedules timers, and records execution history. */
 
-import type { CronJobRecord, SessionKey } from '../core/types';
+import type { CronJobRecord, OutboundMessage, SessionKey } from '../core/types';
 import type { DatabaseManager } from '../core/database/database-manager';
 import { createScopedLogger } from '../core/logger';
-import { CronExecutor, type CronPipelineLike, type CronRunRepositoryLike } from './cron-executor';
+import {
+  CronExecutor,
+  type CronPipelineLike,
+  type CronRunRepositoryLike,
+} from './cron-executor';
 import { computeNextRun, CronScheduler, type CronScheduleType } from './cron-scheduler';
 
 const logger = createScopedLogger('cron');
@@ -27,6 +31,7 @@ export interface CronManagerDependencies {
   cronJobs?: CronJobRepositoryLike;
   cronRuns?: CronRunRepositoryLike;
   pipeline: CronPipelineLike;
+  send: (sessionKey: SessionKey, message: OutboundMessage) => Promise<void>;
   scheduler?: CronScheduler;
 }
 
@@ -61,6 +66,7 @@ export class CronManager {
     this.executor = new CronExecutor({
       cronRuns: this.cronRuns,
       pipeline: dependencies.pipeline,
+      send: dependencies.send,
     });
 
     const running = await this.cronRuns.findRunning();
@@ -110,9 +116,9 @@ export class CronManager {
 
   async deleteJob(jobId: string): Promise<boolean> {
     this.assertInitialized();
-    this.scheduler.cancel(jobId);
     const deleted = await this.getCronJobs().delete(jobId);
     if (deleted) {
+      this.scheduler.cancel(jobId);
       logger.info('Cron job deleted', { jobId });
     }
     return deleted;
@@ -124,7 +130,7 @@ export class CronManager {
     if (!job) {
       throw new Error(`Cron job "${jobId}" not found`);
     }
-    return this.executeScheduledJob(job.id);
+    return this.getExecutor().execute(job);
   }
 
   async reloadSchedules(): Promise<void> {

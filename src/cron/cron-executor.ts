@@ -23,6 +23,7 @@ export interface CronPipelineLike {
 export interface CronExecutorDependencies {
   cronRuns: CronRunRepositoryLike;
   pipeline: CronPipelineLike;
+  send: (sessionKey: SessionKey, message: OutboundMessage) => Promise<void>;
 }
 
 export class CronExecutor {
@@ -40,6 +41,7 @@ export class CronExecutor {
       };
 
       await this.dependencies.pipeline.receiveWithSend(inbound, async (message) => {
+        await this.dependencies.send(sessionKey, message);
         outboundMessages.push(message);
       });
 

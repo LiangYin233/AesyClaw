@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CronJobRecord, SessionKey } from '../../../src/core/types';
 import { CronManager, type CronJobRepositoryLike } from '../../../src/cron/cron-manager';
 import type { CronRunRepositoryLike } from '../../../src/cron/cron-executor';
@@ -12,6 +12,8 @@ import {
 class FakeCronJobRepo implements CronJobRepositoryLike {
   jobs = new Map<string, CronJobRecord>();
   nextId = 1;
+  deleteError: Error | null = null;
+  updateNextRunCalls: Array<{ id: string; nextRun: Date | null }> = [];
 
   async create(params: {
     scheduleType: string;
@@ -42,10 +44,14 @@ class FakeCronJobRepo implements CronJobRepositoryLike {
   }
 
   async delete(id: string): Promise<boolean> {
+    if (this.deleteError) {
+      throw this.deleteError;
+    }
     return this.jobs.delete(id);
   }
 
   async updateNextRun(id: string, nextRun: Date | null): Promise<void> {
+    this.updateNextRunCalls.push({ id, nextRun });
     const job = this.jobs.get(id);
     if (job) job.nextRun = nextRun?.toISOString() ?? null;
   }
@@ -88,6 +94,14 @@ function makePipeline(response = 'done') {
   };
 }
 
+function makeSend() {
+  return vi.fn(async () => undefined);
+}
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe('Cron', () => {
   it('computes next run times for supported schedule types', () => {
     const from = new Date('2026-04-24T10:00:00Z');
@@ -124,8 +138,9 @@ describe('Cron', () => {
     const jobs = new FakeCronJobRepo();
     const runs = new FakeCronRunRepo();
     const pipeline = makePipeline('cron response');
+    const send = makeSend();
     const manager = new CronManager();
-    await manager.initialize({ cronJobs: jobs, cronRuns: runs, pipeline });
+    await manager.initialize({ cronJobs: jobs, cronRuns: runs, pipeline, send });
 
     const jobId = await manager.createJob({
       scheduleType: 'interval',
@@ -147,6 +162,10 @@ describe('Cron', () => {
       }),
       expect.any(Function),
     );
+    expect(send).toHaveBeenCalledWith(
+      { channel: 'test', type: 'private', chatId: '1' },
+      { content: 'cron response' },
+    );
 
     expect(await manager.deleteJob(jobId)).toBe(true);
     await manager.destroy();
@@ -159,6 +178,7 @@ describe('Cron', () => {
     await manager.initialize({
       cronJobs: jobs,
       cronRuns: runs,
+      send: makeSend(),
       pipeline: {
         receiveWithSend: vi.fn(async () => {
           throw new Error('pipeline boom');
@@ -174,6 +194,137 @@ describe('Cron', () => {
 
     await expect(manager.runJobNow(jobId)).rejects.toThrow('pipeline boom');
     expect(runs.failed).toEqual([{ runId: 'run-1', error: 'pipeline boom' }]);
+    await manager.destroy();
+  });
+
+  it('does not cancel the scheduled timer if deleting the job fails', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-26T10:00:00Z'));
+
+    const jobs = new FakeCronJobRepo();
+    const runs = new FakeCronRunRepo();
+    const pipeline = makePipeline('cron response');
+    const scheduler = new CronScheduler();
+    const manager = new CronManager();
+    await manager.initialize({ cronJobs: jobs, cronRuns: runs, pipeline, send: makeSend(), scheduler });
+
+    const jobId = await manager.createJob({
+      scheduleType: 'interval',
+      scheduleValue: '30m',
+      prompt: 'check status',
+      sessionKey: { channel: 'test', type: 'private', chatId: '1' },
+    });
+
+    expect(scheduler.count()).toBe(1);
+
+    jobs.deleteError = new Error('delete failed');
+
+    await expect(manager.deleteJob(jobId)).rejects.toThrow('delete failed');
+    expect(scheduler.count()).toBe(1);
+
+    await manager.destroy();
+  });
+
+  it('runs jobs manually without mutating nextRun or replacing the scheduled timer', async () => {
+    const jobs = new FakeCronJobRepo();
+    const runs = new FakeCronRunRepo();
+    const pipeline = makePipeline('cron response');
+    const schedule = vi.fn();
+    const cancel = vi.fn();
+    const scheduler = {
+      schedule,
+      cancel,
+      clearAll: vi.fn(),
+      count: vi.fn(() => 0),
+    } as unknown as CronScheduler;
+    const manager = new CronManager();
+    await manager.initialize({ cronJobs: jobs, cronRuns: runs, pipeline, send: makeSend(), scheduler });
+
+    const jobId = await manager.createJob({
+      scheduleType: 'interval',
+      scheduleValue: '30m',
+      prompt: 'check status',
+      sessionKey: { channel: 'test', type: 'private', chatId: '1' },
+    });
+
+    const originalNextRun = jobs.jobs.get(jobId)?.nextRun;
+    expect(originalNextRun).toBeTruthy();
+    expect(schedule).toHaveBeenCalledTimes(1);
+
+    const result = await manager.runJobNow(jobId);
+
+    expect(result).toBe('cron response');
+    expect(jobs.jobs.get(jobId)?.nextRun).toBe(originalNextRun);
+    expect(jobs.updateNextRunCalls).toEqual([]);
+    expect(schedule).toHaveBeenCalledTimes(1);
+    expect(cancel).not.toHaveBeenCalled();
+
+    await manager.destroy();
+  });
+
+  it('reschedules interval jobs after timer-driven runs complete', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-26T10:00:00Z'));
+
+    const jobs = new FakeCronJobRepo();
+    const runs = new FakeCronRunRepo();
+    const pipeline = makePipeline('cron response');
+    const scheduler = new CronScheduler();
+    const manager = new CronManager();
+    await manager.initialize({ cronJobs: jobs, cronRuns: runs, pipeline, send: makeSend(), scheduler });
+
+    const jobId = await manager.createJob({
+      scheduleType: 'interval',
+      scheduleValue: '1m',
+      prompt: 'check status',
+      sessionKey: { channel: 'test', type: 'private', chatId: '1' },
+    });
+
+    const originalNextRun = jobs.jobs.get(jobId)?.nextRun;
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(runs.completed).toEqual([{ runId: 'run-1', result: 'cron response' }]);
+    expect(jobs.updateNextRunCalls).toHaveLength(1);
+    expect(jobs.jobs.get(jobId)?.nextRun).not.toBe(originalNextRun);
+    expect(scheduler.count()).toBe(1);
+
+    await manager.destroy();
+  });
+
+  it('reschedules interval jobs after timer-driven runs fail', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-26T10:00:00Z'));
+
+    const jobs = new FakeCronJobRepo();
+    const runs = new FakeCronRunRepo();
+    const scheduler = new CronScheduler();
+    const manager = new CronManager();
+    await manager.initialize({
+      cronJobs: jobs,
+      cronRuns: runs,
+      send: makeSend(),
+      pipeline: {
+        receiveWithSend: vi.fn(async () => {
+          throw new Error('pipeline boom');
+        }),
+      },
+      scheduler,
+    });
+
+    await manager.createJob({
+      scheduleType: 'interval',
+      scheduleValue: '1m',
+      prompt: 'check status',
+      sessionKey: { channel: 'test', type: 'private', chatId: '1' },
+    });
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(runs.failed).toEqual([{ runId: 'run-1', error: 'pipeline boom' }]);
+    expect(jobs.updateNextRunCalls).toHaveLength(1);
+    expect(scheduler.count()).toBe(1);
+
     await manager.destroy();
   });
 

@@ -104,8 +104,17 @@ export async function findAllCronJobs(db: DatabaseSync): Promise<CronJobRecord[]
 
 /** Delete a cron job by ID. Returns true if a row was deleted. */
 export async function deleteCronJob(db: DatabaseSync, id: string): Promise<boolean> {
-  const result = db.prepare('DELETE FROM cron_jobs WHERE id = ?').run(id);
-  return result.changes > 0;
+  db.exec('BEGIN');
+
+  try {
+    db.prepare('DELETE FROM cron_runs WHERE job_id = ?').run(id);
+    const result = db.prepare('DELETE FROM cron_jobs WHERE id = ?').run(id);
+    db.exec('COMMIT');
+    return result.changes > 0;
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }
 
 /** Update the next_run time for a cron job */

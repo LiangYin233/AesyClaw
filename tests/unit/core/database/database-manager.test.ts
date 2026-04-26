@@ -332,6 +332,24 @@ describe('Database Layer', () => {
       expect(job).toBeNull();
     });
 
+    it('should delete a job even when cron runs already exist', async () => {
+      const key: SessionKey = { channel: 'cron2', type: 'private', chatId: 'cronuser-runs' };
+      const id = await createCronJob(db, {
+        scheduleType: 'once',
+        scheduleValue: '2026-12-25T00:00:00Z',
+        prompt: 'Delete me',
+        sessionKey: key,
+        nextRun: new Date('2026-12-25T00:00:00Z'),
+      });
+      const runId = await createCronRun(db, { jobId: id });
+
+      const deleted = await deleteCronJob(db, id);
+
+      expect(deleted).toBe(true);
+      expect(await findCronJobById(db, id)).toBeNull();
+      expect(db.prepare('SELECT id FROM cron_runs WHERE id = ?').get(runId)).toBeUndefined();
+    });
+
     it('should update next_run', async () => {
       const key: SessionKey = { channel: 'cron3', type: 'private', chatId: 'cronuser3' };
       const id = await createCronJob(db, {
