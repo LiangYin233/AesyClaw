@@ -257,6 +257,80 @@ describe('ConfigManager', () => {
       expect((channels as Record<string, unknown>).testchannel).toBeDefined();
     });
 
+    it('should preserve existing channel values during syncDefaults', async () => {
+      const existingConfig = {
+        server: { port: 3000, host: '0.0.0.0', logLevel: 'info' },
+        providers: {},
+        channels: {
+          testchannel: {
+            enabled: false,
+            url: 'wss://user-configured.example',
+            nested: { retries: 5 },
+          },
+        },
+        agent: { maxSteps: 10 },
+        memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
+        multimodal: {
+          speechToText: { provider: 'openai', model: 'whisper-1' },
+          imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+        },
+        mcp: [],
+        plugins: [],
+      };
+
+      writeFileSync(configPath, JSON.stringify(existingConfig, null, 2));
+      await manager.load(configPath);
+
+      manager.registerDefaults('channels.testchannel', {
+        enabled: true,
+        url: 'ws://localhost',
+        nested: { retries: 3, timeoutMs: 1000 },
+      });
+
+      await manager.syncDefaults();
+
+      const testChannel = (manager.get('channels') as Record<string, Record<string, unknown>>)
+        .testchannel;
+      expect(testChannel.enabled).toBe(false);
+      expect(testChannel.url).toBe('wss://user-configured.example');
+      expect(testChannel.nested).toEqual({ retries: 5, timeoutMs: 1000 });
+    });
+
+    it('should backfill missing nested channel fields during syncDefaults', async () => {
+      const existingConfig = {
+        server: { port: 3000, host: '0.0.0.0', logLevel: 'info' },
+        providers: {},
+        channels: {
+          testchannel: {
+            nested: { retries: 2 },
+          },
+        },
+        agent: { maxSteps: 10 },
+        memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
+        multimodal: {
+          speechToText: { provider: 'openai', model: 'whisper-1' },
+          imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+        },
+        mcp: [],
+        plugins: [],
+      };
+
+      writeFileSync(configPath, JSON.stringify(existingConfig, null, 2));
+      await manager.load(configPath);
+
+      manager.registerDefaults('channels.testchannel', {
+        enabled: true,
+        nested: { retries: 3, timeoutMs: 1000 },
+      });
+
+      await manager.syncDefaults();
+
+      const testChannel = (manager.get('channels') as Record<string, Record<string, unknown>>)
+        .testchannel;
+      expect(testChannel.enabled).toBe(true);
+      expect(testChannel.nested).toEqual({ retries: 2, timeoutMs: 1000 });
+    });
+
     it('should reject invalid synced defaults before persisting or notifying', async () => {
       await manager.load(configPath);
 
@@ -265,14 +339,17 @@ describe('ConfigManager', () => {
         callCount++;
       });
 
-      manager.registerDefaults('server', { port: '3000' });
+      manager.registerDefaults('providers.test-provider', {
+        apiType: 'openai_responses',
+        apiKey: 123,
+      } as never);
 
       await expect(manager.syncDefaults()).rejects.toBeInstanceOf(AppError);
-      expect(manager.get('server').port).toBe(3000);
+      expect(manager.get('providers')).toEqual({});
       const fileContent = JSON.parse(
         await import('node:fs').then((fs) => fs.readFileSync(configPath, 'utf-8')),
-      ) as { server: { port: number } };
-      expect(fileContent.server.port).toBe(3000);
+      ) as { providers: Record<string, unknown> };
+      expect(fileContent.providers).toEqual({});
       expect(callCount).toBe(0);
     });
   });

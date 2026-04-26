@@ -163,6 +163,7 @@ export class ConfigManager {
       mergedConfig = this.deepMerge(
         mergedConfig,
         nestedPartial as Partial<AppConfig> & DeepPartial<AppConfig>,
+        { overwrite: false },
       );
     }
 
@@ -348,8 +349,10 @@ export class ConfigManager {
   private deepMerge<T extends Record<string, unknown>>(
     target: T,
     source: Partial<T> & DeepPartial<T>,
+    options: { overwrite?: boolean } = {},
   ): T {
     const result = structuredClone(target) as Record<string, unknown>;
+    const overwrite = options.overwrite ?? true;
 
     for (const key of Object.keys(source)) {
       const sourceVal = (source as Record<string, unknown>)[key];
@@ -366,9 +369,12 @@ export class ConfigManager {
         result[key] = this.deepMerge(
           targetVal as Record<string, unknown>,
           sourceVal as Record<string, unknown>,
+          options,
         );
-      } else {
+      } else if (targetVal === undefined || overwrite) {
         result[key] = sourceVal as unknown;
+      } else {
+        continue;
       }
     }
 

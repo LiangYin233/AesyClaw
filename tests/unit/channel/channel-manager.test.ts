@@ -68,6 +68,38 @@ describe('ChannelManager', () => {
     expect(manager.getLoaded('test')).toBeDefined();
   });
 
+  it('backfills nested default config while preserving configured channel values', async () => {
+    const config = new FakeConfigManager();
+    config.channels = {
+      test: {
+        token: 'configured',
+        nested: { retries: 5 },
+      },
+    };
+
+    const channel = makeChannel({
+      defaultConfig: {
+        enabled: true,
+        token: 'default',
+        nested: { retries: 3, timeoutMs: 1000 },
+      },
+      init: vi.fn(async (ctx) => {
+        expect(ctx.config).toEqual({
+          enabled: true,
+          token: 'configured',
+          nested: { retries: 5, timeoutMs: 1000 },
+        });
+      }),
+    });
+
+    const manager = new ChannelManager();
+    manager.initialize({ configManager: config, pipeline: makePipeline(), channels: [channel] });
+
+    await manager.startAll();
+
+    expect(channel.init).toHaveBeenCalledOnce();
+  });
+
   it('skips disabled channels and isolates startup failures', async () => {
     const config = new FakeConfigManager();
     config.channels = { disabled: { enabled: false } };
