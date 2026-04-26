@@ -11,6 +11,15 @@
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
+const ANSI_RESET = '\x1b[0m';
+
+const LOG_COLORS: Record<LogLevel, string> = {
+  debug: '\x1b[90m',
+  info: '\x1b[36m',
+  warn: '\x1b[33m',
+  error: '\x1b[31m',
+};
+
 const LOG_LEVELS: Record<LogLevel, number> = {
   debug: 0,
   info: 1,
@@ -33,9 +42,51 @@ function shouldLog(level: LogLevel): boolean {
   return LOG_LEVELS[level] >= LOG_LEVELS[currentLevel];
 }
 
-function formatMessage(scope: string, level: string, message: string): string {
-  const timestamp = new Date().toISOString();
-  return `${timestamp} [${level.toUpperCase()}] [${scope}] ${message}`;
+function supportsAnsiColor(stream: NodeJS.WriteStream): boolean {
+  const forceColor = process.env.FORCE_COLOR;
+
+  if ('NO_COLOR' in process.env) {
+    return false;
+  }
+
+  if (forceColor === '0' || forceColor === 'false') {
+    return false;
+  }
+
+  if (forceColor && forceColor !== '') {
+    return true;
+  }
+
+  if (!stream.isTTY) {
+    return false;
+  }
+
+  return process.env.TERM !== 'dumb';
+}
+
+function getLogStream(level: LogLevel): NodeJS.WriteStream {
+  return level === 'warn' || level === 'error' ? process.stderr : process.stdout;
+}
+
+function colorize(text: string, level: LogLevel, enabled: boolean): string {
+  if (!enabled) {
+    return text;
+  }
+
+  return `${LOG_COLORS[level]}${text}${ANSI_RESET}`;
+}
+
+function formatTimestamp(date: Date): string {
+  return date.toISOString().slice(5, 19).replace('T', ' ');
+}
+
+function formatMessage(scope: string, level: LogLevel, message: string): string {
+  const timestamp = formatTimestamp(new Date());
+  const useColor = supportsAnsiColor(getLogStream(level));
+  const formattedLevel = colorize(`[${level.toUpperCase()}]`, level, useColor);
+  const formattedScope = colorize(`[${scope}]`, level, useColor);
+
+  return `${timestamp} ${formattedLevel} ${formattedScope} ${message}`;
 }
 
 export interface Logger {
