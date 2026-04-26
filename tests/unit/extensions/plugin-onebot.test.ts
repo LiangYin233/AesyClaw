@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ChannelContext, ChannelPlugin } from '../../../src/channel/channel-types';
 import type { OutboundMessage, SessionKey } from '../../../src/core/types';
 import {
   createOneBotChannel,
@@ -9,6 +10,8 @@ import {
   mapOneBotEventToInbound,
   sendOneBotMessage,
 } from '../../../extensions/plugin_onebot/index';
+
+let openChannels: ChannelPlugin[] = [];
 
 describe('plugin_onebot', () => {
   let tempDir: string | null = null;
@@ -19,6 +22,9 @@ describe('plugin_onebot', () => {
   });
 
   afterEach(async () => {
+    await Promise.allSettled(openChannels.map((channel) => channel.destroy?.()));
+    openChannels = [];
+
     if (tempDir) {
       await rm(tempDir, { recursive: true, force: true });
       tempDir = null;
@@ -199,12 +205,10 @@ describe('plugin_onebot', () => {
   });
 
   it('connects to a remote websocket server and replies over the same connection', async () => {
-    const socket = new FakeWebSocket();
     let connectedUrl = '';
-    const channel = createOneBotChannel({
-      createSocket: (url) => {
+    const { channel, socket } = createTestChannel({
+      onConnectedUrl: (url) => {
         connectedUrl = url;
-        return socket;
       },
     });
     const receiveWithSend = vi.fn(async (message, send) => {
@@ -218,17 +222,10 @@ describe('plugin_onebot', () => {
       await send({ content: 'pong' });
     });
 
-    const initPromise = channel.init({
-      name: 'onebot',
-      config: {
-        serverUrl: 'ws://napcat.remote:3001/',
-        accessToken: 'secret-token',
-      },
+    await openTestChannel(channel, socket, {
+      config: { accessToken: 'secret-token' },
       receiveWithSend,
-      logger: makeLogger(),
     });
-    socket.dispatchOpen();
-    await initPromise;
 
     expect(connectedUrl).toBe('ws://napcat.remote:3001/?access_token=secret-token');
 
@@ -262,27 +259,15 @@ describe('plugin_onebot', () => {
     );
 
     await flushMicrotasks();
-    await expect(channel.destroy?.()).resolves.toBeUndefined();
   });
 
   it('downloads inbound attachment bytes to local media storage and appends file paths to content', async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'aesyclaw-onebot-download-'));
     vi.spyOn(process, 'cwd').mockReturnValue(tempDir);
 
-    const socket = new FakeWebSocket();
+    const { channel, socket } = createTestChannel();
     const receiveWithSend = vi.fn(async () => undefined);
-    const channel = createOneBotChannel({ createSocket: () => socket });
-
-    const initPromise = channel.init({
-      name: 'onebot',
-      config: {
-        serverUrl: 'ws://napcat.remote:3001/',
-      },
-      receiveWithSend,
-      logger: makeLogger(),
-    });
-    socket.dispatchOpen();
-    await initPromise;
+    await openTestChannel(channel, socket, { receiveWithSend });
 
     socket.dispatchMessage(
       JSON.stringify({
@@ -375,24 +360,12 @@ describe('plugin_onebot', () => {
     expect(inbound.content).toContain(String(localPath));
     await expect(readFile(String(localPath), 'utf-8')).resolves.toBe('image-bytes');
 
-    await expect(channel.destroy?.()).resolves.toBeUndefined();
   });
 
   it('prefers file_id when requesting generic inbound file downloads', async () => {
-    const socket = new FakeWebSocket();
+    const { channel, socket } = createTestChannel();
     const receiveWithSend = vi.fn(async () => undefined);
-    const channel = createOneBotChannel({ createSocket: () => socket });
-
-    const initPromise = channel.init({
-      name: 'onebot',
-      config: {
-        serverUrl: 'ws://napcat.remote:3001/',
-      },
-      receiveWithSend,
-      logger: makeLogger(),
-    });
-    socket.dispatchOpen();
-    await initPromise;
+    await openTestChannel(channel, socket, { receiveWithSend });
 
     socket.dispatchMessage(
       JSON.stringify({
@@ -413,24 +386,12 @@ describe('plugin_onebot', () => {
     expect(downloadAction.action).toBe('download_file_stream');
     expect(downloadAction.params).toEqual({ file_id: 'remote-file-id', chunk_size: 65536 });
 
-    await expect(channel.destroy?.()).resolves.toBeUndefined();
   });
 
   it('annotates inbound download failures when the stream never completes', async () => {
-    const socket = new FakeWebSocket();
+    const { channel, socket } = createTestChannel();
     const receiveWithSend = vi.fn(async () => undefined);
-    const channel = createOneBotChannel({ createSocket: () => socket });
-
-    const initPromise = channel.init({
-      name: 'onebot',
-      config: {
-        serverUrl: 'ws://napcat.remote:3001/',
-      },
-      receiveWithSend,
-      logger: makeLogger(),
-    });
-    socket.dispatchOpen();
-    await initPromise;
+    await openTestChannel(channel, socket, { receiveWithSend });
 
     socket.dispatchMessage(
       JSON.stringify({
@@ -492,24 +453,12 @@ describe('plugin_onebot', () => {
     expect(inbound.content).toContain('[Attachment download errors]');
     expect(inbound.content).toContain('did not return a completion response');
 
-    await expect(channel.destroy?.()).resolves.toBeUndefined();
   });
 
   it('does not expose file_path-only inbound files as local attachment paths', async () => {
-    const socket = new FakeWebSocket();
+    const { channel, socket } = createTestChannel();
     const receiveWithSend = vi.fn(async () => undefined);
-    const channel = createOneBotChannel({ createSocket: () => socket });
-
-    const initPromise = channel.init({
-      name: 'onebot',
-      config: {
-        serverUrl: 'ws://napcat.remote:3001/',
-      },
-      receiveWithSend,
-      logger: makeLogger(),
-    });
-    socket.dispatchOpen();
-    await initPromise;
+    await openTestChannel(channel, socket, { receiveWithSend });
 
     socket.dispatchMessage(
       JSON.stringify({
@@ -536,24 +485,12 @@ describe('plugin_onebot', () => {
     expect(inbound.content).not.toContain('C:/NapCatTemp/report.pdf');
     expect(socket.sent).toHaveLength(0);
 
-    await expect(channel.destroy?.()).resolves.toBeUndefined();
   });
 
   it('preserves URL metadata when file_path-only inbound file downloads are unsupported', async () => {
-    const socket = new FakeWebSocket();
+    const { channel, socket } = createTestChannel();
     const receiveWithSend = vi.fn(async () => undefined);
-    const channel = createOneBotChannel({ createSocket: () => socket });
-
-    const initPromise = channel.init({
-      name: 'onebot',
-      config: {
-        serverUrl: 'ws://napcat.remote:3001/',
-      },
-      receiveWithSend,
-      logger: makeLogger(),
-    });
-    socket.dispatchOpen();
-    await initPromise;
+    await openTestChannel(channel, socket, { receiveWithSend });
 
     socket.dispatchMessage(
       JSON.stringify({
@@ -587,23 +524,11 @@ describe('plugin_onebot', () => {
     expect(inbound.content).not.toContain('C:/NapCatTemp/report.pdf');
     expect(socket.sent).toHaveLength(0);
 
-    await expect(channel.destroy?.()).resolves.toBeUndefined();
   });
 
   it('sends outbound channel messages through the remote websocket connection', async () => {
-    const socket = new FakeWebSocket();
-    const channel = createOneBotChannel({ createSocket: () => socket });
-
-    const initPromise = channel.init({
-      name: 'onebot',
-      config: {
-        serverUrl: 'ws://napcat.remote:3001/',
-      },
-      receiveWithSend: vi.fn(),
-      logger: makeLogger(),
-    });
-    socket.dispatchOpen();
-    await initPromise;
+    const { channel, socket } = createTestChannel();
+    await openTestChannel(channel, socket);
 
     const sendPromise = channel.send(groupSession('67890'), outbound('hello group'));
     await flushMicrotasks();
@@ -625,7 +550,87 @@ describe('plugin_onebot', () => {
     );
 
     await expect(sendPromise).resolves.toBeUndefined();
+  });
+
+  it('rejects pending sends when the channel is destroyed', async () => {
+    const { channel, socket } = createTestChannel();
+    await openTestChannel(channel, socket);
+
+    const sendPromise = channel.send(groupSession('67890'), outbound('hello group'));
+    await flushMicrotasks();
+
+    expect(socket.sent).toHaveLength(1);
+
     await expect(channel.destroy?.()).resolves.toBeUndefined();
+    await expect(sendPromise).rejects.toThrow(/stopped/);
+  });
+
+  it('rejects pending inbound stream downloads when the channel is destroyed without delivery', async () => {
+    const { channel, socket } = createTestChannel();
+    const receiveWithSend = vi.fn(async () => undefined);
+    await openTestChannel(channel, socket, { receiveWithSend });
+
+    socket.dispatchMessage(
+      JSON.stringify({
+        post_type: 'message',
+        message_type: 'private',
+        user_id: 12345,
+        message: [{ type: 'image', data: { file: 'img-token' } }],
+      }),
+    );
+
+    await flushMicrotasks();
+    expect(socket.sent).toHaveLength(1);
+
+    await expect(channel.destroy?.()).resolves.toBeUndefined();
+    await flushMicrotasks();
+
+    expect(receiveWithSend).not.toHaveBeenCalled();
+  });
+
+  it('times out pending inbound stream downloads and ignores late stream responses', async () => {
+    vi.useFakeTimers();
+
+    const { channel, socket } = createTestChannel();
+    const receiveWithSend = vi.fn(async () => undefined);
+    await openTestChannel(channel, socket, { receiveWithSend });
+
+    socket.dispatchMessage(
+      JSON.stringify({
+        post_type: 'message',
+        message_type: 'private',
+        user_id: 12345,
+        message: [{ type: 'image', data: { file: 'img-token' } }],
+      }),
+    );
+
+    await flushMicrotasks();
+    const downloadAction = JSON.parse(socket.sent[0] ?? '{}') as {
+      echo?: string;
+    };
+
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+    await waitForCondition(() => receiveWithSend.mock.calls.length === 1);
+
+    const inbound = receiveWithSend.mock.calls[0]?.[0] as {
+      content: string;
+      attachments?: Array<{ path?: string }>;
+    };
+    expect(inbound.attachments).toBeUndefined();
+    expect(inbound.content).toContain('[Attachment download errors]');
+    expect(inbound.content).toContain('timed out after 300000ms');
+
+    socket.dispatchMessage(
+      JSON.stringify({
+        status: 'ok',
+        retcode: 0,
+        echo: downloadAction.echo,
+        data: { type: 'response', data_type: 'file_complete' },
+      }),
+    );
+    await flushMicrotasks();
+
+    expect(receiveWithSend).toHaveBeenCalledOnce();
   });
 
   it('rejects pending sends on disconnect and reconnects with a new remote websocket', async () => {
@@ -644,15 +649,9 @@ describe('plugin_onebot', () => {
     const channel = createOneBotChannel({
       createSocket,
     });
+    openChannels.push(channel);
 
-    const initPromise = channel.init({
-      name: 'onebot',
-      config: {
-        serverUrl: 'ws://napcat.remote:3001/',
-      },
-      receiveWithSend: vi.fn(),
-      logger: makeLogger(),
-    });
+    const initPromise = channel.init(makeChannelContext());
     firstSocket.dispatchOpen();
     await initPromise;
 
@@ -686,21 +685,12 @@ describe('plugin_onebot', () => {
     );
 
     await expect(secondSendPromise).resolves.toBeUndefined();
-    await expect(channel.destroy?.()).resolves.toBeUndefined();
   });
 
   it('fails fast when the remote websocket closes before opening', async () => {
-    const socket = new FakeWebSocket();
-    const channel = createOneBotChannel({ createSocket: () => socket });
+    const { channel, socket } = createTestChannel();
 
-    const initPromise = channel.init({
-      name: 'onebot',
-      config: {
-        serverUrl: 'ws://napcat.remote:3001/',
-      },
-      receiveWithSend: vi.fn(),
-      logger: makeLogger(),
-    });
+    const initPromise = channel.init(makeChannelContext());
 
     socket.dispatchClose({ code: 1006, reason: 'refused' });
 
@@ -751,6 +741,53 @@ class FakeWebSocket {
       listener(event);
     }
   }
+}
+
+function createTestChannel(options: { onConnectedUrl?: (url: string) => void } = {}): {
+  channel: ChannelPlugin;
+  socket: FakeWebSocket;
+} {
+  const socket = new FakeWebSocket();
+  const channel = createOneBotChannel({
+    createSocket: (url) => {
+      options.onConnectedUrl?.(url);
+      return socket;
+    },
+  });
+  openChannels.push(channel);
+  return { channel, socket };
+}
+
+function makeChannelContext(
+  overrides: Partial<ChannelContext> & { config?: Record<string, unknown> } = {},
+): ChannelContext {
+  return {
+    name: overrides.name ?? 'onebot',
+    config: {
+      serverUrl: 'ws://napcat.remote:3001/',
+      ...overrides.config,
+    },
+    receiveWithSend: overrides.receiveWithSend ?? vi.fn(),
+    logger: overrides.logger ?? makeLogger(),
+  };
+}
+
+async function openTestChannel(
+  channel: ChannelPlugin,
+  socket: FakeWebSocket,
+  options: {
+    config?: Record<string, unknown>;
+    receiveWithSend?: ChannelContext['receiveWithSend'];
+  } = {},
+): Promise<void> {
+  const initPromise = channel.init(
+    makeChannelContext({
+      config: options.config,
+      receiveWithSend: options.receiveWithSend,
+    }),
+  );
+  socket.dispatchOpen();
+  await initPromise;
 }
 
 function privateSession(chatId: string): SessionKey {

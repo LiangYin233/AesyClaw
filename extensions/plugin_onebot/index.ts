@@ -38,6 +38,39 @@ const DEFAULT_EXTENSION_BY_ATTACHMENT: Record<MediaAttachment['type'], string> =
   file: '.bin',
 };
 
+const ATTACHMENT_TYPE_BY_SEGMENT: Record<string, MediaAttachment['type'] | undefined> = {
+  image: 'image',
+  record: 'audio',
+  video: 'video',
+  file: 'file',
+};
+
+const SEND_ACTION_BY_CHAT_TYPE: Record<
+  string,
+  { action: string; idParam: 'user_id' | 'group_id' } | undefined
+> = {
+  private: { action: 'send_private_msg', idParam: 'user_id' },
+  group: { action: 'send_group_msg', idParam: 'group_id' },
+};
+
+const DOWNLOAD_REQUEST_BY_SEGMENT: Record<
+  string,
+  | {
+      action: string;
+      fallbackFileName: string;
+      extraParams?: Record<string, unknown>;
+    }
+  | undefined
+> = {
+  image: { action: 'download_file_image_stream', fallbackFileName: 'image.png' },
+  record: {
+    action: 'download_file_record_stream',
+    fallbackFileName: 'audio.mp3',
+    extraParams: { out_format: 'mp3' },
+  },
+  video: { action: 'download_file_stream', fallbackFileName: 'video.mp4' },
+};
+
 const EXTENSION_BY_MIME_TYPE: Record<string, string> = {
   'image/png': '.png',
   'image/jpeg': '.jpg',
@@ -86,17 +119,14 @@ interface OneBotMessageSegment {
   data: Record<string, unknown>;
 }
 
-interface PendingRequest {
-  resolve(response: OneBotApiResponse): void;
+interface PendingRequest<T> {
+  resolve(response: T): void;
   reject(error: Error): void;
   timeout: ReturnType<typeof setTimeout>;
 }
 
-interface PendingStreamRequest {
+interface PendingStreamRequest extends PendingRequest<OneBotApiResponse[]> {
   responses: OneBotApiResponse[];
-  resolve(responses: OneBotApiResponse[]): void;
-  reject(error: Error): void;
-  timeout: ReturnType<typeof setTimeout>;
 }
 
 interface DownloadedStreamFile {
@@ -147,42 +177,20 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let nextEcho = 0;
   let destroyed = false;
-  const pending = new Map<string, PendingRequest>();
+  const pending = new Map<string, PendingRequest<OneBotApiResponse>>();
   const pendingStreams = new Map<string, PendingStreamRequest>();
 
   const transport: OneBotActionTransport = {
     sendAction: async (action, params) => {
-      await ensureConnected();
-      const activeSocket = socket;
-      if (!activeSocket || activeSocket.readyState !== WEBSOCKET_OPEN) {
-        throw new Error('OneBot websocket is not connected');
-      }
-
-      const echo = `onebot-${Date.now()}-${++nextEcho}`;
-      return new Promise<OneBotApiResponse>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          pending.delete(echo);
-          reject(new Error(`OneBot action "${action}" timed out after ${ACTION_TIMEOUT_MS}ms`));
-        }, ACTION_TIMEOUT_MS);
-
-        pending.set(echo, {
-          resolve: (response) => {
-            clearTimeout(timeout);
-            resolve(response);
-          },
-          reject: (error) => {
-            clearTimeout(timeout);
-            reject(error);
-          },
-          timeout,
-        });
-
-        try {
-          activeSocket.send(JSON.stringify({ action, params, echo }));
-        } catch (err) {
-          cleanupPending(echo);
-          reject(new Error(`Failed to send OneBot action "${action}": ${errorMessage(err)}`));
-        }
+      return sendSocketActionRequest({
+        action,
+        params,
+        echoPrefix: 'onebot',
+        timeoutMs: ACTION_TIMEOUT_MS,
+        timeoutMessage: `OneBot action "${action}" timed out after ${ACTION_TIMEOUT_MS}ms`,
+        sendFailureMessage: (err) =>
+          `Failed to send OneBot action "${action}": ${errorMessage(err)}`,
+        requests: pending,
       });
     },
   };
@@ -191,42 +199,16 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
     action: string,
     params: Record<string, unknown>,
   ): Promise<OneBotApiResponse[]> => {
-    await ensureConnected();
-    const activeSocket = socket;
-    if (!activeSocket || activeSocket.readyState !== WEBSOCKET_OPEN) {
-      throw new Error('OneBot websocket is not connected');
-    }
-
-    const echo = `onebot-stream-${Date.now()}-${++nextEcho}`;
-    return new Promise<OneBotApiResponse[]>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        pendingStreams.delete(echo);
-        reject(
-          new Error(
-            `OneBot stream action "${action}" timed out after ${DOWNLOAD_STREAM_TIMEOUT_MS}ms`,
-          ),
-        );
-      }, DOWNLOAD_STREAM_TIMEOUT_MS);
-
-      pendingStreams.set(echo, {
-        responses: [],
-        resolve: (responses) => {
-          clearTimeout(timeout);
-          resolve(responses);
-        },
-        reject: (error) => {
-          clearTimeout(timeout);
-          reject(error);
-        },
-        timeout,
-      });
-
-      try {
-        activeSocket.send(JSON.stringify({ action, params, echo }));
-      } catch (err) {
-        cleanupPendingStream(echo);
-        reject(new Error(`Failed to send OneBot stream action "${action}": ${errorMessage(err)}`));
-      }
+    return sendSocketActionRequest({
+      action,
+      params,
+      echoPrefix: 'onebot-stream',
+      timeoutMs: DOWNLOAD_STREAM_TIMEOUT_MS,
+      timeoutMessage: `OneBot stream action "${action}" timed out after ${DOWNLOAD_STREAM_TIMEOUT_MS}ms`,
+      sendFailureMessage: (err) =>
+        `Failed to send OneBot stream action "${action}": ${errorMessage(err)}`,
+      requests: pendingStreams,
+      createRequest: (base) => ({ ...base, responses: [] }),
     });
   };
 
@@ -366,6 +348,10 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
       sendStreamAction,
     );
 
+    if (!context || destroyed) {
+      return;
+    }
+
     try {
       await context.receiveWithSend(enrichedInbound, async (outbound) => {
         await sendOneBotMessage(enrichedInbound.sessionKey, outbound, transport);
@@ -412,25 +398,6 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
     }
   }
 
-  function cleanupPending(echo: string): PendingRequest | null {
-    const pendingRequest = pending.get(echo) ?? null;
-    if (!pendingRequest) {
-      return null;
-    }
-
-    clearTimeout(pendingRequest.timeout);
-    pending.delete(echo);
-    return pendingRequest;
-  }
-
-  function rejectAllPending(error: Error): void {
-    for (const [echo, pendingRequest] of pending.entries()) {
-      pending.delete(echo);
-      clearTimeout(pendingRequest.timeout);
-      pendingRequest.reject(error);
-    }
-  }
-
   function consumePendingStreamResponse(echo: string, response: OneBotApiResponse): boolean {
     const request = pendingStreams.get(echo);
     if (!request) {
@@ -459,23 +426,110 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
     return true;
   }
 
-  function cleanupPendingStream(echo: string): PendingStreamRequest | null {
-    const request = pendingStreams.get(echo) ?? null;
-    if (!request) {
-      return null;
+  async function sendSocketActionRequest<T, TRequest extends PendingRequest<T> = PendingRequest<T>>({
+    action,
+    params,
+    echoPrefix,
+    timeoutMs,
+    timeoutMessage,
+    sendFailureMessage,
+    requests,
+    createRequest,
+  }: {
+    action: string;
+    params: Record<string, unknown>;
+    echoPrefix: string;
+    timeoutMs: number;
+    timeoutMessage: string;
+    sendFailureMessage: (err: unknown) => string;
+    requests: Map<string, TRequest>;
+    createRequest?: (base: PendingRequest<T>) => TRequest;
+  }): Promise<T> {
+    await ensureConnected();
+    const activeSocket = socket;
+    if (!activeSocket || activeSocket.readyState !== WEBSOCKET_OPEN) {
+      throw new Error('OneBot websocket is not connected');
     }
 
-    clearTimeout(request.timeout);
-    pendingStreams.delete(echo);
-    return request;
+    const echo = `${echoPrefix}-${Date.now()}-${++nextEcho}`;
+    return new Promise<T>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        requests.delete(echo);
+        reject(new Error(timeoutMessage));
+      }, timeoutMs);
+      const request = buildPendingRequest({ resolve, reject, timeout });
+      requests.set(echo, createRequest ? createRequest(request) : (request as TRequest));
+
+      try {
+        activeSocket.send(JSON.stringify({ action, params, echo }));
+      } catch (err) {
+        cleanupPendingRequest(requests, echo);
+        reject(new Error(sendFailureMessage(err)));
+      }
+    });
+  }
+
+  function cleanupPending(echo: string): PendingRequest<OneBotApiResponse> | null {
+    return cleanupPendingRequest(pending, echo);
+  }
+
+  function rejectAllPending(error: Error): void {
+    rejectPendingRequests(pending, error);
+  }
+
+  function cleanupPendingStream(echo: string): PendingStreamRequest | null {
+    return cleanupPendingRequest(pendingStreams, echo);
   }
 
   function rejectAllPendingStreams(error: Error): void {
-    for (const [echo, request] of pendingStreams.entries()) {
-      pendingStreams.delete(echo);
-      clearTimeout(request.timeout);
-      request.reject(error);
-    }
+    rejectPendingRequests(pendingStreams, error);
+  }
+}
+
+function buildPendingRequest<T>({
+  resolve,
+  reject,
+  timeout,
+}: {
+  resolve(value: T): void;
+  reject(error: Error): void;
+  timeout: ReturnType<typeof setTimeout>;
+}): PendingRequest<T> {
+  return {
+    resolve: (response) => {
+      clearTimeout(timeout);
+      resolve(response);
+    },
+    reject: (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    },
+    timeout,
+  };
+}
+
+function cleanupPendingRequest<T, TRequest extends PendingRequest<T>>(
+  requests: Map<string, TRequest>,
+  echo: string,
+): TRequest | null {
+  const request = requests.get(echo) ?? null;
+  if (!request) {
+    return null;
+  }
+
+  clearTimeout(request.timeout);
+  requests.delete(echo);
+  return request;
+}
+
+function rejectPendingRequests<T, TRequest extends PendingRequest<T>>(
+  requests: Map<string, TRequest>,
+  error: Error,
+): void {
+  for (const [echo, request] of requests.entries()) {
+    requests.delete(echo);
+    clearTimeout(request.timeout);
+    request.reject(error);
   }
 }
 
@@ -618,39 +672,16 @@ async function downloadInboundAttachment(
 function buildDownloadRequest(
   segment: OneBotInboundAttachmentSegment,
 ): { action: string; params: Record<string, unknown>; fallbackFileName?: string } | null {
-  if (segment.segmentType === 'image') {
+  const simpleRequest = DOWNLOAD_REQUEST_BY_SEGMENT[segment.segmentType];
+  if (simpleRequest) {
     const file = typeof segment.data.file === 'string' ? segment.data.file : null;
     if (!file) {
       return null;
     }
     return {
-      action: 'download_file_image_stream',
-      params: { file, chunk_size: STREAM_CHUNK_SIZE },
-      fallbackFileName: 'image.png',
-    };
-  }
-
-  if (segment.segmentType === 'record') {
-    const file = typeof segment.data.file === 'string' ? segment.data.file : null;
-    if (!file) {
-      return null;
-    }
-    return {
-      action: 'download_file_record_stream',
-      params: { file, chunk_size: STREAM_CHUNK_SIZE, out_format: 'mp3' },
-      fallbackFileName: 'audio.mp3',
-    };
-  }
-
-  if (segment.segmentType === 'video') {
-    const file = typeof segment.data.file === 'string' ? segment.data.file : null;
-    if (!file) {
-      return null;
-    }
-    return {
-      action: 'download_file_stream',
-      params: { file, chunk_size: STREAM_CHUNK_SIZE },
-      fallbackFileName: 'video.mp4',
+      action: simpleRequest.action,
+      params: { file, chunk_size: STREAM_CHUNK_SIZE, ...simpleRequest.extraParams },
+      fallbackFileName: simpleRequest.fallbackFileName,
     };
   }
 
@@ -768,18 +799,12 @@ async function buildSendAction(
   transport: OneBotActionTransport,
 ): Promise<{ action: string; params: Record<string, unknown> }> {
   const outboundMessage = await buildOutgoingMessagePayload(message, transport);
+  const actionConfig = SEND_ACTION_BY_CHAT_TYPE[sessionKey.type];
 
-  if (sessionKey.type === 'private') {
+  if (actionConfig) {
     return {
-      action: 'send_private_msg',
-      params: { user_id: numericOrStringId(sessionKey.chatId), message: outboundMessage },
-    };
-  }
-
-  if (sessionKey.type === 'group') {
-    return {
-      action: 'send_group_msg',
-      params: { group_id: numericOrStringId(sessionKey.chatId), message: outboundMessage },
+      action: actionConfig.action,
+      params: { [actionConfig.idParam]: numericOrStringId(sessionKey.chatId), message: outboundMessage },
     };
   }
 
@@ -1018,19 +1043,7 @@ function mapOneBotAttachmentSegment(segment: unknown): MediaAttachment | null {
 }
 
 function mapAttachmentTypeFromSegment(type: string): MediaAttachment['type'] | null {
-  if (type === 'image') {
-    return 'image';
-  }
-  if (type === 'record') {
-    return 'audio';
-  }
-  if (type === 'video') {
-    return 'video';
-  }
-  if (type === 'file') {
-    return 'file';
-  }
-  return null;
+  return ATTACHMENT_TYPE_BY_SEGMENT[type] ?? null;
 }
 
 function parseConfig(config: Record<string, unknown>): OneBotChannelConfig {
