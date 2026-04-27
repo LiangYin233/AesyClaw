@@ -22,7 +22,7 @@ function isMarkdown(text: string): boolean {
 
 // ─── Font loading ───────────────────────────────────────────────
 
-const FONT_FILE = 'SourceHanSerif-VF.otf.woff2';
+const FONT_FILE = 'SourceHanSerif-VF.otf';
 const FONT_NAME = 'SourceHanSerif';
 
 async function loadFont(): Promise<{ name: string; data: Buffer; weight: number } | null> {
