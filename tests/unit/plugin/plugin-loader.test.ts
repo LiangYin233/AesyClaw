@@ -9,7 +9,7 @@ async function makeExtensionsDir(): Promise<string> {
 }
 
 describe('PluginLoader', () => {
-  it('discovers plugin_* and channel_* directories only', async () => {
+  it('discovers plugin_* directories only', async () => {
     const extensionsDir = await makeExtensionsDir();
     await mkdir(path.join(extensionsDir, 'plugin_alpha'));
     await mkdir(path.join(extensionsDir, 'channel_onebot'));
@@ -18,9 +18,7 @@ describe('PluginLoader', () => {
     const loader = new PluginLoader({ extensionsDir });
     const discovered = await loader.discover();
 
-    expect(discovered).toHaveLength(2);
-    expect(discovered).toContain(path.join(extensionsDir, 'plugin_alpha'));
-    expect(discovered).toContain(path.join(extensionsDir, 'channel_onebot'));
+    expect(discovered).toEqual([path.join(extensionsDir, 'plugin_alpha')]);
   });
 
   it('loads a valid plugin definition through dynamic import', async () => {

@@ -30,7 +30,7 @@ export class PluginLoader {
 
     const pluginDirs: string[] = [];
     for (const entry of entries) {
-      if (!entry.startsWith('plugin_') && !entry.startsWith('channel_')) {
+      if (!entry.startsWith('plugin_')) {
         continue;
       }
 
