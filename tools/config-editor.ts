@@ -1386,7 +1386,6 @@ function humanizeKey(key: string): string {
     baseUrl: '基础地址',
     realModelName: '真实模型名称',
     contextWindow: '上下文窗口',
-    reasoning: '推理模式',
     enableThinking: '启用思考',
     extraBody: '额外请求体',
     host: '主机',

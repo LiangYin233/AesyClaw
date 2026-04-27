@@ -42,6 +42,8 @@ export interface ToolExecutionContext {
   sessionKey: SessionKey;
   /** Sends through the pipeline's onSend-aware delivery path when available */
   sendMessage?: (message: OutboundMessage) => Promise<boolean>;
+  /** Caller role's tool permission, used by sub-agents to inherit restrictions */
+  toolPermission?: import('../core/types').ToolPermissionConfig;
 }
 
 /**

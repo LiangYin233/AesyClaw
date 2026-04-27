@@ -22,7 +22,6 @@ const ApiProtocolType = Type.Union([
 const ModelPresetSchema = Type.Object({
   realModelName: Type.Optional(Type.String()),
   contextWindow: Type.Optional(Type.Number()),
-  reasoning: Type.Optional(Type.Boolean()),
   enableThinking: Type.Optional(Type.Boolean()),
   extraBody: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
   apiKey: Type.Optional(Type.String()),

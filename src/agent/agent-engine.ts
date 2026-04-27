@@ -110,6 +110,7 @@ export class AgentEngine {
     const executionContext: Partial<ToolExecutionContext> = {
       sessionKey: message.sessionKey,
       sendMessage,
+      toolPermission: role.toolPermission,
     };
 
     const { prompt, tools } = this.promptBuilder.buildSystemPrompt(role, executionContext);

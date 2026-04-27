@@ -19,6 +19,21 @@ export interface AudioTranscriptionInput {
 
 const logger = createScopedLogger('llm-adapter');
 
+function makeExtraBodyOnPayload(
+  model: ResolvedModel,
+): ((payload: unknown) => unknown) | undefined {
+  const extraBody = model.extraBody;
+  if (!extraBody || Object.keys(extraBody).length === 0) {
+    return undefined;
+  }
+  return (payload: unknown) => {
+    if (typeof payload === 'object' && payload !== null) {
+      return { ...(payload as Record<string, unknown>), ...extraBody };
+    }
+    return payload;
+  };
+}
+
 const API_TYPE_MAP = {
   openai_responses: 'openai-responses',
   openai_completion: 'openai-completions',
@@ -88,7 +103,7 @@ export class LlmAdapter {
       provider,
       api: apiType,
       baseUrl: providerConfig.baseUrl ?? builtInModel?.baseUrl ?? '',
-      reasoning: preset?.reasoning ?? preset?.enableThinking ?? builtInModel?.reasoning ?? false,
+      reasoning: preset?.enableThinking ?? builtInModel?.reasoning ?? false,
       input: builtInModel?.input ?? ['text'],
       cost: builtInModel?.cost ?? {
         input: 0,
@@ -119,6 +134,7 @@ export class LlmAdapter {
       return streamSimple(runtimeModel, context, {
         ...options,
         apiKey: runtimeModel.apiKey,
+        onPayload: makeExtraBodyOnPayload(runtimeModel),
       });
     };
   }
@@ -168,6 +184,7 @@ export class LlmAdapter {
         {
           apiKey: model.apiKey,
           sessionId,
+          onPayload: makeExtraBodyOnPayload(model),
         },
       );
 
@@ -213,6 +230,7 @@ export class LlmAdapter {
       {
         apiKey: model.apiKey,
         sessionId,
+        onPayload: makeExtraBodyOnPayload(model),
       },
     );
 

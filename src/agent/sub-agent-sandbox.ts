@@ -7,7 +7,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { PersistableMessage, RoleConfig, SessionKey } from '../core/types';
+import type { PersistableMessage, RoleConfig, SessionKey, ToolPermissionConfig } from '../core/types';
 import { MemoryManager } from './memory-manager';
 import type { MessageRepositoryLike } from './memory-manager';
 import type { SubAgentRoleParams, SubAgentTempParams } from './agent-types';
@@ -55,19 +55,17 @@ export class SubAgentSandbox {
   /**
    * Execute a sub-agent with a temporary system prompt.
    *
-   * The sub-agent uses the provided system prompt instead of a role
-   * configuration, allowing ad-hoc task delegation.
-   *
-   * @param params - Parameters specifying the prompt and options
-   * @returns The sub-agent's response text
+   * Tool permissions are inherited from the caller's role (via executionContext.toolPermission)
+   * when available, otherwise fall back to the default role's permission.
    */
   async runWithPrompt(
     params: SubAgentTempParams,
-    executionContext?: Pick<ToolExecutionContext, 'sessionKey' | 'sendMessage'>,
+    executionContext?: Pick<ToolExecutionContext, 'sessionKey' | 'sendMessage' | 'toolPermission'>,
   ): Promise<string> {
     const baseRole = this.deps.roleManager.getDefaultRole();
     const role: RoleConfig = {
       ...baseRole,
+      toolPermission: executionContext?.toolPermission ?? baseRole.toolPermission,
       id: `temp-sub-agent-${randomUUID()}`,
       name: 'Temporary Sub-Agent',
       description: 'Temporary delegated agent execution',
@@ -118,15 +116,44 @@ export class SubAgentSandbox {
     role: RoleConfig,
     params: Pick<SubAgentRoleParams | SubAgentTempParams, 'enableTools'>,
   ): RoleConfig {
-    if (params.enableTools !== false) {
-      return role;
+    if (params.enableTools === false) {
+      return {
+        ...role,
+        toolPermission: {
+          mode: 'allowlist',
+          list: [],
+        },
+      };
     }
 
+    const { mode, list } = role.toolPermission;
+    const blockedTools = ['run_sub_agent', 'run_temp_sub_agent'];
+
+    // Allowlist with wildcard: switch to denylist to exclude sub-agent tools only
+    if (mode === 'allowlist' && list.includes('*')) {
+      return {
+        ...role,
+        toolPermission: { mode: 'denylist' as const, list: blockedTools },
+      };
+    }
+
+    // Allowlist with explicit names: filter out sub-agent tools
+    if (mode === 'allowlist') {
+      return {
+        ...role,
+        toolPermission: {
+          mode: 'allowlist' as const,
+          list: list.filter((name) => !blockedTools.includes(name)),
+        },
+      };
+    }
+
+    // Denylist: add sub-agent tools to the denylist
     return {
       ...role,
       toolPermission: {
-        mode: 'allowlist',
-        list: [],
+        mode: 'denylist' as const,
+        list: [...new Set([...list, ...blockedTools])],
       },
     };
   }
