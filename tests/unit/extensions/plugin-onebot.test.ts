@@ -9,7 +9,7 @@ import {
   extractOneBotText,
   mapOneBotEventToInbound,
   sendOneBotMessage,
-} from '../../../extensions/plugin_onebot/index';
+} from '../../../extensions/channel_onebot/index';
 
 let openChannels: ChannelPlugin[] = [];
 
