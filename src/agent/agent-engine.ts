@@ -56,7 +56,6 @@ export class AgentEngine {
   createAgent(
     role: RoleConfig,
     sessionId: string,
-    _memory: MemoryManager,
     executionContext?: Partial<ToolExecutionContext>,
   ): Agent {
     if (!this.initialized || !this.promptBuilder || !this.llmAdapter || !this.runPolicy) {

@@ -10,7 +10,6 @@ import { Pipeline } from '../../../src/pipeline/pipeline';
 import type { InboundMessage, OutboundMessage } from '../../../src/core/types';
 import type { PluginHooks } from '../../../src/pipeline/middleware/types';
 import { CommandRegistry } from '../../../src/command/command-registry';
-import { ConfigManager } from '../../../src/core/config/config-manager';
 import type { SessionManager } from '../../../src/agent/session-manager';
 import type { AgentEngine } from '../../../src/agent/agent-engine';
 
@@ -23,22 +22,8 @@ function makeInbound(content = 'hello'): InboundMessage {
   };
 }
 
-/** Create a minimal ConfigManager that's been loaded */
-async function createLoadedConfigManager(): Promise<ConfigManager> {
-  const cm = new ConfigManager();
-  const os = await import('node:os');
-  const path = await import('node:path');
-  const fs = await import('node:fs');
-  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'aesyclaw-test-'));
-  const configPath = path.join(tmpDir, 'config.json');
-  await cm.load(configPath);
-  return cm;
-}
-
-/** Create pipeline deps with real CommandRegistry and loaded ConfigManager */
+/** Create pipeline deps with real CommandRegistry */
 async function createPipelineDeps() {
-  const configManager = await createLoadedConfigManager();
-
   // Mock SessionManager that returns a minimal session context
   const mockSessionManager = {
     getOrCreateSession: vi.fn().mockResolvedValue({
@@ -109,7 +94,6 @@ async function createPipelineDeps() {
   } as unknown as AgentEngine;
 
   return {
-    configManager,
     sessionManager: mockSessionManager,
     agentEngine: mockAgentEngine,
     commandRegistry: new CommandRegistry(),

@@ -92,48 +92,16 @@ export class CommandRegistry {
    * @returns Command output string, or null if not a valid command
    */
   async execute(input: string, context: CommandContext): Promise<string | null> {
-    const trimmed = input.trim();
-
-    // Must start with /
-    if (!trimmed.startsWith('/')) {
-      return null;
-    }
-
-    // Split into parts: /command arg1 arg2 ...
-    const parts = trimmed.slice(1).split(/\s+/);
-    if (parts.length === 0 || parts[0] === '') {
-      return null;
-    }
-
-    const commandName = parts[0].toLowerCase();
-    const args = parts.slice(1);
-
-    // Look up the command — try with namespace prefixes
-    // First, try exact match (no namespace)
-    let command = this.commands.get(commandName);
-
-    // If not found, it might be a namespaced command like "role:list"
-    // but users type "/role list", so we need to check subcommands
-    // For namespaced commands, the key is "namespace:name"
-    if (!command && args.length > 0) {
-      // Try treating commandName as namespace and args[0] as the subcommand name
-      const compoundKey = `${commandName}:${args[0].toLowerCase()}`;
-      command = this.commands.get(compoundKey);
-      if (command) {
-        // Consume the first arg since it's part of the command key
-        args.splice(0, 1);
-      }
-    }
-
-    if (!command) {
+    const resolved = this.resolveCommand(input);
+    if (!resolved) {
       return null;
     }
 
     try {
-      return await command.execute(args, context);
+      return await resolved.command.execute(resolved.args, context);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.error(`Command "${commandName}" failed: ${message}`);
+      logger.error(`Command "${resolved.commandName}" failed: ${message}`);
       return `Error executing command: ${message}`;
     }
   }
@@ -145,36 +113,43 @@ export class CommandRegistry {
    * in the registry. Does NOT execute the command.
    */
   isCommand(input: string): boolean {
-    const trimmed = input.trim();
-    if (!trimmed.startsWith('/')) {
-      return false;
-    }
-
-    const parts = trimmed.slice(1).split(/\s+/);
-    if (parts.length === 0 || parts[0] === '') {
-      return false;
-    }
-
-    const commandName = parts[0].toLowerCase();
-
-    // Direct match
-    if (this.commands.has(commandName)) {
-      return true;
-    }
-
-    // Check namespaced match if there's a subcommand arg
-    if (parts.length > 1) {
-      const compoundKey = `${commandName}:${parts[1].toLowerCase()}`;
-      if (this.commands.has(compoundKey)) {
-        return true;
-      }
-    }
-
-    return false;
+    return this.resolveCommand(input) !== null;
   }
 
   /** Get all registered commands. */
   getAll(): CommandDefinition[] {
     return [...this.commands.values()];
+  }
+
+  private resolveCommand(
+    input: string,
+  ): { command: CommandDefinition; args: string[]; commandName: string } | null {
+    const trimmed = input.trim();
+    if (!trimmed.startsWith('/')) {
+      return null;
+    }
+
+    const parts = trimmed.slice(1).split(/\s+/);
+    if (parts.length === 0 || parts[0] === '') {
+      return null;
+    }
+
+    const commandName = parts[0].toLowerCase();
+    const args = parts.slice(1);
+
+    const direct = this.commands.get(commandName);
+    if (direct) {
+      return { command: direct, args, commandName };
+    }
+
+    if (args.length > 0) {
+      const subcommandName = args[0].toLowerCase();
+      const namespaced = this.commands.get(`${commandName}:${subcommandName}`);
+      if (namespaced) {
+        return { command: namespaced, args: args.slice(1), commandName };
+      }
+    }
+
+    return null;
   }
 }

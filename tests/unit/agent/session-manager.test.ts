@@ -398,7 +398,6 @@ describe('SessionManager', () => {
       expect(deps.agentEngine.createAgent).toHaveBeenCalledWith(
         newRole,
         session.sessionId,
-        session.memory,
         expect.any(Object),
       );
       expect(session.activeRole.id).toBe('analyst');

@@ -67,7 +67,7 @@ describe('PromptBuilder', () => {
       ...(overrides.skillManager ?? {}),
     };
     const toolRegistry = {
-      getAll: vi.fn().mockReturnValue([]),
+      resolveForRoleWithDefinitions: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
       resolveForRole: vi.fn().mockReturnValue([]),
       ...(overrides.toolRegistry ?? {}),
     };
@@ -104,8 +104,10 @@ describe('PromptBuilder', () => {
       const agentTool = makeAgentTool({ name: 'custom-tool' });
       const deps = makeDeps({
         toolRegistry: {
-          getAll: vi.fn().mockReturnValue([]),
-          resolveForRole: vi.fn().mockReturnValue([agentTool]),
+          resolveForRoleWithDefinitions: vi
+            .fn()
+            .mockReturnValue({ tools: [], agentTools: [agentTool] }),
+          resolveForRole: vi.fn().mockReturnValue([]),
         },
       });
       const builder = new PromptBuilder(deps);
@@ -121,7 +123,9 @@ describe('PromptBuilder', () => {
       const internalTool = makeTool({ name: 'send-msg' });
       const deps = makeDeps({
         toolRegistry: {
-          getAll: vi.fn().mockReturnValue([internalTool]),
+          resolveForRoleWithDefinitions: vi
+            .fn()
+            .mockReturnValue({ tools: [internalTool], agentTools: [] }),
           resolveForRole: vi.fn().mockReturnValue([]),
         },
       });
@@ -143,11 +147,12 @@ describe('PromptBuilder', () => {
 
     it('should filter tools by role permissions', () => {
       const allowedTool = makeTool({ name: 'allowed' });
-      const blockedTool = makeTool({ name: 'blocked' });
 
       const deps = makeDeps({
         toolRegistry: {
-          getAll: vi.fn().mockReturnValue([allowedTool, blockedTool]),
+          resolveForRoleWithDefinitions: vi
+            .fn()
+            .mockReturnValue({ tools: [allowedTool], agentTools: [] }),
           resolveForRole: vi.fn().mockReturnValue([]),
         },
       });
@@ -198,7 +203,7 @@ describe('PromptBuilder', () => {
 
       builder.buildSystemPrompt(makeRole(), ctx);
 
-      expect(deps.toolRegistry.resolveForRole).toHaveBeenCalledWith(
+      expect(deps.toolRegistry.resolveForRoleWithDefinitions).toHaveBeenCalledWith(
         expect.any(Object),
         deps.hookDispatcher,
         ctx,
@@ -249,7 +254,7 @@ Blocked content.`,
         roleManager: roleManager as unknown as PromptBuilderDependencies['roleManager'],
         skillManager,
         toolRegistry: {
-          getAll: vi.fn().mockReturnValue([]),
+          resolveForRoleWithDefinitions: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
           resolveForRole: vi.fn().mockReturnValue([]),
         } as unknown as PromptBuilderDependencies['toolRegistry'],
         hookDispatcher: {

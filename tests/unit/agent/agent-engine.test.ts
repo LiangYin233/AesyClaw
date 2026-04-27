@@ -71,6 +71,7 @@ function makeMockMessageRepo(): MessageRepository {
 function makeMockToolRegistry(): ToolRegistry {
   return {
     getAll: vi.fn().mockReturnValue([]),
+    resolveForRoleWithDefinitions: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
     resolveForRole: vi.fn().mockReturnValue([]),
   } as unknown as ToolRegistry;
 }
@@ -209,12 +210,8 @@ describe('AgentEngine', () => {
   describe('createAgent', () => {
     it('should create a pi-backed agent with correct initial state', () => {
       const role = makeRole();
-      const memory = new MemoryManager('test-session', makeMockMessageRepo(), {
-        maxContextTokens: 128000,
-        compressionThreshold: 0.8,
-      });
 
-      const agent = engine.createAgent(role, 'test-session', memory);
+      const agent = engine.createAgent(role, 'test-session');
 
       expect(agent).toBeDefined();
       expect(agent.state.systemPrompt).toContain('You are a test assistant');
@@ -227,32 +224,30 @@ describe('AgentEngine', () => {
     it('should wire role-resolved tools into the runtime agent state', () => {
       const tool = makeAgentTool('search');
       const deps = makeMockDeps();
-      (deps.toolRegistry.resolveForRole as ReturnType<typeof vi.fn>).mockReturnValue([tool]);
+      (deps.toolRegistry.resolveForRoleWithDefinitions as ReturnType<typeof vi.fn>).mockReturnValue(
+        { tools: [], agentTools: [tool] },
+      );
 
       const runtimeEngine = new AgentEngine();
       runtimeEngine.initialize(deps);
 
       const role = makeRole();
-      const memory = new MemoryManager('test-session', makeMockMessageRepo(), {
-        maxContextTokens: 128000,
-        compressionThreshold: 0.8,
-      });
 
-      const agent = runtimeEngine.createAgent(role, 'test-session', memory);
+      const agent = runtimeEngine.createAgent(role, 'test-session');
 
       expect(agent.state.tools).toHaveLength(1);
       expect(agent.state.tools[0]?.name).toBe('search');
-      expect(deps.toolRegistry.resolveForRole).toHaveBeenCalledWith(role, deps.hookDispatcher, {});
+      expect(deps.toolRegistry.resolveForRoleWithDefinitions).toHaveBeenCalledWith(
+        role,
+        deps.hookDispatcher,
+        {},
+      );
     });
 
     it('should have prompt, waitForIdle, and reset methods', () => {
       const role = makeRole();
-      const memory = new MemoryManager('test-session', makeMockMessageRepo(), {
-        maxContextTokens: 128000,
-        compressionThreshold: 0.8,
-      });
 
-      const agent = engine.createAgent(role, 'test-session', memory);
+      const agent = engine.createAgent(role, 'test-session');
 
       expect(typeof agent.prompt).toBe('function');
       expect(typeof agent.waitForIdle).toBe('function');
@@ -262,12 +257,8 @@ describe('AgentEngine', () => {
     it('should throw if not initialized', () => {
       const uninitialized = new AgentEngine();
       const role = makeRole();
-      const memory = new MemoryManager('test-session', makeMockMessageRepo(), {
-        maxContextTokens: 128000,
-        compressionThreshold: 0.8,
-      });
 
-      expect(() => uninitialized.createAgent(role, 'test-session', memory)).toThrow(
+      expect(() => uninitialized.createAgent(role, 'test-session')).toThrow(
         'AgentEngine not initialized',
       );
     });
@@ -282,7 +273,7 @@ describe('AgentEngine', () => {
         compressionThreshold: 0.8,
       });
 
-      const agent = engine.createAgent(role, 'test-session', memory);
+      const agent = engine.createAgent(role, 'test-session');
       const result = await engine.process(agent, makeInboundMessage(), memory, role);
 
       expect(result.content).toBe('Real response from pi runtime');
@@ -294,9 +285,9 @@ describe('AgentEngine', () => {
       const deps = makeMockDeps();
       const initialTool = makeAgentTool('initial-tool');
       const refreshedTool = makeAgentTool('refreshed-tool');
-      (deps.toolRegistry.resolveForRole as ReturnType<typeof vi.fn>)
-        .mockReturnValueOnce([initialTool])
-        .mockReturnValueOnce([refreshedTool]);
+      (deps.toolRegistry.resolveForRoleWithDefinitions as ReturnType<typeof vi.fn>)
+        .mockReturnValueOnce({ tools: [], agentTools: [initialTool] })
+        .mockReturnValueOnce({ tools: [], agentTools: [refreshedTool] });
 
       const runtimeEngine = new AgentEngine();
       runtimeEngine.initialize(deps);
@@ -307,7 +298,7 @@ describe('AgentEngine', () => {
         compressionThreshold: 0.8,
       });
 
-      const agent = runtimeEngine.createAgent(role, 'test-session', memory);
+      const agent = runtimeEngine.createAgent(role, 'test-session');
       expect(agent.state.tools[0]?.name).toBe('initial-tool');
 
       const result = await runtimeEngine.process(agent, makeInboundMessage(), memory, role);
@@ -315,7 +306,7 @@ describe('AgentEngine', () => {
       expect(result.content).toBe('Real response from pi runtime');
       expect(agent.state.tools).toHaveLength(1);
       expect(agent.state.tools[0]?.name).toBe('refreshed-tool');
-      expect(deps.toolRegistry.resolveForRole).toHaveBeenNthCalledWith(
+      expect(deps.toolRegistry.resolveForRoleWithDefinitions).toHaveBeenNthCalledWith(
         2,
         role,
         deps.hookDispatcher,
@@ -337,15 +328,19 @@ describe('AgentEngine', () => {
         maxContextTokens: 128000,
         compressionThreshold: 0.8,
       });
-      const agent = runtimeEngine.createAgent(role, 'test-session', memory);
+      const agent = runtimeEngine.createAgent(role, 'test-session');
       const sendMessage = vi.fn().mockResolvedValue(true);
 
       await runtimeEngine.process(agent, makeInboundMessage(), memory, role, sendMessage);
 
-      expect(deps.toolRegistry.resolveForRole).toHaveBeenLastCalledWith(role, deps.hookDispatcher, {
-        sessionKey: makeInboundMessage().sessionKey,
-        sendMessage,
-      });
+      expect(deps.toolRegistry.resolveForRoleWithDefinitions).toHaveBeenLastCalledWith(
+        role,
+        deps.hookDispatcher,
+        {
+          sessionKey: makeInboundMessage().sessionKey,
+          sendMessage,
+        },
+      );
     });
 
     it('should only persist newly generated messages', async () => {
@@ -361,7 +356,7 @@ describe('AgentEngine', () => {
         compressionThreshold: 0.8,
       });
 
-      const agent = engine.createAgent(role, 'test-session', memory);
+      const agent = engine.createAgent(role, 'test-session');
       await engine.process(agent, makeInboundMessage(), memory, role);
 
       expect(messageRepo.save).toHaveBeenCalledTimes(2);
@@ -473,12 +468,8 @@ describe('AgentEngine', () => {
   describe('switchModel', () => {
     it('should update the agent model state', () => {
       const role = makeRole();
-      const memory = new MemoryManager('test-session', makeMockMessageRepo(), {
-        maxContextTokens: 128000,
-        compressionThreshold: 0.8,
-      });
 
-      const agent = engine.createAgent(role, 'test-session', memory);
+      const agent = engine.createAgent(role, 'test-session');
       engine.switchModel(agent, 'openai/gpt-4o');
 
       expect(agent.state.model.provider).toBe('openai');

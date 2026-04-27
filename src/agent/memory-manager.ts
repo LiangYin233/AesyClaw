@@ -99,27 +99,12 @@ export class MemoryManager {
    * @param message - The AgentMessage to potentially persist
    */
   async persistMessage(message: AgentMessage): Promise<void> {
-    // Skip toolResult messages
-    if (message.role === 'toolResult') {
+    const persistable = this.toPersistableMessage(message);
+    if (!persistable) {
       return;
     }
 
-    // Skip assistant messages that contain tool calls
-    if (message.role === 'assistant' && assistantHasToolCalls(message)) {
-      return;
-    }
-
-    const text = extractMessageText(message).trim();
-
-    if (text.length === 0) {
-      return;
-    }
-
-    await this.messageRepo.save(this.sessionId, {
-      role: message.role as 'user' | 'assistant',
-      content: text,
-      timestamp: new Date().toISOString(),
-    });
+    await this.messageRepo.save(this.sessionId, persistable);
   }
 
   /**
@@ -135,12 +120,14 @@ export class MemoryManager {
     let filtered = 0;
 
     for (const message of agentMessages) {
-      if (this.shouldPersist(message)) {
-        await this.persistMessage(message);
-        persisted++;
-      } else {
+      const persistable = this.toPersistableMessage(message);
+      if (!persistable) {
         filtered++;
+        continue;
       }
+
+      await this.messageRepo.save(this.sessionId, persistable);
+      persisted++;
     }
 
     logger.debug(
@@ -205,22 +192,25 @@ export class MemoryManager {
 
   // ─── Private helpers ───────────────────────────────────────────
 
-  /**
-   * Check if a message should be persisted based on the filtering strategy.
-   */
-  private shouldPersist(message: AgentMessage): boolean {
-    // Never persist tool result messages
-    if (message.role === 'toolResult') return false;
-
-    // Never persist assistant messages with tool calls
-    if (message.role === 'assistant' && assistantHasToolCalls(message)) {
-      return false;
+  private toPersistableMessage(message: AgentMessage): PersistableMessage | null {
+    if (message.role !== 'user' && message.role !== 'assistant') {
+      return null;
     }
 
-    if (extractMessageText(message).trim().length === 0) return false;
+    if (message.role === 'assistant' && assistantHasToolCalls(message)) {
+      return null;
+    }
 
-    // Persist user messages and pure-text assistant messages
-    return true;
+    const text = extractMessageText(message).trim();
+    if (text.length === 0) {
+      return null;
+    }
+
+    return {
+      role: message.role,
+      content: text,
+      timestamp: new Date().toISOString(),
+    };
   }
 
   private parseTimestamp(timestamp?: string): number {

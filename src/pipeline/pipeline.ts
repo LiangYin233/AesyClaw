@@ -7,7 +7,7 @@
  *
  * Flow:
  *   1. HookDispatcher.dispatchOnReceive(message) → if block, stop
- *   2. Sequential steps: configInjection → sessionResolver → commandDetector → agentProcessor
+ *   2. Sequential steps: sessionResolver → commandDetector → agentProcessor
  *   3. If state.blocked, stop
  *   4. HookDispatcher.dispatchOnSend(outbound) → if block, stop
  *   5. send(outbound)
@@ -17,7 +17,6 @@
 import type { InboundMessage, OutboundMessage, SendFn } from '../core/types';
 import type { PipelineDependencies, PipelineState } from './middleware/types';
 import { HookDispatcher } from './hook-dispatcher';
-import { configInjection } from './middleware/config-injection';
 import { sessionResolver } from './middleware/session-resolver';
 import { commandDetector } from './middleware/command-detector';
 import { agentProcessor } from './middleware/agent-processor';
@@ -103,7 +102,6 @@ export class Pipeline {
           this.dispatchOnSendAndDeliver(outbound, send),
       };
 
-      state = await configInjection(state, this.deps.configManager);
       state = await sessionResolver(state, this.deps.sessionManager);
       state = await commandDetector(state, this.deps.commandRegistry);
 

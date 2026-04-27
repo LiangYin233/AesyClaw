@@ -146,6 +146,29 @@ export class ToolRegistry {
   }
 
   /**
+   * Return the internal tools available to a role before runtime adaptation.
+   */
+  getForRole(role: RoleConfig): AesyClawTool[] {
+    return filterToolsByRole(this.getAll(), role);
+  }
+
+  /**
+   * Resolve both prompt-facing tool definitions and runtime AgentTools from
+   * a single filtered tool set.
+   */
+  resolveForRoleWithDefinitions(
+    role: RoleConfig,
+    hookDispatcher: HookDispatcher,
+    executionContext: Partial<ToolExecutionContext>,
+  ): { tools: AesyClawTool[]; agentTools: AgentTool[] } {
+    const tools = this.getForRole(role);
+    return {
+      tools,
+      agentTools: this.toAgentTools(tools, hookDispatcher, executionContext),
+    };
+  }
+
+  /**
    * Resolve the set of tools available to a given role,
    * applying permission filtering and converting to AgentTool format.
    *
@@ -159,9 +182,15 @@ export class ToolRegistry {
     hookDispatcher: HookDispatcher,
     executionContext: Partial<ToolExecutionContext>,
   ): AgentTool[] {
-    const allTools = this.getAll();
-    const filtered = filterToolsByRole(allTools, role);
-    return filtered.map((tool) => ToolAdapter.toAgentTool(tool, hookDispatcher, executionContext));
+    return this.resolveForRoleWithDefinitions(role, hookDispatcher, executionContext).agentTools;
+  }
+
+  private toAgentTools(
+    tools: AesyClawTool[],
+    hookDispatcher: HookDispatcher,
+    executionContext: Partial<ToolExecutionContext>,
+  ): AgentTool[] {
+    return tools.map((tool) => ToolAdapter.toAgentTool(tool, hookDispatcher, executionContext));
   }
 }
 

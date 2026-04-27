@@ -25,18 +25,13 @@ export async function commandDetector(
   state: PipelineState,
   commandRegistry: CommandRegistry,
 ): Promise<PipelineState> {
-  if (commandRegistry.isCommand(state.inbound.content)) {
-    const commandContext: CommandContext = {
-      sessionKey: state.inbound.sessionKey,
-    };
+  const commandContext: CommandContext = {
+    sessionKey: state.inbound.sessionKey,
+  };
 
-    const result = await commandRegistry.execute(state.inbound.content, commandContext);
-
-    if (result !== null) {
-      state.outbound = { content: result };
-    } else {
-      state.outbound = { content: 'Unknown command' };
-    }
+  const result = await commandRegistry.execute(state.inbound.content, commandContext);
+  if (result !== null) {
+    state.outbound = { content: result };
 
     // Command handling is terminal — pipeline should skip remaining steps
     return state;

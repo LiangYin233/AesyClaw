@@ -93,7 +93,7 @@ export class SubAgentSandbox {
       DEFAULT_CONFIG.memory,
     );
     const sessionKey = executionContext?.sessionKey ?? EMPTY_SESSION_KEY;
-    const agent = this.deps.agentEngine.createAgent(role, sessionId, memory, {
+    const agent = this.deps.agentEngine.createAgent(role, sessionId, {
       sessionKey,
       sendMessage: executionContext?.sendMessage,
     });

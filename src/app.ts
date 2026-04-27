@@ -150,7 +150,6 @@ export class Application {
 
     await this.startStep('Pipeline initialization', async () => {
       this.pipeline.initialize({
-        configManager: this.configManager,
         sessionManager: this.sessionManager,
         agentEngine: this.agentEngine,
         commandRegistry: this.commandRegistry,

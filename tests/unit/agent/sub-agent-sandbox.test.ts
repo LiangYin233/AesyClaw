@@ -74,7 +74,6 @@ describe('SubAgentSandbox', () => {
       }),
       expect.any(String),
       expect.any(Object),
-      expect.any(Object),
     );
     expect(agentEngine.process).toHaveBeenCalledWith(
       expect.any(Object),

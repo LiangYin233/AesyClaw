@@ -6,9 +6,7 @@
  */
 
 import type { InboundMessage, OutboundMessage } from '../../core/types';
-import type { AppConfig } from '../../core/config/schema';
 import type { CommandRegistry } from '../../command/command-registry';
-import type { ConfigManager } from '../../core/config/config-manager';
 import type { SessionContext, SessionManager } from '../../agent/session-manager';
 import type { AgentEngine } from '../../agent/agent-engine';
 
@@ -26,8 +24,6 @@ interface PipelineState {
   outbound?: OutboundMessage;
   /** onSend-aware outbound delivery callback for tool execution */
   sendMessage?: (message: OutboundMessage) => Promise<boolean>;
-  /** Current application config snapshot */
-  config?: Readonly<AppConfig>;
   /** Session context resolved for the inbound message */
   session?: SessionContext;
   /** Whether the pipeline should stop processing */
@@ -45,7 +41,6 @@ interface PipelineState {
  * rather than imported as singletons.
  */
 interface PipelineDependencies {
-  configManager: ConfigManager;
   sessionManager: SessionManager;
   agentEngine: AgentEngine;
   commandRegistry: CommandRegistry;

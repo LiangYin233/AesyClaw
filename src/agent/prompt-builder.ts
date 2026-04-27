@@ -10,11 +10,10 @@
 
 import type { RoleManager } from '../role/role-manager';
 import type { SkillManager } from '../skill/skill-manager';
-import type { ToolRegistry, AesyClawTool, ToolExecutionContext } from '../tool/tool-registry';
+import type { ToolRegistry, ToolExecutionContext } from '../tool/tool-registry';
 import type { RoleConfig, Skill } from '../core/types';
 import type { AgentTool } from './agent-types';
 import type { HookDispatcher } from '../pipeline/hook-dispatcher';
-import { filterToolsByRole } from '../tool/tool-registry';
 
 // ─── PromptBuilder ──────────────────────────────────────────────
 
@@ -64,12 +63,7 @@ export class PromptBuilder {
     // Get role-available skills
     const skills: Skill[] = this.skillManager.getSkillsForRole(role);
 
-    // Get filtered AesyClawTools for the prompt (buildSystemPrompt needs AesyClawTool[])
-    const allTools = this.toolRegistry.getAll();
-    const filteredInternalTools: AesyClawTool[] = filterToolsByRole(allTools, role);
-
-    // Resolve AgentTools for the agent (includes hook dispatching)
-    const agentTools: AgentTool[] = this.toolRegistry.resolveForRole(
+    const resolvedTools = this.toolRegistry.resolveForRoleWithDefinitions(
       role,
       this.hookDispatcher,
       executionContext ?? {},
@@ -78,11 +72,11 @@ export class PromptBuilder {
     // Build system prompt using RoleManager (needs AesyClawTool[])
     const prompt = this.roleManager.buildSystemPrompt(
       role,
-      filteredInternalTools,
+      resolvedTools.tools,
       skills,
       allRoles,
     );
 
-    return { prompt, tools: agentTools };
+    return { prompt, tools: resolvedTools.agentTools };
   }
 }

@@ -131,7 +131,7 @@ export class SessionManager {
     const memory = new MemoryManager(sessionId, this.deps.databaseManager.messages, memoryConfig);
 
     // Create Agent
-    const agent = this.deps.agentEngine.createAgent(activeRole, sessionId, memory, {
+    const agent = this.deps.agentEngine.createAgent(activeRole, sessionId, {
       sessionKey: key,
     });
 
@@ -267,7 +267,7 @@ export class SessionManager {
     await this.deps.databaseManager.roleBindings.setActiveRole(session.sessionId, roleId);
 
     // Create a new agent with the new role
-    const newAgent = this.deps.agentEngine.createAgent(newRole, session.sessionId, session.memory, {
+    const newAgent = this.deps.agentEngine.createAgent(newRole, session.sessionId, {
       sessionKey: key,
     });
 
