@@ -95,6 +95,18 @@ describe('built-in commands', () => {
     expect(deps.sessionManager.compactSession).toHaveBeenCalledWith(context.sessionKey);
   });
 
+  it('lists executable namespaced command syntax in help', async () => {
+    const { registry } = createRegistry();
+    const context = makeContext();
+
+    const result = await registry.execute('/help', context);
+
+    expect(result).toContain('/role list');
+    expect(result).toContain('/plugin list');
+    expect(result).not.toContain('/role:list');
+    expect(result).not.toContain('/plugin:list');
+  });
+
   it('executes role commands with real manager logic', async () => {
     const { registry, deps } = createRegistry();
     const context = makeContext();

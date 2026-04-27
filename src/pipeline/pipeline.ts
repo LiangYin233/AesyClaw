@@ -56,6 +56,7 @@ export class Pipeline {
    */
   destroy(): void {
     this.deps = null;
+    this.hookDispatcher = new HookDispatcher();
     this.initialized = false;
     logger.info('Pipeline destroyed');
   }

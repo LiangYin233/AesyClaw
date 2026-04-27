@@ -26,9 +26,9 @@ export function createHelpCommand(getAllCommands: () => CommandDefinition[]): Co
           return keyA.localeCompare(keyB);
         })
         .map((cmd) => {
-          const key = cmd.namespace ? `${cmd.namespace}:${cmd.name}` : cmd.name;
-          const usage = cmd.usage ? ` — ${cmd.usage}` : '';
-          return `  /${key}${usage}  ${cmd.description}`;
+          const commandText =
+            cmd.usage ?? `/${cmd.namespace ? `${cmd.namespace} ${cmd.name}` : cmd.name}`;
+          return `  ${commandText}  ${cmd.description}`;
         });
 
       return `可用命令：\n${lines.join('\n')}`;

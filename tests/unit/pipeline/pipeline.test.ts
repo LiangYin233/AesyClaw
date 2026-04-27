@@ -131,6 +131,22 @@ describe('Pipeline', () => {
       pipeline.destroy();
       // Pipeline should not process messages after destroy
     });
+
+    it('should clear hook registrations on destroy', async () => {
+      const deps = await createPipelineDeps();
+      pipeline.initialize(deps);
+      pipeline.getHookDispatcher().register('blocker', {
+        onReceive: async () => ({ action: 'block' as const, reason: 'stale hook' }),
+      });
+      pipeline.destroy();
+
+      pipeline.initialize(deps);
+
+      const send = vi.fn();
+      await pipeline.receiveWithSend(makeInbound(), send);
+
+      expect(send).toHaveBeenCalledTimes(1);
+    });
   });
 
   // ─── receiveWithSend ────────────────────────────────────────────
@@ -179,9 +195,7 @@ describe('Pipeline', () => {
       processMock.mockRejectedValue(new Error('agent boom'));
       pipeline.initialize(deps);
 
-      await expect(pipeline.receiveWithSend(makeInbound(), vi.fn())).rejects.toThrow(
-        'agent boom',
-      );
+      await expect(pipeline.receiveWithSend(makeInbound(), vi.fn())).rejects.toThrow('agent boom');
     });
   });
 
