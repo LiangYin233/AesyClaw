@@ -8,6 +8,7 @@ import { ChannelManager } from './channel/channel-manager';
 import { CommandRegistry } from './command/command-registry';
 import { registerBuiltinCommands } from './command/builtin';
 import { ConfigManager } from './core/config/config-manager';
+import { DEFAULT_CONFIG } from './core/config/defaults';
 import { DatabaseManager } from './core/database/database-manager';
 import { createScopedLogger, setLogLevel } from './core/logger';
 import { PathResolver } from './core/path-resolver';
@@ -184,6 +185,13 @@ export class Application {
         toolRegistry: this.toolRegistry,
         clientFactory: new SdkMcpClientFactory(),
       });
+
+      // Auto-write MCP example config entry if none configured
+      const mcpConfig = this.configManager.get('mcp');
+      if (mcpConfig.length === 0) {
+        await this.configManager.update({ mcp: DEFAULT_CONFIG.mcp });
+      }
+
       await this.mcpManager.connectAll();
     });
 
