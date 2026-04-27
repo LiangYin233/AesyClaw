@@ -164,6 +164,7 @@ export class Application {
         roleManager: this.roleManager,
         llmAdapter: this.llmAdapter,
         configManager: this.configManager,
+        skillManager: this.skillManager,
       });
       registerBuiltinCommands(this.commandRegistry, {
         roleManager: this.roleManager,

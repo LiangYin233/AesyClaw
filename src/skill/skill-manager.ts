@@ -47,6 +47,11 @@ export class SkillManager {
     return [...this.skills.values()];
   }
 
+  /** Get a loaded skill by name. */
+  getSkill(name: string): Skill | undefined {
+    return this.skills.get(name);
+  }
+
   /**
    * Get skills applicable to a given role.
    *

@@ -14,12 +14,14 @@ import type { AgentEngine } from '../../agent/agent-engine';
 import type { RoleManager } from '../../role/role-manager';
 import type { LlmAdapter } from '../../agent/llm-adapter';
 import type { ConfigManager } from '../../core/config/config-manager';
+import type { SkillManager } from '../../skill/skill-manager';
 import { createSendMsgTool } from './send-msg';
 import { createCreateCronTool, createListCronTool, createDeleteCronTool } from './cron-tools';
 import { createRunSubAgentTool } from './run-sub-agent';
 import { createRunTempSubAgentTool } from './run-temp-sub-agent';
 import { createSpeechToTextTool } from './speech-to-text';
 import { createImageUnderstandingTool } from './image-understanding';
+import { createLoadSkillTool } from './load-skill';
 import { SubAgentSandbox } from '../../agent/sub-agent-sandbox';
 
 /**
@@ -33,6 +35,7 @@ export interface BuiltinToolDependencies {
   roleManager: Pick<RoleManager, 'getRole' | 'getDefaultRole'>;
   llmAdapter: Pick<LlmAdapter, 'analyzeImage' | 'transcribeAudio'>;
   configManager: Pick<ConfigManager, 'get'>;
+  skillManager: Pick<SkillManager, 'getSkill'>;
 }
 
 /**
@@ -54,6 +57,7 @@ export function registerBuiltinTools(registry: ToolRegistry, deps: BuiltinToolDe
   registry.register(createDeleteCronTool(cronDeps));
   registry.register(createRunSubAgentTool({ sandbox }));
   registry.register(createRunTempSubAgentTool({ sandbox }));
+  registry.register(createLoadSkillTool({ skillManager: deps.skillManager }));
   registry.register(
     createSpeechToTextTool({
       configManager: deps.configManager,

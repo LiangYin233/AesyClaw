@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { PromptBuilder, type PromptBuilderDependencies } from '../../../src/agent/prompt-builder';
 import type { RoleConfig, Skill } from '../../../src/core/types';
+import { SkillManager } from '../../../src/skill/skill-manager';
 import type { AesyClawTool } from '../../../src/tool/tool-registry';
 import type { AgentTool } from '../../../src/agent/agent-types';
 import { Type } from '@sinclair/typebox';
@@ -199,6 +203,76 @@ describe('PromptBuilder', () => {
         deps.hookDispatcher,
         ctx,
       );
+    });
+
+    it('should inject only system skills plus role-allowed user skills into the prompt path', async () => {
+      const skillManager = new SkillManager();
+      const skillRoot = join(tmpdir(), `aesyclaw-prompt-builder-${Date.now()}`);
+      const systemDir = join(skillRoot, 'system');
+      const userDir = join(skillRoot, 'user');
+
+      mkdirSync(systemDir, { recursive: true });
+      mkdirSync(userDir, { recursive: true });
+
+      writeFileSync(
+        join(systemDir, 'system-skill.md'),
+        `---
+name: system-skill
+description: System
+---
+System content.`,
+      );
+      writeFileSync(
+        join(userDir, 'allowed-skill.md'),
+        `---
+name: allowed-skill
+description: Allowed
+---
+Allowed content.`,
+      );
+      writeFileSync(
+        join(userDir, 'blocked-skill.md'),
+        `---
+name: blocked-skill
+description: Blocked
+---
+Blocked content.`,
+      );
+
+      await skillManager.loadAll(systemDir, userDir);
+
+      const roleManager = {
+        getEnabledRoles: vi.fn().mockReturnValue([makeRole()]),
+        buildSystemPrompt: vi.fn().mockReturnValue('prompt'),
+      };
+      const builder = new PromptBuilder({
+        roleManager: roleManager as unknown as PromptBuilderDependencies['roleManager'],
+        skillManager,
+        toolRegistry: {
+          getAll: vi.fn().mockReturnValue([]),
+          resolveForRole: vi.fn().mockReturnValue([]),
+        } as unknown as PromptBuilderDependencies['toolRegistry'],
+        hookDispatcher: {
+          dispatchBeforeToolCall: vi.fn().mockResolvedValue({}),
+          dispatchAfterToolCall: vi.fn().mockResolvedValue({}),
+        } as unknown as PromptBuilderDependencies['hookDispatcher'],
+      });
+
+      try {
+        builder.buildSystemPrompt(makeRole({ skills: ['allowed-skill'] }));
+
+        const buildCall = roleManager.buildSystemPrompt.mock.calls[0] as [
+          RoleConfig,
+          AesyClawTool[],
+          Skill[],
+          RoleConfig[],
+        ];
+        const injectedSkills = buildCall[2];
+
+        expect(injectedSkills.map((skill) => skill.name)).toEqual(['system-skill', 'allowed-skill']);
+      } finally {
+        rmSync(skillRoot, { recursive: true, force: true });
+      }
     });
   });
 });

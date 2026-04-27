@@ -8,7 +8,9 @@ import { createRunSubAgentTool } from '../../../src/tool/builtin/run-sub-agent';
 import { createRunTempSubAgentTool } from '../../../src/tool/builtin/run-temp-sub-agent';
 import { createSpeechToTextTool } from '../../../src/tool/builtin/speech-to-text';
 import { createImageUnderstandingTool } from '../../../src/tool/builtin/image-understanding';
+import { createLoadSkillTool } from '../../../src/tool/builtin/load-skill';
 import { registerBuiltinTools } from '../../../src/tool/builtin';
+import type { Skill } from '../../../src/core/types';
 
 const SESSION_KEY = { channel: 'test', type: 'private', chatId: 'user-1' };
 
@@ -26,6 +28,13 @@ async function createTempFile(name: string, content: Uint8Array): Promise<string
   const filePath = path.join(dir, name);
   await fs.writeFile(filePath, content);
   return filePath;
+}
+
+function makeSkillManager(skills: Skill[] = []) {
+  const skillMap = new Map(skills.map((skill) => [skill.name, skill]));
+  return {
+    getSkill: vi.fn((name: string) => skillMap.get(name)),
+  };
 }
 
 describe('built-in tools', () => {
@@ -95,6 +104,7 @@ describe('built-in tools', () => {
         transcribeAudio: vi.fn(),
       },
       configManager: makeConfigManager(),
+      skillManager: makeSkillManager(),
     });
 
     expect(registry.has('send_msg')).toBe(true);
@@ -103,8 +113,306 @@ describe('built-in tools', () => {
     expect(registry.has('delete_cron')).toBe(true);
     expect(registry.has('run_sub_agent')).toBe(true);
     expect(registry.has('run_temp_sub_agent')).toBe(true);
+    expect(registry.has('load_skill')).toBe(true);
     expect(registry.has('speech_to_text')).toBe(true);
     expect(registry.has('image_understanding')).toBe(true);
+  });
+
+  it('load_skill reads text content from a skill directory', async () => {
+    const skillDir = await fs.mkdtemp(path.join(os.tmpdir(), 'aesyclaw-skill-tool-'));
+    await fs.writeFile(path.join(skillDir, 'SKILL.md'), '# Skill\n', 'utf-8');
+    await fs.mkdir(path.join(skillDir, 'references'));
+    await fs.writeFile(path.join(skillDir, 'references', 'guide.txt'), 'Helpful reference', 'utf-8');
+
+    const tool = createLoadSkillTool({
+      skillManager: makeSkillManager([
+        {
+          name: 'example-skill',
+          description: 'Example skill',
+          content: 'Skill body',
+          isSystem: false,
+          filePath: path.join(skillDir, 'SKILL.md'),
+        },
+      ]),
+    });
+
+    await expect(
+      tool.execute(
+        { skillName: 'example-skill', relativePath: 'references/guide.txt' },
+        {
+          sessionKey: SESSION_KEY,
+          agentEngine: null,
+          cronManager: null,
+        },
+      ),
+    ).resolves.toEqual({ content: 'Helpful reference' });
+  });
+
+  it('load_skill defaults omitted relativePath to SKILL.md', async () => {
+    const skillDir = await fs.mkdtemp(path.join(os.tmpdir(), 'aesyclaw-skill-tool-'));
+    await fs.writeFile(path.join(skillDir, 'SKILL.md'), '# Default Skill\n', 'utf-8');
+
+    const tool = createLoadSkillTool({
+      skillManager: makeSkillManager([
+        {
+          name: 'example-skill',
+          description: 'Example skill',
+          content: 'Skill body',
+          isSystem: false,
+          filePath: path.join(skillDir, 'SKILL.md'),
+        },
+      ]),
+    });
+
+    await expect(
+      tool.execute(
+        { skillName: 'example-skill' },
+        {
+          sessionKey: SESSION_KEY,
+          agentEngine: null,
+          cronManager: null,
+        },
+      ),
+    ).resolves.toEqual({ content: '# Default Skill\n' });
+  });
+
+  it('load_skill returns a structured error for unknown skills', async () => {
+    const tool = createLoadSkillTool({ skillManager: makeSkillManager() });
+
+    await expect(
+      tool.execute(
+        { skillName: 'missing-skill', relativePath: 'SKILL.md' },
+        {
+          sessionKey: SESSION_KEY,
+          agentEngine: null,
+          cronManager: null,
+        },
+      ),
+    ).resolves.toEqual({
+      content: 'Skill "missing-skill" is not loaded.',
+      isError: true,
+      details: {
+        code: 'SKILL_NOT_FOUND',
+        skillName: 'missing-skill',
+        relativePath: 'SKILL.md',
+      },
+    });
+  });
+
+  it('load_skill returns a structured error for missing files', async () => {
+    const skillDir = await fs.mkdtemp(path.join(os.tmpdir(), 'aesyclaw-skill-tool-'));
+    const tool = createLoadSkillTool({
+      skillManager: makeSkillManager([
+        {
+          name: 'example-skill',
+          description: 'Example skill',
+          content: 'Skill body',
+          isSystem: false,
+          filePath: path.join(skillDir, 'SKILL.md'),
+        },
+      ]),
+    });
+
+    await expect(
+      tool.execute(
+        { skillName: 'example-skill', relativePath: 'missing.txt' },
+        {
+          sessionKey: SESSION_KEY,
+          agentEngine: null,
+          cronManager: null,
+        },
+      ),
+    ).resolves.toEqual({
+      content: 'File "missing.txt" does not exist in skill "example-skill".',
+      isError: true,
+      details: {
+        code: 'SKILL_FILE_NOT_FOUND',
+        skillName: 'example-skill',
+        relativePath: 'missing.txt',
+      },
+    });
+  });
+
+  it('load_skill rejects traversal outside the skill directory', async () => {
+    const skillDir = await fs.mkdtemp(path.join(os.tmpdir(), 'aesyclaw-skill-tool-'));
+    await fs.writeFile(path.join(skillDir, 'SKILL.md'), '# Skill\n', 'utf-8');
+
+    const tool = createLoadSkillTool({
+      skillManager: makeSkillManager([
+        {
+          name: 'example-skill',
+          description: 'Example skill',
+          content: 'Skill body',
+          isSystem: false,
+          filePath: path.join(skillDir, 'SKILL.md'),
+        },
+      ]),
+    });
+
+    const result = await tool.execute(
+      { skillName: 'example-skill', relativePath: '../secret.txt' },
+      {
+        sessionKey: SESSION_KEY,
+        agentEngine: null,
+        cronManager: null,
+      },
+    );
+
+    expect(result).toEqual({
+      content: 'Path "../secret.txt" escapes skill "example-skill" directory.',
+      isError: true,
+      details: {
+        code: 'SKILL_PATH_TRAVERSAL_REJECTED',
+        skillName: 'example-skill',
+        relativePath: '../secret.txt',
+      },
+    });
+  });
+
+  it('load_skill rejects absolute paths', async () => {
+    const skillDir = await fs.mkdtemp(path.join(os.tmpdir(), 'aesyclaw-skill-tool-'));
+    await fs.writeFile(path.join(skillDir, 'SKILL.md'), '# Skill\n', 'utf-8');
+    const absolutePath = path.join(path.parse(skillDir).root, 'absolute-secret.txt');
+
+    const tool = createLoadSkillTool({
+      skillManager: makeSkillManager([
+        {
+          name: 'example-skill',
+          description: 'Example skill',
+          content: 'Skill body',
+          isSystem: false,
+          filePath: path.join(skillDir, 'SKILL.md'),
+        },
+      ]),
+    });
+
+    await expect(
+      tool.execute(
+        { skillName: 'example-skill', relativePath: absolutePath },
+        {
+          sessionKey: SESSION_KEY,
+          agentEngine: null,
+          cronManager: null,
+        },
+      ),
+    ).resolves.toEqual({
+      content: `Path "${absolutePath}" must be relative to skill "example-skill".`,
+      isError: true,
+      details: {
+        code: 'SKILL_PATH_TRAVERSAL_REJECTED',
+        skillName: 'example-skill',
+        relativePath: absolutePath,
+      },
+    });
+  });
+
+  it('load_skill rejects symlink escapes outside the skill directory', async () => {
+    const skillDir = await fs.mkdtemp(path.join(os.tmpdir(), 'aesyclaw-skill-tool-'));
+    const externalDir = await fs.mkdtemp(path.join(os.tmpdir(), 'aesyclaw-skill-tool-external-'));
+    await fs.writeFile(path.join(skillDir, 'SKILL.md'), '# Skill\n', 'utf-8');
+    await fs.writeFile(path.join(externalDir, 'secret.txt'), 'outside root', 'utf-8');
+    await fs.symlink(externalDir, path.join(skillDir, 'linked'), 'junction');
+
+    const tool = createLoadSkillTool({
+      skillManager: makeSkillManager([
+        {
+          name: 'example-skill',
+          description: 'Example skill',
+          content: 'Skill body',
+          isSystem: false,
+          filePath: path.join(skillDir, 'SKILL.md'),
+        },
+      ]),
+    });
+
+    await expect(
+      tool.execute(
+        { skillName: 'example-skill', relativePath: 'linked/secret.txt' },
+        {
+          sessionKey: SESSION_KEY,
+          agentEngine: null,
+          cronManager: null,
+        },
+      ),
+    ).resolves.toEqual({
+      content: 'Path "linked/secret.txt" escapes skill "example-skill" directory.',
+      isError: true,
+      details: {
+        code: 'SKILL_PATH_TRAVERSAL_REJECTED',
+        skillName: 'example-skill',
+        relativePath: 'linked/secret.txt',
+      },
+    });
+  });
+
+  it('load_skill rejects non-text files truthfully', async () => {
+    const skillDir = await fs.mkdtemp(path.join(os.tmpdir(), 'aesyclaw-skill-tool-'));
+    await fs.writeFile(path.join(skillDir, 'SKILL.md'), '# Skill\n', 'utf-8');
+    await fs.writeFile(path.join(skillDir, 'binary.bin'), Buffer.from([0, 159, 146, 150]));
+
+    const tool = createLoadSkillTool({
+      skillManager: makeSkillManager([
+        {
+          name: 'example-skill',
+          description: 'Example skill',
+          content: 'Skill body',
+          isSystem: false,
+          filePath: path.join(skillDir, 'SKILL.md'),
+        },
+      ]),
+    });
+
+    await expect(
+      tool.execute(
+        { skillName: 'example-skill', relativePath: 'binary.bin' },
+        {
+          sessionKey: SESSION_KEY,
+          agentEngine: null,
+          cronManager: null,
+        },
+      ),
+    ).resolves.toEqual({
+      content: 'File "binary.bin" in skill "example-skill" is not a readable UTF-8 text file.',
+      isError: true,
+      details: {
+        code: 'SKILL_FILE_NOT_TEXT',
+        skillName: 'example-skill',
+        relativePath: 'binary.bin',
+      },
+    });
+  });
+
+  it('load_skill rejects skills without dedicated directory context', async () => {
+    const tool = createLoadSkillTool({
+      skillManager: makeSkillManager([
+        {
+          name: 'flat-skill',
+          description: 'Flat skill',
+          content: 'Skill body',
+          isSystem: false,
+          filePath: path.join(os.tmpdir(), 'flat-skill.md'),
+        },
+      ]),
+    });
+
+    await expect(
+      tool.execute(
+        { skillName: 'flat-skill', relativePath: 'references/guide.txt' },
+        {
+          sessionKey: SESSION_KEY,
+          agentEngine: null,
+          cronManager: null,
+        },
+      ),
+    ).resolves.toEqual({
+      content: 'Skill "flat-skill" has no dedicated directory context.',
+      isError: true,
+      details: {
+        code: 'SKILL_HAS_NO_DIRECTORY_CONTEXT',
+        skillName: 'flat-skill',
+        relativePath: 'references/guide.txt',
+      },
+    });
   });
 
   it('run_sub_agent delegates to the sandbox and returns the result', async () => {

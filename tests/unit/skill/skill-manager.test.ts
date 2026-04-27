@@ -296,5 +296,44 @@ Second content.`,
       const prompt = manager.buildSkillPromptSection([]);
       expect(prompt).toBe('');
     });
+
+    it('should inject system skills plus only role-allowed user skills', async () => {
+      writeFileSync(
+        join(systemDir, 'system-skill.md'),
+        `---
+name: system-skill
+description: System
+---
+System content.`,
+      );
+
+      writeFileSync(
+        join(userDir, 'allowed-skill.md'),
+        `---
+name: allowed-skill
+description: Allowed
+---
+Allowed content.`,
+      );
+
+      writeFileSync(
+        join(userDir, 'blocked-skill.md'),
+        `---
+name: blocked-skill
+description: Blocked
+---
+Blocked content.`,
+      );
+
+      await manager.loadAll(systemDir, userDir);
+
+      const role = makeRole({ skills: ['allowed-skill'] });
+      const prompt = manager.buildSkillPromptSection(manager.getSkillsForRole(role));
+
+      expect(prompt).toContain('## Skill: system-skill\nSystem content.');
+      expect(prompt).toContain('## Skill: allowed-skill\nAllowed content.');
+      expect(prompt).not.toContain('blocked-skill');
+      expect(prompt).not.toContain('Blocked content.');
+    });
   });
 });
