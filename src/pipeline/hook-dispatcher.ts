@@ -10,7 +10,8 @@
  * - Otherwise returns the default continue result
  */
 
-import type { InboundMessage, OutboundMessage, PipelineResult } from '../core/types';
+import type { InboundMessage, PipelineResult } from '../core/types';
+import type { OnSendContext } from './middleware/types';
 import type {
   BeforeToolCallHookContext,
   BeforeToolCallHookResult,
@@ -126,13 +127,13 @@ export class HookDispatcher {
     );
   }
 
-  async dispatchOnSend(message: OutboundMessage): Promise<PipelineResult> {
+  async dispatchOnSend(context: OnSendContext): Promise<PipelineResult> {
     return dispatchHooks(
       this.entries,
       (hooks) => hooks.onSend,
       isPipelineResultTerminal,
       CONTINUE_RESULT,
-      message,
+      context,
     );
   }
 

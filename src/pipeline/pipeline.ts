@@ -15,6 +15,7 @@
  */
 
 import type { InboundMessage, OutboundMessage, SendFn } from '../core/types';
+import type { SessionKey } from '../core/types';
 import type { PipelineDependencies, PipelineState } from './middleware/types';
 import { HookDispatcher } from './hook-dispatcher';
 import { sessionResolver } from './middleware/session-resolver';
@@ -99,11 +100,13 @@ export class Pipeline {
       // 2. Execute sequential processing steps
       let state: PipelineState = {
         inbound: message,
-        sendMessage: async (outbound: OutboundMessage): Promise<boolean> =>
-          this.dispatchOnSendAndDeliver(outbound, send),
       };
 
       state = await sessionResolver(state, this.deps.sessionManager);
+
+      // Wire sendMessage after session resolution so onSend hooks get the session key
+      state.sendMessage = async (outbound: OutboundMessage): Promise<boolean> =>
+        this.dispatchOnSendAndDeliver(outbound, send, state.session?.key);
       state = await commandDetector(state, this.deps.commandRegistry);
 
       // If commandDetector set an outbound, skip agent processing
@@ -121,7 +124,7 @@ export class Pipeline {
 
       // 4. If an outbound message was produced, dispatch onSend and deliver
       if (state.outbound) {
-        await this.dispatchOnSendAndDeliver(state.outbound, send);
+        await this.dispatchOnSendAndDeliver(state.outbound, send, state.session?.key);
       }
     } catch (err) {
       logger.error('Pipeline processing error', err);
@@ -144,8 +147,9 @@ export class Pipeline {
   private async dispatchOnSendAndDeliver(
     outbound: OutboundMessage,
     send: SendFn,
+    sessionKey?: SessionKey,
   ): Promise<boolean> {
-    const sendResult = await this.hookDispatcher.dispatchOnSend(outbound);
+    const sendResult = await this.hookDispatcher.dispatchOnSend({ message: outbound, sessionKey });
     if (sendResult.action === 'block') {
       logger.info('Outbound blocked by onSend hook', {
         reason: sendResult.reason,
@@ -156,7 +160,10 @@ export class Pipeline {
     // If a hook responds, use that content instead
     const finalOutbound: OutboundMessage =
       sendResult.action === 'respond'
-        ? { content: (sendResult as { action: 'respond'; content: string }).content }
+        ? {
+            content: sendResult.content,
+            ...(sendResult.attachments ? { attachments: sendResult.attachments } : {}),
+          }
         : outbound;
 
     await send(finalOutbound);

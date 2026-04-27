@@ -104,7 +104,7 @@ type SendFn = (message: OutboundMessage) => Promise<void>;
 type PipelineResult =
   | { action: 'continue'; data?: unknown }
   | { action: 'block'; reason?: string }
-  | { action: 'respond'; content: string };
+  | { action: 'respond'; content: string; attachments?: MediaAttachment[] };
 
 // ─── Persistable Message (database layer) ────────────────────────
 

@@ -5,8 +5,16 @@
  * the current state and returns a mutated copy.
  */
 
-import type { InboundMessage, OutboundMessage } from '../../core/types';
+import type { InboundMessage, OutboundMessage, SessionKey } from '../../core/types';
 import type { CommandRegistry } from '../../command/command-registry';
+
+/**
+ * Context passed to onSend hooks.
+ */
+export interface OnSendContext {
+  message: OutboundMessage;
+  sessionKey?: SessionKey;
+}
 import type { SessionContext, SessionManager } from '../../agent/session-manager';
 import type { AgentEngine } from '../../agent/agent-engine';
 
@@ -63,7 +71,7 @@ interface PluginHooks {
   beforeLLMRequest?(context: unknown): Promise<PipelineResult>;
   beforeToolCall?(context: BeforeToolCallHookContext): Promise<BeforeToolCallHookResult>;
   afterToolCall?(context: AfterToolCallHookContext): Promise<AfterToolCallHookResult>;
-  onSend?(message: OutboundMessage): Promise<PipelineResult>;
+  onSend?(context: OnSendContext): Promise<PipelineResult>;
 }
 
 // Re-export hook types from agent-types to keep PluginHooks self-contained
