@@ -5,6 +5,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Application } from '../../src/app';
 import { ChannelManager } from '../../src/channel/channel-manager';
 import { CronManager } from '../../src/cron/cron-manager';
+import { SessionManager } from '../../src/agent/session-manager';
+import { McpManager } from '../../src/mcp/mcp-manager';
+import { SdkMcpClientFactory } from '../../src/mcp/sdk-mcp-client';
+import { RoleManager } from '../../src/role/role-manager';
 
 const TEST_ROOTS: string[] = [];
 
@@ -72,6 +76,50 @@ describe('Application', () => {
       await app.start();
       expect(order).toEqual(expect.arrayContaining(['channels', 'cron']));
       expect(order.indexOf('channels')).toBeLessThan(order.indexOf('cron'));
+    } finally {
+      await app.shutdown();
+    }
+  });
+
+  it('injects the real MCP client factory', async () => {
+    const testRoot = mkdtempSync(path.join(tmpdir(), 'aesyclaw-app-test-'));
+    TEST_ROOTS.push(testRoot);
+    vi.spyOn(process, 'cwd').mockReturnValue(testRoot);
+
+    const originalInitialize = McpManager.prototype.initialize;
+    vi.spyOn(McpManager.prototype, 'initialize').mockImplementation(function (dependencies) {
+      expect(dependencies.clientFactory).toBeInstanceOf(SdkMcpClientFactory);
+      return originalInitialize.call(this, dependencies);
+    });
+
+    const app = new Application();
+
+    try {
+      await app.start();
+    } finally {
+      await app.shutdown();
+    }
+  });
+
+  it('clears cached sessions when roles change', async () => {
+    const testRoot = mkdtempSync(path.join(tmpdir(), 'aesyclaw-app-test-'));
+    TEST_ROOTS.push(testRoot);
+    vi.spyOn(process, 'cwd').mockReturnValue(testRoot);
+
+    let roleChangeListener: (() => void) | null = null;
+    vi.spyOn(RoleManager.prototype, 'subscribeChanges').mockImplementation(function (listener) {
+      roleChangeListener = listener;
+      return () => {};
+    });
+
+    const clearCachedSessions = vi.spyOn(SessionManager.prototype, 'clearCachedSessions');
+    const app = new Application();
+
+    try {
+      await app.start();
+      expect(roleChangeListener).not.toBeNull();
+      roleChangeListener?.();
+      expect(clearCachedSessions).toHaveBeenCalled();
     } finally {
       await app.shutdown();
     }

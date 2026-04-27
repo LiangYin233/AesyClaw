@@ -163,6 +163,20 @@ export class SessionManager {
     return this.sessions.get(cacheKey);
   }
 
+  /**
+   * Evict all in-memory session contexts without deleting persisted history.
+   *
+   * Used when role files are hot-reloaded so the next message recreates agents
+   * with current role prompts, models, tool permissions, and memory settings.
+   */
+  clearCachedSessions(): void {
+    const count = this.sessions.size;
+    this.sessions.clear();
+    if (count > 0) {
+      logger.info('Session cache cleared', { count });
+    }
+  }
+
   // ─── Session operations ───────────────────────────────────────
 
   /**

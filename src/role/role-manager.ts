@@ -13,7 +13,7 @@ import path from 'node:path';
 import { Value } from '@sinclair/typebox/value';
 import { createScopedLogger } from '../core/logger';
 import { AppError } from '../core/errors';
-import type { RoleConfig, Skill } from '../core/types';
+import type { RoleConfig, Skill, Unsubscribe } from '../core/types';
 import { RoleConfigSchema } from './role-schema';
 import type { AesyClawTool } from '../tool/tool-registry';
 import { buildSkillPromptSection } from '../skill/skill-prompt';
@@ -26,6 +26,7 @@ export class RoleManager {
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly DEBOUNCE_MS = 300;
   private rolesDir: string | null = null;
+  private changeListeners: Array<() => void> = [];
 
   // ─── Lifecycle ────────────────────────────────────────────────
 
@@ -69,6 +70,14 @@ export class RoleManager {
     }
 
     logger.info(`Loaded ${this.roles.size} roles`);
+    this.notifyChanges();
+  }
+
+  subscribeChanges(listener: () => void): Unsubscribe {
+    this.changeListeners.push(listener);
+    return () => {
+      this.changeListeners = this.changeListeners.filter((candidate) => candidate !== listener);
+    };
   }
 
   /** Start watching the roles directory for changes. */
@@ -251,5 +260,15 @@ export class RoleManager {
         }
       }
     }, this.DEBOUNCE_MS);
+  }
+
+  private notifyChanges(): void {
+    for (const listener of this.changeListeners) {
+      try {
+        listener();
+      } catch (err) {
+        logger.error('Role change listener failed', err);
+      }
+    }
   }
 }

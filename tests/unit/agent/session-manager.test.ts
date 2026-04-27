@@ -286,6 +286,18 @@ describe('SessionManager', () => {
     });
   });
 
+  describe('clearCachedSessions', () => {
+    it('should evict cached sessions without clearing persisted history', async () => {
+      const key = makeSessionKey();
+      await manager.getOrCreateSession(key);
+
+      manager.clearCachedSessions();
+
+      expect(manager.getSession(key)).toBeUndefined();
+      expect(deps.databaseManager.messages.clearHistory).not.toHaveBeenCalled();
+    });
+  });
+
   // ─── clearSession ─────────────────────────────────────────────
 
   describe('clearSession', () => {

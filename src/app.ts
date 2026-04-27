@@ -14,6 +14,7 @@ import { PathResolver } from './core/path-resolver';
 import type { Unsubscribe } from './core/types';
 import { CronManager } from './cron/cron-manager';
 import { McpManager } from './mcp/mcp-manager';
+import { SdkMcpClientFactory } from './mcp/sdk-mcp-client';
 import { Pipeline } from './pipeline/pipeline';
 import { PluginLoader } from './plugin/plugin-loader';
 import { PluginManager } from './plugin/plugin-manager';
@@ -180,6 +181,7 @@ export class Application {
       this.mcpManager.initialize({
         configManager: this.configManager,
         toolRegistry: this.toolRegistry,
+        clientFactory: new SdkMcpClientFactory(),
       });
       await this.mcpManager.connectAll();
     });
@@ -265,6 +267,9 @@ export class Application {
       }),
       this.configManager.subscribe('channels', async () => {
         await this.channelManager.handleConfigReload();
+      }),
+      this.roleManager.subscribeChanges(() => {
+        this.sessionManager.clearCachedSessions();
       }),
     );
   }
