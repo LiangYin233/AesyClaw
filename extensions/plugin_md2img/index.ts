@@ -14,7 +14,7 @@ const TEMPLATE_PATH = resolve(__dirname, 'template.html');
 
 // ─── Markdown detection ─────────────────────────────────────────
 
-const MARKDOWN_RE = /(?:^|\n)(?:\s*(?:#{1,6}|[*\-+]|\d+\.|```|>|---|\|))|[*_~]{2}|`{1,2}|\[.+?\]\(.+?\)/;
+const MARKDOWN_RE = /(?:^|\n)(?:\s*(?:#{1,6}|[*\-+]|\d+\.|```|>|---|\|))|[*_~]{2}|`{1,2}|\[.+?\]\(.+?\)|(?<!\*)\*[^*\n]+\*(?!\*)|(?<!_)_[^_\n]+_(?!_)/;
 
 function isMarkdown(text: string): boolean {
   return MARKDOWN_RE.test(text);
@@ -80,7 +80,7 @@ async function convertMarkdownToImage(
 
   const vdom = html(htmlContent);
   const width = 680;
-  const svg = await satori(vdom as never, { width, fonts: rawFonts as never, height: 800 });
+  const svg = await satori(vdom as never, { width, fonts: rawFonts as never });
   const png = await sharp(Buffer.from(svg)).png().toBuffer();
   return png;
 }
