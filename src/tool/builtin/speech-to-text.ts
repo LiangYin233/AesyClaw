@@ -39,7 +39,7 @@ export function createSpeechToTextTool(deps: SpeechToTextDeps): AesyClawTool {
 
       try {
         const audio = await loadMediaSource(source, 'audio');
-        const multimodal = deps.configManager.get('multimodal');
+        const multimodal = deps.configManager.get('agent').multimodal;
         const modelIdentifier = `${multimodal.speechToText.provider}/${multimodal.speechToText.model}`;
         const transcription = await deps.llmAdapter.transcribeAudio(
           modelIdentifier,

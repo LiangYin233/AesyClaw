@@ -34,7 +34,6 @@ export const DEFAULTS = {
   port: 3000,
   host: '0.0.0.0',
   logLevel: 'info',
-  maxSteps: 10,
   maxContextTokens: 128000,
   compressionThreshold: 0.8,
 } as const;

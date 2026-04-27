@@ -12,7 +12,7 @@ import type { RoleConfig, InboundMessage } from '../../../src/core/types';
 import { MemoryManager } from '../../../src/agent/memory-manager';
 import type { MessageRepository } from '../../../src/core/database/repositories/message-repository';
 import type { AppConfig } from '../../../src/core/config/schema';
-import { createUserMessage, type AgentTool } from '../../../src/agent/agent-types';
+import type { AgentTool } from '../../../src/agent/agent-types';
 
 function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
   return {
@@ -43,11 +43,12 @@ function makeMockConfigManager(): ConfigManager {
       openai: { apiType: 'openai_responses', apiKey: 'test-key' },
     },
     channels: {},
-    agent: { maxSteps: 10 },
-    memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
-    multimodal: {
-      speechToText: { provider: 'openai', model: 'whisper-1' },
-      imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+    agent: {
+      memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
+      multimodal: {
+        speechToText: { provider: 'openai', model: 'whisper-1' },
+        imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+      },
     },
     mcp: [],
     plugins: [],
@@ -423,48 +424,7 @@ describe('AgentEngine', () => {
       expect(memory.syncFromAgent).toHaveBeenCalledWith([]);
     });
 
-    it('should abort a turn when it exceeds configured maxSteps', async () => {
-      const role = makeRole();
-      const deps = makeMockDeps();
-      (deps.configManager.get as ReturnType<typeof vi.fn>).mockImplementation((key: string) =>
-        key === 'agent' ? { maxSteps: 1 } : {},
-      );
-      const runtimeEngine = new AgentEngine();
-      runtimeEngine.initialize(deps);
-      const mockLlmAdapter = deps.llmAdapter;
-      let listener: ((event: { type: string }) => void) | null = null;
-      const agent = {
-        state: {
-          systemPrompt: 'prompt',
-          model: (mockLlmAdapter.resolveModel as ReturnType<typeof vi.fn>)('openai/gpt-4o'),
-          tools: [],
-          messages: [],
-        },
-        subscribe: vi.fn((nextListener: (event: { type: string }) => void) => {
-          listener = nextListener;
-          return vi.fn();
-        }),
-        abort: vi.fn(),
-        prompt: vi.fn().mockImplementation(async function prompt(this: {
-          state: { messages: unknown[] };
-        }) {
-          listener?.({ type: 'turn_start' });
-          listener?.({ type: 'turn_start' });
-          this.state.messages.push(createUserMessage('Hello, assistant!'));
-        }),
-        waitForIdle: vi.fn().mockResolvedValue(undefined),
-        reset: vi.fn(),
-      };
-      const memory = {
-        loadHistory: vi.fn().mockResolvedValue([]),
-        shouldCompact: vi.fn().mockReturnValue(false),
-        syncFromAgent: vi.fn().mockResolvedValue(undefined),
-      } as unknown as MemoryManager;
-
-      await runtimeEngine.process(agent as never, makeInboundMessage(), memory, role);
-
-      expect(agent.abort).toHaveBeenCalledOnce();
-    });
+    // maxSteps logic removed
   });
 
   describe('switchModel', () => {

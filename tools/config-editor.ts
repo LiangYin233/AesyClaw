@@ -19,8 +19,6 @@ import {
   AgentConfigSchema,
   AppConfigSchema,
   McpServerConfigSchema,
-  MemoryConfigSchema,
-  MultimodalConfigSchema,
   PluginConfigEntrySchema,
   ProviderConfigSchema,
   ServerConfigSchema,
@@ -110,8 +108,6 @@ const SECTION_DEFINITIONS: ReadonlyArray<{
   { key: 'providers', label: '编辑模型服务商', editor: editProviders },
   { key: 'channels', label: '编辑频道', editor: editChannels },
   { key: 'agent', label: '编辑 Agent', editor: editAgent },
-  { key: 'memory', label: '编辑记忆配置', editor: editMemory },
-  { key: 'multimodal', label: '编辑多模态配置', editor: editMultimodal },
   { key: 'mcp', label: '编辑 MCP 服务', editor: editMcpServers },
   { key: 'plugins', label: '编辑插件', editor: editPlugins },
 ];
@@ -632,30 +628,6 @@ async function editAgent(rl: Interface, config: AppConfig): Promise<AppConfig> {
       config.agent,
       'Agent',
     )) as AppConfig['agent'],
-  };
-}
-
-async function editMemory(rl: Interface, config: AppConfig): Promise<AppConfig> {
-  return {
-    ...config,
-    memory: (await editObjectBySchema(
-      rl,
-      MemoryConfigSchema,
-      config.memory,
-      '记忆',
-    )) as AppConfig['memory'],
-  };
-}
-
-async function editMultimodal(rl: Interface, config: AppConfig): Promise<AppConfig> {
-  return {
-    ...config,
-    multimodal: (await editObjectBySchema(
-      rl,
-      MultimodalConfigSchema,
-      config.multimodal,
-      '多模态',
-    )) as AppConfig['multimodal'],
   };
 }
 
@@ -1415,11 +1387,18 @@ function humanizeKey(key: string): string {
     realModelName: '真实模型名称',
     contextWindow: '上下文窗口',
     enableThinking: '启用思考',
-    maxSteps: '最大步数',
     host: '主机',
     port: '端口',
     cors: '跨域',
     logLevel: '日志级别',
+    maxContextTokens: '最大上下文令牌数',
+    compressionThreshold: '压缩阈值',
+    speechToText: '语音转文字',
+    imageUnderstanding: '图片理解',
+    provider: '服务商',
+    model: '模型',
+    memory: '记忆',
+    multimodal: '多模态',
     transport: '传输方式',
     command: '命令',
     args: '参数',

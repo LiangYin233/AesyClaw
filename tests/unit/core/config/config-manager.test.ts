@@ -57,11 +57,12 @@ describe('ConfigManager', () => {
         server: { port: 8080, host: 'localhost', logLevel: 'debug' },
         providers: {},
         channels: {},
-        agent: { maxSteps: 20 },
-        memory: { maxContextTokens: 64000, compressionThreshold: 0.7 },
-        multimodal: {
-          speechToText: { provider: 'test', model: 'test-model' },
-          imageUnderstanding: { provider: 'test', model: 'test-model' },
+        agent: {
+          memory: { maxContextTokens: 64000, compressionThreshold: 0.7 },
+          multimodal: {
+            speechToText: { provider: 'test', model: 'test-model' },
+            imageUnderstanding: { provider: 'test', model: 'test-model' },
+          },
         },
         mcp: [],
         plugins: [],
@@ -73,7 +74,7 @@ describe('ConfigManager', () => {
 
       const config = manager.getConfig();
       expect(config.server.port).toBe(8080);
-      expect(config.agent.maxSteps).toBe(20);
+      expect(config.server.host).toBe('localhost');
     });
 
     it('should throw on invalid JSON', async () => {
@@ -87,11 +88,12 @@ describe('ConfigManager', () => {
         server: { port: '3000', host: 'localhost', logLevel: 'info' },
         providers: {},
         channels: {},
-        agent: { maxSteps: 10 },
-        memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
-        multimodal: {
-          speechToText: { provider: 'openai', model: 'whisper-1' },
-          imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+        agent: {
+          memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
+          multimodal: {
+            speechToText: { provider: 'openai', model: 'whisper-1' },
+            imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+          },
         },
         mcp: [],
         plugins: [],
@@ -107,11 +109,12 @@ describe('ConfigManager', () => {
         server: { port: 8080, host: 'localhost', logLevel: 'debug' },
         providers: {},
         channels: {},
-        agent: { maxSteps: 20 },
-        memory: { maxContextTokens: 64000, compressionThreshold: 0.7 },
-        multimodal: {
-          speechToText: { provider: 'test', model: 'test-model' },
-          imageUnderstanding: { provider: 'test', model: 'test-model' },
+        agent: {
+          memory: { maxContextTokens: 64000, compressionThreshold: 0.7 },
+          multimodal: {
+            speechToText: { provider: 'test', model: 'test-model' },
+            imageUnderstanding: { provider: 'test', model: 'test-model' },
+          },
         },
         mcp: [{ name: 'local', transport: 'stdio' }],
         plugins: [{ name: 'example-plugin' }],
@@ -135,7 +138,8 @@ describe('ConfigManager', () => {
       expect(serverConfig.port).toBe(3000);
 
       const agentConfig = manager.get('agent');
-      expect(agentConfig.maxSteps).toBe(10);
+      expect(agentConfig.memory).toBeDefined();
+      expect(agentConfig.multimodal).toBeDefined();
     });
 
     it('should throw if config not loaded', () => {
@@ -170,12 +174,9 @@ describe('ConfigManager', () => {
       });
 
       // Update with the same values
-      await manager.update({ agent: { maxSteps: 10 } });
+      await manager.update({ server: { port: 3000, host: '0.0.0.0', logLevel: 'info' } });
 
       // The values are the same, so listener should not be called
-      // (Actually maxSteps is 10 by default, so this should be a no-op)
-      // But deep comparison might detect it... let's verify
-      // Actually, the comparison is JSON.stringify based, so same values = no notification
       expect(callCount).toBe(0);
     });
 
@@ -203,7 +204,7 @@ describe('ConfigManager', () => {
         callCount++;
       });
 
-      await manager.update({ agent: { maxSteps: 25 } });
+      await manager.update({ server: { port: 9090, host: '0.0.0.0', logLevel: 'info' } });
 
       expect(callCount).toBe(1);
     });
@@ -213,16 +214,16 @@ describe('ConfigManager', () => {
     it('should merge partial config and persist to disk', async () => {
       await manager.load(configPath);
 
-      await manager.update({ agent: { maxSteps: 50 } });
+      await manager.update({ agent: { memory: { maxContextTokens: 64000, compressionThreshold: 0.7 } } });
 
-      expect(manager.get('agent').maxSteps).toBe(50);
+      expect(manager.get('agent').memory.maxContextTokens).toBe(64000);
 
       // Read the file to verify persistence
       const fileContent = JSON.parse(
         // Re-read from disk to confirm
         await import('node:fs').then((fs) => fs.readFileSync(configPath, 'utf-8')),
       );
-      expect(fileContent.agent.maxSteps).toBe(50);
+      expect(fileContent.agent.memory.maxContextTokens).toBe(64000);
     });
 
     it('should reject invalid merged config before persisting or notifying', async () => {
@@ -268,11 +269,12 @@ describe('ConfigManager', () => {
             nested: { retries: 5 },
           },
         },
-        agent: { maxSteps: 10 },
-        memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
-        multimodal: {
-          speechToText: { provider: 'openai', model: 'whisper-1' },
-          imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+        agent: {
+          memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
+          multimodal: {
+            speechToText: { provider: 'openai', model: 'whisper-1' },
+            imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+          },
         },
         mcp: [],
         plugins: [],
@@ -305,11 +307,12 @@ describe('ConfigManager', () => {
             nested: { retries: 2 },
           },
         },
-        agent: { maxSteps: 10 },
-        memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
-        multimodal: {
-          speechToText: { provider: 'openai', model: 'whisper-1' },
-          imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+        agent: {
+          memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
+          multimodal: {
+            speechToText: { provider: 'openai', model: 'whisper-1' },
+            imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+          },
         },
         mcp: [],
         plugins: [],
@@ -372,11 +375,12 @@ describe('ConfigManager', () => {
         server: { port: 3000, host: '0.0.0.0', logLevel: 'info' },
         providers: {},
         channels: {},
-        agent: { maxSteps: 99 }, // Changed
-        memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
-        multimodal: {
-          speechToText: { provider: 'openai', model: 'whisper-1' },
-          imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+        agent: {
+          memory: { maxContextTokens: 64000, compressionThreshold: 0.7 }, // Changed
+          multimodal: {
+            speechToText: { provider: 'openai', model: 'whisper-1' },
+            imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+          },
         },
         mcp: [],
         plugins: [],
@@ -387,7 +391,7 @@ describe('ConfigManager', () => {
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       expect(receivedNewConfig).toBe(true);
-      expect(manager.get('agent').maxSteps).toBe(99);
+      expect(manager.get('agent').memory.maxContextTokens).toBe(64000);
 
       manager.stopHotReload();
     });

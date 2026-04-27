@@ -48,7 +48,7 @@ export class SubAgentSandbox {
     executionContext?: Pick<ToolExecutionContext, 'sessionKey' | 'sendMessage'>,
   ): Promise<string> {
     const role = this.applyToolOverride(this.deps.roleManager.getRole(params.roleId), params);
-    return this.execute(role, params.prompt, executionContext, { maxSteps: params.maxSteps });
+    return this.execute(role, params.prompt, executionContext);
   }
 
   /**
@@ -75,22 +75,19 @@ export class SubAgentSandbox {
       enabled: true,
     };
 
-    return this.execute(this.applyToolOverride(role, params), params.prompt, executionContext, {
-      maxSteps: params.maxSteps,
-    });
+    return this.execute(this.applyToolOverride(role, params), params.prompt, executionContext);
   }
 
   private async execute(
     role: RoleConfig,
     prompt: string,
     executionContext?: Pick<ToolExecutionContext, 'sessionKey' | 'sendMessage'>,
-    runOptions?: { maxSteps?: number },
   ): Promise<string> {
     const sessionId = `sub-agent:${randomUUID()}`;
     const memory = new MemoryManager(
       sessionId,
       new InMemoryMessageRepository() as unknown as MessageRepositoryLike,
-      DEFAULT_CONFIG.memory,
+      DEFAULT_CONFIG.agent.memory,
     );
     const sessionKey = executionContext?.sessionKey ?? EMPTY_SESSION_KEY;
     const agent = this.deps.agentEngine.createAgent(role, sessionId, {
@@ -107,7 +104,6 @@ export class SubAgentSandbox {
       memory,
       role,
       executionContext?.sendMessage,
-      runOptions,
     );
 
     return outbound.content;

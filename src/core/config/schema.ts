@@ -46,18 +46,10 @@ const ServerConfigSchema = Type.Object({
 
 // ─── Agent ───────────────────────────────────────────────────────
 
-const AgentConfigSchema = Type.Object({
-  maxSteps: Type.Number({ default: 10 }),
-});
-
-// ─── Memory ─────────────────────────────────────────────────────
-
 const MemoryConfigSchema = Type.Object({
   maxContextTokens: Type.Number({ default: 128000 }),
   compressionThreshold: Type.Number({ default: 0.8 }),
 });
-
-// ─── Multimodal ──────────────────────────────────────────────────
 
 const MultimodalConfigSchema = Type.Object({
   speechToText: Type.Object({
@@ -68,6 +60,11 @@ const MultimodalConfigSchema = Type.Object({
     provider: Type.String(),
     model: Type.String(),
   }),
+});
+
+const AgentConfigSchema = Type.Object({
+  memory: MemoryConfigSchema,
+  multimodal: MultimodalConfigSchema,
 });
 
 // ─── MCP ─────────────────────────────────────────────────────────
@@ -101,8 +98,6 @@ const AppConfigSchema = Type.Object({
   providers: Type.Record(Type.String(), ProviderConfigSchema),
   channels: Type.Record(Type.String(), Type.Unknown()),
   agent: AgentConfigSchema,
-  memory: MemoryConfigSchema,
-  multimodal: MultimodalConfigSchema,
   mcp: Type.Array(McpServerConfigSchema),
   plugins: Type.Array(PluginConfigEntrySchema),
 });

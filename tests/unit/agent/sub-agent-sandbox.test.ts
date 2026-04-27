@@ -47,7 +47,7 @@ describe('SubAgentSandbox', () => {
     ).resolves.toBe('history:0');
   });
 
-  it('applies per-run controls for maxSteps and disabled tools', async () => {
+  it('applies disabled tools control to sub-agent', async () => {
     const agentEngine = {
       createAgent: vi.fn().mockReturnValue({ state: {} }),
       process: vi.fn().mockResolvedValue({ content: 'delegated answer' }),
@@ -62,7 +62,6 @@ describe('SubAgentSandbox', () => {
       sandbox.runWithRole({
         roleId: 'researcher',
         prompt: 'bounded',
-        maxSteps: 2,
         enableTools: false,
       }),
     ).resolves.toBe('delegated answer');
@@ -81,7 +80,6 @@ describe('SubAgentSandbox', () => {
       expect.any(Object),
       expect.objectContaining({ toolPermission: { mode: 'allowlist', list: [] } }),
       undefined,
-      { maxSteps: 2 },
     );
   });
 });

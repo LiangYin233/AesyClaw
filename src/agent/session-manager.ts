@@ -123,8 +123,8 @@ export class SessionManager {
     // Get memory config
     const config = this.deps.configManager.getConfig();
     const memoryConfig = {
-      maxContextTokens: config.memory.maxContextTokens,
-      compressionThreshold: config.memory.compressionThreshold,
+      maxContextTokens: config.agent.memory.maxContextTokens,
+      compressionThreshold: config.agent.memory.compressionThreshold,
     };
 
     // Create MemoryManager

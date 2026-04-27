@@ -112,13 +112,13 @@ describe('config editor tool helpers', () => {
   it('validates config before saving formatted JSON', async () => {
     const root = await createTempDir();
     const configPath = resolveConfigPath(root);
-    const config = { ...DEFAULT_CONFIG, agent: { maxSteps: 25 } };
+    const config = { ...DEFAULT_CONFIG, agent: { ...DEFAULT_CONFIG.agent, memory: { maxContextTokens: 256000, compressionThreshold: 0.5 } } };
 
     await saveConfig(configPath, config);
 
     const raw = await readFile(configPath, 'utf-8');
-    expect(raw).toContain('  "maxSteps": 25');
-    expect(validateConfig(JSON.parse(raw) as unknown).agent.maxSteps).toBe(25);
+    expect(raw).toContain('"maxContextTokens"');
+    expect(validateConfig(JSON.parse(raw) as unknown).agent.memory.maxContextTokens).toBe(256000);
   });
 
   it('rejects explicitly invalid config instead of casting it', () => {

@@ -45,11 +45,12 @@ function makeConfigWithProviders(providers: Record<string, unknown> = {}): AppCo
       ...providers,
     },
     channels: {},
-    agent: { maxSteps: 10 },
-    memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
-    multimodal: {
-      speechToText: { provider: 'openai', model: 'whisper-1' },
-      imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+    agent: {
+      memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
+      multimodal: {
+        speechToText: { provider: 'openai', model: 'whisper-1' },
+        imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+      },
     },
     mcp: [],
     plugins: [],

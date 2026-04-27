@@ -2,15 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   AgentConfigSchema,
   MemoryConfigSchema,
-  type AppConfig,
 } from '../../../../src/core/config/schema';
 
-const runtimeConsumedConfigKeys = {
-  agent: ['maxSteps'],
+const runtimeConsumedConfigKeys: Record<string, string[]> = {
+  agent: ['memory', 'multimodal'],
   memory: ['compressionThreshold', 'maxContextTokens'],
-} satisfies {
-  agent: Array<keyof AppConfig['agent'] & string>;
-  memory: Array<keyof AppConfig['memory'] & string>;
 };
 
 describe('runtime config consumption contract', () => {

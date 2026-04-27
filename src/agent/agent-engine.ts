@@ -11,7 +11,7 @@ import type { LlmAdapter } from './llm-adapter';
 import { PromptBuilder } from './prompt-builder';
 import type { MemoryManager } from './memory-manager';
 import { createScopedLogger } from '../core/logger';
-import { AgentRunPolicy, type AgentRunOptions } from './agent-run-policy';
+import { AgentRunPolicy } from './agent-run-policy';
 
 const logger = createScopedLogger('agent-engine');
 
@@ -93,7 +93,6 @@ export class AgentEngine {
     memory: MemoryManager,
     role: RoleConfig,
     sendMessage?: ToolExecutionContext['sendMessage'],
-    runOptions: AgentRunOptions = {},
   ): Promise<OutboundMessage> {
     if (!this.initialized || !this.promptBuilder || !this.llmAdapter || !this.runPolicy) {
       throw new Error('AgentEngine not initialized');
@@ -118,7 +117,7 @@ export class AgentEngine {
     agent.state.tools = tools;
     agent.state.model = this.llmAdapter.resolveModel(role.model);
 
-    await this.runPolicy.prompt(agent, message.content, runOptions);
+    await this.runPolicy.prompt(agent, message.content);
 
     const newMessages = agent.state.messages.slice(history.length);
     await memory.syncFromAgent(newMessages);

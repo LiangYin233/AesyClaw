@@ -40,7 +40,7 @@ export function createImageUnderstandingTool(deps: ImageUnderstandingDeps): Aesy
 
       try {
         const image = await loadMediaSource(source, 'image');
-        const multimodal = deps.configManager.get('multimodal');
+        const multimodal = deps.configManager.get('agent').multimodal;
         const modelIdentifier = `${multimodal.imageUnderstanding.provider}/${multimodal.imageUnderstanding.model}`;
         const answer = await deps.llmAdapter.analyzeImage(
           modelIdentifier,

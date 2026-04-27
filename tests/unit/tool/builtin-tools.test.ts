@@ -16,9 +16,16 @@ const SESSION_KEY = { channel: 'test', type: 'private', chatId: 'user-1' };
 
 function makeConfigManager() {
   return {
-    get: vi.fn().mockReturnValue({
-      speechToText: { provider: 'openai', model: 'whisper-1' },
-      imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+    get: vi.fn().mockImplementation((key: string) => {
+      if (key === 'agent') {
+        return {
+          multimodal: {
+            speechToText: { provider: 'openai', model: 'whisper-1' },
+            imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
+          },
+        };
+      }
+      return undefined;
     }),
   };
 }

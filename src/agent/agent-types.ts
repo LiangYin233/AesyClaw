@@ -67,7 +67,6 @@ export interface AfterToolCallHookResult {
 export interface SubAgentRoleParams {
   roleId: string;
   prompt: string;
-  maxSteps?: number;
   enableTools?: boolean;
 }
 
@@ -75,7 +74,6 @@ export interface SubAgentTempParams {
   systemPrompt: string;
   model?: string;
   prompt: string;
-  maxSteps?: number;
   enableTools?: boolean;
 }
 

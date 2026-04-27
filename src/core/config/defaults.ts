@@ -1,12 +1,11 @@
-/**
- * Default configuration values.
- *
- * These are used when config.json is missing fields or when
- * subsystems register their own defaults via ConfigManager.registerDefaults().
- */
-
 import type { AppConfig } from './schema';
 
+/**
+ * Default application configuration.
+ *
+ * Used as the initial configuration when no config file exists
+ * and as the baseline for hot-reload comparisons.
+ */
 export const DEFAULT_CONFIG: AppConfig = {
   server: {
     port: 3000,
@@ -17,20 +16,19 @@ export const DEFAULT_CONFIG: AppConfig = {
   providers: {},
   channels: {},
   agent: {
-    maxSteps: 10,
-  },
-  memory: {
-    maxContextTokens: 128000,
-    compressionThreshold: 0.8,
-  },
-  multimodal: {
-    speechToText: {
-      provider: 'openai',
-      model: 'whisper-1',
+    memory: {
+      maxContextTokens: 128000,
+      compressionThreshold: 0.8,
     },
-    imageUnderstanding: {
-      provider: 'openai',
-      model: 'gpt-4o',
+    multimodal: {
+      speechToText: {
+        provider: 'openai',
+        model: 'whisper-1',
+      },
+      imageUnderstanding: {
+        provider: 'openai',
+        model: 'gpt-4o',
+      },
     },
   },
   mcp: [],
