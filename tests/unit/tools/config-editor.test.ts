@@ -148,6 +148,7 @@ describe('config editor tool helpers', () => {
 
   it('upserts and removes full-form collection sections', () => {
     let config = structuredClone(DEFAULT_CONFIG);
+    config.mcp = [];
 
     config = upsertProvider(config, 'openai', {
       apiType: 'openai_responses',
