@@ -252,6 +252,17 @@ describe('MemoryManager', () => {
   // ─── compact ─────────────────────────────────────────────────
 
   describe('compact', () => {
+    it('should report when history crosses the configured compression threshold', () => {
+      const messageRepo = makeMockMessageRepo();
+      const manager = new MemoryManager(sessionId, messageRepo, {
+        maxContextTokens: 10,
+        compressionThreshold: 0.5,
+      });
+
+      expect(manager.shouldCompact([createUserMessage('x'.repeat(24))])).toBe(true);
+      expect(manager.shouldCompact([createUserMessage('short')])).toBe(false);
+    });
+
     it('should return skip message when history is too short', async () => {
       const messageRepo = makeMockMessageRepo();
       (messageRepo.loadHistory as ReturnType<typeof vi.fn>).mockResolvedValue([

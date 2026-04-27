@@ -4,7 +4,7 @@ import type { RoleConfig } from '../core/types';
 
 export const DEFAULT_ROLE_FILE_NAME = 'default.json';
 
-export const DEFAULT_ROLE_CONFIG: RoleConfig = {
+export const DEFAULT_ROLE_CONFIG = {
   id: 'default',
   name: 'Default Assistant',
   description: 'A general-purpose AI assistant role with full tool access.',
@@ -16,8 +16,7 @@ export const DEFAULT_ROLE_CONFIG: RoleConfig = {
     list: ['*'],
   },
   skills: ['*'],
-  enabled: true,
-};
+} satisfies Omit<RoleConfig, 'enabled'>;
 
 export function ensureDefaultRoleFile(rolesDir: string): void {
   mkdirSync(rolesDir, { recursive: true });

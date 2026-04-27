@@ -252,6 +252,17 @@ describe('PluginManager', () => {
     expect(config.plugins).toEqual([{ name: 'alpha', enabled: true }]);
   });
 
+  it('updates existing plugin directory aliases instead of appending conflicting entries', async () => {
+    const module = makeModule();
+    const config = new FakeConfigManager();
+    config.plugins = [{ name: 'plugin_alpha', enabled: false }];
+    const { manager } = makeManager(module, config);
+
+    await manager.enable('alpha');
+
+    expect(config.plugins).toEqual([{ name: 'plugin_alpha', enabled: true }]);
+  });
+
   it('lists plugins disabled by plugin definition name', async () => {
     const module = makeModule();
     const config = new FakeConfigManager();

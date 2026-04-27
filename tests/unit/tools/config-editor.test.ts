@@ -378,6 +378,9 @@ describe('config editor tool helpers', () => {
 
     expect(roles.map((role) => role.fileName)).toEqual(['broken.json', 'default.json']);
     expect(roles.find((role) => role.fileName === 'default.json')?.role?.id).toBe('default');
+    expect(JSON.parse(await readFile(path.join(rolesDir, 'default.json'), 'utf-8'))).not.toHaveProperty(
+      'enabled',
+    );
     expect(roles.find((role) => role.fileName === 'broken.json')?.role).toBeUndefined();
   });
 

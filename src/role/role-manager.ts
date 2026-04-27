@@ -16,6 +16,7 @@ import { AppError } from '../core/errors';
 import type { RoleConfig, Skill } from '../core/types';
 import { RoleConfigSchema } from './role-schema';
 import type { AesyClawTool } from '../tool/tool-registry';
+import { buildSkillPromptSection } from '../skill/skill-prompt';
 
 const logger = createScopedLogger('role');
 
@@ -166,8 +167,7 @@ export class RoleManager {
 
     // 3. Append skill sections
     if (skills.length > 0) {
-      const skillLines = skills.map((skill) => `## Skill: ${skill.name}\n${skill.content}`);
-      prompt += `\n\n${skillLines.join('\n\n')}`;
+      prompt += `\n\n${buildSkillPromptSection(skills)}`;
     }
 
     // 4. Append available roles
@@ -228,7 +228,8 @@ export class RoleManager {
       return null;
     }
 
-    return role as RoleConfig;
+    const roleConfig = role as RoleConfig;
+    return roleConfig.id === 'default' ? { ...roleConfig, enabled: true } : roleConfig;
   }
 
   /**

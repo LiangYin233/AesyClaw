@@ -15,6 +15,8 @@ import type { SubAgentSandbox } from '../../agent/sub-agent-sandbox';
 const RunSubAgentParamsSchema = Type.Object({
   roleId: Type.String({ description: '要使用的角色 ID' }),
   prompt: Type.String({ description: '子代理的输入提示' }),
+  maxSteps: Type.Optional(Type.Number({ description: '子代理最多允许的 LLM 轮次' })),
+  enableTools: Type.Optional(Type.Boolean({ description: '是否允许子代理使用工具' })),
 });
 
 type RunSubAgentParams = Static<typeof RunSubAgentParamsSchema>;
@@ -33,11 +35,16 @@ export function createRunSubAgentTool(deps: RunSubAgentDeps): AesyClawTool {
       params: unknown,
       context: ToolExecutionContext,
     ): Promise<ToolExecutionResult> => {
-      const { roleId, prompt } = params as RunSubAgentParams;
+      const { roleId, prompt, maxSteps, enableTools } = params as RunSubAgentParams;
 
       try {
         const content = await deps.sandbox.runWithRole(
-          { roleId, prompt },
+          {
+            roleId,
+            prompt,
+            ...(maxSteps === undefined ? {} : { maxSteps }),
+            ...(enableTools === undefined ? {} : { enableTools }),
+          },
           { sessionKey: context.sessionKey, sendMessage: context.sendMessage },
         );
         return { content };

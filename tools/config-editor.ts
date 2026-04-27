@@ -240,8 +240,18 @@ export async function saveRoleConfig(rolesDir: string, role: RoleConfig): Promis
   const validRole = validateRoleConfig(role);
   const filePath = path.join(rolesDir, roleFileNameForId(validRole.id));
   await mkdir(rolesDir, { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(validRole, null, 2)}\n`, 'utf-8');
+  await writeFile(filePath, `${JSON.stringify(roleConfigForFile(validRole), null, 2)}\n`, 'utf-8');
   return filePath;
+}
+
+function roleConfigForFile(role: RoleConfig): RoleConfig | Record<string, unknown> {
+  if (role.id !== DEFAULT_ROLE_CONFIG.id) {
+    return role;
+  }
+
+  const serialized: Record<string, unknown> = { ...role };
+  delete serialized.enabled;
+  return serialized;
 }
 
 export async function removeRoleFile(rolesDir: string, fileName: string): Promise<void> {
@@ -942,6 +952,7 @@ function createRoleTemplate(id: string): RoleConfig {
     ...structuredClone(DEFAULT_ROLE_CONFIG),
     id,
     name: id === DEFAULT_ROLE_CONFIG.id ? DEFAULT_ROLE_CONFIG.name : id,
+    enabled: true,
   };
 }
 

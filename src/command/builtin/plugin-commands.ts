@@ -65,7 +65,7 @@ export function createPluginEnableCommand(deps: PluginCommandDeps): CommandDefin
         return `未找到插件：${args[0]}`;
       }
 
-      await deps.pluginManager.enable(args[0]);
+      await deps.pluginManager.enable(pluginName);
       return `插件已启用：${pluginName}`;
     },
   };
@@ -88,7 +88,7 @@ export function createPluginDisableCommand(deps: PluginCommandDeps): CommandDefi
         return `未找到插件：${args[0]}`;
       }
 
-      await deps.pluginManager.disable(args[0]);
+      await deps.pluginManager.disable(pluginName);
       return `插件已禁用：${pluginName}`;
     },
   };

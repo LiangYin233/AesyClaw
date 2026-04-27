@@ -11,6 +11,7 @@ import type { LlmAdapter } from './llm-adapter';
 import { PromptBuilder } from './prompt-builder';
 import type { MemoryManager } from './memory-manager';
 import { createScopedLogger } from '../core/logger';
+import { AgentRunPolicy, type AgentRunOptions } from './agent-run-policy';
 
 const logger = createScopedLogger('agent-engine');
 
@@ -25,13 +26,9 @@ export interface AgentEngineDependencies {
 
 export class AgentEngine {
   private initialized = false;
-  private configManager: ConfigManager | null = null;
-  private toolRegistry: ToolRegistry | null = null;
-  private roleManager: RoleManager | null = null;
-  private skillManager: SkillManager | null = null;
-  private hookDispatcher: HookDispatcher | null = null;
   private llmAdapter: LlmAdapter | null = null;
   private promptBuilder: PromptBuilder | null = null;
+  private runPolicy: AgentRunPolicy | null = null;
 
   initialize(deps: AgentEngineDependencies): void {
     if (this.initialized) {
@@ -39,11 +36,6 @@ export class AgentEngine {
       return;
     }
 
-    this.configManager = deps.configManager;
-    this.toolRegistry = deps.toolRegistry;
-    this.roleManager = deps.roleManager;
-    this.skillManager = deps.skillManager;
-    this.hookDispatcher = deps.hookDispatcher;
     this.llmAdapter = deps.llmAdapter;
 
     this.promptBuilder = new PromptBuilder({
@@ -51,6 +43,10 @@ export class AgentEngine {
       skillManager: deps.skillManager,
       toolRegistry: deps.toolRegistry,
       hookDispatcher: deps.hookDispatcher,
+    });
+    this.runPolicy = new AgentRunPolicy({
+      configManager: deps.configManager,
+      llmAdapter: deps.llmAdapter,
     });
 
     this.initialized = true;
@@ -63,7 +59,7 @@ export class AgentEngine {
     _memory: MemoryManager,
     executionContext?: Partial<ToolExecutionContext>,
   ): Agent {
-    if (!this.initialized || !this.promptBuilder || !this.llmAdapter) {
+    if (!this.initialized || !this.promptBuilder || !this.llmAdapter || !this.runPolicy) {
       throw new Error('AgentEngine not initialized');
     }
 
@@ -98,8 +94,9 @@ export class AgentEngine {
     memory: MemoryManager,
     role: RoleConfig,
     sendMessage?: ToolExecutionContext['sendMessage'],
+    runOptions: AgentRunOptions = {},
   ): Promise<OutboundMessage> {
-    if (!this.initialized || !this.promptBuilder || !this.llmAdapter) {
+    if (!this.initialized || !this.promptBuilder || !this.llmAdapter || !this.runPolicy) {
       throw new Error('AgentEngine not initialized');
     }
 
@@ -109,7 +106,7 @@ export class AgentEngine {
       contentLength: message.content.length,
     });
 
-    const history = await memory.loadHistory();
+    const history = await this.runPolicy.loadHistoryForTurn(memory, role);
     agent.state.messages = history;
 
     const executionContext: Partial<ToolExecutionContext> = {
@@ -122,8 +119,7 @@ export class AgentEngine {
     agent.state.tools = tools;
     agent.state.model = this.llmAdapter.resolveModel(role.model);
 
-    await agent.prompt(message.content);
-    await agent.waitForIdle();
+    await this.runPolicy.prompt(agent, message.content, runOptions);
 
     const newMessages = agent.state.messages.slice(history.length);
     await memory.syncFromAgent(newMessages);

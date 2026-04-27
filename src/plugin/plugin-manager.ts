@@ -331,14 +331,22 @@ export class PluginManager {
   }
 
   private async setPluginEnabled(pluginName: string, enabled: boolean): Promise<void> {
+    const match = await this.findPlugin(pluginName);
+    const aliases = new Set([
+      pluginName,
+      ...(match ? [match.definition.name, match.directoryName] : []),
+    ]);
+    const canonicalName = match?.definition.name ?? pluginName;
     const plugins = this.getConfigEntries().map((entry) => ({
       name: entry.name,
-      enabled: entry.name === pluginName ? enabled : entry.enabled,
+      enabled: aliases.has(entry.name) ? enabled : entry.enabled,
       ...(entry.options === undefined ? {} : { options: optionsToRecord(entry.options) }),
     }));
 
-    if (!plugins.some((entry) => entry.name === pluginName)) {
-      plugins.push({ name: pluginName, enabled });
+    const updatedExisting = plugins.some((entry) => aliases.has(entry.name));
+
+    if (!updatedExisting) {
+      plugins.push({ name: canonicalName, enabled });
     }
 
     await this.configManager.update({ plugins });

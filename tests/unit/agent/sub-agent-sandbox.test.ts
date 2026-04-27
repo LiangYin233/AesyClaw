@@ -46,4 +46,43 @@ describe('SubAgentSandbox', () => {
       sandbox.runWithPrompt({ systemPrompt: 'Temporary prompt', prompt: 'third' }),
     ).resolves.toBe('history:0');
   });
+
+  it('applies per-run controls for maxSteps and disabled tools', async () => {
+    const agentEngine = {
+      createAgent: vi.fn().mockReturnValue({ state: {} }),
+      process: vi.fn().mockResolvedValue({ content: 'delegated answer' }),
+    };
+    const roleManager = {
+      getRole: vi.fn().mockReturnValue(ROLE),
+      getDefaultRole: vi.fn().mockReturnValue(ROLE),
+    };
+    const sandbox = new SubAgentSandbox({ agentEngine, roleManager });
+
+    await expect(
+      sandbox.runWithRole({
+        roleId: 'researcher',
+        prompt: 'bounded',
+        maxSteps: 2,
+        enableTools: false,
+      }),
+    ).resolves.toBe('delegated answer');
+
+    expect(agentEngine.createAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'researcher',
+        toolPermission: { mode: 'allowlist', list: [] },
+      }),
+      expect.any(String),
+      expect.any(Object),
+      expect.any(Object),
+    );
+    expect(agentEngine.process).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({ content: 'bounded' }),
+      expect.any(Object),
+      expect.objectContaining({ toolPermission: { mode: 'allowlist', list: [] } }),
+      undefined,
+      { maxSteps: 2 },
+    );
+  });
 });

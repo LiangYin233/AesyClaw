@@ -14,7 +14,10 @@ import type { SubAgentSandbox } from '../../agent/sub-agent-sandbox';
 /** Parameter schema for run_temp_sub_agent */
 const RunTempSubAgentParamsSchema = Type.Object({
   systemPrompt: Type.String({ description: '子代理的系统提示' }),
+  model: Type.Optional(Type.String({ description: '临时子代理使用的模型，格式为 provider/model' })),
   prompt: Type.String({ description: '子代理的输入提示' }),
+  maxSteps: Type.Optional(Type.Number({ description: '子代理最多允许的 LLM 轮次' })),
+  enableTools: Type.Optional(Type.Boolean({ description: '是否允许子代理使用工具' })),
 });
 
 type RunTempSubAgentParams = Static<typeof RunTempSubAgentParamsSchema>;
@@ -33,11 +36,17 @@ export function createRunTempSubAgentTool(deps: RunTempSubAgentDeps): AesyClawTo
       params: unknown,
       context: ToolExecutionContext,
     ): Promise<ToolExecutionResult> => {
-      const { systemPrompt, prompt } = params as RunTempSubAgentParams;
+      const { systemPrompt, model, prompt, maxSteps, enableTools } = params as RunTempSubAgentParams;
 
       try {
         const content = await deps.sandbox.runWithPrompt(
-          { systemPrompt, prompt },
+          {
+            systemPrompt,
+            prompt,
+            ...(model === undefined ? {} : { model }),
+            ...(maxSteps === undefined ? {} : { maxSteps }),
+            ...(enableTools === undefined ? {} : { enableTools }),
+          },
           { sessionKey: context.sessionKey, sendMessage: context.sendMessage },
         );
         return { content };

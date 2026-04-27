@@ -14,6 +14,7 @@ import path from 'node:path';
 import { createScopedLogger } from '../core/logger';
 import type { Skill, RoleConfig } from '../core/types';
 import { parseSkillFile } from './skill-parser';
+import { buildSkillPromptSection } from './skill-prompt';
 
 const logger = createScopedLogger('skill');
 
@@ -86,11 +87,7 @@ export class SkillManager {
    * Sections are joined with blank lines.
    */
   buildSkillPromptSection(skills: Skill[]): string {
-    if (skills.length === 0) {
-      return '';
-    }
-
-    return skills.map((skill) => `## Skill: ${skill.name}\n${skill.content}`).join('\n\n');
+    return buildSkillPromptSection(skills);
   }
 
   // ─── Private helpers ───────────────────────────────────────────

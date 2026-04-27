@@ -70,6 +70,20 @@ export class MemoryManager {
     );
   }
 
+  /**
+   * Decide whether persisted history is large enough to compact before the
+   * next model turn. This uses a conservative text estimate because the
+   * runtime does not currently expose provider-specific token counting.
+   */
+  shouldCompact(messages: AgentMessage[]): boolean {
+    const threshold = this.config.maxContextTokens * this.config.compressionThreshold;
+    if (!Number.isFinite(threshold) || threshold <= 0) {
+      return false;
+    }
+
+    return this.estimateTokens(messages) >= threshold;
+  }
+
   // ─── Write ────────────────────────────────────────────────────
 
   /**
@@ -216,5 +230,13 @@ export class MemoryManager {
 
     const parsed = Date.parse(timestamp);
     return Number.isNaN(parsed) ? Date.now() : parsed;
+  }
+
+  private estimateTokens(messages: AgentMessage[]): number {
+    const textLength = messages.reduce(
+      (total, message) => total + extractMessageText(message).length,
+      0,
+    );
+    return Math.ceil(textLength / 4);
   }
 }

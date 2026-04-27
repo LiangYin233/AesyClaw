@@ -47,8 +47,8 @@ export class SubAgentSandbox {
     params: SubAgentRoleParams,
     executionContext?: Pick<ToolExecutionContext, 'sessionKey' | 'sendMessage'>,
   ): Promise<string> {
-    const role = this.deps.roleManager.getRole(params.roleId);
-    return this.execute(role, params.prompt, executionContext);
+    const role = this.applyToolOverride(this.deps.roleManager.getRole(params.roleId), params);
+    return this.execute(role, params.prompt, executionContext, { maxSteps: params.maxSteps });
   }
 
   /**
@@ -75,13 +75,16 @@ export class SubAgentSandbox {
       enabled: true,
     };
 
-    return this.execute(role, params.prompt, executionContext);
+    return this.execute(this.applyToolOverride(role, params), params.prompt, executionContext, {
+      maxSteps: params.maxSteps,
+    });
   }
 
   private async execute(
     role: RoleConfig,
     prompt: string,
     executionContext?: Pick<ToolExecutionContext, 'sessionKey' | 'sendMessage'>,
+    runOptions?: { maxSteps?: number },
   ): Promise<string> {
     const sessionId = `sub-agent:${randomUUID()}`;
     const memory = new MemoryManager(
@@ -104,9 +107,27 @@ export class SubAgentSandbox {
       memory,
       role,
       executionContext?.sendMessage,
+      runOptions,
     );
 
     return outbound.content;
+  }
+
+  private applyToolOverride(
+    role: RoleConfig,
+    params: Pick<SubAgentRoleParams | SubAgentTempParams, 'enableTools'>,
+  ): RoleConfig {
+    if (params.enableTools !== false) {
+      return role;
+    }
+
+    return {
+      ...role,
+      toolPermission: {
+        mode: 'allowlist',
+        list: [],
+      },
+    };
   }
 }
 

@@ -118,9 +118,36 @@ describe('ToolAdapter', () => {
       };
 
       const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), context);
-      await agentTool.execute('call-1', {});
+      await agentTool.execute('call-1', { input: 'test' });
 
       expect(receivedContext).toEqual(context);
+    });
+
+    it('should reject invalid parameters before executing the tool', async () => {
+      let executed = false;
+      const tool = makeTool({
+        execute: async () => {
+          executed = true;
+          return { content: 'should not run' };
+        },
+      });
+
+      const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
+
+      await expect(agentTool.execute('call-1', {})).resolves.toMatchObject({
+        content: [
+          {
+            type: 'text',
+            text: expect.stringContaining('Invalid parameters for tool "test-tool"'),
+          },
+        ],
+        details: expect.objectContaining({
+          code: 'TOOL_PARAMETER_VALIDATION_FAILED',
+          toolName: 'test-tool',
+        }),
+        isError: true,
+      });
+      expect(executed).toBe(false);
     });
 
     it('should block execution when before hook blocks', async () => {
@@ -151,7 +178,7 @@ describe('ToolAdapter', () => {
         makeShortCircuitHookDispatcher({ content: 'Short-circuited', isError: false }),
         {},
       );
-      const result = await agentTool.execute('call-1', {});
+      const result = await agentTool.execute('call-1', { input: 'test' });
 
       expect(result.content).toEqual([{ type: 'text', text: 'Short-circuited' }]);
     });
@@ -167,7 +194,7 @@ describe('ToolAdapter', () => {
         {},
       );
 
-      await expect(agentTool.execute('call-1', {})).resolves.toMatchObject({
+      await expect(agentTool.execute('call-1', { input: 'test' })).resolves.toMatchObject({
         content: [{ type: 'text', text: 'Cached failure' }],
         details: {},
         isError: true,
@@ -184,7 +211,7 @@ describe('ToolAdapter', () => {
         makeOverrideHookDispatcher({ content: 'overridden result' }),
         {},
       );
-      const result = await agentTool.execute('call-1', {});
+      const result = await agentTool.execute('call-1', { input: 'test' });
 
       expect(result.content).toEqual([{ type: 'text', text: 'overridden result' }]);
     });
@@ -196,7 +223,7 @@ describe('ToolAdapter', () => {
 
       const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
 
-      await expect(agentTool.execute('call-1', {})).resolves.toMatchObject({
+      await expect(agentTool.execute('call-1', { input: 'test' })).resolves.toMatchObject({
         content: [{ type: 'text', text: 'Tool failed' }],
         details: {},
         isError: true,
@@ -214,7 +241,7 @@ describe('ToolAdapter', () => {
         {},
       );
 
-      await expect(agentTool.execute('call-1', {})).resolves.toMatchObject({
+      await expect(agentTool.execute('call-1', { input: 'test' })).resolves.toMatchObject({
         content: [{ type: 'text', text: 'overridden failure' }],
         details: {},
         isError: true,
@@ -229,7 +256,7 @@ describe('ToolAdapter', () => {
       });
 
       const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
-      await expect(agentTool.execute('call-1', {})).resolves.toMatchObject({
+      await expect(agentTool.execute('call-1', { input: 'test' })).resolves.toMatchObject({
         content: [{ type: 'text', text: 'Tool crashed' }],
         details: {},
         isError: true,
@@ -259,7 +286,7 @@ describe('ToolAdapter', () => {
 
       const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
       // Should not throw — just uses empty sessionKey
-      const result = await agentTool.execute('call-1', {});
+      const result = await agentTool.execute('call-1', { input: 'test' });
       expect(result.content).toEqual([{ type: 'text', text: 'ok' }]);
     });
   });

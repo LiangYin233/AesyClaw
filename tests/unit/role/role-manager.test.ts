@@ -156,6 +156,16 @@ describe('RoleManager', () => {
       expect(roles[0].enabled).toBe(true);
     });
 
+    it('should always load the default role as enabled', async () => {
+      const roleData = makeRole({ id: 'default', enabled: false });
+      writeFileSync(join(rolesDir, 'default.json'), JSON.stringify(roleData, null, 2));
+
+      await manager.loadAll(rolesDir);
+
+      expect(manager.getRole('default').enabled).toBe(true);
+      expect(manager.getDefaultRole().enabled).toBe(true);
+    });
+
     it('should handle non-existent directory gracefully', async () => {
       const nonexistent = join(TEST_DIR, 'nonexistent-roles');
       // Don't create the directory — it should not throw

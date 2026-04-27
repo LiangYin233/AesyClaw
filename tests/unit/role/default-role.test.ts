@@ -20,7 +20,7 @@ describe('ensureDefaultRoleFile', () => {
     expect(existsSync(defaultRolePath)).toBe(true);
     expect(JSON.parse(readFileSync(defaultRolePath, 'utf-8'))).toMatchObject({
       id: 'default',
-      enabled: true,
     });
+    expect(JSON.parse(readFileSync(defaultRolePath, 'utf-8'))).not.toHaveProperty('enabled');
   });
 });

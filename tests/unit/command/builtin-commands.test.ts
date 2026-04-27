@@ -134,6 +134,21 @@ describe('built-in commands', () => {
     expect(deps.pluginManager.disable).toHaveBeenCalledWith('beta');
   });
 
+  it('passes canonical plugin names when commands use directory aliases', async () => {
+    const { registry, deps } = createRegistry();
+    const context = makeContext();
+
+    await expect(registry.execute('/plugin enable plugin_alpha', context)).resolves.toBe(
+      '插件已启用：alpha',
+    );
+    await expect(registry.execute('/plugin disable plugin_beta', context)).resolves.toBe(
+      '插件已禁用：beta',
+    );
+
+    expect(deps.pluginManager.enable).toHaveBeenCalledWith('alpha');
+    expect(deps.pluginManager.disable).toHaveBeenCalledWith('beta');
+  });
+
   it('rejects enabling or disabling an unknown plugin', async () => {
     const { registry, deps } = createRegistry();
     const context = makeContext();
