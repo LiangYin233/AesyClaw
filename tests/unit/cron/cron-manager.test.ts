@@ -158,7 +158,7 @@ describe('Cron', () => {
     expect(pipeline.receiveWithSend).toHaveBeenCalledWith(
       expect.objectContaining({
         content: 'check status',
-        sessionKey: { channel: 'test', type: 'private', chatId: '1' },
+        sessionKey: { channel: 'cron', type: 'job', chatId: jobId },
       }),
       expect.any(Function),
     );

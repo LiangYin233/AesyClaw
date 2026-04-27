@@ -190,6 +190,28 @@ export class SessionManager {
   }
 
   /**
+   * Reset a session to fresh history and the current default role.
+   *
+   * Unlike clearSession(), this always resolves the backing DB session so it
+   * can clear persisted history even if the session is not currently cached.
+   */
+  async resetSession(key: SessionKey): Promise<void> {
+    if (!this.deps) {
+      throw new Error('SessionManager not initialized');
+    }
+
+    const cacheKey = this.computeKey(key);
+    const sessionRecord = await this.deps.databaseManager.sessions.findOrCreate(key);
+    const defaultRole = this.deps.roleManager.getDefaultRole();
+
+    await this.deps.databaseManager.messages.clearHistory(sessionRecord.id);
+    await this.deps.databaseManager.roleBindings.setActiveRole(sessionRecord.id, defaultRole.id);
+
+    this.sessions.delete(cacheKey);
+    logger.info('Session reset', { cacheKey, roleId: defaultRole.id });
+  }
+
+  /**
    * Compact a session's conversation history.
    *
    * Delegates to MemoryManager.compact() which summarizes the

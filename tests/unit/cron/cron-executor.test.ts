@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { CronExecutor, parseSessionKey, formatResult } from '../../../src/cron/cron-executor';
+import {
+  CronExecutor,
+  createCronContextSessionKey,
+  parseSessionKey,
+  formatResult,
+} from '../../../src/cron/cron-executor';
 import type { CronJobRecord } from '../../../src/core/types';
 
 function makeJob(overrides: Partial<CronJobRecord> = {}): CronJobRecord {
@@ -61,6 +66,16 @@ describe('formatResult', () => {
   });
 });
 
+describe('createCronContextSessionKey', () => {
+  it('should build a stable cron-only session key for a job', () => {
+    expect(createCronContextSessionKey('job-1')).toEqual({
+      channel: 'cron',
+      type: 'job',
+      chatId: 'job-1',
+    });
+  });
+});
+
 describe('CronExecutor', () => {
   function makeMocks() {
     const cronRuns = {
@@ -91,6 +106,7 @@ describe('CronExecutor', () => {
       expect(pipeline.receiveWithSend).toHaveBeenCalled();
       const [inbound] = pipeline.receiveWithSend.mock.calls[0] as [Record<string, unknown>];
       expect(inbound.content).toBe('test prompt');
+      expect(inbound.sessionKey).toEqual(createCronContextSessionKey('job-1'));
       expect(inbound.rawEvent).toEqual({ cronJobId: 'job-1', cronRunId: 'run-1' });
       expect(send).toHaveBeenCalledWith(
         { channel: 'test', type: 'private', chatId: '123' },
@@ -151,6 +167,18 @@ describe('CronExecutor', () => {
 
       await expect(executor.execute(job)).rejects.toBe('raw error');
       expect(cronRuns.markFailed).toHaveBeenCalledWith('run-1', 'raw error');
+    });
+
+    it('should mark failed when the persisted target session key is invalid', async () => {
+      const { executor, cronRuns, pipeline, send } = makeMocks();
+      const job = makeJob({ sessionKey: 'not-json' });
+
+      await expect(executor.execute(job)).rejects.toThrow();
+
+      expect(cronRuns.create).toHaveBeenCalledWith({ jobId: job.id });
+      expect(cronRuns.markFailed).toHaveBeenCalledWith('run-1', expect.any(String));
+      expect(pipeline.receiveWithSend).not.toHaveBeenCalled();
+      expect(send).not.toHaveBeenCalled();
     });
   });
 });

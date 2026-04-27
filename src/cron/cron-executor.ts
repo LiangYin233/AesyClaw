@@ -26,22 +26,28 @@ export interface CronExecutorDependencies {
   send: (sessionKey: SessionKey, message: OutboundMessage) => Promise<void>;
 }
 
+export interface CronExecutionSessionKeys {
+  context: SessionKey;
+  target: SessionKey;
+}
+
 export class CronExecutor {
   constructor(private readonly dependencies: CronExecutorDependencies) {}
 
-  async execute(job: CronJobRecord): Promise<string> {
+  async execute(job: CronJobRecord, sessionKeys?: CronExecutionSessionKeys): Promise<string> {
     const runId = await this.dependencies.cronRuns.create({ jobId: job.id });
     try {
-      const sessionKey = parseSessionKey(job.sessionKey);
+      const targetSessionKey = sessionKeys?.target ?? parseSessionKey(job.sessionKey);
+      const contextSessionKey = sessionKeys?.context ?? createCronContextSessionKey(job.id);
       const outboundMessages: OutboundMessage[] = [];
       const inbound: InboundMessage = {
-        sessionKey,
+        sessionKey: contextSessionKey,
         content: job.prompt,
         rawEvent: { cronJobId: job.id, cronRunId: runId },
       };
 
       await this.dependencies.pipeline.receiveWithSend(inbound, async (message) => {
-        await this.dependencies.send(sessionKey, message);
+        await this.dependencies.send(targetSessionKey, message);
         outboundMessages.push(message);
       });
 
@@ -56,6 +62,14 @@ export class CronExecutor {
       throw err;
     }
   }
+}
+
+export function createCronContextSessionKey(jobId: string): SessionKey {
+  return {
+    channel: 'cron',
+    type: 'job',
+    chatId: jobId,
+  };
 }
 
 export function parseSessionKey(value: string): SessionKey {

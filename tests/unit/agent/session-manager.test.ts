@@ -292,6 +292,38 @@ describe('SessionManager', () => {
 
   // ─── compactSession ───────────────────────────────────────────
 
+  describe('resetSession', () => {
+    it('should clear persisted history, reset the role, and evict cache', async () => {
+      const key = makeSessionKey();
+      const session = await manager.getOrCreateSession(key);
+
+      await manager.resetSession(key);
+
+      expect(deps.databaseManager.messages.clearHistory).toHaveBeenCalledWith(session.sessionId);
+      expect(deps.databaseManager.roleBindings.setActiveRole).toHaveBeenCalledWith(
+        session.sessionId,
+        'default',
+      );
+      expect(manager.getSession(key)).toBeUndefined();
+    });
+
+    it('should reset uncached sessions by resolving the backing session record', async () => {
+      const key = makeSessionKey({ chatId: 'uncached-user' });
+
+      await manager.resetSession(key);
+
+      expect(deps.databaseManager.sessions.findOrCreate).toHaveBeenCalledWith(key);
+      expect(deps.databaseManager.messages.clearHistory).toHaveBeenCalledWith('session-uuid');
+    });
+
+    it('should throw if not initialized', async () => {
+      const uninitialized = new SessionManager();
+      await expect(uninitialized.resetSession(makeSessionKey())).rejects.toThrow(
+        'SessionManager not initialized',
+      );
+    });
+  });
+
   describe('compactSession', () => {
     it('should compact session history via memory manager', async () => {
       const key = makeSessionKey();
