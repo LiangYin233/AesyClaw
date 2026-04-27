@@ -112,7 +112,10 @@ describe('config editor tool helpers', () => {
   it('validates config before saving formatted JSON', async () => {
     const root = await createTempDir();
     const configPath = resolveConfigPath(root);
-    const config = { ...DEFAULT_CONFIG, agent: { ...DEFAULT_CONFIG.agent, memory: { compressionThreshold: 0.5 } } };
+    const config = {
+      ...DEFAULT_CONFIG,
+      agent: { ...DEFAULT_CONFIG.agent, memory: { compressionThreshold: 0.5 } },
+    };
 
     await saveConfig(configPath, config);
 

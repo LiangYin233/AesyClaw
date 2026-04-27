@@ -19,9 +19,7 @@ export interface AudioTranscriptionInput {
 
 const logger = createScopedLogger('llm-adapter');
 
-function makeExtraBodyOnPayload(
-  model: ResolvedModel,
-): ((payload: unknown) => unknown) | undefined {
+function makeExtraBodyOnPayload(model: ResolvedModel): ((payload: unknown) => unknown) | undefined {
   const extraBody = model.extraBody;
   if (!extraBody || Object.keys(extraBody).length === 0) {
     return undefined;

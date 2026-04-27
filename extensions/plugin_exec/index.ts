@@ -229,7 +229,15 @@ function createShellInvocation(command: string, platform: NodeJS.Platform) {
     return {
       name: 'powershell' as const,
       command: 'powershell.exe',
-      args: ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', utf8Command],
+      args: [
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        utf8Command,
+      ],
     };
   }
 

@@ -7,7 +7,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { PersistableMessage, RoleConfig, SessionKey, ToolPermissionConfig } from '../core/types';
+import type { PersistableMessage, RoleConfig, SessionKey } from '../core/types';
 import { MemoryManager } from './memory-manager';
 import type { MessageRepositoryLike } from './memory-manager';
 import type { SubAgentRoleParams, SubAgentTempParams } from './agent-types';

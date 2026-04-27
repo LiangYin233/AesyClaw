@@ -8,7 +8,13 @@
  */
 
 import type { TSchema } from '@sinclair/typebox';
-import type { ToolOwner, SessionKey, RoleConfig, OutboundMessage } from '../core/types';
+import type {
+  ToolOwner,
+  SessionKey,
+  RoleConfig,
+  OutboundMessage,
+  ToolPermissionConfig,
+} from '../core/types';
 import { createScopedLogger } from '../core/logger';
 import type { HookDispatcher } from '../pipeline/hook-dispatcher';
 import type { AgentTool } from '../agent/agent-types';
@@ -43,7 +49,7 @@ export interface ToolExecutionContext {
   /** Sends through the pipeline's onSend-aware delivery path when available */
   sendMessage?: (message: OutboundMessage) => Promise<boolean>;
   /** Caller role's tool permission, used by sub-agents to inherit restrictions */
-  toolPermission?: import('../core/types').ToolPermissionConfig;
+  toolPermission?: ToolPermissionConfig;
 }
 
 /**

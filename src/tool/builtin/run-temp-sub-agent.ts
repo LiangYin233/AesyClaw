@@ -45,7 +45,11 @@ export function createRunTempSubAgentTool(deps: RunTempSubAgentDeps): AesyClawTo
             ...(model === undefined ? {} : { model }),
             ...(enableTools === undefined ? {} : { enableTools }),
           },
-          { sessionKey: context.sessionKey, sendMessage: context.sendMessage, toolPermission: context.toolPermission },
+          {
+            sessionKey: context.sessionKey,
+            sendMessage: context.sendMessage,
+            toolPermission: context.toolPermission,
+          },
         );
         return { content };
       } catch (error: unknown) {

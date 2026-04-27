@@ -66,7 +66,10 @@ describe('plugin_exec', () => {
 
   it('returns metadata instead of throwing when process spawn rejects input', async () => {
     const repoRoot = await makeRepoRoot();
-    const result = await executeCommand({ command: successCommand(), cwd: 'bad\0cwd' }, { repoRoot });
+    const result = await executeCommand(
+      { command: successCommand(), cwd: 'bad\0cwd' },
+      { repoRoot },
+    );
     const details = result.details as ExecResultDetails;
 
     expect(result.isError).toBe(true);
