@@ -84,40 +84,6 @@ User content.`,
       expect(skills[0].isSystem).toBe(false);
     });
 
-    it('should exclude system subdirectory from user skills', async () => {
-      // Create a skill in the system/ subdir of user dir — should be excluded
-      const systemSubDir = join(userDir, 'system');
-      mkdirSync(systemSubDir, { recursive: true });
-      writeFileSync(
-        join(systemSubDir, 'sys-override.md'),
-        `---
-name: sys-override
-description: Should not be loaded as user
----
-Override content.`,
-      );
-
-      // Create a valid user skill
-      writeFileSync(
-        join(userDir, 'real-user.md'),
-        `---
-name: real-user
-description: A real user skill
----
-Real content.`,
-      );
-
-      await manager.loadAll(systemDir, userDir);
-
-      const skills = manager.getAllSkills();
-      // sys-override should NOT be loaded as a user skill
-      const overrideSkill = skills.find((s) => s.name === 'sys-override');
-      expect(overrideSkill).toBeUndefined();
-
-      // real-user should be loaded
-      expect(skills.find((s) => s.name === 'real-user')).toBeDefined();
-    });
-
     it('should load both system and user skills', async () => {
       writeFileSync(
         join(systemDir, 'system-skill.md'),
@@ -143,6 +109,34 @@ User content.`,
       expect(skills).toHaveLength(2);
       expect(skills.find((s) => s.name === 'system-skill')).toBeDefined();
       expect(skills.find((s) => s.name === 'user-skill')).toBeDefined();
+    });
+
+    it('should give system skills priority over user skills on name collision', async () => {
+      writeFileSync(
+        join(systemDir, 'conflict.md'),
+        `---
+name: conflict
+description: System version
+---
+System content.`,
+      );
+
+      writeFileSync(
+        join(userDir, 'conflict.md'),
+        `---
+name: conflict
+description: User version
+---
+User content.`,
+      );
+
+      await manager.loadAll(systemDir, userDir);
+
+      const skill = manager.getSkill('conflict');
+      expect(skill).toBeDefined();
+      expect(skill!.isSystem).toBe(true);
+      expect(skill!.description).toBe('System version');
+      expect(skill!.content).toBe('System content.');
     });
 
     it('should skip malformed skill files gracefully', async () => {

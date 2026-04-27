@@ -19,6 +19,7 @@ export const DIR_NAMES = {
   media: 'media',
   workspace: 'workspace',
   skills: 'skills',
+  userSkills: 'skills',
   systemSkills: 'skills/system',
   extensions: 'extensions',
 } as const;

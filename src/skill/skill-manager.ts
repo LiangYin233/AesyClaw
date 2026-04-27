@@ -2,8 +2,11 @@
  * SkillManager — loads, stores, and filters skill definitions.
  *
  * Skills are Markdown files with YAML frontmatter, stored in:
- * - System skills: `skills/system/*.md`  (always included)
- * - User skills:  `skills/*.md`           (excluded: `skills/system/`)
+ * - System skills: `skills/*.md`          (always included, not filterable)
+ * - User skills:   `.aesyclaw/skills/*.md` (filtered by role `skills` config)
+ *
+ * When a system and user skill share the same name, the system skill
+ * takes priority (user skill is ignored).
  *
  * Role configs reference skills by name; the manager resolves which
  * skills to include for a given role.
@@ -26,17 +29,20 @@ export class SkillManager {
   /**
    * Load all skill files from system and user directories.
    *
-   * @param systemDir - Path to `skills/system/`
-   * @param userDir   - Path to `skills/` (the `system/` subdirectory is excluded)
+   * User skills are loaded first, then system skills — so system skills
+   * always take priority on name collision.
+   *
+   * @param systemDir - Path to `skills/` (system, always included)
+   * @param userDir   - Path to `.aesyclaw/skills/` (user, filtered by role)
    */
   async loadAll(systemDir: string, userDir: string): Promise<void> {
     this.skills.clear();
 
-    // Load system skills
-    this.loadFromDirectory(systemDir, true);
+    // Load user skills first so system skills take priority on conflict
+    this.loadFromDirectory(userDir, false);
 
-    // Load user skills (excluding system/ subdirectory)
-    this.loadFromDirectory(userDir, false, ['system']);
+    // Load system skills (wins over user skills on name collision)
+    this.loadFromDirectory(systemDir, true);
 
     logger.info(`Loaded ${this.skills.size} skills`);
   }
@@ -93,13 +99,12 @@ export class SkillManager {
   // ─── Private helpers ───────────────────────────────────────────
 
   /**
-   * Load all `.md` files from a directory.
+   * Load all `.md` files from a directory, recursing into subdirectories.
    *
-   * @param dir        - Directory to scan
-   * @param isSystem   - Whether these are system skills
-   * @param excludeSubs - Subdirectory names to skip (e.g. ['system'] for user dir)
+   * @param dir      - Directory to scan
+   * @param isSystem - Whether these are system skills
    */
-  private loadFromDirectory(dir: string, isSystem: boolean, excludeSubs: string[] = []): void {
+  private loadFromDirectory(dir: string, isSystem: boolean): void {
     if (!fs.existsSync(dir)) {
       logger.debug(`Skill directory does not exist: ${dir}`);
       return;
@@ -117,12 +122,7 @@ export class SkillManager {
       const fullPath = path.join(dir, entry.name);
 
       if (entry.isDirectory()) {
-        // Skip excluded subdirectories
-        if (excludeSubs.includes(entry.name)) {
-          continue;
-        }
-        // Recurse into other subdirectories
-        this.loadFromDirectory(fullPath, isSystem, excludeSubs);
+        this.loadFromDirectory(fullPath, isSystem);
         continue;
       }
 

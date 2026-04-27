@@ -83,6 +83,7 @@ export class Application {
         this.pathResolver.rolesDir,
         this.pathResolver.mediaDir,
         this.pathResolver.workspaceDir,
+        this.pathResolver.userSkillsDir,
       ];
 
       for (const runtimeDir of runtimeDirs) {
@@ -104,8 +105,8 @@ export class Application {
 
     await this.startStep('Skill loading', async () => {
       await this.skillManager.loadAll(
-        this.pathResolver.systemSkillsDir,
         this.pathResolver.skillsDir,
+        this.pathResolver.userSkillsDir,
       );
     });
 
