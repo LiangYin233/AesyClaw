@@ -314,6 +314,7 @@ describe('AgentEngine', () => {
         {
           sessionKey: makeInboundMessage().sessionKey,
           sendMessage: undefined,
+          toolPermission: { mode: 'allowlist', list: ['*'] },
         },
       );
     });
@@ -340,6 +341,7 @@ describe('AgentEngine', () => {
         {
           sessionKey: makeInboundMessage().sessionKey,
           sendMessage,
+          toolPermission: { mode: 'allowlist', list: ['*'] },
         },
       );
     });
