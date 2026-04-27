@@ -42,7 +42,7 @@ describe('Application', () => {
       expect(JSON.parse(readFileSync(configFile, 'utf-8'))).toMatchObject({
         server: expect.objectContaining({ logLevel: 'info' }),
         plugins: [],
-        mcp: [],
+        mcp: [expect.objectContaining({ name: 'example', enabled: false })],
       });
     } finally {
       await app.shutdown();

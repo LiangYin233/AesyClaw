@@ -112,6 +112,24 @@ export class PluginManager {
     this.loadedPlugins.set(pluginName, loaded);
     this.failedPlugins.delete(pluginName);
     this.failedPlugins.delete(module.directoryName);
+
+    // Auto-write plugin config entry if not present
+    if (!configLookup.entry) {
+      const plugins = this.getConfigEntries().map((entry) => ({
+        name: entry.name,
+        enabled: entry.enabled,
+        ...(entry.options === undefined ? {} : { options: optionsToRecord(entry.options) }),
+      }));
+      plugins.push({
+        name: pluginName,
+        enabled: true,
+        ...(module.definition.defaultConfig ? { options: module.definition.defaultConfig } : {}),
+      });
+      await this.configManager.update({ plugins }).catch((err) => {
+        logger.warn(`Failed to auto-write config entry for plugin "${pluginName}"`, err);
+      });
+    }
+
     logger.info('Plugin loaded', { pluginName, directoryName: module.directoryName });
     return loaded;
   }
