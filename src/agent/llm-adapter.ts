@@ -88,7 +88,7 @@ export class LlmAdapter {
       provider,
       api: apiType,
       baseUrl: providerConfig.baseUrl ?? builtInModel?.baseUrl ?? '',
-      reasoning: preset?.enableThinking ?? builtInModel?.reasoning ?? false,
+      reasoning: preset?.reasoning ?? preset?.enableThinking ?? builtInModel?.reasoning ?? false,
       input: builtInModel?.input ?? ['text'],
       cost: builtInModel?.cost ?? {
         input: 0,
@@ -100,6 +100,7 @@ export class LlmAdapter {
       maxTokens: builtInModel?.maxTokens ?? 8192,
       headers: builtInModel?.headers,
       compat: builtInModel?.compat,
+      extraBody: preset?.extraBody,
       modelId,
       realModelName,
       apiKey,

@@ -33,7 +33,7 @@ export interface BuiltinToolDependencies {
   cronManager: Pick<CronManager, 'createJob' | 'listJobs' | 'deleteJob'>;
   agentEngine: Pick<AgentEngine, 'createAgent' | 'process'>;
   roleManager: Pick<RoleManager, 'getRole' | 'getDefaultRole'>;
-  llmAdapter: Pick<LlmAdapter, 'analyzeImage' | 'transcribeAudio'>;
+  llmAdapter: Pick<LlmAdapter, 'analyzeImage' | 'transcribeAudio' | 'resolveModel'>;
   configManager: Pick<ConfigManager, 'get'>;
   skillManager: Pick<SkillManager, 'getSkill'>;
 }
@@ -49,6 +49,7 @@ export function registerBuiltinTools(registry: ToolRegistry, deps: BuiltinToolDe
   const sandbox = new SubAgentSandbox({
     agentEngine: deps.agentEngine,
     roleManager: deps.roleManager,
+    llmAdapter: deps.llmAdapter,
   });
 
   registry.register(createSendMsgTool());

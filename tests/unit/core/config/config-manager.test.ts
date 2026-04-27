@@ -58,7 +58,7 @@ describe('ConfigManager', () => {
         providers: {},
         channels: {},
         agent: {
-          memory: { maxContextTokens: 64000, compressionThreshold: 0.7 },
+          memory: { compressionThreshold: 0.7 },
           multimodal: {
             speechToText: { provider: 'test', model: 'test-model' },
             imageUnderstanding: { provider: 'test', model: 'test-model' },
@@ -89,7 +89,7 @@ describe('ConfigManager', () => {
         providers: {},
         channels: {},
         agent: {
-          memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
+          memory: { compressionThreshold: 0.8 },
           multimodal: {
             speechToText: { provider: 'openai', model: 'whisper-1' },
             imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
@@ -110,7 +110,7 @@ describe('ConfigManager', () => {
         providers: {},
         channels: {},
         agent: {
-          memory: { maxContextTokens: 64000, compressionThreshold: 0.7 },
+          memory: { compressionThreshold: 0.7 },
           multimodal: {
             speechToText: { provider: 'test', model: 'test-model' },
             imageUnderstanding: { provider: 'test', model: 'test-model' },
@@ -214,16 +214,16 @@ describe('ConfigManager', () => {
     it('should merge partial config and persist to disk', async () => {
       await manager.load(configPath);
 
-      await manager.update({ agent: { memory: { maxContextTokens: 64000, compressionThreshold: 0.7 } } });
+      await manager.update({ agent: { memory: { compressionThreshold: 0.6 } } });
 
-      expect(manager.get('agent').memory.maxContextTokens).toBe(64000);
+      expect(manager.get('agent').memory.compressionThreshold).toBe(0.6);
 
       // Read the file to verify persistence
       const fileContent = JSON.parse(
         // Re-read from disk to confirm
         await import('node:fs').then((fs) => fs.readFileSync(configPath, 'utf-8')),
       );
-      expect(fileContent.agent.memory.maxContextTokens).toBe(64000);
+      expect(fileContent.agent.memory.compressionThreshold).toBe(0.6);
     });
 
     it('should reject invalid merged config before persisting or notifying', async () => {
@@ -270,7 +270,7 @@ describe('ConfigManager', () => {
           },
         },
         agent: {
-          memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
+          memory: { compressionThreshold: 0.8 },
           multimodal: {
             speechToText: { provider: 'openai', model: 'whisper-1' },
             imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
@@ -308,7 +308,7 @@ describe('ConfigManager', () => {
           },
         },
         agent: {
-          memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
+          memory: { compressionThreshold: 0.8 },
           multimodal: {
             speechToText: { provider: 'openai', model: 'whisper-1' },
             imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
@@ -376,7 +376,7 @@ describe('ConfigManager', () => {
         providers: {},
         channels: {},
         agent: {
-          memory: { maxContextTokens: 64000, compressionThreshold: 0.7 }, // Changed
+          memory: { compressionThreshold: 0.5 }, // Changed
           multimodal: {
             speechToText: { provider: 'openai', model: 'whisper-1' },
             imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
@@ -391,7 +391,7 @@ describe('ConfigManager', () => {
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       expect(receivedNewConfig).toBe(true);
-      expect(manager.get('agent').memory.maxContextTokens).toBe(64000);
+      expect(manager.get('agent').memory.compressionThreshold).toBe(0.5);
 
       manager.stopHotReload();
     });

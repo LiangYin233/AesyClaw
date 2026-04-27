@@ -91,7 +91,7 @@ function makeMockDeps(
     },
     channels: {},
     agent: {
-      memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
+      memory: { compressionThreshold: 0.8 },
       multimodal: {
         speechToText: { provider: 'openai', model: 'whisper-1' },
         imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
@@ -148,6 +148,7 @@ function makeMockDeps(
   } as unknown as ConfigManager;
 
   const mockLlmAdapter = {
+    resolveModel: vi.fn().mockReturnValue({ contextWindow: 128000 }),
     summarize: vi.fn().mockResolvedValue('Summary of conversation'),
   } as unknown as LlmAdapter;
 
@@ -259,6 +260,29 @@ describe('SessionManager', () => {
       const session1 = await manager.getOrCreateSession(key1);
       const session2 = await manager.getOrCreateSession(key2);
       expect(session1).not.toBe(session2);
+    });
+
+    it('should not collide when session key fields contain delimiters', async () => {
+      const key1 = makeSessionKey({ channel: 'a:b', type: 'c', chatId: 'd' });
+      const key2 = makeSessionKey({ channel: 'a', type: 'b:c', chatId: 'd' });
+
+      (deps.databaseManager.sessions.findOrCreate as ReturnType<typeof vi.fn>).mockImplementation(
+        async (key: SessionKey) => ({
+          id: `${key.channel}|${key.type}|${key.chatId}`,
+          channel: key.channel,
+          type: key.type,
+          chatId: key.chatId,
+          createdAt: new Date().toISOString(),
+        }),
+      );
+
+      const session1 = await manager.getOrCreateSession(key1);
+      const session2 = await manager.getOrCreateSession(key2);
+
+      expect(session1).not.toBe(session2);
+      expect(session1.sessionId).toBe('a:b|c|d');
+      expect(session2.sessionId).toBe('a|b:c|d');
+      expect(deps.databaseManager.sessions.findOrCreate).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -402,6 +426,22 @@ describe('SessionManager', () => {
         expect.any(Object),
       );
       expect(session.activeRole.id).toBe('analyst');
+    });
+
+    it('should persist the resolved role id if role lookup falls back', async () => {
+      const key = makeSessionKey();
+      const session = await manager.getOrCreateSession(key);
+      const fallbackRole = makeRole({ id: 'default', name: 'Default' });
+
+      (deps.roleManager.getRole as ReturnType<typeof vi.fn>).mockReturnValue(fallbackRole);
+
+      await manager.switchRole(key, 'missing');
+
+      expect(deps.databaseManager.roleBindings.setActiveRole).toHaveBeenCalledWith(
+        session.sessionId,
+        'default',
+      );
+      expect(session.activeRole.id).toBe('default');
     });
 
     it('should throw if session not found', async () => {

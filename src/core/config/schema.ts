@@ -22,7 +22,9 @@ const ApiProtocolType = Type.Union([
 const ModelPresetSchema = Type.Object({
   realModelName: Type.Optional(Type.String()),
   contextWindow: Type.Optional(Type.Number()),
+  reasoning: Type.Optional(Type.Boolean()),
   enableThinking: Type.Optional(Type.Boolean()),
+  extraBody: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
   apiKey: Type.Optional(Type.String()),
 });
 
@@ -47,7 +49,6 @@ const ServerConfigSchema = Type.Object({
 // ─── Agent ───────────────────────────────────────────────────────
 
 const MemoryConfigSchema = Type.Object({
-  maxContextTokens: Type.Number({ default: 128000 }),
   compressionThreshold: Type.Number({ default: 0.8 }),
 });
 

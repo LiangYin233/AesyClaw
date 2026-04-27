@@ -72,10 +72,10 @@ export class SessionManager {
   /**
    * Compute a cache key string from a SessionKey.
    *
-   * Format: `${channel}:${type}:${chatId}`
+   * Encodes each component separately so delimiters inside values cannot collide.
    */
   private computeKey(key: SessionKey): string {
-    return `${key.channel}:${key.type}:${key.chatId}`;
+    return JSON.stringify([key.channel, key.type, key.chatId]);
   }
 
   /**
@@ -120,10 +120,13 @@ export class SessionManager {
       activeRole = this.deps.roleManager.getDefaultRole();
     }
 
-    // Get memory config
+    // Resolve the model to derive memory config from its context window
+    const resolvedModel = this.deps.llmAdapter.resolveModel(activeRole.model);
+
+    // Get memory config (compressionThreshold from config, maxContextTokens from model)
     const config = this.deps.configManager.getConfig();
     const memoryConfig = {
-      maxContextTokens: config.agent.memory.maxContextTokens,
+      maxContextTokens: resolvedModel.contextWindow,
       compressionThreshold: config.agent.memory.compressionThreshold,
     };
 
@@ -264,7 +267,7 @@ export class SessionManager {
     const newRole = this.deps.roleManager.getRole(roleId);
 
     // Update role binding in database
-    await this.deps.databaseManager.roleBindings.setActiveRole(session.sessionId, roleId);
+    await this.deps.databaseManager.roleBindings.setActiveRole(session.sessionId, newRole.id);
 
     // Create a new agent with the new role
     const newAgent = this.deps.agentEngine.createAgent(newRole, session.sessionId, {
@@ -275,6 +278,6 @@ export class SessionManager {
     session.activeRole = newRole;
     session.agent = newAgent;
 
-    logger.info('Session role switched', { cacheKey, roleId });
+    logger.info('Session role switched', { cacheKey, roleId: newRole.id });
   }
 }

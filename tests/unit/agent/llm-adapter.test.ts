@@ -46,7 +46,7 @@ function makeConfigWithProviders(providers: Record<string, unknown> = {}): AppCo
     },
     channels: {},
     agent: {
-      memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
+      memory: { compressionThreshold: 0.8 },
       multimodal: {
         speechToText: { provider: 'openai', model: 'whisper-1' },
         imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
@@ -114,6 +114,24 @@ describe('LlmAdapter', () => {
 
       expect(model.modelId).toBe('gpt-4o-mini');
       expect(model.realModelName).toBe('gpt-4o-mini-2024-07-18');
+    });
+
+    it('should use reasoning preset when provided', () => {
+      const config = makeConfigWithProviders({
+        deepseek: {
+          apiType: 'openai_completion',
+          apiKey: 'sk-deepseek-key',
+          models: {
+            'deepseek-r1': { contextWindow: 65536, reasoning: true },
+          },
+        },
+      });
+      const customAdapter = new LlmAdapter();
+      customAdapter.initialize({ configManager: makeMockConfigManager(config) });
+
+      const model = customAdapter.resolveModel('deepseek/deepseek-r1');
+      expect(model.reasoning).toBe(true);
+      expect(model.contextWindow).toBe(65536);
     });
 
     it('should use provider defaults when no model preset exists', () => {

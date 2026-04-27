@@ -17,7 +17,6 @@ export const DEFAULT_CONFIG: AppConfig = {
   channels: {},
   agent: {
     memory: {
-      maxContextTokens: 128000,
       compressionThreshold: 0.8,
     },
     multimodal: {

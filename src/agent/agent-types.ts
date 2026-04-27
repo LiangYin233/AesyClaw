@@ -17,6 +17,7 @@ export type RuntimeModel = Model<Api> & {
   realModelName?: string;
   apiKey?: string;
   apiType: Api;
+  extraBody?: Record<string, unknown>;
 };
 export type ResolvedModel = RuntimeModel;
 export type { StreamFn };

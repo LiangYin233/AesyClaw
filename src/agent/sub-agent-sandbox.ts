@@ -8,13 +8,13 @@
 
 import { randomUUID } from 'node:crypto';
 import type { PersistableMessage, RoleConfig, SessionKey } from '../core/types';
-import { DEFAULT_CONFIG } from '../core/config/defaults';
 import { MemoryManager } from './memory-manager';
 import type { MessageRepositoryLike } from './memory-manager';
 import type { SubAgentRoleParams, SubAgentTempParams } from './agent-types';
 import type { AgentEngine } from './agent-engine';
 import type { RoleManager } from '../role/role-manager';
 import type { ToolExecutionContext } from '../tool/tool-registry';
+import type { LlmAdapter } from './llm-adapter';
 
 // ─── Dependencies ───────────────────────────────────────────────
 
@@ -26,6 +26,7 @@ import type { ToolExecutionContext } from '../tool/tool-registry';
 export interface SubAgentSandboxDependencies {
   agentEngine: Pick<AgentEngine, 'createAgent' | 'process'>;
   roleManager: Pick<RoleManager, 'getRole' | 'getDefaultRole'>;
+  llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
 }
 
 // ─── SubAgentSandbox ────────────────────────────────────────────
@@ -84,10 +85,14 @@ export class SubAgentSandbox {
     executionContext?: Pick<ToolExecutionContext, 'sessionKey' | 'sendMessage'>,
   ): Promise<string> {
     const sessionId = `sub-agent:${randomUUID()}`;
+    const resolvedModel = this.deps.llmAdapter.resolveModel(role.model);
     const memory = new MemoryManager(
       sessionId,
       new InMemoryMessageRepository() as unknown as MessageRepositoryLike,
-      DEFAULT_CONFIG.agent.memory,
+      {
+        maxContextTokens: resolvedModel.contextWindow,
+        compressionThreshold: 0.8,
+      },
     );
     const sessionKey = executionContext?.sessionKey ?? EMPTY_SESSION_KEY;
     const agent = this.deps.agentEngine.createAgent(role, sessionId, {

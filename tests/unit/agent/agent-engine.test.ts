@@ -44,7 +44,7 @@ function makeMockConfigManager(): ConfigManager {
     },
     channels: {},
     agent: {
-      memory: { maxContextTokens: 128000, compressionThreshold: 0.8 },
+      memory: { compressionThreshold: 0.8 },
       multimodal: {
         speechToText: { provider: 'openai', model: 'whisper-1' },
         imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },

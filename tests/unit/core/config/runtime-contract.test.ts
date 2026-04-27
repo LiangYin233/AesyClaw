@@ -6,7 +6,7 @@ import {
 
 const runtimeConsumedConfigKeys: Record<string, string[]> = {
   agent: ['memory', 'multimodal'],
-  memory: ['compressionThreshold', 'maxContextTokens'],
+  memory: ['compressionThreshold'],
 };
 
 describe('runtime config consumption contract', () => {

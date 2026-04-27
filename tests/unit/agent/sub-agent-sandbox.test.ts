@@ -13,6 +13,10 @@ const ROLE = {
   enabled: true,
 };
 
+const MOCK_LLM_ADAPTER = {
+  resolveModel: vi.fn().mockReturnValue({ contextWindow: 128000 }),
+};
+
 describe('SubAgentSandbox', () => {
   it('uses isolated in-memory history for each delegated run', async () => {
     const agentEngine = {
@@ -34,6 +38,7 @@ describe('SubAgentSandbox', () => {
         getRole: vi.fn().mockReturnValue(ROLE),
         getDefaultRole: vi.fn().mockReturnValue(ROLE),
       },
+      llmAdapter: MOCK_LLM_ADAPTER,
     });
 
     await expect(sandbox.runWithRole({ roleId: 'researcher', prompt: 'first' })).resolves.toBe(
@@ -56,7 +61,7 @@ describe('SubAgentSandbox', () => {
       getRole: vi.fn().mockReturnValue(ROLE),
       getDefaultRole: vi.fn().mockReturnValue(ROLE),
     };
-    const sandbox = new SubAgentSandbox({ agentEngine, roleManager });
+    const sandbox = new SubAgentSandbox({ agentEngine, roleManager, llmAdapter: MOCK_LLM_ADAPTER });
 
     await expect(
       sandbox.runWithRole({
