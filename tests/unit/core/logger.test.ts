@@ -38,7 +38,9 @@ describe('scoped logger', () => {
 
     logger.info('Ready', { port: 3000 });
 
-    expect(console.info).toHaveBeenCalledWith(`${FORMATTED_TIME} [INFO] [app] Ready`, { port: 3000 });
+    expect(console.info).toHaveBeenCalledWith(`${FORMATTED_TIME} [INFO] [app] Ready`, {
+      port: 3000,
+    });
   });
 
   it('colorizes level and scope for interactive info logs', () => {

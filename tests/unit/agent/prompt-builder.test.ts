@@ -274,7 +274,10 @@ Blocked content.`,
         ];
         const injectedSkills = buildCall[2];
 
-        expect(injectedSkills.map((skill) => skill.name)).toEqual(['system-skill', 'allowed-skill']);
+        expect(injectedSkills.map((skill) => skill.name)).toEqual([
+          'system-skill',
+          'allowed-skill',
+        ]);
       } finally {
         rmSync(skillRoot, { recursive: true, force: true });
       }

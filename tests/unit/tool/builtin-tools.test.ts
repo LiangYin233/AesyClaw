@@ -122,7 +122,11 @@ describe('built-in tools', () => {
     const skillDir = await fs.mkdtemp(path.join(os.tmpdir(), 'aesyclaw-skill-tool-'));
     await fs.writeFile(path.join(skillDir, 'SKILL.md'), '# Skill\n', 'utf-8');
     await fs.mkdir(path.join(skillDir, 'references'));
-    await fs.writeFile(path.join(skillDir, 'references', 'guide.txt'), 'Helpful reference', 'utf-8');
+    await fs.writeFile(
+      path.join(skillDir, 'references', 'guide.txt'),
+      'Helpful reference',
+      'utf-8',
+    );
 
     const tool = createLoadSkillTool({
       skillManager: makeSkillManager([

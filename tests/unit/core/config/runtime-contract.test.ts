@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { AgentConfigSchema, MemoryConfigSchema, type AppConfig } from '../../../../src/core/config/schema';
+import {
+  AgentConfigSchema,
+  MemoryConfigSchema,
+  type AppConfig,
+} from '../../../../src/core/config/schema';
 
 const runtimeConsumedConfigKeys = {
   agent: ['maxSteps'],

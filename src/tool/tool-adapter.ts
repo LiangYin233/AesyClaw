@@ -125,10 +125,7 @@ export class ToolAdapter {
     };
   }
 
-  private static validateParams(
-    tool: AesyClawTool,
-    params: unknown,
-  ): ToolExecutionResult | null {
+  private static validateParams(tool: AesyClawTool, params: unknown): ToolExecutionResult | null {
     if (Value.Check(tool.parameters, params)) {
       return null;
     }

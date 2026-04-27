@@ -445,7 +445,9 @@ describe('AgentEngine', () => {
           return vi.fn();
         }),
         abort: vi.fn(),
-        prompt: vi.fn().mockImplementation(async function prompt(this: { state: { messages: unknown[] } }) {
+        prompt: vi.fn().mockImplementation(async function prompt(this: {
+          state: { messages: unknown[] };
+        }) {
           listener?.({ type: 'turn_start' });
           listener?.({ type: 'turn_start' });
           this.state.messages.push(createUserMessage('Hello, assistant!'));

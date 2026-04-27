@@ -233,9 +233,9 @@ describe('ConfigManager', () => {
         callCount++;
       });
 
-      await expect(
-        manager.update({ server: { port: '8080' } } as never),
-      ).rejects.toBeInstanceOf(AppError);
+      await expect(manager.update({ server: { port: '8080' } } as never)).rejects.toBeInstanceOf(
+        AppError,
+      );
 
       expect(manager.get('server').port).toBe(3000);
       const fileContent = JSON.parse(

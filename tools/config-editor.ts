@@ -526,11 +526,18 @@ function InputPrompt({
     Box,
     { flexDirection: 'column' },
     React.createElement(Text, null, `${request.label}${suffix}: ${displayValue}`),
-    React.createElement(Text, { color: 'gray' }, `按回车提交；输入 ${INPUT_BACK_COMMAND} 返回上一级。`),
+    React.createElement(
+      Text,
+      { color: 'gray' },
+      `按回车提交；输入 ${INPUT_BACK_COMMAND} 返回上一级。`,
+    ),
   );
 }
 
-export async function runConfigEditor(configPath = resolveConfigPath(), root = process.cwd()): Promise<void> {
+export async function runConfigEditor(
+  configPath = resolveConfigPath(),
+  root = process.cwd(),
+): Promise<void> {
   const controller = new InkPromptController();
   const app = render(React.createElement(ConfigEditorApp, { controller }));
 
@@ -912,10 +919,14 @@ async function chooseRoleForUpsert(
   roles: readonly RoleFileSummary[],
 ): Promise<RoleFileSummary | null> {
   const createValue = Symbol('create-role');
-  const selected = await choose<RoleFileSummary | typeof createValue>(rl, '选择要添加或更新的角色', [
-    ...roles.map((role) => ({ label: formatRoleOption(role), value: role })),
-    { label: '新建角色', value: createValue },
-  ]);
+  const selected = await choose<RoleFileSummary | typeof createValue>(
+    rl,
+    '选择要添加或更新的角色',
+    [
+      ...roles.map((role) => ({ label: formatRoleOption(role), value: role })),
+      { label: '新建角色', value: createValue },
+    ],
+  );
 
   return selected === createValue ? null : selected;
 }
@@ -1119,7 +1130,9 @@ export async function discoverKnownPlugins(root = process.cwd()): Promise<KnownC
   }));
 }
 
-export async function discoverKnownChannels(root = process.cwd()): Promise<KnownConfigDefinition[]> {
+export async function discoverKnownChannels(
+  root = process.cwd(),
+): Promise<KnownConfigDefinition[]> {
   const channels = new Map<string, KnownConfigDefinition>();
   const modules = await discoverPluginModules(root);
 
@@ -1414,10 +1427,13 @@ function humanizeKey(key: string): string {
     url: '地址',
   };
 
-  return dictionary[key] ?? key
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[_-]+/g, ' ')
-    .replace(/^./, (value) => value.toUpperCase());
+  return (
+    dictionary[key] ??
+    key
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/[_-]+/g, ' ')
+      .replace(/^./, (value) => value.toUpperCase())
+  );
 }
 
 function isSecretLabel(label: string): boolean {
@@ -1500,7 +1516,9 @@ async function promptSecretLikeString(
   current?: string,
 ): Promise<string | undefined> {
   const suffix = current ? '（当前已设置；留空保留，输入 - 清除）' : '（留空跳过）';
-  const raw = await rl.input(`${label}${suffix}（输入 ${INPUT_BACK_COMMAND} 返回）`, undefined, { secret: true });
+  const raw = await rl.input(`${label}${suffix}（输入 ${INPUT_BACK_COMMAND} 返回）`, undefined, {
+    secret: true,
+  });
   if (raw === INPUT_BACK_COMMAND) {
     throw new BackRequested();
   }

@@ -36,7 +36,8 @@ export function createRunTempSubAgentTool(deps: RunTempSubAgentDeps): AesyClawTo
       params: unknown,
       context: ToolExecutionContext,
     ): Promise<ToolExecutionResult> => {
-      const { systemPrompt, model, prompt, maxSteps, enableTools } = params as RunTempSubAgentParams;
+      const { systemPrompt, model, prompt, maxSteps, enableTools } =
+        params as RunTempSubAgentParams;
 
       try {
         const content = await deps.sandbox.runWithPrompt(

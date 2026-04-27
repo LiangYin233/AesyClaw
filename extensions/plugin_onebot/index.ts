@@ -426,7 +426,10 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
     return true;
   }
 
-  async function sendSocketActionRequest<T, TRequest extends PendingRequest<T> = PendingRequest<T>>({
+  async function sendSocketActionRequest<
+    T,
+    TRequest extends PendingRequest<T> = PendingRequest<T>,
+  >({
     action,
     params,
     echoPrefix,
@@ -804,7 +807,10 @@ async function buildSendAction(
   if (actionConfig) {
     return {
       action: actionConfig.action,
-      params: { [actionConfig.idParam]: numericOrStringId(sessionKey.chatId), message: outboundMessage },
+      params: {
+        [actionConfig.idParam]: numericOrStringId(sessionKey.chatId),
+        message: outboundMessage,
+      },
     };
   }
 

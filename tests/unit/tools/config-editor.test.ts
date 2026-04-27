@@ -253,7 +253,10 @@ describe('config editor tool helpers', () => {
 
   it('builds guided config fields from defaults followed by existing-only keys', async () => {
     expect(
-      mergeTemplateKeys({ enabled: true, serverUrl: 'ws://localhost' }, { customKey: 1, enabled: false }),
+      mergeTemplateKeys(
+        { enabled: true, serverUrl: 'ws://localhost' },
+        { customKey: 1, enabled: false },
+      ),
     ).toEqual(['enabled', 'serverUrl', 'customKey']);
   });
 
@@ -319,7 +322,10 @@ describe('config editor tool helpers', () => {
     const root = await createTempDir();
     const extensionsDir = path.join(root, 'extensions');
     await mkdir(path.join(extensionsDir, 'plugin_bad'), { recursive: true });
-    await writeFile(path.join(extensionsDir, 'plugin_bad', 'index.ts'), 'throw new Error("boom");\n');
+    await writeFile(
+      path.join(extensionsDir, 'plugin_bad', 'index.ts'),
+      'throw new Error("boom");\n',
+    );
     await mkdir(path.join(extensionsDir, 'plugin_good'), { recursive: true });
     await writeFile(
       path.join(extensionsDir, 'plugin_good', 'index.ts'),
@@ -378,9 +384,9 @@ describe('config editor tool helpers', () => {
 
     expect(roles.map((role) => role.fileName)).toEqual(['broken.json', 'default.json']);
     expect(roles.find((role) => role.fileName === 'default.json')?.role?.id).toBe('default');
-    expect(JSON.parse(await readFile(path.join(rolesDir, 'default.json'), 'utf-8'))).not.toHaveProperty(
-      'enabled',
-    );
+    expect(
+      JSON.parse(await readFile(path.join(rolesDir, 'default.json'), 'utf-8')),
+    ).not.toHaveProperty('enabled');
     expect(roles.find((role) => role.fileName === 'broken.json')?.role).toBeUndefined();
   });
 
@@ -408,9 +414,15 @@ describe('config editor tool helpers', () => {
     const rolesDir = resolveRolesPath(root);
     await mkdir(rolesDir, { recursive: true });
 
-    await expect(removeRoleFile(rolesDir, '../config.json')).rejects.toThrow('Invalid role file name');
-    await expect(removeRoleFile(rolesDir, 'nested/role.json')).rejects.toThrow('Invalid role file name');
-    await expect(removeRoleFile(rolesDir, 'not-json.txt')).rejects.toThrow('Invalid role file name');
+    await expect(removeRoleFile(rolesDir, '../config.json')).rejects.toThrow(
+      'Invalid role file name',
+    );
+    await expect(removeRoleFile(rolesDir, 'nested/role.json')).rejects.toThrow(
+      'Invalid role file name',
+    );
+    await expect(removeRoleFile(rolesDir, 'not-json.txt')).rejects.toThrow(
+      'Invalid role file name',
+    );
   });
 });
 

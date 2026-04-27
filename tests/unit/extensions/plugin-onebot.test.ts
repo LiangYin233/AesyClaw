@@ -359,7 +359,6 @@ describe('plugin_onebot', () => {
     expect(inbound.content).toContain('[Attachments]');
     expect(inbound.content).toContain(String(localPath));
     await expect(readFile(String(localPath), 'utf-8')).resolves.toBe('image-bytes');
-
   });
 
   it('prefers file_id when requesting generic inbound file downloads', async () => {
@@ -385,7 +384,6 @@ describe('plugin_onebot', () => {
     };
     expect(downloadAction.action).toBe('download_file_stream');
     expect(downloadAction.params).toEqual({ file_id: 'remote-file-id', chunk_size: 65536 });
-
   });
 
   it('annotates inbound download failures when the stream never completes', async () => {
@@ -452,7 +450,6 @@ describe('plugin_onebot', () => {
     expect(inbound.attachments?.[0]?.path).toBeUndefined();
     expect(inbound.content).toContain('[Attachment download errors]');
     expect(inbound.content).toContain('did not return a completion response');
-
   });
 
   it('does not expose file_path-only inbound files as local attachment paths', async () => {
@@ -481,10 +478,11 @@ describe('plugin_onebot', () => {
     expect(inbound.attachments).toBeUndefined();
     expect(inbound.content).toContain('see file');
     expect(inbound.content).toContain('[Attachment download errors]');
-    expect(inbound.content).toContain('No OneBot download identifier available for file attachment');
+    expect(inbound.content).toContain(
+      'No OneBot download identifier available for file attachment',
+    );
     expect(inbound.content).not.toContain('C:/NapCatTemp/report.pdf');
     expect(socket.sent).toHaveLength(0);
-
   });
 
   it('preserves URL metadata when file_path-only inbound file downloads are unsupported', async () => {
@@ -516,14 +514,11 @@ describe('plugin_onebot', () => {
       content: string;
       attachments?: Array<{ type?: string; path?: string; url?: string }>;
     };
-    expect(inbound.attachments).toEqual([
-      { type: 'file', url: 'https://example.com/report.pdf' },
-    ]);
+    expect(inbound.attachments).toEqual([{ type: 'file', url: 'https://example.com/report.pdf' }]);
     expect(inbound.attachments?.[0]?.path).toBeUndefined();
     expect(inbound.content).toContain('[Attachment download errors]');
     expect(inbound.content).not.toContain('C:/NapCatTemp/report.pdf');
     expect(socket.sent).toHaveLength(0);
-
   });
 
   it('sends outbound channel messages through the remote websocket connection', async () => {

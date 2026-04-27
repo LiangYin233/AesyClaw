@@ -206,7 +206,13 @@ describe('Cron', () => {
     const pipeline = makePipeline('cron response');
     const scheduler = new CronScheduler();
     const manager = new CronManager();
-    await manager.initialize({ cronJobs: jobs, cronRuns: runs, pipeline, send: makeSend(), scheduler });
+    await manager.initialize({
+      cronJobs: jobs,
+      cronRuns: runs,
+      pipeline,
+      send: makeSend(),
+      scheduler,
+    });
 
     const jobId = await manager.createJob({
       scheduleType: 'interval',
@@ -238,7 +244,13 @@ describe('Cron', () => {
       count: vi.fn(() => 0),
     } as unknown as CronScheduler;
     const manager = new CronManager();
-    await manager.initialize({ cronJobs: jobs, cronRuns: runs, pipeline, send: makeSend(), scheduler });
+    await manager.initialize({
+      cronJobs: jobs,
+      cronRuns: runs,
+      pipeline,
+      send: makeSend(),
+      scheduler,
+    });
 
     const jobId = await manager.createJob({
       scheduleType: 'interval',
@@ -271,7 +283,13 @@ describe('Cron', () => {
     const pipeline = makePipeline('cron response');
     const scheduler = new CronScheduler();
     const manager = new CronManager();
-    await manager.initialize({ cronJobs: jobs, cronRuns: runs, pipeline, send: makeSend(), scheduler });
+    await manager.initialize({
+      cronJobs: jobs,
+      cronRuns: runs,
+      pipeline,
+      send: makeSend(),
+      scheduler,
+    });
 
     const jobId = await manager.createJob({
       scheduleType: 'interval',

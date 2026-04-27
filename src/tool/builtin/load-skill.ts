@@ -16,7 +16,9 @@ import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '..
 
 const LoadSkillParamsSchema = Type.Object({
   skillName: Type.String({ description: '要读取的技能名称' }),
-  relativePath: Type.Optional(Type.String({ description: '技能目录内的相对文件路径，默认 SKILL.md' })),
+  relativePath: Type.Optional(
+    Type.String({ description: '技能目录内的相对文件路径，默认 SKILL.md' }),
+  ),
 });
 
 type LoadSkillParams = Static<typeof LoadSkillParamsSchema>;

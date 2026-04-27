@@ -70,12 +70,7 @@ export class PromptBuilder {
     );
 
     // Build system prompt using RoleManager (needs AesyClawTool[])
-    const prompt = this.roleManager.buildSystemPrompt(
-      role,
-      resolvedTools.tools,
-      skills,
-      allRoles,
-    );
+    const prompt = this.roleManager.buildSystemPrompt(role, resolvedTools.tools, skills, allRoles);
 
     return { prompt, tools: resolvedTools.agentTools };
   }
