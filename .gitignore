@@ -11,3 +11,7 @@ data/
 .trellis/
 .opencode/
 AGENTS.md
+
+# Plugin fonts (user-provided, not tracked)
+extensions/plugin_md2img/fonts/
+!extensions/plugin_md2img/fonts/.gitkeep

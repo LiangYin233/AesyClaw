@@ -2,7 +2,7 @@ import { marked } from 'marked';
 import { html } from 'satori-html';
 import satori from 'satori';
 import sharp from 'sharp';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PluginDefinition, PluginContext } from '../../src/plugin/plugin-types';
@@ -22,17 +22,42 @@ function isMarkdown(text: string): boolean {
 
 // ─── Font loading ───────────────────────────────────────────────
 
-const FONT_FILE = 'SourceHanSerif-VF.otf';
-const FONT_NAME = 'SourceHanSerif';
+const FONT_NAME = 'SourceHanSerifSC';
 
-async function loadFont(): Promise<{ name: string; data: Buffer; weight: number } | null> {
-  const fontPath = resolve(FONTS_DIR, FONT_FILE);
+const WEIGHT_MAP: Record<string, number> = {
+  ExtraLight: 200,
+  Light: 300,
+  Regular: 400,
+  Medium: 500,
+  SemiBold: 600,
+  Bold: 700,
+  Heavy: 900,
+};
+
+async function loadFonts(): Promise<{ name: string; data: Buffer; weight: number }[]> {
+  let files: string[];
   try {
-    const data = await readFile(fontPath);
-    return { name: FONT_NAME, data, weight: 400 };
+    files = await readdir(FONTS_DIR);
   } catch {
-    return null;
+    return [];
   }
+
+  const results: { name: string; data: Buffer; weight: number }[] = [];
+  for (const file of files) {
+    const match = file.match(/^SourceHanSerifSC-(.+)\.otf$/);
+    if (!match) continue;
+    const weightLabel = match[1];
+    const weight = WEIGHT_MAP[weightLabel];
+    if (!weight) continue;
+    try {
+      const data = await readFile(resolve(FONTS_DIR, file));
+      results.push({ name: FONT_NAME, data, weight });
+    } catch {
+      continue;
+    }
+  }
+
+  return results.sort((a, b) => a.weight - b.weight);
 }
 
 // ─── Markdown → Image pipeline ─────────────────────────────────
@@ -109,14 +134,14 @@ const plugin: PluginDefinition = {
       return;
     }
 
-    const loaded = await loadFont();
-    if (!loaded) {
-      logger.warn(`Font file "${FONT_FILE}" not found in fonts/ directory. md2img plugin will be inactive.`);
+    fonts = await loadFonts();
+
+    if (fonts.length === 0) {
+      logger.warn('No SourceHanSerifSC-*.otf fonts found in fonts/ directory. md2img plugin will be inactive.');
       return;
     }
-    fonts = [loaded];
 
-    logger.info(`md2img initialized with font: ${FONT_NAME}`);
+    logger.info(`md2img initialized with ${fonts.length} font(s): ${fonts.map((f) => `${f.name}(${f.weight})`).join(', ')}`);
   },
   async destroy() {
     fonts = [];
