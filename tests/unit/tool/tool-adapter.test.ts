@@ -134,31 +134,84 @@ describe('ToolAdapter', () => {
       expect(receivedContext).toEqual(context);
     });
 
-    it('should reject invalid parameters before executing the tool', async () => {
-      let executed = false;
+    it('should pass invalid system-tool parameters through to the tool implementation', async () => {
+      let receivedParams: unknown = null;
       const tool = makeTool({
-        execute: async () => {
-          executed = true;
-          return { content: 'should not run' };
+        execute: async (params) => {
+          receivedParams = params;
+          return { content: 'system saw invalid params', isError: true };
         },
       });
 
       const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const params = {};
 
-      await expect(agentTool.execute('call-1', {})).resolves.toMatchObject({
+      await expect(agentTool.execute('call-1', params)).resolves.toMatchObject({
         content: [
           {
             type: 'text',
-            text: expect.stringContaining('Invalid parameters for tool "test-tool"'),
+            text: 'system saw invalid params',
           },
         ],
-        details: expect.objectContaining({
-          code: 'TOOL_PARAMETER_VALIDATION_FAILED',
-          toolName: 'test-tool',
-        }),
         isError: true,
       });
-      expect(executed).toBe(false);
+      expect(receivedParams).toBe(params);
+    });
+
+    it('should pass invalid MCP-tool parameters through without local validation', async () => {
+      let receivedParams: unknown = null;
+      const externalJsonSchema = Type.Unsafe({
+        type: 'object',
+        properties: {
+          query: { type: 'string' },
+        },
+        required: ['query'],
+      });
+      const tool = makeTool({
+        name: 'WebSearch_tavily_search',
+        parameters: externalJsonSchema,
+        owner: 'mcp:WebSearch',
+        execute: async (params) => {
+          receivedParams = params;
+          return { content: 'mcp result' };
+        },
+      });
+
+      const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const params = { max_results: 'not-a-number' };
+      const result = await agentTool.execute('call-mcp', params);
+
+      expect(receivedParams).toBe(params);
+      expect(result).toMatchObject({
+        content: [{ type: 'text', text: 'mcp result' }],
+        details: {},
+        isError: undefined,
+      });
+    });
+
+    it('should pass invalid plugin-tool parameters through to the tool implementation', async () => {
+      let receivedParams: unknown = null;
+      const tool = makeTool({
+        owner: 'plugin:weather',
+        execute: async (params) => {
+          receivedParams = params;
+          return { content: 'plugin saw invalid params', isError: true };
+        },
+      });
+
+      const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const params = {};
+
+      await expect(agentTool.execute('call-plugin-invalid', params)).resolves.toMatchObject({
+        content: [
+          {
+            type: 'text',
+            text: 'plugin saw invalid params',
+          },
+        ],
+        isError: true,
+      });
+      expect(receivedParams).toBe(params);
     });
 
     it('should block execution when before hook blocks', async () => {
@@ -376,27 +429,37 @@ describe('ToolAdapter', () => {
       });
     });
 
-    it('should debug-log validation failures and execution failures', async () => {
+    it('should debug-log execution failures from downstream tool implementations', async () => {
       const failingTool = makeTool({
         execute: async () => {
           throw new Error('Tool crashed');
         },
       });
 
-      const validationTool = ToolAdapter.toAgentTool(makeTool(), makeNoOpHookDispatcher(), {});
+      const validationTool = ToolAdapter.toAgentTool(
+        makeTool({
+          execute: async () => {
+            throw new Error('Tool rejected invalid params');
+          },
+        }),
+        makeNoOpHookDispatcher(),
+        {},
+      );
       const executionTool = ToolAdapter.toAgentTool(failingTool, makeNoOpHookDispatcher(), {});
 
       await validationTool.execute('call-invalid', {});
       await executionTool.execute('call-failed', { input: 'test' });
 
-      expectDebugLog('Tool call parameter validation failed', {
+      expectDebugLog('Tool call execution failed', {
         toolName: 'test-tool',
         toolCallId: 'call-invalid',
+        errorName: 'Error',
+        message: 'Tool rejected invalid params',
       });
       expectDebugLog('Tool call completed', {
         toolName: 'test-tool',
         toolCallId: 'call-invalid',
-        outcome: 'validation-failed',
+        outcome: 'execution-failed',
       });
       expectDebugLog('Tool call execution failed', {
         toolName: 'test-tool',

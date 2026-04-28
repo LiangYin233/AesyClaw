@@ -110,6 +110,35 @@ describe('McpManager', () => {
     expect(result).toEqual({ content: JSON.stringify({ ok: true, params: { text: 'hi' } }) });
   });
 
+  it('passes invalid MCP params through to the client instead of blocking locally', async () => {
+    const client = makeClient({
+      callTool: vi.fn(async (_name: string, params: unknown) => ({ ok: false, params })),
+    });
+    const toolRegistry = new ToolRegistry();
+    const manager = new McpManager();
+    manager.initialize({
+      configManager: new FakeConfigManager([{ name: 'local', transport: 'stdio', enabled: true }]),
+      toolRegistry,
+      clientFactory: { create: () => client },
+    });
+    await manager.connectAll();
+
+    const tool = toolRegistry.get(mcpToolName('local', 'echo'));
+    const invalidParams = {};
+    const result = await tool?.execute(
+      invalidParams,
+      {
+        sessionKey: { channel: 'test', type: 'private', chatId: '1' },
+        agentEngine: null,
+        cronManager: null,
+        pipeline: null,
+      },
+    );
+
+    expect(client.callTool).toHaveBeenCalledWith('echo', invalidParams);
+    expect(result).toEqual({ content: JSON.stringify({ ok: false, params: invalidParams }) });
+  });
+
   it('isolates failed servers and unregisters tools on disconnect', async () => {
     const goodClient = makeClient();
     const badClient = makeClient({

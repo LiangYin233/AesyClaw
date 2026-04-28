@@ -12,7 +12,6 @@ import type { AgentTool, AgentToolResult } from '../agent/agent-types';
 import { createScopedLogger } from '../core/logger';
 import type { HookDispatcher } from '../pipeline/hook-dispatcher';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from './tool-registry';
-import { Value } from '@sinclair/typebox/value';
 
 const logger = createScopedLogger('tool');
 
@@ -120,16 +119,6 @@ export class ToolAdapter {
             }, 'aborted');
           }
 
-          const validationError = ToolAdapter.validateParams(tool, params);
-          if (validationError) {
-            logger.debug('Tool call parameter validation failed', {
-              ...logContext,
-              details: validationError.details,
-            });
-
-            return complete(validationError, 'validation-failed');
-          }
-
           result = await tool.execute(params, executionContext as ToolExecutionContext);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
@@ -183,29 +172,6 @@ export class ToolAdapter {
       terminate: result.terminate,
     };
   }
-
-  private static validateParams(tool: AesyClawTool, params: unknown): ToolExecutionResult | null {
-    if (Value.Check(tool.parameters, params)) {
-      return null;
-    }
-
-    const errors = [...Value.Errors(tool.parameters, params)].map((error) => ({
-      path: error.path || '/',
-      message: error.message,
-    }));
-
-    return {
-      content: `Invalid parameters for tool "${tool.name}": ${errors
-        .map((error) => `${error.path} ${error.message}`)
-        .join('; ')}`,
-      isError: true,
-      details: {
-        code: 'TOOL_PARAMETER_VALIDATION_FAILED',
-        toolName: tool.name,
-        errors,
-      },
-    };
-  }
 }
 
 type ToolCallLogOutcome =
@@ -213,7 +179,6 @@ type ToolCallLogOutcome =
   | 'blocked'
   | 'short-circuited'
   | 'aborted'
-  | 'validation-failed'
   | 'execution-failed';
 
 function summarizeParams(params: unknown): Record<string, unknown> {
