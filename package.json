@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "An extensible AI Agent runtime platform",
   "private": true,
+  "workspaces": [
+    "extensions/*"
+  ],
   "type": "module",
   "engines": {
     "node": ">=22.13.0"
@@ -10,7 +13,7 @@
   "main": "./dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "node --import tsx dist/index.js",
+    "start": "node --import tsx src/index.ts",
     "web:dev": "cd web && npm run dev",
     "web:build": "cd web && npm run build",
     "config:edit": "yarn workspace @aesyclaw/tools config:edit",
@@ -31,8 +34,6 @@
     "@sinclair/typebox": "^0.34.0",
     "front-matter": "^4.0.2",
     "hono": "^4.12.15",
-    "marked": "^18.0.2",
-    "playwright": "^1.59.1",
     "tsx": "^4.0.0"
   },
   "devDependencies": {
