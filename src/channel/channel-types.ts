@@ -45,10 +45,39 @@ export interface ChannelManagerDependencies {
   channels?: ChannelPlugin[];
 }
 
+export interface ChannelLoaderOptions {
+  extensionsDir?: string;
+}
+
+export interface ChannelModule {
+  definition: ChannelPlugin;
+  directory: string;
+  directoryName: string;
+  entryPath: string;
+}
+
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 export function isChannelEnabled(config: Record<string, unknown> | undefined): boolean {
   return config?.enabled !== false;
+}
+
+export function isChannelPlugin(value: unknown): value is ChannelPlugin {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.name === 'string' &&
+    value.name.length > 0 &&
+    typeof value.version === 'string' &&
+    value.version.length > 0 &&
+    typeof value.init === 'function' &&
+    (value.destroy === undefined || typeof value.destroy === 'function') &&
+    (value.send === undefined || typeof value.send === 'function') &&
+    (value.description === undefined || typeof value.description === 'string') &&
+    (value.defaultConfig === undefined || isRecord(value.defaultConfig))
+  );
 }

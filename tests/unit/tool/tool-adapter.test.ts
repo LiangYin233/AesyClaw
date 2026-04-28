@@ -5,10 +5,11 @@
  * abort signal, and error handling.
  */
 
-import { describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { ToolAdapter } from '../../../src/tool/tool-adapter';
 import type { AesyClawTool, ToolExecutionContext } from '../../../src/tool/tool-registry';
 import type { HookDispatcher } from '../../../src/pipeline/hook-dispatcher';
+import { setLogLevel } from '../../../src/core/logger';
 import { Type } from '@sinclair/typebox';
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -82,6 +83,16 @@ function makeOverrideHookDispatcher(override: {
 // ─── Tests ─────────────────────────────────────────────────────────
 
 describe('ToolAdapter', () => {
+  beforeEach(() => {
+    setLogLevel('debug');
+    vi.spyOn(console, 'debug').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    setLogLevel('info');
+  });
+
   describe('toAgentTool', () => {
     it('should convert AesyClawTool to AgentTool with correct properties', () => {
       const tool = makeTool();
@@ -289,5 +300,181 @@ describe('ToolAdapter', () => {
       const result = await agentTool.execute('call-1', { input: 'test' });
       expect(result.content).toEqual([{ type: 'text', text: 'ok' }]);
     });
+
+    it('should debug-log invocation and completion without full parameter payloads', async () => {
+      const tool = makeTool({
+        execute: async () => ({ content: 'secret tool result', details: { recordCount: 1 } }),
+      });
+
+      const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      await agentTool.execute('call-logging', { input: 'secret user payload' });
+
+      expectDebugLog('Tool call invoked', {
+        toolName: 'test-tool',
+        toolCallId: 'call-logging',
+        owner: 'system',
+        params: { kind: 'object', keys: ['input'], keyCount: 1 },
+      });
+      expectDebugLog('Tool call completed', {
+        toolName: 'test-tool',
+        toolCallId: 'call-logging',
+        outcome: 'executed',
+        result: {
+          contentLength: 'secret tool result'.length,
+          hasDetails: true,
+          isError: false,
+          terminate: false,
+        },
+      });
+      const debugCalls = JSON.stringify(vi.mocked(console.debug).mock.calls);
+      expect(debugCalls).not.toContain('secret user payload');
+      expect(debugCalls).not.toContain('secret tool result');
+    });
+
+    it('should debug-log before-hook block and short-circuit paths', async () => {
+      const tool = makeTool({
+        execute: async () => ({ content: 'should not run' }),
+      });
+      const blockedTool = ToolAdapter.toAgentTool(
+        tool,
+        makeBlockingHookDispatcher('Blocked by policy'),
+        {},
+      );
+      const shortCircuitTool = ToolAdapter.toAgentTool(
+        tool,
+        makeShortCircuitHookDispatcher({ content: 'Cached result' }),
+        {},
+      );
+
+      await blockedTool.execute('call-blocked', { input: 'test' });
+      await shortCircuitTool.execute('call-short', { input: 'test' });
+
+      expectDebugLog('Tool call blocked by before hook', {
+        toolName: 'test-tool',
+        toolCallId: 'call-blocked',
+        hasReason: true,
+      });
+      expectDebugLog('Tool call completed', {
+        toolName: 'test-tool',
+        toolCallId: 'call-blocked',
+        outcome: 'blocked',
+      });
+      expectDebugLog('Tool call short-circuited by before hook', {
+        toolName: 'test-tool',
+        toolCallId: 'call-short',
+        result: {
+          contentLength: 'Cached result'.length,
+          hasDetails: false,
+          isError: false,
+          terminate: false,
+        },
+      });
+      expectDebugLog('Tool call completed', {
+        toolName: 'test-tool',
+        toolCallId: 'call-short',
+        outcome: 'short-circuited',
+      });
+    });
+
+    it('should debug-log validation failures and execution failures', async () => {
+      const failingTool = makeTool({
+        execute: async () => {
+          throw new Error('Tool crashed');
+        },
+      });
+
+      const validationTool = ToolAdapter.toAgentTool(makeTool(), makeNoOpHookDispatcher(), {});
+      const executionTool = ToolAdapter.toAgentTool(failingTool, makeNoOpHookDispatcher(), {});
+
+      await validationTool.execute('call-invalid', {});
+      await executionTool.execute('call-failed', { input: 'test' });
+
+      expectDebugLog('Tool call parameter validation failed', {
+        toolName: 'test-tool',
+        toolCallId: 'call-invalid',
+      });
+      expectDebugLog('Tool call completed', {
+        toolName: 'test-tool',
+        toolCallId: 'call-invalid',
+        outcome: 'validation-failed',
+      });
+      expectDebugLog('Tool call execution failed', {
+        toolName: 'test-tool',
+        toolCallId: 'call-failed',
+        errorName: 'Error',
+        message: 'Tool crashed',
+      });
+      expectDebugLog('Tool call completed', {
+        toolName: 'test-tool',
+        toolCallId: 'call-failed',
+        outcome: 'execution-failed',
+      });
+    });
+
+    it('should debug-log aborts before tool execution', async () => {
+      const tool = makeTool({
+        execute: async () => ({ content: 'should not run' }),
+      });
+      const controller = new AbortController();
+      controller.abort();
+
+      const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      await agentTool.execute('call-aborted', { input: 'secret abort payload' }, controller.signal);
+
+      expectDebugLog('Tool call aborted before execution', {
+        toolName: 'test-tool',
+        toolCallId: 'call-aborted',
+      });
+      expectDebugLog('Tool call completed', {
+        toolName: 'test-tool',
+        toolCallId: 'call-aborted',
+        outcome: 'aborted',
+      });
+      expect(JSON.stringify(vi.mocked(console.debug).mock.calls)).not.toContain(
+        'secret abort payload',
+      );
+    });
+
+    it('should debug-log result overrides', async () => {
+      const tool = makeTool({
+        execute: async () => ({ content: 'original result' }),
+      });
+
+      const agentTool = ToolAdapter.toAgentTool(
+        tool,
+        makeOverrideHookDispatcher({ content: 'overridden failure', isError: true }),
+        {},
+      );
+      await agentTool.execute('call-override', { input: 'test' });
+
+      expectDebugLog('Tool call result overridden by after hook', {
+        toolName: 'test-tool',
+        toolCallId: 'call-override',
+        override: {
+          hasContent: true,
+          hasDetails: false,
+          hasIsError: true,
+          hasTerminate: false,
+        },
+      });
+      expectDebugLog('Tool call completed', {
+        toolName: 'test-tool',
+        toolCallId: 'call-override',
+        outcome: 'executed',
+        result: {
+          contentLength: 'overridden failure'.length,
+          hasDetails: false,
+          isError: true,
+          terminate: false,
+        },
+      });
+    });
   });
 });
+
+function expectDebugLog(message: string, payload: Record<string, unknown>): void {
+  expect(console.debug).toHaveBeenCalledWith(
+    expect.stringContaining(`[DEBUG] [tool] ${message}`),
+    expect.objectContaining(payload),
+  );
+}

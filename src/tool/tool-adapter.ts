@@ -9,9 +9,12 @@
  */
 
 import type { AgentTool, AgentToolResult } from '../agent/agent-types';
+import { createScopedLogger } from '../core/logger';
 import type { HookDispatcher } from '../pipeline/hook-dispatcher';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from './tool-registry';
 import { Value } from '@sinclair/typebox/value';
+
+const logger = createScopedLogger('tool');
 
 /**
  * Adapts an AesyClawTool into the Pi-mono AgentTool interface.
@@ -41,7 +44,7 @@ export class ToolAdapter {
       description: tool.description,
       parameters: tool.parameters,
       execute: async (
-        _toolCallId: string,
+        toolCallId: string,
         params: unknown,
         signal?: AbortSignal,
       ): Promise<AgentToolResult> => {
@@ -50,6 +53,29 @@ export class ToolAdapter {
           type: '',
           chatId: '',
         };
+        const logContext = {
+          toolName: tool.name,
+          toolCallId,
+          owner: tool.owner,
+          sessionKey,
+        };
+        const complete = (
+          result: ToolExecutionResult,
+          outcome: ToolCallLogOutcome,
+        ): AgentToolResult => {
+          logger.debug('Tool call completed', {
+            ...logContext,
+            outcome,
+            result: summarizeResult(result),
+          });
+
+          return ToolAdapter.toRuntimeResult(result);
+        };
+
+        logger.debug('Tool call invoked', {
+          ...logContext,
+          params: summarizeParams(params),
+        });
 
         // 1. Dispatch beforeToolCall hooks
         const beforeResult = await hookDispatcher.dispatchBeforeToolCall({
@@ -60,15 +86,25 @@ export class ToolAdapter {
 
         // If a hook blocks the call, return an error result
         if (beforeResult.block) {
-          return ToolAdapter.toRuntimeResult({
+          logger.debug('Tool call blocked by before hook', {
+            ...logContext,
+            hasReason: beforeResult.reason !== undefined,
+          });
+
+          return complete({
             content: beforeResult.reason ?? `Tool call "${tool.name}" was blocked by a hook`,
             isError: true,
-          });
+          }, 'blocked');
         }
 
         // If a hook provides a short-circuit result, use it directly
         if (beforeResult.shortCircuit) {
-          return ToolAdapter.toRuntimeResult(beforeResult.shortCircuit);
+          logger.debug('Tool call short-circuited by before hook', {
+            ...logContext,
+            result: summarizeResult(beforeResult.shortCircuit),
+          });
+
+          return complete(beforeResult.shortCircuit, 'short-circuited');
         }
 
         // 2. Execute the actual tool
@@ -76,21 +112,34 @@ export class ToolAdapter {
         try {
           // If the signal is already aborted, don't execute
           if (signal?.aborted) {
-            return ToolAdapter.toRuntimeResult({
+            logger.debug('Tool call aborted before execution', logContext);
+
+            return complete({
               content: `Tool call "${tool.name}" was aborted`,
               isError: true,
-            });
+            }, 'aborted');
           }
 
           const validationError = ToolAdapter.validateParams(tool, params);
           if (validationError) {
-            return ToolAdapter.toRuntimeResult(validationError);
+            logger.debug('Tool call parameter validation failed', {
+              ...logContext,
+              details: validationError.details,
+            });
+
+            return complete(validationError, 'validation-failed');
           }
 
           result = await tool.execute(params, executionContext as ToolExecutionContext);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
-          return ToolAdapter.toRuntimeResult({ content: message, isError: true });
+          logger.debug('Tool call execution failed', {
+            ...logContext,
+            errorName: err instanceof Error ? err.name : typeof err,
+            message,
+          });
+
+          return complete({ content: message, isError: true }, 'execution-failed');
         }
 
         // 3. Dispatch afterToolCall hooks — may override the result
@@ -103,6 +152,16 @@ export class ToolAdapter {
 
         if (afterResult.override) {
           const override = afterResult.override;
+          logger.debug('Tool call result overridden by after hook', {
+            ...logContext,
+            override: {
+              hasContent: override.content !== undefined,
+              hasDetails: override.details !== undefined,
+              hasIsError: override.isError !== undefined,
+              hasTerminate: override.terminate !== undefined,
+            },
+          });
+
           result = {
             content: override.content ?? result.content,
             details: override.details ?? result.details,
@@ -111,7 +170,7 @@ export class ToolAdapter {
           };
         }
 
-        return ToolAdapter.toRuntimeResult(result);
+        return complete(result, 'executed');
       },
     };
   }
@@ -147,4 +206,38 @@ export class ToolAdapter {
       },
     };
   }
+}
+
+type ToolCallLogOutcome =
+  | 'executed'
+  | 'blocked'
+  | 'short-circuited'
+  | 'aborted'
+  | 'validation-failed'
+  | 'execution-failed';
+
+function summarizeParams(params: unknown): Record<string, unknown> {
+  if (params === null) {
+    return { kind: 'null' };
+  }
+
+  if (Array.isArray(params)) {
+    return { kind: 'array', length: params.length };
+  }
+
+  if (typeof params === 'object') {
+    const keys = Object.keys(params as Record<string, unknown>);
+    return { kind: 'object', keys, keyCount: keys.length };
+  }
+
+  return { kind: typeof params };
+}
+
+function summarizeResult(result: ToolExecutionResult): Record<string, unknown> {
+  return {
+    contentLength: result.content.length,
+    hasDetails: result.details !== undefined,
+    isError: result.isError === true,
+    terminate: result.terminate === true,
+  };
 }

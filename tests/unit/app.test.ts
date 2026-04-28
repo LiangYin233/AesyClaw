@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -14,6 +14,7 @@ const TEST_ROOTS: string[] = [];
 
 afterEach(() => {
   vi.restoreAllMocks();
+  delete (globalThis as { __aesyclawChannelStarts?: number }).__aesyclawChannelStarts;
   for (const testRoot of TEST_ROOTS.splice(0)) {
     rmSync(testRoot, { recursive: true, force: true });
   }
@@ -76,6 +77,38 @@ describe('Application', () => {
       await app.start();
       expect(order).toEqual(expect.arrayContaining(['channels', 'cron']));
       expect(order.indexOf('channels')).toBeLessThan(order.indexOf('cron'));
+    } finally {
+      await app.shutdown();
+    }
+  });
+
+  it('loads channel extensions before startAll without adding plugin config entries', async () => {
+    const testRoot = mkdtempSync(path.join(tmpdir(), 'aesyclaw-app-test-'));
+    TEST_ROOTS.push(testRoot);
+    vi.spyOn(process, 'cwd').mockReturnValue(testRoot);
+
+    const channelDir = path.join(testRoot, 'extensions', 'channel_fixture');
+    mkdirSync(channelDir, { recursive: true });
+    writeFileSync(
+      path.join(channelDir, 'index.js'),
+      `export default {
+        name: 'fixture',
+        version: '1.0.0',
+        defaultConfig: { enabled: true },
+        async init() { globalThis.__aesyclawChannelStarts = (globalThis.__aesyclawChannelStarts ?? 0) + 1; }
+      };\n`,
+      'utf-8',
+    );
+
+    const app = new Application();
+
+    try {
+      await app.start();
+
+      const configFile = path.join(testRoot, '.aesyclaw', 'config.json');
+      const config = JSON.parse(readFileSync(configFile, 'utf-8')) as { plugins?: unknown[] };
+      expect((globalThis as { __aesyclawChannelStarts?: number }).__aesyclawChannelStarts).toBe(1);
+      expect(config.plugins).toEqual([]);
     } finally {
       await app.shutdown();
     }

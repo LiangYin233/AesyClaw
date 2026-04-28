@@ -5,6 +5,7 @@ import { AgentEngine } from './agent/agent-engine';
 import { LlmAdapter } from './agent/llm-adapter';
 import { SessionManager } from './agent/session-manager';
 import { ChannelManager } from './channel/channel-manager';
+import { ChannelLoader } from './channel/channel-loader';
 import { CommandRegistry } from './command/command-registry';
 import { registerBuiltinCommands } from './command/builtin';
 import { ConfigManager } from './core/config/config-manager';
@@ -200,6 +201,7 @@ export class Application {
         configManager: this.configManager,
         pipeline: this.pipeline,
       });
+      await this.loadChannelExtensions();
       await this.channelManager.startAll();
     });
 
@@ -289,6 +291,19 @@ export class Application {
         unsubscribe();
       } catch (err) {
         logger.error('Config unsubscribe failed', err);
+      }
+    }
+  }
+
+  private async loadChannelExtensions(): Promise<void> {
+    const loader = new ChannelLoader({ extensionsDir: this.pathResolver.extensionsDir });
+    const channelDirs = await loader.discover();
+    for (const channelDir of channelDirs) {
+      try {
+        const module = await loader.load(channelDir);
+        this.channelManager.register(module.definition);
+      } catch (err) {
+        logger.error(`Channel extension "${channelDir}" failed to load`, err);
       }
     }
   }

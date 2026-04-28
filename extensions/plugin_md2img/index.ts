@@ -14,10 +14,82 @@ const TEMPLATE_PATH = resolve(__dirname, 'template.html');
 
 // ─── Markdown detection ─────────────────────────────────────────
 
-const MARKDOWN_RE = /(?:^|\n)(?:\s*(?:#{1,6}|[*\-+]|\d+\.|```|>|---|\|))|[*_~]{2}|`{1,2}|\[.+?\]\(.+?\)|(?<!\*)\*[^*\n]+\*(?!\*)|(?<!_)_[^_\n]+_(?!_)/;
+const MARKDOWN_RE =
+  /(?:^|\n)(?:\s*(?:#{1,6}|[*\-+]|\d+\.|```|>|---|\|))|[*_~]{2}|`{1,2}|\[.+?\]\(.+?\)|(?<!\*)\*[^*\n]+\*(?!\*)|(?<!_)_[^_\n]+_(?!_)/;
 
 function isMarkdown(text: string): boolean {
   return MARKDOWN_RE.test(text);
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function decodeHtmlAttribute(text: string): string {
+  return text.replace(/&(#x[\da-f]+|#\d+|amp|lt|gt|quot|apos|#39);/gi, (entity, value) => {
+    const normalized = String(value).toLowerCase();
+    if (normalized.startsWith('#x')) {
+      return decodeCodePoint(Number.parseInt(normalized.slice(2), 16), entity);
+    }
+    if (normalized.startsWith('#')) {
+      return decodeCodePoint(Number.parseInt(normalized.slice(1), 10), entity);
+    }
+
+    switch (normalized) {
+      case 'amp':
+        return '&';
+      case 'lt':
+        return '<';
+      case 'gt':
+        return '>';
+      case 'quot':
+        return '"';
+      case 'apos':
+      case '#39':
+        return "'";
+      default:
+        return entity;
+    }
+  });
+}
+
+function decodeCodePoint(codePoint: number, fallback: string): string {
+  if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff) {
+    return fallback;
+  }
+
+  return String.fromCodePoint(codePoint);
+}
+
+function readHtmlAttribute(tag: string, name: string): string | null {
+  const match = new RegExp(`${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i').exec(tag);
+  const value = match?.[1] ?? match?.[2] ?? match?.[3];
+  return value === undefined ? null : decodeHtmlAttribute(value);
+}
+
+const UNSUPPORTED_EMOJI_RE =
+  /(?:[\p{Regional_Indicator}]{2}|[\p{Extended_Pictographic}\p{Emoji_Presentation}](?:[\uFE0E\uFE0F]|\p{Emoji_Modifier})?(?:\u200D[\p{Extended_Pictographic}\p{Emoji_Presentation}](?:[\uFE0E\uFE0F]|\p{Emoji_Modifier})?)*|[#*0-9]\uFE0F?\u20E3|\uFE0F)/gu;
+
+function stripUnsupportedEmoji(text: string): string {
+  return text.replace(UNSUPPORTED_EMOJI_RE, '');
+}
+
+export function sanitizeRenderedMarkdownHtml(unsafeHtml: string): string {
+  return stripUnsupportedEmoji(unsafeHtml)
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<img\b[^>]*>/gi, (tag) => {
+      const alt = readHtmlAttribute(tag, 'alt');
+      const src = readHtmlAttribute(tag, 'src');
+      const label = alt && alt.length > 0 ? alt : 'image';
+      const suffix = src && src.length > 0 ? `: ${src}` : '';
+      return `<span>[${escapeHtml(label)}${escapeHtml(suffix)}]</span>`;
+    });
 }
 
 // ─── Font loading ───────────────────────────────────────────────
@@ -68,10 +140,7 @@ async function convertMarkdownToImage(
   htmlTemplate: string,
 ): Promise<Buffer> {
   const unsafeHtml = marked.parse(markdown, { async: false }) as string;
-
-  const sanitized = unsafeHtml
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '');
+  const sanitized = sanitizeRenderedMarkdownHtml(unsafeHtml);
 
   const fontFamily = rawFonts[0]?.name ?? 'sans-serif';
   const htmlContent = htmlTemplate
@@ -90,7 +159,8 @@ async function convertMarkdownToImage(
 const plugin: PluginDefinition = {
   name: 'md2img',
   version: '0.1.0',
-  description: 'Detects Markdown in LLM output and sends it as a rendered image instead of raw text.',
+  description:
+    'Detects Markdown in LLM output and sends it as a rendered image instead of raw text.',
   defaultConfig: {
     enabledChannels: ['*'],
   },
@@ -137,11 +207,15 @@ const plugin: PluginDefinition = {
     fonts = await loadFonts();
 
     if (fonts.length === 0) {
-      logger.warn('No SourceHanSerifSC-*.otf fonts found in fonts/ directory. md2img plugin will be inactive.');
+      logger.warn(
+        'No SourceHanSerifSC-*.otf fonts found in fonts/ directory. md2img plugin will be inactive.',
+      );
       return;
     }
 
-    logger.info(`md2img initialized with ${fonts.length} font(s): ${fonts.map((f) => `${f.name}(${f.weight})`).join(', ')}`);
+    logger.info(
+      `md2img initialized with ${fonts.length} font(s): ${fonts.map((f) => `${f.name}(${f.weight})`).join(', ')}`,
+    );
   },
   async destroy() {
     fonts = [];
