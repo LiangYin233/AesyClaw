@@ -134,6 +134,50 @@ describe('PluginManager', () => {
     expect(manager.getLoaded('alpha')).toBeDefined();
   });
 
+  it('deep merges plugin options over default config', async () => {
+    const seenConfig: Record<string, unknown>[] = [];
+    const module = makeModule({
+      definition: {
+        ...makeModule().definition,
+        defaultConfig: {
+          nested: {
+            keep: 'default',
+            override: 'default',
+          },
+          list: ['default'],
+        },
+        init: async (ctx) => {
+          seenConfig.push(ctx.config);
+        },
+      },
+    });
+    const config = new FakeConfigManager();
+    config.plugins = [
+      {
+        name: 'alpha',
+        enabled: true,
+        options: {
+          nested: {
+            override: 'configured',
+          },
+          list: ['configured'],
+        },
+      },
+    ];
+    const { manager } = makeManager(module, config);
+
+    const loaded = await manager.load(module.directory);
+
+    expect(seenConfig[0]).toEqual({
+      nested: {
+        keep: 'default',
+        override: 'configured',
+      },
+      list: ['configured'],
+    });
+    expect(loaded.config).toEqual(seenConfig[0]);
+  });
+
   it('prevents plugin context from unregistering tools owned by other scopes', async () => {
     const module = makeModule({
       definition: {

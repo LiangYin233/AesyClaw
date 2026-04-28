@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Value } from '@sinclair/typebox/value';
@@ -123,6 +123,26 @@ describe('plugin_exec', () => {
     expect(result.content).toContain('Command timed out');
   });
 
+  it('terminates child processes when execution times out', async () => {
+    const repoRoot = await makeRepoRoot();
+    const readyPath = path.join(repoRoot, 'child-ready.txt');
+    const markerPath = path.join(repoRoot, 'child-survived.txt');
+    const result = await executeCommand(
+      {
+        command: childProcessTimeoutCommand(readyPath, markerPath),
+        timeoutMs: isWindows ? 1_000 : 200,
+      },
+      { repoRoot },
+    );
+    const details = result.details as ExecResultDetails;
+
+    expect(details.timedOut).toBe(true);
+    expect(details.stdout).toContain('start');
+
+    await delay(2_500);
+    await expect(fileExists(markerPath)).resolves.toBe(false);
+  });
+
   it('preserves Chinese command and output text', async () => {
     const repoRoot = await makeRepoRoot();
     const result = await executeCommand({ command: chineseCommand() }, { repoRoot });
@@ -166,8 +186,57 @@ function timeoutCommand(): string {
     : "printf 'start\\n'; sleep 5; printf 'end\\n'";
 }
 
+function childProcessTimeoutCommand(readyPath: string, markerPath: string): string {
+  const childScript =
+    `require("node:fs").writeFileSync(${JSON.stringify(readyPath)},"ready");` +
+    `setTimeout(()=>require("node:fs").writeFileSync(${JSON.stringify(markerPath)},"survived"),2000);`;
+
+  if (isWindows) {
+    const argumentList = `-e ${windowsCommandLineQuote(childScript)}`;
+    return [
+      `Start-Process -WindowStyle Hidden -FilePath ${psQuote(process.execPath)} -ArgumentList ${psQuote(argumentList)} | Out-Null`,
+      `while (-not (Test-Path -LiteralPath ${psQuote(readyPath)})) { Start-Sleep -Milliseconds 20 }`,
+      "[Console]::Out.WriteLine('start')",
+      '[Console]::Out.Flush()',
+      'Start-Sleep -Seconds 5',
+    ].join('; ');
+  }
+
+  return [
+    `${shQuote(process.execPath)} -e ${shQuote(childScript)} &`,
+    `while [ ! -e ${shQuote(readyPath)} ]; do sleep 0.02; done`,
+    "printf 'start\\n'",
+    'sleep 5',
+  ].join('; ');
+}
+
 function chineseCommand(): string {
   return isWindows ? "Write-Output '你好，世界'" : "printf '你好，世界\\n'";
+}
+
+function psQuote(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
+function shQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function windowsCommandLineQuote(value: string): string {
+  return `"${value.replace(/"/g, '\\"')}"`;
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function delay(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function makeSilentLogger(): Logger {

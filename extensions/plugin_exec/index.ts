@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { Type, type Static } from '@sinclair/typebox';
@@ -6,6 +6,7 @@ import type { PluginDefinition } from '../../src/plugin/plugin-types';
 import type { AesyClawTool, ToolExecutionResult } from '../../src/tool/tool-registry';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
+const POSIX_FORCE_KILL_DELAY_MS = 1_000;
 
 export const ExecParamsSchema = Type.Object({
   command: Type.String({ minLength: 1, description: 'Shell command to execute.' }),
@@ -89,6 +90,7 @@ export async function executeCommand(
       try {
         return spawn(shell.command, shell.args, {
           cwd,
+          detached: platform !== 'win32',
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: true,
         });
@@ -130,7 +132,7 @@ export async function executeCommand(
 
     const timeout = setTimeout(() => {
       timedOut = true;
-      child.kill();
+      terminateProcessTree(child, platform);
     }, timeoutMs);
 
     child.on('error', (err) => {
@@ -246,6 +248,51 @@ function createShellInvocation(command: string, platform: NodeJS.Platform) {
     command: 'bash',
     args: ['-lc', command],
   };
+}
+
+function terminateProcessTree(
+  child: ChildProcess,
+  platform: NodeJS.Platform,
+): void {
+  if (child.pid === undefined) {
+    child.kill();
+    return;
+  }
+
+  if (platform === 'win32') {
+    const killer = spawn('taskkill.exe', ['/pid', String(child.pid), '/T', '/F'], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    killer.on('error', () => {
+      child.kill();
+    });
+    killer.on('close', (code) => {
+      if (code !== 0) {
+        child.kill();
+      }
+    });
+    return;
+  }
+
+  try {
+    process.kill(-child.pid, 'SIGTERM');
+  } catch {
+    child.kill('SIGTERM');
+  }
+
+  const forceKill = setTimeout(() => {
+    if (child.pid === undefined) {
+      return;
+    }
+    try {
+      process.kill(-child.pid, 'SIGKILL');
+    } catch {
+      child.kill('SIGKILL');
+    }
+  }, POSIX_FORCE_KILL_DELAY_MS);
+  forceKill.unref();
+  child.once('close', () => clearTimeout(forceKill));
 }
 
 function makeToolResult(details: ExecResultDetails): ToolExecutionResult {

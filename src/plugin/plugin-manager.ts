@@ -78,16 +78,16 @@ export class PluginManager {
     }
 
     const configLookup = this.getPluginConfig(module);
+    const mergedConfig = mergePluginConfig(
+      module.definition.defaultConfig ?? {},
+      configLookup.options,
+    );
     if (!configLookup.enabled) {
       logger.info('Skipping disabled plugin', { pluginName });
-      return this.createUnloadedPlugin(module, configLookup.options);
+      return this.createUnloadedPlugin(module, mergedConfig);
     }
 
     const owner = pluginOwner(pluginName);
-    const mergedConfig = {
-      ...(module.definition.defaultConfig ?? {}),
-      ...configLookup.options,
-    };
     const context = this.createPluginContext(pluginName, mergedConfig);
 
     try {
@@ -397,6 +397,20 @@ export class PluginManager {
 
 function optionsToRecord(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
+}
+
+function mergePluginConfig(
+  defaults: Record<string, unknown>,
+  options: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged = structuredClone(defaults) as Record<string, unknown>;
+  for (const [key, value] of Object.entries(options)) {
+    const defaultValue = merged[key];
+    merged[key] = isRecord(defaultValue) && isRecord(value)
+      ? mergePluginConfig(defaultValue, value)
+      : structuredClone(value);
+  }
+  return merged;
 }
 
 function errorMessage(err: unknown): string {
