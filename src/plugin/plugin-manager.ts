@@ -256,6 +256,31 @@ export class PluginManager {
     return this.findLoadedPlugin(pluginName);
   }
 
+  /** Get definitions for all discovered plugins with their metadata. */
+  async getPluginDefinitions(): Promise<
+    Array<{
+      name: string;
+      version?: string;
+      description?: string;
+      defaultConfig?: Record<string, unknown>;
+    }>
+  > {
+    const result = [];
+    const discovered = await this.pluginLoader.discover();
+    for (const dir of discovered) {
+      const module = await this.safeLoadModule(dir);
+      if (module) {
+        result.push({
+          name: module.definition.name,
+          version: module.definition.version,
+          description: module.definition.description,
+          defaultConfig: module.definition.defaultConfig,
+        });
+      }
+    }
+    return result;
+  }
+
   private createPluginContext(pluginName: string, config: Record<string, unknown>): PluginContext {
     const owner = pluginOwner(pluginName);
     return {

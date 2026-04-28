@@ -77,6 +77,8 @@ export class DatabaseManager {
         sessions.findOrCreateSession(db, key),
       findByKey: (key: Parameters<typeof sessions.findSessionByKey>[1]) =>
         sessions.findSessionByKey(db, key),
+      findAll: () => sessions.findAllSessions(db),
+      findById: (id: string) => sessions.findSessionById(db, id),
     };
   }
 
@@ -123,10 +125,27 @@ export class DatabaseManager {
       create: (params: { jobId: string }) => cron.createCronRun(db, params),
       markCompleted: (runId: string, result: string) =>
         cron.markCronRunCompleted(db, runId, result),
-      markFailed: (runId: string, error: string) => cron.markCronRunFailed(db, runId, error),
+      markFailed: (runId: string, error: string) =>
+        cron.markCronRunFailed(db, runId, error),
       markAbandoned: (runIds: string[]) => cron.markCronRunsAbandoned(db, runIds),
       findRunning: () => cron.findRunningCronRuns(db),
+      findByJobId: (jobId: string) => cron.findCronRunsByJobId(db, jobId),
     };
+  }
+
+  /** Get database statistics */
+  getStats(): { sessions: number; messages: number; cronJobs: number } {
+    const db = this.getDb();
+    const sessions =
+      (db.prepare('SELECT COUNT(*) as count FROM sessions').get() as { count: number } | undefined)
+        ?.count ?? 0;
+    const messages =
+      (db.prepare('SELECT COUNT(*) as count FROM messages').get() as { count: number } | undefined)
+        ?.count ?? 0;
+    const cronJobs =
+      (db.prepare('SELECT COUNT(*) as count FROM cron_jobs').get() as { count: number } | undefined)
+        ?.count ?? 0;
+    return { sessions, messages, cronJobs };
   }
 
   // ─── Migrations ────────────────────────────────────────────────

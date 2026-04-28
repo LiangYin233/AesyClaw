@@ -4,17 +4,17 @@
   "description": "An extensible AI Agent runtime platform",
   "private": true,
   "type": "module",
-  "workspaces": [
-    "tools"
-  ],
   "engines": {
     "node": ">=22.13.0"
   },
   "main": "./dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "start": "node --import tsx dist/index.js",
+    "web:dev": "cd web && npm run dev",
+    "web:build": "cd web && npm run build",
     "config:edit": "yarn workspace @aesyclaw/tools config:edit",
-    "build": "tsup",
+    "build": "cd web && npm run build && cd .. && tsup && node scripts/post-build.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier . --write",
@@ -24,13 +24,16 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tools.json"
   },
   "dependencies": {
+    "@hono/node-server": "^2.0.0",
     "@mariozechner/pi-agent-core": "^0.70.0",
     "@mariozechner/pi-ai": "^0.70.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@sinclair/typebox": "^0.34.0",
     "front-matter": "^4.0.2",
+    "hono": "^4.12.15",
     "marked": "^18.0.2",
-    "playwright": "^1.59.1"
+    "playwright": "^1.59.1",
+    "tsx": "^4.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -40,7 +43,6 @@
     "globals": "^17.5.0",
     "prettier": "^3.8.3",
     "tsup": "^8.0.0",
-    "tsx": "^4.0.0",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.59.0",
     "vitest": "^3.0.0"

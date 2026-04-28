@@ -148,6 +148,66 @@ export class RoleManager {
     return [...this.roles.values()];
   }
 
+  /** Get the roles directory path. */
+  getRolesDir(): string | null {
+    return this.rolesDir;
+  }
+
+  /**
+   * Save a role back to its source file and update the in-memory cache.
+   *
+   * @throws If the role file cannot be found or the data fails validation.
+   */
+  async saveRole(roleId: string, roleData: RoleConfig): Promise<void> {
+    if (!this.rolesDir) {
+      throw new AppError('Roles not loaded', 'CONFIG_VALIDATION');
+    }
+
+    const validated = Value.Default(RoleConfigSchema, roleData);
+    if (!Value.Check(RoleConfigSchema, validated)) {
+      const errors = [...Value.Errors(RoleConfigSchema, validated)];
+      throw new AppError('Role validation failed', 'CONFIG_VALIDATION', errors);
+    }
+
+    // Find the file containing this role
+    const entries = fs.readdirSync(this.rolesDir, { withFileTypes: true });
+    let targetFile: string | null = null;
+
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith('.json')) {
+        continue;
+      }
+
+      const filePath = path.join(this.rolesDir, entry.name);
+      try {
+        const raw = fs.readFileSync(filePath, 'utf-8');
+        const parsed: unknown = JSON.parse(raw);
+        if (
+          parsed !== null &&
+          typeof parsed === 'object' &&
+          !Array.isArray(parsed) &&
+          (parsed as Record<string, unknown>).id === roleId
+        ) {
+          targetFile = filePath;
+          break;
+        }
+      } catch {
+        // Skip unreadable files
+      }
+    }
+
+    if (!targetFile) {
+      throw new AppError(`Role file for "${roleId}" not found`, 'CONFIG_VALIDATION');
+    }
+
+    fs.writeFileSync(targetFile, JSON.stringify(roleData, null, 2), 'utf-8');
+
+    // Update in-memory cache
+    this.roles.set(roleId, roleData);
+    this.notifyChanges();
+    logger.info('Role saved', { roleId, file: targetFile });
+  }
+
   // ─── System prompt ────────────────────────────────────────────
 
   /**

@@ -1,0 +1,57 @@
+import { createRouter, createWebHashHistory } from 'vue-router';
+import { useAuth } from '@/composables/useAuth';
+import AppLayout from '@/layouts/AppLayout.vue';
+
+const router = createRouter({
+  history: createWebHashHistory(),
+  routes: [
+    {
+      path: '/login',
+      name: 'Login',
+      component: () => import('@/views/Login.vue'),
+      meta: { public: true },
+    },
+    {
+      path: '/',
+      component: AppLayout,
+      children: [
+        {
+          path: '',
+          name: 'Dashboard',
+          component: () => import('@/views/Dashboard.vue'),
+        },
+        {
+          path: 'sessions',
+          name: 'Sessions',
+          component: () => import('@/views/Sessions.vue'),
+        },
+        {
+          path: 'config',
+          name: 'Config',
+          component: () => import('@/views/ConfigEditor.vue'),
+        },
+        {
+          path: 'cron',
+          name: 'Cron',
+          component: () => import('@/views/CronJobs.vue'),
+        },
+        {
+          path: 'roles',
+          name: 'Roles',
+          component: () => import('@/views/Roles.vue'),
+        },
+      ],
+    },
+  ],
+});
+
+router.beforeEach((to, _from, next) => {
+  const { token } = useAuth();
+  if (!to.meta.public && !token.value) {
+    next('/login');
+  } else {
+    next();
+  }
+});
+
+export { router };

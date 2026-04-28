@@ -43,6 +43,7 @@ const ServerConfigSchema = Type.Object({
   host: Type.String({ default: '0.0.0.0' }),
   logLevel: Type.String({ default: 'info' }),
   cors: Type.Optional(Type.Boolean({ default: true })),
+  authToken: Type.Optional(Type.String()),
 });
 
 // ─── Agent ───────────────────────────────────────────────────────

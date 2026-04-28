@@ -925,6 +925,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@hono/node-server@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "@hono/node-server@npm:2.0.0"
+  peerDependencies:
+    hono: ^4
+  checksum: 10c0/bc4b2ca237b29deff442a158e8fedafa0c05945e87600b05fe47226d32e55a4b194c25c934cc1af4658fb8c04a7cae2030295bba0f84de216559706d69945ad9
+  languageName: node
+  linkType: hard
+
 "@humanfs/core@npm:^0.19.2":
   version: 0.19.2
   resolution: "@humanfs/core@npm:0.19.2"
@@ -2218,6 +2227,7 @@ __metadata:
   resolution: "aesyclaw@workspace:."
   dependencies:
     "@eslint/js": "npm:^10.0.1"
+    "@hono/node-server": "npm:^2.0.0"
     "@mariozechner/pi-agent-core": "npm:^0.70.0"
     "@mariozechner/pi-ai": "npm:^0.70.0"
     "@modelcontextprotocol/sdk": "npm:^1.29.0"
@@ -2227,6 +2237,7 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     front-matter: "npm:^4.0.2"
     globals: "npm:^17.5.0"
+    hono: "npm:^4.12.15"
     marked: "npm:^18.0.2"
     playwright: "npm:^1.59.1"
     prettier: "npm:^3.8.3"
@@ -3510,7 +3521,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"hono@npm:^4.11.4":
+"hono@npm:^4.11.4, hono@npm:^4.12.15":
   version: 4.12.15
   resolution: "hono@npm:4.12.15"
   checksum: 10c0/83f5778525bd4b706ddf1877c5f3cec0c8a3a0edf0944f8dfb041179c23a854166b8566f6e9be95894199a22e3b3aba139582d4ba24776e707c453d293bda24d

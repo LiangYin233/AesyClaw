@@ -25,6 +25,7 @@ import { RoleManager } from './role/role-manager';
 import { SkillManager } from './skill/skill-manager';
 import { ToolRegistry } from './tool/tool-registry';
 import { registerBuiltinTools } from './tool/builtin';
+import { WebUiManager } from './web/webui-manager';
 
 const logger = createScopedLogger('app');
 
@@ -44,6 +45,7 @@ export class Application {
   private cronManager: CronManager;
   private mcpManager: McpManager;
   private channelManager: ChannelManager;
+  private webUiManager: WebUiManager;
   private unsubscribers: Unsubscribe[] = [];
   private started = false;
 
@@ -62,6 +64,7 @@ export class Application {
     this.cronManager = new CronManager();
     this.mcpManager = new McpManager();
     this.channelManager = new ChannelManager();
+    this.webUiManager = new WebUiManager();
   }
 
   async start(): Promise<void> {
@@ -205,6 +208,18 @@ export class Application {
       await this.channelManager.startAll();
     });
 
+    await this.startStep('WebUI initialization', async () => {
+      await this.webUiManager.initialize({
+        configManager: this.configManager,
+        databaseManager: this.databaseManager,
+        sessionManager: this.sessionManager,
+        cronManager: this.cronManager,
+        roleManager: this.roleManager,
+        channelManager: this.channelManager,
+        pluginManager: this.getPluginManager(),
+      });
+    });
+
     await this.startStep('Cron manager initialization', async () => {
       await this.cronManager.initialize({
         databaseManager: this.databaseManager,
@@ -234,6 +249,7 @@ export class Application {
       () => this.configManager.stopHotReload(),
       () => this.roleManager.stopWatching(),
       () => this.clearConfigSubscriptions(),
+      () => this.webUiManager.destroy(),
       () => this.channelManager.stopAll(),
       () => this.mcpManager.disconnectAll(),
       () => this.cronManager.destroy(),

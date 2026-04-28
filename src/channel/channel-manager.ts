@@ -193,6 +193,21 @@ export class ChannelManager {
     return this.loadedChannels.get(channelName);
   }
 
+  /** Get all registered channel definitions with their metadata. */
+  getRegisteredChannels(): Array<{
+    name: string;
+    version: string;
+    description?: string;
+    defaultConfig?: Record<string, unknown>;
+  }> {
+    return [...this.definitions.values()].map((def) => ({
+      name: def.name,
+      version: def.version,
+      description: def.description,
+      defaultConfig: def.defaultConfig,
+    }));
+  }
+
   private createContext(channelName: string, config: Record<string, unknown>): ChannelContext {
     return {
       name: channelName,

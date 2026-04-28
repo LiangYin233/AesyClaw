@@ -201,3 +201,14 @@ export async function findRunningCronRuns(db: DatabaseSync): Promise<CronRunReco
     .all() as unknown as CronRunRow[];
   return rows.map(mapRunRow);
 }
+
+/** Find all runs for a specific job, ordered by start time (newest first). */
+export async function findCronRunsByJobId(
+  db: DatabaseSync,
+  jobId: string,
+): Promise<CronRunRecord[]> {
+  const rows = db
+    .prepare('SELECT * FROM cron_runs WHERE job_id = ? ORDER BY started_at DESC')
+    .all(jobId) as unknown as CronRunRow[];
+  return rows.map(mapRunRow);
+}

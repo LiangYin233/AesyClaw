@@ -60,3 +60,45 @@ export async function findSessionByKey(
     createdAt: row.created_at,
   };
 }
+
+/** Get all sessions, ordered by creation time (newest first). */
+export async function findAllSessions(db: DatabaseSync): Promise<SessionRecord[]> {
+  const rows = db
+    .prepare('SELECT id, channel, type, chat_id, created_at FROM sessions ORDER BY created_at DESC')
+    .all() as Array<{
+    id: string;
+    channel: string;
+    type: string;
+    chat_id: string;
+    created_at: string;
+  }>;
+
+  return rows.map((row) => ({
+    id: row.id,
+    channel: row.channel,
+    type: row.type,
+    chatId: row.chat_id,
+    createdAt: row.created_at,
+  }));
+}
+
+/** Find a session by ID. Returns null if not found. */
+export async function findSessionById(db: DatabaseSync, id: string): Promise<SessionRecord | null> {
+  const row = db
+    .prepare('SELECT id, channel, type, chat_id, created_at FROM sessions WHERE id = ?')
+    .get(id) as
+    | { id: string; channel: string; type: string; chat_id: string; created_at: string }
+    | undefined;
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    channel: row.channel,
+    type: row.type,
+    chatId: row.chat_id,
+    createdAt: row.created_at,
+  };
+}
