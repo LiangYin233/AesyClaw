@@ -47,7 +47,7 @@ export function createApp(deps: WebUiManagerDependencies): Hono {
   });
 
   // Static files
-  app.use('*', serveStatic({ root: './dist/web' }));
+  app.use('*', serveStatic({ root: './dist' }));
 
   // SPA fallback for non-API routes
   app.get('*', (c) => {
@@ -55,7 +55,7 @@ export function createApp(deps: WebUiManagerDependencies): Hono {
       return c.notFound();
     }
     try {
-      const html = readFileSync(join(process.cwd(), 'dist/web/index.html'), 'utf-8');
+      const html = readFileSync(join(process.cwd(), 'dist/index.html'), 'utf-8');
       return c.html(html);
     } catch {
       return c.text('Not Found', 404);

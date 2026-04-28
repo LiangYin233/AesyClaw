@@ -4,20 +4,19 @@
   "description": "An extensible AI Agent runtime platform",
   "private": true,
   "workspaces": [
-    "extensions/*"
+    "extensions/*",
+    "web"
   ],
   "type": "module",
   "engines": {
     "node": ">=22.13.0"
   },
-  "main": "./dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "node --import tsx src/index.ts",
-    "web:dev": "cd web && npm run dev",
-    "web:build": "cd web && npm run build",
-    "config:edit": "yarn workspace @aesyclaw/tools config:edit",
-    "build": "cd web && npm run build && cd .. && tsup && node scripts/post-build.mjs",
+    "web:dev": "yarn workspace aesyclaw-webui dev",
+    "web:build": "yarn workspace aesyclaw-webui build",
+    "build": "yarn workspace aesyclaw-webui build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier . --write",
