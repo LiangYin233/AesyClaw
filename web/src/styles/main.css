@@ -20,7 +20,9 @@
   box-sizing: border-box;
 }
 
-html, body, #app {
+html,
+body,
+#app {
   height: 100%;
   margin: 0;
 }
@@ -76,7 +78,9 @@ body {
   border-radius: var(--radius);
   color: var(--color-text-muted);
   text-decoration: none;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .nav-item:hover {
@@ -218,7 +222,9 @@ body {
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 
 .btn-primary {

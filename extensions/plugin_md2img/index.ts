@@ -160,7 +160,8 @@ export async function handleMd2ImgSend(
 const plugin: PluginDefinition = {
   name: 'md2img',
   version: '0.1.0',
-  description: 'Detects Markdown in LLM output and sends it as a rendered image instead of raw text.',
+  description:
+    'Detects Markdown in LLM output and sends it as a rendered image instead of raw text.',
   defaultConfig: { enabledChannels: ['*'] },
   hooks: {
     async onSend({ message, sessionKey }) {

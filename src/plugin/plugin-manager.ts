@@ -431,9 +431,10 @@ function mergePluginConfig(
   const merged = structuredClone(defaults) as Record<string, unknown>;
   for (const [key, value] of Object.entries(options)) {
     const defaultValue = merged[key];
-    merged[key] = isRecord(defaultValue) && isRecord(value)
-      ? mergePluginConfig(defaultValue, value)
-      : structuredClone(value);
+    merged[key] =
+      isRecord(defaultValue) && isRecord(value)
+        ? mergePluginConfig(defaultValue, value)
+        : structuredClone(value);
   }
   return merged;
 }

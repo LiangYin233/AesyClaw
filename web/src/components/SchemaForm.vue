@@ -20,11 +20,7 @@
     <template v-else-if="resolvedType === 'object-record'">
       <fieldset class="fieldset">
         <legend v-if="label">{{ label }}</legend>
-        <div
-          v-for="(entry, idx) in recordEntries"
-          :key="idx"
-          class="array-item"
-        >
+        <div v-for="(entry, idx) in recordEntries" :key="idx" class="array-item">
           <input
             v-model="entry.key"
             class="form-input"
@@ -36,7 +32,10 @@
             :model-value="entry.value"
             label=""
             :path="`${path}[${entry.key}]`"
-            @update:model-value="entry.value = $event; updateRecord()"
+            @update:model-value="
+              entry.value = $event;
+              updateRecord();
+            "
           />
           <button type="button" class="btn btn-danger btn-sm" @click="removeRecordEntry(idx)">
             Remove
@@ -52,11 +51,7 @@
     <template v-else-if="resolvedType === 'array'">
       <fieldset class="fieldset">
         <legend v-if="label">{{ label }}</legend>
-        <div
-          v-for="(item, idx) in modelValueArr"
-          :key="idx"
-          class="array-item"
-        >
+        <div v-for="(item, idx) in modelValueArr" :key="idx" class="array-item">
           <SchemaForm
             :schema="resolvedSchema.items!"
             :model-value="item"
@@ -107,7 +102,10 @@
 
     <!-- Boolean -->
     <template v-else-if="resolvedType === 'boolean'">
-      <label class="field-label" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+      <label
+        class="field-label"
+        style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer"
+      >
         <input
           :checked="booleanValue"
           type="checkbox"
@@ -132,10 +130,7 @@
     <!-- Fallback: raw JSON -->
     <template v-else>
       <label v-if="label" class="field-label">{{ label }}</label>
-      <JsonEditor
-        :model-value="jsonValue"
-        @update:model-value="updateJson"
-      />
+      <JsonEditor :model-value="jsonValue" @update:model-value="updateJson" />
     </template>
   </div>
 </template>
@@ -223,7 +218,9 @@ const sortedKeys = computed(() => {
 });
 
 const modelValueObj = computed<Record<string, unknown>>(() => {
-  return typeof props.modelValue === 'object' && props.modelValue !== null && !Array.isArray(props.modelValue)
+  return typeof props.modelValue === 'object' &&
+    props.modelValue !== null &&
+    !Array.isArray(props.modelValue)
     ? (props.modelValue as Record<string, unknown>)
     : {};
 });
@@ -265,9 +262,10 @@ function updateJson(raw: string) {
 }
 
 function updateProperty(key: string, value: unknown) {
-  const current = typeof props.modelValue === 'object' && props.modelValue !== null
-    ? (props.modelValue as Record<string, unknown>)
-    : {};
+  const current =
+    typeof props.modelValue === 'object' && props.modelValue !== null
+      ? (props.modelValue as Record<string, unknown>)
+      : {};
   emit('update:modelValue', { ...current, [key]: value });
 }
 
@@ -305,7 +303,7 @@ watch(
       recordEntries.value = [];
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 function updateRecord() {

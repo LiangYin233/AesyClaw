@@ -35,7 +35,10 @@
             <tr v-for="ch in channels" :key="ch.name">
               <td>{{ ch.name }}</td>
               <td>
-                <span class="badge" :class="ch.state === 'connected' ? 'badge-green' : 'badge-gray'">
+                <span
+                  class="badge"
+                  :class="ch.state === 'connected' ? 'badge-green' : 'badge-gray'"
+                >
                   {{ ch.state }}
                 </span>
               </td>

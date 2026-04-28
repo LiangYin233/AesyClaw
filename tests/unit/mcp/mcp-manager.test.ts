@@ -125,15 +125,12 @@ describe('McpManager', () => {
 
     const tool = toolRegistry.get(mcpToolName('local', 'echo'));
     const invalidParams = {};
-    const result = await tool?.execute(
-      invalidParams,
-      {
-        sessionKey: { channel: 'test', type: 'private', chatId: '1' },
-        agentEngine: null,
-        cronManager: null,
-        pipeline: null,
-      },
-    );
+    const result = await tool?.execute(invalidParams, {
+      sessionKey: { channel: 'test', type: 'private', chatId: '1' },
+      agentEngine: null,
+      cronManager: null,
+      pipeline: null,
+    });
 
     expect(client.callTool).toHaveBeenCalledWith('echo', invalidParams);
     expect(result).toEqual({ content: JSON.stringify({ ok: false, params: invalidParams }) });

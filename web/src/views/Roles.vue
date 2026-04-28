@@ -40,7 +40,7 @@
 
     <Teleport to="body">
       <div v-if="editingRole" class="modal-overlay" @click.self="closeEditor">
-        <div class="modal" style="max-width: 600px; max-height: 90vh; overflow: auto;">
+        <div class="modal" style="max-width: 600px; max-height: 90vh; overflow: auto">
           <h3 class="modal-title">Edit Role: {{ editingRole.id }}</h3>
 
           <div class="form-group">
@@ -76,21 +76,38 @@
             <label>Allowed Tools</label>
             <div v-for="(_t, idx) in form.toolPermission.list" :key="idx" class="array-item">
               <input v-model="form.toolPermission.list![idx]" class="form-input" />
-              <button type="button" class="btn btn-danger btn-sm" @click="removeTool(idx)">Remove</button>
+              <button type="button" class="btn btn-danger btn-sm" @click="removeTool(idx)">
+                Remove
+              </button>
             </div>
-            <button type="button" class="btn btn-primary btn-sm" @click="addTool">+ Add Tool</button>
+            <button type="button" class="btn btn-primary btn-sm" @click="addTool">
+              + Add Tool
+            </button>
           </div>
 
           <div class="form-group">
             <label>Skills</label>
             <div v-for="(s, idx) in form.skills" :key="idx" class="array-item">
               <input v-model="form.skills[idx]" class="form-input" />
-              <button type="button" class="btn btn-danger btn-sm" @click="removeSkill(idx)">Remove</button>
+              <button type="button" class="btn btn-danger btn-sm" @click="removeSkill(idx)">
+                Remove
+              </button>
             </div>
-            <button type="button" class="btn btn-primary btn-sm" @click="addSkill">+ Add Skill</button>
+            <button type="button" class="btn btn-primary btn-sm" @click="addSkill">
+              + Add Skill
+            </button>
           </div>
 
-          <label class="field-label" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;margin-bottom:1rem;">
+          <label
+            class="field-label"
+            style="
+              display: flex;
+              align-items: center;
+              gap: 0.5rem;
+              cursor: pointer;
+              margin-bottom: 1rem;
+            "
+          >
             <input v-model="form.enabled" type="checkbox" />
             Enabled
           </label>

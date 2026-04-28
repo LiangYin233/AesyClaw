@@ -16,10 +16,7 @@
           </thead>
           <tbody>
             <template v-for="session in sessions" :key="session.id">
-              <tr
-                class="row-clickable"
-                @click="toggleSession(session.id)"
-              >
+              <tr class="row-clickable" @click="toggleSession(session.id)">
                 <td>{{ session.id }}</td>
                 <td>{{ session.channel }}</td>
                 <td>{{ session.type }}</td>
@@ -32,13 +29,12 @@
                     <div v-if="messagesLoading" class="empty-state">Loading...</div>
                     <div v-else-if="messages.length === 0" class="empty-state">No messages</div>
                     <div v-else class="message-list">
-                      <div
-                        v-for="msg in messages"
-                        :key="msg.id"
-                        class="message-item"
-                      >
+                      <div v-for="msg in messages" :key="msg.id" class="message-item">
                         <div class="message-meta">
-                          <span class="badge" :class="msg.role === 'user' ? 'badge-green' : 'badge-gray'">
+                          <span
+                            class="badge"
+                            :class="msg.role === 'user' ? 'badge-green' : 'badge-gray'"
+                          >
                             {{ msg.role }}
                           </span>
                           <span class="message-time">{{ formatTime(msg.createdAt) }}</span>

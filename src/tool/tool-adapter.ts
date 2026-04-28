@@ -90,10 +90,13 @@ export class ToolAdapter {
             hasReason: beforeResult.reason !== undefined,
           });
 
-          return complete({
-            content: beforeResult.reason ?? `Tool call "${tool.name}" was blocked by a hook`,
-            isError: true,
-          }, 'blocked');
+          return complete(
+            {
+              content: beforeResult.reason ?? `Tool call "${tool.name}" was blocked by a hook`,
+              isError: true,
+            },
+            'blocked',
+          );
         }
 
         // If a hook provides a short-circuit result, use it directly
@@ -113,10 +116,13 @@ export class ToolAdapter {
           if (signal?.aborted) {
             logger.debug('Tool call aborted before execution', logContext);
 
-            return complete({
-              content: `Tool call "${tool.name}" was aborted`,
-              isError: true,
-            }, 'aborted');
+            return complete(
+              {
+                content: `Tool call "${tool.name}" was aborted`,
+                isError: true,
+              },
+              'aborted',
+            );
           }
 
           result = await tool.execute(params, executionContext as ToolExecutionContext);

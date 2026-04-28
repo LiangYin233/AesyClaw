@@ -250,10 +250,7 @@ function createShellInvocation(command: string, platform: NodeJS.Platform) {
   };
 }
 
-function terminateProcessTree(
-  child: ChildProcess,
-  platform: NodeJS.Platform,
-): void {
+function terminateProcessTree(child: ChildProcess, platform: NodeJS.Platform): void {
   if (child.pid === undefined) {
     child.kill();
     return;

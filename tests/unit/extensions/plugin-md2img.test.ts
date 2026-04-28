@@ -26,12 +26,16 @@ function createFakeBrowserHarness() {
   const evaluate = vi.fn(async () => undefined);
   const closePage = vi.fn(async () => undefined);
   const page = {
-    setContent, evaluate, locator, close: closePage,
+    setContent,
+    evaluate,
+    locator,
+    close: closePage,
   };
   const newPage = vi.fn(async () => page);
   const closeBrowser = vi.fn(async () => undefined);
   const browser = {
-    newPage, close: closeBrowser,
+    newPage,
+    close: closeBrowser,
     isConnected: vi.fn(() => connected),
     once: vi.fn((event: string, handler: () => void) => {
       if (event === 'disconnected') disconnectedHandler = handler;
@@ -40,12 +44,22 @@ function createFakeBrowserHarness() {
   };
 
   return {
-    browser, newPage, closeBrowser, setContent, evaluate, locator, waitFor, screenshot, closePage,
+    browser,
+    newPage,
+    closeBrowser,
+    setContent,
+    evaluate,
+    locator,
+    waitFor,
+    screenshot,
+    closePage,
     disconnect() {
       connected = false;
       disconnectedHandler?.();
     },
-    setConnected(value: boolean) { connected = value; },
+    setConnected(value: boolean) {
+      connected = value;
+    },
   };
 }
 
@@ -61,7 +75,10 @@ describe('plugin_md2img', () => {
   it('skips conversion when the template is unavailable', async () => {
     const logger = createLogger();
     const result = await handleMd2ImgSend(
-      { message: { content: '# Render me' }, sessionKey: { channel: 'onebot', type: 'private', chatId: '123' } },
+      {
+        message: { content: '# Render me' },
+        sessionKey: { channel: 'onebot', type: 'private', chatId: '123' },
+      },
       { htmlTemplate: '', logger, pluginConfig: { enabledChannels: ['*'] } },
     );
     expect(result).toEqual({ action: 'continue' });
@@ -71,8 +88,15 @@ describe('plugin_md2img', () => {
   it('skips non-markdown messages without debug diagnostics', async () => {
     const logger = createLogger();
     const result = await handleMd2ImgSend(
-      { message: { content: 'plain text that should not be logged' }, sessionKey: { channel: 'onebot', type: 'private', chatId: '123' } },
-      { htmlTemplate: '<div id="md2img-root">{{content}}</div>', logger, pluginConfig: { enabledChannels: ['*'] } },
+      {
+        message: { content: 'plain text that should not be logged' },
+        sessionKey: { channel: 'onebot', type: 'private', chatId: '123' },
+      },
+      {
+        htmlTemplate: '<div id="md2img-root">{{content}}</div>',
+        logger,
+        pluginConfig: { enabledChannels: ['*'] },
+      },
     );
     expect(result).toEqual({ action: 'continue' });
     expect(logger.debug).not.toHaveBeenCalled();
@@ -81,8 +105,15 @@ describe('plugin_md2img', () => {
   it('skips channel-gated markdown messages without debug diagnostics', async () => {
     const logger = createLogger();
     const result = await handleMd2ImgSend(
-      { message: { content: '# Render me' }, sessionKey: { channel: 'discord', type: 'private', chatId: '123' } },
-      { htmlTemplate: '<div id="md2img-root">{{content}}</div>', logger, pluginConfig: { enabledChannels: ['onebot'] } },
+      {
+        message: { content: '# Render me' },
+        sessionKey: { channel: 'discord', type: 'private', chatId: '123' },
+      },
+      {
+        htmlTemplate: '<div id="md2img-root">{{content}}</div>',
+        logger,
+        pluginConfig: { enabledChannels: ['onebot'] },
+      },
     );
     expect(result).toEqual({ action: 'continue' });
     expect(logger.debug).not.toHaveBeenCalled();
@@ -92,11 +123,20 @@ describe('plugin_md2img', () => {
     const logger = createLogger();
     const pngBuffer = Buffer.from('png-bytes');
     const result = await handleMd2ImgSend(
-      { message: { content: '# Render me' }, sessionKey: { channel: 'onebot', type: 'private', chatId: '123' } },
-      { htmlTemplate: '<div id="md2img-root">{{content}}</div>', logger, pluginConfig: { enabledChannels: ['onebot'] }, convert: vi.fn(async () => pngBuffer) },
+      {
+        message: { content: '# Render me' },
+        sessionKey: { channel: 'onebot', type: 'private', chatId: '123' },
+      },
+      {
+        htmlTemplate: '<div id="md2img-root">{{content}}</div>',
+        logger,
+        pluginConfig: { enabledChannels: ['onebot'] },
+        convert: vi.fn(async () => pngBuffer),
+      },
     );
     expect(result).toEqual({
-      action: 'respond', content: '',
+      action: 'respond',
+      content: '',
       attachments: [{ type: 'image', base64: pngBuffer.toString('base64'), mimeType: 'image/png' }],
     });
     expect(logger.debug).not.toHaveBeenCalled();
@@ -106,8 +146,18 @@ describe('plugin_md2img', () => {
     const logger = createLogger();
     const error = new Error('render failed');
     const result = await handleMd2ImgSend(
-      { message: { content: '# Render me' }, sessionKey: { channel: 'onebot', type: 'private', chatId: '123' } },
-      { htmlTemplate: '<div id="md2img-root">{{content}}</div>', logger, pluginConfig: { enabledChannels: ['onebot'] }, convert: vi.fn(async () => { throw error; }) },
+      {
+        message: { content: '# Render me' },
+        sessionKey: { channel: 'onebot', type: 'private', chatId: '123' },
+      },
+      {
+        htmlTemplate: '<div id="md2img-root">{{content}}</div>',
+        logger,
+        pluginConfig: { enabledChannels: ['onebot'] },
+        convert: vi.fn(async () => {
+          throw error;
+        }),
+      },
     );
     expect(result).toEqual({ action: 'continue' });
     expect(logger.debug).not.toHaveBeenCalled();
@@ -161,16 +211,21 @@ describe('plugin_md2img', () => {
   it('recreates the browser after a disconnect before the next render', async () => {
     const firstHarness = createFakeBrowserHarness();
     const secondHarness = createFakeBrowserHarness();
-    const launchBrowser = vi.fn()
+    const launchBrowser = vi
+      .fn()
       .mockResolvedValueOnce(firstHarness.browser as never)
       .mockResolvedValueOnce(secondHarness.browser as never);
     const renderer = new PlaywrightMarkdownRenderer({ launchBrowser });
 
-    await expect(renderer.renderHtmlToPng('<div id="md2img-root">one</div>')).resolves.toEqual(Buffer.from('png-bytes'));
+    await expect(renderer.renderHtmlToPng('<div id="md2img-root">one</div>')).resolves.toEqual(
+      Buffer.from('png-bytes'),
+    );
 
     firstHarness.disconnect();
 
-    await expect(renderer.renderHtmlToPng('<div id="md2img-root">two</div>')).resolves.toEqual(Buffer.from('png-bytes'));
+    await expect(renderer.renderHtmlToPng('<div id="md2img-root">two</div>')).resolves.toEqual(
+      Buffer.from('png-bytes'),
+    );
 
     expect(launchBrowser).toHaveBeenCalledTimes(2);
     expect(firstHarness.newPage).toHaveBeenCalledTimes(1);
@@ -181,7 +236,10 @@ describe('plugin_md2img', () => {
     let resolveFontsReady: (() => void) | undefined;
     const harness = createFakeBrowserHarness();
     harness.evaluate.mockImplementation(
-      () => new Promise<void>((resolve) => { resolveFontsReady = resolve; }),
+      () =>
+        new Promise<void>((resolve) => {
+          resolveFontsReady = resolve;
+        }),
     );
     const renderer = new PlaywrightMarkdownRenderer({
       launchBrowser: vi.fn(async () => harness.browser as never),
@@ -189,7 +247,9 @@ describe('plugin_md2img', () => {
 
     const renderPromise = renderer.renderHtmlToPng('<div id="md2img-root">one</div>');
 
-    await vi.waitFor(() => { expect(harness.evaluate).toHaveBeenCalledOnce(); });
+    await vi.waitFor(() => {
+      expect(harness.evaluate).toHaveBeenCalledOnce();
+    });
     expect(harness.screenshot).not.toHaveBeenCalled();
 
     resolveFontsReady?.();

@@ -209,7 +209,10 @@ describe('HookDispatcher', () => {
     const testSessionKey: SessionKey = { channel: 'test', type: 'private', chatId: 'user1' };
 
     it('should return continue when no hooks are registered', async () => {
-      const result = await dispatcher.dispatchOnSend({ message: makeOutbound(), sessionKey: testSessionKey });
+      const result = await dispatcher.dispatchOnSend({
+        message: makeOutbound(),
+        sessionKey: testSessionKey,
+      });
       expect(result.action).toBe('continue');
     });
 
@@ -218,7 +221,10 @@ describe('HookDispatcher', () => {
         onSend: async () => ({ action: 'block' as const, reason: 'censored' }),
       });
 
-      const result = await dispatcher.dispatchOnSend({ message: makeOutbound(), sessionKey: testSessionKey });
+      const result = await dispatcher.dispatchOnSend({
+        message: makeOutbound(),
+        sessionKey: testSessionKey,
+      });
       expect(result.action).toBe('block');
       if (result.action === 'block') {
         expect(result.reason).toBe('censored');
@@ -230,7 +236,10 @@ describe('HookDispatcher', () => {
         onSend: async () => ({ action: 'respond' as const, content: 'modified' }),
       });
 
-      const result = await dispatcher.dispatchOnSend({ message: makeOutbound(), sessionKey: testSessionKey });
+      const result = await dispatcher.dispatchOnSend({
+        message: makeOutbound(),
+        sessionKey: testSessionKey,
+      });
       expect(result.action).toBe('respond');
       if (result.action === 'respond') {
         expect(result.content).toBe('modified');
@@ -242,7 +251,10 @@ describe('HookDispatcher', () => {
         onReceive: async () => ({ action: 'continue' as const }),
       });
 
-      const result = await dispatcher.dispatchOnSend({ message: makeOutbound(), sessionKey: testSessionKey });
+      const result = await dispatcher.dispatchOnSend({
+        message: makeOutbound(),
+        sessionKey: testSessionKey,
+      });
       expect(result.action).toBe('continue');
     });
   });

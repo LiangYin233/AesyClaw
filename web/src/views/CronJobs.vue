@@ -18,7 +18,9 @@
             <template v-for="job in jobs" :key="job.id">
               <tr class="row-clickable" @click="toggleJob(job.id)">
                 <td>{{ job.name }}</td>
-                <td><code>{{ job.schedule }}</code></td>
+                <td>
+                  <code>{{ job.schedule }}</code>
+                </td>
                 <td class="cell-truncate">{{ job.prompt }}</td>
                 <td>
                   <span class="badge" :class="job.enabled ? 'badge-green' : 'badge-gray'">
@@ -47,7 +49,13 @@
                             <td>
                               <span
                                 class="badge"
-                                :class="run.status === 'success' ? 'badge-green' : run.status === 'failed' ? 'badge-red' : 'badge-gray'"
+                                :class="
+                                  run.status === 'success'
+                                    ? 'badge-green'
+                                    : run.status === 'failed'
+                                      ? 'badge-red'
+                                      : 'badge-gray'
+                                "
                               >
                                 {{ run.status }}
                               </span>

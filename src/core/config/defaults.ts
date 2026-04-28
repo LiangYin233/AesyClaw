@@ -31,7 +31,13 @@ export const DEFAULT_CONFIG: AppConfig = {
     },
   },
   mcp: [
-    { name: 'example', transport: 'stdio', command: 'node', args: ['path/to/server/index.mjs'], enabled: false },
+    {
+      name: 'example',
+      transport: 'stdio',
+      command: 'node',
+      args: ['path/to/server/index.mjs'],
+      enabled: false,
+    },
   ],
   plugins: [],
 };

@@ -28,7 +28,7 @@ api.interceptors.response.use(
       router.push('/login');
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 function login(newToken: string): void {

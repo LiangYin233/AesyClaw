@@ -125,8 +125,7 @@ export class DatabaseManager {
       create: (params: { jobId: string }) => cron.createCronRun(db, params),
       markCompleted: (runId: string, result: string) =>
         cron.markCronRunCompleted(db, runId, result),
-      markFailed: (runId: string, error: string) =>
-        cron.markCronRunFailed(db, runId, error),
+      markFailed: (runId: string, error: string) => cron.markCronRunFailed(db, runId, error),
       markAbandoned: (runIds: string[]) => cron.markCronRunsAbandoned(db, runIds),
       findRunning: () => cron.findRunningCronRuns(db),
       findByJobId: (jobId: string) => cron.findCronRunsByJobId(db, jobId),
