@@ -94,6 +94,8 @@ export interface OneBotActionTransport {
   sendAction(action: string, params: Record<string, unknown>): Promise<OneBotApiResponse>;
 }
 
+type OneBotLogger = ChannelContext['logger'];
+
 interface OneBotApiResponse {
   status?: string;
   retcode?: number;
@@ -245,7 +247,7 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
       }
     },
     async send(sessionKey, message) {
-      await sendOneBotMessage(sessionKey, message, transport);
+      await sendOneBotMessage(sessionKey, message, transport, context?.logger);
     },
   };
 
@@ -354,7 +356,7 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
 
     try {
       await context.receiveWithSend(enrichedInbound, async (outbound) => {
-        await sendOneBotMessage(enrichedInbound.sessionKey, outbound, transport);
+        await sendOneBotMessage(enrichedInbound.sessionKey, outbound, transport, context?.logger);
       });
     } catch (err) {
       context?.logger.error('Failed to process OneBot inbound message', err);
@@ -790,18 +792,36 @@ export async function sendOneBotMessage(
   sessionKey: SessionKey,
   message: OutboundMessage,
   transport: OneBotActionTransport,
+  logger?: OneBotLogger,
 ): Promise<void> {
-  const { action, params } = await buildSendAction(sessionKey, message, transport);
-  const response = await transport.sendAction(action, params);
-  validateApiResponse(response);
+  const summary = summarizeOutboundMessage(sessionKey, message);
+  const { action, params } = await buildSendAction(sessionKey, message, transport, logger, summary);
+
+  try {
+    const response = await transport.sendAction(action, params);
+    validateApiResponse(response);
+  } catch (err) {
+    logger?.error(
+      'OneBot outbound message send failed',
+      {
+        ...summary,
+        stage: 'message-send',
+        action,
+      },
+      err,
+    );
+    throw err;
+  }
 }
 
 async function buildSendAction(
   sessionKey: SessionKey,
   message: OutboundMessage,
   transport: OneBotActionTransport,
+  logger: OneBotLogger | undefined,
+  summary: ReturnType<typeof summarizeOutboundMessage>,
 ): Promise<{ action: string; params: Record<string, unknown> }> {
-  const outboundMessage = await buildOutgoingMessagePayload(message, transport);
+  const outboundMessage = await buildOutgoingMessagePayload(message, transport, logger, summary);
   const actionConfig = SEND_ACTION_BY_CHAT_TYPE[sessionKey.type];
 
   if (actionConfig) {
@@ -831,6 +851,8 @@ function validateApiResponse(response: OneBotApiResponse): void {
 async function buildOutgoingMessagePayload(
   message: OutboundMessage,
   transport: OneBotActionTransport,
+  logger: OneBotLogger | undefined,
+  summary: ReturnType<typeof summarizeOutboundMessage>,
 ): Promise<string | OneBotMessageSegment[]> {
   const attachments = message.attachments ?? [];
   if (attachments.length === 0) {
@@ -842,8 +864,25 @@ async function buildOutgoingMessagePayload(
     segments.push({ type: 'text', data: { text: message.content } });
   }
 
-  for (const attachment of attachments) {
-    const uploaded = await uploadAttachmentStream(attachment, transport);
+  for (const [attachmentIndex, attachment] of attachments.entries()) {
+    let uploaded: UploadedAttachment;
+    try {
+      uploaded = await uploadAttachmentStream(attachment, transport);
+    } catch (err) {
+      logger?.error(
+        'OneBot outbound attachment upload failed',
+        {
+          ...summary,
+          stage: 'attachment-upload',
+          attachmentIndex,
+          attachmentType: attachment.type,
+          attachmentSource: summarizeAttachmentSource(attachment),
+        },
+        err,
+      );
+      throw err;
+    }
+
     segments.push({
       type: SEGMENT_TYPE_BY_ATTACHMENT[attachment.type],
       data: {
@@ -902,6 +941,30 @@ async function uploadAttachmentStream(
     filePath: readUploadedFilePath(completion),
     fileName: loaded.fileName,
   };
+}
+
+function summarizeOutboundMessage(sessionKey: SessionKey, message: OutboundMessage) {
+  const attachments = message.attachments ?? [];
+  return {
+    sessionChannel: sessionKey.channel,
+    chatType: sessionKey.type,
+    contentLength: message.content.length,
+    attachmentCount: attachments.length,
+    attachmentTypes: attachments.map((attachment) => attachment.type),
+  };
+}
+
+function summarizeAttachmentSource(attachment: MediaAttachment): string {
+  if (attachment.base64) {
+    return 'base64';
+  }
+  if (attachment.path) {
+    return 'path';
+  }
+  if (attachment.url) {
+    return 'url';
+  }
+  return 'missing';
 }
 
 function readUploadedFilePath(response: OneBotApiResponse): string {

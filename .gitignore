@@ -11,10 +11,3 @@ data/
 .trellis/
 .opencode/
 AGENTS.md
-
-# Plugin fonts (user-provided, not tracked)
-extensions/plugin_md2img/fonts/*.otf
-extensions/plugin_md2img/fonts/*.ttf
-extensions/plugin_md2img/fonts/*.woff
-extensions/plugin_md2img/fonts/*.woff2
-extensions/plugin_md2img/fonts/*.ttc

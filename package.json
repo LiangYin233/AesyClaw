@@ -30,9 +30,7 @@
     "@sinclair/typebox": "^0.34.0",
     "front-matter": "^4.0.2",
     "marked": "^18.0.2",
-    "satori": "^0.26.0",
-    "satori-html": "^0.3.2",
-    "sharp": "^0.34.5"
+    "playwright": "^1.59.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

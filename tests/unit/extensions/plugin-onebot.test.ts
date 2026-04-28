@@ -128,6 +128,7 @@ describe('plugin_onebot', () => {
   });
 
   it('uploads attachments through upload_file_stream before sending the message', async () => {
+    const logger = makeLogger();
     const sendAction = vi.fn(async (action: string, params: Record<string, unknown>) => {
       if (action === 'upload_file_stream' && params.is_complete === true) {
         return {
@@ -162,6 +163,7 @@ describe('plugin_onebot', () => {
         ],
       },
       { sendAction },
+      logger,
     );
 
     expect(sendAction).toHaveBeenNthCalledWith(
@@ -194,6 +196,106 @@ describe('plugin_onebot', () => {
         },
       ],
     });
+    expect(logger.debug).not.toHaveBeenCalled();
+  });
+
+  it('logs attachment upload failures before the OneBot send handoff', async () => {
+    const logger = makeLogger();
+    const error = new Error('upload exploded');
+
+    await expect(
+      sendOneBotMessage(
+        groupSession('67890'),
+        {
+          content: '',
+          attachments: [
+            {
+              type: 'image',
+              base64: Buffer.from('image-bytes').toString('base64'),
+              mimeType: 'image/png',
+            },
+          ],
+        },
+        {
+          sendAction: async () => {
+            throw error;
+          },
+        },
+        logger,
+      ),
+    ).rejects.toThrow('upload exploded');
+
+    expect(logger.error).toHaveBeenCalledWith(
+      'OneBot outbound attachment upload failed',
+      {
+        sessionChannel: 'onebot',
+        chatType: 'group',
+        contentLength: 0,
+        attachmentCount: 1,
+        attachmentTypes: ['image'],
+        stage: 'attachment-upload',
+        attachmentIndex: 0,
+        attachmentType: 'image',
+        attachmentSource: 'base64',
+      },
+      error,
+    );
+    expect(JSON.stringify(logger.error.mock.calls)).not.toContain(
+      Buffer.from('image-bytes').toString('base64'),
+    );
+  });
+
+  it('logs OneBot send-stage failures after attachment upload succeeds', async () => {
+    const logger = makeLogger();
+    const error = new Error('bad request');
+
+    await expect(
+      sendOneBotMessage(
+        groupSession('67890'),
+        {
+          content: 'hello',
+          attachments: [
+            {
+              type: 'image',
+              base64: Buffer.from('image-bytes').toString('base64'),
+              mimeType: 'image/png',
+            },
+          ],
+        },
+        {
+          sendAction: async (action, params) => {
+            if (action === 'upload_file_stream') {
+              if (params.is_complete === true) {
+                return {
+                  status: 'ok',
+                  retcode: 0,
+                  data: { type: 'response', file_path: 'C:/NapCatTemp/image.png' },
+                };
+              }
+
+              return { status: 'ok', retcode: 0, data: { type: 'stream' } };
+            }
+
+            throw error;
+          },
+        },
+        logger,
+      ),
+    ).rejects.toThrow('bad request');
+
+    expect(logger.error).toHaveBeenCalledWith(
+      'OneBot outbound message send failed',
+      {
+        sessionChannel: 'onebot',
+        chatType: 'group',
+        contentLength: 'hello'.length,
+        attachmentCount: 1,
+        attachmentTypes: ['image'],
+        stage: 'message-send',
+        action: 'send_group_msg',
+      },
+      error,
+    );
   });
 
   it('rejects logical OneBot send failures', async () => {
