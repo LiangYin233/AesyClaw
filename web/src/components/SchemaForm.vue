@@ -2,8 +2,21 @@
   <div class="schema-form">
     <!-- Object with properties -->
     <template v-if="resolvedType === 'object-properties'">
-      <fieldset class="fieldset">
-        <legend v-if="label">{{ displayLabel }}</legend>
+      <template v-if="label">
+        <fieldset class="fieldset">
+          <legend>{{ displayLabel }}</legend>
+          <div v-for="key in sortedKeys" :key="key" class="field-group">
+            <SchemaForm
+              :schema="resolvedSchema.properties![key]"
+              :model-value="modelValueObj[key]"
+              :label="key"
+              :path="`${path}.${key}`"
+              @update:model-value="updateProperty(key, $event)"
+            />
+          </div>
+        </fieldset>
+      </template>
+      <template v-else>
         <div v-for="key in sortedKeys" :key="key" class="field-group">
           <SchemaForm
             :schema="resolvedSchema.properties![key]"
@@ -13,7 +26,7 @@
             @update:model-value="updateProperty(key, $event)"
           />
         </div>
-      </fieldset>
+      </template>
     </template>
 
     <!-- Record / dictionary -->
@@ -95,17 +108,17 @@
 
     <!-- Boolean -->
     <template v-else-if="resolvedType === 'boolean'">
-      <label
-        class="field-label"
-        style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer"
-      >
-        <input
-          :checked="booleanValue"
-          type="checkbox"
-          @change="$emit('update:modelValue', ($event.target as HTMLInputElement).checked)"
-        />
-        {{ displayLabel }}
-      </label>
+      <div class="form-group toggle-group">
+        <label class="field-label">{{ displayLabel }}</label>
+        <button
+          type="button"
+          class="toggle-switch"
+          :class="{ active: booleanValue }"
+          @click="$emit('update:modelValue', !booleanValue)"
+        >
+          <span class="toggle-thumb"></span>
+        </button>
+      </div>
     </template>
 
     <!-- Enum / Union -->
@@ -341,3 +354,44 @@ function formatLabel(label: string): string {
     .replace(/^\w/, (char) => char.toUpperCase());
 }
 </script>
+
+<style scoped>
+.toggle-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.toggle-switch {
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  border: none;
+  background: var(--color-border-strong);
+  cursor: pointer;
+  position: relative;
+  transition: background var(--transition-fast);
+  padding: 0;
+}
+
+.toggle-switch.active {
+  background: var(--color-accent-green);
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform var(--transition-fast);
+}
+
+.toggle-switch.active .toggle-thumb {
+  transform: translateX(20px);
+}
+</style>

@@ -12,7 +12,6 @@
           {{ saving ? 'Saving...' : 'Save' }}
         </button>
         <button class="btn btn-ghost" @click="loadConfig">Reset</button>
-        <button class="btn btn-ghost" @click="exportConfig">Export</button>
       </div>
     </div>
 
@@ -119,16 +118,6 @@
                 </div>
 
                 <div class="form-group">
-                  <label class="field-label">Real model name</label>
-                  <input
-                    :value="model.realModelName ?? ''"
-                    class="form-input"
-                    placeholder="gpt-4o-2024-08-06"
-                    @input="updateProviderModelOptionalString(provider.key, model.key, 'realModelName', ($event.target as HTMLInputElement).value)"
-                  />
-                </div>
-
-                <div class="form-group">
                   <label class="field-label">Context window</label>
                   <input
                     :value="model.contextWindow ?? ''"
@@ -136,26 +125,6 @@
                     class="form-input"
                     placeholder="128000"
                     @input="updateProviderModelNumber(provider.key, model.key, ($event.target as HTMLInputElement).value)"
-                  />
-                </div>
-
-                <label class="field-label mcp-toggle">
-                  <input
-                    :checked="model.enableThinking === true"
-                    type="checkbox"
-                    @change="updateProviderModelField(provider.key, model.key, 'enableThinking', ($event.target as HTMLInputElement).checked)"
-                  />
-                  Enable thinking
-                </label>
-
-                <div class="form-group">
-                  <label class="field-label">Model API key</label>
-                  <input
-                    :value="model.apiKey ?? ''"
-                    type="text"
-                    class="form-input"
-                    placeholder="Optional model-specific API key"
-                    @input="updateProviderModelOptionalString(provider.key, model.key, 'apiKey', ($event.target as HTMLInputElement).value)"
                   />
                 </div>
 
@@ -177,23 +146,27 @@
         </div>
       </section>
 
-      <section class="config-sections">
-        <div v-for="section in configSections" :key="section.key" class="mcp-entry config-section-entry">
-          <div class="mcp-entry-header">
-            <div>
-              <div class="mcp-entry-title">{{ section.title }}</div>
-              <p class="section-subtitle">{{ section.subtitle }}</p>
-            </div>
-            <span class="badge badge-gray">Config section</span>
+      <section v-for="section in configSections" :key="section.key" class="mcp-editor">
+        <div class="mcp-editor-header">
+          <div>
+            <h2 class="section-title">{{ section.title }}</h2>
+            <p class="section-subtitle">{{ section.subtitle }}</p>
           </div>
+        </div>
 
-          <div class="config-section-body">
-            <SchemaForm
-              :schema="section.schema"
-              :model-value="editableConfig[section.key]"
-              @update:model-value="updateConfigSection(section.key, $event)"
-            />
-          </div>
+        <div v-if="section.key === 'server'" class="mcp-entry">
+          <SchemaForm
+            :schema="section.schema"
+            :model-value="editableConfig[section.key]"
+            @update:model-value="updateConfigSection(section.key, $event)"
+          />
+        </div>
+        <div v-else class="agent-schema">
+          <SchemaForm
+            :schema="section.schema"
+            :model-value="editableConfig[section.key]"
+            @update:model-value="updateConfigSection(section.key, $event)"
+          />
         </div>
       </section>
 
@@ -251,14 +224,17 @@
               </select>
             </div>
 
-            <label class="field-label mcp-toggle">
-              <input
-                :checked="server.enabled"
-                type="checkbox"
-                @change="updateMcpField(index, 'enabled', ($event.target as HTMLInputElement).checked)"
-              />
-              Enabled
-            </label>
+            <div class="form-group toggle-group">
+              <label class="field-label">Enabled</label>
+              <button
+                type="button"
+                class="toggle-switch"
+                :class="{ active: server.enabled }"
+                @click="updateMcpField(index, 'enabled', !server.enabled)"
+              >
+                <span class="toggle-thumb"></span>
+              </button>
+            </div>
 
             <div v-if="server.transport === 'stdio'" class="form-group mcp-wide">
               <label class="field-label">Command</label>
@@ -341,10 +317,7 @@ type ApiType = 'openai_responses' | 'openai_completion' | 'anthropic';
 
 interface ProviderModelForm extends Record<string, unknown> {
   key: string;
-  realModelName?: string;
   contextWindow?: number;
-  enableThinking?: boolean;
-  apiKey?: string;
   extraBody?: Record<string, unknown>;
 }
 
@@ -444,17 +417,6 @@ async function saveConfig() {
   }
 }
 
-function exportConfig() {
-  const exportValue = omitTopLevelConfigKeys({ ...fullConfig.value, ...editableConfig.value }, new Set(['cors']));
-  const blob = new Blob([JSON.stringify(exportValue, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'aesyclaw-config.json';
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 function updateConfigSection(key: string, value: unknown) {
   editableConfig.value = { ...editableConfig.value, [key]: value };
 }
@@ -538,24 +500,6 @@ function renameProviderModel(providerKey: string, oldKey: string, newKeyRaw: str
     }
     return { ...provider, models: next };
   });
-}
-
-function updateProviderModelField(
-  providerKey: string,
-  modelKey: string,
-  key: 'enableThinking',
-  value: unknown,
-) {
-  updateProviderModel(providerKey, modelKey, (model) => ({ ...model, [key]: value }));
-}
-
-function updateProviderModelOptionalString(
-  providerKey: string,
-  modelKey: string,
-  key: 'realModelName' | 'apiKey',
-  value: string,
-) {
-  updateProviderModel(providerKey, modelKey, (model) => updateOptionalProperty(model, key, value));
 }
 
 function updateProviderModelNumber(providerKey: string, modelKey: string, value: string) {
@@ -744,10 +688,7 @@ function normalizeProviderModels(value: unknown): ProviderModelForm[] {
     return {
       ...source,
       key,
-      realModelName: typeof source.realModelName === 'string' ? source.realModelName : undefined,
       contextWindow: typeof source.contextWindow === 'number' ? source.contextWindow : undefined,
-      enableThinking: typeof source.enableThinking === 'boolean' ? source.enableThinking : undefined,
-      apiKey: typeof source.apiKey === 'string' ? source.apiKey : undefined,
       extraBody: isRecord(source.extraBody) ? source.extraBody : undefined,
     };
   });
@@ -890,32 +831,14 @@ onMounted(() => {
   gap: 1.25rem;
 }
 
-.config-sections,
 .mcp-editor {
   min-width: 0;
-}
-
-.config-sections,
-.mcp-editor {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
-.config-section-body :deep(.fieldset) {
-  margin-bottom: 0;
-  background: rgba(250, 249, 245, 0.65);
-}
 
-.config-section-body :deep(.schema-form > .fieldset > legend) {
-  display: none;
-}
-
-.config-section-body :deep(.schema-form > .fieldset) {
-  border: none;
-  padding: 0;
-  background: transparent;
-}
 
 .mcp-editor-header,
 .mcp-entry-header {
@@ -976,14 +899,43 @@ onMounted(() => {
   grid-column: 1 / -1;
 }
 
-.mcp-toggle {
+.toggle-group {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 0.5rem;
-  align-self: end;
-  min-height: 2.45rem;
-  margin-bottom: 1.25rem;
+}
+
+.toggle-switch {
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  border: none;
+  background: var(--color-border-strong);
   cursor: pointer;
+  position: relative;
+  transition: background var(--transition-fast);
+  padding: 0;
+}
+
+.toggle-switch.active {
+  background: var(--color-accent-green);
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform var(--transition-fast);
+}
+
+.toggle-switch.active .toggle-thumb {
+  transform: translateX(20px);
 }
 
 .mcp-textarea {
@@ -1055,5 +1007,16 @@ onMounted(() => {
   .mcp-toggle {
     align-self: flex-start;
   }
+}
+</style>
+
+<style>
+.agent-schema > .schema-form > .fieldset {
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: #FCFAF7;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 1rem;
 }
 </style>
