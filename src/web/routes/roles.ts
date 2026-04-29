@@ -51,5 +51,28 @@ export function createRolesRouter(deps: WebUiManagerDependencies) {
     }
   });
 
+  router.post('/', async (c) => {
+    try {
+      const body = (await c.req.json()) as Partial<RoleConfig> & { name: string; model: string };
+      if (!body.name || !body.model) {
+        return c.json({ ok: false, error: 'Name and model are required' }, 400);
+      }
+      const role = await deps.roleManager.createRole({
+        name: body.name,
+        description: body.description ?? '',
+        systemPrompt: body.systemPrompt ?? '',
+        model: body.model,
+        toolPermission: body.toolPermission ?? { mode: 'allowlist', list: [] },
+        skills: body.skills ?? ([] as string[]),
+        enabled: body.enabled ?? true,
+        id: body.id,
+      });
+      return c.json({ ok: true, data: role }, 201);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json({ ok: false, error: message }, 400);
+    }
+  });
+
   return router;
 }

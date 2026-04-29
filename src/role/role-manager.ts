@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { Value } from '@sinclair/typebox/value';
 import { createScopedLogger } from '../core/logger';
 import { AppError } from '../core/errors';
@@ -206,6 +207,38 @@ export class RoleManager {
     this.roles.set(roleId, roleData);
     this.notifyChanges();
     logger.info('Role saved', { roleId, file: targetFile });
+  }
+
+  /**
+   * Create a new role and persist it to the roles directory.
+   *
+   * @param roleData Role configuration (id will be auto-generated if empty).
+   * @returns The created RoleConfig.
+   * @throws If the roles directory is not available or validation fails.
+   */
+  async createRole(roleData: Omit<RoleConfig, 'id'> & { id?: string }): Promise<RoleConfig> {
+    if (!this.rolesDir) {
+      throw new AppError('Roles not loaded', 'CONFIG_VALIDATION');
+    }
+
+    const id = roleData.id || randomUUID();
+    const fullRole: RoleConfig = { ...roleData, id };
+
+    const validated = Value.Default(RoleConfigSchema, fullRole);
+    if (!Value.Check(RoleConfigSchema, validated)) {
+      const errors = [...Value.Errors(RoleConfigSchema, validated)];
+      throw new AppError('Role validation failed', 'CONFIG_VALIDATION', errors);
+    }
+
+    const filename = `${id}.json`;
+    const filePath = path.join(this.rolesDir, filename);
+    fs.writeFileSync(filePath, JSON.stringify(validated, null, 2), 'utf-8');
+
+    this.roles.set(id, validated);
+    this.notifyChanges();
+    logger.info('Role created', { roleId: id, file: filePath });
+
+    return validated;
   }
 
   // ─── System prompt ────────────────────────────────────────────
