@@ -14,7 +14,6 @@ export type RuntimeImageContent = ImageContent;
 export type RuntimeToolCall = ToolCall;
 export type RuntimeModel = Model<Api> & {
   modelId: string;
-  realModelName?: string;
   apiKey?: string;
   apiType: Api;
   extraBody?: Record<string, unknown>;

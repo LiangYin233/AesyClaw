@@ -84,10 +84,8 @@ export class LlmAdapter {
 
     const preset = providerConfig.models?.[modelId];
     const apiType = API_TYPE_MAP[providerConfig.apiType];
-    const realModelName = preset?.realModelName;
-    const effectiveModelId = realModelName ?? modelId;
-    const builtInModel = this.tryGetBuiltInModel(provider, effectiveModelId);
-    const apiKey = preset?.apiKey ?? providerConfig.apiKey;
+    const builtInModel = this.tryGetBuiltInModel(provider, modelId);
+    const apiKey = providerConfig.apiKey;
 
     if (!apiKey) {
       throw new Error(
@@ -96,12 +94,12 @@ export class LlmAdapter {
     }
 
     return {
-      id: effectiveModelId,
-      name: builtInModel?.name ?? effectiveModelId,
+      id: modelId,
+      name: builtInModel?.name ?? modelId,
       provider,
       api: apiType,
       baseUrl: providerConfig.baseUrl ?? builtInModel?.baseUrl ?? '',
-      reasoning: preset?.enableThinking ?? builtInModel?.reasoning ?? false,
+      reasoning: builtInModel?.reasoning ?? false,
       input: builtInModel?.input ?? ['text'],
       cost: builtInModel?.cost ?? {
         input: 0,
@@ -115,7 +113,6 @@ export class LlmAdapter {
       compat: builtInModel?.compat,
       extraBody: preset?.extraBody,
       modelId,
-      realModelName,
       apiKey,
       apiType,
     };

@@ -20,11 +20,8 @@ const ApiProtocolType = Type.Union([
 
 /** Model capability preset within a provider */
 const ModelPresetSchema = Type.Object({
-  realModelName: Type.Optional(Type.String()),
   contextWindow: Type.Optional(Type.Number()),
-  enableThinking: Type.Optional(Type.Boolean()),
   extraBody: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
-  apiKey: Type.Optional(Type.String()),
 });
 
 const ProviderConfigSchema = Type.Object({
