@@ -350,7 +350,7 @@ h6,
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  background: #FAF7F4;
+  background: #FAF8F3;
   position: sticky;
   top: 0;
 }
@@ -364,6 +364,7 @@ h6,
 }
 
 .data-table tbody tr {
+  background: #FDFBF9;
   transition: background var(--transition-fast);
 }
 

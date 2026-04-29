@@ -13,7 +13,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "node --import tsx src/index.ts",
+    "start": "yarn build && node --import tsx src/index.ts",
     "web:dev": "yarn workspace aesyclaw-webui dev",
     "web:build": "yarn workspace aesyclaw-webui build",
     "build": "yarn workspace aesyclaw-webui build",

@@ -44,18 +44,6 @@
             <span class="nav-label">{{ item.label }}</span>
           </RouterLink>
         </nav>
-        <div class="sidebar-footer">
-          <div class="sidebar-user">
-            <div class="sidebar-user-avatar">A</div>
-            <div class="sidebar-user-info">
-              <div class="sidebar-user-name">Admin</div>
-              <div class="sidebar-user-email">admin@aesyclaw.local</div>
-            </div>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-text-muted); margin-left: auto;">
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
-          </div>
-        </div>
       </aside>
 
       <main class="content">
@@ -285,59 +273,6 @@ function handleLogout() {
 
 .nav-icon svg {
   display: block;
-}
-
-.sidebar-footer {
-  padding: 0.75rem;
-  border-top: 1px solid var(--color-border);
-}
-
-.sidebar-user {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.6rem 0.75rem;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.sidebar-user:hover {
-  background: rgba(20, 20, 19, 0.04);
-}
-
-.sidebar-user-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: #F7F0EA;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-heading);
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-dark);
-  border: 1px solid var(--color-border);
-}
-
-.sidebar-user-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-}
-
-.sidebar-user-name {
-  font-family: var(--font-heading);
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--color-dark);
-}
-
-.sidebar-user-email {
-  font-family: var(--font-body);
-  font-size: 0.7rem;
-  color: var(--color-text-muted);
 }
 
 .content {
