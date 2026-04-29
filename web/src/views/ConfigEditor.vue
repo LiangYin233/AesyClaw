@@ -2,10 +2,10 @@
   <div>
     <div class="toolbar">
       <button class="btn btn-success" :disabled="saving" @click="saveConfig">
-        {{ saving ? 'Saving...' : '💾 Save' }}
+        {{ saving ? 'Saving...' : 'Save' }}
       </button>
-      <button class="btn btn-ghost" @click="loadConfig">🔄 Reset</button>
-      <button class="btn btn-ghost" @click="exportConfig">📤 Export</button>
+      <button class="btn btn-ghost" @click="loadConfig">Reset</button>
+      <button class="btn btn-ghost" @click="exportConfig">Export</button>
     </div>
 
     <div v-if="loading" class="empty-state">Loading configuration...</div>

@@ -27,7 +27,7 @@
               <tr v-if="expanded === job.id" class="expand-row">
                 <td colspan="4">
                   <div class="expand-content">
-                    <h4 style="margin: 0 0 0.5rem">Execution History</h4>
+                    <h4>Execution History</h4>
                     <div v-if="runsLoading" class="empty-state">Loading...</div>
                     <div v-else-if="runs.length === 0" class="empty-state">No runs yet</div>
                     <div v-else class="table-wrap">

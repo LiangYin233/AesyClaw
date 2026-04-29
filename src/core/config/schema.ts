@@ -31,7 +31,7 @@ const ProviderConfigSchema = Type.Object({
   apiKey: Type.Optional(Type.String()),
   baseUrl: Type.Optional(Type.String()),
   apiType: ApiProtocolType,
-  models: Type.Optional(Type.Record(Type.String(), ModelPresetSchema)),
+  models: Type.Record(Type.String(), ModelPresetSchema, { default: {} }),
 });
 
 type ProviderConfig = Static<typeof ProviderConfigSchema>;
