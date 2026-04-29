@@ -1,7 +1,6 @@
 /** Hono app factory — registers middleware and routes. */
 
 import { Hono } from 'hono';
-import { cors } from 'hono/cors';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -21,11 +20,6 @@ const logger = createScopedLogger('webui');
 export function createApp(deps: WebUiManagerDependencies): Hono {
   const app = new Hono();
   const config = deps.configManager.getConfig();
-
-  // CORS
-  if (config.server.cors) {
-    app.use(cors());
-  }
 
   // Auth middleware for API routes
   const authMiddleware = createAuthMiddleware(deps.configManager);

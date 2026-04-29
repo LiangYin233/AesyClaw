@@ -85,7 +85,7 @@ function makeMockDeps(
   overrides: Partial<SessionManagerDependencies> = {},
 ): SessionManagerDependencies {
   const mockConfig = {
-    server: { port: 3000, host: '0.0.0.0', logLevel: 'info', cors: true },
+    server: { port: 3000, host: '0.0.0.0', logLevel: 'info' },
     providers: {
       openai: { apiType: 'openai_responses', apiKey: 'test-key' },
     },

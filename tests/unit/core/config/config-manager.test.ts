@@ -124,7 +124,7 @@ describe('ConfigManager', () => {
 
       await manager.load(configPath);
 
-      expect(manager.get('server').cors).toBe(true);
+
       expect(manager.get('mcp')[0]?.enabled).toBe(true);
       expect(manager.get('plugins')[0]?.enabled).toBe(true);
     });

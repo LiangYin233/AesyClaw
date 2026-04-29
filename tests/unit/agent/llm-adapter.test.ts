@@ -24,7 +24,7 @@ vi.mock('@mariozechner/pi-ai', async () => {
 
 function makeConfigWithProviders(providers: Record<string, unknown> = {}): AppConfig {
   return {
-    server: { port: 3000, host: '0.0.0.0', logLevel: 'info', cors: true },
+    server: { port: 3000, host: '0.0.0.0', logLevel: 'info' },
     providers: {
       openai: {
         apiType: 'openai_responses',

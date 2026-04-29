@@ -11,7 +11,6 @@ export const DEFAULT_CONFIG: AppConfig = {
     port: 3000,
     host: '0.0.0.0',
     logLevel: 'info',
-    cors: true,
   },
   providers: {},
   channels: {},
