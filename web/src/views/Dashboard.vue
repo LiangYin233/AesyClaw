@@ -54,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useAuth } from '@/composables/useAuth';
 
 const { api } = useAuth();
@@ -86,7 +86,7 @@ async function load() {
       stats.value = {
         sessions: db?.sessions ?? 0,
         messages: db?.messages ?? 0,
-        cronJobs: db?.cronRuns ?? 0,
+        cronJobs: db?.cronJobs ?? 0,
       };
     }
   } catch (err) {
@@ -94,9 +94,17 @@ async function load() {
   }
 }
 
+let timer: ReturnType<typeof setInterval> | null = null;
+
 onMounted(() => {
   load();
-  const timer = setInterval(load, 5000);
-  return () => clearInterval(timer);
+  timer = setInterval(load, 5000);
+});
+
+onUnmounted(() => {
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
 });
 </script>

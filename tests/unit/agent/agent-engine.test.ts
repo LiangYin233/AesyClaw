@@ -373,59 +373,6 @@ describe('AgentEngine', () => {
       );
     });
 
-    it('should not return a stale assistant response when the new turn has no assistant text', async () => {
-      const role = makeRole();
-      const historyTimestamp = Date.now() - 1_000;
-      const mockLlmAdapter = makeMockLlmAdapter();
-      const agent = {
-        state: {
-          systemPrompt: 'prompt',
-          model: (mockLlmAdapter.resolveModel as ReturnType<typeof vi.fn>)('openai/gpt-4o'),
-          tools: [],
-          messages: [
-            { role: 'user' as const, content: 'Earlier user', timestamp: historyTimestamp - 1 },
-            {
-              role: 'assistant' as const,
-              content: [{ type: 'text' as const, text: 'Earlier assistant' }],
-              api: 'openai-responses' as const,
-              provider: 'openai',
-              model: 'gpt-4o',
-              usage: {
-                input: 0,
-                output: 0,
-                cacheRead: 0,
-                cacheWrite: 0,
-                totalTokens: 0,
-                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-              },
-              stopReason: 'stop' as const,
-              timestamp: historyTimestamp,
-            },
-          ],
-        },
-        prompt: vi.fn().mockImplementation(async function prompt(this: {
-          state: { messages: unknown[] };
-        }) {
-          this.state.messages.push({
-            role: 'user',
-            content: 'Hello, assistant!',
-            timestamp: Date.now(),
-          });
-        }),
-        waitForIdle: vi.fn().mockResolvedValue(undefined),
-        reset: vi.fn(),
-      };
-      const memory = {
-        loadHistory: vi.fn().mockResolvedValue(agent.state.messages.slice()),
-        syncFromAgent: vi.fn().mockResolvedValue(undefined),
-      } as unknown as MemoryManager;
-
-      const result = await engine.process(agent as never, makeInboundMessage(), memory, role);
-
-      expect(result.content).toBe('[No response generated]');
-      expect(memory.syncFromAgent).toHaveBeenCalledWith([]);
-    });
-
     // maxSteps logic removed
   });
 

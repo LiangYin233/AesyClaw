@@ -205,6 +205,14 @@ export class Application {
       await this.channelManager.startAll();
     });
 
+    await this.startStep('Cron manager initialization', async () => {
+      await this.cronManager.initialize({
+        databaseManager: this.databaseManager,
+        pipeline: this.pipeline,
+        send: async (sessionKey, message) => this.channelManager.send(sessionKey, message),
+      });
+    });
+
     await this.startStep('WebUI initialization', async () => {
       await this.webUiManager.initialize({
         configManager: this.configManager,
@@ -214,14 +222,6 @@ export class Application {
         roleManager: this.roleManager,
         channelManager: this.channelManager,
         pluginManager: this.getPluginManager(),
-      });
-    });
-
-    await this.startStep('Cron manager initialization', async () => {
-      await this.cronManager.initialize({
-        databaseManager: this.databaseManager,
-        pipeline: this.pipeline,
-        send: async (sessionKey, message) => this.channelManager.send(sessionKey, message),
       });
     });
 

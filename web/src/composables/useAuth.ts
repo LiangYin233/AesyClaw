@@ -1,6 +1,5 @@
 import axios, { type AxiosInstance } from 'axios';
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
 
 const TOKEN_KEY = 'aesyclaw_token';
 const token = ref<string | null>(sessionStorage.getItem(TOKEN_KEY));
@@ -24,8 +23,9 @@ api.interceptors.response.use(
   (error) => {
     if (axios.isAxiosError(error) && error.response?.status === 401) {
       logout();
-      const router = useRouter();
-      router.push('/login');
+      if (window.location.hash !== '#/login') {
+        window.location.hash = '#/login';
+      }
     }
     return Promise.reject(error);
   },

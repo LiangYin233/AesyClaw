@@ -110,6 +110,62 @@ describe('McpManager', () => {
     expect(result).toEqual({ content: JSON.stringify({ ok: true, params: { text: 'hi' } }) });
   });
 
+  it('assigns collision-resistant names when sanitized MCP tool names collide', async () => {
+    const client = makeClient({
+      listTools: vi.fn(async () => [
+        { name: 'foo.bar', description: 'Dotted tool' },
+        { name: 'foo_bar', description: 'Underscore tool' },
+      ]),
+    });
+    const toolRegistry = new ToolRegistry();
+    const manager = new McpManager();
+    manager.initialize({
+      configManager: new FakeConfigManager([{ name: 'local', transport: 'stdio', enabled: true }]),
+      toolRegistry,
+      clientFactory: { create: () => client },
+    });
+
+    await manager.connectAll();
+
+    const names = manager.getConnected('local')?.tools ?? [];
+    expect(names).toHaveLength(2);
+    expect(new Set(names).size).toBe(2);
+    expect(names[0]).toBe(mcpToolName('local', 'foo.bar'));
+    expect(names[1]).toMatch(/^local_foo_bar_[a-z0-9]+$/);
+    expect(toolRegistry.get(names[0])).toBeDefined();
+    expect(toolRegistry.get(names[1])).toBeDefined();
+  });
+
+  it('assigns collision-resistant names across MCP servers with colliding sanitized names', async () => {
+    const toolRegistry = new ToolRegistry();
+    const manager = new McpManager();
+    manager.initialize({
+      configManager: new FakeConfigManager([
+        { name: 'local.one', transport: 'stdio', enabled: true },
+        { name: 'local_one', transport: 'stdio', enabled: true },
+      ]),
+      toolRegistry,
+      clientFactory: { create: () => makeClient() },
+    });
+
+    await manager.connectAll();
+
+    const firstNames = manager.getConnected('local.one')?.tools ?? [];
+    const secondNames = manager.getConnected('local_one')?.tools ?? [];
+    expect(firstNames).toEqual([mcpToolName('local.one', 'echo')]);
+    expect(secondNames).toHaveLength(1);
+    const firstName = firstNames[0];
+    const secondName = secondNames[0];
+    expect(firstName).toBeDefined();
+    expect(secondName).toBeDefined();
+    if (!firstName || !secondName) {
+      throw new Error('Expected MCP tool names to be registered');
+    }
+    expect(secondName).toMatch(/^local_one_echo_[a-z0-9]+$/);
+    expect(toolRegistry.get(firstName)).toBeDefined();
+    expect(toolRegistry.get(secondName)).toBeDefined();
+  });
+
   it('passes invalid MCP params through to the client instead of blocking locally', async () => {
     const client = makeClient({
       callTool: vi.fn(async (_name: string, params: unknown) => ({ ok: false, params })),

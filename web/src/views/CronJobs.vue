@@ -8,25 +8,21 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>Name</th>
+              <th>ID</th>
               <th>Schedule</th>
               <th>Prompt</th>
-              <th>Enabled</th>
+              <th>Next Run</th>
             </tr>
           </thead>
           <tbody>
             <template v-for="job in jobs" :key="job.id">
               <tr class="row-clickable" @click="toggleJob(job.id)">
-                <td>{{ job.name }}</td>
+                <td>{{ job.id }}</td>
                 <td>
-                  <code>{{ job.schedule }}</code>
+                  <code>{{ job.scheduleType }} {{ job.scheduleValue }}</code>
                 </td>
                 <td class="cell-truncate">{{ job.prompt }}</td>
-                <td>
-                  <span class="badge" :class="job.enabled ? 'badge-green' : 'badge-gray'">
-                    {{ job.enabled ? 'Yes' : 'No' }}
-                  </span>
-                </td>
+                <td>{{ job.nextRun ? formatTime(job.nextRun) : '-' }}</td>
               </tr>
               <tr v-if="expanded === job.id" class="expand-row">
                 <td colspan="4">
@@ -50,17 +46,19 @@
                               <span
                                 class="badge"
                                 :class="
-                                  run.status === 'success'
+                                  run.status === 'completed'
                                     ? 'badge-green'
                                     : run.status === 'failed'
                                       ? 'badge-red'
-                                      : 'badge-gray'
+                                      : run.status === 'running'
+                                        ? 'badge-gray'
+                                        : 'badge-red'
                                 "
                               >
                                 {{ run.status }}
                               </span>
                             </td>
-                            <td class="cell-truncate">{{ run.result ?? '-' }}</td>
+                            <td class="cell-truncate">{{ run.result ?? run.error ?? '-' }}</td>
                           </tr>
                         </tbody>
                       </table>
@@ -87,17 +85,21 @@ const { api } = useAuth();
 
 interface CronJob {
   id: string;
-  name: string;
-  schedule: string;
+  scheduleType: 'once' | 'daily' | 'interval';
+  scheduleValue: string;
   prompt: string;
-  enabled: boolean;
+  nextRun: string | null;
+  createdAt: string;
 }
 
 interface CronRun {
   id: string;
+  jobId: string;
   startedAt: string;
-  status: string;
-  result?: string;
+  status: 'completed' | 'failed' | 'running' | 'abandoned';
+  result: string | null;
+  error: string | null;
+  endedAt: string | null;
 }
 
 const jobs = ref<CronJob[]>([]);

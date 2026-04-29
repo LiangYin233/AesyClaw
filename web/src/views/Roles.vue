@@ -66,14 +66,13 @@
           <div class="form-group">
             <label>Tool Permission Mode</label>
             <select v-model="form.toolPermission.mode" class="form-select">
-              <option value="all">all</option>
-              <option value="none">none</option>
               <option value="allowlist">allowlist</option>
+              <option value="denylist">denylist</option>
             </select>
           </div>
 
-          <div v-if="form.toolPermission.mode === 'allowlist'" class="form-group">
-            <label>Allowed Tools</label>
+          <div class="form-group">
+            <label>{{ form.toolPermission.mode === 'allowlist' ? 'Allowed Tools' : 'Denied Tools' }}</label>
             <div v-for="(_t, idx) in form.toolPermission.list" :key="idx" class="array-item">
               <input v-model="form.toolPermission.list![idx]" class="form-input" />
               <button type="button" class="btn btn-danger btn-sm" @click="removeTool(idx)">
@@ -133,7 +132,7 @@ import { useAuth } from '@/composables/useAuth';
 const { api } = useAuth();
 
 interface ToolPermission {
-  mode: 'all' | 'none' | 'allowlist';
+  mode: 'allowlist' | 'denylist';
   list?: string[];
 }
 
@@ -156,7 +155,7 @@ const form = ref<Role>({
   description: '',
   systemPrompt: '',
   model: '',
-  toolPermission: { mode: 'all', list: [] },
+  toolPermission: { mode: 'denylist', list: [] },
   skills: [],
   enabled: true,
 });
@@ -185,11 +184,20 @@ function openEditor(role: Role) {
   editingRole.value = role;
   form.value = JSON.parse(JSON.stringify(role));
   if (!form.value.toolPermission) {
-    form.value.toolPermission = { mode: 'all', list: [] };
+    form.value.toolPermission = { mode: 'denylist', list: [] };
+  } else if (!isValidToolPermissionMode(form.value.toolPermission.mode)) {
+    form.value.toolPermission.mode = 'denylist';
+  }
+  if (!form.value.toolPermission.list) {
+    form.value.toolPermission.list = [];
   }
   if (!form.value.skills) {
     form.value.skills = [];
   }
+}
+
+function isValidToolPermissionMode(mode: string): mode is ToolPermission['mode'] {
+  return mode === 'allowlist' || mode === 'denylist';
 }
 
 function closeEditor() {

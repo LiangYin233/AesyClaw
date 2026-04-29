@@ -9,6 +9,7 @@ import { SessionManager } from '../../src/agent/session-manager';
 import { McpManager } from '../../src/mcp/mcp-manager';
 import { SdkMcpClientFactory } from '../../src/mcp/sdk-mcp-client';
 import { RoleManager } from '../../src/role/role-manager';
+import { WebUiManager } from '../../src/web/webui-manager';
 
 const TEST_ROOTS: string[] = [];
 
@@ -77,6 +78,36 @@ describe('Application', () => {
       await app.start();
       expect(order).toEqual(expect.arrayContaining(['channels', 'cron']));
       expect(order.indexOf('channels')).toBeLessThan(order.indexOf('cron'));
+    } finally {
+      await app.shutdown();
+    }
+  });
+
+  it('initializes cron before exposing WebUI routes', async () => {
+    const testRoot = mkdtempSync(path.join(tmpdir(), 'aesyclaw-app-test-'));
+    TEST_ROOTS.push(testRoot);
+    vi.spyOn(process, 'cwd').mockReturnValue(testRoot);
+
+    const order: string[] = [];
+    const originalCronInitialize = CronManager.prototype.initialize;
+    const originalWebUiInitialize = WebUiManager.prototype.initialize;
+
+    vi.spyOn(CronManager.prototype, 'initialize').mockImplementation(async function (dependencies) {
+      order.push('cron');
+      await originalCronInitialize.call(this, dependencies);
+    });
+
+    vi.spyOn(WebUiManager.prototype, 'initialize').mockImplementation(async function (dependencies) {
+      order.push('webui');
+      expect(order).toContain('cron');
+      await originalWebUiInitialize.call(this, dependencies);
+    });
+
+    const app = new Application();
+
+    try {
+      await app.start();
+      expect(order.indexOf('cron')).toBeLessThan(order.indexOf('webui'));
     } finally {
       await app.shutdown();
     }

@@ -29,7 +29,7 @@
                     <div v-if="messagesLoading" class="empty-state">Loading...</div>
                     <div v-else-if="messages.length === 0" class="empty-state">No messages</div>
                     <div v-else class="message-list">
-                      <div v-for="msg in messages" :key="msg.id" class="message-item">
+                      <div v-for="(msg, idx) in messages" :key="messageKey(msg, idx)" class="message-item">
                         <div class="message-meta">
                           <span
                             class="badge"
@@ -37,7 +37,7 @@
                           >
                             {{ msg.role }}
                           </span>
-                          <span class="message-time">{{ formatTime(msg.createdAt) }}</span>
+                          <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
                         </div>
                         <pre class="message-text">{{ msg.content }}</pre>
                       </div>
@@ -70,10 +70,9 @@ interface Session {
 }
 
 interface Message {
-  id: string;
-  role: string;
+  role: 'user' | 'assistant';
   content: string;
-  createdAt: string;
+  timestamp: string;
 }
 
 const sessions = ref<Session[]>([]);
@@ -115,6 +114,10 @@ async function toggleSession(id: string) {
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleString();
+}
+
+function messageKey(message: Message, index: number): string {
+  return `${message.timestamp}:${message.role}:${index}`;
 }
 
 onMounted(loadSessions);
