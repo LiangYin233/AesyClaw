@@ -3,119 +3,110 @@
     <h1 class="page-title">Sessions</h1>
     <p class="page-subtitle">View and manage active and historical chat sessions.</p>
 
-    <div class="card">
-      <div class="table-wrap">
-        <table class="data-table session-table">
-          <thead>
-            <tr>
-              <th style="width: 40px"></th>
-              <th>Session ID</th>
-              <th>Channel</th>
-              <th>Type</th>
-              <th>Chat ID</th>
-              <th>Status</th>
-              <th style="width: 40px"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <template v-for="session in sessions" :key="session.id">
-              <tr class="row-clickable" @click="toggleSession(session.id)">
-                <td>
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="expand-chevron"
-                    :class="{ expanded: expanded === session.id }"
-                  >
-                    <polyline points="9 18 15 12 9 6"></polyline>
+    <div class="table-wrap">
+      <table class="data-table session-table">
+        <thead>
+          <tr>
+            <th style="width: 40px"></th>
+            <th>Session ID</th>
+            <th>Channel</th>
+            <th>Type</th>
+            <th>Chat ID</th>
+            <th>Last Updated</th>
+            <th style="width: 40px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <template v-for="session in sessions" :key="session.id">
+            <tr class="row-clickable" @click="toggleSession(session.id)">
+              <td>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="expand-chevron"
+                  :class="{ expanded: expanded === session.id }"
+                >
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </td>
+              <td>{{ session.id }}</td>
+              <td>
+                <div class="channel-cell">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-text-muted);">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                   </svg>
-                </td>
-                <td>{{ session.id }}</td>
-                <td>
-                  <div class="channel-cell">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-text-muted);">
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                    </svg>
-                    <span>{{ session.channel }}</span>
-                  </div>
-                </td>
-                <td>{{ session.type }}</td>
-                <td>{{ session.chatId }}</td>
-                <td>
-                  <span class="status-badge" :class="getStatusClass(session)">
-                    <span class="status-dot"></span>
-                    {{ getStatusLabel(session) }}
-                  </span>
-                </td>
-                <td>
-                  <button class="table-action-btn" @click.stop>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <circle cx="12" cy="12" r="1"></circle>
-                      <circle cx="19" cy="12" r="1"></circle>
-                      <circle cx="5" cy="12" r="1"></circle>
-                    </svg>
-                  </button>
-                </td>
-              </tr>
-              <tr v-if="expanded === session.id" class="expand-row">
-                <td colspan="7">
-                  <div class="expand-content">
-                    <div class="message-history-header">
-                      <h4>Message History</h4>
-                      <button class="collapse-btn" @click="expanded = null">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <polyline points="18 15 12 9 6 15"></polyline>
-                        </svg>
-                        Collapse
-                      </button>
-                    </div>
-
-                    <div class="message-table-wrap">
-                      <table class="data-table message-table">
-                        <thead>
-                          <tr>
-                            <th style="width: 80px">Role</th>
-                            <th style="width: 140px">Timestamp</th>
-                            <th>Content</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr v-for="(msg, idx) in messages" :key="messageKey(msg, idx)">
-                            <td>
-                              <span class="msg-role" :class="msg.role === 'user' ? 'role-user' : 'role-assistant'">
-                                {{ msg.role }}
-                              </span>
-                            </td>
-                            <td class="cell-muted">{{ formatTime(msg.timestamp) }}</td>
-                            <td>{{ msg.content }}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <div class="message-history-footer">
-                      <span class="footer-count">{{ messages.length }} messages</span>
-                      <span class="footer-meta">
-                        Started: {{ formatTime(session.startedAt || messages[0]?.timestamp) }}
-                        <span v-if="messages.length > 0"> &middot; Last activity: {{ formatTime(messages[messages.length - 1].timestamp) }}</span>
-                      </span>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            </template>
-            <tr v-if="sessions.length === 0">
-              <td colspan="7" class="empty-state">No sessions</td>
+                  <span>{{ session.channel }}</span>
+                </div>
+              </td>
+              <td>{{ session.type }}</td>
+              <td>{{ session.chatId }}</td>
+              <td class="cell-muted">{{ formatDate(session.updatedAt || session.startedAt) }}</td>
+              <td>
+                <button class="table-action-btn" @click.stop>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="1"></circle>
+                    <circle cx="19" cy="12" r="1"></circle>
+                    <circle cx="5" cy="12" r="1"></circle>
+                  </svg>
+                </button>
+              </td>
             </tr>
-          </tbody>
-        </table>
-      </div>
+            <tr v-if="expanded === session.id" class="expand-row">
+              <td colspan="7">
+                <div class="expand-content">
+                  <div class="message-history-header">
+                    <h4>Message History</h4>
+                    <button class="collapse-btn" @click="expanded = null">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="18 15 12 9 6 15"></polyline>
+                      </svg>
+                      Collapse
+                    </button>
+                  </div>
+
+                  <div class="chat-log">
+                    <div v-if="messagesLoading" class="chat-empty">Loading...</div>
+                    <div v-else-if="messages.length === 0" class="chat-empty">No messages</div>
+                    <div v-else class="chat-messages">
+                      <div
+                        v-for="(msg, idx) in messages"
+                        :key="messageKey(msg, idx)"
+                        class="chat-bubble"
+                        :class="msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-assistant'"
+                      >
+                        <div class="chat-bubble-meta">
+                          <span class="chat-role-label" :class="msg.role === 'user' ? 'role-user' : 'role-assistant'">
+                            {{ msg.role }}
+                          </span>
+                          <span class="chat-time">{{ formatTime(msg.timestamp) }}</span>
+                        </div>
+                        <div class="chat-bubble-body">{{ msg.content }}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="message-history-footer">
+                    <span class="footer-count">{{ messages.length }} messages</span>
+                    <span class="footer-meta">
+                      Started: {{ formatTime(session.startedAt || messages[0]?.timestamp) }}
+                      <span v-if="messages.length > 0"> &middot; Last activity: {{ formatTime(messages[messages.length - 1].timestamp) }}</span>
+                    </span>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </template>
+          <tr v-if="sessions.length === 0">
+            <td colspan="7" class="empty-state">No sessions</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </template>
@@ -132,6 +123,7 @@ interface Session {
   type: string;
   chatId: string;
   startedAt?: string;
+  updatedAt?: string;
 }
 
 interface Message {
@@ -182,23 +174,21 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString();
 }
 
+function formatDate(iso: string | undefined): string {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }) + ' ' + d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 function messageKey(message: Message, index: number): string {
   return `${message.timestamp}:${message.role}:${index}`;
-}
-
-function getStatusClass(session: Session): string {
-  // 根据 session 索引模拟不同状态
-  const idx = sessions.value.indexOf(session);
-  if (idx % 5 === 0) return 'status-active';
-  if (idx % 5 === 3) return 'status-idle';
-  return 'status-completed';
-}
-
-function getStatusLabel(session: Session): string {
-  const cls = getStatusClass(session);
-  if (cls === 'status-active') return 'Active';
-  if (cls === 'status-idle') return 'Idle';
-  return 'Completed';
 }
 
 onMounted(loadSessions);
@@ -226,47 +216,6 @@ onMounted(loadSessions);
   display: flex;
   align-items: center;
   gap: 0.4rem;
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.25rem 0.6rem;
-  border-radius: 999px;
-  font-family: var(--font-heading);
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.status-badge .status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-
-.status-active {
-  background: rgba(120, 140, 93, 0.12);
-  color: #5a6e47;
-}
-.status-active .status-dot {
-  background: var(--color-accent-green);
-}
-
-.status-idle {
-  background: rgba(217, 119, 87, 0.12);
-  color: #b0654a;
-}
-.status-idle .status-dot {
-  background: var(--color-accent-orange);
-}
-
-.status-completed {
-  background: rgba(176, 174, 165, 0.2);
-  color: #8a8880;
-}
-.status-completed .status-dot {
-  background: var(--color-mid-gray);
 }
 
 .message-history-header {
@@ -305,27 +254,56 @@ onMounted(loadSessions);
   color: var(--color-dark);
 }
 
-.message-table-wrap {
+.chat-log {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   overflow: hidden;
   margin-bottom: 0.75rem;
 }
 
-.message-table {
-  font-size: 0.8rem;
+.chat-empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
 }
 
-.message-table th {
-  background: var(--color-surface);
-  font-size: 0.7rem;
+.chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  max-height: 480px;
+  overflow-y: auto;
 }
 
-.message-table td {
-  padding: 0.6rem 0.75rem;
+.chat-bubble {
+  display: flex;
+  flex-direction: column;
+  max-width: 85%;
 }
 
-.msg-role {
+.chat-bubble-user {
+  align-self: flex-end;
+}
+
+.chat-bubble-assistant {
+  align-self: flex-start;
+}
+
+.chat-bubble-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.chat-bubble-user .chat-bubble-meta {
+  flex-direction: row-reverse;
+}
+
+.chat-role-label {
   display: inline-flex;
   align-items: center;
   padding: 0.15rem 0.5rem;
@@ -346,10 +324,29 @@ onMounted(loadSessions);
   color: #5a6e47;
 }
 
-.cell-muted {
-  color: var(--color-text-muted);
+.chat-time {
   font-family: var(--font-heading);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.chat-bubble-body {
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--color-dark);
+  word-break: break-word;
+  border: 1px solid var(--color-border);
+}
+
+.chat-bubble-user .chat-bubble-body {
+  background: var(--color-surface);
+}
+
+.chat-bubble-assistant .chat-bubble-body {
+  background: #FDFBF9;
 }
 
 .message-history-footer {

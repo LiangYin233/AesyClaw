@@ -72,55 +72,52 @@
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-header">
-        <h2 class="card-title">Channel Status</h2>
-      </div>
-      <div class="table-wrap">
-        <table class="data-table channel-table">
-          <thead>
-            <tr>
-              <th>Channel</th>
-              <th>Status</th>
-              <th>Last Check</th>
-              <th>Response Time</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="ch in channels" :key="ch.name">
-              <td>
-                <div class="channel-name">
-                  <span class="channel-dot" :class="ch.state === 'connected' ? 'dot-green' : 'dot-gray'"></span>
-                  <span>{{ ch.name }}</span>
-                </div>
-              </td>
-              <td>
-                <span
-                  class="badge"
-                  :class="ch.state === 'connected' ? 'badge-green' : 'badge-gray'"
-                >
-                  {{ ch.state }}
-                </span>
-              </td>
-              <td class="cell-muted">{{ ch.lastCheck ?? '-' }}</td>
-              <td class="cell-muted">{{ ch.responseTime ?? '-' }}</td>
-              <td>
-                <button class="table-action-btn">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="1"></circle>
-                    <circle cx="19" cy="12" r="1"></circle>
-                    <circle cx="5" cy="12" r="1"></circle>
-                  </svg>
-                </button>
-              </td>
-            </tr>
-            <tr v-if="channels.length === 0">
-              <td colspan="5" class="empty-state">No channels</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+    <h2 class="page-title channel-status-title">Channel Status</h2>
+
+    <div class="table-wrap">
+      <table class="data-table channel-table">
+        <thead>
+          <tr>
+            <th>Channel</th>
+            <th>Status</th>
+            <th>Last Check</th>
+            <th>Response Time</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="ch in channels" :key="ch.name">
+            <td>
+              <div class="channel-name">
+                <span class="channel-dot" :class="ch.state === 'connected' ? 'dot-green' : 'dot-gray'"></span>
+                <span>{{ ch.name }}</span>
+              </div>
+            </td>
+            <td>
+              <span
+                class="badge"
+                :class="ch.state === 'connected' ? 'badge-green' : 'badge-gray'"
+              >
+                {{ ch.state }}
+              </span>
+            </td>
+            <td class="cell-muted">{{ ch.lastCheck ?? '-' }}</td>
+            <td class="cell-muted">{{ ch.responseTime ?? '-' }}</td>
+            <td>
+              <button class="table-action-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="1"></circle>
+                  <circle cx="19" cy="12" r="1"></circle>
+                  <circle cx="5" cy="12" r="1"></circle>
+                </svg>
+              </button>
+            </td>
+          </tr>
+          <tr v-if="channels.length === 0">
+            <td colspan="5" class="empty-state">No channels</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </template>
@@ -192,6 +189,10 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.channel-status-title {
+  margin: 1.5rem 0 0.75rem;
+}
+
 .page-subtitle {
   font-family: var(--font-body);
   font-size: 0.9rem;

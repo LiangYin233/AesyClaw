@@ -1,31 +1,9 @@
 <template>
   <div class="login-page">
-    <!-- Top bar -->
-    <header class="login-topbar">
-      <div class="login-topbar-brand">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="16 18 22 12 16 6"></polyline>
-          <polyline points="8 6 2 12 8 18"></polyline>
-        </svg>
-        <span class="login-topbar-title">AesyClaw</span>
-        <span class="login-topbar-version">v0.1.0</span>
-      </div>
-    </header>
-
     <!-- Login card -->
     <div class="login-card-wrapper">
       <div class="login-card">
-        <div class="login-icon-wrap">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#d97757" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-          </svg>
-        </div>
-
-        <h1 class="login-title">Token Login</h1>
-        <p class="login-subtitle">
-          Access the admin console by providing your Auth Token. Keep your token secure.
-        </p>
+        <img src="/groupLogo.svg" alt="AesyClaw" class="login-logo" />
 
         <form class="login-form" @submit.prevent="handleSubmit">
           <div class="login-form-group">
@@ -74,7 +52,7 @@
 
     <!-- Footer -->
     <footer class="login-footer">
-      <span>&copy; 2025 AesyClaw. All rights reserved.</span>
+      <span>&copy; 2026 AesyClaw. All rights reserved.</span>
     </footer>
   </div>
 </template>
@@ -119,43 +97,6 @@ async function handleSubmit() {
   background: var(--color-bg);
 }
 
-/* Top bar */
-.login-topbar {
-  height: 56px;
-  display: flex;
-  align-items: center;
-  padding: 0 1.5rem;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-bg);
-}
-
-.login-topbar-brand {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--color-dark);
-}
-
-.login-topbar-brand svg {
-  color: var(--color-accent-orange);
-}
-
-.login-topbar-title {
-  font-family: var(--font-heading);
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-
-.login-topbar-version {
-  font-family: var(--font-heading);
-  font-size: 0.7rem;
-  font-weight: 500;
-  color: var(--color-text-muted);
-  background: var(--color-surface);
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-}
-
 /* Card wrapper */
 .login-card-wrapper {
   flex: 1;
@@ -176,15 +117,10 @@ async function handleSubmit() {
   text-align: center;
 }
 
-.login-icon-wrap {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: rgba(217, 119, 87, 0.1);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 1.25rem;
+.login-logo {
+  width: 160px;
+  height: auto;
+  margin-bottom: 1.5rem;
 }
 
 .login-title {
@@ -194,14 +130,6 @@ async function handleSubmit() {
   color: var(--color-dark);
   margin-bottom: 0.5rem;
   letter-spacing: -0.02em;
-}
-
-.login-subtitle {
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  color: var(--color-text-muted);
-  margin: 0 0 1.75rem;
-  line-height: 1.5;
 }
 
 /* Form */

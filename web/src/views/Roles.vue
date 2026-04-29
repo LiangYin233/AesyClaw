@@ -1,68 +1,70 @@
 <template>
   <div>
-    <h1 class="page-title">Roles</h1>
-    <p class="page-subtitle">Manage roles that control model behavior, tool access, and capabilities.</p>
+    <div class="roles-header">
+      <div>
+        <h1 class="page-title">Roles</h1>
+        <p class="page-subtitle">Manage roles that control model behavior, tool access, and capabilities.</p>
+      </div>
+      <button class="btn btn-primary btn-sm" @click="openCreate">
+        + Add Role
+      </button>
+    </div>
 
-    <div class="card">
-      <div class="table-wrap">
-        <table class="data-table roles-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Model</th>
-              <th>Enabled</th>
-              <th>Updated At</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="(role, idx) in roles"
-              :key="role.id"
-              class="row-clickable"
-              @click="openEditor(role)"
-            >
-              <td>{{ idx + 1 }}</td>
-              <td>
-                <div class="role-name-cell">
-                  <span class="role-name">{{ role.name }}</span>
-                  <span v-if="role.description" class="role-desc">{{ role.description }}</span>
-                </div>
-              </td>
-              <td>{{ role.model }}</td>
-              <td>
-                <span v-if="role.enabled" class="role-check">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#788c5d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
-                </span>
-                <span v-else class="role-cross">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c45b5b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                  </svg>
-                </span>
-              </td>
-              <td class="cell-muted">{{ formatDate(role.updatedAt) }}</td>
-            </tr>
-            <tr v-if="roles.length === 0">
-              <td colspan="5" class="empty-state">No roles</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="table-footer">
-        <span>Showing {{ roles.length }} of {{ roles.length }} roles</span>
-      </div>
+    <div class="table-wrap">
+      <table class="data-table roles-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Model</th>
+            <th>Enabled</th>
+            <th>Updated At</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="(role, idx) in roles"
+            :key="role.id"
+            class="row-clickable"
+            @click="openEditor(role)"
+          >
+            <td>{{ idx + 1 }}</td>
+            <td>
+              <div class="role-name-cell">
+                <span class="role-name">{{ role.name }}</span>
+                <span v-if="role.description" class="role-desc">{{ role.description }}</span>
+              </div>
+            </td>
+            <td>{{ role.model }}</td>
+            <td>
+              <span v-if="role.enabled" class="role-check">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#788c5d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </span>
+              <span v-else class="role-cross">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c45b5b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </span>
+            </td>
+            <td class="cell-muted">{{ formatDate(role.updatedAt) }}</td>
+          </tr>
+          <tr v-if="roles.length === 0">
+            <td colspan="5" class="empty-state">No roles</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <!-- Slide-in drawer -->
     <Teleport to="body">
       <Transition name="drawer">
-        <div v-if="editingRole" class="drawer-overlay" @click.self="closeEditor">
+        <div v-if="editingRole || creating" class="drawer-overlay" @click.self="closeEditor">
           <div class="drawer">
             <div class="drawer-header">
-              <h3 class="drawer-title">Edit Role</h3>
+              <h3 class="drawer-title">{{ creating ? 'Add Role' : 'Edit Role' }}</h3>
               <button class="drawer-close" @click="closeEditor">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -274,6 +276,7 @@ interface Role {
 
 const roles = ref<Role[]>([]);
 const editingRole = ref<Role | null>(null);
+const creating = ref(false);
 
 interface ModelOption {
   value: string;
@@ -339,6 +342,7 @@ async function loadModelOptions() {
 }
 
 function openEditor(role: Role) {
+  creating.value = false;
   editingRole.value = role;
   form.value = JSON.parse(JSON.stringify(role));
   if (!form.value.toolPermission) {
@@ -354,12 +358,28 @@ function openEditor(role: Role) {
   }
 }
 
+function openCreate() {
+  creating.value = true;
+  editingRole.value = null;
+  form.value = {
+    id: '',
+    name: '',
+    description: '',
+    systemPrompt: '',
+    model: modelOptions.value[0]?.value ?? '',
+    toolPermission: { mode: 'allowlist', list: [] },
+    skills: [],
+    enabled: true,
+  };
+}
+
 function isValidToolPermissionMode(mode: string): mode is ToolPermission['mode'] {
   return mode === 'allowlist' || mode === 'denylist';
 }
 
 function closeEditor() {
   editingRole.value = null;
+  creating.value = false;
 }
 
 function addTool() {
@@ -382,18 +402,30 @@ function removeSkill(idx: number) {
 }
 
 async function saveRole() {
-  if (!editingRole.value) return;
   saving.value = true;
   try {
     const payload = { ...form.value };
     delete (payload as Record<string, unknown>).id;
-    const res = await api.put(`/roles/${editingRole.value.id}`, payload);
-    if (res.data.ok) {
-      showToast('toast-success', 'Role saved');
-      await loadRoles();
-      closeEditor();
-    } else {
-      showToast('toast-error', res.data.error ?? 'Save failed');
+    delete (payload as Record<string, unknown>).updatedAt;
+
+    if (creating.value) {
+      const res = await api.post('/roles', payload);
+      if (res.data.ok) {
+        showToast('toast-success', 'Role created');
+        await loadRoles();
+        closeEditor();
+      } else {
+        showToast('toast-error', res.data.error ?? 'Create failed');
+      }
+    } else if (editingRole.value) {
+      const res = await api.put(`/roles/${editingRole.value.id}`, payload);
+      if (res.data.ok) {
+        showToast('toast-success', 'Role saved');
+        await loadRoles();
+        closeEditor();
+      } else {
+        showToast('toast-error', res.data.error ?? 'Save failed');
+      }
     }
   } catch (err) {
     showToast('toast-error', err instanceof Error ? err.message : 'Save failed');
@@ -422,11 +454,23 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.roles-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.roles-header .page-title {
+  margin-bottom: 0;
+}
+
 .page-subtitle {
   font-family: var(--font-body);
   font-size: 0.9rem;
   color: var(--color-text-muted);
-  margin: 0.25rem 0 1.5rem;
+  margin: 0.25rem 0 0;
 }
 
 .role-name-cell {
@@ -458,14 +502,6 @@ onMounted(() => {
   color: var(--color-text-muted);
   font-family: var(--font-heading);
   font-size: 0.8rem;
-}
-
-.table-footer {
-  padding: 0.75rem 1rem;
-  border-top: 1px solid var(--color-border);
-  font-family: var(--font-body);
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
 }
 
 /* Drawer */
