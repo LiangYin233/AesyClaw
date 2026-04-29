@@ -19,7 +19,6 @@ const logger = createScopedLogger('webui');
 
 export function createApp(deps: WebUiManagerDependencies): Hono {
   const app = new Hono();
-  const config = deps.configManager.getConfig();
 
   // Auth middleware for API routes
   const authMiddleware = createAuthMiddleware(deps.configManager);

@@ -31,6 +31,16 @@ const router = createRouter({
           component: () => import('@/views/ConfigEditor.vue'),
         },
         {
+          path: 'channels',
+          name: 'Channels',
+          component: () => import('@/views/ChannelsConfig.vue'),
+        },
+        {
+          path: 'plugins',
+          name: 'Plugins',
+          component: () => import('@/views/PluginsConfig.vue'),
+        },
+        {
           path: 'cron',
           name: 'Cron',
           component: () => import('@/views/CronJobs.vue'),

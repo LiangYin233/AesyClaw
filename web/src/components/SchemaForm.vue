@@ -3,7 +3,7 @@
     <!-- Object with properties -->
     <template v-if="resolvedType === 'object-properties'">
       <fieldset class="fieldset">
-        <legend v-if="label">{{ label }}</legend>
+        <legend v-if="label">{{ displayLabel }}</legend>
         <div v-for="key in sortedKeys" :key="key" class="field-group">
           <SchemaForm
             :schema="resolvedSchema.properties![key]"
@@ -19,7 +19,7 @@
     <!-- Record / dictionary -->
     <template v-else-if="resolvedType === 'object-record'">
       <fieldset class="fieldset">
-        <legend v-if="label">{{ label }}</legend>
+        <legend v-if="label">{{ displayLabel }}</legend>
         <div v-for="(entry, idx) in recordEntries" :key="idx" class="array-item">
           <input
             v-model="entry.key"
@@ -50,7 +50,7 @@
     <!-- Array -->
     <template v-else-if="resolvedType === 'array'">
       <fieldset class="fieldset">
-        <legend v-if="label">{{ label }}</legend>
+        <legend v-if="label">{{ displayLabel }}</legend>
         <div v-for="(item, idx) in modelValueArr" :key="idx" class="array-item">
           <SchemaForm
             :schema="resolvedSchema.items!"
@@ -71,31 +71,24 @@
 
     <!-- String -->
     <template v-else-if="resolvedType === 'string'">
-      <label v-if="label" class="field-label">{{ label }}</label>
-      <SecretInput
-        v-if="isSecret"
-        :model-value="stringValue"
-        :placeholder="label"
-        @update:model-value="$emit('update:modelValue', $event)"
-      />
+      <label v-if="label" class="field-label">{{ displayLabel }}</label>
       <input
-        v-else
         :value="stringValue"
         type="text"
         class="form-input"
-        :placeholder="label"
+        :placeholder="displayLabel"
         @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)"
       />
     </template>
 
     <!-- Number -->
     <template v-else-if="resolvedType === 'number'">
-      <label v-if="label" class="field-label">{{ label }}</label>
+      <label v-if="label" class="field-label">{{ displayLabel }}</label>
       <input
         :value="numberValue"
         type="number"
         class="form-input"
-        :placeholder="label"
+        :placeholder="displayLabel"
         @input="$emit('update:modelValue', Number(($event.target as HTMLInputElement).value))"
       />
     </template>
@@ -111,13 +104,13 @@
           type="checkbox"
           @change="$emit('update:modelValue', ($event.target as HTMLInputElement).checked)"
         />
-        {{ label }}
+        {{ displayLabel }}
       </label>
     </template>
 
     <!-- Enum / Union -->
     <template v-else-if="resolvedType === 'enum'">
-      <label v-if="label" class="field-label">{{ label }}</label>
+      <label v-if="label" class="field-label">{{ displayLabel }}</label>
       <select
         :value="modelValue"
         class="form-select"
@@ -129,7 +122,7 @@
 
     <!-- Fallback: raw JSON -->
     <template v-else>
-      <label v-if="label" class="field-label">{{ label }}</label>
+      <label v-if="label" class="field-label">{{ displayLabel }}</label>
       <JsonEditor :model-value="jsonValue" @update:model-value="updateJson" />
     </template>
   </div>
@@ -137,7 +130,6 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import SecretInput from './SecretInput.vue';
 import JsonEditor from './JsonEditor.vue';
 
 interface JsonSchema {
@@ -150,7 +142,6 @@ interface JsonSchema {
   enum?: (string | number)[];
   const?: string | number;
   default?: unknown;
-  'x-secret'?: boolean;
   [key: string]: unknown;
 }
 
@@ -205,12 +196,7 @@ const resolvedType = computed(() => {
   return 'fallback';
 });
 
-const isSecret = computed(() => {
-  if (props.schema['x-secret']) return true;
-  const name = (props.label ?? '').toLowerCase();
-  const patterns = ['apikey', 'token', 'secret', 'password', '密钥', '令牌', '密码'];
-  return patterns.some((p) => name.includes(p));
-});
+const displayLabel = computed(() => formatLabel(props.label ?? ''));
 
 const sortedKeys = computed(() => {
   const propsObj = resolvedSchema.value.properties ?? {};
@@ -341,5 +327,17 @@ function getDefaultValue(s: JsonSchema): unknown {
     if (first.const !== undefined) return first.const;
   }
   return null;
+}
+
+function formatLabel(label: string): string {
+  const titleMap: Record<string, string> = {
+    speechToText: 'Speech-to-text',
+    imageUnderstanding: 'Image-understanding',
+  };
+  if (titleMap[label]) return titleMap[label];
+  return label
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/^\w/, (char) => char.toUpperCase());
 }
 </script>

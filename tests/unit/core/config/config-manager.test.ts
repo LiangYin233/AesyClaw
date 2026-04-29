@@ -226,6 +226,84 @@ describe('ConfigManager', () => {
       expect(fileContent.agent.memory.compressionThreshold).toBe(0.6);
     });
 
+    it('should replace requested top-level object sections instead of deep-merging removed keys', async () => {
+      await manager.load(configPath);
+
+      await manager.update({
+        channels: {
+          keep: { enabled: true },
+          remove: { enabled: true },
+        },
+      });
+      await manager.update(
+        {
+          channels: {
+            keep: { enabled: false },
+          },
+        },
+        { replaceTopLevelKeys: ['channels'] },
+      );
+
+      expect(manager.get('channels')).toEqual({ keep: { enabled: false } });
+    });
+
+    it('should preserve unrelated provider/model fields during partial provider updates', async () => {
+      await manager.load(configPath);
+
+      await manager.update({
+        providers: {
+          openai: {
+            apiType: 'openai_responses',
+            apiKey: 'sk-openai',
+            baseUrl: 'https://old.example.test',
+            unknownProviderField: 'provider-future',
+            models: {
+              fast: {
+                realModelName: 'gpt-4o-mini',
+                contextWindow: 128000,
+                unknownModelField: 'model-future',
+              },
+            },
+          },
+          anthropic: {
+            apiType: 'anthropic',
+            apiKey: 'sk-anthropic',
+            models: {
+              sonnet: { realModelName: 'claude-sonnet' },
+            },
+          },
+        },
+      } as never);
+
+      await manager.update({
+        providers: {
+          openai: {
+            baseUrl: 'https://new.example.test',
+            models: {
+              fast: { contextWindow: 64000 },
+            },
+          },
+        },
+      } as never);
+
+      const providers = manager.get('providers') as Record<string, Record<string, unknown>>;
+      expect(providers.openai).toMatchObject({
+        apiType: 'openai_responses',
+        apiKey: 'sk-openai',
+        baseUrl: 'https://new.example.test',
+        unknownProviderField: 'provider-future',
+      });
+      expect((providers.openai?.models as Record<string, Record<string, unknown>>).fast).toMatchObject({
+        realModelName: 'gpt-4o-mini',
+        contextWindow: 64000,
+        unknownModelField: 'model-future',
+      });
+      expect(providers.anthropic).toMatchObject({
+        apiType: 'anthropic',
+        apiKey: 'sk-anthropic',
+      });
+    });
+
     it('should reject invalid merged config before persisting or notifying', async () => {
       await manager.load(configPath);
 

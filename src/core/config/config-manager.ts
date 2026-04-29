@@ -106,14 +106,25 @@ export class ConfigManager {
    * Sets the `selfUpdating` guard so the resulting file-write does not
    * trigger a redundant reload cycle.
    */
-  async update(partial: DeepPartial<AppConfig>): Promise<void> {
+  async update(
+    partial: DeepPartial<AppConfig>,
+    options: { replaceTopLevelKeys?: readonly (keyof AppConfig)[] } = {},
+  ): Promise<void> {
     if (!this.config || !this.configPath) {
       throw new AppError('Config not loaded', 'CONFIG_VALIDATION');
     }
 
     const oldConfig = structuredClone(this.config);
+    const mergeBase = structuredClone(this.config) as Record<string, unknown>;
+
+    for (const key of options.replaceTopLevelKeys ?? []) {
+      if (Object.prototype.hasOwnProperty.call(partial, key)) {
+        delete mergeBase[key];
+      }
+    }
+
     const mergedConfig = this.deepMerge(
-      structuredClone(this.config),
+      mergeBase as AppConfig,
       partial as Partial<AppConfig> & DeepPartial<AppConfig>,
     );
     const validatedConfig = this.validateConfigObject(mergedConfig);

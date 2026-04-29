@@ -6,43 +6,30 @@ function makeDeps(config: Record<string, unknown>) {
   return {
     configManager: {
       getConfig: vi.fn(() => config),
-      update: vi.fn(async (_partial: unknown) => undefined),
+      update: vi.fn(async (_partial: unknown, _options?: unknown) => undefined),
     },
   } as unknown as WebUiManagerDependencies;
 }
 
 describe('config routes', () => {
-  it('preserves existing secret values when a masked sentinel is submitted', async () => {
-    const previousConfig = {
+  it('returns actual config values without masking secrets', async () => {
+    const config = {
       server: { authToken: 'real-token' },
       providers: {
         openai: { apiKey: 'sk-real', baseUrl: 'https://example.test' },
       },
     };
-    const deps = makeDeps(previousConfig);
+    const deps = makeDeps(config);
     const router = createConfigRouter(deps);
 
-    const response = await router.request('/', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        server: { authToken: '***' },
-        providers: {
-          openai: { apiKey: '***', baseUrl: 'https://new.example.test' },
-        },
-      }),
-    });
+    const response = await router.request('/');
+    const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(deps.configManager.update).toHaveBeenCalledWith({
-      server: { authToken: 'real-token' },
-      providers: {
-        openai: { apiKey: 'sk-real', baseUrl: 'https://new.example.test' },
-      },
-    });
+    expect(body).toEqual({ ok: true, data: config });
   });
 
-  it('omits masked sentinel values for secret keys with no previous value', async () => {
+  it('saves submitted values directly without masked sentinel restore logic', async () => {
     const deps = makeDeps({ providers: { openai: { baseUrl: 'https://example.test' } } });
     const router = createConfigRouter(deps);
 
@@ -57,10 +44,44 @@ describe('config routes', () => {
     });
 
     expect(response.status).toBe(200);
-    expect(deps.configManager.update).toHaveBeenCalledWith({
-      providers: {
-        openai: { baseUrl: 'https://new.example.test' },
+    expect(deps.configManager.update).toHaveBeenCalledWith(
+      {
+        providers: {
+          openai: { apiKey: '***', baseUrl: 'https://new.example.test' },
+        },
       },
+      { replaceTopLevelKeys: ['channels', 'plugins'] },
+    );
+  });
+
+  it('requests top-level channel replacement so removed channel entries are not preserved', async () => {
+    const deps = makeDeps({
+      channels: {
+        keep: { enabled: true, token: 'real-token' },
+        remove: { enabled: true },
+      },
+      server: { host: '127.0.0.1' },
     });
+    const router = createConfigRouter(deps);
+
+    const response = await router.request('/', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        channels: {
+          keep: { enabled: false, token: '***' },
+        },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(deps.configManager.update).toHaveBeenCalledWith(
+      {
+        channels: {
+          keep: { enabled: false, token: '***' },
+        },
+      },
+      { replaceTopLevelKeys: ['channels', 'plugins'] },
+    );
   });
 });
