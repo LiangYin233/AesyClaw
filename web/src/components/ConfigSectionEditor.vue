@@ -10,7 +10,6 @@
           {{ saving ? 'Saving...' : 'Save' }}
         </button>
         <button class="btn btn-ghost" @click="loadConfig">Reset</button>
-        <button class="btn btn-ghost" @click="exportSection">Export</button>
       </div>
     </div>
 
@@ -19,15 +18,7 @@
     <div v-else class="section-content">
       <section class="section-editor">
         <div class="section-editor-header">
-          <div>
-            <h2 class="section-title">{{ editorTitle }}</h2>
-            <p class="section-subtitle">{{ editorSubtitle }}</p>
           </div>
-
-          <button type="button" class="btn btn-primary btn-sm" @click="addEntry">
-            + Add {{ entryNoun }}
-          </button>
-        </div>
 
         <div v-if="itemCount === 0" class="empty-state section-empty">
           No {{ title.toLowerCase() }} configuration entries.
@@ -38,31 +29,65 @@
             <div class="config-entry-header">
               <div>
                 <div class="config-entry-title">{{ entry.key || 'New channel' }}</div>
-                <span class="badge badge-gray">Channel</span>
               </div>
-              <button type="button" class="btn btn-danger btn-sm" @click="removeChannel(entry.key)">
-                Remove
-              </button>
+              <div class="header-actions">
+                <div class="header-toggle">
+                  <label class="field-label">Enabled</label>
+                  <button
+                    type="button"
+                    class="toggle-switch"
+                    :class="{ active: getChannelEnabled(entry) }"
+                    @click="toggleChannelEnabled(entry.key)"
+                  >
+                    <span class="toggle-thumb"></span>
+                  </button>
+                </div>
+                <button type="button" class="btn btn-danger btn-sm" @click="removeChannel(entry.key)">
+                  Remove
+                </button>
+              </div>
             </div>
 
             <div class="entry-fields">
-              <div class="form-group">
-                <label class="field-label">Key</label>
-                <input
-                  :value="entry.key"
-                  class="form-input"
-                  placeholder="onebot"
-                  @change="renameChannel(entry.key, ($event.target as HTMLInputElement).value)"
-                />
-              </div>
-
-              <div class="form-group entry-wide">
-                <label class="field-label">Configuration JSON</label>
-                <JsonEditor
-                  :model-value="toJson(entry.value)"
-                  placeholder="{}"
-                  @update:model-value="updateChannelJson(entry.key, $event)"
-                />
+              <div class="config-section entry-wide">
+                <div class="config-section-label">Configuration</div>
+                <div class="config-fields">
+                  <template v-for="field in getChannelFields(entry)" :key="`${entry.key}-${field.key}`">
+                    <div class="form-group config-field">
+                      <label class="field-label">{{ field.displayLabel }}</label>
+                      <template v-if="field.type === 'boolean'">
+                        <button
+                          type="button"
+                          class="toggle-switch"
+                          :class="{ active: field.value }"
+                          @click="setChannelField(entry.key, field.path, !field.value)"
+                        >
+                          <span class="toggle-thumb"></span>
+                        </button>
+                      </template>
+                      <input
+                        v-else-if="field.type === 'number'"
+                        :value="field.value"
+                        type="number"
+                        class="form-input"
+                        @input="setChannelField(entry.key, field.path, parseFloat(($event.target as HTMLInputElement).value) || 0)"
+                      />
+                      <textarea
+                        v-else-if="field.type === 'object'"
+                        :value="toJson(field.value)"
+                        class="form-input form-textarea form-textarea-sm"
+                        rows="3"
+                        @input="handleChannelComplexField(entry.key, field.path, ($event.target as HTMLTextAreaElement).value)"
+                      />
+                      <input
+                        v-else
+                        :value="field.value"
+                        class="form-input"
+                        @input="setChannelField(entry.key, field.path, ($event.target as HTMLInputElement).value)"
+                      />
+                    </div>
+                  </template>
+                </div>
               </div>
             </div>
           </div>
@@ -73,42 +98,65 @@
             <div class="config-entry-header">
               <div>
                 <div class="config-entry-title">{{ plugin.name || `Plugin ${index + 1}` }}</div>
-                <span class="badge" :class="plugin.enabled ? 'badge-green' : 'badge-gray'">
-                  {{ plugin.enabled ? 'Enabled' : 'Disabled' }}
-                </span>
               </div>
-              <button type="button" class="btn btn-danger btn-sm" @click="removePlugin(index)">
-                Remove
-              </button>
+              <div class="header-actions">
+                <div class="header-toggle">
+                  <label class="field-label">Enabled</label>
+                  <button
+                    type="button"
+                    class="toggle-switch"
+                    :class="{ active: plugin.enabled }"
+                    @click="updatePluginField(index, 'enabled', !plugin.enabled)"
+                  >
+                    <span class="toggle-thumb"></span>
+                  </button>
+                </div>
+                <button type="button" class="btn btn-danger btn-sm" @click="removePlugin(index)">
+                  Remove
+                </button>
+              </div>
             </div>
 
             <div class="entry-fields">
-              <div class="form-group">
-                <label class="field-label">Name</label>
-                <input
-                  :value="plugin.name"
-                  class="form-input"
-                  placeholder="plugin-name"
-                  @input="updatePluginField(index, 'name', ($event.target as HTMLInputElement).value)"
-                />
-              </div>
-
-              <label class="field-label entry-toggle">
-                <input
-                  :checked="plugin.enabled"
-                  type="checkbox"
-                  @change="updatePluginField(index, 'enabled', ($event.target as HTMLInputElement).checked)"
-                />
-                Enabled
-              </label>
-
-              <div class="form-group entry-wide">
-                <label class="field-label">Options JSON</label>
-                <JsonEditor
-                  :model-value="toJson(plugin.options ?? {})"
-                  placeholder="{}"
-                  @update:model-value="updatePluginOptions(index, $event)"
-                />
+              <div v-if="getPluginFields(plugin).length > 0" class="config-section entry-wide">
+                <div class="config-section-label">Options</div>
+                <div class="config-fields">
+                  <template v-for="field in getPluginFields(plugin)" :key="`plugin-${index}-${field.key}`">
+                    <div class="form-group config-field">
+                      <label class="field-label">{{ field.displayLabel }}</label>
+                      <template v-if="field.type === 'boolean'">
+                        <button
+                          type="button"
+                          class="toggle-switch"
+                          :class="{ active: field.value }"
+                          @click="setPluginOptionField(index, field.path, !field.value)"
+                        >
+                          <span class="toggle-thumb"></span>
+                        </button>
+                      </template>
+                      <input
+                        v-else-if="field.type === 'number'"
+                        :value="field.value"
+                        type="number"
+                        class="form-input"
+                        @input="setPluginOptionField(index, field.path, parseFloat(($event.target as HTMLInputElement).value) || 0)"
+                      />
+                      <textarea
+                        v-else-if="field.type === 'object'"
+                        :value="toJson(field.value)"
+                        class="form-input form-textarea form-textarea-sm"
+                        rows="3"
+                        @input="handlePluginComplexField(index, field.path, ($event.target as HTMLTextAreaElement).value)"
+                      />
+                      <input
+                        v-else
+                        :value="field.value"
+                        class="form-input"
+                        @input="setPluginOptionField(index, field.path, ($event.target as HTMLInputElement).value)"
+                      />
+                    </div>
+                  </template>
+                </div>
               </div>
             </div>
           </div>
@@ -140,8 +188,7 @@ const props = defineProps<{
   sectionKey: 'channels' | 'plugins';
   title: string;
   subtitle: string;
-  editorTitle: string;
-  editorSubtitle: string;
+
 }>();
 
 const { api } = useAuth();
@@ -214,18 +261,6 @@ async function saveSection() {
   }
 }
 
-function exportSection() {
-  const blob = new Blob([JSON.stringify(sectionValue.value, null, 2)], {
-    type: 'application/json',
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `aesyclaw-${props.sectionKey}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 function addEntry() {
   if (props.sectionKey === 'plugins') {
     sectionValue.value = [...pluginEntries.value, { name: '', enabled: true, options: {} }];
@@ -267,10 +302,99 @@ function removeChannel(key: string) {
   sectionValue.value = next;
 }
 
-function updateChannelJson(key: string, value: string) {
-  const parsed = parseJson(value);
-  if (parsed === undefined || !isRecord(sectionValue.value)) return;
-  sectionValue.value = { ...sectionValue.value, [key]: parsed };
+function getChannelEnabled(entry: ChannelEntry): boolean {
+  return isRecord(entry.value) && typeof entry.value.enabled === 'boolean' ? entry.value.enabled : true;
+}
+
+function toggleChannelEnabled(key: string) {
+  const current = isRecord(sectionValue.value) ? sectionValue.value : {};
+  const channelValue = isRecord(current[key]) ? current[key] : {};
+  const enabled = channelValue.enabled === false;
+  sectionValue.value = { ...current, [key]: { ...channelValue, enabled } };
+}
+
+interface ChannelField {
+  path: string;
+  key: string;
+  displayLabel: string;
+  value: unknown;
+  type: 'string' | 'number' | 'boolean' | 'object';
+}
+
+function getChannelFields(entry: ChannelEntry): ChannelField[] {
+  const fields: ChannelField[] = [];
+  if (!isRecord(entry.value)) return fields;
+
+  const flat = flattenObject(entry.value);
+  for (const [key, val] of Object.entries(flat)) {
+    if (key === 'enabled') continue;
+    let type: ChannelField['type'] = 'string';
+    if (typeof val === 'number') type = 'number';
+    else if (typeof val === 'boolean') type = 'boolean';
+    else if (typeof val === 'object' && val !== null) type = 'object';
+    fields.push({
+      path: key,
+      key,
+      displayLabel: formatFieldLabel(key),
+      value: val,
+      type,
+    });
+  }
+  return fields;
+}
+
+function flattenObject(obj: Record<string, unknown>, prefix = ''): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(obj)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (isRecord(val) && Object.keys(val).length > 0) {
+      Object.assign(result, flattenObject(val, path));
+    } else {
+      result[path] = val;
+    }
+  }
+  return result;
+}
+
+function setChannelField(channelKey: string, path: string, value: unknown) {
+  const current = isRecord(sectionValue.value) ? sectionValue.value : {};
+  const channelConfig = isRecord(current[channelKey]) ? { ...current[channelKey] } : {};
+  setNestedValue(channelConfig, path, value);
+  sectionValue.value = { ...current, [channelKey]: channelConfig };
+}
+
+function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown) {
+  const parts = path.split('.');
+  let current = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (!isRecord(current[parts[i]])) {
+      current[parts[i]] = {};
+    }
+    current = current[parts[i]] as Record<string, unknown>;
+  }
+  current[parts[parts.length - 1]] = value;
+}
+
+function handleChannelComplexField(channelKey: string, path: string, raw: string) {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return;
+  }
+  setChannelField(channelKey, path, parsed);
+}
+
+function formatFieldLabel(key: string): string {
+  const parts = key.split('.');
+  return parts
+    .map((p) =>
+      p
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase()),
+    )
+    .join(' > ');
 }
 
 function removePlugin(index: number) {
@@ -295,6 +419,47 @@ function updatePluginOptions(index: number, value: string) {
   if (!current) return;
   next[index] = { ...current, options: isRecord(parsed) ? parsed : {} };
   sectionValue.value = next;
+}
+
+function getPluginFields(plugin: PluginEntry): ChannelField[] {
+  const fields: ChannelField[] = [];
+  const options = isRecord(plugin.options) ? plugin.options : {};
+
+  const flat = flattenObject(options);
+  for (const [key, val] of Object.entries(flat)) {
+    let type: ChannelField['type'] = 'string';
+    if (typeof val === 'number') type = 'number';
+    else if (typeof val === 'boolean') type = 'boolean';
+    else if (typeof val === 'object' && val !== null) type = 'object';
+    fields.push({
+      path: key,
+      key,
+      displayLabel: formatFieldLabel(key),
+      value: val,
+      type,
+    });
+  }
+  return fields;
+}
+
+function setPluginOptionField(index: number, path: string, value: unknown) {
+  const next = [...getRawPlugins()];
+  const current = next[index];
+  if (!current) return;
+  const options = isRecord(current.options) ? { ...current.options } : {};
+  setNestedValue(options, path, value);
+  next[index] = { ...current, options };
+  sectionValue.value = next;
+}
+
+function handlePluginComplexField(index: number, path: string, raw: string) {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return;
+  }
+  setPluginOptionField(index, path, parsed);
 }
 
 function getSectionValue(source: unknown, key: 'channels' | 'plugins'): unknown {
@@ -414,7 +579,24 @@ onMounted(() => {
 
 .config-entry-header {
   align-items: center;
-  margin-bottom: 1rem;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.header-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.header-toggle .field-label {
+  margin: 0;
+  font-size: 0.82rem;
+  white-space: nowrap;
 }
 
 .config-entry-title {
@@ -433,6 +615,45 @@ onMounted(() => {
   grid-column: 1 / -1;
 }
 
+.toggle-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.toggle-switch {
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  border: none;
+  background: var(--color-border-strong);
+  cursor: pointer;
+  position: relative;
+  transition: background var(--transition-fast);
+  padding: 0;
+}
+
+.toggle-switch.active {
+  background: var(--color-accent-green);
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform var(--transition-fast);
+}
+
+.toggle-switch.active .toggle-thumb {
+  transform: translateX(20px);
+}
+
 .entry-toggle {
   display: flex;
   align-items: center;
@@ -448,6 +669,33 @@ onMounted(() => {
   border-radius: var(--radius);
 }
 
+.form-textarea-sm {
+  min-height: 60px;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  font-size: 0.78rem;
+}
+
+.config-section {
+  margin-top: 0.25rem;
+  padding-top: 0.75rem;
+}
+
+.config-section-label {
+  font-family: var(--font-heading);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.75rem;
+}
+
+.config-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
 :deep(.json-editor) {
   min-height: 120px;
 }
@@ -456,17 +704,14 @@ onMounted(() => {
   .section-page-header,
   .section-editor-header,
   .config-entry-header,
-  .entry-fields {
+  .entry-fields,
+  .config-fields {
     display: flex;
     flex-direction: column;
   }
 
   .section-toolbar {
     width: 100%;
-  }
-
-  .entry-toggle {
-    align-self: flex-start;
   }
 }
 </style>
