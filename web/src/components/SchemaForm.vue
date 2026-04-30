@@ -1,11 +1,10 @@
 <template>
   <div class="schema-form">
-    <!-- Object with properties -->
     <template v-if="resolvedType === 'object-properties'">
       <template v-if="label">
-        <fieldset class="fieldset">
-          <legend>{{ displayLabel }}</legend>
-          <div v-for="key in sortedKeys" :key="key" class="field-group">
+        <fieldset class="border border-[var(--color-border)] rounded p-5 mb-5 bg-[rgba(250,249,245,0.5)] shadow-sm">
+          <legend class="px-3 font-heading font-semibold text-sm text-dark">{{ displayLabel }}</legend>
+          <div v-for="key in sortedKeys" :key="key" class="mb-5">
             <SchemaForm
               :schema="resolvedSchema.properties![key]"
               :model-value="modelValueObj[key]"
@@ -17,7 +16,7 @@
         </fieldset>
       </template>
       <template v-else>
-        <div v-for="key in sortedKeys" :key="key" class="field-group">
+        <div v-for="key in sortedKeys" :key="key" class="mb-5">
           <SchemaForm
             :schema="resolvedSchema.properties![key]"
             :model-value="modelValueObj[key]"
@@ -29,17 +28,11 @@
       </template>
     </template>
 
-    <!-- Record / dictionary -->
     <template v-else-if="resolvedType === 'object-record'">
-      <fieldset class="fieldset">
-        <legend v-if="label">{{ displayLabel }}</legend>
-        <div v-for="(entry, idx) in recordEntries" :key="idx" class="array-item">
-          <input
-            v-model="entry.key"
-            class="form-input"
-            placeholder="Key"
-            @change="updateRecord()"
-          />
+      <fieldset class="border border-[var(--color-border)] rounded p-5 mb-5 bg-[rgba(250,249,245,0.5)] shadow-sm">
+        <legend v-if="label" class="px-3 font-heading font-semibold text-sm text-dark">{{ displayLabel }}</legend>
+        <div v-for="(entry, idx) in recordEntries" :key="idx" class="flex items-start gap-2 mb-2">
+          <input v-model="entry.key" class="flex-1 w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]" placeholder="Key" @change="updateRecord()" />
           <SchemaForm
             :schema="recordValueSchema"
             :model-value="entry.value"
@@ -50,21 +43,20 @@
               updateRecord();
             "
           />
-          <button type="button" class="btn btn-danger btn-sm" @click="removeRecordEntry(idx)">
+          <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#CF3A3A] text-white hover:bg-[#b83333] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(207,58,58,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" @click="removeRecordEntry(idx)">
             Remove
           </button>
         </div>
-        <button type="button" class="btn btn-primary btn-sm" @click="addRecordEntry">
+        <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#121212] text-white hover:bg-[#2a2a2a] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(18,18,18,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none">
           + Add {{ label || 'Entry' }}
         </button>
       </fieldset>
     </template>
 
-    <!-- Array -->
     <template v-else-if="resolvedType === 'array'">
-      <fieldset class="fieldset">
-        <legend v-if="label">{{ displayLabel }}</legend>
-        <div v-for="(item, idx) in modelValueArr" :key="idx" class="array-item">
+      <fieldset class="border border-[var(--color-border)] rounded p-5 mb-5 bg-[rgba(250,249,245,0.5)] shadow-sm">
+        <legend v-if="label" class="px-3 font-heading font-semibold text-sm text-dark">{{ displayLabel }}</legend>
+        <div v-for="(item, idx) in modelValueArr" :key="idx" class="flex items-start gap-2 mb-2">
           <SchemaForm
             :schema="resolvedSchema.items!"
             :model-value="item"
@@ -72,70 +64,65 @@
             :path="`${path}[${idx}]`"
             @update:model-value="updateArrayItem(idx, $event)"
           />
-          <button type="button" class="btn btn-danger btn-sm" @click="removeArrayItem(idx)">
+          <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#CF3A3A] text-white hover:bg-[#b83333] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(207,58,58,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" @click="removeArrayItem(idx)">
             Remove
           </button>
         </div>
-        <button type="button" class="btn btn-primary btn-sm" @click="addArrayItem">
+        <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#121212] text-white hover:bg-[#2a2a2a] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(18,18,18,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" @click="addArrayItem">
           + Add {{ label || 'Item' }}
         </button>
       </fieldset>
     </template>
 
-    <!-- String -->
     <template v-else-if="resolvedType === 'string'">
-      <label v-if="label" class="field-label">{{ displayLabel }}</label>
+      <label v-if="label" class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">{{ displayLabel }}</label>
       <input
         :value="stringValue"
         type="text"
-        class="form-input"
+        class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
         :placeholder="displayLabel"
         @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)"
       />
     </template>
 
-    <!-- Number -->
     <template v-else-if="resolvedType === 'number'">
-      <label v-if="label" class="field-label">{{ displayLabel }}</label>
+      <label v-if="label" class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">{{ displayLabel }}</label>
       <input
         :value="numberValue"
         type="number"
-        class="form-input"
+        class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
         :placeholder="displayLabel"
         @input="$emit('update:modelValue', Number(($event.target as HTMLInputElement).value))"
       />
     </template>
 
-    <!-- Boolean -->
     <template v-else-if="resolvedType === 'boolean'">
-      <div class="form-group toggle-group">
-        <label class="field-label">{{ displayLabel }}</label>
+      <div class="flex flex-col items-start gap-2 mb-5">
+        <label class="block mb-0 font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">{{ displayLabel }}</label>
         <button
           type="button"
-          class="toggle-switch"
-          :class="{ active: booleanValue }"
+          class="w-11 h-6 rounded-full border-none cursor-pointer relative transition-colors duration-[0.15s] ease p-0"
+          :class="booleanValue ? 'bg-accent-green' : 'bg-mid-gray'"
           @click="$emit('update:modelValue', !booleanValue)"
         >
-          <span class="toggle-thumb"></span>
+          <span class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease" :class="{ 'translate-x-5': booleanValue }"></span>
         </button>
       </div>
     </template>
 
-    <!-- Enum / Union -->
     <template v-else-if="resolvedType === 'enum'">
-      <label v-if="label" class="field-label">{{ displayLabel }}</label>
+      <label v-if="label" class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">{{ displayLabel }}</label>
       <select
         :value="modelValue"
-        class="form-select"
+        class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
         @change="$emit('update:modelValue', ($event.target as HTMLSelectElement).value)"
       >
         <option v-for="opt in enumOptions" :key="opt" :value="opt">{{ opt }}</option>
       </select>
     </template>
 
-    <!-- Fallback: raw JSON -->
     <template v-else>
-      <label v-if="label" class="field-label">{{ displayLabel }}</label>
+      <label v-if="label" class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">{{ displayLabel }}</label>
       <JsonEditor :model-value="jsonValue" @update:model-value="updateJson" />
     </template>
   </div>
@@ -354,44 +341,3 @@ function formatLabel(label: string): string {
     .replace(/^\w/, (char) => char.toUpperCase());
 }
 </script>
-
-<style scoped>
-.toggle-group {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.5rem;
-}
-
-.toggle-switch {
-  width: 44px;
-  height: 24px;
-  border-radius: 12px;
-  border: none;
-  background: var(--color-border-strong);
-  cursor: pointer;
-  position: relative;
-  transition: background var(--transition-fast);
-  padding: 0;
-}
-
-.toggle-switch.active {
-  background: var(--color-accent-green);
-}
-
-.toggle-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-  transition: transform var(--transition-fast);
-}
-
-.toggle-switch.active .toggle-thumb {
-  transform: translateX(20px);
-}
-</style>

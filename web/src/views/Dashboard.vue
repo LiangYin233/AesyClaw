@@ -3,123 +3,96 @@
     <h1 class="page-title">Dashboard</h1>
     <p class="page-subtitle">Overview of system activity and status.</p>
 
-    <div class="dashboard-grid">
-      <div class="stat-card">
-        <div class="stat-card-header">
-          <div class="stat-icon-wrap" style="background: #F6F0EA;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D0B7A5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-              <circle cx="9" cy="7" r="4"></circle>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-            </svg>
+    <div class="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-5 mb-8">
+      <div class="bg-surface border border-[var(--color-border)] rounded p-6 flex flex-col gap-[0.35rem] shadow-sm transition-all duration-[0.3s] ease relative overflow-hidden">
+        <div class="flex items-center gap-2.5 mb-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: #F6F0EA;">
+            <UsersIcon class="w-[18px] h-[18px] text-[#D0B7A5]" />
           </div>
-          <span class="stat-card-label">Sessions</span>
+          <span class="font-heading text-xs font-medium text-mid-gray">Sessions</span>
         </div>
-        <div class="stat-value">{{ stats.sessions }}</div>
-        <div class="stat-card-footer">
-        </div>
+        <div class="font-heading text-[2rem] font-bold text-dark tracking-[-0.03em] leading-[1.1]">{{ stats.sessions }}</div>
       </div>
 
-      <div class="stat-card">
-        <div class="stat-card-header">
-          <div class="stat-icon-wrap" style="background: #F6F0EA;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D0B7A5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-            </svg>
+      <div class="bg-surface border border-[var(--color-border)] rounded p-6 flex flex-col gap-[0.35rem] shadow-sm transition-all duration-[0.3s] ease relative overflow-hidden">
+        <div class="flex items-center gap-2.5 mb-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: #F6F0EA;">
+            <ChatBubbleLeftRightIcon class="w-[18px] h-[18px] text-[#D0B7A5]" />
           </div>
-          <span class="stat-card-label">Messages</span>
+          <span class="font-heading text-xs font-medium text-mid-gray">Messages</span>
         </div>
-        <div class="stat-value">{{ formatNumber(stats.messages) }}</div>
-        <div class="stat-card-footer">
-        </div>
+        <div class="font-heading text-[2rem] font-bold text-dark tracking-[-0.03em] leading-[1.1]">{{ formatNumber(stats.messages) }}</div>
       </div>
 
-      <div class="stat-card">
-        <div class="stat-card-header">
-          <div class="stat-icon-wrap" style="background: #F6F0EA;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D0B7A5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"></circle>
-              <polyline points="12 6 12 12 16 14"></polyline>
-            </svg>
+      <div class="bg-surface border border-[var(--color-border)] rounded p-6 flex flex-col gap-[0.35rem] shadow-sm transition-all duration-[0.3s] ease relative overflow-hidden">
+        <div class="flex items-center gap-2.5 mb-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: #F6F0EA;">
+            <ClockIcon class="w-[18px] h-[18px] text-[#D0B7A5]" />
           </div>
-          <span class="stat-card-label">Cron Jobs</span>
+          <span class="font-heading text-xs font-medium text-mid-gray">Cron Jobs</span>
         </div>
-        <div class="stat-value">{{ stats.cronJobs }}</div>
-        <div class="stat-card-footer">
-        </div>
+        <div class="font-heading text-[2rem] font-bold text-dark tracking-[-0.03em] leading-[1.1]">{{ stats.cronJobs }}</div>
       </div>
 
-      <div class="stat-card">
-        <div class="stat-card-header">
-          <div class="stat-icon-wrap" style="background: #F6F0EA;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D0B7A5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-            </svg>
+      <div class="bg-surface border border-[var(--color-border)] rounded p-6 flex flex-col gap-[0.35rem] shadow-sm transition-all duration-[0.3s] ease relative overflow-hidden">
+        <div class="flex items-center gap-2.5 mb-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: #F6F0EA;">
+            <ChartBarSquareIcon class="w-[18px] h-[18px] text-[#D0B7A5]" />
           </div>
-          <span class="stat-card-label">Uptime</span>
+          <span class="font-heading text-xs font-medium text-mid-gray">Uptime</span>
         </div>
-        <div class="stat-value">{{ uptimeText }}</div>
+        <div class="font-heading text-[2rem] font-bold text-dark tracking-[-0.03em] leading-[1.1]">{{ uptimeText }}</div>
       </div>
 
-      <div class="stat-card">
-        <div class="stat-card-header">
-          <div class="stat-icon-wrap" style="background: #F6F0EA;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D0B7A5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 20V10"></path>
-              <path d="M18 20V4"></path>
-              <path d="M6 20v-4"></path>
-            </svg>
+      <div class="bg-surface border border-[var(--color-border)] rounded p-6 flex flex-col gap-[0.35rem] shadow-sm transition-all duration-[0.3s] ease relative overflow-hidden">
+        <div class="flex items-center gap-2.5 mb-3">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: #F6F0EA;">
+            <ChartBarIcon class="w-[18px] h-[18px] text-[#D0B7A5]" />
           </div>
-          <span class="stat-card-label">Usage Today</span>
+          <span class="font-heading text-xs font-medium text-mid-gray">Usage Today</span>
         </div>
-        <div class="stat-value">{{ formatNumber(todayUsage.totalTokens) }}</div>
+        <div class="font-heading text-[2rem] font-bold text-dark tracking-[-0.03em] leading-[1.1]">{{ formatNumber(todayUsage.totalTokens) }}</div>
       </div>
     </div>
 
-    <h2 class="page-title channel-status-title">Channel Status</h2>
+    <h2 class="page-title" style="margin: 1.5rem 0 0.75rem;">Channel Status</h2>
 
-    <div class="table-wrap">
-      <table class="data-table channel-table">
+    <div class="overflow-x-auto rounded border border-[var(--color-border)]">
+      <table class="w-full border-collapse separate font-body text-sm">
         <thead>
           <tr>
-            <th>Channel</th>
-            <th>Status</th>
-            <th>Last Check</th>
-            <th>Response Time</th>
-            <th></th>
+            <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Channel</th>
+            <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Status</th>
+            <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Last Check</th>
+            <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Response Time</th>
+            <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0" style="width: 40px"></th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="ch in channels" :key="ch.name">
-            <td>
-              <div class="channel-name">
-                <span class="channel-dot" :class="ch.state === 'connected' ? 'dot-green' : 'dot-gray'"></span>
+          <tr v-for="ch in channels" :key="ch.name" class="bg-[#FDFBF9] transition-colors duration-[0.15s] ease hover:bg-[rgba(20,20,19,0.03)]">
+            <td class="px-4 py-3 border-b border-[var(--color-border)]">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full" :class="ch.state === 'connected' ? 'bg-accent-green' : 'bg-mid-gray'"></span>
                 <span>{{ ch.name }}</span>
               </div>
             </td>
-            <td>
-              <span
-                class="badge"
-                :class="ch.state === 'connected' ? 'badge-green' : 'badge-gray'"
+            <td class="px-4 py-3 border-b border-[var(--color-border)]">
+              <span class="inline-flex items-center px-[0.65rem] py-[0.2rem] rounded-full font-heading text-[0.7rem] font-medium tracking-[0.03em]"
+                :class="ch.state === 'connected' ? 'bg-[rgba(120,140,93,0.12)] text-[#5a6e47]' : 'bg-[rgba(176,174,165,0.2)] text-[#8a8880]'"
               >
                 {{ ch.state }}
               </span>
             </td>
-            <td class="cell-muted">{{ ch.lastCheck ?? '-' }}</td>
-            <td class="cell-muted">{{ ch.responseTime ?? '-' }}</td>
-            <td>
-              <button class="table-action-btn">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="1"></circle>
-                  <circle cx="19" cy="12" r="1"></circle>
-                  <circle cx="5" cy="12" r="1"></circle>
-                </svg>
+            <td class="px-4 py-3 border-b border-[var(--color-border)] text-mid-gray">{{ ch.lastCheck ?? '-' }}</td>
+            <td class="px-4 py-3 border-b border-[var(--color-border)] text-mid-gray">{{ ch.responseTime ?? '-' }}</td>
+            <td class="px-4 py-3 border-b border-[var(--color-border)] text-right" style="width: 40px">
+              <button class="bg-none border-none cursor-pointer text-mid-gray p-1 flex items-center justify-center rounded transition-all duration-[0.15s] ease hover:bg-light-gray hover:text-dark">
+                <EllipsisHorizontalIcon class="w-4 h-4" />
               </button>
             </td>
           </tr>
           <tr v-if="channels.length === 0">
-            <td colspan="5" class="empty-state">No channels</td>
+            <td colspan="5" class="text-mid-gray text-center py-10 font-body italic text-sm">No channels</td>
           </tr>
         </tbody>
       </table>
@@ -130,6 +103,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useAuth } from '@/composables/useAuth';
+import {
+  UsersIcon,
+  ChatBubbleLeftRightIcon,
+  ClockIcon,
+  ChartBarSquareIcon,
+  ChartBarIcon,
+  EllipsisHorizontalIcon,
+} from '@heroicons/vue/24/outline';
 
 const { api } = useAuth();
 
@@ -253,124 +234,3 @@ onUnmounted(() => {
   }
 });
 </script>
-
-<style scoped>
-.channel-status-title {
-  margin: 1.5rem 0 0.75rem;
-}
-
-.page-subtitle {
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  color: var(--color-text-muted);
-  margin: 0.25rem 0 1.5rem;
-}
-
-.stat-card-header {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 0.75rem;
-}
-
-.stat-icon-wrap {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.stat-card-label {
-  font-family: var(--font-heading);
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--color-text-muted);
-}
-
-.stat-card-footer {
-  margin-top: 0.5rem;
-}
-
-.stat-trend {
-  font-family: var(--font-heading);
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.stat-trend.up {
-  color: var(--color-accent-green);
-}
-
-.stat-trend.down {
-  color: var(--color-danger);
-}
-
-.stat-trend.neutral {
-  color: var(--color-text-muted);
-}
-
-.stat-trend.operational {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  color: var(--color-text-muted);
-}
-
-.dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-.channel-name {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.channel-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.dot-green {
-  background: var(--color-accent-green);
-}
-
-.dot-gray {
-  background: var(--color-mid-gray);
-}
-
-.cell-muted {
-  color: var(--color-text-muted);
-}
-
-.table-action-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--color-text-muted);
-  padding: 0.25rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: all var(--transition-fast);
-}
-
-.table-action-btn:hover {
-  background: var(--color-surface);
-  color: var(--color-dark);
-}
-
-.channel-table .data-table th:last-child,
-.channel-table .data-table td:last-child {
-  width: 40px;
-  text-align: right;
-}
-
-</style>

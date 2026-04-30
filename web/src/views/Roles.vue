@@ -1,244 +1,195 @@
 <template>
   <div>
-    <div class="roles-header">
+    <div class="flex items-center justify-between gap-4 mb-6">
       <div>
         <h1 class="page-title">Roles</h1>
-        <p class="page-subtitle">Manage roles that control model behavior, tool access, and capabilities.</p>
+        <p class="page-subtitle" style="margin: 0.25rem 0 0;">Manage roles that control model behavior, tool access, and capabilities.</p>
       </div>
-      <button class="btn btn-primary btn-sm" @click="openCreate">
+      <button class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#121212] text-white hover:bg-[#2a2a2a] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(18,18,18,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none btn-sm" @click="openCreate">
         + Add Role
       </button>
     </div>
 
-    <div class="table-wrap">
-      <table class="data-table roles-table">
+    <div class="overflow-x-auto rounded border border-[var(--color-border)]">
+      <table class="w-full border-collapse separate font-body text-sm">
         <thead>
           <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Model</th>
-            <th>Enabled</th>
-            <th>Updated At</th>
+            <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">ID</th>
+            <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Name</th>
+            <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Model</th>
+            <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Enabled</th>
+            <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Updated At</th>
           </tr>
         </thead>
         <tbody>
           <tr
             v-for="(role, idx) in roles"
             :key="role.id"
-            class="row-clickable"
+            class="cursor-pointer bg-[#FDFBF9] transition-colors duration-[0.15s] ease hover:bg-[rgba(20,20,19,0.03)]"
             @click="openEditor(role)"
           >
-            <td>{{ idx + 1 }}</td>
-            <td>
-              <div class="role-name-cell">
-                <span class="role-name">{{ role.name }}</span>
-                <span v-if="role.description" class="role-desc">{{ role.description }}</span>
+            <td class="px-4 py-3 border-b border-[var(--color-border)]">{{ idx + 1 }}</td>
+            <td class="px-4 py-3 border-b border-[var(--color-border)]">
+              <div class="flex flex-col gap-[0.15rem]">
+                <span class="font-heading font-medium text-dark">{{ role.name }}</span>
+                <span v-if="role.description" class="font-body text-xs text-mid-gray">{{ role.description }}</span>
               </div>
             </td>
-            <td>{{ role.model }}</td>
-            <td>
-              <span v-if="role.enabled" class="role-check">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#788c5d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
+            <td class="px-4 py-3 border-b border-[var(--color-border)]">{{ role.model }}</td>
+            <td class="px-4 py-3 border-b border-[var(--color-border)]">
+              <span v-if="role.enabled" class="inline-flex items-center justify-center">
+                <CheckIcon class="w-4 h-4 text-accent-green stroke-[2.5]" />
               </span>
-              <span v-else class="role-cross">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c45b5b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
+              <span v-else class="inline-flex items-center justify-center">
+                <XMarkIcon class="w-4 h-4 text-danger stroke-[2.5]" />
               </span>
             </td>
-            <td class="cell-muted">{{ formatDate(role.updatedAt) }}</td>
+            <td class="px-4 py-3 border-b border-[var(--color-border)] text-mid-gray font-heading text-xs">{{ formatDate(role.updatedAt) }}</td>
           </tr>
           <tr v-if="roles.length === 0">
-            <td colspan="5" class="empty-state">No roles</td>
+            <td colspan="5" class="text-mid-gray text-center py-10 font-body italic text-sm">No roles</td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <!-- Slide-in drawer -->
     <Teleport to="body">
       <Transition name="drawer">
-        <div v-if="editingRole || creating" class="drawer-overlay" @click.self="closeEditor">
-          <div class="drawer">
-            <div class="drawer-header">
-              <h3 class="drawer-title">{{ creating ? 'Add Role' : 'Edit Role' }}</h3>
-              <button class="drawer-close" @click="closeEditor">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
+        <div v-if="editingRole || creating" class="fixed inset-0 bg-[rgba(20,20,19,0.25)] backdrop-blur-sm z-[100] flex justify-end" @click.self="closeEditor">
+          <div class="w-full max-w-[520px] h-full bg-light border-l border-[var(--color-border)] flex flex-col shadow-[-10px_0_30px_rgba(20,20,19,0.08)]">
+            <div class="flex items-center justify-between px-6 py-5 border-b border-[var(--color-border)] shrink-0">
+              <h3 class="font-heading text-lg font-semibold text-dark">{{ creating ? 'Add Role' : 'Edit Role' }}</h3>
+              <button class="bg-none border-none cursor-pointer text-mid-gray p-1 flex items-center justify-center rounded transition-all duration-[0.15s] ease hover:bg-light-gray hover:text-dark" @click="closeEditor">
+                <XMarkIcon class="w-[18px] h-[18px]" />
               </button>
             </div>
 
-            <div class="drawer-body">
-              <div class="form-group">
-                <label class="field-label">
-                  Name <span class="required">*</span>
+            <div class="flex-1 overflow-auto p-6">
+              <div class="mb-5">
+                <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">
+                  Name <span class="text-danger">*</span>
                 </label>
-                <input v-model="form.name" class="form-input" />
+                <input v-model="form.name" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]" />
               </div>
 
-              <div class="form-group">
-                <label class="field-label">Description</label>
-                <textarea v-model="form.description" class="form-textarea" rows="3" />
-                <div class="char-count">{{ (form.description || '').length }} / 500</div>
+              <div class="mb-5">
+                <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Description</label>
+                <textarea v-model="form.description" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)] min-h-[100px] resize-y leading-relaxed" rows="3" />
+                <div class="text-right font-body text-xs text-mid-gray mt-1">{{ (form.description || '').length }} / 500</div>
               </div>
 
-              <div class="form-row">
-                <div class="form-group" style="flex: 1;">
-                  <label class="field-label">
-                    Model <span class="required">*</span>
+              <div class="flex gap-4 items-end mb-5">
+                <div class="flex-1">
+                  <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">
+                    Model <span class="text-danger">*</span>
                   </label>
-                  <select v-model="form.model" class="form-select">
+                  <select v-model="form.model" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]">
                     <option value="" disabled>Select a model</option>
                     <option v-for="opt in modelOptions" :key="opt.value" :value="opt.value">
                       {{ opt.label }}
                     </option>
                   </select>
                 </div>
-                <div class="form-group toggle-group">
-                  <label class="field-label">Enabled</label>
+                <div class="flex flex-col items-start gap-2">
+                  <label class="block mb-0 font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Enabled</label>
                   <button
                     type="button"
-                    class="toggle-switch"
-                    :class="{ active: form.enabled }"
+                    class="w-11 h-6 rounded-full border-none cursor-pointer relative transition-colors duration-[0.15s] ease p-0"
+                    :class="form.enabled ? 'bg-accent-green' : 'bg-mid-gray'"
                     @click="form.enabled = !form.enabled"
                   >
-                    <span class="toggle-thumb"></span>
+                    <span class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease" :class="{ 'translate-x-5': form.enabled }"></span>
                   </button>
                 </div>
               </div>
 
-              <div class="form-group">
-                <label class="field-label">
-                  Tool Permission Mode <span class="required">*</span>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline; vertical-align: middle; margin-left: 0.25rem; color: var(--color-text-muted);">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="12" y1="16" x2="12" y2="12"></line>
-                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                  </svg>
+              <div class="mb-5">
+                <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">
+                  Tool Permission Mode <span class="text-danger">*</span>
+                  <InformationCircleIcon class="inline align-middle ml-1 text-mid-gray w-[14px] h-[14px]" />
                 </label>
-                <div class="radio-cards">
+                <div class="flex gap-3">
                   <label
-                    class="radio-card"
-                    :class="{ active: form.toolPermission.mode === 'allowlist' }"
+                    class="flex-1 flex items-start gap-2.5 px-4 py-[0.85rem] border-[1.5px] rounded-sm cursor-pointer transition-all duration-[0.15s] ease bg-light"
+                    :class="form.toolPermission.mode === 'allowlist' ? 'border-primary bg-[rgba(217,119,87,0.04)]' : 'border-[var(--color-border)] hover:border-mid-gray'"
                   >
-                    <input
-                      v-model="form.toolPermission.mode"
-                      type="radio"
-                      value="allowlist"
-                      class="radio-input"
-                    />
-                    <span class="radio-dot"></span>
-                    <div class="radio-content">
-                      <span class="radio-title">Allowlist</span>
-                      <span class="radio-desc">Only allow the tools listed below.</span>
+                    <input v-model="form.toolPermission.mode" type="radio" value="allowlist" class="absolute opacity-0 pointer-events-none" />
+                    <span class="w-4 h-4 rounded-full border-2 border-mid-gray flex items-center justify-center shrink-0 mt-[0.1rem] transition-all duration-[0.15s] ease"
+                      :class="{ '!border-primary': form.toolPermission.mode === 'allowlist' }">
+                      <span class="w-2 h-2 rounded-full bg-primary scale-0 transition-transform duration-[0.15s] ease"
+                        :class="{ 'scale-100': form.toolPermission.mode === 'allowlist' }"></span>
+                    </span>
+                    <div class="flex flex-col gap-[0.2rem]">
+                      <span class="font-heading text-sm font-medium text-dark">Allowlist</span>
+                      <span class="font-body text-xs text-mid-gray leading-[1.3]">Only allow the tools listed below.</span>
                     </div>
                   </label>
                   <label
-                    class="radio-card"
-                    :class="{ active: form.toolPermission.mode === 'denylist' }"
+                    class="flex-1 flex items-start gap-2.5 px-4 py-[0.85rem] border-[1.5px] rounded-sm cursor-pointer transition-all duration-[0.15s] ease bg-light"
+                    :class="form.toolPermission.mode === 'denylist' ? 'border-primary bg-[rgba(217,119,87,0.04)]' : 'border-[var(--color-border)] hover:border-mid-gray'"
                   >
-                    <input
-                      v-model="form.toolPermission.mode"
-                      type="radio"
-                      value="denylist"
-                      class="radio-input"
-                    />
-                    <span class="radio-dot"></span>
-                    <div class="radio-content">
-                      <span class="radio-title">Denylist</span>
-                      <span class="radio-desc">Deny the tools listed below. All others are allowed.</span>
+                    <input v-model="form.toolPermission.mode" type="radio" value="denylist" class="absolute opacity-0 pointer-events-none" />
+                    <span class="w-4 h-4 rounded-full border-2 border-mid-gray flex items-center justify-center shrink-0 mt-[0.1rem] transition-all duration-[0.15s] ease"
+                      :class="{ '!border-primary': form.toolPermission.mode === 'denylist' }">
+                      <span class="w-2 h-2 rounded-full bg-primary scale-0 transition-transform duration-[0.15s] ease"
+                        :class="{ 'scale-100': form.toolPermission.mode === 'denylist' }"></span>
+                    </span>
+                    <div class="flex flex-col gap-[0.2rem]">
+                      <span class="font-heading text-sm font-medium text-dark">Denylist</span>
+                      <span class="font-body text-xs text-mid-gray leading-[1.3]">Deny the tools listed below. All others are allowed.</span>
                     </div>
                   </label>
                 </div>
               </div>
 
-              <div class="form-group">
-                <div class="list-header">
-                  <label class="field-label">
+              <div class="mb-5">
+                <div class="flex items-center justify-between mb-2">
+                  <label class="block mb-0 font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">
                     {{ form.toolPermission.mode === 'allowlist' ? 'Allowed Tools' : 'Denied Tools' }}
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline; vertical-align: middle; margin-left: 0.25rem; color: var(--color-text-muted);">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <line x1="12" y1="16" x2="12" y2="12"></line>
-                      <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                    </svg>
+                    <InformationCircleIcon class="inline align-middle ml-1 text-mid-gray w-[14px] h-[14px]" />
                   </label>
-                  <button type="button" class="add-btn" @click="addTool">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                      <line x1="12" y1="5" x2="12" y2="19"></line>
-                      <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
+                  <button type="button" class="inline-flex items-center gap-[0.3rem] px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm bg-[#121212] text-white font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease hover:bg-[#2a2a2a]" @click="addTool">
+                    <PlusIcon class="w-3 h-3 stroke-[2.5]" />
                     Add Tool
                   </button>
                 </div>
-                <div class="tag-list">
-                  <div v-for="(t, idx) in form.toolPermission.list" :key="idx" class="tag-item">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-text-muted); flex-shrink: 0;">
-                      <line x1="8" y1="6" x2="21" y2="6"></line>
-                      <line x1="8" y1="12" x2="21" y2="12"></line>
-                      <line x1="8" y1="18" x2="21" y2="18"></line>
-                      <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                      <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                      <line x1="3" y1="18" x2="3.01" y2="18"></line>
-                    </svg>
-                    <input v-model="(form.toolPermission.list || [])[idx]" class="tag-input" />
-                    <button type="button" class="tag-remove" @click="removeTool(idx)">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                      </svg>
+                <div class="flex flex-col gap-[0.35rem]">
+                  <div v-for="(t, idx) in form.toolPermission.list" :key="idx" class="flex items-center gap-2 px-[0.6rem] py-[0.5rem] border border-[var(--color-border)] rounded-sm bg-light transition-colors duration-[0.15s] ease hover:border-mid-gray">
+                    <Bars3Icon class="w-3 h-3 text-mid-gray shrink-0" />
+                    <input v-model="(form.toolPermission.list || [])[idx]" class="flex-1 border-none bg-none font-body text-sm text-dark outline-none p-0" />
+                    <button type="button" class="bg-none border-none cursor-pointer text-mid-gray p-[0.15rem] flex items-center justify-center rounded transition-all duration-[0.15s] ease shrink-0 hover:text-danger hover:bg-[rgba(196,91,91,0.08)]" @click="removeTool(idx)">
+                      <XMarkIcon class="w-[14px] h-[14px]" />
                     </button>
                   </div>
                 </div>
               </div>
 
-              <div class="form-group">
-                <div class="list-header">
-                  <label class="field-label">
+              <div class="mb-5">
+                <div class="flex items-center justify-between mb-2">
+                  <label class="block mb-0 font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">
                     Skills
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline; vertical-align: middle; margin-left: 0.25rem; color: var(--color-text-muted);">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <line x1="12" y1="16" x2="12" y2="12"></line>
-                      <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                    </svg>
+                    <InformationCircleIcon class="inline align-middle ml-1 text-mid-gray w-[14px] h-[14px]" />
                   </label>
-                  <button type="button" class="add-btn" @click="addSkill">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                      <line x1="12" y1="5" x2="12" y2="19"></line>
-                      <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
+                  <button type="button" class="inline-flex items-center gap-[0.3rem] px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm bg-[#121212] text-white font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease hover:bg-[#2a2a2a]" @click="addSkill">
+                    <PlusIcon class="w-3 h-3 stroke-[2.5]" />
                     Add Skill
                   </button>
                 </div>
-                <div class="tag-list">
-                  <div v-for="(s, idx) in form.skills" :key="idx" class="tag-item">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-text-muted); flex-shrink: 0;">
-                      <line x1="8" y1="6" x2="21" y2="6"></line>
-                      <line x1="8" y1="12" x2="21" y2="12"></line>
-                      <line x1="8" y1="18" x2="21" y2="18"></line>
-                      <line x1="3" y1="6" x2="3.01" y2="6"></line>
-                      <line x1="3" y1="12" x2="3.01" y2="12"></line>
-                      <line x1="3" y1="18" x2="3.01" y2="18"></line>
-                    </svg>
-                    <input v-model="form.skills[idx]" class="tag-input" />
-                    <button type="button" class="tag-remove" @click="removeSkill(idx)">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                      </svg>
+                <div class="flex flex-col gap-[0.35rem]">
+                  <div v-for="(s, idx) in form.skills" :key="idx" class="flex items-center gap-2 px-[0.6rem] py-[0.5rem] border border-[var(--color-border)] rounded-sm bg-light transition-colors duration-[0.15s] ease hover:border-mid-gray">
+                    <Bars3Icon class="w-3 h-3 text-mid-gray shrink-0" />
+                    <input v-model="form.skills[idx]" class="flex-1 border-none bg-none font-body text-sm text-dark outline-none p-0" />
+                    <button type="button" class="bg-none border-none cursor-pointer text-mid-gray p-[0.15rem] flex items-center justify-center rounded transition-all duration-[0.15s] ease shrink-0 hover:text-danger hover:bg-[rgba(196,91,91,0.08)]" @click="removeSkill(idx)">
+                      <XMarkIcon class="w-[14px] h-[14px]" />
                     </button>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div class="drawer-footer">
-              <button class="btn btn-ghost" @click="closeEditor">Cancel</button>
-              <button class="btn btn-save" :disabled="saving" @click="saveRole">
+            <div class="flex justify-end gap-2.5 px-6 py-4 border-t border-[var(--color-border)] shrink-0">
+              <button class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-[var(--color-border)] rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-transparent text-mid-gray hover:bg-light-gray hover:text-dark hover:border-mid-gray" @click="closeEditor">Cancel</button>
+              <button class="bg-[#C96442] text-white font-heading text-xs font-medium px-[1.1rem] py-[0.55rem] border-none rounded-sm cursor-pointer transition-all duration-[0.15s] ease hover:bg-[#b55a3b] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(201,100,66,0.25)] disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" :disabled="saving" @click="saveRole">
                 {{ saving ? 'Saving...' : 'Save Changes' }}
               </button>
             </div>
@@ -247,13 +198,23 @@
       </Transition>
     </Teleport>
 
-    <div v-if="toast" class="toast" :class="toast.type">{{ toast.message }}</div>
+    <div v-if="toast" class="fixed top-5 right-5 px-5 py-[0.85rem] rounded-sm text-white font-heading font-medium text-sm z-[200] animate-[slideInRight_0.3s_cubic-bezier(0.16,1,0.3,1)] shadow-lg"
+      :class="toast.type === 'toast-success' ? 'bg-accent-green' : 'bg-danger'">
+      {{ toast.message }}
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useAuth } from '@/composables/useAuth';
+import {
+  CheckIcon,
+  XMarkIcon,
+  InformationCircleIcon,
+  PlusIcon,
+  Bars3Icon,
+} from '@heroicons/vue/24/outline';
 
 const { api } = useAuth();
 
@@ -452,396 +413,3 @@ onMounted(() => {
   loadModelOptions();
 });
 </script>
-
-<style scoped>
-.roles-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.roles-header .page-title {
-  margin-bottom: 0;
-}
-
-.page-subtitle {
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  color: var(--color-text-muted);
-  margin: 0.25rem 0 0;
-}
-
-.role-name-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.role-name {
-  font-family: var(--font-heading);
-  font-weight: 500;
-  color: var(--color-dark);
-}
-
-.role-desc {
-  font-family: var(--font-body);
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-}
-
-.role-check,
-.role-cross {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.cell-muted {
-  color: var(--color-text-muted);
-  font-family: var(--font-heading);
-  font-size: 0.8rem;
-}
-
-/* Drawer */
-.drawer-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(20, 20, 19, 0.25);
-  backdrop-filter: blur(2px);
-  z-index: 100;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.drawer {
-  width: 100%;
-  max-width: 520px;
-  height: 100%;
-  background: var(--color-light);
-  border-left: 1px solid var(--color-border);
-  display: flex;
-  flex-direction: column;
-  box-shadow: -10px 0 30px rgba(20, 20, 19, 0.08);
-}
-
-.drawer-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid var(--color-border);
-  flex-shrink: 0;
-}
-
-.drawer-title {
-  font-family: var(--font-heading);
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--color-dark);
-}
-
-.drawer-close {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--color-text-muted);
-  padding: 0.25rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: all var(--transition-fast);
-}
-
-.drawer-close:hover {
-  background: var(--color-surface);
-  color: var(--color-dark);
-}
-
-.drawer-body {
-  flex: 1;
-  overflow: auto;
-  padding: 1.5rem;
-}
-
-.drawer-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.6rem;
-  padding: 1rem 1.5rem;
-  border-top: 1px solid var(--color-border);
-  flex-shrink: 0;
-}
-
-.drawer-enter-active,
-.drawer-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.drawer-enter-from,
-.drawer-leave-to {
-  opacity: 0;
-}
-
-.drawer-enter-active .drawer,
-.drawer-leave-active .drawer {
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.drawer-enter-from .drawer,
-.drawer-leave-to .drawer {
-  transform: translateX(100%);
-}
-
-/* Form styles for drawer */
-.required {
-  color: var(--color-danger);
-}
-
-.char-count {
-  text-align: right;
-  font-family: var(--font-body);
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  margin-top: 0.25rem;
-}
-
-.form-row {
-  display: flex;
-  gap: 1rem;
-  align-items: flex-end;
-}
-
-.toggle-group {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.5rem;
-}
-
-.toggle-switch {
-  width: 44px;
-  height: 24px;
-  border-radius: 12px;
-  border: none;
-  background: var(--color-border-strong);
-  cursor: pointer;
-  position: relative;
-  transition: background var(--transition-fast);
-  padding: 0;
-}
-
-.toggle-switch.active {
-  background: var(--color-accent-green);
-}
-
-.toggle-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-  transition: transform var(--transition-fast);
-}
-
-.toggle-switch.active .toggle-thumb {
-  transform: translateX(20px);
-}
-
-/* Radio cards */
-.radio-cards {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.radio-card {
-  flex: 1;
-  display: flex;
-  align-items: flex-start;
-  gap: 0.6rem;
-  padding: 0.85rem 1rem;
-  border: 1.5px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  background: var(--color-light);
-}
-
-.radio-card:hover {
-  border-color: var(--color-border-strong);
-}
-
-.radio-card.active {
-  border-color: var(--color-accent-orange);
-  background: rgba(217, 119, 87, 0.04);
-}
-
-.radio-input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.radio-dot {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 2px solid var(--color-border-strong);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  margin-top: 0.1rem;
-  transition: all var(--transition-fast);
-}
-
-.radio-card.active .radio-dot {
-  border-color: var(--color-accent-orange);
-}
-
-.radio-dot::after {
-  content: '';
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-accent-orange);
-  transform: scale(0);
-  transition: transform var(--transition-fast);
-}
-
-.radio-card.active .radio-dot::after {
-  transform: scale(1);
-}
-
-.radio-content {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.radio-title {
-  font-family: var(--font-heading);
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--color-dark);
-}
-
-.radio-desc {
-  font-family: var(--font-body);
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  line-height: 1.3;
-}
-
-/* Tag list */
-.list-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-}
-
-.add-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.35rem 0.7rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: #121212;
-  color: #fff;
-  font-family: var(--font-heading);
-  font-size: 0.75rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.add-btn:hover {
-  background: #2a2a2a;
-  color: #fff;
-  border-color: transparent;
-}
-
-.tag-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.tag-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.6rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-light);
-  transition: border-color var(--transition-fast);
-}
-
-.tag-item:hover {
-  border-color: var(--color-border-strong);
-}
-
-.tag-input {
-  flex: 1;
-  border: none;
-  background: none;
-  font-family: var(--font-body);
-  font-size: 0.85rem;
-  color: var(--color-dark);
-  outline: none;
-  padding: 0;
-}
-
-.tag-remove {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--color-text-muted);
-  padding: 0.15rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 3px;
-  transition: all var(--transition-fast);
-  flex-shrink: 0;
-}
-
-.tag-remove:hover {
-  color: var(--color-danger);
-  background: rgba(196, 91, 91, 0.08);
-}
-
-.btn-save {
-  background: #C96442;
-  color: #fff;
-  font-family: var(--font-heading);
-  font-size: 0.8rem;
-  font-weight: 500;
-  padding: 0.55rem 1.1rem;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.btn-save:hover {
-  background: #b55a3b;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(201, 100, 66, 0.25);
-}
-
-.btn-save:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-</style>

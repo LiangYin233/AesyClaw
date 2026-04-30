@@ -1,139 +1,102 @@
 <template>
   <div>
-    <div class="config-page-header">
+    <div class="flex items-start justify-between gap-4 mb-6">
       <div>
         <h1 class="page-title">Config</h1>
-        <p class="page-subtitle">
+        <p class="page-subtitle" style="margin: 0.25rem 0 0;">
           Tune core runtime settings. Channel and plugin settings now live in their own pages.
         </p>
       </div>
-      <div class="toolbar config-toolbar">
-        <button class="btn btn-success" :disabled="saving" @click="saveConfig">
+      <div class="flex items-center gap-2.5 flex-wrap mb-0 justify-end">
+        <button class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-accent-green text-white hover:bg-[#6a7d52] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(120,140,93,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" :disabled="saving" @click="saveConfig">
           {{ saving ? 'Saving...' : 'Save' }}
         </button>
-        <button class="btn btn-ghost" @click="loadConfig">Reset</button>
+        <button class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-[var(--color-border)] rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-transparent text-mid-gray hover:bg-light-gray hover:text-dark hover:border-mid-gray" @click="loadConfig">Reset</button>
       </div>
     </div>
 
-    <div v-if="loading" class="empty-state">Loading configuration...</div>
-    <div v-else-if="error" class="form-error">{{ error }}</div>
-    <div v-else class="config-content">
-      <section class="mcp-editor">
-        <div class="mcp-editor-header">
+    <div v-if="loading" class="text-mid-gray text-center py-10 font-body italic text-sm">Loading configuration...</div>
+    <div v-else-if="error" class="text-danger text-sm mt-3 font-body">{{ error }}</div>
+    <div v-else class="flex flex-col gap-5">
+      <section class="min-w-0 flex flex-col gap-4">
+        <div class="flex items-center justify-between gap-4">
           <div>
-            <h2 class="section-title">Providers</h2>
-            <p class="section-subtitle">
+            <h2 class="font-heading text-base font-semibold text-dark m-0">Providers</h2>
+            <p class="font-body text-sm text-mid-gray m-[0.2rem_0_0]">
               Configure provider credentials, protocol type, base URLs, and model presets visually.
             </p>
           </div>
-          <button type="button" class="btn btn-primary btn-sm" @click="addProvider">+ Add provider</button>
+          <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#121212] text-white hover:bg-[#2a2a2a] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(18,18,18,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" @click="addProvider">+ Add provider</button>
         </div>
 
-        <div v-if="providerEntries.length === 0" class="empty-state mcp-empty">
+        <div v-if="providerEntries.length === 0" class="text-mid-gray text-center py-10 font-body italic text-sm border border-dashed border-[var(--color-border)] rounded">
           No providers configured.
         </div>
 
-        <div v-for="provider in providerEntries" :key="provider.key" class="mcp-entry">
-          <div class="mcp-entry-header">
+        <div v-for="provider in providerEntries" :key="provider.key" class="p-4 border border-[var(--color-border)] rounded bg-surface shadow-sm">
+          <div class="flex items-center justify-between gap-4 mb-4">
             <div>
-              <div class="mcp-entry-title">{{ provider.key || 'New provider' }}</div>
-              <span class="badge badge-gray">{{ provider.apiType }}</span>
+              <div class="font-heading text-sm font-semibold text-dark mb-[0.35rem]">{{ provider.key || 'New provider' }}</div>
+              <span class="inline-flex items-center px-[0.65rem] py-[0.2rem] rounded-full font-heading text-[0.7rem] font-medium tracking-[0.03em] bg-[rgba(176,174,165,0.2)] text-[#8a8880]">{{ provider.apiType }}</span>
             </div>
-            <button type="button" class="btn btn-danger btn-sm" @click="removeProvider(provider.key)">
+            <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#CF3A3A] text-white hover:bg-[#b83333] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(207,58,58,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" @click="removeProvider(provider.key)">
               Remove
             </button>
           </div>
 
-          <div class="mcp-fields">
-            <div class="form-group">
-              <label class="field-label">Provider key/name</label>
-              <input
-                :value="provider.key"
-                class="form-input"
-                placeholder="openai"
-                @change="renameProvider(provider.key, ($event.target as HTMLInputElement).value)"
-              />
+          <div class="grid grid-cols-3 gap-4">
+            <div class="mb-5">
+              <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Provider key/name</label>
+              <input :value="provider.key" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]" placeholder="openai" @change="renameProvider(provider.key, ($event.target as HTMLInputElement).value)" />
             </div>
-
-            <div class="form-group">
-              <label class="field-label">API type</label>
-              <select
-                :value="provider.apiType"
-                class="form-select"
-                @change="updateProviderField(provider.key, 'apiType', ($event.target as HTMLSelectElement).value)"
-              >
+            <div class="mb-5">
+              <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">API type</label>
+              <select :value="provider.apiType" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]" @change="updateProviderField(provider.key, 'apiType', ($event.target as HTMLSelectElement).value)">
                 <option value="openai_responses">openai_responses</option>
                 <option value="openai_completion">openai_completion</option>
                 <option value="anthropic">anthropic</option>
               </select>
             </div>
-
-            <div class="form-group">
-              <label class="field-label">Base URL</label>
-              <input
-                :value="provider.baseUrl ?? ''"
-                class="form-input"
-                placeholder="https://api.example.com/v1"
-                @input="updateProviderOptionalString(provider.key, 'baseUrl', ($event.target as HTMLInputElement).value)"
-              />
+            <div class="mb-5">
+              <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Base URL</label>
+              <input :value="provider.baseUrl ?? ''" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]" placeholder="https://api.example.com/v1" @input="updateProviderOptionalString(provider.key, 'baseUrl', ($event.target as HTMLInputElement).value)" />
             </div>
-
-            <div class="form-group mcp-wide">
-              <label class="field-label">API key</label>
-              <input
-                :value="provider.apiKey ?? ''"
-                type="text"
-                class="form-input"
-                placeholder="Provider API key"
-                @input="updateProviderOptionalString(provider.key, 'apiKey', ($event.target as HTMLInputElement).value)"
-              />
+            <div class="mb-5 col-span-3">
+              <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">API key</label>
+              <input :value="provider.apiKey ?? ''" type="text" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]" placeholder="Provider API key" @input="updateProviderOptionalString(provider.key, 'apiKey', ($event.target as HTMLInputElement).value)" />
             </div>
           </div>
 
-          <div class="model-editor">
-            <div class="model-editor-header">
+          <div class="flex flex-col gap-[0.85rem] mt-4 pt-4 border-t border-dashed border-[var(--color-border)]">
+            <div class="flex items-center justify-between gap-4">
               <div>
-                <div class="model-editor-title">Model presets</div>
-                <p class="section-subtitle">Edit preset keys and common model fields while preserving future fields.</p>
+                <div class="font-heading text-sm font-semibold text-dark">Model presets</div>
+                <p class="font-body text-sm text-mid-gray m-[0.2rem_0_0]">Edit preset keys and common model fields while preserving future fields.</p>
               </div>
-              <button type="button" class="btn btn-primary btn-sm" @click="addProviderModel(provider.key)">
+              <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#121212] text-white hover:bg-[#2a2a2a] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(18,18,18,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" @click="addProviderModel(provider.key)">
                 + Add model
               </button>
             </div>
 
-            <div v-if="provider.models.length === 0" class="empty-state mcp-empty">
+            <div v-if="provider.models.length === 0" class="text-mid-gray text-center py-10 font-body italic text-sm border border-dashed border-[var(--color-border)] rounded">
               No model presets configured.
             </div>
 
-            <div v-for="model in provider.models" :key="model.key" class="model-entry">
-              <div class="mcp-fields">
-                <div class="form-group">
-                  <label class="field-label">Model preset key</label>
-                  <input
-                    :value="model.key"
-                    class="form-input"
-                    placeholder="gpt-4o"
-                    @change="renameProviderModel(provider.key, model.key, ($event.target as HTMLInputElement).value)"
-                  />
+            <div v-for="model in provider.models" :key="model.key" class="p-[0.85rem] border border-[var(--color-border)] rounded bg-[rgba(250,249,245,0.75)]">
+              <div class="grid grid-cols-3 gap-4">
+                <div class="mb-5">
+                  <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Model preset key</label>
+                  <input :value="model.key" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]" placeholder="gpt-4o" @change="renameProviderModel(provider.key, model.key, ($event.target as HTMLInputElement).value)" />
                 </div>
-
-                <div class="form-group">
-                  <label class="field-label">Context window</label>
-                  <input
-                    :value="model.contextWindow ?? ''"
-                    type="number"
-                    class="form-input"
-                    placeholder="128000"
-                    @input="updateProviderModelNumber(provider.key, model.key, ($event.target as HTMLInputElement).value)"
-                  />
+                <div class="mb-5">
+                  <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Context window</label>
+                  <input :value="model.contextWindow ?? ''" type="number" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]" placeholder="128000" @input="updateProviderModelNumber(provider.key, model.key, ($event.target as HTMLInputElement).value)" />
                 </div>
-
-                <button type="button" class="btn btn-danger btn-sm model-remove" @click="removeProviderModel(provider.key, model.key)">
+                <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#CF3A3A] text-white hover:bg-[#b83333] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(207,58,58,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none self-end mb-5" @click="removeProviderModel(provider.key, model.key)">
                   Remove model
                 </button>
-
-                <div class="form-group mcp-wide">
-                  <label class="field-label">Extra body JSON</label>
+                <div class="mb-5 col-span-3">
+                  <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Extra body JSON</label>
                   <JsonEditor
                     :model-value="toJson(model.extraBody ?? {})"
                     placeholder="{}"
@@ -146,22 +109,22 @@
         </div>
       </section>
 
-      <section v-for="section in configSections" :key="section.key" class="mcp-editor">
-        <div class="mcp-editor-header">
+      <section v-for="section in configSections" :key="section.key" class="min-w-0 flex flex-col gap-4">
+        <div class="flex items-center justify-between gap-4">
           <div>
-            <h2 class="section-title">{{ section.title }}</h2>
-            <p class="section-subtitle">{{ section.subtitle }}</p>
+            <h2 class="font-heading text-base font-semibold text-dark m-0">{{ section.title }}</h2>
+            <p class="font-body text-sm text-mid-gray m-[0.2rem_0_0]">{{ section.subtitle }}</p>
           </div>
         </div>
 
-        <div v-if="section.key === 'server'" class="mcp-entry">
+        <div v-if="section.key === 'server'" class="p-4 border border-[var(--color-border)] rounded bg-surface shadow-sm">
           <SchemaForm
             :schema="section.schema"
             :model-value="editableConfig[section.key]"
             @update:model-value="updateConfigSection(section.key, $event)"
           />
         </div>
-        <div v-else class="agent-schema">
+        <div v-else>
           <SchemaForm
             :schema="section.schema"
             :model-value="editableConfig[section.key]"
@@ -170,117 +133,83 @@
         </div>
       </section>
 
-      <section v-if="configSections.length === 0" class="empty-state mcp-empty">
+      <section v-if="configSections.length === 0" class="text-mid-gray text-center py-10 font-body italic text-sm border border-dashed border-[var(--color-border)] rounded">
         No core configuration sections available.
       </section>
 
-      <section class="mcp-editor">
-        <div class="mcp-editor-header">
+      <section class="min-w-0 flex flex-col gap-4">
+        <div class="flex items-center justify-between gap-4">
           <div>
-            <h2 class="section-title">MCP servers</h2>
-            <p class="section-subtitle">Configure enabled state, transport, connection details, args, and environment.</p>
+            <h2 class="font-heading text-base font-semibold text-dark m-0">MCP servers</h2>
+            <p class="font-body text-sm text-mid-gray m-[0.2rem_0_0]">Configure enabled state, transport, connection details, args, and environment.</p>
           </div>
-          <button type="button" class="btn btn-primary btn-sm" @click="addMcpServer">+ Add MCP</button>
+          <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#121212] text-white hover:bg-[#2a2a2a] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(18,18,18,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" @click="addMcpServer">+ Add MCP</button>
         </div>
 
-        <div v-if="mcpServers.length === 0" class="empty-state mcp-empty">
+        <div v-if="mcpServers.length === 0" class="text-mid-gray text-center py-10 font-body italic text-sm border border-dashed border-[var(--color-border)] rounded">
           No MCP servers configured.
         </div>
 
-        <div v-for="(server, index) in mcpServers" :key="index" class="mcp-entry">
-          <div class="mcp-entry-header">
+        <div v-for="(server, index) in mcpServers" :key="index" class="p-4 border border-[var(--color-border)] rounded bg-surface shadow-sm">
+          <div class="flex items-center justify-between gap-4 mb-4">
             <div>
-              <div class="mcp-entry-title">{{ server.name || `MCP server ${index + 1}` }}</div>
-              <span class="badge" :class="server.enabled ? 'badge-green' : 'badge-gray'">
+              <div class="font-heading text-sm font-semibold text-dark mb-[0.35rem]">{{ server.name || `MCP server ${index + 1}` }}</div>
+              <span class="inline-flex items-center px-[0.65rem] py-[0.2rem] rounded-full font-heading text-[0.7rem] font-medium tracking-[0.03em]"
+                :class="server.enabled ? 'bg-[rgba(120,140,93,0.12)] text-[#5a6e47]' : 'bg-[rgba(176,174,165,0.2)] text-[#8a8880]'">
                 {{ server.enabled ? 'Enabled' : 'Disabled' }}
               </span>
             </div>
-            <button type="button" class="btn btn-danger btn-sm" @click="removeMcpServer(index)">
+            <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#CF3A3A] text-white hover:bg-[#b83333] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(207,58,58,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" @click="removeMcpServer(index)">
               Remove
             </button>
           </div>
 
-          <div class="mcp-fields">
-            <div class="form-group">
-              <label class="field-label">Name</label>
-              <input
-                :value="server.name"
-                class="form-input"
-                placeholder="memory"
-                @input="updateMcpField(index, 'name', ($event.target as HTMLInputElement).value)"
-              />
+          <div class="grid grid-cols-3 gap-4">
+            <div class="mb-5">
+              <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Name</label>
+              <input :value="server.name" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]" placeholder="memory" @input="updateMcpField(index, 'name', ($event.target as HTMLInputElement).value)" />
             </div>
-
-            <div class="form-group">
-              <label class="field-label">Transport</label>
-              <select
-                :value="server.transport"
-                class="form-select"
-                @change="updateMcpField(index, 'transport', ($event.target as HTMLSelectElement).value)"
-              >
+            <div class="mb-5">
+              <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Transport</label>
+              <select :value="server.transport" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]" @change="updateMcpField(index, 'transport', ($event.target as HTMLSelectElement).value)">
                 <option value="stdio">stdio</option>
                 <option value="sse">sse</option>
                 <option value="http">http</option>
               </select>
             </div>
-
-            <div class="form-group toggle-group">
-              <label class="field-label">Enabled</label>
-              <button
-                type="button"
-                class="toggle-switch"
-                :class="{ active: server.enabled }"
-                @click="updateMcpField(index, 'enabled', !server.enabled)"
-              >
-                <span class="toggle-thumb"></span>
+            <div class="flex flex-col items-start gap-2 mb-5">
+              <label class="block mb-0 font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Enabled</label>
+              <button type="button" class="w-11 h-6 rounded-full border-none cursor-pointer relative transition-colors duration-[0.15s] ease p-0"
+                :class="server.enabled ? 'bg-accent-green' : 'bg-mid-gray'"
+                @click="updateMcpField(index, 'enabled', !server.enabled)">
+                <span class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease" :class="{ 'translate-x-5': server.enabled }"></span>
               </button>
             </div>
-
-            <div v-if="server.transport === 'stdio'" class="form-group mcp-wide">
-              <label class="field-label">Command</label>
-              <input
-                :value="server.command ?? ''"
-                class="form-input"
-                placeholder="npx"
-                @input="updateOptionalStringField(index, 'command', ($event.target as HTMLInputElement).value)"
-              />
+            <div v-if="server.transport === 'stdio'" class="mb-5 col-span-3">
+              <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Command</label>
+              <input :value="server.command ?? ''" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]" placeholder="npx" @input="updateOptionalStringField(index, 'command', ($event.target as HTMLInputElement).value)" />
             </div>
-
-            <div v-else class="form-group mcp-wide">
-              <label class="field-label">URL</label>
-              <input
-                :value="server.url ?? ''"
-                class="form-input"
-                placeholder="https://example.com/mcp"
-                @input="updateOptionalStringField(index, 'url', ($event.target as HTMLInputElement).value)"
-              />
+            <div v-else class="mb-5 col-span-3">
+              <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">URL</label>
+              <input :value="server.url ?? ''" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]" placeholder="https://example.com/mcp" @input="updateOptionalStringField(index, 'url', ($event.target as HTMLInputElement).value)" />
             </div>
-
-            <div class="form-group mcp-wide">
-              <label class="field-label">Args</label>
-              <textarea
-                :value="argsToText(server.args)"
-                class="form-textarea mcp-textarea"
-                placeholder="One argument per line"
-                @input="updateArgs(index, ($event.target as HTMLTextAreaElement).value)"
-              ></textarea>
+            <div class="mb-5 col-span-3">
+              <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Args</label>
+              <textarea :value="argsToText(server.args)" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)] min-h-[76px] resize-y font-mono text-xs" placeholder="One argument per line" @input="updateArgs(index, ($event.target as HTMLTextAreaElement).value)"></textarea>
             </div>
-
-            <div class="form-group mcp-wide">
-              <label class="field-label">Environment</label>
-              <textarea
-                :value="envToText(server.env)"
-                class="form-textarea mcp-textarea"
-                placeholder="KEY=value, one per line"
-                @input="updateEnv(index, ($event.target as HTMLTextAreaElement).value)"
-              ></textarea>
+            <div class="mb-5 col-span-3">
+              <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Environment</label>
+              <textarea :value="envToText(server.env)" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)] min-h-[76px] resize-y font-mono text-xs" placeholder="KEY=value, one per line" @input="updateEnv(index, ($event.target as HTMLTextAreaElement).value)"></textarea>
             </div>
           </div>
         </div>
       </section>
     </div>
 
-    <div v-if="toast" class="toast" :class="toast.type">{{ toast.message }}</div>
+    <div v-if="toast" class="fixed top-5 right-5 px-5 py-[0.85rem] rounded-sm text-white font-heading font-medium text-sm z-[200] animate-[slideInRight_0.3s_cubic-bezier(0.16,1,0.3,1)] shadow-lg"
+      :class="toast.type === 'toast-success' ? 'bg-accent-green' : 'bg-danger'">
+      {{ toast.message }}
+    </div>
   </div>
 </template>
 
@@ -628,7 +557,6 @@ function updateEnv(index: number, value: string) {
     if (!key) continue;
     env[key] = line.slice(separatorIndex + 1);
   }
-
   const next = [...getRawMcpServers()];
   const current = next[index];
   if (!current) return;
@@ -798,225 +726,3 @@ onMounted(() => {
   void loadConfig();
 });
 </script>
-
-<style scoped>
-.config-page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.page-subtitle,
-.card-subtitle,
-.summary-text {
-  font-family: var(--font-body);
-  color: var(--color-text-muted);
-}
-
-.page-subtitle {
-  font-size: 0.9rem;
-  margin: 0.25rem 0 0;
-}
-
-.config-toolbar {
-  margin-bottom: 0;
-  justify-content: flex-end;
-}
-
-.config-content {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-
-.mcp-editor {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-
-
-.mcp-editor-header,
-.mcp-entry-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.mcp-editor-header {
-  align-items: center;
-}
-
-.section-title,
-.mcp-entry-title {
-  font-family: var(--font-heading);
-  color: var(--color-dark);
-}
-
-.section-title {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 600;
-}
-
-.section-subtitle {
-  margin: 0.2rem 0 0;
-  color: var(--color-text-muted);
-  font-family: var(--font-body);
-  font-size: 0.82rem;
-}
-
-.mcp-entry {
-  padding: 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: #FCFAF7;
-  box-shadow: var(--shadow-sm);
-}
-
-.mcp-entry-header {
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.mcp-entry-title {
-  margin-bottom: 0.35rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-
-.mcp-fields {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.mcp-wide {
-  grid-column: 1 / -1;
-}
-
-.toggle-group {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.5rem;
-}
-
-.toggle-switch {
-  width: 44px;
-  height: 24px;
-  border-radius: 12px;
-  border: none;
-  background: var(--color-border-strong);
-  cursor: pointer;
-  position: relative;
-  transition: background var(--transition-fast);
-  padding: 0;
-}
-
-.toggle-switch.active {
-  background: var(--color-accent-green);
-}
-
-.toggle-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-  transition: transform var(--transition-fast);
-}
-
-.toggle-switch.active .toggle-thumb {
-  transform: translateX(20px);
-}
-
-.mcp-textarea {
-  min-height: 76px;
-  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-  font-size: 0.8rem;
-}
-
-.model-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px dashed var(--color-border);
-}
-
-.model-editor-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.model-editor-title {
-  font-family: var(--font-heading);
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--color-dark);
-}
-
-.model-entry {
-  padding: 0.85rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: rgba(250, 249, 245, 0.75);
-}
-
-.model-remove {
-  align-self: end;
-  margin-bottom: 1.25rem;
-}
-
-:deep(.json-editor) {
-  min-height: 90px;
-  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-  font-size: 0.8rem;
-}
-
-.mcp-empty {
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius);
-}
-
-@media (max-width: 900px) {
-  .config-page-header,
-  .mcp-editor-header,
-  .model-editor-header,
-  .mcp-entry-header,
-  .mcp-fields {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .config-toolbar {
-    width: 100%;
-  }
-
-  .mcp-toggle {
-    align-self: flex-start;
-  }
-}
-</style>
-
-<style>
-.agent-schema > .schema-form > .fieldset {
-  padding: 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: #FCFAF7;
-  box-shadow: var(--shadow-sm);
-  margin-bottom: 1rem;
-}
-</style>

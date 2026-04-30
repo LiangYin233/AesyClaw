@@ -1,90 +1,70 @@
 <template>
   <div>
-    <div class="section-page-header">
+    <div class="flex items-start justify-between gap-4 mb-6">
       <div>
         <h1 class="page-title">{{ title }}</h1>
-        <p class="page-subtitle">{{ subtitle }}</p>
+        <p class="page-subtitle" style="margin: 0.25rem 0 0;">{{ subtitle }}</p>
       </div>
-      <div class="toolbar section-toolbar">
-        <button class="btn btn-success" :disabled="saving" @click="saveSection">
+      <div class="flex items-center gap-2.5 mb-0 justify-end">
+        <button class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-accent-green text-white hover:bg-[#6a7d52] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(120,140,93,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" :disabled="saving" @click="saveSection">
           {{ saving ? 'Saving...' : 'Save' }}
         </button>
-        <button class="btn btn-ghost" @click="loadConfig">Reset</button>
+        <button class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-[var(--color-border)] rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-transparent text-mid-gray hover:bg-light-gray hover:text-dark hover:border-mid-gray" @click="loadConfig">Reset</button>
       </div>
     </div>
 
-    <div v-if="loading" class="empty-state">Loading {{ title.toLowerCase() }} configuration...</div>
-    <div v-else-if="error" class="form-error">{{ error }}</div>
-    <div v-else class="section-content">
-      <section class="section-editor">
-        <div class="section-editor-header">
-          </div>
-
-        <div v-if="itemCount === 0" class="empty-state section-empty">
+    <div v-if="loading" class="text-mid-gray text-center py-10 font-body italic text-sm">Loading {{ title.toLowerCase() }} configuration...</div>
+    <div v-else-if="error" class="text-danger text-sm mt-3 font-body">{{ error }}</div>
+    <div v-else class="min-w-0">
+      <section class="flex flex-col gap-4 min-w-0">
+        <div v-if="itemCount === 0" class="text-mid-gray text-center py-10 font-body italic text-sm border border-dashed border-[var(--color-border)] rounded">
           No {{ title.toLowerCase() }} configuration entries.
         </div>
 
         <template v-if="sectionKey === 'channels'">
-          <div v-for="entry in channelEntries" :key="entry.key" class="config-entry">
-            <div class="config-entry-header">
+          <div v-for="entry in channelEntries" :key="entry.key" class="p-4 border border-[var(--color-border)] rounded bg-surface shadow-sm">
+            <div class="flex items-center justify-between gap-4 mb-0">
               <div>
-                <div class="config-entry-title">{{ entry.key || 'New channel' }}</div>
+                <div class="font-heading text-sm font-semibold text-dark mb-[0.35rem]">{{ entry.key || 'New channel' }}</div>
               </div>
-              <div class="header-actions">
-                <div class="header-toggle">
-                  <label class="field-label">Enabled</label>
-                  <button
-                    type="button"
-                    class="toggle-switch"
-                    :class="{ active: getChannelEnabled(entry) }"
-                    @click="toggleChannelEnabled(entry.key)"
-                  >
-                    <span class="toggle-thumb"></span>
+              <div class="flex items-center gap-2.5 mb-0">
+                <div class="flex items-center gap-2.5 mb-0">
+                  <label class="font-heading text-xs font-medium text-dark tracking-[0.02em] uppercase whitespace-nowrap m-0">Enabled</label>
+                  <button type="button" class="w-11 h-6 rounded-full border-none cursor-pointer relative transition-colors duration-[0.15s] ease p-0"
+                    :class="getChannelEnabled(entry) ? 'bg-accent-green' : 'bg-mid-gray'"
+                    @click="toggleChannelEnabled(entry.key)">
+                    <span class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease" :class="{ 'translate-x-5': getChannelEnabled(entry) }"></span>
                   </button>
                 </div>
-                <button type="button" class="btn btn-danger btn-sm" @click="removeChannel(entry.key)">
+                <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#CF3A3A] text-white hover:bg-[#b83333] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(207,58,58,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" @click="removeChannel(entry.key)">
                   Remove
                 </button>
               </div>
             </div>
 
-            <div class="entry-fields">
-              <div class="config-section entry-wide">
-                <div class="config-section-label">Configuration</div>
-                <div class="config-fields">
+            <div class="grid grid-cols-3 gap-4 mt-0">
+              <div class="col-span-3 mt-1 pt-3">
+                <div class="font-heading text-[0.7rem] font-semibold text-mid-gray uppercase tracking-[0.08em] mb-3">Configuration</div>
+                <div class="grid grid-cols-2 gap-4">
                   <template v-for="field in getChannelFields(entry)" :key="`${entry.key}-${field.key}`">
-                    <div class="form-group config-field">
-                      <label class="field-label">{{ field.displayLabel }}</label>
+                    <div class="mb-5">
+                      <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">{{ field.displayLabel }}</label>
                       <template v-if="field.type === 'boolean'">
-                        <button
-                          type="button"
-                          class="toggle-switch"
-                          :class="{ active: field.value }"
-                          @click="setChannelField(entry.key, field.path, !field.value)"
-                        >
-                          <span class="toggle-thumb"></span>
+                        <button type="button" class="w-11 h-6 rounded-full border-none cursor-pointer relative transition-colors duration-[0.15s] ease p-0"
+                          :class="field.value ? 'bg-accent-green' : 'bg-mid-gray'"
+                          @click="setChannelField(entry.key, field.path, !field.value)">
+                          <span class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease" :class="{ 'translate-x-5': field.value }"></span>
                         </button>
                       </template>
-                      <input
-                        v-else-if="field.type === 'number'"
-                        :value="field.value"
-                        type="number"
-                        class="form-input"
-                        @input="setChannelField(entry.key, field.path, parseFloat(($event.target as HTMLInputElement).value) || 0)"
-                      />
-                      <textarea
-                        v-else-if="field.type === 'object'"
-                        :value="toJson(field.value)"
-                        class="form-input form-textarea form-textarea-sm"
-                        rows="3"
-                        @input="handleChannelComplexField(entry.key, field.path, ($event.target as HTMLTextAreaElement).value)"
-                      />
-                      <input
-                        v-else
-                        :value="field.value"
-                        class="form-input"
-                        @input="setChannelField(entry.key, field.path, ($event.target as HTMLInputElement).value)"
-                      />
+                      <input v-else-if="field.type === 'number'" :value="field.value" type="number"
+                        class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
+                        @input="setChannelField(entry.key, field.path, parseFloat(($event.target as HTMLInputElement).value) || 0)" />
+                      <textarea v-else-if="field.type === 'object'" :value="toJson(field.value)"
+                        class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)] min-h-[60px] resize-y font-mono text-xs"
+                        rows="3" @input="handleChannelComplexField(entry.key, field.path, ($event.target as HTMLTextAreaElement).value)" />
+                      <input v-else :value="field.value"
+                        class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
+                        @input="setChannelField(entry.key, field.path, ($event.target as HTMLInputElement).value)" />
                     </div>
                   </template>
                 </div>
@@ -94,66 +74,49 @@
         </template>
 
         <template v-else>
-          <div v-for="(plugin, index) in pluginEntries" :key="index" class="config-entry">
-            <div class="config-entry-header">
+          <div v-for="(plugin, index) in pluginEntries" :key="index" class="p-4 border border-[var(--color-border)] rounded bg-surface shadow-sm">
+            <div class="flex items-center justify-between gap-4 mb-0">
               <div>
-                <div class="config-entry-title">{{ plugin.name || `Plugin ${index + 1}` }}</div>
+                <div class="font-heading text-sm font-semibold text-dark mb-[0.35rem]">{{ plugin.name || `Plugin ${index + 1}` }}</div>
               </div>
-              <div class="header-actions">
-                <div class="header-toggle">
-                  <label class="field-label">Enabled</label>
-                  <button
-                    type="button"
-                    class="toggle-switch"
-                    :class="{ active: plugin.enabled }"
-                    @click="updatePluginField(index, 'enabled', !plugin.enabled)"
-                  >
-                    <span class="toggle-thumb"></span>
+              <div class="flex items-center gap-2.5 mb-0">
+                <div class="flex items-center gap-2.5 mb-0">
+                  <label class="font-heading text-xs font-medium text-dark tracking-[0.02em] uppercase whitespace-nowrap m-0">Enabled</label>
+                  <button type="button" class="w-11 h-6 rounded-full border-none cursor-pointer relative transition-colors duration-[0.15s] ease p-0"
+                    :class="plugin.enabled ? 'bg-accent-green' : 'bg-mid-gray'"
+                    @click="updatePluginField(index, 'enabled', !plugin.enabled)">
+                    <span class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease" :class="{ 'translate-x-5': plugin.enabled }"></span>
                   </button>
                 </div>
-                <button type="button" class="btn btn-danger btn-sm" @click="removePlugin(index)">
+                <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#CF3A3A] text-white hover:bg-[#b83333] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(207,58,58,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" @click="removePlugin(index)">
                   Remove
                 </button>
               </div>
             </div>
 
-            <div class="entry-fields">
-              <div v-if="getPluginFields(plugin).length > 0" class="config-section entry-wide">
-                <div class="config-section-label">Options</div>
-                <div class="config-fields">
+            <div class="grid grid-cols-3 gap-4 mt-0">
+              <div v-if="getPluginFields(plugin).length > 0" class="col-span-3 mt-1 pt-3">
+                <div class="font-heading text-[0.7rem] font-semibold text-mid-gray uppercase tracking-[0.08em] mb-3">Options</div>
+                <div class="grid grid-cols-2 gap-4">
                   <template v-for="field in getPluginFields(plugin)" :key="`plugin-${index}-${field.key}`">
-                    <div class="form-group config-field">
-                      <label class="field-label">{{ field.displayLabel }}</label>
+                    <div class="mb-5">
+                      <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">{{ field.displayLabel }}</label>
                       <template v-if="field.type === 'boolean'">
-                        <button
-                          type="button"
-                          class="toggle-switch"
-                          :class="{ active: field.value }"
-                          @click="setPluginOptionField(index, field.path, !field.value)"
-                        >
-                          <span class="toggle-thumb"></span>
+                        <button type="button" class="w-11 h-6 rounded-full border-none cursor-pointer relative transition-colors duration-[0.15s] ease p-0"
+                          :class="field.value ? 'bg-accent-green' : 'bg-mid-gray'"
+                          @click="setPluginOptionField(index, field.path, !field.value)">
+                          <span class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease" :class="{ 'translate-x-5': field.value }"></span>
                         </button>
                       </template>
-                      <input
-                        v-else-if="field.type === 'number'"
-                        :value="field.value"
-                        type="number"
-                        class="form-input"
-                        @input="setPluginOptionField(index, field.path, parseFloat(($event.target as HTMLInputElement).value) || 0)"
-                      />
-                      <textarea
-                        v-else-if="field.type === 'object'"
-                        :value="toJson(field.value)"
-                        class="form-input form-textarea form-textarea-sm"
-                        rows="3"
-                        @input="handlePluginComplexField(index, field.path, ($event.target as HTMLTextAreaElement).value)"
-                      />
-                      <input
-                        v-else
-                        :value="field.value"
-                        class="form-input"
-                        @input="setPluginOptionField(index, field.path, ($event.target as HTMLInputElement).value)"
-                      />
+                      <input v-else-if="field.type === 'number'" :value="field.value" type="number"
+                        class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
+                        @input="setPluginOptionField(index, field.path, parseFloat(($event.target as HTMLInputElement).value) || 0)" />
+                      <textarea v-else-if="field.type === 'object'" :value="toJson(field.value)"
+                        class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)] min-h-[60px] resize-y font-mono text-xs"
+                        rows="3" @input="handlePluginComplexField(index, field.path, ($event.target as HTMLTextAreaElement).value)" />
+                      <input v-else :value="field.value"
+                        class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
+                        @input="setPluginOptionField(index, field.path, ($event.target as HTMLInputElement).value)" />
                     </div>
                   </template>
                 </div>
@@ -164,7 +127,10 @@
       </section>
     </div>
 
-    <div v-if="toast" class="toast" :class="toast.type">{{ toast.message }}</div>
+    <div v-if="toast" class="fixed top-5 right-5 px-5 py-[0.85rem] rounded-sm text-white font-heading font-medium text-sm z-[200] animate-[slideInRight_0.3s_cubic-bezier(0.16,1,0.3,1)] shadow-lg"
+      :class="toast.type === 'toast-success' ? 'bg-accent-green' : 'bg-danger'">
+      {{ toast.message }}
+    </div>
   </div>
 </template>
 
@@ -266,7 +232,6 @@ function addEntry() {
     sectionValue.value = [...pluginEntries.value, { name: '', enabled: true, options: {} }];
     return;
   }
-
   const current = isRecord(sectionValue.value) ? sectionValue.value : {};
   let nextKey = 'new-channel';
   let suffix = 1;
@@ -324,7 +289,6 @@ interface ChannelField {
 function getChannelFields(entry: ChannelEntry): ChannelField[] {
   const fields: ChannelField[] = [];
   if (!isRecord(entry.value)) return fields;
-
   const flat = flattenObject(entry.value);
   for (const [key, val] of Object.entries(flat)) {
     if (key === 'enabled') continue;
@@ -411,20 +375,9 @@ function updatePluginField(index: number, key: 'name' | 'enabled', value: string
   sectionValue.value = next;
 }
 
-function updatePluginOptions(index: number, value: string) {
-  const parsed = parseJson(value);
-  if (parsed === undefined) return;
-  const next = [...getRawPlugins()];
-  const current = next[index];
-  if (!current) return;
-  next[index] = { ...current, options: isRecord(parsed) ? parsed : {} };
-  sectionValue.value = next;
-}
-
 function getPluginFields(plugin: PluginEntry): ChannelField[] {
   const fields: ChannelField[] = [];
   const options = isRecord(plugin.options) ? plugin.options : {};
-
   const flat = flattenObject(options);
   for (const [key, val] of Object.entries(flat)) {
     let type: ChannelField['type'] = 'string';
@@ -492,226 +445,7 @@ function toJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
-function parseJson(value: string): unknown | undefined {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return undefined;
-  }
-}
-
 onMounted(() => {
   void loadConfig();
 });
 </script>
-
-<style scoped>
-.section-page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.page-subtitle,
-.section-subtitle {
-  font-family: var(--font-body);
-  color: var(--color-text-muted);
-}
-
-.page-subtitle {
-  font-size: 0.9rem;
-  margin: 0.25rem 0 0;
-}
-
-.section-toolbar {
-  margin-bottom: 0;
-  justify-content: flex-end;
-}
-
-.section-content,
-.section-editor {
-  min-width: 0;
-}
-
-.section-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.section-editor-header,
-.config-entry-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.section-editor-header {
-  align-items: flex-start;
-}
-
-.section-title,
-.config-entry-title {
-  font-family: var(--font-heading);
-  color: var(--color-dark);
-}
-
-.section-title {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 600;
-}
-
-.section-subtitle {
-  margin: 0.2rem 0 0;
-  font-size: 0.82rem;
-}
-
-.config-entry {
-  padding: 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: #FCFAF7;
-  box-shadow: var(--shadow-sm);
-}
-
-.config-entry-header {
-  align-items: center;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.header-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.header-toggle .field-label {
-  margin: 0;
-  font-size: 0.82rem;
-  white-space: nowrap;
-}
-
-.config-entry-title {
-  margin-bottom: 0.35rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-
-.entry-fields {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-.entry-wide {
-  grid-column: 1 / -1;
-}
-
-.toggle-group {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.5rem;
-}
-
-.toggle-switch {
-  width: 44px;
-  height: 24px;
-  border-radius: 12px;
-  border: none;
-  background: var(--color-border-strong);
-  cursor: pointer;
-  position: relative;
-  transition: background var(--transition-fast);
-  padding: 0;
-}
-
-.toggle-switch.active {
-  background: var(--color-accent-green);
-}
-
-.toggle-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-  transition: transform var(--transition-fast);
-}
-
-.toggle-switch.active .toggle-thumb {
-  transform: translateX(20px);
-}
-
-.entry-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  align-self: end;
-  min-height: 2.45rem;
-  margin-bottom: 1.25rem;
-  cursor: pointer;
-}
-
-.section-empty {
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius);
-}
-
-.form-textarea-sm {
-  min-height: 60px;
-  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-  font-size: 0.78rem;
-}
-
-.config-section {
-  margin-top: 0.25rem;
-  padding-top: 0.75rem;
-}
-
-.config-section-label {
-  font-family: var(--font-heading);
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: 0.75rem;
-}
-
-.config-fields {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-:deep(.json-editor) {
-  min-height: 120px;
-}
-
-@media (max-width: 900px) {
-  .section-page-header,
-  .section-editor-header,
-  .config-entry-header,
-  .entry-fields,
-  .config-fields {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .section-toolbar {
-    width: 100%;
-  }
-}
-</style>

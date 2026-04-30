@@ -3,100 +3,79 @@
     <h1 class="page-title">Usage Statistics</h1>
     <p class="page-subtitle">Track token consumption per model over time.</p>
 
-    <!-- Filters -->
-    <div class="filters">
-      <div class="filter-group">
-        <label class="filter-label" for="from-date">From</label>
-        <input
-          id="from-date"
-          v-model="fromDate"
-          type="date"
-          class="filter-input"
-          @change="load"
-        />
+    <div class="flex gap-4 mb-6 flex-wrap">
+      <div class="flex flex-col gap-[0.35rem]">
+        <label class="font-heading text-xs font-medium text-mid-gray" for="from-date">From</label>
+        <input id="from-date" v-model="fromDate" type="date" class="px-[0.7rem] py-[0.45rem] border border-[var(--color-border)] rounded-sm font-body text-sm bg-white text-dark min-w-[160px] outline-none focus:border-primary" @change="load" />
       </div>
-      <div class="filter-group">
-        <label class="filter-label" for="to-date">To</label>
-        <input
-          id="to-date"
-          v-model="toDate"
-          type="date"
-          class="filter-input"
-          @change="load"
-        />
+      <div class="flex flex-col gap-[0.35rem]">
+        <label class="font-heading text-xs font-medium text-mid-gray" for="to-date">To</label>
+        <input id="to-date" v-model="toDate" type="date" class="px-[0.7rem] py-[0.45rem] border border-[var(--color-border)] rounded-sm font-body text-sm bg-white text-dark min-w-[160px] outline-none focus:border-primary" @change="load" />
       </div>
-      <div class="filter-group">
-        <label class="filter-label" for="model-filter">Model</label>
-        <select
-          id="model-filter"
-          v-model="modelFilter"
-          class="filter-input"
-          @change="load"
-        >
+      <div class="flex flex-col gap-[0.35rem]">
+        <label class="font-heading text-xs font-medium text-mid-gray" for="model-filter">Model</label>
+        <select id="model-filter" v-model="modelFilter" class="px-[0.7rem] py-[0.45rem] border border-[var(--color-border)] rounded-sm font-body text-sm bg-white text-dark min-w-[160px] outline-none focus:border-primary" @change="load">
           <option value="">All models</option>
           <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
         </select>
       </div>
     </div>
 
-    <!-- Summary Cards -->
-    <div class="summary-grid" v-if="summary.totalTokens > 0">
-      <div class="summary-card">
-        <div class="summary-card-value">{{ formatNumber(summary.totalTokens) }}</div>
-        <div class="summary-card-label">Total Tokens</div>
+    <div class="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-4 mb-6" v-if="summary.totalTokens > 0">
+      <div class="bg-white border border-[var(--color-border)] rounded-sm px-5 py-4">
+        <div class="font-heading text-xl font-semibold text-dark mb-1">{{ formatNumber(summary.totalTokens) }}</div>
+        <div class="font-heading text-xs font-medium text-mid-gray">Total Tokens</div>
       </div>
-      <div class="summary-card">
-        <div class="summary-card-value">{{ formatNumber(summary.inputTokens) }}</div>
-        <div class="summary-card-label">Input Tokens</div>
+      <div class="bg-white border border-[var(--color-border)] rounded-sm px-5 py-4">
+        <div class="font-heading text-xl font-semibold text-dark mb-1">{{ formatNumber(summary.inputTokens) }}</div>
+        <div class="font-heading text-xs font-medium text-mid-gray">Input Tokens</div>
       </div>
-      <div class="summary-card">
-        <div class="summary-card-value">{{ formatNumber(summary.outputTokens) }}</div>
-        <div class="summary-card-label">Output Tokens</div>
+      <div class="bg-white border border-[var(--color-border)] rounded-sm px-5 py-4">
+        <div class="font-heading text-xl font-semibold text-dark mb-1">{{ formatNumber(summary.outputTokens) }}</div>
+        <div class="font-heading text-xs font-medium text-mid-gray">Output Tokens</div>
       </div>
-      <div class="summary-card">
-        <div class="summary-card-value">{{ summary.count }}</div>
-        <div class="summary-card-label">API Calls</div>
+      <div class="bg-white border border-[var(--color-border)] rounded-sm px-5 py-4">
+        <div class="font-heading text-xl font-semibold text-dark mb-1">{{ summary.count }}</div>
+        <div class="font-heading text-xs font-medium text-mid-gray">API Calls</div>
       </div>
     </div>
 
-    <!-- Chart -->
-    <div class="chart-section" v-if="chartData.length > 0">
-      <h2 class="section-title">Token Trend</h2>
-      <div class="chart-container">
+    <div class="mb-8" v-if="chartData.length > 0">
+      <h2 class="font-heading text-base font-semibold text-dark mb-4">Token Trend</h2>
+      <div class="bg-white border border-[var(--color-border)] rounded-sm p-6 h-[320px] relative">
         <canvas ref="chartCanvas"></canvas>
       </div>
     </div>
 
-    <!-- Detail Table -->
-    <div class="table-section">
-      <h2 class="section-title">Detail</h2>
-      <div class="table-wrap">
-        <table class="data-table">
+    <div>
+      <h2 class="font-heading text-base font-semibold text-dark mb-4">Detail</h2>
+      <div class="overflow-x-auto rounded border border-[var(--color-border)]">
+        <table class="w-full border-collapse separate font-body text-sm">
           <thead>
             <tr>
-              <th>Model</th>
-              <th>Date</th>
-              <th>Input</th>
-              <th>Output</th>
-              <th>Total</th>
-              <th>Cache Read</th>
-              <th>Cache Write</th>
-              <th>Calls</th>
+              <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Model</th>
+              <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Date</th>
+              <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Input</th>
+              <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Output</th>
+              <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Total</th>
+              <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Cache Read</th>
+              <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Cache Write</th>
+              <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Calls</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in data" :key="`${row.model}-${row.date}`">
-              <td class="cell-model">{{ row.model }}</td>
-              <td class="cell-muted">{{ row.date }}</td>
-              <td>{{ formatNumber(row.inputTokens) }}</td>
-              <td>{{ formatNumber(row.outputTokens) }}</td>
-              <td class="cell-bold">{{ formatNumber(row.totalTokens) }}</td>
-              <td class="cell-muted">{{ formatNumber(row.cacheReadTokens) }}</td>
-              <td class="cell-muted">{{ formatNumber(row.cacheWriteTokens) }}</td>
-              <td>{{ row.count }}</td>
+            <tr v-for="row in data" :key="`${row.model}-${row.date}`" class="bg-[#FDFBF9]">
+              <td class="px-4 py-3 border-b border-[var(--color-border)] font-heading text-xs font-medium">{{ row.model }}</td>
+              <td class="px-4 py-3 border-b border-[var(--color-border)] text-mid-gray">{{ row.date }}</td>
+              <td class="px-4 py-3 border-b border-[var(--color-border)]">{{ formatNumber(row.inputTokens) }}</td>
+              <td class="px-4 py-3 border-b border-[var(--color-border)]">{{ formatNumber(row.outputTokens) }}</td>
+              <td class="px-4 py-3 border-b border-[var(--color-border)] font-semibold">{{ formatNumber(row.totalTokens) }}</td>
+              <td class="px-4 py-3 border-b border-[var(--color-border)] text-mid-gray">{{ formatNumber(row.cacheReadTokens) }}</td>
+              <td class="px-4 py-3 border-b border-[var(--color-border)] text-mid-gray">{{ formatNumber(row.cacheWriteTokens) }}</td>
+              <td class="px-4 py-3 border-b border-[var(--color-border)]">{{ row.count }}</td>
             </tr>
             <tr v-if="data.length === 0">
-              <td colspan="8" class="empty-state">No usage data for the selected period.</td>
+              <td colspan="8" class="text-mid-gray text-center py-10 font-body italic text-sm">No usage data for the selected period.</td>
             </tr>
           </tbody>
         </table>
@@ -156,7 +135,6 @@ const summary = computed(() => {
 });
 
 const chartData = computed(() => {
-  // Aggregate by date across all models for chart
   const dateMap = new Map<string, { inputTokens: number; outputTokens: number }>();
   for (const row of data.value) {
     const existing = dateMap.get(row.date);
@@ -170,7 +148,6 @@ const chartData = computed(() => {
       });
     }
   }
-  // Sort by date ascending
   return [...dateMap.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([date, tokens]) => ({ date, ...tokens }));
@@ -303,7 +280,6 @@ watch(chartData, () => {
 }, { deep: true });
 
 onMounted(() => {
-  // Default to last 7 days
   const today = new Date();
   const weekAgo = new Date(today);
   weekAgo.setDate(weekAgo.getDate() - 7);
@@ -321,116 +297,3 @@ onUnmounted(() => {
   }
 });
 </script>
-
-<style scoped>
-.page-subtitle {
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  color: var(--color-text-muted);
-  margin: 0.25rem 0 1.5rem;
-}
-
-.filters {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-}
-
-.filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.filter-label {
-  font-family: var(--font-heading);
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--color-text-muted);
-}
-
-.filter-input {
-  padding: 0.45rem 0.7rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-body);
-  font-size: 0.85rem;
-  background: #fff;
-  color: var(--color-dark);
-  min-width: 160px;
-}
-
-.filter-input:focus {
-  outline: none;
-  border-color: var(--color-accent-orange);
-}
-
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.summary-card {
-  background: #fff;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 1rem 1.25rem;
-}
-
-.summary-card-value {
-  font-family: var(--font-heading);
-  font-size: 1.3rem;
-  font-weight: 600;
-  color: var(--color-dark);
-  margin-bottom: 0.25rem;
-}
-
-.summary-card-label {
-  font-family: var(--font-heading);
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--color-text-muted);
-}
-
-.section-title {
-  font-family: var(--font-heading);
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-dark);
-  margin-bottom: 1rem;
-}
-
-.chart-section {
-  margin-bottom: 2rem;
-}
-
-.chart-container {
-  background: #fff;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 1.5rem;
-  height: 320px;
-  position: relative;
-}
-
-.table-section {
-  margin-top: 0;
-}
-
-.cell-model {
-  font-family: var(--font-heading);
-  font-size: 0.8rem;
-  font-weight: 500;
-}
-
-.cell-bold {
-  font-weight: 600;
-}
-
-.cell-muted {
-  color: var(--color-text-muted);
-}
-</style>
