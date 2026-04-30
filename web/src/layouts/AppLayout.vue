@@ -3,7 +3,7 @@
     <header class="h-topbar bg-[#FDFBF8] border-b border-[var(--color-border)] flex items-center justify-between px-6 shrink-0 z-10">
       <div class="flex items-center gap-2">
         <img src="/groupLogo.svg" alt="AesyClaw" class="h-7 w-auto block" />
-        <span class="font-heading text-[0.7rem] font-medium text-mid-gray bg-[#FAF7F4] px-[0.5rem] py-[0.15rem] rounded border border-[var(--color-border)]">v0.1.0</span>
+        <span class="font-heading text-[0.7rem] font-medium text-mid-gray bg-[#FAF7F4] px-[0.5rem] py-[0.15rem] rounded border border-[var(--color-border)]">v{{ appVersion }}</span>
       </div>
       <div class="flex items-center gap-2">
         <button class="flex items-center justify-center w-8 h-8 rounded-sm border border-[var(--color-border)] bg-transparent text-mid-gray cursor-pointer transition-all duration-[0.15s] ease hover:bg-[#FAF7F4] hover:text-dark">
@@ -40,8 +40,10 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '@/composables/useAuth';
+import { useAppInfo } from '@/composables/useAppInfo';
 import {
   HomeIcon,
   UsersIcon,
@@ -59,6 +61,9 @@ import {
 const route = useRoute();
 const router = useRouter();
 const { logout } = useAuth();
+const { appVersion, fetchVersion } = useAppInfo();
+
+onMounted(fetchVersion);
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: HomeIcon },
