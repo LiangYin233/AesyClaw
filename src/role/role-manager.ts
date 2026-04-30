@@ -1,7 +1,5 @@
 /**
- * RoleManager — loads role configurations, watches for changes, and
- * constructs system prompts by combining the role's template with
- * tool lists, skill content, and available role descriptions.
+ * RoleManager — loads role configurations and watches for changes.
  *
  * Role files are JSON validated against the RoleConfigSchema at load time.
  * Hot-reload is supported via `fs.watch`.
@@ -14,10 +12,8 @@ import { randomUUID } from 'node:crypto';
 import { Value } from '@sinclair/typebox/value';
 import { createScopedLogger } from '../core/logger';
 import { AppError } from '../core/errors';
-import type { RoleConfig, Skill, Unsubscribe } from '../core/types';
+import type { RoleConfig, Unsubscribe } from '../core/types';
 import { RoleConfigSchema } from './role-schema';
-import type { AesyClawTool } from '../tool/tool-registry';
-import { buildSkillPromptSection } from '../skill/skill-prompt';
 
 const logger = createScopedLogger('role');
 
@@ -27,6 +23,7 @@ export class RoleManager {
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly DEBOUNCE_MS = 300;
   private rolesDir: string | null = null;
+  private roleSources: Map<string, string> = new Map();
   private changeListeners: Array<() => void> = [];
 
   // ─── Lifecycle ────────────────────────────────────────────────
@@ -39,7 +36,6 @@ export class RoleManager {
    */
   async loadAll(rolesDir: string): Promise<void> {
     this.rolesDir = rolesDir;
-    this.roles.clear();
 
     mkdirSync(rolesDir, { recursive: true });
 
@@ -51,6 +47,9 @@ export class RoleManager {
       throw err;
     }
 
+    const loadedRoles = new Map<string, RoleConfig>();
+    const loadedSources = new Map<string, string>();
+
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith('.json')) {
         continue;
@@ -60,15 +59,26 @@ export class RoleManager {
       try {
         const role = this.parseRoleFile(filePath);
         if (role) {
-          if (this.roles.has(role.id)) {
-            logger.warn(`Duplicate role id "${role.id}" — overriding previous definition`);
+          const existingSource = loadedSources.get(role.id);
+          if (existingSource) {
+            throw new AppError(
+              `Duplicate role id "${role.id}" in ${existingSource} and ${filePath}`,
+              'CONFIG_VALIDATION',
+            );
           }
-          this.roles.set(role.id, role);
+          loadedRoles.set(role.id, role);
+          loadedSources.set(role.id, filePath);
         }
       } catch (err) {
+        if (err instanceof AppError) {
+          throw err;
+        }
         logger.warn(`Skipping invalid role file: ${filePath}`, err);
       }
     }
+
+    this.roles = loadedRoles;
+    this.roleSources = loadedSources;
 
     logger.info(`Loaded ${this.roles.size} roles`);
     this.notifyChanges();
@@ -170,32 +180,7 @@ export class RoleManager {
       throw new AppError('Role validation failed', 'CONFIG_VALIDATION', errors);
     }
 
-    // Find the file containing this role
-    const entries = fs.readdirSync(this.rolesDir, { withFileTypes: true });
-    let targetFile: string | null = null;
-
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith('.json')) {
-        continue;
-      }
-
-      const filePath = path.join(this.rolesDir, entry.name);
-      try {
-        const raw = fs.readFileSync(filePath, 'utf-8');
-        const parsed: unknown = JSON.parse(raw);
-        if (
-          parsed !== null &&
-          typeof parsed === 'object' &&
-          !Array.isArray(parsed) &&
-          (parsed as Record<string, unknown>).id === roleId
-        ) {
-          targetFile = filePath;
-          break;
-        }
-      } catch {
-        // Skip unreadable files
-      }
-    }
+    const targetFile = this.roleSources.get(roleId) ?? null;
 
     if (!targetFile) {
       throw new AppError(`Role file for "${roleId}" not found`, 'CONFIG_VALIDATION');
@@ -205,6 +190,7 @@ export class RoleManager {
 
     // Update in-memory cache
     this.roles.set(roleId, roleData);
+    this.roleSources.set(roleId, targetFile);
     this.notifyChanges();
     logger.info('Role saved', { roleId, file: targetFile });
   }
@@ -235,76 +221,14 @@ export class RoleManager {
     fs.writeFileSync(filePath, JSON.stringify(validated, null, 2), 'utf-8');
 
     this.roles.set(id, validated);
+    this.roleSources.set(id, filePath);
     this.notifyChanges();
     logger.info('Role created', { roleId: id, file: filePath });
 
     return validated;
   }
 
-  // ─── System prompt ────────────────────────────────────────────
-
-  /**
-   * Build the full system prompt for a role.
-   *
-   * 1. Start with the role's `systemPrompt` template
-   * 2. Replace template variables: `{{date}}`, `{{os}}`, `{{systemLang}}`
-   * 3. Append available tool list
-   * 4. Append skill content sections
-   * 5. Append available role descriptions (for sub-agent routing)
-   */
-  buildSystemPrompt(
-    role: RoleConfig,
-    availableTools: AesyClawTool[],
-    skills: Skill[],
-    allRoles: RoleConfig[],
-  ): string {
-    // 1. Template replacement
-    let prompt = this.replaceTemplateVariables(role.systemPrompt);
-
-    // 2. Append tool list
-    if (availableTools.length > 0) {
-      const toolSection = this.buildToolSection(availableTools);
-      prompt += `\n\n${toolSection}`;
-    }
-
-    // 3. Append skill sections
-    if (skills.length > 0) {
-      prompt += `\n\n${buildSkillPromptSection(skills)}`;
-    }
-
-    // 4. Append available roles
-    if (allRoles.length > 0) {
-      const roleLines = allRoles.map((r) => `- **${r.id}**: ${r.name} — ${r.description}`);
-      prompt += `\n\n## Available Roles\n${roleLines.join('\n')}`;
-    }
-
-    return prompt;
-  }
-
   // ─── Private helpers ───────────────────────────────────────────
-
-  /**
-   * Replace template variables in a prompt string.
-   *
-   * Supported variables:
-   * - `{{date}}` — Current ISO date (YYYY-MM-DD)
-   * - `{{os}}` — `process.platform`
-   * - `{{systemLang}}` — `process.env.LANG` or 'unknown'
-   */
-  private replaceTemplateVariables(template: string): string {
-    return template
-      .replace(/\{\{date}}/g, new Date().toISOString().split('T')[0] ?? new Date().toISOString())
-      .replace(/\{\{os}}/g, process.platform)
-      .replace(/\{\{systemLang}}/g, process.env.LANG ?? 'unknown');
-  }
-
-  /**
-   * Build the tool description section for the system prompt.
-   */
-  private buildToolSection(tools: AesyClawTool[]): string {
-    const toolLines = tools.map((tool) => `- **${tool.name}**: ${tool.description}`);
-    return `## Available Tools\n${toolLines.join('\n')}`;
-  }
 
   /**
    * Parse and validate a role JSON file.

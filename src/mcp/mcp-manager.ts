@@ -115,14 +115,15 @@ export class McpManager {
     logger.info('All MCP servers disconnected');
   }
 
-  async connect(serverName: string): Promise<ConnectedMcpServer> {
+  async connect(serverName: string): Promise<ConnectedMcpServer | null> {
     this.assertInitialized();
     const config = this.getConfigs().find((entry) => entry.name === serverName);
     if (!config) {
       throw new Error(`MCP server "${serverName}" is not configured`);
     }
     if (!config.enabled) {
-      return this.createDisconnectedServer(config);
+      logger.info('Skipping disabled MCP server', { server: serverName });
+      return null;
     }
 
     if (this.connectedServers.has(serverName)) {
@@ -262,16 +263,6 @@ export class McpManager {
     } catch {
       return [];
     }
-  }
-
-  private createDisconnectedServer(config: McpServerConfig): ConnectedMcpServer {
-    return {
-      name: config.name,
-      config: cloneConfig(config),
-      client: new EmptyMcpClient(),
-      tools: [],
-      connectedAt: new Date(),
-    };
   }
 
   private getReservedToolNames(excludingServerName: string): Set<string> {

@@ -118,17 +118,7 @@ export class MemoryManager {
    * @param message - The AgentMessage to potentially persist
    */
   async persistMessage(message: AgentMessage): Promise<void> {
-    // Record usage for all assistant messages that have token data,
-    // regardless of whether the message content is persistable (tool-call
-    // messages consume tokens too).
-    await this.recordUsageIfApplicable(message);
-
-    const persistable = this.toPersistableMessage(message);
-    if (!persistable) {
-      return;
-    }
-
-    await this.messageRepo.save(this.sessionId, persistable);
+    await this.persistMessageWithAccounting(message);
   }
 
   /**
@@ -144,19 +134,12 @@ export class MemoryManager {
     let filtered = 0;
 
     for (const message of agentMessages) {
-      // Record usage for all assistant messages that have token data,
-      // regardless of whether the message content is persistable (tool-call
-      // messages consume tokens too).
-      await this.recordUsageIfApplicable(message);
-
-      const persistable = this.toPersistableMessage(message);
-      if (!persistable) {
+      const didPersist = await this.persistMessageWithAccounting(message);
+      if (didPersist) {
+        persisted++;
+      } else {
         filtered++;
-        continue;
       }
-
-      await this.messageRepo.save(this.sessionId, persistable);
-      persisted++;
     }
 
     logger.debug(
@@ -227,6 +210,21 @@ export class MemoryManager {
    * (which consume tokens but aren't persisted as user-visible text)
    * still have their token consumption tracked.
    */
+  private async persistMessageWithAccounting(message: AgentMessage): Promise<boolean> {
+    // Record usage for all assistant messages that have token data,
+    // regardless of whether the message content is persistable (tool-call
+    // messages consume tokens too).
+    await this.recordUsageIfApplicable(message);
+
+    const persistable = this.toPersistableMessage(message);
+    if (!persistable) {
+      return false;
+    }
+
+    await this.messageRepo.save(this.sessionId, persistable);
+    return true;
+  }
+
   private async recordUsageIfApplicable(message: AgentMessage): Promise<void> {
     if (
       !this.usageRepo ||

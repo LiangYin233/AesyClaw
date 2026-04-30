@@ -46,7 +46,7 @@ describe('CommandRegistry', () => {
       expect(registry.getAll()[0].name).toBe('help');
     });
 
-    it('should throw if command with same key already exists', () => {
+    it('should throw if command with same registry key already exists', () => {
       registry.register(makeCommand({ name: 'help' }));
       expect(() => registry.register(makeCommand({ name: 'help' }))).toThrow(/already registered/);
     });
@@ -57,7 +57,7 @@ describe('CommandRegistry', () => {
       expect(registry.getAll()).toHaveLength(2);
     });
 
-    it('should throw if namespaced command with same key exists', () => {
+    it('should throw if namespaced command with same registry key exists', () => {
       registry.register(makeCommand({ name: 'list', namespace: 'role' }));
       expect(() => registry.register(makeCommand({ name: 'list', namespace: 'role' }))).toThrow(
         /already registered/,
@@ -203,7 +203,7 @@ describe('CommandRegistry', () => {
 
       const resolved = registry.resolve('/greet hello');
 
-      expect(resolved?.key).toBe('greet');
+      expect(resolved?.registryKey).toBe('greet');
       expect(resolved?.commandName).toBe('greet');
       expect(resolved?.args).toEqual(['hello']);
       expect(resolved?.command.allowDuringAgentProcessing).toBe(true);
@@ -214,7 +214,7 @@ describe('CommandRegistry', () => {
 
       const resolved = registry.resolve('/role list all');
 
-      expect(resolved?.key).toBe('role:list');
+      expect(resolved?.registryKey).toBe('role:list');
       expect(resolved?.commandName).toBe('role');
       expect(resolved?.args).toEqual(['all']);
       expect(resolved?.command.allowDuringAgentProcessing ?? false).toBe(false);

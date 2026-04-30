@@ -75,6 +75,23 @@ export class Application {
 
     logger.info('Starting AesyClaw...');
 
+    await this.runStartupSequence();
+
+    this.started = true;
+    logger.info('AesyClaw started successfully');
+  }
+
+  private async runStartupSequence(): Promise<void> {
+    await this.prepareRuntime();
+    await this.loadRuntimeConfiguration();
+    await this.initializeCoreManagers();
+    await this.initializeAgentRuntime();
+    await this.initializeExtensionRuntime();
+    await this.initializeOuterRuntime();
+    await this.installRuntimeReloading();
+  }
+
+  private async prepareRuntime(): Promise<void> {
     await this.startStep('Path resolution', async () => {
       const root = process.cwd();
       this.pathResolver.resolve(root);
@@ -97,13 +114,17 @@ export class Application {
 
       ensureDefaultRoleFile(this.pathResolver.rolesDir);
     });
+  }
 
+  private async loadRuntimeConfiguration(): Promise<void> {
     await this.startStep('Config loading', async () => {
       await this.configManager.load(this.pathResolver.configFile);
       setLogLevel(this.configManager.getConfig().server.logLevel);
       logger.info('Configuration loaded');
     });
+  }
 
+  private async initializeCoreManagers(): Promise<void> {
     await this.startStep('Database initialization', async () => {
       await this.databaseManager.initialize(this.pathResolver.dbFile);
     });
@@ -115,7 +136,9 @@ export class Application {
     await this.startStep('Role loading', async () => {
       await this.roleManager.loadAll(this.pathResolver.rolesDir);
     });
+  }
 
+  private async initializeAgentRuntime(): Promise<void> {
     await this.startStep('LLM adapter initialization', async () => {
       this.llmAdapter.initialize({ configManager: this.configManager });
     });
@@ -140,7 +163,9 @@ export class Application {
         llmAdapter: this.llmAdapter,
       });
     });
+  }
 
+  private async initializeExtensionRuntime(): Promise<void> {
     await this.startStep('Plugin manager initialization', async () => {
       this.pluginManager = new PluginManager({
         configManager: this.configManager,
@@ -180,7 +205,9 @@ export class Application {
     await this.startStep('Plugin loading', async () => {
       await this.getPluginManager().loadAll();
     });
+  }
 
+  private async initializeOuterRuntime(): Promise<void> {
     await this.startStep('MCP manager initialization', async () => {
       this.mcpManager.initialize({
         configManager: this.configManager,
@@ -225,7 +252,9 @@ export class Application {
         pluginManager: this.getPluginManager(),
       });
     });
+  }
 
+  private async installRuntimeReloading(): Promise<void> {
     await this.startStep('Config synchronization', async () => {
       await this.configManager.syncDefaults();
       this.installConfigSubscriptions();
@@ -235,9 +264,6 @@ export class Application {
       this.configManager.startHotReload();
       this.roleManager.startWatching();
     });
-
-    this.started = true;
-    logger.info('AesyClaw started successfully');
   }
 
   async shutdown(): Promise<void> {

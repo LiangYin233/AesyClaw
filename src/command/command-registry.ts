@@ -16,17 +16,18 @@ export interface ResolvedCommand {
   command: CommandDefinition;
   args: string[];
   commandName: string;
-  key: string;
+  /** Internal registry key used for uniqueness and cleanup. */
+  registryKey: string;
 }
 
 /**
  * Central registry for all slash commands.
  *
  * Commands are registered with a scope for owner-based cleanup.
- * The registry enforces key uniqueness — attempting to register a
- * command with a key that already exists throws an error.
+ * The registry enforces registry-key uniqueness — attempting to register a
+ * command with a registry key that already exists throws an error.
  *
- * Command key format:
+ * Registry key format (internal only; user-facing syntax remains slash separated):
  *   - If namespace is set: `namespace:name`
  *   - Otherwise: just `name`
  */
@@ -34,22 +35,26 @@ export class CommandRegistry {
   private commands: Map<string, CommandDefinition> = new Map();
 
   /**
-   * Compute the map key for a command.
+   * Compute the internal registry key for a command.
    *
-   * If the command has a namespace, the key is `namespace:name`.
+   * If the command has a namespace, the registry key is `namespace:name`.
    * Otherwise, just `name`.
    */
-  private static commandKey(command: CommandDefinition): string {
+  private static registryKeyForCommand(command: CommandDefinition): string {
     return command.namespace ? `${command.namespace}:${command.name}` : command.name;
+  }
+
+  private static registryKeyForParts(name: string, namespace?: string): string {
+    return namespace ? `${namespace}:${name}` : name;
   }
 
   /**
    * Register a command.
    *
-   * @throws Error if a command with the same key already exists
+   * @throws Error if a command with the same registry key already exists
    */
   register(command: CommandDefinition): void {
-    const key = CommandRegistry.commandKey(command);
+    const key = CommandRegistry.registryKeyForCommand(command);
     if (this.commands.has(key)) {
       throw new Error(`Command "${key}" is already registered`);
     }
@@ -63,7 +68,7 @@ export class CommandRegistry {
    * No-op if the command doesn't exist.
    */
   unregister(name: string, namespace?: string): void {
-    const key = namespace ? `${namespace}:${name}` : name;
+    const key = CommandRegistry.registryKeyForParts(name, namespace);
     const removed = this.commands.delete(key);
     if (removed) {
       logger.debug(`Unregistered command: ${key}`);
@@ -112,7 +117,7 @@ export class CommandRegistry {
       return await resolved.command.execute(resolved.args, context);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.error(`Command "${resolved.key}" failed: ${message}`);
+      logger.error(`Command "${resolved.registryKey}" failed: ${message}`);
       return `Error executing command: ${message}`;
     }
   }
@@ -152,22 +157,27 @@ export class CommandRegistry {
 
     const direct = this.commands.get(commandName);
     if (direct) {
-      return { command: direct, args, commandName, key: commandName };
+      return this.toResolvedCommand(direct, args, commandName, commandName);
     }
 
     if (args.length > 0) {
       const subcommandName = args[0].toLowerCase();
-      const namespaced = this.commands.get(`${commandName}:${subcommandName}`);
+      const registryKey = CommandRegistry.registryKeyForParts(subcommandName, commandName);
+      const namespaced = this.commands.get(registryKey);
       if (namespaced) {
-        return {
-          command: namespaced,
-          args: args.slice(1),
-          commandName,
-          key: `${commandName}:${subcommandName}`,
-        };
+        return this.toResolvedCommand(namespaced, args.slice(1), commandName, registryKey);
       }
     }
 
     return null;
+  }
+
+  private toResolvedCommand(
+    command: CommandDefinition,
+    args: string[],
+    commandName: string,
+    registryKey: string,
+  ): ResolvedCommand {
+    return { command, args, commandName, registryKey };
   }
 }

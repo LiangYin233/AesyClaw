@@ -325,6 +325,18 @@ describe('PluginManager', () => {
     ]);
   });
 
+  it('returns null when loading a disabled plugin directly', async () => {
+    const module = makeModule();
+    const config = new FakeConfigManager();
+    config.plugins = [{ name: 'alpha', enabled: false }];
+    const { manager, toolRegistry } = makeManager(module, config);
+
+    await expect(manager.load(module.directory)).resolves.toBeNull();
+
+    expect(toolRegistry.get('alpha_tool')).toBeUndefined();
+    expect(manager.getLoaded('alpha')).toBeUndefined();
+  });
+
   it('isolates plugin init failures during loadAll', async () => {
     const badModule = makeModule({
       definition: {

@@ -93,11 +93,12 @@ describe('PromptBuilder', () => {
 
       const result = builder.buildSystemPrompt(role);
 
-      expect(result.prompt).toBe('Built prompt: You are Assistant.');
+      expect(result.prompt).toContain('You are {{role}}.');
+      expect(result.prompt).toContain('## Skill: greeting');
+      expect(result.prompt).toContain('## Available Roles');
       expect(result.tools).toEqual([]);
       expect(deps.skillManager.getSkillsForRole).toHaveBeenCalledWith(role);
       expect(deps.roleManager.getEnabledRoles).toHaveBeenCalled();
-      expect(deps.roleManager.buildSystemPrompt).toHaveBeenCalled();
     });
 
     it('should return resolved AgentTools', () => {
@@ -119,7 +120,7 @@ describe('PromptBuilder', () => {
       expect(result.tools).toHaveLength(1);
     });
 
-    it('should pass filtered internal tools to roleManager.buildSystemPrompt', () => {
+    it('should include filtered internal tools in final prompt content', () => {
       const internalTool = makeTool({ name: 'send-msg' });
       const deps = makeDeps({
         toolRegistry: {
@@ -132,17 +133,10 @@ describe('PromptBuilder', () => {
       const builder = new PromptBuilder(deps);
       const role = makeRole();
 
-      builder.buildSystemPrompt(role);
+      const result = builder.buildSystemPrompt(role);
 
-      const buildCall = deps.roleManager.buildSystemPrompt.mock.calls[0] as [
-        RoleConfig,
-        AesyClawTool[],
-        Skill[],
-        RoleConfig[],
-      ];
-      const filteredTools = buildCall[1] as AesyClawTool[];
-      expect(filteredTools).toHaveLength(1);
-      expect(filteredTools[0].name).toBe('send-msg');
+      expect(result.prompt).toContain('## Available Tools');
+      expect(result.prompt).toContain('**send-msg**: A test tool');
     });
 
     it('should filter tools by role permissions', () => {
@@ -161,17 +155,9 @@ describe('PromptBuilder', () => {
         toolPermission: { mode: 'allowlist', list: ['allowed'] },
       });
 
-      builder.buildSystemPrompt(role);
+      const result = builder.buildSystemPrompt(role);
 
-      const buildCall = deps.roleManager.buildSystemPrompt.mock.calls[0] as [
-        RoleConfig,
-        AesyClawTool[],
-        Skill[],
-        RoleConfig[],
-      ];
-      const filteredTools = buildCall[1] as AesyClawTool[];
-      expect(filteredTools).toHaveLength(1);
-      expect(filteredTools[0].name).toBe('allowed');
+      expect(result.prompt).toContain('**allowed**: A test tool');
     });
 
     it('should pass all enabled roles to buildSystemPrompt', () => {
@@ -184,16 +170,10 @@ describe('PromptBuilder', () => {
       });
       const builder = new PromptBuilder(deps);
 
-      builder.buildSystemPrompt(makeRole());
+      const result = builder.buildSystemPrompt(makeRole());
 
-      const buildCall = deps.roleManager.buildSystemPrompt.mock.calls[0] as [
-        RoleConfig,
-        AesyClawTool[],
-        Skill[],
-        RoleConfig[],
-      ];
-      const allRoles = buildCall[3] as RoleConfig[];
-      expect(allRoles).toEqual(roles);
+      expect(result.prompt).toContain('**admin**: Assistant');
+      expect(result.prompt).toContain('**user**: Assistant');
     });
 
     it('should pass execution context to tool resolution', () => {
@@ -248,7 +228,6 @@ Blocked content.`,
 
       const roleManager = {
         getEnabledRoles: vi.fn().mockReturnValue([makeRole()]),
-        buildSystemPrompt: vi.fn().mockReturnValue('prompt'),
       };
       const builder = new PromptBuilder({
         roleManager: roleManager as unknown as PromptBuilderDependencies['roleManager'],
@@ -264,20 +243,13 @@ Blocked content.`,
       });
 
       try {
-        builder.buildSystemPrompt(makeRole({ skills: ['allowed-skill'] }));
+        const result = builder.buildSystemPrompt(makeRole({ skills: ['allowed-skill'] }));
 
-        const buildCall = roleManager.buildSystemPrompt.mock.calls[0] as [
-          RoleConfig,
-          AesyClawTool[],
-          Skill[],
-          RoleConfig[],
-        ];
-        const injectedSkills = buildCall[2];
-
-        expect(injectedSkills.map((skill) => skill.name)).toEqual([
-          'system-skill',
-          'allowed-skill',
-        ]);
+        expect(result.prompt).toContain('## Skill: system-skill');
+        expect(result.prompt).toContain('System content.');
+        expect(result.prompt).toContain('## Skill: allowed-skill');
+        expect(result.prompt).toContain('Allowed content.');
+        expect(result.prompt).not.toContain('blocked-skill');
       } finally {
         rmSync(skillRoot, { recursive: true, force: true });
       }

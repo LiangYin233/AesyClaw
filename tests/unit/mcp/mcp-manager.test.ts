@@ -192,6 +192,23 @@ describe('McpManager', () => {
     expect(result).toEqual({ content: JSON.stringify({ ok: false, params: invalidParams }) });
   });
 
+  it('returns null when connecting a disabled MCP server directly', async () => {
+    const client = makeClient();
+    const toolRegistry = new ToolRegistry();
+    const manager = new McpManager();
+    manager.initialize({
+      configManager: new FakeConfigManager([{ name: 'local', transport: 'stdio', enabled: false }]),
+      toolRegistry,
+      clientFactory: { create: () => client },
+    });
+
+    await expect(manager.connect('local')).resolves.toBeNull();
+
+    expect(client.connect).not.toHaveBeenCalled();
+    expect(manager.getConnected('local')).toBeUndefined();
+    expect(toolRegistry.get(mcpToolName('local', 'echo'))).toBeUndefined();
+  });
+
   it('isolates failed servers and unregisters tools on disconnect', async () => {
     const goodClient = makeClient();
     const badClient = makeClient({

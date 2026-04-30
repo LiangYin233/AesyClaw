@@ -71,7 +71,7 @@ export class PluginManager {
     logger.info('All plugins unloaded');
   }
 
-  async load(pluginDir: string): Promise<LoadedPlugin> {
+  async load(pluginDir: string): Promise<LoadedPlugin | null> {
     const module = await this.pluginLoader.load(pluginDir);
     const pluginName = module.definition.name;
 
@@ -86,7 +86,7 @@ export class PluginManager {
     );
     if (!configLookup.enabled) {
       logger.info('Skipping disabled plugin', { pluginName });
-      return this.createUnloadedPlugin(module, mergedConfig);
+      return null;
     }
 
     const owner = pluginOwner(pluginName);
@@ -416,19 +416,6 @@ export class PluginManager {
     }
   }
 
-  private createUnloadedPlugin(
-    module: PluginModule,
-    config: Record<string, unknown>,
-  ): LoadedPlugin {
-    return {
-      definition: module.definition,
-      directory: module.directory,
-      directoryName: module.directoryName,
-      owner: pluginOwner(module.definition.name),
-      config,
-      loadedAt: new Date(),
-    };
-  }
 }
 
 function optionsToRecord(value: unknown): Record<string, unknown> {

@@ -6,14 +6,11 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { RoleManager } from '../../../src/role/role-manager';
 import type { RoleConfig } from '../../../src/core/types';
-import type { AesyClawTool } from '../../../src/tool/tool-registry';
-import type { TSchema } from '@sinclair/typebox';
-import type { Skill } from '../../../src/core/types';
 
 const TEST_DIR = join(tmpdir(), 'aesyclaw-test-role-manager');
 
@@ -27,28 +24,6 @@ function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
     toolPermission: { mode: 'allowlist', list: ['*'] },
     skills: ['*'],
     enabled: true,
-    ...overrides,
-  };
-}
-
-function makeTool(overrides: Partial<AesyClawTool> = {}): AesyClawTool {
-  return {
-    name: 'test-tool',
-    description: 'A test tool',
-    parameters: {} as TSchema,
-    owner: 'system',
-    execute: async () => ({ content: 'test' }),
-    ...overrides,
-  };
-}
-
-function makeSkill(overrides: Partial<Skill> = {}): Skill {
-  return {
-    name: 'test-skill',
-    description: 'A test skill',
-    content: 'Skill content here.',
-    isSystem: true,
-    filePath: '/test/skill.md',
     ...overrides,
   };
 }
@@ -166,6 +141,25 @@ describe('RoleManager', () => {
       expect(manager.getDefaultRole().enabled).toBe(true);
     });
 
+    it('should reject duplicate role ids during startup loads', async () => {
+      writeFileSync(join(rolesDir, 'alpha.json'), JSON.stringify(makeRole({ id: 'duplicate' })));
+      writeFileSync(join(rolesDir, 'beta.json'), JSON.stringify(makeRole({ id: 'duplicate' })));
+
+      await expect(manager.loadAll(rolesDir)).rejects.toThrow(/Duplicate role id/);
+      expect(manager.getAllRoles()).toHaveLength(0);
+    });
+
+    it('should reject duplicate role ids during reload and keep old roles intact', async () => {
+      writeFileSync(join(rolesDir, 'default.json'), JSON.stringify(makeRole({ id: 'default' })));
+      await manager.loadAll(rolesDir);
+
+      writeFileSync(join(rolesDir, 'copy.json'), JSON.stringify(makeRole({ id: 'default' })));
+
+      await expect(manager.loadAll(rolesDir)).rejects.toThrow(/Duplicate role id/);
+      expect(manager.getAllRoles()).toHaveLength(1);
+      expect(manager.getRole('default').id).toBe('default');
+    });
+
     it('should handle non-existent directory gracefully', async () => {
       const nonexistent = join(TEST_DIR, 'nonexistent-roles');
       // Don't create the directory — it should not throw
@@ -247,77 +241,15 @@ describe('RoleManager', () => {
     });
   });
 
-  describe('buildSystemPrompt', () => {
-    it('should replace template variables', async () => {
-      const role = makeRole({
-        id: 'test',
-        systemPrompt: 'Date: {{date}}, OS: {{os}}, Lang: {{systemLang}}',
-      });
+  describe('saveRole', () => {
+    it('should write updates to the tracked source file for a role', async () => {
+      writeFileSync(join(rolesDir, 'custom-name.json'), JSON.stringify(makeRole({ id: 'tracked' })));
+      await manager.loadAll(rolesDir);
 
-      const prompt = manager.buildSystemPrompt(role, [], [], []);
-      expect(prompt).toMatch(/\d{4}-\d{2}-\d{2}/); // date
-      expect(prompt).toContain(process.platform);
-      expect(prompt).toContain(process.env.LANG ?? 'unknown');
-    });
+      await manager.saveRole('tracked', makeRole({ id: 'tracked', name: 'Updated' }));
 
-    it('should append tool list section', () => {
-      const role = makeRole({ id: 'test' });
-      const tools: AesyClawTool[] = [
-        makeTool({ name: 'send-msg', description: 'Send a message' }),
-        makeTool({ name: 'search', description: 'Search the web' }),
-      ];
-
-      const prompt = manager.buildSystemPrompt(role, tools, [], []);
-      expect(prompt).toContain('## Available Tools');
-      expect(prompt).toContain('**send-msg**: Send a message');
-      expect(prompt).toContain('**search**: Search the web');
-    });
-
-    it('should append skill section', () => {
-      const role = makeRole({ id: 'test' });
-      const skills: Skill[] = [
-        makeSkill({ name: 'coding', content: 'Help write code.' }),
-        makeSkill({ name: 'greeting', content: 'Say hello.' }),
-      ];
-
-      const prompt = manager.buildSystemPrompt(role, [], skills, []);
-      expect(prompt).toContain('## Skill: coding');
-      expect(prompt).toContain('Help write code.');
-      expect(prompt).toContain('## Skill: greeting');
-      expect(prompt).toContain('Say hello.');
-    });
-
-    it('should append available roles section', () => {
-      const role = makeRole({ id: 'test' });
-      const allRoles: RoleConfig[] = [
-        makeRole({ id: 'default', name: 'Default', description: 'Default assistant' }),
-        makeRole({ id: 'coder', name: 'Coder', description: 'Code-focused assistant' }),
-      ];
-
-      const prompt = manager.buildSystemPrompt(role, [], [], allRoles);
-      expect(prompt).toContain('## Available Roles');
-      expect(prompt).toContain('**default**: Default');
-      expect(prompt).toContain('**coder**: Coder');
-    });
-
-    it('should build complete prompt with all sections', () => {
-      const role = makeRole({
-        id: 'test',
-        systemPrompt: 'You are AesyClaw. Date: {{date}}',
-      });
-      const tools: AesyClawTool[] = [makeTool({ name: 'run-code', description: 'Execute code' })];
-      const skills: Skill[] = [makeSkill({ name: 'analysis', content: 'Analyze data.' })];
-      const allRoles: RoleConfig[] = [
-        makeRole({ id: 'default', name: 'Default', description: 'Default role' }),
-      ];
-
-      const prompt = manager.buildSystemPrompt(role, tools, skills, allRoles);
-
-      expect(prompt).toContain('You are AesyClaw.');
-      expect(prompt).toMatch(/\d{4}-\d{2}-\d{2}/);
-      expect(prompt).toContain('## Available Tools');
-      expect(prompt).toContain('## Skill: analysis');
-      expect(prompt).toContain('## Available Roles');
+      const saved = JSON.parse(readFileSync(join(rolesDir, 'custom-name.json'), 'utf-8')) as RoleConfig;
+      expect(saved.name).toBe('Updated');
     });
   });
 });

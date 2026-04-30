@@ -34,6 +34,12 @@ function makeMockLlmAdapter() {
   } as unknown as LlmAdapter;
 }
 
+function makeMockUsageRepo() {
+  return {
+    create: vi.fn().mockResolvedValue(1),
+  };
+}
+
 // ─── Tests ─────────────────────────────────────────────────────────
 
 describe('MemoryManager', () => {
@@ -246,6 +252,31 @@ describe('MemoryManager', () => {
         sessionId,
         expect.objectContaining({ role: 'assistant', content: 'The weather is sunny and 72°F.' }),
       );
+    });
+
+    it('should use the same persistence and usage accounting path as persistMessage', async () => {
+      const messageRepo = makeMockMessageRepo();
+      const usageRepo = makeMockUsageRepo();
+      const manager = new MemoryManager(sessionId, messageRepo, defaultConfig, usageRepo);
+      const message: AgentMessage = {
+        ...createPersistedAssistantMessage('Done.'),
+        api: 'openai-responses',
+        provider: 'openai',
+        model: 'gpt-4o',
+        usage: {
+          input: 1,
+          output: 2,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 3,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+      };
+
+      await manager.syncFromAgent([message]);
+
+      expect(messageRepo.save).toHaveBeenCalledTimes(1);
+      expect(usageRepo.create).toHaveBeenCalledTimes(1);
     });
   });
 
