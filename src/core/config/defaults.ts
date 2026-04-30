@@ -1,4 +1,5 @@
 import type { AppConfig } from './schema';
+import { DEFAULTS } from '../types';
 
 /**
  * Default application configuration.
@@ -8,15 +9,15 @@ import type { AppConfig } from './schema';
  */
 export const DEFAULT_CONFIG: AppConfig = {
   server: {
-    port: 3000,
-    host: '0.0.0.0',
-    logLevel: 'info',
+    port: DEFAULTS.port,
+    host: DEFAULTS.host,
+    logLevel: DEFAULTS.logLevel,
   },
   providers: {},
   channels: {},
   agent: {
     memory: {
-      compressionThreshold: 0.8,
+      compressionThreshold: DEFAULTS.compressionThreshold,
     },
     multimodal: {
       speechToText: {

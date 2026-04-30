@@ -13,7 +13,15 @@
           <span class="w-2 h-2 rounded-full bg-current"></span>
           {{ autoRefreshEnabled ? `Auto refresh every ${pollIntervalSeconds}s` : 'Auto refresh paused' }}
         </span>
-<button
+        <span class="font-heading text-xs text-mid-gray">Updated {{ lastUpdatedLabel }}</span>
+        <button
+          class="rounded-sm px-[0.9rem] py-[0.5rem] font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease border border-[var(--color-border)] bg-white text-mid-gray hover:bg-light-gray hover:text-dark"
+          type="button"
+          @click="toggleAutoRefresh"
+        >
+          {{ autoRefreshEnabled ? 'Pause' : 'Resume' }}
+        </button>
+        <button
           class="rounded-sm px-[0.9rem] py-[0.5rem] font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease border border-primary bg-primary text-white disabled:opacity-70 disabled:cursor-wait"
           type="button"
           :disabled="loading"
@@ -24,7 +32,7 @@
       </div>
     </div>
 
-<div class="flex flex-col flex-1 min-h-0 bg-[#FAF7F4] border border-[var(--color-border)] rounded-t-sm overflow-hidden" style="border-bottom: none;">
+    <div class="flex flex-col flex-1 min-h-0 bg-[#FAF7F4] border border-[var(--color-border)] rounded-t-sm overflow-hidden" style="border-bottom: none;">
       <div v-if="errorMessage" class="px-5 py-4 shrink-0 text-danger font-body text-sm">{{ errorMessage }}</div>
       <div v-else-if="loading && entries.length === 0" class="flex-1 flex items-center justify-center text-mid-gray font-body italic text-sm">Loading logs...</div>
       <div v-else-if="entries.length === 0" class="flex-1 flex items-center justify-center text-mid-gray font-body italic text-sm">No logs captured yet.</div>

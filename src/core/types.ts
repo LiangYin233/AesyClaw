@@ -30,7 +30,7 @@ export const FILE_NAMES = {
   database: 'aesyclaw.db',
 } as const;
 
-/** Default config values that don't belong in the schema defaults */
+/** Default config values shared by runtime defaults and schema metadata */
 export const DEFAULTS = {
   port: 3000,
   host: '0.0.0.0',

@@ -8,6 +8,7 @@
 
 import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
+import { DEFAULTS } from '../types';
 
 // ─── Provider / Model ────────────────────────────────────────────
 
@@ -36,16 +37,16 @@ type ProviderConfig = Static<typeof ProviderConfigSchema>;
 // ─── Server ──────────────────────────────────────────────────────
 
 const ServerConfigSchema = Type.Object({
-  port: Type.Number({ default: 3000 }),
-  host: Type.String({ default: '0.0.0.0' }),
-  logLevel: Type.String({ default: 'info' }),
+  port: Type.Number({ default: DEFAULTS.port }),
+  host: Type.String({ default: DEFAULTS.host }),
+  logLevel: Type.String({ default: DEFAULTS.logLevel }),
   authToken: Type.Optional(Type.String()),
 });
 
 // ─── Agent ───────────────────────────────────────────────────────
 
 const MemoryConfigSchema = Type.Object({
-  compressionThreshold: Type.Number({ default: 0.8 }),
+  compressionThreshold: Type.Number({ default: DEFAULTS.compressionThreshold }),
 });
 
 const MultimodalConfigSchema = Type.Object({

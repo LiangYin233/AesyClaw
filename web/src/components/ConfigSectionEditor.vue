@@ -137,7 +137,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useAuth } from '@/composables/useAuth';
-import JsonEditor from '@/components/JsonEditor.vue';
 import { TrashIcon } from '@heroicons/vue/24/outline';
 
 interface PluginEntry extends Record<string, unknown> {
@@ -226,39 +225,6 @@ async function saveSection() {
   } finally {
     saving.value = false;
   }
-}
-
-function addEntry() {
-  if (props.sectionKey === 'plugins') {
-    sectionValue.value = [...pluginEntries.value, { name: '', enabled: true, options: {} }];
-    return;
-  }
-  const current = isRecord(sectionValue.value) ? sectionValue.value : {};
-  let nextKey = 'new-channel';
-  let suffix = 1;
-  while (Object.prototype.hasOwnProperty.call(current, nextKey)) {
-    suffix += 1;
-    nextKey = `new-channel-${suffix}`;
-  }
-  sectionValue.value = { ...current, [nextKey]: {} };
-}
-
-function renameChannel(oldKey: string, newKeyRaw: string) {
-  const newKey = newKeyRaw.trim();
-  if (!newKey || newKey === oldKey || !isRecord(sectionValue.value)) return;
-  if (Object.prototype.hasOwnProperty.call(sectionValue.value, newKey)) {
-    showToast('toast-error', `A channel named "${newKey}" already exists`);
-    return;
-  }
-  const next: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(sectionValue.value)) {
-    if (key === oldKey) {
-      next[newKey] = value;
-    } else {
-      next[key] = value;
-    }
-  }
-  sectionValue.value = next;
 }
 
 function removeChannel(key: string) {
