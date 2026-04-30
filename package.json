@@ -1,6 +1,6 @@
 {
   "name": "aesyclaw",
-  "version": "0.1.0",
+  "version": "2026.4.30",
   "description": "An extensible AI Agent runtime platform",
   "private": true,
   "workspaces": [

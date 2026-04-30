@@ -1,7 +1,25 @@
 /** 共享核心类型的兼容导出桶。 */
 
+import { readFileSync } from 'node:fs';
+
+function readRootPackageVersion(): string {
+  const packageJsonUrl = new URL('../../package.json', import.meta.url);
+  const packageJson: unknown = JSON.parse(readFileSync(packageJsonUrl, 'utf8'));
+
+  if (
+    typeof packageJson === 'object' &&
+    packageJson !== null &&
+    'version' in packageJson &&
+    typeof packageJson.version === 'string'
+  ) {
+    return packageJson.version;
+  }
+
+  throw new Error('Root package.json is missing a string version field');
+}
+
 export const APP_NAME = 'AesyClaw';
-export const APP_VERSION = '0.1.0';
+export const APP_VERSION = readRootPackageVersion();
 
 /** 默认目录名（相对于根目录） */
 export const DIR_NAMES = {
