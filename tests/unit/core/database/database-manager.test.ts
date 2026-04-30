@@ -9,8 +9,6 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import {
   findOrCreateSession,
-  findAllSessions,
-  findSessionById,
   findSessionByKey,
 } from '../../../../src/core/database/repositories/session-repository';
 import {
