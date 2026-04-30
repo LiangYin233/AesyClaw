@@ -93,7 +93,12 @@ function colorize(text: string, level: LogLevel, enabled: boolean): string {
 }
 
 function formatTimestamp(date: Date): string {
-  return date.toISOString().slice(5, 19).replace('T', ' ');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  return `${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
 function formatMessage(scope: string, level: LogLevel, message: string): string {

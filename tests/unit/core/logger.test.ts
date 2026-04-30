@@ -8,7 +8,7 @@ import {
 } from '../../../src/core/logger';
 
 const FIXED_TIME = new Date('2026-04-26T12:34:56.789Z');
-const FORMATTED_TIME = '04-26 12:34:56';
+const FORMATTED_TIME = `${String(FIXED_TIME.getMonth() + 1).padStart(2, '0')}-${String(FIXED_TIME.getDate()).padStart(2, '0')} ${String(FIXED_TIME.getHours()).padStart(2, '0')}:${String(FIXED_TIME.getMinutes()).padStart(2, '0')}:${String(FIXED_TIME.getSeconds()).padStart(2, '0')}`;
 
 describe('scoped logger', () => {
   const logger = createScopedLogger('app');
