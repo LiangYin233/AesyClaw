@@ -63,8 +63,8 @@
           <tr>
             <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Channel</th>
             <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Status</th>
-            <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Last Check</th>
-            <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Response Time</th>
+            <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Version</th>
+            <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Error</th>
             <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0" style="width: 40px"></th>
           </tr>
         </thead>
@@ -72,19 +72,20 @@
           <tr v-for="ch in channels" :key="ch.name" class="bg-[#FDFBF9] transition-colors duration-[0.15s] ease hover:bg-[rgba(20,20,19,0.03)]">
             <td class="px-4 py-3 border-b border-[var(--color-border)]">
               <div class="flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full" :class="ch.state === 'connected' ? 'bg-accent-green' : 'bg-mid-gray'"></span>
+                <span class="w-2 h-2 rounded-full" :class="ch.state === 'loaded' ? 'bg-accent-green' : 'bg-mid-gray'"></span>
                 <span>{{ ch.name }}</span>
               </div>
             </td>
             <td class="px-4 py-3 border-b border-[var(--color-border)]">
               <span class="inline-flex items-center px-[0.65rem] py-[0.2rem] rounded-full font-heading text-[0.7rem] font-medium tracking-[0.03em]"
-                :class="ch.state === 'connected' ? 'bg-[rgba(120,140,93,0.12)] text-[#5a6e47]' : 'bg-[rgba(176,174,165,0.2)] text-[#8a8880]'"
+                :class="ch.state === 'loaded' ? 'bg-[rgba(120,140,93,0.12)] text-[#5a6e47]' : 'bg-[rgba(176,174,165,0.2)] text-[#8a8880]'"
               >
                 {{ ch.state }}
               </span>
             </td>
-            <td class="px-4 py-3 border-b border-[var(--color-border)] text-mid-gray">{{ ch.lastCheck ?? '-' }}</td>
-            <td class="px-4 py-3 border-b border-[var(--color-border)] text-mid-gray">{{ ch.responseTime ?? '-' }}</td>
+            <td class="px-4 py-3 border-b border-[var(--color-border)] text-mid-gray">{{ ch.version ?? '-' }}</td>
+            <td class="px-4 py-3 border-b border-[var(--color-border)] text-danger">{{ ch.error ?? '-' }}</td>
+
             <td class="px-4 py-3 border-b border-[var(--color-border)] text-right" style="width: 40px">
               <button class="bg-none border-none cursor-pointer text-mid-gray p-1 flex items-center justify-center rounded transition-all duration-[0.15s] ease hover:bg-light-gray hover:text-dark">
                 <EllipsisHorizontalIcon class="w-4 h-4" />
@@ -116,9 +117,9 @@ const { api } = useAuth();
 
 interface ChannelState {
   name: string;
-  state: string;
-  lastCheck?: string;
-  responseTime?: string;
+  state: 'loaded' | 'disabled' | 'unloaded' | 'failed';
+  version?: string;
+  error?: string;
 }
 
 interface UsageRow {
@@ -202,11 +203,7 @@ async function load() {
     const res = await api.get('/status');
     if (res.data.ok) {
       uptime.value = res.data.data.uptime;
-      channels.value = res.data.data.channels.map((ch: { name: string; state: string }) => ({
-        ...ch,
-        lastCheck: new Date().toLocaleTimeString(),
-        responseTime: `${Math.floor(Math.random() * 200 + 50)} ms`,
-      }));
+      channels.value = res.data.data.channels;
       const db = res.data.data.database;
       stats.value = {
         sessions: db?.sessions ?? 0,
