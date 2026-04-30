@@ -42,10 +42,10 @@
               </div>
             </div>
 
-            <div class="grid grid-cols-3 gap-4 mt-0">
-              <div class="col-span-3 mt-1 pt-3">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-0">
+              <div class="col-span-1 md:col-span-2 lg:col-span-3 mt-1 pt-3">
                 <div class="font-heading text-[0.7rem] font-semibold text-mid-gray uppercase tracking-[0.08em] mb-3">Configuration</div>
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <template v-for="field in getChannelFields(entry)" :key="`${entry.key}-${field.key}`">
                     <div class="mb-5">
                       <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">{{ field.displayLabel }}</label>
@@ -94,10 +94,10 @@
               </div>
             </div>
 
-            <div class="grid grid-cols-3 gap-4 mt-0">
-              <div v-if="getPluginFields(plugin).length > 0" class="col-span-3 mt-1 pt-3">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-0">
+              <div v-if="getPluginFields(plugin).length > 0" class="col-span-1 md:col-span-2 lg:col-span-3 mt-1 pt-3">
                 <div class="font-heading text-[0.7rem] font-semibold text-mid-gray uppercase tracking-[0.08em] mb-3">Options</div>
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <template v-for="field in getPluginFields(plugin)" :key="`plugin-${index}-${field.key}`">
                     <div class="mb-5">
                       <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">{{ field.displayLabel }}</label>

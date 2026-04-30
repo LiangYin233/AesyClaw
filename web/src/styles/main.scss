@@ -135,5 +135,5 @@ tbody tr:last-child td {
 
 .drawer-enter-from .drawer,
 .drawer-leave-to .drawer {
-  transform: translateX(100%);
+  transform: translateX(-100%);
 }

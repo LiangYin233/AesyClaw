@@ -44,7 +44,7 @@
             </button>
           </div>
 
-          <div class="grid grid-cols-3 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div class="mb-5">
               <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Provider key/name</label>
               <input :value="provider.key" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]" placeholder="openai" @change="renameProvider(provider.key, ($event.target as HTMLInputElement).value)" />
@@ -61,7 +61,7 @@
               <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Base URL</label>
               <input :value="provider.baseUrl ?? ''" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]" placeholder="https://api.example.com/v1" @input="updateProviderOptionalString(provider.key, 'baseUrl', ($event.target as HTMLInputElement).value)" />
             </div>
-            <div class="mb-5 col-span-3">
+            <div class="mb-5 col-span-full">
               <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">API key</label>
               <input :value="provider.apiKey ?? ''" type="text" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]" placeholder="Provider API key" @input="updateProviderOptionalString(provider.key, 'apiKey', ($event.target as HTMLInputElement).value)" />
             </div>
@@ -83,7 +83,7 @@
             </div>
 
             <div v-for="model in provider.models" :key="model.key" class="p-[0.85rem] border border-[var(--color-border)] rounded bg-[rgba(250,249,245,0.75)]">
-              <div class="grid grid-cols-3 gap-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div class="mb-5">
                   <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Model preset key</label>
                   <input :value="model.key" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]" placeholder="gpt-4o" @change="renameProviderModel(provider.key, model.key, ($event.target as HTMLInputElement).value)" />
@@ -95,7 +95,7 @@
                 <button type="button" class="inline-flex items-center justify-center p-1.5 border border-transparent rounded-sm cursor-pointer transition-all duration-[0.15s] ease bg-[#CF3A3A] text-white hover:bg-[#b83333] disabled:opacity-50 disabled:cursor-not-allowed self-end mb-5" @click="removeProviderModel(provider.key, model.key)">
                   <TrashIcon class="w-4 h-4" />
                 </button>
-                <div class="mb-5 col-span-3">
+                <div class="mb-5 col-span-full">
                   <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Extra body JSON</label>
                   <JsonEditor
                     :model-value="toJson(model.extraBody ?? {})"
@@ -164,7 +164,7 @@
             </button>
           </div>
 
-          <div class="grid grid-cols-3 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div class="mb-5">
               <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Name</label>
               <input :value="server.name" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]" placeholder="memory" @input="updateMcpField(index, 'name', ($event.target as HTMLInputElement).value)" />
@@ -185,19 +185,19 @@
                 <span class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease" :class="{ 'translate-x-5': server.enabled }"></span>
               </button>
             </div>
-            <div v-if="server.transport === 'stdio'" class="mb-5 col-span-3">
+            <div v-if="server.transport === 'stdio'" class="mb-5 col-span-full">
               <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Command</label>
               <input :value="server.command ?? ''" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]" placeholder="npx" @input="updateOptionalStringField(index, 'command', ($event.target as HTMLInputElement).value)" />
             </div>
-            <div v-else class="mb-5 col-span-3">
+            <div v-else class="mb-5 col-span-full">
               <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">URL</label>
               <input :value="server.url ?? ''" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]" placeholder="https://example.com/mcp" @input="updateOptionalStringField(index, 'url', ($event.target as HTMLInputElement).value)" />
             </div>
-            <div class="mb-5 col-span-3">
+            <div class="mb-5 col-span-full">
               <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Args</label>
               <textarea :value="argsToText(server.args)" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)] min-h-[76px] resize-y font-mono text-xs" placeholder="One argument per line" @input="updateArgs(index, ($event.target as HTMLTextAreaElement).value)"></textarea>
             </div>
-            <div class="mb-5 col-span-3">
+            <div class="mb-5 col-span-full">
               <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Environment</label>
               <textarea :value="envToText(server.env)" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)] min-h-[76px] resize-y font-mono text-xs" placeholder="KEY=value, one per line" @input="updateEnv(index, ($event.target as HTMLTextAreaElement).value)"></textarea>
             </div>

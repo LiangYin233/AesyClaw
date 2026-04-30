@@ -3,7 +3,7 @@
     <h1 class="page-title">Dashboard</h1>
     <p class="page-subtitle">Overview of system activity and status.</p>
 
-    <div class="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-5 mb-8">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-5 mb-8">
       <div class="bg-surface border border-[var(--color-border)] rounded p-6 flex flex-col gap-[0.35rem] shadow-sm transition-all duration-[0.3s] ease relative overflow-hidden">
         <div class="flex items-center gap-2.5 mb-3">
           <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: #F6F0EA;">

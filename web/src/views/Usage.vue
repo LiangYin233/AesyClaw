@@ -21,7 +21,7 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-4 mb-6" v-if="summary.totalTokens > 0">
+    <div class="grid grid-cols-2 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-4 mb-6" v-if="summary.totalTokens > 0">
       <div class="bg-white border border-[var(--color-border)] rounded-sm px-5 py-4">
         <div class="font-heading text-xl font-semibold text-dark mb-1">{{ formatNumber(summary.totalTokens) }}</div>
         <div class="font-heading text-xs font-medium text-mid-gray">Total Tokens</div>
