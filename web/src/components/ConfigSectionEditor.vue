@@ -36,8 +36,8 @@
                     <span class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease" :class="{ 'translate-x-5': getChannelEnabled(entry) }"></span>
                   </button>
                 </div>
-                <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#CF3A3A] text-white hover:bg-[#b83333] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(207,58,58,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" @click="removeChannel(entry.key)">
-                  Remove
+                <button type="button" class="inline-flex items-center justify-center p-1.5 border border-transparent rounded-sm cursor-pointer transition-all duration-[0.15s] ease bg-[#CF3A3A] text-white hover:bg-[#b83333] disabled:opacity-50 disabled:cursor-not-allowed" @click="removeChannel(entry.key)">
+                  <TrashIcon class="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -88,8 +88,8 @@
                     <span class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease" :class="{ 'translate-x-5': plugin.enabled }"></span>
                   </button>
                 </div>
-                <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#CF3A3A] text-white hover:bg-[#b83333] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(207,58,58,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" @click="removePlugin(index)">
-                  Remove
+                <button type="button" class="inline-flex items-center justify-center p-1.5 border border-transparent rounded-sm cursor-pointer transition-all duration-[0.15s] ease bg-[#CF3A3A] text-white hover:bg-[#b83333] disabled:opacity-50 disabled:cursor-not-allowed" @click="removePlugin(index)">
+                  <TrashIcon class="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -138,6 +138,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useAuth } from '@/composables/useAuth';
 import JsonEditor from '@/components/JsonEditor.vue';
+import { TrashIcon } from '@heroicons/vue/24/outline';
 
 interface PluginEntry extends Record<string, unknown> {
   name: string;

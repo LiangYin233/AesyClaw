@@ -39,8 +39,8 @@
               <div class="font-heading text-sm font-semibold text-dark mb-[0.35rem]">{{ provider.key || 'New provider' }}</div>
               <span class="inline-flex items-center px-[0.65rem] py-[0.2rem] rounded-full font-heading text-[0.7rem] font-medium tracking-[0.03em] bg-[rgba(176,174,165,0.2)] text-[#8a8880]">{{ provider.apiType }}</span>
             </div>
-            <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#CF3A3A] text-white hover:bg-[#b83333] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(207,58,58,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" @click="removeProvider(provider.key)">
-              Remove
+            <button type="button" class="inline-flex items-center justify-center p-1.5 border border-transparent rounded-sm cursor-pointer transition-all duration-[0.15s] ease bg-[#CF3A3A] text-white hover:bg-[#b83333] disabled:opacity-50 disabled:cursor-not-allowed" @click="removeProvider(provider.key)">
+              <TrashIcon class="w-4 h-4" />
             </button>
           </div>
 
@@ -92,8 +92,8 @@
                   <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Context window</label>
                   <input :value="model.contextWindow ?? ''" type="number" class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]" placeholder="128000" @input="updateProviderModelNumber(provider.key, model.key, ($event.target as HTMLInputElement).value)" />
                 </div>
-                <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#CF3A3A] text-white hover:bg-[#b83333] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(207,58,58,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none self-end mb-5" @click="removeProviderModel(provider.key, model.key)">
-                  Remove model
+                <button type="button" class="inline-flex items-center justify-center p-1.5 border border-transparent rounded-sm cursor-pointer transition-all duration-[0.15s] ease bg-[#CF3A3A] text-white hover:bg-[#b83333] disabled:opacity-50 disabled:cursor-not-allowed self-end mb-5" @click="removeProviderModel(provider.key, model.key)">
+                  <TrashIcon class="w-4 h-4" />
                 </button>
                 <div class="mb-5 col-span-3">
                   <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">Extra body JSON</label>
@@ -159,8 +159,8 @@
                 {{ server.enabled ? 'Enabled' : 'Disabled' }}
               </span>
             </div>
-            <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#CF3A3A] text-white hover:bg-[#b83333] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(207,58,58,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" @click="removeMcpServer(index)">
-              Remove
+            <button type="button" class="inline-flex items-center justify-center p-1.5 border border-transparent rounded-sm cursor-pointer transition-all duration-[0.15s] ease bg-[#CF3A3A] text-white hover:bg-[#b83333] disabled:opacity-50 disabled:cursor-not-allowed" @click="removeMcpServer(index)">
+              <TrashIcon class="w-4 h-4" />
             </button>
           </div>
 
@@ -218,6 +218,7 @@ import { computed, ref, onMounted } from 'vue';
 import { useAuth } from '@/composables/useAuth';
 import SchemaForm from '@/components/SchemaForm.vue';
 import JsonEditor from '@/components/JsonEditor.vue';
+import { TrashIcon } from '@heroicons/vue/24/outline';
 
 type McpTransport = 'stdio' | 'sse' | 'http';
 

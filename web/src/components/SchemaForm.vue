@@ -43,8 +43,8 @@
               updateRecord();
             "
           />
-          <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#CF3A3A] text-white hover:bg-[#b83333] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(207,58,58,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" @click="removeRecordEntry(idx)">
-            Remove
+          <button type="button" class="inline-flex items-center justify-center p-1.5 border border-transparent rounded-sm cursor-pointer transition-all duration-[0.15s] ease bg-[#CF3A3A] text-white hover:bg-[#b83333] disabled:opacity-50 disabled:cursor-not-allowed" @click="removeRecordEntry(idx)">
+            <TrashIcon class="w-4 h-4" />
           </button>
         </div>
         <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#121212] text-white hover:bg-[#2a2a2a] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(18,18,18,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none">
@@ -64,8 +64,8 @@
             :path="`${path}[${idx}]`"
             @update:model-value="updateArrayItem(idx, $event)"
           />
-          <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#CF3A3A] text-white hover:bg-[#b83333] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(207,58,58,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" @click="removeArrayItem(idx)">
-            Remove
+          <button type="button" class="inline-flex items-center justify-center p-1.5 border border-transparent rounded-sm cursor-pointer transition-all duration-[0.15s] ease bg-[#CF3A3A] text-white hover:bg-[#b83333] disabled:opacity-50 disabled:cursor-not-allowed" @click="removeArrayItem(idx)">
+            <TrashIcon class="w-4 h-4" />
           </button>
         </div>
         <button type="button" class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-[#121212] text-white hover:bg-[#2a2a2a] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(18,18,18,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" @click="addArrayItem">
@@ -131,6 +131,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import JsonEditor from './JsonEditor.vue';
+import { TrashIcon } from '@heroicons/vue/24/outline';
 
 interface JsonSchema {
   type?: string;
