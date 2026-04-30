@@ -1,14 +1,3 @@
-/**
- * DatabaseManager — 管理 SQLite 连接生命周期，
- * 提供仓库访问器，并在初始化时运行迁移。
- *
- * 用法：
- *   const db = new DatabaseManager();
- *   await db.initialize(pathResolver.dbFile);
- *   // ... 使用 db.sessions、db.messages 等
- *   await db.close();
- */
-
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -20,17 +9,6 @@ import * as cron from './repositories/cron-repository';
 import * as usageRepo from './repositories/usage-repository';
 
 const logger = createScopedLogger('db');
-
-  /** 迁移定义 */
-  type Migration = {
-    id: number;
-    up: (db: DatabaseSync) => void;
-  }
-
-const migrations: Migration[] = [
-  { id: 1, up: applyInitialMigration },
-  { id: 2, up: applyUsageMigration },
-];
 
 export class DatabaseManager {
   private db: DatabaseSync | null = null;
@@ -45,12 +23,10 @@ export class DatabaseManager {
     logger.info('打开数据库', { path: dbPath });
     this.db = new DatabaseSync(dbPath);
 
-    // 启用 WAL 模式以获得更好的并发读性能
     this.db.exec('PRAGMA journal_mode = WAL');
-    // 启用外键约束
     this.db.exec('PRAGMA foreign_keys = ON');
 
-    this.runMigrations();
+    this.ensureTables();
 
     logger.info('数据库初始化完成');
   }
@@ -165,99 +141,72 @@ export class DatabaseManager {
     return { sessions, messages, cronJobs, usage };
   }
 
-  // ─── 迁移 ────────────────────────────────────────────────
+  // ─── 建表 ──────────────────────────────────────────────────
 
-  private runMigrations(): void {
+  private ensureTables(): void {
     if (!this.db) throw new Error('数据库尚未初始化');
 
-    // 创建迁移追踪表
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS _migrations (
-        id   INTEGER PRIMARY KEY,
-        name TEXT NOT NULL
+      CREATE TABLE IF NOT EXISTS sessions (
+        id         TEXT PRIMARY KEY,
+        channel    TEXT NOT NULL,
+        type       TEXT NOT NULL,
+        chat_id    TEXT NOT NULL,
+        UNIQUE(channel, type, chat_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS messages (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL REFERENCES sessions(id),
+        role       TEXT NOT NULL,
+        content    TEXT NOT NULL,
+        timestamp  DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS role_bindings (
+        session_id TEXT PRIMARY KEY REFERENCES sessions(id),
+        role_id    TEXT NOT NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS cron_jobs (
+        id             TEXT PRIMARY KEY,
+        schedule_type  TEXT NOT NULL,
+        schedule_value TEXT NOT NULL,
+        prompt         TEXT NOT NULL,
+        session_key    TEXT NOT NULL,
+        next_run       DATETIME,
+        created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS cron_runs (
+        id         TEXT PRIMARY KEY,
+        job_id     TEXT NOT NULL REFERENCES cron_jobs(id),
+        status     TEXT NOT NULL,
+        result     TEXT,
+        error      TEXT,
+        started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        ended_at   DATETIME
+      );
+
+      CREATE TABLE IF NOT EXISTS usage (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        model        TEXT NOT NULL,
+        provider     TEXT NOT NULL,
+        api          TEXT NOT NULL,
+        response_id  TEXT,
+        timestamp    DATETIME DEFAULT CURRENT_TIMESTAMP,
+        input_tokens        INTEGER NOT NULL,
+        output_tokens       INTEGER NOT NULL,
+        total_tokens        INTEGER NOT NULL,
+        cache_read_tokens   INTEGER NOT NULL DEFAULT 0,
+        cache_write_tokens  INTEGER NOT NULL DEFAULT 0,
+        cost_input          REAL NOT NULL DEFAULT 0,
+        cost_output         REAL NOT NULL DEFAULT 0,
+        cost_cache_read     REAL NOT NULL DEFAULT 0,
+        cost_cache_write    REAL NOT NULL DEFAULT 0,
+        cost_total          REAL NOT NULL DEFAULT 0
       );
     `);
-
-    for (const migration of migrations) {
-      const applied = this.db.prepare('SELECT id FROM _migrations WHERE id = ?').get(migration.id);
-
-      if (!applied) {
-        logger.info(`正在运行迁移 ${migration.id}`);
-        migration.up(this.db);
-        this.db
-          .prepare('INSERT INTO _migrations (id, name) VALUES (?, ?)')
-          .run(migration.id, `migration_${String(migration.id).padStart(3, '0')}`);
-        logger.info(`迁移 ${migration.id} 已应用`);
-      }
-    }
   }
-}
-
-function applyInitialMigration(db: DatabaseSync): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS sessions (
-      id         TEXT PRIMARY KEY,
-      channel    TEXT NOT NULL,
-      type       TEXT NOT NULL,
-      chat_id    TEXT NOT NULL,
-      UNIQUE(channel, type, chat_id)
-    );
-
-    CREATE TABLE IF NOT EXISTS messages (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      session_id TEXT NOT NULL REFERENCES sessions(id),
-      role       TEXT NOT NULL,
-      content    TEXT NOT NULL,
-      timestamp  DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS role_bindings (
-      session_id TEXT PRIMARY KEY REFERENCES sessions(id),
-      role_id    TEXT NOT NULL,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS cron_jobs (
-      id             TEXT PRIMARY KEY,
-      schedule_type  TEXT NOT NULL,
-      schedule_value TEXT NOT NULL,
-      prompt         TEXT NOT NULL,
-      session_key    TEXT NOT NULL,
-      next_run       DATETIME,
-      created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS cron_runs (
-      id         TEXT PRIMARY KEY,
-      job_id     TEXT NOT NULL REFERENCES cron_jobs(id),
-      status     TEXT NOT NULL,
-      result     TEXT,
-      error      TEXT,
-      started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      ended_at   DATETIME
-    );
-  `);
-}
-
-function applyUsageMigration(db: DatabaseSync): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS usage (
-      id           INTEGER PRIMARY KEY AUTOINCREMENT,
-      model        TEXT NOT NULL,
-      provider     TEXT NOT NULL,
-      api          TEXT NOT NULL,
-      response_id  TEXT,
-      timestamp    DATETIME DEFAULT CURRENT_TIMESTAMP,
-      input_tokens        INTEGER NOT NULL,
-      output_tokens       INTEGER NOT NULL,
-      total_tokens        INTEGER NOT NULL,
-      cache_read_tokens   INTEGER NOT NULL DEFAULT 0,
-      cache_write_tokens  INTEGER NOT NULL DEFAULT 0,
-      cost_input          REAL NOT NULL DEFAULT 0,
-      cost_output         REAL NOT NULL DEFAULT 0,
-      cost_cache_read     REAL NOT NULL DEFAULT 0,
-      cost_cache_write    REAL NOT NULL DEFAULT 0,
-      cost_total          REAL NOT NULL DEFAULT 0
-    );
-  `);
 }
