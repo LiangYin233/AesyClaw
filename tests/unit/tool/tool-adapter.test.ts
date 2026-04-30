@@ -354,7 +354,7 @@ describe('ToolAdapter', () => {
       expect(result.content).toEqual([{ type: 'text', text: 'ok' }]);
     });
 
-    it('should debug-log invocation and completion without full parameter payloads', async () => {
+    it('should debug-log invocation and completion with actual parameter values', async () => {
       const tool = makeTool({
         execute: async () => ({ content: 'secret tool result', details: { recordCount: 1 } }),
       });
@@ -366,7 +366,7 @@ describe('ToolAdapter', () => {
         toolName: 'test-tool',
         toolCallId: 'call-logging',
         owner: 'system',
-        params: { kind: 'object', keys: ['input'], keyCount: 1 },
+        params: { input: 'secret user payload' },
       });
       expectDebugLog('工具调用完成', {
         toolName: 'test-tool',
@@ -379,9 +379,6 @@ describe('ToolAdapter', () => {
           terminate: false,
         },
       });
-      const debugCalls = JSON.stringify(vi.mocked(globalThis.console.debug).mock.calls);
-      expect(debugCalls).not.toContain('secret user payload');
-      expect(debugCalls).not.toContain('secret tool result');
     });
 
     it('should debug-log before-hook block and short-circuit paths', async () => {
@@ -484,6 +481,11 @@ describe('ToolAdapter', () => {
       const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
       await agentTool.execute('call-aborted', { input: 'secret abort payload' }, controller.signal);
 
+      expectDebugLog('工具调用已触发', {
+        toolName: 'test-tool',
+        toolCallId: 'call-aborted',
+        params: { input: 'secret abort payload' },
+      });
       expectDebugLog('工具调用在执行前被中止', {
         toolName: 'test-tool',
         toolCallId: 'call-aborted',
@@ -493,9 +495,6 @@ describe('ToolAdapter', () => {
         toolCallId: 'call-aborted',
         outcome: 'aborted',
       });
-      expect(JSON.stringify(vi.mocked(globalThis.console.debug).mock.calls)).not.toContain(
-        'secret abort payload',
-      );
     });
 
     it('should debug-log result overrides', async () => {

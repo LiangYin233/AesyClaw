@@ -187,20 +187,18 @@ type ToolCallLogOutcome =
   | 'execution-failed';
 
 function summarizeParams(params: unknown): Record<string, unknown> {
-  if (params === null) {
-    return { kind: 'null' };
-  }
-
-  if (Array.isArray(params)) {
-    return { kind: 'array', length: params.length };
+  if (params === null || params === undefined) {
+    return {};
   }
 
   if (typeof params === 'object') {
-    const keys = Object.keys(params as Record<string, unknown>);
-    return { kind: 'object', keys, keyCount: keys.length };
+    if (Array.isArray(params)) {
+      return { length: params.length };
+    }
+    return params as Record<string, unknown>;
   }
 
-  return { kind: typeof params };
+  return { value: params };
 }
 
 function summarizeResult(result: ToolExecutionResult): Record<string, unknown> {
