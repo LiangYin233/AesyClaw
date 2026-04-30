@@ -72,6 +72,37 @@
       </div>
     </div>
 
+    <!-- Today's Token Usage -->
+    <h2 class="page-title channel-status-title">Today's Token Usage</h2>
+
+    <div class="table-wrap">
+      <table class="data-table channel-table" v-if="usageData.length > 0">
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Input Tokens</th>
+            <th>Output Tokens</th>
+            <th>Total Tokens</th>
+            <th>Calls</th>
+            <th>Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in usageData" :key="row.model">
+            <td class="cell-model">{{ row.model }}</td>
+            <td>{{ formatNumber(row.inputTokens) }}</td>
+            <td>{{ formatNumber(row.outputTokens) }}</td>
+            <td class="cell-bold">{{ formatNumber(row.totalTokens) }}</td>
+            <td>{{ row.count }}</td>
+            <td>${{ formatCost(row.costTotal) }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div v-else class="empty-card">
+        <p class="empty-card-text">No usage recorded today.</p>
+      </div>
+    </div>
+
     <h2 class="page-title channel-status-title">Channel Status</h2>
 
     <div class="table-wrap">
@@ -135,9 +166,26 @@ interface ChannelState {
   responseTime?: string;
 }
 
+interface UsageRow {
+  model: string;
+  date: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  count: number;
+  costInput: number;
+  costOutput: number;
+  costCacheRead: number;
+  costCacheWrite: number;
+  costTotal: number;
+}
+
 const stats = ref({ sessions: 0, messages: 0, cronJobs: 0 });
 const uptime = ref(0);
 const channels = ref<ChannelState[]>([]);
+const usageData = ref<UsageRow[]>([]);
 
 const uptimeText = computed(() => {
   const s = Math.floor(uptime.value);
@@ -149,6 +197,21 @@ const uptimeText = computed(() => {
 
 function formatNumber(n: number): string {
   return n.toLocaleString();
+}
+
+function formatCost(n: number): string {
+  return n.toFixed(4);
+}
+
+async function loadUsage() {
+  try {
+    const res = await api.get('/usage/today');
+    if (res.data.ok) {
+      usageData.value = res.data.data;
+    }
+  } catch (err) {
+    console.error('Failed to load usage stats', err);
+  }
 }
 
 async function load() {
@@ -168,6 +231,7 @@ async function load() {
         cronJobs: db?.cronJobs ?? 0,
       };
     }
+    await loadUsage();
   } catch (err) {
     console.error('Failed to load status', err);
   }
@@ -301,5 +365,30 @@ onUnmounted(() => {
 .channel-table .data-table td:last-child {
   width: 40px;
   text-align: right;
+}
+
+.cell-model {
+  font-family: var(--font-heading);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.cell-bold {
+  font-weight: 600;
+}
+
+.empty-card {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 2rem;
+  text-align: center;
+}
+
+.empty-card-text {
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin: 0;
 }
 </style>

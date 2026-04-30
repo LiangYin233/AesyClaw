@@ -50,6 +50,11 @@ const router = createRouter({
           name: 'Roles',
           component: () => import('@/views/Roles.vue'),
         },
+        {
+          path: 'usage',
+          name: 'Usage',
+          component: () => import('@/views/Usage.vue'),
+        },
       ],
     },
   ],

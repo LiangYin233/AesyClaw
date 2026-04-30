@@ -1,0 +1,156 @@
+/**
+ * UsageRepository — data access for the usage table.
+ *
+ * Stores per-call LLM usage data. API queries aggregate by model + date.
+ * All functions return Promises for consistent async patterns.
+ */
+
+import type { DatabaseSync } from 'node:sqlite';
+import type { UsageRecord, UsageSummary } from '../../types';
+
+// ─── Row type helpers ─────────────────────────────────────────────
+
+interface UsageRow {
+  model: string;
+  date: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  count: number;
+  costInput: number;
+  costOutput: number;
+  costCacheRead: number;
+  costCacheWrite: number;
+  costTotal: number;
+}
+
+function mapRow(row: UsageRow): UsageSummary {
+  return {
+    model: row.model,
+    date: row.date,
+    inputTokens: row.inputTokens,
+    outputTokens: row.outputTokens,
+    totalTokens: row.totalTokens,
+    cacheReadTokens: row.cacheReadTokens,
+    cacheWriteTokens: row.cacheWriteTokens,
+    count: row.count,
+    costInput: row.costInput,
+    costOutput: row.costOutput,
+    costCacheRead: row.costCacheRead,
+    costCacheWrite: row.costCacheWrite,
+    costTotal: row.costTotal,
+  };
+}
+
+// ─── Public API ───────────────────────────────────────────────────
+
+/** Insert a single usage record. Returns the generated row id. */
+export async function createUsageRecord(
+  db: DatabaseSync,
+  record: UsageRecord,
+): Promise<number> {
+  const timestamp = new Date().toISOString();
+
+  const result = db
+    .prepare(
+      `INSERT INTO usage (
+        model, provider, api, response_id, timestamp,
+        input_tokens, output_tokens, total_tokens,
+        cache_read_tokens, cache_write_tokens,
+        cost_input, cost_output, cost_cache_read, cost_cache_write, cost_total
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      record.model,
+      record.provider,
+      record.api,
+      record.responseId ?? null,
+      timestamp,
+      record.usage.input,
+      record.usage.output,
+      record.usage.totalTokens,
+      record.usage.cacheRead,
+      record.usage.cacheWrite,
+      record.usage.cost.input,
+      record.usage.cost.output,
+      record.usage.cost.cacheRead,
+      record.usage.cost.cacheWrite,
+      record.usage.cost.total,
+    );
+
+  return Number(result.lastInsertRowid);
+}
+
+/** Get aggregated usage stats grouped by model + date, with optional filters. */
+export async function getUsageStats(
+  db: DatabaseSync,
+  options?: { model?: string; from?: string; to?: string },
+): Promise<UsageSummary[]> {
+  const modelFilter = options?.model ?? null;
+  const fromFilter = options?.from ? `${options.from}T00:00:00` : null;
+  const toFilter = options?.to ? `${options.to}T23:59:59` : null;
+
+  const rows = db
+    .prepare(
+      `SELECT
+        model,
+        DATE(timestamp) as date,
+        SUM(input_tokens) as inputTokens,
+        SUM(output_tokens) as outputTokens,
+        SUM(total_tokens) as totalTokens,
+        SUM(cache_read_tokens) as cacheReadTokens,
+        SUM(cache_write_tokens) as cacheWriteTokens,
+        COUNT(*) as count,
+        SUM(cost_input) as costInput,
+        SUM(cost_output) as costOutput,
+        SUM(cost_cache_read) as costCacheRead,
+        SUM(cost_cache_write) as costCacheWrite,
+        SUM(cost_total) as costTotal
+      FROM usage
+      WHERE (? IS NULL OR model = ?)
+        AND (? IS NULL OR timestamp >= ?)
+        AND (? IS NULL OR timestamp <= ?)
+      GROUP BY model, DATE(timestamp)
+      ORDER BY date DESC, model ASC`,
+    )
+    .all(
+      modelFilter,
+      modelFilter,
+      fromFilter,
+      fromFilter,
+      toFilter,
+      toFilter,
+    ) as unknown as UsageRow[];
+
+  return rows.map(mapRow);
+}
+
+/** Get today's aggregated usage summary (Dashboard card). */
+export async function getTodayUsageSummary(db: DatabaseSync): Promise<UsageSummary[]> {
+  const rows = db
+    .prepare(
+      `SELECT
+        model,
+        DATE(timestamp) as date,
+        SUM(input_tokens) as inputTokens,
+        SUM(output_tokens) as outputTokens,
+        SUM(total_tokens) as totalTokens,
+        SUM(cache_read_tokens) as cacheReadTokens,
+        SUM(cache_write_tokens) as cacheWriteTokens,
+        COUNT(*) as count,
+        SUM(cost_input) as costInput,
+        SUM(cost_output) as costOutput,
+        SUM(cost_cache_read) as costCacheRead,
+        SUM(cost_cache_write) as costCacheWrite,
+        SUM(cost_total) as costTotal
+      FROM usage
+      WHERE DATE(timestamp) = DATE('now')
+      GROUP BY model
+      ORDER BY totalTokens DESC`,
+    )
+    .all() as unknown as UsageRow[];
+
+  return rows.map(mapRow);
+}

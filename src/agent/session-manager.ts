@@ -131,7 +131,12 @@ export class SessionManager {
     };
 
     // Create MemoryManager
-    const memory = new MemoryManager(sessionId, this.deps.databaseManager.messages, memoryConfig);
+    const memory = new MemoryManager(
+      sessionId,
+      this.deps.databaseManager.messages,
+      memoryConfig,
+      this.deps.databaseManager.usage,
+    );
 
     // Create Agent
     const agent = this.deps.agentEngine.createAgent(activeRole, sessionId, {

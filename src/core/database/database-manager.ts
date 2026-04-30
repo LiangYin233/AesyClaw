@@ -17,6 +17,7 @@ import * as sessions from './repositories/session-repository';
 import * as messages from './repositories/message-repository';
 import * as roleBindings from './repositories/role-binding-repository';
 import * as cron from './repositories/cron-repository';
+import * as usageRepo from './repositories/usage-repository';
 
 const logger = createScopedLogger('db');
 
@@ -26,7 +27,10 @@ interface Migration {
   up: (db: DatabaseSync) => void;
 }
 
-const migrations: Migration[] = [{ id: 1, up: applyInitialMigration }];
+const migrations: Migration[] = [
+  { id: 1, up: applyInitialMigration },
+  { id: 2, up: applyUsageMigration },
+];
 
 export class DatabaseManager {
   private db: DatabaseSync | null = null;
@@ -132,8 +136,20 @@ export class DatabaseManager {
     };
   }
 
+  /** Usage repository functions bound to the current db */
+  get usage() {
+    const db = this.getDb();
+    return {
+      create: (record: Parameters<typeof usageRepo.createUsageRecord>[1]) =>
+        usageRepo.createUsageRecord(db, record),
+      getStats: (options?: Parameters<typeof usageRepo.getUsageStats>[1]) =>
+        usageRepo.getUsageStats(db, options),
+      getTodaySummary: () => usageRepo.getTodayUsageSummary(db),
+    };
+  }
+
   /** Get database statistics */
-  getStats(): { sessions: number; messages: number; cronJobs: number } {
+  getStats(): { sessions: number; messages: number; cronJobs: number; usage: number } {
     const db = this.getDb();
     const sessions =
       (db.prepare('SELECT COUNT(*) as count FROM sessions').get() as { count: number } | undefined)
@@ -144,7 +160,10 @@ export class DatabaseManager {
     const cronJobs =
       (db.prepare('SELECT COUNT(*) as count FROM cron_jobs').get() as { count: number } | undefined)
         ?.count ?? 0;
-    return { sessions, messages, cronJobs };
+    const usage =
+      (db.prepare('SELECT COUNT(*) as count FROM usage').get() as { count: number } | undefined)
+        ?.count ?? 0;
+    return { sessions, messages, cronJobs, usage };
   }
 
   // ─── Migrations ────────────────────────────────────────────────
@@ -218,6 +237,29 @@ function applyInitialMigration(db: DatabaseSync): void {
       error      TEXT,
       started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       ended_at   DATETIME
+    );
+  `);
+}
+
+function applyUsageMigration(db: DatabaseSync): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS usage (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      model        TEXT NOT NULL,
+      provider     TEXT NOT NULL,
+      api          TEXT NOT NULL,
+      response_id  TEXT,
+      timestamp    DATETIME DEFAULT CURRENT_TIMESTAMP,
+      input_tokens        INTEGER NOT NULL,
+      output_tokens       INTEGER NOT NULL,
+      total_tokens        INTEGER NOT NULL,
+      cache_read_tokens   INTEGER NOT NULL DEFAULT 0,
+      cache_write_tokens  INTEGER NOT NULL DEFAULT 0,
+      cost_input          REAL NOT NULL DEFAULT 0,
+      cost_output         REAL NOT NULL DEFAULT 0,
+      cost_cache_read     REAL NOT NULL DEFAULT 0,
+      cost_cache_write    REAL NOT NULL DEFAULT 0,
+      cost_total          REAL NOT NULL DEFAULT 0
     );
   `);
 }

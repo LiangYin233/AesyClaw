@@ -146,6 +146,45 @@ interface CronRunRecord {
   endedAt: string | null;
 }
 
+/** Usage record — raw insert payload before DB storage */
+interface UsageRecord {
+  model: string;
+  provider: string;
+  api: string;
+  responseId?: string;
+  usage: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    totalTokens: number;
+    cost: {
+      input: number;
+      output: number;
+      cacheRead: number;
+      cacheWrite: number;
+      total: number;
+    };
+  };
+}
+
+/** Aggregated usage summary (grouped by model + date) */
+interface UsageSummary {
+  model: string;
+  date: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  count: number;
+  costInput: number;
+  costOutput: number;
+  costCacheRead: number;
+  costCacheWrite: number;
+  costTotal: number;
+}
+
 // ─── Tool Permissions ────────────────────────────────────────────
 
 interface ToolPermissionConfig {
@@ -225,6 +264,8 @@ export type {
   SessionRecord,
   CronJobRecord,
   CronRunRecord,
+  UsageRecord,
+  UsageSummary,
   ToolPermissionConfig,
   RoleConfig,
   Skill,

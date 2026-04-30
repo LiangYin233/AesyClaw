@@ -25,6 +25,7 @@ import {
 } from './agent-types';
 import type { AgentMessage, MemoryConfig } from './agent-types';
 import type { LlmAdapter } from './llm-adapter';
+import type { Usage } from '@mariozechner/pi-ai';
 import { createScopedLogger } from '../core/logger';
 
 const logger = createScopedLogger('memory');
@@ -37,16 +38,34 @@ export interface MessageRepositoryLike {
   replaceWithSummary(sessionId: string, summary: string): Promise<void>;
 }
 
+/** Shape of the usage repository that MemoryManager depends on */
+export interface UsageRepositoryLike {
+  create(record: {
+    model: string;
+    provider: string;
+    api: string;
+    responseId?: string;
+    usage: Usage;
+  }): Promise<number>;
+}
+
 // ─── MemoryManager ──────────────────────────────────────────────
 
 export class MemoryManager {
   private readonly sessionId: string;
   private readonly messageRepo: MessageRepositoryLike;
+  private readonly usageRepo: UsageRepositoryLike | undefined;
   private readonly config: MemoryConfig;
 
-  constructor(sessionId: string, messageRepo: MessageRepositoryLike, config: MemoryConfig) {
+  constructor(
+    sessionId: string,
+    messageRepo: MessageRepositoryLike,
+    config: MemoryConfig,
+    usageRepo?: UsageRepositoryLike,
+  ) {
     this.sessionId = sessionId;
     this.messageRepo = messageRepo;
+    this.usageRepo = usageRepo;
     this.config = config;
   }
 
@@ -99,6 +118,11 @@ export class MemoryManager {
    * @param message - The AgentMessage to potentially persist
    */
   async persistMessage(message: AgentMessage): Promise<void> {
+    // Record usage for all assistant messages that have token data,
+    // regardless of whether the message content is persistable (tool-call
+    // messages consume tokens too).
+    await this.recordUsageIfApplicable(message);
+
     const persistable = this.toPersistableMessage(message);
     if (!persistable) {
       return;
@@ -120,6 +144,11 @@ export class MemoryManager {
     let filtered = 0;
 
     for (const message of agentMessages) {
+      // Record usage for all assistant messages that have token data,
+      // regardless of whether the message content is persistable (tool-call
+      // messages consume tokens too).
+      await this.recordUsageIfApplicable(message);
+
       const persistable = this.toPersistableMessage(message);
       if (!persistable) {
         filtered++;
@@ -191,6 +220,35 @@ export class MemoryManager {
   }
 
   // ─── Private helpers ───────────────────────────────────────────
+
+  /**
+   * Record LLM usage data for any assistant message that has token usage.
+   * Called independently of content persistence so tool-call messages
+   * (which consume tokens but aren't persisted as user-visible text)
+   * still have their token consumption tracked.
+   */
+  private async recordUsageIfApplicable(message: AgentMessage): Promise<void> {
+    if (
+      !this.usageRepo ||
+      message.role !== 'assistant' ||
+      !message.usage ||
+      message.usage.totalTokens <= 0
+    ) {
+      return;
+    }
+
+    try {
+      await this.usageRepo.create({
+        model: message.model,
+        provider: message.provider,
+        api: message.api,
+        responseId: message.responseId,
+        usage: message.usage,
+      });
+    } catch (err) {
+      logger.error('Failed to record usage', err);
+    }
+  }
 
   private toPersistableMessage(message: AgentMessage): PersistableMessage | null {
     if (message.role !== 'user' && message.role !== 'assistant') {
