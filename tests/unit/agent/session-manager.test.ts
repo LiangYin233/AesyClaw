@@ -107,7 +107,6 @@ function makeMockDeps(
       channel: 'test-channel',
       type: 'private',
       chatId: 'user-123',
-      createdAt: null,
     }),
   };
 
@@ -223,8 +222,6 @@ describe('SessionManager', () => {
         channel: key.channel,
         type: key.type,
         chatId: key.chatId,
-        createdAt: null,
-        updatedAt: null,
       });
 
       const [session1, session2] = await Promise.all([first, second]);
@@ -301,7 +298,6 @@ describe('SessionManager', () => {
           channel: key.channel,
           type: key.type,
           chatId: key.chatId,
-          createdAt: null,
         }),
       );
 

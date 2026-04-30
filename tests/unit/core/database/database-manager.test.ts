@@ -157,41 +157,6 @@ describe('Database Layer', () => {
       });
       expect(result).toBeNull();
     });
-
-    it('should expose first and last message timestamps for session lists and lookups', async () => {
-      const olderSession = await findOrCreateSession(db, {
-        channel: 'test',
-        type: 'private',
-        chatId: 'older',
-      });
-      const newerSession = await findOrCreateSession(db, {
-        channel: 'test',
-        type: 'private',
-        chatId: 'newer',
-      });
-
-      db.prepare('INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)')
-        .run(olderSession.id, 'user', 'first older', '2026-04-01T10:00:00.000Z');
-      db.prepare('INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)')
-        .run(olderSession.id, 'assistant', 'last older', '2026-04-01T10:05:00.000Z');
-      db.prepare('INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)')
-        .run(newerSession.id, 'user', 'newer', '2026-04-02T09:00:00.000Z');
-
-      const olderById = await findSessionById(db, olderSession.id);
-      const sessions = await findAllSessions(db);
-
-      expect(olderById).toMatchObject({
-        id: olderSession.id,
-        createdAt: '2026-04-01T10:00:00.000Z',
-        updatedAt: '2026-04-01T10:05:00.000Z',
-      });
-      expect(sessions.map((session) => session.id)).toEqual([newerSession.id, olderSession.id]);
-      expect(sessions[0]).toMatchObject({
-        id: newerSession.id,
-        createdAt: '2026-04-02T09:00:00.000Z',
-        updatedAt: '2026-04-02T09:00:00.000Z',
-      });
-    });
   });
 
   // ─── Message Repository Functions ────────────────────────────────

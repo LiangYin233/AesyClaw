@@ -34,15 +34,9 @@ export async function findSessionByKey(
   key: SessionKey,
 ): Promise<SessionRecord | null> {
   const row = db
-    .prepare(
-      `SELECT s.id, s.channel, s.type, s.chat_id,
-              (SELECT m.timestamp FROM messages m WHERE m.session_id = s.id ORDER BY m.id ASC LIMIT 1) AS first_activity,
-              (SELECT m.timestamp FROM messages m WHERE m.session_id = s.id ORDER BY m.id DESC LIMIT 1) AS last_activity
-       FROM sessions s
-       WHERE s.channel = ? AND s.type = ? AND s.chat_id = ?`,
-    )
+    .prepare('SELECT id, channel, type, chat_id FROM sessions WHERE channel = ? AND type = ? AND chat_id = ?')
     .get(key.channel, key.type, key.chatId) as
-    | { id: string; channel: string; type: string; chat_id: string; first_activity: string | null; last_activity: string | null }
+    | { id: string; channel: string; type: string; chat_id: string }
     | undefined;
 
   if (!row) {
@@ -54,28 +48,18 @@ export async function findSessionByKey(
     channel: row.channel,
     type: row.type,
     chatId: row.chat_id,
-    createdAt: row.first_activity,
-    updatedAt: row.last_activity,
   };
 }
 
 /** 获取所有会话，按最后活动时间排序（最新的在前）。 */
 export async function findAllSessions(db: DatabaseSync): Promise<SessionRecord[]> {
   const rows = db
-    .prepare(
-      `SELECT s.id, s.channel, s.type, s.chat_id,
-              (SELECT m.timestamp FROM messages m WHERE m.session_id = s.id ORDER BY m.id ASC LIMIT 1) AS first_activity,
-              (SELECT m.timestamp FROM messages m WHERE m.session_id = s.id ORDER BY m.id DESC LIMIT 1) AS last_activity
-       FROM sessions s
-       ORDER BY last_activity DESC, s.id DESC`,
-    )
+    .prepare('SELECT id, channel, type, chat_id FROM sessions ORDER BY id DESC')
     .all() as Array<{
     id: string;
     channel: string;
     type: string;
     chat_id: string;
-    first_activity: string | null;
-    last_activity: string | null;
   }>;
 
   return rows.map((row) => ({
@@ -83,23 +67,15 @@ export async function findAllSessions(db: DatabaseSync): Promise<SessionRecord[]
     channel: row.channel,
     type: row.type,
     chatId: row.chat_id,
-    createdAt: row.first_activity,
-    updatedAt: row.last_activity,
   }));
 }
 
 /** 按 ID 查找会话。未找到时返回 null。 */
 export async function findSessionById(db: DatabaseSync, id: string): Promise<SessionRecord | null> {
   const row = db
-    .prepare(
-      `SELECT s.id, s.channel, s.type, s.chat_id,
-              (SELECT m.timestamp FROM messages m WHERE m.session_id = s.id ORDER BY m.id ASC LIMIT 1) AS first_activity,
-              (SELECT m.timestamp FROM messages m WHERE m.session_id = s.id ORDER BY m.id DESC LIMIT 1) AS last_activity
-       FROM sessions s
-       WHERE s.id = ?`,
-    )
+    .prepare('SELECT id, channel, type, chat_id FROM sessions WHERE id = ?')
     .get(id) as
-    | { id: string; channel: string; type: string; chat_id: string; first_activity: string | null; last_activity: string | null }
+    | { id: string; channel: string; type: string; chat_id: string }
     | undefined;
 
   if (!row) {
@@ -111,7 +87,5 @@ export async function findSessionById(db: DatabaseSync, id: string): Promise<Ses
     channel: row.channel,
     type: row.type,
     chatId: row.chat_id,
-    createdAt: row.first_activity,
-    updatedAt: row.last_activity,
   };
 }

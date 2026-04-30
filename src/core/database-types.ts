@@ -4,8 +4,6 @@ export type SessionRecord = {
   channel: string;
   type: string;
   chatId: string;
-  createdAt: string | null;
-  updatedAt: string | null;
 }
 
 /** 定时任务的数据库记录 */
