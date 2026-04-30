@@ -60,9 +60,10 @@ export class WebUiManager {
   }
 
   async destroy(): Promise<void> {
-    if (this.server) {
+    const server = this.server;
+    if (server) {
       await new Promise<void>((resolve) => {
-        this.server!.close((err) => {
+        server.close((err) => {
           if (err && (err as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') {
             logger.error('关闭 WebUI 服务器失败', err);
           }

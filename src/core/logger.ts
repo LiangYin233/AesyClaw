@@ -157,7 +157,7 @@ function log(scope: string, level: LogLevel, consoleMethod: 'debug' | 'info' | '
   }
 
   appendRecentLogEntry(scope, level, message, args);
-  console[consoleMethod](formatMessage(scope, level, message), ...args);
+  globalThis.console[consoleMethod](formatMessage(scope, level, message), ...args);
 }
 
 export function getRecentLogEntries(limit = 200): LogEntry[] {

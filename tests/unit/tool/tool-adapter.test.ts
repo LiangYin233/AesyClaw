@@ -379,7 +379,7 @@ describe('ToolAdapter', () => {
           terminate: false,
         },
       });
-      const debugCalls = JSON.stringify(vi.mocked(console.debug).mock.calls);
+      const debugCalls = JSON.stringify(vi.mocked(globalThis.console.debug).mock.calls);
       expect(debugCalls).not.toContain('secret user payload');
       expect(debugCalls).not.toContain('secret tool result');
     });
@@ -493,7 +493,7 @@ describe('ToolAdapter', () => {
         toolCallId: 'call-aborted',
         outcome: 'aborted',
       });
-      expect(JSON.stringify(vi.mocked(console.debug).mock.calls)).not.toContain(
+      expect(JSON.stringify(vi.mocked(globalThis.console.debug).mock.calls)).not.toContain(
         'secret abort payload',
       );
     });
@@ -536,7 +536,7 @@ describe('ToolAdapter', () => {
 });
 
 function expectDebugLog(message: string, payload: Record<string, unknown>): void {
-  expect(console.debug).toHaveBeenCalledWith(
+  expect(vi.mocked(globalThis.console.debug)).toHaveBeenCalledWith(
     expect.stringContaining(`[DEBUG] [tool] ${message}`),
     expect.objectContaining(payload),
   );

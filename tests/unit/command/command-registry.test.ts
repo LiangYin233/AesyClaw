@@ -225,7 +225,11 @@ describe('CommandRegistry', () => {
       const resolved = registry.resolve('/echo hello world');
 
       expect(resolved).not.toBeNull();
-      await expect(registry.executeResolved(resolved!, makeContext())).resolves.toBe('hello world');
+      if (!resolved) {
+        throw new Error('Expected /echo to resolve');
+      }
+
+      await expect(registry.executeResolved(resolved, makeContext())).resolves.toBe('hello world');
     });
   });
 

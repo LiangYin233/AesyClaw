@@ -31,6 +31,14 @@ function makeSessionManager(isBusy = false): Pick<SessionManager, 'isAgentProces
   };
 }
 
+function expectOutboundContent(state: PipelineState): string {
+  expect(state.outbound).toBeDefined();
+  if (!state.outbound) {
+    throw new Error('Expected outbound message to be set');
+  }
+  return state.outbound.content;
+}
+
 // ─── Tests ─────────────────────────────────────────────────────────
 
 describe('commandDetector', () => {
@@ -54,8 +62,7 @@ describe('commandDetector', () => {
       const state = makeState('/greet');
       const result = await commandDetector(state, registry, makeSessionManager());
 
-      expect(result.outbound).toBeDefined();
-      expect(result.outbound!.content).toBe('Hello!');
+      expect(expectOutboundContent(result)).toBe('Hello!');
     });
 
     it('should pass through non-command messages without setting outbound', async () => {
@@ -85,8 +92,7 @@ describe('commandDetector', () => {
       const state = makeState('/role list');
       const result = await commandDetector(state, registry, makeSessionManager());
 
-      expect(result.outbound).toBeDefined();
-      expect(result.outbound!.content).toBe('role1, role2');
+      expect(expectOutboundContent(result)).toBe('role1, role2');
     });
 
     it('should pass command args to execute function', async () => {
@@ -104,7 +110,7 @@ describe('commandDetector', () => {
       const state = makeState('/echo hello world');
       const result = await commandDetector(state, registry, makeSessionManager());
 
-      expect(result.outbound!.content).toBe('hello world');
+      expect(expectOutboundContent(result)).toBe('hello world');
       expect(receivedArgs).toEqual(['hello', 'world']);
     });
 
@@ -112,7 +118,7 @@ describe('commandDetector', () => {
       const state = makeState('just a regular message');
       const result = await commandDetector(state, registry, makeSessionManager(true));
 
-      expect(result.outbound!.content).toBe('Agent处理任务中。');
+      expect(expectOutboundContent(result)).toBe('Agent处理任务中。');
     });
 
     it('should block busy ordinary commands by default', async () => {
@@ -126,14 +132,14 @@ describe('commandDetector', () => {
 
       const result = await commandDetector(makeState('/greet'), registry, makeSessionManager(true));
 
-      expect(result.outbound!.content).toBe('Agent处理任务中。');
+      expect(expectOutboundContent(result)).toBe('Agent处理任务中。');
       expect(execute).not.toHaveBeenCalled();
     });
 
     it('should block busy unknown slash commands', async () => {
       const result = await commandDetector(makeState('/unknown'), registry, makeSessionManager(true));
 
-      expect(result.outbound!.content).toBe('Agent处理任务中。');
+      expect(expectOutboundContent(result)).toBe('Agent处理任务中。');
     });
 
     it('should execute commands allowed during agent processing while busy', async () => {
@@ -148,7 +154,7 @@ describe('commandDetector', () => {
 
       const result = await commandDetector(makeState('/allowed'), registry, makeSessionManager(true));
 
-      expect(result.outbound!.content).toBe('allowed');
+      expect(expectOutboundContent(result)).toBe('allowed');
       expect(execute).toHaveBeenCalled();
     });
   });
@@ -169,9 +175,9 @@ describe('commandDetector', () => {
       const state = makeState('/fail');
       const result = await commandDetector(state, registry, makeSessionManager());
 
-      expect(result.outbound).toBeDefined();
-      expect(result.outbound!.content).toContain('执行命令时出错');
-      expect(result.outbound!.content).toContain('Command failed');
+      const content = expectOutboundContent(result);
+      expect(content).toContain('执行命令时出错');
+      expect(content).toContain('Command failed');
     });
 
     it('should not set outbound for non-existent commands', async () => {

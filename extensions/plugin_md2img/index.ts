@@ -165,9 +165,13 @@ const plugin: PluginDefinition = {
   defaultConfig: { enabledChannels: ['*'] },
   hooks: {
     async onSend({ message, sessionKey }) {
+      if (!logger) {
+        return { action: 'continue' };
+      }
+
       return await handleMd2ImgSend(
         { message, sessionKey },
-        { htmlTemplate, logger: logger!, pluginConfig },
+        { htmlTemplate, logger, pluginConfig },
       );
     },
   },

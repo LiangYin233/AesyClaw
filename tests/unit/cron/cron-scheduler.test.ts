@@ -15,13 +15,20 @@ function makeJob(overrides: Partial<CronJobRecord> = {}): CronJobRecord {
   };
 }
 
+function expectDate(result: Date | null): Date {
+  expect(result).not.toBeNull();
+  if (!result) {
+    throw new Error('Expected a computed next run date');
+  }
+  return result;
+}
+
 describe('computeNextRun', () => {
   describe('once schedule', () => {
     it('should return the parsed date if it is in the future', () => {
       const future = new Date(Date.now() + 3600_000).toISOString();
       const result = computeNextRun('once', future);
-      expect(result).not.toBeNull();
-      expect(result!.toISOString()).toBe(future);
+      expect(expectDate(result).toISOString()).toBe(future);
     });
 
     it('should return null if the date is in the past', () => {
@@ -40,20 +47,20 @@ describe('computeNextRun', () => {
     it('should compute the next daily run at a given HH:MM', () => {
       const now = new Date(2026, 3, 26, 10, 0, 0);
       const result = computeNextRun('daily', '08:00', now);
-      expect(result).not.toBeNull();
-      expect(result!.getHours()).toBe(8);
-      expect(result!.getMinutes()).toBe(0);
+      const nextRun = expectDate(result);
+      expect(nextRun.getHours()).toBe(8);
+      expect(nextRun.getMinutes()).toBe(0);
       // Should be tomorrow since 08:00 is before 10:00
-      expect(result!.getDate()).toBe(27);
+      expect(nextRun.getDate()).toBe(27);
     });
 
     it('should compute today if the time has not passed yet', () => {
       const now = new Date(2026, 3, 26, 10, 0, 0);
       const result = computeNextRun('daily', '14:00', now);
-      expect(result).not.toBeNull();
-      expect(result!.getHours()).toBe(14);
-      expect(result!.getMinutes()).toBe(0);
-      expect(result!.getDate()).toBe(26);
+      const nextRun = expectDate(result);
+      expect(nextRun.getHours()).toBe(14);
+      expect(nextRun.getMinutes()).toBe(0);
+      expect(nextRun.getDate()).toBe(26);
     });
 
     it('should return null for invalid daily format', () => {
@@ -74,10 +81,10 @@ describe('computeNextRun', () => {
     it('should handle leading zeros', () => {
       const now = new Date(2026, 3, 26, 10, 0, 0);
       const result = computeNextRun('daily', '09:05', now);
-      expect(result).not.toBeNull();
-      expect(result!.getHours()).toBe(9);
-      expect(result!.getMinutes()).toBe(5);
-      expect(result!.getDate()).toBe(27);
+      const nextRun = expectDate(result);
+      expect(nextRun.getHours()).toBe(9);
+      expect(nextRun.getMinutes()).toBe(5);
+      expect(nextRun.getDate()).toBe(27);
     });
   });
 
@@ -85,29 +92,25 @@ describe('computeNextRun', () => {
     it('should compute next run with minutes unit', () => {
       const now = new Date('2026-04-26T10:00:00Z');
       const result = computeNextRun('interval', '30m', now);
-      expect(result).not.toBeNull();
-      expect(result!.getTime()).toBe(now.getTime() + 30 * 60 * 1000);
+      expect(expectDate(result).getTime()).toBe(now.getTime() + 30 * 60 * 1000);
     });
 
     it('should compute next run with hours unit', () => {
       const now = new Date('2026-04-26T10:00:00Z');
       const result = computeNextRun('interval', '2h', now);
-      expect(result).not.toBeNull();
-      expect(result!.getTime()).toBe(now.getTime() + 2 * 60 * 60 * 1000);
+      expect(expectDate(result).getTime()).toBe(now.getTime() + 2 * 60 * 60 * 1000);
     });
 
     it('should compute next run with days unit', () => {
       const now = new Date('2026-04-26T10:00:00Z');
       const result = computeNextRun('interval', '1d', now);
-      expect(result).not.toBeNull();
-      expect(result!.getTime()).toBe(now.getTime() + 24 * 60 * 60 * 1000);
+      expect(expectDate(result).getTime()).toBe(now.getTime() + 24 * 60 * 60 * 1000);
     });
 
     it('should default to minutes without a unit suffix', () => {
       const now = new Date('2026-04-26T10:00:00Z');
       const result = computeNextRun('interval', '5', now);
-      expect(result).not.toBeNull();
-      expect(result!.getTime()).toBe(now.getTime() + 5 * 60 * 1000);
+      expect(expectDate(result).getTime()).toBe(now.getTime() + 5 * 60 * 1000);
     });
 
     it('should return null for zero interval', () => {
@@ -128,8 +131,7 @@ describe('computeNextRun', () => {
     it('should handle case-insensitive units', () => {
       const now = new Date('2026-04-26T10:00:00Z');
       const result = computeNextRun('interval', '10H', now);
-      expect(result).not.toBeNull();
-      expect(result!.getTime()).toBe(now.getTime() + 10 * 60 * 60 * 1000);
+      expect(expectDate(result).getTime()).toBe(now.getTime() + 10 * 60 * 60 * 1000);
     });
   });
 

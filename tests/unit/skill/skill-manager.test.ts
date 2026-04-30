@@ -10,7 +10,7 @@ import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { SkillManager } from '../../../src/skill/skill-manager';
-import type { RoleConfig } from '../../../src/core/types';
+import type { RoleConfig, SkillDefinition } from '../../../src/core/types';
 
 const TEST_DIR = join(tmpdir(), 'aesyclaw-test-skill-manager');
 
@@ -26,6 +26,14 @@ function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
     enabled: true,
     ...overrides,
   };
+}
+
+function expectSkill(skill: SkillDefinition | undefined, name: string): SkillDefinition {
+  expect(skill).toBeDefined();
+  if (skill === undefined) {
+    throw new Error(`Expected skill ${name} to exist`);
+  }
+  return skill;
 }
 
 describe('SkillManager', () => {
@@ -62,8 +70,9 @@ System content.`,
 
       const skills = manager.getAllSkills();
       expect(skills).toHaveLength(1);
-      expect(skills[0].name).toBe('sys-skill');
-      expect(skills[0].isSystem).toBe(true);
+      const skill = expectSkill(skills[0], 'sys-skill');
+      expect(skill.name).toBe('sys-skill');
+      expect(skill.isSystem).toBe(true);
     });
 
     it('should load user skills from the user directory', async () => {
@@ -80,8 +89,9 @@ User content.`,
 
       const skills = manager.getAllSkills();
       expect(skills).toHaveLength(1);
-      expect(skills[0].name).toBe('user-skill');
-      expect(skills[0].isSystem).toBe(false);
+      const skill = expectSkill(skills[0], 'user-skill');
+      expect(skill.name).toBe('user-skill');
+      expect(skill.isSystem).toBe(false);
     });
 
     it('should load both system and user skills', async () => {
@@ -133,10 +143,10 @@ User content.`,
       await manager.loadAll(systemDir, userDir);
 
       const skill = manager.getSkill('conflict');
-      expect(skill).toBeDefined();
-      expect(skill!.isSystem).toBe(true);
-      expect(skill!.description).toBe('System version');
-      expect(skill!.content).toBe('System content.');
+      const conflictSkill = expectSkill(skill, 'conflict');
+      expect(conflictSkill.isSystem).toBe(true);
+      expect(conflictSkill.description).toBe('System version');
+      expect(conflictSkill.content).toBe('System content.');
     });
 
     it('should skip malformed skill files gracefully', async () => {
@@ -155,7 +165,7 @@ Valid content.`,
 
       const skills = manager.getAllSkills();
       expect(skills).toHaveLength(1);
-      expect(skills[0].name).toBe('valid');
+      expect(expectSkill(skills[0], 'valid').name).toBe('valid');
     });
 
     it('should handle non-existent directories gracefully', async () => {

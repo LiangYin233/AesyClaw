@@ -29,6 +29,10 @@ describe('scoped logger', () => {
     clearRecentLogEntriesForTests();
   });
 
+  function expectConsoleInfo(...args: unknown[]): void {
+    expect(vi.mocked(globalThis.console.info)).toHaveBeenCalledWith(...args);
+  }
+
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
@@ -45,7 +49,7 @@ describe('scoped logger', () => {
 
     logger.info('Ready', { port: 3000 });
 
-    expect(console.info).toHaveBeenCalledWith(`${FORMATTED_TIME} [INFO] [app] Ready`, {
+    expectConsoleInfo(`${FORMATTED_TIME} [INFO] [app] Ready`, {
       port: 3000,
     });
   });
@@ -55,7 +59,7 @@ describe('scoped logger', () => {
 
     logger.info('Ready');
 
-    expect(console.info).toHaveBeenCalledWith(
+    expectConsoleInfo(
       `${FORMATTED_TIME} \x1b[36m[INFO]\x1b[0m \x1b[36m[app]\x1b[0m Ready`,
     );
   });
@@ -86,7 +90,7 @@ describe('scoped logger', () => {
 
     logger.info('Ready');
 
-    expect(console.info).toHaveBeenCalledWith(`${FORMATTED_TIME} [INFO] [app] Ready`);
+    expectConsoleInfo(`${FORMATTED_TIME} [INFO] [app] Ready`);
   });
 
   it('prefers NO_COLOR over FORCE_COLOR', () => {
@@ -96,7 +100,7 @@ describe('scoped logger', () => {
 
     logger.info('Ready');
 
-    expect(console.info).toHaveBeenCalledWith(`${FORMATTED_TIME} [INFO] [app] Ready`);
+    expectConsoleInfo(`${FORMATTED_TIME} [INFO] [app] Ready`);
   });
 
   it('falls back to plain text when terminal support is dumb', () => {
@@ -105,7 +109,7 @@ describe('scoped logger', () => {
 
     logger.info('Ready');
 
-    expect(console.info).toHaveBeenCalledWith(`${FORMATTED_TIME} [INFO] [app] Ready`);
+    expectConsoleInfo(`${FORMATTED_TIME} [INFO] [app] Ready`);
   });
 
   it('preserves log level filtering', () => {

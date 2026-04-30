@@ -10,8 +10,17 @@ import { parseSkillContent, parseSkillFile } from '../../../src/skill/skill-pars
 import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import type { SkillDefinition } from '../../../src/core/types';
 
 const TEST_DIR = join(tmpdir(), 'aesyclaw-test-skill-parser');
+
+function expectParsedSkill(skill: SkillDefinition | null): SkillDefinition {
+  expect(skill).not.toBeNull();
+  if (skill === null) {
+    throw new Error('Expected skill content to parse');
+  }
+  return skill;
+}
 
 describe('parseSkillContent', () => {
   describe('valid frontmatter', () => {
@@ -23,10 +32,10 @@ description: A test skill
 This is the skill content.`;
 
       const result = parseSkillContent(content);
-      expect(result).not.toBeNull();
-      expect(result!.name).toBe('my-skill');
-      expect(result!.description).toBe('A test skill');
-      expect(result!.content).toBe('This is the skill content.');
+      const skill = expectParsedSkill(result);
+      expect(skill.name).toBe('my-skill');
+      expect(skill.description).toBe('A test skill');
+      expect(skill.content).toBe('This is the skill content.');
     });
 
     it('should parse a skill with only name (no description)', () => {
@@ -36,10 +45,10 @@ name: minimal
 Content here.`;
 
       const result = parseSkillContent(content);
-      expect(result).not.toBeNull();
-      expect(result!.name).toBe('minimal');
-      expect(result!.description).toBe('');
-      expect(result!.content).toBe('Content here.');
+      const skill = expectParsedSkill(result);
+      expect(skill.name).toBe('minimal');
+      expect(skill.description).toBe('');
+      expect(skill.content).toBe('Content here.');
     });
 
     it('should handle multiline body content', () => {
@@ -54,9 +63,9 @@ Do something.
 Do another thing.`;
 
       const result = parseSkillContent(content);
-      expect(result).not.toBeNull();
-      expect(result!.content).toContain('## Step 1');
-      expect(result!.content).toContain('## Step 2');
+      const skill = expectParsedSkill(result);
+      expect(skill.content).toContain('## Step 1');
+      expect(skill.content).toContain('## Step 2');
     });
 
     it('should handle quoted string values', () => {
@@ -67,9 +76,9 @@ description: 'single quoted desc'
 Content.`;
 
       const result = parseSkillContent(content);
-      expect(result).not.toBeNull();
-      expect(result!.name).toBe('quoted name');
-      expect(result!.description).toBe('single quoted desc');
+      const skill = expectParsedSkill(result);
+      expect(skill.name).toBe('quoted name');
+      expect(skill.description).toBe('single quoted desc');
     });
 
     it('should handle empty body after closing delimiter', () => {
@@ -79,9 +88,9 @@ description: No body
 ---`;
 
       const result = parseSkillContent(content);
-      expect(result).not.toBeNull();
-      expect(result!.name).toBe('empty');
-      expect(result!.content).toBe('');
+      const skill = expectParsedSkill(result);
+      expect(skill.name).toBe('empty');
+      expect(skill.content).toBe('');
     });
 
     it('should handle values with colons', () => {
@@ -92,8 +101,7 @@ description: Calls the API at https://example.com/api
 Content.`;
 
       const result = parseSkillContent(content);
-      expect(result).not.toBeNull();
-      expect(result!.description).toBe('Calls the API at https://example.com/api');
+      expect(expectParsedSkill(result).description).toBe('Calls the API at https://example.com/api');
     });
 
     it('should ignore comment lines in frontmatter', () => {
@@ -105,8 +113,7 @@ description: Has comments
 Content.`;
 
       const result = parseSkillContent(content);
-      expect(result).not.toBeNull();
-      expect(result!.name).toBe('commented');
+      expect(expectParsedSkill(result).name).toBe('commented');
     });
   });
 
@@ -168,12 +175,12 @@ File content.`,
     );
 
     const result = parseSkillFile(filePath, true);
-    expect(result).not.toBeNull();
-    expect(result!.name).toBe('file-skill');
-    expect(result!.description).toBe('Skill from file');
-    expect(result!.content).toBe('File content.');
-    expect(result!.isSystem).toBe(true);
-    expect(result!.filePath).toBe(filePath);
+    const skill = expectParsedSkill(result);
+    expect(skill.name).toBe('file-skill');
+    expect(skill.description).toBe('Skill from file');
+    expect(skill.content).toBe('File content.');
+    expect(skill.isSystem).toBe(true);
+    expect(skill.filePath).toBe(filePath);
   });
 
   it('should return null for a malformed skill file', () => {
@@ -201,7 +208,6 @@ User content.`,
     );
 
     const result = parseSkillFile(filePath, false);
-    expect(result).not.toBeNull();
-    expect(result!.isSystem).toBe(false);
+    expect(expectParsedSkill(result).isSystem).toBe(false);
   });
 });
