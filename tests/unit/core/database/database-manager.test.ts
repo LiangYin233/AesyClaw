@@ -9,6 +9,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
 import {
   findOrCreateSession,
+  findAllSessions,
+  findSessionById,
   findSessionByKey,
 } from '../../../../src/core/database/repositories/session-repository';
 import {
@@ -17,6 +19,11 @@ import {
   clearMessageHistory,
   replaceMessageWithSummary,
 } from '../../../../src/core/database/repositories/message-repository';
+import {
+  createUsageRecord,
+  getTodayUsageSummary,
+  getUsageStats,
+} from '../../../../src/core/database/repositories/usage-repository';
 import {
   getActiveRoleBinding,
   setActiveRoleBinding,
@@ -79,6 +86,24 @@ function createTestDb() {
       started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       ended_at DATETIME
     );
+    CREATE TABLE usage (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      model TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      api TEXT NOT NULL,
+      response_id TEXT,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      input_tokens INTEGER NOT NULL,
+      output_tokens INTEGER NOT NULL,
+      total_tokens INTEGER NOT NULL,
+      cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+      cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+      cost_input REAL NOT NULL DEFAULT 0,
+      cost_output REAL NOT NULL DEFAULT 0,
+      cost_cache_read REAL NOT NULL DEFAULT 0,
+      cost_cache_write REAL NOT NULL DEFAULT 0,
+      cost_total REAL NOT NULL DEFAULT 0
+    );
   `);
 
   return db;
@@ -121,8 +146,7 @@ describe('Database Layer', () => {
       await findOrCreateSession(db, key);
 
       const found = await findSessionByKey(db, key);
-      expect(found).not.toBeNull();
-      expect(found!.chatId).toBe('user2');
+      expect(found?.chatId).toBe('user2');
     });
 
     it('should return null for non-existent session', async () => {
@@ -132,6 +156,41 @@ describe('Database Layer', () => {
         chatId: 'nobody',
       });
       expect(result).toBeNull();
+    });
+
+    it('should expose first and last message timestamps for session lists and lookups', async () => {
+      const olderSession = await findOrCreateSession(db, {
+        channel: 'test',
+        type: 'private',
+        chatId: 'older',
+      });
+      const newerSession = await findOrCreateSession(db, {
+        channel: 'test',
+        type: 'private',
+        chatId: 'newer',
+      });
+
+      db.prepare('INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)')
+        .run(olderSession.id, 'user', 'first older', '2026-04-01T10:00:00.000Z');
+      db.prepare('INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)')
+        .run(olderSession.id, 'assistant', 'last older', '2026-04-01T10:05:00.000Z');
+      db.prepare('INSERT INTO messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)')
+        .run(newerSession.id, 'user', 'newer', '2026-04-02T09:00:00.000Z');
+
+      const olderById = await findSessionById(db, olderSession.id);
+      const sessions = await findAllSessions(db);
+
+      expect(olderById).toMatchObject({
+        id: olderSession.id,
+        createdAt: '2026-04-01T10:00:00.000Z',
+        updatedAt: '2026-04-01T10:05:00.000Z',
+      });
+      expect(sessions.map((session) => session.id)).toEqual([newerSession.id, olderSession.id]);
+      expect(sessions[0]).toMatchObject({
+        id: newerSession.id,
+        createdAt: '2026-04-02T09:00:00.000Z',
+        updatedAt: '2026-04-02T09:00:00.000Z',
+      });
     });
   });
 
@@ -287,9 +346,8 @@ describe('Database Layer', () => {
       expect(id).toBeDefined();
 
       const job = await findCronJobById(db, id);
-      expect(job).not.toBeNull();
-      expect(job!.scheduleType).toBe('daily');
-      expect(job!.prompt).toBe('Good morning!');
+      expect(job?.scheduleType).toBe('daily');
+      expect(job?.prompt).toBe('Good morning!');
     });
 
     it('should list all jobs', async () => {
@@ -363,7 +421,7 @@ describe('Database Layer', () => {
       await updateCronJobNextRun(db, id, newDate);
 
       const job = await findCronJobById(db, id);
-      expect(job!.nextRun).toBe(newDate.toISOString());
+      expect(job?.nextRun).toBe(newDate.toISOString());
     });
   });
 
@@ -488,6 +546,154 @@ describe('Database Layer', () => {
 
       expect(run1).toEqual({ status: 'running', ended_at: null });
       expect(run2).toEqual({ status: 'running', ended_at: null });
+    });
+  });
+
+  // ─── Usage Repository Functions ──────────────────────────────────
+
+  describe('UsageRepository', () => {
+    let db: DatabaseSync;
+
+    beforeEach(() => {
+      db = createTestDb();
+    });
+
+    afterEach(() => {
+      db.close();
+    });
+
+    it('aggregates usage by model and date with model/date filters', async () => {
+      const firstId = await createUsageRecord(db, {
+        model: 'gpt-4o',
+        provider: 'openai',
+        api: 'responses',
+        responseId: 'resp-1',
+        usage: {
+          input: 100,
+          output: 50,
+          cacheRead: 10,
+          cacheWrite: 5,
+          totalTokens: 165,
+          cost: { input: 0.1, output: 0.2, cacheRead: 0.01, cacheWrite: 0.02, total: 0.33 },
+        },
+      });
+      const secondId = await createUsageRecord(db, {
+        model: 'gpt-4o',
+        provider: 'openai',
+        api: 'responses',
+        usage: {
+          input: 40,
+          output: 60,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 100,
+          cost: { input: 0.04, output: 0.24, cacheRead: 0, cacheWrite: 0, total: 0.28 },
+        },
+      });
+      const thirdId = await createUsageRecord(db, {
+        model: 'claude-3-5',
+        provider: 'anthropic',
+        api: 'messages',
+        usage: {
+          input: 12,
+          output: 8,
+          cacheRead: 3,
+          cacheWrite: 2,
+          totalTokens: 25,
+          cost: { input: 0.01, output: 0.02, cacheRead: 0.003, cacheWrite: 0.004, total: 0.037 },
+        },
+      });
+
+      db.prepare('UPDATE usage SET timestamp = ? WHERE id = ?').run(
+        '2026-04-01T08:00:00.000Z',
+        firstId,
+      );
+      db.prepare('UPDATE usage SET timestamp = ? WHERE id = ?').run(
+        '2026-04-01T12:00:00.000Z',
+        secondId,
+      );
+      db.prepare('UPDATE usage SET timestamp = ? WHERE id = ?').run(
+        '2026-04-02T09:00:00.000Z',
+        thirdId,
+      );
+
+      const stats = await getUsageStats(db, {
+        model: 'gpt-4o',
+        from: '2026-04-01',
+        to: '2026-04-01',
+      });
+
+      expect(stats).toHaveLength(1);
+      expect(stats[0]).toMatchObject({
+        model: 'gpt-4o',
+        date: '2026-04-01',
+        inputTokens: 140,
+        outputTokens: 110,
+        totalTokens: 265,
+        cacheReadTokens: 10,
+        cacheWriteTokens: 5,
+        count: 2,
+      });
+      expect(stats[0]?.costInput).toBeCloseTo(0.14);
+      expect(stats[0]?.costOutput).toBeCloseTo(0.44);
+      expect(stats[0]?.costCacheRead).toBeCloseTo(0.01);
+      expect(stats[0]?.costCacheWrite).toBeCloseTo(0.02);
+      expect(stats[0]?.costTotal).toBeCloseTo(0.61);
+    });
+
+    it('returns only today usage summary ordered by total tokens', async () => {
+      const lowTodayId = await createUsageRecord(db, {
+        model: 'small-model',
+        provider: 'test',
+        api: 'responses',
+        usage: {
+          input: 10,
+          output: 5,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 15,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+      });
+      const highTodayId = await createUsageRecord(db, {
+        model: 'large-model',
+        provider: 'test',
+        api: 'responses',
+        usage: {
+          input: 70,
+          output: 30,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 100,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+      });
+      const yesterdayId = await createUsageRecord(db, {
+        model: 'old-model',
+        provider: 'test',
+        api: 'responses',
+        usage: {
+          input: 1000,
+          output: 1000,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 2000,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+      });
+
+      db.prepare("UPDATE usage SET timestamp = DATE('now') || 'T08:00:00.000Z' WHERE id = ?")
+        .run(lowTodayId);
+      db.prepare("UPDATE usage SET timestamp = DATE('now') || 'T12:00:00.000Z' WHERE id = ?")
+        .run(highTodayId);
+      db.prepare(
+        "UPDATE usage SET timestamp = DATE('now', '-1 day') || 'T09:00:00.000Z' WHERE id = ?",
+      ).run(yesterdayId);
+
+      const summary = await getTodayUsageSummary(db);
+
+      expect(summary.map((entry) => entry.model)).toEqual(['large-model', 'small-model']);
+      expect(summary.map((entry) => entry.totalTokens)).toEqual([100, 15]);
     });
   });
 });
