@@ -259,7 +259,7 @@ describe('ConfigManager', () => {
             unknownProviderField: 'provider-future',
             models: {
               fast: {
-                realModelName: 'gpt-4o-mini',
+                routingHint: 'fast-lane',
                 contextWindow: 128000,
                 unknownModelField: 'model-future',
               },
@@ -269,7 +269,7 @@ describe('ConfigManager', () => {
             apiType: 'anthropic',
             apiKey: 'sk-anthropic',
             models: {
-              sonnet: { realModelName: 'claude-sonnet' },
+              sonnet: { routingHint: 'balanced' },
             },
           },
         },
@@ -294,7 +294,7 @@ describe('ConfigManager', () => {
         unknownProviderField: 'provider-future',
       });
       expect((providers.openai?.models as Record<string, Record<string, unknown>>).fast).toMatchObject({
-        realModelName: 'gpt-4o-mini',
+        routingHint: 'fast-lane',
         contextWindow: 64000,
         unknownModelField: 'model-future',
       });

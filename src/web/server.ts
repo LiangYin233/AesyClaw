@@ -14,6 +14,7 @@ import { createChannelsRouter } from './routes/channels';
 import { createPluginsRouter } from './routes/plugins';
 import { createStatusRouter } from './routes/status';
 import { createUsageRouter } from './routes/usage';
+import { createLogsRouter } from './routes/logs';
 import { createScopedLogger } from '../core/logger';
 
 const logger = createScopedLogger('webui');
@@ -34,6 +35,7 @@ export function createApp(deps: WebUiManagerDependencies): Hono {
   app.route('/api/plugins', createPluginsRouter(deps));
   app.route('/api/status', createStatusRouter(deps));
   app.route('/api/usage', createUsageRouter(deps));
+  app.route('/api/logs', createLogsRouter(deps));
 
   // Global error handler for API routes
   app.onError((err, c) => {

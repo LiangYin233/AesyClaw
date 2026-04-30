@@ -43,7 +43,10 @@ export class WebUiManager {
     if (!serverConfig.authToken) {
       const token = this.generateToken();
       await deps.configManager.update({ server: { ...serverConfig, authToken: token } });
-      logger.info(`Auto-generated WebUI auth token: ${token}`);
+      logger.info('Auto-generated WebUI auth token', {
+        hint: `${token.slice(0, 4)}…${token.slice(-4)}`,
+        configPath: 'server.authToken',
+      });
     }
 
     this.app = createApp(deps);

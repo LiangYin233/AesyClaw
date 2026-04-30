@@ -30,8 +30,8 @@ function makeConfigWithProviders(providers: Record<string, unknown> = {}): AppCo
         apiType: 'openai_responses',
         apiKey: 'sk-test-key',
         models: {
-          'gpt-4o': { contextWindow: 128000, enableThinking: false },
-          'gpt-4o-mini': { contextWindow: 128000, realModelName: 'gpt-4o-mini-2024-07-18' },
+          'gpt-4o': { contextWindow: 128000 },
+          'gpt-4o-mini': { contextWindow: 128000 },
         },
       },
       anthropic: {
@@ -39,7 +39,7 @@ function makeConfigWithProviders(providers: Record<string, unknown> = {}): AppCo
         apiKey: 'sk-ant-test-key',
         baseUrl: 'https://api.anthropic.com',
         models: {
-          'claude-3-opus': { contextWindow: 200000, enableThinking: true },
+          'claude-3-opus': { contextWindow: 200000 },
         },
       },
       ...providers,
@@ -97,50 +97,25 @@ describe('LlmAdapter', () => {
       expect(model.id).toBe('gpt-4o');
     });
 
-    it('should resolve "anthropic/claude-3-opus" with preset overrides', () => {
+    it('should resolve "anthropic/claude-3-opus" without deprecated preset overrides', () => {
       const model = adapter.resolveModel('anthropic/claude-3-opus');
 
       expect(model.provider).toBe('anthropic');
       expect(model.modelId).toBe('claude-3-opus');
       expect(model.contextWindow).toBe(200000);
-      expect(model.reasoning).toBe(true);
+      expect(model.reasoning).toBe(false);
       expect(model.apiKey).toBe('sk-ant-test-key');
       expect(model.baseUrl).toBe('https://api.anthropic.com');
       expect(model.apiType).toBe('anthropic-messages');
-    });
-
-    it('should resolve model with realModelName preset', () => {
-      const model = adapter.resolveModel('openai/gpt-4o-mini');
-
-      expect(model.modelId).toBe('gpt-4o-mini');
-      expect(model.realModelName).toBe('gpt-4o-mini-2024-07-18');
     });
 
     it('should use provider defaults when no model preset exists', () => {
       const model = adapter.resolveModel('openai/o1-preview');
 
       expect(model.modelId).toBe('o1-preview');
-      expect(model.realModelName).toBeUndefined();
       expect(model.contextWindow).toBe(128000); // Default
       expect(model.reasoning).toBe(false); // Default
       expect(model.apiKey).toBe('sk-test-key'); // From provider
-    });
-
-    it('should use model preset apiKey over provider apiKey', () => {
-      const config = makeConfigWithProviders({
-        custom: {
-          apiType: 'openai_responses',
-          apiKey: 'provider-key',
-          models: {
-            'special-model': { apiKey: 'model-specific-key' },
-          },
-        },
-      });
-      const customAdapter = new LlmAdapter();
-      customAdapter.initialize({ configManager: makeMockConfigManager(config) });
-
-      const model = customAdapter.resolveModel('custom/special-model');
-      expect(model.apiKey).toBe('model-specific-key');
     });
 
     it('should not fall back to environment variables when no config apiKey exists', () => {

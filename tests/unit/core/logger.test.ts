@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createScopedLogger, setLogLevel } from '../../../src/core/logger';
+import {
+  clearRecentLogEntriesForTests,
+  createScopedLogger,
+  getRecentLogEntries,
+  setLogLevel,
+} from '../../../src/core/logger';
 
 const FIXED_TIME = new Date('2026-04-26T12:34:56.789Z');
 const FORMATTED_TIME = '04-26 12:34:56';
@@ -21,6 +26,7 @@ describe('scoped logger', () => {
     delete process.env.NO_COLOR;
     delete process.env.FORCE_COLOR;
     process.env.TERM = 'xterm-256color';
+    clearRecentLogEntriesForTests();
   });
 
   afterEach(() => {
@@ -31,6 +37,7 @@ describe('scoped logger', () => {
     restoreTTY(process.stderr, originalStderrTTY);
     delete process.env.NO_COLOR;
     delete process.env.FORCE_COLOR;
+    clearRecentLogEntriesForTests();
   });
 
   it('falls back to plain text for non-interactive info logs', () => {
@@ -112,6 +119,43 @@ describe('scoped logger', () => {
     expect(console.error).toHaveBeenCalledWith(
       `${FORMATTED_TIME} \x1b[31m[ERROR]\x1b[0m \x1b[31m[app]\x1b[0m Failed`,
     );
+  });
+
+  it('captures recent log entries without ANSI colors', () => {
+    setTTY(process.stdout, true);
+
+    logger.info('Ready', { port: 3000 });
+
+    expect(getRecentLogEntries()).toEqual([
+      {
+        id: 1,
+        timestamp: FORMATTED_TIME,
+        level: 'info',
+        scope: 'app',
+        message: 'Ready',
+        details: '{ port: 3000 }',
+        formatted: `${FORMATTED_TIME} [INFO] [app] Ready { port: 3000 }`,
+      },
+    ]);
+  });
+
+  it('does not capture filtered log entries', () => {
+    setLogLevel('error');
+
+    logger.warn('Skipped');
+    logger.error('Failed');
+
+    expect(getRecentLogEntries()).toEqual([
+      {
+        id: 1,
+        timestamp: FORMATTED_TIME,
+        level: 'error',
+        scope: 'app',
+        message: 'Failed',
+        details: null,
+        formatted: `${FORMATTED_TIME} [ERROR] [app] Failed`,
+      },
+    ]);
   });
 });
 
