@@ -30,7 +30,11 @@ function createRegistry() {
     makeRole({ id: 'analyst', name: 'Analyst', description: 'Analysis role' }),
   ];
   const session = {
+    sessionId: 'session-1',
     activeRole: roles[0],
+    memory: {
+      loadHistory: vi.fn().mockResolvedValue([]),
+    },
   };
   const deps = {
     sessionManager: {
@@ -70,6 +74,10 @@ function createRegistry() {
       ]),
       enable: vi.fn().mockResolvedValue(undefined),
       disable: vi.fn().mockResolvedValue(undefined),
+    },
+    agentEngine: {
+      processEphemeral: vi.fn().mockResolvedValue({ content: '临时回答' }),
+      process: vi.fn(),
     },
   };
 
@@ -144,6 +152,37 @@ describe('built-in commands', () => {
     expect(deps.pluginManager.listPlugins).toHaveBeenCalledTimes(3);
     expect(deps.pluginManager.enable).toHaveBeenCalledWith('alpha');
     expect(deps.pluginManager.disable).toHaveBeenCalledWith('beta');
+  });
+
+  it('returns Chinese usage for /btw without arguments', async () => {
+    const { registry, deps } = createRegistry();
+
+    await expect(registry.execute('/btw', makeContext())).resolves.toBe('用法：/btw <message>');
+    expect(deps.agentEngine.processEphemeral).not.toHaveBeenCalled();
+  });
+
+  it('executes /btw through processEphemeral with current session role and memory', async () => {
+    const { registry, deps, session } = createRegistry();
+    const context = makeContext();
+
+    await expect(registry.execute('/btw hello there', context)).resolves.toBe('临时回答');
+
+    expect(deps.sessionManager.getOrCreateSession).toHaveBeenCalledWith(context.sessionKey);
+    expect(deps.agentEngine.processEphemeral).toHaveBeenCalledWith({
+      sessionKey: context.sessionKey,
+      sessionId: session.sessionId,
+      memory: session.memory,
+      role: session.activeRole,
+      content: 'hello there',
+    });
+    expect(deps.agentEngine.process).not.toHaveBeenCalled();
+  });
+
+  it('marks /btw as allowed during agent processing', () => {
+    const { registry } = createRegistry();
+    const resolved = registry.resolve('/btw hello');
+
+    expect(resolved?.command.allowDuringAgentProcessing).toBe(true);
   });
 
   it('passes canonical plugin names when commands use directory aliases', async () => {

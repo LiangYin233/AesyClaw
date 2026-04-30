@@ -204,6 +204,35 @@ describe('SessionManager', () => {
       expect(deps.databaseManager.sessions.findOrCreate).toHaveBeenCalledTimes(1);
     });
 
+    it('should share pending creation for concurrent calls with the same key', async () => {
+      const key = makeSessionKey();
+      let resolveFindOrCreate: ((value: Awaited<ReturnType<SessionManagerDependencies['databaseManager']['sessions']['findOrCreate']>>) => void) | null = null;
+      (deps.databaseManager.sessions.findOrCreate as ReturnType<typeof vi.fn>).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveFindOrCreate = resolve;
+          }),
+      );
+
+      const first = manager.getOrCreateSession(key);
+      const second = manager.getOrCreateSession(key);
+
+      expect(deps.databaseManager.sessions.findOrCreate).toHaveBeenCalledTimes(1);
+      resolveFindOrCreate?.({
+        id: 'session-uuid',
+        channel: key.channel,
+        type: key.type,
+        chatId: key.chatId,
+        createdAt: null,
+        updatedAt: null,
+      });
+
+      const [session1, session2] = await Promise.all([first, second]);
+
+      expect(session1).toBe(session2);
+      expect(deps.agentEngine.createAgent).toHaveBeenCalledTimes(1);
+    });
+
     it('should use role binding from DB if available', async () => {
       (
         deps.databaseManager.roleBindings.getActiveRole as ReturnType<typeof vi.fn>
@@ -283,6 +312,38 @@ describe('SessionManager', () => {
       expect(session1.sessionId).toBe('a:b|c|d');
       expect(session2.sessionId).toBe('a|b:c|d');
       expect(deps.databaseManager.sessions.findOrCreate).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('agent processing busy state', () => {
+    it('should reject a second begin for the same session key until released', () => {
+      const key = makeSessionKey();
+
+      expect(manager.isAgentProcessing(key)).toBe(false);
+      expect(manager.tryBeginAgentProcessing(key)).toBe(true);
+      expect(manager.isAgentProcessing(key)).toBe(true);
+      expect(manager.tryBeginAgentProcessing(key)).toBe(false);
+
+      manager.endAgentProcessing(key);
+
+      expect(manager.isAgentProcessing(key)).toBe(false);
+      expect(manager.tryBeginAgentProcessing(key)).toBe(true);
+    });
+
+    it('should isolate busy state by complete session key', () => {
+      const key = makeSessionKey();
+      const sameChannelDifferentChat = makeSessionKey({ chatId: 'user-456' });
+      const differentChannel = makeSessionKey({ channel: 'other-channel' });
+      const cronKey = makeSessionKey({ channel: 'cron', type: 'job', chatId: 'job-1' });
+
+      expect(manager.tryBeginAgentProcessing(key)).toBe(true);
+
+      expect(manager.isAgentProcessing(sameChannelDifferentChat)).toBe(false);
+      expect(manager.isAgentProcessing(differentChannel)).toBe(false);
+      expect(manager.isAgentProcessing(cronKey)).toBe(false);
+      expect(manager.tryBeginAgentProcessing(sameChannelDifferentChat)).toBe(true);
+      expect(manager.tryBeginAgentProcessing(differentChannel)).toBe(true);
+      expect(manager.tryBeginAgentProcessing(cronKey)).toBe(true);
     });
   });
 

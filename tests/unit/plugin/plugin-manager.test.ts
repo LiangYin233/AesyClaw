@@ -367,4 +367,30 @@ describe('PluginManager', () => {
     expect(manager.getLoaded('good')).toBeDefined();
     expect(manager.getLoaded('bad')).toBeUndefined();
   });
+
+  it('coalesces overlapping config reload requests into a follow-up reload pass', async () => {
+    const module = makeModule();
+    const { manager } = makeManager(module);
+    let releaseFirstUnload: (() => void) | null = null;
+    const unloadAll = vi
+      .spyOn(manager, 'unloadAll')
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseFirstUnload = resolve;
+          }),
+      )
+      .mockResolvedValue(undefined);
+    const loadAll = vi.spyOn(manager, 'loadAll').mockResolvedValue(undefined);
+
+    const firstReload = manager.handleConfigReload();
+    await Promise.resolve();
+    const secondReload = manager.handleConfigReload();
+    releaseFirstUnload?.();
+
+    await Promise.all([firstReload, secondReload]);
+
+    expect(unloadAll).toHaveBeenCalledTimes(2);
+    expect(loadAll).toHaveBeenCalledTimes(2);
+  });
 });

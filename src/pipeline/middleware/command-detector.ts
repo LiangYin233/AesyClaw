@@ -10,6 +10,10 @@
 import type { PipelineState } from './types';
 import type { CommandRegistry } from '../../command/command-registry';
 import type { CommandContext } from '../../core/types';
+import {
+  AGENT_PROCESSING_BUSY_MESSAGE,
+  type SessionManager,
+} from '../../agent/session-manager';
 
 /**
  * Detects slash commands and executes them via CommandRegistry.
@@ -24,19 +28,26 @@ import type { CommandContext } from '../../core/types';
 export async function commandDetector(
   state: PipelineState,
   commandRegistry: CommandRegistry,
+  sessionManager: Pick<SessionManager, 'isAgentProcessing'>,
 ): Promise<PipelineState> {
+  const resolved = commandRegistry.resolve(state.inbound.content);
+  const isBusy = sessionManager.isAgentProcessing(state.inbound.sessionKey);
+
+  if (isBusy && (!resolved || !resolved.command.allowDuringAgentProcessing)) {
+    state.outbound = { content: AGENT_PROCESSING_BUSY_MESSAGE };
+    return state;
+  }
+
+  if (!resolved) {
+    return state;
+  }
+
   const commandContext: CommandContext = {
     sessionKey: state.inbound.sessionKey,
   };
 
-  const result = await commandRegistry.execute(state.inbound.content, commandContext);
-  if (result !== null) {
-    state.outbound = { content: result };
+  const result = await commandRegistry.executeResolved(resolved, commandContext);
+  state.outbound = { content: result };
 
-    // Command handling is terminal — pipeline should skip remaining steps
-    return state;
-  }
-
-  // Not a command — continue to the next step
   return state;
 }

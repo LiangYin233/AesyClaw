@@ -229,6 +229,7 @@ interface CommandDefinition {
   namespace?: string;
   description: string;
   usage?: string;
+  allowDuringAgentProcessing?: boolean;
   scope: ToolOwner;
   execute: CommandExecuteFn;
 }

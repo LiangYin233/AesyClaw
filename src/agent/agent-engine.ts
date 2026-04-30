@@ -1,6 +1,7 @@
 import { Agent as PiAgent } from '@mariozechner/pi-agent-core';
+import { randomUUID } from 'node:crypto';
 import type { ConfigManager } from '../core/config/config-manager';
-import type { RoleConfig, InboundMessage, OutboundMessage } from '../core/types';
+import type { RoleConfig, InboundMessage, OutboundMessage, SessionKey } from '../core/types';
 import type { Agent } from './agent-types';
 import { extractMessageText } from './agent-types';
 import type { ToolRegistry, ToolExecutionContext } from '../tool/tool-registry';
@@ -22,6 +23,14 @@ export interface AgentEngineDependencies {
   skillManager: SkillManager;
   hookDispatcher: HookDispatcher;
   llmAdapter: LlmAdapter;
+}
+
+export interface ProcessEphemeralParams {
+  sessionKey: SessionKey;
+  sessionId: string;
+  memory: MemoryManager;
+  role: RoleConfig;
+  content: string;
 }
 
 export class AgentEngine {
@@ -153,6 +162,46 @@ export class AgentEngine {
           ? extractMessageText(lastMessage)
           : '[No response generated]',
     };
+  }
+
+  async processEphemeral(params: ProcessEphemeralParams): Promise<OutboundMessage> {
+    if (!this.initialized || !this.promptBuilder || !this.llmAdapter || !this.runPolicy) {
+      throw new Error('AgentEngine not initialized');
+    }
+
+    const { sessionKey, sessionId, memory, role, content } = params;
+    const history = await memory.loadHistory();
+    const ephemeralRole: RoleConfig = {
+      ...role,
+      toolPermission: { mode: 'allowlist', list: [] },
+    };
+    const agent = this.createAgent(ephemeralRole, `btw:${sessionId}:${randomUUID()}`, {
+      sessionKey,
+      toolPermission: ephemeralRole.toolPermission,
+    });
+    agent.state.messages = history;
+    agent.state.tools = [];
+
+    await this.runPolicy.prompt(agent, content);
+
+    const newMessages = agent.state.messages.slice(history.length);
+    const lastAssistant = [...newMessages]
+      .reverse()
+      .find(
+        (runtimeMessage) =>
+          runtimeMessage.role === 'assistant' &&
+          extractMessageText(runtimeMessage).trim().length > 0,
+      );
+
+    if (lastAssistant) {
+      return { content: extractMessageText(lastAssistant) };
+    }
+
+    logger.warn('Ephemeral agent produced no assistant text response', {
+      role: role.id,
+    });
+
+    return { content: '[No response generated]' };
   }
 
   switchModel(agent: Agent, modelIdentifier: string): void {

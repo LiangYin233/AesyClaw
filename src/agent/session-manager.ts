@@ -20,6 +20,7 @@ import type { LlmAdapter } from './llm-adapter';
 import { createScopedLogger } from '../core/logger';
 
 const logger = createScopedLogger('session');
+export const AGENT_PROCESSING_BUSY_MESSAGE = 'Agent处理任务中。';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -49,6 +50,8 @@ export interface SessionManagerDependencies {
 
 export class SessionManager {
   private sessions: Map<string, SessionContext> = new Map();
+  private pendingSessions: Map<string, Promise<SessionContext>> = new Map();
+  private agentProcessingSessions: Set<string> = new Set();
   private initialized = false;
   private deps: SessionManagerDependencies | null = null;
 
@@ -104,6 +107,27 @@ export class SessionManager {
     if (existing) {
       logger.debug('Session found in cache', { cacheKey });
       return existing;
+    }
+
+    const pending = this.pendingSessions.get(cacheKey);
+    if (pending) {
+      logger.debug('Session creation already in progress', { cacheKey });
+      return pending;
+    }
+
+    const creation = this.createSessionContext(key, cacheKey);
+    this.pendingSessions.set(cacheKey, creation);
+
+    try {
+      return await creation;
+    } finally {
+      this.pendingSessions.delete(cacheKey);
+    }
+  }
+
+  private async createSessionContext(key: SessionKey, cacheKey: string): Promise<SessionContext> {
+    if (!this.deps) {
+      throw new Error('SessionManager not initialized');
     }
 
     // Create or find DB session record
@@ -166,6 +190,24 @@ export class SessionManager {
   getSession(key: SessionKey): SessionContext | undefined {
     const cacheKey = this.computeKey(key);
     return this.sessions.get(cacheKey);
+  }
+
+  isAgentProcessing(key: SessionKey): boolean {
+    return this.agentProcessingSessions.has(this.computeKey(key));
+  }
+
+  tryBeginAgentProcessing(key: SessionKey): boolean {
+    const cacheKey = this.computeKey(key);
+    if (this.agentProcessingSessions.has(cacheKey)) {
+      return false;
+    }
+
+    this.agentProcessingSessions.add(cacheKey);
+    return true;
+  }
+
+  endAgentProcessing(key: SessionKey): void {
+    this.agentProcessingSessions.delete(this.computeKey(key));
   }
 
   /**

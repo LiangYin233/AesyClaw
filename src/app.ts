@@ -173,6 +173,7 @@ export class Application {
         roleManager: this.roleManager,
         pluginManager: this.getPluginManager(),
         sessionManager: this.sessionManager,
+        agentEngine: this.agentEngine,
       });
     });
 

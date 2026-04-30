@@ -376,6 +376,76 @@ describe('AgentEngine', () => {
     // maxSteps logic removed
   });
 
+  describe('processEphemeral', () => {
+    it('should answer from a persisted memory snapshot without saving or compacting history', async () => {
+      const role = makeRole();
+      const messageRepo = makeMockMessageRepo();
+      (messageRepo.loadHistory as ReturnType<typeof vi.fn>).mockResolvedValue([
+        { role: 'user', content: 'Earlier user', timestamp: '2025-01-01T00:00:00Z' },
+        { role: 'assistant', content: 'Earlier assistant', timestamp: '2025-01-01T00:00:01Z' },
+      ]);
+      const memory = new MemoryManager('test-session', messageRepo, {
+        maxContextTokens: 128000,
+        compressionThreshold: 0.8,
+      });
+
+      const sessionKey = makeInboundMessage().sessionKey;
+      const result = await engine.processEphemeral({
+        sessionKey,
+        sessionId: 'test-session',
+        memory,
+        role,
+        content: 'quick aside',
+      });
+
+      expect(result.content).toBe('Real response from pi runtime');
+      expect(messageRepo.loadHistory).toHaveBeenCalledTimes(1);
+      expect(messageRepo.save).not.toHaveBeenCalled();
+      expect(messageRepo.replaceWithSummary).not.toHaveBeenCalled();
+    });
+
+    it('should create an independent tool-disabled runtime using the current role model', async () => {
+      const tool = makeAgentTool('search');
+      const deps = makeMockDeps();
+      (deps.toolRegistry.resolveForRoleWithDefinitions as ReturnType<typeof vi.fn>).mockReturnValue({
+        tools: [],
+        agentTools: [tool],
+      });
+      const runtimeEngine = new AgentEngine();
+      runtimeEngine.initialize(deps);
+      const role = makeRole({ toolPermission: { mode: 'allowlist', list: ['search'] } });
+      const messageRepo = makeMockMessageRepo();
+      const memory = new MemoryManager('test-session', messageRepo, {
+        maxContextTokens: 128000,
+        compressionThreshold: 0.8,
+      });
+
+      const sessionKey = makeInboundMessage().sessionKey;
+      await runtimeEngine.processEphemeral({
+        sessionKey,
+        sessionId: 'test-session',
+        memory,
+        role,
+        content: 'quick aside',
+      });
+
+      expect(deps.toolRegistry.resolveForRoleWithDefinitions).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: role.id,
+          model: role.model,
+          toolPermission: { mode: 'allowlist', list: [] },
+        }),
+        deps.hookDispatcher,
+        {
+          sessionKey,
+          toolPermission: { mode: 'allowlist', list: [] },
+        },
+      );
+      expect(deps.llmAdapter.resolveModel).toHaveBeenLastCalledWith(role.model);
+      expect(messageRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
   describe('switchModel', () => {
     it('should update the agent model state', () => {
       const role = makeRole();

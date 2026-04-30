@@ -223,4 +223,29 @@ describe('McpManager', () => {
     await manager.disconnect('good');
     expect(toolRegistry.has(mcpToolName('good', 'echo'))).toBe(false);
   });
+
+  it('coalesces overlapping config reload requests into a follow-up reload pass', async () => {
+    const manager = new McpManager();
+    let releaseFirstDisconnect: (() => void) | null = null;
+    const disconnectAll = vi
+      .spyOn(manager, 'disconnectAll')
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseFirstDisconnect = resolve;
+          }),
+      )
+      .mockResolvedValue(undefined);
+    const connectAll = vi.spyOn(manager, 'connectAll').mockResolvedValue(undefined);
+
+    const firstReload = manager.handleConfigReload();
+    await Promise.resolve();
+    const secondReload = manager.handleConfigReload();
+    releaseFirstDisconnect?.();
+
+    await Promise.all([firstReload, secondReload]);
+
+    expect(disconnectAll).toHaveBeenCalledTimes(2);
+    expect(connectAll).toHaveBeenCalledTimes(2);
+  });
 });

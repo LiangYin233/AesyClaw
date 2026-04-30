@@ -29,6 +29,8 @@ export class PluginManager {
   private readonly failedPlugins = new Map<string, string>();
   private readonly pluginChannels = new Map<string, Set<string>>();
   private reloading = false;
+  private reloadPending = false;
+  private reloadPromise: Promise<void> | null = null;
 
   constructor(dependencies: PluginManagerDependencies) {
     this.configManager = dependencies.configManager;
@@ -239,17 +241,26 @@ export class PluginManager {
 
   async handleConfigReload(): Promise<void> {
     if (this.reloading) {
-      logger.debug('Plugin config reload already in progress — skipping');
-      return;
+      this.reloadPending = true;
+      logger.debug('Plugin config reload already in progress — queueing another pass');
+      return this.reloadPromise ?? Promise.resolve();
     }
 
     this.reloading = true;
-    try {
-      await this.unloadAll();
-      await this.loadAll();
-    } finally {
-      this.reloading = false;
-    }
+    this.reloadPromise = (async () => {
+      try {
+        do {
+          this.reloadPending = false;
+          await this.unloadAll();
+          await this.loadAll();
+        } while (this.reloadPending);
+      } finally {
+        this.reloading = false;
+        this.reloadPromise = null;
+      }
+    })();
+
+    return this.reloadPromise;
   }
 
   getLoaded(pluginName: string): LoadedPlugin | undefined {

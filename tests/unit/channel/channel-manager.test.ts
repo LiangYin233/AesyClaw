@@ -162,4 +162,29 @@ describe('ChannelManager', () => {
     expect(() => manager.register(second)).toThrow(/already registered/);
     expect(manager.has('duplicate')).toBe(true);
   });
+
+  it('coalesces overlapping config reload requests into a follow-up reload pass', async () => {
+    const manager = new ChannelManager();
+    let releaseFirstStop: (() => void) | null = null;
+    const stopAll = vi
+      .spyOn(manager, 'stopAll')
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseFirstStop = resolve;
+          }),
+      )
+      .mockResolvedValue(undefined);
+    const startAll = vi.spyOn(manager, 'startAll').mockResolvedValue(undefined);
+
+    const firstReload = manager.handleConfigReload();
+    await Promise.resolve();
+    const secondReload = manager.handleConfigReload();
+    releaseFirstStop?.();
+
+    await Promise.all([firstReload, secondReload]);
+
+    expect(stopAll).toHaveBeenCalledTimes(2);
+    expect(startAll).toHaveBeenCalledTimes(2);
+  });
 });

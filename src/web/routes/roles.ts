@@ -26,6 +26,9 @@ export function createRolesRouter(deps: WebUiManagerDependencies) {
     const id = c.req.param('id');
     try {
       const body = (await c.req.json()) as Partial<RoleConfig>;
+      if (body.id !== undefined && body.id !== id) {
+        return c.json({ ok: false, error: 'Role id in request body must match route id' }, 400);
+      }
       const model = body.model ?? deps.roleManager.getRole(id).model;
       const slashIdx = model.indexOf('/');
       if (slashIdx === -1) {
@@ -42,7 +45,7 @@ export function createRolesRouter(deps: WebUiManagerDependencies) {
         return c.json({ ok: false, error: `Model "${modelId}" not found in provider "${providerName}"` }, 400);
       }
       const existing = deps.roleManager.getRole(id);
-      const updated: RoleConfig = { ...existing, ...body };
+      const updated: RoleConfig = { ...existing, ...body, id };
       await deps.roleManager.saveRole(id, updated);
       return c.json({ ok: true, data: updated });
     } catch (err) {

@@ -197,6 +197,38 @@ describe('CommandRegistry', () => {
     });
   });
 
+  describe('resolve and executeResolved', () => {
+    it('should resolve regular command metadata', () => {
+      registry.register(makeCommand({ name: 'greet', allowDuringAgentProcessing: true }));
+
+      const resolved = registry.resolve('/greet hello');
+
+      expect(resolved?.key).toBe('greet');
+      expect(resolved?.commandName).toBe('greet');
+      expect(resolved?.args).toEqual(['hello']);
+      expect(resolved?.command.allowDuringAgentProcessing).toBe(true);
+    });
+
+    it('should resolve namespaced command metadata', () => {
+      registry.register(makeCommand({ name: 'list', namespace: 'role' }));
+
+      const resolved = registry.resolve('/role list all');
+
+      expect(resolved?.key).toBe('role:list');
+      expect(resolved?.commandName).toBe('role');
+      expect(resolved?.args).toEqual(['all']);
+      expect(resolved?.command.allowDuringAgentProcessing ?? false).toBe(false);
+    });
+
+    it('should execute a resolved command', async () => {
+      registry.register(makeCommand({ name: 'echo', execute: async (args) => args.join(' ') }));
+      const resolved = registry.resolve('/echo hello world');
+
+      expect(resolved).not.toBeNull();
+      await expect(registry.executeResolved(resolved!, makeContext())).resolves.toBe('hello world');
+    });
+  });
+
   // ─── isCommand ─────────────────────────────────────────────────────
 
   describe('isCommand', () => {

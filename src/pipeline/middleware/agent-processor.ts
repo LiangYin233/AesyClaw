@@ -8,7 +8,11 @@
 
 import type { PipelineState } from './types';
 import type { AgentEngine } from '../../agent/agent-engine';
-import type { SessionContext } from '../../agent/session-manager';
+import {
+  AGENT_PROCESSING_BUSY_MESSAGE,
+  type SessionContext,
+  type SessionManager,
+} from '../../agent/session-manager';
 import type { HookDispatcher } from '../hook-dispatcher';
 
 /**
@@ -21,6 +25,7 @@ export async function agentProcessor(
   state: PipelineState,
   agentEngine: AgentEngine,
   hookDispatcher: HookDispatcher,
+  sessionManager: Pick<SessionManager, 'tryBeginAgentProcessing' | 'endAgentProcessing'>,
 ): Promise<PipelineState> {
   const session: SessionContext | undefined = state.session;
 
@@ -30,32 +35,41 @@ export async function agentProcessor(
     return state;
   }
 
-  const beforeResult = await hookDispatcher.dispatchBeforeLLMRequest({
-    message: state.inbound,
-    session,
-    agent: session.agent,
-    role: session.activeRole,
-  });
-
-  if (beforeResult.action === 'block') {
-    state.blocked = true;
-    state.blockReason = beforeResult.reason ?? 'Blocked by beforeLLMRequest hook';
+  if (!sessionManager.tryBeginAgentProcessing(session.key)) {
+    state.outbound = { content: AGENT_PROCESSING_BUSY_MESSAGE };
     return state;
   }
 
-  if (beforeResult.action === 'respond') {
-    state.outbound = { content: beforeResult.content };
-    return state;
-  }
+  try {
+    const beforeResult = await hookDispatcher.dispatchBeforeLLMRequest({
+      message: state.inbound,
+      session,
+      agent: session.agent,
+      role: session.activeRole,
+    });
 
-  const outbound = await agentEngine.process(
-    session.agent,
-    state.inbound,
-    session.memory,
-    session.activeRole,
-    state.sendMessage,
-  );
-  state.outbound = outbound;
+    if (beforeResult.action === 'block') {
+      state.blocked = true;
+      state.blockReason = beforeResult.reason ?? 'Blocked by beforeLLMRequest hook';
+      return state;
+    }
+
+    if (beforeResult.action === 'respond') {
+      state.outbound = { content: beforeResult.content };
+      return state;
+    }
+
+    const outbound = await agentEngine.process(
+      session.agent,
+      state.inbound,
+      session.memory,
+      session.activeRole,
+      state.sendMessage,
+    );
+    state.outbound = outbound;
+  } finally {
+    sessionManager.endAgentProcessing(session.key);
+  }
 
   return state;
 }

@@ -12,6 +12,13 @@ import { createScopedLogger } from '../core/logger';
 
 const logger = createScopedLogger('command');
 
+export interface ResolvedCommand {
+  command: CommandDefinition;
+  args: string[];
+  commandName: string;
+  key: string;
+}
+
 /**
  * Central registry for all slash commands.
  *
@@ -92,18 +99,26 @@ export class CommandRegistry {
    * @returns Command output string, or null if not a valid command
    */
   async execute(input: string, context: CommandContext): Promise<string | null> {
-    const resolved = this.resolveCommand(input);
+    const resolved = this.resolve(input);
     if (!resolved) {
       return null;
     }
 
+    return this.executeResolved(resolved, context);
+  }
+
+  async executeResolved(resolved: ResolvedCommand, context: CommandContext): Promise<string> {
     try {
       return await resolved.command.execute(resolved.args, context);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.error(`Command "${resolved.commandName}" failed: ${message}`);
+      logger.error(`Command "${resolved.key}" failed: ${message}`);
       return `Error executing command: ${message}`;
     }
+  }
+
+  resolve(input: string): ResolvedCommand | null {
+    return this.resolveCommand(input);
   }
 
   /**
@@ -113,7 +128,7 @@ export class CommandRegistry {
    * in the registry. Does NOT execute the command.
    */
   isCommand(input: string): boolean {
-    return this.resolveCommand(input) !== null;
+    return this.resolve(input) !== null;
   }
 
   /** Get all registered commands. */
@@ -121,9 +136,7 @@ export class CommandRegistry {
     return [...this.commands.values()];
   }
 
-  private resolveCommand(
-    input: string,
-  ): { command: CommandDefinition; args: string[]; commandName: string } | null {
+  private resolveCommand(input: string): ResolvedCommand | null {
     const trimmed = input.trim();
     if (!trimmed.startsWith('/')) {
       return null;
@@ -139,14 +152,19 @@ export class CommandRegistry {
 
     const direct = this.commands.get(commandName);
     if (direct) {
-      return { command: direct, args, commandName };
+      return { command: direct, args, commandName, key: commandName };
     }
 
     if (args.length > 0) {
       const subcommandName = args[0].toLowerCase();
       const namespaced = this.commands.get(`${commandName}:${subcommandName}`);
       if (namespaced) {
-        return { command: namespaced, args: args.slice(1), commandName };
+        return {
+          command: namespaced,
+          args: args.slice(1),
+          commandName,
+          key: `${commandName}:${subcommandName}`,
+        };
       }
     }
 

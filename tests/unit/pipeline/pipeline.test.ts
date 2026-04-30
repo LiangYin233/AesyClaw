@@ -22,12 +22,19 @@ function makeInbound(content = 'hello'): InboundMessage {
   };
 }
 
+function makeInboundForKey(
+  sessionKey: InboundMessage['sessionKey'],
+  content = 'hello',
+): InboundMessage {
+  return { sessionKey, content };
+}
+
 /** Create pipeline deps with real CommandRegistry */
 async function createPipelineDeps() {
   // Mock SessionManager that returns a minimal session context
   const mockSessionManager = {
-    getOrCreateSession: vi.fn().mockResolvedValue({
-      key: { channel: 'test', type: 'private', chatId: 'user1' },
+    getOrCreateSession: vi.fn().mockImplementation(async (sessionKey: InboundMessage['sessionKey']) => ({
+      key: sessionKey,
       sessionId: 'test-session',
       activeRole: {
         id: 'default',
@@ -62,11 +69,14 @@ async function createPipelineDeps() {
         compact: vi.fn().mockResolvedValue(''),
         clear: vi.fn().mockResolvedValue(undefined),
       },
-    }),
+    })),
     getSession: vi.fn().mockReturnValue(undefined),
     clearSession: vi.fn().mockResolvedValue(undefined),
     compactSession: vi.fn().mockResolvedValue(''),
     switchRole: vi.fn().mockResolvedValue(undefined),
+    isAgentProcessing: vi.fn().mockReturnValue(false),
+    tryBeginAgentProcessing: vi.fn().mockReturnValue(true),
+    endAgentProcessing: vi.fn(),
   } as unknown as SessionManager;
 
   // Mock AgentEngine
@@ -194,6 +204,94 @@ describe('Pipeline', () => {
       pipeline.initialize(deps);
 
       await expect(pipeline.receiveWithSend(makeInbound(), vi.fn())).rejects.toThrow('agent boom');
+    });
+
+    it('should return busy for a concurrent ordinary message in the same session', async () => {
+      const deps = await createPipelineDeps();
+      const busyKeys = new Set<string>();
+      const keyOf = (key: InboundMessage['sessionKey']) => JSON.stringify([key.channel, key.type, key.chatId]);
+      (deps.sessionManager.isAgentProcessing as ReturnType<typeof vi.fn>).mockImplementation(
+        (key: InboundMessage['sessionKey']) => busyKeys.has(keyOf(key)),
+      );
+      (deps.sessionManager.tryBeginAgentProcessing as ReturnType<typeof vi.fn>).mockImplementation(
+        (key: InboundMessage['sessionKey']) => {
+          const cacheKey = keyOf(key);
+          if (busyKeys.has(cacheKey)) return false;
+          busyKeys.add(cacheKey);
+          return true;
+        },
+      );
+      (deps.sessionManager.endAgentProcessing as ReturnType<typeof vi.fn>).mockImplementation(
+        (key: InboundMessage['sessionKey']) => {
+          busyKeys.delete(keyOf(key));
+        },
+      );
+
+      let releaseProcess: (() => void) | undefined;
+      (deps.agentEngine.process as ReturnType<typeof vi.fn>).mockImplementation(
+        async () =>
+          new Promise((resolve) => {
+            releaseProcess = () => resolve({ content: 'Agent response' });
+          }),
+      );
+      pipeline.initialize(deps);
+
+      const firstSend = vi.fn();
+      const secondSend = vi.fn();
+      const first = pipeline.receiveWithSend(makeInbound('first'), firstSend);
+      await vi.waitFor(() => expect(deps.agentEngine.process).toHaveBeenCalledTimes(1));
+
+      await pipeline.receiveWithSend(makeInbound('second'), secondSend);
+
+      expect(deps.agentEngine.process).toHaveBeenCalledTimes(1);
+      expect(secondSend).toHaveBeenCalledWith({ content: 'Agent处理任务中。' });
+
+      releaseProcess?.();
+      await first;
+      expect(firstSend).toHaveBeenCalledWith({ content: 'Agent response' });
+    });
+
+    it('should allow later ordinary processing after the busy lock is released', async () => {
+      const deps = await createPipelineDeps();
+      pipeline.initialize(deps);
+
+      const send = vi.fn();
+      await pipeline.receiveWithSend(makeInbound('first'), send);
+      await pipeline.receiveWithSend(makeInbound('second'), send);
+
+      expect(deps.agentEngine.process).toHaveBeenCalledTimes(2);
+      expect(deps.sessionManager.endAgentProcessing).toHaveBeenCalledTimes(2);
+    });
+
+    it('should not block different session keys while one session is busy', async () => {
+      const deps = await createPipelineDeps();
+      const busyKey = { channel: 'test', type: 'private', chatId: 'user1' };
+      (deps.sessionManager.isAgentProcessing as ReturnType<typeof vi.fn>).mockImplementation(
+        (key: InboundMessage['sessionKey']) =>
+          key.channel === busyKey.channel && key.type === busyKey.type && key.chatId === busyKey.chatId,
+      );
+      pipeline.initialize(deps);
+
+      const differentChatSend = vi.fn();
+      const differentChannelSend = vi.fn();
+      const cronSend = vi.fn();
+      await pipeline.receiveWithSend(
+        makeInboundForKey({ channel: 'test', type: 'private', chatId: 'user2' }),
+        differentChatSend,
+      );
+      await pipeline.receiveWithSend(
+        makeInboundForKey({ channel: 'other', type: 'private', chatId: 'user1' }),
+        differentChannelSend,
+      );
+      await pipeline.receiveWithSend(
+        makeInboundForKey({ channel: 'cron', type: 'job', chatId: 'job1' }),
+        cronSend,
+      );
+
+      expect(deps.agentEngine.process).toHaveBeenCalledTimes(3);
+      expect(differentChatSend).toHaveBeenCalledWith({ content: 'Agent response' });
+      expect(differentChannelSend).toHaveBeenCalledWith({ content: 'Agent response' });
+      expect(cronSend).toHaveBeenCalledWith({ content: 'Agent response' });
     });
   });
 

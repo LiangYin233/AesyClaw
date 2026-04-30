@@ -107,11 +107,16 @@ export class Pipeline {
       // Wire sendMessage after session resolution so onSend hooks get the session key
       state.sendMessage = async (outbound: OutboundMessage): Promise<boolean> =>
         this.dispatchOnSendAndDeliver(outbound, send, state.session?.key);
-      state = await commandDetector(state, this.deps.commandRegistry);
+      state = await commandDetector(state, this.deps.commandRegistry, this.deps.sessionManager);
 
       // If commandDetector set an outbound, skip agent processing
       if (!state.outbound) {
-        state = await agentProcessor(state, this.deps.agentEngine, this.hookDispatcher);
+        state = await agentProcessor(
+          state,
+          this.deps.agentEngine,
+          this.hookDispatcher,
+          this.deps.sessionManager,
+        );
       }
 
       // 3. After processing: if state is blocked, stop

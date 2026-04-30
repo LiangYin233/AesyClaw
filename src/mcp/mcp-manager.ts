@@ -69,6 +69,8 @@ export class McpManager {
   private readonly failedServers = new Map<string, string>();
   private initialized = false;
   private reloading = false;
+  private reloadPending = false;
+  private reloadPromise: Promise<void> | null = null;
 
   initialize(dependencies: McpManagerDependencies): void {
     if (this.initialized) {
@@ -180,17 +182,26 @@ export class McpManager {
 
   async handleConfigReload(): Promise<void> {
     if (this.reloading) {
-      logger.debug('MCP config reload already in progress — skipping');
-      return;
+      this.reloadPending = true;
+      logger.debug('MCP config reload already in progress — queueing another pass');
+      return this.reloadPromise ?? Promise.resolve();
     }
 
     this.reloading = true;
-    try {
-      await this.disconnectAll();
-      await this.connectAll();
-    } finally {
-      this.reloading = false;
-    }
+    this.reloadPromise = (async () => {
+      try {
+        do {
+          this.reloadPending = false;
+          await this.disconnectAll();
+          await this.connectAll();
+        } while (this.reloadPending);
+      } finally {
+        this.reloading = false;
+        this.reloadPromise = null;
+      }
+    })();
+
+    return this.reloadPromise;
   }
 
   listServers(): McpServerStatus[] {

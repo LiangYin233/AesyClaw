@@ -21,6 +21,8 @@ export class ChannelManager {
   private readonly failedChannels = new Map<string, string>();
   private initialized = false;
   private reloading = false;
+  private reloadPending = false;
+  private reloadPromise: Promise<void> | null = null;
 
   initialize(dependencies: ChannelManagerDependencies): void {
     if (this.initialized) {
@@ -153,17 +155,26 @@ export class ChannelManager {
 
   async handleConfigReload(): Promise<void> {
     if (this.reloading) {
-      logger.debug('Channel config reload already in progress — skipping');
-      return;
+      this.reloadPending = true;
+      logger.debug('Channel config reload already in progress — queueing another pass');
+      return this.reloadPromise ?? Promise.resolve();
     }
 
     this.reloading = true;
-    try {
-      await this.stopAll();
-      await this.startAll();
-    } finally {
-      this.reloading = false;
-    }
+    this.reloadPromise = (async () => {
+      try {
+        do {
+          this.reloadPending = false;
+          await this.stopAll();
+          await this.startAll();
+        } while (this.reloadPending);
+      } finally {
+        this.reloading = false;
+        this.reloadPromise = null;
+      }
+    })();
+
+    return this.reloadPromise;
   }
 
   listChannels(): ChannelStatus[] {

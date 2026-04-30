@@ -14,25 +14,18 @@ export async function findOrCreateSession(
   db: DatabaseSync,
   key: SessionKey,
 ): Promise<SessionRecord> {
-  const existing = await findSessionByKey(db, key);
-  if (existing) {
-    return existing;
-  }
-
   const id = randomUUID();
 
   db.prepare(
-    'INSERT INTO sessions (id, channel, type, chat_id) VALUES (?, ?, ?, ?)',
+    'INSERT OR IGNORE INTO sessions (id, channel, type, chat_id) VALUES (?, ?, ?, ?)',
   ).run(id, key.channel, key.type, key.chatId);
 
-  return {
-    id,
-    channel: key.channel,
-    type: key.type,
-    chatId: key.chatId,
-    createdAt: null,
-    updatedAt: null,
-  };
+  const session = await findSessionByKey(db, key);
+  if (!session) {
+    throw new Error('Failed to find or create session');
+  }
+
+  return session;
 }
 
 /** Find a session by composite key. Returns null if not found. */

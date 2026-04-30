@@ -11,11 +11,13 @@ import type { CommandRegistry } from '../command-registry';
 import type { RoleCommandDeps } from './role-commands';
 import type { PluginCommandDeps } from './plugin-commands';
 import type { SessionManager } from '../../agent/session-manager';
+import type { AgentEngine } from '../../agent/agent-engine';
 import type { RoleManager } from '../../role/role-manager';
 import type { PluginManager } from '../../plugin/plugin-manager';
 import { createHelpCommand } from './help';
 import { createClearCommand } from './clear';
 import { createCompactCommand } from './compact';
+import { createBtwCommand } from './btw';
 import {
   createRoleListCommand,
   createRoleSwitchCommand,
@@ -29,8 +31,6 @@ import {
 
 /**
  * Dependencies for built-in commands.
- *
- * Dependencies for built-in commands.
  */
 export interface BuiltinCommandDependencies {
   roleManager: Pick<RoleManager, 'getEnabledRoles' | 'getRole'>;
@@ -39,6 +39,7 @@ export interface BuiltinCommandDependencies {
     SessionManager,
     'clearSession' | 'compactSession' | 'getOrCreateSession' | 'switchRole'
   >;
+  agentEngine: Pick<AgentEngine, 'processEphemeral'>;
 }
 
 /**
@@ -58,6 +59,12 @@ export function registerBuiltinCommands(
   const pluginDeps: PluginCommandDeps = { pluginManager: deps.pluginManager };
 
   registry.register(createHelpCommand(() => registry.getAll()));
+  registry.register(
+    createBtwCommand({
+      sessionManager: deps.sessionManager,
+      agentEngine: deps.agentEngine,
+    }),
+  );
   registry.register(createClearCommand({ sessionManager: deps.sessionManager }));
   registry.register(createCompactCommand({ sessionManager: deps.sessionManager }));
   registry.register(createRoleListCommand(roleDeps));
