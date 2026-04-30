@@ -1,16 +1,16 @@
 /**
- * UsageRepository — data access for the usage table.
+ * UsageRepository — usage 表的数据访问层。
  *
- * Stores per-call LLM usage data. API queries aggregate by model + date.
- * All functions return Promises for consistent async patterns.
+ * 存储每次 LLM 调用的用量数据。API 查询按模型 + 日期聚合。
+ * 所有函数均返回 Promise 以保持一致异步模式。
  */
 
 import type { DatabaseSync } from 'node:sqlite';
 import type { UsageRecord, UsageSummary } from '../../types';
 
-// ─── Row type helpers ─────────────────────────────────────────────
+// ─── 行类型辅助函数 ─────────────────────────────────────────────
 
-interface UsageRow {
+type UsageRow = {
   model: string;
   date: string;
   inputTokens: number;
@@ -44,9 +44,9 @@ function mapRow(row: UsageRow): UsageSummary {
   };
 }
 
-// ─── Public API ───────────────────────────────────────────────────
+// ─── 公共 API ───────────────────────────────────────────────────
 
-/** Insert a single usage record. Returns the generated row id. */
+/** 插入单条用量记录。返回生成的行 ID。 */
 export async function createUsageRecord(
   db: DatabaseSync,
   record: UsageRecord,
@@ -83,7 +83,7 @@ export async function createUsageRecord(
   return Number(result.lastInsertRowid);
 }
 
-/** Get aggregated usage stats grouped by model + date, with optional filters. */
+/** 获取按模型 + 日期分组的聚合用量统计，支持可选过滤条件。 */
 export async function getUsageStats(
   db: DatabaseSync,
   options?: { model?: string; from?: string; to?: string },
@@ -127,7 +127,7 @@ export async function getUsageStats(
   return rows.map(mapRow);
 }
 
-/** Get today's aggregated usage summary (Dashboard card). */
+/** 获取今日的聚合用量汇总（仪表板卡片用）。 */
 export async function getTodayUsageSummary(db: DatabaseSync): Promise<UsageSummary[]> {
   const rows = db
     .prepare(

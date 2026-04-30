@@ -1,17 +1,17 @@
 /**
- * Built-in plugin management commands.
+ * 内置插件管理命令。
  *
- * Subcommands:
- *   /plugin list    — List loaded plugins
- *   /plugin enable  — Enable a plugin
- *   /plugin disable — Disable a plugin
+ * 子命令：
+ *   /plugin list    — 列出已加载的插件
+ *   /plugin enable  — 启用插件
+ *   /plugin disable — 禁用插件
  *
  */
 
 import type { CommandDefinition, CommandContext } from '../../core/types';
 import type { PluginManager } from '../../plugin/plugin-manager';
 
-export interface PluginCommandDeps {
+export type PluginCommandDeps = {
   pluginManager: Pick<PluginManager, 'listPlugins' | 'enable' | 'disable'>;
 }
 
@@ -24,6 +24,12 @@ async function resolvePluginName(deps: PluginCommandDeps, rawName: string): Prom
   return plugin?.name ?? null;
 }
 
+/**
+ * 创建 plugin list 命令定义。
+ *
+ * @param deps - 包含 pluginManager 的依赖项
+ * @returns plugin list 命令的 CommandDefinition
+ */
 export function createPluginListCommand(deps: PluginCommandDeps): CommandDefinition {
   return {
     name: 'list',
@@ -48,6 +54,12 @@ export function createPluginListCommand(deps: PluginCommandDeps): CommandDefinit
   };
 }
 
+/**
+ * 创建 plugin enable 命令定义。
+ *
+ * @param deps - 包含 pluginManager 的依赖项
+ * @returns plugin enable 命令的 CommandDefinition
+ */
 export function createPluginEnableCommand(deps: PluginCommandDeps): CommandDefinition {
   return {
     name: 'enable',
@@ -57,7 +69,7 @@ export function createPluginEnableCommand(deps: PluginCommandDeps): CommandDefin
     scope: 'system',
     execute: async (args: string[], _context: CommandContext): Promise<string> => {
       if (args.length === 0) {
-        return 'Usage: /plugin enable <name>';
+        return '用法：/plugin enable <name>';
       }
 
       const pluginName = await resolvePluginName(deps, args[0]);
@@ -71,6 +83,12 @@ export function createPluginEnableCommand(deps: PluginCommandDeps): CommandDefin
   };
 }
 
+/**
+ * 创建 plugin disable 命令定义。
+ *
+ * @param deps - 包含 pluginManager 的依赖项
+ * @returns plugin disable 命令的 CommandDefinition
+ */
 export function createPluginDisableCommand(deps: PluginCommandDeps): CommandDefinition {
   return {
     name: 'disable',
@@ -80,7 +98,7 @@ export function createPluginDisableCommand(deps: PluginCommandDeps): CommandDefi
     scope: 'system',
     execute: async (args: string[], _context: CommandContext): Promise<string> => {
       if (args.length === 0) {
-        return 'Usage: /plugin disable <name>';
+        return '用法：/plugin disable <name>';
       }
 
       const pluginName = await resolvePluginName(deps, args[0]);

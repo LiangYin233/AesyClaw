@@ -1,18 +1,18 @@
-/** Channel interface definitions. */
+/** 频道接口定义。 */
 
 import type { InboundMessage, OutboundMessage, SendFn, SessionKey } from '../core/types';
 import type { Logger } from '../core/logger';
 import type { ConfigManager } from '../core/config/config-manager';
 import type { Pipeline } from '../pipeline/pipeline';
 
-export interface ChannelContext {
+export type ChannelContext = {
   name: string;
   config: Record<string, unknown>;
   receiveWithSend(message: InboundMessage, send: SendFn): Promise<void>;
   logger: Logger;
 }
 
-export interface ChannelPlugin {
+export type ChannelPlugin = {
   name: string;
   version: string;
   description?: string;
@@ -22,7 +22,7 @@ export interface ChannelPlugin {
   send?(sessionKey: SessionKey, message: OutboundMessage): Promise<void>;
 }
 
-export interface LoadedChannel {
+export type LoadedChannel = {
   definition: ChannelPlugin;
   config: Record<string, unknown>;
   loadedAt: Date;
@@ -30,7 +30,7 @@ export interface LoadedChannel {
 
 export type ChannelLifecycleState = 'loaded' | 'disabled' | 'unloaded' | 'failed';
 
-export interface ChannelStatus {
+export type ChannelStatus = {
   name: string;
   version?: string;
   description?: string;
@@ -39,31 +39,49 @@ export interface ChannelStatus {
   error?: string;
 }
 
-export interface ChannelManagerDependencies {
+export type ChannelManagerDependencies = {
   configManager: ConfigManager;
   pipeline: Pipeline;
   channels?: ChannelPlugin[];
 }
 
-export interface ChannelLoaderOptions {
+export type ChannelLoaderOptions = {
   extensionsDir?: string;
 }
 
-export interface ChannelModule {
+export type ChannelModule = {
   definition: ChannelPlugin;
   directory: string;
   directoryName: string;
   entryPath: string;
 }
 
+/**
+ * 检查值是否为普通对象（非 null、非数组）。
+ *
+ * @param value - 要检查的值
+ * @returns 如果是 Record<string, unknown> 则返回 true
+ */
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+/**
+ * 检查频道配置是否已启用。
+ *
+ * @param config - 频道配置对象
+ * @returns 如果 enabled 不为 false 则返回 true
+ */
 export function isChannelEnabled(config: Record<string, unknown> | undefined): boolean {
   return config?.enabled !== false;
 }
 
+/**
+ * 检查未知值是否符合 ChannelPlugin 结构。
+ *
+ * @param value - 要检查的值
+ * @returns 如果是有效的 ChannelPlugin 则返回 true
+ */
 export function isChannelPlugin(value: unknown): value is ChannelPlugin {
   if (!isRecord(value)) {
     return false;

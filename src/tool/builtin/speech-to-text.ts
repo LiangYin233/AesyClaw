@@ -1,7 +1,7 @@
 /**
- * Built-in speech_to_text tool.
+ * 内置 speech_to_text 工具。
  *
- * Transcribes audio from a URL or file path.
+ * 转录来自 URL 或文件路径的音频。
  *
  */
 
@@ -13,18 +13,24 @@ import type { ConfigManager } from '../../core/config/config-manager';
 import type { LlmAdapter } from '../../agent/llm-adapter';
 import { loadMediaSource } from './media-source';
 
-/** Parameter schema for speech_to_text */
+/** speech_to_text 的参数模式 */
 const SpeechToTextParamsSchema = Type.Object({
   source: Type.String({ description: '音频来源：URL 或本地文件路径' }),
 });
 
 type SpeechToTextParams = Static<typeof SpeechToTextParamsSchema>;
 
-export interface SpeechToTextDeps {
+export type SpeechToTextDeps = {
   configManager: Pick<ConfigManager, 'get'>;
   llmAdapter: Pick<LlmAdapter, 'transcribeAudio'>;
 }
 
+/**
+ * 创建 speech_to_text 工具定义。
+ *
+ * @param deps - 包含 configManager 和 llmAdapter 的依赖项
+ * @returns speech_to_text 工具的 AesyClawTool 定义
+ */
 export function createSpeechToTextTool(deps: SpeechToTextDeps): AesyClawTool {
   return {
     name: 'speech_to_text',
@@ -55,7 +61,7 @@ export function createSpeechToTextTool(deps: SpeechToTextDeps): AesyClawTool {
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         return {
-          content: `Speech-to-text failed: ${message}`,
+          content: `语音转文本失败: ${message}`,
           isError: true,
         };
       }

@@ -1,9 +1,9 @@
 /**
- * Role config TypeBox schema.
+ * 角色配置 TypeBox 模式。
  *
- * Role configuration files are JSON files stored in the `roles/` directory.
- * Validation uses TypeBox so we get both runtime checking and
- * TypeScript type inference via `Static<>`.
+ * 角色配置文件是存储在 `roles/` 目录中的 JSON 文件。
+ * 使用 TypeBox 进行验证，以便同时获得运行时检查和
+ * 通过 `Static<>` 进行的 TypeScript 类型推断。
  *
  */
 
@@ -11,7 +11,7 @@ import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
 
 /**
- * TypeBox schema for a single role configuration file.
+ * 单个角色配置文件的 TypeBox 模式。
  */
 export const RoleConfigSchema = Type.Object({
   id: Type.String({ description: 'Unique role identifier' }),
@@ -27,5 +27,5 @@ export const RoleConfigSchema = Type.Object({
   enabled: Type.Boolean({ default: true }),
 });
 
-/** Derived TypeScript type from the RoleConfigSchema */
+/** 从 RoleConfigSchema 派生的 TypeScript 类型 */
 export type RoleConfigSchemaType = Static<typeof RoleConfigSchema>;

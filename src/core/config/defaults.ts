@@ -2,10 +2,10 @@ import type { AppConfig } from './schema';
 import { DEFAULTS } from '../types';
 
 /**
- * Default application configuration.
+ * 默认应用配置。
  *
- * Used as the initial configuration when no config file exists
- * and as the baseline for hot-reload comparisons.
+ * 当配置文件不存在时用作初始配置，
+ * 并作为热重载比较的基线。
  */
 export const DEFAULT_CONFIG: AppConfig = {
   server: {

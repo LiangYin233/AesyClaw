@@ -29,12 +29,12 @@ export function buildMarkdownDocument(htmlContent: string, htmlTemplate: string)
 
 // ─── Playwright renderer ───────────────────────────────────────
 
-export interface Md2ImgHtmlRenderer {
+export type Md2ImgHtmlRenderer = {
   renderHtmlToPng(htmlDocument: string): Promise<Buffer>;
   destroy?(): Promise<void>;
 }
 
-interface PlaywrightMarkdownRendererOptions {
+type PlaywrightMarkdownRendererOptions = {
   launchBrowser?: () => Promise<Browser>;
 }
 
@@ -57,7 +57,7 @@ export class PlaywrightMarkdownRenderer implements Md2ImgHtmlRenderer {
       await root.waitFor({ state: 'visible' });
 
       await page.evaluate(async () => {
-        if ('fonts' in document && document.fonts) {
+        if ('fonts' in document && document.fonts !== undefined) {
           await document.fonts.ready;
           await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
         }
@@ -100,7 +100,7 @@ export async function convertMarkdownToImage(
   const html = marked.parse(markdown, { async: false }) as string;
   const htmlDocument = buildMarkdownDocument(html, htmlTemplate);
   const render = deps?.renderHtmlToPng ?? ((doc: string) => getRenderer().renderHtmlToPng(doc));
-  return render(htmlDocument);
+  return await render(htmlDocument);
 }
 
 // ─── Hook handler ───────────────────────────────────────────────
@@ -165,7 +165,7 @@ const plugin: PluginDefinition = {
   defaultConfig: { enabledChannels: ['*'] },
   hooks: {
     async onSend({ message, sessionKey }) {
-      return handleMd2ImgSend(
+      return await handleMd2ImgSend(
         { message, sessionKey },
         { htmlTemplate, logger: logger!, pluginConfig },
       );

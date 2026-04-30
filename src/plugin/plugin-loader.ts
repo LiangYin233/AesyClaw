@@ -1,4 +1,4 @@
-/** Dynamic plugin loader. */
+/** 动态插件加载器。 */
 
 import path from 'node:path';
 import { createScopedLogger } from '../core/logger';
@@ -20,12 +20,12 @@ export class PluginLoader {
   }
 
   async discover(): Promise<string[]> {
-    return discoverExtensionDirs({
+    return await discoverExtensionDirs({
       extensionsDir: this.extensionsDir,
       directoryPrefix: 'plugin_',
       logger,
-      unreadableMessage: 'Plugin extensions directory is not readable',
-      inspectFailureMessage: 'Failed to inspect plugin directory candidate',
+      unreadableMessage: '插件扩展目录不可读',
+      inspectFailureMessage: '检查插件目录候选失败',
       candidateField: 'pluginDir',
     });
   }
@@ -36,10 +36,10 @@ export class PluginLoader {
     const definition = extractDefinition(imported);
 
     if (!definition) {
-      throw new Error(`Plugin module "${entryPath}" does not export a valid PluginDefinition`);
+      throw new Error(`插件模块 "${entryPath}" 未导出有效的 PluginDefinition`);
     }
 
-    logger.debug('Loaded plugin module', { pluginDir, entryPath, pluginName: definition.name });
+    logger.debug('已加载插件模块', { pluginDir, entryPath, pluginName: definition.name });
     return {
       definition,
       directory: pluginDir,

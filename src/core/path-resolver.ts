@@ -2,11 +2,10 @@ import path from 'node:path';
 import { DIR_NAMES, FILE_NAMES } from './types';
 
 /**
- * Resolves project directory paths from a given root directory.
+ * 从给定的根目录解析项目目录路径。
  *
- * PathResolver is the first subsystem initialised at startup.
- * All file I/O throughout the application must use paths
- * provided by PathResolver — never hardcoded paths.
+ * PathResolver 是启动时第一个初始化的子系统。
+ * 整个应用中的文件 I/O 必须使用 PathResolver 提供的路径 —— 禁止硬编码路径。
  */
 export class PathResolver {
   private root: string = '';
@@ -23,8 +22,8 @@ export class PathResolver {
   private _extensionsDir: string = '';
 
   /**
-   * Resolve all paths from the given root directory.
-   * Must be called before any other subsystem initialisation.
+   * 从给定的根目录解析所有路径。
+   * 必须在任何其他子系统初始化之前调用。
    */
   resolve(root: string): void {
     this.root = root;

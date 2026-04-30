@@ -1,14 +1,14 @@
 /**
- * Custom error class for AesyClaw.
+ * AesyClaw 的自定义错误类。
  *
- * Startup failures cascade to shutdown; runtime failures are contained and logged.
- * See error-handling.md for the full strategy.
+ * 启动失败会级联到关闭；运行时失败被包含并记录。
+ * 完整策略请参阅 error-handling.md。
  */
 
-/** Error codes used to distinguish error types at catch sites */
+/** 用于在捕获点区分错误类型的错误码 */
 type AppErrorCode = 'CONFIG_VALIDATION' | 'PLUGIN_INIT' | 'CHANNEL_INIT' | 'MCP_CONNECTION';
 
-/** Single application error with a machine-readable code */
+/** 带机器可读代码的单一应用错误 */
 class AppError extends Error {
   public readonly code: AppErrorCode;
   public readonly details?: unknown;

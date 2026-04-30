@@ -21,7 +21,7 @@ export type RuntimeModel = Model<Api> & {
 export type ResolvedModel = RuntimeModel;
 export type { StreamFn };
 
-export interface AgentTool {
+export type AgentTool = {
   name: string;
   label: string;
   description: string;
@@ -30,54 +30,54 @@ export interface AgentTool {
   executionMode?: 'sequential' | 'parallel';
 }
 
-export interface AgentToolResult {
+export type AgentToolResult = {
   content: TextContent[];
   details: unknown;
   isError?: boolean;
   terminate?: boolean;
 }
 
-export interface AgentContext {
+export type AgentContext = {
   sessionKey: SessionKey;
 }
 
-export interface BeforeToolCallHookContext {
+export type BeforeToolCallHookContext = {
   toolName: string;
   params: unknown;
   sessionKey: SessionKey;
 }
 
-export interface AfterToolCallHookContext {
+export type AfterToolCallHookContext = {
   toolName: string;
   params: unknown;
   result: ToolExecutionResult;
   sessionKey: SessionKey;
 }
 
-export interface BeforeToolCallHookResult {
+export type BeforeToolCallHookResult = {
   block?: boolean;
   reason?: string;
   shortCircuit?: ToolExecutionResult;
 }
 
-export interface AfterToolCallHookResult {
+export type AfterToolCallHookResult = {
   override?: Partial<ToolExecutionResult>;
 }
 
-export interface SubAgentRoleParams {
+export type SubAgentRoleParams = {
   roleId: string;
   prompt: string;
   enableTools?: boolean;
 }
 
-export interface SubAgentTempParams {
+export type SubAgentTempParams = {
   systemPrompt: string;
   model?: string;
   prompt: string;
   enableTools?: boolean;
 }
 
-export interface MemoryConfig {
+export type MemoryConfig = {
   maxContextTokens: number;
   compressionThreshold: number;
 }
@@ -97,6 +97,13 @@ const ZERO_USAGE: Usage = {
   },
 };
 
+/**
+ * 创建一个用户消息。
+ *
+ * @param content - 消息文本内容
+ * @param timestamp - 可选时间戳，默认为当前时间
+ * @returns 用户角色的 AgentMessage
+ */
 export function createUserMessage(content: string, timestamp: number = Date.now()): AgentMessage {
   return {
     role: 'user',
@@ -105,6 +112,15 @@ export function createUserMessage(content: string, timestamp: number = Date.now(
   };
 }
 
+/**
+ * 创建一个持久化的助手消息。
+ *
+ * 用于从数据库加载历史记录时，将纯文本恢复为带零用量标记的助手消息。
+ *
+ * @param content - 助手回复的纯文本内容
+ * @param timestamp - 可选时间戳，默认为当前时间
+ * @returns 助手角色的 AgentMessage
+ */
 export function createPersistedAssistantMessage(
   content: string,
   timestamp: number = Date.now(),
@@ -121,6 +137,14 @@ export function createPersistedAssistantMessage(
   };
 }
 
+/**
+ * 从消息中提取纯文本内容。
+ *
+ * 支持 user（字符串或 TextContent 数组）和 assistant/toolResult（TextContent 数组）消息。
+ *
+ * @param message - 要提取文本的 AgentMessage
+ * @returns 拼接后的纯文本字符串
+ */
 export function extractMessageText(message: AgentMessage): string {
   if (message.role === 'user') {
     return typeof message.content === 'string'
@@ -141,6 +165,12 @@ export function extractMessageText(message: AgentMessage): string {
   return '';
 }
 
+/**
+ * 检查助手消息是否包含工具调用。
+ *
+ * @param message - 要检查的 AgentMessage
+ * @returns 如果消息包含 toolCall 内容则返回 true
+ */
 export function assistantHasToolCalls(message: AgentMessage): boolean {
   return (
     message.role === 'assistant' &&

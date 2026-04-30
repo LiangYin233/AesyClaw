@@ -1,8 +1,14 @@
-/** Cron API routes. */
+/** Cron API 路由。 */
 
 import { Hono } from 'hono';
 import type { WebUiManagerDependencies } from '../webui-manager';
 
+/**
+ * 创建定时任务 API 路由。
+ *
+ * @param deps - WebUiManager 的依赖项
+ * @returns Hono 路由器实例
+ */
 export function createCronRouter(deps: WebUiManagerDependencies) {
   const router = new Hono();
 

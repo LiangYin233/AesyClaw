@@ -1,7 +1,7 @@
 /**
- * Built-in run_sub_agent tool.
+ * 内置 run_sub_agent 工具。
  *
- * Runs a delegated sub-agent turn with a specified role ID and prompt.
+ * 使用指定的角色 ID 和提示运行委托子代理轮次。
  *
  */
 
@@ -11,7 +11,7 @@ import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '..
 import type { ToolOwner } from '../../core/types';
 import type { SubAgentSandbox } from '../../agent/sub-agent-sandbox';
 
-/** Parameter schema for run_sub_agent */
+/** run_sub_agent 的参数模式 */
 const RunSubAgentParamsSchema = Type.Object({
   roleId: Type.String({ description: '要使用的角色 ID' }),
   prompt: Type.String({ description: '子代理的输入提示' }),
@@ -20,10 +20,16 @@ const RunSubAgentParamsSchema = Type.Object({
 
 type RunSubAgentParams = Static<typeof RunSubAgentParamsSchema>;
 
-export interface RunSubAgentDeps {
+export type RunSubAgentDeps = {
   sandbox: Pick<SubAgentSandbox, 'runWithRole'>;
 }
 
+/**
+ * 创建 run_sub_agent 工具定义。
+ *
+ * @param deps - 包含 sandbox 的依赖项
+ * @returns run_sub_agent 工具的 AesyClawTool 定义
+ */
 export function createRunSubAgentTool(deps: RunSubAgentDeps): AesyClawTool {
   return {
     name: 'run_sub_agent',
@@ -49,7 +55,7 @@ export function createRunSubAgentTool(deps: RunSubAgentDeps): AesyClawTool {
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         return {
-          content: `Sub-agent execution failed: ${message}`,
+          content: `子代理执行失败: ${message}`,
           isError: true,
         };
       }

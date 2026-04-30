@@ -1,17 +1,23 @@
 /**
- * Built-in clear command.
+ * 内置 clear 命令。
  *
- * Clears session history.
+ * 清除会话历史。
  *
  */
 
 import type { CommandDefinition, CommandContext } from '../../core/types';
 import type { SessionManager } from '../../agent/session-manager';
 
-export interface ClearCommandDeps {
+export type ClearCommandDeps = {
   sessionManager: Pick<SessionManager, 'clearSession'>;
 }
 
+/**
+ * 创建 clear 命令定义。
+ *
+ * @param deps - 包含 sessionManager 的依赖项
+ * @returns clear 命令的 CommandDefinition
+ */
 export function createClearCommand(deps: ClearCommandDeps): CommandDefinition {
   return {
     name: 'clear',

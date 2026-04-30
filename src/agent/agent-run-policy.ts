@@ -4,7 +4,7 @@ import type { Agent, AgentMessage } from './agent-types';
 import type { LlmAdapter } from './llm-adapter';
 import type { MemoryManager } from './memory-manager';
 
-export interface AgentRunPolicyDependencies {
+export type AgentRunPolicyDependencies = {
   configManager: ConfigManager;
   llmAdapter: LlmAdapter;
 }

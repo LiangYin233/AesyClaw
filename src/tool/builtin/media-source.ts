@@ -1,14 +1,17 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-export interface LoadedMediaSource {
+/**
+ * 已加载媒体源的数据结构。
+ */
+export type LoadedMediaSource = {
   data: Uint8Array;
   base64: string;
   mimeType: string;
   fileName: string;
 }
 
-interface RawLoadedMediaSource {
+type RawLoadedMediaSource = {
   data: Uint8Array;
   mimeType?: string;
   fileName: string;
@@ -32,6 +35,14 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   '.flac': 'audio/flac',
 };
 
+/**
+ * 加载媒体源（URL 或本地文件路径）。
+ *
+ * @param source - 媒体来源：URL 或本地文件路径
+ * @param kind - 媒体类型：'image' 或 'audio'
+ * @returns 包含数据、base64、MIME 类型和文件名的 LoadedMediaSource
+ * @throws 如果无法确定 MIME 类型或类型不匹配则抛出错误
+ */
 export async function loadMediaSource(
   source: string,
   kind: 'image' | 'audio',
@@ -42,11 +53,11 @@ export async function loadMediaSource(
 
   const mimeType = loaded.mimeType ?? inferMimeType(loaded.fileName);
   if (!mimeType) {
-    throw new Error(`Could not determine MIME type for ${kind} source: ${source}`);
+    throw new Error(`无法确定 ${kind} 源的 MIME 类型: ${source}`);
   }
 
   if (!mimeType.startsWith(`${kind}/`)) {
-    throw new Error(`Expected an ${kind} source but got MIME type "${mimeType}"`);
+    throw new Error(`期望 ${kind} 源但得到 MIME 类型 "${mimeType}"`);
   }
 
   return {
@@ -60,7 +71,7 @@ export async function loadMediaSource(
 async function loadRemoteMediaSource(source: string): Promise<RawLoadedMediaSource> {
   const response = await fetch(source);
   if (!response.ok) {
-    throw new Error(`Failed to fetch media source (${response.status}): ${response.statusText}`);
+    throw new Error(`获取媒体源失败 (${response.status}): ${response.statusText}`);
   }
 
   const url = new URL(source);

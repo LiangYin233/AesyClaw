@@ -1,7 +1,7 @@
 /**
- * Built-in load_skill tool.
+ * 内置 load_skill 工具。
  *
- * Reads a text file from inside a loaded skill's dedicated directory.
+ * 从已加载技能的专用目录中读取文本文件。
  *
  */
 
@@ -23,12 +23,18 @@ const LoadSkillParamsSchema = Type.Object({
 
 type LoadSkillParams = Static<typeof LoadSkillParamsSchema>;
 
-export interface LoadSkillDeps {
+export type LoadSkillDeps = {
   skillManager: Pick<SkillManager, 'getSkill'>;
 }
 
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
 
+/**
+ * 创建 load_skill 工具定义。
+ *
+ * @param deps - 包含 skillManager 的依赖项
+ * @returns load_skill 工具的 AesyClawTool 定义
+ */
 export function createLoadSkillTool(deps: LoadSkillDeps): AesyClawTool {
   return {
     name: 'load_skill',
@@ -45,7 +51,7 @@ export function createLoadSkillTool(deps: LoadSkillDeps): AesyClawTool {
 
       if (!skill) {
         return errorResult(
-          `Skill "${skillName}" is not loaded.`,
+          `技能 "${skillName}" 未加载。`,
           'SKILL_NOT_FOUND',
           skillName,
           relativePath,
@@ -55,7 +61,7 @@ export function createLoadSkillTool(deps: LoadSkillDeps): AesyClawTool {
       const skillRoot = getDedicatedSkillRoot(skill);
       if (!skillRoot) {
         return errorResult(
-          `Skill "${skillName}" has no dedicated directory context.`,
+          `技能 "${skillName}" 没有专用目录上下文。`,
           'SKILL_HAS_NO_DIRECTORY_CONTEXT',
           skillName,
           relativePath,
@@ -64,7 +70,7 @@ export function createLoadSkillTool(deps: LoadSkillDeps): AesyClawTool {
 
       if (path.isAbsolute(relativePath)) {
         return errorResult(
-          `Path "${relativePath}" must be relative to skill "${skillName}".`,
+          `路径 "${relativePath}" 必须相对于技能 "${skillName}"。`,
           'SKILL_PATH_TRAVERSAL_REJECTED',
           skillName,
           relativePath,
@@ -74,7 +80,7 @@ export function createLoadSkillTool(deps: LoadSkillDeps): AesyClawTool {
       const requestedPath = path.resolve(skillRoot, relativePath);
       if (!isPathInsideRoot(skillRoot, requestedPath)) {
         return errorResult(
-          `Path "${relativePath}" escapes skill "${skillName}" directory.`,
+          `路径 "${relativePath}" 逃逸出技能 "${skillName}" 目录。`,
           'SKILL_PATH_TRAVERSAL_REJECTED',
           skillName,
           relativePath,
@@ -87,7 +93,7 @@ export function createLoadSkillTool(deps: LoadSkillDeps): AesyClawTool {
       } catch (error: unknown) {
         if (isNodeError(error, 'ENOENT')) {
           return errorResult(
-            `File "${relativePath}" does not exist in skill "${skillName}".`,
+            `文件 "${relativePath}" 在技能 "${skillName}" 中不存在。`,
             'SKILL_FILE_NOT_FOUND',
             skillName,
             relativePath,
@@ -95,7 +101,7 @@ export function createLoadSkillTool(deps: LoadSkillDeps): AesyClawTool {
         }
 
         return errorResult(
-          `Could not access file "${relativePath}" in skill "${skillName}": ${getErrorMessage(error)}`,
+          `无法访问技能 "${skillName}" 中的文件 "${relativePath}": ${getErrorMessage(error)}`,
           'SKILL_FILE_UNREADABLE',
           skillName,
           relativePath,
@@ -104,7 +110,7 @@ export function createLoadSkillTool(deps: LoadSkillDeps): AesyClawTool {
 
       if (!stat.isFile()) {
         return errorResult(
-          `Path "${relativePath}" in skill "${skillName}" is not a file.`,
+          `技能 "${skillName}" 中的路径 "${relativePath}" 不是文件。`,
           'SKILL_FILE_UNREADABLE',
           skillName,
           relativePath,
@@ -117,7 +123,7 @@ export function createLoadSkillTool(deps: LoadSkillDeps): AesyClawTool {
 
         if (!isPathInsideRoot(realRoot, realPath)) {
           return errorResult(
-            `Path "${relativePath}" escapes skill "${skillName}" directory.`,
+            `路径 "${relativePath}" 逃逸出技能 "${skillName}" 目录。`,
             'SKILL_PATH_TRAVERSAL_REJECTED',
             skillName,
             relativePath,
@@ -130,7 +136,7 @@ export function createLoadSkillTool(deps: LoadSkillDeps): AesyClawTool {
       } catch (error: unknown) {
         if (error instanceof NonTextFileError) {
           return errorResult(
-            `File "${relativePath}" in skill "${skillName}" is not a readable UTF-8 text file.`,
+            `技能 "${skillName}" 中的文件 "${relativePath}" 不是可读的 UTF-8 文本文件。`,
             'SKILL_FILE_NOT_TEXT',
             skillName,
             relativePath,
@@ -138,7 +144,7 @@ export function createLoadSkillTool(deps: LoadSkillDeps): AesyClawTool {
         }
 
         return errorResult(
-          `Could not read file "${relativePath}" in skill "${skillName}": ${getErrorMessage(error)}`,
+          `无法读取技能 "${skillName}" 中的文件 "${relativePath}": ${getErrorMessage(error)}`,
           'SKILL_FILE_UNREADABLE',
           skillName,
           relativePath,
@@ -198,7 +204,7 @@ function isNodeError(error: unknown, code: string): error is NodeJS.ErrnoExcepti
 
 class NonTextFileError extends Error {
   constructor() {
-    super('Not a UTF-8 text file');
+    super('不是 UTF-8 文本文件');
     this.name = 'NonTextFileError';
   }
 }

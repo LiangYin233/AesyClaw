@@ -1,9 +1,9 @@
 /**
- * Barrel export for built-in tools.
+ * 内置工具的 Barrel 导出。
  *
- * `registerBuiltinTools()` registers all built-in tools with
- * the ToolRegistry. Dependencies are injected through the
- * BuiltinToolDependencies interface.
+ * `registerBuiltinTools()` 将所有内置工具注册到
+ * ToolRegistry。依赖通过
+ * BuiltinToolDependencies 接口注入。
  *
  */
 
@@ -25,11 +25,11 @@ import { createLoadSkillTool } from './load-skill';
 import { SubAgentSandbox } from '../../agent/sub-agent-sandbox';
 
 /**
- * Dependencies for built-in tools.
+ * 内置工具的依赖。
  *
- * Dependencies for the currently available built-in tools.
+ * 当前可用内置工具的依赖。
  */
-export interface BuiltinToolDependencies {
+export type BuiltinToolDependencies = {
   cronManager: Pick<CronManager, 'createJob' | 'listJobs' | 'deleteJob'>;
   agentEngine: Pick<AgentEngine, 'createAgent' | 'process'>;
   roleManager: Pick<RoleManager, 'getRole' | 'getDefaultRole'>;
@@ -39,10 +39,10 @@ export interface BuiltinToolDependencies {
 }
 
 /**
- * Register all built-in tools with the given registry.
+ * 向给定注册表注册所有内置工具。
  *
- * @param registry - The ToolRegistry to register tools into
- * @param deps - Dependencies required by the tool implementations
+ * @param registry - 要注册工具的 ToolRegistry
+ * @param deps - 工具实现所需的依赖
  */
 export function registerBuiltinTools(registry: ToolRegistry, deps: BuiltinToolDependencies): void {
   const cronDeps: CronToolsDeps = { cronManager: deps.cronManager };

@@ -1,4 +1,4 @@
-/** Cron scheduler — computes next run times and owns timer handles. */
+/** 定时任务调度器 — 计算下次运行时间并管理计时器句柄。 */
 
 import type { CronJobRecord } from '../core/types';
 import { createScopedLogger } from '../core/logger';
@@ -11,9 +11,18 @@ export type CronCallback = (job: CronJobRecord) => void | Promise<void>;
 
 const MAX_TIMEOUT_MS = 2_147_483_647;
 
+/**
+ * 定时任务调度器 — 计算下次运行时间并管理计时器句柄。
+ */
 export class CronScheduler {
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
 
+  /**
+   * 调度一个定时任务，在 nextRun 到达时执行 callback。
+   *
+   * @param job - 要调度的定时任务记录
+   * @param callback - 到达执行时间时调用的回调
+   */
   schedule(job: CronJobRecord, callback: CronCallback): void {
     this.cancel(job.id);
     if (!job.nextRun) {
@@ -22,7 +31,7 @@ export class CronScheduler {
 
     const nextRun = new Date(job.nextRun);
     if (Number.isNaN(nextRun.getTime())) {
-      logger.warn('Skipping cron job with invalid next_run', {
+      logger.warn('跳过 next_run 无效的定时任务', {
         jobId: job.id,
         nextRun: job.nextRun,
       });
@@ -40,9 +49,14 @@ export class CronScheduler {
     }, timeout);
 
     this.timers.set(job.id, timer);
-    logger.debug('Cron job scheduled', { jobId: job.id, nextRun: job.nextRun });
+    logger.debug('定时任务已调度', { jobId: job.id, nextRun: job.nextRun });
   }
 
+  /**
+   * 取消指定 ID 的定时任务计时器。
+   *
+   * @param jobId - 要取消的定时任务 ID
+   */
   cancel(jobId: string): void {
     const timer = this.timers.get(jobId);
     if (!timer) {
@@ -52,6 +66,7 @@ export class CronScheduler {
     this.timers.delete(jobId);
   }
 
+  /** 取消所有已调度的定时任务。 */
   clearAll(): void {
     for (const timer of this.timers.values()) {
       clearTimeout(timer);
@@ -59,11 +74,20 @@ export class CronScheduler {
     this.timers.clear();
   }
 
+  /** 获取当前已调度的任务数量。 */
   count(): number {
     return this.timers.size;
   }
 }
 
+/**
+ * 根据调度类型和值计算下次运行时间。
+ *
+ * @param scheduleType - 调度类型：'once' | 'daily' | 'interval'
+ * @param scheduleValue - 调度值（如 ISO 日期、'HH:MM'、'30m'）
+ * @param from - 计算基准时间，默认为当前时间
+ * @returns 下次运行的 Date，如果无效则返回 null
+ */
 export function computeNextRun(
   scheduleType: string,
   scheduleValue: string,

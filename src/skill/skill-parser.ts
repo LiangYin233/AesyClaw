@@ -1,13 +1,12 @@
 /**
- * SkillParser — Parses Markdown skill files with YAML frontmatter.
+ * SkillParser — 解析带有 YAML frontmatter 的 Markdown 技能文件。
  *
- * Uses the `front-matter` package to extract YAML frontmatter and
- * the Markdown body. The parser requires a `name` field in the
- * frontmatter and treats everything after the closing `---` as the
- * skill content.
+ * 使用 `front-matter` 包提取 YAML frontmatter 和
+ * Markdown 正文。解析器要求 frontmatter 中包含 `name` 字段，
+ * 并将结束符 `---` 之后的所有内容视为技能内容。
  *
- * Malformed files are handled gracefully: a warning is logged and
- * `null` is returned so the caller can skip them.
+ * 格式错误的文件会被优雅处理：记录警告并
+ * 返回 `null`，以便调用者跳过它们。
  */
 
 import fs from 'node:fs';
@@ -17,19 +16,19 @@ import type { Skill } from '../core/types';
 
 const logger = createScopedLogger('skill');
 
-/** Result of a successful skill file parse */
-export interface ParsedSkill {
+/** 成功解析技能文件的结果 */
+export type ParsedSkill = {
   name: string;
   description: string;
   content: string;
 }
 
 /**
- * Parse a Markdown skill file with YAML frontmatter.
+ * 解析带有 YAML frontmatter 的 Markdown 技能文件。
  *
- * @param filePath - Absolute path to the .md file
- * @param isSystem - Whether this is a system skill
- * @returns Parsed skill object, or `null` if the file is malformed
+ * @param filePath - .md 文件的绝对路径
+ * @param isSystem - 这是否为系统技能
+ * @returns 解析后的技能对象，如果文件格式错误则返回 `null`
  */
 export function parseSkillFile(filePath: string, isSystem: boolean): Skill | null {
   try {
@@ -37,7 +36,7 @@ export function parseSkillFile(filePath: string, isSystem: boolean): Skill | nul
     const parsed = parseSkillContent(raw);
 
     if (!parsed) {
-      logger.warn(`Skipping malformed skill file: ${filePath}`);
+      logger.warn(`跳过格式错误的技能文件: ${filePath}`);
       return null;
     }
 
@@ -49,16 +48,16 @@ export function parseSkillFile(filePath: string, isSystem: boolean): Skill | nul
       filePath,
     };
   } catch (err) {
-    logger.warn(`Failed to read skill file: ${filePath}`, err);
+    logger.warn(`读取技能文件失败: ${filePath}`, err);
     return null;
   }
 }
 
 /**
- * Parse raw Markdown content with YAML frontmatter using `front-matter`.
+ * 使用 `front-matter` 解析带有 YAML frontmatter 的原始 Markdown 内容。
  *
- * @param content - Raw file content
- * @returns Parsed data, or `null` if frontmatter is missing or invalid
+ * @param content - 原始文件内容
+ * @returns 解析后的数据，如果 frontmatter 缺失或无效则返回 `null`
  */
 export function parseSkillContent(content: string): ParsedSkill | null {
   if (!fm.test(content)) {

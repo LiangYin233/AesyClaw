@@ -2,11 +2,19 @@ import type { AgentEngine } from '../../agent/agent-engine';
 import type { SessionManager } from '../../agent/session-manager';
 import type { CommandContext, CommandDefinition } from '../../core/types';
 
-export interface BtwCommandDeps {
+export type BtwCommandDeps = {
   sessionManager: Pick<SessionManager, 'getOrCreateSession'>;
   agentEngine: Pick<AgentEngine, 'processEphemeral'>;
 }
 
+/**
+ * 创建 btw（by the way）命令定义。
+ *
+ * 在当前会话上下文中执行一次独立提问，不干扰主对话流。
+ *
+ * @param deps - 包含 sessionManager 和 agentEngine 的依赖项
+ * @returns btw 命令的 CommandDefinition
+ */
 export function createBtwCommand(deps: BtwCommandDeps): CommandDefinition {
   return {
     name: 'btw',

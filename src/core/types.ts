@@ -1,9 +1,9 @@
-/** Compatibility barrel for shared core types. */
+/** 共享核心类型的兼容导出桶。 */
 
 export const APP_NAME = 'AesyClaw';
 export const APP_VERSION = '0.1.0';
 
-/** Default directory names (relative to root) */
+/** 默认目录名（相对于根目录） */
 export const DIR_NAMES = {
   runtimeRoot: '.aesyclaw',
   data: 'data',
@@ -16,13 +16,13 @@ export const DIR_NAMES = {
   extensions: 'extensions',
 } as const;
 
-/** Default file names */
+/** 默认文件名 */
 export const FILE_NAMES = {
   config: 'config.json',
   database: 'aesyclaw.db',
 } as const;
 
-/** Default config values shared by runtime defaults and schema metadata */
+/** 运行时默认值和模式元数据共享的默认配置值 */
 export const DEFAULTS = {
   port: 3000,
   host: '0.0.0.0',

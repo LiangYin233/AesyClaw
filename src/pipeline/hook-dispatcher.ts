@@ -1,13 +1,13 @@
 /**
- * HookDispatcher — dispatches plugin hooks at pipeline lifecycle points.
+ * HookDispatcher — 在管道生命周期点调度插件钩子。
  *
- * Plugins register hooks (onReceive, onSend, beforeToolCall, afterToolCall,
- * beforeLLMRequest) which are called by the pipeline at the appropriate points.
+ * 插件注册钩子（onReceive、onSend、beforeToolCall、afterToolCall、
+ * beforeLLMRequest），由管道在适当的时机调用。
  *
- * Dispatch rules:
- * - Hooks are called in registration order
- * - If any hook returns a terminal result, dispatch stops and returns that result
- * - Otherwise returns the default continue result
+ * 调度规则：
+ * - 钩子按注册顺序调用
+ * - 如果任何钩子返回终止结果，调度停止并返回该结果
+ * - 否则返回默认的继续结果
  */
 
 import type { InboundMessage, PipelineResult } from '../core/types';
@@ -24,19 +24,19 @@ import { createScopedLogger } from '../core/logger';
 const logger = createScopedLogger('hook');
 
 /**
- * Entry tracking a plugin's registered hooks.
+ * 追踪插件已注册钩子的条目。
  */
-interface HookEntry {
+type HookEntry = {
   pluginName: string;
   hooks: PluginHooks;
 }
 
 /**
- * Dispatch helper — iterates registered hooks and calls `extract` to get
- * the hook function (or undefined). The `check` function decides whether
- * a hook result is terminal (stops dispatch) or should continue to the next hook.
+ * 调度辅助函数 — 遍历已注册的钩子并调用 `extract` 获取
+ * 钩子函数（或 undefined）。`check` 函数决定
+ * 钩子结果是否为终止（停止调度）或应继续到下一个钩子。
  *
- * Returns the default value if no hook produced a terminal result.
+ * 如果没有钩子产生终止结果，则返回默认值。
  */
 async function dispatchHooks<T, D>(
   entries: HookEntry[],
@@ -55,70 +55,70 @@ async function dispatchHooks<T, D>(
         return result;
       }
     } catch (err) {
-      logger.error(`Hook error in plugin "${entry.pluginName}"`, err);
+      logger.error(`插件 "${entry.pluginName}" 中的钩子错误`, err);
     }
   }
 
   return defaultValue;
 }
 
-/** Check if a PipelineResult is terminal (block or respond) */
+/** 检查 PipelineResult 是否为终止（block 或 respond） */
 function isPipelineResultTerminal(result: PipelineResult): boolean {
   return result.action !== 'continue';
 }
 
-/** Default PipelineResult */
+/** 默认 PipelineResult */
 const CONTINUE_RESULT: PipelineResult = { action: 'continue' };
 
-/** Default before tool call result */
+/** 默认工具调用前结果 */
 const EMPTY_BEFORE_TOOL: BeforeToolCallHookResult = {};
 
-/** Default after tool call result */
+/** 默认工具调用后结果 */
 const EMPTY_AFTER_TOOL: AfterToolCallHookResult = {};
 
 /**
- * Full HookDispatcher implementation.
+ * 完整的 HookDispatcher 实现。
  */
 export class HookDispatcher {
   private entries: HookEntry[] = [];
 
-  // ─── Registration ───────────────────────────────────────────────
+  // ─── 注册 ───────────────────────────────────────────────
 
   /**
-   * Register a plugin's hooks.
+   * 注册插件的钩子。
    *
-   * @param pluginName - Unique plugin identifier (for unregister)
-   * @param hooks - Object containing the hook functions the plugin provides
+   * @param pluginName - 唯一插件标识符（用于注销）
+   * @param hooks - 包含插件提供的钩子函数的对象
    */
   register(pluginName: string, hooks: PluginHooks): void {
-    // Prevent duplicate registration
+    // 防止重复注册
     const existing = this.entries.find((e) => e.pluginName === pluginName);
     if (existing) {
-      logger.warn(`Plugin "${pluginName}" already has hooks registered — replacing`);
+      logger.warn(`插件 "${pluginName}" 已注册钩子 — 正在替换`);
       existing.hooks = hooks;
       return;
     }
     this.entries.push({ pluginName, hooks });
-    logger.debug(`Registered hooks for plugin: ${pluginName}`);
+    logger.debug(`已注册插件钩子: ${pluginName}`);
   }
 
   /**
-   * Unregister a plugin's hooks.
+   * 注销插件的钩子。
    *
-   * No-op if the plugin has no registered hooks.
+   * 如果插件没有已注册的钩子，则为空操作。
    */
   unregister(pluginName: string): void {
     const before = this.entries.length;
     this.entries = this.entries.filter((e) => e.pluginName !== pluginName);
     if (this.entries.length < before) {
-      logger.debug(`Unregistered hooks for plugin: ${pluginName}`);
+      logger.debug(`已注销插件钩子: ${pluginName}`);
     }
   }
 
-  // ─── Dispatch methods ───────────────────────────────────────────
+  // ─── 调度方法 ───────────────────────────────────────────
 
   async dispatchOnReceive(message: InboundMessage): Promise<PipelineResult> {
-    return dispatchHooks(
+    return await dispatchHooks(
       this.entries,
       (hooks) => hooks.onReceive,
       isPipelineResultTerminal,
@@ -128,7 +128,7 @@ export class HookDispatcher {
   }
 
   async dispatchOnSend(context: OnSendContext): Promise<PipelineResult> {
-    return dispatchHooks(
+    return await dispatchHooks(
       this.entries,
       (hooks) => hooks.onSend,
       isPipelineResultTerminal,
@@ -140,7 +140,7 @@ export class HookDispatcher {
   async dispatchBeforeToolCall(
     context: BeforeToolCallHookContext,
   ): Promise<BeforeToolCallHookResult> {
-    return dispatchHooks(
+    return await dispatchHooks(
       this.entries,
       (hooks) => hooks.beforeToolCall,
       (result) => result.block === true || result.shortCircuit !== undefined,
@@ -150,7 +150,7 @@ export class HookDispatcher {
   }
 
   async dispatchAfterToolCall(context: AfterToolCallHookContext): Promise<AfterToolCallHookResult> {
-    return dispatchHooks(
+    return await dispatchHooks(
       this.entries,
       (hooks) => hooks.afterToolCall,
       (result) => result.override !== undefined,
@@ -160,7 +160,7 @@ export class HookDispatcher {
   }
 
   async dispatchBeforeLLMRequest(context: unknown): Promise<PipelineResult> {
-    return dispatchHooks(
+    return await dispatchHooks(
       this.entries,
       (hooks) => hooks.beforeLLMRequest,
       isPipelineResultTerminal,

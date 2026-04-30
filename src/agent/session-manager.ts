@@ -1,11 +1,11 @@
 /**
- * SessionManager — manages session contexts for active conversations.
+ * SessionManager — 管理活跃会话的会话上下文。
  *
- * Each unique SessionKey maps to a SessionContext containing:
- * - A DatabaseManager-backed session record
- * - An active RoleConfig
- * - An Agent instance
- * - A MemoryManager for conversation history
+ * 每个唯一的 SessionKey 映射到一个包含以下内容的 SessionContext：
+ * - 基于 DatabaseManager 的会话记录
+ * - 活跃的 RoleConfig
+ * - Agent 实例
+ * - 用于对话历史的 MemoryManager
  *
  */
 
@@ -22,12 +22,12 @@ import { createScopedLogger } from '../core/logger';
 const logger = createScopedLogger('session');
 export const AGENT_PROCESSING_BUSY_MESSAGE = 'Agent处理任务中。';
 
-// ─── Types ──────────────────────────────────────────────────────
+// ─── 类型 ──────────────────────────────────────────────────────
 
 /**
- * Session context containing all state for an active session.
+ * 包含活跃会话所有状态的会话上下文。
  */
-export interface SessionContext {
+export type SessionContext = {
   key: SessionKey;
   sessionId: string;
   activeRole: RoleConfig;
@@ -36,9 +36,9 @@ export interface SessionContext {
 }
 
 /**
- * Dependencies injected into SessionManager on initialization.
+ * 初始化时注入 SessionManager 的依赖。
  */
-export interface SessionManagerDependencies {
+export type SessionManagerDependencies = {
   databaseManager: DatabaseManager;
   roleManager: RoleManager;
   agentEngine: AgentEngine;
@@ -55,64 +55,64 @@ export class SessionManager {
   private initialized = false;
   private deps: SessionManagerDependencies | null = null;
 
-  // ─── Lifecycle ────────────────────────────────────────────────
+  // ─── 生命周期 ────────────────────────────────────────────────
 
   /**
-   * Initialize the session manager with its dependencies.
+   * 使用依赖初始化会话管理器。
    */
   initialize(deps: SessionManagerDependencies): void {
     if (this.initialized) {
-      logger.warn('SessionManager already initialized — skipping');
+      logger.warn('SessionManager 已初始化 — 跳过');
       return;
     }
     this.deps = deps;
     this.initialized = true;
-    logger.info('SessionManager initialized');
+    logger.info('SessionManager 已初始化');
   }
 
-  // ─── Session resolution ───────────────────────────────────────
+  // ─── 会话解析 ───────────────────────────────────────
 
   /**
-   * Compute a cache key string from a SessionKey.
+   * 从 SessionKey 计算缓存键字符串。
    *
-   * Encodes each component separately so delimiters inside values cannot collide.
+   * 分别编码每个组件，使值内的分隔符不会冲突。
    */
   private computeKey(key: SessionKey): string {
     return JSON.stringify([key.channel, key.type, key.chatId]);
   }
 
   /**
-   * Get or create a session context for the given SessionKey.
+   * 获取或创建给定 SessionKey 的会话上下文。
    *
-   * If a session already exists in the Map, return it.
-   * Otherwise:
-   *   1. Create or find a DB session record via SessionRepository.findOrCreate
-   *   2. Load the active role (from role binding or default)
-   *   3. Create a MemoryManager for the session
-   *   4. Create an Agent via AgentEngine
-   *   5. Store in the sessions Map and return
+   * 如果 Map 中已存在会话，则返回它。
+   * 否则：
+   *   1. 通过 SessionRepository.findOrCreate 创建或查找数据库会话记录
+   *   2. 加载活跃角色（从角色绑定或默认）
+   *   3. 为会话创建 MemoryManager
+   *   4. 通过 AgentEngine 创建 Agent
+   *   5. 存储到 sessions Map 并返回
    *
-   * @param key - The session key identifying the conversation
-   * @returns The session context
+   * @param key - 标识对话的会话键
+   * @returns 会话上下文
    */
   async getOrCreateSession(key: SessionKey): Promise<SessionContext> {
     if (!this.deps) {
-      throw new Error('SessionManager not initialized');
+      throw new Error('SessionManager 未初始化');
     }
 
     const cacheKey = this.computeKey(key);
 
-    // Check for existing session
+    // 检查现有会话
     const existing = this.sessions.get(cacheKey);
     if (existing) {
-      logger.debug('Session found in cache', { cacheKey });
+      logger.debug('在缓存中找到会话', { cacheKey });
       return existing;
     }
 
     const pending = this.pendingSessions.get(cacheKey);
     if (pending) {
-      logger.debug('Session creation already in progress', { cacheKey });
-      return pending;
+      logger.debug('会话创建已在进行中', { cacheKey });
+      return await pending;
     }
 
     const creation = this.createSessionContext(key, cacheKey);
@@ -127,14 +127,14 @@ export class SessionManager {
 
   private async createSessionContext(key: SessionKey, cacheKey: string): Promise<SessionContext> {
     if (!this.deps) {
-      throw new Error('SessionManager not initialized');
+      throw new Error('SessionManager 未初始化');
     }
 
-    // Create or find DB session record
+    // 创建或查找数据库会话记录
     const sessionRecord = await this.deps.databaseManager.sessions.findOrCreate(key);
     const sessionId = sessionRecord.id;
 
-    // Load active role (from binding or default)
+    // 加载活跃角色（从绑定或默认）
     const roleId = await this.deps.databaseManager.roleBindings.getActiveRole(sessionId);
     let activeRole: RoleConfig;
 
@@ -144,17 +144,17 @@ export class SessionManager {
       activeRole = this.deps.roleManager.getDefaultRole();
     }
 
-    // Resolve the model to derive memory config from its context window
+    // 解析模型以从其上下文窗口推导内存配置
     const resolvedModel = this.deps.llmAdapter.resolveModel(activeRole.model);
 
-    // Get memory config (compressionThreshold from config, maxContextTokens from model)
+    // 获取内存配置（compressionThreshold 来自配置，maxContextTokens 来自模型）
     const config = this.deps.configManager.getConfig();
     const memoryConfig = {
       maxContextTokens: resolvedModel.contextWindow,
       compressionThreshold: config.agent.memory.compressionThreshold,
     };
 
-    // Create MemoryManager
+    // 创建 MemoryManager
     const memory = new MemoryManager(
       sessionId,
       this.deps.databaseManager.messages,
@@ -162,12 +162,12 @@ export class SessionManager {
       this.deps.databaseManager.usage,
     );
 
-    // Create Agent
+    // 创建 Agent
     const agent = this.deps.agentEngine.createAgent(activeRole, sessionId, {
       sessionKey: key,
     });
 
-    // Build and store session context
+    // 构建并存储会话上下文
     const context: SessionContext = {
       key,
       sessionId,
@@ -177,15 +177,15 @@ export class SessionManager {
     };
 
     this.sessions.set(cacheKey, context);
-    logger.info('Session created', { cacheKey, roleId: activeRole.id });
+    logger.info('会话已创建', { cacheKey, roleId: activeRole.id });
 
     return context;
   }
 
   /**
-   * Get an existing session context, or undefined if not found.
+   * 获取现有会话上下文，如果未找到则返回 undefined。
    *
-   * @param key - The session key to look up
+   * @param key - 要查找的会话键
    */
   getSession(key: SessionKey): SessionContext | undefined {
     const cacheKey = this.computeKey(key);
@@ -211,57 +211,56 @@ export class SessionManager {
   }
 
   /**
-   * Evict all in-memory session contexts without deleting persisted history.
+   * 逐出所有内存中的会话上下文，但不删除持久化的历史。
    *
-   * Used when role files are hot-reloaded so the next message recreates agents
-   * with current role prompts, models, tool permissions, and memory settings.
+   * 在角色文件热重载时使用，以便下一条消息使用当前角色提示词、模型、工具权限和内存设置重新创建 Agent。
    */
   clearCachedSessions(): void {
     const count = this.sessions.size;
     this.sessions.clear();
     if (count > 0) {
-      logger.info('Session cache cleared', { count });
+      logger.info('会话缓存已清除', { count });
     }
   }
 
-  // ─── Session operations ───────────────────────────────────────
+  // ─── 会话操作 ───────────────────────────────────────
 
   /**
-   * Clear a session's history and remove it from the active sessions.
+   * 清除会话历史并将其从活跃会话中移除。
    *
-   * - Clears the session's message history via MemoryManager
-   * - Removes the session from the cache Map
+   * - 通过 MemoryManager 清除会话的消息历史
+   * - 从缓存 Map 中移除会话
    *
-   * @param key - The session key to clear
+   * @param key - 要清除的会话键
    */
   async clearSession(key: SessionKey): Promise<void> {
     if (!this.deps) {
-      throw new Error('SessionManager not initialized');
+      throw new Error('SessionManager 未初始化');
     }
 
     const cacheKey = this.computeKey(key);
     const session = this.sessions.get(cacheKey);
 
     if (session) {
-      // Clear message history via MemoryManager
+      // 通过 MemoryManager 清除消息历史
       await session.memory.clear();
-      // Remove from cache
+      // 从缓存中移除
       this.sessions.delete(cacheKey);
-      logger.info('Session cleared', { cacheKey });
+      logger.info('会话已清除', { cacheKey });
     } else {
-      logger.debug('Session not found for clearing', { cacheKey });
+      logger.debug('未找到要清除的会话', { cacheKey });
     }
   }
 
   /**
-   * Reset a session to fresh history and the current default role.
+   * 将会话重置为全新历史和当前默认角色。
    *
-   * Unlike clearSession(), this always resolves the backing DB session so it
-   * can clear persisted history even if the session is not currently cached.
+   * 与 clearSession() 不同，这会始终解析后端数据库会话，因此
+   * 即使会话当前未被缓存，也可以清除持久化的历史。
    */
   async resetSession(key: SessionKey): Promise<void> {
     if (!this.deps) {
-      throw new Error('SessionManager not initialized');
+      throw new Error('SessionManager 未初始化');
     }
 
     const cacheKey = this.computeKey(key);
@@ -272,73 +271,73 @@ export class SessionManager {
     await this.deps.databaseManager.roleBindings.setActiveRole(sessionRecord.id, defaultRole.id);
 
     this.sessions.delete(cacheKey);
-    logger.info('Session reset', { cacheKey, roleId: defaultRole.id });
+    logger.info('会话已重置', { cacheKey, roleId: defaultRole.id });
   }
 
   /**
-   * Compact a session's conversation history.
+   * 压缩会话的对话历史。
    *
-   * Delegates to MemoryManager.compact() which summarizes the
-   * conversation via the LLM and replaces it in the database.
+   * 委托给 MemoryManager.compact()，该方法通过
+   * LLM 总结对话并在数据库中替换它。
    *
-   * @param key - The session key to compact
-   * @returns The summary text
+   * @param key - 要压缩的会话键
+   * @returns 总结文本
    */
   async compactSession(key: SessionKey): Promise<string> {
     if (!this.deps) {
-      throw new Error('SessionManager not initialized');
+      throw new Error('SessionManager 未初始化');
     }
 
     const cacheKey = this.computeKey(key);
     const session = this.sessions.get(cacheKey);
 
     if (!session) {
-      throw new Error(`Session not found: ${cacheKey}`);
+      throw new Error(`未找到会话: ${cacheKey}`);
     }
 
     const summary = await session.memory.compact(this.deps.llmAdapter, session.activeRole.model);
-    logger.info('Session compacted', { cacheKey });
+    logger.info('会话已压缩', { cacheKey });
     return summary;
   }
 
   /**
-   * Switch the active role for a session.
+   * 切换会话的活跃角色。
    *
-   * - Get the new role from RoleManager
-   * - Update the role binding in the database
-   * - Create a new agent with the new role
-   * - Update the session context
+   * - 从 RoleManager 获取新角色
+   * - 更新数据库中的角色绑定
+   * - 使用新角色创建新 Agent
+   * - 更新会话上下文
    *
-   * @param key - The session key to switch role for
-   * @param roleId - The new role ID to switch to
+   * @param key - 要切换角色的会话键
+   * @param roleId - 要切换到的新角色 ID
    */
   async switchRole(key: SessionKey, roleId: string): Promise<void> {
     if (!this.deps) {
-      throw new Error('SessionManager not initialized');
+      throw new Error('SessionManager 未初始化');
     }
 
     const cacheKey = this.computeKey(key);
     const session = this.sessions.get(cacheKey);
 
     if (!session) {
-      throw new Error(`Session not found: ${cacheKey}`);
+      throw new Error(`未找到会话: ${cacheKey}`);
     }
 
-    // Get the new role config
+    // 获取新角色配置
     const newRole = this.deps.roleManager.getRole(roleId);
 
-    // Update role binding in database
+    // 更新数据库中的角色绑定
     await this.deps.databaseManager.roleBindings.setActiveRole(session.sessionId, newRole.id);
 
-    // Create a new agent with the new role
+    // 使用新角色创建新 Agent
     const newAgent = this.deps.agentEngine.createAgent(newRole, session.sessionId, {
       sessionKey: key,
     });
 
-    // Update session context
+    // 更新会话上下文
     session.activeRole = newRole;
     session.agent = newAgent;
 
-    logger.info('Session role switched', { cacheKey, roleId: newRole.id });
+    logger.info('会话角色已切换', { cacheKey, roleId: newRole.id });
   }
 }

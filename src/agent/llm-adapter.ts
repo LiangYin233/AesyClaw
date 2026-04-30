@@ -6,12 +6,12 @@ import { createScopedLogger } from '../core/logger';
 import { extractMessageText } from './agent-types';
 import type { ResolvedModel, StreamFn, AgentMessage } from './agent-types';
 
-export interface ImageAnalysisInput {
+export type ImageAnalysisInput = {
   data: string;
   mimeType: string;
 }
 
-export interface AudioTranscriptionInput {
+export type AudioTranscriptionInput = {
   data: Uint8Array;
   mimeType: string;
   fileName: string;
@@ -38,7 +38,7 @@ const API_TYPE_MAP = {
   anthropic: 'anthropic-messages',
 } as const satisfies Record<ProviderConfig['apiType'], Api>;
 
-export interface LlmAdapterDependencies {
+export type LlmAdapterDependencies = {
   configManager: ConfigManager;
 }
 
@@ -48,23 +48,23 @@ export class LlmAdapter {
 
   initialize(deps: LlmAdapterDependencies): void {
     if (this.initialized) {
-      logger.warn('LlmAdapter already initialized — skipping');
+      logger.warn('LlmAdapter 已初始化 — 跳过');
       return;
     }
     this.configManager = deps.configManager;
     this.initialized = true;
-    logger.info('LlmAdapter initialized');
+    logger.info('LlmAdapter 已初始化');
   }
 
   resolveModel(modelIdentifier: string): ResolvedModel {
     if (!this.configManager) {
-      throw new Error('LlmAdapter not initialized');
+      throw new Error('LlmAdapter 未初始化');
     }
 
     const slashIndex = modelIdentifier.indexOf('/');
     if (slashIndex === -1) {
       throw new Error(
-        `Invalid model identifier format: "${modelIdentifier}". Expected "provider/modelId".`,
+        `模型标识符格式无效: "${modelIdentifier}"。应为 "provider/modelId"。`,
       );
     }
 
@@ -73,13 +73,13 @@ export class LlmAdapter {
     const providers = this.configManager.get('providers');
     const providerConfig: ProviderConfig | undefined = providers[provider];
 
-    if (!providerConfig) {
+    if (providerConfig === undefined) {
       const configuredProviders = Object.keys(providers);
       const hint = configuredProviders.length
-        ? `Available providers: ${configuredProviders.join(', ')}`
-        : 'No providers are configured. Add a provider entry under config.json > providers.';
+        ? `可用提供者: ${configuredProviders.join(', ')}`
+        : '未配置任何提供者。请在 config.json > providers 下添加提供者条目。';
 
-      throw new Error(`Provider "${provider}" not found in config. ${hint}`);
+      throw new Error(`配置中未找到提供者 "${provider}"。${hint}`);
     }
 
     const preset = providerConfig.models?.[modelId];
@@ -89,7 +89,7 @@ export class LlmAdapter {
 
     if (!apiKey) {
       throw new Error(
-        `No API key configured for provider "${provider}". Add apiKey under config.json > providers.${provider}.`,
+        `未为提供者 "${provider}" 配置 API 密钥。请在 config.json > providers.${provider} 下添加 apiKey。`,
       );
     }
 
@@ -123,7 +123,7 @@ export class LlmAdapter {
       const runtimeModel = model as ResolvedModel;
       if (!runtimeModel.apiKey) {
         throw new Error(
-          `No API key configured for provider "${runtimeModel.provider}". Add apiKey under config.json > providers.${runtimeModel.provider}.`,
+          `未为提供者 "${runtimeModel.provider}" 配置 API 密钥。请在 config.json > providers.${runtimeModel.provider} 下添加 apiKey。`,
         );
       }
       return streamSimple(runtimeModel, context, {
@@ -136,7 +136,7 @@ export class LlmAdapter {
 
   createGetApiKey(): (provider: string) => string | undefined {
     if (!this.configManager) {
-      throw new Error('LlmAdapter not initialized');
+      throw new Error('LlmAdapter 未初始化');
     }
 
     const configManager = this.configManager;
@@ -156,7 +156,7 @@ export class LlmAdapter {
     const model = this.resolveModel(modelIdentifier);
     const prompt = this.buildSummaryPrompt(messages);
 
-    logger.debug('Summarizing conversation history', {
+    logger.debug('正在总结对话历史', {
       messageCount: messages.length,
       model: modelIdentifier,
       sessionId,
@@ -186,12 +186,12 @@ export class LlmAdapter {
       const summary = extractMessageText(response).trim();
 
       if (summary.length === 0) {
-        throw new Error('LLM returned an empty summary');
+        throw new Error('LLM 返回了空总结');
       }
 
       return summary;
     } catch (error: unknown) {
-      logger.error('Failed to summarize conversation history', error);
+      logger.error('总结对话历史失败', error);
       throw error;
     }
   }
@@ -205,7 +205,7 @@ export class LlmAdapter {
     const model = this.resolveModel(modelIdentifier);
 
     if (!model.input.includes('image')) {
-      throw new Error(`Configured model "${modelIdentifier}" does not support image input`);
+      throw new Error(`配置的模型 "${modelIdentifier}" 不支持图像输入`);
     }
 
     const response = await completeSimple(
@@ -231,7 +231,7 @@ export class LlmAdapter {
 
     const answer = extractMessageText(response).trim();
     if (answer.length === 0) {
-      throw new Error('LLM returned an empty image analysis response');
+      throw new Error('LLM 返回了空图像分析回复');
     }
 
     return answer;
@@ -245,11 +245,11 @@ export class LlmAdapter {
     const model = this.resolveModel(modelIdentifier);
 
     if (model.apiType !== 'openai-responses' && model.apiType !== 'openai-completions') {
-      throw new Error(`Speech-to-text is not supported for provider API type "${model.apiType}"`);
+      throw new Error(`提供者 API 类型 "${model.apiType}" 不支持语音转文本`);
     }
 
     if (!model.apiKey) {
-      throw new Error(`No API key configured for speech-to-text provider "${model.provider}"`);
+      throw new Error(`未为语音转文本提供者 "${model.provider}" 配置 API 密钥`);
     }
 
     const endpoint = new URL('audio/transcriptions', getProviderBaseUrl(model)).toString();
@@ -272,7 +272,7 @@ export class LlmAdapter {
     if (!response.ok) {
       const body = await response.text();
       throw new Error(
-        `Speech-to-text request failed (${response.status}): ${body || response.statusText}`,
+        `语音转文本请求失败 (${response.status}): ${body || response.statusText}`,
       );
     }
 
@@ -280,7 +280,7 @@ export class LlmAdapter {
     const text = typeof payload.text === 'string' ? payload.text.trim() : '';
 
     if (text.length === 0) {
-      throw new Error('Speech-to-text response did not include transcription text');
+      throw new Error('语音转文本响应未包含转录文本');
     }
 
     return text;
@@ -323,5 +323,5 @@ function getProviderBaseUrl(model: ResolvedModel): string {
     return 'https://api.openai.com/v1/';
   }
 
-  throw new Error(`No base URL configured for provider "${model.provider}"`);
+  throw new Error(`未为提供者 "${model.provider}" 配置 base URL`);
 }

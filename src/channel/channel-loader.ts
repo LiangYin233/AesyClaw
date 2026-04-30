@@ -1,4 +1,4 @@
-/** Dynamic channel extension loader. */
+/** 动态频道扩展加载器。 */
 
 import path from 'node:path';
 import { createScopedLogger } from '../core/logger';
@@ -12,34 +12,56 @@ import { isChannelPlugin, isRecord } from './channel-types';
 
 const logger = createScopedLogger('channel-loader');
 
+/**
+ * 动态频道扩展加载器。
+ *
+ * 负责发现和加载 `extensions/channel_*` 目录下的频道插件。
+ */
 export class ChannelLoader {
   private readonly extensionsDir: string;
 
+  /**
+   * 创建频道加载器实例。
+   *
+   * @param options - 加载器选项
+   */
   constructor(options: ChannelLoaderOptions = {}) {
     this.extensionsDir = options.extensionsDir ?? path.resolve(process.cwd(), 'extensions');
   }
 
+  /**
+   * 发现所有频道扩展目录。
+   *
+   * @returns 频道扩展目录的绝对路径数组
+   */
   async discover(): Promise<string[]> {
-    return discoverExtensionDirs({
+    return await discoverExtensionDirs({
       extensionsDir: this.extensionsDir,
       directoryPrefix: 'channel_',
       logger,
-      unreadableMessage: 'Channel extensions directory is not readable',
-      inspectFailureMessage: 'Failed to inspect channel directory candidate',
+      unreadableMessage: '频道扩展目录不可读',
+      inspectFailureMessage: '检查频道目录候选失败',
       candidateField: 'channelDir',
     });
   }
 
+  /**
+   * 加载指定目录的频道模块。
+   *
+   * @param channelDir - 频道扩展目录的绝对路径
+   * @returns 加载的频道模块
+   * @throws 如果模块未导出有效的 ChannelPlugin 则抛出错误
+   */
   async load(channelDir: string): Promise<ChannelModule> {
     const entryPath = await resolveExtensionEntry(channelDir, 'Channel');
     const imported = await importExtensionEntry(entryPath);
     const definition = extractDefinition(imported);
 
     if (!definition) {
-      throw new Error(`Channel module "${entryPath}" does not export a valid ChannelPlugin`);
+      throw new Error(`频道模块 "${entryPath}" 未导出有效的 ChannelPlugin`);
     }
 
-    logger.debug('Loaded channel module', { channelDir, entryPath, channelName: definition.name });
+    logger.debug('已加载频道模块', { channelDir, entryPath, channelName: definition.name });
     return {
       definition,
       directory: channelDir,

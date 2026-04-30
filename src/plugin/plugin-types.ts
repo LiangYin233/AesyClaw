@@ -1,8 +1,8 @@
 /**
- * Plugin interface definitions.
+ * 插件接口定义。
  *
- * Plugins are external modules under `extensions/plugin_*` that receive a
- * scoped context and can register tools, commands, and pipeline hooks.
+ * 插件是 `extensions/plugin_*` 下的外部模块，它们接收一个
+ * 有作用域的上下文，并可以注册工具、命令和管道钩子。
  */
 
 import type { CommandDefinition } from '../core/types';
@@ -20,7 +20,7 @@ import type { ConfigManager } from '../core/config/config-manager';
 
 export type PluginOwner = `plugin:${string}`;
 
-export interface PluginContext {
+export type PluginContext = {
   config: Record<string, unknown>;
   registerTool(tool: AesyClawTool): void;
   unregisterTool(name: string): void;
@@ -29,7 +29,7 @@ export interface PluginContext {
   logger: Logger;
 }
 
-export interface PluginDefinition {
+export type PluginDefinition = {
   name: string;
   version: string;
   description?: string;
@@ -39,7 +39,7 @@ export interface PluginDefinition {
   hooks?: PluginHooks;
 }
 
-export interface LoadedPlugin {
+export type LoadedPlugin = {
   definition: PluginDefinition;
   directory: string;
   directoryName: string;
@@ -50,7 +50,7 @@ export interface LoadedPlugin {
 
 export type PluginLifecycleState = 'loaded' | 'disabled' | 'unloaded' | 'failed';
 
-export interface PluginStatus {
+export type PluginStatus = {
   name: string;
   directoryName: string;
   version?: string;
@@ -61,18 +61,18 @@ export interface PluginStatus {
   error?: string;
 }
 
-export interface PluginModule {
+export type PluginModule = {
   definition: PluginDefinition;
   directory: string;
   directoryName: string;
   entryPath: string;
 }
 
-export interface PluginLoaderOptions {
+export type PluginLoaderOptions = {
   extensionsDir?: string;
 }
 
-export interface PluginManagerDependencies {
+export type PluginManagerDependencies = {
   configManager: ConfigManager;
   toolRegistry: ToolRegistry;
   commandRegistry: CommandRegistry;
@@ -81,7 +81,7 @@ export interface PluginManagerDependencies {
   pluginLoader?: PluginLoader;
 }
 
-export interface PluginConfigLookup {
+export type PluginConfigLookup = {
   entry?: Readonly<PluginConfigEntry>;
   enabled: boolean;
   options: Record<string, unknown>;
@@ -89,10 +89,22 @@ export interface PluginConfigLookup {
 
 export { type PluginHooks };
 
+/**
+ * 根据插件名称生成插件所有者标识符。
+ *
+ * @param pluginName - 插件名称
+ * @returns `plugin:${pluginName}` 格式的所有者标识
+ */
 export function pluginOwner(pluginName: string): PluginOwner {
   return `plugin:${pluginName}`;
 }
 
+/**
+ * 检查未知值是否符合 PluginDefinition 结构。
+ *
+ * @param value - 要检查的值
+ * @returns 如果是有效的 PluginDefinition 则返回 true
+ */
 export function isPluginDefinition(value: unknown): value is PluginDefinition {
   if (!isRecord(value)) {
     return false;
@@ -110,6 +122,12 @@ export function isPluginDefinition(value: unknown): value is PluginDefinition {
   );
 }
 
+/**
+ * 检查值是否为普通对象（非 null、非数组）。
+ *
+ * @param value - 要检查的值
+ * @returns 如果是 Record<string, unknown> 则返回 true
+ */
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }

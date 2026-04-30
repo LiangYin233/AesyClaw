@@ -1,9 +1,9 @@
 /**
- * Agent Processing — processes the inbound message through the AI agent.
+ * Agent 处理 — 通过 AI Agent 处理入站消息。
  *
- * Uses the SessionContext from the previous step (sessionResolver)
- * to process the inbound message via AgentEngine. The resulting outbound
- * message is placed on the pipeline state.
+ * 使用上一步（sessionResolver）的 SessionContext
+ * 通过 AgentEngine 处理入站消息。生成的出站
+ * 消息被放置到管道状态中。
  */
 
 import type { PipelineState } from './types';
@@ -16,10 +16,10 @@ import {
 import type { HookDispatcher } from '../hook-dispatcher';
 
 /**
- * Processes the inbound message through the AI agent.
+ * 通过 AI Agent 处理入站消息。
  *
- * Expects `state.session` to be a SessionContext (set by sessionResolver).
- * After processing, sets `state.outbound` with the agent's response.
+ * 期望 `state.session` 为 SessionContext（由 sessionResolver 设置）。
+ * 处理后，使用 Agent 的响应设置 `state.outbound`。
  */
 export async function agentProcessor(
   state: PipelineState,
@@ -30,8 +30,8 @@ export async function agentProcessor(
   const session: SessionContext | undefined = state.session;
 
   if (!session) {
-    // No session context — skip agent processing
-    state.outbound = { content: '[Error: No session context available]' };
+    // 无会话上下文 — 跳过 Agent 处理
+    state.outbound = { content: '[错误: 无可用会话上下文]' };
     return state;
   }
 

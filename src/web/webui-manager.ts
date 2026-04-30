@@ -1,4 +1,4 @@
-/** WebUiManager — HTTP server for the WebUI admin panel. */
+/** WebUiManager — WebUI 管理后台的 HTTP 服务器。 */
 
 import { serve } from '@hono/node-server';
 import { randomBytes } from 'node:crypto';
@@ -14,7 +14,7 @@ import { createApp } from './server';
 
 const logger = createScopedLogger('webui');
 
-export interface WebUiManagerDependencies {
+export type WebUiManagerDependencies = {
   configManager: ConfigManager;
   databaseManager: DatabaseManager;
   sessionManager: SessionManager;
@@ -31,7 +31,7 @@ export class WebUiManager {
 
   async initialize(deps: WebUiManagerDependencies): Promise<void> {
     if (this.app) {
-      logger.warn('WebUiManager already initialized');
+      logger.warn('WebUiManager 已初始化');
       return;
     }
 
@@ -39,11 +39,11 @@ export class WebUiManager {
     const config = deps.configManager.getConfig();
     const serverConfig = config.server;
 
-    // Auto-generate auth token if missing
+    // 如果缺少认证令牌则自动生成
     if (!serverConfig.authToken) {
       const token = this.generateToken();
       await deps.configManager.update({ server: { ...serverConfig, authToken: token } });
-      logger.info('Auto-generated WebUI auth token', {
+      logger.info('已自动生成 WebUI 认证令牌', {
         hint: `${token.slice(0, 4)}…${token.slice(-4)}`,
         configPath: 'server.authToken',
       });
@@ -56,7 +56,7 @@ export class WebUiManager {
       hostname: serverConfig.host,
     });
 
-    logger.info('WebUI server started', { host: serverConfig.host, port: serverConfig.port });
+    logger.info('WebUI 服务器已启动', { host: serverConfig.host, port: serverConfig.port });
   }
 
   async destroy(): Promise<void> {
@@ -64,7 +64,7 @@ export class WebUiManager {
       await new Promise<void>((resolve) => {
         this.server!.close((err) => {
           if (err && (err as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') {
-            logger.error('Failed to close WebUI server', err);
+            logger.error('关闭 WebUI 服务器失败', err);
           }
           resolve();
         });
@@ -73,7 +73,7 @@ export class WebUiManager {
     }
     this.app = null;
     this.deps = null;
-    logger.info('WebUI server stopped');
+    logger.info('WebUI 服务器已停止');
   }
 
   private generateToken(): string {

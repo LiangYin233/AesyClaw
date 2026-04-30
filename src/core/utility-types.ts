@@ -1,4 +1,4 @@
-/** Recursively make all properties optional */
+/** 递归地将所有属性设为可选 */
 export type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
 };

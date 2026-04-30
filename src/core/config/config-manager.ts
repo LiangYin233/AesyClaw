@@ -1,13 +1,13 @@
 /**
- * ConfigManager — loads, validates, hot-reloads, and notifies on configuration changes.
+ * ConfigManager — 加载、验证、热重载配置并在变更时通知。
  *
- * Key behaviours:
- * - Loads config from JSON file; creates default if missing
- * - TypeBox validation with fallback to defaults for missing fields
- * - `subscribe(key)` / `subscribeAll()` for change notifications
- * - `update(partial)` merges and persists; sets `selfUpdating` guard to prevent
- *   infinite reload loops from `fs.watch`
- * - `registerDefaults` / `syncDefaults` for subsystems to declare default values
+ * 关键行为：
+ * - 从 JSON 文件加载配置；缺失时创建默认配置
+ * - TypeBox 验证，缺失字段回退到默认值
+ * - `subscribe(key)` / `subscribeAll()` 用于变更通知
+ * - `update(partial)` 合并并持久化；设置 `selfUpdating` 守卫以防止
+ *   `fs.watch` 导致的无限重载循环
+ * - `registerDefaults` / `syncDefaults` 供子系统声明默认值
  */
 
 import fs from 'node:fs';
@@ -38,47 +38,47 @@ export class ConfigManager {
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly DEBOUNCE_MS = 300;
 
-  // ─── Lifecycle ────────────────────────────────────────────────
+  // ─── 生命周期 ────────────────────────────────────────────────
 
   /**
-   * Load configuration from the given path.
-   * If the file does not exist, creates it with default values.
+   * 从给定路径加载配置。
+   * 如果文件不存在，则使用默认值创建。
    */
   async load(configPath: string): Promise<void> {
     this.configPath = configPath;
 
     if (!fs.existsSync(configPath)) {
-      logger.info('Config file not found, creating with defaults', { path: configPath });
+      logger.info('未找到配置文件，正在使用默认值创建', { path: configPath });
       this.config = structuredClone(DEFAULT_CONFIG);
       await this.persistConfig();
     } else {
-      logger.info('Loading config', { path: configPath });
+      logger.info('正在加载配置', { path: configPath });
       const raw = fs.readFileSync(configPath, 'utf-8');
       this.config = this.parseAndValidate(raw);
     }
   }
 
-  // ─── Read ──────────────────────────────────────────────────────
+  // ─── 读取 ──────────────────────────────────────────────────────
 
-  /** Get a read-only snapshot of the entire config */
+  /** 获取整个配置的只读快照 */
   getConfig(): Readonly<AppConfig> {
     if (!this.config) {
-      throw new AppError('Config not loaded', 'CONFIG_VALIDATION');
+      throw new AppError('配置未加载', 'CONFIG_VALIDATION');
     }
     return this.config;
   }
 
-  /** Get a read-only snapshot of a specific config section */
+  /** 获取特定配置节的只读快照 */
   get<K extends keyof AppConfig>(key: K): Readonly<AppConfig[K]> {
     if (!this.config) {
-      throw new AppError('Config not loaded', 'CONFIG_VALIDATION');
+      throw new AppError('配置未加载', 'CONFIG_VALIDATION');
     }
     return this.config[key];
   }
 
-  // ─── Subscribe ─────────────────────────────────────────────────
+  // ─── 订阅 ─────────────────────────────────────────────────
 
-  /** Subscribe to changes on a specific config key */
+  /** 订阅特定配置键的变更 */
   subscribe<K extends keyof AppConfig>(
     key: K,
     listener: ConfigChangeListener<AppConfig[K]>,
@@ -90,7 +90,7 @@ export class ConfigManager {
     };
   }
 
-  /** Subscribe to any config change */
+  /** 订阅任意配置变更 */
   subscribeAll(listener: ConfigChangeListener<AppConfig>): Unsubscribe {
     const entry: ListenerEntry = { listener: listener as ConfigChangeListener<unknown> };
     this.listeners.push(entry);
@@ -99,19 +99,19 @@ export class ConfigManager {
     };
   }
 
-  // ─── Write ─────────────────────────────────────────────────────
+  // ─── 写入 ─────────────────────────────────────────────────────
 
   /**
-   * Merge a partial config into the current state and persist to disk.
-   * Sets the `selfUpdating` guard so the resulting file-write does not
-   * trigger a redundant reload cycle.
+   * 将部分配置合并到当前状态并持久化到磁盘。
+   * 设置 `selfUpdating` 守卫，使由此产生的文件写入不会
+   * 触发冗余的重载循环。
    */
   async update(
     partial: DeepPartial<AppConfig>,
     options: { replaceTopLevelKeys?: readonly (keyof AppConfig)[] } = {},
   ): Promise<void> {
     if (!this.config || !this.configPath) {
-      throw new AppError('Config not loaded', 'CONFIG_VALIDATION');
+      throw new AppError('配置未加载', 'CONFIG_VALIDATION');
     }
 
     const oldConfig = structuredClone(this.config);
@@ -131,12 +131,12 @@ export class ConfigManager {
 
     this.config = validatedConfig;
 
-    // Set guard before writing to disk
+    // 写入磁盘前设置守卫
     this.selfUpdating = true;
     try {
       await this.persistConfig();
     } finally {
-      // Clear guard after a short delay to let fs.watch events settle
+      // 短暂延迟后清除守卫，让 fs.watch 事件平息
       setTimeout(() => {
         this.selfUpdating = false;
       }, this.DEBOUNCE_MS + 50);
@@ -145,31 +145,30 @@ export class ConfigManager {
     this.notifyListeners(oldConfig);
   }
 
-  // ─── Defaults ──────────────────────────────────────────────────
+  // ─── 默认值 ──────────────────────────────────────────────────
 
   /**
-   * Register default values for a subsystem.
-   * These are synced into config via `syncDefaults()`.
+   * 为子系统注册默认值。
+   * 这些值通过 `syncDefaults()` 同步到配置中。
    */
   registerDefaults(key: string, defaults: Record<string, unknown>): void {
     this.registeredDefaults.set(key, defaults);
   }
 
   /**
-   * Merge all registered defaults into the current config and persist.
-   * Typically called at the end of startup after all subsystems have
-   * registered their defaults.
+   * 将所有已注册的默认值合并到当前配置并持久化。
+   * 通常在启动结束时调用，此时所有子系统都已注册其默认值。
    */
   async syncDefaults(): Promise<void> {
     if (!this.config || !this.configPath) {
-      throw new AppError('Config not loaded', 'CONFIG_VALIDATION');
+      throw new AppError('配置未加载', 'CONFIG_VALIDATION');
     }
 
     const oldConfig = structuredClone(this.config);
     let mergedConfig = structuredClone(this.config);
 
     for (const [key, defaults] of this.registeredDefaults) {
-      // Support dot-notation keys like 'channels.testchannel'
+      // 支持点号键，如 'channels.testchannel'
       const nestedPartial = this.buildNestedObject(key, defaults);
       mergedConfig = this.deepMerge(
         mergedConfig,
@@ -192,31 +191,31 @@ export class ConfigManager {
     this.notifyListeners(oldConfig);
   }
 
-  // ─── Hot reload ─────────────────────────────────────────────────
+  // ─── 热重载 ─────────────────────────────────────────────────
 
-  /** Start watching the config file for external changes */
+  /** 开始监视配置文件的外部变更 */
   startHotReload(): void {
     if (!this.configPath) {
-      throw new AppError('Config not loaded — cannot start hot reload', 'CONFIG_VALIDATION');
+      throw new AppError('配置未加载 —— 无法启动热重载', 'CONFIG_VALIDATION');
     }
 
     if (this.watcher) {
-      return; // Already watching
+      return; // 已在监视中
     }
 
     this.watcher = fs.watch(this.configPath, () => {
       this.handleFileChange();
     });
 
-    // Also listen for the 'error' event to prevent crashing
+    // 同时监听 'error' 事件以防止崩溃
     this.watcher.on('error', (err) => {
-      logger.error('Config file watcher error', err);
+      logger.error('配置文件监视器错误', err);
     });
 
-    logger.info('Hot reload watcher started');
+    logger.info('热重载监视器已启动');
   }
 
-  /** Stop watching the config file */
+  /** 停止监视配置文件 */
   stopHotReload(): void {
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
@@ -225,19 +224,19 @@ export class ConfigManager {
     if (this.watcher) {
       this.watcher.close();
       this.watcher = null;
-      logger.info('Hot reload watcher stopped');
+      logger.info('热重载监视器已停止');
     }
   }
 
-  // ─── Private helpers ───────────────────────────────────────────
+  // ─── 私有辅助函数 ───────────────────────────────────────────
 
   private handleFileChange(): void {
-    // Skip if we just wrote the file ourselves
+    // 如果刚写入文件 ourselves，则跳过
     if (this.selfUpdating) {
       return;
     }
 
-    // Debounce: coalesce rapid change events
+    // 防抖：合并快速变更事件
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
     }
@@ -254,26 +253,26 @@ export class ConfigManager {
       const raw = fs.readFileSync(this.configPath, 'utf-8');
       const newConfig = this.parseAndValidate(raw);
 
-      // Compare normalised JSON to detect real changes
+      // 比较规范化 JSON 以检测真实变更
       const oldNormalised = JSON.stringify(this.config);
       const newNormalised = JSON.stringify(newConfig);
 
       if (oldNormalised === newNormalised) {
-        logger.debug('Config file changed but content is identical — skipping');
+        logger.debug('配置文件已变更但内容相同 —— 跳过');
         return;
       }
 
       const oldConfig = this.config;
       if (!oldConfig) {
         this.config = newConfig;
-        logger.info('Config reloaded from file');
+        logger.info('已从文件重新加载配置');
         return;
       }
       this.config = newConfig;
       this.notifyListeners(oldConfig);
-      logger.info('Config reloaded from file');
+      logger.info('已从文件重新加载配置');
     } catch (err) {
-      logger.error('Failed to reload config file', err);
+      logger.error('重新加载配置文件失败', err);
     }
   }
 
@@ -282,12 +281,12 @@ export class ConfigManager {
     try {
       parsed = JSON.parse(raw);
     } catch (err) {
-      throw new AppError('Invalid JSON in config file', 'CONFIG_VALIDATION', err);
+      throw new AppError('配置文件中的 JSON 无效', 'CONFIG_VALIDATION', err);
     }
 
     if (!isPlainObject(parsed)) {
       const errors = [...Value.Errors(AppConfigSchema, parsed)];
-      throw new AppError('Config validation failed', 'CONFIG_VALIDATION', errors);
+      throw new AppError('配置验证失败', 'CONFIG_VALIDATION', errors);
     }
 
     const mergedWithDefaults = this.deepMerge(
@@ -297,7 +296,7 @@ export class ConfigManager {
     const validated = this.validateConfigObject(mergedWithDefaults);
 
     if (JSON.stringify(parsed) !== JSON.stringify(validated)) {
-      logger.warn('Config had missing fields — patched with defaults');
+      logger.warn('配置存在缺失字段 —— 已用默认值修补');
     }
 
     return validated as AppConfig;
@@ -308,7 +307,7 @@ export class ConfigManager {
 
     if (!Value.Check(AppConfigSchema, validated)) {
       const errors = [...Value.Errors(AppConfigSchema, validated)];
-      throw new AppError('Config validation failed', 'CONFIG_VALIDATION', errors);
+      throw new AppError('配置验证失败', 'CONFIG_VALIDATION', errors);
     }
 
     return validated as AppConfig;
@@ -331,31 +330,31 @@ export class ConfigManager {
       try {
         let result: void | Promise<void> = undefined;
         if (entry.key) {
-          // Key-specific listener
+          // 特定键监听器
           const oldVal = oldConfig[entry.key];
           const newVal = newConfig[entry.key];
           if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
             result = (entry.listener as ConfigChangeListener<unknown>)(newVal, oldVal);
           }
         } else {
-          // Global listener
+          // 全局监听器
           result = (entry.listener as ConfigChangeListener<AppConfig>)(newConfig, oldConfig);
         }
 
         if (isPromiseLike(result)) {
           result.catch((err: unknown) => {
-            logger.error('Error in async config change listener', err);
+            logger.error('异步配置变更监听器出错', err);
           });
         }
       } catch (err) {
-        logger.error('Error in config change listener', err);
+        logger.error('配置变更监听器出错', err);
       }
     }
   }
 
   /**
-   * Deep merge source into target. Source values override target values.
-   * Arrays are replaced, not concatenated.
+   * 深度合并 source 到 target。source 值覆盖 target 值。
+   * 数组被替换，而非拼接。
    */
   private deepMerge<T extends Record<string, unknown>>(
     target: T,
@@ -393,8 +392,8 @@ export class ConfigManager {
   }
 
   /**
-   * Convert a dot-notation key like 'channels.testchannel' and a value
-   * into a nested object: { channels: { testchannel: value } }
+   * 将点号键（如 'channels.testchannel'）和值
+   * 转换为嵌套对象：{ channels: { testchannel: value } }
    */
   private buildNestedObject(key: string, value: Record<string, unknown>): Record<string, unknown> {
     const parts = key.split('.');

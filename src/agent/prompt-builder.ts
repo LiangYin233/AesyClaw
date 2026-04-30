@@ -1,9 +1,9 @@
 /**
- * PromptBuilder — constructs system prompts for agent sessions.
+ * PromptBuilder — 为 Agent 会话构建系统提示词。
  *
- * PromptBuilder owns prompt assembly for agent sessions: it resolves the
- * role-visible tools, skills, and available-role metadata, then assembles
- * the final system prompt text.
+ * PromptBuilder 负责 Agent 会话的提示词组装：它解析
+ * 角色可见的工具、技能和可用角色元数据，然后组装
+ * 最终的系统提示词文本。
  *
  */
 
@@ -18,9 +18,9 @@ import { buildSkillPromptSection } from '../skill/skill-prompt';
 // ─── PromptBuilder ──────────────────────────────────────────────
 
 /**
- * Dependencies injected into PromptBuilder on construction.
+ * 构造时注入 PromptBuilder 的依赖。
  */
-export interface PromptBuilderDependencies {
+export type PromptBuilderDependencies = {
   roleManager: RoleManager;
   skillManager: SkillManager;
   toolRegistry: ToolRegistry;
@@ -41,26 +41,26 @@ export class PromptBuilder {
   }
 
   /**
-   * Build the full system prompt for a role.
+   * 为角色构建完整的系统提示词。
    *
-   * This method:
-   * 1. Resolves the available tools for the role using ToolRegistry
-   * 2. Gets the skills applicable to the role using SkillManager
-   * 3. Gets all enabled roles for the role list section
-   * 4. Assembles the final system prompt
+   * 此方法：
+   * 1. 使用 ToolRegistry 解析角色的可用工具
+   * 2. 使用 SkillManager 获取角色适用的技能
+   * 3. 获取角色列表部分的所有已启用角色
+   * 4. 组装最终的系统提示词
    *
-   * @param role - The role configuration to build the prompt for
-   * @param executionContext - Optional context for tool execution
-   * @returns The complete system prompt string and the resolved AgentTools
+   * @param role - 要为其构建提示词的角色配置
+   * @param executionContext - 工具执行的可选上下文
+   * @returns 完整的系统提示词字符串和解析后的 AgentTools
    */
   buildSystemPrompt(
     role: RoleConfig,
     executionContext?: Partial<ToolExecutionContext>,
   ): { prompt: string; tools: AgentTool[] } {
-    // Get all enabled roles for the role list section
+    // 获取角色列表部分的所有已启用角色
     const allRoles = this.roleManager.getEnabledRoles();
 
-    // Get role-available skills
+    // 获取角色可用的技能
     const skills: Skill[] = this.skillManager.getSkillsForRole(role);
 
     const resolvedTools = this.toolRegistry.resolveForRoleWithDefinitions(

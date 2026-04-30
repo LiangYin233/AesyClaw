@@ -1,17 +1,23 @@
 /**
- * Built-in compact command.
+ * 内置 compact 命令。
  *
- * Compacts session history to reduce context size.
+ * 压缩会话历史以减少上下文长度。
  *
  */
 
 import type { CommandDefinition, CommandContext } from '../../core/types';
 import type { SessionManager } from '../../agent/session-manager';
 
-export interface CompactCommandDeps {
+export type CompactCommandDeps = {
   sessionManager: Pick<SessionManager, 'compactSession'>;
 }
 
+/**
+ * 创建 compact 命令定义。
+ *
+ * @param deps - 包含 sessionManager 的依赖项
+ * @returns compact 命令的 CommandDefinition
+ */
 export function createCompactCommand(deps: CompactCommandDeps): CommandDefinition {
   return {
     name: 'compact',

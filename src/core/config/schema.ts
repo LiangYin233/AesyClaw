@@ -1,9 +1,8 @@
 /**
- * TypeBox schema definitions for the application configuration.
+ * 应用配置的 TypeBox 模式定义。
  *
- * All configuration shapes that need runtime validation must have
- * a corresponding TypeBox schema here. Compile-time types are
- * derived with `Static<typeof Schema>` — never hand-write both.
+ * 所有需要运行时验证的配置结构都必须在此有对应的 TypeBox 模式。
+ * 编译时类型通过 `Static<typeof Schema>` 派生 —— 禁止手写两份。
  */
 
 import type { Static } from '@sinclair/typebox';
@@ -12,14 +11,14 @@ import { DEFAULTS } from '../types';
 
 // ─── Provider / Model ────────────────────────────────────────────
 
-/** API protocol type */
+/** API 协议类型 */
 const ApiProtocolType = Type.Union([
   Type.Literal('openai_responses'),
   Type.Literal('openai_completion'),
   Type.Literal('anthropic'),
 ]);
 
-/** Model capability preset within a provider */
+/** 提供商内的模型能力预设 */
 const ModelPresetSchema = Type.Object({
   contextWindow: Type.Optional(Type.Number()),
   extraBody: Type.Optional(Type.Record(Type.String(), Type.Unknown())),

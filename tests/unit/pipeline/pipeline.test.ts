@@ -230,7 +230,7 @@ describe('Pipeline', () => {
       let releaseProcess: (() => void) | undefined;
       (deps.agentEngine.process as ReturnType<typeof vi.fn>).mockImplementation(
         async () =>
-          new Promise((resolve) => {
+          await new Promise((resolve) => {
             releaseProcess = () => resolve({ content: 'Agent response' });
           }),
       );

@@ -1,8 +1,8 @@
 /**
- * Built-in send_msg tool.
+ * 内置 send_msg 工具。
  *
- * Sends a text message to the current session, optionally with
- * media attachments, via the pipeline's normal outbound delivery path.
+ * 通过管道的正常出站传递路径，向当前会话发送文本消息，
+ * 可附带媒体附件。
  *
  */
 
@@ -11,7 +11,7 @@ import { Type } from '@sinclair/typebox';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
 import type { MediaAttachment, OutboundMessage, ToolOwner } from '../../core/types';
 
-/** Parameter schema for send_msg */
+/** send_msg 的参数模式 */
 const SendMessageParamsSchema = Type.Object({
   text: Type.String({ description: '要发送的文本内容' }),
   media: Type.Optional(
@@ -35,6 +35,11 @@ const SendMessageParamsSchema = Type.Object({
 
 type SendMessageParams = Static<typeof SendMessageParamsSchema>;
 
+/**
+ * 创建 send_msg 工具定义。
+ *
+ * @returns send_msg 工具的 AesyClawTool 定义
+ */
 export function createSendMsgTool(): AesyClawTool {
   return {
     name: 'send_msg',
@@ -50,7 +55,7 @@ export function createSendMsgTool(): AesyClawTool {
         if (!context.sendMessage) {
           return {
             content:
-              'send_msg is unavailable in this context because no outbound send function is available.',
+              'send_msg 在此上下文中不可用，因为没有可用的出站发送函数。',
             isError: true,
           };
         }
@@ -63,13 +68,13 @@ export function createSendMsgTool(): AesyClawTool {
 
         if (!delivered) {
           return {
-            content: 'Message was blocked before delivery.',
+            content: '消息在发送前被阻止。',
             isError: true,
           };
         }
 
         return {
-          content: `Message sent: "${text}"`,
+          content: `消息已发送: "${text}"`,
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

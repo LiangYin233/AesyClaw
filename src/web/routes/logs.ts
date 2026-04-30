@@ -1,4 +1,4 @@
-/** Logs API routes. */
+/** 日志 API 路由。 */
 
 import { Hono } from 'hono';
 import { createScopedLogger, getRecentLogEntries } from '../../core/logger';
@@ -21,6 +21,12 @@ function parseLimit(limitRaw: string | undefined): number {
   return Math.min(parsed, MAX_LOG_LIMIT);
 }
 
+/**
+ * 创建日志 API 路由。
+ *
+ * @param _deps - WebUiManager 的依赖项（当前未使用）
+ * @returns Hono 路由器实例
+ */
 export function createLogsRouter(_deps: WebUiManagerDependencies) {
   const router = new Hono();
 
@@ -36,8 +42,8 @@ export function createLogsRouter(_deps: WebUiManagerDependencies) {
         },
       });
     } catch (err) {
-      logger.error('Failed to get recent logs', err);
-      return c.json({ ok: false, error: 'Failed to get recent logs' }, 500);
+      logger.error('获取最近日志失败', err);
+      return c.json({ ok: false, error: '获取最近日志失败' }, 500);
     }
   });
 

@@ -27,7 +27,7 @@ export const ExecParamsSchema = Type.Object({
 
 export type ExecParams = Static<typeof ExecParamsSchema>;
 
-export interface ExecResultDetails {
+export type ExecResultDetails = {
   command: string;
   cwd: string;
   shell: 'powershell' | 'bash';
@@ -43,7 +43,7 @@ export interface ExecResultDetails {
   error?: string;
 }
 
-export interface ExecuteCommandOptions {
+export type ExecuteCommandOptions = {
   repoRoot?: string;
   platform?: NodeJS.Platform;
 }
@@ -84,7 +84,7 @@ export async function executeCommand(
     }
   }
 
-  return new Promise<ToolExecutionResult>((resolve) => {
+  return await new Promise<ToolExecutionResult>((resolve) => {
     let settled = false;
     const child = (() => {
       try {
@@ -197,7 +197,7 @@ export function createExecTool(): AesyClawTool {
       'Execute a shell command and return stdout, stderr, exit metadata, cwd, and timeout information.',
     parameters: ExecParamsSchema,
     owner: 'plugin:exec',
-    execute: async (params) => executeCommand(params as ExecParams),
+    execute: async (params) => await executeCommand(params as ExecParams),
   };
 }
 

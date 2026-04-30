@@ -1,9 +1,9 @@
 /**
- * Barrel export for built-in commands.
+ * 内置命令的桶导出。
  *
- * `registerBuiltinCommands()` registers all built-in commands with
- * the CommandRegistry. Dependencies are injected through the
- * BuiltinCommandDependencies interface.
+ * `registerBuiltinCommands()` 将所有内置命令注册到
+ * CommandRegistry。依赖项通过
+ * BuiltinCommandDependencies 接口注入。
  *
  */
 
@@ -30,9 +30,9 @@ import {
 } from './plugin-commands';
 
 /**
- * Dependencies for built-in commands.
+ * 内置命令的依赖项。
  */
-export interface BuiltinCommandDependencies {
+export type BuiltinCommandDependencies = {
   roleManager: Pick<RoleManager, 'getEnabledRoles' | 'getRole'>;
   pluginManager: Pick<PluginManager, 'listPlugins' | 'enable' | 'disable'>;
   sessionManager: Pick<
@@ -43,10 +43,10 @@ export interface BuiltinCommandDependencies {
 }
 
 /**
- * Register all built-in commands with the given registry.
+ * 将所有内置命令注册到给定的注册表。
  *
- * @param registry - The CommandRegistry to register commands into
- * @param deps - Dependencies required by the command implementations
+ * @param registry - 要注册命令的 CommandRegistry
+ * @param deps - 命令实现所需的依赖项
  */
 export function registerBuiltinCommands(
   registry: CommandRegistry,

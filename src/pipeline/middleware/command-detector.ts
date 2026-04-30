@@ -1,10 +1,10 @@
 /**
- * Command Detection — detects and executes slash commands.
+ * 命令检测 — 检测并执行斜杠命令。
  *
- * If the inbound message content starts with "/" and matches a registered
- * command, this step executes it and sets the outbound response.
- * Command handling is terminal — when an outbound is set, the pipeline
- * skips subsequent steps (like agent processing).
+ * 如果入站消息内容以 "/" 开头并匹配已注册的
+ * 命令，则此步骤执行它并设置出站响应。
+ * 命令处理是终止性的 — 当设置了出站消息时，管道
+ * 跳过后续步骤（如 Agent 处理）。
  */
 
 import type { PipelineState } from './types';
@@ -16,14 +16,14 @@ import {
 } from '../../agent/session-manager';
 
 /**
- * Detects slash commands and executes them via CommandRegistry.
+ * 检测斜杠命令并通过 CommandRegistry 执行它们。
  *
- * Commands are user-facing features like /help, /role list, etc.
- * When a command is detected, this function:
- * 1. Creates a CommandContext from the pipeline state
- * 2. Executes the command via CommandRegistry
- * 3. Sets the outbound response on the state
- * 4. Returns the state — the pipeline should skip remaining steps
+ * 命令是面向用户的功能，如 /help、/role list 等。
+ * 当检测到命令时，此函数：
+ * 1. 从管道状态创建 CommandContext
+ * 2. 通过 CommandRegistry 执行命令
+ * 3. 在状态上设置出站响应
+ * 4. 返回状态 — 管道应跳过剩余步骤
  */
 export async function commandDetector(
   state: PipelineState,

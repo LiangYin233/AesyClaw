@@ -16,7 +16,7 @@ import { AgentRunPolicy } from './agent-run-policy';
 
 const logger = createScopedLogger('agent-engine');
 
-export interface AgentEngineDependencies {
+export type AgentEngineDependencies = {
   configManager: ConfigManager;
   toolRegistry: ToolRegistry;
   roleManager: RoleManager;
@@ -25,7 +25,7 @@ export interface AgentEngineDependencies {
   llmAdapter: LlmAdapter;
 }
 
-export interface ProcessEphemeralParams {
+export type ProcessEphemeralParams = {
   sessionKey: SessionKey;
   sessionId: string;
   memory: MemoryManager;
@@ -41,7 +41,7 @@ export class AgentEngine {
 
   initialize(deps: AgentEngineDependencies): void {
     if (this.initialized) {
-      logger.warn('AgentEngine already initialized — skipping');
+      logger.warn('AgentEngine 已初始化 — 跳过');
       return;
     }
 
@@ -59,7 +59,7 @@ export class AgentEngine {
     });
 
     this.initialized = true;
-    logger.info('AgentEngine initialized');
+    logger.info('AgentEngine 已初始化');
   }
 
   createAgent(
@@ -68,7 +68,7 @@ export class AgentEngine {
     executionContext?: Partial<ToolExecutionContext>,
   ): Agent {
     if (!this.initialized || !this.promptBuilder || !this.llmAdapter || !this.runPolicy) {
-      throw new Error('AgentEngine not initialized');
+      throw new Error('AgentEngine 未初始化');
     }
 
     const { prompt, tools } = this.promptBuilder.buildSystemPrompt(role, executionContext);
@@ -86,7 +86,7 @@ export class AgentEngine {
       sessionId,
     });
 
-    logger.debug('Agent created', {
+    logger.debug('Agent 已创建', {
       role: role.id,
       model: role.model,
       toolCount: tools.length,
@@ -104,10 +104,10 @@ export class AgentEngine {
     sendMessage?: ToolExecutionContext['sendMessage'],
   ): Promise<OutboundMessage> {
     if (!this.initialized || !this.promptBuilder || !this.llmAdapter || !this.runPolicy) {
-      throw new Error('AgentEngine not initialized');
+      throw new Error('AgentEngine 未初始化');
     }
 
-    logger.debug('Processing message', {
+    logger.debug('正在处理消息', {
       sessionKey: message.sessionKey,
       role: role.id,
       contentLength: message.content.length,
@@ -149,24 +149,24 @@ export class AgentEngine {
     const lastMessage =
       newMessages[newMessages.length - 1] ?? agent.state.messages[agent.state.messages.length - 1];
 
-    logger.warn('Agent produced no assistant text response', {
+    logger.warn('Agent 未生成助手文本回复', {
       role: role.id,
       toolCountInPrompt: tools.length,
     });
 
     return {
       content:
-        lastMessage &&
+        lastMessage !== undefined &&
         lastMessage.role !== 'user' &&
         extractMessageText(lastMessage).trim().length > 0
           ? extractMessageText(lastMessage)
-          : '[No response generated]',
+          : '[未生成回复]',
     };
   }
 
   async processEphemeral(params: ProcessEphemeralParams): Promise<OutboundMessage> {
     if (!this.initialized || !this.promptBuilder || !this.llmAdapter || !this.runPolicy) {
-      throw new Error('AgentEngine not initialized');
+      throw new Error('AgentEngine 未初始化');
     }
 
     const { sessionKey, sessionId, memory, role, content } = params;
@@ -197,22 +197,22 @@ export class AgentEngine {
       return { content: extractMessageText(lastAssistant) };
     }
 
-    logger.warn('Ephemeral agent produced no assistant text response', {
+    logger.warn('临时 Agent 未生成助手文本回复', {
       role: role.id,
     });
 
-    return { content: '[No response generated]' };
+    return { content: '[未生成回复]' };
   }
 
   switchModel(agent: Agent, modelIdentifier: string): void {
     if (!this.llmAdapter) {
-      throw new Error('AgentEngine not initialized');
+      throw new Error('AgentEngine 未初始化');
     }
 
     const model = this.llmAdapter.resolveModel(modelIdentifier);
     agent.state.model = model;
 
-    logger.info('Model switched', {
+    logger.info('模型已切换', {
       provider: model.provider,
       modelId: model.modelId,
     });

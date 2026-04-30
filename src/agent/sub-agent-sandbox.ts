@@ -1,8 +1,8 @@
 /**
- * SubAgentSandbox — isolated sub-agent execution environment.
+ * SubAgentSandbox — 隔离的子 Agent 执行环境。
  *
- * Executes delegated turns with temporary in-memory history so the caller's
- * persisted session transcript is not mutated.
+ * 使用临时内存历史执行委托轮次，使调用者的
+ * 持久化会话记录不会被更改。
  *
  */
 
@@ -16,14 +16,14 @@ import type { RoleManager } from '../role/role-manager';
 import type { ToolExecutionContext } from '../tool/tool-registry';
 import type { LlmAdapter } from './llm-adapter';
 
-// ─── Dependencies ───────────────────────────────────────────────
+// ─── 依赖 ───────────────────────────────────────────────
 
 /**
- * Dependencies for SubAgentSandbox.
+ * SubAgentSandbox 的依赖。
  *
- * Will be expanded when Pi-mono Agent integration is available.
+ * 将在 Pi-mono Agent 集成可用时扩展。
  */
-export interface SubAgentSandboxDependencies {
+export type SubAgentSandboxDependencies = {
   agentEngine: Pick<AgentEngine, 'createAgent' | 'process'>;
   roleManager: Pick<RoleManager, 'getRole' | 'getDefaultRole'>;
   llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
@@ -35,28 +35,28 @@ export class SubAgentSandbox {
   constructor(private readonly deps: SubAgentSandboxDependencies) {}
 
   /**
-   * Execute a sub-agent with an existing role configuration.
+   * 使用现有角色配置执行子 Agent。
    *
-   * The sub-agent uses the specified role's system prompt, model, and
-   * tool permissions, but runs in an isolated context with its own
-   * conversation history.
+   * 子 Agent 使用指定角色的系统提示词、模型和
+   * 工具权限，但在隔离的上下文中运行，具有自己的
+   * 对话历史。
    *
-   * @param params - Parameters specifying the role and prompt
-   * @returns The sub-agent's response text
+   * @param params - 指定角色和提示词的参数
+   * @returns 子 Agent 的回复文本
    */
   async runWithRole(
     params: SubAgentRoleParams,
     executionContext?: Pick<ToolExecutionContext, 'sessionKey' | 'sendMessage'>,
   ): Promise<string> {
     const role = this.applyToolOverride(this.deps.roleManager.getRole(params.roleId), params);
-    return this.execute(role, params.prompt, executionContext);
+    return await this.execute(role, params.prompt, executionContext);
   }
 
   /**
-   * Execute a sub-agent with a temporary system prompt.
+   * 使用临时系统提示词执行子 Agent。
    *
-   * Tool permissions are inherited from the caller's role (via executionContext.toolPermission)
-   * when available, otherwise fall back to the default role's permission.
+   * 工具权限继承自调用者的角色（通过 executionContext.toolPermission）
+   * 当可用时，否则回退到默认角色的权限。
    */
   async runWithPrompt(
     params: SubAgentTempParams,
@@ -74,7 +74,7 @@ export class SubAgentSandbox {
       enabled: true,
     };
 
-    return this.execute(this.applyToolOverride(role, params), params.prompt, executionContext);
+    return await this.execute(this.applyToolOverride(role, params), params.prompt, executionContext);
   }
 
   private async execute(
@@ -129,7 +129,7 @@ export class SubAgentSandbox {
     const { mode, list } = role.toolPermission;
     const blockedTools = ['run_sub_agent', 'run_temp_sub_agent'];
 
-    // Allowlist with wildcard: switch to denylist to exclude sub-agent tools only
+    // 带通配符的允许列表：切换到拒绝列表以仅排除子 Agent 工具
     if (mode === 'allowlist' && list.includes('*')) {
       return {
         ...role,
@@ -137,7 +137,7 @@ export class SubAgentSandbox {
       };
     }
 
-    // Allowlist with explicit names: filter out sub-agent tools
+    // 显式名称的允许列表：过滤掉子 Agent 工具
     if (mode === 'allowlist') {
       return {
         ...role,
@@ -148,7 +148,7 @@ export class SubAgentSandbox {
       };
     }
 
-    // Denylist: add sub-agent tools to the denylist
+    // 拒绝列表：将子 Agent 工具添加到拒绝列表
     return {
       ...role,
       toolPermission: {

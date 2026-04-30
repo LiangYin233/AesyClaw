@@ -1,4 +1,4 @@
-/** Hono app factory — registers middleware and routes. */
+/** Hono 应用工厂 — 注册中间件和路由。 */
 
 import { Hono } from 'hono';
 import { serveStatic } from '@hono/node-server/serve-static';
@@ -22,11 +22,11 @@ const logger = createScopedLogger('webui');
 export function createApp(deps: WebUiManagerDependencies): Hono {
   const app = new Hono();
 
-  // Auth middleware for API routes
+  // API 路由的认证中间件
   const authMiddleware = createAuthMiddleware(deps.configManager);
   app.use('/api/*', authMiddleware);
 
-  // API routes
+  // API 路由
   app.route('/api/sessions', createSessionsRouter(deps));
   app.route('/api/config', createConfigRouter(deps));
   app.route('/api/cron', createCronRouter(deps));
@@ -37,16 +37,16 @@ export function createApp(deps: WebUiManagerDependencies): Hono {
   app.route('/api/usage', createUsageRouter(deps));
   app.route('/api/logs', createLogsRouter(deps));
 
-  // Global error handler for API routes
+  // API 路由的全局错误处理器
   app.onError((err, c) => {
-    logger.error('Unhandled API error', err);
+    logger.error('未处理的 API 错误', err);
     return c.json({ ok: false, error: err.message }, 500);
   });
 
-  // Static files
+  // 静态文件
   app.use('*', serveStatic({ root: './dist' }));
 
-  // SPA fallback for non-API routes
+  // 非 API 路由的 SPA 回退
   app.get('*', (c) => {
     if (c.req.path.startsWith('/api/')) {
       return c.notFound();
@@ -55,7 +55,7 @@ export function createApp(deps: WebUiManagerDependencies): Hono {
       const html = readFileSync(join(process.cwd(), 'dist/index.html'), 'utf-8');
       return c.html(html);
     } catch {
-      return c.text('Not Found', 404);
+      return c.text('未找到', 404);
     }
   });
 

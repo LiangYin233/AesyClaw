@@ -1,15 +1,15 @@
 /**
- * Pipeline — message processing pipeline with sequential steps and hook dispatch.
+ * Pipeline — 带有顺序步骤和钩子调度的消息处理管道。
  *
- * The pipeline is the central message processing orchestrator. It receives
- * inbound messages, dispatches plugin hooks, runs the processing steps,
- * and sends outbound responses.
+ * 管道是中央消息处理编排器。它接收
+ * 入站消息，调度插件钩子，运行处理步骤，
+ * 并发送出站响应。
  *
- * Flow:
- *   1. HookDispatcher.dispatchOnReceive(message) → if block, stop
- *   2. Sequential steps: sessionResolver → commandDetector → agentProcessor
- *   3. If state.blocked, stop
- *   4. HookDispatcher.dispatchOnSend(outbound) → if block, stop
+ * 流程：
+ *   1. HookDispatcher.dispatchOnReceive(message) → 如果被阻止，停止
+ *   2. 顺序步骤：sessionResolver → commandDetector → agentProcessor
+ *   3. 如果 state.blocked，停止
+ *   4. HookDispatcher.dispatchOnSend(outbound) → 如果被阻止，停止
  *   5. send(outbound)
  *
  */
@@ -26,69 +26,69 @@ import { createScopedLogger } from '../core/logger';
 const logger = createScopedLogger('pipeline');
 
 /**
- * Central message processing pipeline.
+ * 中央消息处理管道。
  *
- * Follows the lifecycle pattern: initialize() / destroy().
- * Dependencies are injected explicitly — no singleton imports.
+ * 遵循生命周期模式：initialize() / destroy()。
+ * 依赖显式注入 — 无单例导入。
  */
 export class Pipeline {
   private hookDispatcher: HookDispatcher = new HookDispatcher();
   private deps: PipelineDependencies | null = null;
   private initialized = false;
 
-  // ─── Lifecycle ─────────────────────────────────────────────────
+  // ─── 生命周期 ─────────────────────────────────────────────────
 
   /**
-   * Initialize the pipeline with its dependencies.
+   * 使用依赖初始化管道。
    */
   initialize(deps: PipelineDependencies): void {
     if (this.initialized) {
-      logger.warn('Pipeline already initialized — skipping');
+      logger.warn('Pipeline 已初始化 — 跳过');
       return;
     }
 
     this.deps = deps;
     this.initialized = true;
-    logger.info('Pipeline initialized');
+    logger.info('Pipeline 已初始化');
   }
 
   /**
-   * Destroy the pipeline — clears hook registrations.
+   * 销毁管道 — 清除钩子注册。
    */
   destroy(): void {
     this.deps = null;
     this.hookDispatcher = new HookDispatcher();
     this.initialized = false;
-    logger.info('Pipeline destroyed');
+    logger.info('Pipeline 已销毁');
   }
 
-  // ─── Core API ─────────────────────────────────────────────────
+  // ─── 核心 API ─────────────────────────────────────────────────
 
   /**
-   * Process an inbound message and send the response.
+   * 处理入站消息并发送响应。
    *
-   * This is the main entry point for message processing.
+   * 这是消息处理的主要入口点。
    *
-   * @param message - The inbound message from a channel
-   * @param send - Function to send the outbound response
+   * @param message - 来自频道的入站消息
+   * @param send - 发送出站响应的函数
    */
   async receiveWithSend(message: InboundMessage, send: SendFn): Promise<void> {
     if (!this.initialized || !this.deps) {
-      logger.error('Pipeline not initialized — cannot process message');
+      logger.error('Pipeline 未初始化 — 无法处理消息');
       return;
     }
 
     try {
-      // 1. Dispatch onReceive hooks — if blocked, stop
+      // 1. 调度 onReceive 钩子 — 如果被阻止，则停止
       const receiveResult = await this.hookDispatcher.dispatchOnReceive(message);
       if (receiveResult.action === 'block') {
-        logger.info('Message blocked by onReceive hook', {
+        logger.info('消息被 onReceive 钩子阻止', {
           reason: receiveResult.reason,
         });
         return;
       }
 
-      // If a hook provides a response, send it directly (skip processing steps)
+      // 如果钩子提供了响应，则直接发送（跳过处理步骤）
       if (receiveResult.action === 'respond') {
         const outbound: OutboundMessage = {
           content: (receiveResult as { action: 'respond'; content: string }).content,
@@ -97,19 +97,19 @@ export class Pipeline {
         return;
       }
 
-      // 2. Execute sequential processing steps
+      // 2. 执行顺序处理步骤
       let state: PipelineState = {
         inbound: message,
       };
 
       state = await sessionResolver(state, this.deps.sessionManager);
 
-      // Wire sendMessage after session resolution so onSend hooks get the session key
+      // 在会话解析后连接 sendMessage，以便 onSend 钩子获取会话键
       state.sendMessage = async (outbound: OutboundMessage): Promise<boolean> =>
-        this.dispatchOnSendAndDeliver(outbound, send, state.session?.key);
+        await this.dispatchOnSendAndDeliver(outbound, send, state.session?.key);
       state = await commandDetector(state, this.deps.commandRegistry, this.deps.sessionManager);
 
-      // If commandDetector set an outbound, skip agent processing
+      // 如果 commandDetector 设置了出站消息，则跳过 Agent 处理
       if (!state.outbound) {
         state = await agentProcessor(
           state,
@@ -119,35 +119,35 @@ export class Pipeline {
         );
       }
 
-      // 3. After processing: if state is blocked, stop
+      // 3. 处理后：如果状态被阻止，则停止
       if (state.blocked) {
-        logger.info('Pipeline blocked', {
+        logger.info('管道被阻止', {
           reason: state.blockReason,
         });
         return;
       }
 
-      // 4. If an outbound message was produced, dispatch onSend and deliver
+      // 4. 如果生成了出站消息，则调度 onSend 并投递
       if (state.outbound) {
         await this.dispatchOnSendAndDeliver(state.outbound, send, state.session?.key);
       }
     } catch (err) {
-      logger.error('Pipeline processing error', err);
+      logger.error('管道处理错误', err);
       throw err;
     }
   }
 
   /**
-   * Get the hook dispatcher for plugin hook registration.
+   * 获取用于插件钩子注册的钩子调度器。
    */
   getHookDispatcher(): HookDispatcher {
     return this.hookDispatcher;
   }
 
-  // ─── Private helpers ───────────────────────────────────────────
+  // ─── 私有辅助方法 ───────────────────────────────────────────
 
   /**
-   * Dispatch onSend hooks and, if not blocked, deliver the outbound message.
+   * 调度 onSend 钩子，如果未被阻止，则投递出站消息。
    */
   private async dispatchOnSendAndDeliver(
     outbound: OutboundMessage,
@@ -156,13 +156,13 @@ export class Pipeline {
   ): Promise<boolean> {
     const sendResult = await this.hookDispatcher.dispatchOnSend({ message: outbound, sessionKey });
     if (sendResult.action === 'block') {
-      logger.info('Outbound blocked by onSend hook', {
+      logger.info('出站消息被 onSend 钩子阻止', {
         reason: sendResult.reason,
       });
       return false;
     }
 
-    // If a hook responds, use that content instead
+    // 如果钩子响应，则使用该内容替代
     const finalOutbound: OutboundMessage =
       sendResult.action === 'respond'
         ? {

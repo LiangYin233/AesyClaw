@@ -1,4 +1,4 @@
-/** Plugin manager — loads, unloads, and tracks plugin lifecycle. */
+/** 插件管理器 — 加载、卸载并跟踪插件生命周期。 */
 
 import path from 'node:path';
 import { createScopedLogger } from '../core/logger';
@@ -46,7 +46,7 @@ export class PluginManager {
     for (const pluginDir of pluginDirs) {
       const directoryName = path.basename(pluginDir);
       if (!this.isDirectoryEnabled(directoryName)) {
-        logger.info('Skipping disabled plugin directory', { directoryName });
+        logger.info('跳过已禁用的插件目录', { directoryName });
         continue;
       }
 
@@ -54,7 +54,7 @@ export class PluginManager {
         await this.load(pluginDir);
       } catch (err) {
         this.failedPlugins.set(directoryName, errorMessage(err));
-        logger.error(`Plugin "${directoryName}" failed to load`, err);
+        logger.error(`插件 "${directoryName}" 加载失败`, err);
       }
     }
   }
@@ -65,10 +65,10 @@ export class PluginManager {
       try {
         await this.unload(pluginName);
       } catch (err) {
-        logger.error(`Plugin "${pluginName}" failed to unload`, err);
+        logger.error(`插件 "${pluginName}" 卸载失败`, err);
       }
     }
-    logger.info('All plugins unloaded');
+    logger.info('所有插件已卸载');
   }
 
   async load(pluginDir: string): Promise<LoadedPlugin | null> {
@@ -85,7 +85,7 @@ export class PluginManager {
       configLookup.options,
     );
     if (!configLookup.enabled) {
-      logger.info('Skipping disabled plugin', { pluginName });
+      logger.info('跳过已禁用的插件', { pluginName });
       return null;
     }
 
@@ -115,7 +115,7 @@ export class PluginManager {
     this.failedPlugins.delete(pluginName);
     this.failedPlugins.delete(module.directoryName);
 
-    // Auto-write plugin config entry if not present
+    // 如果不存在，自动写入插件配置条目
     if (!configLookup.entry) {
       const plugins = this.getConfigEntries().map((entry) => ({
         name: entry.name,
@@ -128,11 +128,11 @@ export class PluginManager {
         ...(module.definition.defaultConfig ? { options: module.definition.defaultConfig } : {}),
       });
       await this.configManager.update({ plugins }).catch((err) => {
-        logger.warn(`Failed to auto-write config entry for plugin "${pluginName}"`, err);
+        logger.warn(`自动写入插件 "${pluginName}" 的配置条目失败`, err);
       });
     }
 
-    logger.info('Plugin loaded', { pluginName, directoryName: module.directoryName });
+    logger.info('插件已加载', { pluginName, directoryName: module.directoryName });
     return loaded;
   }
 
@@ -150,7 +150,7 @@ export class PluginManager {
     } finally {
       await this.cleanupOwner(actualName);
       this.loadedPlugins.delete(actualName);
-      logger.info('Plugin unloaded', { pluginName: actualName });
+      logger.info('插件已卸载', { pluginName: actualName });
     }
   }
 
@@ -161,7 +161,7 @@ export class PluginManager {
       try {
         await this.load(match.directory);
       } catch (err) {
-        logger.error(`Plugin "${pluginName}" failed to load after enable`, err);
+        logger.error(`启用后插件 "${pluginName}" 加载失败`, err);
       }
     }
   }
@@ -227,7 +227,7 @@ export class PluginManager {
     for (const pluginDir of pluginDirs) {
       const directoryName = path.basename(pluginDir);
       if (directoryName === nameOrAlias) {
-        return this.safeLoadModule(pluginDir);
+        return await this.safeLoadModule(pluginDir);
       }
 
       const module = await this.safeLoadModule(pluginDir);
@@ -242,8 +242,8 @@ export class PluginManager {
   async handleConfigReload(): Promise<void> {
     if (this.reloading) {
       this.reloadPending = true;
-      logger.debug('Plugin config reload already in progress — queueing another pass');
-      return this.reloadPromise ?? Promise.resolve();
+      logger.debug('插件配置重载已在进行中 — 排队等待下一次执行');
+      return await (this.reloadPromise ?? Promise.resolve());
     }
 
     this.reloading = true;
@@ -260,14 +260,14 @@ export class PluginManager {
       }
     })();
 
-    return this.reloadPromise;
+    return await this.reloadPromise;
   }
 
   getLoaded(pluginName: string): LoadedPlugin | undefined {
     return this.findLoadedPlugin(pluginName);
   }
 
-  /** Get definitions for all discovered plugins with their metadata. */
+  /** 获取所有已发现插件的定义及其元数据。 */
   async getPluginDefinitions(): Promise<
     Array<{
       name: string;
@@ -305,7 +305,7 @@ export class PluginManager {
           return;
         }
         if (existing.owner !== owner) {
-          logger.warn('Plugin attempted to unregister a tool it does not own', {
+          logger.warn('插件尝试注销一个不属于自己的工具', {
             pluginName,
             toolName: name,
             owner: existing.owner,
@@ -319,7 +319,7 @@ export class PluginManager {
       },
       registerChannel: (channel): void => {
         if (!this.channelManager) {
-          throw new Error('ChannelManager is not available to plugins');
+          throw new Error('ChannelManager 对插件不可用');
         }
         this.channelManager.register(channel);
         const channels = this.pluginChannels.get(pluginName) ?? new Set<string>();
@@ -341,7 +341,7 @@ export class PluginManager {
       try {
         await this.channelManager?.unregister(channelName);
       } catch (err) {
-        logger.error('Failed to unregister plugin channel', {
+        logger.error('注销插件通道失败', {
           pluginName,
           channelName,
           error: errorMessage(err),
@@ -411,7 +411,7 @@ export class PluginManager {
       return await this.pluginLoader.load(pluginDir);
     } catch (err) {
       this.failedPlugins.set(path.basename(pluginDir), errorMessage(err));
-      logger.error('Failed to inspect plugin module', err);
+      logger.error('检查插件模块失败', err);
       return null;
     }
   }

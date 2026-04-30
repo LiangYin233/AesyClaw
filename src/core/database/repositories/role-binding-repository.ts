@@ -1,12 +1,12 @@
 /**
- * RoleBindingRepository — data access for the role_bindings table.
+ * RoleBindingRepository — role_bindings 表的数据访问层。
  *
- * Stores which role is active for each session.
+ * 存储每个会话的当前激活角色。
  */
 
 import type { DatabaseSync } from 'node:sqlite';
 
-/** Get the active role ID for a session. Returns null if not set. */
+/** 获取会话的当前激活角色 ID。未设置时返回 null。 */
 export async function getActiveRoleBinding(
   db: DatabaseSync,
   sessionId: string,
@@ -18,7 +18,7 @@ export async function getActiveRoleBinding(
   return row?.role_id ?? null;
 }
 
-/** Set the active role for a session. Uses INSERT OR REPLACE for idempotency. */
+/** 设置会话的当前激活角色。使用 INSERT OR REPLACE 保证幂等性。 */
 export async function setActiveRoleBinding(
   db: DatabaseSync,
   sessionId: string,

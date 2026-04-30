@@ -1,4 +1,4 @@
-/** Cron manager — persists jobs, schedules timers, and records execution history. */
+/** 定时任务管理器 — 持久化任务、调度计时器并记录执行历史。 */
 
 import type { CronJobRecord, OutboundMessage, SessionKey } from '../core/types';
 import type { DatabaseManager } from '../core/database/database-manager';
@@ -8,7 +8,7 @@ import { computeNextRun, CronScheduler, type CronScheduleType } from './cron-sch
 
 const logger = createScopedLogger('cron');
 
-export interface CronJobRepositoryLike {
+export type CronJobRepositoryLike = {
   create(params: {
     scheduleType: string;
     scheduleValue: string;
@@ -22,7 +22,7 @@ export interface CronJobRepositoryLike {
   updateNextRun(id: string, nextRun: Date | null): Promise<void>;
 }
 
-export interface CronManagerDependencies {
+export type CronManagerDependencies = {
   databaseManager?: DatabaseManager;
   cronJobs?: CronJobRepositoryLike;
   cronRuns?: CronRunRepositoryLike;
@@ -31,7 +31,7 @@ export interface CronManagerDependencies {
   scheduler?: CronScheduler;
 }
 
-export interface CreateCronJobParams {
+export type CreateCronJobParams = {
   scheduleType: CronScheduleType;
   scheduleValue: string;
   prompt: string;
@@ -47,7 +47,7 @@ export class CronManager {
 
   async initialize(dependencies: CronManagerDependencies): Promise<void> {
     if (this.initialized) {
-      logger.warn('CronManager already initialized — skipping');
+      logger.warn('CronManager 已初始化 — 跳过');
       return;
     }
 
@@ -56,7 +56,7 @@ export class CronManager {
     this.scheduler = dependencies.scheduler ?? new CronScheduler();
 
     if (!this.cronJobs || !this.cronRuns) {
-      throw new Error('CronManager requires cron job and run repositories');
+      throw new Error('CronManager 需要定时任务和运行记录存储库');
     }
 
     this.executor = new CronExecutor({
@@ -70,13 +70,13 @@ export class CronManager {
 
     this.initialized = true;
     await this.reloadSchedules();
-    logger.info('CronManager initialized');
+    logger.info('CronManager 已初始化');
   }
 
   async destroy(): Promise<void> {
     this.scheduler.clearAll();
     this.initialized = false;
-    logger.info('CronManager destroyed');
+    logger.info('CronManager 已销毁');
   }
 
   async createJob(params: CreateCronJobParams): Promise<string> {
@@ -84,7 +84,7 @@ export class CronManager {
     const nextRun = computeNextRun(params.scheduleType, params.scheduleValue);
     if (!nextRun) {
       throw new Error(
-        `Invalid or expired cron schedule: ${params.scheduleType} ${params.scheduleValue}`,
+        `无效或过期的定时任务调度：${params.scheduleType} ${params.scheduleValue}`,
       );
     }
 
@@ -101,13 +101,13 @@ export class CronManager {
     if (job) {
       this.schedule(job);
     }
-    logger.info('Cron job created', { jobId: id, scheduleType: params.scheduleType });
+    logger.info('定时任务已创建', { jobId: id, scheduleType: params.scheduleType });
     return id;
   }
 
   async listJobs(): Promise<CronJobRecord[]> {
     this.assertInitialized();
-    return this.getCronJobs().findAll();
+    return await this.getCronJobs().findAll();
   }
 
   async deleteJob(jobId: string): Promise<boolean> {
@@ -115,7 +115,7 @@ export class CronManager {
     const deleted = await this.getCronJobs().delete(jobId);
     if (deleted) {
       this.scheduler.cancel(jobId);
-      logger.info('Cron job deleted', { jobId });
+      logger.info('定时任务已删除', { jobId });
     }
     return deleted;
   }
@@ -124,9 +124,9 @@ export class CronManager {
     this.assertInitialized();
     const job = await this.getCronJobs().findById(jobId);
     if (!job) {
-      throw new Error(`Cron job "${jobId}" not found`);
+      throw new Error(`未找到定时任务 "${jobId}"`);
     }
-    return this.getExecutor().execute(job);
+    return await this.getExecutor().execute(job);
   }
 
   async reloadSchedules(): Promise<void> {
@@ -138,13 +138,13 @@ export class CronManager {
         this.schedule(job);
       }
     }
-    logger.info('Cron schedules loaded', { count: jobs.length });
+    logger.info('定时任务调度已加载', { count: jobs.length });
   }
 
   private schedule(job: CronJobRecord): void {
     this.scheduler.schedule(job, () => {
       void this.executeScheduledJob(job.id).catch((err) => {
-        logger.error(`Scheduled cron job "${job.id}" failed`, err);
+        logger.error(`定时任务 "${job.id}" 调度失败`, err);
       });
     });
   }
@@ -154,7 +154,7 @@ export class CronManager {
     const executor = this.getExecutor();
     const job = await cronJobs.findById(jobId);
     if (!job) {
-      throw new Error(`Cron job "${jobId}" not found`);
+      throw new Error(`未找到定时任务 "${jobId}"`);
     }
 
     try {
@@ -172,14 +172,14 @@ export class CronManager {
 
   private assertInitialized(): void {
     if (!this.initialized || !this.cronJobs || !this.cronRuns || !this.executor) {
-      throw new Error('CronManager not initialized');
+      throw new Error('CronManager 未初始化');
     }
   }
 
   private getCronJobs(): CronJobRepositoryLike {
     this.assertInitialized();
     if (!this.cronJobs) {
-      throw new Error('CronManager not initialized');
+      throw new Error('CronManager 未初始化');
     }
     return this.cronJobs;
   }
@@ -187,7 +187,7 @@ export class CronManager {
   private getExecutor(): CronExecutor {
     this.assertInitialized();
     if (!this.executor) {
-      throw new Error('CronManager not initialized');
+      throw new Error('CronManager 未初始化');
     }
     return this.executor;
   }

@@ -1,4 +1,4 @@
-/** Usage API routes. */
+/** 用量 API 路由。 */
 
 import { Hono } from 'hono';
 import type { WebUiManagerDependencies } from '../webui-manager';
@@ -6,6 +6,12 @@ import { createScopedLogger } from '../../core/logger';
 
 const logger = createScopedLogger('webui:usage');
 
+/**
+ * 创建用量 API 路由。
+ *
+ * @param deps - WebUiManager 的依赖项
+ * @returns Hono 路由器实例
+ */
 export function createUsageRouter(deps: WebUiManagerDependencies) {
   const router = new Hono();
 
@@ -18,8 +24,8 @@ export function createUsageRouter(deps: WebUiManagerDependencies) {
       const data = await deps.databaseManager.usage.getStats({ model, from, to });
       return c.json({ ok: true, data });
     } catch (err) {
-      logger.error('Failed to get usage stats', err);
-      return c.json({ ok: false, error: 'Failed to get usage stats' }, 500);
+      logger.error('获取用量统计失败', err);
+      return c.json({ ok: false, error: '获取用量统计失败' }, 500);
     }
   });
 
@@ -28,8 +34,8 @@ export function createUsageRouter(deps: WebUiManagerDependencies) {
       const data = await deps.databaseManager.usage.getTodaySummary();
       return c.json({ ok: true, data });
     } catch (err) {
-      logger.error('Failed to get today usage summary', err);
-      return c.json({ ok: false, error: 'Failed to get today usage summary' }, 500);
+      logger.error('获取今日用量汇总失败', err);
+      return c.json({ ok: false, error: '获取今日用量汇总失败' }, 500);
     }
   });
 

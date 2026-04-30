@@ -1,17 +1,17 @@
 /**
- * CronRepository — data access for the cron_jobs and cron_runs tables.
+ * CronRepository — cron_jobs 和 cron_runs 表的数据访问层。
  *
- * Contains functions for both cron job and cron run database operations.
- * All functions return Promises for consistent async patterns.
+ * 包含定时任务和定时任务执行的数据库操作函数。
+ * 所有函数均返回 Promise 以保持一致异步模式。
  */
 
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type { CronJobRecord, CronRunRecord, SessionKey } from '../../types';
 
-// ─── Row type helpers ─────────────────────────────────────────────
+// ─── 行类型辅助函数 ─────────────────────────────────────────────
 
-interface CronJobRow {
+type CronJobRow = {
   id: string;
   schedule_type: string;
   schedule_value: string;
@@ -21,7 +21,7 @@ interface CronJobRow {
   created_at: string;
 }
 
-interface CronRunRow {
+type CronRunRow = {
   id: string;
   job_id: string;
   status: string;
@@ -55,9 +55,9 @@ function mapRunRow(row: CronRunRow): CronRunRecord {
   };
 }
 
-// ─── Cron Jobs ────────────────────────────────────────────────────
+// ─── 定时任务 ────────────────────────────────────────────────────
 
-/** Create a new cron job and return its generated ID */
+/** 创建一个新的定时任务并返回其生成的 ID */
 export async function createCronJob(
   db: DatabaseSync,
   params: {
@@ -88,13 +88,13 @@ export async function createCronJob(
   return id;
 }
 
-/** Find a cron job by ID. Returns null if not found. */
+/** 按 ID 查找定时任务。未找到时返回 null。 */
 export async function findCronJobById(db: DatabaseSync, id: string): Promise<CronJobRecord | null> {
   const row = db.prepare('SELECT * FROM cron_jobs WHERE id = ?').get(id) as CronJobRow | undefined;
   return row ? mapJobRow(row) : null;
 }
 
-/** Get all cron jobs */
+/** 获取所有定时任务 */
 export async function findAllCronJobs(db: DatabaseSync): Promise<CronJobRecord[]> {
   const rows = db
     .prepare('SELECT * FROM cron_jobs ORDER BY next_run ASC')
@@ -102,7 +102,7 @@ export async function findAllCronJobs(db: DatabaseSync): Promise<CronJobRecord[]
   return rows.map(mapJobRow);
 }
 
-/** Delete a cron job by ID. Returns true if a row was deleted. */
+/** 按 ID 删除定时任务。有行被删除时返回 true。 */
 export async function deleteCronJob(db: DatabaseSync, id: string): Promise<boolean> {
   db.exec('BEGIN');
 
@@ -117,7 +117,7 @@ export async function deleteCronJob(db: DatabaseSync, id: string): Promise<boole
   }
 }
 
-/** Update the next_run time for a cron job */
+/** 更新定时任务的 next_run 时间 */
 export async function updateCronJobNextRun(
   db: DatabaseSync,
   id: string,
@@ -127,9 +127,9 @@ export async function updateCronJobNextRun(
   db.prepare('UPDATE cron_jobs SET next_run = ? WHERE id = ?').run(nextRunStr, id);
 }
 
-// ─── Cron Runs ────────────────────────────────────────────────────
+// ─── 定时任务执行 ────────────────────────────────────────────────────
 
-/** Create a new cron run record. Returns the generated run ID. */
+/** 创建一个新的定时任务执行记录。返回生成的执行 ID。 */
 export async function createCronRun(db: DatabaseSync, params: { jobId: string }): Promise<string> {
   const id = randomUUID();
   const now = new Date().toISOString();
@@ -144,7 +144,7 @@ export async function createCronRun(db: DatabaseSync, params: { jobId: string })
   return id;
 }
 
-/** Mark a run as completed */
+/** 将执行标记为已完成 */
 export async function markCronRunCompleted(
   db: DatabaseSync,
   runId: string,
@@ -159,7 +159,7 @@ export async function markCronRunCompleted(
   );
 }
 
-/** Mark a run as failed */
+/** 将执行标记为失败 */
 export async function markCronRunFailed(
   db: DatabaseSync,
   runId: string,
@@ -174,7 +174,7 @@ export async function markCronRunFailed(
   );
 }
 
-/** Mark multiple runs as abandoned (e.g. on startup for leftover 'running' runs) */
+/** 将多个执行标记为已放弃（例如启动时处理遗留的 'running' 执行） */
 export async function markCronRunsAbandoned(db: DatabaseSync, runIds: string[]): Promise<void> {
   if (runIds.length === 0) return;
 
@@ -194,7 +194,7 @@ export async function markCronRunsAbandoned(db: DatabaseSync, runIds: string[]):
   }
 }
 
-/** Find all currently running runs */
+/** 查找所有当前正在执行的运行 */
 export async function findRunningCronRuns(db: DatabaseSync): Promise<CronRunRecord[]> {
   const rows = db
     .prepare("SELECT * FROM cron_runs WHERE status = 'running'")
@@ -202,7 +202,7 @@ export async function findRunningCronRuns(db: DatabaseSync): Promise<CronRunReco
   return rows.map(mapRunRow);
 }
 
-/** Find all runs for a specific job, ordered by start time (newest first). */
+/** 查找特定任务的所有执行记录，按开始时间排序（最新的在前）。 */
 export async function findCronRunsByJobId(
   db: DatabaseSync,
   jobId: string,

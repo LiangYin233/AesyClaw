@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { PluginLoader } from '../../../src/plugin/plugin-loader';
 
 async function makeExtensionsDir(): Promise<string> {
-  return mkdtemp(path.join(tmpdir(), 'aesyclaw-plugin-loader-'));
+  return await mkdtemp(path.join(tmpdir(), 'aesyclaw-plugin-loader-'));
 }
 
 describe('PluginLoader', () => {

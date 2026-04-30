@@ -1,7 +1,7 @@
 /**
- * Built-in image_understanding tool.
+ * 内置 image_understanding 工具。
  *
- * Analyzes an image from a URL or file path.
+ * 分析来自 URL 或文件路径的图片。
  *
  */
 
@@ -13,7 +13,7 @@ import type { ConfigManager } from '../../core/config/config-manager';
 import type { LlmAdapter } from '../../agent/llm-adapter';
 import { loadMediaSource } from './media-source';
 
-/** Parameter schema for image_understanding */
+/** image_understanding 的参数模式 */
 const ImageUnderstandingParamsSchema = Type.Object({
   source: Type.String({ description: '图片来源：URL 或本地文件路径' }),
   question: Type.Optional(Type.String({ description: '对图片提出的问题' })),
@@ -21,11 +21,17 @@ const ImageUnderstandingParamsSchema = Type.Object({
 
 type ImageUnderstandingParams = Static<typeof ImageUnderstandingParamsSchema>;
 
-export interface ImageUnderstandingDeps {
+export type ImageUnderstandingDeps = {
   configManager: Pick<ConfigManager, 'get'>;
   llmAdapter: Pick<LlmAdapter, 'analyzeImage'>;
 }
 
+/**
+ * 创建 image_understanding 工具定义。
+ *
+ * @param deps - 包含 configManager 和 llmAdapter 的依赖项
+ * @returns image_understanding 工具的 AesyClawTool 定义
+ */
 export function createImageUnderstandingTool(deps: ImageUnderstandingDeps): AesyClawTool {
   return {
     name: 'image_understanding',
@@ -44,7 +50,7 @@ export function createImageUnderstandingTool(deps: ImageUnderstandingDeps): Aesy
         const modelIdentifier = `${multimodal.imageUnderstanding.provider}/${multimodal.imageUnderstanding.model}`;
         const answer = await deps.llmAdapter.analyzeImage(
           modelIdentifier,
-          question ?? 'Describe this image in detail.',
+          question ?? '详细描述这张图片。',
           { data: image.base64, mimeType: image.mimeType },
           `${context.sessionKey.channel}:${context.sessionKey.type}:${context.sessionKey.chatId}`,
         );
@@ -53,7 +59,7 @@ export function createImageUnderstandingTool(deps: ImageUnderstandingDeps): Aesy
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         return {
-          content: `Image understanding failed: ${message}`,
+          content: `图片理解失败: ${message}`,
           isError: true,
         };
       }

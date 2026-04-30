@@ -23,7 +23,7 @@ beforeEach(() => {
 });
 
 async function importEntrypoint() {
-  return import('../../src/index');
+  return await import('../../src/index');
 }
 
 describe('index entrypoint', () => {

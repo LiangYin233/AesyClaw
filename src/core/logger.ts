@@ -1,19 +1,18 @@
 /**
- * Scoped logger module.
+ * 作用域日志模块。
  *
- * Each subsystem creates its own logger instance via `createScopedLogger(scope)`.
- * The log level is controlled by `config.server.logLevel` and can be updated
- * at runtime through `setLogLevel()`.
+ * 每个子系统通过 `createScopedLogger(scope)` 创建自己的日志实例。
+ * 日志级别由 `config.server.logLevel` 控制，并可在运行时通过 `setLogLevel()` 更新。
  *
- * NEVER use `console.log/warn/error` directly — always use a scoped logger.
- * The only exception is `index.ts` before the logger is initialised.
+ * 禁止直接使用 `console.log/warn/error` —— 始终使用带作用域的日志器。
+ * 唯一的例外是日志器初始化前的 `index.ts`。
  */
 
 import { inspect } from 'node:util';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
-export interface LogEntry {
+export type LogEntry = {
   id: number;
   timestamp: string;
   level: LogLevel;
@@ -46,7 +45,7 @@ const MAX_LOG_BUFFER_SIZE = 500;
 const recentLogBuffer: LogEntry[] = [];
 
 /**
- * Set the global log level. Called when config is loaded or hot-reloaded.
+ * 设置全局日志级别。在配置加载或热重载时调用。
  */
 export function setLogLevel(level: string): void {
   if (level in LOG_LEVELS) {
@@ -171,7 +170,7 @@ export function clearRecentLogEntriesForTests(): void {
   nextLogEntryId = 1;
 }
 
-export interface Logger {
+export type Logger = {
   debug(message: string, ...args: unknown[]): void;
   info(message: string, ...args: unknown[]): void;
   warn(message: string, ...args: unknown[]): void;
@@ -179,10 +178,10 @@ export interface Logger {
 }
 
 /**
- * Create a scoped logger instance.
+ * 创建一个带作用域的日志实例。
  *
- * @param scope - Module identifier following the `category:name` convention
- *   (e.g. 'config', 'db', 'plugin:myfeature', 'channel:onebot')
+ * @param scope - 遵循 `category:name` 约定的模块标识符
+ *   （如 'config'、'db'、'plugin:myfeature'、'channel:onebot'）
  */
 export function createScopedLogger(scope: string): Logger {
   return {

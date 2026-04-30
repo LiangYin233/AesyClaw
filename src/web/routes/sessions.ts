@@ -1,8 +1,14 @@
-/** Session API routes. */
+/** 会话 API 路由。 */
 
 import { Hono } from 'hono';
 import type { WebUiManagerDependencies } from '../webui-manager';
 
+/**
+ * 创建会话 API 路由。
+ *
+ * @param deps - WebUiManager 的依赖项
+ * @returns Hono 路由器实例
+ */
 export function createSessionsRouter(deps: WebUiManagerDependencies) {
   const router = new Hono();
 
@@ -15,7 +21,7 @@ export function createSessionsRouter(deps: WebUiManagerDependencies) {
     const sessionId = c.req.param('id');
     const session = await deps.databaseManager.sessions.findById(sessionId);
     if (!session) {
-      return c.json({ ok: false, error: 'Session not found' }, 404);
+      return c.json({ ok: false, error: '会话未找到' }, 404);
     }
     const messages = await deps.databaseManager.messages.loadHistory(sessionId);
     return c.json({ ok: true, data: messages });

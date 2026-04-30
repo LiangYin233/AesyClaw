@@ -1,15 +1,15 @@
 /**
- * SessionRepository — data access for the sessions table.
+ * SessionRepository — sessions 表的数据访问层。
  *
- * All methods return Promises (wrapping synchronous SQLite calls)
- * for future flexibility and consistent async patterns.
+ * 所有方法均返回 Promise（包装同步 SQLite 调用）
+ * 以便未来灵活扩展和保持一致的异步模式。
  */
 
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type { SessionKey, SessionRecord } from '../../types';
 
-/** Find an existing session by its composite key, or create one if not found. */
+/** 按复合键查找现有会话，如不存在则创建。 */
 export async function findOrCreateSession(
   db: DatabaseSync,
   key: SessionKey,
@@ -22,13 +22,13 @@ export async function findOrCreateSession(
 
   const session = await findSessionByKey(db, key);
   if (!session) {
-    throw new Error('Failed to find or create session');
+    throw new Error('查找或创建会话失败');
   }
 
   return session;
 }
 
-/** Find a session by composite key. Returns null if not found. */
+/** 按复合键查找会话。未找到时返回 null。 */
 export async function findSessionByKey(
   db: DatabaseSync,
   key: SessionKey,
@@ -59,7 +59,7 @@ export async function findSessionByKey(
   };
 }
 
-/** Get all sessions, ordered by last activity (newest first). */
+/** 获取所有会话，按最后活动时间排序（最新的在前）。 */
 export async function findAllSessions(db: DatabaseSync): Promise<SessionRecord[]> {
   const rows = db
     .prepare(
@@ -88,7 +88,7 @@ export async function findAllSessions(db: DatabaseSync): Promise<SessionRecord[]
   }));
 }
 
-/** Find a session by ID. Returns null if not found. */
+/** 按 ID 查找会话。未找到时返回 null。 */
 export async function findSessionById(db: DatabaseSync, id: string): Promise<SessionRecord | null> {
   const row = db
     .prepare(

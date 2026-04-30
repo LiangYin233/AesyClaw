@@ -1,7 +1,7 @@
 /**
- * Built-in run_temp_sub_agent tool.
+ * 内置 run_temp_sub_agent 工具。
  *
- * Runs a temporary delegated sub-agent with an ad-hoc system prompt.
+ * 使用临时系统提示运行临时委托子代理。
  *
  */
 
@@ -11,7 +11,7 @@ import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '..
 import type { ToolOwner } from '../../core/types';
 import type { SubAgentSandbox } from '../../agent/sub-agent-sandbox';
 
-/** Parameter schema for run_temp_sub_agent */
+/** run_temp_sub_agent 的参数模式 */
 const RunTempSubAgentParamsSchema = Type.Object({
   systemPrompt: Type.String({ description: '子代理的系统提示' }),
   model: Type.Optional(Type.String({ description: '临时子代理使用的模型，格式为 provider/model' })),
@@ -21,10 +21,16 @@ const RunTempSubAgentParamsSchema = Type.Object({
 
 type RunTempSubAgentParams = Static<typeof RunTempSubAgentParamsSchema>;
 
-export interface RunTempSubAgentDeps {
+export type RunTempSubAgentDeps = {
   sandbox: Pick<SubAgentSandbox, 'runWithPrompt'>;
 }
 
+/**
+ * 创建 run_temp_sub_agent 工具定义。
+ *
+ * @param deps - 包含 sandbox 的依赖项
+ * @returns run_temp_sub_agent 工具的 AesyClawTool 定义
+ */
 export function createRunTempSubAgentTool(deps: RunTempSubAgentDeps): AesyClawTool {
   return {
     name: 'run_temp_sub_agent',
@@ -55,7 +61,7 @@ export function createRunTempSubAgentTool(deps: RunTempSubAgentDeps): AesyClawTo
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         return {
-          content: `Temp sub-agent execution failed: ${message}`,
+          content: `临时子代理执行失败: ${message}`,
           isError: true,
         };
       }

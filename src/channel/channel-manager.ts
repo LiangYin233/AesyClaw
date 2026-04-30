@@ -1,4 +1,4 @@
-/** Channel manager — initializes channel adapters and bridges messages into the pipeline. */
+/** 频道管理器 — 初始化频道适配器并将消息桥接到管道中。 */
 
 import type { InboundMessage, OutboundMessage, SendFn, SessionKey } from '../core/types';
 import { createScopedLogger } from '../core/logger';
@@ -26,7 +26,7 @@ export class ChannelManager {
 
   initialize(dependencies: ChannelManagerDependencies): void {
     if (this.initialized) {
-      logger.warn('ChannelManager already initialized — skipping');
+      logger.warn('ChannelManager 已初始化 — 跳过');
       return;
     }
 
@@ -40,18 +40,18 @@ export class ChannelManager {
     }
 
     this.initialized = true;
-    logger.info('ChannelManager initialized');
+    logger.info('ChannelManager 已初始化');
   }
 
   register(channel: ChannelPlugin): void {
     const existing = this.definitions.get(channel.name);
     if (existing && existing !== channel) {
-      throw new Error(`Channel "${channel.name}" is already registered`);
+      throw new Error(`频道 "${channel.name}" 已注册`);
     }
 
     this.definitions.set(channel.name, channel);
     this.registerDefaults(channel);
-    logger.debug('Channel registered', { channel: channel.name });
+    logger.debug('频道已注册', { channel: channel.name });
   }
 
   has(channelName: string): boolean {
@@ -62,7 +62,7 @@ export class ChannelManager {
     await this.stop(channelName);
     this.definitions.delete(channelName);
     this.failedChannels.delete(channelName);
-    logger.debug('Channel unregistered', { channel: channelName });
+    logger.debug('频道已注销', { channel: channelName });
   }
 
   async startAll(): Promise<void> {
@@ -70,7 +70,7 @@ export class ChannelManager {
     for (const channel of this.definitions.values()) {
       if (!this.isEnabled(channel.name)) {
         this.failedChannels.delete(channel.name);
-        logger.info('Skipping disabled channel', { channel: channel.name });
+        logger.info('跳过已禁用的频道', { channel: channel.name });
         continue;
       }
 
@@ -78,7 +78,7 @@ export class ChannelManager {
         await this.start(channel.name);
       } catch (err) {
         this.failedChannels.set(channel.name, errorMessage(err));
-        logger.error(`Channel "${channel.name}" failed to start`, err);
+        logger.error(`频道 "${channel.name}" 启动失败`, err);
       }
     }
   }
@@ -89,17 +89,17 @@ export class ChannelManager {
       try {
         await this.stop(name);
       } catch (err) {
-        logger.error(`Channel "${name}" failed to stop`, err);
+        logger.error(`频道 "${name}" 停止失败`, err);
       }
     }
-    logger.info('All channels stopped');
+    logger.info('所有频道已停止');
   }
 
   async start(channelName: string): Promise<LoadedChannel> {
     this.assertInitialized();
     const definition = this.definitions.get(channelName);
     if (!definition) {
-      throw new Error(`Channel "${channelName}" is not registered`);
+      throw new Error(`频道 "${channelName}" 未注册`);
     }
 
     if (this.loadedChannels.has(channelName)) {
@@ -121,7 +121,7 @@ export class ChannelManager {
     };
     this.loadedChannels.set(definition.name, loaded);
     this.failedChannels.delete(definition.name);
-    logger.info('Channel started', { channel: definition.name });
+    logger.info('频道已启动', { channel: definition.name });
     return loaded;
   }
 
@@ -138,17 +138,17 @@ export class ChannelManager {
     } finally {
       this.loadedChannels.delete(channelName);
       this.failedChannels.delete(channelName);
-      logger.info('Channel stopped', { channel: channelName });
+      logger.info('频道已停止', { channel: channelName });
     }
   }
 
   async send(sessionKey: SessionKey, message: OutboundMessage): Promise<void> {
     const loaded = this.loadedChannels.get(sessionKey.channel);
     if (!loaded) {
-      throw new Error(`Channel "${sessionKey.channel}" is not loaded`);
+      throw new Error(`频道 "${sessionKey.channel}" 未加载`);
     }
     if (!loaded.definition.send) {
-      throw new Error(`Channel "${sessionKey.channel}" does not support outbound send`);
+      throw new Error(`频道 "${sessionKey.channel}" 不支持出站发送`);
     }
     await loaded.definition.send(sessionKey, message);
   }
@@ -156,8 +156,8 @@ export class ChannelManager {
   async handleConfigReload(): Promise<void> {
     if (this.reloading) {
       this.reloadPending = true;
-      logger.debug('Channel config reload already in progress — queueing another pass');
-      return this.reloadPromise ?? Promise.resolve();
+      logger.debug('频道配置重载已在进行中 — 排队等待下一次');
+      return await (this.reloadPromise ?? Promise.resolve());
     }
 
     this.reloading = true;
@@ -174,7 +174,7 @@ export class ChannelManager {
       }
     })();
 
-    return this.reloadPromise;
+    return await this.reloadPromise;
   }
 
   listChannels(): ChannelStatus[] {
@@ -204,7 +204,7 @@ export class ChannelManager {
     return this.loadedChannels.get(channelName);
   }
 
-  /** Get all registered channel definitions with their metadata. */
+  /** 获取所有已注册的频道定义及其元数据。 */
   getRegisteredChannels(): Array<{
     name: string;
     version: string;
@@ -225,7 +225,7 @@ export class ChannelManager {
       config,
       receiveWithSend: async (message: InboundMessage, send: SendFn): Promise<void> => {
         if (!this.pipeline) {
-          logger.error('Pipeline not initialized — cannot receive channel message');
+          logger.error('管道未初始化 — 无法接收频道消息');
           return;
         }
         await this.pipeline.receiveWithSend(message, send);
@@ -294,7 +294,7 @@ export class ChannelManager {
 
   private assertInitialized(): void {
     if (!this.initialized || !this.configManager || !this.pipeline) {
-      throw new Error('ChannelManager not initialized');
+      throw new Error('ChannelManager 未初始化');
     }
   }
 }

@@ -1,10 +1,16 @@
-/** Config API routes. */
+/** 配置 API 路由。 */
 
 import { Hono } from 'hono';
 import type { WebUiManagerDependencies } from '../webui-manager';
 import { AppConfigSchema, type AppConfig } from '../../core/config/schema';
 import type { DeepPartial } from '../../core/types';
 
+/**
+ * 创建配置 API 路由。
+ *
+ * @param deps - WebUiManager 的依赖项
+ * @returns Hono 路由器实例
+ */
 export function createConfigRouter(deps: WebUiManagerDependencies) {
   const router = new Hono();
 

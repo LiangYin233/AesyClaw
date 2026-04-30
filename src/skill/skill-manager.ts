@@ -1,15 +1,15 @@
 /**
- * SkillManager — loads, stores, and filters skill definitions.
+ * SkillManager — 加载、存储和过滤技能定义。
  *
- * Skills are Markdown files with YAML frontmatter, stored in:
- * - System skills: `skills/*.md`          (always included, not filterable)
- * - User skills:   `.aesyclaw/skills/*.md` (filtered by role `skills` config)
+ * 技能是带有 YAML frontmatter 的 Markdown 文件，存储在：
+ * - 系统技能: `skills/*.md`          (始终包含，不可过滤)
+ * - 用户技能:   `.aesyclaw/skills/*.md` (根据角色的 `skills` 配置过滤)
  *
- * When a system and user skill share the same name, the system skill
- * takes priority (user skill is ignored).
+ * 当系统技能和用户技能同名时，系统技能
+ * 优先（用户技能被忽略）。
  *
- * Role configs reference skills by name; the manager resolves which
- * skills to include for a given role.
+ * 角色配置按名称引用技能；管理器解析
+ * 给定角色应包含哪些技能。
  */
 
 import fs from 'node:fs';
@@ -24,57 +24,57 @@ const logger = createScopedLogger('skill');
 export class SkillManager {
   private skills: Map<string, Skill> = new Map();
 
-  // ─── Lifecycle ────────────────────────────────────────────────
+  // ─── 生命周期 ────────────────────────────────────────────────
 
   /**
-   * Load all skill files from system and user directories.
+   * 从系统目录和用户目录加载所有技能文件。
    *
-   * User skills are loaded first, then system skills — so system skills
-   * always take priority on name collision.
+   * 先加载用户技能，再加载系统技能 — 因此系统技能
+   * 在名称冲突时始终优先。
    *
-   * @param systemDir - Path to `skills/` (system, always included)
-   * @param userDir   - Path to `.aesyclaw/skills/` (user, filtered by role)
+   * @param systemDir - `skills/` 的路径（系统技能，始终包含）
+   * @param userDir   - `.aesyclaw/skills/` 的路径（用户技能，按角色过滤）
    */
   async loadAll(systemDir: string, userDir: string): Promise<void> {
     this.skills.clear();
 
-    // Load user skills first so system skills take priority on conflict
+    // 先加载用户技能，以便系统技能在冲突时优先
     this.loadFromDirectory(userDir, false);
 
-    // Load system skills (wins over user skills on name collision)
+    // 加载系统技能（在名称冲突时覆盖用户技能）
     this.loadFromDirectory(systemDir, true);
 
-    logger.info(`Loaded ${this.skills.size} skills`);
+    logger.info(`已加载 ${this.skills.size} 个技能`);
   }
 
-  // ─── Read ──────────────────────────────────────────────────────
+  // ─── 读取 ──────────────────────────────────────────────────────
 
-  /** Return all loaded skills (system + user). */
+  /** 返回所有已加载的技能（系统 + 用户）。 */
   getAllSkills(): Skill[] {
     return [...this.skills.values()];
   }
 
-  /** Get a loaded skill by name. */
+  /** 按名称获取已加载的技能。 */
   getSkill(name: string): Skill | undefined {
     return this.skills.get(name);
   }
 
   /**
-   * Get skills applicable to a given role.
+   * 获取适用于给定角色的技能。
    *
-   * - System skills are always included.
-   * - If `role.skills` is `['*']`, all skills are returned.
-   * - Otherwise, only user skills whose names are in `role.skills` are included.
+   * - 系统技能始终包含。
+   * - 如果 `role.skills` 为 `['*']`，则返回所有技能。
+   * - 否则，仅包含名称在 `role.skills` 中的用户技能。
    */
   getSkillsForRole(role: RoleConfig): Skill[] {
     const systemSkills = [...this.skills.values()].filter((s) => s.isSystem);
 
-    // Wildcard: return all skills
+    // 通配符：返回所有技能
     if (role.skills.length === 1 && role.skills[0] === '*') {
       return [...this.skills.values()];
     }
 
-    // Specific list: system skills + matching user skills
+    // 特定列表：系统技能 + 匹配的用户技能
     const skillSet = new Set(role.skills);
     const userSkills = [...this.skills.values()].filter((s) => !s.isSystem && skillSet.has(s.name));
 
@@ -82,31 +82,31 @@ export class SkillManager {
   }
 
   /**
-   * Build a formatted skill prompt section for the system prompt.
+   * 为系统提示词构建格式化的技能提示段落。
    *
-   * Each skill is rendered as:
+   * 每个技能渲染为：
    * ```
    * ## Skill: {name}
    * {content}
    * ```
    *
-   * Sections are joined with blank lines.
+   * 段落之间用空行连接。
    */
   buildSkillPromptSection(skills: Skill[]): string {
     return buildSkillPromptSection(skills);
   }
 
-  // ─── Private helpers ───────────────────────────────────────────
+  // ─── 私有辅助方法 ───────────────────────────────────────────
 
   /**
-   * Load all `.md` files from a directory, recursing into subdirectories.
+   * 从目录加载所有 `.md` 文件，递归进入子目录。
    *
-   * @param dir      - Directory to scan
-   * @param isSystem - Whether these are system skills
+   * @param dir      - 要扫描的目录
+   * @param isSystem - 这些是否为系统技能
    */
   private loadFromDirectory(dir: string, isSystem: boolean): void {
     if (!fs.existsSync(dir)) {
-      logger.debug(`Skill directory does not exist: ${dir}`);
+      logger.debug(`技能目录不存在: ${dir}`);
       return;
     }
 
@@ -114,7 +114,7 @@ export class SkillManager {
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch (err) {
-      logger.warn(`Failed to read skill directory: ${dir}`, err);
+      logger.warn(`读取技能目录失败: ${dir}`, err);
       return;
     }
 
@@ -133,7 +133,7 @@ export class SkillManager {
       const skill = parseSkillFile(fullPath, isSystem);
       if (skill) {
         if (this.skills.has(skill.name)) {
-          logger.warn(`Duplicate skill name "${skill.name}" — overriding previous definition`);
+          logger.warn(`技能名称 "${skill.name}" 重复 — 覆盖之前的定义`);
         }
         this.skills.set(skill.name, skill);
       }

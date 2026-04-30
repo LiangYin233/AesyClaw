@@ -1,11 +1,11 @@
 /**
- * DatabaseManager — manages the SQLite connection lifecycle,
- * provides repository accessors, and runs migrations on initialise.
+ * DatabaseManager — 管理 SQLite 连接生命周期，
+ * 提供仓库访问器，并在初始化时运行迁移。
  *
- * Usage:
+ * 用法：
  *   const db = new DatabaseManager();
  *   await db.initialize(pathResolver.dbFile);
- *   // ... use db.sessions, db.messages, etc.
+ *   // ... 使用 db.sessions、db.messages 等
  *   await db.close();
  */
 
@@ -21,11 +21,11 @@ import * as usageRepo from './repositories/usage-repository';
 
 const logger = createScopedLogger('db');
 
-/** Migration definition */
-interface Migration {
-  id: number;
-  up: (db: DatabaseSync) => void;
-}
+  /** 迁移定义 */
+  type Migration = {
+    id: number;
+    up: (db: DatabaseSync) => void;
+  }
 
 const migrations: Migration[] = [
   { id: 1, up: applyInitialMigration },
@@ -36,44 +36,43 @@ export class DatabaseManager {
   private db: DatabaseSync | null = null;
 
   /**
-   * Initialise the database connection, ensure the parent directory
-   * exists, run migrations, and create repository instances.
+   * 初始化数据库连接，确保父目录存在，运行迁移，并创建仓库实例。
    */
   async initialize(dbPath: string): Promise<void> {
-    // Ensure the data directory exists
+    // 确保数据目录存在
     mkdirSync(dirname(dbPath), { recursive: true });
 
-    logger.info('Opening database', { path: dbPath });
+    logger.info('打开数据库', { path: dbPath });
     this.db = new DatabaseSync(dbPath);
 
-    // Enable WAL mode for better concurrent read performance
+    // 启用 WAL 模式以获得更好的并发读性能
     this.db.exec('PRAGMA journal_mode = WAL');
-    // Enable foreign keys
+    // 启用外键约束
     this.db.exec('PRAGMA foreign_keys = ON');
 
     this.runMigrations();
 
-    logger.info('Database initialised');
+    logger.info('数据库初始化完成');
   }
 
-  /** Close the database connection gracefully */
+  /** 优雅地关闭数据库连接 */
   async close(): Promise<void> {
     if (this.db) {
-      logger.info('Closing database');
+      logger.info('关闭数据库');
       this.db.close();
       this.db = null;
     }
   }
 
-  /** Get the underlying database instance — must be initialised */
+  /** 获取底层数据库实例 —— 必须已初始化 */
   getDb(): DatabaseSync {
-    if (!this.db) throw new Error('Database not initialised');
+    if (!this.db) throw new Error('数据库尚未初始化');
     return this.db;
   }
 
-  // ─── Repository accessors ──────────────────────────────────────
+  // ─── 仓库访问器 ──────────────────────────────────────
 
-  /** Session repository functions bound to the current db */
+  /** 绑定到当前数据库的会话仓库函数 */
   get sessions() {
     const db = this.getDb();
     return {
@@ -86,7 +85,7 @@ export class DatabaseManager {
     };
   }
 
-  /** Message repository functions bound to the current db */
+  /** 绑定到当前数据库的消息仓库函数 */
   get messages() {
     const db = this.getDb();
     return {
@@ -99,7 +98,7 @@ export class DatabaseManager {
     };
   }
 
-  /** Role binding repository functions bound to the current db */
+  /** 绑定到当前数据库的角色绑定仓库函数 */
   get roleBindings() {
     const db = this.getDb();
     return {
@@ -109,7 +108,7 @@ export class DatabaseManager {
     };
   }
 
-  /** Cron job repository functions bound to the current db */
+  /** 绑定到当前数据库的定时任务仓库函数 */
   get cronJobs() {
     const db = this.getDb();
     return {
@@ -122,7 +121,7 @@ export class DatabaseManager {
     };
   }
 
-  /** Cron run repository functions bound to the current db */
+  /** 绑定到当前数据库的定时任务运行仓库函数 */
   get cronRuns() {
     const db = this.getDb();
     return {
@@ -136,7 +135,7 @@ export class DatabaseManager {
     };
   }
 
-  /** Usage repository functions bound to the current db */
+  /** 绑定到当前数据库的用量仓库函数 */
   get usage() {
     const db = this.getDb();
     return {
@@ -148,7 +147,7 @@ export class DatabaseManager {
     };
   }
 
-  /** Get database statistics */
+  /** 获取数据库统计信息 */
   getStats(): { sessions: number; messages: number; cronJobs: number; usage: number } {
     const db = this.getDb();
     const sessions =
@@ -166,12 +165,12 @@ export class DatabaseManager {
     return { sessions, messages, cronJobs, usage };
   }
 
-  // ─── Migrations ────────────────────────────────────────────────
+  // ─── 迁移 ────────────────────────────────────────────────
 
   private runMigrations(): void {
-    if (!this.db) throw new Error('Database not initialised');
+    if (!this.db) throw new Error('数据库尚未初始化');
 
-    // Create migrations tracking table
+    // 创建迁移追踪表
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS _migrations (
         id   INTEGER PRIMARY KEY,
@@ -183,12 +182,12 @@ export class DatabaseManager {
       const applied = this.db.prepare('SELECT id FROM _migrations WHERE id = ?').get(migration.id);
 
       if (!applied) {
-        logger.info(`Running migration ${migration.id}`);
+        logger.info(`正在运行迁移 ${migration.id}`);
         migration.up(this.db);
         this.db
           .prepare('INSERT INTO _migrations (id, name) VALUES (?, ?)')
           .run(migration.id, `migration_${String(migration.id).padStart(3, '0')}`);
-        logger.info(`Migration ${migration.id} applied`);
+        logger.info(`迁移 ${migration.id} 已应用`);
       }
     }
   }

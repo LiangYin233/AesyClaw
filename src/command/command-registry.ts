@@ -1,9 +1,8 @@
 /**
- * Command registry — manages command registration and execution.
+ * 命令注册表 — 管理命令注册与执行。
  *
- * Commands are user-facing slash commands like /help, /role list, etc.
- * They are registered with a scope (ToolOwner) for automatic cleanup
- * when the owning subsystem is unloaded.
+ * 命令是面向用户的斜杠命令，如 /help、/role list 等。
+ * 它们以作用域（ToolOwner）注册，以便在所属子系统卸载时自动清理。
  *
  */
 
@@ -12,33 +11,32 @@ import { createScopedLogger } from '../core/logger';
 
 const logger = createScopedLogger('command');
 
-export interface ResolvedCommand {
+export type ResolvedCommand = {
   command: CommandDefinition;
   args: string[];
   commandName: string;
-  /** Internal registry key used for uniqueness and cleanup. */
+  /** 用于唯一标识和清理的内部注册表键。 */
   registryKey: string;
 }
 
 /**
- * Central registry for all slash commands.
+ * 所有斜杠命令的中央注册表。
  *
- * Commands are registered with a scope for owner-based cleanup.
- * The registry enforces registry-key uniqueness — attempting to register a
- * command with a registry key that already exists throws an error.
+ * 命令以作用域注册，以便基于所有者进行清理。
+ * 注册表强制注册键的唯一性 — 尝试使用已存在的注册键注册命令将抛出错误。
  *
- * Registry key format (internal only; user-facing syntax remains slash separated):
- *   - If namespace is set: `namespace:name`
- *   - Otherwise: just `name`
+ * 注册键格式（仅内部使用；面向用户的语法仍保持斜杠分隔）：
+ *   - 如果设置了命名空间：`namespace:name`
+ *   - 否则：仅 `name`
  */
 export class CommandRegistry {
   private commands: Map<string, CommandDefinition> = new Map();
 
   /**
-   * Compute the internal registry key for a command.
+   * 计算命令的内部注册表键。
    *
-   * If the command has a namespace, the registry key is `namespace:name`.
-   * Otherwise, just `name`.
+   * 如果命令具有命名空间，注册键为 `namespace:name`。
+   * 否则，仅为 `name`。
    */
   private static registryKeyForCommand(command: CommandDefinition): string {
     return command.namespace ? `${command.namespace}:${command.name}` : command.name;
@@ -49,36 +47,36 @@ export class CommandRegistry {
   }
 
   /**
-   * Register a command.
+   * 注册一个命令。
    *
-   * @throws Error if a command with the same registry key already exists
+   * @throws Error 如果已存在具有相同注册键的命令
    */
   register(command: CommandDefinition): void {
     const key = CommandRegistry.registryKeyForCommand(command);
     if (this.commands.has(key)) {
-      throw new Error(`Command "${key}" is already registered`);
+      throw new Error(`命令 "${key}" 已注册`);
     }
     this.commands.set(key, command);
-    logger.debug(`Registered command: ${key} (scope: ${command.scope})`);
+    logger.debug(`已注册命令: ${key} (作用域: ${command.scope})`);
   }
 
   /**
-   * Unregister a command by name and optional namespace.
+   * 按名称和可选命名空间注销命令。
    *
-   * No-op if the command doesn't exist.
+   * 如果命令不存在，则不执行任何操作。
    */
   unregister(name: string, namespace?: string): void {
     const key = CommandRegistry.registryKeyForParts(name, namespace);
     const removed = this.commands.delete(key);
     if (removed) {
-      logger.debug(`Unregistered command: ${key}`);
+      logger.debug(`已注销命令: ${key}`);
     }
   }
 
   /**
-   * Unregister all commands with a given scope.
+   * 注销指定作用域的所有命令。
    *
-   * Used for cleanup when a plugin or MCP server is unloaded.
+   * 在插件或 MCP 服务器卸载时用于清理。
    */
   unregisterByScope(scope: ToolOwner): void {
     let count = 0;
@@ -89,19 +87,19 @@ export class CommandRegistry {
       }
     }
     if (count > 0) {
-      logger.debug(`Unregistered ${count} commands with scope ${scope}`);
+      logger.debug(`已注销 ${count} 个作用域为 ${scope} 的命令`);
     }
   }
 
   /**
-   * Execute a command from raw input.
+   * 从原始输入执行命令。
    *
-   * Parses the input string for the `/command args...` format.
-   * Returns null if the input is not a recognized command.
+   * 解析输入字符串的 `/command args...` 格式。
+   * 如果输入不是已识别的命令，则返回 null。
    *
-   * @param input - Raw input string (e.g. "/help", "/role list", "/plugin enable myplugin")
-   * @param context - Command execution context
-   * @returns Command output string, or null if not a valid command
+   * @param input - 原始输入字符串（例如 "/help"、"/role list"、"/plugin enable myplugin"）
+   * @param context - 命令执行上下文
+   * @returns 命令输出字符串，如果不是有效命令则返回 null
    */
   async execute(input: string, context: CommandContext): Promise<string | null> {
     const resolved = this.resolve(input);
@@ -109,34 +107,47 @@ export class CommandRegistry {
       return null;
     }
 
-    return this.executeResolved(resolved, context);
+    return await this.executeResolved(resolved, context);
   }
 
+  /**
+   * 执行已解析的命令。
+   *
+   * @param resolved - 已解析的命令对象
+   * @param context - 命令执行上下文
+   * @returns 命令输出字符串
+   */
   async executeResolved(resolved: ResolvedCommand, context: CommandContext): Promise<string> {
     try {
       return await resolved.command.execute(resolved.args, context);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.error(`Command "${resolved.registryKey}" failed: ${message}`);
-      return `Error executing command: ${message}`;
+      logger.error(`命令 "${resolved.registryKey}" 执行失败: ${message}`);
+      return `执行命令时出错: ${message}`;
     }
   }
 
+  /**
+   * 解析输入字符串为 ResolvedCommand。
+   *
+   * @param input - 原始输入字符串
+   * @returns 解析后的命令对象，如果不是有效命令则返回 null
+   */
   resolve(input: string): ResolvedCommand | null {
     return this.resolveCommand(input);
   }
 
   /**
-   * Check if the input string is a valid slash command.
+   * 检查输入字符串是否为有效的斜杠命令。
    *
-   * Returns true if input starts with "/" and the command exists
-   * in the registry. Does NOT execute the command.
+   * 如果输入以 "/" 开头且命令存在于注册表中，则返回 true。
+   * 不会执行命令。
    */
   isCommand(input: string): boolean {
     return this.resolve(input) !== null;
   }
 
-  /** Get all registered commands. */
+  /** 获取所有已注册的命令。 */
   getAll(): CommandDefinition[] {
     return [...this.commands.values()];
   }

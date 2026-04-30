@@ -1,10 +1,10 @@
 /**
- * ToolAdapter — converts AesyClawTool to Pi-mono AgentTool format.
+ * ToolAdapter — 将 AesyClawTool 转换为 Pi-mono AgentTool 格式。
  *
- * Wraps tool.execute to integrate with the plugin hook system:
- * 1. Dispatches beforeToolCall hooks — may block or short-circuit
- * 2. Calls the actual tool.execute
- * 3. Dispatches afterToolCall hooks — may override the result
+ * 包装 tool.execute 以集成插件钩子系统：
+ * 1. 派发 beforeToolCall 钩子 — 可能阻塞或短路
+ * 2. 调用实际的 tool.execute
+ * 3. 派发 afterToolCall 钩子 — 可能覆盖结果
  *
  */
 
@@ -15,22 +15,21 @@ import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from './
 
 const logger = createScopedLogger('tool');
 
-/**
- * Adapts an AesyClawTool into the Pi-mono AgentTool interface.
- *
- * The adapter wraps the tool's execute function with hook dispatching
- * so that plugin beforeToolCall/afterToolCall hooks can intercept
- * or modify tool invocations.
- */
+  /**
+   * 将 AesyClawTool 适配到 Pi-mono AgentTool 接口。
+   *
+   * 适配器使用钩子派发包装工具的 execute 函数，
+   * 以便插件 beforeToolCall/afterToolCall 钩子可以拦截
+   * 或修改工具调用。
+   */
 export class ToolAdapter {
   /**
-   * Convert an AesyClawTool to an AgentTool, wrapping execute with
-   * before/after hook dispatching.
+   * 将 AesyClawTool 转换为 AgentTool，使用 before/after 钩子派发包装 execute。
    *
-   * @param tool - The AesyClaw tool to adapt
-   * @param hookDispatcher - Dispatches plugin hooks
-   * @param executionContext - Partial context injected into tool execute
-   * @returns An AgentTool compatible with the Pi-mono agent runtime
+   * @param tool - 要适配的 AesyClaw 工具
+   * @param hookDispatcher - 派发插件钩子
+   * @param executionContext - 注入到工具执行中的部分上下文
+   * @returns 兼容 Pi-mono 代理运行时的 AgentTool
    */
   static toAgentTool(
     tool: AesyClawTool,
@@ -62,7 +61,7 @@ export class ToolAdapter {
           result: ToolExecutionResult,
           outcome: ToolCallLogOutcome,
         ): AgentToolResult => {
-          logger.debug('Tool call completed', {
+          logger.debug('工具调用完成', {
             ...logContext,
             outcome,
             result: summarizeResult(result),
@@ -71,37 +70,37 @@ export class ToolAdapter {
           return ToolAdapter.toRuntimeResult(result);
         };
 
-        logger.debug('Tool call invoked', {
+        logger.debug('工具调用已触发', {
           ...logContext,
           params: summarizeParams(params),
         });
 
-        // 1. Dispatch beforeToolCall hooks
+        // 1. 派发 beforeToolCall 钩子
         const beforeResult = await hookDispatcher.dispatchBeforeToolCall({
           toolName: tool.name,
           params,
           sessionKey,
         });
 
-        // If a hook blocks the call, return an error result
+        // 如果钩子阻塞了调用，返回错误结果
         if (beforeResult.block) {
-          logger.debug('Tool call blocked by before hook', {
+          logger.debug('工具调用被 before 钩子阻塞', {
             ...logContext,
             hasReason: beforeResult.reason !== undefined,
           });
 
           return complete(
             {
-              content: beforeResult.reason ?? `Tool call "${tool.name}" was blocked by a hook`,
+              content: beforeResult.reason ?? `工具调用 "${tool.name}" 被钩子阻塞`,
               isError: true,
             },
             'blocked',
           );
         }
 
-        // If a hook provides a short-circuit result, use it directly
+        // 如果钩子提供了短路结果，直接使用
         if (beforeResult.shortCircuit) {
-          logger.debug('Tool call short-circuited by before hook', {
+          logger.debug('工具调用被 before 钩子短路', {
             ...logContext,
             result: summarizeResult(beforeResult.shortCircuit),
           });
@@ -109,16 +108,16 @@ export class ToolAdapter {
           return complete(beforeResult.shortCircuit, 'short-circuited');
         }
 
-        // 2. Execute the actual tool
+        // 2. 执行实际工具
         let result: ToolExecutionResult;
         try {
-          // If the signal is already aborted, don't execute
+          // 如果信号已被中止，则不执行
           if (signal?.aborted) {
-            logger.debug('Tool call aborted before execution', logContext);
+            logger.debug('工具调用在执行前被中止', logContext);
 
             return complete(
               {
-                content: `Tool call "${tool.name}" was aborted`,
+                content: `工具调用 "${tool.name}" 被中止`,
                 isError: true,
               },
               'aborted',
@@ -128,7 +127,7 @@ export class ToolAdapter {
           result = await tool.execute(params, executionContext as ToolExecutionContext);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
-          logger.debug('Tool call execution failed', {
+          logger.debug('工具调用执行失败', {
             ...logContext,
             errorName: err instanceof Error ? err.name : typeof err,
             message,
@@ -137,7 +136,7 @@ export class ToolAdapter {
           return complete({ content: message, isError: true }, 'execution-failed');
         }
 
-        // 3. Dispatch afterToolCall hooks — may override the result
+        // 3. 派发 afterToolCall 钩子 — 可能覆盖结果
         const afterResult = await hookDispatcher.dispatchAfterToolCall({
           toolName: tool.name,
           params,
@@ -147,7 +146,7 @@ export class ToolAdapter {
 
         if (afterResult.override) {
           const override = afterResult.override;
-          logger.debug('Tool call result overridden by after hook', {
+          logger.debug('工具调用结果被 after 钩子覆盖', {
             ...logContext,
             override: {
               hasContent: override.content !== undefined,

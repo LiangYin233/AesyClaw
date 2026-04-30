@@ -1,4 +1,4 @@
-/** MCP SDK client adapter for configured stdio, SSE, and streamable HTTP servers. */
+/** 用于已配置的 stdio、SSE 和 streamable HTTP 服务器的 MCP SDK 客户端适配器。 */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
@@ -46,7 +46,7 @@ class SdkMcpClient implements McpClient {
   }
 
   async callTool(name: string, params: unknown): Promise<unknown> {
-    return this.client.callTool({
+    return await this.client.callTool({
       name,
       arguments: isRecord(params) ? params : {},
     });
@@ -64,7 +64,7 @@ class SdkMcpClient implements McpClient {
 function createTransport(config: McpServerConfig): Transport {
   if (config.transport === 'stdio') {
     if (!config.command) {
-      throw new Error(`MCP stdio server "${config.name}" requires a command`);
+      throw new Error(`MCP stdio 服务器 "${config.name}" 需要一个命令`);
     }
 
     return new StdioClientTransport({
@@ -75,7 +75,7 @@ function createTransport(config: McpServerConfig): Transport {
   }
 
   if (!config.url) {
-    throw new Error(`MCP ${config.transport} server "${config.name}" requires a url`);
+    throw new Error(`MCP ${config.transport} 服务器 "${config.name}" 需要一个 url`);
   }
 
   const url = new URL(config.url);

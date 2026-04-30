@@ -1,9 +1,15 @@
-/** Role API routes. */
+/** 角色 API 路由。 */
 
 import { Hono } from 'hono';
 import type { WebUiManagerDependencies } from '../webui-manager';
 import type { RoleConfig } from '../../core/types';
 
+/**
+ * 创建角色 API 路由。
+ *
+ * @param deps - WebUiManager 的依赖项
+ * @returns Hono 路由器实例
+ */
 export function createRolesRouter(deps: WebUiManagerDependencies) {
   const router = new Hono();
 
@@ -18,7 +24,7 @@ export function createRolesRouter(deps: WebUiManagerDependencies) {
       const role = deps.roleManager.getRole(id);
       return c.json({ ok: true, data: role });
     } catch {
-      return c.json({ ok: false, error: 'Role not found' }, 404);
+      return c.json({ ok: false, error: '角色未找到' }, 404);
     }
   });
 
@@ -27,22 +33,22 @@ export function createRolesRouter(deps: WebUiManagerDependencies) {
     try {
       const body = (await c.req.json()) as Partial<RoleConfig>;
       if (body.id !== undefined && body.id !== id) {
-        return c.json({ ok: false, error: 'Role id in request body must match route id' }, 400);
+        return c.json({ ok: false, error: '请求体中的角色 id 必须与路由 id 一致' }, 400);
       }
       const model = body.model ?? deps.roleManager.getRole(id).model;
       const slashIdx = model.indexOf('/');
       if (slashIdx === -1) {
-        return c.json({ ok: false, error: 'Model must be in provider/model format' }, 400);
+        return c.json({ ok: false, error: '模型必须是 provider/model 格式' }, 400);
       }
       const providerName = model.slice(0, slashIdx);
       const modelId = model.slice(slashIdx + 1);
       const config = deps.configManager.getConfig();
       const provider = config.providers[providerName];
-      if (!provider) {
-        return c.json({ ok: false, error: `Provider "${providerName}" not configured` }, 400);
+      if (provider === undefined) {
+        return c.json({ ok: false, error: `提供商 "${providerName}" 未配置` }, 400);
       }
-      if (!provider.models || !(modelId in provider.models)) {
-        return c.json({ ok: false, error: `Model "${modelId}" not found in provider "${providerName}"` }, 400);
+      if (provider.models === undefined || !(modelId in provider.models)) {
+        return c.json({ ok: false, error: `提供商 "${providerName}" 中未找到模型 "${modelId}"` }, 400);
       }
       const existing = deps.roleManager.getRole(id);
       const updated: RoleConfig = { ...existing, ...body, id };
@@ -58,7 +64,7 @@ export function createRolesRouter(deps: WebUiManagerDependencies) {
     try {
       const body = (await c.req.json()) as Partial<RoleConfig> & { name: string; model: string };
       if (!body.name || !body.model) {
-        return c.json({ ok: false, error: 'Name and model are required' }, 400);
+        return c.json({ ok: false, error: '名称和模型为必填项' }, 400);
       }
       const role = await deps.roleManager.createRole({
         name: body.name,

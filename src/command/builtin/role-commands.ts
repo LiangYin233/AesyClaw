@@ -1,10 +1,10 @@
 /**
- * Built-in role management commands.
+ * 内置角色管理命令。
  *
- * Subcommands:
- *   /role list   — List all enabled roles
- *   /role switch — Switch current role
- *   /role info   — Show current role info
+ * 子命令：
+ *   /role list   — 列出所有已启用的角色
+ *   /role switch — 切换当前角色
+ *   /role info   — 显示当前角色信息
  *
  */
 
@@ -12,11 +12,17 @@ import type { CommandDefinition, CommandContext } from '../../core/types';
 import type { SessionManager } from '../../agent/session-manager';
 import type { RoleManager } from '../../role/role-manager';
 
-export interface RoleCommandDeps {
+export type RoleCommandDeps = {
   roleManager: Pick<RoleManager, 'getEnabledRoles' | 'getRole'>;
   sessionManager: Pick<SessionManager, 'getOrCreateSession' | 'switchRole'>;
 }
 
+/**
+ * 创建 role list 命令定义。
+ *
+ * @param deps - 包含 roleManager 和 sessionManager 的依赖项
+ * @returns role list 命令的 CommandDefinition
+ */
 export function createRoleListCommand(deps: RoleCommandDeps): CommandDefinition {
   return {
     name: 'list',
@@ -42,6 +48,12 @@ export function createRoleListCommand(deps: RoleCommandDeps): CommandDefinition 
   };
 }
 
+/**
+ * 创建 role switch 命令定义。
+ *
+ * @param deps - 包含 roleManager 和 sessionManager 的依赖项
+ * @returns role switch 命令的 CommandDefinition
+ */
 export function createRoleSwitchCommand(deps: RoleCommandDeps): CommandDefinition {
   return {
     name: 'switch',
@@ -52,7 +64,7 @@ export function createRoleSwitchCommand(deps: RoleCommandDeps): CommandDefinitio
     execute: async (args: string[], context: CommandContext): Promise<string> => {
       const roleId = args[0];
       if (!roleId) {
-        return 'Usage: /role switch <id>';
+        return '用法：/role switch <id>';
       }
 
       const targetRole = deps.roleManager.getEnabledRoles().find((role) => role.id === roleId);
@@ -66,6 +78,12 @@ export function createRoleSwitchCommand(deps: RoleCommandDeps): CommandDefinitio
   };
 }
 
+/**
+ * 创建 role info 命令定义。
+ *
+ * @param deps - 包含 roleManager 和 sessionManager 的依赖项
+ * @returns role info 命令的 CommandDefinition
+ */
 export function createRoleInfoCommand(deps: RoleCommandDeps): CommandDefinition {
   return {
     name: 'info',

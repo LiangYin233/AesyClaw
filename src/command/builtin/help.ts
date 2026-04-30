@@ -1,12 +1,18 @@
 /**
- * Built-in help command.
+ * 内置 help 命令。
  *
- * Lists all registered commands with their name and description.
+ * 列出所有已注册的命令及其名称和描述。
  *
  */
 
 import type { CommandDefinition, CommandContext } from '../../core/types';
 
+/**
+ * 创建 help 命令定义。
+ *
+ * @param getAllCommands - 返回所有已注册命令的函数
+ * @returns help 命令的 CommandDefinition
+ */
 export function createHelpCommand(getAllCommands: () => CommandDefinition[]): CommandDefinition {
   return {
     name: 'help',

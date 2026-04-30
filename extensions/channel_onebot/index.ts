@@ -85,18 +85,18 @@ const EXTENSION_BY_MIME_TYPE: Record<string, string> = {
   'application/pdf': '.pdf',
 };
 
-export interface OneBotChannelConfig {
+export type OneBotChannelConfig = {
   serverUrl: string;
   accessToken?: string;
 }
 
-export interface OneBotActionTransport {
+export type OneBotActionTransport = {
   sendAction(action: string, params: Record<string, unknown>): Promise<OneBotApiResponse>;
 }
 
 type OneBotLogger = ChannelContext['logger'];
 
-interface OneBotApiResponse {
+type OneBotApiResponse = {
   status?: string;
   retcode?: number;
   msg?: string;
@@ -106,43 +106,43 @@ interface OneBotApiResponse {
   data?: unknown;
 }
 
-interface LoadedAttachmentSource {
+type LoadedAttachmentSource = {
   data: Uint8Array;
   fileName: string;
 }
 
-interface UploadedAttachment {
+type UploadedAttachment = {
   filePath: string;
   fileName: string;
 }
 
-interface OneBotMessageSegment {
+type OneBotMessageSegment = {
   type: string;
   data: Record<string, unknown>;
 }
 
-interface PendingRequest<T> {
+type PendingRequest<T> = {
   resolve(response: T): void;
   reject(error: Error): void;
   timeout: ReturnType<typeof setTimeout>;
 }
 
-interface PendingStreamRequest extends PendingRequest<OneBotApiResponse[]> {
+type PendingStreamRequest = {
   responses: OneBotApiResponse[];
-}
+} & PendingRequest<OneBotApiResponse[]>
 
-interface DownloadedStreamFile {
+type DownloadedStreamFile = {
   data: Uint8Array;
   fileName: string;
 }
 
-interface OneBotInboundAttachmentSegment {
+type OneBotInboundAttachmentSegment = {
   attachmentType: MediaAttachment['type'];
   segmentType: string;
   data: Record<string, unknown>;
 }
 
-interface WebSocketLike {
+type WebSocketLike = {
   readonly readyState: number;
   send(data: string): void;
   close(code?: number, reason?: string): void;
@@ -150,11 +150,11 @@ interface WebSocketLike {
   removeEventListener(type: string, listener: (event: unknown) => void): void;
 }
 
-interface CreateOneBotChannelOptions {
+type CreateOneBotChannelOptions = {
   createSocket?: (url: string) => WebSocketLike;
 }
 
-interface GlobalWithWebSocket {
+type GlobalWithWebSocket = {
   WebSocket?: new (url: string) => WebSocketLike;
 }
 
@@ -184,7 +184,7 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
 
   const transport: OneBotActionTransport = {
     sendAction: async (action, params) => {
-      return sendSocketActionRequest({
+      return await sendSocketActionRequest({
         action,
         params,
         echoPrefix: 'onebot',
@@ -201,7 +201,7 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
     action: string,
     params: Record<string, unknown>,
   ): Promise<OneBotApiResponse[]> => {
-    return sendSocketActionRequest({
+    return await sendSocketActionRequest({
       action,
       params,
       echoPrefix: 'onebot-stream',
@@ -259,7 +259,7 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
       return;
     }
     if (connectPromise) {
-      return connectPromise;
+      return await connectPromise;
     }
     if (!config || !context) {
       throw new Error('OneBot channel is not initialized');
@@ -269,7 +269,7 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
     connectPromise = connectSocket(initial).finally(() => {
       connectPromise = null;
     });
-    return connectPromise;
+    return await connectPromise;
   }
 
   async function connectSocket(initial: boolean): Promise<void> {
@@ -350,7 +350,7 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
       sendStreamAction,
     );
 
-    if (!context || destroyed) {
+    if (context === undefined || destroyed) {
       return;
     }
 
@@ -457,7 +457,7 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
     }
 
     const echo = `${echoPrefix}-${Date.now()}-${++nextEcho}`;
-    return new Promise<T>((resolve, reject) => {
+    return await new Promise<T>((resolve, reject) => {
       const timeout = setTimeout(() => {
         requests.delete(echo);
         reject(new Error(timeoutMessage));

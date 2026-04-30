@@ -1,5 +1,5 @@
-/** Database record for a session */
-export interface SessionRecord {
+/** 会话的数据库记录 */
+export type SessionRecord = {
   id: string;
   channel: string;
   type: string;
@@ -8,8 +8,8 @@ export interface SessionRecord {
   updatedAt: string | null;
 }
 
-/** Database record for a cron job */
-export interface CronJobRecord {
+/** 定时任务的数据库记录 */
+export type CronJobRecord = {
   id: string;
   scheduleType: string;
   scheduleValue: string;
@@ -19,8 +19,8 @@ export interface CronJobRecord {
   createdAt: string;
 }
 
-/** Database record for a cron run */
-export interface CronRunRecord {
+/** 定时任务执行的数据库记录 */
+export type CronRunRecord = {
   id: string;
   jobId: string;
   status: string;
@@ -30,8 +30,8 @@ export interface CronRunRecord {
   endedAt: string | null;
 }
 
-/** Usage record — raw insert payload before DB storage */
-export interface UsageRecord {
+/** 用量记录 — 存入数据库前的原始插入载荷 */
+export type UsageRecord = {
   model: string;
   provider: string;
   api: string;
@@ -52,8 +52,8 @@ export interface UsageRecord {
   };
 }
 
-/** Aggregated usage summary (grouped by model + date) */
-export interface UsageSummary {
+/** 聚合用量汇总（按模型 + 日期分组） */
+export type UsageSummary = {
   model: string;
   date: string;
   inputTokens: number;

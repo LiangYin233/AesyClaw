@@ -1,10 +1,10 @@
-/** Shared helpers for extension directory discovery and dynamic imports. */
+/** 用于扩展目录发现和动态导入的共享辅助函数。 */
 
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-export interface ExtensionLoaderLogger {
+export type ExtensionLoaderLogger = {
   warn(message: string, ...args: unknown[]): void;
 }
 
@@ -59,19 +59,19 @@ export async function resolveExtensionEntry(extensionDir: string, kind: string):
         return candidate;
       }
     } catch {
-      // Try the next supported entry filename.
+      // 尝试下一个支持的入口文件名。
     }
   }
 
   throw new Error(
-    `${kind} directory "${extensionDir}" has no index.ts, index.js, or index.mjs entry`,
+    `${kind} 目录 "${extensionDir}" 没有 index.ts、index.js 或 index.mjs 入口文件`,
   );
 }
 
 export async function importExtensionEntry(entryPath: string): Promise<unknown> {
   const entryUrl = pathToFileURL(entryPath);
   entryUrl.searchParams.set('mtime', String((await stat(entryPath)).mtimeMs));
-  return import(entryUrl.href);
+  return await import(entryUrl.href);
 }
 
 function errorMessage(err: unknown): string {

@@ -1,11 +1,11 @@
-/** Cron executor — records cron runs and injects jobs into the pipeline. */
+/** 定时任务执行器 — 记录定时任务运行并将任务注入管道。 */
 
 import type { CronJobRecord, InboundMessage, OutboundMessage, SessionKey } from '../core/types';
 import { createScopedLogger } from '../core/logger';
 
 const logger = createScopedLogger('cron');
 
-export interface CronRunRepositoryLike {
+export type CronRunRepositoryLike = {
   create(params: { jobId: string }): Promise<string>;
   markCompleted(runId: string, result: string): Promise<void>;
   markFailed(runId: string, error: string): Promise<void>;
@@ -13,27 +13,40 @@ export interface CronRunRepositoryLike {
   markAbandoned(runIds: string[]): Promise<void>;
 }
 
-export interface CronPipelineLike {
+export type CronPipelineLike = {
   receiveWithSend(
     message: InboundMessage,
     send: (message: OutboundMessage) => Promise<void>,
   ): Promise<void>;
 }
 
-export interface CronExecutorDependencies {
+export type CronExecutorDependencies = {
   cronRuns: CronRunRepositoryLike;
   pipeline: CronPipelineLike;
   send: (sessionKey: SessionKey, message: OutboundMessage) => Promise<void>;
 }
 
-export interface CronExecutionSessionKeys {
+export type CronExecutionSessionKeys = {
   context: SessionKey;
   target: SessionKey;
 }
 
+/**
+ * 定时任务执行器 — 记录定时任务运行并将任务注入管道。
+ */
 export class CronExecutor {
   constructor(private readonly dependencies: CronExecutorDependencies) {}
 
+  /**
+   * 执行单个定时任务。
+   *
+   * 创建运行记录、构造入站消息、通过管道处理、
+   * 并将结果标记为完成或失败。
+   *
+   * @param job - 要执行的定时任务
+   * @param sessionKeys - 可选的上下文和目标会话键覆盖
+   * @returns 执行结果的格式化字符串
+   */
   async execute(job: CronJobRecord, sessionKeys?: CronExecutionSessionKeys): Promise<string> {
     const runId = await this.dependencies.cronRuns.create({ jobId: job.id });
     try {
@@ -53,17 +66,23 @@ export class CronExecutor {
 
       const result = formatResult(outboundMessages);
       await this.dependencies.cronRuns.markCompleted(runId, result);
-      logger.info('Cron job completed', { jobId: job.id, runId });
+      logger.info('定时任务已完成', { jobId: job.id, runId });
       return result;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       await this.dependencies.cronRuns.markFailed(runId, message);
-      logger.error('Cron job failed', { jobId: job.id, runId, error: message });
+      logger.error('定时任务失败', { jobId: job.id, runId, error: message });
       throw err;
     }
   }
 }
 
+/**
+ * 为定时任务创建内部上下文会话键。
+ *
+ * @param jobId - 定时任务 ID
+ * @returns 频道为 'cron'、类型为 'job' 的会话键
+ */
 export function createCronContextSessionKey(jobId: string): SessionKey {
   return {
     channel: 'cron',
@@ -72,6 +91,13 @@ export function createCronContextSessionKey(jobId: string): SessionKey {
   };
 }
 
+/**
+ * 从 JSON 字符串解析会话键。
+ *
+ * @param value - JSON 序列化的会话键字符串
+ * @returns 解析后的 SessionKey
+ * @throws 如果 JSON 无效或缺少必要字段则抛出错误
+ */
 export function parseSessionKey(value: string): SessionKey {
   const parsed: unknown = JSON.parse(value);
   if (
@@ -82,7 +108,7 @@ export function parseSessionKey(value: string): SessionKey {
     typeof (parsed as Record<string, unknown>).type !== 'string' ||
     typeof (parsed as Record<string, unknown>).chatId !== 'string'
   ) {
-    throw new Error('Invalid cron session key');
+    throw new Error('无效的定时任务会话键');
   }
 
   const record = parsed as Record<string, string>;
@@ -93,9 +119,15 @@ export function parseSessionKey(value: string): SessionKey {
   };
 }
 
+/**
+ * 将出站消息数组格式化为执行结果字符串。
+ *
+ * @param messages - 管道执行产生的出站消息
+ * @returns 合并后的文本结果
+ */
 export function formatResult(messages: OutboundMessage[]): string {
   if (messages.length === 0) {
-    return 'Cron job completed without outbound response.';
+    return '定时任务已完成，但无出站响应。';
   }
   return messages.map((message) => message.content).join('\n');
 }

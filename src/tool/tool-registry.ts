@@ -1,9 +1,9 @@
 /**
- * Tool registry — manages tool registration and execution.
+ * Tool registry — 管理工具的注册和执行。
  *
- * Provides registration, unregistration, owner-scoped cleanup,
- * and role-based permission filtering. Converts registered tools
- * to the Pi-mono AgentTool format via ToolAdapter.
+ * 提供注册、注销、按所有者范围的清理，
+ * 以及基于角色的权限过滤。通过 ToolAdapter
+ * 将已注册的工具转换为 Pi-mono AgentTool 格式。
  *
  */
 
@@ -22,17 +22,17 @@ import { ToolAdapter } from './tool-adapter';
 
 const logger = createScopedLogger('tool');
 
-// ─── Core types ───────────────────────────────────────────────────
+// ─── 核心类型 ─────────────────────────────────────────────────────
 
 /**
- * Result of executing a tool.
+ * 执行工具的结果。
  *
- * Tools return structured results rather than throwing errors,
- * allowing the Agent LLM to reason about failures and retries.
+ * 工具返回结构化结果而不是抛出错误，
+ * 允许代理 LLM 对失败和重试进行推理。
  *
  * @see error-handling.md — "Agent Tool Execution: Return Error Result"
  */
-export interface ToolExecutionResult {
+export type ToolExecutionResult = {
   content: string;
   details?: unknown;
   isError?: boolean;
@@ -40,39 +40,39 @@ export interface ToolExecutionResult {
 }
 
 /**
- * Tool execution context provided to tool execute functions.
+ * 提供给工具执行函数的工具执行上下文。
  *
- * Will be expanded as more subsystems are implemented.
+ * 随着更多子系统的实现，将会扩展。
  */
-export interface ToolExecutionContext {
+export type ToolExecutionContext = {
   sessionKey: SessionKey;
-  /** Sends through the pipeline's onSend-aware delivery path when available */
+  /** 在可用时通过管道的 onSend 感知传递路径发送 */
   sendMessage?: (message: OutboundMessage) => Promise<boolean>;
-  /** Caller role's tool permission, used by sub-agents to inherit restrictions */
+  /** 调用者角色的工具权限，子代理用于继承限制 */
   toolPermission?: ToolPermissionConfig;
 }
 
 /**
- * A tool that can be registered with the Agent.
+ * 可以注册到代理的工具。
  *
- * Each tool has an owner scope for automatic cleanup when the owning
- * subsystem (plugin, MCP server) is unloaded.
+ * 每个工具都有一个所有者范围，以便在所属
+ * 子系统（插件、MCP 服务器）卸载时自动清理。
  *
- * Parameter schemas use TypeBox (`TSchema`) so they can be converted
- * to JSON Schema for the LLM tool interface. The `execute` function
- * receives `params: unknown`; individual tool implementations narrow
- * the type internally using `Static<typeof SchemaParam>` assertions,
- * validated at runtime through the TypeBox schema.
+ * 参数模式使用 TypeBox (`TSchema`)，因此可以转换为
+ * 用于 LLM 工具接口的 JSON Schema。`execute` 函数
+ * 接收 `params: unknown`；各个工具实现内部使用
+ * `Static<typeof SchemaParam>` 断言缩小类型，
+ * 在运行时通过 TypeBox 模式进行验证。
  *
- * Why `unknown` instead of a generic?
- * Tools are stored in a heterogeneous registry. A generic `execute`
- * parameter would be contravariant, preventing
- * `AesyClawTool<SpecificSchema>` from being assignable to `AesyClawTool`.
- * Since the adapter always passes `unknown` params (from LLM output),
- * `unknown` is the honest, runtime-accurate type. TypeBox `Static<>`
- * + runtime validation ensures type safety at each call site.
+ * 为什么使用 `unknown` 而不是泛型？
+ * 工具存储在异构注册表中。泛型 `execute`
+ * 参数将是逆变的，阻止
+ * `AesyClawTool<SpecificSchema>` 赋值给 `AesyClawTool`。
+ * 由于适配器始终传递 `unknown` 参数（来自 LLM 输出），
+ * `unknown` 是诚实、运行时准确的类型。TypeBox `Static<>`
+ * + 运行时验证确保每个调用点的类型安全。
  */
-export interface AesyClawTool {
+export type AesyClawTool = {
   name: string;
   description: string;
   parameters: TSchema;
@@ -83,47 +83,47 @@ export interface AesyClawTool {
 // ─── ToolRegistry ──────────────────────────────────────────────────
 
 /**
- * Central registry for all tools available to the agent.
+ * 代理可用所有工具的中央注册表。
  *
- * Tools are registered with an owner scope so that when a plugin
- * or MCP server is unloaded, all its tools can be removed in one call
- * via `unregisterByOwner()`.
+ * 工具按所有者范围注册，以便当插件
+ * 或 MCP 服务器卸载时，可以通过一次调用
+ * `unregisterByOwner()` 移除其所有工具。
  *
- * The registry enforces name uniqueness — attempting to register a
- * tool with a name that already exists throws an error.
+ * 注册表强制名称唯一性 — 尝试注册
+ * 名称已存在的工具会抛出错误。
  */
 export class ToolRegistry {
   private tools: Map<string, AesyClawTool> = new Map();
 
   /**
-   * Register a tool.
+   * 注册一个工具。
    *
-   * @throws Error if a tool with the same name already exists
+   * @throws Error 如果同名工具已存在
    */
   register(tool: AesyClawTool): void {
     if (this.tools.has(tool.name)) {
-      throw new Error(`Tool "${tool.name}" is already registered`);
+      throw new Error(`工具 "${tool.name}" 已注册`);
     }
     this.tools.set(tool.name, tool);
-    logger.debug(`Registered tool: ${tool.name} (owner: ${tool.owner})`);
+    logger.debug(`已注册工具: ${tool.name} (owner: ${tool.owner})`);
   }
 
   /**
-   * Unregister a tool by name.
+   * 按名称注销工具。
    *
-   * No-op if the tool doesn't exist.
+   * 如果工具不存在则为空操作。
    */
   unregister(name: string): void {
     const removed = this.tools.delete(name);
     if (removed) {
-      logger.debug(`Unregistered tool: ${name}`);
+      logger.debug(`已注销工具: ${name}`);
     }
   }
 
   /**
-   * Unregister all tools owned by a given owner.
+   * 注销指定所有者拥有的所有工具。
    *
-   * Used for cleanup when a plugin or MCP server is unloaded.
+   * 用于插件或 MCP 服务器卸载时的清理。
    */
   unregisterByOwner(owner: ToolOwner): void {
     let count = 0;
@@ -134,35 +134,34 @@ export class ToolRegistry {
       }
     }
     if (count > 0) {
-      logger.debug(`Unregistered ${count} tools owned by ${owner}`);
+      logger.debug(`已注销 ${count} 个属于 ${owner} 的工具`);
     }
   }
 
-  /** Get all registered tools. */
+  /** 获取所有已注册工具。 */
   getAll(): AesyClawTool[] {
     return [...this.tools.values()];
   }
 
-  /** Get a tool by name, or undefined if not found. */
+  /** 按名称获取工具，未找到则返回 undefined。 */
   get(name: string): AesyClawTool | undefined {
     return this.tools.get(name);
   }
 
-  /** Check whether a tool with the given name is registered. */
+  /** 检查给定名称的工具是否已注册。 */
   has(name: string): boolean {
     return this.tools.has(name);
   }
 
   /**
-   * Return the internal tools available to a role before runtime adaptation.
+   * 返回在运行时适配前角色可用的内部工具。
    */
   getForRole(role: RoleConfig): AesyClawTool[] {
     return filterToolsByRole(this.getAll(), role);
   }
 
   /**
-   * Resolve both prompt-facing tool definitions and runtime AgentTools from
-   * a single filtered tool set.
+   * 从单个过滤后的工具集解析面向提示的工具定义和运行时 AgentTools。
    */
   resolveForRoleWithDefinitions(
     role: RoleConfig,
@@ -177,13 +176,13 @@ export class ToolRegistry {
   }
 
   /**
-   * Resolve the set of tools available to a given role,
-   * applying permission filtering and converting to AgentTool format.
+   * 解析给定角色可用的工具集，
+   * 应用权限过滤并转换为 AgentTool 格式。
    *
-   * @param role - The role whose permissions determine which tools are available
-   * @param hookDispatcher - Dispatches before/after tool call hooks
-   * @param executionContext - Context provided to tool execute functions
-   * @returns Array of AgentTool instances ready for the agent runtime
+   * @param role - 其权限决定可用工具的角色
+   * @param hookDispatcher - 派发 before/after 工具调用钩子
+   * @param executionContext - 提供给工具执行函数的上下文
+   * @returns 准备用于代理运行时的 AgentTool 实例数组
    */
   resolveForRole(
     role: RoleConfig,
@@ -202,13 +201,13 @@ export class ToolRegistry {
   }
 }
 
-// ─── Utility functions ─────────────────────────────────────────────
+// ─── 工具函数 ─────────────────────────────────────────────────────
 
 /**
- * Filter tools based on role permissions.
+ * 基于角色权限过滤工具。
  *
- * - allowlist mode: only keep tools whose names are in the list
- * - denylist mode: exclude tools whose names are in the list
+ * - allowlist 模式：仅保留列表中的工具名称
+ * - denylist 模式：排除列表中的工具名称
  */
 export function filterToolsByRole(tools: AesyClawTool[], role: RoleConfig): AesyClawTool[] {
   const { mode, list } = role.toolPermission;

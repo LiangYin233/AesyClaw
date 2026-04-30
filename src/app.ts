@@ -1,4 +1,4 @@
-/** Application — the main orchestrator that owns all subsystem manager instances. */
+/** Application — 主协调器，拥有所有子系统管理器实例。 */
 
 import { mkdirSync } from 'node:fs';
 import { AgentEngine } from './agent/agent-engine';
@@ -69,16 +69,16 @@ export class Application {
 
   async start(): Promise<void> {
     if (this.started) {
-      logger.warn('Application already started');
+      logger.warn('应用已启动');
       return;
     }
 
-    logger.info('Starting AesyClaw...');
+    logger.info('正在启动 AesyClaw...');
 
     await this.runStartupSequence();
 
     this.started = true;
-    logger.info('AesyClaw started successfully');
+    logger.info('AesyClaw 启动成功');
   }
 
   private async runStartupSequence(): Promise<void> {
@@ -92,13 +92,13 @@ export class Application {
   }
 
   private async prepareRuntime(): Promise<void> {
-    await this.startStep('Path resolution', async () => {
+    await this.startStep('路径解析', async () => {
       const root = process.cwd();
       this.pathResolver.resolve(root);
-      logger.info('Path resolution complete', { root });
+      logger.info('路径解析完成', { root });
     });
 
-    await this.startStep('Runtime directory preparation', async () => {
+    await this.startStep('运行时目录准备', async () => {
       const runtimeDirs = [
         this.pathResolver.runtimeRoot,
         this.pathResolver.dataDir,
@@ -117,33 +117,33 @@ export class Application {
   }
 
   private async loadRuntimeConfiguration(): Promise<void> {
-    await this.startStep('Config loading', async () => {
+    await this.startStep('配置加载', async () => {
       await this.configManager.load(this.pathResolver.configFile);
       setLogLevel(this.configManager.getConfig().server.logLevel);
-      logger.info('Configuration loaded');
+      logger.info('配置已加载');
     });
   }
 
   private async initializeCoreManagers(): Promise<void> {
-    await this.startStep('Database initialization', async () => {
+    await this.startStep('数据库初始化', async () => {
       await this.databaseManager.initialize(this.pathResolver.dbFile);
     });
 
-    await this.startStep('Skill loading', async () => {
+    await this.startStep('技能加载', async () => {
       await this.skillManager.loadAll(this.pathResolver.skillsDir, this.pathResolver.userSkillsDir);
     });
 
-    await this.startStep('Role loading', async () => {
+    await this.startStep('角色加载', async () => {
       await this.roleManager.loadAll(this.pathResolver.rolesDir);
     });
   }
 
   private async initializeAgentRuntime(): Promise<void> {
-    await this.startStep('LLM adapter initialization', async () => {
+    await this.startStep('LLM 适配器初始化', async () => {
       this.llmAdapter.initialize({ configManager: this.configManager });
     });
 
-    await this.startStep('Agent engine initialization', async () => {
+    await this.startStep('Agent 引擎初始化', async () => {
       this.agentEngine.initialize({
         configManager: this.configManager,
         toolRegistry: this.toolRegistry,
@@ -154,7 +154,7 @@ export class Application {
       });
     });
 
-    await this.startStep('Session manager initialization', async () => {
+    await this.startStep('会话管理器初始化', async () => {
       this.sessionManager.initialize({
         databaseManager: this.databaseManager,
         roleManager: this.roleManager,
@@ -166,7 +166,7 @@ export class Application {
   }
 
   private async initializeExtensionRuntime(): Promise<void> {
-    await this.startStep('Plugin manager initialization', async () => {
+    await this.startStep('插件管理器初始化', async () => {
       this.pluginManager = new PluginManager({
         configManager: this.configManager,
         toolRegistry: this.toolRegistry,
@@ -177,7 +177,7 @@ export class Application {
       });
     });
 
-    await this.startStep('Pipeline initialization', async () => {
+    await this.startStep('Pipeline 初始化', async () => {
       this.pipeline.initialize({
         sessionManager: this.sessionManager,
         agentEngine: this.agentEngine,
@@ -185,7 +185,7 @@ export class Application {
       });
     });
 
-    await this.startStep('Built-in registration', async () => {
+    await this.startStep('内置组件注册', async () => {
       registerBuiltinTools(this.toolRegistry, {
         cronManager: this.cronManager,
         agentEngine: this.agentEngine,
@@ -202,20 +202,20 @@ export class Application {
       });
     });
 
-    await this.startStep('Plugin loading', async () => {
+    await this.startStep('插件加载', async () => {
       await this.getPluginManager().loadAll();
     });
   }
 
   private async initializeOuterRuntime(): Promise<void> {
-    await this.startStep('MCP manager initialization', async () => {
+    await this.startStep('MCP 管理器初始化', async () => {
       this.mcpManager.initialize({
         configManager: this.configManager,
         toolRegistry: this.toolRegistry,
         clientFactory: new SdkMcpClientFactory(),
       });
 
-      // Auto-write MCP example config entry if none configured
+      // 如果没有配置 MCP，则自动写入示例配置项
       const mcpConfig = this.configManager.get('mcp');
       if (mcpConfig.length === 0) {
         await this.configManager.update({ mcp: DEFAULT_CONFIG.mcp });
@@ -224,7 +224,7 @@ export class Application {
       await this.mcpManager.connectAll();
     });
 
-    await this.startStep('Channel manager initialization', async () => {
+    await this.startStep('频道管理器初始化', async () => {
       this.channelManager.initialize({
         configManager: this.configManager,
         pipeline: this.pipeline,
@@ -233,15 +233,15 @@ export class Application {
       await this.channelManager.startAll();
     });
 
-    await this.startStep('Cron manager initialization', async () => {
+    await this.startStep('Cron 管理器初始化', async () => {
       await this.cronManager.initialize({
         databaseManager: this.databaseManager,
         pipeline: this.pipeline,
-        send: async (sessionKey, message) => this.channelManager.send(sessionKey, message),
+        send: async (sessionKey, message) => await this.channelManager.send(sessionKey, message),
       });
     });
 
-    await this.startStep('WebUI initialization', async () => {
+    await this.startStep('WebUI 初始化', async () => {
       await this.webUiManager.initialize({
         configManager: this.configManager,
         databaseManager: this.databaseManager,
@@ -255,19 +255,19 @@ export class Application {
   }
 
   private async installRuntimeReloading(): Promise<void> {
-    await this.startStep('Config synchronization', async () => {
+    await this.startStep('配置同步', async () => {
       await this.configManager.syncDefaults();
       this.installConfigSubscriptions();
     });
 
-    await this.startStep('Hot reload startup', async () => {
+    await this.startStep('热重载启动', async () => {
       this.configManager.startHotReload();
       this.roleManager.startWatching();
     });
   }
 
   async shutdown(): Promise<void> {
-    logger.info('Shutting down AesyClaw...');
+    logger.info('正在关闭 AesyClaw...');
 
     const steps: Array<() => Promise<void> | void> = [
       () => this.configManager.stopHotReload(),
@@ -286,19 +286,19 @@ export class Application {
       try {
         await step();
       } catch (err) {
-        logger.error('Shutdown step failed', err);
+        logger.error('关闭步骤失败', err);
       }
     }
 
     this.started = false;
-    logger.info('AesyClaw shutdown complete');
+    logger.info('AesyClaw 关闭完成');
   }
 
   private async startStep(name: string, step: () => Promise<void> | void): Promise<void> {
     try {
       await step();
     } catch (err) {
-      logger.error(`${name} failed`, err);
+      logger.error(`${name} 失败`, err);
       await this.shutdown();
       throw err;
     }
@@ -330,7 +330,7 @@ export class Application {
       try {
         unsubscribe();
       } catch (err) {
-        logger.error('Config unsubscribe failed', err);
+        logger.error('配置取消订阅失败', err);
       }
     }
   }
@@ -343,14 +343,14 @@ export class Application {
         const module = await loader.load(channelDir);
         this.channelManager.register(module.definition);
       } catch (err) {
-        logger.error(`Channel extension "${channelDir}" failed to load`, err);
+        logger.error(`频道扩展 "${channelDir}" 加载失败`, err);
       }
     }
   }
 
   private getPluginManager(): PluginManager {
     if (!this.pluginManager) {
-      throw new Error('PluginManager not initialized');
+      throw new Error('PluginManager 未初始化');
     }
     return this.pluginManager;
   }

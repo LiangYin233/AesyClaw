@@ -1,7 +1,7 @@
 import type { SessionKey } from './identity-types';
 
-/** Media attachment carried alongside a message */
-export interface MediaAttachment {
+/** 随消息一起携带的媒体附件 */
+export type MediaAttachment = {
   type: 'image' | 'audio' | 'video' | 'file';
   url?: string;
   path?: string;
@@ -9,15 +9,15 @@ export interface MediaAttachment {
   mimeType?: string;
 }
 
-/** Information about the message sender */
-export interface SenderInfo {
+/** 消息发送者信息 */
+export type SenderInfo = {
   id: string;
   name?: string;
   role?: string;
 }
 
-/** Message arriving from an external platform into the pipeline */
-export interface InboundMessage {
+/** 从外部平台进入管道的传入消息 */
+export type InboundMessage = {
   sessionKey: SessionKey;
   content: string;
   attachments?: MediaAttachment[];
@@ -25,23 +25,23 @@ export interface InboundMessage {
   rawEvent?: unknown;
 }
 
-/** Reply produced by the pipeline and sent back through a channel */
-export interface OutboundMessage {
+/** 由管道生成并通过频道发送回去的回复 */
+export type OutboundMessage = {
   content: string;
   attachments?: MediaAttachment[];
 }
 
-/** Function that sends an outbound message through a channel */
+/** 通过频道发送传出消息的函数 */
 export type SendFn = (message: OutboundMessage) => Promise<void>;
 
-/** Result of processing a message through the pipeline or a hook */
+/** 消息经过管道或钩子处理后的结果 */
 export type PipelineResult =
   | { action: 'continue'; data?: unknown }
   | { action: 'block'; reason?: string }
   | { action: 'respond'; content: string; attachments?: MediaAttachment[] };
 
-/** Message record persisted in the database */
-export interface PersistableMessage {
+/** 持久化到数据库的消息记录 */
+export type PersistableMessage = {
   role: 'user' | 'assistant';
   content: string;
   timestamp?: string;

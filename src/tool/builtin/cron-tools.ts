@@ -1,7 +1,7 @@
 /**
- * Built-in cron management tools.
+ * 内置定时任务管理工具。
  *
- * create_cron, list_cron, delete_cron.
+ * create_cron, list_cron, delete_cron。
  *
  */
 
@@ -11,7 +11,7 @@ import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '..
 import type { SessionKey, ToolOwner } from '../../core/types';
 import type { CronManager, CreateCronJobParams } from '../../cron/cron-manager';
 
-// ─── Parameter schemas ─────────────────────────────────────────────
+// ─── 参数模式 ─────────────────────────────────────────────────────
 
 const CreateCronParamsSchema = Type.Object({
   scheduleType: Type.Union(
@@ -33,10 +33,10 @@ const DeleteCronParamsSchema = Type.Object({
 type CreateCronParams = Static<typeof CreateCronParamsSchema>;
 type DeleteCronParams = Static<typeof DeleteCronParamsSchema>;
 
-// ─── Dependencies ──────────────────────────────────────────────────
+// ─── 依赖 ─────────────────────────────────────────────────────────
 
-/** Dependencies needed by cron tools. */
-export interface CronToolsDeps {
+/** 定时任务工具所需的依赖。 */
+export type CronToolsDeps = {
   cronManager: CronManagerLike;
 }
 
@@ -44,6 +44,12 @@ type CronManagerLike = Pick<CronManager, 'createJob' | 'listJobs' | 'deleteJob'>
 
 // ─── create_cron ───────────────────────────────────────────────────
 
+/**
+ * 创建 create_cron 工具定义。
+ *
+ * @param deps - 包含 cronManager 的依赖项
+ * @returns create_cron 工具的 AesyClawTool 定义
+ */
 export function createCreateCronTool(deps: CronToolsDeps): AesyClawTool {
   return {
     name: 'create_cron',
@@ -64,7 +70,7 @@ export function createCreateCronTool(deps: CronToolsDeps): AesyClawTool {
           sessionKey,
         } satisfies CreateCronJobParams);
 
-        return { content: `Cron job created: ${jobId}` };
+        return { content: `定时任务已创建: ${jobId}` };
       } catch (err) {
         return { content: errorMessage(err), isError: true };
       }
@@ -74,6 +80,12 @@ export function createCreateCronTool(deps: CronToolsDeps): AesyClawTool {
 
 // ─── list_cron ─────────────────────────────────────────────────────
 
+/**
+ * 创建 list_cron 工具定义。
+ *
+ * @param deps - 包含 cronManager 的依赖项
+ * @returns list_cron 工具的 AesyClawTool 定义
+ */
 export function createListCronTool(deps: CronToolsDeps): AesyClawTool {
   return {
     name: 'list_cron',
@@ -87,14 +99,14 @@ export function createListCronTool(deps: CronToolsDeps): AesyClawTool {
       try {
         const jobs = await deps.cronManager.listJobs();
         if (jobs.length === 0) {
-          return { content: 'No cron jobs.' };
+          return { content: '没有定时任务。' };
         }
 
         const lines = jobs.map((job) => {
-          const nextRun = job.nextRun ?? 'not scheduled';
-          return `- ${job.id}: ${job.scheduleType} ${job.scheduleValue}, next: ${nextRun}, prompt: ${job.prompt}`;
+          const nextRun = job.nextRun ?? '未调度';
+          return `- ${job.id}: ${job.scheduleType} ${job.scheduleValue}, 下次运行: ${nextRun}, 提示: ${job.prompt}`;
         });
-        return { content: `Cron jobs:\n${lines.join('\n')}` };
+        return { content: `定时任务列表:\n${lines.join('\n')}` };
       } catch (err) {
         return { content: errorMessage(err), isError: true };
       }
@@ -104,6 +116,12 @@ export function createListCronTool(deps: CronToolsDeps): AesyClawTool {
 
 // ─── delete_cron ───────────────────────────────────────────────────
 
+/**
+ * 创建 delete_cron 工具定义。
+ *
+ * @param deps - 包含 cronManager 的依赖项
+ * @returns delete_cron 工具的 AesyClawTool 定义
+ */
 export function createDeleteCronTool(deps: CronToolsDeps): AesyClawTool {
   return {
     name: 'delete_cron',
@@ -117,7 +135,7 @@ export function createDeleteCronTool(deps: CronToolsDeps): AesyClawTool {
       try {
         const { jobId } = params as DeleteCronParams;
         const deleted = await deps.cronManager.deleteJob(jobId);
-        return { content: deleted ? `Cron job deleted: ${jobId}` : `Cron job not found: ${jobId}` };
+        return { content: deleted ? `定时任务已删除: ${jobId}` : `定时任务未找到: ${jobId}` };
       } catch (err) {
         return { content: errorMessage(err), isError: true };
       }
@@ -127,7 +145,7 @@ export function createDeleteCronTool(deps: CronToolsDeps): AesyClawTool {
 
 function requireSessionKey(sessionKey: SessionKey): SessionKey {
   if (!sessionKey.channel || !sessionKey.type || !sessionKey.chatId) {
-    throw new Error('Cron tools require a valid session key');
+    throw new Error('定时任务工具需要有效的会话密钥');
   }
   return sessionKey;
 }

@@ -1,18 +1,18 @@
 /**
- * MemoryManager — manages conversation history for a session.
+ * MemoryManager — 管理会话的对话历史。
  *
- * Responsibilities:
- * - Load persisted messages from the database and convert to AgentMessage format
- * - Persist messages from agent state with filtering strategy (§5.7.3)
- * - Compact history via LLM summarization when it grows too long
- * - Clear session history
+ * 职责：
+ * - 从数据库加载持久化的消息并转换为 AgentMessage 格式
+ * - 使用过滤策略持久化 Agent 状态中的消息 (§5.7.3)
+ * - 当历史过长时通过 LLM 总结进行压缩
+ * - 清除会话历史
  *
- * Filtering strategy:
- * - `role === 'user'` → always save
- * - `role === 'assistant'` with NO toolCalls → save
- * - `role === 'assistant'` WITH toolCalls → skip (internal reasoning, not user-visible)
- * - `role === 'toolResult'` → skip (internal results)
- * - Empty content → skip
+ * 过滤策略：
+ * - `role === 'user'` → 始终保存
+ * - `role === 'assistant'` 无 toolCalls → 保存
+ * - `role === 'assistant'` 有 toolCalls → 跳过（内部推理，对用户不可见）
+ * - `role === 'toolResult'` → 跳过（内部结果）
+ * - 空内容 → 跳过
  *
  */
 
@@ -30,16 +30,16 @@ import { createScopedLogger } from '../core/logger';
 
 const logger = createScopedLogger('memory');
 
-/** Shape of the message repository that MemoryManager depends on */
-export interface MessageRepositoryLike {
+/** MemoryManager 依赖的消息仓库结构 */
+export type MessageRepositoryLike = {
   save(sessionId: string, message: PersistableMessage): Promise<void>;
   loadHistory(sessionId: string): Promise<PersistableMessage[]>;
   clearHistory(sessionId: string): Promise<void>;
   replaceWithSummary(sessionId: string, summary: string): Promise<void>;
 }
 
-/** Shape of the usage repository that MemoryManager depends on */
-export interface UsageRepositoryLike {
+/** MemoryManager 依赖的用量仓库结构 */
+export type UsageRepositoryLike = {
   create(record: {
     model: string;
     provider: string;
@@ -69,15 +69,15 @@ export class MemoryManager {
     this.config = config;
   }
 
-  // ─── Read ──────────────────────────────────────────────────────
+  // ─── 读取 ──────────────────────────────────────────────────────
 
   /**
-   * Load conversation history from the database and convert to AgentMessage format.
+   * 从数据库加载对话历史并转换为 AgentMessage 格式。
    *
-   * Converts PersistableMessage records (which only have role + content)
-   * into AgentMessage objects suitable for the agent.
+   * 将 PersistableMessage 记录（仅包含 role + content）
+   * 转换为适合 Agent 的 AgentMessage 对象。
    *
-   * @returns Array of AgentMessage representing the session's history
+   * @returns 表示该会话历史的 AgentMessage 数组
    */
   async loadHistory(): Promise<AgentMessage[]> {
     const records = await this.messageRepo.loadHistory(this.sessionId);
@@ -90,9 +90,8 @@ export class MemoryManager {
   }
 
   /**
-   * Decide whether persisted history is large enough to compact before the
-   * next model turn. This uses a conservative text estimate because the
-   * runtime does not currently expose provider-specific token counting.
+   * 判断持久化的历史是否在下一轮模型调用前大到需要压缩。
+   * 使用保守的文本估算，因为运行时目前不提供提供者特定的 token 计数。
    */
   shouldCompact(messages: AgentMessage[]): boolean {
     const threshold = this.config.maxContextTokens * this.config.compressionThreshold;
@@ -103,31 +102,30 @@ export class MemoryManager {
     return this.estimateTokens(messages) >= threshold;
   }
 
-  // ─── Write ────────────────────────────────────────────────────
+  // ─── 写入 ────────────────────────────────────────────────────
 
   /**
-   * Persist a single AgentMessage to the database, applying the filtering strategy.
+   * 将单个 AgentMessage 持久化到数据库，应用过滤策略。
    *
-   * Filtering rules (§5.7.3):
-   * - Skip assistant messages that contain toolCalls (internal reasoning)
-   * - Skip toolResult messages (internal results)
-   * - Skip messages with empty content
-   * - Always save user messages
-   * - Save assistant messages that are pure text (no toolCalls)
+   * 过滤规则 (§5.7.3)：
+   * - 跳过包含 toolCalls 的助手消息（内部推理）
+   * - 跳过 toolResult 消息（内部结果）
+   * - 跳过空内容消息
+   * - 始终保存用户消息
+   * - 保存纯文本的助手消息（无 toolCalls）
    *
-   * @param message - The AgentMessage to potentially persist
+   * @param message - 可能要持久化的 AgentMessage
    */
   async persistMessage(message: AgentMessage): Promise<void> {
     await this.persistMessageWithAccounting(message);
   }
 
   /**
-   * Sync all messages from an agent's state into the database.
+   * 将 Agent 状态中的所有消息同步到数据库。
    *
-   * Iterates through agent messages and applies the filtering strategy
-   * via persistMessage for each one.
+   * 遍历 Agent 消息并通过 persistMessage 应用过滤策略。
    *
-   * @param agentMessages - The current messages from the agent's state
+   * @param agentMessages - Agent 状态中的当前消息
    */
   async syncFromAgent(agentMessages: AgentMessage[]): Promise<void> {
     let persisted = 0;
@@ -143,38 +141,38 @@ export class MemoryManager {
     }
 
     logger.debug(
-      `Synced ${agentMessages.length} messages: ${persisted} persisted, ${filtered} filtered`,
+      `已同步 ${agentMessages.length} 条消息：${persisted} 条已持久化，${filtered} 条已过滤`,
     );
   }
 
-  // ─── Compact ──────────────────────────────────────────────────
+  // ─── 压缩 ──────────────────────────────────────────────────
 
   /**
-   * Compact the session's conversation history by summarizing it via LLM.
+   * 通过 LLM 总结来压缩会话的对话历史。
    *
-   * Flow:
-   * 1. Load current history from DB
-   * 2. If too few messages (≤ 2), skip — too short to compress
-   * 3. Call llmAdapter.summarize to generate a summary
-   * 4. Replace the session's messages with the summary in DB
-   * 5. Return the summary
+   * 流程：
+   * 1. 从数据库加载当前历史
+   * 2. 如果消息太少（≤ 2），跳过 — 太短无法压缩
+   * 3. 调用 llmAdapter.summarize 生成总结
+   * 4. 在数据库中替换会话的消息为总结
+   * 5. 返回总结
    *
-   * @param llmAdapter - The LLM adapter for summarization
-   * @param modelIdentifier - The active role model to reuse for summarization
-   * @returns The generated summary, or a skip message if too short
+   * @param llmAdapter - 用于总结的 LLM 适配器
+   * @param modelIdentifier - 复用于总结的角色模型
+   * @returns 生成的总结，或如果太短则返回跳过消息
    */
   async compact(llmAdapter: LlmAdapter, modelIdentifier: string): Promise<string> {
     const messages = await this.loadHistory();
 
     if (messages.length <= 2) {
-      logger.info('Session history too short to compress', {
+      logger.info('会话历史太短，无需压缩', {
         sessionId: this.sessionId,
         messageCount: messages.length,
       });
-      return 'Session history too short to compress.';
+      return '会话历史太短，无需压缩。';
     }
 
-    logger.info('Compacting session history', {
+    logger.info('正在压缩会话历史', {
       sessionId: this.sessionId,
       messageCount: messages.length,
     });
@@ -183,7 +181,7 @@ export class MemoryManager {
 
     await this.messageRepo.replaceWithSummary(this.sessionId, summary);
 
-    logger.info('Session history compacted', {
+    logger.info('会话历史已压缩', {
       sessionId: this.sessionId,
       originalMessages: messages.length,
       summaryLength: summary.length,
@@ -192,28 +190,27 @@ export class MemoryManager {
     return summary;
   }
 
-  // ─── Clear ────────────────────────────────────────────────────
+  // ─── 清除 ────────────────────────────────────────────────────
 
   /**
-   * Clear all session history from the database.
+   * 清除数据库中的所有会话历史。
    */
   async clear(): Promise<void> {
     await this.messageRepo.clearHistory(this.sessionId);
-    logger.info('Session history cleared', { sessionId: this.sessionId });
+    logger.info('会话历史已清除', { sessionId: this.sessionId });
   }
 
-  // ─── Private helpers ───────────────────────────────────────────
+  // ─── 私有辅助方法 ───────────────────────────────────────────
 
   /**
-   * Record LLM usage data for any assistant message that has token usage.
-   * Called independently of content persistence so tool-call messages
-   * (which consume tokens but aren't persisted as user-visible text)
-   * still have their token consumption tracked.
+   * 为任何包含 token 使用数据的助手消息记录 LLM 用量数据。
+   * 独立于内容持久化调用，因此工具调用消息
+   * （消耗 token 但不会作为用户可见文本持久化）
+   * 仍然会被追踪 token 消耗。
    */
   private async persistMessageWithAccounting(message: AgentMessage): Promise<boolean> {
-    // Record usage for all assistant messages that have token data,
-    // regardless of whether the message content is persistable (tool-call
-    // messages consume tokens too).
+    // 为所有包含 token 数据的助手消息记录用量，
+    // 无论消息内容是否可持久化（工具调用消息也会消耗 token）。
     await this.recordUsageIfApplicable(message);
 
     const persistable = this.toPersistableMessage(message);
@@ -227,9 +224,9 @@ export class MemoryManager {
 
   private async recordUsageIfApplicable(message: AgentMessage): Promise<void> {
     if (
-      !this.usageRepo ||
+      this.usageRepo === undefined ||
       message.role !== 'assistant' ||
-      !message.usage ||
+      message.usage === undefined ||
       message.usage.totalTokens <= 0
     ) {
       return;
@@ -244,7 +241,7 @@ export class MemoryManager {
         usage: message.usage,
       });
     } catch (err) {
-      logger.error('Failed to record usage', err);
+      logger.error('记录用量失败', err);
     }
   }
 

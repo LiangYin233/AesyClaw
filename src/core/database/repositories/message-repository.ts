@@ -1,14 +1,14 @@
 /**
- * MessageRepository — data access for the messages table.
+ * MessageRepository — messages 表的数据访问层。
  *
- * Only user and pure-text assistant messages should be persisted.
- * Tool calls and tool results are filtered out by MemoryManager.
+ * 仅应持久化用户和纯文本助手消息。
+ * 工具调用和工具结果由 MemoryManager 过滤掉。
  */
 
 import type { DatabaseSync } from 'node:sqlite';
 import type { PersistableMessage } from '../../types';
 
-/** Save a persistable message to the session history */
+/** 将可持久化消息保存到会话历史 */
 export async function saveMessage(
   db: DatabaseSync,
   sessionId: string,
@@ -24,7 +24,7 @@ export async function saveMessage(
   );
 }
 
-/** Load all messages for a session, ordered chronologically */
+/** 按时间顺序加载会话的所有消息 */
 export async function loadMessageHistory(
   db: DatabaseSync,
   sessionId: string,
@@ -42,14 +42,14 @@ export async function loadMessageHistory(
   }));
 }
 
-/** Clear all messages for a session */
+/** 清空会话的所有消息 */
 export async function clearMessageHistory(db: DatabaseSync, sessionId: string): Promise<void> {
   db.prepare('DELETE FROM messages WHERE session_id = ?').run(sessionId);
 }
 
 /**
- * Replace a session's message history with a single summary message.
- * Uses a transaction to ensure atomicity.
+ * 将会话的消息历史替换为单条摘要消息。
+ * 使用事务确保原子性。
  */
 export async function replaceMessageWithSummary(
   db: DatabaseSync,
