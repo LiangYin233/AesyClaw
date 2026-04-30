@@ -12,7 +12,7 @@
             <th>Channel</th>
             <th>Type</th>
             <th>Chat ID</th>
-            <th>Last Updated</th>
+            <th>Last Activity</th>
             <th style="width: 40px"></th>
           </tr>
         </thead>
@@ -46,7 +46,7 @@
               </td>
               <td>{{ session.type }}</td>
               <td>{{ session.chatId }}</td>
-              <td class="cell-muted">{{ formatDate(session.updatedAt || session.startedAt) }}</td>
+              <td class="cell-muted">{{ formatDate(session.updatedAt ?? session.createdAt) }}</td>
               <td>
                 <button class="table-action-btn" @click.stop>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -94,7 +94,7 @@
                   <div class="message-history-footer">
                     <span class="footer-count">{{ messages.length }} messages</span>
                     <span class="footer-meta">
-                      Started: {{ formatTime(session.startedAt || messages[0]?.timestamp) }}
+                      Started: {{ formatTime(session.createdAt ?? messages[0]?.timestamp) }}
                       <span v-if="messages.length > 0"> &middot; Last activity: {{ formatTime(messages[messages.length - 1].timestamp) }}</span>
                     </span>
                   </div>
@@ -122,8 +122,8 @@ interface Session {
   channel: string;
   type: string;
   chatId: string;
-  startedAt?: string;
-  updatedAt?: string;
+  createdAt: string | null;
+  updatedAt: string | null;
 }
 
 interface Message {
@@ -171,10 +171,10 @@ async function toggleSession(id: string) {
 
 function formatTime(iso: string): string {
   if (!iso) return '-';
-  return new Date(iso).toLocaleTimeString();
+  return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-function formatDate(iso: string | undefined): string {
+function formatDate(iso: string | null | undefined): string {
   if (!iso) return '-';
   const d = new Date(iso);
   return d.toLocaleDateString('en-US', {
@@ -182,8 +182,9 @@ function formatDate(iso: string | undefined): string {
     day: 'numeric',
     year: 'numeric',
   }) + ' ' + d.toLocaleTimeString('en-US', {
-    hour: 'numeric',
+    hour: '2-digit',
     minute: '2-digit',
+    hour12: false,
   });
 }
 

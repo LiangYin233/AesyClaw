@@ -751,10 +751,10 @@ onMounted(() => {
   align-items: center;
   gap: 0.3rem;
   padding: 0.35rem 0.7rem;
-  border: 1px solid var(--color-border);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-text-muted);
+  background: #121212;
+  color: #fff;
   font-family: var(--font-heading);
   font-size: 0.75rem;
   font-weight: 500;
@@ -763,9 +763,9 @@ onMounted(() => {
 }
 
 .add-btn:hover {
-  background: var(--color-surface);
-  color: var(--color-dark);
-  border-color: var(--color-border-strong);
+  background: #2a2a2a;
+  color: #fff;
+  border-color: transparent;
 }
 
 .tag-list {
@@ -820,7 +820,7 @@ onMounted(() => {
 }
 
 .btn-save {
-  background: #9c6f3c;
+  background: #C96442;
   color: #fff;
   font-family: var(--font-heading);
   font-size: 0.8rem;
@@ -833,9 +833,9 @@ onMounted(() => {
 }
 
 .btn-save:hover {
-  background: #8a6234;
+  background: #b55a3b;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(156, 111, 60, 0.25);
+  box-shadow: 0 4px 12px rgba(201, 100, 66, 0.25);
 }
 
 .btn-save:disabled {

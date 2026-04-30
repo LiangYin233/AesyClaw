@@ -18,7 +18,6 @@
         </div>
         <div class="stat-value">{{ stats.sessions }}</div>
         <div class="stat-card-footer">
-          <span class="stat-trend up">12.5% vs yesterday</span>
         </div>
       </div>
 
@@ -33,7 +32,6 @@
         </div>
         <div class="stat-value">{{ formatNumber(stats.messages) }}</div>
         <div class="stat-card-footer">
-          <span class="stat-trend up">18.7% vs yesterday</span>
         </div>
       </div>
 
@@ -49,7 +47,6 @@
         </div>
         <div class="stat-value">{{ stats.cronJobs }}</div>
         <div class="stat-card-footer">
-          <span class="stat-trend neutral">No change</span>
         </div>
       </div>
 
@@ -63,43 +60,20 @@
           <span class="stat-card-label">Uptime</span>
         </div>
         <div class="stat-value">{{ uptimeText }}</div>
-        <div class="stat-card-footer">
-          <span class="stat-trend operational">
-            <span class="dot" style="background: var(--color-accent-green);"></span>
-            All systems operational
-          </span>
-        </div>
       </div>
-    </div>
 
-    <!-- Today's Token Usage -->
-    <h2 class="page-title channel-status-title">Today's Token Usage</h2>
-
-    <div class="table-wrap">
-      <table class="data-table channel-table" v-if="usageData.length > 0">
-        <thead>
-          <tr>
-            <th>Model</th>
-            <th>Input Tokens</th>
-            <th>Output Tokens</th>
-            <th>Total Tokens</th>
-            <th>Calls</th>
-            <th>Cost</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="row in usageData" :key="row.model">
-            <td class="cell-model">{{ row.model }}</td>
-            <td>{{ formatNumber(row.inputTokens) }}</td>
-            <td>{{ formatNumber(row.outputTokens) }}</td>
-            <td class="cell-bold">{{ formatNumber(row.totalTokens) }}</td>
-            <td>{{ row.count }}</td>
-            <td>${{ formatCost(row.costTotal) }}</td>
-          </tr>
-        </tbody>
-      </table>
-      <div v-else class="empty-card">
-        <p class="empty-card-text">No usage recorded today.</p>
+      <div class="stat-card">
+        <div class="stat-card-header">
+          <div class="stat-icon-wrap" style="background: #F6F0EA;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D0B7A5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 20V10"></path>
+              <path d="M18 20V4"></path>
+              <path d="M6 20v-4"></path>
+            </svg>
+          </div>
+          <span class="stat-card-label">Usage Today</span>
+        </div>
+        <div class="stat-value">{{ formatNumber(todayUsage.totalTokens) }}</div>
       </div>
     </div>
 
@@ -175,17 +149,37 @@ interface UsageRow {
   cacheReadTokens: number;
   cacheWriteTokens: number;
   count: number;
-  costInput: number;
-  costOutput: number;
-  costCacheRead: number;
-  costCacheWrite: number;
-  costTotal: number;
 }
 
 const stats = ref({ sessions: 0, messages: 0, cronJobs: 0 });
 const uptime = ref(0);
 const channels = ref<ChannelState[]>([]);
 const usageData = ref<UsageRow[]>([]);
+const yesterdayData = ref<UsageRow[]>([]);
+
+const todayUsage = computed(() => {
+  const total = { totalTokens: 0, count: 0 };
+  for (const row of usageData.value) {
+    total.totalTokens += row.totalTokens;
+    total.count += row.count;
+  }
+  return total;
+});
+
+const yesterdayUsage = computed(() => {
+  const total = { totalTokens: 0, count: 0 };
+  for (const row of yesterdayData.value) {
+    total.totalTokens += row.totalTokens;
+    total.count += row.count;
+  }
+  return total;
+});
+
+const usageDiff = computed(() => {
+  if (yesterdayUsage.value.count === 0) return null;
+  const diff = Math.round((todayUsage.value.count - yesterdayUsage.value.count) / yesterdayUsage.value.count * 100);
+  return diff;
+});
 
 const uptimeText = computed(() => {
   const s = Math.floor(uptime.value);
@@ -199,19 +193,27 @@ function formatNumber(n: number): string {
   return n.toLocaleString();
 }
 
-function formatCost(n: number): string {
-  return n.toFixed(4);
-}
-
 async function loadUsage() {
   try {
-    const res = await api.get('/usage/today');
-    if (res.data.ok) {
-      usageData.value = res.data.data;
+    const [todayRes, yesterdayRes] = await Promise.all([
+      api.get('/usage/today'),
+      api.get('/usage', { params: { from: yesterdayStr(), to: yesterdayStr() } }),
+    ]);
+    if (todayRes.data.ok) {
+      usageData.value = todayRes.data.data;
+    }
+    if (yesterdayRes.data.ok) {
+      yesterdayData.value = yesterdayRes.data.data;
     }
   } catch (err) {
     console.error('Failed to load usage stats', err);
   }
+}
+
+function yesterdayStr(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().split('T')[0];
 }
 
 async function load() {
@@ -301,6 +303,10 @@ onUnmounted(() => {
   color: var(--color-accent-green);
 }
 
+.stat-trend.down {
+  color: var(--color-danger);
+}
+
 .stat-trend.neutral {
   color: var(--color-text-muted);
 }
@@ -367,28 +373,4 @@ onUnmounted(() => {
   text-align: right;
 }
 
-.cell-model {
-  font-family: var(--font-heading);
-  font-size: 0.8rem;
-  font-weight: 500;
-}
-
-.cell-bold {
-  font-weight: 600;
-}
-
-.empty-card {
-  background: #fff;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 2rem;
-  text-align: center;
-}
-
-.empty-card-text {
-  font-family: var(--font-body);
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-  margin: 0;
-}
 </style>

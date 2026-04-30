@@ -107,7 +107,7 @@ function makeMockDeps(
       channel: 'test-channel',
       type: 'private',
       chatId: 'user-123',
-      createdAt: new Date().toISOString(),
+      createdAt: null,
     }),
   };
 
@@ -272,7 +272,7 @@ describe('SessionManager', () => {
           channel: key.channel,
           type: key.type,
           chatId: key.chatId,
-          createdAt: new Date().toISOString(),
+          createdAt: null,
         }),
       );
 

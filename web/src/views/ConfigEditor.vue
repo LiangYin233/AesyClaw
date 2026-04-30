@@ -848,7 +848,7 @@ onMounted(() => {
 }
 
 .mcp-editor-header {
-  align-items: flex-start;
+  align-items: center;
 }
 
 .section-title,
@@ -955,7 +955,7 @@ onMounted(() => {
 
 .model-editor-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
 }

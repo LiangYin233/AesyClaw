@@ -201,7 +201,6 @@ function applyInitialMigration(db: DatabaseSync): void {
       channel    TEXT NOT NULL,
       type       TEXT NOT NULL,
       chat_id    TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(channel, type, chat_id)
     );
 

@@ -1,7 +1,7 @@
 <template>
   <div>
     <h1 class="page-title">Usage Statistics</h1>
-    <p class="page-subtitle">Track token consumption and costs per model over time.</p>
+    <p class="page-subtitle">Track token consumption per model over time.</p>
 
     <!-- Filters -->
     <div class="filters">
@@ -27,14 +27,15 @@
       </div>
       <div class="filter-group">
         <label class="filter-label" for="model-filter">Model</label>
-        <input
+        <select
           id="model-filter"
           v-model="modelFilter"
-          type="text"
           class="filter-input"
-          placeholder="All models"
-          @input="onModelInput"
-        />
+          @change="load"
+        >
+          <option value="">All models</option>
+          <option v-for="m in modelOptions" :key="m" :value="m">{{ m }}</option>
+        </select>
       </div>
     </div>
 
@@ -55,10 +56,6 @@
       <div class="summary-card">
         <div class="summary-card-value">{{ summary.count }}</div>
         <div class="summary-card-label">API Calls</div>
-      </div>
-      <div class="summary-card">
-        <div class="summary-card-value">${{ formatCost(summary.costTotal) }}</div>
-        <div class="summary-card-label">Total Cost</div>
       </div>
     </div>
 
@@ -85,7 +82,6 @@
               <th>Cache Read</th>
               <th>Cache Write</th>
               <th>Calls</th>
-              <th>Cost</th>
             </tr>
           </thead>
           <tbody>
@@ -98,10 +94,9 @@
               <td class="cell-muted">{{ formatNumber(row.cacheReadTokens) }}</td>
               <td class="cell-muted">{{ formatNumber(row.cacheWriteTokens) }}</td>
               <td>{{ row.count }}</td>
-              <td>${{ formatCost(row.costTotal) }}</td>
             </tr>
             <tr v-if="data.length === 0">
-              <td colspan="9" class="empty-state">No usage data for the selected period.</td>
+              <td colspan="8" class="empty-state">No usage data for the selected period.</td>
             </tr>
           </tbody>
         </table>
@@ -128,21 +123,16 @@ interface UsageRow {
   cacheReadTokens: number;
   cacheWriteTokens: number;
   count: number;
-  costInput: number;
-  costOutput: number;
-  costCacheRead: number;
-  costCacheWrite: number;
-  costTotal: number;
 }
 
 const data = ref<UsageRow[]>([]);
 const fromDate = ref('');
 const toDate = ref('');
 const modelFilter = ref('');
+const modelOptions = ref<string[]>([]);
 const chartCanvas = ref<HTMLCanvasElement | null>(null);
 
 let chart: Chart | null = null;
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 const summary = computed(() => {
   return data.value.reduce(
@@ -153,11 +143,6 @@ const summary = computed(() => {
       cacheReadTokens: acc.cacheReadTokens + row.cacheReadTokens,
       cacheWriteTokens: acc.cacheWriteTokens + row.cacheWriteTokens,
       count: acc.count + row.count,
-      costInput: acc.costInput + row.costInput,
-      costOutput: acc.costOutput + row.costOutput,
-      costCacheRead: acc.costCacheRead + row.costCacheRead,
-      costCacheWrite: acc.costCacheWrite + row.costCacheWrite,
-      costTotal: acc.costTotal + row.costTotal,
     }),
     {
       inputTokens: 0,
@@ -166,11 +151,6 @@ const summary = computed(() => {
       cacheReadTokens: 0,
       cacheWriteTokens: 0,
       count: 0,
-      costInput: 0,
-      costOutput: 0,
-      costCacheRead: 0,
-      costCacheWrite: 0,
-      costTotal: 0,
     },
   );
 });
@@ -200,17 +180,24 @@ function formatNumber(n: number): string {
   return n.toLocaleString();
 }
 
-function formatCost(n: number): string {
-  return n.toFixed(4);
-}
-
-function onModelInput() {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
+async function loadModelOptions() {
+  try {
+    const res = await api.get('/config');
+    if (res.data.ok) {
+      const providers = res.data.data.providers as Record<string, { models?: Record<string, unknown> }>;
+      const opts: string[] = [];
+      for (const provider of Object.values(providers)) {
+        if (provider.models) {
+          for (const modelId of Object.keys(provider.models)) {
+            opts.push(modelId);
+          }
+        }
+      }
+      modelOptions.value = opts;
+    }
+  } catch (err) {
+    console.error('Failed to load model options', err);
   }
-  debounceTimer = setTimeout(() => {
-    load();
-  }, 400);
 }
 
 async function load() {
@@ -322,14 +309,12 @@ onMounted(() => {
   weekAgo.setDate(weekAgo.getDate() - 7);
   fromDate.value = weekAgo.toISOString().split('T')[0];
   toDate.value = today.toISOString().split('T')[0];
+  loadModelOptions();
   load();
   renderChart();
 });
 
 onUnmounted(() => {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-  }
   if (chart) {
     chart.destroy();
     chart = null;

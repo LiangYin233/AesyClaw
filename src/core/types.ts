@@ -121,7 +121,8 @@ interface SessionRecord {
   channel: string;
   type: string;
   chatId: string;
-  createdAt: string;
+  createdAt: string | null;
+  updatedAt: string | null;
 }
 
 /** Database record for a cron job */
