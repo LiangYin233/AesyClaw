@@ -1,6 +1,6 @@
 <template>
-  <div>
-    <div class="flex items-start justify-between gap-4 mb-4 flex-wrap">
+  <div class="flex flex-col h-full">
+    <div class="flex items-start justify-between gap-4 mb-4 flex-wrap shrink-0">
       <div>
         <h1 class="page-title">Logs</h1>
         <p class="page-subtitle">View recent in-process application logs with automatic polling tailing.</p>
@@ -13,14 +13,7 @@
           <span class="w-2 h-2 rounded-full bg-current"></span>
           {{ autoRefreshEnabled ? `Auto refresh every ${pollIntervalSeconds}s` : 'Auto refresh paused' }}
         </span>
-        <button
-          class="rounded-sm px-[0.9rem] py-[0.5rem] font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease border border-[var(--color-border)] bg-white text-dark hover:bg-[#faf7f4]"
-          type="button"
-          @click="toggleAutoRefresh"
-        >
-          {{ autoRefreshEnabled ? 'Pause Auto Refresh' : 'Resume Auto Refresh' }}
-        </button>
-        <button
+<button
           class="rounded-sm px-[0.9rem] py-[0.5rem] font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease border border-primary bg-primary text-white disabled:opacity-70 disabled:cursor-wait"
           type="button"
           :disabled="loading"
@@ -31,22 +24,11 @@
       </div>
     </div>
 
-    <div class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4 bg-white border border-[var(--color-border)] rounded-sm px-5 py-4 mb-4">
-      <div>
-        <div class="font-heading text-[0.72rem] font-medium text-mid-gray uppercase tracking-[0.03em]">Showing</div>
-        <div class="font-heading text-sm font-semibold text-dark mt-[0.2rem]">Latest {{ entries.length }} entries</div>
-      </div>
-      <div>
-        <div class="font-heading text-[0.72rem] font-medium text-mid-gray uppercase tracking-[0.03em]">Last updated</div>
-        <div class="font-heading text-sm font-semibold text-dark mt-[0.2rem]">{{ lastUpdatedLabel }}</div>
-      </div>
-    </div>
-
-    <div class="bg-white border border-[var(--color-border)] rounded-sm overflow-hidden">
-      <div v-if="errorMessage" class="px-5 py-4 text-danger font-body text-sm">{{ errorMessage }}</div>
-      <div v-else-if="loading && entries.length === 0" class="text-mid-gray text-center py-10 font-body italic text-sm">Loading logs...</div>
-      <div v-else-if="entries.length === 0" class="text-mid-gray text-center py-10 font-body italic text-sm">No logs captured yet.</div>
-      <div v-else ref="logContainer" class="max-h-[calc(100vh-280px)] overflow-y-auto p-3 flex flex-col gap-3 bg-[#fcfbf9]">
+<div class="flex flex-col flex-1 min-h-0 bg-[#FAF7F4] border border-[var(--color-border)] rounded-t-sm overflow-hidden" style="border-bottom: none;">
+      <div v-if="errorMessage" class="px-5 py-4 shrink-0 text-danger font-body text-sm">{{ errorMessage }}</div>
+      <div v-else-if="loading && entries.length === 0" class="flex-1 flex items-center justify-center text-mid-gray font-body italic text-sm">Loading logs...</div>
+      <div v-else-if="entries.length === 0" class="flex-1 flex items-center justify-center text-mid-gray font-body italic text-sm">No logs captured yet.</div>
+      <div v-else ref="logContainer" class="flex-1 overflow-y-auto p-3 flex flex-col gap-3 bg-[#fcfbf9]">
         <div v-for="entry in entries" :key="entry.id" class="border border-[var(--color-border)] rounded-sm px-4 py-[0.85rem] bg-white">
           <div class="flex items-center gap-2 flex-wrap mb-2">
             <span class="font-heading text-[0.72rem] text-mid-gray">{{ entry.timestamp }}</span>
@@ -62,7 +44,7 @@
             </span>
             <span class="font-heading text-[0.72rem] text-mid-gray">{{ entry.scope }}</span>
           </div>
-          <pre class="m-0 whitespace-pre-wrap break-words font-mono text-xs leading-[1.55] text-dark">{{ entry.formatted }}</pre>
+          <pre class="m-0 whitespace-pre-wrap break-words font-mono text-xs leading-[1.55] text-dark">{{ entry.message }}{{ entry.details ? ' ' + entry.details : '' }}</pre>
         </div>
       </div>
     </div>

@@ -8,7 +8,7 @@
         </p>
       </div>
       <div class="flex items-center gap-2.5 flex-wrap mb-0 justify-end">
-        <button class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-transparent rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-accent-green text-white hover:bg-[#6a7d52] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(120,140,93,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" :disabled="saving" @click="saveConfig">
+        <button class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-primary rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-primary text-white hover:bg-primary-hover hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(217,119,87,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" :disabled="saving" @click="saveConfig">
           {{ saving ? 'Saving...' : 'Save' }}
         </button>
         <button class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-[var(--color-border)] rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-transparent text-mid-gray hover:bg-light-gray hover:text-dark hover:border-mid-gray" @click="loadConfig">Reset</button>

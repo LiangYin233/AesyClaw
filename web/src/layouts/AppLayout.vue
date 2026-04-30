@@ -32,7 +32,7 @@
         </nav>
       </aside>
 
-      <main class="flex-1 p-7 pr-8 overflow-auto bg-[#FAF7F4]">
+      <main class="flex-1 pl-7 pr-8 pt-7 overflow-auto bg-[#FAF7F4]">
         <RouterView />
       </main>
     </div>

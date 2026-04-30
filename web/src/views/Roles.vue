@@ -189,7 +189,7 @@
 
             <div class="flex justify-end gap-2.5 px-6 py-4 border-t border-[var(--color-border)] shrink-0">
               <button class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-[var(--color-border)] rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-transparent text-mid-gray hover:bg-light-gray hover:text-dark hover:border-mid-gray" @click="closeEditor">Cancel</button>
-              <button class="bg-[#C96442] text-white font-heading text-xs font-medium px-[1.1rem] py-[0.55rem] border-none rounded-sm cursor-pointer transition-all duration-[0.15s] ease hover:bg-[#b55a3b] hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(201,100,66,0.25)] disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" :disabled="saving" @click="saveRole">
+              <button class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-primary rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-primary text-white hover:bg-primary-hover hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(217,119,87,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" :disabled="saving" @click="saveRole">
                 {{ saving ? 'Saving...' : 'Save Changes' }}
               </button>
             </div>
