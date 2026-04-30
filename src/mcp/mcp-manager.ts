@@ -2,6 +2,7 @@
 
 import { Type, type TSchema } from '@sinclair/typebox';
 import { createScopedLogger } from '../core/logger';
+import { errorMessage } from '../core/utils';
 import type { McpServerConfig } from '../core/config/schema';
 import type { DeepPartial, ToolOwner } from '../core/types';
 import type { AesyClawTool, ToolExecutionResult } from '../tool/tool-registry';
@@ -373,10 +374,6 @@ async function closeQuietly(client: McpClient, serverName: string): Promise<void
   } catch (err) {
     logger.warn(`连接错误后关闭 MCP 客户端失败: ${serverName}`, err);
   }
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }
 
 class EmptyMcpClient implements McpClient {

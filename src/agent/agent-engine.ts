@@ -2,7 +2,7 @@ import { Agent as PiAgent } from '@mariozechner/pi-agent-core';
 import { randomUUID } from 'node:crypto';
 import type { ConfigManager } from '../core/config/config-manager';
 import type { RoleConfig, InboundMessage, OutboundMessage, SessionKey } from '../core/types';
-import type { Agent } from './agent-types';
+import type { Agent, AgentMessage } from './agent-types';
 import { extractMessageText } from './agent-types';
 import type { ToolRegistry, ToolExecutionContext } from '../tool/tool-registry';
 import type { RoleManager } from '../role/role-manager';
@@ -132,17 +132,11 @@ export class AgentEngine {
     const newMessages = agent.state.messages.slice(history.length);
     await memory.syncFromAgent(newMessages);
 
-    const lastAssistant = [...newMessages]
-      .reverse()
-      .find(
-        (runtimeMessage) =>
-          runtimeMessage.role === 'assistant' &&
-          extractMessageText(runtimeMessage).trim().length > 0,
-      );
+    const lastAssistant = findLastAssistantText(newMessages);
 
     if (lastAssistant) {
       return {
-        content: extractMessageText(lastAssistant),
+        content: lastAssistant,
       };
     }
 
@@ -185,16 +179,10 @@ export class AgentEngine {
     await this.runPolicy.prompt(agent, content);
 
     const newMessages = agent.state.messages.slice(history.length);
-    const lastAssistant = [...newMessages]
-      .reverse()
-      .find(
-        (runtimeMessage) =>
-          runtimeMessage.role === 'assistant' &&
-          extractMessageText(runtimeMessage).trim().length > 0,
-      );
+    const lastAssistant = findLastAssistantText(newMessages);
 
     if (lastAssistant) {
-      return { content: extractMessageText(lastAssistant) };
+      return { content: lastAssistant };
     }
 
     logger.warn('临时 Agent 未生成助手文本回复', {
@@ -217,4 +205,19 @@ export class AgentEngine {
       modelId: model.modelId,
     });
   }
+}
+
+function findLastAssistantText(messages: AgentMessage[]): string | null {
+  for (const message of [...messages].reverse()) {
+    if (message.role !== 'assistant') {
+      continue;
+    }
+
+    const text = extractMessageText(message);
+    if (text.trim().length > 0) {
+      return text;
+    }
+  }
+
+  return null;
 }

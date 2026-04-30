@@ -2,6 +2,7 @@
 
 import type { InboundMessage, OutboundMessage, SendFn, SessionKey } from '../core/types';
 import { createScopedLogger } from '../core/logger';
+import { errorMessage, mergeDefaults } from '../core/utils';
 import type {
   ChannelContext,
   ChannelManagerDependencies,
@@ -242,7 +243,7 @@ export class ChannelManager {
 
   private getMergedConfig(definition: ChannelPlugin): Record<string, unknown> {
     const channelConfig = this.getConfigRecord(definition.name);
-    return this.mergeConfigDefaults(definition.defaultConfig ?? {}, channelConfig);
+    return mergeDefaults(definition.defaultConfig ?? {}, channelConfig);
   }
 
   private getConfigRecord(channelName: string): Record<string, unknown> {
@@ -256,25 +257,6 @@ export class ChannelManager {
     } catch {
       return {};
     }
-  }
-
-  private mergeConfigDefaults(
-    defaults: Record<string, unknown>,
-    config: Record<string, unknown>,
-  ): Record<string, unknown> {
-    const merged = structuredClone(defaults);
-
-    for (const [key, value] of Object.entries(config)) {
-      const defaultValue = merged[key];
-      if (isRecord(defaultValue) && isRecord(value)) {
-        merged[key] = this.mergeConfigDefaults(defaultValue, value);
-        continue;
-      }
-
-      merged[key] = value;
-    }
-
-    return merged;
   }
 
   private isEnabled(channelName: string): boolean {
@@ -297,8 +279,4 @@ export class ChannelManager {
       throw new Error('ChannelManager 未初始化');
     }
   }
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

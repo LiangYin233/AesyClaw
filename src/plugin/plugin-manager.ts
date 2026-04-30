@@ -2,6 +2,7 @@
 
 import path from 'node:path';
 import { createScopedLogger } from '../core/logger';
+import { errorMessage, mergeDefaults } from '../core/utils';
 import type { CommandDefinition } from '../core/types';
 import type { PluginConfigEntry } from '../core/config/schema';
 import type { AesyClawTool } from '../tool/tool-registry';
@@ -80,7 +81,7 @@ export class PluginManager {
     }
 
     const configLookup = this.getPluginConfig(module);
-    const mergedConfig = mergePluginConfig(
+    const mergedConfig = mergeDefaults(
       module.definition.defaultConfig ?? {},
       configLookup.options,
     );
@@ -420,23 +421,4 @@ export class PluginManager {
 
 function optionsToRecord(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
-}
-
-function mergePluginConfig(
-  defaults: Record<string, unknown>,
-  options: Record<string, unknown>,
-): Record<string, unknown> {
-  const merged = structuredClone(defaults) as Record<string, unknown>;
-  for (const [key, value] of Object.entries(options)) {
-    const defaultValue = merged[key];
-    merged[key] =
-      isRecord(defaultValue) && isRecord(value)
-        ? mergePluginConfig(defaultValue, value)
-        : structuredClone(value);
-  }
-  return merged;
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

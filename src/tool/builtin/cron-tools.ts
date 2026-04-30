@@ -10,6 +10,7 @@ import { Type } from '@sinclair/typebox';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
 import type { SessionKey, ToolOwner } from '../../core/types';
 import type { CronManager, CreateCronJobParams } from '../../cron/cron-manager';
+import { errorMessage } from '../../core/utils';
 
 // ─── 参数模式 ─────────────────────────────────────────────────────
 
@@ -148,8 +149,4 @@ function requireSessionKey(sessionKey: SessionKey): SessionKey {
     throw new Error('定时任务工具需要有效的会话密钥');
   }
   return sessionKey;
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

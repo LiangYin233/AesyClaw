@@ -3,6 +3,7 @@
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { errorMessage } from '../core/utils';
 
 export type ExtensionLoaderLogger = {
   warn(message: string, ...args: unknown[]): void;
@@ -72,8 +73,4 @@ export async function importExtensionEntry(entryPath: string): Promise<unknown> 
   const entryUrl = pathToFileURL(entryPath);
   entryUrl.searchParams.set('mtime', String((await stat(entryPath)).mtimeMs));
   return await import(entryUrl.href);
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }
