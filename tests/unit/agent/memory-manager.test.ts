@@ -304,7 +304,7 @@ describe('MemoryManager', () => {
       const llmAdapter = makeMockLlmAdapter();
       const result = await manager.compact(llmAdapter, 'openai/gpt-4o');
 
-      expect(result).toBe('Session history too short to compress.');
+      expect(result).toBe('会话历史太短，无需压缩。');
       expect(llmAdapter.summarize).not.toHaveBeenCalled();
       expect(messageRepo.replaceWithSummary).not.toHaveBeenCalled();
     });

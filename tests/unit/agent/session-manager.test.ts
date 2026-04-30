@@ -262,7 +262,7 @@ describe('SessionManager', () => {
     it('should throw if not initialized', async () => {
       const uninitialized = new SessionManager();
       await expect(uninitialized.getOrCreateSession(makeSessionKey())).rejects.toThrow(
-        'SessionManager not initialized',
+        'SessionManager 未初始化',
       );
     });
   });
@@ -383,7 +383,7 @@ describe('SessionManager', () => {
     it('should throw if not initialized', async () => {
       const uninitialized = new SessionManager();
       await expect(uninitialized.clearSession(makeSessionKey())).rejects.toThrow(
-        'SessionManager not initialized',
+        'SessionManager 未初始化',
       );
     });
   });
@@ -417,7 +417,7 @@ describe('SessionManager', () => {
     it('should throw if not initialized', async () => {
       const uninitialized = new SessionManager();
       await expect(uninitialized.resetSession(makeSessionKey())).rejects.toThrow(
-        'SessionManager not initialized',
+        'SessionManager 未初始化',
       );
     });
   });
@@ -462,13 +462,13 @@ describe('SessionManager', () => {
 
     it('should throw if session not found', async () => {
       const key = makeSessionKey();
-      await expect(manager.compactSession(key)).rejects.toThrow('Session not found');
+      await expect(manager.compactSession(key)).rejects.toThrow('未找到会话');
     });
 
     it('should throw if not initialized', async () => {
       const uninitialized = new SessionManager();
       await expect(uninitialized.compactSession(makeSessionKey())).rejects.toThrow(
-        'SessionManager not initialized',
+        'SessionManager 未初始化',
       );
     });
   });
@@ -519,13 +519,13 @@ describe('SessionManager', () => {
 
     it('should throw if session not found', async () => {
       const key = makeSessionKey();
-      await expect(manager.switchRole(key, 'analyst')).rejects.toThrow('Session not found');
+      await expect(manager.switchRole(key, 'analyst')).rejects.toThrow('未找到会话');
     });
 
     it('should throw if not initialized', async () => {
       const uninitialized = new SessionManager();
       await expect(uninitialized.switchRole(makeSessionKey(), 'analyst')).rejects.toThrow(
-        'SessionManager not initialized',
+        'SessionManager 未初始化',
       );
     });
   });

@@ -72,6 +72,6 @@ describe('ChannelLoader', () => {
 
     const loader = new ChannelLoader({ extensionsDir });
 
-    await expect(loader.load(channelDir)).rejects.toThrow(/valid ChannelPlugin/);
+    await expect(loader.load(channelDir)).rejects.toThrow(/未导出有效的 ChannelPlugin/);
   });
 });

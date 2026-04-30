@@ -61,7 +61,7 @@ describe('loadMediaSource', () => {
       const filePath = join(TEST_DIR, 'disguised.png');
       writeFileSync(filePath, Buffer.from([0x89, 0x50]));
 
-      await expect(loadMediaSource(filePath, 'audio')).rejects.toThrow('Expected an audio source');
+      await expect(loadMediaSource(filePath, 'audio')).rejects.toThrow('期望 audio 源但得到 MIME 类型');
     });
 
     it('should throw when extension is unknown', async () => {
@@ -69,7 +69,7 @@ describe('loadMediaSource', () => {
       writeFileSync(filePath, Buffer.from([0x00, 0x01]));
 
       await expect(loadMediaSource(filePath, 'image')).rejects.toThrow(
-        'Could not determine MIME type',
+        '无法确定 image 源的 MIME 类型',
       );
     });
   });
@@ -143,7 +143,7 @@ describe('loadMediaSource', () => {
       );
 
       await expect(loadMediaSource('https://example.com/missing.png', 'image')).rejects.toThrow(
-        'Failed to fetch media source (404): Not Found',
+        '获取媒体源失败 (404): Not Found',
       );
     });
 

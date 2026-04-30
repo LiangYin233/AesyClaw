@@ -81,7 +81,7 @@ describe('built-in tools', () => {
           sendMessage,
         },
       ),
-    ).resolves.toEqual({ content: 'Message sent: "hello"' });
+    ).resolves.toEqual({ content: '消息已发送: "hello"' });
 
     expect(sendMessage).toHaveBeenCalledWith({
       content: 'hello',
@@ -200,7 +200,7 @@ describe('built-in tools', () => {
         },
       ),
     ).resolves.toEqual({
-      content: 'Skill "missing-skill" is not loaded.',
+      content: '技能 "missing-skill" 未加载。',
       isError: true,
       details: {
         code: 'SKILL_NOT_FOUND',
@@ -234,7 +234,7 @@ describe('built-in tools', () => {
         },
       ),
     ).resolves.toEqual({
-      content: 'File "missing.txt" does not exist in skill "example-skill".',
+      content: '文件 "missing.txt" 在技能 "example-skill" 中不存在。',
       isError: true,
       details: {
         code: 'SKILL_FILE_NOT_FOUND',
@@ -270,7 +270,7 @@ describe('built-in tools', () => {
     );
 
     expect(result).toEqual({
-      content: 'Path "../secret.txt" escapes skill "example-skill" directory.',
+      content: '路径 "../secret.txt" 逃逸出技能 "example-skill" 目录。',
       isError: true,
       details: {
         code: 'SKILL_PATH_TRAVERSAL_REJECTED',
@@ -307,7 +307,7 @@ describe('built-in tools', () => {
         },
       ),
     ).resolves.toEqual({
-      content: `Path "${absolutePath}" must be relative to skill "example-skill".`,
+      content: `路径 "${absolutePath}" 必须相对于技能 "example-skill"。`,
       isError: true,
       details: {
         code: 'SKILL_PATH_TRAVERSAL_REJECTED',
@@ -346,7 +346,7 @@ describe('built-in tools', () => {
         },
       ),
     ).resolves.toEqual({
-      content: 'Path "linked/secret.txt" escapes skill "example-skill" directory.',
+      content: '路径 "linked/secret.txt" 逃逸出技能 "example-skill" 目录。',
       isError: true,
       details: {
         code: 'SKILL_PATH_TRAVERSAL_REJECTED',
@@ -383,7 +383,7 @@ describe('built-in tools', () => {
         },
       ),
     ).resolves.toEqual({
-      content: 'File "binary.bin" in skill "example-skill" is not a readable UTF-8 text file.',
+      content: '技能 "example-skill" 中的文件 "binary.bin" 不是可读的 UTF-8 文本文件。',
       isError: true,
       details: {
         code: 'SKILL_FILE_NOT_TEXT',
@@ -416,7 +416,7 @@ describe('built-in tools', () => {
         },
       ),
     ).resolves.toEqual({
-      content: 'Skill "flat-skill" has no dedicated directory context.',
+      content: '技能 "flat-skill" 没有专用目录上下文。',
       isError: true,
       details: {
         code: 'SKILL_HAS_NO_DIRECTORY_CONTEXT',
@@ -467,7 +467,7 @@ describe('built-in tools', () => {
         },
       ),
     ).resolves.toEqual({
-      content: 'Temp sub-agent execution failed: sandbox offline',
+      content: '临时子代理执行失败: sandbox offline',
       isError: true,
     });
   });
@@ -519,7 +519,7 @@ describe('built-in tools', () => {
         },
       ),
     ).resolves.toEqual({
-      content: 'Speech-to-text failed: provider unsupported',
+      content: '语音转文本失败: provider unsupported',
       isError: true,
     });
   });
@@ -571,6 +571,6 @@ describe('built-in tools', () => {
     );
 
     expect(result.isError).toBe(true);
-    expect(result.content).toContain('Image understanding failed:');
+    expect(result.content).toContain('图片理解失败:');
   });
 });

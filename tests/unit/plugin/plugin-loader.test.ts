@@ -47,6 +47,6 @@ describe('PluginLoader', () => {
 
     const loader = new PluginLoader({ extensionsDir });
 
-    await expect(loader.load(pluginDir)).rejects.toThrow(/valid PluginDefinition/);
+    await expect(loader.load(pluginDir)).rejects.toThrow(/未导出有效的 PluginDefinition/);
   });
 });

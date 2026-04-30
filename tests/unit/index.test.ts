@@ -45,7 +45,7 @@ describe('index entrypoint', () => {
 
     await handlers.get('SIGINT')?.();
 
-    expect(logger.info).toHaveBeenCalledWith('Received SIGINT, shutting down…');
+    expect(logger.info).toHaveBeenCalledWith('收到 SIGINT，正在关闭…');
     expect(app.shutdown).toHaveBeenCalledTimes(1);
     expect(processRef.exit).toHaveBeenCalledWith(0);
   });
@@ -70,7 +70,7 @@ describe('index entrypoint', () => {
     await handlers.get('uncaughtException')?.(error);
     await Promise.resolve();
 
-    expect(logger.error).toHaveBeenCalledWith('Uncaught exception', error);
+    expect(logger.error).toHaveBeenCalledWith('未捕获的异常', error);
     expect(app.shutdown).toHaveBeenCalledTimes(1);
     expect(processRef.exit).toHaveBeenCalledWith(1);
   });
@@ -89,7 +89,7 @@ describe('index entrypoint', () => {
     const { main } = await importEntrypoint();
     await main(app, processRef);
 
-    expect(logger.error).toHaveBeenCalledWith('Failed to start AesyClaw', error);
+    expect(logger.error).toHaveBeenCalledWith('启动 AesyClaw 失败', error);
     expect(processRef.exit).toHaveBeenCalledWith(1);
   });
 });

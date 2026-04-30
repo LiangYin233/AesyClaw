@@ -170,7 +170,7 @@ describe('commandDetector', () => {
       const result = await commandDetector(state, registry, makeSessionManager());
 
       expect(result.outbound).toBeDefined();
-      expect(result.outbound!.content).toContain('Error executing command');
+      expect(result.outbound!.content).toContain('执行命令时出错');
       expect(result.outbound!.content).toContain('Command failed');
     });
 

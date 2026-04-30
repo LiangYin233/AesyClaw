@@ -374,12 +374,12 @@ describe('Cron', () => {
         { scheduleType: 'interval', scheduleValue: '30m', prompt: 'ping' },
         context,
       ),
-    ).resolves.toEqual({ content: 'Cron job created: job-1' });
+    ).resolves.toEqual({ content: '定时任务已创建: job-1' });
     await expect(createListCronTool({ cronManager }).execute({}, context)).resolves.toEqual({
       content: expect.stringContaining('job-1'),
     });
     await expect(
       createDeleteCronTool({ cronManager }).execute({ jobId: 'job-1' }, context),
-    ).resolves.toEqual({ content: 'Cron job deleted: job-1' });
+    ).resolves.toEqual({ content: '定时任务已删除: job-1' });
   });
 });

@@ -71,6 +71,6 @@ describe('logs routes', () => {
     const body = await response.json();
 
     expect(response.status).toBe(500);
-    expect(body).toEqual({ ok: false, error: 'Failed to get recent logs' });
+    expect(body).toEqual({ ok: false, error: '获取最近日志失败' });
   });
 });

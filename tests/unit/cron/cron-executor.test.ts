@@ -28,19 +28,19 @@ describe('parseSessionKey', () => {
   });
 
   it('should throw for non-object parsed values', () => {
-    expect(() => parseSessionKey('"string"')).toThrow('Invalid cron session key');
-    expect(() => parseSessionKey('42')).toThrow('Invalid cron session key');
-    expect(() => parseSessionKey('null')).toThrow('Invalid cron session key');
+    expect(() => parseSessionKey('"string"')).toThrow('无效的定时任务会话键');
+    expect(() => parseSessionKey('42')).toThrow('无效的定时任务会话键');
+    expect(() => parseSessionKey('null')).toThrow('无效的定时任务会话键');
   });
 
   it('should throw for arrays', () => {
-    expect(() => parseSessionKey('[]')).toThrow('Invalid cron session key');
+    expect(() => parseSessionKey('[]')).toThrow('无效的定时任务会话键');
   });
 
   it('should throw when required fields are missing', () => {
-    expect(() => parseSessionKey('{}')).toThrow('Invalid cron session key');
+    expect(() => parseSessionKey('{}')).toThrow('无效的定时任务会话键');
     expect(() => parseSessionKey(JSON.stringify({ channel: 'c', type: 't' }))).toThrow(
-      'Invalid cron session key',
+      '无效的定时任务会话键',
     );
   });
 
@@ -52,7 +52,7 @@ describe('parseSessionKey', () => {
 describe('formatResult', () => {
   it('should return a fallback message for empty messages', () => {
     const result = formatResult([]);
-    expect(result).toBe('Cron job completed without outbound response.');
+    expect(result).toBe('定时任务已完成，但无出站响应。');
   });
 
   it('should join multiple messages with newlines', () => {

@@ -260,7 +260,7 @@ describe('AgentEngine', () => {
       const role = makeRole();
 
       expect(() => uninitialized.createAgent(role, 'test-session')).toThrow(
-        'AgentEngine not initialized',
+        'AgentEngine 未初始化',
       );
     });
   });

@@ -337,7 +337,7 @@ describe('ToolAdapter', () => {
 
       const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
       await expect(agentTool.execute('call-1', {}, controller.signal)).resolves.toMatchObject({
-        content: [{ type: 'text', text: 'Tool call "test-tool" was aborted' }],
+        content: [{ type: 'text', text: '工具调用 "test-tool" 被中止' }],
         details: {},
         isError: true,
       });
@@ -362,13 +362,13 @@ describe('ToolAdapter', () => {
       const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
       await agentTool.execute('call-logging', { input: 'secret user payload' });
 
-      expectDebugLog('Tool call invoked', {
+      expectDebugLog('工具调用已触发', {
         toolName: 'test-tool',
         toolCallId: 'call-logging',
         owner: 'system',
         params: { kind: 'object', keys: ['input'], keyCount: 1 },
       });
-      expectDebugLog('Tool call completed', {
+      expectDebugLog('工具调用完成', {
         toolName: 'test-tool',
         toolCallId: 'call-logging',
         outcome: 'executed',
@@ -402,17 +402,17 @@ describe('ToolAdapter', () => {
       await blockedTool.execute('call-blocked', { input: 'test' });
       await shortCircuitTool.execute('call-short', { input: 'test' });
 
-      expectDebugLog('Tool call blocked by before hook', {
+      expectDebugLog('工具调用被 before 钩子阻塞', {
         toolName: 'test-tool',
         toolCallId: 'call-blocked',
         hasReason: true,
       });
-      expectDebugLog('Tool call completed', {
+      expectDebugLog('工具调用完成', {
         toolName: 'test-tool',
         toolCallId: 'call-blocked',
         outcome: 'blocked',
       });
-      expectDebugLog('Tool call short-circuited by before hook', {
+      expectDebugLog('工具调用被 before 钩子短路', {
         toolName: 'test-tool',
         toolCallId: 'call-short',
         result: {
@@ -422,7 +422,7 @@ describe('ToolAdapter', () => {
           terminate: false,
         },
       });
-      expectDebugLog('Tool call completed', {
+      expectDebugLog('工具调用完成', {
         toolName: 'test-tool',
         toolCallId: 'call-short',
         outcome: 'short-circuited',
@@ -450,24 +450,24 @@ describe('ToolAdapter', () => {
       await validationTool.execute('call-invalid', {});
       await executionTool.execute('call-failed', { input: 'test' });
 
-      expectDebugLog('Tool call execution failed', {
+      expectDebugLog('工具调用执行失败', {
         toolName: 'test-tool',
         toolCallId: 'call-invalid',
         errorName: 'Error',
         message: 'Tool rejected invalid params',
       });
-      expectDebugLog('Tool call completed', {
+      expectDebugLog('工具调用完成', {
         toolName: 'test-tool',
         toolCallId: 'call-invalid',
         outcome: 'execution-failed',
       });
-      expectDebugLog('Tool call execution failed', {
+      expectDebugLog('工具调用执行失败', {
         toolName: 'test-tool',
         toolCallId: 'call-failed',
         errorName: 'Error',
         message: 'Tool crashed',
       });
-      expectDebugLog('Tool call completed', {
+      expectDebugLog('工具调用完成', {
         toolName: 'test-tool',
         toolCallId: 'call-failed',
         outcome: 'execution-failed',
@@ -484,11 +484,11 @@ describe('ToolAdapter', () => {
       const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
       await agentTool.execute('call-aborted', { input: 'secret abort payload' }, controller.signal);
 
-      expectDebugLog('Tool call aborted before execution', {
+      expectDebugLog('工具调用在执行前被中止', {
         toolName: 'test-tool',
         toolCallId: 'call-aborted',
       });
-      expectDebugLog('Tool call completed', {
+      expectDebugLog('工具调用完成', {
         toolName: 'test-tool',
         toolCallId: 'call-aborted',
         outcome: 'aborted',
@@ -510,7 +510,7 @@ describe('ToolAdapter', () => {
       );
       await agentTool.execute('call-override', { input: 'test' });
 
-      expectDebugLog('Tool call result overridden by after hook', {
+      expectDebugLog('工具调用结果被 after 钩子覆盖', {
         toolName: 'test-tool',
         toolCallId: 'call-override',
         override: {
@@ -520,7 +520,7 @@ describe('ToolAdapter', () => {
           hasTerminate: false,
         },
       });
-      expectDebugLog('Tool call completed', {
+      expectDebugLog('工具调用完成', {
         toolName: 'test-tool',
         toolCallId: 'call-override',
         outcome: 'executed',

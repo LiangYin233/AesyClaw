@@ -74,7 +74,7 @@ describe('ToolRegistry', () => {
       const tool = makeTool();
       registry.register(tool);
       expect(() => registry.register(makeTool({ name: 'test-tool' }))).toThrow(
-        /already registered/,
+        /已注册/,
       );
     });
 

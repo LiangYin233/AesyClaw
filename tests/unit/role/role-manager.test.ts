@@ -145,7 +145,7 @@ describe('RoleManager', () => {
       writeFileSync(join(rolesDir, 'alpha.json'), JSON.stringify(makeRole({ id: 'duplicate' })));
       writeFileSync(join(rolesDir, 'beta.json'), JSON.stringify(makeRole({ id: 'duplicate' })));
 
-      await expect(manager.loadAll(rolesDir)).rejects.toThrow(/Duplicate role id/);
+      await expect(manager.loadAll(rolesDir)).rejects.toThrow(/角色 id.*重复/);
       expect(manager.getAllRoles()).toHaveLength(0);
     });
 
@@ -155,7 +155,7 @@ describe('RoleManager', () => {
 
       writeFileSync(join(rolesDir, 'copy.json'), JSON.stringify(makeRole({ id: 'default' })));
 
-      await expect(manager.loadAll(rolesDir)).rejects.toThrow(/Duplicate role id/);
+      await expect(manager.loadAll(rolesDir)).rejects.toThrow(/角色 id.*重复/);
       expect(manager.getAllRoles()).toHaveLength(1);
       expect(manager.getRole('default').id).toBe('default');
     });

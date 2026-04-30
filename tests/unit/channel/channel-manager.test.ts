@@ -159,7 +159,7 @@ describe('ChannelManager', () => {
 
     manager.register(first);
 
-    expect(() => manager.register(second)).toThrow(/already registered/);
+    expect(() => manager.register(second)).toThrow(/已注册/);
     expect(manager.has('duplicate')).toBe(true);
   });
 

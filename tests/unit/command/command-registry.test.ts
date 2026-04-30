@@ -48,7 +48,7 @@ describe('CommandRegistry', () => {
 
     it('should throw if command with same registry key already exists', () => {
       registry.register(makeCommand({ name: 'help' }));
-      expect(() => registry.register(makeCommand({ name: 'help' }))).toThrow(/already registered/);
+      expect(() => registry.register(makeCommand({ name: 'help' }))).toThrow(/已注册/);
     });
 
     it('should allow commands with same name but different namespaces', () => {
@@ -60,7 +60,7 @@ describe('CommandRegistry', () => {
     it('should throw if namespaced command with same registry key exists', () => {
       registry.register(makeCommand({ name: 'list', namespace: 'role' }));
       expect(() => registry.register(makeCommand({ name: 'list', namespace: 'role' }))).toThrow(
-        /already registered/,
+        /已注册/,
       );
     });
   });
@@ -180,7 +180,7 @@ describe('CommandRegistry', () => {
       );
 
       const result = await registry.execute('/fail', makeContext());
-      expect(result).toContain('Error executing command');
+      expect(result).toContain('执行命令时出错');
       expect(result).toContain('Command failed');
     });
 

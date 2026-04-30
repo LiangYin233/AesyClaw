@@ -129,24 +129,24 @@ describe('LlmAdapter', () => {
       customAdapter.initialize({ configManager: makeMockConfigManager(config) });
 
       expect(() => customAdapter.resolveModel('custom/gpt-4o')).toThrow(
-        'No API key configured for provider "custom"',
+        '未为提供者 "custom" 配置 API 密钥',
       );
     });
 
     it('should throw for invalid format (missing slash)', () => {
       expect(() => adapter.resolveModel('invalid-format')).toThrow(
-        /Invalid model identifier format/,
+        /模型标识符格式无效/,
       );
     });
 
     it('should throw for unknown provider', () => {
-      expect(() => adapter.resolveModel('unknown/model')).toThrow(/Provider "unknown" not found/);
+      expect(() => adapter.resolveModel('unknown/model')).toThrow(/配置中未找到提供者/);
     });
 
     it('should throw if not initialized', () => {
       const uninitialized = new LlmAdapter();
       expect(() => uninitialized.resolveModel('openai/gpt-4o')).toThrow(
-        'LlmAdapter not initialized',
+        'LlmAdapter 未初始化',
       );
     });
   });
@@ -168,7 +168,7 @@ describe('LlmAdapter', () => {
 
     it('should throw if not initialized', () => {
       const uninitialized = new LlmAdapter();
-      expect(() => uninitialized.createGetApiKey()).toThrow('LlmAdapter not initialized');
+      expect(() => uninitialized.createGetApiKey()).toThrow('LlmAdapter 未初始化');
     });
   });
 
@@ -257,7 +257,7 @@ describe('LlmAdapter', () => {
       });
 
       await expect(adapter.summarize([], 'openai/gpt-4o')).rejects.toThrow(
-        'LLM returned an empty summary',
+        'LLM 返回了空总结',
       );
     });
   });
@@ -345,7 +345,7 @@ describe('LlmAdapter', () => {
           mimeType: 'audio/wav',
           fileName: 'sample.wav',
         }),
-      ).rejects.toThrow('Speech-to-text is not supported');
+      ).rejects.toThrow('提供者 API 类型 "anthropic-messages" 不支持语音转文本');
     });
   });
 
@@ -367,7 +367,7 @@ describe('LlmAdapter', () => {
       };
 
       expect(() => streamFn(model, { messages: [] })).toThrow(
-        'No API key configured for provider "openai"',
+        '未为提供者 "openai" 配置 API 密钥',
       );
     });
   });

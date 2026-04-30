@@ -51,7 +51,7 @@ describe('roles routes', () => {
     const body = await response.json();
 
     expect(response.status).toBe(400);
-    expect(body).toEqual({ ok: false, error: 'Role id in request body must match route id' });
+    expect(body).toEqual({ ok: false, error: '请求体中的角色 id 必须与路由 id 一致' });
     expect(deps.roleManager.saveRole).not.toHaveBeenCalled();
   });
 
