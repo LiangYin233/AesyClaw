@@ -180,7 +180,7 @@ describe('ToolRegistry', () => {
         toolPermission: { mode: 'allowlist', list: ['send_msg', 'create_cron'] },
       });
 
-      const agentTools = registry.resolveForRole(role, hookDispatcher, {});
+      const { agentTools } = registry.resolveForRole(role, hookDispatcher, {});
       expect(agentTools).toHaveLength(2);
       expect(agentTools.map((t) => t.name)).toContain('send_msg');
       expect(agentTools.map((t) => t.name)).toContain('create_cron');
@@ -191,7 +191,7 @@ describe('ToolRegistry', () => {
       registry.register(makeTool({ name: 'run_sub_agent' }));
       registry.register(makeTool({ name: 'create_cron' }));
 
-      const agentTools = registry.resolveForRole(makeRole(), hookDispatcher, {});
+      const { agentTools } = registry.resolveForRole(makeRole(), hookDispatcher, {});
 
       expect(agentTools).toHaveLength(3);
       expect(agentTools.map((t) => t.name)).toEqual(['send_msg', 'run_sub_agent', 'create_cron']);
@@ -206,7 +206,7 @@ describe('ToolRegistry', () => {
         toolPermission: { mode: 'denylist', list: ['create_cron'] },
       });
 
-      const agentTools = registry.resolveForRole(role, hookDispatcher, {});
+      const { agentTools } = registry.resolveForRole(role, hookDispatcher, {});
       expect(agentTools).toHaveLength(2);
       expect(agentTools.map((t) => t.name)).toContain('send_msg');
       expect(agentTools.map((t) => t.name)).toContain('run_sub_agent');
@@ -220,7 +220,7 @@ describe('ToolRegistry', () => {
         toolPermission: { mode: 'allowlist', list: ['send_msg'] },
       });
 
-      const [agentTool] = registry.resolveForRole(role, hookDispatcher, {});
+      const [agentTool] = registry.resolveForRole(role, hookDispatcher, {}).agentTools;
       expect(agentTool.name).toBe('send_msg');
       expect(agentTool.description).toBe('A test tool');
       expect(typeof agentTool.execute).toBe('function');
@@ -233,7 +233,7 @@ describe('ToolRegistry', () => {
         toolPermission: { mode: 'allowlist', list: ['nonexistent_tool'] },
       });
 
-      const agentTools = registry.resolveForRole(role, hookDispatcher, {});
+      const { agentTools } = registry.resolveForRole(role, hookDispatcher, {});
       expect(agentTools).toHaveLength(0);
     });
   });
