@@ -136,7 +136,7 @@ export class Application {
     });
 
     await this.startStep('技能加载', async () => {
-      await this.skillManager.loadAll(this.paths.skillsDir, this.paths.userSkillsDir);
+      await this.skillManager.loadAll(this.paths.userSkillsDir, this.paths.skillsDir);
     });
 
     await this.startStep('角色加载', async () => {

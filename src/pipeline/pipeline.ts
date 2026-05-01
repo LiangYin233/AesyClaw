@@ -67,7 +67,7 @@ export class Pipeline {
    */
   destroy(): void {
     this.deps = null;
-    this.hookDispatcher = new HookDispatcher();
+    this.hookDispatcher.clearAll();
     this.initialized = false;
     logger.info('Pipeline 已销毁');
   }
@@ -112,6 +112,11 @@ export class Pipeline {
     }
 
     try {
+      // 初始化管道状态
+      let state: PipelineState = {
+        inbound: message,
+      };
+
       // 1. 调度 onReceive 钩子 — 如果被阻止，则停止
       const receiveResult = await this.hookDispatcher.dispatchOnReceive(message);
       if (receiveResult.action === 'block') {
@@ -121,71 +126,65 @@ export class Pipeline {
         return;
       }
 
-      // 如果钩子提供了响应，则直接发送（跳过处理步骤）
+      // 如果钩子提供了响应，则设置出站消息（稍后统一调度 onSend）
       if (receiveResult.action === 'respond') {
-        const outbound: OutboundMessage = {
-          content: (receiveResult as { action: 'respond'; content: string }).content,
-        };
-        await this.dispatchOnSendAndDeliver(outbound, send);
-        return;
+        state.outbound = { content: receiveResult.content };
       }
 
-      // 2. 执行顺序处理步骤
-      let state: PipelineState = {
-        inbound: message,
-      };
-
-      state = await sessionResolver(state, this.deps.sessionManager);
-
-      // 在会话解析后连接 sendMessage，以便 onSend 钩子获取会话键
-      state.sendMessage = async (outbound: OutboundMessage): Promise<boolean> =>
-        await this.dispatchOnSendAndDeliver(outbound, send, state.session?.key);
-      state = await commandDetector(state, this.deps.commandRegistry, this.deps.sessionManager);
-
-      // 3. 如果 commandDetector 未生成出站消息，则继续 Agent 处理
+      // 2. 只有尚未生成出站消息时才执行顺序处理步骤
       if (!state.outbound) {
-        // 3a. 调度 beforeLLMRequest 钩子 — 由 Pipeline 统一控制
-        const session = state.session;
-        if (session) {
-          const beforeLLMResult = await this.hookDispatcher.dispatchBeforeLLMRequest({
-            message: state.inbound,
-            session,
-            agent: session.agent,
-            role: session.activeRole,
-          });
+        state = await sessionResolver(state, this.deps.sessionManager);
 
-          if (beforeLLMResult.action === 'block') {
-            state.blocked = true;
-            state.blockReason = beforeLLMResult.reason ?? '被 beforeLLMRequest 钩子阻止';
-          } else if (beforeLLMResult.action === 'respond') {
-            state.outbound = { content: beforeLLMResult.content };
+        // 在会话解析后连接 sendMessage，以便 onSend 钩子获取会话键
+        state.sendMessage = async (outbound: OutboundMessage): Promise<boolean> =>
+          await this.dispatchOnSendAndDeliver(outbound, send, state.session?.key);
+        state = await commandDetector(state, this.deps.commandRegistry, this.deps.sessionManager);
+
+        // 3. 如果 commandDetector 未生成出站消息，则继续 Agent 处理
+        if (!state.outbound) {
+          // 3a. 调度 beforeLLMRequest 钩子 — 由 Pipeline 统一控制
+          const session = state.session;
+          if (session) {
+            const beforeLLMResult = await this.hookDispatcher.dispatchBeforeLLMRequest({
+              message: state.inbound,
+              session,
+              agent: session.agent,
+              role: session.activeRole,
+            });
+
+            if (beforeLLMResult.action === 'block') {
+              state.blocked = true;
+              state.blockReason = beforeLLMResult.reason ?? '被 beforeLLMRequest 钩子阻止';
+            } else if (beforeLLMResult.action === 'respond') {
+              state.outbound = { content: beforeLLMResult.content };
+            } else {
+              // continue: 执行 Agent 处理
+              state = await agentProcessor(
+                state,
+                this.deps.agentEngine,
+                this.deps.sessionManager,
+              );
+            }
           } else {
-            // continue: 执行 Agent 处理
+            // 无会话上下文 — 跳过 Agent 处理（agentProcessor 内部也会处理此情况）
             state = await agentProcessor(
               state,
               this.deps.agentEngine,
               this.deps.sessionManager,
             );
           }
-        } else {
-          // 无会话上下文 — 跳过 Agent 处理（agentProcessor 内部也会处理此情况）
-          state = await agentProcessor(
-            state,
-            this.deps.agentEngine,
-            this.deps.sessionManager,
-          );
+        }
+
+        // 4. 处理后：如果状态被阻止，则停止
+        if (state.blocked) {
+          logger.info('管道被阻止', {
+            reason: state.blockReason,
+          });
+          return;
         }
       }
 
-      // 4. 处理后：如果状态被阻止，则停止
-      if (state.blocked) {
-        logger.info('管道被阻止', {
-          reason: state.blockReason,
-        });
-        return;
-      }
-
-      // 5. 如果生成了出站消息，则调度 onSend 并投递
+      // 5. 如果生成了出站消息，则调度 onSend 并投递（统一出口）
       if (state.outbound) {
         await this.dispatchOnSendAndDeliver(state.outbound, send, state.session?.key);
       }

@@ -93,7 +93,6 @@ export class AgentEngine {
     });
 
     const history = await this.loadHistoryForTurn(memory, role);
-    agent.state.messages = history;
 
     const executionContext: Partial<ToolExecutionContext> = {
       sessionKey: message.sessionKey,
@@ -106,17 +105,11 @@ export class AgentEngine {
     agent.state.tools = tools;
     agent.state.model = this.llmAdapter.resolveModel(role.model);
 
-    await this.prompt(agent, message.content);
-
-    const newMessages = agent.state.messages.slice(history.length);
+    const { newMessages, lastAssistant } = await this.promptAgent(agent, history, message.content);
     await memory.syncFromAgent(newMessages);
 
-    const lastAssistant = findLastAssistantText(newMessages);
-
     if (lastAssistant) {
-      return {
-        content: lastAssistant,
-      };
+      return { content: lastAssistant };
     }
 
     const lastMessage =
@@ -152,13 +145,9 @@ export class AgentEngine {
       sessionKey,
       toolPermission: ephemeralRole.toolPermission,
     });
-    agent.state.messages = history;
     agent.state.tools = [];
 
-    await this.prompt(agent, content);
-
-    const newMessages = agent.state.messages.slice(history.length);
-    const lastAssistant = findLastAssistantText(newMessages);
+    const { lastAssistant } = await this.promptAgent(agent, history, content);
 
     if (lastAssistant) {
       return { content: lastAssistant };
@@ -194,7 +183,7 @@ export class AgentEngine {
     const llmAdapter = this.llmAdapter;
     if (!llmAdapter) throw new Error('AgentEngine 未初始化');
     let history = await memory.loadHistory();
-    if (typeof memory.shouldCompact === 'function' && memory.shouldCompact(history)) {
+    if (memory.shouldCompact(history)) {
       await memory.compact(llmAdapter, role.model);
       history = await memory.loadHistory();
     }
@@ -204,6 +193,23 @@ export class AgentEngine {
   private async prompt(agent: Agent, content: string): Promise<void> {
     await agent.prompt(content);
     await agent.waitForIdle();
+  }
+
+  /**
+   * 向 agent 发送提示词并提取响应。
+   *
+   * 设置 agent.state.messages、调用 prompt() 并返回生成的消息
+   * 切片，以及找到的最后一条助手文本（如果有）。
+   */
+  private async promptAgent(
+    agent: Agent,
+    history: AgentMessage[],
+    content: string,
+  ): Promise<{ newMessages: AgentMessage[]; lastAssistant: string | null }> {
+    agent.state.messages = history;
+    await this.prompt(agent, content);
+    const newMessages = agent.state.messages.slice(history.length);
+    return { newMessages, lastAssistant: findLastAssistantText(newMessages) };
   }
 }
 

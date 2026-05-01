@@ -17,12 +17,6 @@ export const DIR_NAMES = {
    * 实际路径由 resolvePaths 基于 root 解析为 `<project>/skills/`。
    */
   skills: 'skills',
-  /**
-   * 用户自定义 skills 目录（运行时目录下）。
-   * 常量值与 `skills` 相同，但基路径不同：
-   * resolvePaths 基于 runtimeRoot 解析为 `<project>/.aesyclaw/skills/`。
-   */
-  userSkills: 'skills',
   extensions: 'extensions',
 } as const;
 

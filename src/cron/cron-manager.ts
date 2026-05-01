@@ -23,9 +23,7 @@ export type CronJobRepositoryLike = {
 }
 
 export type CronManagerDependencies = {
-  databaseManager?: DatabaseManager;
-  cronJobs?: CronJobRepositoryLike;
-  cronRuns?: CronRunRepositoryLike;
+  databaseManager: DatabaseManager;
   pipeline: CronPipelineLike;
   send: (sessionKey: SessionKey, message: OutboundMessage) => Promise<void>;
   scheduler?: CronScheduler;
@@ -52,13 +50,9 @@ export class CronManager {
       return;
     }
 
-    this.cronJobs = dependencies.cronJobs ?? dependencies.databaseManager?.cronJobs ?? null;
-    this.cronRuns = dependencies.cronRuns ?? dependencies.databaseManager?.cronRuns ?? null;
+    this.cronJobs = dependencies.databaseManager.cronJobs;
+    this.cronRuns = dependencies.databaseManager.cronRuns;
     this.scheduler = dependencies.scheduler ?? new CronScheduler();
-
-    if (!this.cronJobs || !this.cronRuns) {
-      throw new Error('CronManager 需要定时任务和运行记录存储库');
-    }
 
     this.executor = new CronExecutor({
       cronRuns: this.cronRuns,

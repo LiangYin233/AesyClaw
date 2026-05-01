@@ -140,7 +140,7 @@ describe('Cron', () => {
     const pipeline = makePipeline('cron response');
     const send = makeSend();
     const manager = new CronManager();
-    await manager.initialize({ cronJobs: jobs, cronRuns: runs, pipeline, send });
+    await manager.initialize({ databaseManager: { cronJobs: jobs, cronRuns: runs }, pipeline, send });
 
     const jobId = await manager.createJob({
       scheduleType: 'interval',
@@ -176,8 +176,7 @@ describe('Cron', () => {
     const runs = new FakeCronRunRepo();
     const manager = new CronManager();
     await manager.initialize({
-      cronJobs: jobs,
-      cronRuns: runs,
+      databaseManager: { cronJobs: jobs, cronRuns: runs },
       send: makeSend(),
       pipeline: {
         receiveWithSend: vi.fn(async () => {
@@ -207,8 +206,7 @@ describe('Cron', () => {
     const scheduler = new CronScheduler();
     const manager = new CronManager();
     await manager.initialize({
-      cronJobs: jobs,
-      cronRuns: runs,
+      databaseManager: { cronJobs: jobs, cronRuns: runs },
       pipeline,
       send: makeSend(),
       scheduler,
@@ -245,8 +243,7 @@ describe('Cron', () => {
     } as unknown as CronScheduler;
     const manager = new CronManager();
     await manager.initialize({
-      cronJobs: jobs,
-      cronRuns: runs,
+      databaseManager: { cronJobs: jobs, cronRuns: runs },
       pipeline,
       send: makeSend(),
       scheduler,
@@ -284,8 +281,7 @@ describe('Cron', () => {
     const scheduler = new CronScheduler();
     const manager = new CronManager();
     await manager.initialize({
-      cronJobs: jobs,
-      cronRuns: runs,
+      databaseManager: { cronJobs: jobs, cronRuns: runs },
       pipeline,
       send: makeSend(),
       scheduler,
@@ -319,8 +315,7 @@ describe('Cron', () => {
     const scheduler = new CronScheduler();
     const manager = new CronManager();
     await manager.initialize({
-      cronJobs: jobs,
-      cronRuns: runs,
+      databaseManager: { cronJobs: jobs, cronRuns: runs },
       send: makeSend(),
       pipeline: {
         receiveWithSend: vi.fn(async () => {

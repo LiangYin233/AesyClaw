@@ -220,7 +220,7 @@ description: Blocked
 Blocked content.`,
       );
 
-      await skillManager.loadAll(systemDir, userDir);
+      await skillManager.loadAll(userDir, systemDir);
 
       const roleManager = {
         getEnabledRoles: vi.fn().mockReturnValue([makeRole()]),

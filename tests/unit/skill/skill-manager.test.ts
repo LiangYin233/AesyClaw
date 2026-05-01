@@ -67,7 +67,7 @@ description: A system skill
 System content.`,
       );
 
-      await manager.loadAll(systemDir, userDir);
+      await manager.loadAll(userDir, systemDir);
 
       const skills = manager.getAllSkills();
       expect(skills).toHaveLength(1);
@@ -86,7 +86,7 @@ description: A user skill
 User content.`,
       );
 
-      await manager.loadAll(systemDir, userDir);
+      await manager.loadAll(userDir, systemDir);
 
       const skills = manager.getAllSkills();
       expect(skills).toHaveLength(1);
@@ -114,7 +114,7 @@ description: User
 User content.`,
       );
 
-      await manager.loadAll(systemDir, userDir);
+      await manager.loadAll(userDir, systemDir);
 
       const skills = manager.getAllSkills();
       expect(skills).toHaveLength(2);
@@ -141,7 +141,7 @@ description: User version
 User content.`,
       );
 
-      await manager.loadAll(systemDir, userDir);
+      await manager.loadAll(userDir, systemDir);
 
       const skill = manager.getSkill('conflict');
       const conflictSkill = expectSkill(skill, 'conflict');
@@ -162,7 +162,7 @@ Valid content.`,
 
       writeFileSync(join(systemDir, 'malformed.md'), 'No frontmatter here');
 
-      await manager.loadAll(systemDir, userDir);
+      await manager.loadAll(userDir, systemDir);
 
       const skills = manager.getAllSkills();
       expect(skills).toHaveLength(1);
@@ -173,7 +173,7 @@ Valid content.`,
       const nonExistentDir = join(TEST_DIR, 'nonexistent-sys');
       const nonExistentUserDir = join(TEST_DIR, 'nonexistent-user');
 
-      await manager.loadAll(nonExistentDir, nonExistentUserDir);
+      await manager.loadAll(nonExistentUserDir, nonExistentDir);
 
       const skills = manager.getAllSkills();
       expect(skills).toHaveLength(0);
@@ -191,7 +191,7 @@ description: System
 Sys content.`,
       );
 
-      await manager.loadAll(systemDir, userDir);
+      await manager.loadAll(userDir, systemDir);
 
       const role = makeRole({ skills: [] }); // No user skills
       const skills = manager.getSkillsForRole(role);
@@ -219,7 +219,7 @@ description: User 1
 Usr1 content.`,
       );
 
-      await manager.loadAll(systemDir, userDir);
+      await manager.loadAll(userDir, systemDir);
 
       const role = makeRole({ skills: ['*'] });
       const skills = manager.getSkillsForRole(role);
@@ -254,7 +254,7 @@ description: User 2
 Usr2 content.`,
       );
 
-      await manager.loadAll(systemDir, userDir);
+      await manager.loadAll(userDir, systemDir);
 
       const role = makeRole({ skills: ['usr2'] });
       const skills = manager.getSkillsForRole(role);
@@ -287,7 +287,7 @@ description: Second skill
 Second content.`,
       );
 
-      await manager.loadAll(systemDir, userDir);
+      await manager.loadAll(userDir, systemDir);
 
       const role = makeRole({ skills: ['*'] });
       const skills = manager.getSkillsForRole(role);
@@ -330,7 +330,7 @@ description: Blocked
 Blocked content.`,
       );
 
-      await manager.loadAll(systemDir, userDir);
+      await manager.loadAll(userDir, systemDir);
 
       const role = makeRole({ skills: ['allowed-skill'] });
       const prompt = buildSkillPromptSection(manager.getSkillsForRole(role));

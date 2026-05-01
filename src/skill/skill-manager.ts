@@ -5,9 +5,6 @@
  * - 系统技能: `skills/*.md`          (始终包含，不可过滤)
  * - 用户技能:   `.aesyclaw/skills/*.md` (根据角色的 `skills` 配置过滤)
  *
- * 当系统技能和用户技能同名时，系统技能
- * 优先（用户技能被忽略）。
- *
  * 角色配置按名称引用技能；管理器解析
  * 给定角色应包含哪些技能。
  */
@@ -26,21 +23,14 @@ export class SkillManager {
   // ─── 生命周期 ────────────────────────────────────────────────
 
   /**
-   * 从系统目录和用户目录加载所有技能文件。
+   * 从用户目录和系统目录加载所有技能文件。
    *
-   * 先加载用户技能，再加载系统技能 — 因此系统技能
-   * 在名称冲突时始终优先。
-   *
-   * @param systemDir - `skills/` 的路径（系统技能，始终包含）
    * @param userDir   - `.aesyclaw/skills/` 的路径（用户技能，按角色过滤）
+   * @param systemDir - `skills/` 的路径（系统技能，始终包含）
    */
-  async loadAll(systemDir: string, userDir: string): Promise<void> {
+  async loadAll(userDir: string, systemDir: string): Promise<void> {
     this.skills.clear();
-
-    // 先加载用户技能，以便系统技能在冲突时优先
     this.loadFromDirectory(userDir, false);
-
-    // 加载系统技能（在名称冲突时覆盖用户技能）
     this.loadFromDirectory(systemDir, true);
 
     logger.info(`已加载 ${this.skills.size} 个技能`);

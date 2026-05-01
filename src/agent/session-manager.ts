@@ -75,10 +75,11 @@ export class SessionManager {
   /**
    * 从 SessionKey 计算缓存键字符串。
    *
-   * 分别编码每个组件，使值内的分隔符不会冲突。
+   * 使用分隔符连接各组件，并对值内的分隔符和反斜杠进行转义以避免冲突。
    */
   private computeKey(key: SessionKey): string {
-    return JSON.stringify([key.channel, key.type, key.chatId]);
+    const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
+    return `${esc(key.channel)}|${esc(key.type)}|${esc(key.chatId)}`;
   }
 
   /**

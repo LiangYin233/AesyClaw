@@ -118,6 +118,13 @@ export class HookDispatcher {
     }
   }
 
+  /**
+   * 清除所有已注册的钩子条目。
+   */
+  clearAll(): void {
+    this.entries = [];
+  }
+
   // ─── 调度方法 ───────────────────────────────────────────
 
   async dispatchOnReceive(message: InboundMessage): Promise<PipelineResult> {
