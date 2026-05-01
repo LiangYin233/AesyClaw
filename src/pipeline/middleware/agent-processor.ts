@@ -4,6 +4,9 @@
  * 使用上一步（sessionResolver）的 SessionContext
  * 通过 AgentEngine 处理入站消息。生成的出站
  * 消息被放置到管道状态中。
+ *
+ * 注意：beforeLLMRequest 钩子由 Pipeline 在调用此处理器之前统一调度，
+ * 因此本处理器不再接收 hookDispatcher，专注于纯粹的 Agent 执行。
  */
 
 import type { PipelineState } from './types';
@@ -13,18 +16,21 @@ import {
   type SessionContext,
   type SessionManager,
 } from '../../agent/session-manager';
-import type { HookDispatcher } from '../hook-dispatcher';
 
 /**
  * 通过 AI Agent 处理入站消息。
  *
  * 期望 `state.session` 为 SessionContext（由 sessionResolver 设置）。
  * 处理后，使用 Agent 的响应设置 `state.outbound`。
+ *
+ * @param state - 当前管道状态（已由 Pipeline 调度 beforeLLMRequest 钩子）
+ * @param agentEngine - Agent 引擎
+ * @param sessionManager - 会话管理器
+ * @returns 更新后的管道状态
  */
 export async function agentProcessor(
   state: PipelineState,
   agentEngine: AgentEngine,
-  hookDispatcher: HookDispatcher,
   sessionManager: Pick<SessionManager, 'tryBeginAgentProcessing' | 'endAgentProcessing' | 'isAgentProcessing'>,
 ): Promise<PipelineState> {
   const session: SessionContext | undefined = state.session;
@@ -41,24 +47,6 @@ export async function agentProcessor(
   }
 
   try {
-    const beforeResult = await hookDispatcher.dispatchBeforeLLMRequest({
-      message: state.inbound,
-      session,
-      agent: session.agent,
-      role: session.activeRole,
-    });
-
-    if (beforeResult.action === 'block') {
-      state.blocked = true;
-      state.blockReason = beforeResult.reason ?? 'Blocked by beforeLLMRequest hook';
-      return state;
-    }
-
-    if (beforeResult.action === 'respond') {
-      state.outbound = { content: beforeResult.content };
-      return state;
-    }
-
     const outbound = await agentEngine.process(
       session.agent,
       state.inbound,

@@ -71,17 +71,17 @@ describe('PromptBuilder', () => {
       resolveForRole: vi.fn().mockReturnValue([]),
       ...(overrides.toolRegistry ?? {}),
     };
-    const hookDispatcher = {
+    const toolHookDispatcher = {
       dispatchBeforeToolCall: vi.fn().mockResolvedValue({}),
       dispatchAfterToolCall: vi.fn().mockResolvedValue({}),
-      ...(overrides.hookDispatcher ?? {}),
+      ...(overrides.toolHookDispatcher ?? {}),
     };
 
     return {
       roleManager,
       skillManager,
       toolRegistry,
-      hookDispatcher,
+      toolHookDispatcher,
     } as unknown as PromptBuilderDependencies;
   }
 
@@ -185,8 +185,8 @@ describe('PromptBuilder', () => {
 
       expect(deps.toolRegistry.resolveForRoleWithDefinitions).toHaveBeenCalledWith(
         expect.any(Object),
-        deps.hookDispatcher,
-        ctx,
+        deps.toolHookDispatcher,
+        { sessionKey: expect.any(Object) },
       );
     });
 
@@ -236,10 +236,10 @@ Blocked content.`,
           resolveForRoleWithDefinitions: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
           resolveForRole: vi.fn().mockReturnValue([]),
         } as unknown as PromptBuilderDependencies['toolRegistry'],
-        hookDispatcher: {
+        toolHookDispatcher: {
           dispatchBeforeToolCall: vi.fn().mockResolvedValue({}),
           dispatchAfterToolCall: vi.fn().mockResolvedValue({}),
-        } as unknown as PromptBuilderDependencies['hookDispatcher'],
+        } as unknown as PromptBuilderDependencies['toolHookDispatcher'],
       });
 
       try {

@@ -23,7 +23,7 @@ export class PluginManager {
   private readonly configManager;
   private readonly toolRegistry;
   private readonly commandRegistry;
-  private readonly hookDispatcher;
+  private readonly hookRegistry;
   private readonly channelManager;
   private readonly pluginLoader;
   private readonly loadedPlugins = new Map<string, LoadedPlugin>();
@@ -37,7 +37,7 @@ export class PluginManager {
     this.configManager = dependencies.configManager;
     this.toolRegistry = dependencies.toolRegistry;
     this.commandRegistry = dependencies.commandRegistry;
-    this.hookDispatcher = dependencies.hookDispatcher;
+    this.hookRegistry = dependencies.hookRegistry;
     this.channelManager = dependencies.channelManager;
     this.pluginLoader = dependencies.pluginLoader ?? new PluginLoader();
   }
@@ -96,7 +96,7 @@ export class PluginManager {
     try {
       await module.definition.init(context);
       if (module.definition.hooks) {
-        this.hookDispatcher.register(pluginName, module.definition.hooks);
+        this.hookRegistry.register(pluginName, module.definition.hooks);
       }
     } catch (err) {
       await this.cleanupOwner(pluginName);
@@ -333,7 +333,7 @@ export class PluginManager {
 
   private async cleanupOwner(pluginName: string): Promise<void> {
     const owner = pluginOwner(pluginName);
-    this.hookDispatcher.unregister(pluginName);
+    this.hookRegistry.unregister(pluginName);
     this.toolRegistry.unregisterByOwner(owner);
     this.commandRegistry.unregisterByScope(owner);
     const channels = this.pluginChannels.get(pluginName) ?? new Set<string>();

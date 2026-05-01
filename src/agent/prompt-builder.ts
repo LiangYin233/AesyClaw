@@ -12,7 +12,7 @@ import type { SkillManager } from '../skill/skill-manager';
 import type { AesyClawTool, ToolRegistry, ToolExecutionContext } from '../tool/tool-registry';
 import type { RoleConfig, Skill } from '../core/types';
 import type { AgentTool } from './agent-types';
-import type { HookDispatcher } from '../pipeline/hook-dispatcher';
+import type { ToolHookDispatcher } from '../pipeline/middleware/types';
 import { buildSkillPromptSection } from '../skill/skill-prompt';
 
 // ─── PromptBuilder ──────────────────────────────────────────────
@@ -24,20 +24,20 @@ export type PromptBuilderDependencies = {
   roleManager: RoleManager;
   skillManager: SkillManager;
   toolRegistry: ToolRegistry;
-  hookDispatcher: HookDispatcher;
+  toolHookDispatcher: ToolHookDispatcher;
 }
 
 export class PromptBuilder {
   private roleManager: RoleManager;
   private skillManager: SkillManager;
   private toolRegistry: ToolRegistry;
-  private hookDispatcher: HookDispatcher;
+  private toolHookDispatcher: ToolHookDispatcher;
 
   constructor(deps: PromptBuilderDependencies) {
     this.roleManager = deps.roleManager;
     this.skillManager = deps.skillManager;
     this.toolRegistry = deps.toolRegistry;
-    this.hookDispatcher = deps.hookDispatcher;
+    this.toolHookDispatcher = deps.toolHookDispatcher;
   }
 
   /**
@@ -65,7 +65,7 @@ export class PromptBuilder {
 
     const resolvedTools = this.toolRegistry.resolveForRoleWithDefinitions(
       role,
-      this.hookDispatcher,
+      this.toolHookDispatcher,
       executionContext ?? {},
     );
 

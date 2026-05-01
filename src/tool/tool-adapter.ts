@@ -10,7 +10,7 @@
 
 import type { AgentTool, AgentToolResult } from '../agent/agent-types';
 import { createScopedLogger } from '../core/logger';
-import type { HookDispatcher } from '../pipeline/hook-dispatcher';
+import type { ToolHookDispatcher } from '../pipeline/middleware/types';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from './tool-registry';
 
 const logger = createScopedLogger('tool');
@@ -33,7 +33,7 @@ export class ToolAdapter {
    */
   static toAgentTool(
     tool: AesyClawTool,
-    hookDispatcher: HookDispatcher,
+    toolHookDispatcher: ToolHookDispatcher,
     executionContext: Partial<ToolExecutionContext>,
   ): AgentTool {
     return {
@@ -76,7 +76,7 @@ export class ToolAdapter {
         });
 
         // 1. 派发 beforeToolCall 钩子
-        const beforeResult = await hookDispatcher.dispatchBeforeToolCall({
+        const beforeResult = await toolHookDispatcher.dispatchBeforeToolCall({
           toolName: tool.name,
           params,
           sessionKey,
@@ -137,7 +137,7 @@ export class ToolAdapter {
         }
 
         // 3. 派发 afterToolCall 钩子 — 可能覆盖结果
-        const afterResult = await hookDispatcher.dispatchAfterToolCall({
+        const afterResult = await toolHookDispatcher.dispatchAfterToolCall({
           toolName: tool.name,
           params,
           result,

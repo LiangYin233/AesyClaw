@@ -108,18 +108,18 @@ function makeModule(overrides: Partial<PluginModule> = {}): PluginModule {
 function makeManager(module: PluginModule, config = new FakeConfigManager()) {
   const toolRegistry = new ToolRegistry();
   const commandRegistry = new CommandRegistry();
-  const hookDispatcher = new HookDispatcher();
+  const hookRegistry = new HookDispatcher();
   const channelManager = new FakeChannelManager();
   const pluginLoader = new FakePluginLoader(new Map([[module.directory, module]]));
   const manager = new PluginManager({
     configManager: config,
     toolRegistry,
     commandRegistry,
-    hookDispatcher,
+    hookRegistry,
     channelManager,
     pluginLoader,
   });
-  return { manager, config, toolRegistry, commandRegistry, hookDispatcher, channelManager };
+  return { manager, config, toolRegistry, commandRegistry, hookRegistry, channelManager };
 }
 
 describe('PluginManager', () => {
@@ -218,7 +218,7 @@ describe('PluginManager', () => {
         destroy,
       },
     });
-    const { manager, toolRegistry, commandRegistry, hookDispatcher } = makeManager(module);
+    const { manager, toolRegistry, commandRegistry, hookRegistry } = makeManager(module);
 
     await manager.load(module.directory);
     await manager.unload('alpha');
@@ -227,7 +227,7 @@ describe('PluginManager', () => {
     expect(toolRegistry.has('alpha_tool')).toBe(false);
     expect(commandRegistry.getAll()).toHaveLength(0);
     await expect(
-      hookDispatcher.dispatchOnReceive({
+      hookRegistry.dispatchOnReceive({
         sessionKey: { channel: 'test', type: 'private', chatId: '1' },
         content: 'hi',
       }),
@@ -369,7 +369,7 @@ describe('PluginManager', () => {
       configManager: config,
       toolRegistry,
       commandRegistry,
-      hookDispatcher,
+      hookRegistry: hookDispatcher,
       channelManager: new FakeChannelManager(),
       pluginLoader,
     });

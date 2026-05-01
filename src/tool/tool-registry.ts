@@ -16,7 +16,7 @@ import type {
   ToolPermissionConfig,
 } from '../core/types';
 import { createScopedLogger } from '../core/logger';
-import type { HookDispatcher } from '../pipeline/hook-dispatcher';
+import type { ToolHookDispatcher } from '../pipeline/middleware/types';
 import type { AgentTool } from '../agent/agent-types';
 import { ToolAdapter } from './tool-adapter';
 
@@ -165,13 +165,13 @@ export class ToolRegistry {
    */
   resolveForRoleWithDefinitions(
     role: RoleConfig,
-    hookDispatcher: HookDispatcher,
+    toolHookDispatcher: ToolHookDispatcher,
     executionContext: Partial<ToolExecutionContext>,
   ): { tools: AesyClawTool[]; agentTools: AgentTool[] } {
     const tools = this.getForRole(role);
     return {
       tools,
-      agentTools: this.toAgentTools(tools, hookDispatcher, executionContext),
+      agentTools: this.toAgentTools(tools, toolHookDispatcher, executionContext),
     };
   }
 
@@ -180,24 +180,24 @@ export class ToolRegistry {
    * 应用权限过滤并转换为 AgentTool 格式。
    *
    * @param role - 其权限决定可用工具的角色
-   * @param hookDispatcher - 派发 before/after 工具调用钩子
+   * @param toolHookDispatcher - 派发 before/after 工具调用钩子
    * @param executionContext - 提供给工具执行函数的上下文
    * @returns 准备用于代理运行时的 AgentTool 实例数组
    */
   resolveForRole(
     role: RoleConfig,
-    hookDispatcher: HookDispatcher,
+    toolHookDispatcher: ToolHookDispatcher,
     executionContext: Partial<ToolExecutionContext>,
   ): AgentTool[] {
-    return this.resolveForRoleWithDefinitions(role, hookDispatcher, executionContext).agentTools;
+    return this.resolveForRoleWithDefinitions(role, toolHookDispatcher, executionContext).agentTools;
   }
 
   private toAgentTools(
     tools: AesyClawTool[],
-    hookDispatcher: HookDispatcher,
+    toolHookDispatcher: ToolHookDispatcher,
     executionContext: Partial<ToolExecutionContext>,
   ): AgentTool[] {
-    return tools.map((tool) => ToolAdapter.toAgentTool(tool, hookDispatcher, executionContext));
+    return tools.map((tool) => ToolAdapter.toAgentTool(tool, toolHookDispatcher, executionContext));
   }
 }
 

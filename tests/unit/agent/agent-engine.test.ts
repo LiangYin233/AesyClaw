@@ -6,7 +6,7 @@ import type { ConfigManager } from '../../../src/core/config/config-manager';
 import type { ToolRegistry } from '../../../src/tool/tool-registry';
 import type { RoleManager } from '../../../src/role/role-manager';
 import type { SkillManager } from '../../../src/skill/skill-manager';
-import type { HookDispatcher } from '../../../src/pipeline/hook-dispatcher';
+import type { ToolHookDispatcher } from '../../../src/pipeline/middleware/types';
 import type { LlmAdapter } from '../../../src/agent/llm-adapter';
 import type { RoleConfig, InboundMessage } from '../../../src/core/types';
 import { MemoryManager } from '../../../src/agent/memory-manager';
@@ -110,16 +110,11 @@ function makeMockSkillManager(): SkillManager {
   } as unknown as SkillManager;
 }
 
-function makeMockHookDispatcher(): HookDispatcher {
+function makeMockToolHookDispatcher(): ToolHookDispatcher {
   return {
-    register: vi.fn(),
-    unregister: vi.fn(),
-    dispatchOnReceive: vi.fn().mockResolvedValue({ action: 'continue' }),
-    dispatchOnSend: vi.fn().mockResolvedValue({ action: 'continue' }),
     dispatchBeforeToolCall: vi.fn().mockResolvedValue({}),
     dispatchAfterToolCall: vi.fn().mockResolvedValue({}),
-    dispatchBeforeLLMRequest: vi.fn().mockResolvedValue({ action: 'continue' }),
-  } as unknown as HookDispatcher;
+  };
 }
 
 function makeMockLlmAdapter(): LlmAdapter {
@@ -195,7 +190,7 @@ function makeMockDeps(): AgentEngineDependencies {
     toolRegistry: makeMockToolRegistry(),
     roleManager: makeMockRoleManager(),
     skillManager: makeMockSkillManager(),
-    hookDispatcher: makeMockHookDispatcher(),
+    toolHookDispatcher: makeMockToolHookDispatcher(),
     llmAdapter: makeMockLlmAdapter(),
   };
 }
@@ -240,7 +235,7 @@ describe('AgentEngine', () => {
       expect(agent.state.tools[0]?.name).toBe('search');
       expect(deps.toolRegistry.resolveForRoleWithDefinitions).toHaveBeenCalledWith(
         role,
-        deps.hookDispatcher,
+        deps.toolHookDispatcher,
         {},
       );
     });
@@ -310,7 +305,7 @@ describe('AgentEngine', () => {
       expect(deps.toolRegistry.resolveForRoleWithDefinitions).toHaveBeenNthCalledWith(
         2,
         role,
-        deps.hookDispatcher,
+        deps.toolHookDispatcher,
         {
           sessionKey: makeInboundMessage().sessionKey,
           sendMessage: undefined,
@@ -337,7 +332,7 @@ describe('AgentEngine', () => {
 
       expect(deps.toolRegistry.resolveForRoleWithDefinitions).toHaveBeenLastCalledWith(
         role,
-        deps.hookDispatcher,
+        deps.toolHookDispatcher,
         {
           sessionKey: makeInboundMessage().sessionKey,
           sendMessage,
@@ -435,7 +430,7 @@ describe('AgentEngine', () => {
           model: role.model,
           toolPermission: { mode: 'allowlist', list: [] },
         }),
-        deps.hookDispatcher,
+        deps.toolHookDispatcher,
         {
           sessionKey,
           toolPermission: { mode: 'allowlist', list: [] },

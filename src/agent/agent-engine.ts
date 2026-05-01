@@ -7,7 +7,7 @@ import { extractMessageText } from './agent-types';
 import type { ToolRegistry, ToolExecutionContext } from '../tool/tool-registry';
 import type { RoleManager } from '../role/role-manager';
 import type { SkillManager } from '../skill/skill-manager';
-import type { HookDispatcher } from '../pipeline/hook-dispatcher';
+import type { ToolHookDispatcher } from '../pipeline/middleware/types';
 import type { LlmAdapter } from './llm-adapter';
 import { PromptBuilder } from './prompt-builder';
 import type { MemoryManager } from './memory-manager';
@@ -21,7 +21,7 @@ export type AgentEngineDependencies = {
   toolRegistry: ToolRegistry;
   roleManager: RoleManager;
   skillManager: SkillManager;
-  hookDispatcher: HookDispatcher;
+  toolHookDispatcher: ToolHookDispatcher;
   llmAdapter: LlmAdapter;
 }
 
@@ -51,7 +51,7 @@ export class AgentEngine {
       roleManager: deps.roleManager,
       skillManager: deps.skillManager,
       toolRegistry: deps.toolRegistry,
-      hookDispatcher: deps.hookDispatcher,
+      toolHookDispatcher: deps.toolHookDispatcher,
     });
     this.runPolicy = new AgentRunPolicy({
       configManager: deps.configManager,

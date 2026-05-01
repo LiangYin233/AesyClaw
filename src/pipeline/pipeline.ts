@@ -1,22 +1,35 @@
 /**
- * Pipeline — 带有顺序步骤和钩子调度的消息处理管道。
+ * Pipeline — 中央消息处理管道。
  *
- * 管道是中央消息处理编排器。它接收
- * 入站消息，调度插件钩子，运行处理步骤，
- * 并发送出站响应。
+ * 管道是唯一的控制流管理者。它接收入站消息，
+ * 调度插件钩子，运行处理步骤，并发送出站响应。
+ *
+ * 整合后的架构：
+ *   - Pipeline 持有 HookDispatcher 作为内部组件
+ *   - Pipeline 实现 HookRegistry 接口，供 PluginManager 注册/注销插件钩子
+ *   - Pipeline 提供 getToolHookDispatcher()，供 AgentEngine/ToolAdapter 调度工具钩子
+ *   - 所有控制流钩子（onReceive / beforeLLMRequest / onSend）由 Pipeline 统一调度
+ *   - 工具钩子（beforeToolCall / afterToolCall）由 ToolAdapter 通过 ToolHookDispatcher 调度
  *
  * 流程：
- *   1. HookDispatcher.dispatchOnReceive(message) → 如果被阻止，停止
- *   2. 顺序步骤：sessionResolver → commandDetector → agentProcessor
- *   3. 如果 state.blocked，停止
- *   4. HookDispatcher.dispatchOnSend(outbound) → 如果被阻止，停止
- *   5. send(outbound)
- *
+ *   1. onReceive 钩子 → 如果被阻止，停止
+ *   2. 顺序步骤：sessionResolver → commandDetector
+ *   3. beforeLLMRequest 钩子 → 如果被阻止/响应，跳过 Agent 处理
+ *   4. agentProcessor → Agent 处理
+ *   5. 如果 state.blocked，停止
+ *   6. onSend 钩子 → 如果被阻止，停止
+ *   7. send(outbound)
  */
 
 import type { InboundMessage, OutboundMessage, SendFn } from '../core/types';
 import type { SessionKey } from '../core/types';
-import type { PipelineDependencies, PipelineState } from './middleware/types';
+import type {
+  HookRegistry,
+  PipelineDependencies,
+  PipelineState,
+  PluginHooks,
+  ToolHookDispatcher,
+} from './middleware/types';
 import { HookDispatcher } from './hook-dispatcher';
 import { sessionResolver } from './middleware/session-resolver';
 import { commandDetector } from './middleware/command-detector';
@@ -30,8 +43,10 @@ const logger = createScopedLogger('pipeline');
  *
  * 遵循生命周期模式：initialize() / destroy()。
  * 依赖显式注入 — 无单例导入。
+ *
+ * 同时实现 HookRegistry 接口，作为插件钩子注册的唯一入口。
  */
-export class Pipeline {
+export class Pipeline implements HookRegistry {
   private hookDispatcher: HookDispatcher = new HookDispatcher();
   private deps: PipelineDependencies | null = null;
   private initialized = false;
@@ -53,13 +68,45 @@ export class Pipeline {
   }
 
   /**
-   * 销毁管道 — 清除钩子注册。
+   * 销毁管道 — 清除钩子注册和依赖。
    */
   destroy(): void {
     this.deps = null;
     this.hookDispatcher = new HookDispatcher();
     this.initialized = false;
     logger.info('Pipeline 已销毁');
+  }
+
+  // ─── HookRegistry 接口 ────────────────────────────────────────
+
+  /**
+   * 注册插件的钩子。
+   *
+   * @param pluginName - 唯一插件标识符（用于注销）
+   * @param hooks - 包含插件提供的钩子函数的对象
+   */
+  register(pluginName: string, hooks: PluginHooks): void {
+    this.hookDispatcher.register(pluginName, hooks);
+  }
+
+  /**
+   * 注销插件的钩子。
+   *
+   * 如果插件没有已注册的钩子，则为空操作。
+   */
+  unregister(pluginName: string): void {
+    this.hookDispatcher.unregister(pluginName);
+  }
+
+  // ─── 工具钩子调度器 ───────────────────────────────────────────
+
+  /**
+   * 获取用于工具钩子调度的接口。
+   *
+   * 供 AgentEngine/ToolAdapter 使用，仅暴露 beforeToolCall/afterToolCall。
+   */
+  getToolHookDispatcher(): ToolHookDispatcher {
+    return this.hookDispatcher;
   }
 
   // ─── 核心 API ─────────────────────────────────────────────────
@@ -109,17 +156,42 @@ export class Pipeline {
         await this.dispatchOnSendAndDeliver(outbound, send, state.session?.key);
       state = await commandDetector(state, this.deps.commandRegistry, this.deps.sessionManager);
 
-      // 如果 commandDetector 设置了出站消息，则跳过 Agent 处理
+      // 3. 如果 commandDetector 未生成出站消息，则继续 Agent 处理
       if (!state.outbound) {
-        state = await agentProcessor(
-          state,
-          this.deps.agentEngine,
-          this.hookDispatcher,
-          this.deps.sessionManager,
-        );
+        // 3a. 调度 beforeLLMRequest 钩子 — 由 Pipeline 统一控制
+        const session = state.session;
+        if (session) {
+          const beforeLLMResult = await this.hookDispatcher.dispatchBeforeLLMRequest({
+            message: state.inbound,
+            session,
+            agent: session.agent,
+            role: session.activeRole,
+          });
+
+          if (beforeLLMResult.action === 'block') {
+            state.blocked = true;
+            state.blockReason = beforeLLMResult.reason ?? '被 beforeLLMRequest 钩子阻止';
+          } else if (beforeLLMResult.action === 'respond') {
+            state.outbound = { content: beforeLLMResult.content };
+          } else {
+            // continue: 执行 Agent 处理
+            state = await agentProcessor(
+              state,
+              this.deps.agentEngine,
+              this.deps.sessionManager,
+            );
+          }
+        } else {
+          // 无会话上下文 — 跳过 Agent 处理（agentProcessor 内部也会处理此情况）
+          state = await agentProcessor(
+            state,
+            this.deps.agentEngine,
+            this.deps.sessionManager,
+          );
+        }
       }
 
-      // 3. 处理后：如果状态被阻止，则停止
+      // 4. 处理后：如果状态被阻止，则停止
       if (state.blocked) {
         logger.info('管道被阻止', {
           reason: state.blockReason,
@@ -127,7 +199,7 @@ export class Pipeline {
         return;
       }
 
-      // 4. 如果生成了出站消息，则调度 onSend 并投递
+      // 5. 如果生成了出站消息，则调度 onSend 并投递
       if (state.outbound) {
         await this.dispatchOnSendAndDeliver(state.outbound, send, state.session?.key);
       }
@@ -135,13 +207,6 @@ export class Pipeline {
       logger.error('管道处理错误', err);
       throw err;
     }
-  }
-
-  /**
-   * 获取用于插件钩子注册的钩子调度器。
-   */
-  getHookDispatcher(): HookDispatcher {
-    return this.hookDispatcher;
   }
 
   // ─── 私有辅助方法 ───────────────────────────────────────────

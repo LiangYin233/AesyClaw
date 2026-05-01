@@ -8,7 +8,7 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { ToolAdapter } from '../../../src/tool/tool-adapter';
 import type { AesyClawTool, ToolExecutionContext } from '../../../src/tool/tool-registry';
-import type { HookDispatcher } from '../../../src/pipeline/hook-dispatcher';
+import type { ToolHookDispatcher } from '../../../src/pipeline/middleware/types';
 import { setLogLevel } from '../../../src/core/logger';
 import { Type } from '@sinclair/typebox';
 
@@ -25,7 +25,7 @@ function makeTool(overrides: Partial<AesyClawTool> = {}): AesyClawTool {
   };
 }
 
-function makeNoOpHookDispatcher(): HookDispatcher {
+function makeNoOpHookDispatcher(): ToolHookDispatcher {
   return {
     async dispatchBeforeToolCall() {
       return {};
@@ -36,7 +36,7 @@ function makeNoOpHookDispatcher(): HookDispatcher {
   };
 }
 
-function makeBlockingHookDispatcher(reason: string): HookDispatcher {
+function makeBlockingHookDispatcher(reason: string): ToolHookDispatcher {
   return {
     async dispatchBeforeToolCall() {
       return { block: true, reason };
@@ -50,7 +50,7 @@ function makeBlockingHookDispatcher(reason: string): HookDispatcher {
 function makeShortCircuitHookDispatcher(result: {
   content: string;
   isError?: boolean;
-}): HookDispatcher {
+}): ToolHookDispatcher {
   return {
     async dispatchBeforeToolCall() {
       return {
@@ -69,7 +69,7 @@ function makeShortCircuitHookDispatcher(result: {
 function makeOverrideHookDispatcher(override: {
   content?: string;
   isError?: boolean;
-}): HookDispatcher {
+}): ToolHookDispatcher {
   return {
     async dispatchBeforeToolCall() {
       return {};

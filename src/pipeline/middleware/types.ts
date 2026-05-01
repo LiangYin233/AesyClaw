@@ -57,13 +57,13 @@ type PipelineDependencies = {
 // ─── 插件钩子 ────────────────────────────────────────────────
 
 /**
- * 插件可以向 HookDispatcher 注册的钩子。
+ * 插件可以向 Pipeline 注册的钩子。
  *
  * 每个钩子在管道的特定点运行：
  * - onReceive: 处理步骤之前
- * - beforeLLMRequest: LLM 调用之前（在 Agent 处理内部）
- * - beforeToolCall: 工具执行之前
- * - afterToolCall: 工具执行之后
+ * - beforeLLMRequest: LLM 调用之前（在 Agent 处理之前由 Pipeline 调度）
+ * - beforeToolCall: 工具执行之前（由 ToolAdapter 通过 ToolHookDispatcher 调度）
+ * - afterToolCall: 工具执行之后（由 ToolAdapter 通过 ToolHookDispatcher 调度）
  * - onSend: 出站消息发送之前
  */
 type PluginHooks = {
@@ -72,6 +72,30 @@ type PluginHooks = {
   beforeToolCall?(context: BeforeToolCallHookContext): Promise<BeforeToolCallHookResult>;
   afterToolCall?(context: AfterToolCallHookContext): Promise<AfterToolCallHookResult>;
   onSend?(context: OnSendContext): Promise<PipelineResult>;
+}
+
+// ─── 钩子注册表接口 ─────────────────────────────────────────
+
+/**
+ * 钩子注册表 — 供 PluginManager 注册/注销插件钩子。
+ *
+ * Pipeline 实现此类型，作为插件钩子注册的唯一入口。
+ */
+export type HookRegistry = {
+  register(pluginName: string, hooks: PluginHooks): void;
+  unregister(pluginName: string): void;
+}
+
+// ─── 工具钩子调度器类型 ─────────────────────────────────────
+
+/**
+ * 工具钩子调度器 — 供 AgentEngine/ToolAdapter 调度工具相关钩子。
+ *
+ * 仅暴露 beforeToolCall/afterToolCall，不暴露 Pipeline 控制流钩子。
+ */
+export type ToolHookDispatcher = {
+  dispatchBeforeToolCall(context: BeforeToolCallHookContext): Promise<BeforeToolCallHookResult>;
+  dispatchAfterToolCall(context: AfterToolCallHookContext): Promise<AfterToolCallHookResult>;
 }
 
 // Re-export hook types from agent-types to keep PluginHooks self-contained

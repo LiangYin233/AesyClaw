@@ -149,7 +149,7 @@ export class Application {
         toolRegistry: this.toolRegistry,
         roleManager: this.roleManager,
         skillManager: this.skillManager,
-        hookDispatcher: this.pipeline.getHookDispatcher(),
+        toolHookDispatcher: this.pipeline.getToolHookDispatcher(),
         llmAdapter: this.llmAdapter,
       });
     });
@@ -166,22 +166,22 @@ export class Application {
   }
 
   private async initializeExtensionRuntime(): Promise<void> {
-    await this.startStep('插件管理器初始化', async () => {
-      this.pluginManager = new PluginManager({
-        configManager: this.configManager,
-        toolRegistry: this.toolRegistry,
-        commandRegistry: this.commandRegistry,
-        hookDispatcher: this.pipeline.getHookDispatcher(),
-        channelManager: this.channelManager,
-        pluginLoader: new PluginLoader({ extensionsDir: this.pathResolver.extensionsDir }),
-      });
-    });
-
     await this.startStep('Pipeline 初始化', async () => {
       this.pipeline.initialize({
         sessionManager: this.sessionManager,
         agentEngine: this.agentEngine,
         commandRegistry: this.commandRegistry,
+      });
+    });
+
+    await this.startStep('插件管理器初始化', async () => {
+      this.pluginManager = new PluginManager({
+        configManager: this.configManager,
+        toolRegistry: this.toolRegistry,
+        commandRegistry: this.commandRegistry,
+        hookRegistry: this.pipeline,
+        channelManager: this.channelManager,
+        pluginLoader: new PluginLoader({ extensionsDir: this.pathResolver.extensionsDir }),
       });
     });
 
