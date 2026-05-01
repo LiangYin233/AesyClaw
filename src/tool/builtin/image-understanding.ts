@@ -8,6 +8,7 @@
 import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
+import { errorMessage } from '../../core/utils';
 import type { ToolOwner } from '../../core/types';
 import type { ConfigManager } from '../../core/config/config-manager';
 import type { LlmAdapter } from '../../agent/llm-adapter';
@@ -57,9 +58,8 @@ export function createImageUnderstandingTool(deps: ImageUnderstandingDeps): Aesy
 
         return { content: answer };
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
         return {
-          content: `图片理解失败: ${message}`,
+          content: `图片理解失败: ${errorMessage(error)}`,
           isError: true,
         };
       }

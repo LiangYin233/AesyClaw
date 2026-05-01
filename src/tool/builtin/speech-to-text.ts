@@ -8,6 +8,7 @@
 import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
+import { errorMessage } from '../../core/utils';
 import type { ToolOwner } from '../../core/types';
 import type { ConfigManager } from '../../core/config/config-manager';
 import type { LlmAdapter } from '../../agent/llm-adapter';
@@ -59,9 +60,8 @@ export function createSpeechToTextTool(deps: SpeechToTextDeps): AesyClawTool {
 
         return { content: transcription };
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
         return {
-          content: `语音转文本失败: ${message}`,
+          content: `语音转文本失败: ${errorMessage(error)}`,
           isError: true,
         };
       }

@@ -12,6 +12,7 @@ import { Type } from '@sinclair/typebox';
 import type { Skill } from '../../core/types';
 import type { ToolOwner } from '../../core/types';
 import type { SkillManager } from '../../skill/skill-manager';
+import { errorMessage } from '../../core/utils';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
 
 const LoadSkillParamsSchema = Type.Object({
@@ -46,7 +47,7 @@ export function createLoadSkillTool(deps: LoadSkillDeps): AesyClawTool {
       _context: ToolExecutionContext,
     ): Promise<ToolExecutionResult> => {
       const { skillName, relativePath: rawRelativePath } = params as LoadSkillParams;
-      const relativePath = rawRelativePath ?? 'SKILL.md';
+      const relativePath = rawRelativePath || 'SKILL.md';
       const skill = deps.skillManager.getSkill(skillName);
 
       if (!skill) {
@@ -101,7 +102,7 @@ export function createLoadSkillTool(deps: LoadSkillDeps): AesyClawTool {
         }
 
         return errorResult(
-          `无法访问技能 "${skillName}" 中的文件 "${relativePath}": ${getErrorMessage(error)}`,
+          `无法访问技能 "${skillName}" 中的文件 "${relativePath}": ${errorMessage(error)}`,
           'SKILL_FILE_UNREADABLE',
           skillName,
           relativePath,
@@ -144,7 +145,7 @@ export function createLoadSkillTool(deps: LoadSkillDeps): AesyClawTool {
         }
 
         return errorResult(
-          `无法读取技能 "${skillName}" 中的文件 "${relativePath}": ${getErrorMessage(error)}`,
+          `无法读取技能 "${skillName}" 中的文件 "${relativePath}": ${errorMessage(error)}`,
           'SKILL_FILE_UNREADABLE',
           skillName,
           relativePath,
@@ -192,10 +193,6 @@ function errorResult(
     isError: true,
     details: { code, skillName, relativePath },
   };
-}
-
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function isNodeError(error: unknown, code: string): error is NodeJS.ErrnoException {

@@ -8,6 +8,7 @@
 import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
+import { errorMessage } from '../../core/utils';
 import type { ToolOwner } from '../../core/types';
 import type { SubAgentSandbox } from '../../agent/sub-agent-sandbox';
 
@@ -53,9 +54,8 @@ export function createRunSubAgentTool(deps: RunSubAgentDeps): AesyClawTool {
         );
         return { content };
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
         return {
-          content: `子代理执行失败: ${message}`,
+          content: `子代理执行失败: ${errorMessage(error)}`,
           isError: true,
         };
       }

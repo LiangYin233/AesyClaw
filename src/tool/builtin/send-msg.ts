@@ -9,6 +9,7 @@
 import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
+import { errorMessage } from '../../core/utils';
 import type { MediaAttachment, OutboundMessage, ToolOwner } from '../../core/types';
 
 /** send_msg 的参数模式 */
@@ -77,8 +78,7 @@ export function createSendMsgTool(): AesyClawTool {
           content: `消息已发送: "${text}"`,
         };
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { content: message, isError: true };
+        return { content: errorMessage(err), isError: true };
       }
     },
   };
