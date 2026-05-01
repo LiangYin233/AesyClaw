@@ -19,6 +19,7 @@ import { createClearCommand } from './clear';
 import { createCompactCommand } from './compact';
 import { createStopCommand } from './stop';
 import { createBtwCommand } from './btw';
+import { createModelCommand } from './model';
 import {
   createRoleListCommand,
   createRoleSwitchCommand,
@@ -40,7 +41,7 @@ export type BuiltinCommandDependencies = {
     SessionManager,
     'clearSession' | 'compactSession' | 'getOrCreateSession' | 'switchRole' | 'getSession' | 'endAgentProcessing'
   >;
-  agentEngine: Pick<AgentEngine, 'processEphemeral'>;
+  agentEngine: Pick<AgentEngine, 'processEphemeral' | 'switchModel'>;
 }
 
 /**
@@ -66,6 +67,10 @@ export function registerBuiltinCommands(
       agentEngine: deps.agentEngine,
     }),
   );
+  registry.register(createModelCommand({
+    sessionManager: deps.sessionManager,
+    agentEngine: deps.agentEngine,
+  }));
   registry.register(createClearCommand({ sessionManager: deps.sessionManager }));
   registry.register(createCompactCommand({ sessionManager: deps.sessionManager }));
   registry.register(createStopCommand({ sessionManager: deps.sessionManager }));

@@ -160,11 +160,6 @@ export class RoleManager {
     return [...this.roles.values()];
   }
 
-  /** 获取角色目录路径。 */
-  getRolesDir(): string | null {
-    return this.rolesDir;
-  }
-
   /**
    * 将角色保存回其源文件并更新内存缓存。
    *

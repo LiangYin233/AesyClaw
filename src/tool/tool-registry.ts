@@ -163,7 +163,7 @@ export class ToolRegistry {
   /**
    * 从单个过滤后的工具集解析面向提示的工具定义和运行时 AgentTools。
    */
-  resolveForRoleWithDefinitions(
+  resolveForRole(
     role: RoleConfig,
     toolHookDispatcher: ToolHookDispatcher,
     executionContext: Partial<ToolExecutionContext>,
@@ -173,23 +173,6 @@ export class ToolRegistry {
       tools,
       agentTools: this.toAgentTools(tools, toolHookDispatcher, executionContext),
     };
-  }
-
-  /**
-   * 解析给定角色可用的工具集，
-   * 应用权限过滤并转换为 AgentTool 格式。
-   *
-   * @param role - 其权限决定可用工具的角色
-   * @param toolHookDispatcher - 派发 before/after 工具调用钩子
-   * @param executionContext - 提供给工具执行函数的上下文
-   * @returns 准备用于代理运行时的 AgentTool 实例数组
-   */
-  resolveForRole(
-    role: RoleConfig,
-    toolHookDispatcher: ToolHookDispatcher,
-    executionContext: Partial<ToolExecutionContext>,
-  ): AgentTool[] {
-    return this.resolveForRoleWithDefinitions(role, toolHookDispatcher, executionContext).agentTools;
   }
 
   private toAgentTools(

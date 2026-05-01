@@ -10,6 +10,7 @@ import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { SkillManager } from '../../../src/skill/skill-manager';
+import { buildSkillPromptSection } from '../../../src/skill/skill-prompt';
 import type { RoleConfig, SkillDefinition } from '../../../src/core/types';
 
 const TEST_DIR = join(tmpdir(), 'aesyclaw-test-skill-manager');
@@ -290,14 +291,14 @@ Second content.`,
 
       const role = makeRole({ skills: ['*'] });
       const skills = manager.getSkillsForRole(role);
-      const prompt = manager.buildSkillPromptSection(skills);
+      const prompt = buildSkillPromptSection(skills);
 
       expect(prompt).toContain('## Skill: skill1\nFirst content.');
       expect(prompt).toContain('## Skill: skill2\nSecond content.');
     });
 
     it('should return empty string for empty skills list', () => {
-      const prompt = manager.buildSkillPromptSection([]);
+      const prompt = buildSkillPromptSection([]);
       expect(prompt).toBe('');
     });
 
@@ -332,7 +333,7 @@ Blocked content.`,
       await manager.loadAll(systemDir, userDir);
 
       const role = makeRole({ skills: ['allowed-skill'] });
-      const prompt = manager.buildSkillPromptSection(manager.getSkillsForRole(role));
+      const prompt = buildSkillPromptSection(manager.getSkillsForRole(role));
 
       expect(prompt).toContain('## Skill: system-skill\nSystem content.');
       expect(prompt).toContain('## Skill: allowed-skill\nAllowed content.');

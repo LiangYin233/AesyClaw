@@ -67,8 +67,7 @@ describe('PromptBuilder', () => {
       ...(overrides.skillManager ?? {}),
     };
     const toolRegistry = {
-      resolveForRoleWithDefinitions: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
-      resolveForRole: vi.fn().mockReturnValue([]),
+      resolveForRole: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
       ...(overrides.toolRegistry ?? {}),
     };
     const toolHookDispatcher = {
@@ -105,10 +104,9 @@ describe('PromptBuilder', () => {
       const agentTool = makeAgentTool({ name: 'custom-tool' });
       const deps = makeDeps({
         toolRegistry: {
-          resolveForRoleWithDefinitions: vi
+          resolveForRole: vi
             .fn()
             .mockReturnValue({ tools: [], agentTools: [agentTool] }),
-          resolveForRole: vi.fn().mockReturnValue([]),
         },
       });
       const builder = new PromptBuilder(deps);
@@ -124,10 +122,9 @@ describe('PromptBuilder', () => {
       const internalTool = makeTool({ name: 'send-msg' });
       const deps = makeDeps({
         toolRegistry: {
-          resolveForRoleWithDefinitions: vi
+          resolveForRole: vi
             .fn()
             .mockReturnValue({ tools: [internalTool], agentTools: [] }),
-          resolveForRole: vi.fn().mockReturnValue([]),
         },
       });
       const builder = new PromptBuilder(deps);
@@ -144,10 +141,9 @@ describe('PromptBuilder', () => {
 
       const deps = makeDeps({
         toolRegistry: {
-          resolveForRoleWithDefinitions: vi
+          resolveForRole: vi
             .fn()
             .mockReturnValue({ tools: [allowedTool], agentTools: [] }),
-          resolveForRole: vi.fn().mockReturnValue([]),
         },
       });
       const builder = new PromptBuilder(deps);
@@ -183,7 +179,7 @@ describe('PromptBuilder', () => {
 
       builder.buildSystemPrompt(makeRole(), ctx);
 
-      expect(deps.toolRegistry.resolveForRoleWithDefinitions).toHaveBeenCalledWith(
+      expect(deps.toolRegistry.resolveForRole).toHaveBeenCalledWith(
         expect.any(Object),
         deps.toolHookDispatcher,
         { sessionKey: expect.any(Object) },
@@ -233,8 +229,7 @@ Blocked content.`,
         roleManager: roleManager as unknown as PromptBuilderDependencies['roleManager'],
         skillManager,
         toolRegistry: {
-          resolveForRoleWithDefinitions: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
-          resolveForRole: vi.fn().mockReturnValue([]),
+          resolveForRole: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
         } as unknown as PromptBuilderDependencies['toolRegistry'],
         toolHookDispatcher: {
           dispatchBeforeToolCall: vi.fn().mockResolvedValue({}),

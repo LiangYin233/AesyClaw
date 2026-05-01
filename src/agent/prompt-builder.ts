@@ -63,7 +63,7 @@ export class PromptBuilder {
     // 获取角色可用的技能
     const skills: Skill[] = this.skillManager.getSkillsForRole(role);
 
-    const resolvedTools = this.toolRegistry.resolveForRoleWithDefinitions(
+    const resolvedTools = this.toolRegistry.resolveForRole(
       role,
       this.toolHookDispatcher,
       executionContext ?? {},

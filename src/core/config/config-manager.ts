@@ -17,6 +17,7 @@ import { Value } from '@sinclair/typebox/value';
 import type { DeepPartial, ConfigChangeListener, Unsubscribe } from '../types';
 import { createScopedLogger } from '../logger';
 import { AppError } from '../errors';
+import { mergeDefaults } from '../utils';
 import { AppConfigSchema } from './schema';
 import type { AppConfig } from './schema';
 import { DEFAULT_CONFIG } from './defaults';
@@ -123,10 +124,10 @@ export class ConfigManager {
       }
     }
 
-    const mergedConfig = this.deepMerge(
-      mergeBase as AppConfig,
-      partial as Partial<AppConfig> & DeepPartial<AppConfig>,
-    );
+    const mergedConfig = mergeDefaults(
+      mergeBase,
+      partial as Record<string, unknown>,
+    ) as AppConfig;
     const validatedConfig = this.validateConfigObject(mergedConfig);
 
     this.config = validatedConfig;
@@ -170,11 +171,11 @@ export class ConfigManager {
     for (const [key, defaults] of this.registeredDefaults) {
       // 支持点号键，如 'channels.testchannel'
       const nestedPartial = this.buildNestedObject(key, defaults);
-      mergedConfig = this.deepMerge(
-        mergedConfig,
-        nestedPartial as Partial<AppConfig> & DeepPartial<AppConfig>,
+      mergedConfig = mergeDefaults(
+        mergedConfig as Record<string, unknown>,
+        nestedPartial as Record<string, unknown>,
         { overwrite: false },
-      );
+      ) as AppConfig;
     }
 
     this.config = this.validateConfigObject(mergedConfig);
@@ -289,10 +290,10 @@ export class ConfigManager {
       throw new AppError('配置验证失败', 'CONFIG_VALIDATION', errors);
     }
 
-    const mergedWithDefaults = this.deepMerge(
-      structuredClone(DEFAULT_CONFIG),
-      parsed as Partial<AppConfig> & DeepPartial<AppConfig>,
-    );
+    const mergedWithDefaults = mergeDefaults(
+      structuredClone(DEFAULT_CONFIG) as Record<string, unknown>,
+      parsed as Record<string, unknown>,
+    ) as AppConfig;
     const validated = this.validateConfigObject(mergedWithDefaults);
 
     if (JSON.stringify(parsed) !== JSON.stringify(validated)) {
@@ -350,45 +351,6 @@ export class ConfigManager {
         logger.error('配置变更监听器出错', err);
       }
     }
-  }
-
-  /**
-   * 深度合并 source 到 target。source 值覆盖 target 值。
-   * 数组被替换，而非拼接。
-   */
-  private deepMerge<T extends Record<string, unknown>>(
-    target: T,
-    source: Partial<T> & DeepPartial<T>,
-    options: { overwrite?: boolean } = {},
-  ): T {
-    const result = structuredClone(target) as Record<string, unknown>;
-    const overwrite = options.overwrite ?? true;
-
-    for (const key of Object.keys(source)) {
-      const sourceVal = (source as Record<string, unknown>)[key];
-      const targetVal = result[key];
-
-      if (
-        sourceVal !== null &&
-        typeof sourceVal === 'object' &&
-        !Array.isArray(sourceVal) &&
-        targetVal !== null &&
-        typeof targetVal === 'object' &&
-        !Array.isArray(targetVal)
-      ) {
-        result[key] = this.deepMerge(
-          targetVal as Record<string, unknown>,
-          sourceVal as Record<string, unknown>,
-          options,
-        );
-      } else if (targetVal === undefined || overwrite) {
-        result[key] = sourceVal as unknown;
-      } else {
-        continue;
-      }
-    }
-
-    return result as T;
   }
 
   /**

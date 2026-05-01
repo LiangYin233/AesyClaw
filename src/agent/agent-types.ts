@@ -12,13 +12,12 @@ export type AgentMessage = PiAgentMessage;
 export type RuntimeTextContent = TextContent;
 export type RuntimeImageContent = ImageContent;
 export type RuntimeToolCall = ToolCall;
-export type RuntimeModel = Model<Api> & {
+export type ResolvedModel = Model<Api> & {
   modelId: string;
   apiKey?: string;
   apiType: Api;
   extraBody?: Record<string, unknown>;
 };
-export type ResolvedModel = RuntimeModel;
 export type { StreamFn };
 
 export type AgentTool = {

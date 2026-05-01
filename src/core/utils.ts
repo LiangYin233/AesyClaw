@@ -11,14 +11,31 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 export function mergeDefaults(
   defaults: Record<string, unknown>,
   overrides: Record<string, unknown>,
+  options: { overwrite?: boolean } = {},
 ): Record<string, unknown> {
   const merged = structuredClone(defaults) as Record<string, unknown>;
+  const overwrite = options.overwrite ?? true;
 
-  for (const [key, value] of Object.entries(overrides)) {
-    const defaultValue = merged[key];
-    merged[key] = isRecord(defaultValue) && isRecord(value)
-      ? mergeDefaults(defaultValue, value)
-      : structuredClone(value);
+  for (const key of Object.keys(overrides)) {
+    const sourceVal = overrides[key];
+    const targetVal = merged[key];
+
+    if (
+      sourceVal !== null &&
+      typeof sourceVal === 'object' &&
+      !Array.isArray(sourceVal) &&
+      targetVal !== null &&
+      typeof targetVal === 'object' &&
+      !Array.isArray(targetVal)
+    ) {
+      merged[key] = mergeDefaults(
+        targetVal as Record<string, unknown>,
+        sourceVal as Record<string, unknown>,
+        options,
+      );
+    } else if (targetVal === undefined || overwrite) {
+      merged[key] = structuredClone(sourceVal as unknown);
+    }
   }
 
   return merged;

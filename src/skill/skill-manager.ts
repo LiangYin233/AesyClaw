@@ -17,7 +17,6 @@ import path from 'node:path';
 import { createScopedLogger } from '../core/logger';
 import type { Skill, RoleConfig } from '../core/types';
 import { parseSkillFile } from './skill-parser';
-import { buildSkillPromptSection } from './skill-prompt';
 
 const logger = createScopedLogger('skill');
 
@@ -79,21 +78,6 @@ export class SkillManager {
     const userSkills = [...this.skills.values()].filter((s) => !s.isSystem && skillSet.has(s.name));
 
     return [...systemSkills, ...userSkills];
-  }
-
-  /**
-   * 为系统提示词构建格式化的技能提示段落。
-   *
-   * 每个技能渲染为：
-   * ```
-   * ## Skill: {name}
-   * {content}
-   * ```
-   *
-   * 段落之间用空行连接。
-   */
-  buildSkillPromptSection(skills: Skill[]): string {
-    return buildSkillPromptSection(skills);
   }
 
   // ─── 私有辅助方法 ───────────────────────────────────────────
