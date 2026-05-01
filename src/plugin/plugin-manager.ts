@@ -7,6 +7,7 @@ import type { CommandDefinition } from '../core/types';
 import type { PluginConfigEntry } from '../core/config/schema';
 import type { AesyClawTool } from '../tool/tool-registry';
 import { PluginLoader } from './plugin-loader';
+import { SerialExecutor } from '../utils/serial-executor';
 import type {
   LoadedPlugin,
   PluginConfigLookup,
@@ -28,11 +29,8 @@ export class PluginManager {
   private readonly pluginLoader;
   private readonly loadedPlugins = new Map<string, LoadedPlugin>();
   private readonly failedPlugins = new Map<string, string>();
-  private readonly pluginChannels = new Map<string, Set<string>>();
   private readonly moduleCache = new Map<string, PluginModule | null>();
-  private reloading = false;
-  private reloadPending = false;
-  private reloadPromise: Promise<void> | null = null;
+  private serialExecutor = new SerialExecutor();
 
   constructor(dependencies: PluginManagerDependencies) {
     this.configManager = dependencies.configManager;
@@ -241,28 +239,11 @@ export class PluginManager {
   }
 
   async handleConfigReload(): Promise<void> {
-    if (this.reloading) {
-      this.reloadPending = true;
-      logger.debug('插件配置重载已在进行中 — 排队等待下一次执行');
-      return await (this.reloadPromise ?? Promise.resolve());
-    }
-
-    this.reloading = true;
-    this.reloadPromise = (async () => {
-      try {
-        do {
-          this.reloadPending = false;
-          await this.unloadAll();
-          this.moduleCache.clear();
-          await this.loadAll();
-        } while (this.reloadPending);
-      } finally {
-        this.reloading = false;
-        this.reloadPromise = null;
-      }
-    })();
-
-    return await this.reloadPromise;
+    return await this.serialExecutor.execute(async () => {
+      await this.unloadAll();
+      this.moduleCache.clear();
+      await this.loadAll();
+    }, '插件配置重载');
   }
 
   getLoaded(pluginName: string): LoadedPlugin | undefined {
@@ -323,10 +304,7 @@ export class PluginManager {
         if (!this.channelManager) {
           throw new Error('ChannelManager 对插件不可用');
         }
-        this.channelManager.register(channel);
-        const channels = this.pluginChannels.get(pluginName) ?? new Set<string>();
-        channels.add(channel.name);
-        this.pluginChannels.set(pluginName, channels);
+        this.channelManager.register(channel, owner);
       },
       logger: createScopedLogger(owner),
     };
@@ -337,19 +315,7 @@ export class PluginManager {
     this.hookRegistry.unregister(pluginName);
     this.toolRegistry.unregisterByOwner(owner);
     this.commandRegistry.unregisterByScope(owner);
-    const channels = this.pluginChannels.get(pluginName) ?? new Set<string>();
-    this.pluginChannels.delete(pluginName);
-    for (const channelName of channels) {
-      try {
-        await this.channelManager?.unregister(channelName);
-      } catch (err) {
-        logger.error('注销插件通道失败', {
-          pluginName,
-          channelName,
-          error: errorMessage(err),
-        });
-      }
-    }
+    await this.channelManager?.unregisterByOwner(owner);
   }
 
   private findLoadedPlugin(nameOrAlias: string): LoadedPlugin | undefined {

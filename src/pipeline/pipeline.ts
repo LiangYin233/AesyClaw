@@ -32,6 +32,7 @@ import { sessionResolver } from './middleware/session-resolver';
 import { commandDetector } from './middleware/command-detector';
 import { agentProcessor } from './middleware/agent-processor';
 import { createScopedLogger } from '../core/logger';
+import { BaseManager } from '../core/base-manager';
 
 const logger = createScopedLogger('pipeline');
 
@@ -41,10 +42,8 @@ const logger = createScopedLogger('pipeline');
  * 遵循生命周期模式：initialize() / destroy()。
  * 依赖显式注入 — 无单例导入。
  */
-export class Pipeline {
+export class Pipeline extends BaseManager<PipelineDependencies> {
   hookDispatcher: HookDispatcher = new HookDispatcher();
-  private deps: PipelineDependencies | null = null;
-  private initialized = false;
 
   // ─── 生命周期 ─────────────────────────────────────────────────
 
@@ -52,23 +51,15 @@ export class Pipeline {
    * 使用依赖初始化管道。
    */
   initialize(deps: PipelineDependencies): void {
-    if (this.initialized) {
-      logger.warn('Pipeline 已初始化 — 跳过');
-      return;
-    }
-
-    this.deps = deps;
-    this.initialized = true;
-    logger.info('Pipeline 已初始化');
+    super.initialize(deps);
   }
 
   /**
    * 销毁管道 — 清除钩子注册和依赖。
    */
   destroy(): void {
-    this.deps = null;
     this.hookDispatcher.clearAll();
-    this.initialized = false;
+    super.destroy();
     logger.info('Pipeline 已销毁');
   }
 
@@ -106,10 +97,8 @@ export class Pipeline {
    * @param send - 发送出站响应的函数
    */
   async receiveWithSend(message: InboundMessage, send: SendFn): Promise<void> {
-    if (!this.initialized || !this.deps) {
-      logger.error('Pipeline 未初始化 — 无法处理消息');
-      return;
-    }
+    this.assertInitialized();
+    const deps = this.getDeps();
 
     try {
       // 初始化管道状态
@@ -133,12 +122,12 @@ export class Pipeline {
 
       // 2. 只有尚未生成出站消息时才执行顺序处理步骤
       if (!state.outbound) {
-        state = await sessionResolver(state, this.deps.sessionManager);
+        state = await sessionResolver(state, deps.sessionManager);
 
         // 在会话解析后连接 sendMessage，以便 onSend 钩子获取会话键
         state.sendMessage = async (outbound: OutboundMessage): Promise<boolean> =>
           await this.dispatchOnSendAndDeliver(outbound, send, state.session?.key);
-        state = await commandDetector(state, this.deps.commandRegistry, this.deps.sessionManager);
+        state = await commandDetector(state, deps.commandRegistry, deps.sessionManager);
 
         // 3. 如果 commandDetector 未生成出站消息，则继续 Agent 处理
         if (!state.outbound) {
@@ -161,16 +150,16 @@ export class Pipeline {
               // continue: 执行 Agent 处理
               state = await agentProcessor(
                 state,
-                this.deps.agentEngine,
-                this.deps.sessionManager,
+                deps.agentEngine,
+                deps.sessionManager,
               );
             }
           } else {
             // 无会话上下文 — 跳过 Agent 处理（agentProcessor 内部也会处理此情况）
             state = await agentProcessor(
               state,
-              this.deps.agentEngine,
-              this.deps.sessionManager,
+              deps.agentEngine,
+              deps.sessionManager,
             );
           }
         }

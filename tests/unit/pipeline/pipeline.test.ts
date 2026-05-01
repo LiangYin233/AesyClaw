@@ -168,13 +168,10 @@ describe('Pipeline', () => {
 
   describe('receiveWithSend', () => {
     it('should not process if not initialized', async () => {
-      const sent: OutboundMessage[] = [];
-      const send = vi.fn(async (msg: OutboundMessage) => {
-        sent.push(msg);
-      });
+      const send = vi.fn();
 
-      // Pipeline not initialized — should not throw, just return
-      await pipeline.receiveWithSend(makeInbound(), send);
+      // Pipeline not initialized — should throw
+      await expect(pipeline.receiveWithSend(makeInbound(), send)).rejects.toThrow(/未初始化/);
       expect(send).not.toHaveBeenCalled();
     });
 

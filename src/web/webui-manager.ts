@@ -3,6 +3,7 @@
 import { serve } from '@hono/node-server';
 import { randomBytes } from 'node:crypto';
 import { createScopedLogger } from '../core/logger';
+import { BaseManager } from '../core/base-manager';
 import type { ConfigManager } from '../core/config/config-manager';
 import type { DatabaseManager } from '../core/database/database-manager';
 import type { SessionManager } from '../agent/session-manager';
@@ -24,18 +25,18 @@ export type WebUiManagerDependencies = {
   pluginManager: PluginManager;
 }
 
-export class WebUiManager {
+export class WebUiManager extends BaseManager<WebUiManagerDependencies> {
   private app: ReturnType<typeof createApp> | null = null;
   private server: ReturnType<typeof serve> | null = null;
-  private deps: WebUiManagerDependencies | null = null;
 
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
   async initialize(deps: WebUiManagerDependencies): Promise<void> {
-    if (this.app) {
-      logger.warn('WebUiManager 已初始化');
+    if (this.deps) {
+      this.logger.warn('WebUiManager 已初始化 — 跳过');
       return;
     }
+    super.initialize(deps);
 
-    this.deps = deps;
     const config = deps.configManager.getConfig();
     const serverConfig = config.server;
 
@@ -59,6 +60,7 @@ export class WebUiManager {
     logger.info('WebUI 服务器已启动', { host: serverConfig.host, port: serverConfig.port });
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
   async destroy(): Promise<void> {
     const server = this.server;
     if (server) {
@@ -73,7 +75,7 @@ export class WebUiManager {
       this.server = null;
     }
     this.app = null;
-    this.deps = null;
+    super.destroy();
     logger.info('WebUI 服务器已停止');
   }
 

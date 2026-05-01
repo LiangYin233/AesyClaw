@@ -51,17 +51,30 @@ class FakePluginLoader {
 class FakeChannelManager {
   registered = new Map<string, ChannelPlugin>();
   unregistered: string[] = [];
+  private owners = new Map<string, string>();
 
-  register(channel: ChannelPlugin): void {
+  register(channel: ChannelPlugin, owner?: string): void {
     if (this.registered.has(channel.name)) {
       throw new Error(`Channel "${channel.name}" is already registered`);
     }
     this.registered.set(channel.name, channel);
+    if (owner) {
+      this.owners.set(channel.name, owner);
+    }
   }
 
   async unregister(channelName: string): Promise<void> {
     this.unregistered.push(channelName);
     this.registered.delete(channelName);
+    this.owners.delete(channelName);
+  }
+
+  async unregisterByOwner(owner: string): Promise<void> {
+    for (const [channelName, channelOwner] of this.owners) {
+      if (channelOwner === owner) {
+        await this.unregister(channelName);
+      }
+    }
   }
 
   has(channelName: string): boolean {

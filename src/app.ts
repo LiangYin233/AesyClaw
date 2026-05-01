@@ -6,7 +6,6 @@ import { LlmAdapter } from './agent/llm-adapter';
 import { PromptBuilder } from './agent/prompt-builder';
 import { SessionManager } from './agent/session-manager';
 import { ChannelManager } from './channel/channel-manager';
-import { ChannelLoader } from './channel/channel-loader';
 import { CommandRegistry } from './command/command-registry';
 import { registerBuiltinCommands } from './command/builtin';
 import { ConfigManager } from './core/config/config-manager';
@@ -88,190 +87,165 @@ export class Application {
   }
 
   private async runStartupSequence(): Promise<void> {
-    await this.prepareRuntime();
-    await this.loadRuntimeConfiguration();
-    await this.initializeCoreManagers();
-    await this.initializeAgentRuntime();
-    await this.initializeExtensionRuntime();
-    await this.initializeOuterRuntime();
-    await this.installRuntimeReloading();
-  }
+    const startupSequence: Array<{ name: string; fn: () => Promise<void> }> = [
+      {
+        name: '准备运行时',
+        fn: async () => {
+          const root = process.cwd();
+          this._paths = resolvePaths(root);
+          logger.info('路径解析完成', { root });
 
-  private async prepareRuntime(): Promise<void> {
-    await this.startStep('路径解析', async () => {
-      const root = process.cwd();
-      this._paths = resolvePaths(root);
-      logger.info('路径解析完成', { root });
-    });
+          const runtimeDirs = [
+            this.paths.runtimeRoot,
+            this.paths.dataDir,
+            this.paths.rolesDir,
+            this.paths.mediaDir,
+            this.paths.workspaceDir,
+            this.paths.userSkillsDir,
+          ];
 
-    await this.startStep('运行时目录准备', async () => {
-      const runtimeDirs = [
-        this.paths.runtimeRoot,
-        this.paths.dataDir,
-        this.paths.rolesDir,
-        this.paths.mediaDir,
-        this.paths.workspaceDir,
-        this.paths.userSkillsDir,
-      ];
+          for (const runtimeDir of runtimeDirs) {
+            mkdirSync(runtimeDir, { recursive: true });
+          }
 
-      for (const runtimeDir of runtimeDirs) {
-        mkdirSync(runtimeDir, { recursive: true });
-      }
+          ensureDefaultRoleFile(this.paths.rolesDir);
+        },
+      },
+      {
+        name: '加载运行时配置',
+        fn: async () => {
+          await this.configManager.load(this.paths.configFile);
+          setLogLevel(this.configManager.getConfig().server.logLevel);
+          logger.info('配置已加载');
+        },
+      },
+      {
+        name: '初始化核心管理器',
+        fn: async () => {
+          await this.databaseManager.initialize(this.paths.dbFile);
 
-      ensureDefaultRoleFile(this.paths.rolesDir);
-    });
-  }
+          await this.skillManager.loadAll(this.paths.userSkillsDir, this.paths.skillsDir);
 
-  private async loadRuntimeConfiguration(): Promise<void> {
-    await this.startStep('配置加载', async () => {
-      await this.configManager.load(this.paths.configFile);
-      setLogLevel(this.configManager.getConfig().server.logLevel);
-      logger.info('配置已加载');
-    });
-  }
+          await this.roleManager.loadAll(this.paths.rolesDir);
+        },
+      },
+      {
+        name: '初始化 Agent 运行时',
+        fn: async () => {
+          this.llmAdapter.initialize({ configManager: this.configManager });
 
-  private async initializeCoreManagers(): Promise<void> {
-    await this.startStep('数据库初始化', async () => {
-      await this.databaseManager.initialize(this.paths.dbFile);
-    });
+          const promptBuilder = new PromptBuilder({
+            roleManager: this.roleManager,
+            skillManager: this.skillManager,
+            toolRegistry: this.toolRegistry,
+            toolHookDispatcher: this.pipeline.hookDispatcher,
+          });
+          this.agentEngine.initialize({
+            llmAdapter: this.llmAdapter,
+            promptBuilder,
+          });
 
-    await this.startStep('技能加载', async () => {
-      await this.skillManager.loadAll(this.paths.userSkillsDir, this.paths.skillsDir);
-    });
+          this.sessionManager.initialize({
+            databaseManager: this.databaseManager,
+            roleManager: this.roleManager,
+            agentEngine: this.agentEngine,
+            configManager: this.configManager,
+            llmAdapter: this.llmAdapter,
+          });
+        },
+      },
+      {
+        name: '初始化扩展运行时',
+        fn: async () => {
+          this.pipeline.initialize({
+            sessionManager: this.sessionManager,
+            agentEngine: this.agentEngine,
+            commandRegistry: this.commandRegistry,
+          });
 
-    await this.startStep('角色加载', async () => {
-      await this.roleManager.loadAll(this.paths.rolesDir);
-    });
-  }
+          this.pluginManager = new PluginManager({
+            configManager: this.configManager,
+            toolRegistry: this.toolRegistry,
+            commandRegistry: this.commandRegistry,
+            hookRegistry: this.pipeline.hookDispatcher,
+            channelManager: this.channelManager,
+            pluginLoader: new PluginLoader({ extensionsDir: this.paths.extensionsDir }),
+          });
 
-  private async initializeAgentRuntime(): Promise<void> {
-    await this.startStep('LLM 适配器初始化', async () => {
-      this.llmAdapter.initialize({ configManager: this.configManager });
-    });
+          registerBuiltinTools(this.toolRegistry, {
+            cronManager: this.cronManager,
+            agentEngine: this.agentEngine,
+            roleManager: this.roleManager,
+            llmAdapter: this.llmAdapter,
+            configManager: this.configManager,
+            skillManager: this.skillManager,
+          });
+          registerBuiltinCommands(this.commandRegistry, {
+            roleManager: this.roleManager,
+            pluginManager: this.getPluginManager(),
+            sessionManager: this.sessionManager,
+            agentEngine: this.agentEngine,
+          });
 
-    await this.startStep('Agent 引擎初始化', async () => {
-      const promptBuilder = new PromptBuilder({
-        roleManager: this.roleManager,
-        skillManager: this.skillManager,
-        toolRegistry: this.toolRegistry,
-        toolHookDispatcher: this.pipeline.hookDispatcher,
-      });
-      this.agentEngine.initialize({
-        llmAdapter: this.llmAdapter,
-        promptBuilder,
-      });
-    });
+          await this.getPluginManager().loadAll();
+        },
+      },
+      {
+        name: '初始化外围运行时',
+        fn: async () => {
+          this.mcpManager.initialize({
+            configManager: this.configManager,
+            toolRegistry: this.toolRegistry,
+            clientFactory: new SdkMcpClientFactory(),
+          });
 
-    await this.startStep('会话管理器初始化', async () => {
-      this.sessionManager.initialize({
-        databaseManager: this.databaseManager,
-        roleManager: this.roleManager,
-        agentEngine: this.agentEngine,
-        configManager: this.configManager,
-        llmAdapter: this.llmAdapter,
-      });
-    });
-  }
+          // 如果没有配置 MCP，则自动写入示例配置项
+          const mcpConfig = this.configManager.get('mcp');
+          if (mcpConfig.length === 0) {
+            await this.configManager.update({ mcp: DEFAULT_CONFIG.mcp });
+          }
 
-  private async initializeExtensionRuntime(): Promise<void> {
-    await this.startStep('Pipeline 初始化', async () => {
-      this.pipeline.initialize({
-        sessionManager: this.sessionManager,
-        agentEngine: this.agentEngine,
-        commandRegistry: this.commandRegistry,
-      });
-    });
+          await this.mcpManager.connectAll();
 
-    await this.startStep('插件管理器初始化', async () => {
-      this.pluginManager = new PluginManager({
-        configManager: this.configManager,
-        toolRegistry: this.toolRegistry,
-        commandRegistry: this.commandRegistry,
-        hookRegistry: this.pipeline.hookDispatcher,
-        channelManager: this.channelManager,
-        pluginLoader: new PluginLoader({ extensionsDir: this.paths.extensionsDir }),
-      });
-    });
+          this.channelManager.initialize({
+            configManager: this.configManager,
+            pipeline: this.pipeline,
+          });
+          await this.channelManager.registerFromDisk(this.paths.extensionsDir);
+          await this.channelManager.startAll();
 
-    await this.startStep('内置组件注册', async () => {
-      registerBuiltinTools(this.toolRegistry, {
-        cronManager: this.cronManager,
-        agentEngine: this.agentEngine,
-        roleManager: this.roleManager,
-        llmAdapter: this.llmAdapter,
-        configManager: this.configManager,
-        skillManager: this.skillManager,
-      });
-      registerBuiltinCommands(this.commandRegistry, {
-        roleManager: this.roleManager,
-        pluginManager: this.getPluginManager(),
-        sessionManager: this.sessionManager,
-        agentEngine: this.agentEngine,
-      });
-    });
+          await this.cronManager.initialize({
+            databaseManager: this.databaseManager,
+            pipeline: this.pipeline,
+            send: async (sessionKey, message) => await this.channelManager.send(sessionKey, message),
+          });
 
-    await this.startStep('插件加载', async () => {
-      await this.getPluginManager().loadAll();
-    });
-  }
+          await this.webUiManager.initialize({
+            configManager: this.configManager,
+            databaseManager: this.databaseManager,
+            sessionManager: this.sessionManager,
+            cronManager: this.cronManager,
+            roleManager: this.roleManager,
+            channelManager: this.channelManager,
+            pluginManager: this.getPluginManager(),
+          });
+        },
+      },
+      {
+        name: '安装运行时热重载',
+        fn: async () => {
+          await this.configManager.syncDefaults();
+          this.installConfigSubscriptions();
 
-  private async initializeOuterRuntime(): Promise<void> {
-    await this.startStep('MCP 管理器初始化', async () => {
-      this.mcpManager.initialize({
-        configManager: this.configManager,
-        toolRegistry: this.toolRegistry,
-        clientFactory: new SdkMcpClientFactory(),
-      });
+          this.configManager.startHotReload();
+          this.roleManager.startWatching();
+        },
+      },
+    ];
 
-      // 如果没有配置 MCP，则自动写入示例配置项
-      const mcpConfig = this.configManager.get('mcp');
-      if (mcpConfig.length === 0) {
-        await this.configManager.update({ mcp: DEFAULT_CONFIG.mcp });
-      }
-
-      await this.mcpManager.connectAll();
-    });
-
-    await this.startStep('频道管理器初始化', async () => {
-      this.channelManager.initialize({
-        configManager: this.configManager,
-        pipeline: this.pipeline,
-      });
-      await this.loadChannelExtensions();
-      await this.channelManager.startAll();
-    });
-
-    await this.startStep('Cron 管理器初始化', async () => {
-      await this.cronManager.initialize({
-        databaseManager: this.databaseManager,
-        pipeline: this.pipeline,
-        send: async (sessionKey, message) => await this.channelManager.send(sessionKey, message),
-      });
-    });
-
-    await this.startStep('WebUI 初始化', async () => {
-      await this.webUiManager.initialize({
-        configManager: this.configManager,
-        databaseManager: this.databaseManager,
-        sessionManager: this.sessionManager,
-        cronManager: this.cronManager,
-        roleManager: this.roleManager,
-        channelManager: this.channelManager,
-        pluginManager: this.getPluginManager(),
-      });
-    });
-  }
-
-  private async installRuntimeReloading(): Promise<void> {
-    await this.startStep('配置同步', async () => {
-      await this.configManager.syncDefaults();
-      this.installConfigSubscriptions();
-    });
-
-    await this.startStep('热重载启动', async () => {
-      this.configManager.startHotReload();
-      this.roleManager.startWatching();
-    });
+    for (const step of startupSequence) {
+      await this.startStep(step.name, step.fn);
+    }
   }
 
   async shutdown(): Promise<void> {
@@ -306,11 +280,12 @@ export class Application {
     logger.info('AesyClaw 关闭完成');
   }
 
-  private async startStep(name: string, step: () => Promise<void> | void): Promise<void> {
+  private async startStep(name: string, fn: () => Promise<void>): Promise<void> {
     try {
-      await step();
+      await fn();
+      logger.info(`✓ ${name}`);
     } catch (err) {
-      logger.error(`${name} 失败`, err);
+      logger.error(`启动步骤 "${name}" 失败`, err);
       await this.shutdown();
       throw err;
     }
@@ -347,18 +322,7 @@ export class Application {
     }
   }
 
-  private async loadChannelExtensions(): Promise<void> {
-    const loader = new ChannelLoader({ extensionsDir: this.paths.extensionsDir });
-    const channelDirs = await loader.discover();
-    for (const channelDir of channelDirs) {
-      try {
-        const module = await loader.load(channelDir);
-        this.channelManager.register(module.definition);
-      } catch (err) {
-        logger.error(`频道扩展 "${channelDir}" 加载失败`, err);
-      }
-    }
-  }
+
 
   private getPluginManager(): PluginManager {
     if (!this.pluginManager) {

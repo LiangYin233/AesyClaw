@@ -3,6 +3,7 @@ import type { Api, KnownProvider, Model } from '@mariozechner/pi-ai';
 import type { ConfigManager } from '../core/config/config-manager';
 import type { ProviderConfig } from '../core/config/schema';
 import { createScopedLogger } from '../core/logger';
+import { BaseManager } from '../core/base-manager';
 import { extractMessageText } from './agent-types';
 import type { ResolvedModel, StreamFn, AgentMessage } from './agent-types';
 
@@ -42,24 +43,14 @@ export type LlmAdapterDependencies = {
   configManager: ConfigManager;
 }
 
-export class LlmAdapter {
-  private configManager: ConfigManager | null = null;
-  private initialized = false;
+export class LlmAdapter extends BaseManager<LlmAdapterDependencies> {
 
   initialize(deps: LlmAdapterDependencies): void {
-    if (this.initialized) {
-      logger.warn('LlmAdapter 已初始化 — 跳过');
-      return;
-    }
-    this.configManager = deps.configManager;
-    this.initialized = true;
-    logger.info('LlmAdapter 已初始化');
+    super.initialize(deps);
   }
 
   resolveModel(modelIdentifier: string): ResolvedModel {
-    if (!this.configManager) {
-      throw new Error('LlmAdapter 未初始化');
-    }
+    const configManager = this.getDeps().configManager;
 
     const slashIndex = modelIdentifier.indexOf('/');
     if (slashIndex === -1) {
@@ -70,7 +61,7 @@ export class LlmAdapter {
 
     const provider = modelIdentifier.substring(0, slashIndex);
     const modelId = modelIdentifier.substring(slashIndex + 1);
-    const providers = this.configManager.get('providers');
+    const providers = configManager.get('providers');
     const providerConfig: ProviderConfig | undefined = providers[provider];
 
     if (providerConfig === undefined) {
@@ -135,11 +126,7 @@ export class LlmAdapter {
   }
 
   createGetApiKey(): (provider: string) => string | undefined {
-    if (!this.configManager) {
-      throw new Error('LlmAdapter 未初始化');
-    }
-
-    const configManager = this.configManager;
+    const configManager = this.getDeps().configManager;
 
     return (provider: string): string | undefined => {
       const providers = configManager.get('providers');

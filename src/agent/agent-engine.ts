@@ -8,6 +8,7 @@ import type { LlmAdapter } from './llm-adapter';
 import type { PromptBuilder } from './prompt-builder';
 import type { MemoryManager } from './memory-manager';
 import { createScopedLogger } from '../core/logger';
+import { BaseManager } from '../core/base-manager';
 
 const logger = createScopedLogger('agent-engine');
 
@@ -24,22 +25,10 @@ export type ProcessEphemeralParams = {
   content: string;
 }
 
-export class AgentEngine {
-  private initialized = false;
-  private llmAdapter: LlmAdapter | null = null;
-  private promptBuilder: PromptBuilder | null = null;
+export class AgentEngine extends BaseManager<AgentEngineDependencies> {
 
   initialize(deps: AgentEngineDependencies): void {
-    if (this.initialized) {
-      logger.warn('AgentEngine 已初始化 — 跳过');
-      return;
-    }
-
-    this.llmAdapter = deps.llmAdapter;
-    this.promptBuilder = deps.promptBuilder;
-
-    this.initialized = true;
-    logger.info('AgentEngine 已初始化');
+    super.initialize(deps);
   }
 
   createAgent(
@@ -47,12 +36,10 @@ export class AgentEngine {
     sessionId: string,
     executionContext?: Partial<ToolExecutionContext>,
   ): Agent {
-    if (!this.initialized || !this.promptBuilder || !this.llmAdapter) {
-      throw new Error('AgentEngine 未初始化');
-    }
+    const deps = this.getDeps();
 
-    const { prompt, tools } = this.promptBuilder.buildSystemPrompt(role, executionContext);
-    const model = this.llmAdapter.resolveModel(role.model);
+    const { prompt, tools } = deps.promptBuilder.buildSystemPrompt(role, executionContext);
+    const model = deps.llmAdapter.resolveModel(role.model);
 
     const agent = new PiAgent({
       initialState: {
@@ -61,8 +48,8 @@ export class AgentEngine {
         tools,
         messages: [],
       },
-      streamFn: this.llmAdapter.createStreamFn(role.model),
-      getApiKey: this.llmAdapter.createGetApiKey(),
+      streamFn: deps.llmAdapter.createStreamFn(role.model),
+      getApiKey: deps.llmAdapter.createGetApiKey(),
       sessionId,
     });
 
@@ -82,9 +69,7 @@ export class AgentEngine {
     role: RoleConfig,
     sendMessage?: ToolExecutionContext['sendMessage'],
   ): Promise<OutboundMessage> {
-    if (!this.initialized || !this.promptBuilder || !this.llmAdapter) {
-      throw new Error('AgentEngine 未初始化');
-    }
+    const deps = this.getDeps();
 
     logger.debug('正在处理消息', {
       sessionKey: message.sessionKey,
@@ -100,10 +85,10 @@ export class AgentEngine {
       toolPermission: role.toolPermission,
     };
 
-    const { prompt, tools } = this.promptBuilder.buildSystemPrompt(role, executionContext);
+    const { prompt, tools } = deps.promptBuilder.buildSystemPrompt(role, executionContext);
     agent.state.systemPrompt = prompt;
     agent.state.tools = tools;
-    agent.state.model = this.llmAdapter.resolveModel(role.model);
+    agent.state.model = deps.llmAdapter.resolveModel(role.model);
 
     const { newMessages, lastAssistant } = await this.promptAgent(agent, history, message.content);
     await memory.syncFromAgent(newMessages);
@@ -131,9 +116,7 @@ export class AgentEngine {
   }
 
   async processEphemeral(params: ProcessEphemeralParams): Promise<OutboundMessage> {
-    if (!this.initialized || !this.promptBuilder || !this.llmAdapter) {
-      throw new Error('AgentEngine 未初始化');
-    }
+    this.assertInitialized();
 
     const { sessionKey, sessionId, memory, role, content } = params;
     const history = await memory.loadHistory();
@@ -161,11 +144,7 @@ export class AgentEngine {
   }
 
   switchModel(agent: Agent, modelIdentifier: string): void {
-    if (!this.llmAdapter) {
-      throw new Error('AgentEngine 未初始化');
-    }
-
-    const model = this.llmAdapter.resolveModel(modelIdentifier);
+    const model = this.getDeps().llmAdapter.resolveModel(modelIdentifier);
     agent.state.model = model;
 
     logger.info('模型已切换', {
@@ -180,8 +159,7 @@ export class AgentEngine {
     memory: MemoryManager,
     role: RoleConfig,
   ): Promise<AgentMessage[]> {
-    const llmAdapter = this.llmAdapter;
-    if (!llmAdapter) throw new Error('AgentEngine 未初始化');
+    const llmAdapter = this.getDeps().llmAdapter;
     let history = await memory.loadHistory();
     if (memory.shouldCompact(history)) {
       await memory.compact(llmAdapter, role.model);

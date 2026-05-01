@@ -2,7 +2,9 @@
 
 import { Type, type TSchema } from '@sinclair/typebox';
 import { createScopedLogger } from '../core/logger';
+import { BaseManager } from '../core/base-manager';
 import { errorMessage } from '../core/utils';
+import { SerialExecutor } from '../utils/serial-executor';
 import type { McpServerConfig } from '../core/config/schema';
 import type { DeepPartial, ToolOwner } from '../core/types';
 import type { AesyClawTool, ToolExecutionResult } from '../tool/tool-registry';
@@ -62,28 +64,23 @@ export type McpServerStatus = {
   error?: string;
 }
 
-export class McpManager {
-  private configManager: McpConfigManagerLike | null = null;
-  private toolRegistry: McpToolRegistryLike | null = null;
-  private clientFactory: McpClientFactory = new EmptyMcpClientFactory();
+type McpManagerStoredDeps = {
+  configManager: McpConfigManagerLike;
+  toolRegistry: McpToolRegistryLike;
+  clientFactory: McpClientFactory;
+}
+
+export class McpManager extends BaseManager<McpManagerStoredDeps> {
   private readonly connectedServers = new Map<string, ConnectedMcpServer>();
   private readonly failedServers = new Map<string, string>();
-  private initialized = false;
-  private reloading = false;
-  private reloadPending = false;
-  private reloadPromise: Promise<void> | null = null;
+  private serialExecutor = new SerialExecutor();
 
   initialize(dependencies: McpManagerDependencies): void {
-    if (this.initialized) {
-      logger.warn('McpManager 已初始化 — 跳过');
-      return;
-    }
-
-    this.configManager = dependencies.configManager;
-    this.toolRegistry = dependencies.toolRegistry;
-    this.clientFactory = dependencies.clientFactory ?? new EmptyMcpClientFactory();
-    this.initialized = true;
-    logger.info('McpManager 已初始化');
+    super.initialize({
+      configManager: dependencies.configManager,
+      toolRegistry: dependencies.toolRegistry,
+      clientFactory: dependencies.clientFactory ?? new EmptyMcpClientFactory(),
+    });
   }
 
   async connectAll(): Promise<void> {
@@ -131,9 +128,9 @@ export class McpManager {
       await this.disconnect(serverName);
     }
 
-    const client = this.clientFactory.create(config);
-    const owner: ToolOwner = mcpOwner(serverName);
-    const toolRegistry = this.getToolRegistry();
+      const client = this.getDeps().clientFactory.create(config);
+      const owner: ToolOwner = mcpOwner(serverName);
+      const toolRegistry = this.getDeps().toolRegistry;
     try {
       await client.connect();
       const tools = await client.listTools();
@@ -175,7 +172,7 @@ export class McpManager {
         await connected.client.close();
       }
     } finally {
-      this.toolRegistry?.unregisterByOwner(owner);
+      this.getDeps().toolRegistry.unregisterByOwner(owner);
       this.connectedServers.delete(serverName);
       this.failedServers.delete(serverName);
       logger.info('MCP 服务器已断开连接', { server: serverName });
@@ -183,27 +180,10 @@ export class McpManager {
   }
 
   async handleConfigReload(): Promise<void> {
-    if (this.reloading) {
-      this.reloadPending = true;
-      logger.debug('MCP 配置重载已在进行中 — 排队等待下一次执行');
-      return await (this.reloadPromise ?? Promise.resolve());
-    }
-
-    this.reloading = true;
-    this.reloadPromise = (async () => {
-      try {
-        do {
-          this.reloadPending = false;
-          await this.disconnectAll();
-          await this.connectAll();
-        } while (this.reloadPending);
-      } finally {
-        this.reloading = false;
-        this.reloadPromise = null;
-      }
-    })();
-
-    return await this.reloadPromise;
+    return await this.serialExecutor.execute(async () => {
+      await this.disconnectAll();
+      await this.connectAll();
+    }, 'MCP 配置重载');
   }
 
   listServers(): McpServerStatus[] {
@@ -256,11 +236,9 @@ export class McpManager {
   }
 
   private getConfigs(): McpServerConfig[] {
-    if (!this.configManager) {
-      return [];
-    }
+    const configManager = this.getDeps().configManager;
     try {
-      return this.configManager.get('mcp').map(cloneConfig);
+      return configManager.get('mcp').map(cloneConfig);
     } catch {
       return [];
     }
@@ -279,19 +257,6 @@ export class McpManager {
     return reservedNames;
   }
 
-  private assertInitialized(): void {
-    if (!this.initialized || !this.configManager || !this.toolRegistry) {
-      throw new Error('McpManager 未初始化');
-    }
-  }
-
-  private getToolRegistry(): McpToolRegistryLike {
-    this.assertInitialized();
-    if (!this.toolRegistry) {
-      throw new Error('McpManager 未初始化');
-    }
-    return this.toolRegistry;
-  }
 }
 
 export function mcpOwner(serverName: string): ToolOwner {

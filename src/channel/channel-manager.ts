@@ -2,7 +2,10 @@
 
 import type { InboundMessage, OutboundMessage, SendFn, SessionKey } from '../core/types';
 import { createScopedLogger } from '../core/logger';
+import { BaseManager } from '../core/base-manager';
 import { errorMessage, mergeDefaults } from '../core/utils';
+import { SerialExecutor } from '../utils/serial-executor';
+import { ChannelLoader } from './channel-loader';
 import type {
   ChannelContext,
   ChannelManagerDependencies,
@@ -14,37 +17,24 @@ import { isChannelEnabled, isRecord } from './channel-types';
 
 const logger = createScopedLogger('channel-manager');
 
-export class ChannelManager {
-  private configManager: ChannelManagerDependencies['configManager'] | null = null;
-  private pipeline: ChannelManagerDependencies['pipeline'] | null = null;
+export class ChannelManager extends BaseManager<ChannelManagerDependencies> {
   private readonly definitions = new Map<string, ChannelPlugin>();
   private readonly loadedChannels = new Map<string, LoadedChannel>();
   private readonly failedChannels = new Map<string, string>();
-  private initialized = false;
-  private reloading = false;
-  private reloadPending = false;
-  private reloadPromise: Promise<void> | null = null;
+  private readonly channelOwners = new Map<string, string>();
+  private serialExecutor = new SerialExecutor();
 
   initialize(dependencies: ChannelManagerDependencies): void {
-    if (this.initialized) {
-      logger.warn('ChannelManager 已初始化 — 跳过');
-      return;
-    }
-
-    this.configManager = dependencies.configManager;
-    this.pipeline = dependencies.pipeline;
+    super.initialize(dependencies);
     for (const channel of this.definitions.values()) {
       this.registerDefaults(channel);
     }
     for (const channel of dependencies.channels ?? []) {
       this.register(channel);
     }
-
-    this.initialized = true;
-    logger.info('ChannelManager 已初始化');
   }
 
-  register(channel: ChannelPlugin): void {
+  register(channel: ChannelPlugin, owner?: string): void {
     const existing = this.definitions.get(channel.name);
     if (existing && existing !== channel) {
       throw new Error(`频道 "${channel.name}" 已注册`);
@@ -52,6 +42,9 @@ export class ChannelManager {
 
     this.definitions.set(channel.name, channel);
     this.registerDefaults(channel);
+    if (owner) {
+      this.channelOwners.set(channel.name, owner);
+    }
     logger.debug('频道已注册', { channel: channel.name });
   }
 
@@ -63,7 +56,16 @@ export class ChannelManager {
     await this.stop(channelName);
     this.definitions.delete(channelName);
     this.failedChannels.delete(channelName);
+    this.channelOwners.delete(channelName);
     logger.debug('频道已注销', { channel: channelName });
+  }
+
+  async unregisterByOwner(owner: string): Promise<void> {
+    for (const [channelName, channelOwner] of this.channelOwners) {
+      if (channelOwner === owner) {
+        await this.unregister(channelName);
+      }
+    }
   }
 
   async startAll(): Promise<void> {
@@ -155,27 +157,10 @@ export class ChannelManager {
   }
 
   async handleConfigReload(): Promise<void> {
-    if (this.reloading) {
-      this.reloadPending = true;
-      logger.debug('频道配置重载已在进行中 — 排队等待下一次');
-      return await (this.reloadPromise ?? Promise.resolve());
-    }
-
-    this.reloading = true;
-    this.reloadPromise = (async () => {
-      try {
-        do {
-          this.reloadPending = false;
-          await this.stopAll();
-          await this.startAll();
-        } while (this.reloadPending);
-      } finally {
-        this.reloading = false;
-        this.reloadPromise = null;
-      }
-    })();
-
-    return await this.reloadPromise;
+    return await this.serialExecutor.execute(async () => {
+      await this.stopAll();
+      await this.startAll();
+    }, '频道配置重载');
   }
 
   listChannels(): ChannelStatus[] {
@@ -199,6 +184,19 @@ export class ChannelManager {
       });
     }
     return statuses.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async registerFromDisk(extensionsDir: string): Promise<void> {
+    const loader = new ChannelLoader({ extensionsDir });
+    const dirs = await loader.discover();
+    for (const dir of dirs) {
+      try {
+        const mod = await loader.load(dir);
+        this.register(mod.definition, 'disk');
+      } catch (err) {
+        logger.error(`频道扩展 "${dir}" 加载失败`, err);
+      }
+    }
   }
 
   getLoaded(channelName: string): LoadedChannel | undefined {
@@ -225,20 +223,18 @@ export class ChannelManager {
       name: channelName,
       config,
       receiveWithSend: async (message: InboundMessage, send: SendFn): Promise<void> => {
-        if (!this.pipeline) {
-          logger.error('管道未初始化 — 无法接收频道消息');
-          return;
-        }
-        await this.pipeline.receiveWithSend(message, send);
+        const pipeline = this.getDeps().pipeline;
+        await pipeline.receiveWithSend(message, send);
       },
       logger: createScopedLogger(`channel:${channelName}`),
     };
   }
 
   private registerDefaults(channel: ChannelPlugin): void {
-    if (channel.defaultConfig && this.configManager?.registerDefaults) {
-      this.configManager.registerDefaults(`channels.${channel.name}`, channel.defaultConfig);
+    if (!this.deps || !channel.defaultConfig) {
+      return;
     }
+    this.deps.configManager.registerDefaults(`channels.${channel.name}`, channel.defaultConfig);
   }
 
   private getMergedConfig(definition: ChannelPlugin): Record<string, unknown> {
@@ -247,11 +243,9 @@ export class ChannelManager {
   }
 
   private getConfigRecord(channelName: string): Record<string, unknown> {
-    if (!this.configManager) {
-      return {};
-    }
+    const configManager = this.getDeps().configManager;
     try {
-      const channels = this.configManager.get('channels');
+      const channels = configManager.get('channels');
       const config = channels[channelName];
       return isRecord(config) ? config : {};
     } catch {
@@ -274,9 +268,4 @@ export class ChannelManager {
     };
   }
 
-  private assertInitialized(): void {
-    if (!this.initialized || !this.configManager || !this.pipeline) {
-      throw new Error('ChannelManager 未初始化');
-    }
-  }
 }

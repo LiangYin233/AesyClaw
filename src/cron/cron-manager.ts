@@ -3,6 +3,7 @@
 import type { CronJobRecord, OutboundMessage, SessionKey } from '../core/types';
 import type { DatabaseManager } from '../core/database/database-manager';
 import { createScopedLogger } from '../core/logger';
+import { BaseManager } from '../core/base-manager';
 import { CronExecutor, type CronPipelineLike, type CronRunRepositoryLike } from './cron-executor';
 import { computeNextRun, CronScheduler, type CronScheduleType } from './cron-scheduler';
 
@@ -36,45 +37,49 @@ export type CreateCronJobParams = {
   sessionKey: SessionKey;
 }
 
-export class CronManager {
-  private cronJobs: CronJobRepositoryLike | null = null;
-  private cronRuns: CronRunRepositoryLike | null = null;
-  private executor: CronExecutor | null = null;
-  private scheduler: CronScheduler = new CronScheduler();
-  private initialized = false;
+type CronManagerStoredDeps = {
+  cronJobs: CronJobRepositoryLike;
+  cronRuns: CronRunRepositoryLike;
+  executor: CronExecutor;
+  scheduler: CronScheduler;
+}
+
+export class CronManager extends BaseManager<CronManagerStoredDeps> {
   private readonly inFlight = new Set<Promise<unknown>>();
 
+  // @ts-expect-error — override accepts wider input type than stored deps
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
   async initialize(dependencies: CronManagerDependencies): Promise<void> {
-    if (this.initialized) {
-      logger.warn('CronManager 已初始化 — 跳过');
+    if (this.deps) {
+      this.logger.warn('CronManager 已初始化 — 跳过');
       return;
     }
 
-    this.cronJobs = dependencies.databaseManager.cronJobs;
-    this.cronRuns = dependencies.databaseManager.cronRuns;
-    this.scheduler = dependencies.scheduler ?? new CronScheduler();
-
-    this.executor = new CronExecutor({
-      cronRuns: this.cronRuns,
+    const cronJobs = dependencies.databaseManager.cronJobs;
+    const cronRuns = dependencies.databaseManager.cronRuns;
+    const scheduler = dependencies.scheduler ?? new CronScheduler();
+    const executor = new CronExecutor({
+      cronRuns,
       pipeline: dependencies.pipeline,
       send: dependencies.send,
     });
 
-    const running = await this.cronRuns.findRunning();
-    await this.cronRuns.markAbandoned(running.map((run) => run.id));
+    const running = await cronRuns.findRunning();
+    await cronRuns.markAbandoned(running.map((run) => run.id));
 
-    this.initialized = true;
+    super.initialize({ cronJobs, cronRuns, executor, scheduler });
     await this.reloadSchedules();
-    logger.info('CronManager 已初始化');
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-misused-promises
   async destroy(): Promise<void> {
-    this.scheduler.clearAll();
+    const deps = this.getDeps();
+    deps.scheduler.clearAll();
     if (this.inFlight.size > 0) {
       logger.info('等待进行中的定时任务完成', { count: this.inFlight.size });
       await Promise.allSettled([...this.inFlight]);
     }
-    this.initialized = false;
+    super.destroy();
     logger.info('CronManager 已销毁');
   }
 
@@ -87,7 +92,7 @@ export class CronManager {
       );
     }
 
-    const cronJobs = this.getCronJobs();
+    const cronJobs = this.getDeps().cronJobs;
     const id = await cronJobs.create({
       scheduleType: params.scheduleType,
       scheduleValue: params.scheduleValue,
@@ -106,14 +111,15 @@ export class CronManager {
 
   async listJobs(): Promise<CronJobRecord[]> {
     this.assertInitialized();
-    return await this.getCronJobs().findAll();
+    return await this.getDeps().cronJobs.findAll();
   }
 
   async deleteJob(jobId: string): Promise<boolean> {
     this.assertInitialized();
-    const deleted = await this.getCronJobs().delete(jobId);
+    const cronJobs = this.getDeps().cronJobs;
+    const deleted = await cronJobs.delete(jobId);
     if (deleted) {
-      this.scheduler.cancel(jobId);
+      this.getDeps().scheduler.cancel(jobId);
       logger.info('定时任务已删除', { jobId });
     }
     return deleted;
@@ -121,17 +127,18 @@ export class CronManager {
 
   async runJobNow(jobId: string): Promise<string> {
     this.assertInitialized();
-    const job = await this.getCronJobs().findById(jobId);
+    const job = await this.getDeps().cronJobs.findById(jobId);
     if (!job) {
       throw new Error(`未找到定时任务 "${jobId}"`);
     }
-    return await this.getExecutor().execute(job);
+    return await this.getDeps().executor.execute(job);
   }
 
   async reloadSchedules(): Promise<void> {
     this.assertInitialized();
-    this.scheduler.clearAll();
-    const jobs = await this.getCronJobs().findAll();
+    this.getDeps().scheduler.clearAll();
+    const cronJobs = this.getDeps().cronJobs;
+    const jobs = await cronJobs.findAll();
     for (const job of jobs) {
       if (job.nextRun) {
         this.schedule(job);
@@ -141,7 +148,7 @@ export class CronManager {
   }
 
   private schedule(job: CronJobRecord): void {
-    this.scheduler.schedule(job, () => {
+    this.getDeps().scheduler.schedule(job, () => {
       const run = this.executeScheduledJob(job.id).catch((err) => {
         logger.error(`定时任务 "${job.id}" 调度失败`, err);
       });
@@ -157,8 +164,8 @@ export class CronManager {
   }
 
   private async executeScheduledJob(jobId: string): Promise<string> {
-    const cronJobs = this.getCronJobs();
-    const executor = this.getExecutor();
+    const cronJobs = this.getDeps().cronJobs;
+    const executor = this.getDeps().executor;
     const job = await cronJobs.findById(jobId);
     if (!job) {
       throw new Error(`未找到定时任务 "${jobId}"`);
@@ -177,25 +184,4 @@ export class CronManager {
     }
   }
 
-  private assertInitialized(): void {
-    if (!this.initialized || !this.cronJobs || !this.cronRuns || !this.executor) {
-      throw new Error('CronManager 未初始化');
-    }
-  }
-
-  private getCronJobs(): CronJobRepositoryLike {
-    this.assertInitialized();
-    if (!this.cronJobs) {
-      throw new Error('CronManager 未初始化');
-    }
-    return this.cronJobs;
-  }
-
-  private getExecutor(): CronExecutor {
-    this.assertInitialized();
-    if (!this.executor) {
-      throw new Error('CronManager 未初始化');
-    }
-    return this.executor;
-  }
 }
