@@ -16,7 +16,7 @@ import type {
   ToolPermissionConfig,
 } from '../core/types';
 import { createScopedLogger } from '../core/logger';
-import type { ToolHookDispatcher } from '../pipeline/middleware/types';
+import type { HookDispatcher } from '../pipeline/hook-dispatcher';
 import type { AgentTool } from '../agent/agent-types';
 import { ToolAdapter } from './tool-adapter';
 
@@ -165,7 +165,7 @@ export class ToolRegistry {
    */
   resolveForRole(
     role: RoleConfig,
-    toolHookDispatcher: ToolHookDispatcher,
+    toolHookDispatcher: HookDispatcher,
     executionContext: Partial<ToolExecutionContext>,
   ): { tools: AesyClawTool[]; agentTools: AgentTool[] } {
     const tools = this.getForRole(role);
@@ -177,7 +177,7 @@ export class ToolRegistry {
 
   private toAgentTools(
     tools: AesyClawTool[],
-    toolHookDispatcher: ToolHookDispatcher,
+    toolHookDispatcher: HookDispatcher,
     executionContext: Partial<ToolExecutionContext>,
   ): AgentTool[] {
     return tools.map((tool) => ToolAdapter.toAgentTool(tool, toolHookDispatcher, executionContext));

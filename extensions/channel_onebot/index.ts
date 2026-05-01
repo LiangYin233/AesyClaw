@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { ChannelContext, ChannelPlugin } from '../../src/channel/channel-types';
-import { PathResolver } from '../../src/core/path-resolver';
+import { resolvePaths } from '../../src/core/path-resolver';
 import type {
   InboundMessage,
   MediaAttachment,
@@ -766,10 +766,8 @@ async function writeInboundAttachmentFile(
   data: Uint8Array,
   root = process.cwd(),
 ): Promise<string> {
-  const resolver = new PathResolver();
-  resolver.resolve(path.resolve(root));
-
-  const targetDir = path.join(resolver.mediaDir, 'onebot', 'inbound');
+  const paths = resolvePaths(path.resolve(root));
+  const targetDir = path.join(paths.mediaDir, 'onebot', 'inbound');
   await fs.mkdir(targetDir, { recursive: true });
 
   const safeFileName = sanitizeFileName(fileName);

@@ -13,7 +13,7 @@ import type { ToolRegistry } from '../tool/tool-registry';
 import type { CommandRegistry } from '../command/command-registry';
 import type { ChannelPlugin } from '../channel/channel-types';
 import type { ChannelManager } from '../channel/channel-manager';
-import type { HookRegistry } from '../pipeline/middleware/types';
+import type { HookDispatcher } from '../pipeline/hook-dispatcher';
 import type { PluginHooks } from '../pipeline/middleware/types';
 import type { PluginLoader } from './plugin-loader';
 import type { ConfigManager } from '../core/config/config-manager';
@@ -76,7 +76,7 @@ export type PluginManagerDependencies = {
   configManager: ConfigManager;
   toolRegistry: ToolRegistry;
   commandRegistry: CommandRegistry;
-  hookRegistry: HookRegistry;
+  hookRegistry: HookDispatcher;
   channelManager?: ChannelManager;
   pluginLoader?: PluginLoader;
 }

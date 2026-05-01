@@ -10,7 +10,7 @@
 
 import type { AgentTool, AgentToolResult } from '../agent/agent-types';
 import { createScopedLogger } from '../core/logger';
-import type { ToolHookDispatcher } from '../pipeline/middleware/types';
+import type { HookDispatcher } from '../pipeline/hook-dispatcher';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from './tool-registry';
 
 const logger = createScopedLogger('tool');
@@ -33,7 +33,7 @@ export class ToolAdapter {
    */
   static toAgentTool(
     tool: AesyClawTool,
-    toolHookDispatcher: ToolHookDispatcher,
+    toolHookDispatcher: HookDispatcher,
     executionContext: Partial<ToolExecutionContext>,
   ): AgentTool {
     return {

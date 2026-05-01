@@ -6,10 +6,9 @@
  *
  * 整合后的架构：
  *   - Pipeline 持有 HookDispatcher 作为内部组件
- *   - Pipeline 实现 HookRegistry 接口，供 PluginManager 注册/注销插件钩子
- *   - Pipeline 提供 getToolHookDispatcher()，供 AgentEngine/ToolAdapter 调度工具钩子
+ *   - Pipeline 暴露 hookDispatcher，供 PluginManager 注册/注销插件钩子
  *   - 所有控制流钩子（onReceive / beforeLLMRequest / onSend）由 Pipeline 统一调度
- *   - 工具钩子（beforeToolCall / afterToolCall）由 ToolAdapter 通过 ToolHookDispatcher 调度
+ *   - 工具钩子（beforeToolCall / afterToolCall）由 ToolAdapter 通过 HookDispatcher 调度
  *
  * 流程：
  *   1. onReceive 钩子 → 如果被阻止，停止
@@ -24,11 +23,9 @@
 import type { InboundMessage, OutboundMessage, SendFn } from '../core/types';
 import type { SessionKey } from '../core/types';
 import type {
-  HookRegistry,
   PipelineDependencies,
   PipelineState,
   PluginHooks,
-  ToolHookDispatcher,
 } from './middleware/types';
 import { HookDispatcher } from './hook-dispatcher';
 import { sessionResolver } from './middleware/session-resolver';
@@ -43,11 +40,9 @@ const logger = createScopedLogger('pipeline');
  *
  * 遵循生命周期模式：initialize() / destroy()。
  * 依赖显式注入 — 无单例导入。
- *
- * 同时实现 HookRegistry 接口，作为插件钩子注册的唯一入口。
  */
-export class Pipeline implements HookRegistry {
-  private hookDispatcher: HookDispatcher = new HookDispatcher();
+export class Pipeline {
+  hookDispatcher: HookDispatcher = new HookDispatcher();
   private deps: PipelineDependencies | null = null;
   private initialized = false;
 
@@ -77,10 +72,12 @@ export class Pipeline implements HookRegistry {
     logger.info('Pipeline 已销毁');
   }
 
-  // ─── HookRegistry 接口 ────────────────────────────────────────
+  // ─── 钩子注册 ──────────────────────────────────────────────────
 
   /**
    * 注册插件的钩子。
+   *
+   * 委托给 HookDispatcher。
    *
    * @param pluginName - 唯一插件标识符（用于注销）
    * @param hooks - 包含插件提供的钩子函数的对象
@@ -96,17 +93,6 @@ export class Pipeline implements HookRegistry {
    */
   unregister(pluginName: string): void {
     this.hookDispatcher.unregister(pluginName);
-  }
-
-  // ─── 工具钩子调度器 ───────────────────────────────────────────
-
-  /**
-   * 获取用于工具钩子调度的接口。
-   *
-   * 供 AgentEngine/ToolAdapter 使用，仅暴露 beforeToolCall/afterToolCall。
-   */
-  getToolHookDispatcher(): ToolHookDispatcher {
-    return this.hookDispatcher;
   }
 
   // ─── 核心 API ─────────────────────────────────────────────────

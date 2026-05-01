@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { ToolRegistry, filterToolsByRole } from '../../../src/tool/tool-registry';
 import type { AesyClawTool } from '../../../src/tool/tool-registry';
 import type { RoleConfig } from '../../../src/core/types';
-import type { ToolHookDispatcher } from '../../../src/pipeline/middleware/types';
+import type { HookDispatcher } from '../../../src/pipeline/hook-dispatcher';
 import { Type } from '@sinclair/typebox';
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -25,8 +25,8 @@ function makeTool(overrides: Partial<AesyClawTool> = {}): AesyClawTool {
   };
 }
 
-/** Create a ToolHookDispatcher that allows all calls */
-function makeNoOpHookDispatcher(): ToolHookDispatcher {
+/** Create a mock HookDispatcher that allows all calls */
+function makeNoOpHookDispatcher(): HookDispatcher {
   return {
     async dispatchBeforeToolCall() {
       return {};
@@ -34,7 +34,7 @@ function makeNoOpHookDispatcher(): ToolHookDispatcher {
     async dispatchAfterToolCall() {
       return {};
     },
-  };
+  } as unknown as HookDispatcher;
 }
 
 function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {

@@ -116,39 +116,29 @@ export class SubAgentSandbox {
     role: RoleConfig,
     params: Pick<SubAgentRoleParams | SubAgentTempParams, 'enableTools'>,
   ): RoleConfig {
+    // 如果调用者选择禁用所有工具，则直接返回空允许列表
     if (params.enableTools === false) {
-      return {
-        ...role,
-        toolPermission: {
-          mode: 'allowlist',
-          list: [],
-        },
-      };
+      return { ...role, toolPermission: { mode: 'allowlist', list: [] } };
     }
 
     const { mode, list } = role.toolPermission;
     const blockedTools = ['run_sub_agent', 'run_temp_sub_agent'];
 
-    // 带通配符的允许列表：切换到拒绝列表以仅排除子 Agent 工具
-    if (mode === 'allowlist' && list.includes('*')) {
-      return {
-        ...role,
-        toolPermission: { mode: 'denylist' as const, list: blockedTools },
-      };
-    }
-
-    // 显式名称的允许列表：过滤掉子 Agent 工具
+    // 对于允许列表模式：通配符 '*' 无法通过名称过滤去除，
+    // 需要转换为拒绝列表；其余情况直接过滤禁止的工具名称
     if (mode === 'allowlist') {
-      return {
-        ...role,
-        toolPermission: {
-          mode: 'allowlist' as const,
-          list: list.filter((name) => !blockedTools.includes(name)),
-        },
-      };
+      return list.includes('*')
+        ? { ...role, toolPermission: { mode: 'denylist' as const, list: blockedTools } }
+        : {
+            ...role,
+            toolPermission: {
+              mode: 'allowlist' as const,
+              list: list.filter((name) => !blockedTools.includes(name)),
+            },
+          };
     }
 
-    // 拒绝列表：将子 Agent 工具添加到拒绝列表
+    // 拒绝列表模式：追加禁止的工具
     return {
       ...role,
       toolPermission: {

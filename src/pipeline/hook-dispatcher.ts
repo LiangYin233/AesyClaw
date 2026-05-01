@@ -11,7 +11,7 @@
  */
 
 import type { InboundMessage, PipelineResult } from '../core/types';
-import type { BeforeLLMRequestContext, OnSendContext, ToolHookDispatcher } from './middleware/types';
+import type { BeforeLLMRequestContext, OnSendContext } from './middleware/types';
 import type {
   BeforeToolCallHookContext,
   BeforeToolCallHookResult,
@@ -80,9 +80,9 @@ const EMPTY_AFTER_TOOL: AfterToolCallHookResult = {};
  * 完整的 HookDispatcher 实现。
  *
  * 作为 Pipeline 的内部组件，负责实际遍历和调用插件钩子。
- * 实现 ToolHookDispatcher 接口，供 AgentEngine/ToolAdapter 使用。
+ * 同时提供插件钩子注册/注销和工具钩子调度的功能。
  */
-export class HookDispatcher implements ToolHookDispatcher {
+export class HookDispatcher {
   private entries: HookEntry[] = [];
 
   // ─── 注册 ───────────────────────────────────────────────

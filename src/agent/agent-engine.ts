@@ -7,7 +7,6 @@ import type { ToolExecutionContext } from '../tool/tool-registry';
 import type { LlmAdapter } from './llm-adapter';
 import type { PromptBuilder } from './prompt-builder';
 import type { MemoryManager } from './memory-manager';
-import type { AgentRunPolicy } from './agent-run-policy';
 import { createScopedLogger } from '../core/logger';
 
 const logger = createScopedLogger('agent-engine');
@@ -15,7 +14,6 @@ const logger = createScopedLogger('agent-engine');
 export type AgentEngineDependencies = {
   llmAdapter: LlmAdapter;
   promptBuilder: PromptBuilder;
-  runPolicy: AgentRunPolicy;
 }
 
 export type ProcessEphemeralParams = {
@@ -30,7 +28,6 @@ export class AgentEngine {
   private initialized = false;
   private llmAdapter: LlmAdapter | null = null;
   private promptBuilder: PromptBuilder | null = null;
-  private runPolicy: AgentRunPolicy | null = null;
 
   initialize(deps: AgentEngineDependencies): void {
     if (this.initialized) {
@@ -40,7 +37,6 @@ export class AgentEngine {
 
     this.llmAdapter = deps.llmAdapter;
     this.promptBuilder = deps.promptBuilder;
-    this.runPolicy = deps.runPolicy;
 
     this.initialized = true;
     logger.info('AgentEngine 已初始化');
@@ -51,7 +47,7 @@ export class AgentEngine {
     sessionId: string,
     executionContext?: Partial<ToolExecutionContext>,
   ): Agent {
-    if (!this.initialized || !this.promptBuilder || !this.llmAdapter || !this.runPolicy) {
+    if (!this.initialized || !this.promptBuilder || !this.llmAdapter) {
       throw new Error('AgentEngine 未初始化');
     }
 
@@ -86,7 +82,7 @@ export class AgentEngine {
     role: RoleConfig,
     sendMessage?: ToolExecutionContext['sendMessage'],
   ): Promise<OutboundMessage> {
-    if (!this.initialized || !this.promptBuilder || !this.llmAdapter || !this.runPolicy) {
+    if (!this.initialized || !this.promptBuilder || !this.llmAdapter) {
       throw new Error('AgentEngine 未初始化');
     }
 
@@ -96,7 +92,7 @@ export class AgentEngine {
       contentLength: message.content.length,
     });
 
-    const history = await this.runPolicy.loadHistoryForTurn(memory, role);
+    const history = await this.loadHistoryForTurn(memory, role);
     agent.state.messages = history;
 
     const executionContext: Partial<ToolExecutionContext> = {
@@ -110,7 +106,7 @@ export class AgentEngine {
     agent.state.tools = tools;
     agent.state.model = this.llmAdapter.resolveModel(role.model);
 
-    await this.runPolicy.prompt(agent, message.content);
+    await this.prompt(agent, message.content);
 
     const newMessages = agent.state.messages.slice(history.length);
     await memory.syncFromAgent(newMessages);
@@ -142,7 +138,7 @@ export class AgentEngine {
   }
 
   async processEphemeral(params: ProcessEphemeralParams): Promise<OutboundMessage> {
-    if (!this.initialized || !this.promptBuilder || !this.llmAdapter || !this.runPolicy) {
+    if (!this.initialized || !this.promptBuilder || !this.llmAdapter) {
       throw new Error('AgentEngine 未初始化');
     }
 
@@ -159,7 +155,7 @@ export class AgentEngine {
     agent.state.messages = history;
     agent.state.tools = [];
 
-    await this.runPolicy.prompt(agent, content);
+    await this.prompt(agent, content);
 
     const newMessages = agent.state.messages.slice(history.length);
     const lastAssistant = findLastAssistantText(newMessages);
@@ -187,6 +183,27 @@ export class AgentEngine {
       provider: model.provider,
       modelId: model.modelId,
     });
+  }
+
+  // ─── 私有方法 ───────────────────────────────────────────────────
+
+  private async loadHistoryForTurn(
+    memory: MemoryManager,
+    role: RoleConfig,
+  ): Promise<AgentMessage[]> {
+    const llmAdapter = this.llmAdapter;
+    if (!llmAdapter) throw new Error('AgentEngine 未初始化');
+    let history = await memory.loadHistory();
+    if (typeof memory.shouldCompact === 'function' && memory.shouldCompact(history)) {
+      await memory.compact(llmAdapter, role.model);
+      history = await memory.loadHistory();
+    }
+    return history;
+  }
+
+  private async prompt(agent: Agent, content: string): Promise<void> {
+    await agent.prompt(content);
+    await agent.waitForIdle();
   }
 }
 

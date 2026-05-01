@@ -8,7 +8,7 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { ToolAdapter } from '../../../src/tool/tool-adapter';
 import type { AesyClawTool, ToolExecutionContext } from '../../../src/tool/tool-registry';
-import type { ToolHookDispatcher } from '../../../src/pipeline/middleware/types';
+import type { HookDispatcher } from '../../../src/pipeline/hook-dispatcher';
 import { setLogLevel } from '../../../src/core/logger';
 import { Type } from '@sinclair/typebox';
 
@@ -25,7 +25,7 @@ function makeTool(overrides: Partial<AesyClawTool> = {}): AesyClawTool {
   };
 }
 
-function makeNoOpHookDispatcher(): ToolHookDispatcher {
+function makeNoOpHookDispatcher(): HookDispatcher {
   return {
     async dispatchBeforeToolCall() {
       return {};
@@ -33,10 +33,10 @@ function makeNoOpHookDispatcher(): ToolHookDispatcher {
     async dispatchAfterToolCall() {
       return {};
     },
-  };
+  } as unknown as HookDispatcher;
 }
 
-function makeBlockingHookDispatcher(reason: string): ToolHookDispatcher {
+function makeBlockingHookDispatcher(reason: string): HookDispatcher {
   return {
     async dispatchBeforeToolCall() {
       return { block: true, reason };
@@ -44,13 +44,13 @@ function makeBlockingHookDispatcher(reason: string): ToolHookDispatcher {
     async dispatchAfterToolCall() {
       return {};
     },
-  };
+  } as unknown as HookDispatcher;
 }
 
 function makeShortCircuitHookDispatcher(result: {
   content: string;
   isError?: boolean;
-}): ToolHookDispatcher {
+}): HookDispatcher {
   return {
     async dispatchBeforeToolCall() {
       return {
@@ -63,13 +63,13 @@ function makeShortCircuitHookDispatcher(result: {
     async dispatchAfterToolCall() {
       return {};
     },
-  };
+  } as unknown as HookDispatcher;
 }
 
 function makeOverrideHookDispatcher(override: {
   content?: string;
   isError?: boolean;
-}): ToolHookDispatcher {
+}): HookDispatcher {
   return {
     async dispatchBeforeToolCall() {
       return {};
@@ -77,7 +77,7 @@ function makeOverrideHookDispatcher(override: {
     async dispatchAfterToolCall() {
       return { override };
     },
-  };
+  } as unknown as HookDispatcher;
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────

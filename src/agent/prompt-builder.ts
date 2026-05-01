@@ -12,7 +12,7 @@ import type { SkillManager } from '../skill/skill-manager';
 import type { AesyClawTool, ToolRegistry, ToolExecutionContext } from '../tool/tool-registry';
 import type { RoleConfig, Skill } from '../core/types';
 import type { AgentTool } from './agent-types';
-import type { ToolHookDispatcher } from '../pipeline/middleware/types';
+import type { HookDispatcher } from '../pipeline/hook-dispatcher';
 import { buildSkillPromptSection } from '../skill/skill-prompt';
 
 // ─── PromptBuilder ──────────────────────────────────────────────
@@ -24,14 +24,14 @@ export type PromptBuilderDependencies = {
   roleManager: RoleManager;
   skillManager: SkillManager;
   toolRegistry: ToolRegistry;
-  toolHookDispatcher: ToolHookDispatcher;
+  toolHookDispatcher: HookDispatcher;
 }
 
 export class PromptBuilder {
   private roleManager: RoleManager;
   private skillManager: SkillManager;
   private toolRegistry: ToolRegistry;
-  private toolHookDispatcher: ToolHookDispatcher;
+  private toolHookDispatcher: HookDispatcher;
 
   constructor(deps: PromptBuilderDependencies) {
     this.roleManager = deps.roleManager;

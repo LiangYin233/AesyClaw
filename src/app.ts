@@ -4,7 +4,6 @@ import { mkdirSync } from 'node:fs';
 import { AgentEngine } from './agent/agent-engine';
 import { LlmAdapter } from './agent/llm-adapter';
 import { PromptBuilder } from './agent/prompt-builder';
-import { AgentRunPolicy } from './agent/agent-run-policy';
 import { SessionManager } from './agent/session-manager';
 import { ChannelManager } from './channel/channel-manager';
 import { ChannelLoader } from './channel/channel-loader';
@@ -14,7 +13,7 @@ import { ConfigManager } from './core/config/config-manager';
 import { DEFAULT_CONFIG } from './core/config/defaults';
 import { DatabaseManager } from './core/database/database-manager';
 import { createScopedLogger, setLogLevel } from './core/logger';
-import { PathResolver } from './core/path-resolver';
+import { resolvePaths, type ResolvedPaths } from './core/path-resolver';
 import type { Unsubscribe } from './core/types';
 import { CronManager } from './cron/cron-manager';
 import { McpManager } from './mcp/mcp-manager';
@@ -32,7 +31,12 @@ import { WebUiManager } from './web/webui-manager';
 const logger = createScopedLogger('app');
 
 export class Application {
-  private pathResolver: PathResolver;
+  private _paths: ResolvedPaths | null = null;
+
+  private get paths(): ResolvedPaths {
+    if (!this._paths) throw new Error('Paths not resolved');
+    return this._paths;
+  }
   private configManager: ConfigManager;
   private databaseManager: DatabaseManager;
   private skillManager: SkillManager;
@@ -53,7 +57,6 @@ export class Application {
   private shuttingDown = false;
 
   constructor() {
-    this.pathResolver = new PathResolver();
     this.configManager = new ConfigManager();
     this.databaseManager = new DatabaseManager();
     this.skillManager = new SkillManager();
@@ -97,31 +100,31 @@ export class Application {
   private async prepareRuntime(): Promise<void> {
     await this.startStep('路径解析', async () => {
       const root = process.cwd();
-      this.pathResolver.resolve(root);
+      this._paths = resolvePaths(root);
       logger.info('路径解析完成', { root });
     });
 
     await this.startStep('运行时目录准备', async () => {
       const runtimeDirs = [
-        this.pathResolver.runtimeRoot,
-        this.pathResolver.dataDir,
-        this.pathResolver.rolesDir,
-        this.pathResolver.mediaDir,
-        this.pathResolver.workspaceDir,
-        this.pathResolver.userSkillsDir,
+        this.paths.runtimeRoot,
+        this.paths.dataDir,
+        this.paths.rolesDir,
+        this.paths.mediaDir,
+        this.paths.workspaceDir,
+        this.paths.userSkillsDir,
       ];
 
       for (const runtimeDir of runtimeDirs) {
         mkdirSync(runtimeDir, { recursive: true });
       }
 
-      ensureDefaultRoleFile(this.pathResolver.rolesDir);
+      ensureDefaultRoleFile(this.paths.rolesDir);
     });
   }
 
   private async loadRuntimeConfiguration(): Promise<void> {
     await this.startStep('配置加载', async () => {
-      await this.configManager.load(this.pathResolver.configFile);
+      await this.configManager.load(this.paths.configFile);
       setLogLevel(this.configManager.getConfig().server.logLevel);
       logger.info('配置已加载');
     });
@@ -129,15 +132,15 @@ export class Application {
 
   private async initializeCoreManagers(): Promise<void> {
     await this.startStep('数据库初始化', async () => {
-      await this.databaseManager.initialize(this.pathResolver.dbFile);
+      await this.databaseManager.initialize(this.paths.dbFile);
     });
 
     await this.startStep('技能加载', async () => {
-      await this.skillManager.loadAll(this.pathResolver.skillsDir, this.pathResolver.userSkillsDir);
+      await this.skillManager.loadAll(this.paths.skillsDir, this.paths.userSkillsDir);
     });
 
     await this.startStep('角色加载', async () => {
-      await this.roleManager.loadAll(this.pathResolver.rolesDir);
+      await this.roleManager.loadAll(this.paths.rolesDir);
     });
   }
 
@@ -151,16 +154,11 @@ export class Application {
         roleManager: this.roleManager,
         skillManager: this.skillManager,
         toolRegistry: this.toolRegistry,
-        toolHookDispatcher: this.pipeline.getToolHookDispatcher(),
-      });
-      const runPolicy = new AgentRunPolicy({
-        configManager: this.configManager,
-        llmAdapter: this.llmAdapter,
+        toolHookDispatcher: this.pipeline.hookDispatcher,
       });
       this.agentEngine.initialize({
         llmAdapter: this.llmAdapter,
         promptBuilder,
-        runPolicy,
       });
     });
 
@@ -189,9 +187,9 @@ export class Application {
         configManager: this.configManager,
         toolRegistry: this.toolRegistry,
         commandRegistry: this.commandRegistry,
-        hookRegistry: this.pipeline,
+        hookRegistry: this.pipeline.hookDispatcher,
         channelManager: this.channelManager,
-        pluginLoader: new PluginLoader({ extensionsDir: this.pathResolver.extensionsDir }),
+        pluginLoader: new PluginLoader({ extensionsDir: this.paths.extensionsDir }),
       });
     });
 
@@ -350,7 +348,7 @@ export class Application {
   }
 
   private async loadChannelExtensions(): Promise<void> {
-    const loader = new ChannelLoader({ extensionsDir: this.pathResolver.extensionsDir });
+    const loader = new ChannelLoader({ extensionsDir: this.paths.extensionsDir });
     const channelDirs = await loader.discover();
     for (const channelDir of channelDirs) {
       try {
