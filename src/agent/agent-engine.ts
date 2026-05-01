@@ -1,28 +1,21 @@
 import { Agent as PiAgent } from '@mariozechner/pi-agent-core';
 import { randomUUID } from 'node:crypto';
-import type { ConfigManager } from '../core/config/config-manager';
 import type { RoleConfig, InboundMessage, OutboundMessage, SessionKey } from '../core/types';
 import type { Agent, AgentMessage } from './agent-types';
 import { extractMessageText } from './agent-types';
-import type { ToolRegistry, ToolExecutionContext } from '../tool/tool-registry';
-import type { RoleManager } from '../role/role-manager';
-import type { SkillManager } from '../skill/skill-manager';
-import type { ToolHookDispatcher } from '../pipeline/middleware/types';
+import type { ToolExecutionContext } from '../tool/tool-registry';
 import type { LlmAdapter } from './llm-adapter';
-import { PromptBuilder } from './prompt-builder';
+import type { PromptBuilder } from './prompt-builder';
 import type { MemoryManager } from './memory-manager';
+import type { AgentRunPolicy } from './agent-run-policy';
 import { createScopedLogger } from '../core/logger';
-import { AgentRunPolicy } from './agent-run-policy';
 
 const logger = createScopedLogger('agent-engine');
 
 export type AgentEngineDependencies = {
-  configManager: ConfigManager;
-  toolRegistry: ToolRegistry;
-  roleManager: RoleManager;
-  skillManager: SkillManager;
-  toolHookDispatcher: ToolHookDispatcher;
   llmAdapter: LlmAdapter;
+  promptBuilder: PromptBuilder;
+  runPolicy: AgentRunPolicy;
 }
 
 export type ProcessEphemeralParams = {
@@ -46,17 +39,8 @@ export class AgentEngine {
     }
 
     this.llmAdapter = deps.llmAdapter;
-
-    this.promptBuilder = new PromptBuilder({
-      roleManager: deps.roleManager,
-      skillManager: deps.skillManager,
-      toolRegistry: deps.toolRegistry,
-      toolHookDispatcher: deps.toolHookDispatcher,
-    });
-    this.runPolicy = new AgentRunPolicy({
-      configManager: deps.configManager,
-      llmAdapter: deps.llmAdapter,
-    });
+    this.promptBuilder = deps.promptBuilder;
+    this.runPolicy = deps.runPolicy;
 
     this.initialized = true;
     logger.info('AgentEngine 已初始化');

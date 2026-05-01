@@ -68,6 +68,10 @@ export class PathResolver {
     return this._workspaceDir;
   }
 
+  /**
+   * 内置 skills 目录（`<project>/skills/`）。
+   * 包含随仓库分发的默认 skills 和 `system/` 子目录。
+   */
   get skillsDir(): string {
     return this._skillsDir;
   }
@@ -80,6 +84,10 @@ export class PathResolver {
     return this._extensionsDir;
   }
 
+  /**
+   * 用户自定义 skills 目录（`<project>/.aesyclaw/skills/`）。
+   * 运行时生成，供用户添加自定义 skills。
+   */
   get userSkillsDir(): string {
     return this._userSkillsDir;
   }

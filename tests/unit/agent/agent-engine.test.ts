@@ -2,17 +2,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createAssistantMessageEventStream } from '@mariozechner/pi-ai';
 import { AgentEngine } from '../../../src/agent/agent-engine';
 import type { AgentEngineDependencies } from '../../../src/agent/agent-engine';
-import type { ConfigManager } from '../../../src/core/config/config-manager';
-import type { ToolRegistry } from '../../../src/tool/tool-registry';
-import type { RoleManager } from '../../../src/role/role-manager';
-import type { SkillManager } from '../../../src/skill/skill-manager';
-import type { ToolHookDispatcher } from '../../../src/pipeline/middleware/types';
 import type { LlmAdapter } from '../../../src/agent/llm-adapter';
 import type { RoleConfig, InboundMessage } from '../../../src/core/types';
 import { MemoryManager } from '../../../src/agent/memory-manager';
 import type { MessageRepository } from '../../../src/core/database/repositories/message-repository';
-import type { AppConfig } from '../../../src/core/config/schema';
-import type { AgentTool } from '../../../src/agent/agent-types';
+import type { AgentTool, AgentMessage } from '../../../src/agent/agent-types';
+import type { Agent } from '../../../src/agent/agent-types';
 
 function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
   return {
@@ -36,30 +31,6 @@ function makeInboundMessage(overrides: Partial<InboundMessage> = {}): InboundMes
   };
 }
 
-function makeMockConfigManager(): ConfigManager {
-  const config: AppConfig = {
-    server: { port: 3000, host: '0.0.0.0', logLevel: 'info' },
-    providers: {
-      openai: { apiType: 'openai_responses', apiKey: 'test-key' },
-    },
-    channels: {},
-    agent: {
-      memory: { compressionThreshold: 0.8 },
-      multimodal: {
-        speechToText: { provider: 'openai', model: 'whisper-1' },
-        imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
-      },
-    },
-    mcp: [],
-    plugins: [],
-  };
-
-  return {
-    getConfig: vi.fn().mockReturnValue(config),
-    get: vi.fn().mockReturnValue(config.providers),
-  } as unknown as ConfigManager;
-}
-
 function makeMockMessageRepo(): MessageRepository {
   return {
     save: vi.fn().mockResolvedValue(undefined),
@@ -67,14 +38,6 @@ function makeMockMessageRepo(): MessageRepository {
     clearHistory: vi.fn().mockResolvedValue(undefined),
     replaceWithSummary: vi.fn().mockResolvedValue(undefined),
   } as unknown as MessageRepository;
-}
-
-function makeMockToolRegistry(): ToolRegistry {
-  return {
-    getAll: vi.fn().mockReturnValue([]),
-    resolveForRoleWithDefinitions: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
-    resolveForRole: vi.fn().mockReturnValue([]),
-  } as unknown as ToolRegistry;
 }
 
 function makeAgentTool(name: string): AgentTool {
@@ -87,33 +50,6 @@ function makeAgentTool(name: string): AgentTool {
       content: [{ type: 'text', text: `${name} result` }],
       details: undefined,
     }),
-  };
-}
-
-function makeMockRoleManager(): RoleManager {
-  const role = makeRole();
-  return {
-    getRole: vi.fn().mockReturnValue(role),
-    getDefaultRole: vi.fn().mockReturnValue(role),
-    getEnabledRoles: vi.fn().mockReturnValue([role]),
-    buildSystemPrompt: vi
-      .fn()
-      .mockReturnValue(
-        'You are a test assistant.\n\n## Available Tools\n\n## Available Roles\n- **default**: Default — Test role',
-      ),
-  } as unknown as RoleManager;
-}
-
-function makeMockSkillManager(): SkillManager {
-  return {
-    getSkillsForRole: vi.fn().mockReturnValue([]),
-  } as unknown as SkillManager;
-}
-
-function makeMockToolHookDispatcher(): ToolHookDispatcher {
-  return {
-    dispatchBeforeToolCall: vi.fn().mockResolvedValue({}),
-    dispatchAfterToolCall: vi.fn().mockResolvedValue({}),
   };
 }
 
@@ -184,14 +120,55 @@ function makeMockLlmAdapter(): LlmAdapter {
   } as unknown as LlmAdapter;
 }
 
-function makeMockDeps(): AgentEngineDependencies {
+function makeMockPromptBuilder() {
   return {
-    configManager: makeMockConfigManager(),
-    toolRegistry: makeMockToolRegistry(),
-    roleManager: makeMockRoleManager(),
-    skillManager: makeMockSkillManager(),
-    toolHookDispatcher: makeMockToolHookDispatcher(),
-    llmAdapter: makeMockLlmAdapter(),
+    buildSystemPrompt: vi.fn().mockImplementation((role: RoleConfig, _ctx?: unknown) => {
+      return {
+        prompt: role.systemPrompt,
+        tools: [] as AgentTool[],
+      };
+    }),
+  };
+}
+
+function makeMockRunPolicy() {
+  return {
+    loadHistoryForTurn: vi.fn().mockResolvedValue([]),
+    prompt: vi.fn().mockImplementation(async (agent: Agent, content: string) => {
+      // 模拟 pi-agent-core 的行为：添加用户消息和助手响应
+      const userMessage: AgentMessage = {
+        role: 'user',
+        content,
+        timestamp: Date.now(),
+      };
+      const assistantMessage: AgentMessage = {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Real response from pi runtime' }],
+        api: 'openai-responses',
+        provider: 'openai',
+        model: 'gpt-4o',
+        usage: {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        stopReason: 'stop',
+        timestamp: Date.now(),
+      };
+      agent.state.messages = [...agent.state.messages, userMessage, assistantMessage];
+    }),
+  };
+}
+
+function makeMockDeps(): AgentEngineDependencies {
+  const llmAdapter = makeMockLlmAdapter();
+  return {
+    llmAdapter,
+    promptBuilder: makeMockPromptBuilder(),
+    runPolicy: makeMockRunPolicy(),
   };
 }
 
@@ -220,9 +197,10 @@ describe('AgentEngine', () => {
     it('should wire role-resolved tools into the runtime agent state', () => {
       const tool = makeAgentTool('search');
       const deps = makeMockDeps();
-      (deps.toolRegistry.resolveForRoleWithDefinitions as ReturnType<typeof vi.fn>).mockReturnValue(
-        { tools: [], agentTools: [tool] },
-      );
+      (deps.promptBuilder.buildSystemPrompt as ReturnType<typeof vi.fn>).mockReturnValue({
+        prompt: 'You are a test assistant.',
+        tools: [tool],
+      });
 
       const runtimeEngine = new AgentEngine();
       runtimeEngine.initialize(deps);
@@ -233,11 +211,7 @@ describe('AgentEngine', () => {
 
       expect(agent.state.tools).toHaveLength(1);
       expect(agent.state.tools[0]?.name).toBe('search');
-      expect(deps.toolRegistry.resolveForRoleWithDefinitions).toHaveBeenCalledWith(
-        role,
-        deps.toolHookDispatcher,
-        {},
-      );
+      expect(deps.promptBuilder.buildSystemPrompt).toHaveBeenCalledWith(role, undefined);
     });
 
     it('should have prompt, waitForIdle, and reset methods', () => {
@@ -281,9 +255,9 @@ describe('AgentEngine', () => {
       const deps = makeMockDeps();
       const initialTool = makeAgentTool('initial-tool');
       const refreshedTool = makeAgentTool('refreshed-tool');
-      (deps.toolRegistry.resolveForRoleWithDefinitions as ReturnType<typeof vi.fn>)
-        .mockReturnValueOnce({ tools: [], agentTools: [initialTool] })
-        .mockReturnValueOnce({ tools: [], agentTools: [refreshedTool] });
+      (deps.promptBuilder.buildSystemPrompt as ReturnType<typeof vi.fn>)
+        .mockReturnValueOnce({ prompt: role.systemPrompt, tools: [initialTool] })
+        .mockReturnValueOnce({ prompt: role.systemPrompt, tools: [refreshedTool] });
 
       const runtimeEngine = new AgentEngine();
       runtimeEngine.initialize(deps);
@@ -302,10 +276,9 @@ describe('AgentEngine', () => {
       expect(result.content).toBe('Real response from pi runtime');
       expect(agent.state.tools).toHaveLength(1);
       expect(agent.state.tools[0]?.name).toBe('refreshed-tool');
-      expect(deps.toolRegistry.resolveForRoleWithDefinitions).toHaveBeenNthCalledWith(
+      expect(deps.promptBuilder.buildSystemPrompt).toHaveBeenNthCalledWith(
         2,
         role,
-        deps.toolHookDispatcher,
         {
           sessionKey: makeInboundMessage().sessionKey,
           sendMessage: undefined,
@@ -330,9 +303,8 @@ describe('AgentEngine', () => {
 
       await runtimeEngine.process(agent, makeInboundMessage(), memory, role, sendMessage);
 
-      expect(deps.toolRegistry.resolveForRoleWithDefinitions).toHaveBeenLastCalledWith(
+      expect(deps.promptBuilder.buildSystemPrompt).toHaveBeenLastCalledWith(
         role,
-        deps.toolHookDispatcher,
         {
           sessionKey: makeInboundMessage().sessionKey,
           sendMessage,
@@ -400,12 +372,7 @@ describe('AgentEngine', () => {
     });
 
     it('should create an independent tool-disabled runtime using the current role model', async () => {
-      const tool = makeAgentTool('search');
       const deps = makeMockDeps();
-      (deps.toolRegistry.resolveForRoleWithDefinitions as ReturnType<typeof vi.fn>).mockReturnValue({
-        tools: [],
-        agentTools: [tool],
-      });
       const runtimeEngine = new AgentEngine();
       runtimeEngine.initialize(deps);
       const role = makeRole({ toolPermission: { mode: 'allowlist', list: ['search'] } });
@@ -424,13 +391,12 @@ describe('AgentEngine', () => {
         content: 'quick aside',
       });
 
-      expect(deps.toolRegistry.resolveForRoleWithDefinitions).toHaveBeenCalledWith(
+      expect(deps.promptBuilder.buildSystemPrompt).toHaveBeenCalledWith(
         expect.objectContaining({
           id: role.id,
           model: role.model,
           toolPermission: { mode: 'allowlist', list: [] },
         }),
-        deps.toolHookDispatcher,
         {
           sessionKey,
           toolPermission: { mode: 'allowlist', list: [] },

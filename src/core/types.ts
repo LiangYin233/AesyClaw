@@ -28,7 +28,16 @@ export const DIR_NAMES = {
   roles: 'roles',
   media: 'media',
   workspace: 'workspace',
+  /**
+   * 内置 skills 目录（项目根目录下）。
+   * 实际路径由 PathResolver 基于 root 解析为 `<project>/skills/`。
+   */
   skills: 'skills',
+  /**
+   * 用户自定义 skills 目录（运行时目录下）。
+   * 常量值与 `skills` 相同，但基路径不同：
+   * PathResolver 基于 runtimeRoot 解析为 `<project>/.aesyclaw/skills/`。
+   */
   userSkills: 'skills',
   systemSkills: 'skills/system',
   extensions: 'extensions',

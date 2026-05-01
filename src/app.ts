@@ -3,6 +3,8 @@
 import { mkdirSync } from 'node:fs';
 import { AgentEngine } from './agent/agent-engine';
 import { LlmAdapter } from './agent/llm-adapter';
+import { PromptBuilder } from './agent/prompt-builder';
+import { AgentRunPolicy } from './agent/agent-run-policy';
 import { SessionManager } from './agent/session-manager';
 import { ChannelManager } from './channel/channel-manager';
 import { ChannelLoader } from './channel/channel-loader';
@@ -144,13 +146,20 @@ export class Application {
     });
 
     await this.startStep('Agent 引擎初始化', async () => {
-      this.agentEngine.initialize({
-        configManager: this.configManager,
-        toolRegistry: this.toolRegistry,
+      const promptBuilder = new PromptBuilder({
         roleManager: this.roleManager,
         skillManager: this.skillManager,
+        toolRegistry: this.toolRegistry,
         toolHookDispatcher: this.pipeline.getToolHookDispatcher(),
+      });
+      const runPolicy = new AgentRunPolicy({
+        configManager: this.configManager,
         llmAdapter: this.llmAdapter,
+      });
+      this.agentEngine.initialize({
+        llmAdapter: this.llmAdapter,
+        promptBuilder,
+        runPolicy,
       });
     });
 
