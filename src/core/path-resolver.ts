@@ -17,7 +17,6 @@ export class PathResolver {
   private _mediaDir: string = '';
   private _workspaceDir: string = '';
   private _skillsDir: string = '';
-  private _systemSkillsDir: string = '';
   private _userSkillsDir: string = '';
   private _extensionsDir: string = '';
 
@@ -35,7 +34,6 @@ export class PathResolver {
     this._mediaDir = path.join(this._runtimeRoot, DIR_NAMES.media);
     this._workspaceDir = path.join(this._runtimeRoot, DIR_NAMES.workspace);
     this._skillsDir = path.join(root, DIR_NAMES.skills);
-    this._systemSkillsDir = path.join(root, DIR_NAMES.systemSkills);
     this._userSkillsDir = path.join(this._runtimeRoot, DIR_NAMES.userSkills);
     this._extensionsDir = path.join(root, DIR_NAMES.extensions);
   }
@@ -74,10 +72,6 @@ export class PathResolver {
    */
   get skillsDir(): string {
     return this._skillsDir;
-  }
-
-  get systemSkillsDir(): string {
-    return this._systemSkillsDir;
   }
 
   get extensionsDir(): string {

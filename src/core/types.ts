@@ -39,7 +39,6 @@ export const DIR_NAMES = {
    * PathResolver 基于 runtimeRoot 解析为 `<project>/.aesyclaw/skills/`。
    */
   userSkills: 'skills',
-  systemSkills: 'skills/system',
   extensions: 'extensions',
 } as const;
 
