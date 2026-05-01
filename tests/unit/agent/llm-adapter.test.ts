@@ -226,7 +226,7 @@ describe('LlmAdapter', () => {
           messages: [
             expect.objectContaining({
               role: 'user',
-              content: expect.stringContaining('Summarize the following conversation'),
+              content: expect.stringContaining('Conversation transcript:'),
             }),
           ],
         }),

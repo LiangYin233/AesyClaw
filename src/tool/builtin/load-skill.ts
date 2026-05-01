@@ -39,7 +39,7 @@ const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
 export function createLoadSkillTool(deps: LoadSkillDeps): AesyClawTool {
   return {
     name: 'load_skill',
-    description: '读取已加载技能目录中的文本文件',
+    description: '读取技能',
     parameters: LoadSkillParamsSchema,
     owner: 'system' as ToolOwner,
     execute: async (

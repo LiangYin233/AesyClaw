@@ -99,7 +99,7 @@ describe('built-in commands', () => {
     const { registry, deps } = createRegistry();
     const context = makeContext();
 
-    await expect(registry.execute('/compact', context)).resolves.toContain('压缩摘要');
+    await expect(registry.execute('/compact', context)).resolves.toBe('会话已压缩完成。');
     expect(deps.sessionManager.compactSession).toHaveBeenCalledWith(context.sessionKey);
   });
 

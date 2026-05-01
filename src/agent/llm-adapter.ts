@@ -167,7 +167,24 @@ export class LlmAdapter {
         model,
         {
           systemPrompt:
-            'You compact conversation history for future turns. Produce a concise plain-text summary that preserves user goals, constraints, decisions, important facts, and unresolved follow-ups. Do not mention missing context or that you are summarizing.',
+            [
+              'You are a conversation archivist. Summarize the following dialogue into a compact record for future turns.',
+              'Output ONLY the summary in the following structure, using plain text:',
+              '',
+              '## Previous Discussion',
+              '- What has already been discussed with the user (topics, decisions made, conclusions reached)',
+              '',
+              '## Current Focus',
+              '- What is being worked on or discussed right now (the active task or question)',
+              '',
+              '## Next Steps',
+              '- What remains to be done, unresolved questions, or pending follow-ups',
+              '',
+              '## Notes',
+              '- Special constraints, important facts, user preferences, tool results, file paths, or any context critical for continuity',
+              '',
+              'Keep each section concise. Do not mention that you are summarizing or refer to missing context.',
+            ].join('\n'),
           messages: [
             {
               role: 'user',
@@ -301,9 +318,7 @@ export class LlmAdapter {
       .join('\n\n');
 
     return [
-      'Summarize the following conversation for future continuation.',
-      'Focus on enduring context: goals, requirements, constraints, decisions, and any pending follow-ups.',
-      'Keep it concise but specific.',
+      'Conversation transcript:',
       '',
       transcript,
     ].join('\n');

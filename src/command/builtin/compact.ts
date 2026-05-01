@@ -24,8 +24,8 @@ export function createCompactCommand(deps: CompactCommandDeps): CommandDefinitio
     description: '压缩当前会话历史以减少上下文长度',
     scope: 'system',
     execute: async (_args: string[], context: CommandContext): Promise<string> => {
-      const summary = await deps.sessionManager.compactSession(context.sessionKey);
-      return summary.length > 0 ? `当前会话已压缩：\n${summary}` : '当前会话已压缩。';
+      await deps.sessionManager.compactSession(context.sessionKey);
+      return '会话已压缩完成。';
     },
   };
 }
