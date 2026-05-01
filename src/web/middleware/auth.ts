@@ -1,8 +1,18 @@
 /** Bearer token 认证中间件。 */
 
 import { getCookie } from 'hono/cookie';
+import { timingSafeEqual } from 'node:crypto';
 import type { MiddlewareHandler } from 'hono';
 import type { ConfigManager } from '../../core/config/config-manager';
+
+function safeTokenEqual(provided: string, expected: string): boolean {
+  const providedBuf = Buffer.from(provided);
+  const expectedBuf = Buffer.from(expected);
+  if (providedBuf.length !== expectedBuf.length) {
+    return false;
+  }
+  return timingSafeEqual(providedBuf, expectedBuf);
+}
 
 /**
  * 创建 Bearer token 认证中间件。
@@ -22,13 +32,13 @@ export function createAuthMiddleware(configManager: ConfigManager): MiddlewareHa
     const header = c.req.header('Authorization');
     if (header && header.startsWith('Bearer ')) {
       const token = header.slice(7);
-      if (token === authToken) {
+      if (safeTokenEqual(token, authToken)) {
         return await next();
       }
     }
 
     const cookieToken = getCookie(c, 'aesyclaw_token');
-    if (cookieToken && cookieToken === authToken) {
+    if (cookieToken && safeTokenEqual(cookieToken, authToken)) {
       return await next();
     }
 

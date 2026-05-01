@@ -83,5 +83,16 @@ export function createRolesRouter(deps: WebUiManagerDependencies) {
     }
   });
 
+  router.delete('/:id', async (c) => {
+    const id = c.req.param('id');
+    try {
+      await deps.roleManager.deleteRole(id);
+      return c.json({ ok: true, data: null });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json({ ok: false, error: message }, 400);
+    }
+  });
+
   return router;
 }

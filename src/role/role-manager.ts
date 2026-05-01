@@ -6,7 +6,8 @@
  */
 
 import fs from 'node:fs';
-import { mkdirSync } from 'node:fs';
+import type { Dirent } from 'node:fs';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { Value } from '@sinclair/typebox/value';
@@ -37,11 +38,11 @@ export class RoleManager {
   async loadAll(rolesDir: string): Promise<void> {
     this.rolesDir = rolesDir;
 
-    mkdirSync(rolesDir, { recursive: true });
+    await mkdir(rolesDir, { recursive: true });
 
-    let entries: fs.Dirent[];
+    let entries: Dirent[];
     try {
-      entries = fs.readdirSync(rolesDir, { withFileTypes: true });
+      entries = await readdir(rolesDir, { withFileTypes: true });
     } catch (err) {
       logger.error(`读取角色目录失败: ${rolesDir}`, err);
       throw err;
@@ -57,7 +58,7 @@ export class RoleManager {
 
       const filePath = path.join(rolesDir, entry.name);
       try {
-        const role = this.parseRoleFile(filePath);
+        const role = await this.parseRoleFile(filePath);
         if (role) {
           const existingSource = loadedSources.get(role.id);
           if (existingSource) {
@@ -186,7 +187,7 @@ export class RoleManager {
       throw new AppError(`未找到角色 "${roleId}" 的文件`, 'CONFIG_VALIDATION');
     }
 
-    fs.writeFileSync(targetFile, JSON.stringify(roleData, null, 2), 'utf-8');
+    await writeFile(targetFile, JSON.stringify(roleData, null, 2), 'utf-8');
 
     // 更新内存缓存
     this.roles.set(roleId, roleData);
@@ -218,7 +219,7 @@ export class RoleManager {
 
     const filename = `${id}.json`;
     const filePath = path.join(this.rolesDir, filename);
-    fs.writeFileSync(filePath, JSON.stringify(validated, null, 2), 'utf-8');
+    await writeFile(filePath, JSON.stringify(validated, null, 2), 'utf-8');
 
     this.roles.set(id, validated);
     this.roleSources.set(id, filePath);
@@ -228,6 +229,34 @@ export class RoleManager {
     return validated;
   }
 
+  /**
+   * 删除角色及其源文件。
+   *
+   * @param roleId 要删除的角色 ID。
+   * @throws 角色目录未加载、角色不存在，或尝试删除 'default' 角色时抛出。
+   */
+  async deleteRole(roleId: string): Promise<void> {
+    if (!this.rolesDir) {
+      throw new AppError('角色未加载', 'CONFIG_VALIDATION');
+    }
+
+    if (roleId === 'default') {
+      throw new AppError('默认角色不可删除', 'CONFIG_VALIDATION');
+    }
+
+    const targetFile = this.roleSources.get(roleId);
+    if (!targetFile) {
+      throw new AppError(`未找到角色 "${roleId}"`, 'CONFIG_VALIDATION');
+    }
+
+    await rm(targetFile, { force: true });
+
+    this.roles.delete(roleId);
+    this.roleSources.delete(roleId);
+    this.notifyChanges();
+    logger.info('角色已删除', { roleId, file: targetFile });
+  }
+
   // ─── 私有辅助方法 ───────────────────────────────────────────
 
   /**
@@ -235,8 +264,8 @@ export class RoleManager {
    *
    * @returns 验证后的 `RoleConfig`，如果文件无效则返回 `null`。
    */
-  private parseRoleFile(filePath: string): RoleConfig | null {
-    const raw = fs.readFileSync(filePath, 'utf-8');
+  private async parseRoleFile(filePath: string): Promise<RoleConfig | null> {
+    const raw = await readFile(filePath, 'utf-8');
 
     let parsed: unknown;
     try {

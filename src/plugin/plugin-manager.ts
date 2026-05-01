@@ -17,7 +17,7 @@ import type {
 } from './plugin-types';
 import { isRecord, pluginOwner } from './plugin-types';
 
-const logger = createScopedLogger('plugin-loader');
+const logger = createScopedLogger('plugin-manager');
 
 export class PluginManager {
   private readonly configManager;
@@ -29,6 +29,7 @@ export class PluginManager {
   private readonly loadedPlugins = new Map<string, LoadedPlugin>();
   private readonly failedPlugins = new Map<string, string>();
   private readonly pluginChannels = new Map<string, Set<string>>();
+  private readonly moduleCache = new Map<string, PluginModule | null>();
   private reloading = false;
   private reloadPending = false;
   private reloadPromise: Promise<void> | null = null;
@@ -227,12 +228,11 @@ export class PluginManager {
     const pluginDirs = await this.pluginLoader.discover();
     for (const pluginDir of pluginDirs) {
       const directoryName = path.basename(pluginDir);
-      if (directoryName === nameOrAlias) {
-        return await this.safeLoadModule(pluginDir);
-      }
-
       const module = await this.safeLoadModule(pluginDir);
-      if (module && module.definition.name === nameOrAlias) {
+      if (!module) {
+        continue;
+      }
+      if (directoryName === nameOrAlias || module.definition.name === nameOrAlias) {
         return module;
       }
     }
@@ -253,6 +253,7 @@ export class PluginManager {
         do {
           this.reloadPending = false;
           await this.unloadAll();
+          this.moduleCache.clear();
           await this.loadAll();
         } while (this.reloadPending);
       } finally {
@@ -408,9 +409,15 @@ export class PluginManager {
   }
 
   private async safeLoadModule(pluginDir: string): Promise<PluginModule | null> {
+    if (this.moduleCache.has(pluginDir)) {
+      return this.moduleCache.get(pluginDir) ?? null;
+    }
     try {
-      return await this.pluginLoader.load(pluginDir);
+      const module = await this.pluginLoader.load(pluginDir);
+      this.moduleCache.set(pluginDir, module);
+      return module;
     } catch (err) {
+      this.moduleCache.set(pluginDir, null);
       this.failedPlugins.set(path.basename(pluginDir), errorMessage(err));
       logger.error('检查插件模块失败', err);
       return null;

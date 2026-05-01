@@ -50,6 +50,7 @@ export class Application {
   private webUiManager: WebUiManager;
   private unsubscribers: Unsubscribe[] = [];
   private started = false;
+  private shuttingDown = false;
 
   constructor() {
     this.pathResolver = new PathResolver();
@@ -276,6 +277,10 @@ export class Application {
   }
 
   async shutdown(): Promise<void> {
+    if (this.shuttingDown) {
+      return;
+    }
+    this.shuttingDown = true;
     logger.info('正在关闭 AesyClaw...');
 
     const steps: Array<() => Promise<void> | void> = [

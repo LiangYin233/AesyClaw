@@ -44,6 +44,7 @@ export class CronManager {
   private executor: CronExecutor | null = null;
   private scheduler: CronScheduler = new CronScheduler();
   private initialized = false;
+  private readonly inFlight = new Set<Promise<unknown>>();
 
   async initialize(dependencies: CronManagerDependencies): Promise<void> {
     if (this.initialized) {
@@ -75,6 +76,10 @@ export class CronManager {
 
   async destroy(): Promise<void> {
     this.scheduler.clearAll();
+    if (this.inFlight.size > 0) {
+      logger.info('等待进行中的定时任务完成', { count: this.inFlight.size });
+      await Promise.allSettled([...this.inFlight]);
+    }
     this.initialized = false;
     logger.info('CronManager 已销毁');
   }
@@ -143,9 +148,17 @@ export class CronManager {
 
   private schedule(job: CronJobRecord): void {
     this.scheduler.schedule(job, () => {
-      void this.executeScheduledJob(job.id).catch((err) => {
+      const run = this.executeScheduledJob(job.id).catch((err) => {
         logger.error(`定时任务 "${job.id}" 调度失败`, err);
       });
+      this.trackInFlight(run);
+    });
+  }
+
+  private trackInFlight(promise: Promise<unknown>): void {
+    this.inFlight.add(promise);
+    void promise.finally(() => {
+      this.inFlight.delete(promise);
     });
   }
 

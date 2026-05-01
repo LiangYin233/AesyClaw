@@ -11,7 +11,7 @@
  */
 
 import type { InboundMessage, PipelineResult } from '../core/types';
-import type { OnSendContext, ToolHookDispatcher } from './middleware/types';
+import type { BeforeLLMRequestContext, OnSendContext, ToolHookDispatcher } from './middleware/types';
 import type {
   BeforeToolCallHookContext,
   BeforeToolCallHookResult,
@@ -162,7 +162,7 @@ export class HookDispatcher implements ToolHookDispatcher {
     );
   }
 
-  async dispatchBeforeLLMRequest(context: unknown): Promise<PipelineResult> {
+  async dispatchBeforeLLMRequest(context: BeforeLLMRequestContext): Promise<PipelineResult> {
     return await dispatchHooks(
       this.entries,
       (hooks) => hooks.beforeLLMRequest,

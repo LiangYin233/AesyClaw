@@ -86,7 +86,7 @@ export class SubAgentSandbox {
     const resolvedModel = this.deps.llmAdapter.resolveModel(role.model);
     const memory = new MemoryManager(
       sessionId,
-      new InMemoryMessageRepository() as unknown as MessageRepositoryLike,
+      new InMemoryMessageRepository(),
       {
         maxContextTokens: resolvedModel.contextWindow,
         compressionThreshold: 0.8,
@@ -159,7 +159,7 @@ export class SubAgentSandbox {
   }
 }
 
-class InMemoryMessageRepository {
+class InMemoryMessageRepository implements MessageRepositoryLike {
   private messages: PersistableMessage[] = [];
 
   async save(_sessionId: string, message: PersistableMessage): Promise<void> {

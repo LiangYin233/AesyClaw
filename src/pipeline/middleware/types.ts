@@ -5,7 +5,7 @@
  * 当前状态并返回一个变异副本。
  */
 
-import type { InboundMessage, OutboundMessage, SessionKey } from '../../core/types';
+import type { InboundMessage, OutboundMessage, RoleConfig, SessionKey } from '../../core/types';
 import type { CommandRegistry } from '../../command/command-registry';
 
 /**
@@ -17,6 +17,20 @@ export type OnSendContext = {
 }
 import type { SessionContext, SessionManager } from '../../agent/session-manager';
 import type { AgentEngine } from '../../agent/agent-engine';
+import type { Agent } from '../../agent/agent-types';
+
+/**
+ * 传递给 beforeLLMRequest 钩子的上下文。
+ *
+ * 在 Pipeline 即将调用 Agent 处理消息前调度，
+ * 钩子可阻止本次调用或直接给出响应。
+ */
+export type BeforeLLMRequestContext = {
+  message: InboundMessage;
+  session: SessionContext;
+  agent: Agent;
+  role: RoleConfig;
+}
 
 // ─── 管道状态 ──────────────────────────────────────────────
 
@@ -68,7 +82,7 @@ type PipelineDependencies = {
  */
 type PluginHooks = {
   onReceive?(message: InboundMessage): Promise<PipelineResult>;
-  beforeLLMRequest?(context: unknown): Promise<PipelineResult>;
+  beforeLLMRequest?(context: BeforeLLMRequestContext): Promise<PipelineResult>;
   beforeToolCall?(context: BeforeToolCallHookContext): Promise<BeforeToolCallHookResult>;
   afterToolCall?(context: AfterToolCallHookContext): Promise<AfterToolCallHookResult>;
   onSend?(context: OnSendContext): Promise<PipelineResult>;

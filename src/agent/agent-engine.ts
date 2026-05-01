@@ -74,7 +74,6 @@ export class AgentEngine {
       role: role.id,
       model: role.model,
       toolCount: tools.length,
-      runtimeToolCount: tools.length,
     });
 
     return agent;
