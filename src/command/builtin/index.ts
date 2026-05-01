@@ -17,6 +17,7 @@ import type { PluginManager } from '../../plugin/plugin-manager';
 import { createHelpCommand } from './help';
 import { createClearCommand } from './clear';
 import { createCompactCommand } from './compact';
+import { createStopCommand } from './stop';
 import { createBtwCommand } from './btw';
 import {
   createRoleListCommand,
@@ -37,7 +38,7 @@ export type BuiltinCommandDependencies = {
   pluginManager: Pick<PluginManager, 'listPlugins' | 'enable' | 'disable'>;
   sessionManager: Pick<
     SessionManager,
-    'clearSession' | 'compactSession' | 'getOrCreateSession' | 'switchRole'
+    'clearSession' | 'compactSession' | 'getOrCreateSession' | 'switchRole' | 'getSession' | 'endAgentProcessing'
   >;
   agentEngine: Pick<AgentEngine, 'processEphemeral'>;
 }
@@ -67,6 +68,7 @@ export function registerBuiltinCommands(
   );
   registry.register(createClearCommand({ sessionManager: deps.sessionManager }));
   registry.register(createCompactCommand({ sessionManager: deps.sessionManager }));
+  registry.register(createStopCommand({ sessionManager: deps.sessionManager }));
   registry.register(createRoleListCommand(roleDeps));
   registry.register(createRoleSwitchCommand(roleDeps));
   registry.register(createRoleInfoCommand(roleDeps));

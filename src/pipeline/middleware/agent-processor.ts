@@ -25,7 +25,7 @@ export async function agentProcessor(
   state: PipelineState,
   agentEngine: AgentEngine,
   hookDispatcher: HookDispatcher,
-  sessionManager: Pick<SessionManager, 'tryBeginAgentProcessing' | 'endAgentProcessing'>,
+  sessionManager: Pick<SessionManager, 'tryBeginAgentProcessing' | 'endAgentProcessing' | 'isAgentProcessing'>,
 ): Promise<PipelineState> {
   const session: SessionContext | undefined = state.session;
 
@@ -66,6 +66,11 @@ export async function agentProcessor(
       session.activeRole,
       state.sendMessage,
     );
+
+    if (!sessionManager.isAgentProcessing(session.key)) {
+      return state;
+    }
+
     state.outbound = outbound;
   } finally {
     sessionManager.endAgentProcessing(session.key);

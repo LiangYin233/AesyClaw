@@ -29,55 +29,62 @@ function makeInboundForKey(
   return { sessionKey, content };
 }
 
-/** Create pipeline deps with real CommandRegistry */
-async function createPipelineDeps() {
-  // Mock SessionManager that returns a minimal session context
-  const mockSessionManager = {
-    getOrCreateSession: vi.fn().mockImplementation(async (sessionKey: InboundMessage['sessionKey']) => ({
-      key: sessionKey,
-      sessionId: 'test-session',
-      activeRole: {
-        id: 'default',
-        name: 'Default',
-        description: 'Test role',
-        systemPrompt: 'You are a test assistant.',
-        model: 'openai/gpt-4o',
-        toolPermission: { mode: 'allowlist' as const, list: ['*'] },
-        skills: ['*' as const],
-        enabled: true,
-      },
-      agent: {
-        state: {
+  /** Create pipeline deps with real CommandRegistry */
+  async function createPipelineDeps() {
+    // Mock SessionManager that returns a minimal session context
+    let processingSimulated = false;
+    const mockSessionManager = {
+      getOrCreateSession: vi.fn().mockImplementation(async (sessionKey: InboundMessage['sessionKey']) => ({
+        key: sessionKey,
+        sessionId: 'test-session',
+        activeRole: {
+          id: 'default',
+          name: 'Default',
+          description: 'Test role',
           systemPrompt: 'You are a test assistant.',
-          model: {
-            provider: 'openai',
-            modelId: 'gpt-4o',
-            contextWindow: 128000,
-            apiType: 'openai_responses',
-          },
-          tools: [],
-          messages: [],
+          model: 'openai/gpt-4o',
+          toolPermission: { mode: 'allowlist' as const, list: ['*'] },
+          skills: ['*' as const],
+          enabled: true,
         },
-        prompt: vi.fn(),
-        waitForIdle: vi.fn().mockResolvedValue(undefined),
-        reset: vi.fn(),
-      },
-      memory: {
-        loadHistory: vi.fn().mockResolvedValue([]),
-        persistMessage: vi.fn().mockResolvedValue(undefined),
-        syncFromAgent: vi.fn().mockResolvedValue(undefined),
-        compact: vi.fn().mockResolvedValue(''),
-        clear: vi.fn().mockResolvedValue(undefined),
-      },
-    })),
-    getSession: vi.fn().mockReturnValue(undefined),
-    clearSession: vi.fn().mockResolvedValue(undefined),
-    compactSession: vi.fn().mockResolvedValue(''),
-    switchRole: vi.fn().mockResolvedValue(undefined),
-    isAgentProcessing: vi.fn().mockReturnValue(false),
-    tryBeginAgentProcessing: vi.fn().mockReturnValue(true),
-    endAgentProcessing: vi.fn(),
-  } as unknown as SessionManager;
+        agent: {
+          state: {
+            systemPrompt: 'You are a test assistant.',
+            model: {
+              provider: 'openai',
+              modelId: 'gpt-4o',
+              contextWindow: 128000,
+              apiType: 'openai_responses',
+            },
+            tools: [],
+            messages: [],
+          },
+          prompt: vi.fn(),
+          waitForIdle: vi.fn().mockResolvedValue(undefined),
+          reset: vi.fn(),
+        },
+        memory: {
+          loadHistory: vi.fn().mockResolvedValue([]),
+          persistMessage: vi.fn().mockResolvedValue(undefined),
+          syncFromAgent: vi.fn().mockResolvedValue(undefined),
+          compact: vi.fn().mockResolvedValue(''),
+          clear: vi.fn().mockResolvedValue(undefined),
+        },
+      })),
+      getSession: vi.fn().mockReturnValue(undefined),
+      clearSession: vi.fn().mockResolvedValue(undefined),
+      compactSession: vi.fn().mockResolvedValue(''),
+      switchRole: vi.fn().mockResolvedValue(undefined),
+      isAgentProcessing: vi.fn().mockImplementation(() => processingSimulated),
+      tryBeginAgentProcessing: vi.fn().mockImplementation(() => {
+        if (processingSimulated) return false;
+        processingSimulated = true;
+        return true;
+      }),
+      endAgentProcessing: vi.fn().mockImplementation(() => {
+        processingSimulated = false;
+      }),
+    } as unknown as SessionManager;
 
   // Mock AgentEngine
   const mockAgentEngine = {
@@ -265,10 +272,28 @@ describe('Pipeline', () => {
 
     it('should not block different session keys while one session is busy', async () => {
       const deps = await createPipelineDeps();
-      const busyKey = { channel: 'test', type: 'private', chatId: 'user1' };
+      const busyKeyJson = JSON.stringify(['test', 'private', 'user1']);
+      const processingKeys = new Set<string>();
+
       (deps.sessionManager.isAgentProcessing as ReturnType<typeof vi.fn>).mockImplementation(
-        (key: InboundMessage['sessionKey']) =>
-          key.channel === busyKey.channel && key.type === busyKey.type && key.chatId === busyKey.chatId,
+        (key: InboundMessage['sessionKey']) => {
+          const k = JSON.stringify([key.channel, key.type, key.chatId]);
+          return k === busyKeyJson || processingKeys.has(k);
+        },
+      );
+      (deps.sessionManager.tryBeginAgentProcessing as ReturnType<typeof vi.fn>).mockImplementation(
+        (key: InboundMessage['sessionKey']) => {
+          const k = JSON.stringify([key.channel, key.type, key.chatId]);
+          if (k === busyKeyJson) return false;
+          if (processingKeys.has(k)) return false;
+          processingKeys.add(k);
+          return true;
+        },
+      );
+      (deps.sessionManager.endAgentProcessing as ReturnType<typeof vi.fn>).mockImplementation(
+        (key: InboundMessage['sessionKey']) => {
+          processingKeys.delete(JSON.stringify([key.channel, key.type, key.chatId]));
+        },
       );
       pipeline.initialize(deps);
 
