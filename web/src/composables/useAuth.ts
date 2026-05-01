@@ -2,7 +2,24 @@ import axios, { type AxiosInstance } from 'axios';
 import { ref } from 'vue';
 
 const TOKEN_KEY = 'aesyclaw_token';
-const token = ref<string | null>(sessionStorage.getItem(TOKEN_KEY));
+const COOKIE_MAX_AGE_DAYS = 30;
+
+function setCookie(name: string, value: string): void {
+  const maxAge = COOKIE_MAX_AGE_DAYS * 24 * 60 * 60;
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; SameSite=Strict; max-age=${maxAge}`;
+}
+
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
+function removeCookie(name: string): void {
+  document.cookie = `${name}=; path=/; max-age=0`;
+}
+
+const initialToken = sessionStorage.getItem(TOKEN_KEY) ?? getCookie(TOKEN_KEY);
+const token = ref<string | null>(initialToken);
 
 const api: AxiosInstance = axios.create({
   baseURL: '/api',
@@ -34,11 +51,13 @@ api.interceptors.response.use(
 function login(newToken: string): void {
   token.value = newToken;
   sessionStorage.setItem(TOKEN_KEY, newToken);
+  setCookie(TOKEN_KEY, newToken);
 }
 
 function logout(): void {
   token.value = null;
   sessionStorage.removeItem(TOKEN_KEY);
+  removeCookie(TOKEN_KEY);
 }
 
 export function useAuth() {

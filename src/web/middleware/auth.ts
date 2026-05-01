@@ -1,5 +1,6 @@
 /** Bearer token 认证中间件。 */
 
+import { getCookie } from 'hono/cookie';
 import type { MiddlewareHandler } from 'hono';
 import type { ConfigManager } from '../../core/config/config-manager';
 
@@ -19,15 +20,18 @@ export function createAuthMiddleware(configManager: ConfigManager): MiddlewareHa
     }
 
     const header = c.req.header('Authorization');
-    if (!header || !header.startsWith('Bearer ')) {
-      return c.json({ ok: false, error: '未授权' }, 401);
+    if (header && header.startsWith('Bearer ')) {
+      const token = header.slice(7);
+      if (token === authToken) {
+        return await next();
+      }
     }
 
-    const token = header.slice(7);
-    if (token !== authToken) {
-      return c.json({ ok: false, error: '无效的令牌' }, 401);
+    const cookieToken = getCookie(c, 'aesyclaw_token');
+    if (cookieToken && cookieToken === authToken) {
+      return await next();
     }
 
-    return await next();
+    return c.json({ ok: false, error: '未授权' }, 401);
   };
 }
