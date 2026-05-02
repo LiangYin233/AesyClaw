@@ -5,6 +5,7 @@ import type { SessionManager } from '../../../src/agent/session-manager';
 
 function makeState(rawEvent?: unknown): PipelineState {
   return {
+    stage: 'continue',
     inbound: {
       sessionKey: { channel: 'cron', type: 'job', chatId: 'job-1' },
       content: 'run cron',
@@ -16,6 +17,7 @@ function makeState(rawEvent?: unknown): PipelineState {
 
 function makeNonCronState(rawEvent?: unknown): PipelineState {
   return {
+    stage: 'continue',
     inbound: {
       sessionKey: { channel: 'test', type: 'private', chatId: 'user-1' },
       content: 'chat message',

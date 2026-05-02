@@ -16,7 +16,8 @@ import type {
   PluginModule,
   PluginStatus,
 } from './plugin-types';
-import { isRecord, pluginOwner } from './plugin-types';
+import { pluginOwner } from './plugin-types';
+import { isRecord } from '../core/utils';
 
 const logger = createScopedLogger('plugin-manager');
 

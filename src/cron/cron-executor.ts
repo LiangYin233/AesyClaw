@@ -1,6 +1,7 @@
 /** 定时任务执行器 — 记录定时任务运行并将任务注入管道。 */
 
 import type { CronJobRecord, InboundMessage, OutboundMessage, SessionKey } from '../core/types';
+import { parseSerializedSessionKey } from '../core/types';
 import { createScopedLogger } from '../core/logger';
 
 const logger = createScopedLogger('cron');
@@ -50,7 +51,7 @@ export class CronExecutor {
   async execute(job: CronJobRecord, sessionKeys?: CronExecutionSessionKeys): Promise<string> {
     const runId = await this.dependencies.cronRuns.create({ jobId: job.id });
     try {
-      const targetSessionKey = sessionKeys?.target ?? parseSessionKey(job.sessionKey);
+      const targetSessionKey = sessionKeys?.target ?? parseSerializedSessionKey(job.sessionKey);
       const contextSessionKey = sessionKeys?.context ?? createCronContextSessionKey(job.id);
       const outboundMessages: OutboundMessage[] = [];
       const inbound: InboundMessage = {
@@ -88,34 +89,6 @@ export function createCronContextSessionKey(jobId: string): SessionKey {
     channel: 'cron',
     type: 'job',
     chatId: jobId,
-  };
-}
-
-/**
- * 从 JSON 字符串解析会话键。
- *
- * @param value - JSON 序列化的会话键字符串
- * @returns 解析后的 SessionKey
- * @throws 如果 JSON 无效或缺少必要字段则抛出错误
- */
-export function parseSessionKey(value: string): SessionKey {
-  const parsed: unknown = JSON.parse(value);
-  if (
-    parsed === null ||
-    typeof parsed !== 'object' ||
-    Array.isArray(parsed) ||
-    typeof (parsed as Record<string, unknown>).channel !== 'string' ||
-    typeof (parsed as Record<string, unknown>).type !== 'string' ||
-    typeof (parsed as Record<string, unknown>).chatId !== 'string'
-  ) {
-    throw new Error('无效的定时任务会话键');
-  }
-
-  const record = parsed as Record<string, string>;
-  return {
-    channel: record.channel,
-    type: record.type,
-    chatId: record.chatId,
   };
 }
 

@@ -213,7 +213,7 @@ describe('Pipeline', () => {
     it('should return busy for a concurrent ordinary message in the same session', async () => {
       const deps = await createPipelineDeps();
       const busyKeys = new Set<string>();
-      const keyOf = (key: InboundMessage['sessionKey']) => JSON.stringify([key.channel, key.type, key.chatId]);
+      const keyOf = (key: InboundMessage['sessionKey']) => JSON.stringify({ channel: key.channel, type: key.type, chatId: key.chatId });
       (deps.sessionManager.isAgentProcessing as ReturnType<typeof vi.fn>).mockImplementation(
         (key: InboundMessage['sessionKey']) => busyKeys.has(keyOf(key)),
       );
@@ -269,18 +269,18 @@ describe('Pipeline', () => {
 
     it('should not block different session keys while one session is busy', async () => {
       const deps = await createPipelineDeps();
-      const busyKeyJson = JSON.stringify(['test', 'private', 'user1']);
+      const busyKeyJson = JSON.stringify({ channel: 'test', type: 'private', chatId: 'user1' });
       const processingKeys = new Set<string>();
 
       (deps.sessionManager.isAgentProcessing as ReturnType<typeof vi.fn>).mockImplementation(
         (key: InboundMessage['sessionKey']) => {
-          const k = JSON.stringify([key.channel, key.type, key.chatId]);
+          const k = JSON.stringify({ channel: key.channel, type: key.type, chatId: key.chatId });
           return k === busyKeyJson || processingKeys.has(k);
         },
       );
       (deps.sessionManager.tryBeginAgentProcessing as ReturnType<typeof vi.fn>).mockImplementation(
         (key: InboundMessage['sessionKey']) => {
-          const k = JSON.stringify([key.channel, key.type, key.chatId]);
+          const k = JSON.stringify({ channel: key.channel, type: key.type, chatId: key.chatId });
           if (k === busyKeyJson) return false;
           if (processingKeys.has(k)) return false;
           processingKeys.add(k);
@@ -289,7 +289,7 @@ describe('Pipeline', () => {
       );
       (deps.sessionManager.endAgentProcessing as ReturnType<typeof vi.fn>).mockImplementation(
         (key: InboundMessage['sessionKey']) => {
-          processingKeys.delete(JSON.stringify([key.channel, key.type, key.chatId]));
+          processingKeys.delete(JSON.stringify({ channel: key.channel, type: key.type, chatId: key.chatId }));
         },
       );
       pipeline.initialize(deps);

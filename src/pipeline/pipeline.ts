@@ -24,7 +24,6 @@ import type { SessionKey } from '../core/types';
 import type {
   PipelineDependencies,
   PipelineState,
-  PipelineStageResult,
   PluginHooks,
 } from './middleware/types';
 import { HookDispatcher } from './hook-dispatcher';
@@ -119,25 +118,29 @@ export class Pipeline extends BaseManager<PipelineDependencies> {
       }
 
       // 2. 顺序处理步骤
-      let state: PipelineState = { inbound: message };
+      let state: PipelineState = {
+        stage: 'continue',
+        inbound: message,
+      };
       state = await sessionResolver(state, deps.sessionManager);
 
       // 在会话解析后连接 sendMessage，以便 onSend 钩子获取会话键
-      state.sendMessage = async (outbound: OutboundMessage): Promise<boolean> =>
-        await this.dispatchOnSendAndDeliver(outbound, send, state.session?.key);
+      if (state.stage === 'continue') {
+        const sessionKey = state.session?.key;
+        state = {
+          ...state,
+          sendMessage: async (outbound: OutboundMessage): Promise<boolean> =>
+            await this.dispatchOnSendAndDeliver(outbound, send, sessionKey),
+        };
+      }
 
       state = await commandDetector(state, deps.commandRegistry, deps.sessionManager);
-      const afterCommand = this.checkState(state);
-      if (afterCommand.stage === 'respond') {
-        await this.dispatchOnSendAndDeliver(
-          afterCommand.outbound,
-          send,
-          state.session?.key,
-        );
+      if (state.stage === 'respond') {
+        await this.dispatchOnSendAndDeliver(state.outbound, send, state.session?.key);
         return;
       }
-      if (afterCommand.stage === 'blocked') {
-        logger.info('管道被阻止', { reason: afterCommand.reason });
+      if (state.stage === 'blocked') {
+        logger.info('管道被阻止', { reason: state.reason });
         return;
       }
 
@@ -169,17 +172,12 @@ export class Pipeline extends BaseManager<PipelineDependencies> {
 
       // 4. Agent 处理
       state = await agentProcessor(state, deps.agentEngine, deps.sessionManager);
-      const afterAgent = this.checkState(state);
-      if (afterAgent.stage === 'respond') {
-        await this.dispatchOnSendAndDeliver(
-          afterAgent.outbound,
-          send,
-          state.session?.key,
-        );
+      if (state.stage === 'respond') {
+        await this.dispatchOnSendAndDeliver(state.outbound, send, state.session?.key);
         return;
       }
-      if (afterAgent.stage === 'blocked') {
-        logger.info('管道被阻止', { reason: afterAgent.reason });
+      if (state.stage === 'blocked') {
+        logger.info('管道被阻止', { reason: state.reason });
         return;
       }
     } catch (err) {
@@ -189,19 +187,6 @@ export class Pipeline extends BaseManager<PipelineDependencies> {
   }
 
   // ─── 私有辅助方法 ───────────────────────────────────────────
-
-  /**
-   * 将管道状态转换为明确的阶段结果。
-   */
-  private checkState(state: PipelineState): PipelineStageResult {
-    if (state.blocked) {
-      return { stage: 'blocked', reason: state.blockReason ?? '管道被阻止' };
-    }
-    if (state.outbound) {
-      return { stage: 'respond', outbound: state.outbound };
-    }
-    return { stage: 'continue', state };
-  }
 
   /**
    * 调度 onSend 钩子，如果未被阻止，则投递出站消息。

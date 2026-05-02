@@ -245,6 +245,28 @@ export type CommandDefinition = {
 /** 命令执行函数签名 */
 export type CommandExecuteFn = (args: string[], context: CommandContext) => Promise<string>;
 
+// ─── SessionKey 序列化 ────────────────────────────────────────────
+
+export function serializeSessionKey(key: SessionKey): string {
+  return JSON.stringify({ channel: key.channel, type: key.type, chatId: key.chatId });
+}
+
+export function parseSerializedSessionKey(value: string): SessionKey {
+  const parsed: unknown = JSON.parse(value);
+  if (
+    parsed === null ||
+    typeof parsed !== 'object' ||
+    Array.isArray(parsed) ||
+    typeof (parsed as Record<string, unknown>).channel !== 'string' ||
+    typeof (parsed as Record<string, unknown>).type !== 'string' ||
+    typeof (parsed as Record<string, unknown>).chatId !== 'string'
+  ) {
+    throw new Error(`无效的 SessionKey 序列化: ${value}`);
+  }
+  const record = parsed as Record<string, string>;
+  return { channel: record.channel, type: record.type, chatId: record.chatId };
+}
+
 // ─── 实用类型 (utility-types) ─────────────────────────────────────
 
 /** 递归地将所有属性设为可选 */

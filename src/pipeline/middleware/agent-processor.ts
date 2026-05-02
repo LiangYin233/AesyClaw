@@ -33,17 +33,18 @@ export async function agentProcessor(
   agentEngine: AgentEngine,
   sessionManager: Pick<SessionManager, 'tryBeginAgentProcessing' | 'endAgentProcessing' | 'isAgentProcessing'>,
 ): Promise<PipelineState> {
-  const session: SessionContext | undefined = state.session;
-
-  if (!session) {
-    // 无会话上下文 — 跳过 Agent 处理
-    state.outbound = { content: '[错误: 无可用会话上下文]' };
+  if (state.stage !== 'continue') {
     return state;
   }
 
+  const session: SessionContext | undefined = state.session;
+
+  if (!session) {
+    return { ...state, stage: 'respond', outbound: { content: '[错误: 无可用会话上下文]' } };
+  }
+
   if (!sessionManager.tryBeginAgentProcessing(session.key)) {
-    state.outbound = { content: AGENT_PROCESSING_BUSY_MESSAGE };
-    return state;
+    return { ...state, stage: 'respond', outbound: { content: AGENT_PROCESSING_BUSY_MESSAGE } };
   }
 
   try {
@@ -59,10 +60,8 @@ export async function agentProcessor(
       return state;
     }
 
-    state.outbound = outbound;
+    return { ...state, stage: 'respond', outbound };
   } finally {
     sessionManager.endAgentProcessing(session.key);
   }
-
-  return state;
 }

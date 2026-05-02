@@ -10,6 +10,7 @@
  */
 
 import type { SessionKey, RoleConfig } from '../core/types';
+import { serializeSessionKey } from '../core/types';
 import type { DatabaseManager } from '../core/database/database-manager';
 import type { RoleManager } from '../role/role-manager';
 import type { ConfigManager } from '../core/config/config-manager';
@@ -65,14 +66,6 @@ export class SessionManager extends BaseManager<SessionManagerDependencies> {
 
   // ─── 会话解析 ───────────────────────────────────────
 
-  /**
-   * 从 SessionKey 计算缓存键字符串。
-   *
-   * 使用分隔符连接各组件，并对值内的分隔符和反斜杠进行转义以避免冲突。
-   */
-  private computeKey(key: SessionKey): string {
-    return JSON.stringify([key.channel, key.type, key.chatId]);
-  }
 
   /**
    * 获取或创建给定 SessionKey 的会话上下文。
@@ -91,7 +84,7 @@ export class SessionManager extends BaseManager<SessionManagerDependencies> {
   async getOrCreateSession(key: SessionKey): Promise<SessionContext> {
     this.assertInitialized();
 
-    const cacheKey = this.computeKey(key);
+    const cacheKey = serializeSessionKey(key);
 
     // 检查现有会话
     const existing = this.sessions.get(cacheKey);
@@ -178,16 +171,16 @@ export class SessionManager extends BaseManager<SessionManagerDependencies> {
    * @param key - 要查找的会话键
    */
   getSession(key: SessionKey): SessionContext | undefined {
-    const cacheKey = this.computeKey(key);
+    const cacheKey = serializeSessionKey(key);
     return this.sessions.get(cacheKey);
   }
 
   isAgentProcessing(key: SessionKey): boolean {
-    return this.agentProcessingSessions.has(this.computeKey(key));
+    return this.agentProcessingSessions.has(serializeSessionKey(key));
   }
 
   tryBeginAgentProcessing(key: SessionKey): boolean {
-    const cacheKey = this.computeKey(key);
+    const cacheKey = serializeSessionKey(key);
     if (this.agentProcessingSessions.has(cacheKey)) {
       return false;
     }
@@ -197,7 +190,7 @@ export class SessionManager extends BaseManager<SessionManagerDependencies> {
   }
 
   endAgentProcessing(key: SessionKey): void {
-    this.agentProcessingSessions.delete(this.computeKey(key));
+    this.agentProcessingSessions.delete(serializeSessionKey(key));
   }
 
   /**
@@ -226,7 +219,7 @@ export class SessionManager extends BaseManager<SessionManagerDependencies> {
   async clearSession(key: SessionKey): Promise<void> {
     this.assertInitialized();
 
-    const cacheKey = this.computeKey(key);
+    const cacheKey = serializeSessionKey(key);
     const session = this.sessions.get(cacheKey);
 
     if (session) {
@@ -249,7 +242,7 @@ export class SessionManager extends BaseManager<SessionManagerDependencies> {
   async resetSession(key: SessionKey): Promise<void> {
     const deps = this.getDeps();
 
-    const cacheKey = this.computeKey(key);
+    const cacheKey = serializeSessionKey(key);
     const sessionRecord = await deps.databaseManager.sessions.findOrCreate(key);
     const defaultRole = deps.roleManager.getDefaultRole();
 
@@ -272,7 +265,7 @@ export class SessionManager extends BaseManager<SessionManagerDependencies> {
   async compactSession(key: SessionKey): Promise<string> {
     this.assertInitialized();
 
-    const cacheKey = this.computeKey(key);
+    const cacheKey = serializeSessionKey(key);
     const session = this.sessions.get(cacheKey);
 
     if (!session) {
@@ -298,7 +291,7 @@ export class SessionManager extends BaseManager<SessionManagerDependencies> {
   async switchRole(key: SessionKey, roleId: string): Promise<void> {
     const deps = this.getDeps();
 
-    const cacheKey = this.computeKey(key);
+    const cacheKey = serializeSessionKey(key);
     const session = this.sessions.get(cacheKey);
 
     if (!session) {

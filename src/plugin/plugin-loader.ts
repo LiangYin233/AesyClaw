@@ -8,7 +8,8 @@ import {
   resolveExtensionEntry,
 } from '../extensions/extension-loader';
 import type { PluginLoaderOptions, PluginModule } from './plugin-types';
-import { isPluginDefinition, isRecord } from './plugin-types';
+import { isPluginDefinition } from './plugin-types';
+import { isRecord } from '../core/utils';
 
 const logger = createScopedLogger('plugin-loader');
 

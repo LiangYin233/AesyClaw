@@ -20,12 +20,15 @@ export async function sessionResolver(
   state: PipelineState,
   sessionManager: SessionManager,
 ): Promise<PipelineState> {
+  if (state.stage !== 'continue') {
+    return state;
+  }
+
   if (isCronContextRun(state.inbound.sessionKey, state.inbound.rawEvent)) {
     await sessionManager.resetSession(state.inbound.sessionKey);
   }
 
-  state.session = await sessionManager.getOrCreateSession(state.inbound.sessionKey);
-  return state;
+  return { ...state, session: await sessionManager.getOrCreateSession(state.inbound.sessionKey) };
 }
 
 function isCronContextRun(

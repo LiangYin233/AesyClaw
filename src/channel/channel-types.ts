@@ -4,6 +4,7 @@ import type { InboundMessage, OutboundMessage, SendFn, SessionKey } from '../cor
 import type { Logger } from '../core/logger';
 import type { ConfigManager } from '../core/config/config-manager';
 import type { Pipeline } from '../pipeline/pipeline';
+import { isRecord } from '../core/utils';
 
 export type ChannelContext = {
   name: string;
@@ -54,16 +55,6 @@ export type ChannelModule = {
   directory: string;
   directoryName: string;
   entryPath: string;
-}
-
-/**
- * 检查值是否为普通对象（非 null、非数组）。
- *
- * @param value - 要检查的值
- * @returns 如果是 Record<string, unknown> 则返回 true
- */
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 /**

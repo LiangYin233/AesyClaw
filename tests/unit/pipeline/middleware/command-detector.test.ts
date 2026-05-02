@@ -22,7 +22,7 @@ function makeInbound(content: string): InboundMessage {
 }
 
 function makeState(content: string): PipelineState {
-  return { inbound: makeInbound(content) };
+  return { stage: 'continue', inbound: makeInbound(content) };
 }
 
 function makeSessionManager(isBusy = false): Pick<SessionManager, 'isAgentProcessing'> {
@@ -32,9 +32,9 @@ function makeSessionManager(isBusy = false): Pick<SessionManager, 'isAgentProces
 }
 
 function expectOutboundContent(state: PipelineState): string {
-  expect(state.outbound).toBeDefined();
-  if (!state.outbound) {
-    throw new Error('Expected outbound message to be set');
+  expect(state.stage).toBe('respond');
+  if (state.stage !== 'respond') {
+    throw new Error('Expected respond stage');
   }
   return state.outbound.content;
 }
@@ -69,15 +69,14 @@ describe('commandDetector', () => {
       const state = makeState('just a regular message');
       const result = await commandDetector(state, registry, makeSessionManager());
 
-      expect(result.outbound).toBeUndefined();
+      expect(result.stage).toBe('continue');
     });
 
     it('should pass through messages that start with / but are not registered commands', async () => {
       const state = makeState('/unknown');
       const result = await commandDetector(state, registry, makeSessionManager());
 
-      // isCommand returns false for unregistered commands, so it passes through
-      expect(result.outbound).toBeUndefined();
+      expect(result.stage).toBe('continue');
     });
 
     it('should execute a namespaced command', async () => {
@@ -184,8 +183,7 @@ describe('commandDetector', () => {
       const state = makeState('/nonexistent');
       const result = await commandDetector(state, registry, makeSessionManager());
 
-      // isCommand returns false, so passes through with no outbound
-      expect(result.outbound).toBeUndefined();
+      expect(result.stage).toBe('continue');
     });
   });
 });

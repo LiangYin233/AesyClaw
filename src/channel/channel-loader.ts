@@ -8,7 +8,8 @@ import {
   resolveExtensionEntry,
 } from '../extensions/extension-loader';
 import type { ChannelLoaderOptions, ChannelModule, ChannelPlugin } from './channel-types';
-import { isChannelPlugin, isRecord } from './channel-types';
+import { isChannelPlugin } from './channel-types';
+import { isRecord } from '../core/utils';
 
 const logger = createScopedLogger('channel-loader');
 

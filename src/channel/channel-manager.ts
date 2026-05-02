@@ -13,7 +13,8 @@ import type {
   ChannelStatus,
   LoadedChannel,
 } from './channel-types';
-import { isChannelEnabled, isRecord } from './channel-types';
+import { isChannelEnabled } from './channel-types';
+import { isRecord } from '../core/utils';
 
 const logger = createScopedLogger('channel-manager');
 

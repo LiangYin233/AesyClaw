@@ -41,25 +41,39 @@ export type BeforeLLMRequestContext = {
 
 // ─── 管道状态 ──────────────────────────────────────────────
 
-/**
- * 流经管道处理步骤的状态对象。
- *
- * 每个步骤可以在传递前读取并改变状态。
- */
-type PipelineState = {
+type PipelineStateBase = {
   /** 进入管道的入站消息 */
   inbound: InboundMessage;
-  /** 出站响应，如果由某个步骤生成 */
-  outbound?: OutboundMessage;
   /** 用于工具执行的支持 onSend 的出站投递回调 */
   sendMessage?: (message: OutboundMessage) => Promise<boolean>;
+}
+
+type PipelineStateContinue = PipelineStateBase & {
+  stage: 'continue';
   /** 为入站消息解析的会话上下文 */
   session?: SessionContext;
-  /** 管道是否应停止处理 */
-  blocked?: boolean;
-  /** 阻止的原因，如果被阻止 */
-  blockReason?: string;
 }
+
+type PipelineStateBlocked = PipelineStateBase & {
+  stage: 'blocked';
+  reason: string;
+}
+
+type PipelineStateRespond = PipelineStateBase & {
+  stage: 'respond';
+  outbound: OutboundMessage;
+  session?: SessionContext;
+}
+
+/**
+ * 流经管道处理步骤的判别联合状态。
+ *
+ * `stage` 字段决定当前状态，TypeScript 可据此收窄类型：
+ * - 'continue' — 尚无终止结果，后续步骤应继续
+ * - 'blocked'  — 管道被阻止，附带原因
+ * - 'respond'  — 已有出站响应，管道应终止并投递
+ */
+type PipelineState = PipelineStateContinue | PipelineStateBlocked | PipelineStateRespond;
 
 // ─── 管道依赖 ───────────────────────────────────────
 
@@ -94,10 +108,5 @@ type PluginHooks = {
   afterToolCall?(context: AfterToolCallHookContext): Promise<AfterToolCallHookResult>;
   onSend?(context: OnSendContext): Promise<PipelineResult>;
 }
-
-export type PipelineStageResult =
-  | { stage: 'blocked'; reason: string }
-  | { stage: 'respond'; outbound: OutboundMessage }
-  | { stage: 'continue'; state: PipelineState };
 
 export type { PipelineState, PipelineDependencies, PluginHooks };

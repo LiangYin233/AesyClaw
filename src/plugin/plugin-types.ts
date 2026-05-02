@@ -17,6 +17,7 @@ import type { HookDispatcher } from '../pipeline/hook-dispatcher';
 import type { PluginHooks } from '../pipeline/middleware/types';
 import type { PluginLoader } from './plugin-loader';
 import type { ConfigManager } from '../core/config/config-manager';
+import { isRecord } from '../core/utils';
 
 export type PluginOwner = `plugin:${string}`;
 
@@ -89,22 +90,10 @@ export type PluginConfigLookup = {
 
 export { type PluginHooks };
 
-/**
- * 根据插件名称生成插件所有者标识符。
- *
- * @param pluginName - 插件名称
- * @returns `plugin:${pluginName}` 格式的所有者标识
- */
 export function pluginOwner(pluginName: string): PluginOwner {
   return `plugin:${pluginName}`;
 }
 
-/**
- * 检查未知值是否符合 PluginDefinition 结构。
- *
- * @param value - 要检查的值
- * @returns 如果是有效的 PluginDefinition 则返回 true
- */
 export function isPluginDefinition(value: unknown): value is PluginDefinition {
   if (!isRecord(value)) {
     return false;
@@ -120,14 +109,4 @@ export function isPluginDefinition(value: unknown): value is PluginDefinition {
     (value.description === undefined || typeof value.description === 'string') &&
     (value.defaultConfig === undefined || isRecord(value.defaultConfig))
   );
-}
-
-/**
- * 检查值是否为普通对象（非 null、非数组）。
- *
- * @param value - 要检查的值
- * @returns 如果是 Record<string, unknown> 则返回 true
- */
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }

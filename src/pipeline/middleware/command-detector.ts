@@ -30,12 +30,15 @@ export async function commandDetector(
   commandRegistry: CommandRegistry,
   sessionManager: Pick<SessionManager, 'isAgentProcessing'>,
 ): Promise<PipelineState> {
+  if (state.stage !== 'continue') {
+    return state;
+  }
+
   const resolved = commandRegistry.resolve(state.inbound.content);
   const isBusy = sessionManager.isAgentProcessing(state.inbound.sessionKey);
 
   if (isBusy && (!resolved || !resolved.command.allowDuringAgentProcessing)) {
-    state.outbound = { content: AGENT_PROCESSING_BUSY_MESSAGE };
-    return state;
+    return { ...state, stage: 'respond', outbound: { content: AGENT_PROCESSING_BUSY_MESSAGE } };
   }
 
   if (!resolved) {
@@ -47,7 +50,5 @@ export async function commandDetector(
   };
 
   const result = await commandRegistry.executeResolved(resolved, commandContext);
-  state.outbound = { content: result };
-
-  return state;
+  return { ...state, stage: 'respond', outbound: { content: result } };
 }

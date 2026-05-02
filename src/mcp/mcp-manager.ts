@@ -3,7 +3,7 @@
 import { Type, type TSchema } from '@sinclair/typebox';
 import { createScopedLogger } from '../core/logger';
 import { BaseManager } from '../core/base-manager';
-import { errorMessage } from '../core/utils';
+import { errorMessage, isRecord } from '../core/utils';
 import { SerialExecutor } from '../utils/serial-executor';
 import type { McpServerConfig } from '../core/config/schema';
 import type { DeepPartial, ToolOwner } from '../core/types';
@@ -329,10 +329,6 @@ function isMcpInputSchema(value: unknown): value is Record<string, unknown> {
   return isRecord(value) && value.type === 'object';
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
 async function closeQuietly(client: McpClient, serverName: string): Promise<void> {
   try {
     await client.close();
@@ -342,7 +338,9 @@ async function closeQuietly(client: McpClient, serverName: string): Promise<void
 }
 
 class EmptyMcpClient implements McpClient {
-  async connect(): Promise<void> {}
+  async connect(): Promise<void> {
+    logger.warn('EmptyMcpClient.connect() 被调用 — MCP 客户端工厂未配置，所有 MCP 操作为空操作');
+  }
   async listTools(): Promise<McpToolDefinition[]> {
     return [];
   }
@@ -353,7 +351,12 @@ class EmptyMcpClient implements McpClient {
 }
 
 class EmptyMcpClientFactory implements McpClientFactory {
+  private warned = false;
   create(): McpClient {
+    if (!this.warned) {
+      this.warned = true;
+      logger.warn('McpManager 未注入 clientFactory — 使用空客户端工厂；所有 MCP 连接/工具调用将被静默忽略');
+    }
     return new EmptyMcpClient();
   }
 }

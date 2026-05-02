@@ -8,6 +8,7 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type { CronJobRecord, CronRunRecord, SessionKey } from '../../types';
+import { serializeSessionKey } from '../../types';
 
 // ─── 行类型辅助函数 ─────────────────────────────────────────────
 
@@ -69,7 +70,7 @@ export async function createCronJob(
   },
 ): Promise<string> {
   const id = randomUUID();
-  const sessionKeyJson = JSON.stringify(params.sessionKey);
+  const sessionKeyJson = serializeSessionKey(params.sessionKey);
   const nextRunStr = params.nextRun?.toISOString() ?? null;
   const now = new Date().toISOString();
 

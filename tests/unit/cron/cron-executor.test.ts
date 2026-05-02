@@ -2,9 +2,9 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   CronExecutor,
   createCronContextSessionKey,
-  parseSessionKey,
   formatResult,
 } from '../../../src/cron/cron-executor';
+import { parseSerializedSessionKey } from '../../../src/core/types';
 import type { CronJobRecord } from '../../../src/core/types';
 
 function makeJob(overrides: Partial<CronJobRecord> = {}): CronJobRecord {
@@ -20,32 +20,32 @@ function makeJob(overrides: Partial<CronJobRecord> = {}): CronJobRecord {
   };
 }
 
-describe('parseSessionKey', () => {
+describe('parseSerializedSessionKey', () => {
   it('should parse a valid session key JSON', () => {
     const json = JSON.stringify({ channel: 'onebot', type: 'group', chatId: '999' });
-    const result = parseSessionKey(json);
+    const result = parseSerializedSessionKey(json);
     expect(result).toEqual({ channel: 'onebot', type: 'group', chatId: '999' });
   });
 
   it('should throw for non-object parsed values', () => {
-    expect(() => parseSessionKey('"string"')).toThrow('无效的定时任务会话键');
-    expect(() => parseSessionKey('42')).toThrow('无效的定时任务会话键');
-    expect(() => parseSessionKey('null')).toThrow('无效的定时任务会话键');
+    expect(() => parseSerializedSessionKey('"string"')).toThrow('无效的 SessionKey');
+    expect(() => parseSerializedSessionKey('42')).toThrow('无效的 SessionKey');
+    expect(() => parseSerializedSessionKey('null')).toThrow('无效的 SessionKey');
   });
 
   it('should throw for arrays', () => {
-    expect(() => parseSessionKey('[]')).toThrow('无效的定时任务会话键');
+    expect(() => parseSerializedSessionKey('[]')).toThrow('无效的 SessionKey');
   });
 
   it('should throw when required fields are missing', () => {
-    expect(() => parseSessionKey('{}')).toThrow('无效的定时任务会话键');
-    expect(() => parseSessionKey(JSON.stringify({ channel: 'c', type: 't' }))).toThrow(
-      '无效的定时任务会话键',
+    expect(() => parseSerializedSessionKey('{}')).toThrow('无效的 SessionKey');
+    expect(() => parseSerializedSessionKey(JSON.stringify({ channel: 'c', type: 't' }))).toThrow(
+      '无效的 SessionKey',
     );
   });
 
   it('should throw for invalid JSON', () => {
-    expect(() => parseSessionKey('not-json')).toThrow();
+    expect(() => parseSerializedSessionKey('not-json')).toThrow();
   });
 });
 
