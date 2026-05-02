@@ -194,19 +194,25 @@ const chartData = computed(() => {
 });
 
 const toolChartData = computed(() => {
-  const nameMap = new Map<string, number>();
+  const nameMap = new Map<string, { type: string; name: string; count: number }>();
   for (const row of toolData.value) {
     const key = `${row.type}:${row.name}`;
     const existing = nameMap.get(key);
-    nameMap.set(key, (existing ?? 0) + row.count);
+    if (existing) {
+      existing.count += row.count;
+    } else {
+      nameMap.set(key, { type: row.type, name: row.name, count: row.count });
+    }
   }
-  return [...nameMap.entries()]
-    .sort((a, b) => b[1] - a[1])
+  return [...nameMap.values()]
+    .sort((a, b) => b.count - a.count)
     .slice(0, 15)
-    .map(([key, count]) => {
-      const [type, name] = key.split(':');
-      return { name, type, count, label: type === 'skill' ? `${name} (skill)` : name };
-    });
+    .map((entry) => ({
+      name: entry.name,
+      type: entry.type,
+      count: entry.count,
+      label: entry.type === 'skill' ? `${entry.name} (skill)` : entry.name,
+    }));
 });
 
 function formatNumber(n: number): string {
@@ -427,8 +433,6 @@ onMounted(() => {
   toDate.value = localDateStr(today);
   loadModelOptions();
   load();
-  renderChart();
-  renderToolChart();
 });
 
 onUnmounted(() => {

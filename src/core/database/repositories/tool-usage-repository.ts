@@ -7,6 +7,7 @@
 
 import type { DatabaseSync } from 'node:sqlite';
 import type { ToolUsageRecord, ToolUsageSummary } from '../../types';
+import { localDateToUtc } from './utils';
 
 // ─── 行类型辅助函数 ─────────────────────────────────────────────
 
@@ -41,22 +42,6 @@ export async function createToolUsageRecord(
     .run(record.name, record.type);
 
   return Number(result.lastInsertRowid);
-}
-
-/** 将本地日期字符串（YYYY-MM-DD）转为 UTC ISO 时间戳。
- *  endOfDay=true 返回当天末尾 23:59:59.999Z，否则返回当天开始 00:00:00.000Z。
- *  JavaScript Date 构造函数用数字参数时以本地时区解释，toISOString() 再转回 UTC。 */
-function localDateToUtc(dateStr: string, endOfDay: boolean): string {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  return new Date(
-    y,
-    m - 1,
-    d,
-    endOfDay ? 23 : 0,
-    endOfDay ? 59 : 0,
-    endOfDay ? 59 : 0,
-    endOfDay ? 999 : 0,
-  ).toISOString();
 }
 
 /** 获取按名称 + 类型 + 日期分组的聚合调用统计，支持可选过滤条件。
