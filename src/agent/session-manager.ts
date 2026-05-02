@@ -150,6 +150,7 @@ export class SessionManager extends BaseManager<SessionManagerDependencies> {
       deps.databaseManager.messages,
       memoryConfig,
       deps.databaseManager.usage,
+      deps.databaseManager.toolUsage,
     );
 
     // 创建 Agent

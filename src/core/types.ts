@@ -182,6 +182,20 @@ export type UsageSummary = {
   costTotal: number;
 }
 
+/** 工具/技能调用记录 — 存入数据库前的原始插入载荷 */
+export type ToolUsageRecord = {
+  name: string;
+  type: 'tool' | 'skill';
+}
+
+/** 聚合工具/技能调用汇总（按名称 + 类型 + 日期分组） */
+export type ToolUsageSummary = {
+  name: string;
+  type: 'tool' | 'skill';
+  date: string;
+  count: number;
+}
+
 // ─── 领域类型 (domain-types) ──────────────────────────────────────
 
 /** 工具权限过滤模式 */

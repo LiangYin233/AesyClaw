@@ -49,12 +49,18 @@ export type UsageRepositoryLike = {
   }): Promise<number>;
 }
 
+/** MemoryManager 依赖的工具/技能用量仓库结构 */
+export type ToolUsageRepositoryLike = {
+  create(record: { name: string; type: 'tool' | 'skill' }): Promise<number>;
+}
+
 // ─── MemoryManager ──────────────────────────────────────────────
 
 export class MemoryManager {
   private readonly sessionId: string;
   private readonly messageRepo: MessageRepositoryLike;
   private readonly usageRepo: UsageRepositoryLike | undefined;
+  private readonly toolUsageRepo: ToolUsageRepositoryLike | undefined;
   private readonly config: MemoryConfig;
 
   constructor(
@@ -62,10 +68,12 @@ export class MemoryManager {
     messageRepo: MessageRepositoryLike,
     config: MemoryConfig,
     usageRepo?: UsageRepositoryLike,
+    toolUsageRepo?: ToolUsageRepositoryLike,
   ) {
     this.sessionId = sessionId;
     this.messageRepo = messageRepo;
     this.usageRepo = usageRepo;
+    this.toolUsageRepo = toolUsageRepo;
     this.config = config;
   }
 
@@ -128,6 +136,8 @@ export class MemoryManager {
    * @param agentMessages - Agent 状态中的当前消息
    */
   async syncFromAgent(agentMessages: AgentMessage[]): Promise<void> {
+    this.sanitizeGhostToolCalls(agentMessages);
+
     let persisted = 0;
     let filtered = 0;
 
@@ -139,6 +149,8 @@ export class MemoryManager {
         filtered++;
       }
     }
+
+    await this.recordToolCallsFromMessages(agentMessages);
 
     logger.debug(
       `已同步 ${agentMessages.length} 条消息：${persisted} 条已持久化，${filtered} 条已过滤`,
@@ -242,6 +254,71 @@ export class MemoryManager {
       });
     } catch (err) {
       logger.error('记录用量失败', err);
+    }
+  }
+
+  /**
+   * 清理 provider 流式事件产生的幽灵 ToolCall 块（name/id 均为空）。
+   * 这些块是 pi-agent 在 streaming toolcall_start 事件缺少 toolName 时产生的。
+   */
+  private sanitizeGhostToolCalls(agentMessages: AgentMessage[]): void {
+    for (const message of agentMessages) {
+      if (message.role !== 'assistant' || !Array.isArray(message.content)) {
+        continue;
+      }
+
+      const filtered = (message.content as Array<{ type?: string; name?: string }>).filter(
+        (block) => {
+          if (block.type !== 'toolCall') return true;
+          if (block.name) return true;
+          logger.warn('清理幽灵 ToolCall 块（provider 流式事件缺少 toolName）', {
+            blockId: (block as Record<string, unknown>).id,
+          });
+          return false;
+        },
+      );
+
+      if (filtered.length < message.content.length) {
+        (message as unknown as Record<string, unknown>).content = filtered;
+      }
+    }
+  }
+
+  private async recordToolCallsFromMessages(agentMessages: AgentMessage[]): Promise<void> {
+    if (!this.toolUsageRepo) return;
+
+    for (const message of agentMessages) {
+      if (message.role !== 'assistant' || !Array.isArray(message.content)) {
+        continue;
+      }
+
+      for (const block of message.content) {
+        if (typeof block !== 'object' || !('type' in block)) {
+          continue;
+        }
+
+        if (block.type === 'toolCall') {
+          const toolCall = block as { name: string; arguments?: Record<string, unknown> };
+
+          try {
+            await this.toolUsageRepo.create({ name: toolCall.name, type: 'tool' });
+          } catch (err) {
+            logger.error('记录工具调用失败', err);
+          }
+
+          // load_skill 工具额外记录技能加载
+          if (toolCall.name === 'load_skill' && toolCall.arguments?.skillName !== undefined && toolCall.arguments?.skillName !== null) {
+            try {
+              await this.toolUsageRepo.create({
+                name: String(toolCall.arguments.skillName),
+                type: 'skill',
+              });
+            } catch (err) {
+              logger.error('记录技能加载调用失败', err);
+            }
+          }
+        }
+      }
     }
   }
 

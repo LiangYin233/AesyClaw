@@ -7,6 +7,7 @@ import * as messages from './repositories/message-repository';
 import * as roleBindings from './repositories/role-binding-repository';
 import * as cron from './repositories/cron-repository';
 import * as usageRepo from './repositories/usage-repository';
+import * as toolUsageRepo from './repositories/tool-usage-repository';
 
 const logger = createScopedLogger('db');
 
@@ -123,6 +124,17 @@ export class DatabaseManager {
     };
   }
 
+  /** 绑定到当前数据库的工具/技能用量仓库函数 */
+  get toolUsage() {
+    const db = this.getDb();
+    return {
+      create: (record: Parameters<typeof toolUsageRepo.createToolUsageRecord>[1]) =>
+        toolUsageRepo.createToolUsageRecord(db, record),
+      getStats: (options?: Parameters<typeof toolUsageRepo.getToolUsageStats>[1]) =>
+        toolUsageRepo.getToolUsageStats(db, options),
+    };
+  }
+
   /** 获取数据库统计信息 */
   getStats(): { sessions: number; messages: number; cronJobs: number; usage: number } {
     const db = this.getDb();
@@ -206,6 +218,13 @@ export class DatabaseManager {
         cost_cache_read     REAL NOT NULL DEFAULT 0,
         cost_cache_write    REAL NOT NULL DEFAULT 0,
         cost_total          REAL NOT NULL DEFAULT 0
+      );
+
+      CREATE TABLE IF NOT EXISTS tool_usage (
+        id        INTEGER PRIMARY KEY AUTOINCREMENT,
+        name      TEXT NOT NULL,
+        type      TEXT NOT NULL CHECK(type IN ('tool', 'skill')),
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
   }

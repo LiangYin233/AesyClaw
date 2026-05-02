@@ -81,15 +81,45 @@
         </table>
       </div>
     </div>
+
+    <div class="mt-8" v-if="toolData.length > 0">
+      <h2 class="font-heading text-base font-semibold text-dark mb-4">Tool Calls</h2>
+      <div class="bg-white border border-[var(--color-border)] rounded-sm p-6 h-[340px] relative mb-6">
+        <canvas ref="toolChartCanvas"></canvas>
+      </div>
+      <div class="overflow-x-auto rounded border border-[var(--color-border)]">
+        <table class="w-full border-collapse separate font-body text-sm">
+          <thead>
+            <tr>
+              <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Name</th>
+              <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Type</th>
+              <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Calls</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in toolData" :key="`${row.name}-${row.type}-${row.date}`" class="bg-[#FDFBF9]">
+              <td class="px-4 py-3 border-b border-[var(--color-border)] font-heading text-xs font-medium">{{ row.name }}</td>
+              <td class="px-4 py-3 border-b border-[var(--color-border)]">
+                <span
+                  :class="row.type === 'skill' ? 'bg-orange-100 text-orange-700' : 'bg-blue-50 text-blue-700'"
+                  class="inline-block px-2 py-0.5 rounded text-[0.65rem] font-heading font-medium uppercase tracking-[0.04em]"
+                >{{ row.type }}</span>
+              </td>
+              <td class="px-4 py-3 border-b border-[var(--color-border)]">{{ row.count }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
-import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Title, Tooltip, Legend } from 'chart.js';
+import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, BarController, BarElement, Title, Tooltip, Legend } from 'chart.js';
 import { useAuth } from '@/composables/useAuth';
 
-Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Title, Tooltip, Legend);
+Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, BarController, BarElement, Title, Tooltip, Legend);
 
 const { api } = useAuth();
 
@@ -104,14 +134,24 @@ interface UsageRow {
   count: number;
 }
 
+interface ToolUsageRow {
+  name: string;
+  type: 'tool' | 'skill';
+  date: string;
+  count: number;
+}
+
 const data = ref<UsageRow[]>([]);
+const toolData = ref<ToolUsageRow[]>([]);
 const fromDate = ref('');
 const toDate = ref('');
 const modelFilter = ref('');
 const modelOptions = ref<string[]>([]);
 const chartCanvas = ref<HTMLCanvasElement | null>(null);
+const toolChartCanvas = ref<HTMLCanvasElement | null>(null);
 
 let chart: Chart | null = null;
+let toolChart: Chart | null = null;
 
 const summary = computed(() => {
   return data.value.reduce(
@@ -153,6 +193,22 @@ const chartData = computed(() => {
     .map(([date, tokens]) => ({ date, ...tokens }));
 });
 
+const toolChartData = computed(() => {
+  const nameMap = new Map<string, number>();
+  for (const row of toolData.value) {
+    const key = `${row.type}:${row.name}`;
+    const existing = nameMap.get(key);
+    nameMap.set(key, (existing ?? 0) + row.count);
+  }
+  return [...nameMap.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 15)
+    .map(([key, count]) => {
+      const [type, name] = key.split(':');
+      return { name, type, count, label: type === 'skill' ? `${name} (skill)` : name };
+    });
+});
+
 function formatNumber(n: number): string {
   return n.toLocaleString();
 }
@@ -184,9 +240,16 @@ async function load() {
     if (toDate.value) params.to = toDate.value;
     if (modelFilter.value.trim()) params.model = modelFilter.value.trim();
 
-    const res = await api.get('/usage', { params });
-    if (res.data.ok) {
-      data.value = res.data.data;
+    const [usageRes, toolRes] = await Promise.all([
+      api.get('/usage', { params }),
+      api.get('/usage/tools', { params }),
+    ]);
+
+    if (usageRes.data.ok) {
+      data.value = usageRes.data.data;
+    }
+    if (toolRes.data.ok) {
+      toolData.value = toolRes.data.data;
     }
   } catch (err) {
     console.error('Failed to load usage stats', err);
@@ -273,9 +336,79 @@ function renderChart() {
   });
 }
 
+function renderToolChart() {
+  if (!toolChartCanvas.value) return;
+
+  if (toolChart) {
+    toolChart.destroy();
+    toolChart = null;
+  }
+
+  if (toolChartData.value.length === 0) return;
+
+  const labels = toolChartData.value.map((d) => d.label);
+  const counts = toolChartData.value.map((d) => d.count);
+  const colors = toolChartData.value.map((d) =>
+    d.type === 'skill' ? 'rgba(196, 154, 108, 0.8)' : 'rgba(208, 183, 165, 0.8)',
+  );
+  const borderColors = toolChartData.value.map((d) =>
+    d.type === 'skill' ? '#C49A6C' : '#D0B7A5',
+  );
+
+  toolChart = new Chart(toolChartCanvas.value, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Calls',
+          data: counts,
+          backgroundColor: colors,
+          borderColor: borderColors,
+          borderWidth: 1,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: {
+        legend: {
+          display: false,
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `Calls: ${(ctx.raw as number).toLocaleString()}`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          beginAtZero: true,
+          ticks: {
+            font: { size: 11 },
+            callback: (value) => (typeof value === 'number' ? value.toLocaleString() : value),
+          },
+        },
+        y: {
+          grid: { display: false },
+          ticks: { font: { size: 11 } },
+        },
+      },
+    },
+  });
+}
+
 watch(chartData, () => {
   nextTick(() => {
     renderChart();
+  });
+}, { deep: true });
+
+watch(toolChartData, () => {
+  nextTick(() => {
+    renderToolChart();
   });
 }, { deep: true });
 
@@ -295,12 +428,17 @@ onMounted(() => {
   loadModelOptions();
   load();
   renderChart();
+  renderToolChart();
 });
 
 onUnmounted(() => {
   if (chart) {
     chart.destroy();
     chart = null;
+  }
+  if (toolChart) {
+    toolChart.destroy();
+    toolChart = null;
   }
 });
 </script>

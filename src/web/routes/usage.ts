@@ -39,5 +39,18 @@ export function createUsageRouter(deps: WebUiManagerDependencies) {
     }
   });
 
+  router.get('/tools', async (c) => {
+    try {
+      const from = c.req.query('from');
+      const to = c.req.query('to');
+
+      const data = await deps.databaseManager.toolUsage.getStats({ from, to });
+      return c.json({ ok: true, data });
+    } catch (err) {
+      logger.error('获取工具调用统计失败', err);
+      return c.json({ ok: false, error: '获取工具调用统计失败' }, 500);
+    }
+  });
+
   return router;
 }
