@@ -16,7 +16,6 @@ import { Value } from '@sinclair/typebox/value';
 import Conf from 'conf';
 import type { DeepPartial, ConfigChangeListener, Unsubscribe } from '../types';
 import { createScopedLogger } from '../logger';
-import { AppError } from '../errors';
 import { mergeDefaults } from '../utils';
 import { AppConfigSchema } from './schema';
 import type { AppConfig } from './schema';
@@ -159,7 +158,7 @@ export class ConfigManager {
   /** 开始监视配置文件的外部变更 */
   startHotReload(): void {
     if (!this.configPath || !this.configStore) {
-      throw new AppError('配置未加载 —— 无法启动热重载', 'CONFIG_VALIDATION');
+      throw new Error('配置未加载 —— 无法启动热重载');
     }
 
     this.stopHotReload();
@@ -213,8 +212,7 @@ export class ConfigManager {
 
   private validateConfigPayload(parsed: unknown): AppConfig {
     if (!isPlainObject(parsed)) {
-      const errors = [...Value.Errors(AppConfigSchema, parsed)];
-      throw new AppError('配置验证失败', 'CONFIG_VALIDATION', errors);
+      throw new Error('配置验证失败');
     }
 
     const mergedWithDefaults = mergeDefaults(
@@ -234,8 +232,7 @@ export class ConfigManager {
     const validated = Value.Default(AppConfigSchema, value);
 
     if (!Value.Check(AppConfigSchema, validated)) {
-      const errors = [...Value.Errors(AppConfigSchema, validated)];
-      throw new AppError('配置验证失败', 'CONFIG_VALIDATION', errors);
+      throw new Error('配置验证失败');
     }
 
     return validated as AppConfig;
@@ -243,7 +240,7 @@ export class ConfigManager {
 
   private ensureLoaded(): Conf<Record<string, unknown>> {
     if (!this.configPath || !this.configStore) {
-      throw new AppError('配置未加载', 'CONFIG_VALIDATION');
+      throw new Error('配置未加载');
     }
     return this.configStore;
   }
@@ -283,7 +280,7 @@ export class ConfigManager {
         watch: true,
       });
     } catch (err) {
-      throw new AppError('配置文件中的 JSON 无效', 'CONFIG_VALIDATION', err);
+      throw new Error('配置文件中的 JSON 无效', { cause: err });
     }
   }
 

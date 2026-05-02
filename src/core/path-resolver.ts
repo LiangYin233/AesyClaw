@@ -41,7 +41,7 @@ export function resolvePaths(root: string): ResolvedPaths {
     /** 内置 skills 目录（`<project>/skills/`） */
     skillsDir: path.join(root, DIR_NAMES.skills),
     /** 用户自定义 skills 目录（`<project>/.aesyclaw/skills/`） */
-    userSkillsDir: path.join(runtimeRoot, 'skills'),
+    userSkillsDir: path.join(runtimeRoot, DIR_NAMES.skills),
     extensionsDir: path.join(root, DIR_NAMES.extensions),
   });
 }

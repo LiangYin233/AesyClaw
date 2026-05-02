@@ -9,7 +9,7 @@ import { writeFileSync, readFileSync, mkdirSync, rmSync, existsSync } from 'node
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ConfigManager } from '../../../../src/core/config/config-manager';
-import { AppError } from '../../../../src/core/errors';
+
 
 const TEST_DIR = join(tmpdir(), 'aesyclaw-test-config');
 
@@ -118,7 +118,7 @@ describe('ConfigManager', () => {
 
       writeFileSync(configPath, JSON.stringify(invalidConfig, null, 2));
 
-      await expect(manager.load(configPath)).rejects.toBeInstanceOf(AppError);
+      await expect(manager.load(configPath)).rejects.toBeInstanceOf(Error);
     });
 
     it('should still fill defaults for missing optional fields', async () => {
@@ -344,7 +344,7 @@ describe('ConfigManager', () => {
       });
 
       await expect(manager.update({ server: { port: '8080' } } as never)).rejects.toBeInstanceOf(
-        AppError,
+        Error,
       );
 
       expect(manager.get('server').port).toBe(3000);
@@ -456,7 +456,7 @@ describe('ConfigManager', () => {
         apiKey: 123,
       } as never);
 
-      await expect(manager.syncDefaults()).rejects.toBeInstanceOf(AppError);
+      await expect(manager.syncDefaults()).rejects.toBeInstanceOf(Error);
       expect(manager.get('providers')).toEqual({});
       const fileContent = JSON.parse(
         await import('node:fs').then((fs) => fs.readFileSync(configPath, 'utf-8')),

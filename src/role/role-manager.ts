@@ -12,7 +12,6 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { Value } from '@sinclair/typebox/value';
 import { createScopedLogger } from '../core/logger';
-import { AppError } from '../core/errors';
 import type { RoleConfig, Unsubscribe } from '../core/types';
 import { RoleConfigSchema } from './role-schema';
 
@@ -62,16 +61,15 @@ export class RoleManager {
         if (role) {
           const existingSource = loadedSources.get(role.id);
           if (existingSource) {
-            throw new AppError(
+            throw new Error(
               `角色 id "${role.id}" 在 ${existingSource} 和 ${filePath} 中重复`,
-              'CONFIG_VALIDATION',
             );
           }
           loadedRoles.set(role.id, role);
           loadedSources.set(role.id, filePath);
         }
       } catch (err) {
-        if (err instanceof AppError) {
+        if (err instanceof Error && err.message.startsWith('角色 id')) {
           throw err;
         }
         logger.warn(`跳过无效的角色文件: ${filePath}`, err);
@@ -95,7 +93,7 @@ export class RoleManager {
   /** 开始监视角色目录的变更。 */
   startWatching(): void {
     if (!this.rolesDir) {
-      throw new AppError('角色未加载 — 无法开始监视', 'CONFIG_VALIDATION');
+      throw new Error('角色未加载 — 无法开始监视');
     }
 
     if (this.watcher) {
@@ -144,9 +142,8 @@ export class RoleManager {
     const firstEnabled = this.getEnabledRoles()[0];
     if (firstEnabled !== undefined) return firstEnabled;
 
-    throw new AppError(
+    throw new Error(
       '没有可用角色 — 必须至少定义一个角色',
-      'CONFIG_VALIDATION',
     );
   }
 
@@ -167,19 +164,18 @@ export class RoleManager {
    */
   async saveRole(roleId: string, roleData: RoleConfig): Promise<void> {
     if (!this.rolesDir) {
-      throw new AppError('角色未加载', 'CONFIG_VALIDATION');
+      throw new Error('角色未加载');
     }
 
     const validated = Value.Default(RoleConfigSchema, roleData);
     if (!Value.Check(RoleConfigSchema, validated)) {
-      const errors = [...Value.Errors(RoleConfigSchema, validated)];
-      throw new AppError('角色验证失败', 'CONFIG_VALIDATION', errors);
+      throw new Error('角色验证失败');
     }
 
     const targetFile = this.roleSources.get(roleId) ?? null;
 
     if (!targetFile) {
-      throw new AppError(`未找到角色 "${roleId}" 的文件`, 'CONFIG_VALIDATION');
+      throw new Error(`未找到角色 "${roleId}" 的文件`);
     }
 
     await writeFile(targetFile, JSON.stringify(roleData, null, 2), 'utf-8');
@@ -200,7 +196,7 @@ export class RoleManager {
    */
   async createRole(roleData: Omit<RoleConfig, 'id'> & { id?: string }): Promise<RoleConfig> {
     if (!this.rolesDir) {
-      throw new AppError('角色未加载', 'CONFIG_VALIDATION');
+      throw new Error('角色未加载');
     }
 
     const id = roleData.id || randomUUID();
@@ -208,8 +204,7 @@ export class RoleManager {
 
     const validated = Value.Default(RoleConfigSchema, fullRole);
     if (!Value.Check(RoleConfigSchema, validated)) {
-      const errors = [...Value.Errors(RoleConfigSchema, validated)];
-      throw new AppError('角色验证失败', 'CONFIG_VALIDATION', errors);
+      throw new Error('角色验证失败');
     }
 
     const filename = `${id}.json`;
@@ -232,16 +227,16 @@ export class RoleManager {
    */
   async deleteRole(roleId: string): Promise<void> {
     if (!this.rolesDir) {
-      throw new AppError('角色未加载', 'CONFIG_VALIDATION');
+      throw new Error('角色未加载');
     }
 
     if (roleId === 'default') {
-      throw new AppError('默认角色不可删除', 'CONFIG_VALIDATION');
+      throw new Error('默认角色不可删除');
     }
 
     const targetFile = this.roleSources.get(roleId);
     if (!targetFile) {
-      throw new AppError(`未找到角色 "${roleId}"`, 'CONFIG_VALIDATION');
+      throw new Error(`未找到角色 "${roleId}"`);
     }
 
     await rm(targetFile, { force: true });

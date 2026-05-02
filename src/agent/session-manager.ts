@@ -71,8 +71,7 @@ export class SessionManager extends BaseManager<SessionManagerDependencies> {
    * 使用分隔符连接各组件，并对值内的分隔符和反斜杠进行转义以避免冲突。
    */
   private computeKey(key: SessionKey): string {
-    const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
-    return `${esc(key.channel)}|${esc(key.type)}|${esc(key.chatId)}`;
+    return JSON.stringify([key.channel, key.type, key.chatId]);
   }
 
   /**

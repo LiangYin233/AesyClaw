@@ -7,6 +7,16 @@
 
 import type { InboundMessage, OutboundMessage, RoleConfig, SessionKey } from '../../core/types';
 import type { CommandRegistry } from '../../command/command-registry';
+import type { SessionContext, SessionManager } from '../../agent/session-manager';
+import type { AgentEngine } from '../../agent/agent-engine';
+import type { Agent } from '../../agent/agent-types';
+import type {
+  BeforeToolCallHookContext,
+  BeforeToolCallHookResult,
+  AfterToolCallHookContext,
+  AfterToolCallHookResult,
+} from '../../agent/agent-types';
+import type { PipelineResult } from '../../core/types';
 
 /**
  * 传递给 onSend 钩子的上下文。
@@ -15,9 +25,6 @@ export type OnSendContext = {
   message: OutboundMessage;
   sessionKey?: SessionKey;
 }
-import type { SessionContext, SessionManager } from '../../agent/session-manager';
-import type { AgentEngine } from '../../agent/agent-engine';
-import type { Agent } from '../../agent/agent-types';
 
 /**
  * 传递给 beforeLLMRequest 钩子的上下文。
@@ -87,17 +94,6 @@ type PluginHooks = {
   afterToolCall?(context: AfterToolCallHookContext): Promise<AfterToolCallHookResult>;
   onSend?(context: OnSendContext): Promise<PipelineResult>;
 }
-
-// Re-export hook types from agent-types so PluginHooks is self-contained
-import type {
-  BeforeToolCallHookContext,
-  BeforeToolCallHookResult,
-  AfterToolCallHookContext,
-  AfterToolCallHookResult,
-} from '../../agent/agent-types';
-
-// Re-export PipelineResult for convenience
-import type { PipelineResult } from '../../core/types';
 
 export type PipelineStageResult =
   | { stage: 'blocked'; reason: string }
