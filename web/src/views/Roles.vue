@@ -213,24 +213,9 @@ import {
   PlusIcon,
   Bars3Icon,
 } from '@heroicons/vue/24/outline';
+import type { Role, ToolPermission } from '@/types/api';
 
 const { api } = useAuth();
-
-interface ToolPermission {
-  mode: 'allowlist' | 'denylist';
-  list?: string[];
-}
-
-interface Role {
-  id: string;
-  name: string;
-  description: string;
-  systemPrompt: string;
-  model: string;
-  toolPermission: ToolPermission;
-  skills: string[];
-  enabled: boolean;
-}
 
 const roles = ref<Role[]>([]);
 const editingRole = ref<Role | null>(null);

@@ -21,6 +21,8 @@ import { mergeDefaults } from '../utils';
 import { AppConfigSchema } from './schema';
 import type { AppConfig } from './schema';
 import { DEFAULT_CONFIG } from './defaults';
+import { ConfigWatcher } from './config-watcher';
+import { DefaultConfigRegistry } from './default-config-registry';
 
 const logger = createScopedLogger('config');
 
@@ -33,11 +35,8 @@ export class ConfigManager {
   private config: AppConfig | null = null;
   private configPath: string | null = null;
   private listeners: ListenerEntry[] = [];
-  private registeredDefaults: Map<string, Record<string, unknown>> = new Map();
-  private selfUpdating = false;
-  private watcher: fs.FSWatcher | null = null;
-  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly DEBOUNCE_MS = 300;
+  private configWatcher = new ConfigWatcher();
+  private defaultConfigRegistry = new DefaultConfigRegistry();
 
   // ─── 生命周期 ────────────────────────────────────────────────
 
@@ -133,14 +132,14 @@ export class ConfigManager {
     this.config = validatedConfig;
 
     // 写入磁盘前设置守卫
-    this.selfUpdating = true;
+    this.configWatcher.setSelfUpdating(true);
     try {
       await this.persistConfig();
     } finally {
       // 短暂延迟后清除守卫，让 fs.watch 事件平息
       setTimeout(() => {
-        this.selfUpdating = false;
-      }, this.DEBOUNCE_MS + 50);
+        this.configWatcher.setSelfUpdating(false);
+      }, this.configWatcher.getDebounceMs() + 50);
     }
 
     this.notifyListeners(oldConfig);
@@ -153,7 +152,7 @@ export class ConfigManager {
    * 这些值通过 `syncDefaults()` 同步到配置中。
    */
   registerDefaults(key: string, defaults: Record<string, unknown>): void {
-    this.registeredDefaults.set(key, defaults);
+    this.defaultConfigRegistry.registerDefaults(key, defaults);
   }
 
   /**
@@ -166,27 +165,17 @@ export class ConfigManager {
     }
 
     const oldConfig = structuredClone(this.config);
-    let mergedConfig = structuredClone(this.config);
-
-    for (const [key, defaults] of this.registeredDefaults) {
-      // 支持点号键，如 'channels.testchannel'
-      const nestedPartial = this.buildNestedObject(key, defaults);
-      mergedConfig = mergeDefaults(
-        mergedConfig as Record<string, unknown>,
-        nestedPartial as Record<string, unknown>,
-        { overwrite: false },
-      ) as AppConfig;
-    }
+    const mergedConfig = this.defaultConfigRegistry.mergeInto(this.config);
 
     this.config = this.validateConfigObject(mergedConfig);
 
-    this.selfUpdating = true;
+    this.configWatcher.setSelfUpdating(true);
     try {
       await this.persistConfig();
     } finally {
       setTimeout(() => {
-        this.selfUpdating = false;
-      }, this.DEBOUNCE_MS + 50);
+        this.configWatcher.setSelfUpdating(false);
+      }, this.configWatcher.getDebounceMs() + 50);
     }
 
     this.notifyListeners(oldConfig);
@@ -200,52 +189,15 @@ export class ConfigManager {
       throw new AppError('配置未加载 —— 无法启动热重载', 'CONFIG_VALIDATION');
     }
 
-    if (this.watcher) {
-      return; // 已在监视中
-    }
-
-    this.watcher = fs.watch(this.configPath, () => {
-      this.handleFileChange();
-    });
-
-    // 同时监听 'error' 事件以防止崩溃
-    this.watcher.on('error', (err) => {
-      logger.error('配置文件监视器错误', err);
-    });
-
-    logger.info('热重载监视器已启动');
+    this.configWatcher.start(this.configPath, () => this.reloadFromFile());
   }
 
   /** 停止监视配置文件 */
   stopHotReload(): void {
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = null;
-    }
-    if (this.watcher) {
-      this.watcher.close();
-      this.watcher = null;
-      logger.info('热重载监视器已停止');
-    }
+    this.configWatcher.stop();
   }
 
   // ─── 私有辅助函数 ───────────────────────────────────────────
-
-  private handleFileChange(): void {
-    // 如果刚写入文件 ourselves，则跳过
-    if (this.selfUpdating) {
-      return;
-    }
-
-    // 防抖：合并快速变更事件
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-    }
-    this.debounceTimer = setTimeout(() => {
-      this.debounceTimer = null;
-      this.reloadFromFile();
-    }, this.DEBOUNCE_MS);
-  }
 
   private reloadFromFile(): void {
     if (!this.configPath) return;
@@ -353,27 +305,6 @@ export class ConfigManager {
     }
   }
 
-  /**
-   * 将点号键（如 'channels.testchannel'）和值
-   * 转换为嵌套对象：{ channels: { testchannel: value } }
-   */
-  private buildNestedObject(key: string, value: Record<string, unknown>): Record<string, unknown> {
-    const parts = key.split('.');
-    const result: Record<string, unknown> = {};
-    let current = result;
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      if (i === parts.length - 1) {
-        current[part] = value;
-      } else {
-        current[part] = {};
-        current = current[part] as Record<string, unknown>;
-      }
-    }
-
-    return result;
-  }
 }
 
 function isPromiseLike(value: unknown): value is Promise<void> {

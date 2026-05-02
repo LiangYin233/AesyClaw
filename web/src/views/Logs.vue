@@ -62,21 +62,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useAuth } from '@/composables/useAuth';
-
-interface LogEntry {
-  id: number;
-  timestamp: string;
-  level: 'debug' | 'info' | 'warn' | 'error';
-  scope: string;
-  message: string;
-  details: string | null;
-  formatted: string;
-}
-
-interface LogsResponseData {
-  entries: LogEntry[];
-  limit: number;
-}
+import type { LogEntry, LogsResponse } from '@/types/api';
 
 const { api } = useAuth();
 
@@ -128,7 +114,7 @@ async function loadLogs(): Promise<void> {
   loading.value = true;
   errorMessage.value = '';
   try {
-    const response = await api.get<{ ok: boolean; data?: LogsResponseData; error?: string }>('/logs', {
+    const response = await api.get<{ ok: boolean; data?: LogsResponse; error?: string }>('/logs', {
       params: { limit: requestLimit },
     });
     if (response.data.ok && response.data.data) {

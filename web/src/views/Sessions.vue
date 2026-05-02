@@ -106,27 +106,13 @@ import {
   EllipsisHorizontalIcon,
   ChevronUpIcon,
 } from '@heroicons/vue/24/outline';
+import type { Session, PersistableMessage } from '@/types/api';
 
 const { api } = useAuth();
 
-interface Session {
-  id: string;
-  channel: string;
-  type: string;
-  chatId: string;
-  createdAt: string | null;
-  updatedAt: string | null;
-}
-
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: string;
-}
-
 const sessions = ref<Session[]>([]);
 const expanded = ref<string | null>(null);
-const messages = ref<Message[]>([]);
+const messages = ref<PersistableMessage[]>([]);
 const messagesLoading = ref(false);
 
 async function loadSessions() {
@@ -180,7 +166,7 @@ function formatDate(iso: string | null | undefined): string {
   });
 }
 
-function messageKey(message: Message, index: number): string {
+function messageKey(message: PersistableMessage, index: number): string {
   return `${message.timestamp}:${message.role}:${index}`;
 }
 

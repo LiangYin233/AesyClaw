@@ -99,4 +99,9 @@ import type {
 // Re-export PipelineResult for convenience
 import type { PipelineResult } from '../../core/types';
 
+export type PipelineStageResult =
+  | { stage: 'blocked'; reason: string }
+  | { stage: 'respond'; outbound: OutboundMessage }
+  | { stage: 'continue'; state: PipelineState };
+
 export type { PipelineState, PipelineDependencies, PluginHooks };

@@ -118,31 +118,12 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, BarController, BarElement, Title, Tooltip, Legend } from 'chart.js';
 import { useAuth } from '@/composables/useAuth';
-
-Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, BarController, BarElement, Title, Tooltip, Legend);
+import type { UsageSummary, ToolUsageSummary } from '@/types/api';
 
 const { api } = useAuth();
 
-interface UsageRow {
-  model: string;
-  date: string;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  cacheReadTokens: number;
-  cacheWriteTokens: number;
-  count: number;
-}
-
-interface ToolUsageRow {
-  name: string;
-  type: 'tool' | 'skill';
-  date: string;
-  count: number;
-}
-
-const data = ref<UsageRow[]>([]);
-const toolData = ref<ToolUsageRow[]>([]);
+const data = ref<UsageSummary[]>([]);
+const toolData = ref<ToolUsageSummary[]>([]);
 const fromDate = ref('');
 const toDate = ref('');
 const modelFilter = ref('');

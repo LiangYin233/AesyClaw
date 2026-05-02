@@ -112,32 +112,15 @@ import {
   ChartBarIcon,
   EllipsisHorizontalIcon,
 } from '@heroicons/vue/24/outline';
+import type { ChannelStatus, UsageSummary } from '@/types/api';
 
 const { api } = useAuth();
 
-interface ChannelState {
-  name: string;
-  state: 'loaded' | 'disabled' | 'unloaded' | 'failed';
-  version?: string;
-  error?: string;
-}
-
-interface UsageRow {
-  model: string;
-  date: string;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  cacheReadTokens: number;
-  cacheWriteTokens: number;
-  count: number;
-}
-
 const stats = ref({ sessions: 0, messages: 0, cronJobs: 0 });
 const uptime = ref(0);
-const channels = ref<ChannelState[]>([]);
-const usageData = ref<UsageRow[]>([]);
-const yesterdayData = ref<UsageRow[]>([]);
+const channels = ref<ChannelStatus[]>([]);
+const usageData = ref<UsageSummary[]>([]);
+const yesterdayData = ref<UsageSummary[]>([]);
 
 const todayUsage = computed(() => {
   const total = { totalTokens: 0, count: 0 };

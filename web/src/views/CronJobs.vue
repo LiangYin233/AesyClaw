@@ -68,30 +68,13 @@
 import { ref, onMounted } from 'vue';
 import { useAuth } from '@/composables/useAuth';
 
+import type { CronJobRecord, CronRunRecord } from '@/types/api';
+
 const { api } = useAuth();
 
-interface CronJob {
-  id: string;
-  scheduleType: 'once' | 'daily' | 'interval';
-  scheduleValue: string;
-  prompt: string;
-  nextRun: string | null;
-  createdAt: string;
-}
-
-interface CronRun {
-  id: string;
-  jobId: string;
-  startedAt: string;
-  status: 'completed' | 'failed' | 'running' | 'abandoned';
-  result: string | null;
-  error: string | null;
-  endedAt: string | null;
-}
-
-const jobs = ref<CronJob[]>([]);
+const jobs = ref<CronJobRecord[]>([]);
 const expanded = ref<string | null>(null);
-const runs = ref<CronRun[]>([]);
+const runs = ref<CronRunRecord[]>([]);
 const runsLoading = ref(false);
 
 async function loadJobs() {
