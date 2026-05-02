@@ -60,6 +60,16 @@ const router = createRouter({
           name: 'Logs',
           component: () => import('@/views/Logs.vue'),
         },
+        {
+          path: 'tools',
+          name: 'Tools',
+          component: () => import('@/views/Tools.vue'),
+        },
+        {
+          path: 'skills',
+          name: 'Skills',
+          component: () => import('@/views/Skills.vue'),
+        },
       ],
     },
   ],

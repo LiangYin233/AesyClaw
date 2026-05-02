@@ -15,6 +15,8 @@ import { createPluginsRouter } from './routes/plugins';
 import { createStatusRouter } from './routes/status';
 import { createUsageRouter } from './routes/usage';
 import { createLogsRouter } from './routes/logs';
+import { createToolsRouter } from './routes/tools';
+import { createSkillsRouter } from './routes/skills';
 import { createScopedLogger } from '../core/logger';
 
 const logger = createScopedLogger('webui');
@@ -36,6 +38,8 @@ export function createApp(deps: WebUiManagerDependencies): Hono {
   app.route('/api/status', createStatusRouter(deps));
   app.route('/api/usage', createUsageRouter(deps));
   app.route('/api/logs', createLogsRouter(deps));
+  app.route('/api/tools', createToolsRouter(deps));
+  app.route('/api/skills', createSkillsRouter(deps));
 
   // API 路由的全局错误处理器
   app.onError((err, c) => {

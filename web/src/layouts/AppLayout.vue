@@ -80,6 +80,8 @@ import {
   ShieldCheckIcon,
   ChartBarIcon,
   DocumentTextIcon,
+  WrenchScrewdriverIcon,
+  LightBulbIcon,
   SunIcon,
   ArrowLeftEndOnRectangleIcon,
   Bars3Icon,
@@ -97,13 +99,15 @@ onMounted(fetchVersion);
 const navItems = [
   { path: '/', label: 'Dashboard', icon: HomeIcon },
   { path: '/sessions', label: 'Sessions', icon: UsersIcon },
-  { path: '/config', label: 'Config', icon: Cog6ToothIcon },
-  { path: '/channels', label: 'Channels', icon: ChartBarSquareIcon },
-  { path: '/plugins', label: 'Plugins', icon: WrenchIcon },
-  { path: '/cron', label: 'Cron Jobs', icon: ClockIcon },
-  { path: '/roles', label: 'Roles', icon: ShieldCheckIcon },
   { path: '/usage', label: 'Usage', icon: ChartBarIcon },
   { path: '/logs', label: 'Logs', icon: DocumentTextIcon },
+  { path: '/roles', label: 'Roles', icon: ShieldCheckIcon },
+  { path: '/tools', label: 'Tools', icon: WrenchScrewdriverIcon },
+  { path: '/skills', label: 'Skills', icon: LightBulbIcon },
+  { path: '/cron', label: 'Cron Jobs', icon: ClockIcon },
+  { path: '/channels', label: 'Channels', icon: ChartBarSquareIcon },
+  { path: '/plugins', label: 'Plugins', icon: WrenchIcon },
+  { path: '/config', label: 'Config', icon: Cog6ToothIcon },
 ];
 
 function handleLogout() {

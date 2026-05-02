@@ -11,6 +11,8 @@ import type { CronManager } from '../cron/cron-manager';
 import type { RoleManager } from '../role/role-manager';
 import type { ChannelManager } from '../channel/channel-manager';
 import type { PluginManager } from '../plugin/plugin-manager';
+import type { ToolRegistry } from '../tool/tool-registry';
+import type { SkillManager } from '../skill/skill-manager';
 import { createApp } from './server';
 
 const logger = createScopedLogger('webui');
@@ -23,6 +25,8 @@ export type WebUiManagerDependencies = {
   roleManager: RoleManager;
   channelManager: ChannelManager;
   pluginManager: PluginManager;
+  toolRegistry: ToolRegistry;
+  skillManager: SkillManager;
 }
 
 export class WebUiManager extends BaseManager<WebUiManagerDependencies> {

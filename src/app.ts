@@ -228,6 +228,8 @@ export class Application {
             roleManager: this.roleManager,
             channelManager: this.channelManager,
             pluginManager: this.getPluginManager(),
+            toolRegistry: this.toolRegistry,
+            skillManager: this.skillManager,
           });
         },
       },
