@@ -18,7 +18,6 @@
             <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Name</th>
             <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Model</th>
             <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Enabled</th>
-            <th class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0">Updated At</th>
           </tr>
         </thead>
         <tbody>
@@ -44,10 +43,9 @@
                 <XMarkIcon class="w-4 h-4 text-danger stroke-[2.5]" />
               </span>
             </td>
-            <td class="px-4 py-3 border-b border-[var(--color-border)] text-mid-gray font-heading text-xs">{{ formatDate(role.updatedAt) }}</td>
           </tr>
           <tr v-if="roles.length === 0">
-            <td colspan="5" class="text-mid-gray text-center py-10 font-body italic text-sm">No roles</td>
+            <td colspan="4" class="text-mid-gray text-center py-10 font-body italic text-sm">No roles</td>
           </tr>
         </tbody>
       </table>
@@ -232,7 +230,6 @@ interface Role {
   toolPermission: ToolPermission;
   skills: string[];
   enabled: boolean;
-  updatedAt?: string;
 }
 
 const roles = ref<Role[]>([]);
@@ -269,10 +266,7 @@ async function loadRoles() {
   try {
     const res = await api.get('/roles');
     if (res.data.ok) {
-      roles.value = res.data.data.map((r: Role, idx: number) => ({
-        ...r,
-        updatedAt: r.updatedAt || new Date(Date.now() - idx * 86400000).toISOString(),
-      }));
+      roles.value = res.data.data;
     }
   } catch (err) {
     console.error('Failed to load roles', err);
@@ -367,7 +361,6 @@ async function saveRole() {
   try {
     const payload = { ...form.value };
     delete (payload as Record<string, unknown>).id;
-    delete (payload as Record<string, unknown>).updatedAt;
 
     if (creating.value) {
       const res = await api.post('/roles', payload);
@@ -393,19 +386,6 @@ async function saveRole() {
   } finally {
     saving.value = false;
   }
-}
-
-function formatDate(iso: string | undefined): string {
-  if (!iso) return '-';
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }) + ' ' + d.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
 }
 
 onMounted(() => {
