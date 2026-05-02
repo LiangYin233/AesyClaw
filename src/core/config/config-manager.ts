@@ -6,14 +6,14 @@
  * - TypeBox 验证，缺失字段回退到默认值
  * - `subscribe(key)` / `subscribeAll()` 用于变更通知
  * - `update(partial)` 合并并持久化；设置 `selfUpdating` 守卫以防止
- *   `fs.watch` 导致的无限重载循环
+ *   Conf `onDidAnyChange` 导致的无限重载循环
  * - `registerDefaults` / `syncDefaults` 供子系统声明默认值
  */
 
-import fs from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { existsSync, mkdirSync } from 'node:fs';
+import { basename, dirname, extname } from 'node:path';
 import { Value } from '@sinclair/typebox/value';
+import Conf from 'conf';
 import type { DeepPartial, ConfigChangeListener, Unsubscribe } from '../types';
 import { createScopedLogger } from '../logger';
 import { AppError } from '../errors';
@@ -21,7 +21,6 @@ import { mergeDefaults } from '../utils';
 import { AppConfigSchema } from './schema';
 import type { AppConfig } from './schema';
 import { DEFAULT_CONFIG } from './defaults';
-import { ConfigWatcher } from './config-watcher';
 import { DefaultConfigRegistry } from './default-config-registry';
 
 const logger = createScopedLogger('config');
@@ -32,11 +31,14 @@ type ListenerEntry = {
 };
 
 export class ConfigManager {
-  private config: AppConfig | null = null;
   private configPath: string | null = null;
+  private lastKnownConfig: AppConfig | null = null;
   private listeners: ListenerEntry[] = [];
-  private configWatcher = new ConfigWatcher();
   private defaultConfigRegistry = new DefaultConfigRegistry();
+  private configStore: Conf<Record<string, unknown>> | null = null;
+  private selfUpdating = false;
+  private readonly DEBOUNCE_MS = 300;
+  private unsubscribeHotReload?: () => void;
 
   // ─── 生命周期 ────────────────────────────────────────────────
 
@@ -46,15 +48,17 @@ export class ConfigManager {
    */
   async load(configPath: string): Promise<void> {
     this.configPath = configPath;
+    mkdirSync(dirname(configPath), { recursive: true });
 
-    if (!fs.existsSync(configPath)) {
+    if (!existsSync(configPath)) {
       logger.info('未找到配置文件，正在使用默认值创建', { path: configPath });
-      this.config = structuredClone(DEFAULT_CONFIG);
-      await this.persistConfig();
+      this.configStore = this.createConfigStore(configPath);
+      this.writeConfigToStore(DEFAULT_CONFIG);
+      this.lastKnownConfig = structuredClone(DEFAULT_CONFIG);
     } else {
       logger.info('正在加载配置', { path: configPath });
-      const raw = fs.readFileSync(configPath, 'utf-8');
-      this.config = this.parseAndValidate(raw);
+      this.configStore = this.createConfigStore(configPath);
+      this.lastKnownConfig = this.readValidatedConfigFromStore();
     }
   }
 
@@ -62,18 +66,12 @@ export class ConfigManager {
 
   /** 获取整个配置的只读快照 */
   getConfig(): Readonly<AppConfig> {
-    if (!this.config) {
-      throw new AppError('配置未加载', 'CONFIG_VALIDATION');
-    }
-    return this.config;
+    return this.readValidatedConfigFromStore();
   }
 
   /** 获取特定配置节的只读快照 */
   get<K extends keyof AppConfig>(key: K): Readonly<AppConfig[K]> {
-    if (!this.config) {
-      throw new AppError('配置未加载', 'CONFIG_VALIDATION');
-    }
-    return this.config[key];
+    return this.readValidatedConfigFromStore()[key];
   }
 
   // ─── 订阅 ─────────────────────────────────────────────────
@@ -110,12 +108,10 @@ export class ConfigManager {
     partial: DeepPartial<AppConfig>,
     options: { replaceTopLevelKeys?: readonly (keyof AppConfig)[] } = {},
   ): Promise<void> {
-    if (!this.config || !this.configPath) {
-      throw new AppError('配置未加载', 'CONFIG_VALIDATION');
-    }
+    this.ensureLoaded();
 
-    const oldConfig = structuredClone(this.config);
-    const mergeBase = structuredClone(this.config) as Record<string, unknown>;
+    const oldConfig = this.readValidatedConfigFromStore();
+    const mergeBase = structuredClone(oldConfig) as Record<string, unknown>;
 
     for (const key of options.replaceTopLevelKeys ?? []) {
       if (Object.prototype.hasOwnProperty.call(partial, key)) {
@@ -129,20 +125,8 @@ export class ConfigManager {
     ) as AppConfig;
     const validatedConfig = this.validateConfigObject(mergedConfig);
 
-    this.config = validatedConfig;
-
-    // 写入磁盘前设置守卫
-    this.configWatcher.setSelfUpdating(true);
-    try {
-      await this.persistConfig();
-    } finally {
-      // 短暂延迟后清除守卫，让 fs.watch 事件平息
-      setTimeout(() => {
-        this.configWatcher.setSelfUpdating(false);
-      }, this.configWatcher.getDebounceMs() + 50);
-    }
-
-    this.notifyListeners(oldConfig);
+    this.persistWithGuard(validatedConfig);
+    this.notifyListeners(oldConfig, validatedConfig);
   }
 
   // ─── 默认值 ──────────────────────────────────────────────────
@@ -160,54 +144,58 @@ export class ConfigManager {
    * 通常在启动结束时调用，此时所有子系统都已注册其默认值。
    */
   async syncDefaults(): Promise<void> {
-    if (!this.config || !this.configPath) {
-      throw new AppError('配置未加载', 'CONFIG_VALIDATION');
-    }
+    this.ensureLoaded();
 
-    const oldConfig = structuredClone(this.config);
-    const mergedConfig = this.defaultConfigRegistry.mergeInto(this.config);
+    const oldConfig = this.readValidatedConfigFromStore();
+    const mergedConfig = this.defaultConfigRegistry.mergeInto(oldConfig);
+    const validatedConfig = this.validateConfigObject(mergedConfig);
 
-    this.config = this.validateConfigObject(mergedConfig);
-
-    this.configWatcher.setSelfUpdating(true);
-    try {
-      await this.persistConfig();
-    } finally {
-      setTimeout(() => {
-        this.configWatcher.setSelfUpdating(false);
-      }, this.configWatcher.getDebounceMs() + 50);
-    }
-
-    this.notifyListeners(oldConfig);
+    this.persistWithGuard(validatedConfig);
+    this.notifyListeners(oldConfig, validatedConfig);
   }
 
   // ─── 热重载 ─────────────────────────────────────────────────
 
   /** 开始监视配置文件的外部变更 */
   startHotReload(): void {
-    if (!this.configPath) {
+    if (!this.configPath || !this.configStore) {
       throw new AppError('配置未加载 —— 无法启动热重载', 'CONFIG_VALIDATION');
     }
 
-    this.configWatcher.start(this.configPath, () => this.reloadFromFile());
+    this.stopHotReload();
+
+    this.unsubscribeHotReload = this.configStore.onDidAnyChange(() => {
+      this.reloadFromFile();
+    });
+
+    logger.info('热重载监视器已启动');
   }
 
   /** 停止监视配置文件 */
   stopHotReload(): void {
-    this.configWatcher.stop();
+    if (this.unsubscribeHotReload) {
+      this.unsubscribeHotReload();
+      this.unsubscribeHotReload = undefined;
+      logger.info('热重载监视器已停止');
+    }
   }
 
   // ─── 私有辅助函数 ───────────────────────────────────────────
 
   private reloadFromFile(): void {
-    if (!this.configPath) return;
+    if (!this.configStore) return;
+
+    // 如果刚写入文件 ourselves，则跳过
+    if (this.selfUpdating) {
+      return;
+    }
 
     try {
-      const raw = fs.readFileSync(this.configPath, 'utf-8');
-      const newConfig = this.parseAndValidate(raw);
+      const oldConfig = this.lastKnownConfig ?? this.readValidatedConfigFromStore();
+      const newConfig = this.validateConfigPayload(this.configStore.store);
 
       // 比较规范化 JSON 以检测真实变更
-      const oldNormalised = JSON.stringify(this.config);
+      const oldNormalised = JSON.stringify(oldConfig);
       const newNormalised = JSON.stringify(newConfig);
 
       if (oldNormalised === newNormalised) {
@@ -215,28 +203,15 @@ export class ConfigManager {
         return;
       }
 
-      const oldConfig = this.config;
-      if (!oldConfig) {
-        this.config = newConfig;
-        logger.info('已从文件重新加载配置');
-        return;
-      }
-      this.config = newConfig;
-      this.notifyListeners(oldConfig);
+      this.lastKnownConfig = structuredClone(newConfig);
+      this.notifyListeners(oldConfig, newConfig);
       logger.info('已从文件重新加载配置');
     } catch (err) {
       logger.error('重新加载配置文件失败', err);
     }
   }
 
-  private parseAndValidate(raw: string): AppConfig {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (err) {
-      throw new AppError('配置文件中的 JSON 无效', 'CONFIG_VALIDATION', err);
-    }
-
+  private validateConfigPayload(parsed: unknown): AppConfig {
     if (!isPlainObject(parsed)) {
       const errors = [...Value.Errors(AppConfigSchema, parsed)];
       throw new AppError('配置验证失败', 'CONFIG_VALIDATION', errors);
@@ -266,19 +241,53 @@ export class ConfigManager {
     return validated as AppConfig;
   }
 
-  private async persistConfig(): Promise<void> {
-    if (!this.configPath) return;
-    const json = JSON.stringify(this.config, null, 2);
-    mkdirSync(dirname(this.configPath), { recursive: true });
-    fs.writeFileSync(this.configPath, json, 'utf-8');
+  private ensureLoaded(): Conf<Record<string, unknown>> {
+    if (!this.configPath || !this.configStore) {
+      throw new AppError('配置未加载', 'CONFIG_VALIDATION');
+    }
+    return this.configStore;
   }
 
-  private notifyListeners(oldConfig: AppConfig): void {
-    const newConfig = this.config;
-    if (!newConfig) {
-      return;
-    }
+  private readValidatedConfigFromStore(): AppConfig {
+    return this.validateConfigPayload(this.ensureLoaded().store);
+  }
 
+  private writeConfigToStore(config: AppConfig): void {
+    this.ensureLoaded().store = structuredClone(config) as Record<string, unknown>;
+  }
+
+  private persistWithGuard(config: AppConfig): void {
+    this.selfUpdating = true;
+    try {
+      this.writeConfigToStore(config);
+      this.lastKnownConfig = structuredClone(config);
+    } finally {
+      setTimeout(() => {
+        this.selfUpdating = false;
+      }, this.DEBOUNCE_MS + 50);
+    }
+  }
+
+  private createConfigStore(configPath: string): Conf<Record<string, unknown>> {
+    const extension = extname(configPath);
+    const fileExtension = extension.startsWith('.') ? extension.slice(1) : extension;
+
+    try {
+      return new Conf<Record<string, unknown>>({
+        cwd: dirname(configPath),
+        configName: extension ? basename(configPath, extension) : basename(configPath),
+        fileExtension,
+        clearInvalidConfig: false,
+        serialize: (value) => JSON.stringify(value, null, 2),
+        deserialize: JSON.parse,
+        watch: true,
+      });
+    } catch (err) {
+      throw new AppError('配置文件中的 JSON 无效', 'CONFIG_VALIDATION', err);
+    }
+  }
+
+  private notifyListeners(oldConfig: AppConfig, newConfig: AppConfig): void {
     for (const entry of this.listeners) {
       try {
         let result: void | Promise<void> = undefined;

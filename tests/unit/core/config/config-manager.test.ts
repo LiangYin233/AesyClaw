@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { writeFileSync, readFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ConfigManager } from '../../../../src/core/config/config-manager';
@@ -50,6 +50,23 @@ describe('ConfigManager', () => {
       expect(config.server.port).toBe(3000);
       expect(config.server.host).toBe('0.0.0.0');
       expect(config.server.logLevel).toBe('info');
+    });
+
+    it('should persist to the exact configPath provided by callers', async () => {
+      configPath = join(TEST_DIR, 'custom-location', `provided-${Date.now()}.json`);
+
+      await manager.load(configPath);
+
+      expect(existsSync(configPath)).toBe(true);
+      expect(JSON.parse(readFileSync(configPath, 'utf-8'))).toMatchObject({
+        server: { port: 3000, host: '0.0.0.0', logLevel: 'info' },
+      });
+
+      await manager.update({ server: { port: 4567 } });
+
+      expect(JSON.parse(readFileSync(configPath, 'utf-8'))).toMatchObject({
+        server: { port: 4567, host: '0.0.0.0', logLevel: 'info' },
+      });
     });
 
     it('should load an existing config file', async () => {
@@ -140,6 +157,20 @@ describe('ConfigManager', () => {
       const agentConfig = manager.get('agent');
       expect(agentConfig.memory).toBeDefined();
       expect(agentConfig.multimodal).toBeDefined();
+    });
+
+    it('should read current snapshots from the Conf-backed store', async () => {
+      await manager.load(configPath);
+
+      const externallyChangedConfig = structuredClone(manager.getConfig()) as Record<string, unknown>;
+      externallyChangedConfig.server = { port: 7777, host: '127.0.0.1', logLevel: 'debug' };
+      writeFileSync(configPath, JSON.stringify(externallyChangedConfig, null, 2));
+
+      expect(manager.get('server')).toMatchObject({
+        port: 7777,
+        host: '127.0.0.1',
+        logLevel: 'debug',
+      });
     });
 
     it('should throw if config not loaded', () => {
