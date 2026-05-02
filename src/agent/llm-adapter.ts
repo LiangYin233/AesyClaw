@@ -91,7 +91,7 @@ export class LlmAdapter extends BaseManager<LlmAdapterDependencies> {
       api: apiType,
       baseUrl: providerConfig.baseUrl ?? builtInModel?.baseUrl ?? '',
       reasoning: builtInModel?.reasoning ?? false,
-      input: builtInModel?.input ?? ['text'],
+      input: (preset?.input ?? builtInModel?.input ?? ['text']) as ResolvedModel['input'],
       cost: builtInModel?.cost ?? {
         input: 0,
         output: 0,

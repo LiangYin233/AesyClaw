@@ -22,6 +22,7 @@ const ApiProtocolType = Type.Union([
 const ModelPresetSchema = Type.Object({
   contextWindow: Type.Optional(Type.Number()),
   extraBody: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+  input: Type.Optional(Type.Array(Type.String())),
 });
 
 const ProviderConfigSchema = Type.Object({
