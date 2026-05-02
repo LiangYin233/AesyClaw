@@ -279,12 +279,19 @@ watch(chartData, () => {
   });
 }, { deep: true });
 
+function localDateStr(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 onMounted(() => {
   const today = new Date();
   const weekAgo = new Date(today);
   weekAgo.setDate(weekAgo.getDate() - 7);
-  fromDate.value = weekAgo.toISOString().split('T')[0];
-  toDate.value = today.toISOString().split('T')[0];
+  fromDate.value = localDateStr(weekAgo);
+  toDate.value = localDateStr(today);
   loadModelOptions();
   load();
   renderChart();

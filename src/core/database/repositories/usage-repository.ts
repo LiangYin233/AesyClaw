@@ -83,20 +83,37 @@ export async function createUsageRecord(
   return Number(result.lastInsertRowid);
 }
 
-/** 获取按模型 + 日期分组的聚合用量统计，支持可选过滤条件。 */
+/** 将本地日期字符串（YYYY-MM-DD）转为 UTC ISO 时间戳。
+ *  endOfDay=true 返回当天末尾 23:59:59.999Z，否则返回当天开始 00:00:00.000Z。
+ *  JavaScript Date 构造函数用数字参数时以本地时区解释，toISOString() 再转回 UTC。 */
+function localDateToUtc(dateStr: string, endOfDay: boolean): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(
+    y,
+    m - 1,
+    d,
+    endOfDay ? 23 : 0,
+    endOfDay ? 59 : 0,
+    endOfDay ? 59 : 0,
+    endOfDay ? 999 : 0,
+  ).toISOString();
+}
+
+/** 获取按模型 + 日期分组的聚合用量统计，支持可选过滤条件。
+ *  from / to 参数视为本地日期；过滤和日期输出均基于本地时区（localtime）。 */
 export async function getUsageStats(
   db: DatabaseSync,
   options?: { model?: string; from?: string; to?: string },
 ): Promise<UsageSummary[]> {
   const modelFilter = options?.model ?? null;
-  const fromFilter = options?.from ? `${options.from}T00:00:00` : null;
-  const toFilter = options?.to ? `${options.to}T23:59:59` : null;
+  const fromFilter = options?.from ? localDateToUtc(options.from, false) : null;
+  const toFilter = options?.to ? localDateToUtc(options.to, true) : null;
 
   const rows = db
     .prepare(
       `SELECT
         model,
-        DATE(timestamp) as date,
+        DATE(timestamp, 'localtime') as date,
         SUM(input_tokens) as inputTokens,
         SUM(output_tokens) as outputTokens,
         SUM(total_tokens) as totalTokens,
@@ -112,7 +129,7 @@ export async function getUsageStats(
       WHERE (? IS NULL OR model = ?)
         AND (? IS NULL OR timestamp >= ?)
         AND (? IS NULL OR timestamp <= ?)
-      GROUP BY model, DATE(timestamp)
+      GROUP BY model, DATE(timestamp, 'localtime')
       ORDER BY date DESC, model ASC`,
     )
     .all(
@@ -127,13 +144,14 @@ export async function getUsageStats(
   return rows.map(mapRow);
 }
 
-/** 获取今日的聚合用量汇总（仪表板卡片用）。 */
+/** 获取今日的聚合用量汇总（仪表板卡片用）。
+ *  日期边界使用本地时区：DATE(..., 'localtime') >= DATE('now', 'localtime')。 */
 export async function getTodayUsageSummary(db: DatabaseSync): Promise<UsageSummary[]> {
   const rows = db
     .prepare(
       `SELECT
         model,
-        DATE(timestamp) as date,
+        DATE(timestamp, 'localtime') as date,
         SUM(input_tokens) as inputTokens,
         SUM(output_tokens) as outputTokens,
         SUM(total_tokens) as totalTokens,
@@ -146,7 +164,7 @@ export async function getTodayUsageSummary(db: DatabaseSync): Promise<UsageSumma
         SUM(cost_cache_write) as costCacheWrite,
         SUM(cost_total) as costTotal
       FROM usage
-      WHERE DATE(timestamp) = DATE('now')
+      WHERE DATE(timestamp, 'localtime') >= DATE('now', 'localtime')
       GROUP BY model
       ORDER BY totalTokens DESC`,
     )
