@@ -45,6 +45,10 @@ export class ConfigManager {
    * 如果文件不存在，则使用默认值创建。
    */
   async load(configPath: string): Promise<void> {
+    if (this.configStore) {
+      logger.warn('配置已加载 — 跳过');
+      return;
+    }
     this.configPath = configPath;
     mkdirSync(dirname(configPath), { recursive: true });
 

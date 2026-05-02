@@ -80,6 +80,10 @@ export class DatabaseManager {
    * 初始化数据库连接,确保父目录存在,运行迁移,并创建仓库实例。
    */
   async initialize(dbPath: string): Promise<void> {
+    if (this.db) {
+      logger.warn('数据库已初始化 — 跳过');
+      return;
+    }
     mkdirSync(dirname(dbPath), { recursive: true });
 
     logger.info('打开数据库', { path: dbPath });
