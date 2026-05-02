@@ -25,50 +25,30 @@ import {
 } from './agent-types';
 import type { AgentMessage, MemoryConfig } from './agent-types';
 import type { LlmAdapter } from './llm-adapter';
-import type { Usage } from '@mariozechner/pi-ai';
+import type {
+  MessagesRepository,
+  ToolUsageRepository,
+  UsageRepository,
+} from '../core/database/database-manager';
 import { createScopedLogger } from '../core/logger';
 
 const logger = createScopedLogger('memory');
-
-/** MemoryManager 依赖的消息仓库结构 */
-export type MessageRepositoryLike = {
-  save(sessionId: string, message: PersistableMessage): Promise<void>;
-  loadHistory(sessionId: string): Promise<PersistableMessage[]>;
-  clearHistory(sessionId: string): Promise<void>;
-  replaceWithSummary(sessionId: string, summary: string): Promise<void>;
-}
-
-/** MemoryManager 依赖的用量仓库结构 */
-export type UsageRepositoryLike = {
-  create(record: {
-    model: string;
-    provider: string;
-    api: string;
-    responseId?: string;
-    usage: Usage;
-  }): Promise<number>;
-}
-
-/** MemoryManager 依赖的工具/技能用量仓库结构 */
-export type ToolUsageRepositoryLike = {
-  create(record: { name: string; type: 'tool' | 'skill' }): Promise<number>;
-}
 
 // ─── MemoryManager ──────────────────────────────────────────────
 
 export class MemoryManager {
   private readonly sessionId: string;
-  private readonly messageRepo: MessageRepositoryLike;
-  private readonly usageRepo: UsageRepositoryLike | undefined;
-  private readonly toolUsageRepo: ToolUsageRepositoryLike | undefined;
+  private readonly messageRepo: MessagesRepository;
+  private readonly usageRepo: UsageRepository | undefined;
+  private readonly toolUsageRepo: ToolUsageRepository | undefined;
   private readonly config: MemoryConfig;
 
   constructor(
     sessionId: string,
-    messageRepo: MessageRepositoryLike,
+    messageRepo: MessagesRepository,
     config: MemoryConfig,
-    usageRepo?: UsageRepositoryLike,
-    toolUsageRepo?: ToolUsageRepositoryLike,
+    usageRepo?: UsageRepository,
+    toolUsageRepo?: ToolUsageRepository,
   ) {
     this.sessionId = sessionId;
     this.messageRepo = messageRepo;

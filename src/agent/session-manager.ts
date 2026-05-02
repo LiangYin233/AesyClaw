@@ -19,7 +19,7 @@ import type { Agent } from './agent-types';
 import { MemoryManager } from './memory-manager';
 import type { LlmAdapter } from './llm-adapter';
 import { createScopedLogger } from '../core/logger';
-import { BaseManager } from '../core/base-manager';
+import { requireInitialized } from '../core/utils';
 
 const logger = createScopedLogger('session');
 export const AGENT_PROCESSING_BUSY_MESSAGE = 'Agent处理任务中。';
@@ -50,7 +50,8 @@ export type SessionManagerDependencies = {
 
 // ─── SessionManager ─────────────────────────────────────────────
 
-export class SessionManager extends BaseManager<SessionManagerDependencies> {
+export class SessionManager {
+  private deps: SessionManagerDependencies | null = null;
   private sessions: Map<string, SessionContext> = new Map();
   private pendingSessions: Map<string, Promise<SessionContext>> = new Map();
   private agentProcessingSessions: Set<string> = new Set();
@@ -61,7 +62,20 @@ export class SessionManager extends BaseManager<SessionManagerDependencies> {
    * 使用依赖初始化会话管理器。
    */
   initialize(deps: SessionManagerDependencies): void {
-    super.initialize(deps);
+    if (this.deps) {
+      logger.warn('SessionManager 已初始化 — 跳过');
+      return;
+    }
+    this.deps = deps;
+    logger.info('SessionManager 已初始化');
+  }
+
+  destroy(): void {
+    this.deps = null;
+  }
+
+  private requireDeps(): SessionManagerDependencies {
+    return requireInitialized(this.deps, 'SessionManager');
   }
 
   // ─── 会话解析 ───────────────────────────────────────
@@ -82,7 +96,7 @@ export class SessionManager extends BaseManager<SessionManagerDependencies> {
    * @returns 会话上下文
    */
   async getOrCreateSession(key: SessionKey): Promise<SessionContext> {
-    this.assertInitialized();
+    this.requireDeps();
 
     const cacheKey = serializeSessionKey(key);
 
@@ -110,7 +124,7 @@ export class SessionManager extends BaseManager<SessionManagerDependencies> {
   }
 
   private async createSessionContext(key: SessionKey, cacheKey: string): Promise<SessionContext> {
-    const deps = this.getDeps();
+    const deps = this.requireDeps();
 
     // 创建或查找数据库会话记录
     const sessionRecord = await deps.databaseManager.sessions.findOrCreate(key);
@@ -217,7 +231,7 @@ export class SessionManager extends BaseManager<SessionManagerDependencies> {
    * @param key - 要清除的会话键
    */
   async clearSession(key: SessionKey): Promise<void> {
-    this.assertInitialized();
+    this.requireDeps();
 
     const cacheKey = serializeSessionKey(key);
     const session = this.sessions.get(cacheKey);
@@ -240,7 +254,7 @@ export class SessionManager extends BaseManager<SessionManagerDependencies> {
    * 即使会话当前未被缓存，也可以清除持久化的历史。
    */
   async resetSession(key: SessionKey): Promise<void> {
-    const deps = this.getDeps();
+    const deps = this.requireDeps();
 
     const cacheKey = serializeSessionKey(key);
     const sessionRecord = await deps.databaseManager.sessions.findOrCreate(key);
@@ -263,7 +277,7 @@ export class SessionManager extends BaseManager<SessionManagerDependencies> {
    * @returns 总结文本
    */
   async compactSession(key: SessionKey): Promise<string> {
-    this.assertInitialized();
+    this.requireDeps();
 
     const cacheKey = serializeSessionKey(key);
     const session = this.sessions.get(cacheKey);
@@ -272,7 +286,7 @@ export class SessionManager extends BaseManager<SessionManagerDependencies> {
       throw new Error(`未找到会话: ${cacheKey}`);
     }
 
-    const summary = await session.memory.compact(this.getDeps().llmAdapter, session.activeRole.model);
+    const summary = await session.memory.compact(this.requireDeps().llmAdapter, session.activeRole.model);
     logger.info('会话已压缩', { cacheKey });
     return summary;
   }
@@ -289,7 +303,7 @@ export class SessionManager extends BaseManager<SessionManagerDependencies> {
    * @param roleId - 要切换到的新角色 ID
    */
   async switchRole(key: SessionKey, roleId: string): Promise<void> {
-    const deps = this.getDeps();
+    const deps = this.requireDeps();
 
     const cacheKey = serializeSessionKey(key);
     const session = this.sessions.get(cacheKey);

@@ -2,8 +2,7 @@
 
 import type { InboundMessage, OutboundMessage, SendFn, SessionKey } from '../core/types';
 import { createScopedLogger } from '../core/logger';
-import { BaseManager } from '../core/base-manager';
-import { errorMessage, mergeDefaults } from '../core/utils';
+import { errorMessage, mergeDefaults, requireInitialized } from '../core/utils';
 import { SerialExecutor } from '../utils/serial-executor';
 import { ChannelLoader } from './channel-loader';
 import type {
@@ -18,7 +17,8 @@ import { isRecord } from '../core/utils';
 
 const logger = createScopedLogger('channel-manager');
 
-export class ChannelManager extends BaseManager<ChannelManagerDependencies> {
+export class ChannelManager {
+  private deps: ChannelManagerDependencies | null = null;
   private readonly definitions = new Map<string, ChannelPlugin>();
   private readonly loadedChannels = new Map<string, LoadedChannel>();
   private readonly failedChannels = new Map<string, string>();
@@ -26,13 +26,27 @@ export class ChannelManager extends BaseManager<ChannelManagerDependencies> {
   private serialExecutor = new SerialExecutor();
 
   initialize(dependencies: ChannelManagerDependencies): void {
-    super.initialize(dependencies);
+    if (this.deps) {
+      logger.warn('ChannelManager 已初始化 — 跳过');
+      return;
+    }
+    this.deps = dependencies;
+    logger.info('ChannelManager 已初始化');
+
     for (const channel of this.definitions.values()) {
       this.registerDefaults(channel);
     }
     for (const channel of dependencies.channels ?? []) {
       this.register(channel);
     }
+  }
+
+  destroy(): void {
+    this.deps = null;
+  }
+
+  private requireDeps(): ChannelManagerDependencies {
+    return requireInitialized(this.deps, 'ChannelManager');
   }
 
   register(channel: ChannelPlugin, owner?: string): void {
@@ -70,7 +84,7 @@ export class ChannelManager extends BaseManager<ChannelManagerDependencies> {
   }
 
   async startAll(): Promise<void> {
-    this.assertInitialized();
+    this.requireDeps();
     for (const channel of this.definitions.values()) {
       if (!this.isEnabled(channel.name)) {
         this.failedChannels.delete(channel.name);
@@ -100,7 +114,7 @@ export class ChannelManager extends BaseManager<ChannelManagerDependencies> {
   }
 
   async start(channelName: string): Promise<LoadedChannel> {
-    this.assertInitialized();
+    this.requireDeps();
     const definition = this.definitions.get(channelName);
     if (!definition) {
       throw new Error(`频道 "${channelName}" 未注册`);
@@ -224,7 +238,7 @@ export class ChannelManager extends BaseManager<ChannelManagerDependencies> {
       name: channelName,
       config,
       receiveWithSend: async (message: InboundMessage, send: SendFn): Promise<void> => {
-        const pipeline = this.getDeps().pipeline;
+        const pipeline = this.requireDeps().pipeline;
         await pipeline.receiveWithSend(message, send);
       },
       logger: createScopedLogger(`channel:${channelName}`),
@@ -244,7 +258,7 @@ export class ChannelManager extends BaseManager<ChannelManagerDependencies> {
   }
 
   private getConfigRecord(channelName: string): Record<string, unknown> {
-    const configManager = this.getDeps().configManager;
+    const configManager = this.requireDeps().configManager;
     try {
       const channels = configManager.get('channels');
       const config = channels[channelName];

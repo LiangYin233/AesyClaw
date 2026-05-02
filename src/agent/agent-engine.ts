@@ -8,7 +8,7 @@ import type { LlmAdapter } from './llm-adapter';
 import type { PromptBuilder } from './prompt-builder';
 import type { MemoryManager } from './memory-manager';
 import { createScopedLogger } from '../core/logger';
-import { BaseManager } from '../core/base-manager';
+import { requireInitialized } from '../core/utils';
 
 const logger = createScopedLogger('agent-engine');
 
@@ -25,10 +25,24 @@ export type ProcessEphemeralParams = {
   content: string;
 }
 
-export class AgentEngine extends BaseManager<AgentEngineDependencies> {
+export class AgentEngine {
+  private deps: AgentEngineDependencies | null = null;
 
   initialize(deps: AgentEngineDependencies): void {
-    super.initialize(deps);
+    if (this.deps) {
+      logger.warn('AgentEngine 已初始化 — 跳过');
+      return;
+    }
+    this.deps = deps;
+    logger.info('AgentEngine 已初始化');
+  }
+
+  destroy(): void {
+    this.deps = null;
+  }
+
+  private requireDeps(): AgentEngineDependencies {
+    return requireInitialized(this.deps, 'AgentEngine');
   }
 
   createAgent(
@@ -36,7 +50,7 @@ export class AgentEngine extends BaseManager<AgentEngineDependencies> {
     sessionId: string,
     executionContext?: Partial<ToolExecutionContext>,
   ): Agent {
-    const deps = this.getDeps();
+    const deps = this.requireDeps();
 
     const { prompt, tools } = deps.promptBuilder.buildSystemPrompt(role, executionContext);
     const model = deps.llmAdapter.resolveModel(role.model);
@@ -69,7 +83,7 @@ export class AgentEngine extends BaseManager<AgentEngineDependencies> {
     role: RoleConfig,
     sendMessage?: ToolExecutionContext['sendMessage'],
   ): Promise<OutboundMessage> {
-    const deps = this.getDeps();
+    const deps = this.requireDeps();
 
     logger.debug('正在处理消息', {
       sessionKey: message.sessionKey,
@@ -116,7 +130,7 @@ export class AgentEngine extends BaseManager<AgentEngineDependencies> {
   }
 
   async processEphemeral(params: ProcessEphemeralParams): Promise<OutboundMessage> {
-    this.assertInitialized();
+    this.requireDeps();
 
     const { sessionKey, sessionId, memory, role, content } = params;
     const history = await memory.loadHistory();
@@ -144,7 +158,7 @@ export class AgentEngine extends BaseManager<AgentEngineDependencies> {
   }
 
   switchModel(agent: Agent, modelIdentifier: string): void {
-    const model = this.getDeps().llmAdapter.resolveModel(modelIdentifier);
+    const model = this.requireDeps().llmAdapter.resolveModel(modelIdentifier);
     agent.state.model = model;
 
     logger.info('模型已切换', {
@@ -159,7 +173,7 @@ export class AgentEngine extends BaseManager<AgentEngineDependencies> {
     memory: MemoryManager,
     role: RoleConfig,
   ): Promise<AgentMessage[]> {
-    const llmAdapter = this.getDeps().llmAdapter;
+    const llmAdapter = this.requireDeps().llmAdapter;
     let history = await memory.loadHistory();
     if (memory.shouldCompact(history)) {
       await memory.compact(llmAdapter, role.model);

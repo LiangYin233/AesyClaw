@@ -6,7 +6,7 @@
  */
 
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
-import { ToolAdapter } from '../../../src/tool/tool-adapter';
+import { toAgentTool } from '../../../src/tool/tool-adapter';
 import type { AesyClawTool, ToolExecutionContext } from '../../../src/tool/tool-registry';
 import type { HookDispatcher } from '../../../src/pipeline/hook-dispatcher';
 import { setLogLevel } from '../../../src/core/logger';
@@ -96,7 +96,7 @@ describe('ToolAdapter', () => {
   describe('toAgentTool', () => {
     it('should convert AesyClawTool to AgentTool with correct properties', () => {
       const tool = makeTool();
-      const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
 
       expect(agentTool.name).toBe('test-tool');
       expect(agentTool.label).toBe('test-tool');
@@ -109,7 +109,7 @@ describe('ToolAdapter', () => {
         execute: async () => ({ content: 'Hello from tool' }),
       });
 
-      const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
       const result = await agentTool.execute('call-1', { input: 'test' });
 
       expect(result.content).toEqual([{ type: 'text', text: 'Hello from tool' }]);
@@ -128,7 +128,7 @@ describe('ToolAdapter', () => {
         sessionKey: { channel: 'test', type: 'private', chatId: 'user1' },
       };
 
-      const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), context);
+      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), context);
       await agentTool.execute('call-1', { input: 'test' });
 
       expect(receivedContext).toEqual(context);
@@ -143,7 +143,7 @@ describe('ToolAdapter', () => {
         },
       });
 
-      const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
       const params = {};
 
       await expect(agentTool.execute('call-1', params)).resolves.toMatchObject({
@@ -177,7 +177,7 @@ describe('ToolAdapter', () => {
         },
       });
 
-      const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
       const params = { max_results: 'not-a-number' };
       const result = await agentTool.execute('call-mcp', params);
 
@@ -199,7 +199,7 @@ describe('ToolAdapter', () => {
         },
       });
 
-      const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
       const params = {};
 
       await expect(agentTool.execute('call-plugin-invalid', params)).resolves.toMatchObject({
@@ -219,7 +219,7 @@ describe('ToolAdapter', () => {
         execute: async () => ({ content: 'should not run' }),
       });
 
-      const agentTool = ToolAdapter.toAgentTool(
+      const agentTool = toAgentTool(
         tool,
         makeBlockingHookDispatcher('Blocked by policy'),
         {},
@@ -237,7 +237,7 @@ describe('ToolAdapter', () => {
         execute: async () => ({ content: 'should not run' }),
       });
 
-      const agentTool = ToolAdapter.toAgentTool(
+      const agentTool = toAgentTool(
         tool,
         makeShortCircuitHookDispatcher({ content: 'Short-circuited', isError: false }),
         {},
@@ -252,7 +252,7 @@ describe('ToolAdapter', () => {
         execute: async () => ({ content: 'should not run' }),
       });
 
-      const agentTool = ToolAdapter.toAgentTool(
+      const agentTool = toAgentTool(
         tool,
         makeShortCircuitHookDispatcher({ content: 'Cached failure', isError: true }),
         {},
@@ -270,7 +270,7 @@ describe('ToolAdapter', () => {
         execute: async () => ({ content: 'original result' }),
       });
 
-      const agentTool = ToolAdapter.toAgentTool(
+      const agentTool = toAgentTool(
         tool,
         makeOverrideHookDispatcher({ content: 'overridden result' }),
         {},
@@ -285,7 +285,7 @@ describe('ToolAdapter', () => {
         execute: async () => ({ content: 'Tool failed', isError: true }),
       });
 
-      const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
 
       await expect(agentTool.execute('call-1', { input: 'test' })).resolves.toMatchObject({
         content: [{ type: 'text', text: 'Tool failed' }],
@@ -299,7 +299,7 @@ describe('ToolAdapter', () => {
         execute: async () => ({ content: 'original result' }),
       });
 
-      const agentTool = ToolAdapter.toAgentTool(
+      const agentTool = toAgentTool(
         tool,
         makeOverrideHookDispatcher({ content: 'overridden failure', isError: true }),
         {},
@@ -319,7 +319,7 @@ describe('ToolAdapter', () => {
         },
       });
 
-      const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
       await expect(agentTool.execute('call-1', { input: 'test' })).resolves.toMatchObject({
         content: [{ type: 'text', text: 'Tool crashed' }],
         details: {},
@@ -335,7 +335,7 @@ describe('ToolAdapter', () => {
       const controller = new AbortController();
       controller.abort();
 
-      const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
       await expect(agentTool.execute('call-1', {}, controller.signal)).resolves.toMatchObject({
         content: [{ type: 'text', text: '工具调用 "test-tool" 被中止' }],
         details: {},
@@ -348,7 +348,7 @@ describe('ToolAdapter', () => {
         execute: async () => ({ content: 'ok' }),
       });
 
-      const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
       // Should not throw — just uses empty sessionKey
       const result = await agentTool.execute('call-1', { input: 'test' });
       expect(result.content).toEqual([{ type: 'text', text: 'ok' }]);
@@ -359,7 +359,7 @@ describe('ToolAdapter', () => {
         execute: async () => ({ content: 'secret tool result', details: { recordCount: 1 } }),
       });
 
-      const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
       await agentTool.execute('call-logging', { input: 'secret user payload' });
 
       expectDebugLog('工具调用已触发', {
@@ -385,12 +385,12 @@ describe('ToolAdapter', () => {
       const tool = makeTool({
         execute: async () => ({ content: 'should not run' }),
       });
-      const blockedTool = ToolAdapter.toAgentTool(
+      const blockedTool = toAgentTool(
         tool,
         makeBlockingHookDispatcher('Blocked by policy'),
         {},
       );
-      const shortCircuitTool = ToolAdapter.toAgentTool(
+      const shortCircuitTool = toAgentTool(
         tool,
         makeShortCircuitHookDispatcher({ content: 'Cached result' }),
         {},
@@ -433,7 +433,7 @@ describe('ToolAdapter', () => {
         },
       });
 
-      const validationTool = ToolAdapter.toAgentTool(
+      const validationTool = toAgentTool(
         makeTool({
           execute: async () => {
             throw new Error('Tool rejected invalid params');
@@ -442,7 +442,7 @@ describe('ToolAdapter', () => {
         makeNoOpHookDispatcher(),
         {},
       );
-      const executionTool = ToolAdapter.toAgentTool(failingTool, makeNoOpHookDispatcher(), {});
+      const executionTool = toAgentTool(failingTool, makeNoOpHookDispatcher(), {});
 
       await validationTool.execute('call-invalid', {});
       await executionTool.execute('call-failed', { input: 'test' });
@@ -478,7 +478,7 @@ describe('ToolAdapter', () => {
       const controller = new AbortController();
       controller.abort();
 
-      const agentTool = ToolAdapter.toAgentTool(tool, makeNoOpHookDispatcher(), {});
+      const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
       await agentTool.execute('call-aborted', { input: 'secret abort payload' }, controller.signal);
 
       expectDebugLog('工具调用已触发', {
@@ -502,7 +502,7 @@ describe('ToolAdapter', () => {
         execute: async () => ({ content: 'original result' }),
       });
 
-      const agentTool = ToolAdapter.toAgentTool(
+      const agentTool = toAgentTool(
         tool,
         makeOverrideHookDispatcher({ content: 'overridden failure', isError: true }),
         {},

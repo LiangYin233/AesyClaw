@@ -18,7 +18,7 @@ import type {
 import { createScopedLogger } from '../core/logger';
 import type { HookDispatcher } from '../pipeline/hook-dispatcher';
 import type { AgentTool } from '../agent/agent-types';
-import { ToolAdapter } from './tool-adapter';
+import { toAgentTool } from './tool-adapter';
 
 const logger = createScopedLogger('tool');
 
@@ -180,7 +180,7 @@ export class ToolRegistry {
     toolHookDispatcher: HookDispatcher,
     executionContext: Partial<ToolExecutionContext>,
   ): AgentTool[] {
-    return tools.map((tool) => ToolAdapter.toAgentTool(tool, toolHookDispatcher, executionContext));
+    return tools.map((tool) => toAgentTool(tool, toolHookDispatcher, executionContext));
   }
 }
 

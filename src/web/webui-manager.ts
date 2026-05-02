@@ -3,7 +3,7 @@
 import { serve } from '@hono/node-server';
 import { randomBytes } from 'node:crypto';
 import { createScopedLogger } from '../core/logger';
-import { BaseManager } from '../core/base-manager';
+import { requireInitialized } from '../core/utils';
 import type { ConfigManager } from '../core/config/config-manager';
 import type { DatabaseManager } from '../core/database/database-manager';
 import type { SessionManager } from '../agent/session-manager';
@@ -29,17 +29,18 @@ export type WebUiManagerDependencies = {
   skillManager: SkillManager;
 }
 
-export class WebUiManager extends BaseManager<WebUiManagerDependencies> {
+export class WebUiManager {
+  private deps: WebUiManagerDependencies | null = null;
   private app: ReturnType<typeof createApp> | null = null;
   private server: ReturnType<typeof serve> | null = null;
 
-  // eslint-disable-next-line @typescript-eslint/no-misused-promises
   async initialize(deps: WebUiManagerDependencies): Promise<void> {
     if (this.deps) {
-      this.logger.warn('WebUiManager 已初始化 — 跳过');
+      logger.warn('WebUiManager 已初始化 — 跳过');
       return;
     }
-    super.initialize(deps);
+    this.deps = deps;
+    logger.info('WebUiManager 已初始化');
 
     const config = deps.configManager.getConfig();
     const serverConfig = config.server;
@@ -64,7 +65,6 @@ export class WebUiManager extends BaseManager<WebUiManagerDependencies> {
     logger.info('WebUI 服务器已启动', { host: serverConfig.host, port: serverConfig.port });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-misused-promises
   async destroy(): Promise<void> {
     const server = this.server;
     if (server) {
@@ -79,8 +79,12 @@ export class WebUiManager extends BaseManager<WebUiManagerDependencies> {
       this.server = null;
     }
     this.app = null;
-    super.destroy();
+    this.deps = null;
     logger.info('WebUI 服务器已停止');
+  }
+
+  private requireDeps(): WebUiManagerDependencies {
+    return requireInitialized(this.deps, 'WebUiManager');
   }
 
   private generateToken(): string {

@@ -11,23 +11,86 @@ import * as toolUsageRepo from './repositories/tool-usage-repository';
 
 const logger = createScopedLogger('db');
 
+/**
+ * 仓库 API 类型 — 由 DatabaseManager 在 `initialize()` 时一次性构造,
+ * 供其它子系统直接消费。注释标注的类型也用作 *Like 鸭子接口的替代,
+ * 让 MemoryManager / CronManager / SubAgentSandbox 等不再各自重声明
+ * 同样的子集类型。
+ */
+export type SessionsRepository = {
+  findOrCreate: (key: Parameters<typeof sessions.findOrCreateSession>[1]) => ReturnType<typeof sessions.findOrCreateSession>;
+  findByKey: (key: Parameters<typeof sessions.findSessionByKey>[1]) => ReturnType<typeof sessions.findSessionByKey>;
+  findAll: () => ReturnType<typeof sessions.findAllSessions>;
+  findById: (id: string) => ReturnType<typeof sessions.findSessionById>;
+};
+
+export type MessagesRepository = {
+  save: (sessionId: string, message: Parameters<typeof messages.saveMessage>[2]) => ReturnType<typeof messages.saveMessage>;
+  loadHistory: (sessionId: string) => ReturnType<typeof messages.loadMessageHistory>;
+  clearHistory: (sessionId: string) => ReturnType<typeof messages.clearMessageHistory>;
+  replaceWithSummary: (sessionId: string, summary: string) => ReturnType<typeof messages.replaceMessageWithSummary>;
+};
+
+export type RoleBindingsRepository = {
+  getActiveRole: (sessionId: string) => ReturnType<typeof roleBindings.getActiveRoleBinding>;
+  setActiveRole: (sessionId: string, roleId: string) => ReturnType<typeof roleBindings.setActiveRoleBinding>;
+};
+
+export type CronJobsRepository = {
+  create: (params: Parameters<typeof cron.createCronJob>[1]) => ReturnType<typeof cron.createCronJob>;
+  findById: (id: string) => ReturnType<typeof cron.findCronJobById>;
+  findAll: () => ReturnType<typeof cron.findAllCronJobs>;
+  delete: (id: string) => ReturnType<typeof cron.deleteCronJob>;
+  updateNextRun: (id: string, nextRun: Date | null) => ReturnType<typeof cron.updateCronJobNextRun>;
+};
+
+export type CronRunsRepository = {
+  create: (params: { jobId: string }) => ReturnType<typeof cron.createCronRun>;
+  markCompleted: (runId: string, result: string) => ReturnType<typeof cron.markCronRunCompleted>;
+  markFailed: (runId: string, error: string) => ReturnType<typeof cron.markCronRunFailed>;
+  markAbandoned: (runIds: string[]) => ReturnType<typeof cron.markCronRunsAbandoned>;
+  findRunning: () => ReturnType<typeof cron.findRunningCronRuns>;
+  findByJobId: (jobId: string) => ReturnType<typeof cron.findCronRunsByJobId>;
+};
+
+export type UsageRepository = {
+  create: (record: Parameters<typeof usageRepo.createUsageRecord>[1]) => ReturnType<typeof usageRepo.createUsageRecord>;
+  getStats: (options?: Parameters<typeof usageRepo.getUsageStats>[1]) => ReturnType<typeof usageRepo.getUsageStats>;
+  getTodaySummary: () => ReturnType<typeof usageRepo.getTodayUsageSummary>;
+};
+
+export type ToolUsageRepository = {
+  create: (record: Parameters<typeof toolUsageRepo.createToolUsageRecord>[1]) => ReturnType<typeof toolUsageRepo.createToolUsageRecord>;
+  getStats: (options?: Parameters<typeof toolUsageRepo.getToolUsageStats>[1]) => ReturnType<typeof toolUsageRepo.getToolUsageStats>;
+};
+
 export class DatabaseManager {
   private db: DatabaseSync | null = null;
 
+  // 仓库 API 在 initialize() 时一次性构造,后续访问无 lambda 重建开销。
+  sessions!: SessionsRepository;
+  messages!: MessagesRepository;
+  roleBindings!: RoleBindingsRepository;
+  cronJobs!: CronJobsRepository;
+  cronRuns!: CronRunsRepository;
+  usage!: UsageRepository;
+  toolUsage!: ToolUsageRepository;
+
   /**
-   * 初始化数据库连接，确保父目录存在，运行迁移，并创建仓库实例。
+   * 初始化数据库连接,确保父目录存在,运行迁移,并创建仓库实例。
    */
   async initialize(dbPath: string): Promise<void> {
-    // 确保数据目录存在
     mkdirSync(dirname(dbPath), { recursive: true });
 
     logger.info('打开数据库', { path: dbPath });
-    this.db = new DatabaseSync(dbPath);
+    const db = new DatabaseSync(dbPath);
+    this.db = db;
 
-    this.db.exec('PRAGMA journal_mode = WAL');
-    this.db.exec('PRAGMA foreign_keys = ON');
+    db.exec('PRAGMA journal_mode = WAL');
+    db.exec('PRAGMA foreign_keys = ON');
 
     this.ensureTables();
+    this.bindRepositories(db);
 
     logger.info('数据库初始化完成');
   }
@@ -41,116 +104,86 @@ export class DatabaseManager {
     }
   }
 
-  /** 获取底层数据库实例 —— 必须已初始化 */
+  /** 获取底层数据库实例 — 必须已初始化 */
   getDb(): DatabaseSync {
     if (!this.db) throw new Error('数据库尚未初始化');
     return this.db;
   }
 
-  // ─── 仓库访问器 ──────────────────────────────────────
-
-  /** 绑定到当前数据库的会话仓库函数 */
-  get sessions() {
-    const db = this.getDb();
-    return {
-      findOrCreate: (key: Parameters<typeof sessions.findOrCreateSession>[1]) =>
-        sessions.findOrCreateSession(db, key),
-      findByKey: (key: Parameters<typeof sessions.findSessionByKey>[1]) =>
-        sessions.findSessionByKey(db, key),
-      findAll: () => sessions.findAllSessions(db),
-      findById: (id: string) => sessions.findSessionById(db, id),
-    };
-  }
-
-  /** 绑定到当前数据库的消息仓库函数 */
-  get messages() {
-    const db = this.getDb();
-    return {
-      save: (sessionId: string, message: Parameters<typeof messages.saveMessage>[2]) =>
-        messages.saveMessage(db, sessionId, message),
-      loadHistory: (sessionId: string) => messages.loadMessageHistory(db, sessionId),
-      clearHistory: (sessionId: string) => messages.clearMessageHistory(db, sessionId),
-      replaceWithSummary: (sessionId: string, summary: string) =>
-        messages.replaceMessageWithSummary(db, sessionId, summary),
-    };
-  }
-
-  /** 绑定到当前数据库的角色绑定仓库函数 */
-  get roleBindings() {
-    const db = this.getDb();
-    return {
-      getActiveRole: (sessionId: string) => roleBindings.getActiveRoleBinding(db, sessionId),
-      setActiveRole: (sessionId: string, roleId: string) =>
-        roleBindings.setActiveRoleBinding(db, sessionId, roleId),
-    };
-  }
-
-  /** 绑定到当前数据库的定时任务仓库函数 */
-  get cronJobs() {
-    const db = this.getDb();
-    return {
-      create: (params: Parameters<typeof cron.createCronJob>[1]) => cron.createCronJob(db, params),
-      findById: (id: string) => cron.findCronJobById(db, id),
-      findAll: () => cron.findAllCronJobs(db),
-      delete: (id: string) => cron.deleteCronJob(db, id),
-      updateNextRun: (id: string, nextRun: Date | null) =>
-        cron.updateCronJobNextRun(db, id, nextRun),
-    };
-  }
-
-  /** 绑定到当前数据库的定时任务运行仓库函数 */
-  get cronRuns() {
-    const db = this.getDb();
-    return {
-      create: (params: { jobId: string }) => cron.createCronRun(db, params),
-      markCompleted: (runId: string, result: string) =>
-        cron.markCronRunCompleted(db, runId, result),
-      markFailed: (runId: string, error: string) => cron.markCronRunFailed(db, runId, error),
-      markAbandoned: (runIds: string[]) => cron.markCronRunsAbandoned(db, runIds),
-      findRunning: () => cron.findRunningCronRuns(db),
-      findByJobId: (jobId: string) => cron.findCronRunsByJobId(db, jobId),
-    };
-  }
-
-  /** 绑定到当前数据库的用量仓库函数 */
-  get usage() {
-    const db = this.getDb();
-    return {
-      create: (record: Parameters<typeof usageRepo.createUsageRecord>[1]) =>
-        usageRepo.createUsageRecord(db, record),
-      getStats: (options?: Parameters<typeof usageRepo.getUsageStats>[1]) =>
-        usageRepo.getUsageStats(db, options),
-      getTodaySummary: () => usageRepo.getTodayUsageSummary(db),
-    };
-  }
-
-  /** 绑定到当前数据库的工具/技能用量仓库函数 */
-  get toolUsage() {
-    const db = this.getDb();
-    return {
-      create: (record: Parameters<typeof toolUsageRepo.createToolUsageRecord>[1]) =>
-        toolUsageRepo.createToolUsageRecord(db, record),
-      getStats: (options?: Parameters<typeof toolUsageRepo.getToolUsageStats>[1]) =>
-        toolUsageRepo.getToolUsageStats(db, options),
-    };
-  }
-
   /** 获取数据库统计信息 */
   getStats(): { sessions: number; messages: number; cronJobs: number; usage: number } {
     const db = this.getDb();
-    const sessions =
+    const sessionsCount =
       (db.prepare('SELECT COUNT(*) as count FROM sessions').get() as { count: number } | undefined)
         ?.count ?? 0;
-    const messages =
+    const messagesCount =
       (db.prepare('SELECT COUNT(*) as count FROM messages').get() as { count: number } | undefined)
         ?.count ?? 0;
-    const cronJobs =
+    const cronJobsCount =
       (db.prepare('SELECT COUNT(*) as count FROM cron_jobs').get() as { count: number } | undefined)
         ?.count ?? 0;
-    const usage =
+    const usageCount =
       (db.prepare('SELECT COUNT(*) as count FROM usage').get() as { count: number } | undefined)
         ?.count ?? 0;
-    return { sessions, messages, cronJobs, usage };
+    return {
+      sessions: sessionsCount,
+      messages: messagesCount,
+      cronJobs: cronJobsCount,
+      usage: usageCount,
+    };
+  }
+
+  // ─── 仓库绑定 ─────────────────────────────────────────────────
+
+  private bindRepositories(db: DatabaseSync): void {
+    this.sessions = {
+      findOrCreate: (key) => sessions.findOrCreateSession(db, key),
+      findByKey: (key) => sessions.findSessionByKey(db, key),
+      findAll: () => sessions.findAllSessions(db),
+      findById: (id) => sessions.findSessionById(db, id),
+    };
+
+    this.messages = {
+      save: (sessionId, message) => messages.saveMessage(db, sessionId, message),
+      loadHistory: (sessionId) => messages.loadMessageHistory(db, sessionId),
+      clearHistory: (sessionId) => messages.clearMessageHistory(db, sessionId),
+      replaceWithSummary: (sessionId, summary) =>
+        messages.replaceMessageWithSummary(db, sessionId, summary),
+    };
+
+    this.roleBindings = {
+      getActiveRole: (sessionId) => roleBindings.getActiveRoleBinding(db, sessionId),
+      setActiveRole: (sessionId, roleId) =>
+        roleBindings.setActiveRoleBinding(db, sessionId, roleId),
+    };
+
+    this.cronJobs = {
+      create: (params) => cron.createCronJob(db, params),
+      findById: (id) => cron.findCronJobById(db, id),
+      findAll: () => cron.findAllCronJobs(db),
+      delete: (id) => cron.deleteCronJob(db, id),
+      updateNextRun: (id, nextRun) => cron.updateCronJobNextRun(db, id, nextRun),
+    };
+
+    this.cronRuns = {
+      create: (params) => cron.createCronRun(db, params),
+      markCompleted: (runId, result) => cron.markCronRunCompleted(db, runId, result),
+      markFailed: (runId, error) => cron.markCronRunFailed(db, runId, error),
+      markAbandoned: (runIds) => cron.markCronRunsAbandoned(db, runIds),
+      findRunning: () => cron.findRunningCronRuns(db),
+      findByJobId: (jobId) => cron.findCronRunsByJobId(db, jobId),
+    };
+
+    this.usage = {
+      create: (record) => usageRepo.createUsageRecord(db, record),
+      getStats: (options) => usageRepo.getUsageStats(db, options),
+      getTodaySummary: () => usageRepo.getTodayUsageSummary(db),
+    };
+
+    this.toolUsage = {
+      create: (record) => toolUsageRepo.createToolUsageRecord(db, record),
+      getStats: (options) => toolUsageRepo.getToolUsageStats(db, options),
+    };
   }
 
   // ─── 建表 ──────────────────────────────────────────────────

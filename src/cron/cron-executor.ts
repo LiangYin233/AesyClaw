@@ -2,28 +2,15 @@
 
 import type { CronJobRecord, InboundMessage, OutboundMessage, SessionKey } from '../core/types';
 import { parseSerializedSessionKey } from '../core/types';
+import type { CronRunsRepository } from '../core/database/database-manager';
+import type { Pipeline } from '../pipeline/pipeline';
 import { createScopedLogger } from '../core/logger';
 
 const logger = createScopedLogger('cron');
 
-export type CronRunRepositoryLike = {
-  create(params: { jobId: string }): Promise<string>;
-  markCompleted(runId: string, result: string): Promise<void>;
-  markFailed(runId: string, error: string): Promise<void>;
-  findRunning(): Promise<Array<{ id: string }>>;
-  markAbandoned(runIds: string[]): Promise<void>;
-}
-
-export type CronPipelineLike = {
-  receiveWithSend(
-    message: InboundMessage,
-    send: (message: OutboundMessage) => Promise<void>,
-  ): Promise<void>;
-}
-
 export type CronExecutorDependencies = {
-  cronRuns: CronRunRepositoryLike;
-  pipeline: CronPipelineLike;
+  cronRuns: CronRunsRepository;
+  pipeline: Pick<Pipeline, 'receiveWithSend'>;
   send: (sessionKey: SessionKey, message: OutboundMessage) => Promise<void>;
 }
 

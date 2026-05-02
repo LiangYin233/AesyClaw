@@ -74,3 +74,68 @@ export async function importExtensionEntry(entryPath: string): Promise<unknown> 
   entryUrl.searchParams.set('mtime', String((await stat(entryPath)).mtimeMs));
   return await import(entryUrl.href);
 }
+
+/**
+ * 通用扩展加载器基类:统一 `discover()` + `load()` 流程,
+ * 子类只需提供 directoryPrefix、kind、和 `extract()` 验证器即可。
+ *
+ * 该类把 PluginLoader / ChannelLoader 共享的"扫描目录、解析入口、动态 import"
+ * 逻辑抽出。`extract()` 负责把 imported 模块转换为定义对象,
+ * 由具体子类决定接受哪些导出形式(`default`、命名导出、工厂等)。
+ */
+export type ExtensionLoaderConfig<T> = {
+  extensionsDir?: string;
+  directoryPrefix: string;
+  kind: string;
+  invalidMessage: string;
+  unreadableMessage: string;
+  inspectFailureMessage: string;
+  candidateField: string;
+  logger: ExtensionLoaderLogger;
+  extract: (imported: unknown) => T | null;
+}
+
+export type ExtensionModule<T> = {
+  definition: T;
+  directory: string;
+  directoryName: string;
+  entryPath: string;
+}
+
+export class ExtensionLoader<T> {
+  protected readonly extensionsDir: string;
+  private readonly config: ExtensionLoaderConfig<T>;
+
+  constructor(config: ExtensionLoaderConfig<T>) {
+    this.extensionsDir = config.extensionsDir ?? path.resolve(process.cwd(), 'extensions');
+    this.config = config;
+  }
+
+  async discover(): Promise<string[]> {
+    return await discoverExtensionDirs({
+      extensionsDir: this.extensionsDir,
+      directoryPrefix: this.config.directoryPrefix,
+      logger: this.config.logger,
+      unreadableMessage: this.config.unreadableMessage,
+      inspectFailureMessage: this.config.inspectFailureMessage,
+      candidateField: this.config.candidateField,
+    });
+  }
+
+  async load(extensionDir: string): Promise<ExtensionModule<T>> {
+    const entryPath = await resolveExtensionEntry(extensionDir, this.config.kind);
+    const imported = await importExtensionEntry(entryPath);
+    const definition = this.config.extract(imported);
+
+    if (definition === null) {
+      throw new Error(`${this.config.kind}模块 "${entryPath}" ${this.config.invalidMessage}`);
+    }
+
+    return {
+      definition,
+      directory: extensionDir,
+      directoryName: path.basename(extensionDir),
+      entryPath,
+    };
+  }
+}

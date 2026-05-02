@@ -3,7 +3,7 @@ import type { Api, KnownProvider, Model } from '@mariozechner/pi-ai';
 import type { ConfigManager } from '../core/config/config-manager';
 import type { ProviderConfig } from '../core/config/schema';
 import { createScopedLogger } from '../core/logger';
-import { BaseManager } from '../core/base-manager';
+import { requireInitialized } from '../core/utils';
 import { extractMessageText } from './agent-types';
 import type { ResolvedModel, StreamFn, AgentMessage } from './agent-types';
 
@@ -43,14 +43,28 @@ export type LlmAdapterDependencies = {
   configManager: ConfigManager;
 }
 
-export class LlmAdapter extends BaseManager<LlmAdapterDependencies> {
+export class LlmAdapter {
+  private deps: LlmAdapterDependencies | null = null;
 
   initialize(deps: LlmAdapterDependencies): void {
-    super.initialize(deps);
+    if (this.deps) {
+      logger.warn('LlmAdapter 已初始化 — 跳过');
+      return;
+    }
+    this.deps = deps;
+    logger.info('LlmAdapter 已初始化');
+  }
+
+  destroy(): void {
+    this.deps = null;
+  }
+
+  private requireDeps(): LlmAdapterDependencies {
+    return requireInitialized(this.deps, 'LlmAdapter');
   }
 
   resolveModel(modelIdentifier: string): ResolvedModel {
-    const configManager = this.getDeps().configManager;
+    const configManager = this.requireDeps().configManager;
 
     const slashIndex = modelIdentifier.indexOf('/');
     if (slashIndex === -1) {
@@ -126,7 +140,7 @@ export class LlmAdapter extends BaseManager<LlmAdapterDependencies> {
   }
 
   createGetApiKey(): (provider: string) => string | undefined {
-    const configManager = this.getDeps().configManager;
+    const configManager = this.requireDeps().configManager;
 
     return (provider: string): string | undefined => {
       const providers = configManager.get('providers');

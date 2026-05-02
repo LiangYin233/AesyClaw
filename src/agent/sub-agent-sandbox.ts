@@ -9,7 +9,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PersistableMessage, RoleConfig, SessionKey } from '../core/types';
 import { MemoryManager } from './memory-manager';
-import type { MessageRepositoryLike } from './memory-manager';
+import type { MessagesRepository } from '../core/database/database-manager';
 import type { SubAgentRoleParams, SubAgentTempParams } from './agent-types';
 import type { AgentEngine } from './agent-engine';
 import type { RoleManager } from '../role/role-manager';
@@ -149,7 +149,7 @@ export class SubAgentSandbox {
   }
 }
 
-class InMemoryMessageRepository implements MessageRepositoryLike {
+class InMemoryMessageRepository implements MessagesRepository {
   private messages: PersistableMessage[] = [];
 
   async save(_sessionId: string, message: PersistableMessage): Promise<void> {

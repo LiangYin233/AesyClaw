@@ -2,13 +2,12 @@
 
 import { Type, type TSchema } from '@sinclair/typebox';
 import { createScopedLogger } from '../core/logger';
-import { BaseManager } from '../core/base-manager';
-import { errorMessage, isRecord } from '../core/utils';
+import { errorMessage, isRecord, requireInitialized } from '../core/utils';
 import { SerialExecutor } from '../utils/serial-executor';
 import type { McpServerConfig } from '../core/config/schema';
-import type { DeepPartial, ToolOwner } from '../core/types';
-import type { AesyClawTool, ToolExecutionResult } from '../tool/tool-registry';
-import type { AppConfig } from '../core/config/schema';
+import type { ToolOwner } from '../core/types';
+import type { ConfigManager } from '../core/config/config-manager';
+import type { ToolRegistry, AesyClawTool, ToolExecutionResult } from '../tool/tool-registry';
 
 const logger = createScopedLogger('mcp');
 
@@ -29,20 +28,10 @@ export type McpClientFactory = {
   create(config: McpServerConfig): McpClient;
 }
 
-export type McpConfigManagerLike = {
-  get(key: 'mcp'): ReadonlyArray<Readonly<McpServerConfig>>;
-  update?(partial: DeepPartial<Pick<AppConfig, 'mcp'>>): Promise<void>;
-}
-
 export type McpManagerDependencies = {
-  configManager: McpConfigManagerLike;
-  toolRegistry: McpToolRegistryLike;
+  configManager: ConfigManager;
+  toolRegistry: ToolRegistry;
   clientFactory?: McpClientFactory;
-}
-
-export type McpToolRegistryLike = {
-  register(tool: AesyClawTool): void;
-  unregisterByOwner(owner: ToolOwner): void;
 }
 
 export type ConnectedMcpServer = {
@@ -65,26 +54,40 @@ export type McpServerStatus = {
 }
 
 type McpManagerStoredDeps = {
-  configManager: McpConfigManagerLike;
-  toolRegistry: McpToolRegistryLike;
+  configManager: ConfigManager;
+  toolRegistry: ToolRegistry;
   clientFactory: McpClientFactory;
 }
 
-export class McpManager extends BaseManager<McpManagerStoredDeps> {
+export class McpManager {
+  private deps: McpManagerStoredDeps | null = null;
   private readonly connectedServers = new Map<string, ConnectedMcpServer>();
   private readonly failedServers = new Map<string, string>();
   private serialExecutor = new SerialExecutor();
 
   initialize(dependencies: McpManagerDependencies): void {
-    super.initialize({
+    if (this.deps) {
+      logger.warn('McpManager 已初始化 — 跳过');
+      return;
+    }
+    this.deps = {
       configManager: dependencies.configManager,
       toolRegistry: dependencies.toolRegistry,
       clientFactory: dependencies.clientFactory ?? new EmptyMcpClientFactory(),
-    });
+    };
+    logger.info('McpManager 已初始化');
+  }
+
+  destroy(): void {
+    this.deps = null;
+  }
+
+  private requireDeps(): McpManagerStoredDeps {
+    return requireInitialized(this.deps, 'McpManager');
   }
 
   async connectAll(): Promise<void> {
-    this.assertInitialized();
+    this.requireDeps();
     for (const config of this.getConfigs()) {
       if (!config.enabled) {
         this.failedServers.delete(config.name);
@@ -114,7 +117,7 @@ export class McpManager extends BaseManager<McpManagerStoredDeps> {
   }
 
   async connect(serverName: string): Promise<ConnectedMcpServer | null> {
-    this.assertInitialized();
+    this.requireDeps();
     const config = this.getConfigs().find((entry) => entry.name === serverName);
     if (!config) {
       throw new Error(`MCP 服务器 "${serverName}" 未配置`);
@@ -128,9 +131,9 @@ export class McpManager extends BaseManager<McpManagerStoredDeps> {
       await this.disconnect(serverName);
     }
 
-      const client = this.getDeps().clientFactory.create(config);
+      const client = this.requireDeps().clientFactory.create(config);
       const owner: ToolOwner = mcpOwner(serverName);
-      const toolRegistry = this.getDeps().toolRegistry;
+      const toolRegistry = this.requireDeps().toolRegistry;
     try {
       await client.connect();
       const tools = await client.listTools();
@@ -172,7 +175,7 @@ export class McpManager extends BaseManager<McpManagerStoredDeps> {
         await connected.client.close();
       }
     } finally {
-      this.getDeps().toolRegistry.unregisterByOwner(owner);
+      this.requireDeps().toolRegistry.unregisterByOwner(owner);
       this.connectedServers.delete(serverName);
       this.failedServers.delete(serverName);
       logger.info('MCP 服务器已断开连接', { server: serverName });
@@ -236,7 +239,7 @@ export class McpManager extends BaseManager<McpManagerStoredDeps> {
   }
 
   private getConfigs(): McpServerConfig[] {
-    const configManager = this.getDeps().configManager;
+    const configManager = this.requireDeps().configManager;
     try {
       return configManager.get('mcp').map(cloneConfig);
     } catch {

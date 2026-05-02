@@ -1,13 +1,8 @@
 /** 动态频道扩展加载器。 */
 
-import path from 'node:path';
 import { createScopedLogger } from '../core/logger';
-import {
-  discoverExtensionDirs,
-  importExtensionEntry,
-  resolveExtensionEntry,
-} from '../extensions/extension-loader';
-import type { ChannelLoaderOptions, ChannelModule, ChannelPlugin } from './channel-types';
+import { ExtensionLoader } from '../extensions/extension-loader';
+import type { ChannelLoaderOptions, ChannelPlugin } from './channel-types';
 import { isChannelPlugin } from './channel-types';
 import { isRecord } from '../core/utils';
 
@@ -17,62 +12,29 @@ const logger = createScopedLogger('channel-loader');
  * 动态频道扩展加载器。
  *
  * 负责发现和加载 `extensions/channel_*` 目录下的频道插件。
+ * 支持四种导出形式(按优先级):
+ *   1. `createChannel()` 工厂调用
+ *   2. `create<Name>Channel()` 命名工厂(正则匹配)
+ *   3. `default` 导出
+ *   4. `channel` 命名导出
  */
-export class ChannelLoader {
-  private readonly extensionsDir: string;
-
-  /**
-   * 创建频道加载器实例。
-   *
-   * @param options - 加载器选项
-   */
+export class ChannelLoader extends ExtensionLoader<ChannelPlugin> {
   constructor(options: ChannelLoaderOptions = {}) {
-    this.extensionsDir = options.extensionsDir ?? path.resolve(process.cwd(), 'extensions');
-  }
-
-  /**
-   * 发现所有频道扩展目录。
-   *
-   * @returns 频道扩展目录的绝对路径数组
-   */
-  async discover(): Promise<string[]> {
-    return await discoverExtensionDirs({
-      extensionsDir: this.extensionsDir,
+    super({
+      extensionsDir: options.extensionsDir,
       directoryPrefix: 'channel_',
-      logger,
+      kind: 'Channel',
+      invalidMessage: '未导出有效的 ChannelPlugin',
       unreadableMessage: '频道扩展目录不可读',
       inspectFailureMessage: '检查频道目录候选失败',
       candidateField: 'channelDir',
+      logger,
+      extract: extractChannelDefinition,
     });
-  }
-
-  /**
-   * 加载指定目录的频道模块。
-   *
-   * @param channelDir - 频道扩展目录的绝对路径
-   * @returns 加载的频道模块
-   * @throws 如果模块未导出有效的 ChannelPlugin 则抛出错误
-   */
-  async load(channelDir: string): Promise<ChannelModule> {
-    const entryPath = await resolveExtensionEntry(channelDir, 'Channel');
-    const imported = await importExtensionEntry(entryPath);
-    const definition = extractDefinition(imported);
-
-    if (!definition) {
-      throw new Error(`频道模块 "${entryPath}" 未导出有效的 ChannelPlugin`);
-    }
-
-    logger.debug('已加载频道模块', { channelDir, entryPath, channelName: definition.name });
-    return {
-      definition,
-      directory: channelDir,
-      directoryName: path.basename(channelDir),
-      entryPath,
-    };
   }
 }
 
-function extractDefinition(imported: unknown): ChannelPlugin | null {
+function extractChannelDefinition(imported: unknown): ChannelPlugin | null {
   if (!isRecord(imported)) {
     return null;
   }

@@ -20,7 +20,6 @@ import { mergeDefaults } from '../utils';
 import { AppConfigSchema } from './schema';
 import type { AppConfig } from './schema';
 import { DEFAULT_CONFIG } from './defaults';
-import { DefaultConfigRegistry } from './default-config-registry';
 
 const logger = createScopedLogger('config');
 
@@ -33,7 +32,7 @@ export class ConfigManager {
   private configPath: string | null = null;
   private lastKnownConfig: AppConfig | null = null;
   private listeners: ListenerEntry[] = [];
-  private defaultConfigRegistry = new DefaultConfigRegistry();
+  private registeredDefaults = new Map<string, Record<string, unknown>>();
   private configStore: Conf<Record<string, unknown>> | null = null;
   private selfUpdating = false;
   private readonly DEBOUNCE_MS = 300;
@@ -133,20 +132,31 @@ export class ConfigManager {
   /**
    * 为子系统注册默认值。
    * 这些值通过 `syncDefaults()` 同步到配置中。
+   *
+   * 支持点号 key(如 `'channels.testchannel'`),会被展开为
+   * `{ channels: { testchannel: defaults } }` 嵌套结构后参与合并。
    */
   registerDefaults(key: string, defaults: Record<string, unknown>): void {
-    this.defaultConfigRegistry.registerDefaults(key, defaults);
+    this.registeredDefaults.set(key, defaults);
   }
 
   /**
    * 将所有已注册的默认值合并到当前配置并持久化。
-   * 通常在启动结束时调用，此时所有子系统都已注册其默认值。
+   * 通常在启动结束时调用,此时所有子系统都已注册其默认值。
    */
   async syncDefaults(): Promise<void> {
     this.ensureLoaded();
 
     const oldConfig = this.readValidatedConfigFromStore();
-    const mergedConfig = this.defaultConfigRegistry.mergeInto(oldConfig);
+    let mergedConfig = structuredClone(oldConfig);
+    for (const [key, defaults] of this.registeredDefaults) {
+      const nestedPartial = buildNestedObject(key, defaults);
+      mergedConfig = mergeDefaults(
+        mergedConfig as Record<string, unknown>,
+        nestedPartial,
+        { overwrite: false },
+      ) as AppConfig;
+    }
     const validatedConfig = this.validateConfigObject(mergedConfig);
 
     this.persistWithGuard(validatedConfig);
@@ -323,4 +333,27 @@ function isPromiseLike(value: unknown): value is Promise<void> {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * 把点号 key(如 `'channels.testchannel'`)与值
+ * 转换为嵌套对象 `{ channels: { testchannel: value } }`,
+ * 供 `syncDefaults()` 与默认配置合并使用。
+ */
+function buildNestedObject(key: string, value: Record<string, unknown>): Record<string, unknown> {
+  const parts = key.split('.');
+  const result: Record<string, unknown> = {};
+  let current = result;
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (i === parts.length - 1) {
+      current[part] = value;
+    } else {
+      current[part] = {};
+      current = current[part] as Record<string, unknown>;
+    }
+  }
+
+  return result;
 }
