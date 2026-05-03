@@ -72,8 +72,8 @@ function createRegistry() {
           directory: '/plugin_beta',
         },
       ]),
-      enable: vi.fn().mockResolvedValue(undefined),
-      disable: vi.fn().mockResolvedValue(undefined),
+      enablePlugin: vi.fn().mockResolvedValue(undefined),
+      disablePlugin: vi.fn().mockResolvedValue(undefined),
     },
     agentEngine: {
       processEphemeral: vi.fn().mockResolvedValue({ content: '临时回答' }),
@@ -150,8 +150,8 @@ describe('built-in commands', () => {
     );
 
     expect(deps.pluginManager.listPlugins).toHaveBeenCalledTimes(3);
-    expect(deps.pluginManager.enable).toHaveBeenCalledWith('alpha');
-    expect(deps.pluginManager.disable).toHaveBeenCalledWith('beta');
+    expect(deps.pluginManager.enablePlugin).toHaveBeenCalledWith('alpha');
+    expect(deps.pluginManager.disablePlugin).toHaveBeenCalledWith('beta');
   });
 
   it('returns Chinese usage for /btw without arguments', async () => {
@@ -196,8 +196,8 @@ describe('built-in commands', () => {
       '插件已禁用：beta',
     );
 
-    expect(deps.pluginManager.enable).toHaveBeenCalledWith('alpha');
-    expect(deps.pluginManager.disable).toHaveBeenCalledWith('beta');
+    expect(deps.pluginManager.enablePlugin).toHaveBeenCalledWith('alpha');
+    expect(deps.pluginManager.disablePlugin).toHaveBeenCalledWith('beta');
   });
 
   it('rejects enabling or disabling an unknown plugin', async () => {
@@ -211,7 +211,7 @@ describe('built-in commands', () => {
       '未找到插件：missing',
     );
 
-    expect(deps.pluginManager.enable).not.toHaveBeenCalled();
-    expect(deps.pluginManager.disable).not.toHaveBeenCalled();
+    expect(deps.pluginManager.enablePlugin).not.toHaveBeenCalled();
+    expect(deps.pluginManager.disablePlugin).not.toHaveBeenCalled();
   });
 });
