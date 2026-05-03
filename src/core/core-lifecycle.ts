@@ -5,7 +5,6 @@ import type { AgentEngine } from '../agent/agent-engine';
 import type { LlmAdapter } from '../agent/llm-adapter';
 import { PromptBuilder } from '../agent/prompt-builder';
 import type { SessionManager } from '../agent/session-manager';
-import type { ChannelManager } from '../channel/channel-manager';
 import type { CommandRegistry } from '../command/command-registry';
 import { registerBuiltinCommands } from '../command/builtin';
 import type { ConfigManager } from './config/config-manager';
@@ -18,8 +17,8 @@ import type { CronManager } from '../cron/cron-manager';
 import type { McpManager } from '../mcp/mcp-manager';
 import { SdkMcpClientFactory } from '../mcp/sdk-mcp-client';
 import type { Pipeline } from '../pipeline/pipeline';
-import { PluginLoader } from '../plugin/plugin-loader';
-import { PluginManager } from '../plugin/plugin-manager';
+import type { ExtensionManager } from '../extension/extension-manager';
+import type { PluginManager } from '../extension/plugin/plugin-manager';
 import { ensureDefaultRoleFile } from '../role/default-role';
 import type { RoleManager } from '../role/role-manager';
 import type { SkillManager } from '../skill/skill-manager';
@@ -42,14 +41,14 @@ export type CoreLifecycleDependencies = {
   pipeline: Pipeline;
   cronManager: CronManager;
   mcpManager: McpManager;
-  channelManager: ChannelManager;
+  extensionManager: ExtensionManager;
   webUiManager: WebUiManager;
 };
 
 export class CoreLifecycle {
   private deps: CoreLifecycleDependencies | null = null;
   private _paths: ResolvedPaths | null = null;
-  private pluginManager: PluginManager | null = null;
+  private extensionManager: ExtensionManager | null = null;
   private unsubscribers: Unsubscribe[] = [];
   private shuttingDown = false;
 
@@ -64,10 +63,10 @@ export class CoreLifecycle {
   }
 
   private getPluginManager(): PluginManager {
-    if (!this.pluginManager) {
-      throw new Error('PluginManager 未初始化');
+    if (!this.extensionManager) {
+      throw new Error('ExtensionManager 未初始化');
     }
-    return this.pluginManager;
+    return this.extensionManager.pluginManagerInstance;
   }
 
   initialize(deps: CoreLifecycleDependencies): void {
@@ -98,12 +97,11 @@ export class CoreLifecycle {
       () => this.d.roleManager.stopWatching(),
       () => this.clearConfigSubscriptions(),
       () => this.d.webUiManager.destroy(),
-      () => this.d.channelManager.stopAll(),
-      () => this.d.channelManager.destroy(),
+      () => this.extensionManager?.stopAll(),
+      () => this.extensionManager?.destroy(),
       () => this.d.mcpManager.disconnectAll(),
       () => this.d.mcpManager.destroy(),
       () => this.d.cronManager.destroy(),
-      () => this.pluginManager?.destroy(),
       () => this.d.pipeline.destroy(),
       () => this.d.agentEngine.destroy(),
       () => this.d.sessionManager.destroy(),
@@ -199,14 +197,14 @@ export class CoreLifecycle {
       commandRegistry: this.d.commandRegistry,
     });
 
-    this.pluginManager = new PluginManager();
-    this.pluginManager.initialize({
+    this.extensionManager = this.d.extensionManager;
+    this.extensionManager.initialize({
       configManager: this.d.configManager,
       toolRegistry: this.d.toolRegistry,
       commandRegistry: this.d.commandRegistry,
       hookRegistry: this.d.pipeline.hookDispatcher,
-      channelManager: this.d.channelManager,
-      pluginLoader: new PluginLoader({ extensionsDir: this.paths.extensionsDir }),
+      pipeline: this.d.pipeline,
+      extensionsDir: this.paths.extensionsDir,
     });
 
     registerBuiltinTools(this.d.toolRegistry, {
@@ -224,7 +222,9 @@ export class CoreLifecycle {
       agentEngine: this.d.agentEngine,
     });
 
-    await this.getPluginManager().loadAll();
+    await this.extensionManager.loadAll();
+    await this.extensionManager.registerFromDisk();
+    await this.extensionManager.startAll();
   }
 
   private async initPeripheralRuntime(): Promise<void> {
@@ -242,17 +242,15 @@ export class CoreLifecycle {
 
     await this.d.mcpManager.connectAll();
 
-    this.d.channelManager.initialize({
-      configManager: this.d.configManager,
-      pipeline: this.d.pipeline,
-    });
-    await this.d.channelManager.registerFromDisk(this.paths.extensionsDir);
-    await this.d.channelManager.startAll();
-
+    if (!this.extensionManager) {
+      throw new Error('ExtensionManager 未初始化');
+    }
+    const em = this.extensionManager;
     await this.d.cronManager.initialize({
       databaseManager: this.d.databaseManager,
       pipeline: this.d.pipeline,
-      send: async (sessionKey, message) => await this.d.channelManager.send(sessionKey, message),
+      send: async (sessionKey, message) =>
+        await em.channelManagerInstance.send(sessionKey, message),
     });
 
     await this.d.webUiManager.initialize({
@@ -261,7 +259,7 @@ export class CoreLifecycle {
       sessionManager: this.d.sessionManager,
       cronManager: this.d.cronManager,
       roleManager: this.d.roleManager,
-      channelManager: this.d.channelManager,
+      channelManager: em.channelManagerInstance,
       pluginManager: this.getPluginManager(),
       toolRegistry: this.d.toolRegistry,
       skillManager: this.d.skillManager,
@@ -294,13 +292,13 @@ export class CoreLifecycle {
         setLogLevel(server.logLevel);
       }),
       this.d.configManager.subscribe('plugins', async () => {
-        await this.pluginManager?.handleConfigReload();
+        await this.extensionManager?.pluginManagerInstance.handleConfigReload();
       }),
       this.d.configManager.subscribe('mcp', async () => {
         await this.d.mcpManager.handleConfigReload();
       }),
       this.d.configManager.subscribe('channels', async () => {
-        await this.d.channelManager.handleConfigReload();
+        await this.extensionManager?.channelManagerInstance.handleConfigReload();
       }),
       this.d.roleManager.subscribeChanges(() => {
         this.d.sessionManager.clearCachedSessions();

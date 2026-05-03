@@ -13,7 +13,7 @@ import type { PluginCommandDeps } from './plugin-commands';
 import type { SessionManager } from '../../agent/session-manager';
 import type { AgentEngine } from '../../agent/agent-engine';
 import type { RoleManager } from '../../role/role-manager';
-import type { PluginManager } from '../../plugin/plugin-manager';
+import type { PluginManager } from '../../extension/plugin/plugin-manager';
 import { createHelpCommand } from './help';
 import { createClearCommand } from './clear';
 import { createCompactCommand } from './compact';

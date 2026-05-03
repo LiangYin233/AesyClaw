@@ -2,8 +2,8 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { Type, type Static } from '@sinclair/typebox';
-import type { PluginDefinition } from '../../src/plugin/plugin-types';
-import type { AesyClawTool, ToolExecutionResult } from '../../src/tool/tool-registry';
+import type { PluginDefinition } from '@aesyclaw/sdk';
+import type { AesyClawTool, ToolExecutionResult } from '@aesyclaw/sdk';
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const POSIX_FORCE_KILL_DELAY_MS = 1_000;

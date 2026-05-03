@@ -1,0 +1,98 @@
+/** ExtensionManager — 统一管理插件和频道扩展。 */
+
+import { createScopedLogger } from '../core/logger';
+import { requireInitialized } from '../core/utils';
+import type { Pipeline } from '../pipeline/pipeline';
+import type { CommandRegistry } from '../command/command-registry';
+import type { ToolRegistry } from '../tool/tool-registry';
+import type { HookDispatcher } from '../pipeline/hook-dispatcher';
+import type { ConfigManager } from '../core/config/config-manager';
+import { PluginManager } from './plugin/plugin-manager';
+import { PluginLoader } from './plugin/plugin-loader';
+import { ChannelManager } from './channel/channel-manager';
+
+const logger = createScopedLogger('extension-manager');
+
+export type ExtensionManagerDependencies = {
+  configManager: ConfigManager;
+  toolRegistry: ToolRegistry;
+  commandRegistry: CommandRegistry;
+  hookRegistry: HookDispatcher;
+  pipeline: Pipeline;
+  extensionsDir: string;
+};
+
+export class ExtensionManager {
+  private deps: ExtensionManagerDependencies | null = null;
+  private pluginManager!: PluginManager;
+  private channelManager!: ChannelManager;
+
+  initialize(deps: ExtensionManagerDependencies): void {
+    if (this.deps) {
+      logger.warn('ExtensionManager 已初始化 — 跳过');
+      return;
+    }
+    this.deps = deps;
+
+    // ChannelManager first (no dependency on PluginManager)
+    this.channelManager = new ChannelManager();
+    this.channelManager.initialize({
+      configManager: deps.configManager,
+      pipeline: deps.pipeline,
+    });
+
+    // PluginManager second (can reference channelManager for plugin channel registration)
+    this.pluginManager = new PluginManager();
+    this.pluginManager.initialize({
+      configManager: deps.configManager,
+      toolRegistry: deps.toolRegistry,
+      commandRegistry: deps.commandRegistry,
+      hookRegistry: deps.hookRegistry,
+      channelManager: this.channelManager,
+      pluginLoader: new PluginLoader({ extensionsDir: deps.extensionsDir }),
+    });
+
+    logger.info('ExtensionManager 已初始化');
+  }
+
+  get pluginManagerInstance(): PluginManager {
+    return this.pluginManager;
+  }
+
+  get channelManagerInstance(): ChannelManager {
+    return this.channelManager;
+  }
+
+  private requireDeps(): ExtensionManagerDependencies {
+    return requireInitialized(this.deps, 'ExtensionManager');
+  }
+
+  /** 加载所有插件。 */
+  async loadAll(): Promise<void> {
+    await this.pluginManager.loadAll();
+  }
+
+  /** 从磁盘注册所有频道扩展。 */
+  async registerFromDisk(): Promise<void> {
+    await this.channelManager.registerFromDisk(this.requireDeps().extensionsDir);
+  }
+
+  /** 启动所有已注册的频道。 */
+  async startAll(): Promise<void> {
+    await this.channelManager.startAll();
+  }
+
+  /** 停止所有频道。 */
+  async stopAll(): Promise<void> {
+    await this.channelManager.stopAll();
+  }
+
+  /** 销毁所有扩展（停止频道 + 卸载插件）。 */
+  async destroy(): Promise<void> {
+    await this.channelManager.stopAll();
+    await this.channelManager.destroy();
+    await this.pluginManager?.destroy();
+    this.deps = null;
+    logger.info('ExtensionManager 已销毁');
+  }
+}

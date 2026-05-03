@@ -1,10 +1,10 @@
 /** 动态频道扩展加载器。 */
 
-import { createScopedLogger } from '../core/logger';
-import { ExtensionLoader } from '../extensions/extension-loader';
+import { createScopedLogger } from '../../core/logger';
+import { ExtensionLoader } from '../extension-loader';
 import type { ChannelLoaderOptions, ChannelPlugin } from './channel-types';
 import { isChannelPlugin } from './channel-types';
-import { isRecord } from '../core/utils';
+import { isRecord } from '../../core/utils';
 
 const logger = createScopedLogger('channel-loader');
 

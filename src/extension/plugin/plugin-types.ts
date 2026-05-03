@@ -5,19 +5,19 @@
  * 有作用域的上下文，并可以注册工具、命令和管道钩子。
  */
 
-import type { CommandDefinition } from '../core/types';
-import type { Logger } from '../core/logger';
-import type { PluginConfigEntry } from '../core/config/schema';
-import type { AesyClawTool } from '../tool/tool-registry';
-import type { ToolRegistry } from '../tool/tool-registry';
-import type { CommandRegistry } from '../command/command-registry';
+import type { CommandDefinition } from '../../core/types';
+import type { Logger } from '../../core/logger';
+import type { PluginConfigEntry } from '../../core/config/schema';
+import type { AesyClawTool } from '../../tool/tool-registry';
+import type { ToolRegistry } from '../../tool/tool-registry';
+import type { CommandRegistry } from '../../command/command-registry';
 import type { ChannelPlugin } from '../channel/channel-types';
 import type { ChannelManager } from '../channel/channel-manager';
-import type { HookDispatcher } from '../pipeline/hook-dispatcher';
-import type { PluginHooks } from '../pipeline/middleware/types';
+import type { HookDispatcher } from '../../pipeline/hook-dispatcher';
+import type { PluginHooks } from '../../pipeline/middleware/types';
 import type { PluginLoader } from './plugin-loader';
-import type { ConfigManager } from '../core/config/config-manager';
-import { isRecord } from '../core/utils';
+import type { ConfigManager } from '../../core/config/config-manager';
+import { isRecord } from '../../core/utils';
 
 export type PluginOwner = `plugin:${string}`;
 

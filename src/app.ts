@@ -3,13 +3,13 @@
 import { AgentEngine } from './agent/agent-engine';
 import { LlmAdapter } from './agent/llm-adapter';
 import { SessionManager } from './agent/session-manager';
-import { ChannelManager } from './channel/channel-manager';
 import { CommandRegistry } from './command/command-registry';
 import { ConfigManager } from './core/config/config-manager';
 import { CoreLifecycle } from './core/core-lifecycle';
 import { DatabaseManager } from './core/database/database-manager';
 import { createScopedLogger } from './core/logger';
 import { CronManager } from './cron/cron-manager';
+import { ExtensionManager } from './extension/extension-manager';
 import { McpManager } from './mcp/mcp-manager';
 import { Pipeline } from './pipeline/pipeline';
 import { RoleManager } from './role/role-manager';
@@ -31,8 +31,8 @@ export class Application {
   private readonly sessionManager: SessionManager;
   private readonly pipeline: Pipeline;
   private readonly cronManager: CronManager;
+  private readonly extensionManager: ExtensionManager;
   private readonly mcpManager: McpManager;
-  private readonly channelManager: ChannelManager;
   private readonly webUiManager: WebUiManager;
   private readonly coreLifecycle: CoreLifecycle;
   private started = false;
@@ -49,8 +49,8 @@ export class Application {
     this.sessionManager = new SessionManager();
     this.pipeline = new Pipeline();
     this.cronManager = new CronManager();
+    this.extensionManager = new ExtensionManager();
     this.mcpManager = new McpManager();
-    this.channelManager = new ChannelManager();
     this.webUiManager = new WebUiManager();
     this.coreLifecycle = new CoreLifecycle();
   }
@@ -74,7 +74,7 @@ export class Application {
       pipeline: this.pipeline,
       cronManager: this.cronManager,
       mcpManager: this.mcpManager,
-      channelManager: this.channelManager,
+      extensionManager: this.extensionManager,
       webUiManager: this.webUiManager,
     });
 

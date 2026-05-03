@@ -1,10 +1,10 @@
 /** 动态插件加载器。 */
 
-import { createScopedLogger } from '../core/logger';
-import { ExtensionLoader } from '../extensions/extension-loader';
+import { createScopedLogger } from '../../core/logger';
+import { ExtensionLoader } from '../extension-loader';
 import type { PluginLoaderOptions, PluginDefinition } from './plugin-types';
 import { isPluginDefinition } from './plugin-types';
-import { isRecord } from '../core/utils';
+import { isRecord } from '../../core/utils';
 
 const logger = createScopedLogger('plugin-loader');
 

@@ -1,10 +1,10 @@
 import { Type } from '@sinclair/typebox';
 import { describe, expect, it, vi } from 'vitest';
-import { PluginManager } from '../../../src/plugin/plugin-manager';
-import type { PluginModule } from '../../../src/plugin/plugin-types';
+import { PluginManager } from '../../../src/extension/plugin/plugin-manager';
+import type { PluginModule } from '../../../src/extension/plugin/plugin-types';
+import type { ChannelPlugin } from '../../../src/extension/channel/channel-types';
 import type { PluginConfigEntry } from '../../../src/core/config/schema';
 import type { DeepPartial } from '../../../src/core/types';
-import type { ChannelPlugin } from '../../../src/channel/channel-types';
 import { ToolRegistry } from '../../../src/tool/tool-registry';
 import { CommandRegistry } from '../../../src/command/command-registry';
 import { HookDispatcher } from '../../../src/pipeline/hook-dispatcher';

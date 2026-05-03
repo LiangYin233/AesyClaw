@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ChannelLoader } from '../../../src/channel/channel-loader';
+import { ChannelLoader } from '../../../src/extension/channel/channel-loader';
 
 const TEST_DIRS: string[] = [];
 

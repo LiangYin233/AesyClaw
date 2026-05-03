@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ChannelManager } from '../../../src/channel/channel-manager';
-import type { ChannelPlugin } from '../../../src/channel/channel-types';
+import { ChannelManager } from '../../../src/extension/channel/channel-manager';
+import type { ChannelPlugin } from '../../../src/extension/channel/channel-types';
 import type { InboundMessage, OutboundMessage } from '../../../src/core/types';
 
 class FakeConfigManager {

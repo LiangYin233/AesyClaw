@@ -1,13 +1,13 @@
 /** 插件管理器 — 加载、卸载并跟踪插件生命周期。 */
 
 import path from 'node:path';
-import { createScopedLogger } from '../core/logger';
-import { errorMessage, mergeDefaults, requireInitialized } from '../core/utils';
-import type { CommandDefinition } from '../core/types';
-import type { PluginConfigEntry } from '../core/config/schema';
-import type { AesyClawTool } from '../tool/tool-registry';
+import { createScopedLogger } from '../../core/logger';
+import { errorMessage, mergeDefaults, requireInitialized } from '../../core/utils';
+import type { CommandDefinition } from '../../core/types';
+import type { PluginConfigEntry } from '../../core/config/schema';
+import type { AesyClawTool } from '../../tool/tool-registry';
 import { PluginLoader } from './plugin-loader';
-import { SerialExecutor } from '../utils/serial-executor';
+import { SerialExecutor } from '../../utils/serial-executor';
 import type {
   LoadedPlugin,
   PluginConfigLookup,
@@ -17,7 +17,7 @@ import type {
   PluginStatus,
 } from './plugin-types';
 import { pluginOwner } from './plugin-types';
-import { isRecord } from '../core/utils';
+import { isRecord } from '../../core/utils';
 
 const logger = createScopedLogger('plugin-manager');
 

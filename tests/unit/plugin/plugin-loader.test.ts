@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { PluginLoader } from '../../../src/plugin/plugin-loader';
+import { PluginLoader } from '../../../src/extension/plugin/plugin-loader';
 
 async function makeExtensionsDir(): Promise<string> {
   return await mkdtemp(path.join(tmpdir(), 'aesyclaw-plugin-loader-'));

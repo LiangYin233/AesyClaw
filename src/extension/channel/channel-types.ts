@@ -1,10 +1,10 @@
 /** 频道接口定义。 */
 
-import type { InboundMessage, OutboundMessage, SendFn, SessionKey } from '../core/types';
-import type { Logger } from '../core/logger';
-import type { ConfigManager } from '../core/config/config-manager';
-import type { Pipeline } from '../pipeline/pipeline';
-import { isRecord } from '../core/utils';
+import type { InboundMessage, OutboundMessage, SendFn, SessionKey } from '../../core/types';
+import type { Logger } from '../../core/logger';
+import type { ConfigManager } from '../../core/config/config-manager';
+import type { Pipeline } from '../../pipeline/pipeline';
+import { isRecord } from '../../core/utils';
 
 export type ChannelContext = {
   name: string;

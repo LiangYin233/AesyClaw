@@ -1,5 +1,5 @@
 import { Type } from '@sinclair/typebox';
-import type { PluginDefinition } from '../../src/plugin/plugin-types';
+import type { PluginDefinition } from '@aesyclaw/sdk';
 
 const plugin: PluginDefinition = {
   name: 'example',

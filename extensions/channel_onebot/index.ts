@@ -1,15 +1,15 @@
 import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { ChannelContext, ChannelPlugin } from '../../src/channel/channel-types';
-import { resolvePaths } from '../../src/core/path-resolver';
+import type { ChannelContext, ChannelPlugin } from '@aesyclaw/sdk';
+import { resolvePaths } from '@aesyclaw/sdk';
 import type {
   InboundMessage,
   MediaAttachment,
   OutboundMessage,
   SessionKey,
-} from '../../src/core/types';
-import type { PluginDefinition } from '../../src/plugin/plugin-types';
+} from '@aesyclaw/sdk';
+import type { PluginDefinition } from '@aesyclaw/sdk';
 
 const DEFAULT_CONFIG = {
   enabled: false,

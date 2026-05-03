@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ChannelContext, ChannelPlugin } from '../../../src/channel/channel-types';
+import type { ChannelContext, ChannelPlugin } from '../../../src/extension/channel/channel-types';
 import type { OutboundMessage, SessionKey } from '../../../src/core/types';
 import {
   createOneBotChannel,

@@ -9,7 +9,7 @@
  */
 
 import type { CommandDefinition, CommandContext } from '../../core/types';
-import type { PluginManager } from '../../plugin/plugin-manager';
+import type { PluginManager } from '../../extension/plugin/plugin-manager';
 
 export type PluginCommandDeps = {
   pluginManager: Pick<PluginManager, 'listPlugins' | 'enable' | 'disable'>;

@@ -4,9 +4,9 @@ import type { Browser } from 'playwright';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { MediaAttachment, PipelineResult } from '../../src/core/types';
-import type { PluginContext, PluginDefinition } from '../../src/plugin/plugin-types';
-import type { OnSendContext } from '../../src/pipeline/middleware/types';
+import type { PluginContext, PluginDefinition } from '@aesyclaw/sdk';
+import type { OnSendContext } from '@aesyclaw/sdk';
+import type { MediaAttachment, PipelineResult } from '@aesyclaw/sdk';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = resolve(__dirname, 'template.html');

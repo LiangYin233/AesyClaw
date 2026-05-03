@@ -1,9 +1,9 @@
 /** 频道管理器 — 初始化频道适配器并将消息桥接到管道中。 */
 
-import type { InboundMessage, OutboundMessage, SendFn, SessionKey } from '../core/types';
-import { createScopedLogger } from '../core/logger';
-import { errorMessage, mergeDefaults, requireInitialized } from '../core/utils';
-import { SerialExecutor } from '../utils/serial-executor';
+import type { InboundMessage, OutboundMessage, SendFn, SessionKey } from '../../core/types';
+import { createScopedLogger } from '../../core/logger';
+import { errorMessage, mergeDefaults, requireInitialized } from '../../core/utils';
+import { SerialExecutor } from '../../utils/serial-executor';
 import { ChannelLoader } from './channel-loader';
 import type {
   ChannelContext,
@@ -13,7 +13,7 @@ import type {
   LoadedChannel,
 } from './channel-types';
 import { isChannelEnabled } from './channel-types';
-import { isRecord } from '../core/utils';
+import { isRecord } from '../../core/utils';
 
 const logger = createScopedLogger('channel-manager');
 
