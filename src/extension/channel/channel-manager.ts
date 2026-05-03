@@ -9,7 +9,6 @@ import type {
 } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { errorMessage, isRecord, mergeDefaults } from '@aesyclaw/core/utils';
-import { SerialExecutor } from '@aesyclaw/utils/serial-executor';
 import {
   discoverExtensionDirs,
   loadExtensionModule,
@@ -31,7 +30,6 @@ export class ChannelManager implements ExtensionLifecycle {
   private readonly loadedChannels = new Map<string, LoadedChannel>();
   private readonly failedChannels = new Map<string, string>();
   private readonly channelOwners = new Map<string, string>();
-  private readonly serialExecutor = new SerialExecutor();
 
   constructor(private readonly deps: ChannelManagerDependencies) {
     for (const channel of this.definitions.values()) {
@@ -187,10 +185,8 @@ export class ChannelManager implements ExtensionLifecycle {
   }
 
   async handleConfigReload(): Promise<void> {
-    return await this.serialExecutor.execute(async () => {
-      await this.stopAll();
-      await this.startAll();
-    }, '频道配置重载');
+    await this.stopAll();
+    await this.startAll();
   }
 
   // ─── 查询 ────────────────────────────────────────────────────────

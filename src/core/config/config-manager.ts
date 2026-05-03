@@ -39,6 +39,8 @@ export class ConfigManager {
   private registeredDefaults = new Map<string, Record<string, unknown>>();
   private configStore: Conf<Record<string, unknown>> | null = null;
   private selfUpdating = false;
+  private reloadRunning = false;
+  private reloadPending = false;
   private readonly DEBOUNCE_MS = 300;
   private unsubscribeHotReload?: () => void;
 
@@ -136,7 +138,7 @@ export class ConfigManager {
     const validatedConfig = this.validateConfigObject(mergedConfig);
 
     this.persistWithGuard(validatedConfig);
-    this.notifyListeners(oldConfig, validatedConfig);
+    await this.notifyListeners(oldConfig, validatedConfig);
   }
 
   // ─── 默认值 ──────────────────────────────────────────────────
@@ -170,7 +172,7 @@ export class ConfigManager {
     const validatedConfig = this.validateConfigObject(mergedConfig);
 
     this.persistWithGuard(validatedConfig);
-    this.notifyListeners(oldConfig, validatedConfig);
+    await this.notifyListeners(oldConfig, validatedConfig);
   }
 
   // ─── 热重载 ─────────────────────────────────────────────────
@@ -184,7 +186,7 @@ export class ConfigManager {
     this.stopHotReload();
 
     this.unsubscribeHotReload = this.configStore.onDidAnyChange(() => {
-      this.reloadFromFile();
+      void this.reloadFromFile();
     });
 
     logger.info('热重载监视器已启动');
@@ -201,7 +203,7 @@ export class ConfigManager {
 
   // ─── 私有辅助函数 ───────────────────────────────────────────
 
-  private reloadFromFile(): void {
+  private async reloadFromFile(): Promise<void> {
     if (!this.configStore) return;
 
     // 如果刚写入文件 ourselves，则跳过
@@ -223,7 +225,7 @@ export class ConfigManager {
       }
 
       this.lastKnownConfig = structuredClone(newConfig);
-      this.notifyListeners(oldConfig, newConfig);
+      await this.notifyListeners(oldConfig, newConfig);
       logger.info('已从文件重新加载配置');
     } catch (err) {
       logger.error('重新加载配置文件失败', err);
@@ -304,40 +306,36 @@ export class ConfigManager {
     }
   }
 
-  private notifyListeners(oldConfig: AppConfig, newConfig: AppConfig): void {
-    for (const entry of this.listeners) {
-      try {
-        let result: void | Promise<void> = undefined;
-        if (entry.key) {
-          // 特定键监听器
-          const oldVal = oldConfig[entry.key];
-          const newVal = newConfig[entry.key];
-          if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
-            result = (entry.listener as ConfigChangeListener<unknown>)(newVal, oldVal);
-          }
-        } else {
-          // 全局监听器
-          result = (entry.listener as ConfigChangeListener<AppConfig>)(newConfig, oldConfig);
-        }
+  private async notifyListeners(oldConfig: AppConfig, newConfig: AppConfig): Promise<void> {
+    if (this.reloadRunning) {
+      this.reloadPending = true;
+      return;
+    }
 
-        if (isPromiseLike(result)) {
-          result.catch((err: unknown) => {
-            logger.error('异步配置变更监听器出错', err);
-          });
+    this.reloadRunning = true;
+    try {
+      do {
+        this.reloadPending = false;
+        for (const entry of this.listeners) {
+          try {
+            if (entry.key) {
+              const oldVal = oldConfig[entry.key];
+              const newVal = newConfig[entry.key];
+              if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+                await (entry.listener as ConfigChangeListener<unknown>)(newVal, oldVal);
+              }
+            } else {
+              await (entry.listener as ConfigChangeListener<AppConfig>)(newConfig, oldConfig);
+            }
+          } catch (err) {
+            logger.error('配置变更监听器出错', err);
+          }
         }
-      } catch (err) {
-        logger.error('配置变更监听器出错', err);
-      }
+      } while (this.reloadPending);
+    } finally {
+      this.reloadRunning = false;
     }
   }
-}
-
-function isPromiseLike(value: unknown): value is Promise<void> {
-  return (
-    value !== null &&
-    typeof value === 'object' &&
-    typeof (value as { catch?: unknown }).catch === 'function'
-  );
 }
 
 /**

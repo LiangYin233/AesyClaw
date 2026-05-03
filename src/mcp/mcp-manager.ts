@@ -3,7 +3,6 @@
 import { Type, type TSchema } from '@sinclair/typebox';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { errorMessage, isRecord, requireInitialized } from '@aesyclaw/core/utils';
-import { SerialExecutor } from '@aesyclaw/utils/serial-executor';
 import type { McpServerConfig } from '@aesyclaw/core/config/schema';
 import type { ToolOwner } from '@aesyclaw/core/types';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
@@ -63,7 +62,6 @@ export class McpManager {
   private deps: McpManagerStoredDeps | null = null;
   private readonly connectedServers = new Map<string, ConnectedMcpServer>();
   private readonly failedServers = new Map<string, string>();
-  private serialExecutor = new SerialExecutor();
 
   async initialize(dependencies: McpManagerDependencies): Promise<void> {
     if (this.deps) {
@@ -183,10 +181,8 @@ export class McpManager {
   }
 
   async handleConfigReload(): Promise<void> {
-    return await this.serialExecutor.execute(async () => {
-      await this.disconnectAll();
-      await this.connectAll();
-    }, 'MCP 配置重载');
+    await this.disconnectAll();
+    await this.connectAll();
   }
 
   listServers(): McpServerStatus[] {

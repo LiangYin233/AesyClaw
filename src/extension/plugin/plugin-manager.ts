@@ -11,7 +11,6 @@ import {
   loadExtensionModule,
   type ExtensionLifecycle,
 } from '@aesyclaw/extension/extension-loader';
-import { SerialExecutor } from '@aesyclaw/utils/serial-executor';
 import type {
   LoadedPlugin,
   PluginConfigLookup,
@@ -28,7 +27,6 @@ export class PluginManager implements ExtensionLifecycle {
   private readonly loadedPlugins = new Map<string, LoadedPlugin>();
   private readonly failedPlugins = new Map<string, string>();
   private readonly moduleCache = new Map<string, PluginModule | null>();
-  private readonly serialExecutor = new SerialExecutor();
 
   constructor(private readonly deps: PluginManagerDependencies) {}
 
@@ -156,11 +154,9 @@ export class PluginManager implements ExtensionLifecycle {
   }
 
   async handleConfigReload(): Promise<void> {
-    return await this.serialExecutor.execute(async () => {
-      await this.unloadAll();
-      this.moduleCache.clear();
-      await this.setup();
-    }, '插件配置重载');
+    await this.unloadAll();
+    this.moduleCache.clear();
+    await this.setup();
   }
 
   // ─── 查询 ────────────────────────────────────────────────────────
