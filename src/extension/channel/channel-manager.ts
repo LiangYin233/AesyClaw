@@ -1,7 +1,7 @@
 /** 频道管理器 — 初始化频道适配器并将消息桥接到管道中。 */
 
 import path from 'node:path';
-import type { InboundMessage, OutboundMessage, SendFn, SessionKey } from '../../core/types';
+import type { InboundMessage, OutboundMessage, SessionKey } from '../../core/types';
 import { createScopedLogger } from '../../core/logger';
 import { errorMessage, isRecord, mergeDefaults } from '../../core/utils';
 import { SerialExecutor } from '../../utils/serial-executor';
@@ -165,14 +165,15 @@ export class ChannelManager implements ExtensionLifecycle {
   // ─── 运行时 ──────────────────────────────────────────────────────
 
   async send(sessionKey: SessionKey, message: OutboundMessage): Promise<void> {
-    const loaded = this.loadedChannels.get(sessionKey.channel);
-    if (!loaded) {
-      throw new Error(`频道 "${sessionKey.channel}" 未加载`);
-    }
-    if (!loaded.definition.send) {
-      throw new Error(`频道 "${sessionKey.channel}" 不支持出站发送`);
-    }
+    const loaded = this.requireLoaded(sessionKey.channel);
     await loaded.definition.send(sessionKey, message);
+  }
+
+  async receive(channelName: string, inbound: InboundMessage): Promise<void> {
+    this.requireLoaded(channelName);
+    await this.deps.pipeline.receiveWithSend(inbound, async (outbound) => {
+      await this.send(inbound.sessionKey, outbound);
+    });
   }
 
   async handleConfigReload(): Promise<void> {
@@ -252,8 +253,8 @@ export class ChannelManager implements ExtensionLifecycle {
     return {
       name: channelName,
       config,
-      receiveWithSend: async (message: InboundMessage, send: SendFn): Promise<void> => {
-        await this.deps.pipeline.receiveWithSend(message, send);
+      receive: async (message: InboundMessage): Promise<void> => {
+        await this.receive(channelName, message);
       },
       logger: createScopedLogger(`channel:${channelName}`),
     };
@@ -283,6 +284,14 @@ export class ChannelManager implements ExtensionLifecycle {
 
   private isEnabled(channelName: string): boolean {
     return isChannelEnabled(this.getConfigRecord(channelName));
+  }
+
+  private requireLoaded(channelName: string): LoadedChannel {
+    const loaded = this.loadedChannels.get(channelName);
+    if (!loaded) {
+      throw new Error(`频道 "${channelName}" 未加载`);
+    }
+    return loaded;
   }
 
   private createUnloadedChannel(

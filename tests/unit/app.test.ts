@@ -128,7 +128,9 @@ describe('Application', () => {
         name: 'fixture',
         version: '1.0.0',
         defaultConfig: { enabled: true },
-        async init() { globalThis.__aesyclawChannelStarts = (globalThis.__aesyclawChannelStarts ?? 0) + 1; }
+        async init() { globalThis.__aesyclawChannelStarts = (globalThis.__aesyclawChannelStarts ?? 0) + 1; },
+        async receive() {},
+        async send() {}
       };\n`,
       'utf-8',
     );

@@ -1,6 +1,6 @@
 /** 频道接口定义。 */
 
-import type { InboundMessage, OutboundMessage, SendFn, SessionKey } from '../../core/types';
+import type { InboundMessage, OutboundMessage, SessionKey } from '../../core/types';
 import type { Logger } from '../../core/logger';
 import type { ConfigManager } from '../../core/config/config-manager';
 import type { Pipeline } from '../../pipeline/pipeline';
@@ -10,7 +10,7 @@ import { validateExtension } from '../extension-utils';
 export type ChannelContext = {
   name: string;
   config: Record<string, unknown>;
-  receiveWithSend(message: InboundMessage, send: SendFn): Promise<void>;
+  receive(message: InboundMessage): Promise<void>;
   logger: Logger;
 };
 
@@ -21,7 +21,8 @@ export type ChannelPlugin = {
   defaultConfig?: Record<string, unknown>;
   init(ctx: ChannelContext): Promise<void>;
   destroy?(): Promise<void>;
-  send?(sessionKey: SessionKey, message: OutboundMessage): Promise<void>;
+  receive(message: InboundMessage): Promise<void>;
+  send(sessionKey: SessionKey, message: OutboundMessage): Promise<void>;
 };
 
 export type LoadedChannel = {
@@ -71,7 +72,8 @@ export function isChannelEnabled(config: Record<string, unknown> | undefined): b
 export function isChannelPlugin(value: unknown): value is ChannelPlugin {
   const validated = validateExtension<ChannelPlugin>(value);
   if (validated === false) return false;
-  if (validated['send'] !== undefined && typeof validated['send'] !== 'function') return false;
+  if (typeof validated['receive'] !== 'function') return false;
+  if (typeof validated['send'] !== 'function') return false;
   return true;
 }
 
