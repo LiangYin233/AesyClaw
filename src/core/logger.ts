@@ -53,10 +53,6 @@ export function setLogLevel(level: string): void {
   }
 }
 
-function shouldLog(level: LogLevel): boolean {
-  return LOG_LEVELS[level] >= LOG_LEVELS[currentLevel];
-}
-
 function supportsAnsiColor(stream: NodeJS.WriteStream): boolean {
   const forceColor = process.env['FORCE_COLOR'];
 
@@ -79,10 +75,6 @@ function supportsAnsiColor(stream: NodeJS.WriteStream): boolean {
   return process.env['TERM'] !== 'dumb';
 }
 
-function getLogStream(level: LogLevel): NodeJS.WriteStream {
-  return level === 'warn' || level === 'error' ? process.stderr : process.stdout;
-}
-
 function colorize(text: string, level: LogLevel, enabled: boolean): string {
   if (!enabled) {
     return text;
@@ -102,7 +94,7 @@ function formatTimestamp(date: Date): string {
 
 function formatMessage(scope: string, level: LogLevel, message: string): string {
   const timestamp = formatTimestamp(new Date());
-  const useColor = supportsAnsiColor(getLogStream(level));
+  const useColor = supportsAnsiColor(level === 'warn' || level === 'error' ? process.stderr : process.stdout);
   return formatMessageWithTimestamp(timestamp, scope, level, message, useColor);
 }
 
@@ -163,7 +155,7 @@ function log(
   message: string,
   args: readonly unknown[],
 ): void {
-  if (!shouldLog(level)) {
+  if (!(LOG_LEVELS[level] >= LOG_LEVELS[currentLevel])) {
     return;
   }
 

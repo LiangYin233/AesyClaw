@@ -61,7 +61,12 @@ export function toAgentTool(
           result: summarizeResult(result),
         });
 
-        return toRuntimeResult(result);
+        return {
+          content: [{ type: 'text', text: result.content }],
+          details: result.details ?? {},
+          isError: result.isError,
+          terminate: result.terminate,
+        };
       };
 
       logger.debug('工具调用已触发', {
@@ -157,15 +162,6 @@ export function toAgentTool(
 
       return complete(result, 'executed');
     },
-  };
-}
-
-function toRuntimeResult(result: ToolExecutionResult): AgentToolResult {
-  return {
-    content: [{ type: 'text', text: result.content }],
-    details: result.details ?? {},
-    isError: result.isError,
-    terminate: result.terminate,
   };
 }
 

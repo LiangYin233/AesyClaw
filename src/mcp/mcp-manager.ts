@@ -321,14 +321,10 @@ function formatMcpResult(result: unknown): string {
 }
 
 function toToolSchema(inputSchema: unknown): TSchema {
-  if (isMcpInputSchema(inputSchema)) {
+  if (isRecord(inputSchema) && inputSchema['type'] === 'object') {
     return Type.Unsafe(inputSchema);
   }
   return Type.Record(Type.String(), Type.Unknown());
-}
-
-function isMcpInputSchema(value: unknown): value is Record<string, unknown> {
-  return isRecord(value) && value['type'] === 'object';
 }
 
 async function closeQuietly(client: McpClient, serverName: string): Promise<void> {

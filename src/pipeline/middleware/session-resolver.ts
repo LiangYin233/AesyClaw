@@ -24,13 +24,9 @@ export async function sessionResolver(
     return state;
   }
 
-  if (isCronSessionKey(state.sessionKey)) {
+  if (state.sessionKey.channel === 'cron' && state.sessionKey.type === 'job') {
     await sessionManager.resetSession(state.sessionKey);
   }
 
   return { ...state, session: await sessionManager.getOrCreateSession(state.sessionKey) };
-}
-
-function isCronSessionKey(sessionKey: { channel: string; type: string }): boolean {
-  return sessionKey.channel === 'cron' && sessionKey.type === 'job';
 }

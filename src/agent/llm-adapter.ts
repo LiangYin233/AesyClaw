@@ -312,13 +312,10 @@ export class LlmAdapter {
   }
 }
 
-function ensureTrailingSlash(url: string): string {
-  return url.endsWith('/') ? url : `${url}/`;
-}
-
 function getProviderBaseUrl(model: ResolvedModel): string {
   if (model.baseUrl.trim().length > 0) {
-    return ensureTrailingSlash(model.baseUrl);
+    const url = model.baseUrl;
+    return url.endsWith('/') ? url : `${url}/`;
   }
 
   if (model.provider === 'openai') {

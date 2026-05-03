@@ -18,15 +18,6 @@ type ToolUsageRow = {
   count: number;
 };
 
-function mapRow(row: ToolUsageRow): ToolUsageSummary {
-  return {
-    name: row.name,
-    type: row.type,
-    date: row.date,
-    count: row.count,
-  };
-}
-
 // ─── 公共 API ───────────────────────────────────────────────────
 
 /** 插入单条工具/技能调用记录。返回生成的行 ID。 */
@@ -68,5 +59,10 @@ export async function getToolUsageStats(
     )
     .all(fromFilter, fromFilter, toFilter, toFilter) as unknown as ToolUsageRow[];
 
-  return rows.map(mapRow);
+  return rows.map((row) => ({
+    name: row.name,
+    type: row.type,
+    date: row.date,
+    count: row.count,
+  }));
 }
