@@ -10,7 +10,7 @@
  * - 否则返回默认的继续结果
  */
 
-import type { InboundMessage, PipelineResult } from '@aesyclaw/core/types';
+import type { InboundMessage, PipelineResult, SessionKey, SenderInfo } from '@aesyclaw/core/types';
 import type { BeforeLLMRequestContext, OnSendContext } from './middleware/types';
 import type {
   BeforeToolCallHookContext,
@@ -60,6 +60,29 @@ async function dispatchHooks<T, D>(
   }
 
   return defaultValue;
+}
+
+async function dispatchOnReceiveHooks(
+  entries: HookEntry[],
+  message: InboundMessage,
+  sessionKey: SessionKey,
+  sender: SenderInfo | undefined,
+): Promise<PipelineResult> {
+  for (const entry of entries) {
+    const hookFn = entry.hooks.onReceive;
+    if (!hookFn) continue;
+
+    try {
+      const result = await hookFn(message, sessionKey, sender);
+      if (isPipelineResultTerminal(result)) {
+        return result;
+      }
+    } catch (err) {
+      logger.error(`插件 "${entry.pluginName}" 中的钩子错误`, err);
+    }
+  }
+
+  return CONTINUE_RESULT;
 }
 
 /** 检查 PipelineResult 是否为终止（block 或 respond） */
@@ -127,14 +150,12 @@ export class HookDispatcher {
 
   // ─── 调度方法 ───────────────────────────────────────────
 
-  async dispatchOnReceive(message: InboundMessage): Promise<PipelineResult> {
-    return await dispatchHooks(
-      this.entries,
-      (hooks) => hooks.onReceive,
-      isPipelineResultTerminal,
-      CONTINUE_RESULT,
-      message,
-    );
+  async dispatchOnReceive(
+    message: InboundMessage,
+    sessionKey: SessionKey,
+    sender: SenderInfo | undefined,
+  ): Promise<PipelineResult> {
+    return await dispatchOnReceiveHooks(this.entries, message, sessionKey, sender);
   }
 
   async dispatchOnSend(context: OnSendContext): Promise<PipelineResult> {

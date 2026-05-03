@@ -1,6 +1,12 @@
 import { Agent as PiAgent } from '@mariozechner/pi-agent-core';
 import { randomUUID } from 'node:crypto';
-import type { RoleConfig, InboundMessage, OutboundMessage, SessionKey } from '@aesyclaw/core/types';
+import type {
+  RoleConfig,
+  InboundMessage,
+  OutboundMessage,
+  SessionKey,
+  SenderInfo,
+} from '@aesyclaw/core/types';
 import { getInboundMessageText } from '@aesyclaw/core/types';
 import type { Agent, AgentMessage } from './agent-types';
 import { extractMessageText } from './agent-types';
@@ -80,6 +86,8 @@ export class AgentEngine {
   async process(
     agent: Agent,
     message: InboundMessage,
+    sessionKey: SessionKey,
+    sender: SenderInfo | undefined,
     memory: MemoryManager,
     role: RoleConfig,
     sendMessage?: ToolExecutionContext['sendMessage'],
@@ -88,7 +96,7 @@ export class AgentEngine {
     const content = getInboundMessageText(message);
 
     logger.debug('正在处理消息', {
-      sessionKey: message.sessionKey,
+      sessionKey,
       role: role.id,
       contentLength: content.length,
     });
@@ -96,7 +104,7 @@ export class AgentEngine {
     const history = await this.loadHistoryForTurn(memory, role);
 
     const executionContext: Partial<ToolExecutionContext> = {
-      sessionKey: message.sessionKey,
+      sessionKey,
       sendMessage,
       toolPermission: role.toolPermission,
     };

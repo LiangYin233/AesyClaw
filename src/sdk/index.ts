@@ -13,21 +13,18 @@ export type { PluginContext, PluginDefinition } from '@aesyclaw/extension/plugin
 export type { ChannelContext, ChannelPlugin } from '@aesyclaw/extension/channel/channel-types';
 
 export type {
+  Message,
   InboundMessage,
   OutboundMessage,
   SessionKey,
+  SenderInfo,
   MessageComponent,
   PlainComponent,
   ImageComponent,
   RecordComponent,
   VideoComponent,
   FileComponent,
-  FaceComponent,
-  AtComponent,
   ReplyComponent,
-  ForwardComponent,
-  NodeComponent,
-  NodesComponent,
   UnknownComponent,
   OutboundMessageComponent,
   OutboundPlainComponent,
@@ -38,7 +35,7 @@ export type {
   PipelineResult,
 } from '@aesyclaw/core/types';
 
-export { getInboundMessageText, getOutboundMessageText } from '@aesyclaw/core/types';
+export { getMessageText, getInboundMessageText, getOutboundMessageText } from '@aesyclaw/core/types';
 
 export type { AesyClawTool, ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
 

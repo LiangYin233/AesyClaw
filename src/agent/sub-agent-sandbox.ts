@@ -102,9 +102,10 @@ export class SubAgentSandbox {
     const outbound = await this.deps.agentEngine.process(
       agent,
       {
-        sessionKey,
         components: [{ type: 'Plain', text: prompt }],
       },
+      sessionKey,
+      undefined,
       memory,
       role,
       executionContext?.sendMessage,

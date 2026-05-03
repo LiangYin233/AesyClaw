@@ -47,16 +47,16 @@ describe('plugin_onebot', () => {
       'onebot',
     );
 
-    expect(privateInbound).toEqual(
-      expect.objectContaining({
-        sessionKey: { channel: 'onebot', type: 'private', chatId: '12345' },
+    expect(privateInbound).toEqual({
+      message: {
         components: [
           { type: 'Plain', text: 'hello' },
           { type: 'Image', url: 'https://example.com/image.png' },
         ],
-        sender: { id: '12345', name: 'alice' },
-      }),
-    );
+      },
+      sessionKey: { channel: 'onebot', type: 'private', chatId: '12345' },
+      sender: { id: '12345', name: 'alice' },
+    });
 
     const groupInbound = mapOneBotEventToInbound(
       {
@@ -73,16 +73,16 @@ describe('plugin_onebot', () => {
       'onebot',
     );
 
-    expect(groupInbound).toEqual(
-      expect.objectContaining({
-        sessionKey: { channel: 'onebot', type: 'group', chatId: '67890' },
+    expect(groupInbound).toEqual({
+      message: {
         components: [
-          { type: 'At', qq: '11111' },
+          { type: 'Unknown', segmentType: 'at', data: { qq: 11111 } },
           { type: 'Plain', text: 'hi group' },
         ],
-        sender: { id: '23456', name: 'member-card', role: 'admin' },
-      }),
-    );
+      },
+      sessionKey: { channel: 'onebot', type: 'group', chatId: '67890' },
+      sender: { id: '23456', name: 'member-card', role: 'admin' },
+    });
   });
 
   it('maps supported OneBot inbound segments to components and excluded segments to Unknown', () => {
@@ -117,18 +117,18 @@ describe('plugin_onebot', () => {
       'onebot',
     );
 
-    expect(inbound?.components).toEqual([
+    expect(inbound?.message.components).toEqual([
       { type: 'Plain', text: 'hello' },
       { type: 'Image', file: 'img-token', url: 'https://example.com/image.png' },
       { type: 'Record', file: 'record-token' },
       { type: 'Video', file: 'video-token' },
       { type: 'File', file: 'file-token', fileId: 'file-id', name: 'report.pdf' },
-      { type: 'Face', id: '66' },
-      { type: 'At', qq: '11111' },
+      { type: 'Unknown', segmentType: 'face', data: { id: 66 } },
+      { type: 'Unknown', segmentType: 'at', data: { qq: 11111 } },
       { type: 'Reply', id: '22222' },
-      { type: 'Forward', id: 'forward-id' },
-      { type: 'Node', data: { name: 'alice', content: 'nested' } },
-      { type: 'Nodes', nodes: [{ type: 'Node', data: { name: 'bob', content: 'nested list' } }] },
+      { type: 'Unknown', segmentType: 'forward', data: { id: 'forward-id' } },
+      { type: 'Unknown', segmentType: 'node', data: { name: 'alice', content: 'nested' } },
+      { type: 'Unknown', segmentType: 'nodes', data: { nodes: [{ name: 'bob', content: 'nested list' }] } },
       { type: 'Unknown', segmentType: 'poke', data: { qq: 11111 } },
       { type: 'Unknown', segmentType: 'json', data: { data: '{"a":1}' } },
       { type: 'Unknown', segmentType: 'rps', data: {} },
@@ -374,15 +374,19 @@ describe('plugin_onebot', () => {
         connectedUrl = url;
       },
     });
-    const receive = vi.fn(async (message) => {
+    const receive = vi.fn(async (message, sessionKey, sender) => {
       expect(message).toEqual(
         expect.objectContaining({
-          sessionKey: { channel: 'onebot', type: 'private', chatId: '12345' },
           components: [{ type: 'Plain', text: 'ping' }],
-          sender: { id: '12345', name: 'alice' },
         }),
       );
-      await channel.send(message.sessionKey, { components: [{ type: 'Plain', text: 'pong' }] });
+      expect(sessionKey).toEqual(
+        { channel: 'onebot', type: 'private', chatId: '12345' },
+      );
+      expect(sender).toEqual(
+        { id: '12345', name: 'alice' },
+      );
+      await channel.send(sessionKey, { components: [{ type: 'Plain', text: 'pong' }] });
     });
 
     await openTestChannel(channel, socket, {

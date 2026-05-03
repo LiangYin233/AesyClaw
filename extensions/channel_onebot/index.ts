@@ -13,6 +13,7 @@ import type {
   OutboundFileComponent,
   OutboundMessage,
   SessionKey,
+  SenderInfo,
 } from '@aesyclaw/sdk';
 import type { PluginDefinition } from '@aesyclaw/sdk';
 import {
@@ -203,11 +204,15 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
     receive: receiveInboundMessage,
   };
 
-  async function receiveInboundMessage(message: InboundMessage): Promise<void> {
+  async function receiveInboundMessage(
+    message: InboundMessage,
+    sessionKey: SessionKey,
+    sender?: SenderInfo,
+  ): Promise<void> {
     if (!context) {
       throw new Error('OneBot channel is not initialized');
     }
-    await context.receive(message);
+    await context.receive(message, sessionKey, sender);
   }
 
   async function handlePlatformPayload(payload: Record<string, unknown>): Promise<void> {
@@ -215,9 +220,10 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
     if (!inbound || !context) {
       return;
     }
+    const { message, sessionKey, sender } = inbound;
 
     const enrichedInbound = await enrichInboundMessageWithDownloads(
-      inbound,
+      message,
       payload,
       async (action, params) => {
         if (!client) {
@@ -232,7 +238,7 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
     }
 
     try {
-      await receiveInboundMessage(enrichedInbound);
+      await receiveInboundMessage(enrichedInbound, sessionKey, sender);
     } catch (err) {
       context?.logger.error('Failed to process OneBot inbound message', err);
     }
@@ -242,7 +248,7 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
 export function mapOneBotEventToInbound(
   event: unknown,
   channelName = 'onebot',
-): InboundMessage | null {
+): { message: InboundMessage; sessionKey: SessionKey; sender?: SenderInfo } | null {
   if (!isRecord(event) || event['post_type'] !== 'message') {
     return null;
   }
@@ -263,14 +269,15 @@ export function mapOneBotEventToInbound(
   }
 
   return {
+    message: {
+      components: extractOneBotComponents(event['message']),
+    },
     sessionKey: {
       channel: channelName,
       type: messageType,
       chatId,
     },
-    components: extractOneBotComponents(event['message']),
     sender: buildSenderInfo(senderId, event['sender']),
-    rawEvent: event,
   };
 }
 
@@ -912,17 +919,13 @@ function mapOneBotSegmentToComponent(segment: unknown): MessageComponent {
     case 'file':
       return mapFileSegmentToComponent(data);
     case 'face':
-      return { type: 'Face', ...optionalStringField('id', stringifyId(data['id'])) };
     case 'at':
-      return { type: 'At', ...optionalStringField('qq', stringifyId(data['qq'])) };
+    case 'forward':
+    case 'node':
+    case 'nodes':
+      return { type: 'Unknown', segmentType: segment['type'], data };
     case 'reply':
       return { type: 'Reply', ...optionalStringField('id', stringifyId(data['id'])) };
-    case 'forward':
-      return { type: 'Forward', ...optionalStringField('id', stringifyId(data['id'])) };
-    case 'node':
-      return { type: 'Node', data };
-    case 'nodes':
-      return { type: 'Nodes', nodes: Array.isArray(data['nodes']) ? data['nodes'].map(mapNodeData) : [] };
     default:
       return { type: 'Unknown', segmentType: segment['type'], data };
   }
@@ -969,10 +972,6 @@ function mapFileSegmentToComponent(data: Record<string, unknown>): MessageCompon
   };
 }
 
-function mapNodeData(node: unknown): Extract<MessageComponent, { type: 'Node' }> {
-  return { type: 'Node', ...(isRecord(node) ? { data: node } : {}) };
-}
-
 function isMediaComponent(
   component: MessageComponent,
 ): component is Extract<MessageComponent, { type: 'Image' | 'Record' | 'Video' | 'File' }> {
@@ -1008,7 +1007,7 @@ function extractTextSegment(segment: unknown): string {
   return typeof segment['data']['text'] === 'string' ? segment['data']['text'] : '';
 }
 
-function buildSenderInfo(senderId: string, sender: unknown): InboundMessage['sender'] {
+function buildSenderInfo(senderId: string, sender: unknown): SenderInfo {
   if (!isRecord(sender)) {
     return { id: senderId };
   }

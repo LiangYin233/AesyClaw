@@ -1,7 +1,12 @@
 /** 频道管理器 — 初始化频道适配器并将消息桥接到管道中。 */
 
 import path from 'node:path';
-import type { InboundMessage, OutboundMessage, SessionKey } from '@aesyclaw/core/types';
+import type {
+  InboundMessage,
+  OutboundMessage,
+  SessionKey,
+  SenderInfo,
+} from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { errorMessage, isRecord, mergeDefaults } from '@aesyclaw/core/utils';
 import { SerialExecutor } from '@aesyclaw/utils/serial-executor';
@@ -169,10 +174,15 @@ export class ChannelManager implements ExtensionLifecycle {
     await loaded.definition.send(sessionKey, message);
   }
 
-  async receive(channelName: string, inbound: InboundMessage): Promise<void> {
+  async receive(
+    channelName: string,
+    inbound: InboundMessage,
+    sessionKey: SessionKey,
+    sender?: SenderInfo,
+  ): Promise<void> {
     this.requireLoaded(channelName);
-    await this.deps.pipeline.receiveWithSend(inbound, async (outbound) => {
-      await this.send(inbound.sessionKey, outbound);
+    await this.deps.pipeline.receiveWithSend(inbound, sessionKey, sender, async (outbound) => {
+      await this.send(sessionKey, outbound);
     });
   }
 
@@ -253,8 +263,12 @@ export class ChannelManager implements ExtensionLifecycle {
     return {
       name: channelName,
       config,
-      receive: async (message: InboundMessage): Promise<void> => {
-        await this.receive(channelName, message);
+      receive: async (
+        message: InboundMessage,
+        sessionKey: SessionKey,
+        sender?: SenderInfo,
+      ): Promise<void> => {
+        await this.receive(channelName, message, sessionKey, sender);
       },
       logger: createScopedLogger(`channel:${channelName}`),
     };

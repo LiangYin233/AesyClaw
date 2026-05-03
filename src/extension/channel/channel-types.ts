@@ -1,6 +1,11 @@
 /** 频道接口定义。 */
 
-import type { InboundMessage, OutboundMessage, SessionKey } from '@aesyclaw/core/types';
+import type {
+  InboundMessage,
+  OutboundMessage,
+  SessionKey,
+  SenderInfo,
+} from '@aesyclaw/core/types';
 import type { Logger } from '@aesyclaw/core/logger';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
@@ -10,7 +15,7 @@ import { validateExtension } from '@aesyclaw/extension/extension-utils';
 export type ChannelContext = {
   name: string;
   config: Record<string, unknown>;
-  receive(message: InboundMessage): Promise<void>;
+  receive(message: InboundMessage, sessionKey: SessionKey, sender?: SenderInfo): Promise<void>;
   logger: Logger;
 };
 
@@ -21,7 +26,7 @@ export type ChannelPlugin = {
   defaultConfig?: Record<string, unknown>;
   init(ctx: ChannelContext): Promise<void>;
   destroy?(): Promise<void>;
-  receive(message: InboundMessage): Promise<void>;
+  receive(message: InboundMessage, sessionKey: SessionKey, sender?: SenderInfo): Promise<void>;
   send(sessionKey: SessionKey, message: OutboundMessage): Promise<void>;
 };
 

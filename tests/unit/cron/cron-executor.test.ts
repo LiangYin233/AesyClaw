@@ -91,7 +91,7 @@ describe('CronExecutor', () => {
     const pipeline = {
       receiveWithSend: vi
         .fn()
-        .mockImplementation(async (_msg: unknown, send: (m: unknown) => Promise<void>) => {
+        .mockImplementation(async (_msg: unknown, _sessionKey: unknown, _sender: unknown, send: (m: unknown) => Promise<void>) => {
           await send({ components: [{ type: 'Plain', text: 'pipeline response' }] });
         }),
     };
@@ -108,10 +108,18 @@ describe('CronExecutor', () => {
 
       expect(cronRuns.create).toHaveBeenCalledWith({ jobId: job.id });
       expect(pipeline.receiveWithSend).toHaveBeenCalled();
-      const [inbound] = pipeline.receiveWithSend.mock.calls[0] as [Record<string, unknown>];
+      const [inbound, sessionKey, sender, sendFn] = pipeline.receiveWithSend.mock.calls[0] as [
+        Record<string, unknown>,
+        Record<string, unknown>,
+        unknown,
+        unknown,
+      ];
       expect(inbound.components).toEqual([{ type: 'Plain', text: 'test prompt' }]);
-      expect(inbound.sessionKey).toEqual(createCronContextSessionKey('job-1'));
-      expect(inbound.rawEvent).toEqual({ cronJobId: 'job-1', cronRunId: 'run-1' });
+      expect(inbound).not.toHaveProperty('sessionKey');
+      expect(inbound).not.toHaveProperty('rawEvent');
+      expect(sessionKey).toEqual(createCronContextSessionKey('job-1'));
+      expect(sender).toBeUndefined();
+      expect(sendFn).toEqual(expect.any(Function));
       expect(send).toHaveBeenCalledWith(
         { channel: 'test', type: 'private', chatId: '123' },
         { components: [{ type: 'Plain', text: 'pipeline response' }] },
@@ -122,7 +130,7 @@ describe('CronExecutor', () => {
     it('should collect multiple outbound messages from the pipeline', async () => {
       const { executor, cronRuns, pipeline, send } = makeMocks();
       pipeline.receiveWithSend.mockImplementation(
-        async (_msg: unknown, send: (m: unknown) => Promise<void>) => {
+        async (_msg: unknown, _sessionKey: unknown, _sender: unknown, send: (m: unknown) => Promise<void>) => {
           await send({ components: [{ type: 'Plain', text: 'first' }] });
           await send({ components: [{ type: 'Plain', text: 'second' }] });
         },

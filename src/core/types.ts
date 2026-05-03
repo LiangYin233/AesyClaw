@@ -5,7 +5,7 @@
  *
  * 新代码应优先从具体的领域文件导入：
  *   - `./identity-types`    — SessionKey、ChannelId、ToolOwner 及序列化工具
- *   - `./message-types`     — InboundMessage、OutboundMessage、PipelineResult
+ *   - `./message-types`     — Message、InboundMessage、OutboundMessage、PipelineResult
  *   - `./database-types`    — 数据库记录类型 (SessionRecord, CronJobRecord, UsageRecord 等)
  */
 
@@ -24,18 +24,14 @@ export {
 export type { ChannelId, ChatType, ChatId, SessionKey, ToolOwner } from './identity-types';
 
 export type {
+  Message,
   MessageComponent,
   PlainComponent,
   ImageComponent,
   RecordComponent,
   VideoComponent,
   FileComponent,
-  FaceComponent,
-  AtComponent,
   ReplyComponent,
-  ForwardComponent,
-  NodeComponent,
-  NodesComponent,
   UnknownComponent,
   OutboundMessageComponent,
   OutboundPlainComponent,
@@ -51,7 +47,7 @@ export type {
   PersistableMessage,
 } from './message-types';
 
-export { getInboundMessageText, getOutboundMessageText } from './message-types';
+export { getMessageText, getInboundMessageText, getOutboundMessageText } from './message-types';
 
 export type {
   SessionRecord,

@@ -1,6 +1,4 @@
-/** 消息类型 — 管道入口/出口、附件、发送者信息及持久化协议。 */
-
-import type { SessionKey } from './identity-types';
+/** 消息类型 — 纯消息载荷、组件及持久化协议。 */
 
 // ─── 发送者 ─────────────────────────────────────────────────
 
@@ -11,7 +9,7 @@ export type SenderInfo = {
   role?: string;
 };
 
-// ─── 传入消息组件 ─────────────────────────────────────────────────
+// ─── 消息载荷与组件 ─────────────────────────────────────────────────
 
 export type PlainComponent = {
   type: 'Plain';
@@ -48,34 +46,9 @@ export type FileComponent = {
   name?: string;
 };
 
-export type FaceComponent = {
-  type: 'Face';
-  id?: string;
-};
-
-export type AtComponent = {
-  type: 'At';
-  qq?: string;
-};
-
 export type ReplyComponent = {
   type: 'Reply';
   id?: string;
-};
-
-export type ForwardComponent = {
-  type: 'Forward';
-  id?: string;
-};
-
-export type NodeComponent = {
-  type: 'Node';
-  data?: Record<string, unknown>;
-};
-
-export type NodesComponent = {
-  type: 'Nodes';
-  nodes?: NodeComponent[];
 };
 
 export type UnknownComponent = {
@@ -90,29 +63,28 @@ export type MessageComponent =
   | RecordComponent
   | VideoComponent
   | FileComponent
-  | FaceComponent
-  | AtComponent
   | ReplyComponent
-  | ForwardComponent
-  | NodeComponent
-  | NodesComponent
   | UnknownComponent;
 
-// ─── 入站消息 ──────────────────────────────────────────────────────
-
-/** 从外部平台进入管道的传入消息 */
-export type InboundMessage = {
-  sessionKey: SessionKey;
-  components: MessageComponent[];
-  sender?: SenderInfo;
-  rawEvent?: unknown;
+/** 纯消息载荷：只表示消息本身，不携带会话、发送者上下文。 */
+export type Message<TComponent = MessageComponent> = {
+  components: TComponent[];
 };
 
-export function getInboundMessageText(message: Pick<InboundMessage, 'components'>): string {
+// ─── 入站消息 ──────────────────────────────────────────────────
+
+/** 从外部平台进入管道的传入消息 */
+export type InboundMessage = Message<MessageComponent>;
+
+export function getMessageText(message: Pick<Message<{ type: string; text?: unknown }>, 'components'>): string {
   return message.components
-    .filter((component): component is PlainComponent => component.type === 'Plain')
+    .filter((component): component is PlainComponent => component.type === 'Plain' && typeof component.text === 'string')
     .map((component) => component.text)
     .join('');
+}
+
+export function getInboundMessageText(message: Pick<InboundMessage, 'components'>): string {
+  return getMessageText(message);
 }
 
 // ─── 出站消息组件 ─────────────────────────────────────────────────
@@ -162,18 +134,13 @@ export type OutboundMessageComponent =
   | OutboundVideoComponent
   | OutboundFileComponent;
 
-// ─── 出站消息 / 管道 ───────────────────────────────────────────────
+// ─── 出站消息 ──────────────────────────────────────────────────
 
 /** 由管道生成并通过频道发送回去的回复 */
-export type OutboundMessage = {
-  components: OutboundMessageComponent[];
-};
+export type OutboundMessage = Message<OutboundMessageComponent>;
 
 export function getOutboundMessageText(message: Pick<OutboundMessage, 'components'>): string {
-  return message.components
-    .filter((component): component is OutboundPlainComponent => component.type === 'Plain')
-    .map((component) => component.text)
-    .join('');
+  return getMessageText(message);
 }
 
 /** 通过频道发送传出消息的函数 */

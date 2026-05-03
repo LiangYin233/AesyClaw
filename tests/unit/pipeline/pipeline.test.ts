@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Pipeline } from '../../../src/pipeline/pipeline';
-import type { InboundMessage, OutboundMessage } from '../../../src/core/types';
+import type { InboundMessage, OutboundMessage, SessionKey, SenderInfo } from '../../../src/core/types';
 import { getOutboundMessageText } from '../../../src/core/types';
 import type { PluginHooks } from '../../../src/pipeline/middleware/types';
 import { CommandRegistry } from '../../../src/command/command-registry';
@@ -18,16 +18,28 @@ import type { AgentEngine } from '../../../src/agent/agent-engine';
 
 function makeInbound(content = 'hello'): InboundMessage {
   return {
-    sessionKey: { channel: 'test', type: 'private', chatId: 'user1' },
     components: [{ type: 'Plain', text: content }],
   };
 }
 
+function makeInboundContext(sessionKey: SessionKey = { channel: 'test', type: 'private', chatId: 'user1' }): { sessionKey: SessionKey; sender?: SenderInfo } {
+  return { sessionKey };
+}
+
 function makeInboundForKey(
-  sessionKey: InboundMessage['sessionKey'],
+  _sessionKey: SessionKey,
   content = 'hello',
 ): InboundMessage {
-  return { sessionKey, components: [{ type: 'Plain', text: content }] };
+  return { components: [{ type: 'Plain', text: content }] };
+}
+
+function receiveWithSend(
+  pipeline: Pipeline,
+  inbound: InboundMessage,
+  send: (message: OutboundMessage) => Promise<void>,
+  context: { sessionKey: SessionKey; sender?: SenderInfo } = makeInboundContext(),
+): Promise<void> {
+  return pipeline.receiveWithSend(inbound, context.sessionKey, context.sender, send);
 }
 
 /** Create pipeline deps with real CommandRegistry */
@@ -37,7 +49,7 @@ async function createPipelineDeps() {
   const mockSessionManager = {
     getOrCreateSession: vi
       .fn()
-      .mockImplementation(async (sessionKey: InboundMessage['sessionKey']) => ({
+        .mockImplementation(async (sessionKey: SessionKey) => ({
         key: sessionKey,
         sessionId: 'test-session',
         activeRole: {
@@ -75,6 +87,7 @@ async function createPipelineDeps() {
         },
       })),
     getSession: vi.fn().mockReturnValue(undefined),
+    resetSession: vi.fn().mockResolvedValue(undefined),
     clearSession: vi.fn().mockResolvedValue(undefined),
     compactSession: vi.fn().mockResolvedValue(''),
     switchRole: vi.fn().mockResolvedValue(undefined),
@@ -161,7 +174,7 @@ describe('Pipeline', () => {
       await pipeline.initialize(deps);
 
       const send = vi.fn();
-      await pipeline.receiveWithSend(makeInbound(), send);
+      await receiveWithSend(pipeline, makeInbound(), send);
 
       expect(send).toHaveBeenCalledTimes(1);
     });
@@ -174,7 +187,7 @@ describe('Pipeline', () => {
       const send = vi.fn();
 
       // Pipeline not initialized — should throw
-      await expect(pipeline.receiveWithSend(makeInbound(), send)).rejects.toThrow(/未初始化/);
+      await expect(receiveWithSend(pipeline, makeInbound(), send)).rejects.toThrow(/未初始化/);
       expect(send).not.toHaveBeenCalled();
     });
 
@@ -187,7 +200,7 @@ describe('Pipeline', () => {
         sent.push(msg);
       });
 
-      await pipeline.receiveWithSend(makeInbound(), send);
+      await receiveWithSend(pipeline, makeInbound(), send);
       expect(send).toHaveBeenCalledTimes(1);
       expect(getOutboundMessageText(sent[0])).toBe('Agent response');
     });
@@ -197,11 +210,11 @@ describe('Pipeline', () => {
       await pipeline.initialize(deps);
 
       const send = vi.fn(async (_msg: OutboundMessage) => undefined);
-      await pipeline.receiveWithSend(makeInbound(), send);
+      await receiveWithSend(pipeline, makeInbound(), send);
 
       const processMock = deps.agentEngine.process as ReturnType<typeof vi.fn>;
       expect(processMock).toHaveBeenCalled();
-      expect(processMock.mock.calls[0]?.[4]).toEqual(expect.any(Function));
+      expect(processMock.mock.calls[0]?.[6]).toEqual(expect.any(Function));
     });
 
     it('should propagate processing errors after logging them', async () => {
@@ -210,19 +223,19 @@ describe('Pipeline', () => {
       processMock.mockRejectedValue(new Error('agent boom'));
       await pipeline.initialize(deps);
 
-      await expect(pipeline.receiveWithSend(makeInbound(), vi.fn())).rejects.toThrow('agent boom');
+      await expect(receiveWithSend(pipeline, makeInbound(), vi.fn())).rejects.toThrow('agent boom');
     });
 
     it('should return busy for a concurrent ordinary message in the same session', async () => {
       const deps = await createPipelineDeps();
       const busyKeys = new Set<string>();
-      const keyOf = (key: InboundMessage['sessionKey']) =>
+      const keyOf = (key: SessionKey) =>
         JSON.stringify({ channel: key.channel, type: key.type, chatId: key.chatId });
       (deps.sessionManager.isAgentProcessing as ReturnType<typeof vi.fn>).mockImplementation(
-        (key: InboundMessage['sessionKey']) => busyKeys.has(keyOf(key)),
+        (key: SessionKey) => busyKeys.has(keyOf(key)),
       );
       (deps.sessionManager.tryBeginAgentProcessing as ReturnType<typeof vi.fn>).mockImplementation(
-        (key: InboundMessage['sessionKey']) => {
+        (key: SessionKey) => {
           const cacheKey = keyOf(key);
           if (busyKeys.has(cacheKey)) return false;
           busyKeys.add(cacheKey);
@@ -230,7 +243,7 @@ describe('Pipeline', () => {
         },
       );
       (deps.sessionManager.endAgentProcessing as ReturnType<typeof vi.fn>).mockImplementation(
-        (key: InboundMessage['sessionKey']) => {
+        (key: SessionKey) => {
           busyKeys.delete(keyOf(key));
         },
       );
@@ -246,10 +259,10 @@ describe('Pipeline', () => {
 
       const firstSend = vi.fn();
       const secondSend = vi.fn();
-      const first = pipeline.receiveWithSend(makeInbound('first'), firstSend);
+      const first = receiveWithSend(pipeline, makeInbound('first'), firstSend);
       await vi.waitFor(() => expect(deps.agentEngine.process).toHaveBeenCalledTimes(1));
 
-      await pipeline.receiveWithSend(makeInbound('second'), secondSend);
+      await receiveWithSend(pipeline, makeInbound('second'), secondSend);
 
       expect(deps.agentEngine.process).toHaveBeenCalledTimes(1);
       expect(secondSend).toHaveBeenCalledWith({ components: [{ type: 'Plain', text: 'Agent处理任务中。' }] });
@@ -264,8 +277,8 @@ describe('Pipeline', () => {
       await pipeline.initialize(deps);
 
       const send = vi.fn();
-      await pipeline.receiveWithSend(makeInbound('first'), send);
-      await pipeline.receiveWithSend(makeInbound('second'), send);
+      await receiveWithSend(pipeline, makeInbound('first'), send);
+      await receiveWithSend(pipeline, makeInbound('second'), send);
 
       expect(deps.agentEngine.process).toHaveBeenCalledTimes(2);
       expect(deps.sessionManager.endAgentProcessing).toHaveBeenCalledTimes(2);
@@ -277,13 +290,13 @@ describe('Pipeline', () => {
       const processingKeys = new Set<string>();
 
       (deps.sessionManager.isAgentProcessing as ReturnType<typeof vi.fn>).mockImplementation(
-        (key: InboundMessage['sessionKey']) => {
+        (key: SessionKey) => {
           const k = JSON.stringify({ channel: key.channel, type: key.type, chatId: key.chatId });
           return k === busyKeyJson || processingKeys.has(k);
         },
       );
       (deps.sessionManager.tryBeginAgentProcessing as ReturnType<typeof vi.fn>).mockImplementation(
-        (key: InboundMessage['sessionKey']) => {
+        (key: SessionKey) => {
           const k = JSON.stringify({ channel: key.channel, type: key.type, chatId: key.chatId });
           if (k === busyKeyJson) return false;
           if (processingKeys.has(k)) return false;
@@ -292,7 +305,7 @@ describe('Pipeline', () => {
         },
       );
       (deps.sessionManager.endAgentProcessing as ReturnType<typeof vi.fn>).mockImplementation(
-        (key: InboundMessage['sessionKey']) => {
+        (key: SessionKey) => {
           processingKeys.delete(
             JSON.stringify({ channel: key.channel, type: key.type, chatId: key.chatId }),
           );
@@ -303,17 +316,23 @@ describe('Pipeline', () => {
       const differentChatSend = vi.fn();
       const differentChannelSend = vi.fn();
       const cronSend = vi.fn();
-      await pipeline.receiveWithSend(
+      await receiveWithSend(
+        pipeline,
         makeInboundForKey({ channel: 'test', type: 'private', chatId: 'user2' }),
         differentChatSend,
+        makeInboundContext({ channel: 'test', type: 'private', chatId: 'user2' }),
       );
-      await pipeline.receiveWithSend(
+      await receiveWithSend(
+        pipeline,
         makeInboundForKey({ channel: 'other', type: 'private', chatId: 'user1' }),
         differentChannelSend,
+        makeInboundContext({ channel: 'other', type: 'private', chatId: 'user1' }),
       );
-      await pipeline.receiveWithSend(
+      await receiveWithSend(
+        pipeline,
         makeInboundForKey({ channel: 'cron', type: 'job', chatId: 'job1' }),
         cronSend,
+        makeInboundContext({ channel: 'cron', type: 'job', chatId: 'job1' }),
       );
 
       expect(deps.agentEngine.process).toHaveBeenCalledTimes(3);
@@ -344,7 +363,7 @@ describe('Pipeline', () => {
         sent.push(msg);
       });
 
-      await pipeline.receiveWithSend(makeInbound('/greet'), send);
+      await receiveWithSend(pipeline, makeInbound('/greet'), send);
       expect(send).toHaveBeenCalledTimes(1);
       expect(getOutboundMessageText(sent[0])).toBe('Hello from command!');
     });
@@ -354,7 +373,7 @@ describe('Pipeline', () => {
       await pipeline.initialize(deps);
 
       const send = vi.fn();
-      await pipeline.receiveWithSend(makeInbound('just chatting'), send);
+      await receiveWithSend(pipeline, makeInbound('just chatting'), send);
       // Agent processor produces an outbound, so send should be called
       expect(send).toHaveBeenCalledTimes(1);
     });
@@ -374,7 +393,7 @@ describe('Pipeline', () => {
       pipeline.register('blocker', hooks);
 
       const send = vi.fn();
-      await pipeline.receiveWithSend(makeInbound(), send);
+      await receiveWithSend(pipeline, makeInbound(), send);
       expect(send).not.toHaveBeenCalled();
     });
 
@@ -392,7 +411,7 @@ describe('Pipeline', () => {
         sent.push(msg);
       });
 
-      await pipeline.receiveWithSend(makeInbound(), send);
+      await receiveWithSend(pipeline, makeInbound(), send);
       expect(send).toHaveBeenCalledTimes(1);
       expect(getOutboundMessageText(sent[0])).toBe('direct hook reply');
     });
@@ -407,7 +426,7 @@ describe('Pipeline', () => {
       pipeline.register('filter', hooks);
 
       const send = vi.fn();
-      await pipeline.receiveWithSend(makeInbound(), send);
+      await receiveWithSend(pipeline, makeInbound(), send);
       expect(send).not.toHaveBeenCalled();
     });
 
@@ -425,7 +444,7 @@ describe('Pipeline', () => {
         sent.push(msg);
       });
 
-      await pipeline.receiveWithSend(makeInbound(), send);
+      await receiveWithSend(pipeline, makeInbound(), send);
       expect(send).toHaveBeenCalledTimes(1);
       expect(getOutboundMessageText(sent[0])).toBe('modified output');
     });
@@ -440,7 +459,7 @@ describe('Pipeline', () => {
       });
 
       const send = vi.fn();
-      await pipeline.receiveWithSend(makeInbound(), send);
+      await receiveWithSend(pipeline, makeInbound(), send);
 
       expect(processMock).not.toHaveBeenCalled();
       expect(send).not.toHaveBeenCalled();
@@ -459,7 +478,7 @@ describe('Pipeline', () => {
       const send = vi.fn(async (msg: OutboundMessage) => {
         sent.push(msg);
       });
-      await pipeline.receiveWithSend(makeInbound(), send);
+      await receiveWithSend(pipeline, makeInbound(), send);
 
       expect(processMock).not.toHaveBeenCalled();
       expect(send).toHaveBeenCalledTimes(1);

@@ -5,7 +5,13 @@
  * 当前状态并返回一个变异副本。
  */
 
-import type { InboundMessage, OutboundMessage, RoleConfig, SessionKey } from '@aesyclaw/core/types';
+import type {
+  InboundMessage,
+  OutboundMessage,
+  RoleConfig,
+  SessionKey,
+  SenderInfo,
+} from '@aesyclaw/core/types';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { SessionContext, SessionManager } from '@aesyclaw/agent/session-manager';
 import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
@@ -34,6 +40,8 @@ export type OnSendContext = {
  */
 export type BeforeLLMRequestContext = {
   message: InboundMessage;
+  sessionKey: SessionKey;
+  sender?: SenderInfo;
   session: SessionContext;
   agent: Agent;
   role: RoleConfig;
@@ -44,6 +52,10 @@ export type BeforeLLMRequestContext = {
 type PipelineStateBase = {
   /** 进入管道的入站消息 */
   inbound: InboundMessage;
+  /** 入站消息的会话键 */
+  sessionKey: SessionKey;
+  /** 入站消息的发送者信息 */
+  sender?: SenderInfo;
   /** 用于工具执行的支持 onSend 的出站投递回调 */
   sendMessage?: (message: OutboundMessage) => Promise<boolean>;
 };
@@ -102,7 +114,7 @@ type PipelineDependencies = {
  * - onSend: 出站消息发送之前
  */
 type PluginHooks = {
-  onReceive?(message: InboundMessage): Promise<PipelineResult>;
+  onReceive?(message: InboundMessage, sessionKey: SessionKey, sender?: SenderInfo): Promise<PipelineResult>;
   beforeLLMRequest?(context: BeforeLLMRequestContext): Promise<PipelineResult>;
   beforeToolCall?(context: BeforeToolCallHookContext): Promise<BeforeToolCallHookResult>;
   afterToolCall?(context: AfterToolCallHookContext): Promise<AfterToolCallHookResult>;

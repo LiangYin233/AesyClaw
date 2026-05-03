@@ -1,6 +1,11 @@
 /** 定时任务执行器 — 记录定时任务运行并将任务注入管道。 */
 
-import type { CronJobRecord, InboundMessage, OutboundMessage, SessionKey } from '@aesyclaw/core/types';
+import type {
+  CronJobRecord,
+  InboundMessage,
+  OutboundMessage,
+  SessionKey,
+} from '@aesyclaw/core/types';
 import { parseSerializedSessionKey } from '@aesyclaw/core/types';
 import { getOutboundMessageText } from '@aesyclaw/core/types';
 import type { CronRunsRepository } from '@aesyclaw/core/database/database-manager';
@@ -43,12 +48,10 @@ export class CronExecutor {
       const contextSessionKey = sessionKeys?.context ?? createCronContextSessionKey(job.id);
       const outboundMessages: OutboundMessage[] = [];
       const inbound: InboundMessage = {
-        sessionKey: contextSessionKey,
         components: [{ type: 'Plain', text: job.prompt }],
-        rawEvent: { cronJobId: job.id, cronRunId: runId },
       };
 
-      await this.dependencies.pipeline.receiveWithSend(inbound, async (message) => {
+      await this.dependencies.pipeline.receiveWithSend(inbound, contextSessionKey, undefined, async (message) => {
         await this.dependencies.send(targetSessionKey, message);
         outboundMessages.push(message);
       });

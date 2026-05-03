@@ -9,7 +9,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { HookDispatcher } from '../../../src/pipeline/hook-dispatcher';
 import type { PluginHooks } from '../../../src/pipeline/middleware/types';
-import type { InboundMessage, OutboundMessage, SessionKey } from '../../../src/core/types';
+import type {
+  InboundMessage,
+  OutboundMessage,
+  PipelineResult,
+  SessionKey,
+  SenderInfo,
+} from '../../../src/core/types';
 import type {
   BeforeToolCallHookContext,
   AfterToolCallHookContext,
@@ -19,9 +25,17 @@ import type {
 
 function makeInbound(content = 'hello'): InboundMessage {
   return {
-    sessionKey: { channel: 'test', type: 'private', chatId: 'user1' },
     components: [{ type: 'Plain', text: content }],
   };
+}
+
+function makeInboundContext(): { sessionKey: SessionKey; sender?: SenderInfo } {
+  return { sessionKey: { channel: 'test', type: 'private', chatId: 'user1' } };
+}
+
+function dispatchOnReceive(dispatcher: HookDispatcher, message = makeInbound()): Promise<PipelineResult> {
+  const ctx = makeInboundContext();
+  return dispatcher.dispatchOnReceive(message, ctx.sessionKey, ctx.sender);
 }
 
 function makeOutbound(content = 'reply'): OutboundMessage {
@@ -76,7 +90,7 @@ describe('HookDispatcher', () => {
       dispatcher.register('test-plugin', hooks1);
       dispatcher.register('test-plugin', hooks2);
 
-      const result = await dispatcher.dispatchOnReceive(makeInbound());
+      const result = await dispatchOnReceive(dispatcher);
       expect(result.action).toBe('block');
       if (result.action === 'block') {
         expect(result.reason).toBe('second');
@@ -92,7 +106,7 @@ describe('HookDispatcher', () => {
       dispatcher.register('test-plugin', hooks);
       dispatcher.unregister('test-plugin');
 
-      const result = await dispatcher.dispatchOnReceive(makeInbound());
+      const result = await dispatchOnReceive(dispatcher);
       expect(result.action).toBe('continue');
     });
 
@@ -105,7 +119,7 @@ describe('HookDispatcher', () => {
 
   describe('dispatchOnReceive', () => {
     it('should return continue when no hooks are registered', async () => {
-      const result = await dispatcher.dispatchOnReceive(makeInbound());
+      const result = await dispatchOnReceive(dispatcher);
       expect(result.action).toBe('continue');
     });
 
@@ -117,7 +131,7 @@ describe('HookDispatcher', () => {
         onReceive: async () => ({ action: 'continue' as const }),
       });
 
-      const result = await dispatcher.dispatchOnReceive(makeInbound());
+      const result = await dispatchOnReceive(dispatcher);
       expect(result.action).toBe('continue');
     });
 
@@ -126,7 +140,7 @@ describe('HookDispatcher', () => {
         onReceive: async () => ({ action: 'block' as const, reason: 'not allowed' }),
       });
 
-      const result = await dispatcher.dispatchOnReceive(makeInbound());
+      const result = await dispatchOnReceive(dispatcher);
       expect(result.action).toBe('block');
       if (result.action === 'block') {
         expect(result.reason).toBe('not allowed');
@@ -145,7 +159,7 @@ describe('HookDispatcher', () => {
         },
       });
 
-      const result = await dispatcher.dispatchOnReceive(makeInbound());
+      const result = await dispatchOnReceive(dispatcher);
       expect(result.action).toBe('block');
       expect(secondHookCalled).toBe(false);
     });
@@ -155,7 +169,7 @@ describe('HookDispatcher', () => {
         onReceive: async () => ({ action: 'respond' as const, components: [{ type: 'Plain', text: 'direct reply' }] }),
       });
 
-      const result = await dispatcher.dispatchOnReceive(makeInbound());
+      const result = await dispatchOnReceive(dispatcher);
       expect(result.action).toBe('respond');
       if (result.action === 'respond') {
         expect(result.components[0].text).toBe('direct reply');
@@ -174,7 +188,7 @@ describe('HookDispatcher', () => {
         },
       });
 
-      const result = await dispatcher.dispatchOnReceive(makeInbound());
+      const result = await dispatchOnReceive(dispatcher);
       expect(result.action).toBe('respond');
       expect(secondHookCalled).toBe(false);
     });
@@ -189,7 +203,7 @@ describe('HookDispatcher', () => {
         onReceive: async () => ({ action: 'block' as const, reason: 'p2 blocked' }),
       });
 
-      const result = await dispatcher.dispatchOnReceive(makeInbound());
+      const result = await dispatchOnReceive(dispatcher);
       expect(result.action).toBe('block');
     });
 
@@ -198,7 +212,7 @@ describe('HookDispatcher', () => {
         onSend: async () => ({ action: 'continue' as const }),
       });
 
-      const result = await dispatcher.dispatchOnReceive(makeInbound());
+      const result = await dispatchOnReceive(dispatcher);
       expect(result.action).toBe('continue');
     });
   });
@@ -411,7 +425,7 @@ describe('HookDispatcher', () => {
         },
       });
 
-      await dispatcher.dispatchOnReceive(makeInbound());
+      await dispatchOnReceive(dispatcher);
       expect(order).toEqual(['p1', 'p2', 'p3']);
     });
   });

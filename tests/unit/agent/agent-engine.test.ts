@@ -3,12 +3,11 @@ import { createAssistantMessageEventStream } from '@mariozechner/pi-ai';
 import { AgentEngine } from '../../../src/agent/agent-engine';
 import type { AgentEngineDependencies } from '../../../src/agent/agent-engine';
 import type { LlmAdapter } from '../../../src/agent/llm-adapter';
-import type { RoleConfig, InboundMessage } from '../../../src/core/types';
+import type { RoleConfig, InboundMessage, SessionKey, SenderInfo } from '../../../src/core/types';
 import { getOutboundMessageText } from '@aesyclaw/core/types';
 import { MemoryManager } from '../../../src/agent/memory-manager';
 import type { MessageRepository } from '../../../src/core/database/repositories/message-repository';
-import type { AgentTool, AgentMessage } from '../../../src/agent/agent-types';
-import type { Agent } from '../../../src/agent/agent-types';
+import type { AgentTool } from '../../../src/agent/agent-types';
 
 function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
   return {
@@ -26,10 +25,13 @@ function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
 
 function makeInboundMessage(overrides: Partial<InboundMessage> = {}): InboundMessage {
   return {
-    sessionKey: { channel: 'test', type: 'private', chatId: 'user-1' },
     components: [{ type: 'Plain', text: 'Hello, assistant!' }],
     ...overrides,
   };
+}
+
+function makeInboundContext(): { sessionKey: SessionKey; sender?: SenderInfo } {
+  return { sessionKey: { channel: 'test', type: 'private', chatId: 'user-1' } };
 }
 
 function makeMockMessageRepo(): MessageRepository {
@@ -132,44 +134,11 @@ function makeMockPromptBuilder() {
   };
 }
 
-function makeMockRunPolicy() {
-  return {
-    loadHistoryForTurn: vi.fn().mockResolvedValue([]),
-    prompt: vi.fn().mockImplementation(async (agent: Agent, content: string) => {
-      // 模拟 pi-agent-core 的行为：添加用户消息和助手响应
-      const userMessage: AgentMessage = {
-        role: 'user',
-        content,
-        timestamp: Date.now(),
-      };
-      const assistantMessage: AgentMessage = {
-        role: 'assistant',
-        content: [{ type: 'text', text: 'Real response from pi runtime' }],
-        api: 'openai-responses',
-        provider: 'openai',
-        model: 'gpt-4o',
-        usage: {
-          input: 0,
-          output: 0,
-          cacheRead: 0,
-          cacheWrite: 0,
-          totalTokens: 0,
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-        },
-        stopReason: 'stop',
-        timestamp: Date.now(),
-      };
-      agent.state.messages = [...agent.state.messages, userMessage, assistantMessage];
-    }),
-  };
-}
-
 function makeMockDeps(): AgentEngineDependencies {
   const llmAdapter = makeMockLlmAdapter();
   return {
     llmAdapter,
     promptBuilder: makeMockPromptBuilder(),
-    runPolicy: makeMockRunPolicy(),
   };
 }
 
@@ -243,7 +212,7 @@ describe('AgentEngine', () => {
       });
 
       const agent = engine.createAgent(role, 'test-session');
-      const result = await engine.process(agent, makeInboundMessage(), memory, role);
+      const result = await engine.process(agent, makeInboundMessage(), makeInboundContext().sessionKey, makeInboundContext().sender, memory, role);
 
       expect(getOutboundMessageText(result)).toBe('Real response from pi runtime');
       expect(messageRepo.save).toHaveBeenCalledTimes(2);
@@ -270,13 +239,13 @@ describe('AgentEngine', () => {
       const agent = runtimeEngine.createAgent(role, 'test-session');
       expect(agent.state.tools[0]?.name).toBe('initial-tool');
 
-      const result = await runtimeEngine.process(agent, makeInboundMessage(), memory, role);
+      const result = await runtimeEngine.process(agent, makeInboundMessage(), makeInboundContext().sessionKey, makeInboundContext().sender, memory, role);
 
       expect(getOutboundMessageText(result)).toBe('Real response from pi runtime');
       expect(agent.state.tools).toHaveLength(1);
       expect(agent.state.tools[0]?.name).toBe('refreshed-tool');
       expect(deps.promptBuilder.buildSystemPrompt).toHaveBeenNthCalledWith(2, role, {
-        sessionKey: makeInboundMessage().sessionKey,
+        sessionKey: makeInboundContext().sessionKey,
         sendMessage: undefined,
         toolPermission: { mode: 'allowlist', list: ['*'] },
       });
@@ -296,10 +265,10 @@ describe('AgentEngine', () => {
       const agent = runtimeEngine.createAgent(role, 'test-session');
       const sendMessage = vi.fn().mockResolvedValue(true);
 
-      await runtimeEngine.process(agent, makeInboundMessage(), memory, role, sendMessage);
+      await runtimeEngine.process(agent, makeInboundMessage(), makeInboundContext().sessionKey, makeInboundContext().sender, memory, role, sendMessage);
 
       expect(deps.promptBuilder.buildSystemPrompt).toHaveBeenLastCalledWith(role, {
-        sessionKey: makeInboundMessage().sessionKey,
+        sessionKey: makeInboundContext().sessionKey,
         sendMessage,
         toolPermission: { mode: 'allowlist', list: ['*'] },
       });
@@ -319,7 +288,7 @@ describe('AgentEngine', () => {
       });
 
       const agent = engine.createAgent(role, 'test-session');
-      await engine.process(agent, makeInboundMessage(), memory, role);
+      await engine.process(agent, makeInboundMessage(), makeInboundContext().sessionKey, makeInboundContext().sender, memory, role);
 
       expect(messageRepo.save).toHaveBeenCalledTimes(2);
       expect(messageRepo.save).toHaveBeenCalledWith(
@@ -348,7 +317,7 @@ describe('AgentEngine', () => {
         compressionThreshold: 0.8,
       });
 
-      const sessionKey = makeInboundMessage().sessionKey;
+      const sessionKey = makeInboundContext().sessionKey;
       const result = await engine.processEphemeral({
         sessionKey,
         sessionId: 'test-session',
@@ -374,7 +343,7 @@ describe('AgentEngine', () => {
         compressionThreshold: 0.8,
       });
 
-      const sessionKey = makeInboundMessage().sessionKey;
+      const sessionKey = makeInboundContext().sessionKey;
       await runtimeEngine.processEphemeral({
         sessionKey,
         sessionId: 'test-session',

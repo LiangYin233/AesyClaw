@@ -17,13 +17,16 @@ import type { SessionManager } from '../../../../src/agent/session-manager';
 
 function makeInbound(content: string): InboundMessage {
   return {
-    sessionKey: { channel: 'test', type: 'private', chatId: 'user1' },
     components: [{ type: 'Plain', text: content }],
   };
 }
 
 function makeState(content: string): PipelineState {
-  return { stage: 'continue', inbound: makeInbound(content) };
+  return {
+    stage: 'continue',
+    inbound: makeInbound(content),
+    sessionKey: { channel: 'test', type: 'private', chatId: 'user1' },
+  };
 }
 
 function makeSessionManager(isBusy = false): Pick<SessionManager, 'isAgentProcessing'> {

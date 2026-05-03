@@ -19,8 +19,14 @@
  *   6. send(outbound)
  */
 
-import type { InboundMessage, OutboundMessage, PipelineResult, SendFn } from '@aesyclaw/core/types';
-import type { SessionKey } from '@aesyclaw/core/types';
+import type {
+  InboundMessage,
+  OutboundMessage,
+  PipelineResult,
+  SendFn,
+  SessionKey,
+  SenderInfo,
+} from '@aesyclaw/core/types';
 import type { PipelineDependencies, PipelineState, PluginHooks } from './middleware/types';
 import { HookDispatcher } from './hook-dispatcher';
 import { sessionResolver } from './middleware/session-resolver';
@@ -79,18 +85,23 @@ export class Pipeline {
   /**
    * 处理入站消息并发送响应。这是消息处理的主要入口点。
    */
-  async receiveWithSend(message: InboundMessage, send: SendFn): Promise<void> {
+  async receiveWithSend(
+    message: InboundMessage,
+    sessionKey: SessionKey,
+    sender: SenderInfo | undefined,
+    send: SendFn,
+  ): Promise<void> {
     const deps = this.requireDeps();
 
     try {
       // 1. onReceive 钩子
-      const receiveResult = await this.hookDispatcher.dispatchOnReceive(message);
+      const receiveResult = await this.hookDispatcher.dispatchOnReceive(message, sessionKey, sender);
       if (await this.handleHookResult('onReceive', receiveResult, send, undefined)) {
         return;
       }
 
       // 2. 中间件:sessionResolver → commandDetector
-      let state: PipelineState = { stage: 'continue', inbound: message };
+      let state: PipelineState = { stage: 'continue', inbound: message, sessionKey, sender };
       state = await sessionResolver(state, deps.sessionManager);
       if (state.stage === 'continue') {
         const sessionKey = state.session?.key;
@@ -115,6 +126,8 @@ export class Pipeline {
       if (state.session) {
         const beforeLLMResult = await this.hookDispatcher.dispatchBeforeLLMRequest({
           message: state.inbound,
+          sessionKey: state.sessionKey,
+          sender: state.sender,
           session: state.session,
           agent: state.session.agent,
           role: state.session.activeRole,

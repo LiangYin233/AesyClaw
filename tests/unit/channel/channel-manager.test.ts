@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ChannelManager } from '../../../src/extension/channel/channel-manager';
 import type { ChannelPlugin } from '../../../src/extension/channel/channel-types';
-import type { InboundMessage } from '../../../src/core/types';
+import type { InboundMessage, OutboundMessage, SessionKey, SenderInfo } from '../../../src/core/types';
 
 class FakeConfigManager {
   channels: Record<string, unknown> = {};
@@ -19,7 +19,7 @@ class FakeConfigManager {
 
 function makePipeline() {
   return {
-    receiveWithSend: vi.fn(async (_message: InboundMessage, send) => {
+    receiveWithSend: vi.fn(async (_message: InboundMessage, _sessionKey: SessionKey, _sender: SenderInfo | undefined, send: (m: OutboundMessage) => Promise<void>) => {
       await send({ components: [{ type: 'Plain', text: 'pipeline response' }] });
     }),
   };
@@ -52,10 +52,11 @@ describe('ChannelManager', () => {
     const manager = new ChannelManager({ configManager: config, pipeline, channels: [channel] });
 
     await manager.startAll();
-    await manager.receive('test', {
-      sessionKey: { channel: 'test', type: 'private', chatId: '1' },
-      components: [{ type: 'Plain', text: 'hi' }],
-    });
+    await manager.receive(
+      'test',
+      { components: [{ type: 'Plain', text: 'hi' }] },
+      { channel: 'test', type: 'private', chatId: '1' },
+    );
 
     expect(channel.init).toHaveBeenCalledOnce();
     expect(pipeline.receiveWithSend).toHaveBeenCalledOnce();
@@ -68,7 +69,7 @@ describe('ChannelManager', () => {
 
   it('exposes context receive as a bridge back into ChannelManager.receive', async () => {
     const pipeline = makePipeline();
-    let receiveFromContext: ((message: InboundMessage) => Promise<void>) | null = null;
+    let receiveFromContext: ((message: InboundMessage, sessionKey: SessionKey, sender?: SenderInfo) => Promise<void>) | null = null;
     const channel = makeChannel({
       init: vi.fn(async (ctx) => {
         receiveFromContext = ctx.receive;
@@ -81,10 +82,10 @@ describe('ChannelManager', () => {
     });
 
     await manager.start('test');
-    await receiveFromContext?.({
-      sessionKey: { channel: 'test', type: 'private', chatId: '1' },
-      components: [{ type: 'Plain', text: 'hi' }],
-    });
+    await receiveFromContext?.(
+      { components: [{ type: 'Plain', text: 'hi' }] },
+      { channel: 'test', type: 'private', chatId: '1' },
+    );
 
     expect(pipeline.receiveWithSend).toHaveBeenCalledOnce();
     expect(channel.send).toHaveBeenCalledWith(
@@ -100,10 +101,11 @@ describe('ChannelManager', () => {
     });
 
     await expect(
-      manager.receive('missing', {
-        sessionKey: { channel: 'missing', type: 'private', chatId: '1' },
-        components: [{ type: 'Plain', text: 'hi' }],
-      }),
+      manager.receive(
+        'missing',
+        { components: [{ type: 'Plain', text: 'hi' }] },
+        { channel: 'missing', type: 'private', chatId: '1' },
+      ),
     ).rejects.toThrow('频道 "missing" 未加载');
   });
 

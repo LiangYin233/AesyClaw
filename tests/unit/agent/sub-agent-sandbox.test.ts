@@ -22,7 +22,7 @@ describe('SubAgentSandbox', () => {
   it('uses isolated in-memory history for each delegated run', async () => {
     const agentEngine = {
       createAgent: vi.fn().mockReturnValue({ state: {} }),
-      process: vi.fn().mockImplementation(async (_agent, message, memory) => {
+      process: vi.fn().mockImplementation(async (_agent, message, _sessionKey, _sender, memory) => {
         const historyBefore = await memory.loadHistory();
         await memory.syncFromAgent([
           createUserMessage(getInboundMessageText(message)),
@@ -83,6 +83,8 @@ describe('SubAgentSandbox', () => {
     expect(agentEngine.process).toHaveBeenCalledWith(
       expect.any(Object),
       expect.objectContaining({ components: [{ type: 'Plain', text: 'bounded' }] }),
+      expect.any(Object),
+      undefined,
       expect.any(Object),
       expect.objectContaining({ toolPermission: { mode: 'allowlist', list: [] } }),
       undefined,
