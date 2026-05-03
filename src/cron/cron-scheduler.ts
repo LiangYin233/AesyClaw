@@ -89,7 +89,7 @@ export class CronScheduler {
  * @returns 下次运行的 Date，如果无效则返回 null
  */
 export function computeNextRun(
-  scheduleType: string,
+  scheduleType: CronScheduleType,
   scheduleValue: string,
   from: Date = new Date(),
 ): Date | null {

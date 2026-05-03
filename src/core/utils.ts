@@ -53,3 +53,18 @@ export function mergeDefaults(
 
   return merged;
 }
+
+/**
+ * 将 "provider/modelId" 格式的模型标识符解析为 provider 和 modelId。
+ * 格式无效时抛出错误。
+ */
+export function parseModelIdentifier(modelIdentifier: string): { provider: string; modelId: string } {
+  const idx = modelIdentifier.indexOf('/');
+  if (idx === -1) {
+    throw new Error(`模型标识符格式无效: "${modelIdentifier}"。应为 "provider/modelId"。`);
+  }
+  return {
+    provider: modelIdentifier.slice(0, idx),
+    modelId: modelIdentifier.slice(idx + 1),
+  };
+}

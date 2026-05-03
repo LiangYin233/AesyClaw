@@ -3,6 +3,7 @@ import type { Api, KnownProvider, Model } from '@mariozechner/pi-ai';
 import type { ConfigManager } from '../core/config/config-manager';
 import type { ProviderConfig } from '../core/config/schema';
 import { createScopedLogger } from '../core/logger';
+import { parseModelIdentifier } from '../core/utils';
 import { requireInitialized } from '../core/utils';
 import { extractMessageText } from './agent-types';
 import type { ResolvedModel, StreamFn, AgentMessage } from './agent-types';
@@ -66,15 +67,7 @@ export class LlmAdapter {
   resolveModel(modelIdentifier: string): ResolvedModel {
     const configManager = this.requireDeps().configManager;
 
-    const slashIndex = modelIdentifier.indexOf('/');
-    if (slashIndex === -1) {
-      throw new Error(
-        `模型标识符格式无效: "${modelIdentifier}"。应为 "provider/modelId"。`,
-      );
-    }
-
-    const provider = modelIdentifier.substring(0, slashIndex);
-    const modelId = modelIdentifier.substring(slashIndex + 1);
+    const { provider, modelId } = parseModelIdentifier(modelIdentifier);
     const providers = configManager.get('providers');
     const providerConfig: ProviderConfig | undefined = providers[provider];
 

@@ -78,7 +78,7 @@ export class CronManager {
     const nextRun = computeNextRun(params.scheduleType, params.scheduleValue);
     if (!nextRun) {
       throw new Error(
-        `无效或过期的定时任务调度:${params.scheduleType} ${params.scheduleValue}`,
+        `无效或过期的定时任务调度: ${params.scheduleType} ${params.scheduleValue}`,
       );
     }
 
@@ -160,7 +160,7 @@ export class CronManager {
     try {
       return await deps.executor.execute(job);
     } finally {
-      const nextRun = computeNextRun(job.scheduleType, job.scheduleValue);
+      const nextRun = computeNextRun(job.scheduleType as CronScheduleType, job.scheduleValue);
       await deps.cronJobs.updateNextRun(job.id, nextRun);
 
       const updated = await deps.cronJobs.findById(job.id);

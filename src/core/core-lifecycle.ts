@@ -53,7 +53,7 @@ export class CoreLifecycle {
   private shuttingDown = false;
 
   private get paths(): ResolvedPaths {
-    if (!this._paths) throw new Error('Paths not resolved');
+    if (!this._paths) throw new Error('路径尚未解析');
     return this._paths;
   }
 

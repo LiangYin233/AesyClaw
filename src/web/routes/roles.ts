@@ -3,6 +3,7 @@
 import { Hono } from 'hono';
 import type { WebUiManagerDependencies } from '../webui-manager';
 import type { RoleConfig } from '../../core/types';
+import { parseModelIdentifier } from '../../core/utils';
 
 /**
  * 创建角色 API 路由。
@@ -36,12 +37,7 @@ export function createRolesRouter(deps: WebUiManagerDependencies) {
         return c.json({ ok: false, error: '请求体中的角色 id 必须与路由 id 一致' }, 400);
       }
       const model = body.model ?? deps.roleManager.getRole(id).model;
-      const slashIdx = model.indexOf('/');
-      if (slashIdx === -1) {
-        return c.json({ ok: false, error: '模型必须是 provider/model 格式' }, 400);
-      }
-      const providerName = model.slice(0, slashIdx);
-      const modelId = model.slice(slashIdx + 1);
+      const { provider: providerName, modelId } = parseModelIdentifier(model);
       const config = deps.configManager.getConfig();
       const provider = config.providers[providerName];
       if (provider === undefined) {
