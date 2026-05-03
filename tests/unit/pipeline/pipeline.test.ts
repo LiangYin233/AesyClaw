@@ -166,7 +166,7 @@ describe('Pipeline', () => {
     it('should clear hook registrations on destroy', async () => {
       const deps = await createPipelineDeps();
       await pipeline.initialize(deps);
-      pipeline.register('blocker', {
+      pipeline.hookDispatcher.register('blocker', {
         onReceive: async () => ({ action: 'block' as const, reason: 'stale hook' }),
       });
       pipeline.destroy();
@@ -390,7 +390,7 @@ describe('Pipeline', () => {
       const hooks: PluginHooks = {
         onReceive: async () => ({ action: 'block' as const, reason: 'forbidden' }),
       };
-      pipeline.register('blocker', hooks);
+      pipeline.hookDispatcher.register('blocker', hooks);
 
       const send = vi.fn();
       await receiveWithSend(pipeline, makeInbound(), send);
@@ -404,7 +404,7 @@ describe('Pipeline', () => {
       const hooks: PluginHooks = {
         onReceive: async () => ({ action: 'respond' as const, components: [{ type: 'Plain', text: 'direct hook reply' }] }),
       };
-      pipeline.register('responder', hooks);
+      pipeline.hookDispatcher.register('responder', hooks);
 
       const sent: OutboundMessage[] = [];
       const send = vi.fn(async (msg: OutboundMessage) => {
@@ -423,7 +423,7 @@ describe('Pipeline', () => {
       const hooks: PluginHooks = {
         onSend: async () => ({ action: 'block' as const, reason: 'output filtered' }),
       };
-      pipeline.register('filter', hooks);
+      pipeline.hookDispatcher.register('filter', hooks);
 
       const send = vi.fn();
       await receiveWithSend(pipeline, makeInbound(), send);
@@ -437,7 +437,7 @@ describe('Pipeline', () => {
       const hooks: PluginHooks = {
         onSend: async () => ({ action: 'respond' as const, components: [{ type: 'Plain', text: 'modified output' }] }),
       };
-      pipeline.register('modifier', hooks);
+      pipeline.hookDispatcher.register('modifier', hooks);
 
       const sent: OutboundMessage[] = [];
       const send = vi.fn(async (msg: OutboundMessage) => {
@@ -454,7 +454,7 @@ describe('Pipeline', () => {
       await pipeline.initialize(deps);
 
       const processMock = deps.agentEngine.process as ReturnType<typeof vi.fn>;
-      pipeline.register('llm-blocker', {
+      pipeline.hookDispatcher.register('llm-blocker', {
         beforeLLMRequest: async () => ({ action: 'block' as const, reason: 'rate limited' }),
       });
 
@@ -470,7 +470,7 @@ describe('Pipeline', () => {
       await pipeline.initialize(deps);
 
       const processMock = deps.agentEngine.process as ReturnType<typeof vi.fn>;
-      pipeline.register('llm-responder', {
+      pipeline.hookDispatcher.register('llm-responder', {
         beforeLLMRequest: async () => ({ action: 'respond' as const, components: [{ type: 'Plain', text: 'cached answer' }] }),
       });
 

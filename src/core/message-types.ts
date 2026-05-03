@@ -77,16 +77,16 @@ export type MessageComponent =
   | UnknownComponent;
 
 /** 纯消息载荷：只表示消息本身，不携带会话、发送者上下文。 */
-export type Message<TComponent = MessageComponent> = {
-  components: TComponent[];
+export type Message = {
+  components: MessageComponent[];
 };
 
 // ─── 入站消息 ──────────────────────────────────────────────────
 
 /** 从外部平台进入管道的传入消息 */
-export type InboundMessage = Message<MessageComponent>;
+export type InboundMessage = Message;
 
-export function getMessageText(message: Pick<Message<{ type: string; text?: unknown }>, 'components'>): string {
+export function getMessageText(message: Pick<Message, 'components'>): string {
   return message.components
     .filter((component): component is PlainComponent => component.type === 'Plain' && typeof component.text === 'string')
     .map((component) => component.text)
@@ -96,7 +96,7 @@ export function getMessageText(message: Pick<Message<{ type: string; text?: unkn
 // ─── 出站消息 ──────────────────────────────────────────────────
 
 /** 由管道生成并通过频道发送回去的回复 */
-export type OutboundMessage = Message<MessageComponent>;
+export type OutboundMessage = Message;
 
 /** 通过频道发送传出消息的函数 */
 export type SendFn = (message: OutboundMessage) => Promise<void>;

@@ -27,7 +27,7 @@ import type {
   SessionKey,
   SenderInfo,
 } from '@aesyclaw/core/types';
-import type { PipelineDependencies, PipelineState, PluginHooks } from './middleware/types';
+import type { PipelineDependencies, PipelineState } from './middleware/types';
 import { HookDispatcher } from './hook-dispatcher';
 import { sessionResolver } from './middleware/session-resolver';
 import { commandDetector } from './middleware/command-detector';
@@ -64,22 +64,6 @@ export class Pipeline {
     logger.info('Pipeline 已销毁');
   }
 
-  private requireDeps(): PipelineDependencies {
-    return requireInitialized(this.deps, 'Pipeline');
-  }
-
-  // ─── 钩子注册门面 ────────────────────────────────────────────────
-  // 直接调用 `pipeline.hookDispatcher.register(...)` 也可以,这两个方法
-  // 仅作为测试和外部插件管理器的稳定门面保留。
-
-  register(pluginName: string, hooks: PluginHooks): void {
-    this.hookDispatcher.register(pluginName, hooks);
-  }
-
-  unregister(pluginName: string): void {
-    this.hookDispatcher.unregister(pluginName);
-  }
-
   // ─── 核心 API ─────────────────────────────────────────────────
 
   /**
@@ -91,7 +75,7 @@ export class Pipeline {
     sender: SenderInfo | undefined,
     send: SendFn,
   ): Promise<void> {
-    const deps = this.requireDeps();
+    const deps = requireInitialized(this.deps, 'Pipeline');
 
     try {
       // 1. onReceive 钩子
