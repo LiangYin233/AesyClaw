@@ -10,7 +10,7 @@ import type { SessionManager } from '../../agent/session-manager';
 
 export type StopCommandDeps = {
   sessionManager: Pick<SessionManager, 'getSession' | 'endAgentProcessing'>;
-}
+};
 
 /**
  * 创建 stop 命令定义。

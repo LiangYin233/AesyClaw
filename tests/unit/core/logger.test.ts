@@ -59,9 +59,7 @@ describe('scoped logger', () => {
 
     logger.info('Ready');
 
-    expectConsoleInfo(
-      `${FORMATTED_TIME} \x1b[36m[INFO]\x1b[0m \x1b[36m[app]\x1b[0m Ready`,
-    );
+    expectConsoleInfo(`${FORMATTED_TIME} \x1b[36m[INFO]\x1b[0m \x1b[36m[app]\x1b[0m Ready`);
   });
 
   it('uses stderr color support for warn logs', () => {

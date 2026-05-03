@@ -1,7 +1,11 @@
 /** 定时任务管理器 — 持久化任务、调度计时器并记录执行历史。 */
 
 import type { CronJobRecord, OutboundMessage, SessionKey } from '../core/types';
-import type { CronJobsRepository, CronRunsRepository, DatabaseManager } from '../core/database/database-manager';
+import type {
+  CronJobsRepository,
+  CronRunsRepository,
+  DatabaseManager,
+} from '../core/database/database-manager';
 import type { Pipeline } from '../pipeline/pipeline';
 import { createScopedLogger } from '../core/logger';
 import { requireInitialized } from '../core/utils';
@@ -15,21 +19,21 @@ export type CronManagerDependencies = {
   pipeline: Pick<Pipeline, 'receiveWithSend'>;
   send: (sessionKey: SessionKey, message: OutboundMessage) => Promise<void>;
   scheduler?: CronScheduler;
-}
+};
 
 export type CreateCronJobParams = {
   scheduleType: CronScheduleType;
   scheduleValue: string;
   prompt: string;
   sessionKey: SessionKey;
-}
+};
 
 type CronManagerStoredDeps = {
   cronJobs: CronJobsRepository;
   cronRuns: CronRunsRepository;
   executor: CronExecutor;
   scheduler: CronScheduler;
-}
+};
 
 export class CronManager {
   private deps: CronManagerStoredDeps | null = null;
@@ -77,9 +81,7 @@ export class CronManager {
     this.requireDeps();
     const nextRun = computeNextRun(params.scheduleType, params.scheduleValue);
     if (!nextRun) {
-      throw new Error(
-        `无效或过期的定时任务调度: ${params.scheduleType} ${params.scheduleValue}`,
-      );
+      throw new Error(`无效或过期的定时任务调度: ${params.scheduleType} ${params.scheduleValue}`);
     }
 
     const cronJobs = this.requireDeps().cronJobs;
@@ -169,5 +171,4 @@ export class CronManager {
       }
     }
   }
-
 }

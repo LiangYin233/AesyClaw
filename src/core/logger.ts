@@ -20,7 +20,7 @@ export type LogEntry = {
   message: string;
   details: string | null;
   formatted: string;
-}
+};
 
 const ANSI_RESET = '\x1b[0m';
 
@@ -129,7 +129,12 @@ function formatLogDetails(args: readonly unknown[]): string | null {
     .join(' ');
 }
 
-function appendRecentLogEntry(scope: string, level: LogLevel, message: string, args: readonly unknown[]): void {
+function appendRecentLogEntry(
+  scope: string,
+  level: LogLevel,
+  message: string,
+  args: readonly unknown[],
+): void {
   const timestamp = formatTimestamp(new Date());
   const details = formatLogDetails(args);
   const formatted = details
@@ -151,7 +156,13 @@ function appendRecentLogEntry(scope: string, level: LogLevel, message: string, a
   }
 }
 
-function log(scope: string, level: LogLevel, consoleMethod: 'debug' | 'info' | 'warn' | 'error', message: string, args: readonly unknown[]): void {
+function log(
+  scope: string,
+  level: LogLevel,
+  consoleMethod: 'debug' | 'info' | 'warn' | 'error',
+  message: string,
+  args: readonly unknown[],
+): void {
   if (!shouldLog(level)) {
     return;
   }
@@ -175,7 +186,7 @@ export type Logger = {
   info(message: string, ...args: unknown[]): void;
   warn(message: string, ...args: unknown[]): void;
   error(message: string, ...args: unknown[]): void;
-}
+};
 
 /**
  * 创建一个带作用域的日志实例。

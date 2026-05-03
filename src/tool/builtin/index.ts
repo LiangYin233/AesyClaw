@@ -36,7 +36,7 @@ export type BuiltinToolDependencies = {
   llmAdapter: Pick<LlmAdapter, 'analyzeImage' | 'transcribeAudio' | 'resolveModel'>;
   configManager: Pick<ConfigManager, 'get'>;
   skillManager: Pick<SkillManager, 'getSkill'>;
-}
+};
 
 /**
  * 向给定注册表注册所有内置工具。

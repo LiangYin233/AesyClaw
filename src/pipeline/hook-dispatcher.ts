@@ -29,7 +29,7 @@ const logger = createScopedLogger('hook-dispatcher');
 type HookEntry = {
   pluginName: string;
   hooks: PluginHooks;
-}
+};
 
 /**
  * 调度辅助函数 — 遍历已注册的钩子并调用 `extract` 获取

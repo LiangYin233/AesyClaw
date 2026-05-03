@@ -20,7 +20,7 @@ type CronJobRow = {
   session_key: string;
   next_run: string | null;
   created_at: string;
-}
+};
 
 type CronRunRow = {
   id: string;
@@ -30,7 +30,7 @@ type CronRunRow = {
   error: string | null;
   started_at: string;
   ended_at: string | null;
-}
+};
 
 function mapJobRow(row: CronJobRow): CronJobRecord {
   return {

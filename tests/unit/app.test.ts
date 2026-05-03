@@ -97,11 +97,13 @@ describe('Application', () => {
       await originalCronInitialize.call(this, dependencies);
     });
 
-    vi.spyOn(WebUiManager.prototype, 'initialize').mockImplementation(async function (dependencies) {
-      order.push('webui');
-      expect(order).toContain('cron');
-      await originalWebUiInitialize.call(this, dependencies);
-    });
+    vi.spyOn(WebUiManager.prototype, 'initialize').mockImplementation(
+      async function (dependencies) {
+        order.push('webui');
+        expect(order).toContain('cron');
+        await originalWebUiInitialize.call(this, dependencies);
+      },
+    );
 
     const app = new Application();
 

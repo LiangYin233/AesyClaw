@@ -67,9 +67,7 @@ export class RoleManager {
         if (role) {
           const existingSource = loadedSources.get(role.id);
           if (existingSource) {
-            throw new Error(
-              `角色 id "${role.id}" 在 ${existingSource} 和 ${filePath} 中重复`,
-            );
+            throw new Error(`角色 id "${role.id}" 在 ${existingSource} 和 ${filePath} 中重复`);
           }
           loadedRoles.set(role.id, role);
           loadedSources.set(role.id, filePath);
@@ -148,9 +146,7 @@ export class RoleManager {
     const firstEnabled = this.getEnabledRoles()[0];
     if (firstEnabled !== undefined) return firstEnabled;
 
-    throw new Error(
-      '没有可用角色 — 必须至少定义一个角色',
-    );
+    throw new Error('没有可用角色 — 必须至少定义一个角色');
   }
 
   /** 获取所有已启用的角色。 */

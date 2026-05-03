@@ -134,9 +134,7 @@ describe('LlmAdapter', () => {
     });
 
     it('should throw for invalid format (missing slash)', () => {
-      expect(() => adapter.resolveModel('invalid-format')).toThrow(
-        /模型标识符格式无效/,
-      );
+      expect(() => adapter.resolveModel('invalid-format')).toThrow(/模型标识符格式无效/);
     });
 
     it('should throw for unknown provider', () => {
@@ -145,9 +143,7 @@ describe('LlmAdapter', () => {
 
     it('should throw if not initialized', () => {
       const uninitialized = new LlmAdapter();
-      expect(() => uninitialized.resolveModel('openai/gpt-4o')).toThrow(
-        'LlmAdapter 未初始化',
-      );
+      expect(() => uninitialized.resolveModel('openai/gpt-4o')).toThrow('LlmAdapter 未初始化');
     });
   });
 
@@ -256,9 +252,7 @@ describe('LlmAdapter', () => {
         timestamp: Date.now(),
       });
 
-      await expect(adapter.summarize([], 'openai/gpt-4o')).rejects.toThrow(
-        'LLM 返回了空总结',
-      );
+      await expect(adapter.summarize([], 'openai/gpt-4o')).rejects.toThrow('LLM 返回了空总结');
     });
   });
 
@@ -366,9 +360,7 @@ describe('LlmAdapter', () => {
         apiKey: undefined,
       };
 
-      expect(() => streamFn(model, { messages: [] })).toThrow(
-        '未为提供者 "openai" 配置 API 密钥',
-      );
+      expect(() => streamFn(model, { messages: [] })).toThrow('未为提供者 "openai" 配置 API 密钥');
     });
   });
 });

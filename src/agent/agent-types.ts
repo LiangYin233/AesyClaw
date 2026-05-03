@@ -27,55 +27,55 @@ export type AgentTool = {
   parameters: unknown;
   execute: (toolCallId: string, params: unknown, signal?: AbortSignal) => Promise<AgentToolResult>;
   executionMode?: 'sequential' | 'parallel';
-}
+};
 
 export type AgentToolResult = {
   content: TextContent[];
   details: unknown;
   isError?: boolean;
   terminate?: boolean;
-}
+};
 
 export type BeforeToolCallHookContext = {
   toolName: string;
   params: unknown;
   sessionKey: SessionKey;
-}
+};
 
 export type AfterToolCallHookContext = {
   toolName: string;
   params: unknown;
   result: ToolExecutionResult;
   sessionKey: SessionKey;
-}
+};
 
 export type BeforeToolCallHookResult = {
   block?: boolean;
   reason?: string;
   shortCircuit?: ToolExecutionResult;
-}
+};
 
 export type AfterToolCallHookResult = {
   override?: Partial<ToolExecutionResult>;
-}
+};
 
 export type SubAgentRoleParams = {
   roleId: string;
   prompt: string;
   enableTools?: boolean;
-}
+};
 
 export type SubAgentTempParams = {
   systemPrompt: string;
   model?: string;
   prompt: string;
   enableTools?: boolean;
-}
+};
 
 export type MemoryConfig = {
   maxContextTokens: number;
   compressionThreshold: number;
-}
+};
 
 const ZERO_USAGE: Usage = {
   input: 0,

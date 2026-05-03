@@ -93,7 +93,11 @@ describe('ChannelManager', () => {
     });
 
     const manager = new ChannelManager();
-    await manager.initialize({ configManager: config, pipeline: makePipeline(), channels: [channel] });
+    await manager.initialize({
+      configManager: config,
+      pipeline: makePipeline(),
+      channels: [channel],
+    });
 
     await manager.startAll();
 

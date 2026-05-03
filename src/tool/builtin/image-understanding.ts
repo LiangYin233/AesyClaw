@@ -25,7 +25,7 @@ type ImageUnderstandingParams = Static<typeof ImageUnderstandingParamsSchema>;
 export type ImageUnderstandingDeps = {
   configManager: Pick<ConfigManager, 'get'>;
   llmAdapter: Pick<LlmAdapter, 'analyzeImage'>;
-}
+};
 
 /**
  * 创建 image_understanding 工具定义。

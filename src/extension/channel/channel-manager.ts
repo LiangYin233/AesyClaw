@@ -281,5 +281,4 @@ export class ChannelManager {
       loadedAt: new Date(),
     };
   }
-
 }

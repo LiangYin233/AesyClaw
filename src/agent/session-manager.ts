@@ -35,7 +35,7 @@ export type SessionContext = {
   activeRole: RoleConfig;
   agent: Agent;
   memory: MemoryManager;
-}
+};
 
 /**
  * 初始化时注入 SessionManager 的依赖。
@@ -46,7 +46,7 @@ export type SessionManagerDependencies = {
   agentEngine: AgentEngine;
   configManager: ConfigManager;
   llmAdapter: LlmAdapter;
-}
+};
 
 // ─── SessionManager ─────────────────────────────────────────────
 
@@ -79,7 +79,6 @@ export class SessionManager {
   }
 
   // ─── 会话解析 ───────────────────────────────────────
-
 
   /**
    * 获取或创建给定 SessionKey 的会话上下文。
@@ -286,7 +285,10 @@ export class SessionManager {
       throw new Error(`未找到会话: ${cacheKey}`);
     }
 
-    const summary = await session.memory.compact(this.requireDeps().llmAdapter, session.activeRole.model);
+    const summary = await session.memory.compact(
+      this.requireDeps().llmAdapter,
+      session.activeRole.model,
+    );
     logger.info('会话已压缩', { cacheKey });
     return summary;
   }

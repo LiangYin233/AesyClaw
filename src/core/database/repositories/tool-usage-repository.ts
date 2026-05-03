@@ -16,7 +16,7 @@ type ToolUsageRow = {
   type: 'tool' | 'skill';
   date: string;
   count: number;
-}
+};
 
 function mapRow(row: ToolUsageRow): ToolUsageSummary {
   return {
@@ -66,12 +66,7 @@ export async function getToolUsageStats(
       GROUP BY name, type, DATE(timestamp, 'localtime')
       ORDER BY count DESC, name ASC`,
     )
-    .all(
-      fromFilter,
-      fromFilter,
-      toFilter,
-      toFilter,
-    ) as unknown as ToolUsageRow[];
+    .all(fromFilter, fromFilter, toFilter, toFilter) as unknown as ToolUsageRow[];
 
   return rows.map(mapRow);
 }

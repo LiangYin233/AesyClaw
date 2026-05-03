@@ -10,7 +10,6 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ConfigManager } from '../../../../src/core/config/config-manager';
 
-
 const TEST_DIR = join(tmpdir(), 'aesyclaw-test-config');
 
 describe('ConfigManager', () => {
@@ -141,7 +140,6 @@ describe('ConfigManager', () => {
 
       await manager.load(configPath);
 
-
       expect(manager.get('mcp')[0]?.enabled).toBe(true);
       expect(manager.get('plugins')[0]?.enabled).toBe(true);
     });
@@ -162,7 +160,10 @@ describe('ConfigManager', () => {
     it('should read current snapshots from the Conf-backed store', async () => {
       await manager.load(configPath);
 
-      const externallyChangedConfig = structuredClone(manager.getConfig()) as Record<string, unknown>;
+      const externallyChangedConfig = structuredClone(manager.getConfig()) as Record<
+        string,
+        unknown
+      >;
       externallyChangedConfig.server = { port: 7777, host: '127.0.0.1', logLevel: 'debug' };
       writeFileSync(configPath, JSON.stringify(externallyChangedConfig, null, 2));
 
@@ -324,7 +325,9 @@ describe('ConfigManager', () => {
         baseUrl: 'https://new.example.test',
         unknownProviderField: 'provider-future',
       });
-      expect((providers.openai?.models as Record<string, Record<string, unknown>>).fast).toMatchObject({
+      expect(
+        (providers.openai?.models as Record<string, Record<string, unknown>>).fast,
+      ).toMatchObject({
         routingHint: 'fast-lane',
         contextWindow: 64000,
         unknownModelField: 'model-future',

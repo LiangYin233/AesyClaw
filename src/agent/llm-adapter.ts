@@ -11,13 +11,13 @@ import type { ResolvedModel, StreamFn, AgentMessage } from './agent-types';
 export type ImageAnalysisInput = {
   data: string;
   mimeType: string;
-}
+};
 
 export type AudioTranscriptionInput = {
   data: Uint8Array;
   mimeType: string;
   fileName: string;
-}
+};
 
 const logger = createScopedLogger('llm-adapter');
 
@@ -42,7 +42,7 @@ const API_TYPE_MAP = {
 
 export type LlmAdapterDependencies = {
   configManager: ConfigManager;
-}
+};
 
 export class LlmAdapter {
   private deps: LlmAdapterDependencies | null = null;
@@ -160,25 +160,24 @@ export class LlmAdapter {
       const response = await completeSimple(
         model,
         {
-          systemPrompt:
-            [
-              'You are a conversation archivist. Summarize the following dialogue into a compact record for future turns.',
-              'Output ONLY the summary in the following structure, using plain text:',
-              '',
-              '## Previous Discussion',
-              '- What has already been discussed with the user (topics, decisions made, conclusions reached)',
-              '',
-              '## Current Focus',
-              '- What is being worked on or discussed right now (the active task or question)',
-              '',
-              '## Next Steps',
-              '- What remains to be done, unresolved questions, or pending follow-ups',
-              '',
-              '## Notes',
-              '- Special constraints, important facts, user preferences, tool results, file paths, or any context critical for continuity',
-              '',
-              'Keep each section concise. Do not mention that you are summarizing or refer to missing context.',
-            ].join('\n'),
+          systemPrompt: [
+            'You are a conversation archivist. Summarize the following dialogue into a compact record for future turns.',
+            'Output ONLY the summary in the following structure, using plain text:',
+            '',
+            '## Previous Discussion',
+            '- What has already been discussed with the user (topics, decisions made, conclusions reached)',
+            '',
+            '## Current Focus',
+            '- What is being worked on or discussed right now (the active task or question)',
+            '',
+            '## Next Steps',
+            '- What remains to be done, unresolved questions, or pending follow-ups',
+            '',
+            '## Notes',
+            '- Special constraints, important facts, user preferences, tool results, file paths, or any context critical for continuity',
+            '',
+            'Keep each section concise. Do not mention that you are summarizing or refer to missing context.',
+          ].join('\n'),
           messages: [
             {
               role: 'user',
@@ -282,9 +281,7 @@ export class LlmAdapter {
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(
-        `语音转文本请求失败 (${response.status}): ${body || response.statusText}`,
-      );
+      throw new Error(`语音转文本请求失败 (${response.status}): ${body || response.statusText}`);
     }
 
     const payload = (await response.json()) as { text?: unknown };
@@ -311,11 +308,7 @@ export class LlmAdapter {
       .filter((line) => !line.endsWith(':'))
       .join('\n\n');
 
-    return [
-      'Conversation transcript:',
-      '',
-      transcript,
-    ].join('\n');
+    return ['Conversation transcript:', '', transcript].join('\n');
   }
 }
 

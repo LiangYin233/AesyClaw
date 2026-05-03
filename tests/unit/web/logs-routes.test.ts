@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  clearRecentLogEntriesForTests,
-  createScopedLogger,
-} from '../../../src/core/logger';
+import { clearRecentLogEntriesForTests, createScopedLogger } from '../../../src/core/logger';
 import * as loggerModule from '../../../src/core/logger';
 import { createLogsRouter } from '../../../src/web/routes/logs';
 import type { WebUiManagerDependencies } from '../../../src/web/webui-manager';

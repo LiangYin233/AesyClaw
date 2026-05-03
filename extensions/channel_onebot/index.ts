@@ -3,12 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { ChannelContext, ChannelPlugin } from '@aesyclaw/sdk';
 import { resolvePaths } from '@aesyclaw/sdk';
-import type {
-  InboundMessage,
-  MediaAttachment,
-  OutboundMessage,
-  SessionKey,
-} from '@aesyclaw/sdk';
+import type { InboundMessage, MediaAttachment, OutboundMessage, SessionKey } from '@aesyclaw/sdk';
 import type { PluginDefinition } from '@aesyclaw/sdk';
 
 const DEFAULT_CONFIG = {
@@ -88,11 +83,11 @@ const EXTENSION_BY_MIME_TYPE: Record<string, string> = {
 export type OneBotChannelConfig = {
   serverUrl: string;
   accessToken?: string;
-}
+};
 
 export type OneBotActionTransport = {
   sendAction(action: string, params: Record<string, unknown>): Promise<OneBotApiResponse>;
-}
+};
 
 type OneBotLogger = ChannelContext['logger'];
 
@@ -104,43 +99,43 @@ type OneBotApiResponse = {
   echo?: string;
   stream?: string;
   data?: unknown;
-}
+};
 
 type LoadedAttachmentSource = {
   data: Uint8Array;
   fileName: string;
-}
+};
 
 type UploadedAttachment = {
   filePath: string;
   fileName: string;
-}
+};
 
 type OneBotMessageSegment = {
   type: string;
   data: Record<string, unknown>;
-}
+};
 
 type PendingRequest<T> = {
   resolve(response: T): void;
   reject(error: Error): void;
   timeout: ReturnType<typeof setTimeout>;
-}
+};
 
 type PendingStreamRequest = {
   responses: OneBotApiResponse[];
-} & PendingRequest<OneBotApiResponse[]>
+} & PendingRequest<OneBotApiResponse[]>;
 
 type DownloadedStreamFile = {
   data: Uint8Array;
   fileName: string;
-}
+};
 
 type OneBotInboundAttachmentSegment = {
   attachmentType: MediaAttachment['type'];
   segmentType: string;
   data: Record<string, unknown>;
-}
+};
 
 type WebSocketLike = {
   readonly readyState: number;
@@ -148,15 +143,15 @@ type WebSocketLike = {
   close(code?: number, reason?: string): void;
   addEventListener(type: string, listener: (event: unknown) => void): void;
   removeEventListener(type: string, listener: (event: unknown) => void): void;
-}
+};
 
 type CreateOneBotChannelOptions = {
   createSocket?: (url: string) => WebSocketLike;
-}
+};
 
 type GlobalWithWebSocket = {
   WebSocket?: new (url: string) => WebSocketLike;
-}
+};
 
 const plugin: PluginDefinition = {
   name: 'onebot',
@@ -691,7 +686,8 @@ function buildDownloadRequest(
   }
 
   if (segment.segmentType === 'file') {
-    const fileId = typeof segment['data']['file_id'] === 'string' ? segment['data']['file_id'] : null;
+    const fileId =
+      typeof segment['data']['file_id'] === 'string' ? segment['data']['file_id'] : null;
     const file = typeof segment['data']['file'] === 'string' ? segment['data']['file'] : null;
     if (!fileId && !file) {
       return null;
@@ -1106,7 +1102,8 @@ function mapOneBotAttachmentSegment(segment: unknown): MediaAttachment | null {
   }
 
   const url = typeof segment['data']['url'] === 'string' ? segment['data']['url'] : undefined;
-  const pathValue = typeof segment['data']['path'] === 'string' ? segment['data']['path'] : undefined;
+  const pathValue =
+    typeof segment['data']['path'] === 'string' ? segment['data']['path'] : undefined;
 
   if (!url && !pathValue) {
     return null;
@@ -1252,7 +1249,8 @@ function buildSenderInfo(senderId: string, sender: unknown): InboundMessage['sen
   }
 
   const nickname = typeof sender['nickname'] === 'string' ? sender['nickname'] : undefined;
-  const card = typeof sender['card'] === 'string' && sender['card'].length > 0 ? sender['card'] : undefined;
+  const card =
+    typeof sender['card'] === 'string' && sender['card'].length > 0 ? sender['card'] : undefined;
   const role = typeof sender['role'] === 'string' ? sender['role'] : undefined;
   return {
     id: senderId,

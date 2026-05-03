@@ -25,7 +25,7 @@ type UsageRow = {
   costCacheRead: number;
   costCacheWrite: number;
   costTotal: number;
-}
+};
 
 function mapRow(row: UsageRow): UsageSummary {
   return {
@@ -48,10 +48,7 @@ function mapRow(row: UsageRow): UsageSummary {
 // ─── 公共 API ───────────────────────────────────────────────────
 
 /** 插入单条用量记录。返回生成的行 ID。 */
-export async function createUsageRecord(
-  db: DatabaseSync,
-  record: UsageRecord,
-): Promise<number> {
+export async function createUsageRecord(db: DatabaseSync, record: UsageRecord): Promise<number> {
   const timestamp = new Date().toISOString();
 
   const result = db

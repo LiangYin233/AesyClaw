@@ -37,7 +37,7 @@ export type ToolExecutionResult = {
   details?: unknown;
   isError?: boolean;
   terminate?: boolean;
-}
+};
 
 /**
  * 提供给工具执行函数的工具执行上下文。
@@ -50,7 +50,7 @@ export type ToolExecutionContext = {
   sendMessage?: (message: OutboundMessage) => Promise<boolean>;
   /** 调用者角色的工具权限，子代理用于继承限制 */
   toolPermission?: ToolPermissionConfig;
-}
+};
 
 /**
  * 可以注册到代理的工具。
@@ -78,7 +78,7 @@ export type AesyClawTool = {
   parameters: TSchema;
   owner: ToolOwner;
   execute: (params: unknown, context: ToolExecutionContext) => Promise<ToolExecutionResult>;
-}
+};
 
 // ─── ToolRegistry ──────────────────────────────────────────────────
 

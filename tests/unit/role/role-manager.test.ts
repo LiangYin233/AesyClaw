@@ -243,12 +243,17 @@ describe('RoleManager', () => {
 
   describe('saveRole', () => {
     it('should write updates to the tracked source file for a role', async () => {
-      writeFileSync(join(rolesDir, 'custom-name.json'), JSON.stringify(makeRole({ id: 'tracked' })));
+      writeFileSync(
+        join(rolesDir, 'custom-name.json'),
+        JSON.stringify(makeRole({ id: 'tracked' })),
+      );
       await manager.loadAll(rolesDir);
 
       await manager.saveRole('tracked', makeRole({ id: 'tracked', name: 'Updated' }));
 
-      const saved = JSON.parse(readFileSync(join(rolesDir, 'custom-name.json'), 'utf-8')) as RoleConfig;
+      const saved = JSON.parse(
+        readFileSync(join(rolesDir, 'custom-name.json'), 'utf-8'),
+      ) as RoleConfig;
       expect(saved.name).toBe('Updated');
     });
   });

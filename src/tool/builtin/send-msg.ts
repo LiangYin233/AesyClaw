@@ -55,8 +55,7 @@ export function createSendMsgTool(): AesyClawTool {
       try {
         if (!context.sendMessage) {
           return {
-            content:
-              'send_msg 在此上下文中不可用，因为没有可用的出站发送函数。',
+            content: 'send_msg 在此上下文中不可用，因为没有可用的出站发送函数。',
             isError: true,
           };
         }

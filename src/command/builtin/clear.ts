@@ -10,7 +10,7 @@ import type { SessionManager } from '../../agent/session-manager';
 
 export type ClearCommandDeps = {
   sessionManager: Pick<SessionManager, 'clearSession'>;
-}
+};
 
 /**
  * 创建 clear 命令定义。

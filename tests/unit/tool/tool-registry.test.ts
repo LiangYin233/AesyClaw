@@ -73,9 +73,7 @@ describe('ToolRegistry', () => {
     it('should throw if tool with same name already exists', () => {
       const tool = makeTool();
       registry.register(tool);
-      expect(() => registry.register(makeTool({ name: 'test-tool' }))).toThrow(
-        /已注册/,
-      );
+      expect(() => registry.register(makeTool({ name: 'test-tool' }))).toThrow(/已注册/);
     });
 
     it('should register multiple tools with different names', () => {

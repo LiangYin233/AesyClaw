@@ -17,7 +17,7 @@ export type ResolvedCommand = {
   commandName: string;
   /** 用于唯一标识和清理的内部注册表键。 */
   registryKey: string;
-}
+};
 
 /**
  * 所有斜杠命令的中央注册表。

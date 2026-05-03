@@ -26,7 +26,7 @@ export type PluginContext = {
   registerCommand(command: CommandDefinition): void;
   registerChannel(channel: ChannelPlugin): void;
   logger: Logger;
-}
+};
 
 export type PluginDefinition = {
   name: string;
@@ -36,7 +36,7 @@ export type PluginDefinition = {
   init(ctx: PluginContext): Promise<void>;
   destroy?(): Promise<void>;
   hooks?: PluginHooks;
-}
+};
 
 export type LoadedPlugin = {
   definition: PluginDefinition;
@@ -45,7 +45,7 @@ export type LoadedPlugin = {
   owner: ToolOwner;
   config: Record<string, unknown>;
   loadedAt: Date;
-}
+};
 
 export type PluginLifecycleState = 'loaded' | 'disabled' | 'unloaded' | 'failed';
 
@@ -58,18 +58,18 @@ export type PluginStatus = {
   state: PluginLifecycleState;
   directory: string;
   error?: string;
-}
+};
 
 export type PluginModule = {
   definition: PluginDefinition;
   directory: string;
   directoryName: string;
   entryPath: string;
-}
+};
 
 export type PluginLoaderOptions = {
   extensionsDir?: string;
-}
+};
 
 export type PluginManagerDependencies = {
   configManager: ConfigManager;
@@ -78,13 +78,13 @@ export type PluginManagerDependencies = {
   hookRegistry: HookDispatcher;
   channelManager?: ChannelManager;
   pluginLoader?: PluginLoader;
-}
+};
 
 export type PluginConfigLookup = {
   entry?: Readonly<PluginConfigEntry>;
   enabled: boolean;
   options: Record<string, unknown>;
-}
+};
 
 export { type PluginHooks };
 

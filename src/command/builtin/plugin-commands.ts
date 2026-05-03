@@ -13,7 +13,7 @@ import type { PluginManager } from '../../extension/plugin/plugin-manager';
 
 export type PluginCommandDeps = {
   pluginManager: Pick<PluginManager, 'listPlugins' | 'enable' | 'disable'>;
-}
+};
 
 async function resolvePluginName(deps: PluginCommandDeps, rawName: string): Promise<string | null> {
   const plugins = await deps.pluginManager.listPlugins();

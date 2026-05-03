@@ -5,7 +5,7 @@ import type { CommandContext, CommandDefinition } from '../../core/types';
 export type BtwCommandDeps = {
   sessionManager: Pick<SessionManager, 'getOrCreateSession'>;
   agentEngine: Pick<AgentEngine, 'processEphemeral'>;
-}
+};
 
 /**
  * 创建 btw（by the way）命令定义。

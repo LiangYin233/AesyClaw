@@ -27,7 +27,7 @@ export type WebUiManagerDependencies = {
   pluginManager: PluginManager;
   toolRegistry: ToolRegistry;
   skillManager: SkillManager;
-}
+};
 
 export class WebUiManager {
   private deps: WebUiManagerDependencies | null = null;

@@ -23,7 +23,12 @@ export function createStatusRouter(deps: WebUiManagerDependencies): Hono {
         app: APP_NAME,
         version: APP_VERSION,
         uptime: process.uptime(),
-        channels: channels.map((ch) => ({ name: ch.name, state: ch.state, version: ch.version, error: ch.error })),
+        channels: channels.map((ch) => ({
+          name: ch.name,
+          state: ch.state,
+          version: ch.version,
+          error: ch.error,
+        })),
         database: stats,
       },
     });

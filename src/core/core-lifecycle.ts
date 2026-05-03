@@ -163,14 +163,19 @@ export class CoreLifecycle {
 
   private async initCoreManagers(): Promise<void> {
     await this.resolvedDeps.databaseManager.initialize(this.paths.dbFile);
-    await this.resolvedDeps.skillManager.initialize({ userSkillsDir: this.paths.userSkillsDir, systemSkillsDir: this.paths.skillsDir });
+    await this.resolvedDeps.skillManager.initialize({
+      userSkillsDir: this.paths.userSkillsDir,
+      systemSkillsDir: this.paths.skillsDir,
+    });
     await this.resolvedDeps.skillManager.loadAll(this.paths.userSkillsDir, this.paths.skillsDir);
     await this.resolvedDeps.roleManager.initialize({ rolesDir: this.paths.rolesDir });
     await this.resolvedDeps.roleManager.loadAll(this.paths.rolesDir);
   }
 
   private async initAgentRuntime(): Promise<void> {
-    await this.resolvedDeps.llmAdapter.initialize({ configManager: this.resolvedDeps.configManager });
+    await this.resolvedDeps.llmAdapter.initialize({
+      configManager: this.resolvedDeps.configManager,
+    });
 
     const promptBuilder = new PromptBuilder({
       roleManager: this.resolvedDeps.roleManager,
@@ -251,8 +256,7 @@ export class CoreLifecycle {
     await this.resolvedDeps.cronManager.initialize({
       databaseManager: this.resolvedDeps.databaseManager,
       pipeline: this.resolvedDeps.pipeline,
-      send: async (sessionKey, message) =>
-        await em.channels.send(sessionKey, message),
+      send: async (sessionKey, message) => await em.channels.send(sessionKey, message),
     });
 
     await this.resolvedDeps.webUiManager.initialize({

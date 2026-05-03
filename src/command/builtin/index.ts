@@ -39,10 +39,15 @@ export type BuiltinCommandDependencies = {
   pluginManager: Pick<PluginManager, 'listPlugins' | 'enable' | 'disable'>;
   sessionManager: Pick<
     SessionManager,
-    'clearSession' | 'compactSession' | 'getOrCreateSession' | 'switchRole' | 'getSession' | 'endAgentProcessing'
+    | 'clearSession'
+    | 'compactSession'
+    | 'getOrCreateSession'
+    | 'switchRole'
+    | 'getSession'
+    | 'endAgentProcessing'
   >;
   agentEngine: Pick<AgentEngine, 'processEphemeral' | 'switchModel'>;
-}
+};
 
 /**
  * 将所有内置命令注册到给定的注册表。
@@ -67,10 +72,12 @@ export function registerBuiltinCommands(
       agentEngine: deps.agentEngine,
     }),
   );
-  registry.register(createModelCommand({
-    sessionManager: deps.sessionManager,
-    agentEngine: deps.agentEngine,
-  }));
+  registry.register(
+    createModelCommand({
+      sessionManager: deps.sessionManager,
+      agentEngine: deps.agentEngine,
+    }),
+  );
   registry.register(createClearCommand({ sessionManager: deps.sessionManager }));
   registry.register(createCompactCommand({ sessionManager: deps.sessionManager }));
   registry.register(createStopCommand({ sessionManager: deps.sessionManager }));

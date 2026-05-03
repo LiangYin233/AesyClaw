@@ -25,7 +25,7 @@ export type PromptBuilderDependencies = {
   skillManager: SkillManager;
   toolRegistry: ToolRegistry;
   toolHookDispatcher: HookDispatcher;
-}
+};
 
 export class PromptBuilder {
   private roleManager: RoleManager;

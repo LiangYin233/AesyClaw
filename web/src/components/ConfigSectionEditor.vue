@@ -3,40 +3,73 @@
     <div class="flex items-start justify-between gap-4 mb-6">
       <div>
         <h1 class="page-title">{{ title }}</h1>
-        <p class="page-subtitle" style="margin: 0.25rem 0 0;">{{ subtitle }}</p>
+        <p class="page-subtitle" style="margin: 0.25rem 0 0">{{ subtitle }}</p>
       </div>
       <div class="flex items-center gap-2.5 mb-0 justify-end">
-        <button class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-primary rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-primary text-white hover:bg-primary-hover hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(217,119,87,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none" :disabled="saving" @click="saveSection">
+        <button
+          class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-primary rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-primary text-white hover:bg-primary-hover hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(217,119,87,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
+          :disabled="saving"
+          @click="saveSection"
+        >
           {{ saving ? 'Saving...' : 'Save' }}
         </button>
-        <button class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-[var(--color-border)] rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-transparent text-mid-gray hover:bg-light-gray hover:text-dark hover:border-mid-gray" @click="loadConfig">Reset</button>
+        <button
+          class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-[var(--color-border)] rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-transparent text-mid-gray hover:bg-light-gray hover:text-dark hover:border-mid-gray"
+          @click="loadConfig"
+        >
+          Reset
+        </button>
       </div>
     </div>
 
-    <div v-if="loading" class="text-mid-gray text-center py-10 font-body italic text-sm">Loading {{ title.toLowerCase() }} configuration...</div>
+    <div v-if="loading" class="text-mid-gray text-center py-10 font-body italic text-sm">
+      Loading {{ title.toLowerCase() }} configuration...
+    </div>
     <div v-else-if="error" class="text-danger text-sm mt-3 font-body">{{ error }}</div>
     <div v-else class="min-w-0">
       <section class="flex flex-col gap-4 min-w-0">
-        <div v-if="itemCount === 0" class="text-mid-gray text-center py-10 font-body italic text-sm border border-dashed border-[var(--color-border)] rounded">
+        <div
+          v-if="itemCount === 0"
+          class="text-mid-gray text-center py-10 font-body italic text-sm border border-dashed border-[var(--color-border)] rounded"
+        >
           No {{ title.toLowerCase() }} configuration entries.
         </div>
 
         <template v-if="sectionKey === 'channels'">
-          <div v-for="entry in channelEntries" :key="entry.key" class="p-4 border border-[var(--color-border)] rounded bg-surface shadow-sm">
+          <div
+            v-for="entry in channelEntries"
+            :key="entry.key"
+            class="p-4 border border-[var(--color-border)] rounded bg-surface shadow-sm"
+          >
             <div class="flex items-center justify-between gap-4 mb-0">
               <div>
-                <div class="font-heading text-sm font-semibold text-dark mb-[0.35rem]">{{ entry.key || 'New channel' }}</div>
+                <div class="font-heading text-sm font-semibold text-dark mb-[0.35rem]">
+                  {{ entry.key || 'New channel' }}
+                </div>
               </div>
               <div class="flex items-center gap-2.5 mb-0">
                 <div class="flex items-center gap-2.5 mb-0">
-                  <label class="font-heading text-xs font-medium text-dark tracking-[0.02em] uppercase whitespace-nowrap m-0">Enabled</label>
-                  <button type="button" class="w-11 h-6 rounded-full border-none cursor-pointer relative transition-colors duration-[0.15s] ease p-0"
+                  <label
+                    class="font-heading text-xs font-medium text-dark tracking-[0.02em] uppercase whitespace-nowrap m-0"
+                    >Enabled</label
+                  >
+                  <button
+                    type="button"
+                    class="w-11 h-6 rounded-full border-none cursor-pointer relative transition-colors duration-[0.15s] ease p-0"
                     :class="getChannelEnabled(entry) ? 'bg-accent-green' : 'bg-mid-gray'"
-                    @click="toggleChannelEnabled(entry.key)">
-                    <span class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease" :class="{ 'translate-x-5': getChannelEnabled(entry) }"></span>
+                    @click="toggleChannelEnabled(entry.key)"
+                  >
+                    <span
+                      class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease"
+                      :class="{ 'translate-x-5': getChannelEnabled(entry) }"
+                    ></span>
                   </button>
                 </div>
-                <button type="button" class="inline-flex items-center justify-center p-1.5 border border-transparent rounded-sm cursor-pointer transition-all duration-[0.15s] ease bg-[#CF3A3A] text-white hover:bg-[#b83333] disabled:opacity-50 disabled:cursor-not-allowed" @click="removeChannel(entry.key)">
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center p-1.5 border border-transparent rounded-sm cursor-pointer transition-all duration-[0.15s] ease bg-[#CF3A3A] text-white hover:bg-[#b83333] disabled:opacity-50 disabled:cursor-not-allowed"
+                  @click="removeChannel(entry.key)"
+                >
                   <TrashIcon class="w-4 h-4" />
                 </button>
               </div>
@@ -44,27 +77,72 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-0">
               <div class="col-span-1 md:col-span-2 lg:col-span-3 mt-1 pt-3">
-                <div class="font-heading text-[0.7rem] font-semibold text-mid-gray uppercase tracking-[0.08em] mb-3">Configuration</div>
+                <div
+                  class="font-heading text-[0.7rem] font-semibold text-mid-gray uppercase tracking-[0.08em] mb-3"
+                >
+                  Configuration
+                </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <template v-for="field in getChannelFields(entry)" :key="`${entry.key}-${field.key}`">
+                  <template
+                    v-for="field in getChannelFields(entry)"
+                    :key="`${entry.key}-${field.key}`"
+                  >
                     <div class="mb-5">
-                      <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">{{ field.displayLabel }}</label>
+                      <label
+                        class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase"
+                        >{{ field.displayLabel }}</label
+                      >
                       <template v-if="field.type === 'boolean'">
-                        <button type="button" class="w-11 h-6 rounded-full border-none cursor-pointer relative transition-colors duration-[0.15s] ease p-0"
+                        <button
+                          type="button"
+                          class="w-11 h-6 rounded-full border-none cursor-pointer relative transition-colors duration-[0.15s] ease p-0"
                           :class="field.value ? 'bg-accent-green' : 'bg-mid-gray'"
-                          @click="setChannelField(entry.key, field.path, !field.value)">
-                          <span class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease" :class="{ 'translate-x-5': field.value }"></span>
+                          @click="setChannelField(entry.key, field.path, !field.value)"
+                        >
+                          <span
+                            class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease"
+                            :class="{ 'translate-x-5': field.value }"
+                          ></span>
                         </button>
                       </template>
-                      <input v-else-if="field.type === 'number'" :value="field.value" type="number"
+                      <input
+                        v-else-if="field.type === 'number'"
+                        :value="field.value"
+                        type="number"
                         class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
-                        @input="setChannelField(entry.key, field.path, parseFloat(($event.target as HTMLInputElement).value) || 0)" />
-                      <textarea v-else-if="field.type === 'object'" :value="toJson(field.value)"
+                        @input="
+                          setChannelField(
+                            entry.key,
+                            field.path,
+                            parseFloat(($event.target as HTMLInputElement).value) || 0,
+                          )
+                        "
+                      />
+                      <textarea
+                        v-else-if="field.type === 'object'"
+                        :value="toJson(field.value)"
                         class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)] min-h-[60px] resize-y font-mono text-xs"
-                        rows="3" @input="handleChannelComplexField(entry.key, field.path, ($event.target as HTMLTextAreaElement).value)" />
-                      <input v-else :value="field.value"
+                        rows="3"
+                        @input="
+                          handleChannelComplexField(
+                            entry.key,
+                            field.path,
+                            ($event.target as HTMLTextAreaElement).value,
+                          )
+                        "
+                      />
+                      <input
+                        v-else
+                        :value="field.value"
                         class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
-                        @input="setChannelField(entry.key, field.path, ($event.target as HTMLInputElement).value)" />
+                        @input="
+                          setChannelField(
+                            entry.key,
+                            field.path,
+                            ($event.target as HTMLInputElement).value,
+                          )
+                        "
+                      />
                     </div>
                   </template>
                 </div>
@@ -74,49 +152,116 @@
         </template>
 
         <template v-else>
-          <div v-for="(plugin, index) in pluginEntries" :key="index" class="p-4 border border-[var(--color-border)] rounded bg-surface shadow-sm">
+          <div
+            v-for="(plugin, index) in pluginEntries"
+            :key="index"
+            class="p-4 border border-[var(--color-border)] rounded bg-surface shadow-sm"
+          >
             <div class="flex items-center justify-between gap-4 mb-0">
               <div>
-                <div class="font-heading text-sm font-semibold text-dark mb-[0.35rem]">{{ plugin.name || `Plugin ${index + 1}` }}</div>
+                <div class="font-heading text-sm font-semibold text-dark mb-[0.35rem]">
+                  {{ plugin.name || `Plugin ${index + 1}` }}
+                </div>
               </div>
               <div class="flex items-center gap-2.5 mb-0">
                 <div class="flex items-center gap-2.5 mb-0">
-                  <label class="font-heading text-xs font-medium text-dark tracking-[0.02em] uppercase whitespace-nowrap m-0">Enabled</label>
-                  <button type="button" class="w-11 h-6 rounded-full border-none cursor-pointer relative transition-colors duration-[0.15s] ease p-0"
+                  <label
+                    class="font-heading text-xs font-medium text-dark tracking-[0.02em] uppercase whitespace-nowrap m-0"
+                    >Enabled</label
+                  >
+                  <button
+                    type="button"
+                    class="w-11 h-6 rounded-full border-none cursor-pointer relative transition-colors duration-[0.15s] ease p-0"
                     :class="plugin.enabled ? 'bg-accent-green' : 'bg-mid-gray'"
-                    @click="updatePluginField(index, 'enabled', !plugin.enabled)">
-                    <span class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease" :class="{ 'translate-x-5': plugin.enabled }"></span>
+                    @click="updatePluginField(index, 'enabled', !plugin.enabled)"
+                  >
+                    <span
+                      class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease"
+                      :class="{ 'translate-x-5': plugin.enabled }"
+                    ></span>
                   </button>
                 </div>
-                <button type="button" class="inline-flex items-center justify-center p-1.5 border border-transparent rounded-sm cursor-pointer transition-all duration-[0.15s] ease bg-[#CF3A3A] text-white hover:bg-[#b83333] disabled:opacity-50 disabled:cursor-not-allowed" @click="removePlugin(index)">
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center p-1.5 border border-transparent rounded-sm cursor-pointer transition-all duration-[0.15s] ease bg-[#CF3A3A] text-white hover:bg-[#b83333] disabled:opacity-50 disabled:cursor-not-allowed"
+                  @click="removePlugin(index)"
+                >
                   <TrashIcon class="w-4 h-4" />
                 </button>
               </div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-0">
-              <div v-if="getPluginFields(plugin).length > 0" class="col-span-1 md:col-span-2 lg:col-span-3 mt-1 pt-3">
-                <div class="font-heading text-[0.7rem] font-semibold text-mid-gray uppercase tracking-[0.08em] mb-3">Options</div>
+              <div
+                v-if="getPluginFields(plugin).length > 0"
+                class="col-span-1 md:col-span-2 lg:col-span-3 mt-1 pt-3"
+              >
+                <div
+                  class="font-heading text-[0.7rem] font-semibold text-mid-gray uppercase tracking-[0.08em] mb-3"
+                >
+                  Options
+                </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <template v-for="field in getPluginFields(plugin)" :key="`plugin-${index}-${field.key}`">
+                  <template
+                    v-for="field in getPluginFields(plugin)"
+                    :key="`plugin-${index}-${field.key}`"
+                  >
                     <div class="mb-5">
-                      <label class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase">{{ field.displayLabel }}</label>
+                      <label
+                        class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase"
+                        >{{ field.displayLabel }}</label
+                      >
                       <template v-if="field.type === 'boolean'">
-                        <button type="button" class="w-11 h-6 rounded-full border-none cursor-pointer relative transition-colors duration-[0.15s] ease p-0"
+                        <button
+                          type="button"
+                          class="w-11 h-6 rounded-full border-none cursor-pointer relative transition-colors duration-[0.15s] ease p-0"
                           :class="field.value ? 'bg-accent-green' : 'bg-mid-gray'"
-                          @click="setPluginOptionField(index, field.path, !field.value)">
-                          <span class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease" :class="{ 'translate-x-5': field.value }"></span>
+                          @click="setPluginOptionField(index, field.path, !field.value)"
+                        >
+                          <span
+                            class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease"
+                            :class="{ 'translate-x-5': field.value }"
+                          ></span>
                         </button>
                       </template>
-                      <input v-else-if="field.type === 'number'" :value="field.value" type="number"
+                      <input
+                        v-else-if="field.type === 'number'"
+                        :value="field.value"
+                        type="number"
                         class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
-                        @input="setPluginOptionField(index, field.path, parseFloat(($event.target as HTMLInputElement).value) || 0)" />
-                      <textarea v-else-if="field.type === 'object'" :value="toJson(field.value)"
+                        @input="
+                          setPluginOptionField(
+                            index,
+                            field.path,
+                            parseFloat(($event.target as HTMLInputElement).value) || 0,
+                          )
+                        "
+                      />
+                      <textarea
+                        v-else-if="field.type === 'object'"
+                        :value="toJson(field.value)"
                         class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)] min-h-[60px] resize-y font-mono text-xs"
-                        rows="3" @input="handlePluginComplexField(index, field.path, ($event.target as HTMLTextAreaElement).value)" />
-                      <input v-else :value="field.value"
+                        rows="3"
+                        @input="
+                          handlePluginComplexField(
+                            index,
+                            field.path,
+                            ($event.target as HTMLTextAreaElement).value,
+                          )
+                        "
+                      />
+                      <input
+                        v-else
+                        :value="field.value"
                         class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
-                        @input="setPluginOptionField(index, field.path, ($event.target as HTMLInputElement).value)" />
+                        @input="
+                          setPluginOptionField(
+                            index,
+                            field.path,
+                            ($event.target as HTMLInputElement).value,
+                          )
+                        "
+                      />
                     </div>
                   </template>
                 </div>
@@ -127,8 +272,11 @@
       </section>
     </div>
 
-    <div v-if="toast" class="fixed top-5 right-5 px-5 py-[0.85rem] rounded-sm text-white font-heading font-medium text-sm z-[200] animate-[slideInRight_0.3s_cubic-bezier(0.16,1,0.3,1)] shadow-lg"
-      :class="toast.type === 'toast-success' ? 'bg-accent-green' : 'bg-danger'">
+    <div
+      v-if="toast"
+      class="fixed top-5 right-5 px-5 py-[0.85rem] rounded-sm text-white font-heading font-medium text-sm z-[200] animate-[slideInRight_0.3s_cubic-bezier(0.16,1,0.3,1)] shadow-lg"
+      :class="toast.type === 'toast-success' ? 'bg-accent-green' : 'bg-danger'"
+    >
       {{ toast.message }}
     </div>
   </div>
@@ -154,7 +302,6 @@ const props = defineProps<{
   sectionKey: 'channels' | 'plugins';
   title: string;
   subtitle: string;
-
 }>();
 
 const { api } = useAuth();
@@ -235,7 +382,9 @@ function removeChannel(key: string) {
 }
 
 function getChannelEnabled(entry: ChannelEntry): boolean {
-  return isRecord(entry.value) && typeof entry.value.enabled === 'boolean' ? entry.value.enabled : true;
+  return isRecord(entry.value) && typeof entry.value.enabled === 'boolean'
+    ? entry.value.enabled
+    : true;
 }
 
 function toggleChannelEnabled(key: string) {

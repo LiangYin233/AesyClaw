@@ -12,12 +12,12 @@ export type CronExecutorDependencies = {
   cronRuns: CronRunsRepository;
   pipeline: Pick<Pipeline, 'receiveWithSend'>;
   send: (sessionKey: SessionKey, message: OutboundMessage) => Promise<void>;
-}
+};
 
 export type CronExecutionSessionKeys = {
   context: SessionKey;
   target: SessionKey;
-}
+};
 
 /**
  * 定时任务执行器 — 记录定时任务运行并将任务注入管道。

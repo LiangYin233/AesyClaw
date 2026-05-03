@@ -11,7 +11,7 @@ export type ChannelContext = {
   config: Record<string, unknown>;
   receiveWithSend(message: InboundMessage, send: SendFn): Promise<void>;
   logger: Logger;
-}
+};
 
 export type ChannelPlugin = {
   name: string;
@@ -21,13 +21,13 @@ export type ChannelPlugin = {
   init(ctx: ChannelContext): Promise<void>;
   destroy?(): Promise<void>;
   send?(sessionKey: SessionKey, message: OutboundMessage): Promise<void>;
-}
+};
 
 export type LoadedChannel = {
   definition: ChannelPlugin;
   config: Record<string, unknown>;
   loadedAt: Date;
-}
+};
 
 export type ChannelLifecycleState = 'loaded' | 'disabled' | 'unloaded' | 'failed';
 
@@ -38,24 +38,24 @@ export type ChannelStatus = {
   enabled: boolean;
   state: ChannelLifecycleState;
   error?: string;
-}
+};
 
 export type ChannelManagerDependencies = {
   configManager: ConfigManager;
   pipeline: Pipeline;
   channels?: ChannelPlugin[];
-}
+};
 
 export type ChannelLoaderOptions = {
   extensionsDir?: string;
-}
+};
 
 export type ChannelModule = {
   definition: ChannelPlugin;
   directory: string;
   directoryName: string;
   entryPath: string;
-}
+};
 
 /**
  * 检查频道配置是否已启用。

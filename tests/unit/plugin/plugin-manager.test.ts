@@ -125,7 +125,7 @@ async function makeManager(module: PluginModule, config = new FakeConfigManager(
   const channelManager = new FakeChannelManager();
   const pluginLoader = new FakePluginLoader(new Map([[module.directory, module]]));
   const manager = new PluginManager();
-    await manager.initialize({
+  await manager.initialize({
     configManager: config,
     toolRegistry,
     commandRegistry,
@@ -380,7 +380,7 @@ describe('PluginManager', () => {
       ]),
     );
     const manager = new PluginManager();
-  await manager.initialize({
+    await manager.initialize({
       configManager: config,
       toolRegistry,
       commandRegistry,

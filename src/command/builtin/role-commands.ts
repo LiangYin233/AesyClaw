@@ -15,7 +15,7 @@ import type { RoleManager } from '../../role/role-manager';
 export type RoleCommandDeps = {
   roleManager: Pick<RoleManager, 'getEnabledRoles' | 'getRole'>;
   sessionManager: Pick<SessionManager, 'getOrCreateSession' | 'switchRole'>;
-}
+};
 
 /**
  * 创建 role list 命令定义。

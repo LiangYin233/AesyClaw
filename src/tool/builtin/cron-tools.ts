@@ -39,7 +39,7 @@ type DeleteCronParams = Static<typeof DeleteCronParamsSchema>;
 /** 定时任务工具所需的依赖。 */
 export type CronToolsDeps = {
   cronManager: CronManagerLike;
-}
+};
 
 type CronManagerLike = Pick<CronManager, 'createJob' | 'listJobs' | 'deleteJob'>;
 

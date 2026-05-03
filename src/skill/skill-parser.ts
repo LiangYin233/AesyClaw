@@ -22,7 +22,7 @@ export type ParsedSkill = {
   name: string;
   description: string;
   content: string;
-}
+};
 
 /**
  * 解析带有 YAML frontmatter 的 Markdown 技能文件。
@@ -74,11 +74,16 @@ export function parseSkillContent(content: string): ParsedSkill | null {
 
   const { attributes, body } = parsed;
 
-  if (!isRecord(attributes) || typeof attributes['name'] !== 'string' || attributes['name'] === '') {
+  if (
+    !isRecord(attributes) ||
+    typeof attributes['name'] !== 'string' ||
+    attributes['name'] === ''
+  ) {
     return null;
   }
 
-  const description = typeof attributes['description'] === 'string' ? attributes['description'] : '';
+  const description =
+    typeof attributes['description'] === 'string' ? attributes['description'] : '';
 
   return {
     name: attributes['name'],
@@ -86,4 +91,3 @@ export function parseSkillContent(content: string): ParsedSkill | null {
     content: body.trim(),
   };
 }
-

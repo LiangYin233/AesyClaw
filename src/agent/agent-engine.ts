@@ -15,7 +15,7 @@ const logger = createScopedLogger('agent-engine');
 export type AgentEngineDependencies = {
   llmAdapter: LlmAdapter;
   promptBuilder: PromptBuilder;
-}
+};
 
 export type ProcessEphemeralParams = {
   sessionKey: SessionKey;
@@ -23,7 +23,7 @@ export type ProcessEphemeralParams = {
   memory: MemoryManager;
   role: RoleConfig;
   content: string;
-}
+};
 
 export class AgentEngine {
   private deps: AgentEngineDependencies | null = null;

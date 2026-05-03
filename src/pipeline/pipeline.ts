@@ -21,11 +21,7 @@
 
 import type { InboundMessage, OutboundMessage, PipelineResult, SendFn } from '../core/types';
 import type { SessionKey } from '../core/types';
-import type {
-  PipelineDependencies,
-  PipelineState,
-  PluginHooks,
-} from './middleware/types';
+import type { PipelineDependencies, PipelineState, PluginHooks } from './middleware/types';
 import { HookDispatcher } from './hook-dispatcher';
 import { sessionResolver } from './middleware/session-resolver';
 import { commandDetector } from './middleware/command-detector';
@@ -123,7 +119,9 @@ export class Pipeline {
           agent: state.session.agent,
           role: state.session.activeRole,
         });
-        if (await this.handleHookResult('beforeLLMRequest', beforeLLMResult, send, state.session.key)) {
+        if (
+          await this.handleHookResult('beforeLLMRequest', beforeLLMResult, send, state.session.key)
+        ) {
           return;
         }
       }
@@ -163,11 +161,7 @@ export class Pipeline {
       return true;
     }
     if (result.action === 'respond') {
-      await this.dispatchOnSendAndDeliver(
-        { content: result.content },
-        send,
-        sessionKey,
-      );
+      await this.dispatchOnSendAndDeliver({ content: result.content }, send, sessionKey);
       return true;
     }
     return false;

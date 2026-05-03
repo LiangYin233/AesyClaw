@@ -10,10 +10,7 @@
 import type { PipelineState } from './types';
 import type { CommandRegistry } from '../../command/command-registry';
 import type { CommandContext } from '../../core/types';
-import {
-  AGENT_PROCESSING_BUSY_MESSAGE,
-  type SessionManager,
-} from '../../agent/session-manager';
+import { AGENT_PROCESSING_BUSY_MESSAGE, type SessionManager } from '../../agent/session-manager';
 
 /**
  * 检测斜杠命令并通过 CommandRegistry 执行它们。
@@ -37,7 +34,7 @@ export async function commandDetector(
   const resolved = commandRegistry.resolve(state.inbound.content);
   const isBusy = sessionManager.isAgentProcessing(state.inbound.sessionKey);
 
-  if (isBusy && (!resolved?.command.allowDuringAgentProcessing)) {
+  if (isBusy && !resolved?.command.allowDuringAgentProcessing) {
     return { ...state, stage: 'respond', outbound: { content: AGENT_PROCESSING_BUSY_MESSAGE } };
   }
 

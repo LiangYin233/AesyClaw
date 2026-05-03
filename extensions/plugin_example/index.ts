@@ -17,8 +17,10 @@ const plugin: PluginDefinition = {
       }),
       owner: 'plugin:example',
       execute: async (params) => {
-        const name = isRecord(params) && typeof params['name'] === 'string' ? params['name'] : 'there';
-        const greeting = typeof ctx.config['greeting'] === 'string' ? ctx.config['greeting'] : 'Hello';
+        const name =
+          isRecord(params) && typeof params['name'] === 'string' ? params['name'] : 'there';
+        const greeting =
+          typeof ctx.config['greeting'] === 'string' ? ctx.config['greeting'] : 'Hello';
         return { content: `${greeting}, ${name}!` };
       },
     });

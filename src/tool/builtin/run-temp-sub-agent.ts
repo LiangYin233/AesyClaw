@@ -24,7 +24,7 @@ type RunTempSubAgentParams = Static<typeof RunTempSubAgentParamsSchema>;
 
 export type RunTempSubAgentDeps = {
   sandbox: Pick<SubAgentSandbox, 'runWithPrompt'>;
-}
+};
 
 /**
  * 创建 run_temp_sub_agent 工具定义。

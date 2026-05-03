@@ -104,9 +104,7 @@ describe('PromptBuilder', () => {
       const agentTool = makeAgentTool({ name: 'custom-tool' });
       const deps = makeDeps({
         toolRegistry: {
-          resolveForRole: vi
-            .fn()
-            .mockReturnValue({ tools: [], agentTools: [agentTool] }),
+          resolveForRole: vi.fn().mockReturnValue({ tools: [], agentTools: [agentTool] }),
         },
       });
       const builder = new PromptBuilder(deps);
@@ -122,9 +120,7 @@ describe('PromptBuilder', () => {
       const internalTool = makeTool({ name: 'send-msg' });
       const deps = makeDeps({
         toolRegistry: {
-          resolveForRole: vi
-            .fn()
-            .mockReturnValue({ tools: [internalTool], agentTools: [] }),
+          resolveForRole: vi.fn().mockReturnValue({ tools: [internalTool], agentTools: [] }),
         },
       });
       const builder = new PromptBuilder(deps);
@@ -141,9 +137,7 @@ describe('PromptBuilder', () => {
 
       const deps = makeDeps({
         toolRegistry: {
-          resolveForRole: vi
-            .fn()
-            .mockReturnValue({ tools: [allowedTool], agentTools: [] }),
+          resolveForRole: vi.fn().mockReturnValue({ tools: [allowedTool], agentTools: [] }),
         },
       });
       const builder = new PromptBuilder(deps);

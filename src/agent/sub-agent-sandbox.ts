@@ -27,7 +27,7 @@ export type SubAgentSandboxDependencies = {
   agentEngine: Pick<AgentEngine, 'createAgent' | 'process'>;
   roleManager: Pick<RoleManager, 'getRole' | 'getDefaultRole'>;
   llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
-}
+};
 
 // ─── SubAgentSandbox ────────────────────────────────────────────
 
@@ -74,7 +74,11 @@ export class SubAgentSandbox {
       enabled: true,
     };
 
-    return await this.execute(this.applyToolOverride(role, params), params.prompt, executionContext);
+    return await this.execute(
+      this.applyToolOverride(role, params),
+      params.prompt,
+      executionContext,
+    );
   }
 
   private async execute(
@@ -84,14 +88,10 @@ export class SubAgentSandbox {
   ): Promise<string> {
     const sessionId = `sub-agent:${randomUUID()}`;
     const resolvedModel = this.deps.llmAdapter.resolveModel(role.model);
-    const memory = new MemoryManager(
-      sessionId,
-      new InMemoryMessageRepository(),
-      {
-        maxContextTokens: resolvedModel.contextWindow,
-        compressionThreshold: 0.8,
-      },
-    );
+    const memory = new MemoryManager(sessionId, new InMemoryMessageRepository(), {
+      maxContextTokens: resolvedModel.contextWindow,
+      compressionThreshold: 0.8,
+    });
     const sessionKey = executionContext?.sessionKey ?? EMPTY_SESSION_KEY;
     const agent = this.deps.agentEngine.createAgent(role, sessionId, {
       sessionKey,

@@ -136,7 +136,11 @@ describe('commandDetector', () => {
     });
 
     it('should block busy unknown slash commands', async () => {
-      const result = await commandDetector(makeState('/unknown'), registry, makeSessionManager(true));
+      const result = await commandDetector(
+        makeState('/unknown'),
+        registry,
+        makeSessionManager(true),
+      );
 
       expect(expectOutboundContent(result)).toBe('Agent处理任务中。');
     });
@@ -151,7 +155,11 @@ describe('commandDetector', () => {
         execute,
       });
 
-      const result = await commandDetector(makeState('/allowed'), registry, makeSessionManager(true));
+      const result = await commandDetector(
+        makeState('/allowed'),
+        registry,
+        makeSessionManager(true),
+      );
 
       expect(expectOutboundContent(result)).toBe('allowed');
       expect(execute).toHaveBeenCalled();

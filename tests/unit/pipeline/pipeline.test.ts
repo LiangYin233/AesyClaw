@@ -29,12 +29,14 @@ function makeInboundForKey(
   return { sessionKey, content };
 }
 
-  /** Create pipeline deps with real CommandRegistry */
-  async function createPipelineDeps() {
-    // Mock SessionManager that returns a minimal session context
-    let processingSimulated = false;
-    const mockSessionManager = {
-      getOrCreateSession: vi.fn().mockImplementation(async (sessionKey: InboundMessage['sessionKey']) => ({
+/** Create pipeline deps with real CommandRegistry */
+async function createPipelineDeps() {
+  // Mock SessionManager that returns a minimal session context
+  let processingSimulated = false;
+  const mockSessionManager = {
+    getOrCreateSession: vi
+      .fn()
+      .mockImplementation(async (sessionKey: InboundMessage['sessionKey']) => ({
         key: sessionKey,
         sessionId: 'test-session',
         activeRole: {
@@ -71,20 +73,20 @@ function makeInboundForKey(
           clear: vi.fn().mockResolvedValue(undefined),
         },
       })),
-      getSession: vi.fn().mockReturnValue(undefined),
-      clearSession: vi.fn().mockResolvedValue(undefined),
-      compactSession: vi.fn().mockResolvedValue(''),
-      switchRole: vi.fn().mockResolvedValue(undefined),
-      isAgentProcessing: vi.fn().mockImplementation(() => processingSimulated),
-      tryBeginAgentProcessing: vi.fn().mockImplementation(() => {
-        if (processingSimulated) return false;
-        processingSimulated = true;
-        return true;
-      }),
-      endAgentProcessing: vi.fn().mockImplementation(() => {
-        processingSimulated = false;
-      }),
-    } as unknown as SessionManager;
+    getSession: vi.fn().mockReturnValue(undefined),
+    clearSession: vi.fn().mockResolvedValue(undefined),
+    compactSession: vi.fn().mockResolvedValue(''),
+    switchRole: vi.fn().mockResolvedValue(undefined),
+    isAgentProcessing: vi.fn().mockImplementation(() => processingSimulated),
+    tryBeginAgentProcessing: vi.fn().mockImplementation(() => {
+      if (processingSimulated) return false;
+      processingSimulated = true;
+      return true;
+    }),
+    endAgentProcessing: vi.fn().mockImplementation(() => {
+      processingSimulated = false;
+    }),
+  } as unknown as SessionManager;
 
   // Mock AgentEngine
   const mockAgentEngine = {
@@ -213,7 +215,8 @@ describe('Pipeline', () => {
     it('should return busy for a concurrent ordinary message in the same session', async () => {
       const deps = await createPipelineDeps();
       const busyKeys = new Set<string>();
-      const keyOf = (key: InboundMessage['sessionKey']) => JSON.stringify({ channel: key.channel, type: key.type, chatId: key.chatId });
+      const keyOf = (key: InboundMessage['sessionKey']) =>
+        JSON.stringify({ channel: key.channel, type: key.type, chatId: key.chatId });
       (deps.sessionManager.isAgentProcessing as ReturnType<typeof vi.fn>).mockImplementation(
         (key: InboundMessage['sessionKey']) => busyKeys.has(keyOf(key)),
       );
@@ -289,7 +292,9 @@ describe('Pipeline', () => {
       );
       (deps.sessionManager.endAgentProcessing as ReturnType<typeof vi.fn>).mockImplementation(
         (key: InboundMessage['sessionKey']) => {
-          processingKeys.delete(JSON.stringify({ channel: key.channel, type: key.type, chatId: key.chatId }));
+          processingKeys.delete(
+            JSON.stringify({ channel: key.channel, type: key.type, chatId: key.chatId }),
+          );
         },
       );
       await pipeline.initialize(deps);

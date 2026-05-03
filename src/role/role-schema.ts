@@ -25,4 +25,3 @@ export const RoleConfigSchema = Type.Object({
   skills: Type.Union([Type.Array(Type.String()), Type.Tuple([Type.Literal('*')])]),
   enabled: Type.Boolean({ default: true }),
 });
-

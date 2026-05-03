@@ -132,10 +132,7 @@ export class ConfigManager {
       }
     }
 
-    const mergedConfig = mergeDefaults(
-      mergeBase,
-      partial as Record<string, unknown>,
-    ) as AppConfig;
+    const mergedConfig = mergeDefaults(mergeBase, partial as Record<string, unknown>) as AppConfig;
     const validatedConfig = this.validateConfigObject(mergedConfig);
 
     this.persistWithGuard(validatedConfig);
@@ -166,11 +163,9 @@ export class ConfigManager {
     let mergedConfig = structuredClone(oldConfig);
     for (const [key, defaults] of this.registeredDefaults) {
       const nestedPartial = buildNestedObject(key, defaults);
-      mergedConfig = mergeDefaults(
-        mergedConfig as Record<string, unknown>,
-        nestedPartial,
-        { overwrite: false },
-      ) as AppConfig;
+      mergedConfig = mergeDefaults(mergedConfig as Record<string, unknown>, nestedPartial, {
+        overwrite: false,
+      }) as AppConfig;
     }
     const validatedConfig = this.validateConfigObject(mergedConfig);
 
@@ -335,7 +330,6 @@ export class ConfigManager {
       }
     }
   }
-
 }
 
 function isPromiseLike(value: unknown): value is Promise<void> {
@@ -345,7 +339,6 @@ function isPromiseLike(value: unknown): value is Promise<void> {
     typeof (value as { catch?: unknown }).catch === 'function'
   );
 }
-
 
 /**
  * 把点号 key(如 `'channels.testchannel'`)与值

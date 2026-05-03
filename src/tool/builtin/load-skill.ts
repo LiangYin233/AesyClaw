@@ -26,7 +26,7 @@ type LoadSkillParams = Static<typeof LoadSkillParamsSchema>;
 
 export type LoadSkillDeps = {
   skillManager: Pick<SkillManager, 'getSkill'>;
-}
+};
 
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
 

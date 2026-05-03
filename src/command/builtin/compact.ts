@@ -10,7 +10,7 @@ import type { SessionManager } from '../../agent/session-manager';
 
 export type CompactCommandDeps = {
   sessionManager: Pick<SessionManager, 'compactSession'>;
-}
+};
 
 /**
  * 创建 compact 命令定义。

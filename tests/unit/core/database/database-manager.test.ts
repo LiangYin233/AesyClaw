@@ -645,10 +645,12 @@ describe('Database Layer', () => {
         },
       });
 
-      db.prepare("UPDATE usage SET timestamp = DATE('now') || 'T08:00:00.000Z' WHERE id = ?")
-        .run(lowTodayId);
-      db.prepare("UPDATE usage SET timestamp = DATE('now') || 'T12:00:00.000Z' WHERE id = ?")
-        .run(highTodayId);
+      db.prepare("UPDATE usage SET timestamp = DATE('now') || 'T08:00:00.000Z' WHERE id = ?").run(
+        lowTodayId,
+      );
+      db.prepare("UPDATE usage SET timestamp = DATE('now') || 'T12:00:00.000Z' WHERE id = ?").run(
+        highTodayId,
+      );
       db.prepare(
         "UPDATE usage SET timestamp = DATE('now', '-1 day') || 'T09:00:00.000Z' WHERE id = ?",
       ).run(yesterdayId);

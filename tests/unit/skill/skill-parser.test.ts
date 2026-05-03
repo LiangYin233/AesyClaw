@@ -101,7 +101,9 @@ description: Calls the API at https://example.com/api
 Content.`;
 
       const result = parseSkillContent(content);
-      expect(expectParsedSkill(result).description).toBe('Calls the API at https://example.com/api');
+      expect(expectParsedSkill(result).description).toBe(
+        'Calls the API at https://example.com/api',
+      );
     });
 
     it('should ignore comment lines in frontmatter', () => {

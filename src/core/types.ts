@@ -52,7 +52,7 @@ export type SessionKey = {
   channel: ChannelId;
   type: ChatType;
   chatId: ChatId;
-}
+};
 
 /**
  * 运行时所有者标识符，用于基于所有权的注册和清理。
@@ -71,14 +71,14 @@ export type MediaAttachment = {
   path?: string;
   base64?: string;
   mimeType?: string;
-}
+};
 
 /** 消息发送者信息 */
 export type SenderInfo = {
   id: string;
   name?: string;
   role?: string;
-}
+};
 
 /** 从外部平台进入管道的传入消息 */
 export type InboundMessage = {
@@ -87,13 +87,13 @@ export type InboundMessage = {
   attachments?: MediaAttachment[];
   sender?: SenderInfo;
   rawEvent?: unknown;
-}
+};
 
 /** 由管道生成并通过频道发送回去的回复 */
 export type OutboundMessage = {
   content: string;
   attachments?: MediaAttachment[];
-}
+};
 
 /** 通过频道发送传出消息的函数 */
 export type SendFn = (message: OutboundMessage) => Promise<void>;
@@ -109,7 +109,7 @@ export type PersistableMessage = {
   role: 'user' | 'assistant';
   content: string;
   timestamp?: string;
-}
+};
 
 // ─── 数据库类型 (database-types) ───────────────────────────────────
 
@@ -119,7 +119,7 @@ export type SessionRecord = {
   channel: string;
   type: string;
   chatId: string;
-}
+};
 
 /** 定时任务的数据库记录 */
 export type CronJobRecord = {
@@ -130,7 +130,7 @@ export type CronJobRecord = {
   sessionKey: string;
   nextRun: string | null;
   createdAt: string;
-}
+};
 
 /** 定时任务执行的数据库记录 */
 export type CronRunRecord = {
@@ -141,7 +141,7 @@ export type CronRunRecord = {
   error: string | null;
   startedAt: string;
   endedAt: string | null;
-}
+};
 
 /** 用量记录 — 存入数据库前的原始插入载荷 */
 export type UsageRecord = {
@@ -163,7 +163,7 @@ export type UsageRecord = {
       total: number;
     };
   };
-}
+};
 
 /** 聚合用量汇总（按模型 + 日期分组） */
 export type UsageSummary = {
@@ -180,13 +180,13 @@ export type UsageSummary = {
   costCacheRead: number;
   costCacheWrite: number;
   costTotal: number;
-}
+};
 
 /** 工具/技能调用记录 — 存入数据库前的原始插入载荷 */
 export type ToolUsageRecord = {
   name: string;
   type: 'tool' | 'skill';
-}
+};
 
 /** 聚合工具/技能调用汇总（按名称 + 类型 + 日期分组） */
 export type ToolUsageSummary = {
@@ -194,7 +194,7 @@ export type ToolUsageSummary = {
   type: 'tool' | 'skill';
   date: string;
   count: number;
-}
+};
 
 // ─── 领域类型 (domain-types) ──────────────────────────────────────
 
@@ -204,7 +204,7 @@ export type ToolPermissionMode = 'allowlist' | 'denylist';
 export type ToolPermissionConfig = {
   mode: ToolPermissionMode;
   list: string[];
-}
+};
 
 export type RoleConfig = {
   id: string;
@@ -215,7 +215,7 @@ export type RoleConfig = {
   toolPermission: ToolPermissionConfig;
   skills: string[] | ['*'];
   enabled: boolean;
-}
+};
 
 export type Skill = {
   name: string;
@@ -223,12 +223,12 @@ export type Skill = {
   content: string;
   isSystem: boolean;
   filePath: string;
-}
+};
 
 /** 提供给命令执行函数的上下文 */
 export type CommandContext = {
   sessionKey: SessionKey;
-}
+};
 
 /** 可注册到 CommandRegistry 的命令 */
 export type CommandDefinition = {
@@ -240,7 +240,7 @@ export type CommandDefinition = {
   /** 用于清理的所属子系统作用域；值格式与 ToolOwner 相同。 */
   scope: ToolOwner;
   execute: CommandExecuteFn;
-}
+};
 
 /** 命令执行函数签名 */
 export type CommandExecuteFn = (args: string[], context: CommandContext) => Promise<string>;

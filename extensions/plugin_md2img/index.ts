@@ -32,11 +32,11 @@ export function buildMarkdownDocument(htmlContent: string, htmlTemplate: string)
 export type Md2ImgHtmlRenderer = {
   renderHtmlToPng(htmlDocument: string): Promise<Buffer>;
   destroy?(): Promise<void>;
-}
+};
 
 type PlaywrightMarkdownRendererOptions = {
   launchBrowser?: () => Promise<Browser>;
-}
+};
 
 export class PlaywrightMarkdownRenderer implements Md2ImgHtmlRenderer {
   private browser: Browser | null = null;

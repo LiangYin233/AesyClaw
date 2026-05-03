@@ -228,9 +228,7 @@ describe('AgentEngine', () => {
       const uninitialized = new AgentEngine();
       const role = makeRole();
 
-      expect(() => uninitialized.createAgent(role, 'test-session')).toThrow(
-        'AgentEngine 未初始化',
-      );
+      expect(() => uninitialized.createAgent(role, 'test-session')).toThrow('AgentEngine 未初始化');
     });
   });
 
@@ -276,15 +274,11 @@ describe('AgentEngine', () => {
       expect(result.content).toBe('Real response from pi runtime');
       expect(agent.state.tools).toHaveLength(1);
       expect(agent.state.tools[0]?.name).toBe('refreshed-tool');
-      expect(deps.promptBuilder.buildSystemPrompt).toHaveBeenNthCalledWith(
-        2,
-        role,
-        {
-          sessionKey: makeInboundMessage().sessionKey,
-          sendMessage: undefined,
-          toolPermission: { mode: 'allowlist', list: ['*'] },
-        },
-      );
+      expect(deps.promptBuilder.buildSystemPrompt).toHaveBeenNthCalledWith(2, role, {
+        sessionKey: makeInboundMessage().sessionKey,
+        sendMessage: undefined,
+        toolPermission: { mode: 'allowlist', list: ['*'] },
+      });
     });
 
     it('should thread an outbound send callback into runtime tool context when provided', async () => {
@@ -303,14 +297,11 @@ describe('AgentEngine', () => {
 
       await runtimeEngine.process(agent, makeInboundMessage(), memory, role, sendMessage);
 
-      expect(deps.promptBuilder.buildSystemPrompt).toHaveBeenLastCalledWith(
-        role,
-        {
-          sessionKey: makeInboundMessage().sessionKey,
-          sendMessage,
-          toolPermission: { mode: 'allowlist', list: ['*'] },
-        },
-      );
+      expect(deps.promptBuilder.buildSystemPrompt).toHaveBeenLastCalledWith(role, {
+        sessionKey: makeInboundMessage().sessionKey,
+        sendMessage,
+        toolPermission: { mode: 'allowlist', list: ['*'] },
+      });
     });
 
     it('should only persist newly generated messages', async () => {

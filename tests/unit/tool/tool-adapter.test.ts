@@ -219,11 +219,7 @@ describe('ToolAdapter', () => {
         execute: async () => ({ content: 'should not run' }),
       });
 
-      const agentTool = toAgentTool(
-        tool,
-        makeBlockingHookDispatcher('Blocked by policy'),
-        {},
-      );
+      const agentTool = toAgentTool(tool, makeBlockingHookDispatcher('Blocked by policy'), {});
 
       await expect(agentTool.execute('call-1', {})).resolves.toMatchObject({
         content: [{ type: 'text', text: 'Blocked by policy' }],
@@ -385,11 +381,7 @@ describe('ToolAdapter', () => {
       const tool = makeTool({
         execute: async () => ({ content: 'should not run' }),
       });
-      const blockedTool = toAgentTool(
-        tool,
-        makeBlockingHookDispatcher('Blocked by policy'),
-        {},
-      );
+      const blockedTool = toAgentTool(tool, makeBlockingHookDispatcher('Blocked by policy'), {});
       const shortCircuitTool = toAgentTool(
         tool,
         makeShortCircuitHookDispatcher({ content: 'Cached result' }),

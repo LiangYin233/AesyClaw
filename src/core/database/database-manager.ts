@@ -18,26 +18,41 @@ const logger = createScopedLogger('database-manager');
  * 同样的子集类型。
  */
 export type SessionsRepository = {
-  findOrCreate: (key: Parameters<typeof sessions.findOrCreateSession>[1]) => ReturnType<typeof sessions.findOrCreateSession>;
-  findByKey: (key: Parameters<typeof sessions.findSessionByKey>[1]) => ReturnType<typeof sessions.findSessionByKey>;
+  findOrCreate: (
+    key: Parameters<typeof sessions.findOrCreateSession>[1],
+  ) => ReturnType<typeof sessions.findOrCreateSession>;
+  findByKey: (
+    key: Parameters<typeof sessions.findSessionByKey>[1],
+  ) => ReturnType<typeof sessions.findSessionByKey>;
   findAll: () => ReturnType<typeof sessions.findAllSessions>;
   findById: (id: string) => ReturnType<typeof sessions.findSessionById>;
 };
 
 export type MessagesRepository = {
-  save: (sessionId: string, message: Parameters<typeof messages.saveMessage>[2]) => ReturnType<typeof messages.saveMessage>;
+  save: (
+    sessionId: string,
+    message: Parameters<typeof messages.saveMessage>[2],
+  ) => ReturnType<typeof messages.saveMessage>;
   loadHistory: (sessionId: string) => ReturnType<typeof messages.loadMessageHistory>;
   clearHistory: (sessionId: string) => ReturnType<typeof messages.clearMessageHistory>;
-  replaceWithSummary: (sessionId: string, summary: string) => ReturnType<typeof messages.replaceMessageWithSummary>;
+  replaceWithSummary: (
+    sessionId: string,
+    summary: string,
+  ) => ReturnType<typeof messages.replaceMessageWithSummary>;
 };
 
 export type RoleBindingsRepository = {
   getActiveRole: (sessionId: string) => ReturnType<typeof roleBindings.getActiveRoleBinding>;
-  setActiveRole: (sessionId: string, roleId: string) => ReturnType<typeof roleBindings.setActiveRoleBinding>;
+  setActiveRole: (
+    sessionId: string,
+    roleId: string,
+  ) => ReturnType<typeof roleBindings.setActiveRoleBinding>;
 };
 
 export type CronJobsRepository = {
-  create: (params: Parameters<typeof cron.createCronJob>[1]) => ReturnType<typeof cron.createCronJob>;
+  create: (
+    params: Parameters<typeof cron.createCronJob>[1],
+  ) => ReturnType<typeof cron.createCronJob>;
   findById: (id: string) => ReturnType<typeof cron.findCronJobById>;
   findAll: () => ReturnType<typeof cron.findAllCronJobs>;
   delete: (id: string) => ReturnType<typeof cron.deleteCronJob>;
@@ -54,14 +69,22 @@ export type CronRunsRepository = {
 };
 
 export type UsageRepository = {
-  create: (record: Parameters<typeof usageRepo.createUsageRecord>[1]) => ReturnType<typeof usageRepo.createUsageRecord>;
-  getStats: (options?: Parameters<typeof usageRepo.getUsageStats>[1]) => ReturnType<typeof usageRepo.getUsageStats>;
+  create: (
+    record: Parameters<typeof usageRepo.createUsageRecord>[1],
+  ) => ReturnType<typeof usageRepo.createUsageRecord>;
+  getStats: (
+    options?: Parameters<typeof usageRepo.getUsageStats>[1],
+  ) => ReturnType<typeof usageRepo.getUsageStats>;
   getTodaySummary: () => ReturnType<typeof usageRepo.getTodayUsageSummary>;
 };
 
 export type ToolUsageRepository = {
-  create: (record: Parameters<typeof toolUsageRepo.createToolUsageRecord>[1]) => ReturnType<typeof toolUsageRepo.createToolUsageRecord>;
-  getStats: (options?: Parameters<typeof toolUsageRepo.getToolUsageStats>[1]) => ReturnType<typeof toolUsageRepo.getToolUsageStats>;
+  create: (
+    record: Parameters<typeof toolUsageRepo.createToolUsageRecord>[1],
+  ) => ReturnType<typeof toolUsageRepo.createToolUsageRecord>;
+  getStats: (
+    options?: Parameters<typeof toolUsageRepo.getToolUsageStats>[1],
+  ) => ReturnType<typeof toolUsageRepo.getToolUsageStats>;
 };
 
 export class DatabaseManager {

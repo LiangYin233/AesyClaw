@@ -16,9 +16,12 @@ export async function findOrCreateSession(
 ): Promise<SessionRecord> {
   const id = randomUUID();
 
-  db.prepare(
-    'INSERT OR IGNORE INTO sessions (id, channel, type, chat_id) VALUES (?, ?, ?, ?)',
-  ).run(id, key.channel, key.type, key.chatId);
+  db.prepare('INSERT OR IGNORE INTO sessions (id, channel, type, chat_id) VALUES (?, ?, ?, ?)').run(
+    id,
+    key.channel,
+    key.type,
+    key.chatId,
+  );
 
   const session = await findSessionByKey(db, key);
   if (!session) {
@@ -34,7 +37,9 @@ export async function findSessionByKey(
   key: SessionKey,
 ): Promise<SessionRecord | null> {
   const row = db
-    .prepare('SELECT id, channel, type, chat_id FROM sessions WHERE channel = ? AND type = ? AND chat_id = ?')
+    .prepare(
+      'SELECT id, channel, type, chat_id FROM sessions WHERE channel = ? AND type = ? AND chat_id = ?',
+    )
     .get(key.channel, key.type, key.chatId) as
     | { id: string; channel: string; type: string; chat_id: string }
     | undefined;
@@ -72,9 +77,7 @@ export async function findAllSessions(db: DatabaseSync): Promise<SessionRecord[]
 
 /** 按 ID 查找会话。未找到时返回 null。 */
 export async function findSessionById(db: DatabaseSync, id: string): Promise<SessionRecord | null> {
-  const row = db
-    .prepare('SELECT id, channel, type, chat_id FROM sessions WHERE id = ?')
-    .get(id) as
+  const row = db.prepare('SELECT id, channel, type, chat_id FROM sessions WHERE id = ?').get(id) as
     | { id: string; channel: string; type: string; chat_id: string }
     | undefined;
 

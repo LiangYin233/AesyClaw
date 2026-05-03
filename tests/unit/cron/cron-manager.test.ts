@@ -140,7 +140,11 @@ describe('Cron', () => {
     const pipeline = makePipeline('cron response');
     const send = makeSend();
     const manager = new CronManager();
-    await manager.initialize({ databaseManager: { cronJobs: jobs, cronRuns: runs }, pipeline, send });
+    await manager.initialize({
+      databaseManager: { cronJobs: jobs, cronRuns: runs },
+      pipeline,
+      send,
+    });
 
     const jobId = await manager.createJob({
       scheduleType: 'interval',

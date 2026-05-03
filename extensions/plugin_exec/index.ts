@@ -41,12 +41,12 @@ export type ExecResultDetails = {
   stdout: string;
   stderr: string;
   error?: string;
-}
+};
 
 export type ExecuteCommandOptions = {
   repoRoot?: string;
   platform?: NodeJS.Platform;
-}
+};
 
 export async function executeCommand(
   params: ExecParams,

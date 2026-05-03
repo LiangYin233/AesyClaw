@@ -24,7 +24,7 @@ import type { PipelineResult } from '../../core/types';
 export type OnSendContext = {
   message: OutboundMessage;
   sessionKey?: SessionKey;
-}
+};
 
 /**
  * 传递给 beforeLLMRequest 钩子的上下文。
@@ -37,7 +37,7 @@ export type BeforeLLMRequestContext = {
   session: SessionContext;
   agent: Agent;
   role: RoleConfig;
-}
+};
 
 // ─── 管道状态 ──────────────────────────────────────────────
 
@@ -46,24 +46,24 @@ type PipelineStateBase = {
   inbound: InboundMessage;
   /** 用于工具执行的支持 onSend 的出站投递回调 */
   sendMessage?: (message: OutboundMessage) => Promise<boolean>;
-}
+};
 
 type PipelineStateContinue = PipelineStateBase & {
   stage: 'continue';
   /** 为入站消息解析的会话上下文 */
   session?: SessionContext;
-}
+};
 
 type PipelineStateBlocked = PipelineStateBase & {
   stage: 'blocked';
   reason: string;
-}
+};
 
 type PipelineStateRespond = PipelineStateBase & {
   stage: 'respond';
   outbound: OutboundMessage;
   session?: SessionContext;
-}
+};
 
 /**
  * 流经管道处理步骤的判别联合状态。
@@ -87,7 +87,7 @@ type PipelineDependencies = {
   sessionManager: SessionManager;
   agentEngine: AgentEngine;
   commandRegistry: CommandRegistry;
-}
+};
 
 // ─── 插件钩子 ────────────────────────────────────────────────
 
@@ -107,6 +107,6 @@ type PluginHooks = {
   beforeToolCall?(context: BeforeToolCallHookContext): Promise<BeforeToolCallHookResult>;
   afterToolCall?(context: AfterToolCallHookContext): Promise<AfterToolCallHookResult>;
   onSend?(context: OnSendContext): Promise<PipelineResult>;
-}
+};
 
 export type { PipelineState, PipelineDependencies, PluginHooks };

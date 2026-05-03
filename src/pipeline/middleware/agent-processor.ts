@@ -31,7 +31,10 @@ import {
 export async function agentProcessor(
   state: PipelineState,
   agentEngine: AgentEngine,
-  sessionManager: Pick<SessionManager, 'tryBeginAgentProcessing' | 'endAgentProcessing' | 'isAgentProcessing'>,
+  sessionManager: Pick<
+    SessionManager,
+    'tryBeginAgentProcessing' | 'endAgentProcessing' | 'isAgentProcessing'
+  >,
 ): Promise<PipelineState> {
   if (state.stage !== 'continue') {
     return state;

@@ -23,7 +23,7 @@ type RunSubAgentParams = Static<typeof RunSubAgentParamsSchema>;
 
 export type RunSubAgentDeps = {
   sandbox: Pick<SubAgentSandbox, 'runWithRole'>;
-}
+};
 
 /**
  * 创建 run_sub_agent 工具定义。

@@ -9,13 +9,13 @@ export type LoadedMediaSource = {
   base64: string;
   mimeType: string;
   fileName: string;
-}
+};
 
 type RawLoadedMediaSource = {
   data: Uint8Array;
   mimeType?: string;
   fileName: string;
-}
+};
 
 const MIME_BY_EXTENSION: Record<string, string> = {
   '.png': 'image/png',

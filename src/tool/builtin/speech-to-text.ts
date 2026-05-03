@@ -24,7 +24,7 @@ type SpeechToTextParams = Static<typeof SpeechToTextParamsSchema>;
 export type SpeechToTextDeps = {
   configManager: Pick<ConfigManager, 'get'>;
   llmAdapter: Pick<LlmAdapter, 'transcribeAudio'>;
-}
+};
 
 /**
  * 创建 speech_to_text 工具定义。

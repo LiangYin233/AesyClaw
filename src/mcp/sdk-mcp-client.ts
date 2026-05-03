@@ -86,4 +86,3 @@ function createTransport(config: McpServerConfig): Transport {
 
   return new StreamableHTTPClientTransport(url);
 }
-

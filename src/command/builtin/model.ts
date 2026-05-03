@@ -12,7 +12,7 @@ import type { AgentEngine } from '../../agent/agent-engine';
 export type ModelCommandDeps = {
   sessionManager: Pick<SessionManager, 'getOrCreateSession'>;
   agentEngine: Pick<AgentEngine, 'switchModel'>;
-}
+};
 
 /**
  * 创建 model 命令定义。

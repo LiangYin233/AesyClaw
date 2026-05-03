@@ -44,7 +44,10 @@ export function createRolesRouter(deps: WebUiManagerDependencies): Hono {
         return c.json({ ok: false, error: `提供商 "${providerName}" 未配置` }, 400);
       }
       if (provider.models === undefined || !(modelId in provider.models)) {
-        return c.json({ ok: false, error: `提供商 "${providerName}" 中未找到模型 "${modelId}"` }, 400);
+        return c.json(
+          { ok: false, error: `提供商 "${providerName}" 中未找到模型 "${modelId}"` },
+          400,
+        );
       }
       const existing = deps.roleManager.getRole(id);
       const updated: RoleConfig = { ...existing, ...body, id };

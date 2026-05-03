@@ -93,10 +93,7 @@ export class PluginManager {
     }
 
     const configLookup = this.getPluginConfig(module);
-    const mergedConfig = mergeDefaults(
-      module.definition.defaultConfig ?? {},
-      configLookup.options,
-    );
+    const mergedConfig = mergeDefaults(module.definition.defaultConfig ?? {}, configLookup.options);
     if (!configLookup.enabled) {
       logger.info('跳过已禁用的插件', { pluginName });
       return null;
@@ -140,9 +137,11 @@ export class PluginManager {
         enabled: true,
         ...(module.definition.defaultConfig ? { options: module.definition.defaultConfig } : {}),
       });
-      await this.requireDeps().configManager.update({ plugins }).catch((err) => {
-        logger.warn(`自动写入插件 "${pluginName}" 的配置条目失败`, err);
-      });
+      await this.requireDeps()
+        .configManager.update({ plugins })
+        .catch((err) => {
+          logger.warn(`自动写入插件 "${pluginName}" 的配置条目失败`, err);
+        });
     }
 
     logger.info('插件已加载', { pluginName, directoryName: module.directoryName });
@@ -403,7 +402,6 @@ export class PluginManager {
       return null;
     }
   }
-
 }
 
 function optionsToRecord(value: unknown): Record<string, unknown> {

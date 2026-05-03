@@ -7,7 +7,7 @@ import { errorMessage } from '../core/utils';
 
 export type ExtensionLoaderLogger = {
   warn(message: string, ...args: unknown[]): void;
-}
+};
 
 export async function discoverExtensionDirs(options: {
   extensionsDir: string;
@@ -52,7 +52,9 @@ export async function discoverExtensionDirs(options: {
 }
 
 export async function resolveExtensionEntry(extensionDir: string, kind: string): Promise<string> {
-  const candidates = ['index.ts', 'index.js', 'index.mjs'].map((file) => path.join(extensionDir, file));
+  const candidates = ['index.ts', 'index.js', 'index.mjs'].map((file) =>
+    path.join(extensionDir, file),
+  );
   for (const candidate of candidates) {
     try {
       const candidateStat = await stat(candidate);
@@ -64,9 +66,7 @@ export async function resolveExtensionEntry(extensionDir: string, kind: string):
     }
   }
 
-  throw new Error(
-    `${kind} 目录 "${extensionDir}" 没有 index.ts、index.js 或 index.mjs 入口文件`,
-  );
+  throw new Error(`${kind} 目录 "${extensionDir}" 没有 index.ts、index.js 或 index.mjs 入口文件`);
 }
 
 export async function importExtensionEntry(entryPath: string): Promise<unknown> {
@@ -93,14 +93,14 @@ export type ExtensionLoaderConfig<T> = {
   candidateField: string;
   logger: ExtensionLoaderLogger;
   extract: (imported: unknown) => T | null;
-}
+};
 
 export type ExtensionModule<T> = {
   definition: T;
   directory: string;
   directoryName: string;
   entryPath: string;
-}
+};
 
 export class ExtensionLoader<T> {
   protected readonly extensionsDir: string;

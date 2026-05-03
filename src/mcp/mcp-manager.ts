@@ -15,24 +15,24 @@ export type McpToolDefinition = {
   name: string;
   description?: string;
   inputSchema?: unknown;
-}
+};
 
 export type McpClient = {
   connect(): Promise<void>;
   listTools(): Promise<McpToolDefinition[]>;
   callTool(name: string, params: unknown): Promise<unknown>;
   close(): Promise<void>;
-}
+};
 
 export type McpClientFactory = {
   create(config: McpServerConfig): McpClient;
-}
+};
 
 export type McpManagerDependencies = {
   configManager: ConfigManager;
   toolRegistry: ToolRegistry;
   clientFactory?: McpClientFactory;
-}
+};
 
 export type ConnectedMcpServer = {
   name: string;
@@ -40,7 +40,7 @@ export type ConnectedMcpServer = {
   client: McpClient;
   tools: string[];
   connectedAt: Date;
-}
+};
 
 export type McpLifecycleState = 'connected' | 'disabled' | 'disconnected' | 'failed';
 
@@ -51,13 +51,13 @@ export type McpServerStatus = {
   transport?: string;
   toolCount: number;
   error?: string;
-}
+};
 
 type McpManagerStoredDeps = {
   configManager: ConfigManager;
   toolRegistry: ToolRegistry;
   clientFactory: McpClientFactory;
-}
+};
 
 export class McpManager {
   private deps: McpManagerStoredDeps | null = null;
@@ -131,9 +131,9 @@ export class McpManager {
       await this.disconnect(serverName);
     }
 
-      const client = this.requireDeps().clientFactory.create(config);
-      const owner: ToolOwner = mcpOwner(serverName);
-      const toolRegistry = this.requireDeps().toolRegistry;
+    const client = this.requireDeps().clientFactory.create(config);
+    const owner: ToolOwner = mcpOwner(serverName);
+    const toolRegistry = this.requireDeps().toolRegistry;
     try {
       await client.connect();
       const tools = await client.listTools();
@@ -259,7 +259,6 @@ export class McpManager {
     }
     return reservedNames;
   }
-
 }
 
 export function mcpOwner(serverName: string): ToolOwner {
@@ -270,7 +269,11 @@ export function mcpToolName(serverName: string, toolName: string): string {
   return `${sanitizeToolPart(serverName)}_${sanitizeToolPart(toolName)}`;
 }
 
-function uniqueMcpToolName(serverName: string, toolName: string, reservedNames: Set<string>): string {
+function uniqueMcpToolName(
+  serverName: string,
+  toolName: string,
+  reservedNames: Set<string>,
+): string {
   const baseName = mcpToolName(serverName, toolName);
   if (!reservedNames.has(baseName)) {
     return baseName;
@@ -358,7 +361,9 @@ class EmptyMcpClientFactory implements McpClientFactory {
   create(): McpClient {
     if (!this.warned) {
       this.warned = true;
-      logger.warn('McpManager 未注入 clientFactory — 使用空客户端工厂；所有 MCP 连接/工具调用将被静默忽略');
+      logger.warn(
+        'McpManager 未注入 clientFactory — 使用空客户端工厂；所有 MCP 连接/工具调用将被静默忽略',
+      );
     }
     return new EmptyMcpClient();
   }

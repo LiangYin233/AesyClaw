@@ -205,7 +205,13 @@ describe('SessionManager', () => {
 
     it('should share pending creation for concurrent calls with the same key', async () => {
       const key = makeSessionKey();
-      let resolveFindOrCreate: ((value: Awaited<ReturnType<SessionManagerDependencies['databaseManager']['sessions']['findOrCreate']>>) => void) | null = null;
+      let resolveFindOrCreate:
+        | ((
+            value: Awaited<
+              ReturnType<SessionManagerDependencies['databaseManager']['sessions']['findOrCreate']>
+            >,
+          ) => void)
+        | null = null;
       (deps.databaseManager.sessions.findOrCreate as ReturnType<typeof vi.fn>).mockImplementation(
         () =>
           new Promise((resolve) => {
