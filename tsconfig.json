@@ -19,8 +19,7 @@
     "rootDir": ".",
     "paths": {
       "@aesyclaw/sdk": ["./src/sdk/index.ts"]
-    },
-    "baseUrl": "."
+    }
   },
   "include": ["src/**/*", "extensions/**/*"],
   "exclude": ["node_modules", "dist", "tests"]
