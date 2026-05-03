@@ -222,7 +222,7 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
     }
     const { message, sessionKey, sender } = inbound;
 
-    const enrichedInbound = await enrichInboundMessageWithDownloads(
+    const enrichedWithDownloads = await enrichInboundMessageWithDownloads(
       message,
       payload,
       async (action, params) => {
@@ -237,8 +237,22 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
       return;
     }
 
+    const enrichedWithReply = await enrichInboundMessageWithReplyContent(
+      enrichedWithDownloads,
+      async (action, params) => {
+        if (!client) {
+          throw new Error('OneBot channel is not initialized');
+        }
+        return await client.sendAction(action, params);
+      },
+    );
+
+    if (destroyed) {
+      return;
+    }
+
     try {
-      await receiveInboundMessage(enrichedInbound, sessionKey, sender);
+      await receiveInboundMessage(enrichedWithReply, sessionKey, sender);
     } catch (err) {
       context?.logger.error('Failed to process OneBot inbound message', err);
     }
@@ -353,6 +367,62 @@ async function enrichInboundMessageWithDownloads(
     ...inbound,
     components: [...components, { type: 'Plain', text: annotationText }],
   };
+}
+
+async function enrichInboundMessageWithReplyContent(
+  inbound: InboundMessage,
+  sendAction: (action: string, params: Record<string, unknown>) => Promise<OneBotApiResponse>,
+): Promise<InboundMessage> {
+  const replyIndices: number[] = [];
+  for (let i = 0; i < inbound.components.length; i++) {
+    const component: MessageComponent = inbound.components[i];
+    if (component === undefined) {
+      continue;
+    }
+    if (component.type === 'Reply') {
+      const reply = component as Extract<MessageComponent, { type: 'Reply' }>;
+      if (reply.components.length === 0 && reply.id) {
+        replyIndices.push(i);
+      }
+    }
+  }
+
+  if (replyIndices.length === 0) {
+    return inbound;
+  }
+
+  const components = inbound.components.map((component) => ({ ...component }));
+
+  for (const index of replyIndices) {
+    const replyComponent = components[index] as Extract<MessageComponent, { type: 'Reply' }>;
+    try {
+      const msgId = replyComponent.id;
+      if (!msgId) {
+        continue;
+      }
+      const response = await sendAction('get_msg', { message_id: numericOrStringId(msgId) });
+      if (response.status !== 'ok' || !isRecord(response.data)) {
+        continue;
+      }
+
+      const msgData = response.data;
+      const replyComponents = extractOneBotComponents(msgData['message']);
+      const replySenderId = stringifyId(msgData['user_id']);
+      const replySender = replySenderId
+        ? buildSenderInfo(replySenderId, msgData['sender'])
+        : undefined;
+
+      components[index] = {
+        ...replyComponent,
+        components: replyComponents,
+        ...(replySender ? { sender: replySender } : {}),
+      };
+    } catch {
+      // Failed to fetch replied message — leave components empty as fallback
+    }
+  }
+
+  return { ...inbound, components };
 }
 
 async function downloadInboundAttachment(
@@ -925,7 +995,7 @@ function mapOneBotSegmentToComponent(segment: unknown): MessageComponent {
     case 'nodes':
       return { type: 'Unknown', segmentType: segment['type'], data };
     case 'reply':
-      return { type: 'Reply', ...optionalStringField('id', stringifyId(data['id'])) };
+      return { type: 'Reply', components: [], ...optionalStringField('id', stringifyId(data['id'])) };
     default:
       return { type: 'Unknown', segmentType: segment['type'], data };
   }

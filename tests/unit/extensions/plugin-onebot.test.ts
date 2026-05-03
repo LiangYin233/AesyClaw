@@ -125,7 +125,7 @@ describe('plugin_onebot', () => {
       { type: 'File', file: 'file-token', fileId: 'file-id', name: 'report.pdf' },
       { type: 'Unknown', segmentType: 'face', data: { id: 66 } },
       { type: 'Unknown', segmentType: 'at', data: { qq: 11111 } },
-      { type: 'Reply', id: '22222' },
+      { type: 'Reply', components: [], id: '22222' },
       { type: 'Unknown', segmentType: 'forward', data: { id: 'forward-id' } },
       { type: 'Unknown', segmentType: 'node', data: { name: 'alice', content: 'nested' } },
       { type: 'Unknown', segmentType: 'nodes', data: { nodes: [{ name: 'bob', content: 'nested list' }] } },

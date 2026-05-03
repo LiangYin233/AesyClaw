@@ -56,6 +56,8 @@ export type FileComponent = {
 
 export type ReplyComponent = {
   type: 'Reply';
+  components: MessageComponent[];
+  sender?: SenderInfo;
   id?: string;
 };
 
