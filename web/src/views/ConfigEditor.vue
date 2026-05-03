@@ -526,13 +526,13 @@ const configSections = computed<ConfigSectionView[]>(() => {
 });
 
 const mcpServers = computed<McpServerForm[]>(() => {
-  const value = editableConfig.value.mcp;
+  const value = editableConfig.value['mcp'];
   if (!Array.isArray(value)) return [];
   return value.map(normalizeMcpServer);
 });
 
 const providerEntries = computed<ProviderForm[]>(() => {
-  const value = editableConfig.value.providers;
+  const value = editableConfig.value['providers'];
   if (!isRecord(value)) return [];
   return Object.entries(value).map(([key, provider]) => normalizeProvider(key, provider));
 });
@@ -680,9 +680,9 @@ function updateProviderModelNumber(providerKey: string, modelKey: string, value:
     const next = { ...model };
     const parsed = Number(value);
     if (value.trim() && Number.isFinite(parsed)) {
-      next.contextWindow = parsed;
+      next['contextWindow'] = parsed;
     } else {
-      delete next.contextWindow;
+      delete next['contextWindow'];
     }
     return next;
   });
@@ -694,9 +694,9 @@ function updateProviderModelExtraBody(providerKey: string, modelKey: string, val
   updateProviderModel(providerKey, modelKey, (model) => {
     const next = { ...model };
     if (isRecord(parsed) && Object.keys(parsed).length > 0) {
-      next.extraBody = parsed;
+      next['extraBody'] = parsed;
     } else {
-      delete next.extraBody;
+      delete next['extraBody'];
     }
     return next;
   });
@@ -784,9 +784,9 @@ function updateArgs(index: number, value: string) {
   if (!current) return;
   const updated = { ...current };
   if (args.length > 0) {
-    updated.args = args;
+    updated['args'] = args;
   } else {
-    delete updated.args;
+    delete updated['args'];
   }
   next[index] = updated;
   editableConfig.value = { ...editableConfig.value, mcp: next };
@@ -806,9 +806,9 @@ function updateEnv(index: number, value: string) {
   if (!current) return;
   const updated = { ...current };
   if (Object.keys(env).length > 0) {
-    updated.env = env;
+    updated['env'] = env;
   } else {
-    delete updated.env;
+    delete updated['env'];
   }
   next[index] = updated;
   editableConfig.value = { ...editableConfig.value, mcp: next };
@@ -831,15 +831,15 @@ function normalizeMcpServer(value: unknown): McpServerForm {
   const source = isRecord(value) ? value : {};
   return {
     ...source,
-    name: typeof source.name === 'string' ? source.name : '',
-    transport: isMcpTransport(source.transport) ? source.transport : 'stdio',
-    enabled: typeof source.enabled === 'boolean' ? source.enabled : true,
-    command: typeof source.command === 'string' ? source.command : undefined,
-    args: Array.isArray(source.args)
-      ? source.args.filter((item): item is string => typeof item === 'string')
+    name: typeof source['name'] === 'string' ? source['name'] : '',
+    transport: isMcpTransport(source['transport']) ? source['transport'] : 'stdio',
+    enabled: typeof source['enabled'] === 'boolean' ? source['enabled'] : true,
+    command: typeof source['command'] === 'string' ? source['command'] : undefined,
+    args: Array.isArray(source['args'])
+      ? source['args'].filter((item): item is string => typeof item === 'string')
       : undefined,
-    env: isStringRecord(source.env) ? source.env : undefined,
-    url: typeof source.url === 'string' ? source.url : undefined,
+    env: isStringRecord(source['env']) ? source['env'] : undefined,
+    url: typeof source['url'] === 'string' ? source['url'] : undefined,
   };
 }
 
@@ -848,10 +848,10 @@ function normalizeProvider(key: string, value: unknown): ProviderForm {
   return {
     ...source,
     key,
-    apiType: isApiType(source.apiType) ? source.apiType : 'openai_responses',
-    baseUrl: typeof source.baseUrl === 'string' ? source.baseUrl : undefined,
-    apiKey: typeof source.apiKey === 'string' ? source.apiKey : undefined,
-    models: normalizeProviderModels(source.models),
+    apiType: isApiType(source['apiType']) ? source['apiType'] : 'openai_responses',
+    baseUrl: typeof source['baseUrl'] === 'string' ? source['baseUrl'] : undefined,
+    apiKey: typeof source['apiKey'] === 'string' ? source['apiKey'] : undefined,
+    models: normalizeProviderModels(source['models']),
   };
 }
 
@@ -862,14 +862,14 @@ function normalizeProviderModels(value: unknown): ProviderModelForm[] {
     return {
       ...source,
       key,
-      contextWindow: typeof source.contextWindow === 'number' ? source.contextWindow : undefined,
-      extraBody: isRecord(source.extraBody) ? source.extraBody : undefined,
+      contextWindow: typeof source['contextWindow'] === 'number' ? source['contextWindow'] : undefined,
+      extraBody: isRecord(source['extraBody']) ? source['extraBody'] : undefined,
     };
   });
 }
 
 function getRawProviders(): Record<string, unknown> {
-  const value = editableConfig.value.providers;
+  const value = editableConfig.value['providers'];
   if (!isRecord(value)) return {};
   return Object.fromEntries(
     Object.entries(value).map(([key, provider]) => [
@@ -880,9 +880,9 @@ function getRawProviders(): Record<string, unknown> {
 }
 
 function getRawModels(provider: Record<string, unknown>): Record<string, unknown> {
-  if (!isRecord(provider.models)) return {};
+  if (!isRecord(provider['models'])) return {};
   return Object.fromEntries(
-    Object.entries(provider.models).map(([key, model]) => [
+    Object.entries(provider['models']).map(([key, model]) => [
       key,
       isRecord(model) ? { ...model } : {},
     ]),
@@ -890,7 +890,7 @@ function getRawModels(provider: Record<string, unknown>): Record<string, unknown
 }
 
 function getRawMcpServers(): Record<string, unknown>[] {
-  const value = editableConfig.value.mcp;
+  const value = editableConfig.value['mcp'];
   if (!Array.isArray(value)) return [];
   return value.map((item) => (isRecord(item) ? { ...item } : {}));
 }
@@ -934,15 +934,15 @@ function omitTopLevelSchemaProperties(
 ): Record<string, unknown> {
   if (!isRecord(source)) return {};
   const next: Record<string, unknown> = { ...source };
-  if (isRecord(source.properties)) {
+  if (isRecord(source['properties'])) {
     const properties: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(source.properties)) {
+    for (const [key, value] of Object.entries(source['properties'])) {
       if (!keysToOmit.has(key.toLowerCase())) properties[key] = value;
     }
-    next.properties = properties;
+    next['properties'] = properties;
   }
-  if (Array.isArray(source.required)) {
-    next.required = source.required.filter(
+  if (Array.isArray(source['required'])) {
+    next['required'] = source['required'].filter(
       (item): item is string => typeof item === 'string' && !keysToOmit.has(item.toLowerCase()),
     );
   }
@@ -950,7 +950,7 @@ function omitTopLevelSchemaProperties(
 }
 
 function getSchemaProperties(schema: JsonSchemaRecord): Record<string, unknown> {
-  return isRecord(schema.properties) ? schema.properties : {};
+  return isRecord(schema['properties']) ? schema['properties'] : {};
 }
 
 function formatSectionTitle(key: string): string {

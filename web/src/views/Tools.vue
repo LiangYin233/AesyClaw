@@ -136,11 +136,11 @@ const tools = ref<Tool[]>([]);
 const expanded = ref<string | null>(null);
 
 function paramFields(params: Record<string, unknown>): ParamField[] {
-  const props = (params.properties ?? {}) as Record<
+  const props = (params['properties'] ?? {}) as Record<
     string,
     { type?: string; description?: string }
   >;
-  const required = (params.required ?? []) as string[];
+  const required = (params['required'] ?? []) as string[];
   return Object.entries(props).map(([name, def]) => ({
     name,
     type: def.type ?? '—',

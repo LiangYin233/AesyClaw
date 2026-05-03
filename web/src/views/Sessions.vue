@@ -150,7 +150,7 @@
                       Started: {{ formatTime(session.createdAt ?? messages[0]?.timestamp) }}
                       <span v-if="messages.length > 0">
                         &middot; Last activity:
-                        {{ formatTime(messages[messages.length - 1].timestamp) }}</span
+                        {{ formatTime(messages[messages.length - 1]?.timestamp) }}</span
                       >
                     </span>
                   </div>
@@ -219,7 +219,7 @@ async function toggleSession(id: string) {
   }
 }
 
-function formatTime(iso: string): string {
+function formatTime(iso: string | null | undefined): string {
   if (!iso) return '-';
   return new Date(iso).toLocaleTimeString('en-US', {
     hour: '2-digit',

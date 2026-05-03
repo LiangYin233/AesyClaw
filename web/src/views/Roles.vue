@@ -493,7 +493,7 @@ async function saveRole() {
   saving.value = true;
   try {
     const payload = { ...form.value };
-    delete (payload as Record<string, unknown>).id;
+    delete (payload as Record<string, unknown>)['id'];
 
     if (creating.value) {
       const res = await api.post('/roles', payload);

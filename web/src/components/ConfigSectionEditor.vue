@@ -376,15 +376,15 @@ function removeChannel(key: string) {
 }
 
 function getChannelEnabled(entry: ChannelEntry): boolean {
-  return isRecord(entry.value) && typeof entry.value.enabled === 'boolean'
-    ? entry.value.enabled
+  return isRecord(entry.value) && typeof entry.value['enabled'] === 'boolean'
+    ? entry.value['enabled']
     : true;
 }
 
 function toggleChannelEnabled(key: string) {
   const current = isRecord(sectionValue.value) ? sectionValue.value : {};
   const channelValue = isRecord(current[key]) ? current[key] : {};
-  const enabled = channelValue.enabled === false;
+  const enabled = channelValue['enabled'] === false;
   sectionValue.value = { ...current, [key]: { ...channelValue, enabled } };
 }
 
@@ -441,12 +441,17 @@ function setNestedValue(obj: Record<string, unknown>, path: string, value: unkno
   const parts = path.split('.');
   let current = obj;
   for (let i = 0; i < parts.length - 1; i++) {
-    if (!isRecord(current[parts[i]])) {
-      current[parts[i]] = {};
+    const part = parts[i];
+    if (!part) continue;
+    if (!isRecord(current[part])) {
+      current[part] = {};
     }
-    current = current[parts[i]] as Record<string, unknown>;
+    current = current[part] as Record<string, unknown>;
   }
-  current[parts[parts.length - 1]] = value;
+  const lastPart = parts[parts.length - 1];
+  if (lastPart) {
+    current[lastPart] = value;
+  }
 }
 
 function handleChannelComplexField(channelKey: string, path: string, raw: string) {
@@ -487,7 +492,7 @@ function updatePluginField(index: number, key: 'name' | 'enabled', value: string
 
 function getPluginFields(plugin: PluginEntry): ChannelField[] {
   const fields: ChannelField[] = [];
-  const options = isRecord(plugin.options) ? plugin.options : {};
+  const options = isRecord(plugin['options']) ? plugin['options'] : {};
   const flat = flattenObject(options);
   for (const [key, val] of Object.entries(flat)) {
     let type: ChannelField['type'] = 'string';
@@ -509,7 +514,7 @@ function setPluginOptionField(index: number, path: string, value: unknown) {
   const next = [...getRawPlugins()];
   const current = next[index];
   if (!current) return;
-  const options = isRecord(current.options) ? { ...current.options } : {};
+  const options = isRecord(current['options']) ? { ...current['options'] } : {};
   setNestedValue(options, path, value);
   next[index] = { ...current, options };
   sectionValue.value = next;
@@ -540,9 +545,9 @@ function normalizePluginEntry(value: unknown): PluginEntry {
   const source = isRecord(value) ? value : {};
   return {
     ...source,
-    name: typeof source.name === 'string' ? source.name : '',
-    enabled: typeof source.enabled === 'boolean' ? source.enabled : true,
-    options: isRecord(source.options) ? source.options : undefined,
+    name: typeof source['name'] === 'string' ? source['name'] : '',
+    enabled: typeof source['enabled'] === 'boolean' ? source['enabled'] : true,
+    options: isRecord(source['options']) ? source['options'] : undefined,
   };
 }
 

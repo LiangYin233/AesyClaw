@@ -51,10 +51,7 @@
             :model-value="entry.value"
             label=""
             :path="`${path}[${entry.key}]`"
-            @update:model-value="
-              entry.value = $event;
-              updateRecord();
-            "
+            @update:model-value="updateRecordEntryValue(idx, $event)"
           />
           <button
             type="button"
@@ -349,6 +346,15 @@ function updateRecordEntryKey(idx: number, key: string) {
   const next = [...recordEntries.value];
   next[idx] = { ...next[idx], key } as RecordEntry;
   recordEntries.value = next;
+}
+
+function updateRecordEntryValue(idx: number, value: unknown) {
+  const next = [...recordEntries.value];
+  const current = next[idx];
+  if (!current) return;
+  next[idx] = { ...current, value };
+  recordEntries.value = next;
+  updateRecord();
 }
 
 function updateRecord() {

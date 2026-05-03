@@ -360,9 +360,9 @@ async function loadModelOptions() {
 async function load() {
   try {
     const params: Record<string, string> = {};
-    if (fromDate.value) params.from = fromDate.value;
-    if (toDate.value) params.to = toDate.value;
-    if (modelFilter.value.trim()) params.model = modelFilter.value.trim();
+    if (fromDate.value) params['from'] = fromDate.value;
+    if (toDate.value) params['to'] = toDate.value;
+    if (modelFilter.value.trim()) params['model'] = modelFilter.value.trim();
 
     const [usageRes, toolRes] = await Promise.all([
       api.get('/usage', { params }),

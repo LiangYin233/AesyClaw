@@ -11,7 +11,7 @@ function setCookie(name: string, value: string): void {
 
 function getCookie(name: string): string | null {
   const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-  return match ? decodeURIComponent(match[2]) : null;
+  return match?.[2] ? decodeURIComponent(match[2]) : null;
 }
 
 function removeCookie(name: string): void {
