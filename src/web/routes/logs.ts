@@ -1,8 +1,8 @@
 /** 日志 API 路由。 */
 
 import { Hono } from 'hono';
-import { createScopedLogger, getRecentLogEntries } from '../../core/logger';
-import type { WebUiManagerDependencies } from '../webui-manager';
+import { createScopedLogger, getRecentLogEntries } from '@aesyclaw/core/logger';
+import type { WebUiManagerDependencies } from '@aesyclaw/web/webui-manager';
 
 const DEFAULT_LOG_LIMIT = 200;
 const MAX_LOG_LIMIT = 500;

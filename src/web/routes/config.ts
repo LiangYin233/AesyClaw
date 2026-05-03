@@ -1,9 +1,9 @@
 /** 配置 API 路由。 */
 
 import { Hono } from 'hono';
-import type { WebUiManagerDependencies } from '../webui-manager';
-import { AppConfigSchema, type AppConfig } from '../../core/config/schema';
-import type { DeepPartial } from '../../core/types';
+import type { WebUiManagerDependencies } from '@aesyclaw/web/webui-manager';
+import { AppConfigSchema, type AppConfig } from '@aesyclaw/core/config/schema';
+import type { DeepPartial } from '@aesyclaw/core/types';
 
 /**
  * 创建配置 API 路由。

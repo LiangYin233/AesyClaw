@@ -9,11 +9,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
-import type { Skill } from '../../core/types';
-import type { ToolOwner } from '../../core/types';
-import type { SkillManager } from '../../skill/skill-manager';
-import { errorMessage } from '../../core/utils';
-import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
+import type { Skill } from '@aesyclaw/core/types';
+import type { ToolOwner } from '@aesyclaw/core/types';
+import type { SkillManager } from '@aesyclaw/skill/skill-manager';
+import { errorMessage } from '@aesyclaw/core/utils';
+import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
 
 const LoadSkillParamsSchema = Type.Object({
   skillName: Type.String({ description: '要读取的技能名称' }),

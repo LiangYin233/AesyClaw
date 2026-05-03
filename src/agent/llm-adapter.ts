@@ -1,10 +1,10 @@
 import { completeSimple, getModel, streamSimple } from '@mariozechner/pi-ai';
 import type { Api, KnownProvider, Model } from '@mariozechner/pi-ai';
-import type { ConfigManager } from '../core/config/config-manager';
-import type { ProviderConfig } from '../core/config/schema';
-import { createScopedLogger } from '../core/logger';
-import { parseModelIdentifier } from '../core/utils';
-import { requireInitialized } from '../core/utils';
+import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
+import type { ProviderConfig } from '@aesyclaw/core/config/schema';
+import { createScopedLogger } from '@aesyclaw/core/logger';
+import { parseModelIdentifier } from '@aesyclaw/core/utils';
+import { requireInitialized } from '@aesyclaw/core/utils';
 import { extractMessageText } from './agent-types';
 import type { ResolvedModel, StreamFn, AgentMessage } from './agent-types';
 

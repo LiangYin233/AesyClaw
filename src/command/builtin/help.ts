@@ -5,7 +5,7 @@
  *
  */
 
-import type { CommandDefinition, CommandContext } from '../../core/types';
+import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
 
 /**
  * 创建 help 命令定义。

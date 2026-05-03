@@ -7,13 +7,13 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { PersistableMessage, RoleConfig, SessionKey } from '../core/types';
+import type { PersistableMessage, RoleConfig, SessionKey } from '@aesyclaw/core/types';
 import { MemoryManager } from './memory-manager';
-import type { MessagesRepository } from '../core/database/database-manager';
+import type { MessagesRepository } from '@aesyclaw/core/database/database-manager';
 import type { SubAgentRoleParams, SubAgentTempParams } from './agent-types';
 import type { AgentEngine } from './agent-engine';
-import type { RoleManager } from '../role/role-manager';
-import type { ToolExecutionContext } from '../tool/tool-registry';
+import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { ToolExecutionContext } from '@aesyclaw/tool/tool-registry';
 import type { LlmAdapter } from './llm-adapter';
 
 // ─── 依赖 ───────────────────────────────────────────────

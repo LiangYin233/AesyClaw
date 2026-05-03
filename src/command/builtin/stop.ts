@@ -5,8 +5,8 @@
  *
  */
 
-import type { CommandDefinition, CommandContext } from '../../core/types';
-import type { SessionManager } from '../../agent/session-manager';
+import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
+import type { SessionManager } from '@aesyclaw/agent/session-manager';
 
 export type StopCommandDeps = {
   sessionManager: Pick<SessionManager, 'getSession' | 'endAgentProcessing'>;

@@ -1,10 +1,10 @@
 /** 定时任务执行器 — 记录定时任务运行并将任务注入管道。 */
 
-import type { CronJobRecord, InboundMessage, OutboundMessage, SessionKey } from '../core/types';
-import { parseSerializedSessionKey } from '../core/types';
-import type { CronRunsRepository } from '../core/database/database-manager';
-import type { Pipeline } from '../pipeline/pipeline';
-import { createScopedLogger } from '../core/logger';
+import type { CronJobRecord, InboundMessage, OutboundMessage, SessionKey } from '@aesyclaw/core/types';
+import { parseSerializedSessionKey } from '@aesyclaw/core/types';
+import type { CronRunsRepository } from '@aesyclaw/core/database/database-manager';
+import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
+import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('cron');
 

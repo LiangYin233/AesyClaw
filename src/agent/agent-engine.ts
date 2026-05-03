@@ -1,15 +1,15 @@
 import { Agent as PiAgent } from '@mariozechner/pi-agent-core';
 import { randomUUID } from 'node:crypto';
-import type { RoleConfig, InboundMessage, OutboundMessage, SessionKey } from '../core/types';
-import { getInboundMessageText } from '../core/types';
+import type { RoleConfig, InboundMessage, OutboundMessage, SessionKey } from '@aesyclaw/core/types';
+import { getInboundMessageText } from '@aesyclaw/core/types';
 import type { Agent, AgentMessage } from './agent-types';
 import { extractMessageText } from './agent-types';
-import type { ToolExecutionContext } from '../tool/tool-registry';
+import type { ToolExecutionContext } from '@aesyclaw/tool/tool-registry';
 import type { LlmAdapter } from './llm-adapter';
 import type { PromptBuilder } from './prompt-builder';
 import type { MemoryManager } from './memory-manager';
-import { createScopedLogger } from '../core/logger';
-import { requireInitialized } from '../core/utils';
+import { createScopedLogger } from '@aesyclaw/core/logger';
+import { requireInitialized } from '@aesyclaw/core/utils';
 
 const logger = createScopedLogger('agent-engine');
 

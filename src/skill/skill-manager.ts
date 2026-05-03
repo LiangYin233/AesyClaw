@@ -11,8 +11,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { createScopedLogger } from '../core/logger';
-import type { Skill, RoleConfig } from '../core/types';
+import { createScopedLogger } from '@aesyclaw/core/logger';
+import type { Skill, RoleConfig } from '@aesyclaw/core/types';
 import { parseSkillFile } from './skill-parser';
 
 const logger = createScopedLogger('skill');

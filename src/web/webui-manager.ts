@@ -2,17 +2,17 @@
 
 import { serve } from '@hono/node-server';
 import { randomBytes } from 'node:crypto';
-import { createScopedLogger } from '../core/logger';
-import { requireInitialized } from '../core/utils';
-import type { ConfigManager } from '../core/config/config-manager';
-import type { DatabaseManager } from '../core/database/database-manager';
-import type { SessionManager } from '../agent/session-manager';
-import type { CronManager } from '../cron/cron-manager';
-import type { RoleManager } from '../role/role-manager';
-import type { ChannelManager } from '../extension/channel/channel-manager';
-import type { ExtensionManager } from '../extension/extension-manager';
-import type { ToolRegistry } from '../tool/tool-registry';
-import type { SkillManager } from '../skill/skill-manager';
+import { createScopedLogger } from '@aesyclaw/core/logger';
+import { requireInitialized } from '@aesyclaw/core/utils';
+import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
+import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
+import type { SessionManager } from '@aesyclaw/agent/session-manager';
+import type { CronManager } from '@aesyclaw/cron/cron-manager';
+import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { ChannelManager } from '@aesyclaw/extension/channel/channel-manager';
+import type { ExtensionManager } from '@aesyclaw/extension/extension-manager';
+import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
+import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import { createApp } from './server';
 
 const logger = createScopedLogger('webui');

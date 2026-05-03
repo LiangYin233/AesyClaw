@@ -9,17 +9,17 @@
  *
  */
 
-import type { SessionKey, RoleConfig } from '../core/types';
-import { serializeSessionKey } from '../core/types';
-import type { DatabaseManager } from '../core/database/database-manager';
-import type { RoleManager } from '../role/role-manager';
-import type { ConfigManager } from '../core/config/config-manager';
+import type { SessionKey, RoleConfig } from '@aesyclaw/core/types';
+import { serializeSessionKey } from '@aesyclaw/core/types';
+import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
+import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { AgentEngine } from './agent-engine';
 import type { Agent } from './agent-types';
 import { MemoryManager } from './memory-manager';
 import type { LlmAdapter } from './llm-adapter';
-import { createScopedLogger } from '../core/logger';
-import { requireInitialized } from '../core/utils';
+import { createScopedLogger } from '@aesyclaw/core/logger';
+import { requireInitialized } from '@aesyclaw/core/utils';
 
 const logger = createScopedLogger('session-manager');
 export const AGENT_PROCESSING_BUSY_MESSAGE = 'Agent处理任务中。';

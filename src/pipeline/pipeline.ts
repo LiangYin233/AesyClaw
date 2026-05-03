@@ -19,15 +19,15 @@
  *   6. send(outbound)
  */
 
-import type { InboundMessage, OutboundMessage, PipelineResult, SendFn } from '../core/types';
-import type { SessionKey } from '../core/types';
+import type { InboundMessage, OutboundMessage, PipelineResult, SendFn } from '@aesyclaw/core/types';
+import type { SessionKey } from '@aesyclaw/core/types';
 import type { PipelineDependencies, PipelineState, PluginHooks } from './middleware/types';
 import { HookDispatcher } from './hook-dispatcher';
 import { sessionResolver } from './middleware/session-resolver';
 import { commandDetector } from './middleware/command-detector';
 import { agentProcessor } from './middleware/agent-processor';
-import { createScopedLogger } from '../core/logger';
-import { requireInitialized } from '../core/utils';
+import { createScopedLogger } from '@aesyclaw/core/logger';
+import { requireInitialized } from '@aesyclaw/core/utils';
 
 const logger = createScopedLogger('pipeline');
 

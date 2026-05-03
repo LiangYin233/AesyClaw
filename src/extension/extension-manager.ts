@@ -1,11 +1,11 @@
 /** ExtensionManager — 统一管理插件和频道扩展的生命周期。 */
 
-import { createScopedLogger } from '../core/logger';
-import type { Pipeline } from '../pipeline/pipeline';
-import type { CommandRegistry } from '../command/command-registry';
-import type { ToolRegistry } from '../tool/tool-registry';
-import type { HookDispatcher } from '../pipeline/hook-dispatcher';
-import type { ConfigManager } from '../core/config/config-manager';
+import { createScopedLogger } from '@aesyclaw/core/logger';
+import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
+import type { CommandRegistry } from '@aesyclaw/command/command-registry';
+import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
+import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
+import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import { PluginManager } from './plugin/plugin-manager';
 import type { PluginStatus } from './plugin/plugin-types';
 import { ChannelManager } from './channel/channel-manager';

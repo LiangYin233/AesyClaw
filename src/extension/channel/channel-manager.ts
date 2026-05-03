@@ -1,15 +1,15 @@
 /** 频道管理器 — 初始化频道适配器并将消息桥接到管道中。 */
 
 import path from 'node:path';
-import type { InboundMessage, OutboundMessage, SessionKey } from '../../core/types';
-import { createScopedLogger } from '../../core/logger';
-import { errorMessage, isRecord, mergeDefaults } from '../../core/utils';
-import { SerialExecutor } from '../../utils/serial-executor';
+import type { InboundMessage, OutboundMessage, SessionKey } from '@aesyclaw/core/types';
+import { createScopedLogger } from '@aesyclaw/core/logger';
+import { errorMessage, isRecord, mergeDefaults } from '@aesyclaw/core/utils';
+import { SerialExecutor } from '@aesyclaw/utils/serial-executor';
 import {
   discoverExtensionDirs,
   loadExtensionModule,
   type ExtensionLifecycle,
-} from '../extension-loader';
+} from '@aesyclaw/extension/extension-loader';
 import type {
   ChannelContext,
   ChannelManagerDependencies,

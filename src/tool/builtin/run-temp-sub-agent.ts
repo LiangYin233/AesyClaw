@@ -7,10 +7,10 @@
 
 import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
-import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
-import { errorMessage } from '../../core/utils';
-import type { ToolOwner } from '../../core/types';
-import type { SubAgentSandbox } from '../../agent/sub-agent-sandbox';
+import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
+import { errorMessage } from '@aesyclaw/core/utils';
+import type { ToolOwner } from '@aesyclaw/core/types';
+import type { SubAgentSandbox } from '@aesyclaw/agent/sub-agent-sandbox';
 
 /** run_temp_sub_agent 的参数模式 */
 const RunTempSubAgentParamsSchema = Type.Object({

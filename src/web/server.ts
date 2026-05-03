@@ -17,7 +17,7 @@ import { createUsageRouter } from './routes/usage';
 import { createLogsRouter } from './routes/logs';
 import { createToolsRouter } from './routes/tools';
 import { createSkillsRouter } from './routes/skills';
-import { createScopedLogger } from '../core/logger';
+import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('webui');
 

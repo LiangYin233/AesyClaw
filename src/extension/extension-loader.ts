@@ -7,7 +7,7 @@
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { errorMessage } from '../core/utils';
+import { errorMessage } from '@aesyclaw/core/utils';
 
 export type ExtensionLoaderLogger = {
   warn(message: string, ...args: unknown[]): void;

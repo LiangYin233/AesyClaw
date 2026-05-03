@@ -16,7 +16,7 @@
  *
  */
 
-import type { PersistableMessage } from '../core/types';
+import type { PersistableMessage } from '@aesyclaw/core/types';
 import {
   assistantHasToolCalls,
   createPersistedAssistantMessage,
@@ -29,8 +29,8 @@ import type {
   MessagesRepository,
   ToolUsageRepository,
   UsageRepository,
-} from '../core/database/database-manager';
-import { createScopedLogger } from '../core/logger';
+} from '@aesyclaw/core/database/database-manager';
+import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('memory-manager');
 

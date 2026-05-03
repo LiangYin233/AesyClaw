@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { createScopedLogger } from '../logger';
+import { createScopedLogger } from '@aesyclaw/core/logger';
 import * as sessions from './repositories/session-repository';
 import * as messages from './repositories/message-repository';
 import * as roleBindings from './repositories/role-binding-repository';

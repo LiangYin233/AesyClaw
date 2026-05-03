@@ -7,9 +7,9 @@
  * 3. 派发 afterToolCall 钩子 — 可能覆盖结果
  */
 
-import type { AgentTool, AgentToolResult } from '../agent/agent-types';
-import { createScopedLogger } from '../core/logger';
-import type { HookDispatcher } from '../pipeline/hook-dispatcher';
+import type { AgentTool, AgentToolResult } from '@aesyclaw/agent/agent-types';
+import { createScopedLogger } from '@aesyclaw/core/logger';
+import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from './tool-registry';
 
 const logger = createScopedLogger('tool');

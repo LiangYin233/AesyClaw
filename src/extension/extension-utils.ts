@@ -1,6 +1,6 @@
 /** 频道和插件扩展共享的运行时校验工具。 */
 
-import { isRecord } from '../core/utils';
+import { isRecord } from '@aesyclaw/core/utils';
 
 /**
  * 校验未知值的扩展基础结构（name、version、init、destroy 等）。

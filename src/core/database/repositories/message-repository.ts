@@ -6,7 +6,7 @@
  */
 
 import type { DatabaseSync } from 'node:sqlite';
-import type { PersistableMessage } from '../../types';
+import type { PersistableMessage } from '@aesyclaw/core/types';
 
 /** 将可持久化消息保存到会话历史 */
 export async function saveMessage(

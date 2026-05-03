@@ -8,9 +8,9 @@
  * 所有外部扩展代码无需修改。
  */
 
-export type { PluginContext, PluginDefinition } from '../extension/plugin/plugin-types';
+export type { PluginContext, PluginDefinition } from '@aesyclaw/extension/plugin/plugin-types';
 
-export type { ChannelContext, ChannelPlugin } from '../extension/channel/channel-types';
+export type { ChannelContext, ChannelPlugin } from '@aesyclaw/extension/channel/channel-types';
 
 export type {
   InboundMessage,
@@ -31,12 +31,12 @@ export type {
   NodesComponent,
   UnknownComponent,
   PipelineResult,
-} from '../core/types';
+} from '@aesyclaw/core/types';
 
-export { getInboundMessageText } from '../core/types';
+export { getInboundMessageText } from '@aesyclaw/core/types';
 
-export type { AesyClawTool, ToolExecutionResult } from '../tool/tool-registry';
+export type { AesyClawTool, ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
 
-export type { OnSendContext } from '../pipeline/middleware/types';
+export type { OnSendContext } from '@aesyclaw/pipeline/middleware/types';
 
-export { resolvePaths } from '../core/path-resolver';
+export { resolvePaths } from '@aesyclaw/core/path-resolver';

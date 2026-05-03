@@ -5,9 +5,9 @@
  *
  */
 
-import type { CommandDefinition, CommandContext } from '../../core/types';
-import type { SessionManager } from '../../agent/session-manager';
-import type { AgentEngine } from '../../agent/agent-engine';
+import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
+import type { SessionManager } from '@aesyclaw/agent/session-manager';
+import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
 
 export type ModelCommandDeps = {
   sessionManager: Pick<SessionManager, 'getOrCreateSession'>;

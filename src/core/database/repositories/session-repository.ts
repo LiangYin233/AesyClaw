@@ -7,7 +7,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import type { SessionKey, SessionRecord } from '../../types';
+import type { SessionKey, SessionRecord } from '@aesyclaw/core/types';
 
 /** 按复合键查找现有会话，如不存在则创建。 */
 export async function findOrCreateSession(

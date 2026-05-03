@@ -1,17 +1,17 @@
 /** 插件管理器 — 加载、卸载并跟踪插件生命周期。 */
 
 import path from 'node:path';
-import { createScopedLogger } from '../../core/logger';
-import { errorMessage, isRecord, mergeDefaults } from '../../core/utils';
-import type { CommandDefinition } from '../../core/types';
-import type { PluginConfigEntry } from '../../core/config/schema';
-import type { AesyClawTool } from '../../tool/tool-registry';
+import { createScopedLogger } from '@aesyclaw/core/logger';
+import { errorMessage, isRecord, mergeDefaults } from '@aesyclaw/core/utils';
+import type { CommandDefinition } from '@aesyclaw/core/types';
+import type { PluginConfigEntry } from '@aesyclaw/core/config/schema';
+import type { AesyClawTool } from '@aesyclaw/tool/tool-registry';
 import {
   discoverExtensionDirs,
   loadExtensionModule,
   type ExtensionLifecycle,
-} from '../extension-loader';
-import { SerialExecutor } from '../../utils/serial-executor';
+} from '@aesyclaw/extension/extension-loader';
+import { SerialExecutor } from '@aesyclaw/utils/serial-executor';
 import type {
   LoadedPlugin,
   PluginConfigLookup,

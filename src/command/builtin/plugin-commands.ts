@@ -8,8 +8,8 @@
  *
  */
 
-import type { CommandDefinition, CommandContext } from '../../core/types';
-import type { ExtensionManager } from '../../extension/extension-manager';
+import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
+import type { ExtensionManager } from '@aesyclaw/extension/extension-manager';
 
 export type PluginCommandDeps = {
   extensionManager: Pick<ExtensionManager, 'listPlugins' | 'enablePlugin' | 'disablePlugin'>;

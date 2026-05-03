@@ -6,8 +6,8 @@
  *
  */
 
-import type { ToolOwner, CommandDefinition, CommandContext } from '../core/types';
-import { createScopedLogger } from '../core/logger';
+import type { ToolOwner, CommandDefinition, CommandContext } from '@aesyclaw/core/types';
+import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('command-registry');
 

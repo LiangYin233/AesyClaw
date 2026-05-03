@@ -5,19 +5,19 @@
  * 有作用域的上下文，并可以注册工具、命令和管道钩子。
  */
 
-import type { CommandDefinition, ToolOwner } from '../../core/types';
-import type { ConfigManager } from '../../core/config/config-manager';
-import type { HookDispatcher } from '../../pipeline/hook-dispatcher';
-import type { ToolRegistry } from '../../tool/tool-registry';
-import type { CommandRegistry } from '../../command/command-registry';
-import type { ChannelManager } from '../channel/channel-manager';
-import type { PluginHooks } from '../../pipeline/middleware/types';
-import type { Logger } from '../../core/logger';
-import type { PluginConfigEntry } from '../../core/config/schema';
-import type { AesyClawTool } from '../../tool/tool-registry';
-import type { ChannelPlugin } from '../channel/channel-types';
-import { isRecord } from '../../core/utils';
-import { validateExtension } from '../extension-utils';
+import type { CommandDefinition, ToolOwner } from '@aesyclaw/core/types';
+import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
+import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
+import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
+import type { CommandRegistry } from '@aesyclaw/command/command-registry';
+import type { ChannelManager } from '@aesyclaw/extension/channel/channel-manager';
+import type { PluginHooks } from '@aesyclaw/pipeline/middleware/types';
+import type { Logger } from '@aesyclaw/core/logger';
+import type { PluginConfigEntry } from '@aesyclaw/core/config/schema';
+import type { AesyClawTool } from '@aesyclaw/tool/tool-registry';
+import type { ChannelPlugin } from '@aesyclaw/extension/channel/channel-types';
+import { isRecord } from '@aesyclaw/core/utils';
+import { validateExtension } from '@aesyclaw/extension/extension-utils';
 
 export type PluginContext = {
   config: Record<string, unknown>;

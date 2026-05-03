@@ -7,13 +7,13 @@
  *
  */
 
-import type { CommandRegistry } from '../command-registry';
+import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { RoleCommandDeps } from './role-commands';
 import type { PluginCommandDeps } from './plugin-commands';
-import type { SessionManager } from '../../agent/session-manager';
-import type { AgentEngine } from '../../agent/agent-engine';
-import type { RoleManager } from '../../role/role-manager';
-import type { ExtensionManager } from '../../extension/extension-manager';
+import type { SessionManager } from '@aesyclaw/agent/session-manager';
+import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
+import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { ExtensionManager } from '@aesyclaw/extension/extension-manager';
 import { createHelpCommand } from './help';
 import { createClearCommand } from './clear';
 import { createCompactCommand } from './compact';

@@ -10,12 +10,12 @@
  */
 
 import type { PipelineState } from './types';
-import type { AgentEngine } from '../../agent/agent-engine';
+import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
 import {
   AGENT_PROCESSING_BUSY_MESSAGE,
   type SessionContext,
   type SessionManager,
-} from '../../agent/session-manager';
+} from '@aesyclaw/agent/session-manager';
 
 /**
  * 通过 AI Agent 处理入站消息。

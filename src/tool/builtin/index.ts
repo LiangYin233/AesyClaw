@@ -7,14 +7,14 @@
  *
  */
 
-import type { ToolRegistry } from '../tool-registry';
+import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { CronToolsDeps } from './cron-tools';
-import type { CronManager } from '../../cron/cron-manager';
-import type { AgentEngine } from '../../agent/agent-engine';
-import type { RoleManager } from '../../role/role-manager';
-import type { LlmAdapter } from '../../agent/llm-adapter';
-import type { ConfigManager } from '../../core/config/config-manager';
-import type { SkillManager } from '../../skill/skill-manager';
+import type { CronManager } from '@aesyclaw/cron/cron-manager';
+import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
+import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
+import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import { createSendMsgTool } from './send-msg';
 import { createCreateCronTool, createListCronTool, createDeleteCronTool } from './cron-tools';
 import { createRunSubAgentTool } from './run-sub-agent';
@@ -22,7 +22,7 @@ import { createRunTempSubAgentTool } from './run-temp-sub-agent';
 import { createSpeechToTextTool } from './speech-to-text';
 import { createImageUnderstandingTool } from './image-understanding';
 import { createLoadSkillTool } from './load-skill';
-import { SubAgentSandbox } from '../../agent/sub-agent-sandbox';
+import { SubAgentSandbox } from '@aesyclaw/agent/sub-agent-sandbox';
 
 /**
  * 内置工具的依赖。

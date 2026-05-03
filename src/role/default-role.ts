@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import type { RoleConfig } from '../core/types';
+import type { RoleConfig } from '@aesyclaw/core/types';
 
 export const DEFAULT_ROLE_FILE_NAME = 'default.json';
 

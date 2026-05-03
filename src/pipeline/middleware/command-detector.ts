@@ -8,10 +8,10 @@
  */
 
 import type { PipelineState } from './types';
-import type { CommandRegistry } from '../../command/command-registry';
-import type { CommandContext } from '../../core/types';
-import { getInboundMessageText } from '../../core/types';
-import { AGENT_PROCESSING_BUSY_MESSAGE, type SessionManager } from '../../agent/session-manager';
+import type { CommandRegistry } from '@aesyclaw/command/command-registry';
+import type { CommandContext } from '@aesyclaw/core/types';
+import { getInboundMessageText } from '@aesyclaw/core/types';
+import { AGENT_PROCESSING_BUSY_MESSAGE, type SessionManager } from '@aesyclaw/agent/session-manager';
 
 /**
  * 检测斜杠命令并通过 CommandRegistry 执行它们。

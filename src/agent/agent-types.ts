@@ -4,8 +4,8 @@ import type {
   StreamFn,
 } from '@mariozechner/pi-agent-core';
 import type { Api, Model, TextContent, ImageContent, ToolCall, Usage } from '@mariozechner/pi-ai';
-import type { SessionKey } from '../core/types';
-import type { ToolExecutionResult } from '../tool/tool-registry';
+import type { SessionKey } from '@aesyclaw/core/types';
+import type { ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
 
 export type Agent = PiAgent;
 export type AgentMessage = PiAgentMessage;

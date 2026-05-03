@@ -14,10 +14,10 @@ import type {
   RoleConfig,
   OutboundMessage,
   ToolPermissionConfig,
-} from '../core/types';
-import { createScopedLogger } from '../core/logger';
-import type { HookDispatcher } from '../pipeline/hook-dispatcher';
-import type { AgentTool } from '../agent/agent-types';
+} from '@aesyclaw/core/types';
+import { createScopedLogger } from '@aesyclaw/core/logger';
+import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
+import type { AgentTool } from '@aesyclaw/agent/agent-types';
 import { toAgentTool } from './tool-adapter';
 
 const logger = createScopedLogger('tool-registry');

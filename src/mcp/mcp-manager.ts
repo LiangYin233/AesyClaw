@@ -1,13 +1,13 @@
 /** MCP 管理器 — 连接已配置的 MCP 服务器并暴露其工具。 */
 
 import { Type, type TSchema } from '@sinclair/typebox';
-import { createScopedLogger } from '../core/logger';
-import { errorMessage, isRecord, requireInitialized } from '../core/utils';
-import { SerialExecutor } from '../utils/serial-executor';
-import type { McpServerConfig } from '../core/config/schema';
-import type { ToolOwner } from '../core/types';
-import type { ConfigManager } from '../core/config/config-manager';
-import type { ToolRegistry, AesyClawTool, ToolExecutionResult } from '../tool/tool-registry';
+import { createScopedLogger } from '@aesyclaw/core/logger';
+import { errorMessage, isRecord, requireInitialized } from '@aesyclaw/core/utils';
+import { SerialExecutor } from '@aesyclaw/utils/serial-executor';
+import type { McpServerConfig } from '@aesyclaw/core/config/schema';
+import type { ToolOwner } from '@aesyclaw/core/types';
+import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
+import type { ToolRegistry, AesyClawTool, ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
 
 const logger = createScopedLogger('mcp');
 

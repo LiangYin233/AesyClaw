@@ -7,7 +7,7 @@
  */
 
 import type { PipelineState } from './types';
-import type { SessionManager } from '../../agent/session-manager';
+import type { SessionManager } from '@aesyclaw/agent/session-manager';
 
 /**
  * 解析入站消息的会话上下文。

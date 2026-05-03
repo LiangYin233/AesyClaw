@@ -1,6 +1,6 @@
 /** 串行执行器 — 防重入 + 排队，消除 ChannelManager/PluginManager/McpManager 中重复的防重入队列模式。 */
 
-import { createScopedLogger } from '../core/logger';
+import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('serial-executor');
 

@@ -7,13 +7,13 @@
  *
  */
 
-import type { RoleManager } from '../role/role-manager';
-import type { SkillManager } from '../skill/skill-manager';
-import type { AesyClawTool, ToolRegistry, ToolExecutionContext } from '../tool/tool-registry';
-import type { RoleConfig, Skill } from '../core/types';
+import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { SkillManager } from '@aesyclaw/skill/skill-manager';
+import type { AesyClawTool, ToolRegistry, ToolExecutionContext } from '@aesyclaw/tool/tool-registry';
+import type { RoleConfig, Skill } from '@aesyclaw/core/types';
 import type { AgentTool } from './agent-types';
-import type { HookDispatcher } from '../pipeline/hook-dispatcher';
-import { buildSkillPromptSection } from '../skill/skill-prompt';
+import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
+import { buildSkillPromptSection } from '@aesyclaw/skill/skill-prompt';
 
 // ─── PromptBuilder ──────────────────────────────────────────────
 

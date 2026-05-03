@@ -8,9 +8,9 @@ import {
 } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-import type { McpServerConfig } from '../core/config/schema';
+import type { McpServerConfig } from '@aesyclaw/core/config/schema';
 import type { McpClient, McpClientFactory, McpToolDefinition } from './mcp-manager';
-import { isRecord } from '../core/utils';
+import { isRecord } from '@aesyclaw/core/utils';
 
 export class SdkMcpClientFactory implements McpClientFactory {
   create(config: McpServerConfig): McpClient {

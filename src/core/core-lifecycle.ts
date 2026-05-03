@@ -1,29 +1,29 @@
 /** CoreLifecycle — 核心生命周期协调器，负责启动序列和关闭。 */
 
 import { mkdirSync } from 'node:fs';
-import type { AgentEngine } from '../agent/agent-engine';
-import type { LlmAdapter } from '../agent/llm-adapter';
-import { PromptBuilder } from '../agent/prompt-builder';
-import type { SessionManager } from '../agent/session-manager';
-import type { CommandRegistry } from '../command/command-registry';
-import { registerBuiltinCommands } from '../command/builtin';
+import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
+import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import { PromptBuilder } from '@aesyclaw/agent/prompt-builder';
+import type { SessionManager } from '@aesyclaw/agent/session-manager';
+import type { CommandRegistry } from '@aesyclaw/command/command-registry';
+import { registerBuiltinCommands } from '@aesyclaw/command/builtin';
 import type { ConfigManager } from './config/config-manager';
 import { DEFAULT_CONFIG } from './config/defaults';
 import type { DatabaseManager } from './database/database-manager';
 import { createScopedLogger, setLogLevel } from './logger';
 import { resolvePaths, type ResolvedPaths } from './path-resolver';
 import type { Unsubscribe } from './types';
-import type { CronManager } from '../cron/cron-manager';
-import type { McpManager } from '../mcp/mcp-manager';
-import { SdkMcpClientFactory } from '../mcp/sdk-mcp-client';
-import type { Pipeline } from '../pipeline/pipeline';
-import { ExtensionManager } from '../extension/extension-manager';
-import { ensureDefaultRoleFile } from '../role/default-role';
-import type { RoleManager } from '../role/role-manager';
-import type { SkillManager } from '../skill/skill-manager';
-import type { ToolRegistry } from '../tool/tool-registry';
-import { registerBuiltinTools } from '../tool/builtin';
-import type { WebUiManager } from '../web/webui-manager';
+import type { CronManager } from '@aesyclaw/cron/cron-manager';
+import type { McpManager } from '@aesyclaw/mcp/mcp-manager';
+import { SdkMcpClientFactory } from '@aesyclaw/mcp/sdk-mcp-client';
+import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
+import { ExtensionManager } from '@aesyclaw/extension/extension-manager';
+import { ensureDefaultRoleFile } from '@aesyclaw/role/default-role';
+import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { SkillManager } from '@aesyclaw/skill/skill-manager';
+import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
+import { registerBuiltinTools } from '@aesyclaw/tool/builtin';
+import type { WebUiManager } from '@aesyclaw/web/webui-manager';
 
 const logger = createScopedLogger('core-lifecycle');
 

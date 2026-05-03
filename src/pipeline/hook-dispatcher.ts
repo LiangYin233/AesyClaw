@@ -10,16 +10,16 @@
  * - 否则返回默认的继续结果
  */
 
-import type { InboundMessage, PipelineResult } from '../core/types';
+import type { InboundMessage, PipelineResult } from '@aesyclaw/core/types';
 import type { BeforeLLMRequestContext, OnSendContext } from './middleware/types';
 import type {
   BeforeToolCallHookContext,
   BeforeToolCallHookResult,
   AfterToolCallHookContext,
   AfterToolCallHookResult,
-} from '../agent/agent-types';
+} from '@aesyclaw/agent/agent-types';
 import type { PluginHooks } from './middleware/types';
-import { createScopedLogger } from '../core/logger';
+import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('hook-dispatcher');
 

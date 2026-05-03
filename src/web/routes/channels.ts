@@ -1,7 +1,7 @@
 /** 频道 API 路由。 */
 
 import { Hono } from 'hono';
-import type { WebUiManagerDependencies } from '../webui-manager';
+import type { WebUiManagerDependencies } from '@aesyclaw/web/webui-manager';
 
 /**
  * 创建频道 API 路由。

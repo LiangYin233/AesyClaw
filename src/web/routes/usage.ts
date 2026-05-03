@@ -1,8 +1,8 @@
 /** 用量 API 路由。 */
 
 import { Hono } from 'hono';
-import type { WebUiManagerDependencies } from '../webui-manager';
-import { createScopedLogger } from '../../core/logger';
+import type { WebUiManagerDependencies } from '@aesyclaw/web/webui-manager';
+import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('webui:usage');
 

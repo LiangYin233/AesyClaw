@@ -11,9 +11,9 @@
 
 import fs from 'node:fs';
 import fm, { type FrontMatterResult } from 'front-matter';
-import { createScopedLogger } from '../core/logger';
-import type { Skill } from '../core/types';
-import { isRecord } from '../core/utils';
+import { createScopedLogger } from '@aesyclaw/core/logger';
+import type { Skill } from '@aesyclaw/core/types';
+import { isRecord } from '@aesyclaw/core/utils';
 
 const logger = createScopedLogger('skill');
 

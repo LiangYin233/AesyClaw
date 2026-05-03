@@ -11,8 +11,8 @@ import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { Value } from '@sinclair/typebox/value';
-import { createScopedLogger } from '../core/logger';
-import type { RoleConfig, Unsubscribe } from '../core/types';
+import { createScopedLogger } from '@aesyclaw/core/logger';
+import type { RoleConfig, Unsubscribe } from '@aesyclaw/core/types';
 import { RoleConfigSchema } from './role-schema';
 
 const logger = createScopedLogger('role');

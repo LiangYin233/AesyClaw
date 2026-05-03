@@ -1,14 +1,14 @@
 /** 定时任务管理器 — 持久化任务、调度计时器并记录执行历史。 */
 
-import type { CronJobRecord, OutboundMessage, SessionKey } from '../core/types';
+import type { CronJobRecord, OutboundMessage, SessionKey } from '@aesyclaw/core/types';
 import type {
   CronJobsRepository,
   CronRunsRepository,
   DatabaseManager,
-} from '../core/database/database-manager';
-import type { Pipeline } from '../pipeline/pipeline';
-import { createScopedLogger } from '../core/logger';
-import { requireInitialized } from '../core/utils';
+} from '@aesyclaw/core/database/database-manager';
+import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
+import { createScopedLogger } from '@aesyclaw/core/logger';
+import { requireInitialized } from '@aesyclaw/core/utils';
 import { CronExecutor } from './cron-executor';
 import { computeNextRun, CronScheduler, type CronScheduleType } from './cron-scheduler';
 

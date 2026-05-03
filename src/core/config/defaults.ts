@@ -1,5 +1,5 @@
 import type { AppConfig } from './schema';
-import { DEFAULTS } from '../types';
+import { DEFAULTS } from '@aesyclaw/core/types';
 
 /**
  * 默认应用配置。

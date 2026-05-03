@@ -7,7 +7,7 @@
 
 import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
-import { DEFAULTS } from '../types';
+import { DEFAULTS } from '@aesyclaw/core/types';
 
 // ─── Provider / Model ────────────────────────────────────────────
 

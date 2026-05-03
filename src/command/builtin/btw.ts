@@ -1,6 +1,6 @@
-import type { AgentEngine } from '../../agent/agent-engine';
-import type { SessionManager } from '../../agent/session-manager';
-import type { CommandContext, CommandDefinition } from '../../core/types';
+import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
+import type { SessionManager } from '@aesyclaw/agent/session-manager';
+import type { CommandContext, CommandDefinition } from '@aesyclaw/core/types';
 
 export type BtwCommandDeps = {
   sessionManager: Pick<SessionManager, 'getOrCreateSession'>;

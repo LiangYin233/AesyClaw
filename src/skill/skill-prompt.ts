@@ -1,4 +1,4 @@
-import type { Skill } from '../core/types';
+import type { Skill } from '@aesyclaw/core/types';
 
 export function buildSkillPromptSection(skills: readonly Skill[]): string {
   if (skills.length === 0) {

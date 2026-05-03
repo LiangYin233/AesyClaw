@@ -1,7 +1,7 @@
 /** 定时任务调度器 — 计算下次运行时间并管理计时器句柄。 */
 
-import type { CronJobRecord } from '../core/types';
-import { createScopedLogger } from '../core/logger';
+import type { CronJobRecord } from '@aesyclaw/core/types';
+import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('cron');
 

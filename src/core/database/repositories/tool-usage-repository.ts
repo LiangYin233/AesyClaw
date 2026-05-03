@@ -6,7 +6,7 @@
  */
 
 import type { DatabaseSync } from 'node:sqlite';
-import type { ToolUsageRecord, ToolUsageSummary } from '../../types';
+import type { ToolUsageRecord, ToolUsageSummary } from '@aesyclaw/core/types';
 import { localDateToUtc } from './utils';
 
 // ─── 行类型辅助函数 ─────────────────────────────────────────────

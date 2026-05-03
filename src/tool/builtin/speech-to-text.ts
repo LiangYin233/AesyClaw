@@ -7,11 +7,11 @@
 
 import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
-import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
-import { errorMessage } from '../../core/utils';
-import type { ToolOwner } from '../../core/types';
-import type { ConfigManager } from '../../core/config/config-manager';
-import type { LlmAdapter } from '../../agent/llm-adapter';
+import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
+import { errorMessage } from '@aesyclaw/core/utils';
+import type { ToolOwner } from '@aesyclaw/core/types';
+import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
+import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 import { loadMediaSource } from './media-source';
 
 /** speech_to_text 的参数模式 */

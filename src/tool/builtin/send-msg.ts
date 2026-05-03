@@ -8,9 +8,9 @@
 
 import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
-import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '../tool-registry';
-import { errorMessage } from '../../core/utils';
-import type { MediaAttachment, OutboundMessage, ToolOwner } from '../../core/types';
+import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
+import { errorMessage } from '@aesyclaw/core/utils';
+import type { MediaAttachment, OutboundMessage, ToolOwner } from '@aesyclaw/core/types';
 
 /** send_msg 的参数模式 */
 const SendMessageParamsSchema = Type.Object({

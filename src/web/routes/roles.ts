@@ -1,9 +1,9 @@
 /** 角色 API 路由。 */
 
 import { Hono } from 'hono';
-import type { WebUiManagerDependencies } from '../webui-manager';
-import type { RoleConfig } from '../../core/types';
-import { parseModelIdentifier } from '../../core/utils';
+import type { WebUiManagerDependencies } from '@aesyclaw/web/webui-manager';
+import type { RoleConfig } from '@aesyclaw/core/types';
+import { parseModelIdentifier } from '@aesyclaw/core/utils';
 
 /**
  * 创建角色 API 路由。

@@ -5,6 +5,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@aesyclaw/sdk': resolve(__dirname, 'src/sdk/index.ts'),
+      '@aesyclaw': resolve(__dirname, 'src'),
     },
   },
   test: {

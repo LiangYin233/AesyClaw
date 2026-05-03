@@ -3,7 +3,7 @@
 import { getCookie } from 'hono/cookie';
 import { timingSafeEqual } from 'node:crypto';
 import type { MiddlewareHandler } from 'hono';
-import type { ConfigManager } from '../../core/config/config-manager';
+import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 
 function safeTokenEqual(provided: string, expected: string): boolean {
   const providedBuf = Buffer.from(provided);

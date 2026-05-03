@@ -1,8 +1,8 @@
 /** 状态 API 路由。 */
 
 import { Hono } from 'hono';
-import type { WebUiManagerDependencies } from '../webui-manager';
-import { APP_NAME, APP_VERSION } from '../../core/types';
+import type { WebUiManagerDependencies } from '@aesyclaw/web/webui-manager';
+import { APP_NAME, APP_VERSION } from '@aesyclaw/core/types';
 
 /**
  * 创建状态 API 路由。

@@ -1,11 +1,11 @@
 /** 频道接口定义。 */
 
-import type { InboundMessage, OutboundMessage, SessionKey } from '../../core/types';
-import type { Logger } from '../../core/logger';
-import type { ConfigManager } from '../../core/config/config-manager';
-import type { Pipeline } from '../../pipeline/pipeline';
-import { isRecord } from '../../core/utils';
-import { validateExtension } from '../extension-utils';
+import type { InboundMessage, OutboundMessage, SessionKey } from '@aesyclaw/core/types';
+import type { Logger } from '@aesyclaw/core/logger';
+import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
+import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
+import { isRecord } from '@aesyclaw/core/utils';
+import { validateExtension } from '@aesyclaw/extension/extension-utils';
 
 export type ChannelContext = {
   name: string;
