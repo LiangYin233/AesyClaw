@@ -20,16 +20,109 @@ export type SenderInfo = {
   role?: string;
 };
 
+// ─── 传入消息组件 ─────────────────────────────────────────────────
+
+export type PlainComponent = {
+  type: 'Plain';
+  text: string;
+};
+
+export type ImageComponent = {
+  type: 'Image';
+  url?: string;
+  path?: string;
+  file?: string;
+};
+
+export type RecordComponent = {
+  type: 'Record';
+  url?: string;
+  path?: string;
+  file?: string;
+};
+
+export type VideoComponent = {
+  type: 'Video';
+  url?: string;
+  path?: string;
+  file?: string;
+};
+
+export type FileComponent = {
+  type: 'File';
+  url?: string;
+  path?: string;
+  file?: string;
+  fileId?: string;
+  name?: string;
+};
+
+export type FaceComponent = {
+  type: 'Face';
+  id?: string;
+};
+
+export type AtComponent = {
+  type: 'At';
+  qq?: string;
+};
+
+export type ReplyComponent = {
+  type: 'Reply';
+  id?: string;
+};
+
+export type ForwardComponent = {
+  type: 'Forward';
+  id?: string;
+};
+
+export type NodeComponent = {
+  type: 'Node';
+  data?: Record<string, unknown>;
+};
+
+export type NodesComponent = {
+  type: 'Nodes';
+  nodes?: NodeComponent[];
+};
+
+export type UnknownComponent = {
+  type: 'Unknown';
+  segmentType?: string;
+  data?: Record<string, unknown>;
+};
+
+export type MessageComponent =
+  | PlainComponent
+  | ImageComponent
+  | RecordComponent
+  | VideoComponent
+  | FileComponent
+  | FaceComponent
+  | AtComponent
+  | ReplyComponent
+  | ForwardComponent
+  | NodeComponent
+  | NodesComponent
+  | UnknownComponent;
+
 // ─── 入口 / 出口 / 管道 ────────────────────────────────────────────
 
 /** 从外部平台进入管道的传入消息 */
 export type InboundMessage = {
   sessionKey: SessionKey;
-  content: string;
-  attachments?: MediaAttachment[];
+  components: MessageComponent[];
   sender?: SenderInfo;
   rawEvent?: unknown;
 };
+
+export function getInboundMessageText(message: Pick<InboundMessage, 'components'>): string {
+  return message.components
+    .filter((component): component is PlainComponent => component.type === 'Plain')
+    .map((component) => component.text)
+    .join('');
+}
 
 /** 由管道生成并通过频道发送回去的回复 */
 export type OutboundMessage = {

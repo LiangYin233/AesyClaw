@@ -17,8 +17,23 @@ export type {
   OutboundMessage,
   SessionKey,
   MediaAttachment,
+  MessageComponent,
+  PlainComponent,
+  ImageComponent,
+  RecordComponent,
+  VideoComponent,
+  FileComponent,
+  FaceComponent,
+  AtComponent,
+  ReplyComponent,
+  ForwardComponent,
+  NodeComponent,
+  NodesComponent,
+  UnknownComponent,
   PipelineResult,
 } from '../core/types';
+
+export { getInboundMessageText } from '../core/types';
 
 export type { AesyClawTool, ToolExecutionResult } from '../tool/tool-registry';
 

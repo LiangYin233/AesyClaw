@@ -161,7 +161,7 @@ describe('Cron', () => {
     expect(runs.completed).toEqual([{ runId: 'run-1', result: 'cron response' }]);
     expect(pipeline.receiveWithSend).toHaveBeenCalledWith(
       expect.objectContaining({
-        content: 'check status',
+        components: [{ type: 'Plain', text: 'check status' }],
         sessionKey: { channel: 'cron', type: 'job', chatId: jobId },
       }),
       expect.any(Function),

@@ -105,7 +105,7 @@ describe('CronExecutor', () => {
       expect(cronRuns.create).toHaveBeenCalledWith({ jobId: job.id });
       expect(pipeline.receiveWithSend).toHaveBeenCalled();
       const [inbound] = pipeline.receiveWithSend.mock.calls[0] as [Record<string, unknown>];
-      expect(inbound.content).toBe('test prompt');
+      expect(inbound.components).toEqual([{ type: 'Plain', text: 'test prompt' }]);
       expect(inbound.sessionKey).toEqual(createCronContextSessionKey('job-1'));
       expect(inbound.rawEvent).toEqual({ cronJobId: 'job-1', cronRunId: 'run-1' });
       expect(send).toHaveBeenCalledWith(

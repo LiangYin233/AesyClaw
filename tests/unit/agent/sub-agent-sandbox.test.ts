@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createPersistedAssistantMessage, createUserMessage } from '../../../src/agent/agent-types';
 import { SubAgentSandbox } from '../../../src/agent/sub-agent-sandbox';
+import { getInboundMessageText } from '../../../src/core/types';
 
 const ROLE = {
   id: 'researcher',
@@ -24,7 +25,7 @@ describe('SubAgentSandbox', () => {
       process: vi.fn().mockImplementation(async (_agent, message, memory) => {
         const historyBefore = await memory.loadHistory();
         await memory.syncFromAgent([
-          createUserMessage(message.content),
+          createUserMessage(getInboundMessageText(message)),
           createPersistedAssistantMessage('delegated answer'),
         ]);
 
@@ -81,7 +82,7 @@ describe('SubAgentSandbox', () => {
     );
     expect(agentEngine.process).toHaveBeenCalledWith(
       expect.any(Object),
-      expect.objectContaining({ content: 'bounded' }),
+      expect.objectContaining({ components: [{ type: 'Plain', text: 'bounded' }] }),
       expect.any(Object),
       expect.objectContaining({ toolPermission: { mode: 'allowlist', list: [] } }),
       undefined,

@@ -10,6 +10,7 @@
 import type { PipelineState } from './types';
 import type { CommandRegistry } from '../../command/command-registry';
 import type { CommandContext } from '../../core/types';
+import { getInboundMessageText } from '../../core/types';
 import { AGENT_PROCESSING_BUSY_MESSAGE, type SessionManager } from '../../agent/session-manager';
 
 /**
@@ -31,7 +32,7 @@ export async function commandDetector(
     return state;
   }
 
-  const resolved = commandRegistry.resolve(state.inbound.content);
+  const resolved = commandRegistry.resolve(getInboundMessageText(state.inbound));
   const isBusy = sessionManager.isAgentProcessing(state.inbound.sessionKey);
 
   if (isBusy && !resolved?.command.allowDuringAgentProcessing) {

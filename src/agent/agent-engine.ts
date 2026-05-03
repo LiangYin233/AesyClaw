@@ -1,6 +1,7 @@
 import { Agent as PiAgent } from '@mariozechner/pi-agent-core';
 import { randomUUID } from 'node:crypto';
 import type { RoleConfig, InboundMessage, OutboundMessage, SessionKey } from '../core/types';
+import { getInboundMessageText } from '../core/types';
 import type { Agent, AgentMessage } from './agent-types';
 import { extractMessageText } from './agent-types';
 import type { ToolExecutionContext } from '../tool/tool-registry';
@@ -84,11 +85,12 @@ export class AgentEngine {
     sendMessage?: ToolExecutionContext['sendMessage'],
   ): Promise<OutboundMessage> {
     const deps = this.requireDeps();
+    const content = getInboundMessageText(message);
 
     logger.debug('正在处理消息', {
       sessionKey: message.sessionKey,
       role: role.id,
-      contentLength: message.content.length,
+      contentLength: content.length,
     });
 
     const history = await this.loadHistoryForTurn(memory, role);
@@ -104,7 +106,7 @@ export class AgentEngine {
     agent.state.tools = tools;
     agent.state.model = deps.llmAdapter.resolveModel(role.model);
 
-    const { newMessages, lastAssistant } = await this.promptAgent(agent, history, message.content);
+    const { newMessages, lastAssistant } = await this.promptAgent(agent, history, content);
     await memory.syncFromAgent(newMessages);
 
     if (lastAssistant) {

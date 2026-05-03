@@ -18,7 +18,7 @@ import type { AgentEngine } from '../../../src/agent/agent-engine';
 function makeInbound(content = 'hello'): InboundMessage {
   return {
     sessionKey: { channel: 'test', type: 'private', chatId: 'user1' },
-    content,
+    components: [{ type: 'Plain', text: content }],
   };
 }
 
@@ -26,7 +26,7 @@ function makeInboundForKey(
   sessionKey: InboundMessage['sessionKey'],
   content = 'hello',
 ): InboundMessage {
-  return { sessionKey, content };
+  return { sessionKey, components: [{ type: 'Plain', text: content }] };
 }
 
 /** Create pipeline deps with real CommandRegistry */

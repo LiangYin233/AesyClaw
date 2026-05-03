@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChannelContext, ChannelPlugin } from '../../../src/extension/channel/channel-types';
-import type { OutboundMessage, SessionKey } from '../../../src/core/types';
+import type { InboundMessage, OutboundMessage, SessionKey } from '../../../src/core/types';
+import { getInboundMessageText } from '../../../src/core/types';
 import {
   createOneBotChannel,
   extractOneBotText,
@@ -49,8 +50,10 @@ describe('plugin_onebot', () => {
     expect(privateInbound).toEqual(
       expect.objectContaining({
         sessionKey: { channel: 'onebot', type: 'private', chatId: '12345' },
-        content: 'hello',
-        attachments: [{ type: 'image', url: 'https://example.com/image.png' }],
+        components: [
+          { type: 'Plain', text: 'hello' },
+          { type: 'Image', url: 'https://example.com/image.png' },
+        ],
         sender: { id: '12345', name: 'alice' },
       }),
     );
@@ -73,10 +76,69 @@ describe('plugin_onebot', () => {
     expect(groupInbound).toEqual(
       expect.objectContaining({
         sessionKey: { channel: 'onebot', type: 'group', chatId: '67890' },
-        content: 'hi group',
+        components: [
+          { type: 'At', qq: '11111' },
+          { type: 'Plain', text: 'hi group' },
+        ],
         sender: { id: '23456', name: 'member-card', role: 'admin' },
       }),
     );
+  });
+
+  it('maps supported OneBot inbound segments to components and excluded segments to Unknown', () => {
+    const inbound = mapOneBotEventToInbound(
+      {
+        post_type: 'message',
+        message_type: 'private',
+        user_id: 12345,
+        message: [
+          { type: 'text', data: { text: 'hello' } },
+          { type: 'image', data: { file: 'img-token', url: 'https://example.com/image.png' } },
+          { type: 'record', data: { file: 'record-token' } },
+          { type: 'video', data: { file: 'video-token' } },
+          { type: 'file', data: { file_id: 'file-id', file: 'file-token', name: 'report.pdf' } },
+          { type: 'face', data: { id: 66 } },
+          { type: 'at', data: { qq: 11111 } },
+          { type: 'reply', data: { id: 22222 } },
+          { type: 'forward', data: { id: 'forward-id' } },
+          { type: 'node', data: { name: 'alice', content: 'nested' } },
+          { type: 'nodes', data: { nodes: [{ name: 'bob', content: 'nested list' }] } },
+          { type: 'poke', data: { qq: 11111 } },
+          { type: 'json', data: { data: '{"a":1}' } },
+          { type: 'rps', data: {} },
+          { type: 'dice', data: {} },
+          { type: 'shake', data: {} },
+          { type: 'share', data: { url: 'https://example.com' } },
+          { type: 'contact', data: { type: 'qq', id: '11111' } },
+          { type: 'location', data: { lat: '1', lon: '2' } },
+          { type: 'music', data: { type: 'qq', id: '123' } },
+        ],
+      },
+      'onebot',
+    );
+
+    expect(inbound?.components).toEqual([
+      { type: 'Plain', text: 'hello' },
+      { type: 'Image', file: 'img-token', url: 'https://example.com/image.png' },
+      { type: 'Record', file: 'record-token' },
+      { type: 'Video', file: 'video-token' },
+      { type: 'File', file: 'file-token', fileId: 'file-id', name: 'report.pdf' },
+      { type: 'Face', id: '66' },
+      { type: 'At', qq: '11111' },
+      { type: 'Reply', id: '22222' },
+      { type: 'Forward', id: 'forward-id' },
+      { type: 'Node', data: { name: 'alice', content: 'nested' } },
+      { type: 'Nodes', nodes: [{ type: 'Node', data: { name: 'bob', content: 'nested list' } }] },
+      { type: 'Unknown', segmentType: 'poke', data: { qq: 11111 } },
+      { type: 'Unknown', segmentType: 'json', data: { data: '{"a":1}' } },
+      { type: 'Unknown', segmentType: 'rps', data: {} },
+      { type: 'Unknown', segmentType: 'dice', data: {} },
+      { type: 'Unknown', segmentType: 'shake', data: {} },
+      { type: 'Unknown', segmentType: 'share', data: { url: 'https://example.com' } },
+      { type: 'Unknown', segmentType: 'contact', data: { type: 'qq', id: '11111' } },
+      { type: 'Unknown', segmentType: 'location', data: { lat: '1', lon: '2' } },
+      { type: 'Unknown', segmentType: 'music', data: { type: 'qq', id: '123' } },
+    ]);
   });
 
   it('ignores non-message events and unsupported message types', () => {
@@ -317,7 +379,7 @@ describe('plugin_onebot', () => {
       expect(message).toEqual(
         expect.objectContaining({
           sessionKey: { channel: 'onebot', type: 'private', chatId: '12345' },
-          content: 'ping',
+          components: [{ type: 'Plain', text: 'ping' }],
           sender: { id: '12345', name: 'alice' },
         }),
       );
@@ -442,24 +504,22 @@ describe('plugin_onebot', () => {
     await waitForCondition(() => receive.mock.calls.length === 1);
 
     expect(receive).toHaveBeenCalledOnce();
-    const inbound = receive.mock.calls[0]?.[0] as {
-      content: string;
-      attachments?: Array<{ path?: string; url?: string }>;
-    };
-    const localPath = inbound.attachments?.[0]?.path;
+    const inbound = receive.mock.calls[0]?.[0] as Pick<InboundMessage, 'components'>;
+    const inboundText = getInboundMessageText(inbound);
+    const localPath = inbound.components.find((component) => component.type === 'Image')?.path;
 
     expect(localPath).toBeTruthy();
     expect(localPath).toContain(path.join('.aesyclaw', 'media', 'onebot', 'inbound'));
-    expect(inbound.attachments).toEqual([
+    expect(inbound.components).toContainEqual(
       expect.objectContaining({
-        type: 'image',
+        type: 'Image',
         path: localPath,
         url: 'https://example.com/remote.png',
       }),
-    ]);
-    expect(inbound.content).toContain('see file');
-    expect(inbound.content).toContain('[Attachments]');
-    expect(inbound.content).toContain(String(localPath));
+    );
+    expect(inboundText).toContain('see file');
+    expect(inboundText).toContain('[Attachments]');
+    expect(inboundText).toContain(String(localPath));
     await expect(readFile(String(localPath), 'utf-8')).resolves.toBe('image-bytes');
   });
 
@@ -539,19 +599,17 @@ describe('plugin_onebot', () => {
 
     await waitForCondition(() => receive.mock.calls.length === 1);
 
-    const inbound = receive.mock.calls[0]?.[0] as {
-      content: string;
-      attachments?: Array<{ path?: string; url?: string }>;
-    };
-    expect(inbound.attachments).toEqual([
+    const inbound = receive.mock.calls[0]?.[0] as Pick<InboundMessage, 'components'>;
+    const inboundText = getInboundMessageText(inbound);
+    expect(inbound.components).toContainEqual(
       expect.objectContaining({
-        type: 'image',
+        type: 'Image',
         url: 'https://example.com/remote.png',
       }),
-    ]);
-    expect(inbound.attachments?.[0]?.path).toBeUndefined();
-    expect(inbound.content).toContain('[Attachment download errors]');
-    expect(inbound.content).toContain('did not return a completion response');
+    );
+    expect(inbound.components.find((component) => component.type === 'Image')?.path).toBeUndefined();
+    expect(inboundText).toContain('[Attachment download errors]');
+    expect(inboundText).toContain('did not return a completion response');
   });
 
   it('does not expose file_path-only inbound files as local attachment paths', async () => {
@@ -573,17 +631,16 @@ describe('plugin_onebot', () => {
 
     await waitForCondition(() => receive.mock.calls.length === 1);
 
-    const inbound = receive.mock.calls[0]?.[0] as {
-      content: string;
-      attachments?: Array<{ path?: string }>;
-    };
-    expect(inbound.attachments).toBeUndefined();
-    expect(inbound.content).toContain('see file');
-    expect(inbound.content).toContain('[Attachment download errors]');
-    expect(inbound.content).toContain(
+    const inbound = receive.mock.calls[0]?.[0] as Pick<InboundMessage, 'components'>;
+    const inboundText = getInboundMessageText(inbound);
+    expect(inbound.components).toContainEqual(expect.objectContaining({ type: 'File' }));
+    expect(inbound.components.find((component) => component.type === 'File')?.path).toBeUndefined();
+    expect(inboundText).toContain('see file');
+    expect(inboundText).toContain('[Attachment download errors]');
+    expect(inboundText).toContain(
       'No OneBot download identifier available for file attachment',
     );
-    expect(inbound.content).not.toContain('C:/NapCatTemp/report.pdf');
+    expect(inboundText).not.toContain('C:/NapCatTemp/report.pdf');
     expect(socket.sent).toHaveLength(0);
   });
 
@@ -612,14 +669,12 @@ describe('plugin_onebot', () => {
 
     await waitForCondition(() => receive.mock.calls.length === 1);
 
-    const inbound = receive.mock.calls[0]?.[0] as {
-      content: string;
-      attachments?: Array<{ type?: string; path?: string; url?: string }>;
-    };
-    expect(inbound.attachments).toEqual([{ type: 'file', url: 'https://example.com/report.pdf' }]);
-    expect(inbound.attachments?.[0]?.path).toBeUndefined();
-    expect(inbound.content).toContain('[Attachment download errors]');
-    expect(inbound.content).not.toContain('C:/NapCatTemp/report.pdf');
+    const inbound = receive.mock.calls[0]?.[0] as Pick<InboundMessage, 'components'>;
+    const inboundText = getInboundMessageText(inbound);
+    expect(inbound.components).toContainEqual({ type: 'File', url: 'https://example.com/report.pdf' });
+    expect(inbound.components.find((component) => component.type === 'File')?.path).toBeUndefined();
+    expect(inboundText).toContain('[Attachment download errors]');
+    expect(inboundText).not.toContain('C:/NapCatTemp/report.pdf');
     expect(socket.sent).toHaveLength(0);
   });
 
@@ -709,13 +764,12 @@ describe('plugin_onebot', () => {
     await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
     await waitForCondition(() => receive.mock.calls.length === 1);
 
-    const inbound = receive.mock.calls[0]?.[0] as {
-      content: string;
-      attachments?: Array<{ path?: string }>;
-    };
-    expect(inbound.attachments).toBeUndefined();
-    expect(inbound.content).toContain('[Attachment download errors]');
-    expect(inbound.content).toContain('timed out after 300000ms');
+    const inbound = receive.mock.calls[0]?.[0] as Pick<InboundMessage, 'components'>;
+    const inboundText = getInboundMessageText(inbound);
+    expect(inbound.components).toContainEqual(expect.objectContaining({ type: 'Image' }));
+    expect(inbound.components.find((component) => component.type === 'Image')?.path).toBeUndefined();
+    expect(inboundText).toContain('[Attachment download errors]');
+    expect(inboundText).toContain('timed out after 300000ms');
 
     socket.dispatchMessage(
       JSON.stringify({

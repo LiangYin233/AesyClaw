@@ -43,7 +43,7 @@ export class CronExecutor {
       const outboundMessages: OutboundMessage[] = [];
       const inbound: InboundMessage = {
         sessionKey: contextSessionKey,
-        content: job.prompt,
+        components: [{ type: 'Plain', text: job.prompt }],
         rawEvent: { cronJobId: job.id, cronRunId: runId },
       };
 

@@ -20,7 +20,7 @@ import type {
 function makeInbound(content = 'hello'): InboundMessage {
   return {
     sessionKey: { channel: 'test', type: 'private', chatId: 'user1' },
-    content,
+    components: [{ type: 'Plain', text: content }],
   };
 }
 

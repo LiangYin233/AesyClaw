@@ -17,7 +17,7 @@ import type { SessionManager } from '../../../../src/agent/session-manager';
 function makeInbound(content: string): InboundMessage {
   return {
     sessionKey: { channel: 'test', type: 'private', chatId: 'user1' },
-    content,
+    components: [{ type: 'Plain', text: content }],
   };
 }
 

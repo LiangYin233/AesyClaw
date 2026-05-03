@@ -26,7 +26,7 @@ function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
 function makeInboundMessage(overrides: Partial<InboundMessage> = {}): InboundMessage {
   return {
     sessionKey: { channel: 'test', type: 'private', chatId: 'user-1' },
-    content: 'Hello, assistant!',
+    components: [{ type: 'Plain', text: 'Hello, assistant!' }],
     ...overrides,
   };
 }

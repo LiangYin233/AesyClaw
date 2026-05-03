@@ -102,7 +102,7 @@ export class SubAgentSandbox {
       agent,
       {
         sessionKey,
-        content: prompt,
+        components: [{ type: 'Plain', text: prompt }],
       },
       memory,
       role,

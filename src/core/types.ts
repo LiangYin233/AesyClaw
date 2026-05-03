@@ -25,6 +25,19 @@ export type { ChannelId, ChatType, ChatId, SessionKey, ToolOwner } from './ident
 
 export type {
   MediaAttachment,
+  MessageComponent,
+  PlainComponent,
+  ImageComponent,
+  RecordComponent,
+  VideoComponent,
+  FileComponent,
+  FaceComponent,
+  AtComponent,
+  ReplyComponent,
+  ForwardComponent,
+  NodeComponent,
+  NodesComponent,
+  UnknownComponent,
   SenderInfo,
   InboundMessage,
   OutboundMessage,
@@ -32,6 +45,8 @@ export type {
   PipelineResult,
   PersistableMessage,
 } from './message-types';
+
+export { getInboundMessageText } from './message-types';
 
 export type {
   SessionRecord,

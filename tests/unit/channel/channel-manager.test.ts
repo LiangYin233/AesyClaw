@@ -54,7 +54,7 @@ describe('ChannelManager', () => {
     await manager.startAll();
     await manager.receive('test', {
       sessionKey: { channel: 'test', type: 'private', chatId: '1' },
-      content: 'hi',
+      components: [{ type: 'Plain', text: 'hi' }],
     });
 
     expect(channel.init).toHaveBeenCalledOnce();
@@ -83,7 +83,7 @@ describe('ChannelManager', () => {
     await manager.start('test');
     await receiveFromContext?.({
       sessionKey: { channel: 'test', type: 'private', chatId: '1' },
-      content: 'hi',
+      components: [{ type: 'Plain', text: 'hi' }],
     });
 
     expect(pipeline.receiveWithSend).toHaveBeenCalledOnce();
@@ -102,7 +102,7 @@ describe('ChannelManager', () => {
     await expect(
       manager.receive('missing', {
         sessionKey: { channel: 'missing', type: 'private', chatId: '1' },
-        content: 'hi',
+        components: [{ type: 'Plain', text: 'hi' }],
       }),
     ).rejects.toThrow('频道 "missing" 未加载');
   });

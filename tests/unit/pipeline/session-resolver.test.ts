@@ -8,7 +8,7 @@ function makeState(rawEvent?: unknown): PipelineState {
     stage: 'continue',
     inbound: {
       sessionKey: { channel: 'cron', type: 'job', chatId: 'job-1' },
-      content: 'run cron',
+      components: [{ type: 'Plain', text: 'run cron' }],
       rawEvent,
     },
     sendMessage: vi.fn(),
@@ -20,7 +20,7 @@ function makeNonCronState(rawEvent?: unknown): PipelineState {
     stage: 'continue',
     inbound: {
       sessionKey: { channel: 'test', type: 'private', chatId: 'user-1' },
-      content: 'chat message',
+      components: [{ type: 'Plain', text: 'chat message' }],
       rawEvent,
     },
     sendMessage: vi.fn(),

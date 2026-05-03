@@ -3,7 +3,14 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { ChannelContext, ChannelPlugin } from '@aesyclaw/sdk';
 import { resolvePaths } from '@aesyclaw/sdk';
-import type { InboundMessage, MediaAttachment, OutboundMessage, SessionKey } from '@aesyclaw/sdk';
+import { getInboundMessageText } from '@aesyclaw/sdk';
+import type {
+  InboundMessage,
+  MediaAttachment,
+  MessageComponent,
+  OutboundMessage,
+  SessionKey,
+} from '@aesyclaw/sdk';
 import type { PluginDefinition } from '@aesyclaw/sdk';
 import {
   createOneBotWebSocketClient,
@@ -112,6 +119,7 @@ type DownloadedStreamFile = {
 
 type OneBotInboundAttachmentSegment = {
   attachmentType: MediaAttachment['type'];
+  componentType: Extract<MessageComponent['type'], 'Image' | 'Record' | 'Video' | 'File'>;
   segmentType: string;
   data: Record<string, unknown>;
 };
@@ -236,8 +244,7 @@ export function mapOneBotEventToInbound(
       type: messageType,
       chatId,
     },
-    content: extractOneBotText(event['message'], event['raw_message']),
-    attachments: extractOneBotAttachments(event['message']),
+    components: extractOneBotComponents(event['message']),
     sender: buildSenderInfo(senderId, event['sender']),
     rawEvent: event,
   };
@@ -274,25 +281,28 @@ async function enrichInboundMessageWithDownloads(
     return inbound;
   }
 
-  const downloadedAttachments: MediaAttachment[] = [];
+  const components = inbound.components.map((component) => ({ ...component }));
   const attachmentLines: string[] = [];
   const downloadFailures: string[] = [];
 
   for (const segment of segments) {
-    const fallbackAttachment = mapOneBotAttachmentSegment(segment);
+    const componentIndex = findDownloadComponentIndex(components, segment);
+    const fallbackComponent = mapOneBotAttachmentComponent(segment);
     try {
       const downloaded = await downloadInboundAttachment(segment, sendStreamAction);
-      downloadedAttachments.push(downloaded);
+      if (componentIndex >= 0) {
+        components[componentIndex] = mergeDownloadedComponent(components[componentIndex], downloaded);
+      }
       attachmentLines.push(`- ${downloaded.type}: ${downloaded.path}`);
     } catch (err) {
-      if (fallbackAttachment) {
-        downloadedAttachments.push(fallbackAttachment);
+      if (componentIndex >= 0 && fallbackComponent) {
+        components[componentIndex] = { ...fallbackComponent, ...components[componentIndex] };
       }
       downloadFailures.push(`- ${segment.attachmentType}: ${errorMessage(err)}`);
     }
   }
 
-  if (downloadedAttachments.length === 0 && downloadFailures.length === 0) {
+  if (attachmentLines.length === 0 && downloadFailures.length === 0) {
     return inbound;
   }
 
@@ -306,14 +316,11 @@ async function enrichInboundMessageWithDownloads(
     sections.push(...downloadFailures);
   }
 
-  const content =
-    inbound.content.length > 0
-      ? `${inbound.content}\n\n${sections.join('\n')}`
-      : sections.join('\n');
+  const content = getInboundMessageText(inbound);
+  const annotationText = content.length > 0 ? `\n\n${sections.join('\n')}` : sections.join('\n');
   return {
     ...inbound,
-    content,
-    attachments: downloadedAttachments.length > 0 ? downloadedAttachments : inbound.attachments,
+    components: [...components, { type: 'Plain', text: annotationText }],
   };
 }
 
@@ -341,6 +348,79 @@ async function downloadInboundAttachment(
     path: localPath,
     ...(url ? { url } : {}),
   };
+}
+
+function findDownloadComponentIndex(
+  components: MessageComponent[],
+  segment: OneBotInboundAttachmentSegment,
+): number {
+  return components.findIndex(
+    (component) =>
+      component.type === segment.componentType &&
+      isMediaComponent(component) &&
+      component.file === (typeof segment['data']['file'] === 'string' ? segment['data']['file'] : undefined) &&
+      component.url === (typeof segment['data']['url'] === 'string' ? segment['data']['url'] : undefined),
+  );
+}
+
+function mergeDownloadedComponent(
+  component: MessageComponent | undefined,
+  downloaded: MediaAttachment,
+): MessageComponent {
+  const downloadedFields = {
+    ...(downloaded.url ? { url: downloaded.url } : {}),
+    ...(downloaded.path ? { path: downloaded.path } : {}),
+  };
+
+  switch (downloaded.type) {
+    case 'image':
+      {
+        const fallback: Extract<MessageComponent, { type: 'Image' }> = { type: 'Image' };
+        return {
+          ...(component?.type === 'Image' ? component : fallback),
+          ...downloadedFields,
+        };
+      }
+    case 'audio':
+      {
+        const fallback: Extract<MessageComponent, { type: 'Record' }> = { type: 'Record' };
+        return {
+          ...(component?.type === 'Record' ? component : fallback),
+          ...downloadedFields,
+        };
+      }
+    case 'video':
+      {
+        const fallback: Extract<MessageComponent, { type: 'Video' }> = { type: 'Video' };
+        return {
+          ...(component?.type === 'Video' ? component : fallback),
+          ...downloadedFields,
+        };
+      }
+    case 'file':
+      {
+        const fallback: Extract<MessageComponent, { type: 'File' }> = { type: 'File' };
+        return {
+          ...(component?.type === 'File' ? component : fallback),
+          ...downloadedFields,
+        };
+      }
+  }
+}
+
+function componentTypeFromAttachment(
+  attachmentType: MediaAttachment['type'],
+): OneBotInboundAttachmentSegment['componentType'] {
+  switch (attachmentType) {
+    case 'image':
+      return 'Image';
+    case 'audio':
+      return 'Record';
+    case 'video':
+      return 'Video';
+    case 'file':
+      return 'File';
+  }
 }
 
 function buildDownloadRequest(
@@ -718,12 +798,16 @@ function inferAttachmentFileName(
   return `${attachment.type}-${Date.now()}${extension}`;
 }
 
-function extractOneBotAttachments(message: unknown): MediaAttachment[] | undefined {
-  const attachments = extractOneBotInboundAttachmentSegments(message)
-    .map((segment) => mapOneBotAttachmentSegment(segment))
-    .filter((attachment): attachment is MediaAttachment => attachment !== null);
+function extractOneBotComponents(message: unknown): MessageComponent[] {
+  if (typeof message === 'string') {
+    return [{ type: 'Plain', text: message }];
+  }
 
-  return attachments.length > 0 ? attachments : undefined;
+  if (!Array.isArray(message)) {
+    return [];
+  }
+
+  return message.map((segment) => mapOneBotSegmentToComponent(segment));
 }
 
 function extractOneBotInboundAttachmentSegments(
@@ -748,6 +832,7 @@ function extractOneBotInboundAttachmentSegments(
 
       return {
         attachmentType,
+        componentType: componentTypeFromAttachment(attachmentType),
         segmentType: segment.type,
         data: segment.data,
       };
@@ -755,7 +840,7 @@ function extractOneBotInboundAttachmentSegments(
     .filter((segment): segment is OneBotInboundAttachmentSegment => segment !== null);
 }
 
-function mapOneBotAttachmentSegment(segment: unknown): MediaAttachment | null {
+function mapOneBotAttachmentComponent(segment: unknown): MessageComponent | null {
   if (!isRecord(segment) || !isRecord(segment['data'])) {
     return null;
   }
@@ -775,19 +860,96 @@ function mapOneBotAttachmentSegment(segment: unknown): MediaAttachment | null {
     return null;
   }
 
-  const url = typeof segment['data']['url'] === 'string' ? segment['data']['url'] : undefined;
-  const pathValue =
-    typeof segment['data']['path'] === 'string' ? segment['data']['path'] : undefined;
+  return mapMediaSegmentToComponent(componentTypeFromAttachment(attachmentType), segment['data']);
+}
 
-  if (!url && !pathValue) {
-    return null;
+function mapOneBotSegmentToComponent(segment: unknown): MessageComponent {
+  if (!isRecord(segment) || typeof segment['type'] !== 'string') {
+    return { type: 'Unknown' };
   }
 
-  return {
-    type: attachmentType,
+  const data = isRecord(segment['data']) ? segment['data'] : {};
+  switch (segment['type']) {
+    case 'text':
+      return { type: 'Plain', text: typeof data['text'] === 'string' ? data['text'] : '' };
+    case 'image':
+      return mapMediaSegmentToComponent('Image', data);
+    case 'record':
+      return mapMediaSegmentToComponent('Record', data);
+    case 'video':
+      return mapMediaSegmentToComponent('Video', data);
+    case 'file':
+      return mapFileSegmentToComponent(data);
+    case 'face':
+      return { type: 'Face', ...optionalStringField('id', stringifyId(data['id'])) };
+    case 'at':
+      return { type: 'At', ...optionalStringField('qq', stringifyId(data['qq'])) };
+    case 'reply':
+      return { type: 'Reply', ...optionalStringField('id', stringifyId(data['id'])) };
+    case 'forward':
+      return { type: 'Forward', ...optionalStringField('id', stringifyId(data['id'])) };
+    case 'node':
+      return { type: 'Node', data };
+    case 'nodes':
+      return { type: 'Nodes', nodes: Array.isArray(data['nodes']) ? data['nodes'].map(mapNodeData) : [] };
+    default:
+      return { type: 'Unknown', segmentType: segment['type'], data };
+  }
+}
+
+function mapMediaSegmentToComponent(
+  type: Extract<MessageComponent['type'], 'Image' | 'Record' | 'Video' | 'File'>,
+  data: Record<string, unknown>,
+): MessageComponent {
+  const url = typeof data['url'] === 'string' ? data['url'] : undefined;
+  const pathValue = typeof data['path'] === 'string' ? data['path'] : undefined;
+  const file = typeof data['file'] === 'string' ? data['file'] : undefined;
+  const fields = {
     ...(url ? { url } : {}),
     ...(pathValue ? { path: pathValue } : {}),
+    ...(file ? { file } : {}),
   };
+
+  switch (type) {
+    case 'Image':
+      return { type: 'Image', ...fields };
+    case 'Record':
+      return { type: 'Record', ...fields };
+    case 'Video':
+      return { type: 'Video', ...fields };
+    case 'File':
+      return { type: 'File', ...fields };
+  }
+}
+
+function mapFileSegmentToComponent(data: Record<string, unknown>): MessageComponent {
+  const url = typeof data['url'] === 'string' ? data['url'] : undefined;
+  const pathValue = typeof data['path'] === 'string' ? data['path'] : undefined;
+  const file = typeof data['file'] === 'string' ? data['file'] : undefined;
+  const fileId = typeof data['file_id'] === 'string' ? data['file_id'] : undefined;
+  const name = typeof data['name'] === 'string' ? data['name'] : undefined;
+  return {
+    type: 'File',
+    ...(url ? { url } : {}),
+    ...(pathValue ? { path: pathValue } : {}),
+    ...(file ? { file } : {}),
+    ...(fileId ? { fileId } : {}),
+    ...(name ? { name } : {}),
+  };
+}
+
+function mapNodeData(node: unknown): Extract<MessageComponent, { type: 'Node' }> {
+  return { type: 'Node', ...(isRecord(node) ? { data: node } : {}) };
+}
+
+function isMediaComponent(
+  component: MessageComponent,
+): component is Extract<MessageComponent, { type: 'Image' | 'Record' | 'Video' | 'File' }> {
+  return ['Image', 'Record', 'Video', 'File'].includes(component.type);
+}
+
+function optionalStringField(key: string, value: string | null): Record<string, string> {
+  return value ? { [key]: value } : {};
 }
 
 function mapAttachmentTypeFromSegment(type: string): MediaAttachment['type'] | null {
