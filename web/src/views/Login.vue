@@ -8,12 +8,12 @@
 
         <form @submit.prevent="handleSubmit" class="text-left">
           <div class="mb-5">
-            <label class="block mb-2 font-body text-sm font-medium text-dark" for="token"
+            <label class="block mb-2 font-body text-sm font-medium text-dark" :for="tokenId"
               >Auth Token</label
             >
             <div class="relative flex items-center">
               <input
-                id="token"
+                :id="tokenId"
                 v-model="tokenInput"
                 :type="showToken ? 'text' : 'password'"
                 class="w-full py-[0.7rem] pr-10 pl-[0.9rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
@@ -114,12 +114,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, useId } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '@/composables/useAuth';
 
 const router = useRouter();
 const { login, api } = useAuth();
+const tokenId = useId();
 
 const tokenInput = ref('');
 const showToken = ref(false);

@@ -5,9 +5,9 @@
 
     <div class="flex gap-4 mb-6 flex-wrap">
       <div class="flex flex-col gap-[0.35rem]">
-        <label class="font-heading text-xs font-medium text-mid-gray" for="from-date">From</label>
+        <label class="font-heading text-xs font-medium text-mid-gray" :for="fromDateId">From</label>
         <input
-          id="from-date"
+          :id="fromDateId"
           v-model="fromDate"
           type="date"
           class="px-[0.7rem] py-[0.45rem] border border-[var(--color-border)] rounded-sm font-body text-sm bg-white text-dark min-w-[160px] outline-none focus:border-primary"
@@ -15,9 +15,9 @@
         />
       </div>
       <div class="flex flex-col gap-[0.35rem]">
-        <label class="font-heading text-xs font-medium text-mid-gray" for="to-date">To</label>
+        <label class="font-heading text-xs font-medium text-mid-gray" :for="toDateId">To</label>
         <input
-          id="to-date"
+          :id="toDateId"
           v-model="toDate"
           type="date"
           class="px-[0.7rem] py-[0.45rem] border border-[var(--color-border)] rounded-sm font-body text-sm bg-white text-dark min-w-[160px] outline-none focus:border-primary"
@@ -25,11 +25,11 @@
         />
       </div>
       <div class="flex flex-col gap-[0.35rem]">
-        <label class="font-heading text-xs font-medium text-mid-gray" for="model-filter"
+        <label class="font-heading text-xs font-medium text-mid-gray" :for="modelFilterId"
           >Model</label
         >
         <select
-          id="model-filter"
+          :id="modelFilterId"
           v-model="modelFilter"
           class="px-[0.7rem] py-[0.45rem] border border-[var(--color-border)] rounded-sm font-body text-sm bg-white text-dark min-w-[160px] outline-none focus:border-primary"
           @change="load"
@@ -71,7 +71,7 @@
     <div class="mb-8" v-if="chartData.length > 0">
       <h2 class="font-heading text-base font-semibold text-dark mb-4">Token Trend</h2>
       <div class="bg-white border border-[var(--color-border)] rounded-sm p-6 h-[320px] relative">
-        <canvas ref="chartCanvas"></canvas>
+        <canvas ref="chart-canvas"></canvas>
       </div>
     </div>
 
@@ -165,7 +165,7 @@
       <div
         class="bg-white border border-[var(--color-border)] rounded-sm p-6 h-[340px] relative mb-6"
       >
-        <canvas ref="toolChartCanvas"></canvas>
+        <canvas ref="tool-chart-canvas"></canvas>
       </div>
       <div class="overflow-x-auto rounded border border-[var(--color-border)]">
         <table class="w-full border-collapse separate font-body text-sm">
@@ -220,7 +220,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick, useId, useTemplateRef } from 'vue';
 import {
   Chart,
   LineController,
@@ -252,6 +252,9 @@ import { useAuth } from '@/composables/useAuth';
 import type { UsageSummary, ToolUsageSummary } from '@/types/api';
 
 const { api } = useAuth();
+const fromDateId = useId();
+const toDateId = useId();
+const modelFilterId = useId();
 
 const data = ref<UsageSummary[]>([]);
 const toolData = ref<ToolUsageSummary[]>([]);
@@ -259,8 +262,8 @@ const fromDate = ref('');
 const toDate = ref('');
 const modelFilter = ref('');
 const modelOptions = ref<string[]>([]);
-const chartCanvas = ref<HTMLCanvasElement | null>(null);
-const toolChartCanvas = ref<HTMLCanvasElement | null>(null);
+const chartCanvas = useTemplateRef<HTMLCanvasElement>('chart-canvas');
+const toolChartCanvas = useTemplateRef<HTMLCanvasElement>('tool-chart-canvas');
 
 let chart: Chart | null = null;
 let toolChart: Chart | null = null;
@@ -526,7 +529,6 @@ watch(
       renderChart();
     });
   },
-  { deep: true },
 );
 
 watch(
@@ -536,7 +538,6 @@ watch(
       renderToolChart();
     });
   },
-  { deep: true },
 );
 
 function localDateStr(date: Date): string {

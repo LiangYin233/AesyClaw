@@ -154,7 +154,7 @@
         <template v-else>
           <div
             v-for="(plugin, index) in pluginEntries"
-            :key="index"
+            :key="`${plugin.name}-${index}`"
             class="p-4 border border-[var(--color-border)] rounded bg-surface shadow-sm"
           >
             <div class="flex items-center justify-between gap-4 mb-0">
@@ -285,6 +285,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useAuth } from '@/composables/useAuth';
+import { useToast } from '@/composables/useToast';
 import { TrashIcon } from '@heroicons/vue/24/outline';
 
 interface PluginEntry extends Record<string, unknown> {
@@ -305,13 +306,13 @@ const props = defineProps<{
 }>();
 
 const { api } = useAuth();
+const { toast, showToast } = useToast();
 
 const fullConfig = ref<Record<string, unknown>>({});
 const sectionValue = ref<unknown>(props.sectionKey === 'plugins' ? [] : {});
 const loading = ref(true);
 const saving = ref(false);
 const error = ref('');
-const toast = ref<{ type: string; message: string } | null>(null);
 const sectionKey = computed(() => props.sectionKey);
 const entryNoun = computed(() => (props.sectionKey === 'plugins' ? 'plugin' : 'channel'));
 
@@ -330,13 +331,6 @@ const pluginEntries = computed<PluginEntry[]>(() => {
   if (!Array.isArray(sectionValue.value)) return [];
   return sectionValue.value.map(normalizePluginEntry);
 });
-
-function showToast(type: string, message: string) {
-  toast.value = { type, message };
-  setTimeout(() => {
-    toast.value = null;
-  }, 3000);
-}
 
 async function loadConfig() {
   loading.value = true;

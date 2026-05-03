@@ -2,10 +2,9 @@
   <div class="secret-input-wrap">
     <input
       :type="visible ? 'text' : 'password'"
-      :value="modelValue"
+      v-model="model"
       class="form-input"
       :placeholder="placeholder"
-      @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)"
     />
     <button type="button" class="btn btn-ghost btn-sm" @click="visible = !visible">
       {{ visible ? '🙈' : '👁️' }}
@@ -16,13 +15,10 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 
-defineProps<{
-  modelValue: string;
-  placeholder?: string;
-}>();
+const model = defineModel<string>({ required: true });
 
-defineEmits<{
-  (e: 'update:modelValue', value: string): void;
+defineProps<{
+  placeholder?: string;
 }>();
 
 const visible = ref(false);

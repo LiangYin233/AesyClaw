@@ -10,7 +10,7 @@
           </legend>
           <div v-for="key in sortedKeys" :key="key" class="mb-5">
             <SchemaForm
-              :schema="resolvedSchema.properties![key]"
+              :schema="resolvedSchema.properties![key] || {}"
               :model-value="modelValueObj[key]"
               :label="key"
               :path="`${path}.${key}`"
@@ -22,7 +22,7 @@
       <template v-else>
         <div v-for="key in sortedKeys" :key="key" class="mb-5">
           <SchemaForm
-            :schema="resolvedSchema.properties![key]"
+            :schema="resolvedSchema.properties![key] || {}"
             :model-value="modelValueObj[key]"
             :label="key"
             :path="`${path}.${key}`"
@@ -39,12 +39,12 @@
         <legend v-if="label" class="px-3 font-heading font-semibold text-sm text-dark">
           {{ displayLabel }}
         </legend>
-        <div v-for="(entry, idx) in recordEntries" :key="idx" class="flex items-start gap-2 mb-2">
+        <div v-for="(entry, idx) in recordEntries" :key="`${entry.key}-${idx}`" class="flex items-start gap-2 mb-2">
           <input
-            v-model="entry.key"
+            :value="entry.key"
             class="flex-1 w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
             placeholder="Key"
-            @change="updateRecord()"
+            @input="updateRecordEntryKey(idx, ($event.target as HTMLInputElement).value)"
           />
           <SchemaForm
             :schema="recordValueSchema"
@@ -81,7 +81,7 @@
         <legend v-if="label" class="px-3 font-heading font-semibold text-sm text-dark">
           {{ displayLabel }}
         </legend>
-        <div v-for="(item, idx) in modelValueArr" :key="idx" class="flex items-start gap-2 mb-2">
+        <div v-for="(item, idx) in modelValueArr" :key="`item-${idx}`" class="flex items-start gap-2 mb-2">
           <SchemaForm
             :schema="resolvedSchema.items!"
             :model-value="item"
@@ -118,7 +118,7 @@
         type="text"
         class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
         :placeholder="displayLabel"
-        @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)"
+        @input="model = ($event.target as HTMLInputElement).value"
       />
     </template>
 
@@ -133,7 +133,7 @@
         type="number"
         class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
         :placeholder="displayLabel"
-        @input="$emit('update:modelValue', Number(($event.target as HTMLInputElement).value))"
+        @input="model = Number(($event.target as HTMLInputElement).value)"
       />
     </template>
 
@@ -147,7 +147,7 @@
           type="button"
           class="w-11 h-6 rounded-full border-none cursor-pointer relative transition-colors duration-[0.15s] ease p-0"
           :class="booleanValue ? 'bg-accent-green' : 'bg-mid-gray'"
-          @click="$emit('update:modelValue', !booleanValue)"
+          @click="model = !booleanValue"
         >
           <span
             class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease"
@@ -164,9 +164,9 @@
         >{{ displayLabel }}</label
       >
       <select
-        :value="modelValue"
+        :value="model"
         class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
-        @change="$emit('update:modelValue', ($event.target as HTMLSelectElement).value)"
+        @change="model = ($event.target as HTMLSelectElement).value"
       >
         <option v-for="opt in enumOptions" :key="opt" :value="opt">{{ opt }}</option>
       </select>
@@ -203,14 +203,11 @@ interface JsonSchema {
 
 const props = defineProps<{
   schema: JsonSchema;
-  modelValue: unknown;
   label?: string;
   path?: string;
 }>();
 
-const emit = defineEmits<{
-  (e: 'update:modelValue', value: unknown): void;
-}>();
+const model = defineModel<unknown>({ required: true });
 
 const path = computed(() => props.path ?? props.label ?? 'root');
 
@@ -260,10 +257,10 @@ const sortedKeys = computed(() => {
 });
 
 const modelValueObj = computed<Record<string, unknown>>(() => {
-  return typeof props.modelValue === 'object' &&
-    props.modelValue !== null &&
-    !Array.isArray(props.modelValue)
-    ? (props.modelValue as Record<string, unknown>)
+  return typeof model.value === 'object' &&
+    model.value !== null &&
+    !Array.isArray(model.value)
+    ? (model.value as Record<string, unknown>)
     : {};
 });
 
@@ -272,12 +269,12 @@ const recordValueSchema = computed<JsonSchema>(() => {
   return typeof ap === 'object' && ap !== null ? ap : {};
 });
 
-const stringValue = computed(() => (typeof props.modelValue === 'string' ? props.modelValue : ''));
-const numberValue = computed(() => (typeof props.modelValue === 'number' ? props.modelValue : 0));
-const booleanValue = computed(() => Boolean(props.modelValue));
+const stringValue = computed(() => (typeof model.value === 'string' ? model.value : ''));
+const numberValue = computed(() => (typeof model.value === 'number' ? model.value : 0));
+const booleanValue = computed(() => Boolean(model.value));
 
 const modelValueArr = computed<unknown[]>(() => {
-  if (Array.isArray(props.modelValue)) return props.modelValue;
+  if (Array.isArray(model.value)) return model.value;
   const def = resolvedSchema.value.default;
   return Array.isArray(def) ? def : [];
 });
@@ -293,11 +290,11 @@ const enumOptions = computed(() => {
   return [];
 });
 
-const jsonValue = computed(() => JSON.stringify(props.modelValue, null, 2));
+const jsonValue = computed(() => JSON.stringify(model.value, null, 2));
 
 function updateJson(raw: string) {
   try {
-    emit('update:modelValue', JSON.parse(raw));
+    model.value = JSON.parse(raw);
   } catch {
     // ignore invalid JSON while typing
   }
@@ -305,28 +302,28 @@ function updateJson(raw: string) {
 
 function updateProperty(key: string, value: unknown) {
   const current =
-    typeof props.modelValue === 'object' && props.modelValue !== null
-      ? (props.modelValue as Record<string, unknown>)
+    typeof model.value === 'object' && model.value !== null
+      ? (model.value as Record<string, unknown>)
       : {};
-  emit('update:modelValue', { ...current, [key]: value });
+  model.value = { ...current, [key]: value };
 }
 
 function updateArrayItem(idx: number, value: unknown) {
   const arr = [...modelValueArr.value];
   arr[idx] = value;
-  emit('update:modelValue', arr);
+  model.value = arr;
 }
 
 function addArrayItem() {
   const arr = [...modelValueArr.value];
   arr.push(getDefaultValue(resolvedSchema.value.items ?? {}));
-  emit('update:modelValue', arr);
+  model.value = arr;
 }
 
 function removeArrayItem(idx: number) {
   const arr = [...modelValueArr.value];
   arr.splice(idx, 1);
-  emit('update:modelValue', arr);
+  model.value = arr;
 }
 
 interface RecordEntry {
@@ -337,7 +334,7 @@ interface RecordEntry {
 const recordEntries = ref<RecordEntry[]>([]);
 
 watch(
-  () => props.modelValue,
+  () => model.value,
   (val) => {
     if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
       recordEntries.value = Object.entries(val).map(([k, v]) => ({ key: k, value: v }));
@@ -348,6 +345,12 @@ watch(
   { immediate: true },
 );
 
+function updateRecordEntryKey(idx: number, key: string) {
+  const next = [...recordEntries.value];
+  next[idx] = { ...next[idx], key } as RecordEntry;
+  recordEntries.value = next;
+}
+
 function updateRecord() {
   const obj: Record<string, unknown> = {};
   for (const entry of recordEntries.value) {
@@ -355,7 +358,7 @@ function updateRecord() {
       obj[entry.key] = entry.value;
     }
   }
-  emit('update:modelValue', obj);
+  model.value = obj;
 }
 
 function addRecordEntry() {

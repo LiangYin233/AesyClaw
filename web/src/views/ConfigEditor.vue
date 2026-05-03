@@ -309,7 +309,7 @@
 
         <div
           v-for="(server, index) in mcpServers"
-          :key="index"
+          :key="`${server.name}-${index}`"
           class="p-4 border border-[var(--color-border)] rounded bg-surface shadow-sm"
         >
           <div class="flex items-center justify-between gap-4 mb-4">
@@ -458,6 +458,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue';
 import { useAuth } from '@/composables/useAuth';
+import { useToast } from '@/composables/useToast';
 import SchemaForm from '@/components/SchemaForm.vue';
 import JsonEditor from '@/components/JsonEditor.vue';
 import { TrashIcon } from '@heroicons/vue/24/outline';
@@ -502,6 +503,7 @@ interface ProviderForm extends Record<string, unknown> {
 }
 
 const { api } = useAuth();
+const { toast, showToast } = useToast();
 
 const editableSchema = ref<Record<string, unknown>>({});
 const editableConfig = ref<Record<string, unknown>>({});
@@ -510,7 +512,6 @@ const loading = ref(true);
 const saving = ref(false);
 const error = ref('');
 
-const toast = ref<{ type: string; message: string } | null>(null);
 const excludedTopLevelKeys = new Set(['channels', 'plugins']);
 const hiddenSchemaKeys = new Set(['channels', 'plugins', 'providers', 'mcp', 'cors']);
 
@@ -535,13 +536,6 @@ const providerEntries = computed<ProviderForm[]>(() => {
   if (!isRecord(value)) return [];
   return Object.entries(value).map(([key, provider]) => normalizeProvider(key, provider));
 });
-
-function showToast(type: string, message: string) {
-  toast.value = { type, message };
-  setTimeout(() => {
-    toast.value = null;
-  }, 3000);
-}
 
 async function loadSchema() {
   try {

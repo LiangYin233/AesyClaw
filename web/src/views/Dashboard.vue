@@ -181,8 +181,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useAuth } from '@/composables/useAuth';
+import { useInterval } from '@/composables/useInterval';
 import {
   UsersIcon,
   ChatBubbleLeftRightIcon,
@@ -284,17 +285,12 @@ async function load() {
   }
 }
 
-let timer: ReturnType<typeof setInterval> | null = null;
+const { start } = useInterval(() => {
+  void load();
+}, 5000);
 
 onMounted(() => {
   load();
-  timer = setInterval(load, 5000);
-});
-
-onUnmounted(() => {
-  if (timer) {
-    clearInterval(timer);
-    timer = null;
-  }
+  start();
 });
 </script>

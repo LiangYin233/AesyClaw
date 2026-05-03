@@ -261,7 +261,7 @@
                 <div class="flex flex-col gap-[0.35rem]">
                   <div
                     v-for="(t, idx) in form.toolPermission.list"
-                    :key="idx"
+                    :key="`tool-${idx}`"
                     class="flex items-center gap-2 px-[0.6rem] py-[0.5rem] border border-[var(--color-border)] rounded-sm bg-light transition-colors duration-[0.15s] ease hover:border-mid-gray"
                   >
                     <Bars3Icon class="w-3 h-3 text-mid-gray shrink-0" />
@@ -302,7 +302,7 @@
                 <div class="flex flex-col gap-[0.35rem]">
                   <div
                     v-for="(s, idx) in form.skills"
-                    :key="idx"
+                    :key="`skill-${idx}`"
                     class="flex items-center gap-2 px-[0.6rem] py-[0.5rem] border border-[var(--color-border)] rounded-sm bg-light transition-colors duration-[0.15s] ease hover:border-mid-gray"
                   >
                     <Bars3Icon class="w-3 h-3 text-mid-gray shrink-0" />
@@ -357,6 +357,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useAuth } from '@/composables/useAuth';
+import { useToast } from '@/composables/useToast';
 import {
   CheckIcon,
   XMarkIcon,
@@ -367,6 +368,7 @@ import {
 import type { Role, ToolPermission } from '@/types/api';
 
 const { api } = useAuth();
+const { toast, showToast } = useToast();
 
 const roles = ref<Role[]>([]);
 const editingRole = ref<Role | null>(null);
@@ -389,14 +391,6 @@ const form = ref<Role>({
   enabled: true,
 });
 const saving = ref(false);
-const toast = ref<{ type: string; message: string } | null>(null);
-
-function showToast(type: string, message: string) {
-  toast.value = { type, message };
-  setTimeout(() => {
-    toast.value = null;
-  }, 3000);
-}
 
 async function loadRoles() {
   try {

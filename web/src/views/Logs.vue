@@ -64,7 +64,7 @@
       </div>
       <div
         v-else
-        ref="logContainer"
+        ref="log-container"
         class="flex-1 overflow-y-auto p-3 flex flex-col gap-3 bg-[#fcfbf9]"
       >
         <div
@@ -98,8 +98,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref, useTemplateRef } from 'vue';
 import { useAuth } from '@/composables/useAuth';
+import { useInterval } from '@/composables/useInterval';
 import type { LogEntry, LogsResponse } from '@/types/api';
 
 const { api } = useAuth();
@@ -109,13 +110,15 @@ const loading = ref(false);
 const errorMessage = ref('');
 const autoRefreshEnabled = ref(true);
 const lastUpdatedAt = ref<Date | null>(null);
-const logContainer = ref<HTMLElement | null>(null);
+const logContainer = useTemplateRef<HTMLElement>('log-container');
 
 const pollIntervalMs = 5000;
 const pollIntervalSeconds = pollIntervalMs / 1000;
 const requestLimit = 200;
 
-let timer: ReturnType<typeof setInterval> | null = null;
+const { start: startPolling, stop: stopPolling } = useInterval(() => {
+  void loadLogs();
+}, pollIntervalMs);
 
 const lastUpdatedLabel = computed(() => {
   if (!lastUpdatedAt.value) {
@@ -130,14 +133,9 @@ const lastUpdatedLabel = computed(() => {
 });
 
 function syncPolling(): void {
-  if (timer) {
-    clearInterval(timer);
-    timer = null;
-  }
+  stopPolling();
   if (autoRefreshEnabled.value) {
-    timer = setInterval(() => {
-      void loadLogs();
-    }, pollIntervalMs);
+    startPolling();
   }
 }
 
@@ -180,10 +178,5 @@ onMounted(() => {
   syncPolling();
 });
 
-onUnmounted(() => {
-  if (timer) {
-    clearInterval(timer);
-    timer = null;
-  }
-});
+
 </script>
