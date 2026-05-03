@@ -8,7 +8,11 @@
 
 import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
-import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
+import type {
+  AesyClawTool,
+  ToolExecutionContext,
+  ToolExecutionResult,
+} from '@aesyclaw/tool/tool-registry';
 import { errorMessage } from '@aesyclaw/core/utils';
 import type {
   OutboundMessage,
@@ -28,11 +32,7 @@ const MEDIA_TYPE_MAP: Record<string, OutboundMediaType> = {
 
 type OutboundMediaType = 'Image' | 'Record' | 'Video' | 'File';
 
-type MediaComponent =
-  | ImageComponent
-  | RecordComponent
-  | VideoComponent
-  | FileComponent;
+type MediaComponent = ImageComponent | RecordComponent | VideoComponent | FileComponent;
 
 /** send_msg 的参数模式 */
 const SendMessageParamsSchema = Type.Object({
@@ -100,10 +100,7 @@ export function createSendMsgTool(): AesyClawTool {
         }
 
         const outbound: OutboundMessage = {
-          components: [
-            { type: 'Plain', text },
-            ...toMediaComponent(media),
-          ],
+          components: [{ type: 'Plain', text }, ...toMediaComponent(media)],
         };
         const delivered = await context.sendMessage(outbound);
 

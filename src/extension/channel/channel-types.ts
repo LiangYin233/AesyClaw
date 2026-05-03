@@ -1,11 +1,6 @@
 /** 频道接口定义。 */
 
-import type {
-  InboundMessage,
-  OutboundMessage,
-  SessionKey,
-  SenderInfo,
-} from '@aesyclaw/core/types';
+import type { InboundMessage, OutboundMessage, SessionKey, SenderInfo } from '@aesyclaw/core/types';
 import type { Logger } from '@aesyclaw/core/logger';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { Pipeline } from '@aesyclaw/pipeline/pipeline';

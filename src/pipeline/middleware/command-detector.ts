@@ -11,7 +11,10 @@ import type { PipelineState } from './types';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { CommandContext } from '@aesyclaw/core/types';
 import { getMessageText } from '@aesyclaw/core/types';
-import { AGENT_PROCESSING_BUSY_MESSAGE, type SessionManager } from '@aesyclaw/agent/session-manager';
+import {
+  AGENT_PROCESSING_BUSY_MESSAGE,
+  type SessionManager,
+} from '@aesyclaw/agent/session-manager';
 
 /**
  * 检测斜杠命令并通过 CommandRegistry 执行它们。
@@ -36,7 +39,11 @@ export async function commandDetector(
   const isBusy = sessionManager.isAgentProcessing(state.sessionKey);
 
   if (isBusy && !resolved?.command.allowDuringAgentProcessing) {
-    return { ...state, stage: 'respond', outbound: { components: [{ type: 'Plain', text: AGENT_PROCESSING_BUSY_MESSAGE }] } };
+    return {
+      ...state,
+      stage: 'respond',
+      outbound: { components: [{ type: 'Plain', text: AGENT_PROCESSING_BUSY_MESSAGE }] },
+    };
   }
 
   if (!resolved) {
@@ -48,5 +55,9 @@ export async function commandDetector(
   };
 
   const result = await commandRegistry.executeResolved(resolved, commandContext);
-  return { ...state, stage: 'respond', outbound: { components: [{ type: 'Plain', text: result }] } };
+  return {
+    ...state,
+    stage: 'respond',
+    outbound: { components: [{ type: 'Plain', text: result }] },
+  };
 }

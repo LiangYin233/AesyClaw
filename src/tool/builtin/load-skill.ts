@@ -13,7 +13,11 @@ import type { Skill } from '@aesyclaw/core/types';
 import type { ToolOwner } from '@aesyclaw/core/types';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import { errorMessage } from '@aesyclaw/core/utils';
-import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
+import type {
+  AesyClawTool,
+  ToolExecutionContext,
+  ToolExecutionResult,
+} from '@aesyclaw/tool/tool-registry';
 
 const LoadSkillParamsSchema = Type.Object({
   skillName: Type.String({ description: '要读取的技能名称' }),

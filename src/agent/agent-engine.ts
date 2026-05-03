@@ -130,15 +130,17 @@ export class AgentEngine {
     });
 
     return {
-      components: [{
-        type: 'Plain',
-        text:
-          lastMessage !== undefined &&
-          lastMessage.role !== 'user' &&
-          extractMessageText(lastMessage).trim().length > 0
-            ? extractMessageText(lastMessage)
-            : '[未生成回复]',
-      }],
+      components: [
+        {
+          type: 'Plain',
+          text:
+            lastMessage !== undefined &&
+            lastMessage.role !== 'user' &&
+            extractMessageText(lastMessage).trim().length > 0
+              ? extractMessageText(lastMessage)
+              : '[未生成回复]',
+        },
+      ],
     };
   }
 

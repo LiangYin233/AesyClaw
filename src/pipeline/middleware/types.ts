@@ -114,7 +114,11 @@ type PipelineDependencies = {
  * - onSend: 出站消息发送之前
  */
 type PluginHooks = {
-  onReceive?(message: InboundMessage, sessionKey: SessionKey, sender?: SenderInfo): Promise<PipelineResult>;
+  onReceive?(
+    message: InboundMessage,
+    sessionKey: SessionKey,
+    sender?: SenderInfo,
+  ): Promise<PipelineResult>;
   beforeLLMRequest?(context: BeforeLLMRequestContext): Promise<PipelineResult>;
   beforeToolCall?(context: BeforeToolCallHookContext): Promise<BeforeToolCallHookResult>;
   afterToolCall?(context: AfterToolCallHookContext): Promise<AfterToolCallHookResult>;

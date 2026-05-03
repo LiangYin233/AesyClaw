@@ -1,12 +1,7 @@
 /** 频道管理器 — 初始化频道适配器并将消息桥接到管道中。 */
 
 import path from 'node:path';
-import type {
-  InboundMessage,
-  OutboundMessage,
-  SessionKey,
-  SenderInfo,
-} from '@aesyclaw/core/types';
+import type { InboundMessage, OutboundMessage, SessionKey, SenderInfo } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { errorMessage, isRecord, mergeDefaults } from '@aesyclaw/core/utils';
 import {
@@ -235,8 +230,7 @@ export class ChannelManager implements ExtensionLifecycle {
   // ─── 内部方法 ────────────────────────────────────────────────────
 
   private async registerFromDisk(): Promise<void> {
-    const extensionsDir =
-      this.deps.extensionsDir ?? path.resolve(process.cwd(), 'extensions');
+    const extensionsDir = this.deps.extensionsDir ?? path.resolve(process.cwd(), 'extensions');
     const dirs = await discoverExtensionDirs({
       extensionsDir,
       directoryPrefix: 'channel_',

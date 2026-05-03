@@ -7,7 +7,11 @@
 
 import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
-import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
+import type {
+  AesyClawTool,
+  ToolExecutionContext,
+  ToolExecutionResult,
+} from '@aesyclaw/tool/tool-registry';
 import { errorMessage } from '@aesyclaw/core/utils';
 import type { ToolOwner } from '@aesyclaw/core/types';
 import type { SubAgentSandbox } from '@aesyclaw/agent/sub-agent-sandbox';

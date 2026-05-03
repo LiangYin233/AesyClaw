@@ -94,7 +94,9 @@ function formatTimestamp(date: Date): string {
 
 function formatMessage(scope: string, level: LogLevel, message: string): string {
   const timestamp = formatTimestamp(new Date());
-  const useColor = supportsAnsiColor(level === 'warn' || level === 'error' ? process.stderr : process.stdout);
+  const useColor = supportsAnsiColor(
+    level === 'warn' || level === 'error' ? process.stderr : process.stdout,
+  );
   return formatMessageWithTimestamp(timestamp, scope, level, message, useColor);
 }
 

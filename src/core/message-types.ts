@@ -88,7 +88,10 @@ export type InboundMessage = Message;
 
 export function getMessageText(message: Pick<Message, 'components'>): string {
   return message.components
-    .filter((component): component is PlainComponent => component.type === 'Plain' && typeof component.text === 'string')
+    .filter(
+      (component): component is PlainComponent =>
+        component.type === 'Plain' && typeof component.text === 'string',
+    )
     .map((component) => component.text)
     .join('');
 }

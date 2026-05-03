@@ -79,7 +79,11 @@ export class Pipeline {
 
     try {
       // 1. onReceive 钩子
-      const receiveResult = await this.hookDispatcher.dispatchOnReceive(message, sessionKey, sender);
+      const receiveResult = await this.hookDispatcher.dispatchOnReceive(
+        message,
+        sessionKey,
+        sender,
+      );
       if (await this.handleHookResult('onReceive', receiveResult, send, undefined)) {
         return;
       }
@@ -179,9 +183,7 @@ export class Pipeline {
     }
 
     const finalOutbound: OutboundMessage =
-      sendResult.action === 'respond'
-        ? { components: sendResult.components }
-        : outbound;
+      sendResult.action === 'respond' ? { components: sendResult.components } : outbound;
 
     await send(finalOutbound);
     return true;

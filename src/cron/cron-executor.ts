@@ -51,10 +51,15 @@ export class CronExecutor {
         components: [{ type: 'Plain', text: job.prompt }],
       };
 
-      await this.dependencies.pipeline.receiveWithSend(inbound, contextSessionKey, undefined, async (message) => {
-        await this.dependencies.send(targetSessionKey, message);
-        outboundMessages.push(message);
-      });
+      await this.dependencies.pipeline.receiveWithSend(
+        inbound,
+        contextSessionKey,
+        undefined,
+        async (message) => {
+          await this.dependencies.send(targetSessionKey, message);
+          outboundMessages.push(message);
+        },
+      );
 
       const result = formatResult(outboundMessages);
       await this.dependencies.cronRuns.markCompleted(runId, result);

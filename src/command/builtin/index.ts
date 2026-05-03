@@ -36,10 +36,7 @@ import {
  */
 export type BuiltinCommandDependencies = {
   roleManager: Pick<RoleManager, 'getEnabledRoles' | 'getRole'>;
-  pluginManager: Pick<
-    ExtensionManager,
-    'listPlugins' | 'enablePlugin' | 'disablePlugin'
-  >;
+  pluginManager: Pick<ExtensionManager, 'listPlugins' | 'enablePlugin' | 'disablePlugin'>;
   sessionManager: Pick<
     SessionManager,
     | 'clearSession'
