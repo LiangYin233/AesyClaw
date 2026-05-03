@@ -7,6 +7,7 @@ import type { ToolRegistry } from '../tool/tool-registry';
 import type { HookDispatcher } from '../pipeline/hook-dispatcher';
 import type { ConfigManager } from '../core/config/config-manager';
 import { PluginManager } from './plugin/plugin-manager';
+import type { PluginStatus } from './plugin/plugin-types';
 import { ChannelManager } from './channel/channel-manager';
 
 const logger = createScopedLogger('extension-manager');
@@ -60,5 +61,40 @@ export class ExtensionManager {
     await this.channelManager.destroy();
     await this.pluginManager.destroy();
     logger.info('ExtensionManager 已销毁');
+  }
+
+  // ─── 插件控制 ────────────────────────────────────────────────────
+
+  async listPlugins(): Promise<PluginStatus[]> {
+    return await this.pluginManager.listPlugins();
+  }
+
+  async getPluginDefinitions(): Promise<
+    Array<{
+      name: string;
+      version?: string;
+      description?: string;
+      defaultConfig?: Record<string, unknown>;
+    }>
+  > {
+    return await this.pluginManager.getPluginDefinitions();
+  }
+
+  async enablePlugin(name: string): Promise<void> {
+    await this.pluginManager.enable(name);
+  }
+
+  async disablePlugin(name: string): Promise<void> {
+    await this.pluginManager.disable(name);
+  }
+
+  // ─── 配置热重载 ──────────────────────────────────────────────────
+
+  async reloadPlugins(): Promise<void> {
+    await this.pluginManager.handleConfigReload();
+  }
+
+  async reloadChannels(): Promise<void> {
+    await this.channelManager.handleConfigReload();
   }
 }

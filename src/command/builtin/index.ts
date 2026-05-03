@@ -13,7 +13,7 @@ import type { PluginCommandDeps } from './plugin-commands';
 import type { SessionManager } from '../../agent/session-manager';
 import type { AgentEngine } from '../../agent/agent-engine';
 import type { RoleManager } from '../../role/role-manager';
-import type { PluginManager } from '../../extension/plugin/plugin-manager';
+import type { ExtensionManager } from '../../extension/extension-manager';
 import { createHelpCommand } from './help';
 import { createClearCommand } from './clear';
 import { createCompactCommand } from './compact';
@@ -36,7 +36,10 @@ import {
  */
 export type BuiltinCommandDependencies = {
   roleManager: Pick<RoleManager, 'getEnabledRoles' | 'getRole'>;
-  pluginManager: Pick<PluginManager, 'listPlugins' | 'enable' | 'disable'>;
+  pluginManager: Pick<
+    ExtensionManager,
+    'listPlugins' | 'enablePlugin' | 'disablePlugin'
+  >;
   sessionManager: Pick<
     SessionManager,
     | 'clearSession'
@@ -63,7 +66,7 @@ export function registerBuiltinCommands(
     roleManager: deps.roleManager,
     sessionManager: deps.sessionManager,
   };
-  const pluginDeps: PluginCommandDeps = { pluginManager: deps.pluginManager };
+  const pluginDeps: PluginCommandDeps = { extensionManager: deps.pluginManager };
 
   registry.register(createHelpCommand(() => registry.getAll()));
   registry.register(

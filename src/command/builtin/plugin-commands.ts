@@ -9,14 +9,14 @@
  */
 
 import type { CommandDefinition, CommandContext } from '../../core/types';
-import type { PluginManager } from '../../extension/plugin/plugin-manager';
+import type { ExtensionManager } from '../../extension/extension-manager';
 
 export type PluginCommandDeps = {
-  pluginManager: Pick<PluginManager, 'listPlugins' | 'enable' | 'disable'>;
+  extensionManager: Pick<ExtensionManager, 'listPlugins' | 'enablePlugin' | 'disablePlugin'>;
 };
 
 async function resolvePluginName(deps: PluginCommandDeps, rawName: string): Promise<string | null> {
-  const plugins = await deps.pluginManager.listPlugins();
+  const plugins = await deps.extensionManager.listPlugins();
   const plugin = plugins.find(
     (candidate) => candidate.name === rawName || candidate.directoryName === rawName,
   );
@@ -38,7 +38,7 @@ export function createPluginListCommand(deps: PluginCommandDeps): CommandDefinit
     usage: '/plugin list',
     scope: 'system',
     execute: async (_args: string[], _context: CommandContext): Promise<string> => {
-      const plugins = await deps.pluginManager.listPlugins();
+      const plugins = await deps.extensionManager.listPlugins();
       if (plugins.length === 0) {
         return '当前没有发现插件。';
       }
@@ -82,7 +82,7 @@ export function createPluginEnableCommand(deps: PluginCommandDeps): CommandDefin
         return `未找到插件：${name}`;
       }
 
-      await deps.pluginManager.enable(pluginName);
+      await deps.extensionManager.enablePlugin(pluginName);
       return `插件已启用：${pluginName}`;
     },
   };
@@ -116,7 +116,7 @@ export function createPluginDisableCommand(deps: PluginCommandDeps): CommandDefi
         return `未找到插件：${name}`;
       }
 
-      await deps.pluginManager.disable(pluginName);
+      await deps.extensionManager.disablePlugin(pluginName);
       return `插件已禁用：${pluginName}`;
     },
   };

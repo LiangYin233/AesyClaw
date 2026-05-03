@@ -10,7 +10,7 @@ import type { SessionManager } from '../agent/session-manager';
 import type { CronManager } from '../cron/cron-manager';
 import type { RoleManager } from '../role/role-manager';
 import type { ChannelManager } from '../extension/channel/channel-manager';
-import type { PluginManager } from '../extension/plugin/plugin-manager';
+import type { ExtensionManager } from '../extension/extension-manager';
 import type { ToolRegistry } from '../tool/tool-registry';
 import type { SkillManager } from '../skill/skill-manager';
 import { createApp } from './server';
@@ -24,7 +24,7 @@ export type WebUiManagerDependencies = {
   cronManager: CronManager;
   roleManager: RoleManager;
   channelManager: ChannelManager;
-  pluginManager: PluginManager;
+  pluginManager: ExtensionManager;
   toolRegistry: ToolRegistry;
   skillManager: SkillManager;
 };

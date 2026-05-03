@@ -18,7 +18,6 @@ import type { McpManager } from '../mcp/mcp-manager';
 import { SdkMcpClientFactory } from '../mcp/sdk-mcp-client';
 import type { Pipeline } from '../pipeline/pipeline';
 import { ExtensionManager } from '../extension/extension-manager';
-import type { PluginManager } from '../extension/plugin/plugin-manager';
 import { ensureDefaultRoleFile } from '../role/default-role';
 import type { RoleManager } from '../role/role-manager';
 import type { SkillManager } from '../skill/skill-manager';
@@ -59,13 +58,6 @@ export class CoreLifecycle {
   private get resolvedDeps(): CoreLifecycleDependencies {
     if (!this.deps) throw new Error('CoreLifecycle 未初始化');
     return this.deps;
-  }
-
-  private getPluginManager(): PluginManager {
-    if (!this.extensionManager) {
-      throw new Error('ExtensionManager 未初始化');
-    }
-    return this.extensionManager.plugins;
   }
 
   initialize(deps: CoreLifecycleDependencies): void {
@@ -221,7 +213,8 @@ export class CoreLifecycle {
     });
     registerBuiltinCommands(this.resolvedDeps.commandRegistry, {
       roleManager: this.resolvedDeps.roleManager,
-      pluginManager: this.getPluginManager(),
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- ExtensionManager 已在本方法内构造
+      pluginManager: this.extensionManager!,
       sessionManager: this.resolvedDeps.sessionManager,
       agentEngine: this.resolvedDeps.agentEngine,
     });
@@ -261,7 +254,7 @@ export class CoreLifecycle {
       cronManager: this.resolvedDeps.cronManager,
       roleManager: this.resolvedDeps.roleManager,
       channelManager: em.channels,
-      pluginManager: this.getPluginManager(),
+      pluginManager: em,
       toolRegistry: this.resolvedDeps.toolRegistry,
       skillManager: this.resolvedDeps.skillManager,
     });
@@ -293,13 +286,13 @@ export class CoreLifecycle {
         setLogLevel(server.logLevel);
       }),
       this.resolvedDeps.configManager.subscribe('plugins', async () => {
-        await this.extensionManager?.plugins.handleConfigReload();
+        await this.extensionManager?.reloadPlugins();
       }),
       this.resolvedDeps.configManager.subscribe('mcp', async () => {
         await this.resolvedDeps.mcpManager.handleConfigReload();
       }),
       this.resolvedDeps.configManager.subscribe('channels', async () => {
-        await this.extensionManager?.channels.handleConfigReload();
+        await this.extensionManager?.reloadChannels();
       }),
       this.resolvedDeps.roleManager.subscribeChanges(() => {
         this.resolvedDeps.sessionManager.clearCachedSessions();
