@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChannelContext, ChannelPlugin } from '../../../src/extension/channel/channel-types';
 import type { InboundMessage, OutboundMessage, SessionKey } from '../../../src/core/types';
-import { getInboundMessageText } from '../../../src/core/types';
+import { getMessageText } from '../../../src/core/types';
 import {
   createOneBotChannel,
   extractOneBotText,
@@ -508,7 +508,7 @@ describe('plugin_onebot', () => {
 
     expect(receive).toHaveBeenCalledOnce();
     const inbound = receive.mock.calls[0]?.[0] as Pick<InboundMessage, 'components'>;
-    const inboundText = getInboundMessageText(inbound);
+    const inboundText = getMessageText(inbound);
     const localPath = inbound.components.find((component) => component.type === 'Image')?.path;
 
     expect(localPath).toBeTruthy();
@@ -603,7 +603,7 @@ describe('plugin_onebot', () => {
     await waitForCondition(() => receive.mock.calls.length === 1);
 
     const inbound = receive.mock.calls[0]?.[0] as Pick<InboundMessage, 'components'>;
-    const inboundText = getInboundMessageText(inbound);
+    const inboundText = getMessageText(inbound);
     expect(inbound.components).toContainEqual(
       expect.objectContaining({
         type: 'Image',
@@ -635,7 +635,7 @@ describe('plugin_onebot', () => {
     await waitForCondition(() => receive.mock.calls.length === 1);
 
     const inbound = receive.mock.calls[0]?.[0] as Pick<InboundMessage, 'components'>;
-    const inboundText = getInboundMessageText(inbound);
+    const inboundText = getMessageText(inbound);
     expect(inbound.components).toContainEqual(expect.objectContaining({ type: 'File' }));
     expect(inbound.components.find((component) => component.type === 'File')?.path).toBeUndefined();
     expect(inboundText).toContain('see file');
@@ -673,7 +673,7 @@ describe('plugin_onebot', () => {
     await waitForCondition(() => receive.mock.calls.length === 1);
 
     const inbound = receive.mock.calls[0]?.[0] as Pick<InboundMessage, 'components'>;
-    const inboundText = getInboundMessageText(inbound);
+    const inboundText = getMessageText(inbound);
     expect(inbound.components).toContainEqual({ type: 'File', url: 'https://example.com/report.pdf' });
     expect(inbound.components.find((component) => component.type === 'File')?.path).toBeUndefined();
     expect(inboundText).toContain('[Attachment download errors]');
@@ -768,7 +768,7 @@ describe('plugin_onebot', () => {
     await waitForCondition(() => receive.mock.calls.length === 1);
 
     const inbound = receive.mock.calls[0]?.[0] as Pick<InboundMessage, 'components'>;
-    const inboundText = getInboundMessageText(inbound);
+    const inboundText = getMessageText(inbound);
     expect(inbound.components).toContainEqual(expect.objectContaining({ type: 'Image' }));
     expect(inbound.components.find((component) => component.type === 'Image')?.path).toBeUndefined();
     expect(inboundText).toContain('[Attachment download errors]');

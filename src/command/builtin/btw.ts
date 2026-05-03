@@ -1,7 +1,7 @@
 import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
 import type { SessionManager } from '@aesyclaw/agent/session-manager';
 import type { CommandContext, CommandDefinition } from '@aesyclaw/core/types';
-import { getOutboundMessageText } from '@aesyclaw/core/types';
+import { getMessageText } from '@aesyclaw/core/types';
 
 export type BtwCommandDeps = {
   sessionManager: Pick<SessionManager, 'getOrCreateSession'>;
@@ -38,7 +38,7 @@ export function createBtwCommand(deps: BtwCommandDeps): CommandDefinition {
         content,
       });
 
-      return getOutboundMessageText(outbound);
+      return getMessageText(outbound);
     },
   };
 }

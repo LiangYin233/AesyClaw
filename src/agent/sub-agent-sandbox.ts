@@ -8,7 +8,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { PersistableMessage, RoleConfig, SessionKey } from '@aesyclaw/core/types';
-import { getOutboundMessageText } from '@aesyclaw/core/types';
+import { getMessageText } from '@aesyclaw/core/types';
 import { MemoryManager } from './memory-manager';
 import type { MessagesRepository } from '@aesyclaw/core/database/database-manager';
 import type { SubAgentRoleParams, SubAgentTempParams } from './agent-types';
@@ -111,7 +111,7 @@ export class SubAgentSandbox {
       executionContext?.sendMessage,
     );
 
-    return getOutboundMessageText(outbound);
+    return getMessageText(outbound);
   }
 
   private applyToolOverride(

@@ -93,18 +93,10 @@ export function getMessageText(message: Pick<Message<{ type: string; text?: unkn
     .join('');
 }
 
-export function getInboundMessageText(message: Pick<InboundMessage, 'components'>): string {
-  return getMessageText(message);
-}
-
 // ─── 出站消息 ──────────────────────────────────────────────────
 
 /** 由管道生成并通过频道发送回去的回复 */
 export type OutboundMessage = Message<MessageComponent>;
-
-export function getOutboundMessageText(message: Pick<OutboundMessage, 'components'>): string {
-  return getMessageText(message);
-}
 
 /** 通过频道发送传出消息的函数 */
 export type SendFn = (message: OutboundMessage) => Promise<void>;

@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Pipeline } from '../../../src/pipeline/pipeline';
 import type { InboundMessage, OutboundMessage, SessionKey, SenderInfo } from '../../../src/core/types';
-import { getOutboundMessageText } from '../../../src/core/types';
+import { getMessageText } from '../../../src/core/types';
 import type { PluginHooks } from '../../../src/pipeline/middleware/types';
 import { CommandRegistry } from '../../../src/command/command-registry';
 import type { SessionManager } from '../../../src/agent/session-manager';
@@ -202,7 +202,7 @@ describe('Pipeline', () => {
 
       await receiveWithSend(pipeline, makeInbound(), send);
       expect(send).toHaveBeenCalledTimes(1);
-      expect(getOutboundMessageText(sent[0])).toBe('Agent response');
+      expect(getMessageText(sent[0])).toBe('Agent response');
     });
 
     it('should pass an onSend-aware callback into agent processing', async () => {
@@ -365,7 +365,7 @@ describe('Pipeline', () => {
 
       await receiveWithSend(pipeline, makeInbound('/greet'), send);
       expect(send).toHaveBeenCalledTimes(1);
-      expect(getOutboundMessageText(sent[0])).toBe('Hello from command!');
+      expect(getMessageText(sent[0])).toBe('Hello from command!');
     });
 
     it('should not detect commands for regular messages', async () => {
@@ -413,7 +413,7 @@ describe('Pipeline', () => {
 
       await receiveWithSend(pipeline, makeInbound(), send);
       expect(send).toHaveBeenCalledTimes(1);
-      expect(getOutboundMessageText(sent[0])).toBe('direct hook reply');
+      expect(getMessageText(sent[0])).toBe('direct hook reply');
     });
 
     it('should block outbound on onSend hook', async () => {
@@ -446,7 +446,7 @@ describe('Pipeline', () => {
 
       await receiveWithSend(pipeline, makeInbound(), send);
       expect(send).toHaveBeenCalledTimes(1);
-      expect(getOutboundMessageText(sent[0])).toBe('modified output');
+      expect(getMessageText(sent[0])).toBe('modified output');
     });
 
     it('should block live agent processing on beforeLLMRequest hook', async () => {
@@ -482,7 +482,7 @@ describe('Pipeline', () => {
 
       expect(processMock).not.toHaveBeenCalled();
       expect(send).toHaveBeenCalledTimes(1);
-      expect(getOutboundMessageText(sent[0])).toBe('cached answer');
+      expect(getMessageText(sent[0])).toBe('cached answer');
     });
   });
 });

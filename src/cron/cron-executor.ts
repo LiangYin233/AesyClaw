@@ -7,7 +7,7 @@ import type {
   SessionKey,
 } from '@aesyclaw/core/types';
 import { parseSerializedSessionKey } from '@aesyclaw/core/types';
-import { getOutboundMessageText } from '@aesyclaw/core/types';
+import { getMessageText } from '@aesyclaw/core/types';
 import type { CronRunsRepository } from '@aesyclaw/core/database/database-manager';
 import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
 import { createScopedLogger } from '@aesyclaw/core/logger';
@@ -93,5 +93,5 @@ export function formatResult(messages: OutboundMessage[]): string {
   if (messages.length === 0) {
     return '定时任务已完成，但无出站响应。';
   }
-  return messages.map((message) => getOutboundMessageText(message)).join('\n');
+  return messages.map((message) => getMessageText(message)).join('\n');
 }

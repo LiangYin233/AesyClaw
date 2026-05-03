@@ -4,7 +4,7 @@ import { AgentEngine } from '../../../src/agent/agent-engine';
 import type { AgentEngineDependencies } from '../../../src/agent/agent-engine';
 import type { LlmAdapter } from '../../../src/agent/llm-adapter';
 import type { RoleConfig, InboundMessage, SessionKey, SenderInfo } from '../../../src/core/types';
-import { getOutboundMessageText } from '@aesyclaw/core/types';
+import { getMessageText } from '@aesyclaw/core/types';
 import { MemoryManager } from '../../../src/agent/memory-manager';
 import type { MessageRepository } from '../../../src/core/database/repositories/message-repository';
 import type { AgentTool } from '../../../src/agent/agent-types';
@@ -214,7 +214,7 @@ describe('AgentEngine', () => {
       const agent = engine.createAgent(role, 'test-session');
       const result = await engine.process(agent, makeInboundMessage(), makeInboundContext().sessionKey, makeInboundContext().sender, memory, role);
 
-      expect(getOutboundMessageText(result)).toBe('Real response from pi runtime');
+      expect(getMessageText(result)).toBe('Real response from pi runtime');
       expect(messageRepo.save).toHaveBeenCalledTimes(2);
     });
 
@@ -241,7 +241,7 @@ describe('AgentEngine', () => {
 
       const result = await runtimeEngine.process(agent, makeInboundMessage(), makeInboundContext().sessionKey, makeInboundContext().sender, memory, role);
 
-      expect(getOutboundMessageText(result)).toBe('Real response from pi runtime');
+      expect(getMessageText(result)).toBe('Real response from pi runtime');
       expect(agent.state.tools).toHaveLength(1);
       expect(agent.state.tools[0]?.name).toBe('refreshed-tool');
       expect(deps.promptBuilder.buildSystemPrompt).toHaveBeenNthCalledWith(2, role, {
@@ -326,7 +326,7 @@ describe('AgentEngine', () => {
         content: 'quick aside',
       });
 
-      expect(getOutboundMessageText(result)).toBe('Real response from pi runtime');
+      expect(getMessageText(result)).toBe('Real response from pi runtime');
       expect(messageRepo.loadHistory).toHaveBeenCalledTimes(1);
       expect(messageRepo.save).not.toHaveBeenCalled();
       expect(messageRepo.replaceWithSummary).not.toHaveBeenCalled();

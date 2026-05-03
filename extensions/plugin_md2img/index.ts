@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import type { PluginContext, PluginDefinition } from '@aesyclaw/sdk';
 import type { OnSendContext } from '@aesyclaw/sdk';
 import type { PipelineResult } from '@aesyclaw/sdk';
-import { getOutboundMessageText } from '@aesyclaw/sdk';
+import { getMessageText } from '@aesyclaw/sdk';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = resolve(__dirname, 'template.html');
@@ -126,7 +126,7 @@ export async function handleMd2ImgSend(
   const { message, sessionKey } = context;
   const { htmlTemplate: template, logger, pluginConfig: config } = deps;
 
-  const text = getOutboundMessageText(message);
+  const text = getMessageText(message);
   if (!template || !isMarkdown(text)) {
     return { action: 'continue' };
   }

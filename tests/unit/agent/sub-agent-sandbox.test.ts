@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createPersistedAssistantMessage, createUserMessage } from '../../../src/agent/agent-types';
 import { SubAgentSandbox } from '../../../src/agent/sub-agent-sandbox';
-import { getInboundMessageText } from '../../../src/core/types';
+import { getMessageText } from '../../../src/core/types';
 
 const ROLE = {
   id: 'researcher',
@@ -25,7 +25,7 @@ describe('SubAgentSandbox', () => {
       process: vi.fn().mockImplementation(async (_agent, message, _sessionKey, _sender, memory) => {
         const historyBefore = await memory.loadHistory();
         await memory.syncFromAgent([
-          createUserMessage(getInboundMessageText(message)),
+          createUserMessage(getMessageText(message)),
           createPersistedAssistantMessage('delegated answer'),
         ]);
 

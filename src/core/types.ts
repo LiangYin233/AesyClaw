@@ -41,7 +41,7 @@ export type {
   PersistableMessage,
 } from './message-types';
 
-export { getMessageText, getInboundMessageText, getOutboundMessageText } from './message-types';
+export { getMessageText } from './message-types';
 
 export type {
   SessionRecord,

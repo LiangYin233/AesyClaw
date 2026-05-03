@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { ChannelContext, ChannelPlugin } from '@aesyclaw/sdk';
 import { resolvePaths } from '@aesyclaw/sdk';
-import { getInboundMessageText, getOutboundMessageText } from '@aesyclaw/sdk';
+import { getMessageText } from '@aesyclaw/sdk';
 import type {
   InboundMessage,
   MessageComponent,
@@ -361,7 +361,7 @@ async function enrichInboundMessageWithDownloads(
     sections.push(...downloadFailures);
   }
 
-  const content = getInboundMessageText(inbound);
+  const content = getMessageText(inbound);
   const annotationText = content.length > 0 ? `\n\n${sections.join('\n')}` : sections.join('\n');
   return {
     ...inbound,
@@ -375,7 +375,7 @@ async function enrichInboundMessageWithReplyContent(
 ): Promise<InboundMessage> {
   const replyIndices: number[] = [];
   for (let i = 0; i < inbound.components.length; i++) {
-    const component: MessageComponent = inbound.components[i];
+    const component = inbound.components[i];
     if (component === undefined) {
       continue;
     }
@@ -708,11 +708,11 @@ async function buildOutgoingMessagePayload(
   );
 
   if (mediaComponents.length === 0) {
-    return getOutboundMessageText(message);
+    return getMessageText(message);
   }
 
   const segments: OneBotMessageSegment[] = [];
-  const text = getOutboundMessageText(message);
+  const text = getMessageText(message);
   if (text.length > 0) {
     segments.push({ type: 'text', data: { text } });
   }
@@ -806,7 +806,7 @@ function summarizeOutboundMessage(
   attachmentCount: number;
   attachmentTypes: string[];
 } {
-  const text = getOutboundMessageText(message);
+  const text = getMessageText(message);
   const mediaComponents = message.components.filter(
     (c): c is MediaComponent => c.type !== 'Plain',
   );

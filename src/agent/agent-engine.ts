@@ -7,7 +7,7 @@ import type {
   SessionKey,
   SenderInfo,
 } from '@aesyclaw/core/types';
-import { getInboundMessageText } from '@aesyclaw/core/types';
+import { getMessageText } from '@aesyclaw/core/types';
 import type { Agent, AgentMessage } from './agent-types';
 import { extractMessageText } from './agent-types';
 import type { ToolExecutionContext } from '@aesyclaw/tool/tool-registry';
@@ -93,7 +93,7 @@ export class AgentEngine {
     sendMessage?: ToolExecutionContext['sendMessage'],
   ): Promise<OutboundMessage> {
     const deps = this.requireDeps();
-    const content = getInboundMessageText(message);
+    const content = getMessageText(message);
 
     logger.debug('正在处理消息', {
       sessionKey,

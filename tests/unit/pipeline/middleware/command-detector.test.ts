@@ -10,7 +10,7 @@ import { commandDetector } from '../../../../src/pipeline/middleware/command-det
 import type { PipelineState } from '../../../../src/pipeline/middleware/types';
 import { CommandRegistry } from '../../../../src/command/command-registry';
 import type { InboundMessage } from '../../../../src/core/types';
-import { getOutboundMessageText } from '../../../../src/core/types';
+import { getMessageText } from '../../../../src/core/types';
 import type { SessionManager } from '../../../../src/agent/session-manager';
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -40,7 +40,7 @@ function expectOutboundContent(state: PipelineState): string {
   if (state.stage !== 'respond') {
     throw new Error('Expected respond stage');
   }
-  return getOutboundMessageText(state.outbound);
+  return getMessageText(state.outbound);
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────

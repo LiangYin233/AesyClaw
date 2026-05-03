@@ -29,7 +29,7 @@ export type {
   PipelineResult,
 } from '@aesyclaw/core/types';
 
-export { getMessageText, getInboundMessageText, getOutboundMessageText } from '@aesyclaw/core/types';
+export { getMessageText } from '@aesyclaw/core/types';
 
 export type { AesyClawTool, ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
 
