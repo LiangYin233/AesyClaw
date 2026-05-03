@@ -175,9 +175,9 @@ function makeMockDeps(): AgentEngineDependencies {
 describe('AgentEngine', () => {
   let engine: AgentEngine;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     engine = new AgentEngine();
-    engine.initialize(makeMockDeps());
+    await engine.initialize(makeMockDeps());
   });
 
   describe('createAgent', () => {
@@ -194,7 +194,7 @@ describe('AgentEngine', () => {
       expect(agent.state.tools).toEqual([]);
     });
 
-    it('should wire role-resolved tools into the runtime agent state', () => {
+    it('should wire role-resolved tools into the runtime agent state', async () => {
       const tool = makeAgentTool('search');
       const deps = makeMockDeps();
       (deps.promptBuilder.buildSystemPrompt as ReturnType<typeof vi.fn>).mockReturnValue({
@@ -203,7 +203,7 @@ describe('AgentEngine', () => {
       });
 
       const runtimeEngine = new AgentEngine();
-      runtimeEngine.initialize(deps);
+      await runtimeEngine.initialize(deps);
 
       const role = makeRole();
 
@@ -260,7 +260,7 @@ describe('AgentEngine', () => {
         .mockReturnValueOnce({ prompt: role.systemPrompt, tools: [refreshedTool] });
 
       const runtimeEngine = new AgentEngine();
-      runtimeEngine.initialize(deps);
+      await runtimeEngine.initialize(deps);
 
       const messageRepo = makeMockMessageRepo();
       const memory = new MemoryManager('test-session', messageRepo, {
@@ -291,7 +291,7 @@ describe('AgentEngine', () => {
       const role = makeRole();
       const deps = makeMockDeps();
       const runtimeEngine = new AgentEngine();
-      runtimeEngine.initialize(deps);
+      await runtimeEngine.initialize(deps);
 
       const messageRepo = makeMockMessageRepo();
       const memory = new MemoryManager('test-session', messageRepo, {
@@ -374,7 +374,7 @@ describe('AgentEngine', () => {
     it('should create an independent tool-disabled runtime using the current role model', async () => {
       const deps = makeMockDeps();
       const runtimeEngine = new AgentEngine();
-      runtimeEngine.initialize(deps);
+      await runtimeEngine.initialize(deps);
       const role = makeRole({ toolPermission: { mode: 'allowlist', list: ['search'] } });
       const messageRepo = makeMockMessageRepo();
       const memory = new MemoryManager('test-session', messageRepo, {

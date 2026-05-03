@@ -54,7 +54,7 @@ describe('ChannelManager', () => {
       }),
     });
     const manager = new ChannelManager();
-    manager.initialize({ configManager: config, pipeline, channels: [channel] });
+    await manager.initialize({ configManager: config, pipeline, channels: [channel] });
 
     await manager.startAll();
     await received?.({
@@ -93,7 +93,7 @@ describe('ChannelManager', () => {
     });
 
     const manager = new ChannelManager();
-    manager.initialize({ configManager: config, pipeline: makePipeline(), channels: [channel] });
+    await manager.initialize({ configManager: config, pipeline: makePipeline(), channels: [channel] });
 
     await manager.startAll();
 
@@ -112,7 +112,7 @@ describe('ChannelManager', () => {
       }),
     });
     const manager = new ChannelManager();
-    manager.initialize({
+    await manager.initialize({
       configManager: config,
       pipeline: makePipeline(),
       channels: [bad, disabled, good],
@@ -134,7 +134,7 @@ describe('ChannelManager', () => {
   it('sends through the loaded channel and stops with cleanup', async () => {
     const channel = makeChannel();
     const manager = new ChannelManager();
-    manager.initialize({
+    await manager.initialize({
       configManager: new FakeConfigManager(),
       pipeline: makePipeline(),
       channels: [channel],

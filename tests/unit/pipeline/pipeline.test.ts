@@ -129,33 +129,33 @@ describe('Pipeline', () => {
   describe('lifecycle', () => {
     it('should initialize with dependencies', async () => {
       const deps = await createPipelineDeps();
-      pipeline.initialize(deps);
+      await pipeline.initialize(deps);
       // No error means success
     });
 
     it('should not re-initialize if already initialized', async () => {
       const deps = await createPipelineDeps();
-      pipeline.initialize(deps);
+      await pipeline.initialize(deps);
       // Second call should not throw
-      pipeline.initialize(deps);
+      await pipeline.initialize(deps);
     });
 
     it('should destroy and clear state', async () => {
       const deps = await createPipelineDeps();
-      pipeline.initialize(deps);
+      await pipeline.initialize(deps);
       pipeline.destroy();
       // Pipeline should not process messages after destroy
     });
 
     it('should clear hook registrations on destroy', async () => {
       const deps = await createPipelineDeps();
-      pipeline.initialize(deps);
+      await pipeline.initialize(deps);
       pipeline.register('blocker', {
         onReceive: async () => ({ action: 'block' as const, reason: 'stale hook' }),
       });
       pipeline.destroy();
 
-      pipeline.initialize(deps);
+      await pipeline.initialize(deps);
 
       const send = vi.fn();
       await pipeline.receiveWithSend(makeInbound(), send);
@@ -177,7 +177,7 @@ describe('Pipeline', () => {
 
     it('should call send with outbound from agent processing', async () => {
       const deps = await createPipelineDeps();
-      pipeline.initialize(deps);
+      await pipeline.initialize(deps);
 
       const sent: OutboundMessage[] = [];
       const send = vi.fn(async (msg: OutboundMessage) => {
@@ -191,7 +191,7 @@ describe('Pipeline', () => {
 
     it('should pass an onSend-aware callback into agent processing', async () => {
       const deps = await createPipelineDeps();
-      pipeline.initialize(deps);
+      await pipeline.initialize(deps);
 
       const send = vi.fn(async (_msg: OutboundMessage) => undefined);
       await pipeline.receiveWithSend(makeInbound(), send);
@@ -205,7 +205,7 @@ describe('Pipeline', () => {
       const deps = await createPipelineDeps();
       const processMock = deps.agentEngine.process as ReturnType<typeof vi.fn>;
       processMock.mockRejectedValue(new Error('agent boom'));
-      pipeline.initialize(deps);
+      await pipeline.initialize(deps);
 
       await expect(pipeline.receiveWithSend(makeInbound(), vi.fn())).rejects.toThrow('agent boom');
     });
@@ -238,7 +238,7 @@ describe('Pipeline', () => {
             releaseProcess = () => resolve({ content: 'Agent response' });
           }),
       );
-      pipeline.initialize(deps);
+      await pipeline.initialize(deps);
 
       const firstSend = vi.fn();
       const secondSend = vi.fn();
@@ -257,7 +257,7 @@ describe('Pipeline', () => {
 
     it('should allow later ordinary processing after the busy lock is released', async () => {
       const deps = await createPipelineDeps();
-      pipeline.initialize(deps);
+      await pipeline.initialize(deps);
 
       const send = vi.fn();
       await pipeline.receiveWithSend(makeInbound('first'), send);
@@ -292,7 +292,7 @@ describe('Pipeline', () => {
           processingKeys.delete(JSON.stringify({ channel: key.channel, type: key.type, chatId: key.chatId }));
         },
       );
-      pipeline.initialize(deps);
+      await pipeline.initialize(deps);
 
       const differentChatSend = vi.fn();
       const differentChannelSend = vi.fn();
@@ -331,7 +331,7 @@ describe('Pipeline', () => {
         execute: async () => 'Hello from command!',
       });
 
-      pipeline.initialize(deps);
+      await pipeline.initialize(deps);
 
       const sent: OutboundMessage[] = [];
       const send = vi.fn(async (msg: OutboundMessage) => {
@@ -345,7 +345,7 @@ describe('Pipeline', () => {
 
     it('should not detect commands for regular messages', async () => {
       const deps = await createPipelineDeps();
-      pipeline.initialize(deps);
+      await pipeline.initialize(deps);
 
       const send = vi.fn();
       await pipeline.receiveWithSend(makeInbound('just chatting'), send);
@@ -359,7 +359,7 @@ describe('Pipeline', () => {
   describe('hook integration', () => {
     it('should block message on onReceive hook', async () => {
       const deps = await createPipelineDeps();
-      pipeline.initialize(deps);
+      await pipeline.initialize(deps);
 
       // Register a blocking hook
       const hooks: PluginHooks = {
@@ -374,7 +374,7 @@ describe('Pipeline', () => {
 
     it('should send direct response on onReceive respond hook', async () => {
       const deps = await createPipelineDeps();
-      pipeline.initialize(deps);
+      await pipeline.initialize(deps);
 
       const hooks: PluginHooks = {
         onReceive: async () => ({ action: 'respond' as const, content: 'direct hook reply' }),
@@ -393,7 +393,7 @@ describe('Pipeline', () => {
 
     it('should block outbound on onSend hook', async () => {
       const deps = await createPipelineDeps();
-      pipeline.initialize(deps);
+      await pipeline.initialize(deps);
 
       const hooks: PluginHooks = {
         onSend: async () => ({ action: 'block' as const, reason: 'output filtered' }),
@@ -407,7 +407,7 @@ describe('Pipeline', () => {
 
     it('should modify outbound on onSend respond hook', async () => {
       const deps = await createPipelineDeps();
-      pipeline.initialize(deps);
+      await pipeline.initialize(deps);
 
       const hooks: PluginHooks = {
         onSend: async () => ({ action: 'respond' as const, content: 'modified output' }),
@@ -426,7 +426,7 @@ describe('Pipeline', () => {
 
     it('should block live agent processing on beforeLLMRequest hook', async () => {
       const deps = await createPipelineDeps();
-      pipeline.initialize(deps);
+      await pipeline.initialize(deps);
 
       const processMock = deps.agentEngine.process as ReturnType<typeof vi.fn>;
       pipeline.register('llm-blocker', {
@@ -442,7 +442,7 @@ describe('Pipeline', () => {
 
     it('should return hook responses from beforeLLMRequest without calling the agent', async () => {
       const deps = await createPipelineDeps();
-      pipeline.initialize(deps);
+      await pipeline.initialize(deps);
 
       const processMock = deps.agentEngine.process as ReturnType<typeof vi.fn>;
       pipeline.register('llm-responder', {

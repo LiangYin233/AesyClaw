@@ -40,7 +40,7 @@ describe('McpManager', () => {
     const factory: McpClientFactory = { create: vi.fn(() => client) };
     const toolRegistry = new ToolRegistry();
     const manager = new McpManager();
-    manager.initialize({
+    await manager.initialize({
       configManager: new FakeConfigManager([{ name: 'local', transport: 'stdio', enabled: true }]),
       toolRegistry,
       clientFactory: factory,
@@ -67,7 +67,7 @@ describe('McpManager', () => {
     });
     const toolRegistry = new ToolRegistry();
     const manager = new McpManager();
-    manager.initialize({
+    await manager.initialize({
       configManager: new FakeConfigManager([{ name: 'local', transport: 'stdio', enabled: true }]),
       toolRegistry,
       clientFactory: { create: () => client },
@@ -88,7 +88,7 @@ describe('McpManager', () => {
     const client = makeClient();
     const toolRegistry = new ToolRegistry();
     const manager = new McpManager();
-    manager.initialize({
+    await manager.initialize({
       configManager: new FakeConfigManager([{ name: 'local', transport: 'stdio', enabled: true }]),
       toolRegistry,
       clientFactory: { create: () => client },
@@ -119,7 +119,7 @@ describe('McpManager', () => {
     });
     const toolRegistry = new ToolRegistry();
     const manager = new McpManager();
-    manager.initialize({
+    await manager.initialize({
       configManager: new FakeConfigManager([{ name: 'local', transport: 'stdio', enabled: true }]),
       toolRegistry,
       clientFactory: { create: () => client },
@@ -139,7 +139,7 @@ describe('McpManager', () => {
   it('assigns collision-resistant names across MCP servers with colliding sanitized names', async () => {
     const toolRegistry = new ToolRegistry();
     const manager = new McpManager();
-    manager.initialize({
+    await manager.initialize({
       configManager: new FakeConfigManager([
         { name: 'local.one', transport: 'stdio', enabled: true },
         { name: 'local_one', transport: 'stdio', enabled: true },
@@ -172,7 +172,7 @@ describe('McpManager', () => {
     });
     const toolRegistry = new ToolRegistry();
     const manager = new McpManager();
-    manager.initialize({
+    await manager.initialize({
       configManager: new FakeConfigManager([{ name: 'local', transport: 'stdio', enabled: true }]),
       toolRegistry,
       clientFactory: { create: () => client },
@@ -196,7 +196,7 @@ describe('McpManager', () => {
     const client = makeClient();
     const toolRegistry = new ToolRegistry();
     const manager = new McpManager();
-    manager.initialize({
+    await manager.initialize({
       configManager: new FakeConfigManager([{ name: 'local', transport: 'stdio', enabled: false }]),
       toolRegistry,
       clientFactory: { create: () => client },
@@ -218,7 +218,7 @@ describe('McpManager', () => {
     });
     const toolRegistry = new ToolRegistry();
     const manager = new McpManager();
-    manager.initialize({
+    await manager.initialize({
       configManager: new FakeConfigManager([
         { name: 'bad', transport: 'stdio', enabled: true },
         { name: 'good', transport: 'stdio', enabled: true },

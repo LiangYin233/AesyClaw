@@ -118,14 +118,14 @@ function makeModule(overrides: Partial<PluginModule> = {}): PluginModule {
   };
 }
 
-function makeManager(module: PluginModule, config = new FakeConfigManager()) {
+async function makeManager(module: PluginModule, config = new FakeConfigManager()) {
   const toolRegistry = new ToolRegistry();
   const commandRegistry = new CommandRegistry();
   const hookRegistry = new HookDispatcher();
   const channelManager = new FakeChannelManager();
   const pluginLoader = new FakePluginLoader(new Map([[module.directory, module]]));
   const manager = new PluginManager();
-  manager.initialize({
+    await manager.initialize({
     configManager: config,
     toolRegistry,
     commandRegistry,
@@ -139,7 +139,7 @@ function makeManager(module: PluginModule, config = new FakeConfigManager()) {
 describe('PluginManager', () => {
   it('loads enabled plugins and scopes registered tools and commands', async () => {
     const module = makeModule();
-    const { manager, toolRegistry, commandRegistry } = makeManager(module);
+    const { manager, toolRegistry, commandRegistry } = await makeManager(module);
 
     await manager.loadAll();
 
@@ -178,7 +178,7 @@ describe('PluginManager', () => {
         },
       },
     ];
-    const { manager } = makeManager(module, config);
+    const { manager } = await makeManager(module, config);
 
     const loaded = await manager.load(module.directory);
 
@@ -209,7 +209,7 @@ describe('PluginManager', () => {
         },
       },
     });
-    const { manager, toolRegistry } = makeManager(module);
+    const { manager, toolRegistry } = await makeManager(module);
     toolRegistry.register({
       name: 'system_tool',
       description: 'System tool',
@@ -232,7 +232,7 @@ describe('PluginManager', () => {
         destroy,
       },
     });
-    const { manager, toolRegistry, commandRegistry, hookRegistry } = makeManager(module);
+    const { manager, toolRegistry, commandRegistry, hookRegistry } = await makeManager(module);
 
     await manager.load(module.directory);
     await manager.unload('alpha');
@@ -261,7 +261,7 @@ describe('PluginManager', () => {
         },
       },
     });
-    const { manager, channelManager } = makeManager(module);
+    const { manager, channelManager } = await makeManager(module);
 
     await manager.load(module.directory);
     expect(channelManager.registered.has('alpha_channel')).toBe(true);
@@ -285,7 +285,7 @@ describe('PluginManager', () => {
         },
       },
     });
-    const { manager, channelManager } = makeManager(module);
+    const { manager, channelManager } = await makeManager(module);
     const existingChannel = {
       name: 'existing_channel',
       version: '1.0.0',
@@ -301,7 +301,7 @@ describe('PluginManager', () => {
 
   it('updates config for enable and disable', async () => {
     const module = makeModule();
-    const { manager, config } = makeManager(module);
+    const { manager, config } = await makeManager(module);
 
     await manager.disable('alpha');
     expect(config.plugins).toEqual([{ name: 'alpha', enabled: false }]);
@@ -314,7 +314,7 @@ describe('PluginManager', () => {
     const module = makeModule();
     const config = new FakeConfigManager();
     config.plugins = [{ name: 'plugin_alpha', enabled: false }];
-    const { manager } = makeManager(module, config);
+    const { manager } = await makeManager(module, config);
 
     await manager.enable('alpha');
 
@@ -325,7 +325,7 @@ describe('PluginManager', () => {
     const module = makeModule();
     const config = new FakeConfigManager();
     config.plugins = [{ name: 'alpha', enabled: false }];
-    const { manager } = makeManager(module, config);
+    const { manager } = await makeManager(module, config);
 
     const statuses = await manager.listPlugins();
 
@@ -343,7 +343,7 @@ describe('PluginManager', () => {
     const module = makeModule();
     const config = new FakeConfigManager();
     config.plugins = [{ name: 'alpha', enabled: false }];
-    const { manager, toolRegistry } = makeManager(module, config);
+    const { manager, toolRegistry } = await makeManager(module, config);
 
     await expect(manager.load(module.directory)).resolves.toBeNull();
 
@@ -380,7 +380,7 @@ describe('PluginManager', () => {
       ]),
     );
     const manager = new PluginManager();
-    manager.initialize({
+  await manager.initialize({
       configManager: config,
       toolRegistry,
       commandRegistry,
@@ -397,7 +397,7 @@ describe('PluginManager', () => {
 
   it('coalesces overlapping config reload requests into a follow-up reload pass', async () => {
     const module = makeModule();
-    const { manager } = makeManager(module);
+    const { manager } = await makeManager(module);
     let releaseFirstUnload: (() => void) | null = null;
     const unloadAll = vi
       .spyOn(manager, 'unloadAll')

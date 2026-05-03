@@ -70,12 +70,12 @@ describe('LlmAdapter', () => {
   let adapter: LlmAdapter;
   const mockedCompleteSimple = vi.mocked(completeSimple);
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockedCompleteSimple.mockReset();
     adapter = new LlmAdapter();
     const config = makeConfigWithProviders();
     const configManager = makeMockConfigManager(config);
-    adapter.initialize({ configManager });
+    await adapter.initialize({ configManager });
   });
 
   afterEach(() => {
@@ -118,7 +118,7 @@ describe('LlmAdapter', () => {
       expect(model.apiKey).toBe('sk-test-key'); // From provider
     });
 
-    it('should not fall back to environment variables when no config apiKey exists', () => {
+    it('should not fall back to environment variables when no config apiKey exists', async () => {
       vi.stubEnv('OPENAI_API_KEY', 'env-key-must-not-be-used');
       const config = makeConfigWithProviders({
         custom: {
@@ -126,7 +126,7 @@ describe('LlmAdapter', () => {
         },
       });
       const customAdapter = new LlmAdapter();
-      customAdapter.initialize({ configManager: makeMockConfigManager(config) });
+      await customAdapter.initialize({ configManager: makeMockConfigManager(config) });
 
       expect(() => customAdapter.resolveModel('custom/gpt-4o')).toThrow(
         '未为提供者 "custom" 配置 API 密钥',

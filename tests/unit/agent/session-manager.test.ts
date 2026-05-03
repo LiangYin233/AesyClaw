@@ -167,10 +167,10 @@ describe('SessionManager', () => {
   let manager: SessionManager;
   let deps: SessionManagerDependencies;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     manager = new SessionManager();
     deps = makeMockDeps();
-    manager.initialize(deps);
+    await manager.initialize(deps);
   });
 
   // ─── getOrCreateSession ───────────────────────────────────────
