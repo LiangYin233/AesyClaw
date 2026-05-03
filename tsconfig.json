@@ -16,12 +16,12 @@
     "declarationMap": true,
     "sourceMap": true,
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "paths": {
       "@aesyclaw/sdk": ["./src/sdk/index.ts"]
     },
     "baseUrl": "."
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "extensions/**/*"],
   "exclude": ["node_modules", "dist", "tests"]
 }
