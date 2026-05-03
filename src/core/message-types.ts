@@ -2,16 +2,7 @@
 
 import type { SessionKey } from './identity-types';
 
-// ─── 附件与发送者 ─────────────────────────────────────────────────
-
-/** 随消息一起携带的媒体附件 */
-export type MediaAttachment = {
-  type: 'image' | 'audio' | 'video' | 'file';
-  url?: string;
-  path?: string;
-  base64?: string;
-  mimeType?: string;
-};
+// ─── 发送者 ─────────────────────────────────────────────────
 
 /** 消息发送者信息 */
 export type SenderInfo = {
@@ -107,7 +98,7 @@ export type MessageComponent =
   | NodesComponent
   | UnknownComponent;
 
-// ─── 入口 / 出口 / 管道 ────────────────────────────────────────────
+// ─── 入站消息 ──────────────────────────────────────────────────────
 
 /** 从外部平台进入管道的传入消息 */
 export type InboundMessage = {
@@ -124,11 +115,66 @@ export function getInboundMessageText(message: Pick<InboundMessage, 'components'
     .join('');
 }
 
+// ─── 出站消息组件 ─────────────────────────────────────────────────
+
+export type OutboundPlainComponent = {
+  type: 'Plain';
+  text: string;
+};
+
+export type OutboundImageComponent = {
+  type: 'Image';
+  url?: string;
+  path?: string;
+  base64?: string;
+  mimeType?: string;
+};
+
+export type OutboundRecordComponent = {
+  type: 'Record';
+  url?: string;
+  path?: string;
+  base64?: string;
+  mimeType?: string;
+};
+
+export type OutboundVideoComponent = {
+  type: 'Video';
+  url?: string;
+  path?: string;
+  base64?: string;
+  mimeType?: string;
+};
+
+export type OutboundFileComponent = {
+  type: 'File';
+  url?: string;
+  path?: string;
+  base64?: string;
+  mimeType?: string;
+  name?: string;
+};
+
+export type OutboundMessageComponent =
+  | OutboundPlainComponent
+  | OutboundImageComponent
+  | OutboundRecordComponent
+  | OutboundVideoComponent
+  | OutboundFileComponent;
+
+// ─── 出站消息 / 管道 ───────────────────────────────────────────────
+
 /** 由管道生成并通过频道发送回去的回复 */
 export type OutboundMessage = {
-  content: string;
-  attachments?: MediaAttachment[];
+  components: OutboundMessageComponent[];
 };
+
+export function getOutboundMessageText(message: Pick<OutboundMessage, 'components'>): string {
+  return message.components
+    .filter((component): component is OutboundPlainComponent => component.type === 'Plain')
+    .map((component) => component.text)
+    .join('');
+}
 
 /** 通过频道发送传出消息的函数 */
 export type SendFn = (message: OutboundMessage) => Promise<void>;
@@ -137,7 +183,7 @@ export type SendFn = (message: OutboundMessage) => Promise<void>;
 export type PipelineResult =
   | { action: 'continue'; data?: unknown }
   | { action: 'block'; reason?: string }
-  | { action: 'respond'; content: string; attachments?: MediaAttachment[] };
+  | { action: 'respond'; components: OutboundMessageComponent[] };
 
 // ─── 持久化 ────────────────────────────────────────────────────────
 

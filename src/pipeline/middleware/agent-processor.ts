@@ -43,11 +43,11 @@ export async function agentProcessor(
   const session: SessionContext | undefined = state.session;
 
   if (!session) {
-    return { ...state, stage: 'respond', outbound: { content: '[错误: 无可用会话上下文]' } };
+    return { ...state, stage: 'respond', outbound: { components: [{ type: 'Plain', text: '[错误: 无可用会话上下文]' }] } };
   }
 
   if (!sessionManager.tryBeginAgentProcessing(session.key)) {
-    return { ...state, stage: 'respond', outbound: { content: AGENT_PROCESSING_BUSY_MESSAGE } };
+    return { ...state, stage: 'respond', outbound: { components: [{ type: 'Plain', text: AGENT_PROCESSING_BUSY_MESSAGE }] } };
   }
 
   try {

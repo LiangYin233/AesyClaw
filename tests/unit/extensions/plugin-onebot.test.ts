@@ -215,10 +215,10 @@ describe('plugin_onebot', () => {
     await sendOneBotMessage(
       groupSession('67890'),
       {
-        content: 'hello',
-        attachments: [
+        components: [
+          { type: 'Plain', text: 'hello' },
           {
-            type: 'image',
+            type: 'Image',
             base64: Buffer.from('image-bytes').toString('base64'),
             mimeType: 'image/png',
           },
@@ -234,7 +234,7 @@ describe('plugin_onebot', () => {
       expect.objectContaining({
         chunk_index: 0,
         total_chunks: 1,
-        filename: expect.stringMatching(/^image-.*\.png$/),
+        filename: expect.stringMatching(/^Image-.*\.png$/),
       }),
     );
     expect(sendAction).toHaveBeenNthCalledWith(
@@ -253,7 +253,7 @@ describe('plugin_onebot', () => {
           data: {
             file: 'C:/NapCatTemp/image.png',
             file_path: 'C:/NapCatTemp/image.png',
-            name: expect.stringMatching(/^image-.*\.png$/),
+            name: expect.stringMatching(/^Image-.*\.png$/),
           },
         },
       ],
@@ -269,10 +269,9 @@ describe('plugin_onebot', () => {
       sendOneBotMessage(
         groupSession('67890'),
         {
-          content: '',
-          attachments: [
+          components: [
             {
-              type: 'image',
+              type: 'Image',
               base64: Buffer.from('image-bytes').toString('base64'),
               mimeType: 'image/png',
             },
@@ -294,10 +293,10 @@ describe('plugin_onebot', () => {
         chatType: 'group',
         contentLength: 0,
         attachmentCount: 1,
-        attachmentTypes: ['image'],
+        attachmentTypes: ['Image'],
         stage: 'attachment-upload',
         attachmentIndex: 0,
-        attachmentType: 'image',
+        attachmentType: 'Image',
         attachmentSource: 'base64',
       },
       error,
@@ -315,10 +314,10 @@ describe('plugin_onebot', () => {
       sendOneBotMessage(
         groupSession('67890'),
         {
-          content: 'hello',
-          attachments: [
+          components: [
+            { type: 'Plain', text: 'hello' },
             {
-              type: 'image',
+              type: 'Image',
               base64: Buffer.from('image-bytes').toString('base64'),
               mimeType: 'image/png',
             },
@@ -352,7 +351,7 @@ describe('plugin_onebot', () => {
         chatType: 'group',
         contentLength: 'hello'.length,
         attachmentCount: 1,
-        attachmentTypes: ['image'],
+        attachmentTypes: ['Image'],
         stage: 'message-send',
         action: 'send_group_msg',
       },
@@ -383,7 +382,7 @@ describe('plugin_onebot', () => {
           sender: { id: '12345', name: 'alice' },
         }),
       );
-      await channel.send(message.sessionKey, { content: 'pong' });
+      await channel.send(message.sessionKey, { components: [{ type: 'Plain', text: 'pong' }] });
     });
 
     await openTestChannel(channel, socket, {
@@ -950,7 +949,7 @@ function groupSession(chatId: string): SessionKey {
 }
 
 function outbound(content: string): OutboundMessage {
-  return { content };
+  return { components: [{ type: 'Plain', text: content }] };
 }
 
 function makeLogger() {

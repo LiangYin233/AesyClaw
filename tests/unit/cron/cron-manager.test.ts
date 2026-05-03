@@ -89,7 +89,7 @@ class FakeCronRunRepo implements CronRunRepositoryLike {
 function makePipeline(response = 'done') {
   return {
     receiveWithSend: vi.fn(async (_message, send) => {
-      await send({ content: response });
+      await send({ components: [{ type: 'Plain', text: response }] });
     }),
   };
 }
@@ -168,7 +168,7 @@ describe('Cron', () => {
     );
     expect(send).toHaveBeenCalledWith(
       { channel: 'test', type: 'private', chatId: '1' },
-      { content: 'cron response' },
+      { components: [{ type: 'Plain', text: 'cron response' }] },
     );
 
     expect(await manager.deleteJob(jobId)).toBe(true);

@@ -24,7 +24,6 @@ export {
 export type { ChannelId, ChatType, ChatId, SessionKey, ToolOwner } from './identity-types';
 
 export type {
-  MediaAttachment,
   MessageComponent,
   PlainComponent,
   ImageComponent,
@@ -38,6 +37,12 @@ export type {
   NodeComponent,
   NodesComponent,
   UnknownComponent,
+  OutboundMessageComponent,
+  OutboundPlainComponent,
+  OutboundImageComponent,
+  OutboundRecordComponent,
+  OutboundVideoComponent,
+  OutboundFileComponent,
   SenderInfo,
   InboundMessage,
   OutboundMessage,
@@ -46,7 +51,7 @@ export type {
   PersistableMessage,
 } from './message-types';
 
-export { getInboundMessageText } from './message-types';
+export { getInboundMessageText, getOutboundMessageText } from './message-types';
 
 export type {
   SessionRecord,

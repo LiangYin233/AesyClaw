@@ -20,7 +20,7 @@ class FakeConfigManager {
 function makePipeline() {
   return {
     receiveWithSend: vi.fn(async (_message: InboundMessage, send) => {
-      await send({ content: 'pipeline response' });
+      await send({ components: [{ type: 'Plain', text: 'pipeline response' }] });
     }),
   };
 }
@@ -61,7 +61,7 @@ describe('ChannelManager', () => {
     expect(pipeline.receiveWithSend).toHaveBeenCalledOnce();
     expect(channel.send).toHaveBeenCalledWith(
       { channel: 'test', type: 'private', chatId: '1' },
-      { content: 'pipeline response' },
+      { components: [{ type: 'Plain', text: 'pipeline response' }] },
     );
     expect(manager.getLoaded('test')).toBeDefined();
   });
@@ -89,7 +89,7 @@ describe('ChannelManager', () => {
     expect(pipeline.receiveWithSend).toHaveBeenCalledOnce();
     expect(channel.send).toHaveBeenCalledWith(
       { channel: 'test', type: 'private', chatId: '1' },
-      { content: 'pipeline response' },
+      { components: [{ type: 'Plain', text: 'pipeline response' }] },
     );
   });
 
@@ -181,12 +181,12 @@ describe('ChannelManager', () => {
     });
 
     await manager.start('test');
-    await manager.send({ channel: 'test', type: 'private', chatId: '1' }, { content: 'hello' });
+    await manager.send({ channel: 'test', type: 'private', chatId: '1' }, { components: [{ type: 'Plain', text: 'hello' }] });
     await manager.stopAll();
 
     expect(channel.send).toHaveBeenCalledWith(
       { channel: 'test', type: 'private', chatId: '1' },
-      { content: 'hello' },
+      { components: [{ type: 'Plain', text: 'hello' }] },
     );
     expect(channel.destroy).toHaveBeenCalledOnce();
     expect(manager.getLoaded('test')).toBeUndefined();

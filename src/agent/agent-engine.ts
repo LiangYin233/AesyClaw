@@ -110,7 +110,7 @@ export class AgentEngine {
     await memory.syncFromAgent(newMessages);
 
     if (lastAssistant) {
-      return { content: lastAssistant };
+      return { components: [{ type: 'Plain', text: lastAssistant }] };
     }
 
     const lastMessage =
@@ -122,12 +122,15 @@ export class AgentEngine {
     });
 
     return {
-      content:
-        lastMessage !== undefined &&
-        lastMessage.role !== 'user' &&
-        extractMessageText(lastMessage).trim().length > 0
-          ? extractMessageText(lastMessage)
-          : '[未生成回复]',
+      components: [{
+        type: 'Plain',
+        text:
+          lastMessage !== undefined &&
+          lastMessage.role !== 'user' &&
+          extractMessageText(lastMessage).trim().length > 0
+            ? extractMessageText(lastMessage)
+            : '[未生成回复]',
+      }],
     };
   }
 
@@ -149,14 +152,14 @@ export class AgentEngine {
     const { lastAssistant } = await this.promptAgent(agent, history, content);
 
     if (lastAssistant) {
-      return { content: lastAssistant };
+      return { components: [{ type: 'Plain', text: lastAssistant }] };
     }
 
     logger.warn('临时 Agent 未生成助手文本回复', {
       role: role.id,
     });
 
-    return { content: '[未生成回复]' };
+    return { components: [{ type: 'Plain', text: '[未生成回复]' }] };
   }
 
   switchModel(agent: Agent, modelIdentifier: string): void {

@@ -3,11 +3,14 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { ChannelContext, ChannelPlugin } from '@aesyclaw/sdk';
 import { resolvePaths } from '@aesyclaw/sdk';
-import { getInboundMessageText } from '@aesyclaw/sdk';
+import { getInboundMessageText, getOutboundMessageText } from '@aesyclaw/sdk';
 import type {
   InboundMessage,
-  MediaAttachment,
   MessageComponent,
+  OutboundImageComponent,
+  OutboundRecordComponent,
+  OutboundVideoComponent,
+  OutboundFileComponent,
   OutboundMessage,
   SessionKey,
 } from '@aesyclaw/sdk';
@@ -29,21 +32,42 @@ const DEFAULT_CONFIG = {
 const STREAM_CHUNK_SIZE = 64 * 1024;
 const STREAM_FILE_RETENTION_MS = 5 * 60 * 1000;
 
-const SEGMENT_TYPE_BY_ATTACHMENT: Record<MediaAttachment['type'], string> = {
+type OneBotAttachmentType = 'image' | 'audio' | 'video' | 'file';
+
+type OneBotDownloadResult = {
+  type: OneBotAttachmentType;
+  path?: string;
+  url?: string;
+};
+
+type OutboundMediaComponent =
+  | OutboundImageComponent
+  | OutboundRecordComponent
+  | OutboundVideoComponent
+  | OutboundFileComponent;
+
+const OUTBOUND_COMPONENT_TO_ATTACHMENT_TYPE: Record<OutboundMediaComponent['type'], OneBotAttachmentType> = {
+  Image: 'image',
+  Record: 'audio',
+  Video: 'video',
+  File: 'file',
+};
+
+const SEGMENT_TYPE_BY_ATTACHMENT: Record<OneBotAttachmentType, string> = {
   image: 'image',
   audio: 'record',
   video: 'video',
   file: 'file',
 };
 
-const DEFAULT_EXTENSION_BY_ATTACHMENT: Record<MediaAttachment['type'], string> = {
+const DEFAULT_EXTENSION_BY_ATTACHMENT: Record<OneBotAttachmentType, string> = {
   image: '.png',
   audio: '.mp3',
   video: '.mp4',
   file: '.bin',
 };
 
-const ATTACHMENT_TYPE_BY_SEGMENT: Record<string, MediaAttachment['type'] | undefined> = {
+const ATTACHMENT_TYPE_BY_SEGMENT: Record<string, OneBotAttachmentType | undefined> = {
   image: 'image',
   record: 'audio',
   video: 'video',
@@ -118,7 +142,7 @@ type DownloadedStreamFile = {
 };
 
 type OneBotInboundAttachmentSegment = {
-  attachmentType: MediaAttachment['type'];
+  attachmentType: OneBotAttachmentType;
   componentType: Extract<MessageComponent['type'], 'Image' | 'Record' | 'Video' | 'File'>;
   segmentType: string;
   data: Record<string, unknown>;
@@ -330,7 +354,7 @@ async function downloadInboundAttachment(
     action: string,
     params: Record<string, unknown>,
   ) => Promise<OneBotApiResponse[]>,
-): Promise<MediaAttachment> {
+): Promise<OneBotDownloadResult> {
   const request = buildDownloadRequest(segment);
   if (!request) {
     throw new Error(
@@ -365,7 +389,7 @@ function findDownloadComponentIndex(
 
 function mergeDownloadedComponent(
   component: MessageComponent | undefined,
-  downloaded: MediaAttachment,
+  downloaded: OneBotDownloadResult,
 ): MessageComponent {
   const downloadedFields = {
     ...(downloaded.url ? { url: downloaded.url } : {}),
@@ -409,7 +433,7 @@ function mergeDownloadedComponent(
 }
 
 function componentTypeFromAttachment(
-  attachmentType: MediaAttachment['type'],
+  attachmentType: OneBotAttachmentType,
 ): OneBotInboundAttachmentSegment['componentType'] {
   switch (attachmentType) {
     case 'image':
@@ -602,20 +626,24 @@ async function buildOutgoingMessagePayload(
   logger: OneBotLogger | undefined,
   summary: ReturnType<typeof summarizeOutboundMessage>,
 ): Promise<string | OneBotMessageSegment[]> {
-  const attachments = message.attachments ?? [];
-  if (attachments.length === 0) {
-    return message.content;
+  const mediaComponents = message.components.filter(
+    (c): c is OutboundMediaComponent => c.type !== 'Plain',
+  );
+
+  if (mediaComponents.length === 0) {
+    return getOutboundMessageText(message);
   }
 
   const segments: OneBotMessageSegment[] = [];
-  if (message.content.length > 0) {
-    segments.push({ type: 'text', data: { text: message.content } });
+  const text = getOutboundMessageText(message);
+  if (text.length > 0) {
+    segments.push({ type: 'text', data: { text } });
   }
 
-  for (const [attachmentIndex, attachment] of attachments.entries()) {
+  for (const [attachmentIndex, component] of mediaComponents.entries()) {
     let uploaded: UploadedAttachment;
     try {
-      uploaded = await uploadAttachmentStream(attachment, transport);
+      uploaded = await uploadAttachmentStream(component, transport);
     } catch (err) {
       logger?.error(
         'OneBot outbound attachment upload failed',
@@ -623,8 +651,8 @@ async function buildOutgoingMessagePayload(
           ...summary,
           stage: 'attachment-upload',
           attachmentIndex,
-          attachmentType: attachment.type,
-          attachmentSource: summarizeAttachmentSource(attachment),
+          attachmentType: component.type,
+          attachmentSource: summarizeAttachmentSource(component),
         },
         err,
       );
@@ -632,7 +660,7 @@ async function buildOutgoingMessagePayload(
     }
 
     segments.push({
-      type: SEGMENT_TYPE_BY_ATTACHMENT[attachment.type],
+      type: SEGMENT_TYPE_BY_ATTACHMENT[OUTBOUND_COMPONENT_TO_ATTACHMENT_TYPE[component.type]],
       data: {
         file: uploaded.filePath,
         file_path: uploaded.filePath,
@@ -642,19 +670,19 @@ async function buildOutgoingMessagePayload(
   }
 
   if (segments.length === 0) {
-    throw new Error('OneBot outbound message has no content or attachments');
+    throw new Error('OneBot outbound message has no components to send');
   }
 
   return segments;
 }
 
 async function uploadAttachmentStream(
-  attachment: MediaAttachment,
+  component: OutboundMediaComponent,
   transport: OneBotActionTransport,
 ): Promise<UploadedAttachment> {
-  const loaded = await loadAttachmentSource(attachment);
+  const loaded = await loadAttachmentSource(component);
   if (loaded.data.byteLength === 0) {
-    throw new Error(`Cannot upload empty ${attachment.type} attachment`);
+    throw new Error(`Cannot upload empty ${component.type} attachment`);
   }
 
   const streamId = randomUUID();
@@ -701,24 +729,27 @@ function summarizeOutboundMessage(
   attachmentCount: number;
   attachmentTypes: string[];
 } {
-  const attachments = message.attachments ?? [];
+  const text = getOutboundMessageText(message);
+  const mediaComponents = message.components.filter(
+    (c): c is OutboundMediaComponent => c.type !== 'Plain',
+  );
   return {
     sessionChannel: sessionKey.channel,
     chatType: sessionKey.type,
-    contentLength: message.content.length,
-    attachmentCount: attachments.length,
-    attachmentTypes: attachments.map((attachment) => attachment.type),
+    contentLength: text.length,
+    attachmentCount: mediaComponents.length,
+    attachmentTypes: mediaComponents.map((c) => c.type),
   };
 }
 
-function summarizeAttachmentSource(attachment: MediaAttachment): string {
-  if (attachment.base64) {
+function summarizeAttachmentSource(component: OutboundMediaComponent): string {
+  if (component.base64) {
     return 'base64';
   }
-  if (attachment.path) {
+  if (component.path) {
     return 'path';
   }
-  if (attachment.url) {
+  if (component.url) {
     return 'url';
   }
   return 'missing';
@@ -731,13 +762,13 @@ function readUploadedFilePath(response: OneBotApiResponse): string {
   return response['data']['file_path'];
 }
 
-async function loadAttachmentSource(attachment: MediaAttachment): Promise<LoadedAttachmentSource> {
-  if (attachment.base64) {
-    return loadBase64AttachmentSource(attachment);
+async function loadAttachmentSource(component: OutboundMediaComponent): Promise<LoadedAttachmentSource> {
+  if (component.base64) {
+    return loadBase64AttachmentSource(component);
   }
 
-  if (attachment.url) {
-    const response = await fetch(attachment.url);
+  if (component.url) {
+    const response = await fetch(component.url);
     if (!response.ok) {
       throw new Error(
         `Failed to fetch attachment source (${response.status}): ${response.statusText}`,
@@ -747,27 +778,27 @@ async function loadAttachmentSource(attachment: MediaAttachment): Promise<Loaded
     return {
       data: new Uint8Array(await response.arrayBuffer()),
       fileName: inferAttachmentFileName(
-        attachment,
-        path.basename(new URL(attachment.url).pathname) || undefined,
+        component,
+        path.basename(new URL(component.url).pathname) || undefined,
       ),
     };
   }
 
-  if (attachment.path) {
+  if (component.path) {
     return {
-      data: await fs.readFile(attachment.path),
-      fileName: inferAttachmentFileName(attachment, path.basename(attachment.path)),
+      data: await fs.readFile(component.path),
+      fileName: inferAttachmentFileName(component, path.basename(component.path)),
     };
   }
 
-  throw new Error(`OneBot ${attachment.type} attachment requires url, path, or base64 data`);
+  throw new Error(`OneBot ${component.type} attachment requires url, path, or base64 data`);
 }
 
-function loadBase64AttachmentSource(attachment: MediaAttachment): LoadedAttachmentSource {
-  const { mimeType, base64 } = parseBase64Attachment(attachment.base64 ?? '', attachment.mimeType);
+function loadBase64AttachmentSource(component: OutboundMediaComponent): LoadedAttachmentSource {
+  const { mimeType, base64 } = parseBase64Attachment(component.base64 ?? '', component.mimeType);
   return {
     data: Buffer.from(base64, 'base64'),
-    fileName: inferAttachmentFileName(attachment, undefined, mimeType),
+    fileName: inferAttachmentFileName(component, undefined, mimeType),
   };
 }
 
@@ -784,7 +815,7 @@ function parseBase64Attachment(
 }
 
 function inferAttachmentFileName(
-  attachment: MediaAttachment,
+  component: OutboundMediaComponent,
   preferredName?: string,
   mimeType?: string,
 ): string {
@@ -794,8 +825,8 @@ function inferAttachmentFileName(
 
   const extension =
     (mimeType ? EXTENSION_BY_MIME_TYPE[mimeType.toLowerCase()] : undefined) ??
-    DEFAULT_EXTENSION_BY_ATTACHMENT[attachment.type];
-  return `${attachment.type}-${Date.now()}${extension}`;
+    DEFAULT_EXTENSION_BY_ATTACHMENT[OUTBOUND_COMPONENT_TO_ATTACHMENT_TYPE[component.type]];
+  return `${component.type}-${Date.now()}${extension}`;
 }
 
 function extractOneBotComponents(message: unknown): MessageComponent[] {
@@ -952,7 +983,7 @@ function optionalStringField(key: string, value: string | null): Record<string, 
   return value ? { [key]: value } : {};
 }
 
-function mapAttachmentTypeFromSegment(type: string): MediaAttachment['type'] | null {
+function mapAttachmentTypeFromSegment(type: string): OneBotAttachmentType | null {
   return ATTACHMENT_TYPE_BY_SEGMENT[type] ?? null;
 }
 

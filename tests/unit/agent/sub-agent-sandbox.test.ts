@@ -29,7 +29,7 @@ describe('SubAgentSandbox', () => {
           createPersistedAssistantMessage('delegated answer'),
         ]);
 
-        return { content: `history:${historyBefore.length}` };
+        return { components: [{ type: 'Plain', text: `history:${historyBefore.length}` }] };
       }),
     };
 
@@ -56,7 +56,7 @@ describe('SubAgentSandbox', () => {
   it('applies disabled tools control to sub-agent', async () => {
     const agentEngine = {
       createAgent: vi.fn().mockReturnValue({ state: {} }),
-      process: vi.fn().mockResolvedValue({ content: 'delegated answer' }),
+      process: vi.fn().mockResolvedValue({ components: [{ type: 'Plain', text: 'delegated answer' }] }),
     };
     const roleManager = {
       getRole: vi.fn().mockReturnValue(ROLE),

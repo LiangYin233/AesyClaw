@@ -56,12 +56,16 @@ describe('formatResult', () => {
   });
 
   it('should join multiple messages with newlines', () => {
-    const result = formatResult([{ content: 'a' }, { content: 'b' }, { content: 'c' }]);
+    const result = formatResult([
+      { components: [{ type: 'Plain', text: 'a' }] },
+      { components: [{ type: 'Plain', text: 'b' }] },
+      { components: [{ type: 'Plain', text: 'c' }] },
+    ]);
     expect(result).toBe('a\nb\nc');
   });
 
   it('should handle a single message', () => {
-    const result = formatResult([{ content: 'hello' }]);
+    const result = formatResult([{ components: [{ type: 'Plain', text: 'hello' }] }]);
     expect(result).toBe('hello');
   });
 });
@@ -88,7 +92,7 @@ describe('CronExecutor', () => {
       receiveWithSend: vi
         .fn()
         .mockImplementation(async (_msg: unknown, send: (m: unknown) => Promise<void>) => {
-          await send({ content: 'pipeline response' });
+          await send({ components: [{ type: 'Plain', text: 'pipeline response' }] });
         }),
     };
     const executor = new CronExecutor({ cronRuns, pipeline, send });
@@ -110,7 +114,7 @@ describe('CronExecutor', () => {
       expect(inbound.rawEvent).toEqual({ cronJobId: 'job-1', cronRunId: 'run-1' });
       expect(send).toHaveBeenCalledWith(
         { channel: 'test', type: 'private', chatId: '123' },
-        { content: 'pipeline response' },
+        { components: [{ type: 'Plain', text: 'pipeline response' }] },
       );
       expect(cronRuns.markCompleted).toHaveBeenCalledWith('run-1', 'pipeline response');
     });
@@ -119,8 +123,8 @@ describe('CronExecutor', () => {
       const { executor, cronRuns, pipeline, send } = makeMocks();
       pipeline.receiveWithSend.mockImplementation(
         async (_msg: unknown, send: (m: unknown) => Promise<void>) => {
-          await send({ content: 'first' });
-          await send({ content: 'second' });
+          await send({ components: [{ type: 'Plain', text: 'first' }] });
+          await send({ components: [{ type: 'Plain', text: 'second' }] });
         },
       );
       const job = makeJob();
@@ -130,12 +134,12 @@ describe('CronExecutor', () => {
       expect(send).toHaveBeenNthCalledWith(
         1,
         { channel: 'test', type: 'private', chatId: '123' },
-        { content: 'first' },
+        { components: [{ type: 'Plain', text: 'first' }] },
       );
       expect(send).toHaveBeenNthCalledWith(
         2,
         { channel: 'test', type: 'private', chatId: '123' },
-        { content: 'second' },
+        { components: [{ type: 'Plain', text: 'second' }] },
       );
       expect(cronRuns.markCompleted).toHaveBeenCalledWith('run-1', 'first\nsecond');
     });

@@ -16,7 +16,6 @@ export type {
   InboundMessage,
   OutboundMessage,
   SessionKey,
-  MediaAttachment,
   MessageComponent,
   PlainComponent,
   ImageComponent,
@@ -30,10 +29,16 @@ export type {
   NodeComponent,
   NodesComponent,
   UnknownComponent,
+  OutboundMessageComponent,
+  OutboundPlainComponent,
+  OutboundImageComponent,
+  OutboundRecordComponent,
+  OutboundVideoComponent,
+  OutboundFileComponent,
   PipelineResult,
 } from '@aesyclaw/core/types';
 
-export { getInboundMessageText } from '@aesyclaw/core/types';
+export { getInboundMessageText, getOutboundMessageText } from '@aesyclaw/core/types';
 
 export type { AesyClawTool, ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
 

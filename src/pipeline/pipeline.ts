@@ -161,7 +161,7 @@ export class Pipeline {
       return true;
     }
     if (result.action === 'respond') {
-      await this.dispatchOnSendAndDeliver({ content: result.content }, send, sessionKey);
+      await this.dispatchOnSendAndDeliver({ components: result.components }, send, sessionKey);
       return true;
     }
     return false;
@@ -183,10 +183,7 @@ export class Pipeline {
 
     const finalOutbound: OutboundMessage =
       sendResult.action === 'respond'
-        ? {
-            content: sendResult.content,
-            ...(sendResult.attachments ? { attachments: sendResult.attachments } : {}),
-          }
+        ? { components: sendResult.components }
         : outbound;
 
     await send(finalOutbound);

@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Pipeline } from '../../../src/pipeline/pipeline';
 import type { InboundMessage, OutboundMessage } from '../../../src/core/types';
+import { getOutboundMessageText } from '../../../src/core/types';
 import type { PluginHooks } from '../../../src/pipeline/middleware/types';
 import { CommandRegistry } from '../../../src/command/command-registry';
 import type { SessionManager } from '../../../src/agent/session-manager';
@@ -106,7 +107,7 @@ async function createPipelineDeps() {
       waitForIdle: vi.fn().mockResolvedValue(undefined),
       reset: vi.fn(),
     }),
-    process: vi.fn().mockResolvedValue({ content: 'Agent response' }),
+    process: vi.fn().mockResolvedValue({ components: [{ type: 'Plain', text: 'Agent response' }] }),
     switchModel: vi.fn(),
   } as unknown as AgentEngine;
 
@@ -188,7 +189,7 @@ describe('Pipeline', () => {
 
       await pipeline.receiveWithSend(makeInbound(), send);
       expect(send).toHaveBeenCalledTimes(1);
-      expect(sent[0].content).toBe('Agent response');
+      expect(getOutboundMessageText(sent[0])).toBe('Agent response');
     });
 
     it('should pass an onSend-aware callback into agent processing', async () => {
@@ -238,7 +239,7 @@ describe('Pipeline', () => {
       (deps.agentEngine.process as ReturnType<typeof vi.fn>).mockImplementation(
         async () =>
           await new Promise((resolve) => {
-            releaseProcess = () => resolve({ content: 'Agent response' });
+            releaseProcess = () => resolve({ components: [{ type: 'Plain', text: 'Agent response' }] });
           }),
       );
       await pipeline.initialize(deps);
@@ -251,11 +252,11 @@ describe('Pipeline', () => {
       await pipeline.receiveWithSend(makeInbound('second'), secondSend);
 
       expect(deps.agentEngine.process).toHaveBeenCalledTimes(1);
-      expect(secondSend).toHaveBeenCalledWith({ content: 'Agent处理任务中。' });
+      expect(secondSend).toHaveBeenCalledWith({ components: [{ type: 'Plain', text: 'Agent处理任务中。' }] });
 
       releaseProcess?.();
       await first;
-      expect(firstSend).toHaveBeenCalledWith({ content: 'Agent response' });
+      expect(firstSend).toHaveBeenCalledWith({ components: [{ type: 'Plain', text: 'Agent response' }] });
     });
 
     it('should allow later ordinary processing after the busy lock is released', async () => {
@@ -316,9 +317,9 @@ describe('Pipeline', () => {
       );
 
       expect(deps.agentEngine.process).toHaveBeenCalledTimes(3);
-      expect(differentChatSend).toHaveBeenCalledWith({ content: 'Agent response' });
-      expect(differentChannelSend).toHaveBeenCalledWith({ content: 'Agent response' });
-      expect(cronSend).toHaveBeenCalledWith({ content: 'Agent response' });
+      expect(differentChatSend).toHaveBeenCalledWith({ components: [{ type: 'Plain', text: 'Agent response' }] });
+      expect(differentChannelSend).toHaveBeenCalledWith({ components: [{ type: 'Plain', text: 'Agent response' }] });
+      expect(cronSend).toHaveBeenCalledWith({ components: [{ type: 'Plain', text: 'Agent response' }] });
     });
   });
 
@@ -345,7 +346,7 @@ describe('Pipeline', () => {
 
       await pipeline.receiveWithSend(makeInbound('/greet'), send);
       expect(send).toHaveBeenCalledTimes(1);
-      expect(sent[0].content).toBe('Hello from command!');
+      expect(getOutboundMessageText(sent[0])).toBe('Hello from command!');
     });
 
     it('should not detect commands for regular messages', async () => {
@@ -382,7 +383,7 @@ describe('Pipeline', () => {
       await pipeline.initialize(deps);
 
       const hooks: PluginHooks = {
-        onReceive: async () => ({ action: 'respond' as const, content: 'direct hook reply' }),
+        onReceive: async () => ({ action: 'respond' as const, components: [{ type: 'Plain', text: 'direct hook reply' }] }),
       };
       pipeline.register('responder', hooks);
 
@@ -393,7 +394,7 @@ describe('Pipeline', () => {
 
       await pipeline.receiveWithSend(makeInbound(), send);
       expect(send).toHaveBeenCalledTimes(1);
-      expect(sent[0].content).toBe('direct hook reply');
+      expect(getOutboundMessageText(sent[0])).toBe('direct hook reply');
     });
 
     it('should block outbound on onSend hook', async () => {
@@ -415,7 +416,7 @@ describe('Pipeline', () => {
       await pipeline.initialize(deps);
 
       const hooks: PluginHooks = {
-        onSend: async () => ({ action: 'respond' as const, content: 'modified output' }),
+        onSend: async () => ({ action: 'respond' as const, components: [{ type: 'Plain', text: 'modified output' }] }),
       };
       pipeline.register('modifier', hooks);
 
@@ -426,7 +427,7 @@ describe('Pipeline', () => {
 
       await pipeline.receiveWithSend(makeInbound(), send);
       expect(send).toHaveBeenCalledTimes(1);
-      expect(sent[0].content).toBe('modified output');
+      expect(getOutboundMessageText(sent[0])).toBe('modified output');
     });
 
     it('should block live agent processing on beforeLLMRequest hook', async () => {
@@ -451,7 +452,7 @@ describe('Pipeline', () => {
 
       const processMock = deps.agentEngine.process as ReturnType<typeof vi.fn>;
       pipeline.register('llm-responder', {
-        beforeLLMRequest: async () => ({ action: 'respond' as const, content: 'cached answer' }),
+        beforeLLMRequest: async () => ({ action: 'respond' as const, components: [{ type: 'Plain', text: 'cached answer' }] }),
       });
 
       const sent: OutboundMessage[] = [];
@@ -462,7 +463,7 @@ describe('Pipeline', () => {
 
       expect(processMock).not.toHaveBeenCalled();
       expect(send).toHaveBeenCalledTimes(1);
-      expect(sent[0].content).toBe('cached answer');
+      expect(getOutboundMessageText(sent[0])).toBe('cached answer');
     });
   });
 });

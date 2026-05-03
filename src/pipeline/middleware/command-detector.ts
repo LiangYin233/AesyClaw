@@ -36,7 +36,7 @@ export async function commandDetector(
   const isBusy = sessionManager.isAgentProcessing(state.inbound.sessionKey);
 
   if (isBusy && !resolved?.command.allowDuringAgentProcessing) {
-    return { ...state, stage: 'respond', outbound: { content: AGENT_PROCESSING_BUSY_MESSAGE } };
+    return { ...state, stage: 'respond', outbound: { components: [{ type: 'Plain', text: AGENT_PROCESSING_BUSY_MESSAGE }] } };
   }
 
   if (!resolved) {
@@ -48,5 +48,5 @@ export async function commandDetector(
   };
 
   const result = await commandRegistry.executeResolved(resolved, commandContext);
-  return { ...state, stage: 'respond', outbound: { content: result } };
+  return { ...state, stage: 'respond', outbound: { components: [{ type: 'Plain', text: result }] } };
 }

@@ -76,7 +76,7 @@ describe('plugin_md2img', () => {
     const logger = createLogger();
     const result = await handleMd2ImgSend(
       {
-        message: { content: '# Render me' },
+        message: { components: [{ type: 'Plain', text: '# Render me' }] },
         sessionKey: { channel: 'onebot', type: 'private', chatId: '123' },
       },
       { htmlTemplate: '', logger, pluginConfig: { enabledChannels: ['*'] } },
@@ -89,7 +89,7 @@ describe('plugin_md2img', () => {
     const logger = createLogger();
     const result = await handleMd2ImgSend(
       {
-        message: { content: 'plain text that should not be logged' },
+        message: { components: [{ type: 'Plain', text: 'plain text that should not be logged' }] },
         sessionKey: { channel: 'onebot', type: 'private', chatId: '123' },
       },
       {
@@ -106,7 +106,7 @@ describe('plugin_md2img', () => {
     const logger = createLogger();
     const result = await handleMd2ImgSend(
       {
-        message: { content: '# Render me' },
+        message: { components: [{ type: 'Plain', text: '# Render me' }] },
         sessionKey: { channel: 'discord', type: 'private', chatId: '123' },
       },
       {
@@ -124,7 +124,7 @@ describe('plugin_md2img', () => {
     const pngBuffer = Buffer.from('png-bytes');
     const result = await handleMd2ImgSend(
       {
-        message: { content: '# Render me' },
+        message: { components: [{ type: 'Plain', text: '# Render me' }] },
         sessionKey: { channel: 'onebot', type: 'private', chatId: '123' },
       },
       {
@@ -136,8 +136,7 @@ describe('plugin_md2img', () => {
     );
     expect(result).toEqual({
       action: 'respond',
-      content: '',
-      attachments: [{ type: 'image', base64: pngBuffer.toString('base64'), mimeType: 'image/png' }],
+      components: [{ type: 'Image', base64: pngBuffer.toString('base64'), mimeType: 'image/png' }],
     });
     expect(logger.debug).not.toHaveBeenCalled();
   });
@@ -147,7 +146,7 @@ describe('plugin_md2img', () => {
     const error = new Error('render failed');
     const result = await handleMd2ImgSend(
       {
-        message: { content: '# Render me' },
+        message: { components: [{ type: 'Plain', text: '# Render me' }] },
         sessionKey: { channel: 'onebot', type: 'private', chatId: '123' },
       },
       {

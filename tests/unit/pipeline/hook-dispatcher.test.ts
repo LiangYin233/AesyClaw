@@ -25,7 +25,7 @@ function makeInbound(content = 'hello'): InboundMessage {
 }
 
 function makeOutbound(content = 'reply'): OutboundMessage {
-  return { content };
+  return { components: [{ type: 'Plain', text: content }] };
 }
 
 function makeBeforeToolCallContext(toolName = 'testTool'): BeforeToolCallHookContext {
@@ -152,20 +152,20 @@ describe('HookDispatcher', () => {
 
     it('should return respond when a hook responds', async () => {
       dispatcher.register('p1', {
-        onReceive: async () => ({ action: 'respond' as const, content: 'direct reply' }),
+        onReceive: async () => ({ action: 'respond' as const, components: [{ type: 'Plain', text: 'direct reply' }] }),
       });
 
       const result = await dispatcher.dispatchOnReceive(makeInbound());
       expect(result.action).toBe('respond');
       if (result.action === 'respond') {
-        expect(result.content).toBe('direct reply');
+        expect(result.components[0].text).toBe('direct reply');
       }
     });
 
     it('should stop dispatching after a hook responds', async () => {
       let secondHookCalled = false;
       dispatcher.register('p1', {
-        onReceive: async () => ({ action: 'respond' as const, content: 'reply' }),
+        onReceive: async () => ({ action: 'respond' as const, components: [{ type: 'Plain', text: 'reply' }] }),
       });
       dispatcher.register('p2', {
         onReceive: async () => {
@@ -233,7 +233,7 @@ describe('HookDispatcher', () => {
 
     it('should return respond when a hook responds', async () => {
       dispatcher.register('p1', {
-        onSend: async () => ({ action: 'respond' as const, content: 'modified' }),
+        onSend: async () => ({ action: 'respond' as const, components: [{ type: 'Plain', text: 'modified' }] }),
       });
 
       const result = await dispatcher.dispatchOnSend({
@@ -242,7 +242,7 @@ describe('HookDispatcher', () => {
       });
       expect(result.action).toBe('respond');
       if (result.action === 'respond') {
-        expect(result.content).toBe('modified');
+        expect(result.components[0].text).toBe('modified');
       }
     });
 
@@ -376,13 +376,13 @@ describe('HookDispatcher', () => {
 
     it('should return respond when a hook responds', async () => {
       dispatcher.register('p1', {
-        beforeLLMRequest: async () => ({ action: 'respond' as const, content: 'cached' }),
+        beforeLLMRequest: async () => ({ action: 'respond' as const, components: [{ type: 'Plain', text: 'cached' }] }),
       });
 
       const result = await dispatcher.dispatchBeforeLLMRequest({});
       expect(result.action).toBe('respond');
       if (result.action === 'respond') {
-        expect(result.content).toBe('cached');
+        expect(result.components[0].text).toBe('cached');
       }
     });
   });

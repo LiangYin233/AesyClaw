@@ -10,7 +10,29 @@ import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
 import { errorMessage } from '@aesyclaw/core/utils';
-import type { MediaAttachment, OutboundMessage, ToolOwner } from '@aesyclaw/core/types';
+import type {
+  OutboundMessage,
+  OutboundImageComponent,
+  OutboundRecordComponent,
+  OutboundVideoComponent,
+  OutboundFileComponent,
+  ToolOwner,
+} from '@aesyclaw/core/types';
+
+const MEDIA_TYPE_MAP: Record<string, OutboundMediaType> = {
+  image: 'Image',
+  audio: 'Record',
+  video: 'Video',
+  file: 'File',
+};
+
+type OutboundMediaType = 'Image' | 'Record' | 'Video' | 'File';
+
+type OutboundMediaComponent =
+  | OutboundImageComponent
+  | OutboundRecordComponent
+  | OutboundVideoComponent
+  | OutboundFileComponent;
 
 /** send_msg 的参数模式 */
 const SendMessageParamsSchema = Type.Object({
@@ -35,6 +57,23 @@ const SendMessageParamsSchema = Type.Object({
 });
 
 type SendMessageParams = Static<typeof SendMessageParamsSchema>;
+
+function toOutboundMediaComponent(media: SendMessageParams['media']): OutboundMediaComponent[] {
+  if (!media || media.length === 0) {
+    return [];
+  }
+
+  return media.map((item) => {
+    const componentType = MEDIA_TYPE_MAP[item.type];
+    return {
+      type: componentType,
+      ...(item.url ? { url: item.url } : {}),
+      ...(item.path ? { path: item.path } : {}),
+      ...(item.base64 ? { base64: item.base64 } : {}),
+      ...(item.mimeType ? { mimeType: item.mimeType } : {}),
+    } as OutboundMediaComponent;
+  });
+}
 
 /**
  * 创建 send_msg 工具定义。
@@ -61,8 +100,10 @@ export function createSendMsgTool(): AesyClawTool {
         }
 
         const outbound: OutboundMessage = {
-          content: text,
-          ...(media && media.length > 0 ? { attachments: media as MediaAttachment[] } : {}),
+          components: [
+            { type: 'Plain', text },
+            ...toOutboundMediaComponent(media),
+          ],
         };
         const delivered = await context.sendMessage(outbound);
 

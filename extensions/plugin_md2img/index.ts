@@ -6,7 +6,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PluginContext, PluginDefinition } from '@aesyclaw/sdk';
 import type { OnSendContext } from '@aesyclaw/sdk';
-import type { MediaAttachment, PipelineResult } from '@aesyclaw/sdk';
+import type { PipelineResult } from '@aesyclaw/sdk';
+import { getOutboundMessageText } from '@aesyclaw/sdk';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_PATH = resolve(__dirname, 'template.html');
@@ -125,7 +126,8 @@ export async function handleMd2ImgSend(
   const { message, sessionKey } = context;
   const { htmlTemplate: template, logger, pluginConfig: config } = deps;
 
-  if (!template || !isMarkdown(message.content)) {
+  const text = getOutboundMessageText(message);
+  if (!template || !isMarkdown(text)) {
     return { action: 'continue' };
   }
 
@@ -136,19 +138,16 @@ export async function handleMd2ImgSend(
 
   try {
     const convert = deps.convert ?? convertMarkdownToImage;
-    const pngBuffer = await convert(message.content, template);
+    const pngBuffer = await convert(text, template);
 
-    const attachment: MediaAttachment = {
-      type: 'image',
-      base64: pngBuffer.toString('base64'),
-      mimeType: 'image/png',
+    return {
+      action: 'respond',
+      components: [{ type: 'Image', base64: pngBuffer.toString('base64'), mimeType: 'image/png' }],
     };
-
-    return { action: 'respond', content: '', attachments: [attachment] };
   } catch (err) {
     logger.error(
       'md2img conversion failed',
-      { sessionChannel: sessionKey?.channel ?? null, contentLength: message.content.length },
+      { sessionChannel: sessionKey?.channel ?? null, contentLength: text.length },
       err,
     );
     return { action: 'continue' };

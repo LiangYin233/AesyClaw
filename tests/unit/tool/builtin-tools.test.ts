@@ -84,8 +84,10 @@ describe('built-in tools', () => {
     ).resolves.toEqual({ content: '消息已发送: "hello"' });
 
     expect(sendMessage).toHaveBeenCalledWith({
-      content: 'hello',
-      attachments: [{ type: 'image', url: 'https://example.com/image.png' }],
+      components: [
+        { type: 'Plain', text: 'hello' },
+        { type: 'Image', url: 'https://example.com/image.png' },
+      ],
     });
   });
 

@@ -76,7 +76,7 @@ function createRegistry() {
       disablePlugin: vi.fn().mockResolvedValue(undefined),
     },
     agentEngine: {
-      processEphemeral: vi.fn().mockResolvedValue({ content: '临时回答' }),
+      processEphemeral: vi.fn().mockResolvedValue({ components: [{ type: 'Plain', text: '临时回答' }] }),
       process: vi.fn(),
     },
   };
