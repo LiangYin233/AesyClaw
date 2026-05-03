@@ -3,15 +3,12 @@ import type {
   AgentMessage as PiAgentMessage,
   StreamFn,
 } from '@mariozechner/pi-agent-core';
-import type { Api, Model, TextContent, ImageContent, ToolCall, Usage } from '@mariozechner/pi-ai';
+import type { Api, Model, TextContent, ToolCall, Usage } from '@mariozechner/pi-ai';
 import type { SessionKey } from '@aesyclaw/core/types';
 import type { ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
 
 export type Agent = PiAgent;
 export type AgentMessage = PiAgentMessage;
-export type RuntimeTextContent = TextContent;
-export type RuntimeImageContent = ImageContent;
-export type RuntimeToolCall = ToolCall;
 export type ResolvedModel = Model<Api> & {
   modelId: string;
   apiKey?: string;
