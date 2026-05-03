@@ -9,7 +9,7 @@
 import type { ToolOwner, CommandDefinition, CommandContext } from '../core/types';
 import { createScopedLogger } from '../core/logger';
 
-const logger = createScopedLogger('command');
+const logger = createScopedLogger('command-registry');
 
 export type ResolvedCommand = {
   command: CommandDefinition;

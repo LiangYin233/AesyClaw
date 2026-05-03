@@ -12,7 +12,7 @@ import { DEFAULTS } from '../types';
 // ─── Provider / Model ────────────────────────────────────────────
 
 /** API 协议类型 */
-const ApiProtocolType = Type.Union([
+const ApiProtocolSchema = Type.Union([
   Type.Literal('openai_responses'),
   Type.Literal('openai_completion'),
   Type.Literal('anthropic'),
@@ -28,7 +28,7 @@ const ModelPresetSchema = Type.Object({
 const ProviderConfigSchema = Type.Object({
   apiKey: Type.Optional(Type.String()),
   baseUrl: Type.Optional(Type.String()),
-  apiType: ApiProtocolType,
+  apiType: ApiProtocolSchema,
   models: Type.Record(Type.String(), ModelPresetSchema, { default: {} }),
 });
 
@@ -104,7 +104,7 @@ type AppConfig = Static<typeof AppConfigSchema>;
 
 export {
   // Schemas
-  ApiProtocolType,
+  ApiProtocolSchema,
   ModelPresetSchema,
   ProviderConfigSchema,
   ServerConfigSchema,

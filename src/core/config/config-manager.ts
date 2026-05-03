@@ -16,12 +16,16 @@ import { Value } from '@sinclair/typebox/value';
 import Conf from 'conf';
 import type { DeepPartial, ConfigChangeListener, Unsubscribe } from '../types';
 import { createScopedLogger } from '../logger';
-import { mergeDefaults } from '../utils';
+import { isRecord, mergeDefaults } from '../utils';
 import { AppConfigSchema } from './schema';
 import type { AppConfig } from './schema';
 import { DEFAULT_CONFIG } from './defaults';
 
-const logger = createScopedLogger('config');
+const logger = createScopedLogger('config-manager');
+
+export type ConfigManagerDependencies = {
+  configPath: string;
+};
 
 type ListenerEntry = {
   key?: keyof AppConfig;
@@ -39,6 +43,13 @@ export class ConfigManager {
   private unsubscribeHotReload?: () => void;
 
   // ─── 生命周期 ────────────────────────────────────────────────
+
+  /**
+   * 标准管理器生命周期入口 —— 委托给 {@link load}。
+   */
+  async initialize(deps: ConfigManagerDependencies): Promise<void> {
+    await this.load(deps.configPath);
+  }
 
   /**
    * 从给定路径加载配置。
@@ -225,7 +236,7 @@ export class ConfigManager {
   }
 
   private validateConfigPayload(parsed: unknown): AppConfig {
-    if (!isPlainObject(parsed)) {
+    if (!isRecord(parsed)) {
       throw new Error('配置验证失败');
     }
 
@@ -335,9 +346,6 @@ function isPromiseLike(value: unknown): value is Promise<void> {
   );
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
 
 /**
  * 把点号 key(如 `'channels.testchannel'`)与值

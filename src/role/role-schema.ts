@@ -7,7 +7,6 @@
  *
  */
 
-import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
 
 /**
@@ -27,5 +26,3 @@ export const RoleConfigSchema = Type.Object({
   enabled: Type.Boolean({ default: true }),
 });
 
-/** 从 RoleConfigSchema 派生的 TypeScript 类型 */
-export type RoleConfigSchemaType = Static<typeof RoleConfigSchema>;

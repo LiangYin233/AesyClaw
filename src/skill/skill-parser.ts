@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import fm, { type FrontMatterResult } from 'front-matter';
 import { createScopedLogger } from '../core/logger';
 import type { Skill } from '../core/types';
+import { isRecord } from '../core/utils';
 
 const logger = createScopedLogger('skill');
 
@@ -86,6 +87,3 @@ export function parseSkillContent(content: string): ParsedSkill | null {
   };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}

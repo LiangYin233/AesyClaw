@@ -32,7 +32,7 @@ import type {
 } from '../core/database/database-manager';
 import { createScopedLogger } from '../core/logger';
 
-const logger = createScopedLogger('memory');
+const logger = createScopedLogger('memory-manager');
 
 // ─── MemoryManager ──────────────────────────────────────────────
 

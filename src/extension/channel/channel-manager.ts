@@ -2,7 +2,7 @@
 
 import type { InboundMessage, OutboundMessage, SendFn, SessionKey } from '../../core/types';
 import { createScopedLogger } from '../../core/logger';
-import { errorMessage, mergeDefaults, requireInitialized } from '../../core/utils';
+import { errorMessage, isRecord, mergeDefaults, requireInitialized } from '../../core/utils';
 import { SerialExecutor } from '../../utils/serial-executor';
 import { ChannelLoader } from './channel-loader';
 import type {
@@ -13,7 +13,6 @@ import type {
   LoadedChannel,
 } from './channel-types';
 import { isChannelEnabled } from './channel-types';
-import { isRecord } from '../../core/utils';
 
 const logger = createScopedLogger('channel-manager');
 

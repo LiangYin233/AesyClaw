@@ -20,7 +20,7 @@ import type { HookDispatcher } from '../pipeline/hook-dispatcher';
 import type { AgentTool } from '../agent/agent-types';
 import { toAgentTool } from './tool-adapter';
 
-const logger = createScopedLogger('tool');
+const logger = createScopedLogger('tool-registry');
 
 // ─── 核心类型 ─────────────────────────────────────────────────────
 

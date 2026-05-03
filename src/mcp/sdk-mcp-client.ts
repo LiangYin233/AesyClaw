@@ -10,6 +10,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { McpServerConfig } from '../core/config/schema';
 import type { McpClient, McpClientFactory, McpToolDefinition } from './mcp-manager';
+import { isRecord } from '../core/utils';
 
 export class SdkMcpClientFactory implements McpClientFactory {
   create(config: McpServerConfig): McpClient {
@@ -86,6 +87,3 @@ function createTransport(config: McpServerConfig): Transport {
   return new StreamableHTTPClientTransport(url);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}

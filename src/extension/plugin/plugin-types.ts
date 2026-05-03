@@ -5,7 +5,7 @@
  * 有作用域的上下文，并可以注册工具、命令和管道钩子。
  */
 
-import type { CommandDefinition } from '../../core/types';
+import type { CommandDefinition, ToolOwner } from '../../core/types';
 import type { Logger } from '../../core/logger';
 import type { PluginConfigEntry } from '../../core/config/schema';
 import type { AesyClawTool } from '../../tool/tool-registry';
@@ -18,8 +18,6 @@ import type { PluginHooks } from '../../pipeline/middleware/types';
 import type { PluginLoader } from './plugin-loader';
 import type { ConfigManager } from '../../core/config/config-manager';
 import { isRecord } from '../../core/utils';
-
-export type PluginOwner = `plugin:${string}`;
 
 export type PluginContext = {
   config: Record<string, unknown>;
@@ -44,7 +42,7 @@ export type LoadedPlugin = {
   definition: PluginDefinition;
   directory: string;
   directoryName: string;
-  owner: PluginOwner;
+  owner: ToolOwner;
   config: Record<string, unknown>;
   loadedAt: Date;
 }
@@ -90,7 +88,7 @@ export type PluginConfigLookup = {
 
 export { type PluginHooks };
 
-export function pluginOwner(pluginName: string): PluginOwner {
+export function pluginOwner(pluginName: string): ToolOwner {
   return `plugin:${pluginName}`;
 }
 

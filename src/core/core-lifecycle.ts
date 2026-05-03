@@ -57,7 +57,7 @@ export class CoreLifecycle {
     return this._paths;
   }
 
-  private get d(): CoreLifecycleDependencies {
+  private get resolvedDeps(): CoreLifecycleDependencies {
     if (!this.deps) throw new Error('CoreLifecycle 未初始化');
     return this.deps;
   }
@@ -66,7 +66,7 @@ export class CoreLifecycle {
     if (!this.extensionManager) {
       throw new Error('ExtensionManager 未初始化');
     }
-    return this.extensionManager.pluginManagerInstance;
+    return this.extensionManager.plugins;
   }
 
   initialize(deps: CoreLifecycleDependencies): void {
@@ -93,20 +93,20 @@ export class CoreLifecycle {
     logger.info('正在关闭 AesyClaw...');
 
     const steps: Array<() => Promise<void> | void> = [
-      () => this.d.configManager.stopHotReload(),
-      () => this.d.roleManager.stopWatching(),
+      () => this.resolvedDeps.configManager.stopHotReload(),
+      () => this.resolvedDeps.roleManager.stopWatching(),
       () => this.clearConfigSubscriptions(),
-      () => this.d.webUiManager.destroy(),
-      () => this.extensionManager?.stopAll(),
+      () => this.resolvedDeps.webUiManager.destroy(),
+      () => this.extensionManager?.stopChannels(),
       () => this.extensionManager?.destroy(),
-      () => this.d.mcpManager.disconnectAll(),
-      () => this.d.mcpManager.destroy(),
-      () => this.d.cronManager.destroy(),
-      () => this.d.pipeline.destroy(),
-      () => this.d.agentEngine.destroy(),
-      () => this.d.sessionManager.destroy(),
-      () => this.d.llmAdapter.destroy(),
-      () => this.d.databaseManager.close(),
+      () => this.resolvedDeps.mcpManager.disconnectAll(),
+      () => this.resolvedDeps.mcpManager.destroy(),
+      () => this.resolvedDeps.cronManager.destroy(),
+      () => this.resolvedDeps.pipeline.destroy(),
+      () => this.resolvedDeps.agentEngine.destroy(),
+      () => this.resolvedDeps.sessionManager.destroy(),
+      () => this.resolvedDeps.llmAdapter.destroy(),
+      () => this.resolvedDeps.databaseManager.destroy(),
     ];
 
     for (const step of steps) {
@@ -156,122 +156,124 @@ export class CoreLifecycle {
   }
 
   private async loadRuntimeConfig(): Promise<void> {
-    await this.d.configManager.load(this.paths.configFile);
-    setLogLevel(this.d.configManager.getConfig().server.logLevel);
+    await this.resolvedDeps.configManager.initialize({ configPath: this.paths.configFile });
+    setLogLevel(this.resolvedDeps.configManager.getConfig().server.logLevel);
     logger.info('配置已加载');
   }
 
   private async initCoreManagers(): Promise<void> {
-    await this.d.databaseManager.initialize(this.paths.dbFile);
-    await this.d.skillManager.loadAll(this.paths.userSkillsDir, this.paths.skillsDir);
-    await this.d.roleManager.loadAll(this.paths.rolesDir);
+    await this.resolvedDeps.databaseManager.initialize(this.paths.dbFile);
+    this.resolvedDeps.skillManager.initialize({ userSkillsDir: this.paths.userSkillsDir, systemSkillsDir: this.paths.skillsDir });
+    await this.resolvedDeps.skillManager.loadAll(this.paths.userSkillsDir, this.paths.skillsDir);
+    this.resolvedDeps.roleManager.initialize({ rolesDir: this.paths.rolesDir });
+    await this.resolvedDeps.roleManager.loadAll(this.paths.rolesDir);
   }
 
   private initAgentRuntime(): void {
-    this.d.llmAdapter.initialize({ configManager: this.d.configManager });
+    this.resolvedDeps.llmAdapter.initialize({ configManager: this.resolvedDeps.configManager });
 
     const promptBuilder = new PromptBuilder({
-      roleManager: this.d.roleManager,
-      skillManager: this.d.skillManager,
-      toolRegistry: this.d.toolRegistry,
-      toolHookDispatcher: this.d.pipeline.hookDispatcher,
+      roleManager: this.resolvedDeps.roleManager,
+      skillManager: this.resolvedDeps.skillManager,
+      toolRegistry: this.resolvedDeps.toolRegistry,
+      toolHookDispatcher: this.resolvedDeps.pipeline.hookDispatcher,
     });
-    this.d.agentEngine.initialize({
-      llmAdapter: this.d.llmAdapter,
+    this.resolvedDeps.agentEngine.initialize({
+      llmAdapter: this.resolvedDeps.llmAdapter,
       promptBuilder,
     });
 
-    this.d.sessionManager.initialize({
-      databaseManager: this.d.databaseManager,
-      roleManager: this.d.roleManager,
-      agentEngine: this.d.agentEngine,
-      configManager: this.d.configManager,
-      llmAdapter: this.d.llmAdapter,
+    this.resolvedDeps.sessionManager.initialize({
+      databaseManager: this.resolvedDeps.databaseManager,
+      roleManager: this.resolvedDeps.roleManager,
+      agentEngine: this.resolvedDeps.agentEngine,
+      configManager: this.resolvedDeps.configManager,
+      llmAdapter: this.resolvedDeps.llmAdapter,
     });
   }
 
   private async initExtensionRuntime(): Promise<void> {
-    this.d.pipeline.initialize({
-      sessionManager: this.d.sessionManager,
-      agentEngine: this.d.agentEngine,
-      commandRegistry: this.d.commandRegistry,
+    this.resolvedDeps.pipeline.initialize({
+      sessionManager: this.resolvedDeps.sessionManager,
+      agentEngine: this.resolvedDeps.agentEngine,
+      commandRegistry: this.resolvedDeps.commandRegistry,
     });
 
-    this.extensionManager = this.d.extensionManager;
+    this.extensionManager = this.resolvedDeps.extensionManager;
     this.extensionManager.initialize({
-      configManager: this.d.configManager,
-      toolRegistry: this.d.toolRegistry,
-      commandRegistry: this.d.commandRegistry,
-      hookRegistry: this.d.pipeline.hookDispatcher,
-      pipeline: this.d.pipeline,
+      configManager: this.resolvedDeps.configManager,
+      toolRegistry: this.resolvedDeps.toolRegistry,
+      commandRegistry: this.resolvedDeps.commandRegistry,
+      hookRegistry: this.resolvedDeps.pipeline.hookDispatcher,
+      pipeline: this.resolvedDeps.pipeline,
       extensionsDir: this.paths.extensionsDir,
     });
 
-    registerBuiltinTools(this.d.toolRegistry, {
-      cronManager: this.d.cronManager,
-      agentEngine: this.d.agentEngine,
-      roleManager: this.d.roleManager,
-      llmAdapter: this.d.llmAdapter,
-      configManager: this.d.configManager,
-      skillManager: this.d.skillManager,
+    registerBuiltinTools(this.resolvedDeps.toolRegistry, {
+      cronManager: this.resolvedDeps.cronManager,
+      agentEngine: this.resolvedDeps.agentEngine,
+      roleManager: this.resolvedDeps.roleManager,
+      llmAdapter: this.resolvedDeps.llmAdapter,
+      configManager: this.resolvedDeps.configManager,
+      skillManager: this.resolvedDeps.skillManager,
     });
-    registerBuiltinCommands(this.d.commandRegistry, {
-      roleManager: this.d.roleManager,
+    registerBuiltinCommands(this.resolvedDeps.commandRegistry, {
+      roleManager: this.resolvedDeps.roleManager,
       pluginManager: this.getPluginManager(),
-      sessionManager: this.d.sessionManager,
-      agentEngine: this.d.agentEngine,
+      sessionManager: this.resolvedDeps.sessionManager,
+      agentEngine: this.resolvedDeps.agentEngine,
     });
 
-    await this.extensionManager.loadAll();
-    await this.extensionManager.registerFromDisk();
-    await this.extensionManager.startAll();
+    await this.extensionManager.loadPlugins();
+    await this.extensionManager.loadChannels();
+    await this.extensionManager.startChannels();
   }
 
   private async initPeripheralRuntime(): Promise<void> {
-    this.d.mcpManager.initialize({
-      configManager: this.d.configManager,
-      toolRegistry: this.d.toolRegistry,
+    this.resolvedDeps.mcpManager.initialize({
+      configManager: this.resolvedDeps.configManager,
+      toolRegistry: this.resolvedDeps.toolRegistry,
       clientFactory: new SdkMcpClientFactory(),
     });
 
     // 如果没有配置 MCP,则自动写入示例配置项
-    const mcpConfig = this.d.configManager.get('mcp');
+    const mcpConfig = this.resolvedDeps.configManager.get('mcp');
     if (mcpConfig.length === 0) {
-      await this.d.configManager.update({ mcp: DEFAULT_CONFIG.mcp });
+      await this.resolvedDeps.configManager.update({ mcp: DEFAULT_CONFIG.mcp });
     }
 
-    await this.d.mcpManager.connectAll();
+    await this.resolvedDeps.mcpManager.connectAll();
 
     if (!this.extensionManager) {
       throw new Error('ExtensionManager 未初始化');
     }
     const em = this.extensionManager;
-    await this.d.cronManager.initialize({
-      databaseManager: this.d.databaseManager,
-      pipeline: this.d.pipeline,
+    await this.resolvedDeps.cronManager.initialize({
+      databaseManager: this.resolvedDeps.databaseManager,
+      pipeline: this.resolvedDeps.pipeline,
       send: async (sessionKey, message) =>
-        await em.channelManagerInstance.send(sessionKey, message),
+        await em.channels.send(sessionKey, message),
     });
 
-    await this.d.webUiManager.initialize({
-      configManager: this.d.configManager,
-      databaseManager: this.d.databaseManager,
-      sessionManager: this.d.sessionManager,
-      cronManager: this.d.cronManager,
-      roleManager: this.d.roleManager,
-      channelManager: em.channelManagerInstance,
+    await this.resolvedDeps.webUiManager.initialize({
+      configManager: this.resolvedDeps.configManager,
+      databaseManager: this.resolvedDeps.databaseManager,
+      sessionManager: this.resolvedDeps.sessionManager,
+      cronManager: this.resolvedDeps.cronManager,
+      roleManager: this.resolvedDeps.roleManager,
+      channelManager: em.channels,
       pluginManager: this.getPluginManager(),
-      toolRegistry: this.d.toolRegistry,
-      skillManager: this.d.skillManager,
+      toolRegistry: this.resolvedDeps.toolRegistry,
+      skillManager: this.resolvedDeps.skillManager,
     });
   }
 
   private async installHotReload(): Promise<void> {
-    await this.d.configManager.syncDefaults();
+    await this.resolvedDeps.configManager.syncDefaults();
     this.installConfigSubscriptions();
 
-    this.d.configManager.startHotReload();
-    this.d.roleManager.startWatching();
+    this.resolvedDeps.configManager.startHotReload();
+    this.resolvedDeps.roleManager.startWatching();
   }
 
   private async runStep(name: string, fn: () => Promise<void> | void): Promise<void> {
@@ -288,20 +290,20 @@ export class CoreLifecycle {
   private installConfigSubscriptions(): void {
     this.clearConfigSubscriptions();
     this.unsubscribers.push(
-      this.d.configManager.subscribe('server', (server) => {
+      this.resolvedDeps.configManager.subscribe('server', (server) => {
         setLogLevel(server.logLevel);
       }),
-      this.d.configManager.subscribe('plugins', async () => {
-        await this.extensionManager?.pluginManagerInstance.handleConfigReload();
+      this.resolvedDeps.configManager.subscribe('plugins', async () => {
+        await this.extensionManager?.plugins.handleConfigReload();
       }),
-      this.d.configManager.subscribe('mcp', async () => {
-        await this.d.mcpManager.handleConfigReload();
+      this.resolvedDeps.configManager.subscribe('mcp', async () => {
+        await this.resolvedDeps.mcpManager.handleConfigReload();
       }),
-      this.d.configManager.subscribe('channels', async () => {
-        await this.extensionManager?.channelManagerInstance.handleConfigReload();
+      this.resolvedDeps.configManager.subscribe('channels', async () => {
+        await this.extensionManager?.channels.handleConfigReload();
       }),
-      this.d.roleManager.subscribeChanges(() => {
-        this.d.sessionManager.clearCachedSessions();
+      this.resolvedDeps.roleManager.subscribeChanges(() => {
+        this.resolvedDeps.sessionManager.clearCachedSessions();
       }),
     );
   }

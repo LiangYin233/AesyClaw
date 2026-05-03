@@ -21,7 +21,7 @@ import type { LlmAdapter } from './llm-adapter';
 import { createScopedLogger } from '../core/logger';
 import { requireInitialized } from '../core/utils';
 
-const logger = createScopedLogger('session');
+const logger = createScopedLogger('session-manager');
 export const AGENT_PROCESSING_BUSY_MESSAGE = 'Agent处理任务中。';
 
 // ─── 类型 ──────────────────────────────────────────────────────

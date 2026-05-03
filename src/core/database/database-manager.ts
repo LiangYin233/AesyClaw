@@ -9,7 +9,7 @@ import * as cron from './repositories/cron-repository';
 import * as usageRepo from './repositories/usage-repository';
 import * as toolUsageRepo from './repositories/tool-usage-repository';
 
-const logger = createScopedLogger('db');
+const logger = createScopedLogger('database-manager');
 
 /**
  * 仓库 API 类型 — 由 DatabaseManager 在 `initialize()` 时一次性构造,
@@ -99,8 +99,8 @@ export class DatabaseManager {
     logger.info('数据库初始化完成');
   }
 
-  /** 优雅地关闭数据库连接 */
-  async close(): Promise<void> {
+  /** 销毁数据库管理器，优雅地关闭数据库连接 */
+  async destroy(): Promise<void> {
     if (this.db) {
       logger.info('关闭数据库');
       this.db.close();

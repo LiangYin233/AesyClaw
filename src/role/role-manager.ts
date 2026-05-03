@@ -17,6 +17,8 @@ import { RoleConfigSchema } from './role-schema';
 
 const logger = createScopedLogger('role');
 
+export type RoleManagerDependencies = { rolesDir: string };
+
 export class RoleManager {
   private roles: Map<string, RoleConfig> = new Map();
   private watcher: fs.FSWatcher | null = null;
@@ -27,6 +29,10 @@ export class RoleManager {
   private changeListeners: Array<() => void> = [];
 
   // ─── 生命周期 ────────────────────────────────────────────────
+
+  initialize(deps: RoleManagerDependencies): void {
+    this.rolesDir = deps.rolesDir;
+  }
 
   /**
    * 从给定目录加载所有角色 JSON 文件。

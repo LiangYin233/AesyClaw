@@ -36,10 +36,6 @@ export type AgentToolResult = {
   terminate?: boolean;
 }
 
-export type AgentContext = {
-  sessionKey: SessionKey;
-}
-
 export type BeforeToolCallHookContext = {
   toolName: string;
   params: unknown;

@@ -55,11 +55,11 @@ export class ExtensionManager {
     logger.info('ExtensionManager 已初始化');
   }
 
-  get pluginManagerInstance(): PluginManager {
+  get plugins(): PluginManager {
     return this.pluginManager;
   }
 
-  get channelManagerInstance(): ChannelManager {
+  get channels(): ChannelManager {
     return this.channelManager;
   }
 
@@ -67,23 +67,19 @@ export class ExtensionManager {
     return requireInitialized(this.deps, 'ExtensionManager');
   }
 
-  /** 加载所有插件。 */
-  async loadAll(): Promise<void> {
+  async loadPlugins(): Promise<void> {
     await this.pluginManager.loadAll();
   }
 
-  /** 从磁盘注册所有频道扩展。 */
-  async registerFromDisk(): Promise<void> {
+  async loadChannels(): Promise<void> {
     await this.channelManager.registerFromDisk(this.requireDeps().extensionsDir);
   }
 
-  /** 启动所有已注册的频道。 */
-  async startAll(): Promise<void> {
+  async startChannels(): Promise<void> {
     await this.channelManager.startAll();
   }
 
-  /** 停止所有频道。 */
-  async stopAll(): Promise<void> {
+  async stopChannels(): Promise<void> {
     await this.channelManager.stopAll();
   }
 

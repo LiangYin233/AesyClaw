@@ -2,7 +2,7 @@
 
 import path from 'node:path';
 import { createScopedLogger } from '../../core/logger';
-import { errorMessage, mergeDefaults, requireInitialized } from '../../core/utils';
+import { errorMessage, isRecord, mergeDefaults, requireInitialized } from '../../core/utils';
 import type { CommandDefinition } from '../../core/types';
 import type { PluginConfigEntry } from '../../core/config/schema';
 import type { AesyClawTool } from '../../tool/tool-registry';
@@ -17,7 +17,6 @@ import type {
   PluginStatus,
 } from './plugin-types';
 import { pluginOwner } from './plugin-types';
-import { isRecord } from '../../core/utils';
 
 const logger = createScopedLogger('plugin-manager');
 

@@ -21,7 +21,7 @@ import type {
 import type { PluginHooks } from './middleware/types';
 import { createScopedLogger } from '../core/logger';
 
-const logger = createScopedLogger('hook');
+const logger = createScopedLogger('hook-dispatcher');
 
 /**
  * 追踪插件已注册钩子的条目。
