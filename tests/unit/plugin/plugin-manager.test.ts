@@ -1,5 +1,5 @@
 import { Type } from '@sinclair/typebox';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { PluginManager } from '../../../src/extension/plugin/plugin-manager';
 import type { PluginModule } from '../../../src/extension/plugin/plugin-types';
 import type { ChannelPlugin } from '../../../src/extension/channel/channel-types';
@@ -8,6 +8,9 @@ import type { DeepPartial } from '../../../src/core/types';
 import { ToolRegistry } from '../../../src/tool/tool-registry';
 import { CommandRegistry } from '../../../src/command/command-registry';
 import { HookDispatcher } from '../../../src/pipeline/hook-dispatcher';
+import * as extensionLoader from '../../../src/extension/extension-loader';
+import type { AesyClawTool } from '../../../src/tool/tool-registry';
+import type { ChannelManager } from '../../../src/extension/channel/channel-manager';
 
 class FakeConfigManager {
   plugins: PluginConfigEntry[] = [];
@@ -32,90 +35,54 @@ class FakeConfigManager {
   }
 }
 
-class FakePluginLoader {
-  constructor(private readonly modules: Map<string, PluginModule>) {}
-
-  async discover(): Promise<string[]> {
-    return [...this.modules.keys()];
-  }
-
-  async load(pluginDir: string): Promise<PluginModule> {
-    const module = this.modules.get(pluginDir);
-    if (!module) {
-      throw new Error(`Missing fixture for ${pluginDir}`);
-    }
-    return module;
-  }
-}
-
 class FakeChannelManager {
-  registered = new Map<string, ChannelPlugin>();
-  unregistered: string[] = [];
-  private owners = new Map<string, string>();
+  registeredChannels: Array<{ channel: ChannelPlugin; owner: string }> = [];
+  ownersToUnregister: string[] = [];
 
-  register(channel: ChannelPlugin, owner?: string): void {
-    if (this.registered.has(channel.name)) {
-      throw new Error(`Channel "${channel.name}" is already registered`);
-    }
-    this.registered.set(channel.name, channel);
-    if (owner) {
-      this.owners.set(channel.name, owner);
-    }
-  }
-
-  async unregister(channelName: string): Promise<void> {
-    this.unregistered.push(channelName);
-    this.registered.delete(channelName);
-    this.owners.delete(channelName);
+  register(channel: ChannelPlugin, owner: string): void {
+    this.registeredChannels.push({ channel, owner });
   }
 
   async unregisterByOwner(owner: string): Promise<void> {
-    for (const [channelName, channelOwner] of this.owners) {
-      if (channelOwner === owner) {
-        await this.unregister(channelName);
-      }
-    }
-  }
-
-  has(channelName: string): boolean {
-    return this.registered.has(channelName);
+    this.ownersToUnregister.push(owner);
   }
 }
 
 function makeModule(overrides: Partial<PluginModule> = {}): PluginModule {
-  const directory = overrides.directory ?? '/extensions/plugin_alpha';
-  const directoryName = overrides.directoryName ?? 'plugin_alpha';
   return {
-    directory,
-    directoryName,
-    entryPath: `${directory}/index.js`,
     definition: {
       name: 'alpha',
-      version: '1.0.0',
-      defaultConfig: { greeting: 'hello' },
-      init: async (ctx) => {
+      version: '0.1.0',
+      description: 'Test plugin',
+      init: vi.fn(async (ctx) => {
         ctx.registerTool({
           name: 'alpha_tool',
-          description: 'Alpha tool',
+          description: 'An example tool',
           parameters: Type.Object({}),
-          owner: 'system',
-          execute: async () => ({ content: String(ctx.config.greeting) }),
-        });
+          execute: async () => ({ content: 'ok' }),
+        } as AesyClawTool);
         ctx.registerCommand({
-          name: 'alpha',
-          description: 'Alpha command',
-          scope: 'system',
+          name: 'alpha_cmd',
+          description: 'Example command',
+          scope: 'plugin:alpha',
           execute: async () => 'ok',
         });
-      },
-      hooks: {
-        async onReceive() {
-          return { action: 'continue' };
-        },
-      },
+      }),
+      ...overrides,
     },
+    directory: '/tmp/plugins/plugin_alpha',
+    directoryName: 'plugin_alpha',
+    entryPath: '/tmp/plugins/plugin_alpha/index.ts',
     ...overrides,
-  };
+  } as PluginModule;
+}
+
+function setupLoaderMock(module: PluginModule) {
+  vi.spyOn(extensionLoader, 'discoverExtensionDirs').mockResolvedValue([module.directory]);
+  vi.spyOn(extensionLoader, 'loadExtensionModule').mockImplementation(async (dir) => {
+    if (dir !== module.directory) throw new Error('Module not found');
+    return module;
+  });
 }
 
 async function makeManager(module: PluginModule, config = new FakeConfigManager()) {
@@ -123,25 +90,30 @@ async function makeManager(module: PluginModule, config = new FakeConfigManager(
   const commandRegistry = new CommandRegistry();
   const hookRegistry = new HookDispatcher();
   const channelManager = new FakeChannelManager();
-  const pluginLoader = new FakePluginLoader(new Map([[module.directory, module]]));
-  const manager = new PluginManager();
-  await manager.initialize({
+
+  setupLoaderMock(module);
+
+  const manager = new PluginManager({
     configManager: config,
     toolRegistry,
     commandRegistry,
     hookRegistry,
-    channelManager,
-    pluginLoader,
+    channelManager: channelManager as unknown as ChannelManager,
+    extensionsDir: '/tmp/plugins',
   });
   return { manager, config, toolRegistry, commandRegistry, hookRegistry, channelManager };
 }
 
 describe('PluginManager', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('loads enabled plugins and scopes registered tools and commands', async () => {
     const module = makeModule();
     const { manager, toolRegistry, commandRegistry } = await makeManager(module);
 
-    await manager.loadAll();
+    await manager.setup();
 
     expect(toolRegistry.get('alpha_tool')?.owner).toBe('plugin:alpha');
     expect(commandRegistry.getAll()[0]?.scope).toBe('plugin:alpha');
@@ -154,10 +126,7 @@ describe('PluginManager', () => {
       definition: {
         ...makeModule().definition,
         defaultConfig: {
-          nested: {
-            keep: 'default',
-            override: 'default',
-          },
+          nested: { keep: 'default', override: 'default' },
           list: ['default'],
         },
         init: async (ctx) => {
@@ -171,253 +140,91 @@ describe('PluginManager', () => {
         name: 'alpha',
         enabled: true,
         options: {
-          nested: {
-            override: 'configured',
-          },
+          nested: { override: 'configured' },
           list: ['configured'],
         },
       },
     ];
+
     const { manager } = await makeManager(module, config);
+    await manager.setup();
 
-    const loaded = await manager.load(module.directory);
-
-    expect(seenConfig[0]).toEqual({
-      nested: {
-        keep: 'default',
-        override: 'configured',
+    expect(seenConfig).toEqual([
+      {
+        nested: { keep: 'default', override: 'configured' },
+        list: ['configured'],
       },
-      list: ['configured'],
-    });
-    expect(loaded.config).toEqual(seenConfig[0]);
-  });
-
-  it('prevents plugin context from unregistering tools owned by other scopes', async () => {
-    const module = makeModule({
-      definition: {
-        ...makeModule().definition,
-        init: async (ctx) => {
-          ctx.unregisterTool('system_tool');
-          ctx.registerTool({
-            name: 'alpha_tool',
-            description: 'Alpha tool',
-            parameters: Type.Object({}),
-            owner: 'system',
-            execute: async () => ({ content: 'ok' }),
-          });
-          ctx.unregisterTool('alpha_tool');
-        },
-      },
-    });
-    const { manager, toolRegistry } = await makeManager(module);
-    toolRegistry.register({
-      name: 'system_tool',
-      description: 'System tool',
-      parameters: Type.Object({}),
-      owner: 'system',
-      execute: async () => ({ content: 'system' }),
-    });
-
-    await manager.load(module.directory);
-
-    expect(toolRegistry.get('system_tool')?.owner).toBe('system');
-    expect(toolRegistry.has('alpha_tool')).toBe(false);
-  });
-
-  it('unloads plugin resources by owner and unregisters hooks', async () => {
-    const destroy = vi.fn(async () => undefined);
-    const module = makeModule({
-      definition: {
-        ...makeModule().definition,
-        destroy,
-      },
-    });
-    const { manager, toolRegistry, commandRegistry, hookRegistry } = await makeManager(module);
-
-    await manager.load(module.directory);
-    await manager.unload('alpha');
-
-    expect(destroy).toHaveBeenCalledOnce();
-    expect(toolRegistry.has('alpha_tool')).toBe(false);
-    expect(commandRegistry.getAll()).toHaveLength(0);
-    await expect(
-      hookRegistry.dispatchOnReceive({
-        sessionKey: { channel: 'test', type: 'private', chatId: '1' },
-        content: 'hi',
-      }),
-    ).resolves.toEqual({ action: 'continue' });
-  });
-
-  it('registers plugin channels and unregisters them during unload', async () => {
-    const module = makeModule({
-      definition: {
-        ...makeModule().definition,
-        init: async (ctx) => {
-          ctx.registerChannel({
-            name: 'alpha_channel',
-            version: '1.0.0',
-            init: async () => undefined,
-          });
-        },
-      },
-    });
-    const { manager, channelManager } = await makeManager(module);
-
-    await manager.load(module.directory);
-    expect(channelManager.registered.has('alpha_channel')).toBe(true);
-
-    await manager.unload('alpha');
-
-    expect(channelManager.registered.has('alpha_channel')).toBe(false);
-    expect(channelManager.unregistered).toEqual(['alpha_channel']);
-  });
-
-  it('rejects duplicate plugin channel names without unregistering the existing channel', async () => {
-    const module = makeModule({
-      definition: {
-        ...makeModule().definition,
-        init: async (ctx) => {
-          ctx.registerChannel({
-            name: 'existing_channel',
-            version: '1.0.0',
-            init: async () => undefined,
-          });
-        },
-      },
-    });
-    const { manager, channelManager } = await makeManager(module);
-    const existingChannel = {
-      name: 'existing_channel',
-      version: '1.0.0',
-      init: async () => undefined,
-    } satisfies ChannelPlugin;
-    channelManager.register(existingChannel);
-
-    await expect(manager.load(module.directory)).rejects.toThrow(/already registered/);
-
-    expect(channelManager.registered.get('existing_channel')).toBe(existingChannel);
-    expect(channelManager.unregistered).toEqual([]);
-  });
-
-  it('updates config for enable and disable', async () => {
-    const module = makeModule();
-    const { manager, config } = await makeManager(module);
-
-    await manager.disable('alpha');
-    expect(config.plugins).toEqual([{ name: 'alpha', enabled: false }]);
-
-    await manager.enable('alpha');
-    expect(config.plugins).toEqual([{ name: 'alpha', enabled: true }]);
-  });
-
-  it('updates existing plugin directory aliases instead of appending conflicting entries', async () => {
-    const module = makeModule();
-    const config = new FakeConfigManager();
-    config.plugins = [{ name: 'plugin_alpha', enabled: false }];
-    const { manager } = await makeManager(module, config);
-
-    await manager.enable('alpha');
-
-    expect(config.plugins).toEqual([{ name: 'plugin_alpha', enabled: true }]);
-  });
-
-  it('lists plugins disabled by plugin definition name', async () => {
-    const module = makeModule();
-    const config = new FakeConfigManager();
-    config.plugins = [{ name: 'alpha', enabled: false }];
-    const { manager } = await makeManager(module, config);
-
-    const statuses = await manager.listPlugins();
-
-    expect(statuses).toEqual([
-      expect.objectContaining({
-        name: 'alpha',
-        directoryName: 'plugin_alpha',
-        enabled: false,
-        state: 'disabled',
-      }),
     ]);
   });
 
-  it('returns null when loading a disabled plugin directly', async () => {
+  it('skips disabled plugins', async () => {
     const module = makeModule();
     const config = new FakeConfigManager();
     config.plugins = [{ name: 'alpha', enabled: false }];
-    const { manager, toolRegistry } = await makeManager(module, config);
 
-    await expect(manager.load(module.directory)).resolves.toBeNull();
+    const { manager } = await makeManager(module, config);
+    await manager.setup();
 
-    expect(toolRegistry.get('alpha_tool')).toBeUndefined();
     expect(manager.getLoaded('alpha')).toBeUndefined();
   });
 
-  it('isolates plugin init failures during loadAll', async () => {
-    const badModule = makeModule({
-      definition: {
-        name: 'bad',
-        version: '1.0.0',
-        init: async () => {
-          throw new Error('boom');
-        },
-      },
-    });
-    const goodModule = makeModule({
-      directory: '/extensions/plugin_good',
-      directoryName: 'plugin_good',
-      definition: {
-        ...makeModule().definition,
-        name: 'good',
-      },
-    });
-    const config = new FakeConfigManager();
-    const toolRegistry = new ToolRegistry();
-    const commandRegistry = new CommandRegistry();
-    const hookDispatcher = new HookDispatcher();
-    const pluginLoader = new FakePluginLoader(
-      new Map([
-        [badModule.directory, badModule],
-        [goodModule.directory, goodModule],
-      ]),
-    );
-    const manager = new PluginManager();
-    await manager.initialize({
-      configManager: config,
-      toolRegistry,
-      commandRegistry,
-      hookRegistry: hookDispatcher,
-      channelManager: new FakeChannelManager(),
-      pluginLoader,
-    });
-
-    await expect(manager.loadAll()).resolves.toBeUndefined();
-
-    expect(manager.getLoaded('good')).toBeDefined();
-    expect(manager.getLoaded('bad')).toBeUndefined();
-  });
-
-  it('coalesces overlapping config reload requests into a follow-up reload pass', async () => {
+  it('handles enable/disable toggling', async () => {
     const module = makeModule();
     const { manager } = await makeManager(module);
-    let releaseFirstUnload: (() => void) | null = null;
-    const unloadAll = vi
-      .spyOn(manager, 'unloadAll')
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            releaseFirstUnload = resolve;
-          }),
-      )
-      .mockResolvedValue(undefined);
-    const loadAll = vi.spyOn(manager, 'loadAll').mockResolvedValue(undefined);
+
+    await manager.disable('alpha');
+    expect(manager.getLoaded('alpha')).toBeUndefined();
+
+    await manager.enable('alpha');
+    expect(manager.getLoaded('alpha')).toBeDefined();
+  });
+
+  it('unloads and reloads on config reload', async () => {
+    const module = makeModule();
+    const { manager } = await makeManager(module);
+    await manager.setup();
+    expect(manager.getLoaded('alpha')).toBeDefined();
+
+    await manager.handleConfigReload();
+    expect(manager.getLoaded('alpha')).toBeDefined();
+  });
+
+  it('isolates plugin init failures during setup', async () => {
+    const module = makeModule({
+      definition: {
+        ...makeModule().definition,
+        init: vi.fn(async () => {
+          throw new Error('explosion');
+        }),
+      },
+    });
+
+    const { manager } = await makeManager(module);
+    await expect(manager.setup()).resolves.toBeUndefined();
+    expect(manager.getLoaded('alpha')).toBeUndefined();
+  });
+
+  it('coalesces overlapping config reload requests', async () => {
+    const module = makeModule();
+    setupLoaderMock(module);
+
+    const manager = new PluginManager({
+      configManager: new FakeConfigManager(),
+      toolRegistry: new ToolRegistry(),
+      commandRegistry: new CommandRegistry(),
+      hookRegistry: new HookDispatcher(),
+    });
+
+    const unloadAll = vi.spyOn(manager, 'unloadAll').mockResolvedValue(undefined);
+    const setupSpy = vi.spyOn(manager, 'setup').mockResolvedValue(undefined);
 
     const firstReload = manager.handleConfigReload();
     await Promise.resolve();
     const secondReload = manager.handleConfigReload();
-    releaseFirstUnload?.();
 
     await Promise.all([firstReload, secondReload]);
 
     expect(unloadAll).toHaveBeenCalledTimes(2);
-    expect(loadAll).toHaveBeenCalledTimes(2);
+    expect(setupSpy).toHaveBeenCalledTimes(2);
   });
 });

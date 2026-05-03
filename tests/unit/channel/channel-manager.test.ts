@@ -53,8 +53,7 @@ describe('ChannelManager', () => {
           });
       }),
     });
-    const manager = new ChannelManager();
-    await manager.initialize({ configManager: config, pipeline, channels: [channel] });
+    const manager = new ChannelManager({ configManager: config, pipeline, channels: [channel] });
 
     await manager.startAll();
     await received?.({
@@ -92,8 +91,7 @@ describe('ChannelManager', () => {
       }),
     });
 
-    const manager = new ChannelManager();
-    await manager.initialize({
+    const manager = new ChannelManager({
       configManager: config,
       pipeline: makePipeline(),
       channels: [channel],
@@ -115,8 +113,7 @@ describe('ChannelManager', () => {
         throw new Error('boom');
       }),
     });
-    const manager = new ChannelManager();
-    await manager.initialize({
+    const manager = new ChannelManager({
       configManager: config,
       pipeline: makePipeline(),
       channels: [bad, disabled, good],
@@ -137,8 +134,7 @@ describe('ChannelManager', () => {
 
   it('sends through the loaded channel and stops with cleanup', async () => {
     const channel = makeChannel();
-    const manager = new ChannelManager();
-    await manager.initialize({
+    const manager = new ChannelManager({
       configManager: new FakeConfigManager(),
       pipeline: makePipeline(),
       channels: [channel],
@@ -157,7 +153,10 @@ describe('ChannelManager', () => {
   });
 
   it('rejects duplicate channel registrations to avoid unsafe ownership cleanup', () => {
-    const manager = new ChannelManager();
+    const manager = new ChannelManager({
+      configManager: new FakeConfigManager(),
+      pipeline: makePipeline(),
+    });
     const first = makeChannel({ name: 'duplicate' });
     const second = makeChannel({ name: 'duplicate' });
 
@@ -168,7 +167,10 @@ describe('ChannelManager', () => {
   });
 
   it('coalesces overlapping config reload requests into a follow-up reload pass', async () => {
-    const manager = new ChannelManager();
+    const manager = new ChannelManager({
+      configManager: new FakeConfigManager(),
+      pipeline: makePipeline(),
+    });
     let releaseFirstStop: (() => void) | null = null;
     const stopAll = vi
       .spyOn(manager, 'stopAll')

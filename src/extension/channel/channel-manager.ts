@@ -1,10 +1,15 @@
 /** 频道管理器 — 初始化频道适配器并将消息桥接到管道中。 */
 
+import path from 'node:path';
 import type { InboundMessage, OutboundMessage, SendFn, SessionKey } from '../../core/types';
 import { createScopedLogger } from '../../core/logger';
-import { errorMessage, isRecord, mergeDefaults, requireInitialized } from '../../core/utils';
+import { errorMessage, isRecord, mergeDefaults } from '../../core/utils';
 import { SerialExecutor } from '../../utils/serial-executor';
-import { ChannelLoader } from './channel-loader';
+import {
+  discoverExtensionDirs,
+  loadExtensionModule,
+  type ExtensionLifecycle,
+} from '../extension-loader';
 import type {
   ChannelContext,
   ChannelManagerDependencies,
@@ -12,41 +17,39 @@ import type {
   ChannelStatus,
   LoadedChannel,
 } from './channel-types';
-import { isChannelEnabled } from './channel-types';
+import { isChannelEnabled, discoverChannelDefinition } from './channel-types';
 
 const logger = createScopedLogger('channel-manager');
 
-export class ChannelManager {
-  private deps: ChannelManagerDependencies | null = null;
+export class ChannelManager implements ExtensionLifecycle {
   private readonly definitions = new Map<string, ChannelPlugin>();
   private readonly loadedChannels = new Map<string, LoadedChannel>();
   private readonly failedChannels = new Map<string, string>();
   private readonly channelOwners = new Map<string, string>();
-  private serialExecutor = new SerialExecutor();
+  private readonly serialExecutor = new SerialExecutor();
 
-  async initialize(dependencies: ChannelManagerDependencies): Promise<void> {
-    if (this.deps) {
-      logger.warn('ChannelManager 已初始化 — 跳过');
-      return;
-    }
-    this.deps = dependencies;
-    logger.info('ChannelManager 已初始化');
-
+  constructor(private readonly deps: ChannelManagerDependencies) {
     for (const channel of this.definitions.values()) {
       this.registerDefaults(channel);
     }
-    for (const channel of dependencies.channels ?? []) {
+    for (const channel of deps.channels ?? []) {
       this.register(channel);
     }
+    logger.info('ChannelManager 已初始化');
   }
 
-  destroy(): void {
-    this.deps = null;
+  // ─── ExtensionLifecycle ──────────────────────────────────────────
+
+  async setup(): Promise<void> {
+    await this.registerFromDisk();
+    await this.startAll();
   }
 
-  private requireDeps(): ChannelManagerDependencies {
-    return requireInitialized(this.deps, 'ChannelManager');
+  async destroy(): Promise<void> {
+    await this.stopAll();
   }
+
+  // ─── 注册 / 注销 ─────────────────────────────────────────────────
 
   register(channel: ChannelPlugin, owner?: string): void {
     const existing = this.definitions.get(channel.name);
@@ -82,8 +85,9 @@ export class ChannelManager {
     }
   }
 
+  // ─── 启动 / 停止 ─────────────────────────────────────────────────
+
   async startAll(): Promise<void> {
-    this.requireDeps();
     for (const channel of this.definitions.values()) {
       if (!this.isEnabled(channel.name)) {
         this.failedChannels.delete(channel.name);
@@ -113,7 +117,6 @@ export class ChannelManager {
   }
 
   async start(channelName: string): Promise<LoadedChannel> {
-    this.requireDeps();
     const definition = this.definitions.get(channelName);
     if (!definition) {
       throw new Error(`频道 "${channelName}" 未注册`);
@@ -159,6 +162,8 @@ export class ChannelManager {
     }
   }
 
+  // ─── 运行时 ──────────────────────────────────────────────────────
+
   async send(sessionKey: SessionKey, message: OutboundMessage): Promise<void> {
     const loaded = this.loadedChannels.get(sessionKey.channel);
     if (!loaded) {
@@ -176,6 +181,8 @@ export class ChannelManager {
       await this.startAll();
     }, '频道配置重载');
   }
+
+  // ─── 查询 ────────────────────────────────────────────────────────
 
   listChannels(): ChannelStatus[] {
     const statuses: ChannelStatus[] = [];
@@ -200,24 +207,10 @@ export class ChannelManager {
     return statuses.sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  async registerFromDisk(extensionsDir: string): Promise<void> {
-    const loader = new ChannelLoader({ extensionsDir });
-    const dirs = await loader.discover();
-    for (const dir of dirs) {
-      try {
-        const mod = await loader.load(dir);
-        this.register(mod.definition, 'disk');
-      } catch (err) {
-        logger.error(`频道扩展 "${dir}" 加载失败`, err);
-      }
-    }
-  }
-
   getLoaded(channelName: string): LoadedChannel | undefined {
     return this.loadedChannels.get(channelName);
   }
 
-  /** 获取所有已注册的频道定义及其元数据。 */
   getRegisteredChannels(): Array<{
     name: string;
     version: string;
@@ -232,20 +225,42 @@ export class ChannelManager {
     }));
   }
 
+  // ─── 内部方法 ────────────────────────────────────────────────────
+
+  private async registerFromDisk(): Promise<void> {
+    const extensionsDir =
+      this.deps.extensionsDir ?? path.resolve(process.cwd(), 'extensions');
+    const dirs = await discoverExtensionDirs({
+      extensionsDir,
+      directoryPrefix: 'channel_',
+      logger,
+      unreadableMessage: '频道扩展目录不可读',
+      inspectFailureMessage: '检查频道目录候选失败',
+      candidateField: 'channelDir',
+    });
+    for (const dir of dirs) {
+      try {
+        const mod = await loadExtensionModule(dir, 'Channel', discoverChannelDefinition);
+        this.register(mod.definition, 'disk');
+      } catch (err) {
+        logger.error(`频道扩展 "${dir}" 加载失败`, err);
+      }
+    }
+  }
+
   private createContext(channelName: string, config: Record<string, unknown>): ChannelContext {
     return {
       name: channelName,
       config,
       receiveWithSend: async (message: InboundMessage, send: SendFn): Promise<void> => {
-        const pipeline = this.requireDeps().pipeline;
-        await pipeline.receiveWithSend(message, send);
+        await this.deps.pipeline.receiveWithSend(message, send);
       },
       logger: createScopedLogger(`channel:${channelName}`),
     };
   }
 
   private registerDefaults(channel: ChannelPlugin): void {
-    if (!this.deps || !channel.defaultConfig) {
+    if (!channel.defaultConfig) {
       return;
     }
     this.deps.configManager.registerDefaults(`channels.${channel.name}`, channel.defaultConfig);
@@ -257,9 +272,8 @@ export class ChannelManager {
   }
 
   private getConfigRecord(channelName: string): Record<string, unknown> {
-    const configManager = this.requireDeps().configManager;
     try {
-      const channels = configManager.get('channels');
+      const channels = this.deps.configManager.get('channels');
       const config = channels[channelName];
       return isRecord(config) ? config : {};
     } catch {

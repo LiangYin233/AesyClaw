@@ -17,7 +17,7 @@ import type { CronManager } from '../cron/cron-manager';
 import type { McpManager } from '../mcp/mcp-manager';
 import { SdkMcpClientFactory } from '../mcp/sdk-mcp-client';
 import type { Pipeline } from '../pipeline/pipeline';
-import type { ExtensionManager } from '../extension/extension-manager';
+import { ExtensionManager } from '../extension/extension-manager';
 import type { PluginManager } from '../extension/plugin/plugin-manager';
 import { ensureDefaultRoleFile } from '../role/default-role';
 import type { RoleManager } from '../role/role-manager';
@@ -41,7 +41,6 @@ export type CoreLifecycleDependencies = {
   pipeline: Pipeline;
   cronManager: CronManager;
   mcpManager: McpManager;
-  extensionManager: ExtensionManager;
   webUiManager: WebUiManager;
 };
 
@@ -97,7 +96,6 @@ export class CoreLifecycle {
       () => this.resolvedDeps.roleManager.stopWatching(),
       () => this.clearConfigSubscriptions(),
       () => this.resolvedDeps.webUiManager.destroy(),
-      () => this.extensionManager?.stopChannels(),
       () => this.extensionManager?.destroy(),
       () => this.resolvedDeps.mcpManager.disconnectAll(),
       () => this.resolvedDeps.mcpManager.destroy(),
@@ -204,8 +202,7 @@ export class CoreLifecycle {
       commandRegistry: this.resolvedDeps.commandRegistry,
     });
 
-    this.extensionManager = this.resolvedDeps.extensionManager;
-    await this.extensionManager.initialize({
+    this.extensionManager = new ExtensionManager({
       configManager: this.resolvedDeps.configManager,
       toolRegistry: this.resolvedDeps.toolRegistry,
       commandRegistry: this.resolvedDeps.commandRegistry,
@@ -229,9 +226,7 @@ export class CoreLifecycle {
       agentEngine: this.resolvedDeps.agentEngine,
     });
 
-    await this.extensionManager.loadPlugins();
-    await this.extensionManager.loadChannels();
-    await this.extensionManager.startChannels();
+    await this.extensionManager.setup();
   }
 
   private async initPeripheralRuntime(): Promise<void> {

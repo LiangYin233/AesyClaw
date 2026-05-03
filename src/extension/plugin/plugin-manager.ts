@@ -2,11 +2,15 @@
 
 import path from 'node:path';
 import { createScopedLogger } from '../../core/logger';
-import { errorMessage, isRecord, mergeDefaults, requireInitialized } from '../../core/utils';
+import { errorMessage, isRecord, mergeDefaults } from '../../core/utils';
 import type { CommandDefinition } from '../../core/types';
 import type { PluginConfigEntry } from '../../core/config/schema';
 import type { AesyClawTool } from '../../tool/tool-registry';
-import { PluginLoader } from './plugin-loader';
+import {
+  discoverExtensionDirs,
+  loadExtensionModule,
+  type ExtensionLifecycle,
+} from '../extension-loader';
 import { SerialExecutor } from '../../utils/serial-executor';
 import type {
   LoadedPlugin,
@@ -16,46 +20,26 @@ import type {
   PluginModule,
   PluginStatus,
 } from './plugin-types';
-import { pluginOwner } from './plugin-types';
+import { pluginOwner, discoverPluginDefinition } from './plugin-types';
 
 const logger = createScopedLogger('plugin-manager');
 
-/** pluginLoader 始终在 initialize() 内被赋默认值，内部访问时保证存在 */
-type ResolvedPluginDeps = PluginManagerDependencies & { pluginLoader: PluginLoader };
-
-export class PluginManager {
-  private deps: PluginManagerDependencies | null = null;
+export class PluginManager implements ExtensionLifecycle {
   private readonly loadedPlugins = new Map<string, LoadedPlugin>();
   private readonly failedPlugins = new Map<string, string>();
   private readonly moduleCache = new Map<string, PluginModule | null>();
-  private serialExecutor = new SerialExecutor();
+  private readonly serialExecutor = new SerialExecutor();
 
-  constructor() {
-    // 轻量构造器 — 通过 initialize() 注入依赖
+  constructor(private readonly deps: PluginManagerDependencies) {}
+
+  private get extensionsDir(): string {
+    return this.deps.extensionsDir ?? path.resolve(process.cwd(), 'extensions');
   }
 
-  async initialize(deps: PluginManagerDependencies): Promise<void> {
-    if (this.deps) {
-      logger.warn('PluginManager 已初始化 — 跳过');
-      return;
-    }
-    this.deps = {
-      ...deps,
-      pluginLoader: deps.pluginLoader ?? new PluginLoader(),
-    };
-  }
+  // ─── ExtensionLifecycle ──────────────────────────────────────────
 
-  async destroy(): Promise<void> {
-    await this.unloadAll();
-    this.deps = null;
-  }
-
-  private requireDeps(): ResolvedPluginDeps {
-    return requireInitialized(this.deps, 'PluginManager') as ResolvedPluginDeps;
-  }
-
-  async loadAll(): Promise<void> {
-    const pluginDirs = await this.requireDeps().pluginLoader.discover();
+  async setup(): Promise<void> {
+    const pluginDirs = await this.discoverPluginDirs();
     for (const pluginDir of pluginDirs) {
       const directoryName = path.basename(pluginDir);
       if (!this.isDirectoryEnabled(directoryName)) {
@@ -72,20 +56,14 @@ export class PluginManager {
     }
   }
 
-  async unloadAll(): Promise<void> {
-    const names = [...this.loadedPlugins.keys()].reverse();
-    for (const pluginName of names) {
-      try {
-        await this.unload(pluginName);
-      } catch (err) {
-        logger.error(`插件 "${pluginName}" 卸载失败`, err);
-      }
-    }
-    logger.info('所有插件已卸载');
+  async destroy(): Promise<void> {
+    await this.unloadAll();
   }
 
+  // ─── 加载 / 卸载 ─────────────────────────────────────────────────
+
   async load(pluginDir: string): Promise<LoadedPlugin | null> {
-    const module = await this.requireDeps().pluginLoader.load(pluginDir);
+    const module = await loadExtensionModule(pluginDir, 'Plugin', discoverPluginDefinition);
     const pluginName = module.definition.name;
 
     if (this.loadedPlugins.has(pluginName)) {
@@ -105,7 +83,7 @@ export class PluginManager {
     try {
       await module.definition.init(context);
       if (module.definition.hooks) {
-        this.requireDeps().hookRegistry.register(pluginName, module.definition.hooks);
+        this.deps.hookRegistry.register(pluginName, module.definition.hooks);
       }
     } catch (err) {
       await this.cleanupOwner(pluginName);
@@ -137,34 +115,28 @@ export class PluginManager {
         enabled: true,
         ...(module.definition.defaultConfig ? { options: module.definition.defaultConfig } : {}),
       });
-      await this.requireDeps()
-        .configManager.update({ plugins })
-        .catch((err) => {
-          logger.warn(`自动写入插件 "${pluginName}" 的配置条目失败`, err);
-        });
+      await this.deps.configManager.update({ plugins }).catch((err) => {
+        logger.warn(`自动写入插件 "${pluginName}" 的配置条目失败`, err);
+      });
     }
 
     logger.info('插件已加载', { pluginName, directoryName: module.directoryName });
     return loaded;
   }
 
-  async unload(pluginName: string): Promise<void> {
-    const loaded = this.findLoadedPlugin(pluginName);
-    if (!loaded) {
-      return;
-    }
-
-    const actualName = loaded.definition.name;
-    try {
-      if (loaded.definition.destroy) {
-        await loaded.definition.destroy();
+  async unloadAll(): Promise<void> {
+    const names = [...this.loadedPlugins.keys()].reverse();
+    for (const pluginName of names) {
+      try {
+        await this.unload(pluginName);
+      } catch (err) {
+        logger.error(`插件 "${pluginName}" 卸载失败`, err);
       }
-    } finally {
-      await this.cleanupOwner(actualName);
-      this.loadedPlugins.delete(actualName);
-      logger.info('插件已卸载', { pluginName: actualName });
     }
+    logger.info('所有插件已卸载');
   }
+
+  // ─── 运行时控制 ─────────────────────────────────────────────────
 
   async enable(pluginName: string): Promise<void> {
     await this.setPluginEnabled(pluginName, true);
@@ -183,6 +155,16 @@ export class PluginManager {
     await this.setPluginEnabled(pluginName, false);
   }
 
+  async handleConfigReload(): Promise<void> {
+    return await this.serialExecutor.execute(async () => {
+      await this.unloadAll();
+      this.moduleCache.clear();
+      await this.setup();
+    }, '插件配置重载');
+  }
+
+  // ─── 查询 ────────────────────────────────────────────────────────
+
   async listPlugins(): Promise<PluginStatus[]> {
     const statuses = new Map<string, PluginStatus>();
     for (const loaded of this.loadedPlugins.values()) {
@@ -197,7 +179,7 @@ export class PluginManager {
       });
     }
 
-    const discovered = await this.requireDeps().pluginLoader.discover();
+    const discovered = await this.discoverPluginDirs();
     for (const pluginDir of discovered) {
       const directoryName = path.basename(pluginDir);
       if (statuses.has(directoryName)) {
@@ -235,7 +217,7 @@ export class PluginManager {
       };
     }
 
-    const pluginDirs = await this.requireDeps().pluginLoader.discover();
+    const pluginDirs = await this.discoverPluginDirs();
     for (const pluginDir of pluginDirs) {
       const directoryName = path.basename(pluginDir);
       const module = await this.safeLoadModule(pluginDir);
@@ -250,19 +232,6 @@ export class PluginManager {
     return null;
   }
 
-  async handleConfigReload(): Promise<void> {
-    return await this.serialExecutor.execute(async () => {
-      await this.unloadAll();
-      this.moduleCache.clear();
-      await this.loadAll();
-    }, '插件配置重载');
-  }
-
-  getLoaded(pluginName: string): LoadedPlugin | undefined {
-    return this.findLoadedPlugin(pluginName);
-  }
-
-  /** 获取所有已发现插件的定义及其元数据。 */
   async getPluginDefinitions(): Promise<
     Array<{
       name: string;
@@ -272,7 +241,7 @@ export class PluginManager {
     }>
   > {
     const result = [];
-    const discovered = await this.requireDeps().pluginLoader.discover();
+    const discovered = await this.discoverPluginDirs();
     for (const dir of discovered) {
       const module = await this.safeLoadModule(dir);
       if (module) {
@@ -287,9 +256,60 @@ export class PluginManager {
     return result;
   }
 
+  getLoaded(pluginName: string): LoadedPlugin | undefined {
+    return this.findLoadedPlugin(pluginName);
+  }
+
+  // ─── 内部方法 ────────────────────────────────────────────────────
+
+  private async unload(pluginName: string): Promise<void> {
+    const loaded = this.findLoadedPlugin(pluginName);
+    if (!loaded) {
+      return;
+    }
+
+    const actualName = loaded.definition.name;
+    try {
+      if (loaded.definition.destroy) {
+        await loaded.definition.destroy();
+      }
+    } finally {
+      await this.cleanupOwner(actualName);
+      this.loadedPlugins.delete(actualName);
+      logger.info('插件已卸载', { pluginName: actualName });
+    }
+  }
+
+  private async discoverPluginDirs(): Promise<string[]> {
+    return await discoverExtensionDirs({
+      extensionsDir: this.extensionsDir,
+      directoryPrefix: 'plugin_',
+      logger,
+      unreadableMessage: '插件扩展目录不可读',
+      inspectFailureMessage: '检查插件目录候选失败',
+      candidateField: 'pluginDir',
+    });
+  }
+
+  private async safeLoadModule(pluginDir: string): Promise<PluginModule | null> {
+    if (this.moduleCache.has(pluginDir)) {
+      return this.moduleCache.get(pluginDir) ?? null;
+    }
+    try {
+      const module = await loadExtensionModule(pluginDir, 'Plugin', discoverPluginDefinition);
+      this.moduleCache.set(pluginDir, module);
+      return module;
+    } catch (err) {
+      this.moduleCache.set(pluginDir, null);
+      this.failedPlugins.set(path.basename(pluginDir), errorMessage(err));
+      logger.error('检查插件模块失败', err);
+      return null;
+    }
+  }
+
   private createPluginContext(pluginName: string, config: Record<string, unknown>): PluginContext {
     const owner = pluginOwner(pluginName);
-    const deps = this.requireDeps();
+    const deps = this.deps;
     return {
       config,
       registerTool: (tool: AesyClawTool): void => {
@@ -325,10 +345,10 @@ export class PluginManager {
 
   private async cleanupOwner(pluginName: string): Promise<void> {
     const owner = pluginOwner(pluginName);
-    this.requireDeps().hookRegistry.unregister(pluginName);
-    this.requireDeps().toolRegistry.unregisterByOwner(owner);
-    this.requireDeps().commandRegistry.unregisterByScope(owner);
-    await this.requireDeps().channelManager?.unregisterByOwner(owner);
+    this.deps.hookRegistry.unregister(pluginName);
+    this.deps.toolRegistry.unregisterByOwner(owner);
+    this.deps.commandRegistry.unregisterByScope(owner);
+    await this.deps.channelManager?.unregisterByOwner(owner);
   }
 
   private findLoadedPlugin(nameOrAlias: string): LoadedPlugin | undefined {
@@ -359,7 +379,7 @@ export class PluginManager {
 
   private getConfigEntries(): ReadonlyArray<Readonly<PluginConfigEntry>> {
     try {
-      return this.requireDeps().configManager.get('plugins');
+      return this.deps.configManager.get('plugins');
     } catch {
       return [];
     }
@@ -384,23 +404,7 @@ export class PluginManager {
       plugins.push({ name: canonicalName, enabled });
     }
 
-    await this.requireDeps().configManager.update({ plugins });
-  }
-
-  private async safeLoadModule(pluginDir: string): Promise<PluginModule | null> {
-    if (this.moduleCache.has(pluginDir)) {
-      return this.moduleCache.get(pluginDir) ?? null;
-    }
-    try {
-      const module = await this.requireDeps().pluginLoader.load(pluginDir);
-      this.moduleCache.set(pluginDir, module);
-      return module;
-    } catch (err) {
-      this.moduleCache.set(pluginDir, null);
-      this.failedPlugins.set(path.basename(pluginDir), errorMessage(err));
-      logger.error('检查插件模块失败', err);
-      return null;
-    }
+    await this.deps.configManager.update({ plugins });
   }
 }
 

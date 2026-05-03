@@ -6,18 +6,18 @@
  */
 
 import type { CommandDefinition, ToolOwner } from '../../core/types';
+import type { ConfigManager } from '../../core/config/config-manager';
+import type { HookDispatcher } from '../../pipeline/hook-dispatcher';
+import type { ToolRegistry } from '../../tool/tool-registry';
+import type { CommandRegistry } from '../../command/command-registry';
+import type { ChannelManager } from '../channel/channel-manager';
+import type { PluginHooks } from '../../pipeline/middleware/types';
 import type { Logger } from '../../core/logger';
 import type { PluginConfigEntry } from '../../core/config/schema';
 import type { AesyClawTool } from '../../tool/tool-registry';
-import type { ToolRegistry } from '../../tool/tool-registry';
-import type { CommandRegistry } from '../../command/command-registry';
 import type { ChannelPlugin } from '../channel/channel-types';
-import type { ChannelManager } from '../channel/channel-manager';
-import type { HookDispatcher } from '../../pipeline/hook-dispatcher';
-import type { PluginHooks } from '../../pipeline/middleware/types';
-import type { PluginLoader } from './plugin-loader';
-import type { ConfigManager } from '../../core/config/config-manager';
 import { isRecord } from '../../core/utils';
+import { validateExtension } from '../extension-utils';
 
 export type PluginContext = {
   config: Record<string, unknown>;
@@ -67,17 +67,13 @@ export type PluginModule = {
   entryPath: string;
 };
 
-export type PluginLoaderOptions = {
-  extensionsDir?: string;
-};
-
 export type PluginManagerDependencies = {
   configManager: ConfigManager;
   toolRegistry: ToolRegistry;
   commandRegistry: CommandRegistry;
   hookRegistry: HookDispatcher;
   channelManager?: ChannelManager;
-  pluginLoader?: PluginLoader;
+  extensionsDir?: string;
 };
 
 export type PluginConfigLookup = {
@@ -92,19 +88,26 @@ export function pluginOwner(pluginName: string): ToolOwner {
   return `plugin:${pluginName}`;
 }
 
+/**
+ * 校验未知值是否符合 PluginDefinition 结构。
+ */
 export function isPluginDefinition(value: unknown): value is PluginDefinition {
-  if (!isRecord(value)) {
-    return false;
+  return validateExtension<PluginDefinition>(value) !== false;
+}
+
+/**
+ * 从动态导入的模块中发现并校验插件定义。
+ *
+ * 支持 default 或 plugin 命名导出。
+ */
+export function discoverPluginDefinition(imported: unknown): PluginDefinition | null {
+  if (!isRecord(imported)) {
+    return null;
   }
 
-  return (
-    typeof value['name'] === 'string' &&
-    value['name'].length > 0 &&
-    typeof value['version'] === 'string' &&
-    value['version'].length > 0 &&
-    typeof value['init'] === 'function' &&
-    (value['destroy'] === undefined || typeof value['destroy'] === 'function') &&
-    (value['description'] === undefined || typeof value['description'] === 'string') &&
-    (value['defaultConfig'] === undefined || isRecord(value['defaultConfig']))
-  );
+  const candidate = (imported['default'] ?? imported['plugin']) as unknown;
+  if (candidate === null || candidate === undefined) return null;
+
+  const result = validateExtension<PluginDefinition>(candidate);
+  return result === false ? null : result;
 }

@@ -5,6 +5,7 @@ import type { Logger } from '../../core/logger';
 import type { ConfigManager } from '../../core/config/config-manager';
 import type { Pipeline } from '../../pipeline/pipeline';
 import { isRecord } from '../../core/utils';
+import { validateExtension } from '../extension-utils';
 
 export type ChannelContext = {
   name: string;
@@ -44,9 +45,6 @@ export type ChannelManagerDependencies = {
   configManager: ConfigManager;
   pipeline: Pipeline;
   channels?: ChannelPlugin[];
-};
-
-export type ChannelLoaderOptions = {
   extensionsDir?: string;
 };
 
@@ -68,25 +66,42 @@ export function isChannelEnabled(config: Record<string, unknown> | undefined): b
 }
 
 /**
- * 检查未知值是否符合 ChannelPlugin 结构。
- *
- * @param value - 要检查的值
- * @returns 如果是有效的 ChannelPlugin 则返回 true
+ * 校验未知值是否符合 ChannelPlugin 结构。
  */
 export function isChannelPlugin(value: unknown): value is ChannelPlugin {
-  if (!isRecord(value)) {
-    return false;
+  const validated = validateExtension<ChannelPlugin>(value);
+  if (validated === false) return false;
+  if (validated['send'] !== undefined && typeof validated['send'] !== 'function') return false;
+  return true;
+}
+
+/**
+ * 从动态导入的模块中发现并校验频道定义。
+ *
+ * 支持多种导出形式：createChannel() 工厂、命名工厂、default/channel 导出。
+ */
+export function discoverChannelDefinition(imported: unknown): ChannelPlugin | null {
+  if (!isRecord(imported)) {
+    return null;
   }
 
-  return (
-    typeof value['name'] === 'string' &&
-    value['name'].length > 0 &&
-    typeof value['version'] === 'string' &&
-    value['version'].length > 0 &&
-    typeof value['init'] === 'function' &&
-    (value['destroy'] === undefined || typeof value['destroy'] === 'function') &&
-    (value['send'] === undefined || typeof value['send'] === 'function') &&
-    (value['description'] === undefined || typeof value['description'] === 'string') &&
-    (value['defaultConfig'] === undefined || isRecord(value['defaultConfig']))
-  );
+  const candidate = findChannelCandidate(imported);
+  if (candidate === null) return null;
+  return isChannelPlugin(candidate) ? candidate : null;
+}
+
+function findChannelCandidate(imported: Record<string, unknown>): unknown | null {
+  const factoryCandidate = imported['createChannel'];
+  if (typeof factoryCandidate === 'function') {
+    return factoryCandidate();
+  }
+
+  for (const [exportName, exported] of Object.entries(imported)) {
+    if (!/^create[A-Z].*Channel$/.test(exportName) || typeof exported !== 'function') {
+      continue;
+    }
+    return exported();
+  }
+
+  return imported['default'] ?? imported['channel'] ?? null;
 }

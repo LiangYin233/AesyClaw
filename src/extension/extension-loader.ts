@@ -1,4 +1,8 @@
-/** 用于扩展目录发现和动态导入的共享辅助函数。 */
+/** 用于扩展目录发现和动态导入的共享辅助函数。
+ *
+ * 本模块只提供纯工具函数；加载流程（发现候选 + 导入 + 校验）由
+ * 各频道/插件加载器独立负责，不在此处泛化为基类。
+ */
 
 import { readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -7,6 +11,14 @@ import { errorMessage } from '../core/utils';
 
 export type ExtensionLoaderLogger = {
   warn(message: string, ...args: unknown[]): void;
+};
+
+/** 扩展组件的统一生命周期类型。 */
+export type ExtensionLifecycle = {
+  /** 加载并初始化（如从磁盘发现 + 导入 + 启动）。 */
+  setup(): Promise<void>;
+  /** 清理并释放资源。 */
+  destroy(): Promise<void>;
 };
 
 export async function discoverExtensionDirs(options: {
@@ -75,67 +87,23 @@ export async function importExtensionEntry(entryPath: string): Promise<unknown> 
   return await import(entryUrl.href);
 }
 
-/**
- * 通用扩展加载器基类:统一 `discover()` + `load()` 流程,
- * 子类只需提供 directoryPrefix、kind、和 `extract()` 验证器即可。
- *
- * 该类把 PluginLoader / ChannelLoader 共享的"扫描目录、解析入口、动态 import"
- * 逻辑抽出。`extract()` 负责把 imported 模块转换为定义对象,
- * 由具体子类决定接受哪些导出形式(`default`、命名导出、工厂等)。
- */
-export type ExtensionLoaderConfig<T> = {
-  extensionsDir?: string;
-  directoryPrefix: string;
-  kind: string;
-  invalidMessage: string;
-  unreadableMessage: string;
-  inspectFailureMessage: string;
-  candidateField: string;
-  logger: ExtensionLoaderLogger;
-  extract: (imported: unknown) => T | null;
-};
+export async function loadExtensionModule<T>(
+  extensionDir: string,
+  kind: string,
+  validate: (imported: unknown) => T | null,
+): Promise<{ definition: T; directory: string; directoryName: string; entryPath: string }> {
+  const entryPath = await resolveExtensionEntry(extensionDir, kind);
+  const imported = await importExtensionEntry(entryPath);
+  const definition = validate(imported);
 
-export type ExtensionModule<T> = {
-  definition: T;
-  directory: string;
-  directoryName: string;
-  entryPath: string;
-};
-
-export class ExtensionLoader<T> {
-  protected readonly extensionsDir: string;
-  private readonly config: ExtensionLoaderConfig<T>;
-
-  constructor(config: ExtensionLoaderConfig<T>) {
-    this.extensionsDir = config.extensionsDir ?? path.resolve(process.cwd(), 'extensions');
-    this.config = config;
+  if (definition === null) {
+    throw new Error(`${kind}模块 "${entryPath}" 未导出有效的定义`);
   }
 
-  async discover(): Promise<string[]> {
-    return await discoverExtensionDirs({
-      extensionsDir: this.extensionsDir,
-      directoryPrefix: this.config.directoryPrefix,
-      logger: this.config.logger,
-      unreadableMessage: this.config.unreadableMessage,
-      inspectFailureMessage: this.config.inspectFailureMessage,
-      candidateField: this.config.candidateField,
-    });
-  }
-
-  async load(extensionDir: string): Promise<ExtensionModule<T>> {
-    const entryPath = await resolveExtensionEntry(extensionDir, this.config.kind);
-    const imported = await importExtensionEntry(entryPath);
-    const definition = this.config.extract(imported);
-
-    if (definition === null) {
-      throw new Error(`${this.config.kind}模块 "${entryPath}" ${this.config.invalidMessage}`);
-    }
-
-    return {
-      definition,
-      directory: extensionDir,
-      directoryName: path.basename(extensionDir),
-      entryPath,
-    };
-  }
+  return {
+    definition,
+    directory: extensionDir,
+    directoryName: path.basename(extensionDir),
+    entryPath,
+  };
 }
