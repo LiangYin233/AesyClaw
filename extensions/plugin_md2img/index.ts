@@ -106,7 +106,7 @@ export async function convertMarkdownToImage(
 // ─── Hook handler ───────────────────────────────────────────────
 
 function resolveEnabledChannels(config: Record<string, unknown>): string[] {
-  const enabled = config.enabledChannels;
+  const enabled = config['enabledChannels'];
   if (Array.isArray(enabled) && enabled.every((v) => typeof v === 'string')) {
     return enabled;
   }

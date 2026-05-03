@@ -205,7 +205,7 @@ export class RoleManager {
       throw new Error('角色未加载');
     }
 
-    const id = roleData.id || randomUUID();
+    const id = roleData.id ?? randomUUID();
     const fullRole: RoleConfig = { ...roleData, id };
 
     const validated = Value.Default(RoleConfigSchema, fullRole);

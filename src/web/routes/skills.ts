@@ -3,7 +3,7 @@
 import { Hono } from 'hono';
 import type { WebUiManagerDependencies } from '../webui-manager';
 
-export function createSkillsRouter(deps: WebUiManagerDependencies) {
+export function createSkillsRouter(deps: WebUiManagerDependencies): Hono {
   const router = new Hono();
 
   router.get('/', (c) => {

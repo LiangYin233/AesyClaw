@@ -252,14 +252,14 @@ export class MemoryManager {
           if (block.type !== 'toolCall') return true;
           if (block.name) return true;
           logger.warn('清理幽灵 ToolCall 块（provider 流式事件缺少 toolName）', {
-            blockId: (block as Record<string, unknown>).id,
+            blockId: (block as Record<string, unknown>)['id'],
           });
           return false;
         },
       );
 
       if (filtered.length < message.content.length) {
-        (message as unknown as Record<string, unknown>).content = filtered;
+        (message as unknown as Record<string, unknown>)['content'] = filtered;
       }
     }
   }
@@ -287,10 +287,11 @@ export class MemoryManager {
           }
 
           // load_skill 工具额外记录技能加载
-          if (toolCall.name === 'load_skill' && toolCall.arguments?.skillName !== undefined && toolCall.arguments?.skillName !== null) {
+          const skillName = toolCall.arguments?.['skillName'];
+          if (toolCall.name === 'load_skill' && typeof skillName === 'string') {
             try {
               await this.toolUsageRepo.create({
-                name: String(toolCall.arguments.skillName),
+                name: String(skillName),
                 type: 'skill',
               });
             } catch (err) {

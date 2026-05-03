@@ -10,7 +10,7 @@ import { APP_NAME, APP_VERSION } from '../../core/types';
  * @param deps - WebUiManager 的依赖项
  * @returns Hono 路由器实例
  */
-export function createStatusRouter(deps: WebUiManagerDependencies) {
+export function createStatusRouter(deps: WebUiManagerDependencies): Hono {
   const router = new Hono();
 
   router.get('/', (c) => {

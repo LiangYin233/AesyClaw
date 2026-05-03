@@ -12,7 +12,7 @@ const logger = createScopedLogger('webui:usage');
  * @param deps - WebUiManager 的依赖项
  * @returns Hono 路由器实例
  */
-export function createUsageRouter(deps: WebUiManagerDependencies) {
+export function createUsageRouter(deps: WebUiManagerDependencies): Hono {
   const router = new Hono();
 
   router.get('/', async (c) => {

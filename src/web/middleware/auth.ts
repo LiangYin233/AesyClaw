@@ -30,7 +30,7 @@ export function createAuthMiddleware(configManager: ConfigManager): MiddlewareHa
     }
 
     const header = c.req.header('Authorization');
-    if (header && header.startsWith('Bearer ')) {
+    if (header?.startsWith('Bearer ')) {
       const token = header.slice(7);
       if (safeTokenEqual(token, authToken)) {
         return await next();

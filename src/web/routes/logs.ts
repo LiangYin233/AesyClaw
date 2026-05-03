@@ -27,7 +27,7 @@ function parseLimit(limitRaw: string | undefined): number {
  * @param _deps - WebUiManager 的依赖项（当前未使用）
  * @returns Hono 路由器实例
  */
-export function createLogsRouter(_deps: WebUiManagerDependencies) {
+export function createLogsRouter(_deps: WebUiManagerDependencies): Hono {
   const router = new Hono();
 
   router.get('/', (c) => {

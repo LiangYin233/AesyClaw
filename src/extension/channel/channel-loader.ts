@@ -39,7 +39,7 @@ function extractChannelDefinition(imported: unknown): ChannelPlugin | null {
     return null;
   }
 
-  const factoryCandidate = imported.createChannel;
+  const factoryCandidate = imported['createChannel'];
   if (typeof factoryCandidate === 'function') {
     const channel = factoryCandidate();
     if (isChannelPlugin(channel)) {
@@ -58,7 +58,7 @@ function extractChannelDefinition(imported: unknown): ChannelPlugin | null {
     }
   }
 
-  const directCandidate = imported.default ?? imported.channel;
+  const directCandidate = imported['default'] ?? imported['channel'];
   if (isChannelPlugin(directCandidate)) {
     return directCandidate;
   }

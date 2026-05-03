@@ -11,7 +11,7 @@ import { parseModelIdentifier } from '../../core/utils';
  * @param deps - WebUiManager 的依赖项
  * @returns Hono 路由器实例
  */
-export function createRolesRouter(deps: WebUiManagerDependencies) {
+export function createRolesRouter(deps: WebUiManagerDependencies): Hono {
   const router = new Hono();
 
   router.get('/', (c) => {

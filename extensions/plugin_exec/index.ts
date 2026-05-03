@@ -221,7 +221,10 @@ function resolveExecutionCwd(cwd: string | undefined, repoRoot: string): string 
   return path.resolve(repoRoot, '.aesyclaw', 'workspace');
 }
 
-function createShellInvocation(command: string, platform: NodeJS.Platform) {
+function createShellInvocation(
+  command: string,
+  platform: NodeJS.Platform,
+): { name: 'powershell' | 'bash'; command: string; args: string[] } {
   if (platform === 'win32') {
     const utf8Command =
       '[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new(); ' +

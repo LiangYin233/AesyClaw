@@ -43,7 +43,7 @@ function isCronContextRun(
     value !== null &&
     typeof value === 'object' &&
     !Array.isArray(value) &&
-    typeof (value as Record<string, unknown>).cronJobId === 'string' &&
-    typeof (value as Record<string, unknown>).cronRunId === 'string'
+    typeof (value as Record<string, unknown>)['cronJobId'] === 'string' &&
+    typeof (value as Record<string, unknown>)['cronRunId'] === 'string'
   );
 }

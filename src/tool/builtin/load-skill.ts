@@ -47,7 +47,7 @@ export function createLoadSkillTool(deps: LoadSkillDeps): AesyClawTool {
       _context: ToolExecutionContext,
     ): Promise<ToolExecutionResult> => {
       const { skillName, relativePath: rawRelativePath } = params as LoadSkillParams;
-      const relativePath = rawRelativePath || 'SKILL.md';
+      const relativePath = rawRelativePath ?? 'SKILL.md';
       const skill = deps.skillManager.getSkill(skillName);
 
       if (!skill) {

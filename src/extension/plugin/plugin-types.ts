@@ -98,13 +98,13 @@ export function isPluginDefinition(value: unknown): value is PluginDefinition {
   }
 
   return (
-    typeof value.name === 'string' &&
-    value.name.length > 0 &&
-    typeof value.version === 'string' &&
-    value.version.length > 0 &&
-    typeof value.init === 'function' &&
-    (value.destroy === undefined || typeof value.destroy === 'function') &&
-    (value.description === undefined || typeof value.description === 'string') &&
-    (value.defaultConfig === undefined || isRecord(value.defaultConfig))
+    typeof value['name'] === 'string' &&
+    value['name'].length > 0 &&
+    typeof value['version'] === 'string' &&
+    value['version'].length > 0 &&
+    typeof value['init'] === 'function' &&
+    (value['destroy'] === undefined || typeof value['destroy'] === 'function') &&
+    (value['description'] === undefined || typeof value['description'] === 'string') &&
+    (value['defaultConfig'] === undefined || isRecord(value['defaultConfig']))
   );
 }

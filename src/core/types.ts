@@ -257,14 +257,15 @@ export function parseSerializedSessionKey(value: string): SessionKey {
     parsed === null ||
     typeof parsed !== 'object' ||
     Array.isArray(parsed) ||
-    typeof (parsed as Record<string, unknown>).channel !== 'string' ||
-    typeof (parsed as Record<string, unknown>).type !== 'string' ||
-    typeof (parsed as Record<string, unknown>).chatId !== 'string'
+    typeof (parsed as Record<string, unknown>)['channel'] !== 'string' ||
+    typeof (parsed as Record<string, unknown>)['type'] !== 'string' ||
+    typeof (parsed as Record<string, unknown>)['chatId'] !== 'string'
   ) {
     throw new Error(`无效的 SessionKey 序列化: ${value}`);
   }
   const record = parsed as Record<string, string>;
-  return { channel: record.channel, type: record.type, chatId: record.chatId };
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- validated above via isRecord guard
+  return { channel: record['channel']!, type: record['type']!, chatId: record['chatId']! };
 }
 
 // ─── 实用类型 (utility-types) ─────────────────────────────────────

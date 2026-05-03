@@ -102,7 +102,7 @@ export class PromptBuilder {
     return template
       .replace(/\{\{date}}/g, new Date().toISOString().split('T')[0] ?? new Date().toISOString())
       .replace(/\{\{os}}/g, process.platform)
-      .replace(/\{\{systemLang}}/g, process.env.LANG ?? 'unknown');
+      .replace(/\{\{systemLang}}/g, process.env['LANG'] ?? 'unknown');
   }
 
   private buildToolSection(tools: AesyClawTool[]): string {

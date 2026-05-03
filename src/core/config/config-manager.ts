@@ -358,7 +358,8 @@ function buildNestedObject(key: string, value: Record<string, unknown>): Record<
   let current = result;
 
   for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- loop guard ensures parts[i] is defined
+    const part = parts[i]!;
     if (i === parts.length - 1) {
       current[part] = value;
     } else {

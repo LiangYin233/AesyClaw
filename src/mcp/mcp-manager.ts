@@ -329,7 +329,7 @@ function toToolSchema(inputSchema: unknown): TSchema {
 }
 
 function isMcpInputSchema(value: unknown): value is Record<string, unknown> {
-  return isRecord(value) && value.type === 'object';
+  return isRecord(value) && value['type'] === 'object';
 }
 
 async function closeQuietly(client: McpClient, serverName: string): Promise<void> {

@@ -64,7 +64,7 @@ export type ChannelModule = {
  * @returns 如果 enabled 不为 false 则返回 true
  */
 export function isChannelEnabled(config: Record<string, unknown> | undefined): boolean {
-  return config?.enabled !== false;
+  return config?.['enabled'] !== false;
 }
 
 /**
@@ -79,14 +79,14 @@ export function isChannelPlugin(value: unknown): value is ChannelPlugin {
   }
 
   return (
-    typeof value.name === 'string' &&
-    value.name.length > 0 &&
-    typeof value.version === 'string' &&
-    value.version.length > 0 &&
-    typeof value.init === 'function' &&
-    (value.destroy === undefined || typeof value.destroy === 'function') &&
-    (value.send === undefined || typeof value.send === 'function') &&
-    (value.description === undefined || typeof value.description === 'string') &&
-    (value.defaultConfig === undefined || isRecord(value.defaultConfig))
+    typeof value['name'] === 'string' &&
+    value['name'].length > 0 &&
+    typeof value['version'] === 'string' &&
+    value['version'].length > 0 &&
+    typeof value['init'] === 'function' &&
+    (value['destroy'] === undefined || typeof value['destroy'] === 'function') &&
+    (value['send'] === undefined || typeof value['send'] === 'function') &&
+    (value['description'] === undefined || typeof value['description'] === 'string') &&
+    (value['defaultConfig'] === undefined || isRecord(value['defaultConfig']))
   );
 }

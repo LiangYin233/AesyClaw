@@ -255,7 +255,7 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
     if (destroyed) {
       throw new Error('OneBot channel is destroyed');
     }
-    if (socket && socket.readyState === WEBSOCKET_OPEN) {
+    if (socket?.readyState === WEBSOCKET_OPEN) {
       return;
     }
     if (connectPromise) {
@@ -409,7 +409,7 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
     request.responses.push(response);
     const data = isRecord(response.data) ? response.data : null;
 
-    if (response.status !== 'ok' || data?.type === 'error') {
+    if (response.status !== 'ok' || data?.['type'] === 'error') {
       cleanupPendingStream(echo)?.reject(
         new Error(
           response.wording ??
@@ -420,7 +420,7 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
       return true;
     }
 
-    if (data?.type === 'response') {
+    if (data?.['type'] === 'response') {
       cleanupPendingStream(echo)?.resolve(request.responses);
       return true;
     }
@@ -452,7 +452,7 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
   }): Promise<T> {
     await ensureConnected();
     const activeSocket = socket;
-    if (!activeSocket || activeSocket.readyState !== WEBSOCKET_OPEN) {
+    if (activeSocket?.readyState !== WEBSOCKET_OPEN) {
       throw new Error('OneBot websocket is not connected');
     }
 
@@ -542,21 +542,21 @@ export function mapOneBotEventToInbound(
   event: unknown,
   channelName = 'onebot',
 ): InboundMessage | null {
-  if (!isRecord(event) || event.post_type !== 'message') {
+  if (!isRecord(event) || event['post_type'] !== 'message') {
     return null;
   }
 
-  const messageType = event.message_type;
+  const messageType = event['message_type'];
   if (messageType !== 'private' && messageType !== 'group') {
     return null;
   }
 
-  const senderId = stringifyId(event.user_id);
+  const senderId = stringifyId(event['user_id']);
   if (!senderId) {
     return null;
   }
 
-  const chatId = messageType === 'group' ? stringifyId(event.group_id) : senderId;
+  const chatId = messageType === 'group' ? stringifyId(event['group_id']) : senderId;
   if (!chatId) {
     return null;
   }
@@ -567,9 +567,9 @@ export function mapOneBotEventToInbound(
       type: messageType,
       chatId,
     },
-    content: extractOneBotText(event.message, event.raw_message),
-    attachments: extractOneBotAttachments(event.message),
-    sender: buildSenderInfo(senderId, event.sender),
+    content: extractOneBotText(event['message'], event['raw_message']),
+    attachments: extractOneBotAttachments(event['message']),
+    sender: buildSenderInfo(senderId, event['sender']),
     rawEvent: event,
   };
 }
@@ -600,7 +600,7 @@ async function enrichInboundMessageWithDownloads(
     params: Record<string, unknown>,
   ) => Promise<OneBotApiResponse[]>,
 ): Promise<InboundMessage> {
-  const segments = extractOneBotInboundAttachmentSegments(event.message);
+  const segments = extractOneBotInboundAttachmentSegments(event['message']);
   if (segments.length === 0) {
     return inbound;
   }
@@ -665,7 +665,7 @@ async function downloadInboundAttachment(
   const responses = await sendStreamAction(request.action, request.params);
   const downloaded = collectDownloadedStreamFile(responses, request.fallbackFileName);
   const localPath = await writeInboundAttachmentFile(downloaded.fileName, downloaded.data);
-  const url = typeof segment.data.url === 'string' ? segment.data.url : undefined;
+  const url = typeof segment['data']['url'] === 'string' ? segment['data']['url'] : undefined;
 
   return {
     type: segment.attachmentType,
@@ -679,7 +679,7 @@ function buildDownloadRequest(
 ): { action: string; params: Record<string, unknown>; fallbackFileName?: string } | null {
   const simpleRequest = DOWNLOAD_REQUEST_BY_SEGMENT[segment.segmentType];
   if (simpleRequest) {
-    const file = typeof segment.data.file === 'string' ? segment.data.file : null;
+    const file = typeof segment['data']['file'] === 'string' ? segment['data']['file'] : null;
     if (!file) {
       return null;
     }
@@ -691,8 +691,8 @@ function buildDownloadRequest(
   }
 
   if (segment.segmentType === 'file') {
-    const fileId = typeof segment.data.file_id === 'string' ? segment.data.file_id : null;
-    const file = typeof segment.data.file === 'string' ? segment.data.file : null;
+    const fileId = typeof segment['data']['file_id'] === 'string' ? segment['data']['file_id'] : null;
+    const file = typeof segment['data']['file'] === 'string' ? segment['data']['file'] : null;
     if (!fileId && !file) {
       return null;
     }
@@ -724,24 +724,24 @@ function collectDownloadedStreamFile(
     }
 
     if (
-      data.data_type === 'file_info' &&
-      typeof data.file_name === 'string' &&
-      data.file_name.length > 0
+      data['data_type'] === 'file_info' &&
+      typeof data['file_name'] === 'string' &&
+      data['file_name'].length > 0
     ) {
-      fileName = data.file_name;
+      fileName = data['file_name'];
       continue;
     }
 
     if (
-      data.data_type === 'file_chunk' &&
-      typeof data.data === 'string' &&
-      typeof data.index === 'number'
+      data['data_type'] === 'file_chunk' &&
+      typeof data['data'] === 'string' &&
+      typeof data['index'] === 'number'
     ) {
-      chunks.set(data.index, Buffer.from(data.data, 'base64'));
+      chunks.set(data['index'], Buffer.from(data['data'], 'base64'));
       continue;
     }
 
-    if (data.type === 'response' && data.data_type === 'file_complete') {
+    if (data['type'] === 'response' && data['data_type'] === 'file_complete') {
       sawCompletion = true;
     }
   }
@@ -941,7 +941,16 @@ async function uploadAttachmentStream(
   };
 }
 
-function summarizeOutboundMessage(sessionKey: SessionKey, message: OutboundMessage) {
+function summarizeOutboundMessage(
+  sessionKey: SessionKey,
+  message: OutboundMessage,
+): {
+  sessionChannel: string;
+  chatType: string;
+  contentLength: number;
+  attachmentCount: number;
+  attachmentTypes: string[];
+} {
   const attachments = message.attachments ?? [];
   return {
     sessionChannel: sessionKey.channel,
@@ -966,10 +975,10 @@ function summarizeAttachmentSource(attachment: MediaAttachment): string {
 }
 
 function readUploadedFilePath(response: OneBotApiResponse): string {
-  if (!isRecord(response.data) || typeof response.data.file_path !== 'string') {
+  if (!isRecord(response.data) || typeof response['data']['file_path'] !== 'string') {
     throw new Error('OneBot upload_file_stream did not return a file_path');
   }
-  return response.data.file_path;
+  return response['data']['file_path'];
 }
 
 async function loadAttachmentSource(attachment: MediaAttachment): Promise<LoadedAttachmentSource> {
@@ -1018,7 +1027,8 @@ function parseBase64Attachment(
 ): { mimeType?: string; base64: string } {
   const match = /^data:([^;]+);base64,(.+)$/i.exec(source);
   if (match) {
-    return { mimeType: match[1], base64: match[2] };
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- regex exec ensures capturing group exists
+    return { mimeType: match[1], base64: match[2]! };
   }
   return { mimeType: fallbackMimeType, base64: source };
 }
@@ -1058,7 +1068,7 @@ function extractOneBotInboundAttachmentSegments(
       (
         segment,
       ): segment is Record<string, unknown> & { type: string; data: Record<string, unknown> } =>
-        isRecord(segment) && isRecord(segment.data) && typeof segment.type === 'string',
+        isRecord(segment) && isRecord(segment['data']) && typeof segment['type'] === 'string',
     )
     .map((segment) => {
       const attachmentType = mapAttachmentTypeFromSegment(segment.type);
@@ -1076,15 +1086,15 @@ function extractOneBotInboundAttachmentSegments(
 }
 
 function mapOneBotAttachmentSegment(segment: unknown): MediaAttachment | null {
-  if (!isRecord(segment) || !isRecord(segment.data)) {
+  if (!isRecord(segment) || !isRecord(segment['data'])) {
     return null;
   }
 
   const segmentType =
-    typeof segment.type === 'string'
-      ? segment.type
-      : typeof segment.segmentType === 'string'
-        ? segment.segmentType
+    typeof segment['type'] === 'string'
+      ? segment['type']
+      : typeof segment['segmentType'] === 'string'
+        ? segment['segmentType']
         : null;
   if (!segmentType) {
     return null;
@@ -1095,8 +1105,8 @@ function mapOneBotAttachmentSegment(segment: unknown): MediaAttachment | null {
     return null;
   }
 
-  const url = typeof segment.data.url === 'string' ? segment.data.url : undefined;
-  const pathValue = typeof segment.data.path === 'string' ? segment.data.path : undefined;
+  const url = typeof segment['data']['url'] === 'string' ? segment['data']['url'] : undefined;
+  const pathValue = typeof segment['data']['path'] === 'string' ? segment['data']['path'] : undefined;
 
   if (!url && !pathValue) {
     return null;
@@ -1115,8 +1125,8 @@ function mapAttachmentTypeFromSegment(type: string): MediaAttachment['type'] | n
 
 function parseConfig(config: Record<string, unknown>): OneBotChannelConfig {
   return {
-    serverUrl: readString(config.serverUrl, DEFAULT_CONFIG.serverUrl),
-    accessToken: readString(config.accessToken, DEFAULT_CONFIG.accessToken),
+    serverUrl: readString(config['serverUrl'], DEFAULT_CONFIG.serverUrl),
+    accessToken: readString(config['accessToken'], DEFAULT_CONFIG.accessToken),
   };
 }
 
@@ -1148,19 +1158,19 @@ function defaultCreateSocket(url: string): WebSocketLike {
 
 function waitForSocketOpen(socket: WebSocketLike): Promise<void> {
   return new Promise((resolve, reject) => {
-    const handleOpen = () => {
+    const handleOpen = (): void => {
       cleanup();
       resolve();
     };
-    const handleClose = (event: unknown) => {
+    const handleClose = (event: unknown): void => {
       cleanup();
       reject(new Error(`OneBot websocket closed before opening: ${describeSocketClose(event)}`));
     };
-    const handleError = (event: unknown) => {
+    const handleError = (event: unknown): void => {
       cleanup();
       reject(new Error(`Failed to connect to OneBot websocket: ${describeSocketError(event)}`));
     };
-    const cleanup = () => {
+    const cleanup = (): void => {
       socket.removeEventListener('open', handleOpen);
       socket.removeEventListener('close', handleClose);
       socket.removeEventListener('error', handleError);
@@ -1194,7 +1204,7 @@ function readSocketData(event: unknown): string | null {
     return null;
   }
 
-  const data = event.data;
+  const data = event['data'];
   if (typeof data === 'string') {
     return data;
   }
@@ -1209,20 +1219,20 @@ function readSocketData(event: unknown): string | null {
 
 function parseApiResponsePayload(payload: Record<string, unknown>): OneBotApiResponse | null {
   if (
-    typeof payload.echo !== 'string' ||
+    typeof payload['echo'] !== 'string' ||
     (!('status' in payload) && !('retcode' in payload) && !('data' in payload))
   ) {
     return null;
   }
 
   return {
-    echo: payload.echo,
-    ...(typeof payload.status === 'string' ? { status: payload.status } : {}),
-    ...(typeof payload.retcode === 'number' ? { retcode: payload.retcode } : {}),
-    ...(typeof payload.msg === 'string' ? { msg: payload.msg } : {}),
-    ...(typeof payload.wording === 'string' ? { wording: payload.wording } : {}),
-    ...(typeof payload.stream === 'string' ? { stream: payload.stream } : {}),
-    ...('data' in payload ? { data: payload.data } : {}),
+    echo: payload['echo'],
+    ...(typeof payload['status'] === 'string' ? { status: payload['status'] } : {}),
+    ...(typeof payload['retcode'] === 'number' ? { retcode: payload['retcode'] } : {}),
+    ...(typeof payload['msg'] === 'string' ? { msg: payload['msg'] } : {}),
+    ...(typeof payload['wording'] === 'string' ? { wording: payload['wording'] } : {}),
+    ...(typeof payload['stream'] === 'string' ? { stream: payload['stream'] } : {}),
+    ...('data' in payload ? { data: payload['data'] } : {}),
   };
 }
 
@@ -1230,10 +1240,10 @@ function extractTextSegment(segment: unknown): string {
   if (!isRecord(segment)) {
     return '';
   }
-  if (segment.type !== 'text' || !isRecord(segment.data)) {
+  if (segment['type'] !== 'text' || !isRecord(segment['data'])) {
     return '';
   }
-  return typeof segment.data.text === 'string' ? segment.data.text : '';
+  return typeof segment['data']['text'] === 'string' ? segment['data']['text'] : '';
 }
 
 function buildSenderInfo(senderId: string, sender: unknown): InboundMessage['sender'] {
@@ -1241,9 +1251,9 @@ function buildSenderInfo(senderId: string, sender: unknown): InboundMessage['sen
     return { id: senderId };
   }
 
-  const nickname = typeof sender.nickname === 'string' ? sender.nickname : undefined;
-  const card = typeof sender.card === 'string' && sender.card.length > 0 ? sender.card : undefined;
-  const role = typeof sender.role === 'string' ? sender.role : undefined;
+  const nickname = typeof sender['nickname'] === 'string' ? sender['nickname'] : undefined;
+  const card = typeof sender['card'] === 'string' && sender['card'].length > 0 ? sender['card'] : undefined;
+  const role = typeof sender['role'] === 'string' ? sender['role'] : undefined;
   return {
     id: senderId,
     ...((card ?? nickname) ? { name: card ?? nickname } : {}),
@@ -1271,11 +1281,11 @@ function describeSocketError(event: unknown): string {
     return event.message;
   }
   if (isRecord(event)) {
-    if (event.error instanceof Error) {
-      return event.error.message;
+    if (event['error'] instanceof Error) {
+      return event['error'].message;
     }
-    if (typeof event.message === 'string') {
-      return event.message;
+    if (typeof event['message'] === 'string') {
+      return event['message'];
     }
   }
   return 'unknown websocket error';
@@ -1286,9 +1296,9 @@ function describeSocketClose(event: unknown): string {
     return 'closed';
   }
 
-  const code = typeof event.code === 'number' ? event.code : undefined;
+  const code = typeof event['code'] === 'number' ? event['code'] : undefined;
   const reason =
-    typeof event.reason === 'string' && event.reason.length > 0 ? event.reason : undefined;
+    typeof event['reason'] === 'string' && event['reason'].length > 0 ? event['reason'] : undefined;
   if (code !== undefined && reason) {
     return `code ${code}: ${reason}`;
   }

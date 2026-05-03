@@ -74,14 +74,14 @@ export function parseSkillContent(content: string): ParsedSkill | null {
 
   const { attributes, body } = parsed;
 
-  if (!isRecord(attributes) || typeof attributes.name !== 'string' || attributes.name === '') {
+  if (!isRecord(attributes) || typeof attributes['name'] !== 'string' || attributes['name'] === '') {
     return null;
   }
 
-  const description = typeof attributes.description === 'string' ? attributes.description : '';
+  const description = typeof attributes['description'] === 'string' ? attributes['description'] : '';
 
   return {
-    name: attributes.name,
+    name: attributes['name'],
     description,
     content: body.trim(),
   };

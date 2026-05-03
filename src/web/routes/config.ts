@@ -11,7 +11,7 @@ import type { DeepPartial } from '../../core/types';
  * @param deps - WebUiManager 的依赖项
  * @returns Hono 路由器实例
  */
-export function createConfigRouter(deps: WebUiManagerDependencies) {
+export function createConfigRouter(deps: WebUiManagerDependencies): Hono {
   const router = new Hono();
 
   router.get('/', (c) => {

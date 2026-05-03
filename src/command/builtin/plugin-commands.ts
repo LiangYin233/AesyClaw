@@ -72,9 +72,14 @@ export function createPluginEnableCommand(deps: PluginCommandDeps): CommandDefin
         return '用法：/plugin enable <name>';
       }
 
-      const pluginName = await resolvePluginName(deps, args[0]);
+      const name = args[0];
+      if (!name) {
+        return `未找到插件：${args[0] ?? ''}`;
+      }
+
+      const pluginName = await resolvePluginName(deps, name);
       if (!pluginName) {
-        return `未找到插件：${args[0]}`;
+        return `未找到插件：${name}`;
       }
 
       await deps.pluginManager.enable(pluginName);
@@ -101,9 +106,14 @@ export function createPluginDisableCommand(deps: PluginCommandDeps): CommandDefi
         return '用法：/plugin disable <name>';
       }
 
-      const pluginName = await resolvePluginName(deps, args[0]);
+      const name = args[0];
+      if (!name) {
+        return `未找到插件：${args[0] ?? ''}`;
+      }
+
+      const pluginName = await resolvePluginName(deps, name);
       if (!pluginName) {
-        return `未找到插件：${args[0]}`;
+        return `未找到插件：${name}`;
       }
 
       await deps.pluginManager.disable(pluginName);

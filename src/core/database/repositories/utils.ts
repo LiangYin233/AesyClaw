@@ -6,8 +6,8 @@
 export function localDateToUtc(dateStr: string, endOfDay: boolean): string {
   const [y, m, d] = dateStr.split('-').map(Number);
   return new Date(
-    y,
-    m - 1,
+    y ?? 0,
+    (m ?? 1) - 1,
     d,
     endOfDay ? 23 : 0,
     endOfDay ? 59 : 0,

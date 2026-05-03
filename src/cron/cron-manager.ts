@@ -164,7 +164,7 @@ export class CronManager {
       await deps.cronJobs.updateNextRun(job.id, nextRun);
 
       const updated = await deps.cronJobs.findById(job.id);
-      if (updated && updated.nextRun) {
+      if (updated?.nextRun) {
         this.schedule(updated);
       }
     }

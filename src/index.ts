@@ -17,13 +17,13 @@ export function registerProcessHandlers(
   app: Pick<AppLifecycle, 'shutdown'>,
   processRef: Pick<NodeJS.Process, 'on' | 'exit'> = process,
 ): void {
-  const shutdown = async (signal: string) => {
+  const shutdown = async (signal: string): Promise<void> => {
     logger.info(`收到 ${signal}，正在关闭…`);
     await app.shutdown();
     processRef.exit(0);
   };
 
-  const handleSignal = (signal: string) =>
+  const handleSignal = (signal: string): Promise<void> =>
     shutdown(signal).catch((err) => {
       logger.error(`${signal} 关闭过程中失败`, err);
       processRef.exit(1);

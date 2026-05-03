@@ -29,6 +29,6 @@ function extractPluginDefinition(imported: unknown): PluginDefinition | null {
     return null;
   }
 
-  const candidate = imported.default ?? imported.plugin;
+  const candidate = imported['default'] ?? imported['plugin'];
   return isPluginDefinition(candidate) ? candidate : null;
 }

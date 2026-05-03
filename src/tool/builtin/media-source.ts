@@ -97,7 +97,7 @@ function normalizeContentType(contentType: string | null): string | undefined {
     return undefined;
   }
 
-  return contentType.split(';')[0]?.trim() || undefined;
+  return contentType.split(';')[0]?.trim() ?? undefined;
 }
 
 function inferMimeType(fileName: string): string | undefined {

@@ -58,7 +58,7 @@ function shouldLog(level: LogLevel): boolean {
 }
 
 function supportsAnsiColor(stream: NodeJS.WriteStream): boolean {
-  const forceColor = process.env.FORCE_COLOR;
+  const forceColor = process.env['FORCE_COLOR'];
 
   if ('NO_COLOR' in process.env) {
     return false;
@@ -76,7 +76,7 @@ function supportsAnsiColor(stream: NodeJS.WriteStream): boolean {
     return false;
   }
 
-  return process.env.TERM !== 'dumb';
+  return process.env['TERM'] !== 'dumb';
 }
 
 function getLogStream(level: LogLevel): NodeJS.WriteStream {

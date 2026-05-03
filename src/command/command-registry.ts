@@ -159,11 +159,12 @@ export class CommandRegistry {
     }
 
     const parts = trimmed.slice(1).split(/\s+/);
-    if (parts.length === 0 || parts[0] === '') {
+    const first = parts[0];
+    if (first === undefined || first === '') {
       return null;
     }
 
-    const commandName = parts[0].toLowerCase();
+    const commandName = first.toLowerCase();
     const args = parts.slice(1);
 
     const direct = this.commands.get(commandName);
@@ -172,11 +173,14 @@ export class CommandRegistry {
     }
 
     if (args.length > 0) {
-      const subcommandName = args[0].toLowerCase();
-      const registryKey = CommandRegistry.registryKeyForParts(subcommandName, commandName);
-      const namespaced = this.commands.get(registryKey);
-      if (namespaced) {
-        return this.toResolvedCommand(namespaced, args.slice(1), commandName, registryKey);
+      const second = args[0];
+      if (second !== undefined) {
+        const subcommandName = second.toLowerCase();
+        const registryKey = CommandRegistry.registryKeyForParts(subcommandName, commandName);
+        const namespaced = this.commands.get(registryKey);
+        if (namespaced) {
+          return this.toResolvedCommand(namespaced, args.slice(1), commandName, registryKey);
+        }
       }
     }
 
