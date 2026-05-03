@@ -18,7 +18,8 @@
     "outDir": "./dist",
     "rootDir": ".",
     "paths": {
-      "@aesyclaw/sdk": ["./src/sdk/index.ts"]
+      "@aesyclaw/sdk": ["./src/sdk/index.ts"],
+      "@aesyclaw/*": ["./src/*"]
     }
   },
   "include": ["src/**/*", "extensions/**/*"],
