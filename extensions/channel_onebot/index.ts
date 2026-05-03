@@ -7,10 +7,10 @@ import { getInboundMessageText, getOutboundMessageText } from '@aesyclaw/sdk';
 import type {
   InboundMessage,
   MessageComponent,
-  OutboundImageComponent,
-  OutboundRecordComponent,
-  OutboundVideoComponent,
-  OutboundFileComponent,
+  ImageComponent,
+  RecordComponent,
+  VideoComponent,
+  FileComponent,
   OutboundMessage,
   SessionKey,
   SenderInfo,
@@ -41,13 +41,13 @@ type OneBotDownloadResult = {
   url?: string;
 };
 
-type OutboundMediaComponent =
-  | OutboundImageComponent
-  | OutboundRecordComponent
-  | OutboundVideoComponent
-  | OutboundFileComponent;
+type MediaComponent =
+  | ImageComponent
+  | RecordComponent
+  | VideoComponent
+  | FileComponent;
 
-const OUTBOUND_COMPONENT_TO_ATTACHMENT_TYPE: Record<OutboundMediaComponent['type'], OneBotAttachmentType> = {
+const OUTBOUND_COMPONENT_TO_ATTACHMENT_TYPE: Record<MediaComponent['type'], OneBotAttachmentType> = {
   Image: 'image',
   Record: 'audio',
   Video: 'video',
@@ -634,7 +634,7 @@ async function buildOutgoingMessagePayload(
   summary: ReturnType<typeof summarizeOutboundMessage>,
 ): Promise<string | OneBotMessageSegment[]> {
   const mediaComponents = message.components.filter(
-    (c): c is OutboundMediaComponent => c.type !== 'Plain',
+    (c): c is MediaComponent => c.type !== 'Plain',
   );
 
   if (mediaComponents.length === 0) {
@@ -684,7 +684,7 @@ async function buildOutgoingMessagePayload(
 }
 
 async function uploadAttachmentStream(
-  component: OutboundMediaComponent,
+  component: MediaComponent,
   transport: OneBotActionTransport,
 ): Promise<UploadedAttachment> {
   const loaded = await loadAttachmentSource(component);
@@ -738,7 +738,7 @@ function summarizeOutboundMessage(
 } {
   const text = getOutboundMessageText(message);
   const mediaComponents = message.components.filter(
-    (c): c is OutboundMediaComponent => c.type !== 'Plain',
+    (c): c is MediaComponent => c.type !== 'Plain',
   );
   return {
     sessionChannel: sessionKey.channel,
@@ -749,7 +749,7 @@ function summarizeOutboundMessage(
   };
 }
 
-function summarizeAttachmentSource(component: OutboundMediaComponent): string {
+function summarizeAttachmentSource(component: MediaComponent): string {
   if (component.base64) {
     return 'base64';
   }
@@ -769,7 +769,7 @@ function readUploadedFilePath(response: OneBotApiResponse): string {
   return response['data']['file_path'];
 }
 
-async function loadAttachmentSource(component: OutboundMediaComponent): Promise<LoadedAttachmentSource> {
+async function loadAttachmentSource(component: MediaComponent): Promise<LoadedAttachmentSource> {
   if (component.base64) {
     return loadBase64AttachmentSource(component);
   }
@@ -801,7 +801,7 @@ async function loadAttachmentSource(component: OutboundMediaComponent): Promise<
   throw new Error(`OneBot ${component.type} attachment requires url, path, or base64 data`);
 }
 
-function loadBase64AttachmentSource(component: OutboundMediaComponent): LoadedAttachmentSource {
+function loadBase64AttachmentSource(component: MediaComponent): LoadedAttachmentSource {
   const { mimeType, base64 } = parseBase64Attachment(component.base64 ?? '', component.mimeType);
   return {
     data: Buffer.from(base64, 'base64'),
@@ -822,7 +822,7 @@ function parseBase64Attachment(
 }
 
 function inferAttachmentFileName(
-  component: OutboundMediaComponent,
+  component: MediaComponent,
   preferredName?: string,
   mimeType?: string,
 ): string {

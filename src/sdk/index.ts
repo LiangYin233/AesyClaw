@@ -26,12 +26,6 @@ export type {
   FileComponent,
   ReplyComponent,
   UnknownComponent,
-  OutboundMessageComponent,
-  OutboundPlainComponent,
-  OutboundImageComponent,
-  OutboundRecordComponent,
-  OutboundVideoComponent,
-  OutboundFileComponent,
   PipelineResult,
 } from '@aesyclaw/core/types';
 

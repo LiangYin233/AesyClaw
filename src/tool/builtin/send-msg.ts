@@ -12,10 +12,10 @@ import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from '@a
 import { errorMessage } from '@aesyclaw/core/utils';
 import type {
   OutboundMessage,
-  OutboundImageComponent,
-  OutboundRecordComponent,
-  OutboundVideoComponent,
-  OutboundFileComponent,
+  ImageComponent,
+  RecordComponent,
+  VideoComponent,
+  FileComponent,
   ToolOwner,
 } from '@aesyclaw/core/types';
 
@@ -28,11 +28,11 @@ const MEDIA_TYPE_MAP: Record<string, OutboundMediaType> = {
 
 type OutboundMediaType = 'Image' | 'Record' | 'Video' | 'File';
 
-type OutboundMediaComponent =
-  | OutboundImageComponent
-  | OutboundRecordComponent
-  | OutboundVideoComponent
-  | OutboundFileComponent;
+type MediaComponent =
+  | ImageComponent
+  | RecordComponent
+  | VideoComponent
+  | FileComponent;
 
 /** send_msg 的参数模式 */
 const SendMessageParamsSchema = Type.Object({
@@ -58,7 +58,7 @@ const SendMessageParamsSchema = Type.Object({
 
 type SendMessageParams = Static<typeof SendMessageParamsSchema>;
 
-function toOutboundMediaComponent(media: SendMessageParams['media']): OutboundMediaComponent[] {
+function toMediaComponent(media: SendMessageParams['media']): MediaComponent[] {
   if (!media || media.length === 0) {
     return [];
   }
@@ -71,7 +71,7 @@ function toOutboundMediaComponent(media: SendMessageParams['media']): OutboundMe
       ...(item.path ? { path: item.path } : {}),
       ...(item.base64 ? { base64: item.base64 } : {}),
       ...(item.mimeType ? { mimeType: item.mimeType } : {}),
-    } as OutboundMediaComponent;
+    } as MediaComponent;
   });
 }
 
@@ -102,7 +102,7 @@ export function createSendMsgTool(): AesyClawTool {
         const outbound: OutboundMessage = {
           components: [
             { type: 'Plain', text },
-            ...toOutboundMediaComponent(media),
+            ...toMediaComponent(media),
           ],
         };
         const delivered = await context.sendMessage(outbound);

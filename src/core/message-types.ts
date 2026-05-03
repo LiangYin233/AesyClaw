@@ -21,6 +21,8 @@ export type ImageComponent = {
   url?: string;
   path?: string;
   file?: string;
+  base64?: string;
+  mimeType?: string;
 };
 
 export type RecordComponent = {
@@ -28,6 +30,8 @@ export type RecordComponent = {
   url?: string;
   path?: string;
   file?: string;
+  base64?: string;
+  mimeType?: string;
 };
 
 export type VideoComponent = {
@@ -35,6 +39,8 @@ export type VideoComponent = {
   url?: string;
   path?: string;
   file?: string;
+  base64?: string;
+  mimeType?: string;
 };
 
 export type FileComponent = {
@@ -44,6 +50,8 @@ export type FileComponent = {
   file?: string;
   fileId?: string;
   name?: string;
+  base64?: string;
+  mimeType?: string;
 };
 
 export type ReplyComponent = {
@@ -87,57 +95,10 @@ export function getInboundMessageText(message: Pick<InboundMessage, 'components'
   return getMessageText(message);
 }
 
-// ─── 出站消息组件 ─────────────────────────────────────────────────
-
-export type OutboundPlainComponent = {
-  type: 'Plain';
-  text: string;
-};
-
-export type OutboundImageComponent = {
-  type: 'Image';
-  url?: string;
-  path?: string;
-  base64?: string;
-  mimeType?: string;
-};
-
-export type OutboundRecordComponent = {
-  type: 'Record';
-  url?: string;
-  path?: string;
-  base64?: string;
-  mimeType?: string;
-};
-
-export type OutboundVideoComponent = {
-  type: 'Video';
-  url?: string;
-  path?: string;
-  base64?: string;
-  mimeType?: string;
-};
-
-export type OutboundFileComponent = {
-  type: 'File';
-  url?: string;
-  path?: string;
-  base64?: string;
-  mimeType?: string;
-  name?: string;
-};
-
-export type OutboundMessageComponent =
-  | OutboundPlainComponent
-  | OutboundImageComponent
-  | OutboundRecordComponent
-  | OutboundVideoComponent
-  | OutboundFileComponent;
-
 // ─── 出站消息 ──────────────────────────────────────────────────
 
 /** 由管道生成并通过频道发送回去的回复 */
-export type OutboundMessage = Message<OutboundMessageComponent>;
+export type OutboundMessage = Message<MessageComponent>;
 
 export function getOutboundMessageText(message: Pick<OutboundMessage, 'components'>): string {
   return getMessageText(message);
@@ -150,7 +111,7 @@ export type SendFn = (message: OutboundMessage) => Promise<void>;
 export type PipelineResult =
   | { action: 'continue'; data?: unknown }
   | { action: 'block'; reason?: string }
-  | { action: 'respond'; components: OutboundMessageComponent[] };
+  | { action: 'respond'; components: MessageComponent[] };
 
 // ─── 持久化 ────────────────────────────────────────────────────────
 
