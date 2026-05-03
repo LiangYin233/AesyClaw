@@ -65,7 +65,7 @@ export class McpManager {
   private readonly failedServers = new Map<string, string>();
   private serialExecutor = new SerialExecutor();
 
-  initialize(dependencies: McpManagerDependencies): void {
+  async initialize(dependencies: McpManagerDependencies): Promise<void> {
     if (this.deps) {
       logger.warn('McpManager 已初始化 — 跳过');
       return;

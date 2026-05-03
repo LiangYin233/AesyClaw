@@ -30,7 +30,7 @@ export class RoleManager {
 
   // ─── 生命周期 ────────────────────────────────────────────────
 
-  initialize(deps: RoleManagerDependencies): void {
+  async initialize(deps: RoleManagerDependencies): Promise<void> {
     this.rolesDir = deps.rolesDir;
   }
 

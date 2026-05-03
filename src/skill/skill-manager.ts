@@ -25,7 +25,7 @@ export class SkillManager {
 
   // ─── 生命周期 ────────────────────────────────────────────────
 
-  initialize(deps: SkillManagerDependencies): void {
+  async initialize(deps: SkillManagerDependencies): Promise<void> {
     this.deps = deps;
   }
 

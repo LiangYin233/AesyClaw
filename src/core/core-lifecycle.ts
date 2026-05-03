@@ -126,7 +126,7 @@ export class CoreLifecycle {
     await this.runStep('准备运行时', () => this.prepareRuntime());
     await this.runStep('加载运行时配置', async () => await this.loadRuntimeConfig());
     await this.runStep('初始化核心管理器', async () => await this.initCoreManagers());
-    await this.runStep('初始化 Agent 运行时', () => this.initAgentRuntime());
+    await this.runStep('初始化 Agent 运行时', async () => await this.initAgentRuntime());
     await this.runStep('初始化扩展运行时', async () => await this.initExtensionRuntime());
     await this.runStep('初始化外围运行时', async () => await this.initPeripheralRuntime());
     await this.runStep('安装运行时热重载', async () => await this.installHotReload());
@@ -163,14 +163,14 @@ export class CoreLifecycle {
 
   private async initCoreManagers(): Promise<void> {
     await this.resolvedDeps.databaseManager.initialize(this.paths.dbFile);
-    this.resolvedDeps.skillManager.initialize({ userSkillsDir: this.paths.userSkillsDir, systemSkillsDir: this.paths.skillsDir });
+    await this.resolvedDeps.skillManager.initialize({ userSkillsDir: this.paths.userSkillsDir, systemSkillsDir: this.paths.skillsDir });
     await this.resolvedDeps.skillManager.loadAll(this.paths.userSkillsDir, this.paths.skillsDir);
-    this.resolvedDeps.roleManager.initialize({ rolesDir: this.paths.rolesDir });
+    await this.resolvedDeps.roleManager.initialize({ rolesDir: this.paths.rolesDir });
     await this.resolvedDeps.roleManager.loadAll(this.paths.rolesDir);
   }
 
-  private initAgentRuntime(): void {
-    this.resolvedDeps.llmAdapter.initialize({ configManager: this.resolvedDeps.configManager });
+  private async initAgentRuntime(): Promise<void> {
+    await this.resolvedDeps.llmAdapter.initialize({ configManager: this.resolvedDeps.configManager });
 
     const promptBuilder = new PromptBuilder({
       roleManager: this.resolvedDeps.roleManager,
@@ -178,12 +178,12 @@ export class CoreLifecycle {
       toolRegistry: this.resolvedDeps.toolRegistry,
       toolHookDispatcher: this.resolvedDeps.pipeline.hookDispatcher,
     });
-    this.resolvedDeps.agentEngine.initialize({
+    await this.resolvedDeps.agentEngine.initialize({
       llmAdapter: this.resolvedDeps.llmAdapter,
       promptBuilder,
     });
 
-    this.resolvedDeps.sessionManager.initialize({
+    await this.resolvedDeps.sessionManager.initialize({
       databaseManager: this.resolvedDeps.databaseManager,
       roleManager: this.resolvedDeps.roleManager,
       agentEngine: this.resolvedDeps.agentEngine,
@@ -193,14 +193,14 @@ export class CoreLifecycle {
   }
 
   private async initExtensionRuntime(): Promise<void> {
-    this.resolvedDeps.pipeline.initialize({
+    await this.resolvedDeps.pipeline.initialize({
       sessionManager: this.resolvedDeps.sessionManager,
       agentEngine: this.resolvedDeps.agentEngine,
       commandRegistry: this.resolvedDeps.commandRegistry,
     });
 
     this.extensionManager = this.resolvedDeps.extensionManager;
-    this.extensionManager.initialize({
+    await this.extensionManager.initialize({
       configManager: this.resolvedDeps.configManager,
       toolRegistry: this.resolvedDeps.toolRegistry,
       commandRegistry: this.resolvedDeps.commandRegistry,
@@ -230,7 +230,7 @@ export class CoreLifecycle {
   }
 
   private async initPeripheralRuntime(): Promise<void> {
-    this.resolvedDeps.mcpManager.initialize({
+    await this.resolvedDeps.mcpManager.initialize({
       configManager: this.resolvedDeps.configManager,
       toolRegistry: this.resolvedDeps.toolRegistry,
       clientFactory: new SdkMcpClientFactory(),

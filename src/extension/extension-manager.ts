@@ -27,7 +27,7 @@ export class ExtensionManager {
   private pluginManager!: PluginManager;
   private channelManager!: ChannelManager;
 
-  initialize(deps: ExtensionManagerDependencies): void {
+  async initialize(deps: ExtensionManagerDependencies): Promise<void> {
     if (this.deps) {
       logger.warn('ExtensionManager 已初始化 — 跳过');
       return;
@@ -36,14 +36,14 @@ export class ExtensionManager {
 
     // ChannelManager first (no dependency on PluginManager)
     this.channelManager = new ChannelManager();
-    this.channelManager.initialize({
+    await this.channelManager.initialize({
       configManager: deps.configManager,
       pipeline: deps.pipeline,
     });
 
     // PluginManager second (can reference channelManager for plugin channel registration)
     this.pluginManager = new PluginManager();
-    this.pluginManager.initialize({
+    await this.pluginManager.initialize({
       configManager: deps.configManager,
       toolRegistry: deps.toolRegistry,
       commandRegistry: deps.commandRegistry,

@@ -61,7 +61,7 @@ export class SessionManager {
   /**
    * 使用依赖初始化会话管理器。
    */
-  initialize(deps: SessionManagerDependencies): void {
+  async initialize(deps: SessionManagerDependencies): Promise<void> {
     if (this.deps) {
       logger.warn('SessionManager 已初始化 — 跳过');
       return;

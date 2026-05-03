@@ -47,7 +47,7 @@ export type LlmAdapterDependencies = {
 export class LlmAdapter {
   private deps: LlmAdapterDependencies | null = null;
 
-  initialize(deps: LlmAdapterDependencies): void {
+  async initialize(deps: LlmAdapterDependencies): Promise<void> {
     if (this.deps) {
       logger.warn('LlmAdapter 已初始化 — 跳过');
       return;

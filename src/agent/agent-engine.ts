@@ -28,7 +28,7 @@ export type ProcessEphemeralParams = {
 export class AgentEngine {
   private deps: AgentEngineDependencies | null = null;
 
-  initialize(deps: AgentEngineDependencies): void {
+  async initialize(deps: AgentEngineDependencies): Promise<void> {
     if (this.deps) {
       logger.warn('AgentEngine 已初始化 — 跳过');
       return;

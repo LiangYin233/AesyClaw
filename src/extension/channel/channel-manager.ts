@@ -24,7 +24,7 @@ export class ChannelManager {
   private readonly channelOwners = new Map<string, string>();
   private serialExecutor = new SerialExecutor();
 
-  initialize(dependencies: ChannelManagerDependencies): void {
+  async initialize(dependencies: ChannelManagerDependencies): Promise<void> {
     if (this.deps) {
       logger.warn('ChannelManager 已初始化 — 跳过');
       return;

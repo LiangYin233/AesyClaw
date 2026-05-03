@@ -34,7 +34,7 @@ export class PluginManager {
     // 轻量构造器 — 通过 initialize() 注入依赖
   }
 
-  initialize(deps: PluginManagerDependencies): void {
+  async initialize(deps: PluginManagerDependencies): Promise<void> {
     if (this.deps) {
       logger.warn('PluginManager 已初始化 — 跳过');
       return;

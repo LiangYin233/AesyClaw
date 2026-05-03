@@ -47,7 +47,7 @@ export class Pipeline {
 
   // ─── 生命周期 ─────────────────────────────────────────────────
 
-  initialize(deps: PipelineDependencies): void {
+  async initialize(deps: PipelineDependencies): Promise<void> {
     if (this.deps) {
       logger.warn('Pipeline 已初始化 — 跳过');
       return;
