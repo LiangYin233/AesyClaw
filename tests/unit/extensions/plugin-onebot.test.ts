@@ -313,7 +313,7 @@ describe('plugin_onebot', () => {
         connectedUrl = url;
       },
     });
-    const receiveWithSend = vi.fn(async (message, send) => {
+    const receive = vi.fn(async (message) => {
       expect(message).toEqual(
         expect.objectContaining({
           sessionKey: { channel: 'onebot', type: 'private', chatId: '12345' },
@@ -321,12 +321,12 @@ describe('plugin_onebot', () => {
           sender: { id: '12345', name: 'alice' },
         }),
       );
-      await send({ content: 'pong' });
+      await channel.send(message.sessionKey, { content: 'pong' });
     });
 
     await openTestChannel(channel, socket, {
       config: { accessToken: 'secret-token' },
-      receiveWithSend,
+      receive,
     });
 
     expect(connectedUrl).toBe('ws://napcat.remote:3001/?access_token=secret-token');
@@ -341,9 +341,9 @@ describe('plugin_onebot', () => {
       }),
     );
 
-    await waitForCondition(() => receiveWithSend.mock.calls.length === 1);
+    await waitForCondition(() => receive.mock.calls.length === 1);
 
-    expect(receiveWithSend).toHaveBeenCalledOnce();
+    expect(receive).toHaveBeenCalledOnce();
     const sentAction = JSON.parse(socket.sent[0] ?? '{}') as {
       action?: string;
       params?: Record<string, unknown>;
@@ -368,8 +368,8 @@ describe('plugin_onebot', () => {
     vi.spyOn(process, 'cwd').mockReturnValue(tempDir);
 
     const { channel, socket } = createTestChannel();
-    const receiveWithSend = vi.fn(async () => undefined);
-    await openTestChannel(channel, socket, { receiveWithSend });
+    const receive = vi.fn(async () => undefined);
+    await openTestChannel(channel, socket, { receive });
 
     socket.dispatchMessage(
       JSON.stringify({
@@ -439,10 +439,10 @@ describe('plugin_onebot', () => {
       }),
     );
 
-    await waitForCondition(() => receiveWithSend.mock.calls.length === 1);
+    await waitForCondition(() => receive.mock.calls.length === 1);
 
-    expect(receiveWithSend).toHaveBeenCalledOnce();
-    const inbound = receiveWithSend.mock.calls[0]?.[0] as {
+    expect(receive).toHaveBeenCalledOnce();
+    const inbound = receive.mock.calls[0]?.[0] as {
       content: string;
       attachments?: Array<{ path?: string; url?: string }>;
     };
@@ -465,8 +465,8 @@ describe('plugin_onebot', () => {
 
   it('prefers file_id when requesting generic inbound file downloads', async () => {
     const { channel, socket } = createTestChannel();
-    const receiveWithSend = vi.fn(async () => undefined);
-    await openTestChannel(channel, socket, { receiveWithSend });
+    const receive = vi.fn(async () => undefined);
+    await openTestChannel(channel, socket, { receive });
 
     socket.dispatchMessage(
       JSON.stringify({
@@ -490,8 +490,8 @@ describe('plugin_onebot', () => {
 
   it('annotates inbound download failures when the stream never completes', async () => {
     const { channel, socket } = createTestChannel();
-    const receiveWithSend = vi.fn(async () => undefined);
-    await openTestChannel(channel, socket, { receiveWithSend });
+    const receive = vi.fn(async () => undefined);
+    await openTestChannel(channel, socket, { receive });
 
     socket.dispatchMessage(
       JSON.stringify({
@@ -537,9 +537,9 @@ describe('plugin_onebot', () => {
       }),
     );
 
-    await waitForCondition(() => receiveWithSend.mock.calls.length === 1);
+    await waitForCondition(() => receive.mock.calls.length === 1);
 
-    const inbound = receiveWithSend.mock.calls[0]?.[0] as {
+    const inbound = receive.mock.calls[0]?.[0] as {
       content: string;
       attachments?: Array<{ path?: string; url?: string }>;
     };
@@ -556,8 +556,8 @@ describe('plugin_onebot', () => {
 
   it('does not expose file_path-only inbound files as local attachment paths', async () => {
     const { channel, socket } = createTestChannel();
-    const receiveWithSend = vi.fn(async () => undefined);
-    await openTestChannel(channel, socket, { receiveWithSend });
+    const receive = vi.fn(async () => undefined);
+    await openTestChannel(channel, socket, { receive });
 
     socket.dispatchMessage(
       JSON.stringify({
@@ -571,9 +571,9 @@ describe('plugin_onebot', () => {
       }),
     );
 
-    await waitForCondition(() => receiveWithSend.mock.calls.length === 1);
+    await waitForCondition(() => receive.mock.calls.length === 1);
 
-    const inbound = receiveWithSend.mock.calls[0]?.[0] as {
+    const inbound = receive.mock.calls[0]?.[0] as {
       content: string;
       attachments?: Array<{ path?: string }>;
     };
@@ -589,8 +589,8 @@ describe('plugin_onebot', () => {
 
   it('preserves URL metadata when file_path-only inbound file downloads are unsupported', async () => {
     const { channel, socket } = createTestChannel();
-    const receiveWithSend = vi.fn(async () => undefined);
-    await openTestChannel(channel, socket, { receiveWithSend });
+    const receive = vi.fn(async () => undefined);
+    await openTestChannel(channel, socket, { receive });
 
     socket.dispatchMessage(
       JSON.stringify({
@@ -610,9 +610,9 @@ describe('plugin_onebot', () => {
       }),
     );
 
-    await waitForCondition(() => receiveWithSend.mock.calls.length === 1);
+    await waitForCondition(() => receive.mock.calls.length === 1);
 
-    const inbound = receiveWithSend.mock.calls[0]?.[0] as {
+    const inbound = receive.mock.calls[0]?.[0] as {
       content: string;
       attachments?: Array<{ type?: string; path?: string; url?: string }>;
     };
@@ -664,8 +664,8 @@ describe('plugin_onebot', () => {
 
   it('rejects pending inbound stream downloads when the channel is destroyed without delivery', async () => {
     const { channel, socket } = createTestChannel();
-    const receiveWithSend = vi.fn(async () => undefined);
-    await openTestChannel(channel, socket, { receiveWithSend });
+    const receive = vi.fn(async () => undefined);
+    await openTestChannel(channel, socket, { receive });
 
     socket.dispatchMessage(
       JSON.stringify({
@@ -682,15 +682,15 @@ describe('plugin_onebot', () => {
     await expect(channel.destroy?.()).resolves.toBeUndefined();
     await flushMicrotasks();
 
-    expect(receiveWithSend).not.toHaveBeenCalled();
+    expect(receive).not.toHaveBeenCalled();
   });
 
   it('times out pending inbound stream downloads and ignores late stream responses', async () => {
     vi.useFakeTimers();
 
     const { channel, socket } = createTestChannel();
-    const receiveWithSend = vi.fn(async () => undefined);
-    await openTestChannel(channel, socket, { receiveWithSend });
+    const receive = vi.fn(async () => undefined);
+    await openTestChannel(channel, socket, { receive });
 
     socket.dispatchMessage(
       JSON.stringify({
@@ -707,9 +707,9 @@ describe('plugin_onebot', () => {
     };
 
     await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
-    await waitForCondition(() => receiveWithSend.mock.calls.length === 1);
+    await waitForCondition(() => receive.mock.calls.length === 1);
 
-    const inbound = receiveWithSend.mock.calls[0]?.[0] as {
+    const inbound = receive.mock.calls[0]?.[0] as {
       content: string;
       attachments?: Array<{ path?: string }>;
     };
@@ -727,7 +727,7 @@ describe('plugin_onebot', () => {
     );
     await flushMicrotasks();
 
-    expect(receiveWithSend).toHaveBeenCalledOnce();
+    expect(receive).toHaveBeenCalledOnce();
   });
 
   it('rejects pending sends on disconnect and reconnects with a new remote websocket', async () => {
@@ -864,7 +864,7 @@ function makeChannelContext(
       serverUrl: 'ws://napcat.remote:3001/',
       ...overrides.config,
     },
-    receiveWithSend: overrides.receiveWithSend ?? vi.fn(),
+    receive: overrides.receive ?? vi.fn(),
     logger: overrides.logger ?? makeLogger(),
   };
 }
@@ -874,13 +874,13 @@ async function openTestChannel(
   socket: FakeWebSocket,
   options: {
     config?: Record<string, unknown>;
-    receiveWithSend?: ChannelContext['receiveWithSend'];
+    receive?: ChannelContext['receive'];
   } = {},
 ): Promise<void> {
   const initPromise = channel.init(
     makeChannelContext({
       config: options.config,
-      receiveWithSend: options.receiveWithSend,
+      receive: options.receive,
     }),
   );
   socket.dispatchOpen();

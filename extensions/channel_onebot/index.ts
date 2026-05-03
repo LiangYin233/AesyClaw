@@ -5,6 +5,13 @@ import type { ChannelContext, ChannelPlugin } from '@aesyclaw/sdk';
 import { resolvePaths } from '@aesyclaw/sdk';
 import type { InboundMessage, MediaAttachment, OutboundMessage, SessionKey } from '@aesyclaw/sdk';
 import type { PluginDefinition } from '@aesyclaw/sdk';
+import {
+  createOneBotWebSocketClient,
+  type OneBotActionTransport,
+  type OneBotApiResponse,
+  type OneBotWebSocketClient,
+  type WebSocketLike,
+} from './websocket-client';
 
 const DEFAULT_CONFIG = {
   enabled: false,
@@ -12,10 +19,6 @@ const DEFAULT_CONFIG = {
   accessToken: '',
 };
 
-const WEBSOCKET_OPEN = 1;
-const RECONNECT_INTERVAL_MS = 5000;
-const ACTION_TIMEOUT_MS = 15000;
-const DOWNLOAD_STREAM_TIMEOUT_MS = 5 * 60 * 1000;
 const STREAM_CHUNK_SIZE = 64 * 1024;
 const STREAM_FILE_RETENTION_MS = 5 * 60 * 1000;
 
@@ -80,26 +83,12 @@ const EXTENSION_BY_MIME_TYPE: Record<string, string> = {
   'application/pdf': '.pdf',
 };
 
-export type OneBotChannelConfig = {
+type OneBotChannelConfig = {
   serverUrl: string;
   accessToken?: string;
 };
 
-export type OneBotActionTransport = {
-  sendAction(action: string, params: Record<string, unknown>): Promise<OneBotApiResponse>;
-};
-
 type OneBotLogger = ChannelContext['logger'];
-
-type OneBotApiResponse = {
-  status?: string;
-  retcode?: number;
-  msg?: string;
-  wording?: string;
-  echo?: string;
-  stream?: string;
-  data?: unknown;
-};
 
 type LoadedAttachmentSource = {
   data: Uint8Array;
@@ -116,16 +105,6 @@ type OneBotMessageSegment = {
   data: Record<string, unknown>;
 };
 
-type PendingRequest<T> = {
-  resolve(response: T): void;
-  reject(error: Error): void;
-  timeout: ReturnType<typeof setTimeout>;
-};
-
-type PendingStreamRequest = {
-  responses: OneBotApiResponse[];
-} & PendingRequest<OneBotApiResponse[]>;
-
 type DownloadedStreamFile = {
   data: Uint8Array;
   fileName: string;
@@ -137,20 +116,8 @@ type OneBotInboundAttachmentSegment = {
   data: Record<string, unknown>;
 };
 
-type WebSocketLike = {
-  readonly readyState: number;
-  send(data: string): void;
-  close(code?: number, reason?: string): void;
-  addEventListener(type: string, listener: (event: unknown) => void): void;
-  removeEventListener(type: string, listener: (event: unknown) => void): void;
-};
-
 type CreateOneBotChannelOptions = {
   createSocket?: (url: string) => WebSocketLike;
-};
-
-type GlobalWithWebSocket = {
-  WebSocket?: new (url: string) => WebSocketLike;
 };
 
 const plugin: PluginDefinition = {
@@ -165,49 +132,10 @@ const plugin: PluginDefinition = {
 };
 
 export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): ChannelPlugin {
-  const createSocket = options.createSocket ?? defaultCreateSocket;
   let context: ChannelContext | null = null;
   let config: OneBotChannelConfig | null = null;
-  let socket: WebSocketLike | null = null;
-  let connectingSocket: WebSocketLike | null = null;
-  let connectPromise: Promise<void> | null = null;
-  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  let nextEcho = 0;
+  let client: OneBotWebSocketClient | null = null;
   let destroyed = false;
-  const pending = new Map<string, PendingRequest<OneBotApiResponse>>();
-  const pendingStreams = new Map<string, PendingStreamRequest>();
-
-  const transport: OneBotActionTransport = {
-    sendAction: async (action, params) => {
-      return await sendSocketActionRequest({
-        action,
-        params,
-        echoPrefix: 'onebot',
-        timeoutMs: ACTION_TIMEOUT_MS,
-        timeoutMessage: `OneBot action "${action}" timed out after ${ACTION_TIMEOUT_MS}ms`,
-        sendFailureMessage: (err) =>
-          `Failed to send OneBot action "${action}": ${errorMessage(err)}`,
-        requests: pending,
-      });
-    },
-  };
-
-  const sendStreamAction = async (
-    action: string,
-    params: Record<string, unknown>,
-  ): Promise<OneBotApiResponse[]> => {
-    return await sendSocketActionRequest({
-      action,
-      params,
-      echoPrefix: 'onebot-stream',
-      timeoutMs: DOWNLOAD_STREAM_TIMEOUT_MS,
-      timeoutMessage: `OneBot stream action "${action}" timed out after ${DOWNLOAD_STREAM_TIMEOUT_MS}ms`,
-      sendFailureMessage: (err) =>
-        `Failed to send OneBot stream action "${action}": ${errorMessage(err)}`,
-      requests: pendingStreams,
-      createRequest: (base) => ({ ...base, responses: [] }),
-    });
-  };
 
   return {
     name: 'onebot',
@@ -218,122 +146,39 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
       context = ctx;
       config = parseConfig(ctx.config);
       destroyed = false;
-      await ensureConnected(true);
+      client = createOneBotWebSocketClient({
+        config,
+        createSocket: options.createSocket,
+        logger: ctx.logger,
+        onPayload: handlePlatformPayload,
+      });
+      await client.start(true);
     },
     async destroy() {
       destroyed = true;
-      clearReconnectTimer();
-      rejectAllPending(new Error('OneBot channel stopped'));
-      rejectAllPendingStreams(new Error('OneBot channel stopped'));
-
-      const activeSocket = socket;
-      const openingSocket = connectingSocket;
-      socket = null;
-      connectingSocket = null;
-      connectPromise = null;
-
-      try {
-        openingSocket?.close();
-        activeSocket?.close();
-      } finally {
-        context?.logger.info('OneBot websocket channel stopped');
-        config = null;
-        context = null;
-      }
+      client?.stop(new Error('OneBot channel stopped'));
+      client = null;
+      context?.logger.info('OneBot websocket channel stopped');
+      config = null;
+      context = null;
     },
     async send(sessionKey, message) {
-      await sendOneBotMessage(sessionKey, message, transport, context?.logger);
+      if (!client) {
+        throw new Error('OneBot channel is not initialized');
+      }
+      await sendOneBotMessage(sessionKey, message, client, context?.logger);
     },
+    receive: receiveInboundMessage,
   };
 
-  async function ensureConnected(initial = false): Promise<void> {
-    if (destroyed) {
-      throw new Error('OneBot channel is destroyed');
-    }
-    if (socket?.readyState === WEBSOCKET_OPEN) {
-      return;
-    }
-    if (connectPromise) {
-      return await connectPromise;
-    }
-    if (!config || !context) {
+  async function receiveInboundMessage(message: InboundMessage): Promise<void> {
+    if (!context) {
       throw new Error('OneBot channel is not initialized');
     }
-
-    clearReconnectTimer();
-    connectPromise = connectSocket(initial).finally(() => {
-      connectPromise = null;
-    });
-    return await connectPromise;
+    await context.receive(message);
   }
 
-  async function connectSocket(initial: boolean): Promise<void> {
-    if (!config || !context) {
-      throw new Error('OneBot channel is not initialized');
-    }
-
-    const connectionUrl = buildSocketUrl(config.serverUrl, config.accessToken);
-    const candidate = createSocket(connectionUrl);
-    connectingSocket = candidate;
-    try {
-      await waitForSocketOpen(candidate);
-    } finally {
-      if (connectingSocket === candidate) {
-        connectingSocket = null;
-      }
-    }
-
-    if (destroyed) {
-      candidate.close();
-      return;
-    }
-
-    socket = candidate;
-    attachSocketHandlers(candidate);
-    context.logger.info(initial ? 'OneBot websocket connected' : 'OneBot websocket reconnected', {
-      serverUrl: sanitizeServerUrl(config.serverUrl),
-    });
-  }
-
-  function attachSocketHandlers(activeSocket: WebSocketLike): void {
-    activeSocket.addEventListener('message', (event) => {
-      if (socket !== activeSocket) {
-        return;
-      }
-      void handleSocketMessage(event);
-    });
-    activeSocket.addEventListener('close', (event) => {
-      if (socket !== activeSocket) {
-        return;
-      }
-      handleSocketClose(event);
-    });
-    activeSocket.addEventListener('error', (event) => {
-      if (socket !== activeSocket) {
-        return;
-      }
-      context?.logger.warn('OneBot websocket error', {
-        serverUrl: config ? sanitizeServerUrl(config.serverUrl) : undefined,
-        error: describeSocketError(event),
-      });
-    });
-  }
-
-  async function handleSocketMessage(event: unknown): Promise<void> {
-    const payload = parseSocketPayload(event);
-    if (!payload) {
-      return;
-    }
-
-    const apiResponse = parseApiResponsePayload(payload);
-    if (apiResponse?.echo) {
-      if (consumePendingStreamResponse(apiResponse.echo, apiResponse)) {
-        return;
-      }
-      cleanupPending(apiResponse.echo)?.resolve(apiResponse);
-      return;
-    }
-
+  async function handlePlatformPayload(payload: Record<string, unknown>): Promise<void> {
     const inbound = mapOneBotEventToInbound(payload, context?.name ?? 'onebot');
     if (!inbound || !context) {
       return;
@@ -342,194 +187,23 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
     const enrichedInbound = await enrichInboundMessageWithDownloads(
       inbound,
       payload,
-      sendStreamAction,
+      async (action, params) => {
+        if (!client) {
+          throw new Error('OneBot channel is not initialized');
+        }
+        return await client.sendStreamAction(action, params);
+      },
     );
 
-    if (context === undefined || destroyed) {
+    if (destroyed) {
       return;
     }
 
     try {
-      await context.receiveWithSend(enrichedInbound, async (outbound) => {
-        await sendOneBotMessage(enrichedInbound.sessionKey, outbound, transport, context?.logger);
-      });
+      await receiveInboundMessage(enrichedInbound);
     } catch (err) {
       context?.logger.error('Failed to process OneBot inbound message', err);
     }
-  }
-
-  function handleSocketClose(_event: unknown): void {
-    socket = null;
-    rejectAllPending(new Error('OneBot websocket disconnected'));
-    rejectAllPendingStreams(new Error('OneBot websocket disconnected'));
-
-    if (!config || !context || destroyed) {
-      return;
-    }
-
-    context.logger.warn('OneBot websocket disconnected', {
-      serverUrl: sanitizeServerUrl(config.serverUrl),
-      reconnectInMs: RECONNECT_INTERVAL_MS,
-    });
-
-    scheduleReconnect();
-  }
-
-  function scheduleReconnect(): void {
-    if (!config || !context || destroyed || reconnectTimer) {
-      return;
-    }
-    reconnectTimer = setTimeout(() => {
-      reconnectTimer = null;
-      void ensureConnected(false).catch((err) => {
-        context?.logger.error('Failed to reconnect OneBot websocket', err);
-        scheduleReconnect();
-      });
-    }, RECONNECT_INTERVAL_MS);
-  }
-
-  function clearReconnectTimer(): void {
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
-    }
-  }
-
-  function consumePendingStreamResponse(echo: string, response: OneBotApiResponse): boolean {
-    const request = pendingStreams.get(echo);
-    if (!request) {
-      return false;
-    }
-
-    request.responses.push(response);
-    const data = isRecord(response.data) ? response.data : null;
-
-    if (response.status !== 'ok' || data?.['type'] === 'error') {
-      cleanupPendingStream(echo)?.reject(
-        new Error(
-          response.wording ??
-            response.msg ??
-            `OneBot stream action failed with status ${response.status ?? 'failed'}`,
-        ),
-      );
-      return true;
-    }
-
-    if (data?.['type'] === 'response') {
-      cleanupPendingStream(echo)?.resolve(request.responses);
-      return true;
-    }
-
-    return true;
-  }
-
-  async function sendSocketActionRequest<
-    T,
-    TRequest extends PendingRequest<T> = PendingRequest<T>,
-  >({
-    action,
-    params,
-    echoPrefix,
-    timeoutMs,
-    timeoutMessage,
-    sendFailureMessage,
-    requests,
-    createRequest,
-  }: {
-    action: string;
-    params: Record<string, unknown>;
-    echoPrefix: string;
-    timeoutMs: number;
-    timeoutMessage: string;
-    sendFailureMessage: (err: unknown) => string;
-    requests: Map<string, TRequest>;
-    createRequest?: (base: PendingRequest<T>) => TRequest;
-  }): Promise<T> {
-    await ensureConnected();
-    const activeSocket = socket;
-    if (activeSocket?.readyState !== WEBSOCKET_OPEN) {
-      throw new Error('OneBot websocket is not connected');
-    }
-
-    const echo = `${echoPrefix}-${Date.now()}-${++nextEcho}`;
-    return await new Promise<T>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        requests.delete(echo);
-        reject(new Error(timeoutMessage));
-      }, timeoutMs);
-      const request = buildPendingRequest({ resolve, reject, timeout });
-      requests.set(echo, createRequest ? createRequest(request) : (request as TRequest));
-
-      try {
-        activeSocket.send(JSON.stringify({ action, params, echo }));
-      } catch (err) {
-        cleanupPendingRequest(requests, echo);
-        reject(new Error(sendFailureMessage(err)));
-      }
-    });
-  }
-
-  function cleanupPending(echo: string): PendingRequest<OneBotApiResponse> | null {
-    return cleanupPendingRequest(pending, echo);
-  }
-
-  function rejectAllPending(error: Error): void {
-    rejectPendingRequests(pending, error);
-  }
-
-  function cleanupPendingStream(echo: string): PendingStreamRequest | null {
-    return cleanupPendingRequest(pendingStreams, echo);
-  }
-
-  function rejectAllPendingStreams(error: Error): void {
-    rejectPendingRequests(pendingStreams, error);
-  }
-}
-
-function buildPendingRequest<T>({
-  resolve,
-  reject,
-  timeout,
-}: {
-  resolve(value: T): void;
-  reject(error: Error): void;
-  timeout: ReturnType<typeof setTimeout>;
-}): PendingRequest<T> {
-  return {
-    resolve: (response) => {
-      clearTimeout(timeout);
-      resolve(response);
-    },
-    reject: (error) => {
-      clearTimeout(timeout);
-      reject(error);
-    },
-    timeout,
-  };
-}
-
-function cleanupPendingRequest<T, TRequest extends PendingRequest<T>>(
-  requests: Map<string, TRequest>,
-  echo: string,
-): TRequest | null {
-  const request = requests.get(echo) ?? null;
-  if (!request) {
-    return null;
-  }
-
-  clearTimeout(request.timeout);
-  requests.delete(echo);
-  return request;
-}
-
-function rejectPendingRequests<T, TRequest extends PendingRequest<T>>(
-  requests: Map<string, TRequest>,
-  error: Error,
-): void {
-  for (const [echo, request] of requests.entries()) {
-    requests.delete(echo);
-    clearTimeout(request.timeout);
-    request.reject(error);
   }
 }
 
@@ -1131,108 +805,6 @@ function readString(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.length > 0 ? value : fallback;
 }
 
-function buildSocketUrl(serverUrl: string, accessToken: string | undefined): string {
-  const url = new URL(serverUrl);
-  if (accessToken) {
-    url.searchParams.set('access_token', accessToken);
-  }
-  return url.toString();
-}
-
-function sanitizeServerUrl(serverUrl: string): string {
-  const url = new URL(serverUrl);
-  url.searchParams.delete('access_token');
-  return url.toString();
-}
-
-function defaultCreateSocket(url: string): WebSocketLike {
-  const ctor = (globalThis as GlobalWithWebSocket).WebSocket;
-  if (!ctor) {
-    throw new Error('Global WebSocket client is not available in this runtime');
-  }
-  return new ctor(url);
-}
-
-function waitForSocketOpen(socket: WebSocketLike): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const handleOpen = (): void => {
-      cleanup();
-      resolve();
-    };
-    const handleClose = (event: unknown): void => {
-      cleanup();
-      reject(new Error(`OneBot websocket closed before opening: ${describeSocketClose(event)}`));
-    };
-    const handleError = (event: unknown): void => {
-      cleanup();
-      reject(new Error(`Failed to connect to OneBot websocket: ${describeSocketError(event)}`));
-    };
-    const cleanup = (): void => {
-      socket.removeEventListener('open', handleOpen);
-      socket.removeEventListener('close', handleClose);
-      socket.removeEventListener('error', handleError);
-    };
-
-    socket.addEventListener('open', handleOpen);
-    socket.addEventListener('close', handleClose);
-    socket.addEventListener('error', handleError);
-  });
-}
-
-function parseSocketPayload(event: unknown): Record<string, unknown> | null {
-  const text = readSocketData(event);
-  if (!text) {
-    return null;
-  }
-
-  try {
-    const parsed: unknown = JSON.parse(text);
-    return isRecord(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function readSocketData(event: unknown): string | null {
-  if (typeof event === 'string') {
-    return event;
-  }
-  if (!isRecord(event)) {
-    return null;
-  }
-
-  const data = event['data'];
-  if (typeof data === 'string') {
-    return data;
-  }
-  if (data instanceof ArrayBuffer) {
-    return new TextDecoder().decode(data);
-  }
-  if (ArrayBuffer.isView(data)) {
-    return new TextDecoder().decode(data);
-  }
-  return null;
-}
-
-function parseApiResponsePayload(payload: Record<string, unknown>): OneBotApiResponse | null {
-  if (
-    typeof payload['echo'] !== 'string' ||
-    (!('status' in payload) && !('retcode' in payload) && !('data' in payload))
-  ) {
-    return null;
-  }
-
-  return {
-    echo: payload['echo'],
-    ...(typeof payload['status'] === 'string' ? { status: payload['status'] } : {}),
-    ...(typeof payload['retcode'] === 'number' ? { retcode: payload['retcode'] } : {}),
-    ...(typeof payload['msg'] === 'string' ? { msg: payload['msg'] } : {}),
-    ...(typeof payload['wording'] === 'string' ? { wording: payload['wording'] } : {}),
-    ...(typeof payload['stream'] === 'string' ? { stream: payload['stream'] } : {}),
-    ...('data' in payload ? { data: payload['data'] } : {}),
-  };
-}
-
 function extractTextSegment(segment: unknown): string {
   if (!isRecord(segment)) {
     return '';
@@ -1272,41 +844,6 @@ function stringifyId(value: unknown): string | null {
 function numericOrStringId(value: string): string | number {
   const numeric = Number(value);
   return Number.isSafeInteger(numeric) && String(numeric) === value ? numeric : value;
-}
-
-function describeSocketError(event: unknown): string {
-  if (event instanceof Error) {
-    return event.message;
-  }
-  if (isRecord(event)) {
-    if (event['error'] instanceof Error) {
-      return event['error'].message;
-    }
-    if (typeof event['message'] === 'string') {
-      return event['message'];
-    }
-  }
-  return 'unknown websocket error';
-}
-
-function describeSocketClose(event: unknown): string {
-  if (!isRecord(event)) {
-    return 'closed';
-  }
-
-  const code = typeof event['code'] === 'number' ? event['code'] : undefined;
-  const reason =
-    typeof event['reason'] === 'string' && event['reason'].length > 0 ? event['reason'] : undefined;
-  if (code !== undefined && reason) {
-    return `code ${code}: ${reason}`;
-  }
-  if (code !== undefined) {
-    return `code ${code}`;
-  }
-  if (reason) {
-    return reason;
-  }
-  return 'closed';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
