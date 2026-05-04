@@ -8,7 +8,6 @@
 
 import { completeSimple } from '@mariozechner/pi-ai';
 import { extractMessageText } from './agent-types';
-import { API_OPENAI_RESPONSES } from './agent-types';
 import type { AgentMessage, ResolvedModel } from './agent-types';
 
 export type ImageAnalysisInput = {
@@ -119,7 +118,7 @@ export async function transcribeAudio(
   audio: AudioTranscriptionInput,
   sessionId?: string,
 ): Promise<string> {
-  if (model.apiType !== API_OPENAI_RESPONSES && model.apiType !== 'openai-completions') {
+  if (model.apiType !== 'openai-responses' && model.apiType !== 'openai-completions') {
     throw new Error(`提供者 API 类型 "${model.apiType}" 不支持语音转文本`);
   }
 
