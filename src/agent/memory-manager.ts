@@ -106,8 +106,16 @@ export class MemoryManager {
    *
    * @param message - 可能要持久化的 AgentMessage
    */
-  async persistMessage(message: AgentMessage): Promise<void> {
-    await this.persistMessageWithAccounting(message);
+  async persistMessage(message: AgentMessage): Promise<boolean> {
+    await this.recordUsageIfApplicable(message);
+
+    const persistable = this.toPersistableMessage(message);
+    if (!persistable) {
+      return false;
+    }
+
+    await this.messageRepo.save(this.sessionId, persistable);
+    return true;
   }
 
   /**
@@ -124,7 +132,7 @@ export class MemoryManager {
     let filtered = 0;
 
     for (const message of agentMessages) {
-      const didPersist = await this.persistMessageWithAccounting(message);
+      const didPersist = await this.persistMessage(message);
       if (didPersist) {
         persisted++;
       } else {
@@ -196,26 +204,6 @@ export class MemoryManager {
   }
 
   // ─── 私有辅助方法 ───────────────────────────────────────────
-
-  /**
-   * 为任何包含 token 使用数据的助手消息记录 LLM 用量数据。
-   * 独立于内容持久化调用，因此工具调用消息
-   * （消耗 token 但不会作为用户可见文本持久化）
-   * 仍然会被追踪 token 消耗。
-   */
-  private async persistMessageWithAccounting(message: AgentMessage): Promise<boolean> {
-    // 为所有包含 token 数据的助手消息记录用量，
-    // 无论消息内容是否可持久化（工具调用消息也会消耗 token）。
-    await this.recordUsageIfApplicable(message);
-
-    const persistable = this.toPersistableMessage(message);
-    if (!persistable) {
-      return false;
-    }
-
-    await this.messageRepo.save(this.sessionId, persistable);
-    return true;
-  }
 
   private async recordUsageIfApplicable(message: AgentMessage): Promise<void> {
     if (

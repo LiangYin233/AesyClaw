@@ -76,7 +76,9 @@ function createRegistry() {
       disablePlugin: vi.fn().mockResolvedValue(undefined),
     },
     agentEngine: {
-      processEphemeral: vi.fn().mockResolvedValue({ components: [{ type: 'Plain', text: '临时回答' }] }),
+      processEphemeral: vi
+        .fn()
+        .mockResolvedValue({ components: [{ type: 'Plain', text: '临时回答' }] }),
       process: vi.fn(),
     },
   };
@@ -168,13 +170,12 @@ describe('built-in commands', () => {
     await expect(registry.execute('/btw hello there', context)).resolves.toBe('临时回答');
 
     expect(deps.sessionManager.getOrCreateSession).toHaveBeenCalledWith(context.sessionKey);
-    expect(deps.agentEngine.processEphemeral).toHaveBeenCalledWith({
-      sessionKey: context.sessionKey,
-      sessionId: session.sessionId,
-      memory: session.memory,
-      role: session.activeRole,
-      content: 'hello there',
-    });
+    expect(deps.agentEngine.processEphemeral).toHaveBeenCalledWith(
+      context.sessionKey,
+      session.memory,
+      session.activeRole,
+      'hello there',
+    );
     expect(deps.agentEngine.process).not.toHaveBeenCalled();
   });
 

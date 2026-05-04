@@ -476,13 +476,11 @@ describe('built-in tools', () => {
     ).resolves.toEqual({ content: 'delegated answer' });
 
     expect(agentEngine.runAgentTurn).toHaveBeenCalledWith(
-      expect.objectContaining({
-        role: expect.objectContaining({ id: 'researcher' }),
-        content: 'Investigate this.',
-        history: [],
-        sessionKey: SESSION_KEY,
-        sendMessage,
-      }),
+      expect.objectContaining({ id: 'researcher' }),
+      'Investigate this.',
+      [],
+      SESSION_KEY,
+      sendMessage,
     );
   });
 

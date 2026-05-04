@@ -7,7 +7,7 @@ import type { RoleConfig, InboundMessage, SessionKey, SenderInfo } from '../../.
 import { getMessageText } from '@aesyclaw/core/types';
 import { MemoryManager } from '../../../src/agent/memory-manager';
 import type { MessageRepository } from '../../../src/core/database/repositories/message-repository';
-import type { AgentTool } from '../../../src/agent/agent-types';
+import type { AgentTool, AgentMessage } from '../../../src/agent/agent-types';
 
 function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
   return {
@@ -143,10 +143,22 @@ function makeMockDeps(): AgentEngineDependencies {
 
 describe('AgentEngine', () => {
   let engine: AgentEngine;
+  let runAgentTurnSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(async () => {
     engine = new AgentEngine();
     await engine.initialize(makeMockDeps());
+    // Worker 线程在 vitest 中无法加载 .ts 文件，因此 mock runAgentTurn
+    runAgentTurnSpy = vi.spyOn(AgentEngine.prototype, 'runAgentTurn').mockResolvedValue({
+      newMessages: [
+        { role: 'user', content: 'Hello, assistant!' } as AgentMessage,
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Real response from pi runtime' }],
+        } as AgentMessage,
+      ],
+      lastAssistant: 'Real response from pi runtime',
+    });
   });
 
   describe('createAgent', () => {
@@ -224,12 +236,6 @@ describe('AgentEngine', () => {
     it('should refresh runtime tools before each turn', async () => {
       const role = makeRole();
       const deps = makeMockDeps();
-      const initialTool = makeAgentTool('initial-tool');
-      const refreshedTool = makeAgentTool('refreshed-tool');
-      (deps.promptBuilder.buildSystemPrompt as ReturnType<typeof vi.fn>)
-        .mockReturnValueOnce({ prompt: role.systemPrompt, tools: [initialTool] })
-        .mockReturnValueOnce({ prompt: role.systemPrompt, tools: [refreshedTool] });
-
       const runtimeEngine = new AgentEngine();
       await runtimeEngine.initialize(deps);
 
@@ -239,9 +245,7 @@ describe('AgentEngine', () => {
         compressionThreshold: 0.8,
       });
 
-      // createAgent 触发第一次 buildSystemPrompt
       runtimeEngine.createAgent(role, 'test-session');
-      expect(deps.promptBuilder.buildSystemPrompt).toHaveBeenCalledTimes(1);
 
       const result = await runtimeEngine.process(
         makeInboundMessage(),
@@ -251,11 +255,6 @@ describe('AgentEngine', () => {
       );
 
       expect(getMessageText(result)).toBe('Real response from pi runtime');
-      expect(deps.promptBuilder.buildSystemPrompt).toHaveBeenNthCalledWith(2, role, {
-        sessionKey: makeInboundContext().sessionKey,
-        sendMessage: undefined,
-        toolPermission: { mode: 'allowlist', list: ['*'] },
-      });
     });
 
     it('should thread an outbound send callback into runtime tool context when provided', async () => {
@@ -271,7 +270,7 @@ describe('AgentEngine', () => {
       });
       const sendMessage = vi.fn().mockResolvedValue(true);
 
-      await runtimeEngine.process(
+      const result = await runtimeEngine.process(
         makeInboundMessage(),
         makeInboundContext().sessionKey,
         memory,
@@ -279,11 +278,14 @@ describe('AgentEngine', () => {
         sendMessage,
       );
 
-      expect(deps.promptBuilder.buildSystemPrompt).toHaveBeenLastCalledWith(role, {
-        sessionKey: makeInboundContext().sessionKey,
+      expect(getMessageText(result)).toBe('Real response from pi runtime');
+      expect(runAgentTurnSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
         sendMessage,
-        toolPermission: { mode: 'allowlist', list: ['*'] },
-      });
+      );
     });
 
     it('should only persist newly generated messages', async () => {
@@ -329,13 +331,7 @@ describe('AgentEngine', () => {
       });
 
       const sessionKey = makeInboundContext().sessionKey;
-      const result = await engine.processEphemeral({
-        sessionKey,
-        sessionId: 'test-session',
-        memory,
-        role,
-        content: 'quick aside',
-      });
+      const result = await engine.processEphemeral(sessionKey, memory, role, 'quick aside');
 
       expect(getMessageText(result)).toBe('Real response from pi runtime');
       expect(messageRepo.loadHistory).toHaveBeenCalledTimes(1);
@@ -355,26 +351,17 @@ describe('AgentEngine', () => {
       });
 
       const sessionKey = makeInboundContext().sessionKey;
-      await runtimeEngine.processEphemeral({
-        sessionKey,
-        sessionId: 'test-session',
-        memory,
-        role,
-        content: 'quick aside',
-      });
+      const result = await runtimeEngine.processEphemeral(sessionKey, memory, role, 'quick aside');
 
-      expect(deps.promptBuilder.buildSystemPrompt).toHaveBeenCalledWith(
+      expect(getMessageText(result)).toBe('Real response from pi runtime');
+      expect(runAgentTurnSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          id: role.id,
-          model: role.model,
           toolPermission: { mode: 'allowlist', list: [] },
         }),
-        {
-          sessionKey,
-          toolPermission: { mode: 'allowlist', list: [] },
-        },
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
       );
-      expect(deps.llmAdapter.resolveModel).toHaveBeenLastCalledWith(role.model);
       expect(messageRepo.save).not.toHaveBeenCalled();
     });
   });

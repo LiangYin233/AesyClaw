@@ -66,21 +66,11 @@ export function registerBuiltinCommands(
   const pluginDeps: PluginCommandDeps = { extensionManager: deps.pluginManager };
 
   registry.register(createHelpCommand(() => registry.getAll()));
-  registry.register(
-    createBtwCommand({
-      sessionManager: deps.sessionManager,
-      agentEngine: deps.agentEngine,
-    }),
-  );
-  registry.register(
-    createModelCommand({
-      sessionManager: deps.sessionManager,
-      agentEngine: deps.agentEngine,
-    }),
-  );
-  registry.register(createClearCommand({ sessionManager: deps.sessionManager }));
-  registry.register(createCompactCommand({ sessionManager: deps.sessionManager }));
-  registry.register(createStopCommand({ sessionManager: deps.sessionManager }));
+  registry.register(createBtwCommand(deps.sessionManager, deps.agentEngine));
+  registry.register(createModelCommand(deps.sessionManager, deps.agentEngine));
+  registry.register(createClearCommand(deps.sessionManager));
+  registry.register(createCompactCommand(deps.sessionManager));
+  registry.register(createStopCommand(deps.sessionManager));
   registry.register(createRoleListCommand(roleDeps));
   registry.register(createRoleSwitchCommand(roleDeps));
   registry.register(createRoleInfoCommand(roleDeps));

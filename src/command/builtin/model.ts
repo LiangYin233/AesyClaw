@@ -9,18 +9,16 @@ import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
 import type { SessionManager } from '@aesyclaw/agent/session-manager';
 import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
 
-export type ModelCommandDeps = {
-  sessionManager: Pick<SessionManager, 'getOrCreateSession'>;
-  agentEngine: Pick<AgentEngine, 'switchModel'>;
-};
-
 /**
  * 创建 model 命令定义。
  *
  * @param deps - 包含 sessionManager 和 agentEngine 的依赖项
  * @returns model 命令的 CommandDefinition
  */
-export function createModelCommand(deps: ModelCommandDeps): CommandDefinition {
+export function createModelCommand(
+  sessionManager: Pick<SessionManager, 'getOrCreateSession'>,
+  agentEngine: Pick<AgentEngine, 'switchModel'>,
+): CommandDefinition {
   return {
     name: 'model',
     description: '切换模型 (用法: /model <provider/modelId>)',
@@ -33,8 +31,8 @@ export function createModelCommand(deps: ModelCommandDeps): CommandDefinition {
         return '用法: /model <provider/modelId> (例如 /model openai/gpt-4o)';
       }
 
-      const session = await deps.sessionManager.getOrCreateSession(context.sessionKey);
-      deps.agentEngine.switchModel(session.agent, modelIdentifier);
+      const session = await sessionManager.getOrCreateSession(context.sessionKey);
+      agentEngine.switchModel(session.agent, modelIdentifier);
 
       return `模型已切换为 ${modelIdentifier}`;
     },

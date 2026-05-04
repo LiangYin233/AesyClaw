@@ -4,7 +4,6 @@ import { Worker } from 'node:worker_threads';
 import type { RoleConfig, InboundMessage, OutboundMessage, SessionKey } from '@aesyclaw/core/types';
 import { getMessageText } from '@aesyclaw/core/types';
 import type { Agent, AgentMessage } from './agent-types';
-import { extractMessageText } from './agent-types';
 import type { ToolExecutionContext } from '@aesyclaw/tool/tool-registry';
 import type { LlmAdapter } from './llm-adapter';
 import type { PromptBuilder } from './prompt-builder';
@@ -15,34 +14,14 @@ import { requireInitialized } from '@aesyclaw/core/utils';
 const logger = createScopedLogger('agent-engine');
 const WORKER_PATH = fileURLToPath(new URL('./runner/agent-worker.ts', import.meta.url));
 
-function isTestEnv(): boolean {
-  return process.env['VITEST'] !== undefined || process.env['NODE_ENV'] === 'test';
-}
-
 export type AgentEngineDependencies = {
   llmAdapter: LlmAdapter;
   promptBuilder: PromptBuilder;
 };
 
-export type RunAgentTurnParams = {
-  role: RoleConfig;
-  content: string;
-  history: AgentMessage[];
-  sessionKey: SessionKey;
-  sendMessage?: (message: OutboundMessage) => Promise<boolean>;
-};
-
-export type RunAgentTurnResult = {
+type RunAgentTurnResult = {
   newMessages: AgentMessage[];
   lastAssistant: string | null;
-};
-
-export type ProcessEphemeralParams = {
-  sessionKey: SessionKey;
-  sessionId: string;
-  memory: MemoryManager;
-  role: RoleConfig;
-  content: string;
 };
 
 export class AgentEngine {
@@ -96,9 +75,14 @@ export class AgentEngine {
     return agent;
   }
 
-  async runAgentTurn(params: RunAgentTurnParams): Promise<RunAgentTurnResult> {
+  async runAgentTurn(
+    role: RoleConfig,
+    content: string,
+    history: AgentMessage[],
+    sessionKey: SessionKey,
+    sendMessage?: (message: OutboundMessage) => Promise<boolean>,
+  ): Promise<RunAgentTurnResult> {
     const deps = this.requireDeps();
-    const { role, content, history, sessionKey, sendMessage } = params;
 
     const executionContext: Partial<ToolExecutionContext> = {
       sessionKey,
@@ -109,30 +93,6 @@ export class AgentEngine {
     const { prompt, tools } = deps.promptBuilder.buildSystemPrompt(role, executionContext);
     const model = deps.llmAdapter.resolveModel(role.model);
 
-    // 测试环境回退内联 PiAgent（Worker 无法访问 vitest loader）
-    if (isTestEnv()) {
-      const agent = new PiAgent({
-        initialState: {
-          systemPrompt: prompt,
-          model,
-          tools,
-          messages: history,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any,
-        streamFn: deps.llmAdapter.createStreamFn(role.model),
-        getApiKey: deps.llmAdapter.createGetApiKey(),
-        sessionId: `inline:${role.id}:${Date.now()}`,
-      });
-
-      agent.state.messages = history;
-      await agent.prompt(content);
-      await agent.waitForIdle();
-      const newMessages = agent.state.messages.slice(history.length) as AgentMessage[];
-
-      return { newMessages, lastAssistant: findLastAssistantText(newMessages) };
-    }
-
-    // 生产环境：在独立 Worker 线程中运行 PiAgent
     const toolMap = new Map(tools.map((t) => [t.name, t]));
     const worker = new Worker(WORKER_PATH);
 
@@ -210,45 +170,27 @@ export class AgentEngine {
     });
 
     const history = await this.loadHistoryForTurn(memory, role);
-    const result = await this.runAgentTurn({ role, content, history, sessionKey, sendMessage });
+    const result = await this.runAgentTurn(role, content, history, sessionKey, sendMessage);
     await memory.syncFromAgent(result.newMessages);
 
-    if (result.lastAssistant) {
-      return { components: [{ type: 'Plain', text: result.lastAssistant }] };
-    }
-
-    logger.warn('Agent 未生成助手文本回复', {
-      role: role.id,
-      toolCountInPrompt: 0,
-    });
-
-    return { components: [{ type: 'Plain', text: '[未生成回复]' }] };
+    return this.toOutboundMessage(role.id, result);
   }
 
-  async processEphemeral(params: ProcessEphemeralParams): Promise<OutboundMessage> {
-    const { sessionKey, memory, role, content } = params;
+  async processEphemeral(
+    sessionKey: SessionKey,
+    memory: MemoryManager,
+    role: RoleConfig,
+    content: string,
+  ): Promise<OutboundMessage> {
     const history = await memory.loadHistory();
     const ephemeralRole: RoleConfig = {
       ...role,
       toolPermission: { mode: 'allowlist', list: [] },
     };
 
-    const result = await this.runAgentTurn({
-      role: ephemeralRole,
-      content,
-      history,
-      sessionKey,
-    });
+    const result = await this.runAgentTurn(ephemeralRole, content, history, sessionKey);
 
-    if (result.lastAssistant) {
-      return { components: [{ type: 'Plain', text: result.lastAssistant }] };
-    }
-
-    logger.warn('临时 Agent 未生成助手文本回复', {
-      role: role.id,
-    });
-
-    return { components: [{ type: 'Plain', text: '[未生成回复]' }] };
+    return this.toOutboundMessage(role.id, result);
   }
 
   switchModel(agent: Agent, modelIdentifier: string): void {
@@ -263,6 +205,15 @@ export class AgentEngine {
 
   // ─── 私有方法 ───────────────────────────────────────────────────
 
+  private toOutboundMessage(roleId: string, result: RunAgentTurnResult): OutboundMessage {
+    if (result.lastAssistant) {
+      return { components: [{ type: 'Plain', text: result.lastAssistant }] };
+    }
+
+    logger.warn('Agent 未生成助手文本回复', { role: roleId });
+    return { components: [{ type: 'Plain', text: '[未生成回复]' }] };
+  }
+
   private async loadHistoryForTurn(
     memory: MemoryManager,
     role: RoleConfig,
@@ -275,19 +226,4 @@ export class AgentEngine {
     }
     return history;
   }
-}
-
-function findLastAssistantText(messages: AgentMessage[]): string | null {
-  for (const message of [...messages].reverse()) {
-    if (message.role !== 'assistant') {
-      continue;
-    }
-
-    const text = extractMessageText(message);
-    if (text.trim().length > 0) {
-      return text;
-    }
-  }
-
-  return null;
 }
