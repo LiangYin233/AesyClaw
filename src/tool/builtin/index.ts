@@ -49,7 +49,6 @@ export function registerBuiltinTools(registry: ToolRegistry, deps: BuiltinToolDe
   const sandbox = new SubAgentSandbox({
     agentEngine: deps.agentEngine,
     roleManager: deps.roleManager,
-    llmAdapter: deps.llmAdapter,
   });
 
   registry.register(createSendMsgTool());

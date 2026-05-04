@@ -23,7 +23,6 @@ export type AgentTool = {
   description: string;
   parameters: unknown;
   execute: (toolCallId: string, params: unknown, signal?: AbortSignal) => Promise<AgentToolResult>;
-  executionMode?: 'sequential' | 'parallel';
 };
 
 export type AgentToolResult = {

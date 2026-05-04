@@ -35,7 +35,6 @@ describe('SubAgentSandbox', () => {
         getRole: vi.fn().mockReturnValue(ROLE),
         getDefaultRole: vi.fn().mockReturnValue(ROLE),
       },
-      llmAdapter: MOCK_LLM_ADAPTER,
     });
 
     await expect(sandbox.runWithRole({ roleId: 'researcher', prompt: 'first' })).resolves.toBe(
@@ -66,7 +65,7 @@ describe('SubAgentSandbox', () => {
       getRole: vi.fn().mockReturnValue(ROLE),
       getDefaultRole: vi.fn().mockReturnValue(ROLE),
     };
-    const sandbox = new SubAgentSandbox({ agentEngine, roleManager, llmAdapter: MOCK_LLM_ADAPTER });
+    const sandbox = new SubAgentSandbox({ agentEngine, roleManager });
 
     await expect(
       sandbox.runWithRole({

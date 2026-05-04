@@ -1,14 +1,7 @@
 import { Agent as PiAgent } from '@mariozechner/pi-agent-core';
-import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
-import type {
-  RoleConfig,
-  InboundMessage,
-  OutboundMessage,
-  SessionKey,
-  SenderInfo,
-} from '@aesyclaw/core/types';
+import type { RoleConfig, InboundMessage, OutboundMessage, SessionKey } from '@aesyclaw/core/types';
 import { getMessageText } from '@aesyclaw/core/types';
 import type { Agent, AgentMessage } from './agent-types';
 import { extractMessageText } from './agent-types';
@@ -231,24 +224,22 @@ export class AgentEngine {
   }
 
   async processEphemeral(params: ProcessEphemeralParams): Promise<OutboundMessage> {
-    this.requireDeps();
-
     const { sessionKey, sessionId, memory, role, content } = params;
     const history = await memory.loadHistory();
     const ephemeralRole: RoleConfig = {
       ...role,
       toolPermission: { mode: 'allowlist', list: [] },
     };
-    const agent = this.createAgent(ephemeralRole, `btw:${sessionId}:${randomUUID()}`, {
+
+    const result = await this.runAgentTurn({
+      role: ephemeralRole,
+      content,
+      history,
       sessionKey,
-      toolPermission: ephemeralRole.toolPermission,
     });
-    agent.state.tools = [];
 
-    const { lastAssistant } = await this.promptAgent(agent, history, content);
-
-    if (lastAssistant) {
-      return { components: [{ type: 'Plain', text: lastAssistant }] };
+    if (result.lastAssistant) {
+      return { components: [{ type: 'Plain', text: result.lastAssistant }] };
     }
 
     logger.warn('临时 Agent 未生成助手文本回复', {
@@ -283,11 +274,6 @@ export class AgentEngine {
     return history;
   }
 
-  private async prompt(agent: Agent, content: string): Promise<void> {
-    await agent.prompt(content);
-    await agent.waitForIdle();
-  }
-
   /**
    * 向 agent 发送提示词并提取响应。
    *
@@ -300,7 +286,8 @@ export class AgentEngine {
     content: string,
   ): Promise<{ newMessages: AgentMessage[]; lastAssistant: string | null }> {
     agent.state.messages = history;
-    await this.prompt(agent, content);
+    await agent.prompt(content);
+    await agent.waitForIdle();
     const newMessages = agent.state.messages.slice(history.length);
     return { newMessages, lastAssistant: findLastAssistantText(newMessages) };
   }
