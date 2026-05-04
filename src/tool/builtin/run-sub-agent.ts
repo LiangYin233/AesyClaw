@@ -2,7 +2,6 @@
  * 内置 run_sub_agent 工具。
  *
  * 使用指定的角色 ID 和提示运行委托子代理轮次。
- *
  */
 
 import type { Static } from '@sinclair/typebox';
@@ -14,9 +13,10 @@ import type {
 } from '@aesyclaw/tool/tool-registry';
 import { errorMessage } from '@aesyclaw/core/utils';
 import type { ToolOwner } from '@aesyclaw/core/types';
-import type { SubAgentSandbox } from '@aesyclaw/agent/runner/sub-agent-sandbox';
+import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
+import type { RoleManager } from '@aesyclaw/role/role-manager';
+import { applyToolOverride } from '@aesyclaw/agent/runner/sub-agent-utils';
 
-/** run_sub_agent 的参数模式 */
 const RunSubAgentParamsSchema = Type.Object({
   roleId: Type.String({ description: '要使用的角色 ID' }),
   prompt: Type.String({ description: '子代理的输入提示' }),
@@ -26,15 +26,10 @@ const RunSubAgentParamsSchema = Type.Object({
 type RunSubAgentParams = Static<typeof RunSubAgentParamsSchema>;
 
 export type RunSubAgentDeps = {
-  sandbox: Pick<SubAgentSandbox, 'runWithRole'>;
+  agentEngine: Pick<AgentEngine, 'runAgentTurn'>;
+  roleManager: Pick<RoleManager, 'getRole'>;
 };
 
-/**
- * 创建 run_sub_agent 工具定义。
- *
- * @param deps - 包含 sandbox 的依赖项
- * @returns run_sub_agent 工具的 AesyClawTool 定义
- */
 export function createRunSubAgentTool(deps: RunSubAgentDeps): AesyClawTool {
   return {
     name: 'run_sub_agent',
@@ -48,15 +43,16 @@ export function createRunSubAgentTool(deps: RunSubAgentDeps): AesyClawTool {
       const { roleId, prompt, enableTools } = params as RunSubAgentParams;
 
       try {
-        const content = await deps.sandbox.runWithRole(
-          {
-            roleId,
-            prompt,
-            ...(enableTools === undefined ? {} : { enableTools }),
-          },
-          { sessionKey: context.sessionKey, sendMessage: context.sendMessage },
-        );
-        return { content };
+        const baseRole = deps.roleManager.getRole(roleId);
+        const role = applyToolOverride(baseRole, enableTools);
+        const result = await deps.agentEngine.runAgentTurn({
+          role,
+          content: prompt,
+          history: [],
+          sessionKey: context.sessionKey,
+          sendMessage: context.sendMessage,
+        });
+        return { content: result.lastAssistant ?? '[子 Agent 无输出]' };
       } catch (error: unknown) {
         return {
           content: `子代理执行失败: ${errorMessage(error)}`,

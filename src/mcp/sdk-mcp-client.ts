@@ -10,6 +10,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { McpServerConfig } from '@aesyclaw/core/config/schema';
 import type { McpClient, McpClientFactory, McpToolDefinition } from './mcp-manager';
+import { APP_VERSION } from '@aesyclaw/core/types';
 import { isRecord } from '@aesyclaw/core/utils';
 
 export class SdkMcpClientFactory implements McpClientFactory {
@@ -21,7 +22,7 @@ export class SdkMcpClientFactory implements McpClientFactory {
 class SdkMcpClient implements McpClient {
   private readonly client = new Client({
     name: 'aesyclaw',
-    version: '0.1.0',
+    version: APP_VERSION,
   });
   private transport: Transport | null = null;
 

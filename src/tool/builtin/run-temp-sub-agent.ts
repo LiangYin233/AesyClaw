@@ -2,7 +2,6 @@
  * 内置 run_temp_sub_agent 工具。
  *
  * 使用临时系统提示运行临时委托子代理。
- *
  */
 
 import type { Static } from '@sinclair/typebox';
@@ -14,9 +13,10 @@ import type {
 } from '@aesyclaw/tool/tool-registry';
 import { errorMessage } from '@aesyclaw/core/utils';
 import type { ToolOwner } from '@aesyclaw/core/types';
-import type { SubAgentSandbox } from '@aesyclaw/agent/runner/sub-agent-sandbox';
+import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
+import type { RoleManager } from '@aesyclaw/role/role-manager';
+import { applyToolOverride, createTempSubAgentRole } from '@aesyclaw/agent/runner/sub-agent-utils';
 
-/** run_temp_sub_agent 的参数模式 */
 const RunTempSubAgentParamsSchema = Type.Object({
   systemPrompt: Type.String({ description: '子代理的系统提示' }),
   model: Type.Optional(Type.String({ description: '临时子代理使用的模型，格式为 provider/model' })),
@@ -27,15 +27,10 @@ const RunTempSubAgentParamsSchema = Type.Object({
 type RunTempSubAgentParams = Static<typeof RunTempSubAgentParamsSchema>;
 
 export type RunTempSubAgentDeps = {
-  sandbox: Pick<SubAgentSandbox, 'runWithPrompt'>;
+  agentEngine: Pick<AgentEngine, 'runAgentTurn'>;
+  roleManager: Pick<RoleManager, 'getDefaultRole'>;
 };
 
-/**
- * 创建 run_temp_sub_agent 工具定义。
- *
- * @param deps - 包含 sandbox 的依赖项
- * @returns run_temp_sub_agent 工具的 AesyClawTool 定义
- */
 export function createRunTempSubAgentTool(deps: RunTempSubAgentDeps): AesyClawTool {
   return {
     name: 'run_temp_sub_agent',
@@ -49,20 +44,23 @@ export function createRunTempSubAgentTool(deps: RunTempSubAgentDeps): AesyClawTo
       const { systemPrompt, model, prompt, enableTools } = params as RunTempSubAgentParams;
 
       try {
-        const content = await deps.sandbox.runWithPrompt(
-          {
-            systemPrompt,
-            prompt,
-            ...(model === undefined ? {} : { model }),
-            ...(enableTools === undefined ? {} : { enableTools }),
-          },
-          {
-            sessionKey: context.sessionKey,
-            sendMessage: context.sendMessage,
-            toolPermission: context.toolPermission,
-          },
+        const baseRole = deps.roleManager.getDefaultRole();
+        const roleWithPerms = createTempSubAgentRole(
+          baseRole,
+          { systemPrompt, model },
+          context.toolPermission,
         );
-        return { content };
+        const role =
+          enableTools === false ? applyToolOverride(roleWithPerms, false) : roleWithPerms;
+
+        const result = await deps.agentEngine.runAgentTurn({
+          role,
+          content: prompt,
+          history: [],
+          sessionKey: context.sessionKey,
+          sendMessage: context.sendMessage,
+        });
+        return { content: result.lastAssistant ?? '[子 Agent 无输出]' };
       } catch (error: unknown) {
         return {
           content: `临时子代理执行失败: ${errorMessage(error)}`,

@@ -4,7 +4,6 @@
  * `registerBuiltinTools()` 将所有内置工具注册到
  * ToolRegistry。依赖通过
  * BuiltinToolDependencies 接口注入。
- *
  */
 
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
@@ -22,13 +21,7 @@ import { createRunTempSubAgentTool } from './run-temp-sub-agent';
 import { createSpeechToTextTool } from './speech-to-text';
 import { createImageUnderstandingTool } from './image-understanding';
 import { createLoadSkillTool } from './load-skill';
-import { SubAgentSandbox } from '@aesyclaw/agent/runner/sub-agent-sandbox';
 
-/**
- * 内置工具的依赖。
- *
- * 当前可用内置工具的依赖。
- */
 export type BuiltinToolDependencies = {
   cronManager: Pick<CronManager, 'createJob' | 'listJobs' | 'deleteJob'>;
   agentEngine: Pick<AgentEngine, 'runAgentTurn'>;
@@ -38,25 +31,19 @@ export type BuiltinToolDependencies = {
   skillManager: Pick<SkillManager, 'getSkill'>;
 };
 
-/**
- * 向给定注册表注册所有内置工具。
- *
- * @param registry - 要注册工具的 ToolRegistry
- * @param deps - 工具实现所需的依赖
- */
 export function registerBuiltinTools(registry: ToolRegistry, deps: BuiltinToolDependencies): void {
   const cronDeps: CronToolsDeps = { cronManager: deps.cronManager };
-  const sandbox = new SubAgentSandbox({
-    agentEngine: deps.agentEngine,
-    roleManager: deps.roleManager,
-  });
 
   registry.register(createSendMsgTool());
   registry.register(createCreateCronTool(cronDeps));
   registry.register(createListCronTool(cronDeps));
   registry.register(createDeleteCronTool(cronDeps));
-  registry.register(createRunSubAgentTool({ sandbox }));
-  registry.register(createRunTempSubAgentTool({ sandbox }));
+  registry.register(
+    createRunSubAgentTool({ agentEngine: deps.agentEngine, roleManager: deps.roleManager }),
+  );
+  registry.register(
+    createRunTempSubAgentTool({ agentEngine: deps.agentEngine, roleManager: deps.roleManager }),
+  );
   registry.register(createLoadSkillTool({ skillManager: deps.skillManager }));
   registry.register(
     createSpeechToTextTool({

@@ -429,10 +429,24 @@ describe('built-in tools', () => {
   });
 
   it('run_sub_agent delegates to the sandbox and returns the result', async () => {
-    const sandbox = {
-      runWithRole: vi.fn().mockResolvedValue('delegated answer'),
+    const agentEngine = {
+      runAgentTurn: vi
+        .fn()
+        .mockResolvedValue({ newMessages: [], lastAssistant: 'delegated answer' }),
     };
-    const tool = createRunSubAgentTool({ sandbox });
+    const roleManager = {
+      getRole: vi.fn().mockReturnValue({
+        id: 'researcher',
+        name: 'Researcher',
+        description: 'Research role',
+        systemPrompt: 'You research topics.',
+        model: 'openai/gpt-4o',
+        toolPermission: { mode: 'allowlist' as const, list: ['*'] },
+        skills: ['*'] as ['*'],
+        enabled: true,
+      }),
+    };
+    const tool = createRunSubAgentTool({ agentEngine, roleManager });
     const sendMessage = vi.fn().mockResolvedValue(true);
 
     await expect(
@@ -447,17 +461,34 @@ describe('built-in tools', () => {
       ),
     ).resolves.toEqual({ content: 'delegated answer' });
 
-    expect(sandbox.runWithRole).toHaveBeenCalledWith(
-      { roleId: 'researcher', prompt: 'Investigate this.' },
-      { sessionKey: SESSION_KEY, sendMessage },
+    expect(agentEngine.runAgentTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: expect.objectContaining({ id: 'researcher' }),
+        content: 'Investigate this.',
+        history: [],
+        sessionKey: SESSION_KEY,
+        sendMessage,
+      }),
     );
   });
 
   it('run_temp_sub_agent returns structured tool errors on sandbox failure', async () => {
-    const sandbox = {
-      runWithPrompt: vi.fn().mockRejectedValue(new Error('sandbox offline')),
+    const agentEngine = {
+      runAgentTurn: vi.fn().mockRejectedValue(new Error('sandbox offline')),
     };
-    const tool = createRunTempSubAgentTool({ sandbox });
+    const roleManager = {
+      getDefaultRole: vi.fn().mockReturnValue({
+        id: 'default',
+        name: 'Default',
+        description: 'Default role',
+        systemPrompt: 'You are helpful.',
+        model: 'openai/gpt-4o',
+        toolPermission: { mode: 'allowlist' as const, list: ['*'] },
+        skills: ['*'] as ['*'],
+        enabled: true,
+      }),
+    };
+    const tool = createRunTempSubAgentTool({ agentEngine, roleManager });
 
     await expect(
       tool.execute(
