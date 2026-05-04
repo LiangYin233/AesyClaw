@@ -163,9 +163,5 @@ function getProviderBaseUrl(model: ResolvedModel): string {
     return url.endsWith('/') ? url : `${url}/`;
   }
 
-  if (model.provider === 'openai') {
-    return 'https://api.openai.com/v1/';
-  }
-
   throw new Error(`未为提供者 "${model.provider}" 配置 base URL`);
 }

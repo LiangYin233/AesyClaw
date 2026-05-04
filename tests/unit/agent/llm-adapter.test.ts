@@ -29,6 +29,7 @@ function makeConfigWithProviders(providers: Record<string, unknown> = {}): AppCo
       openai: {
         apiType: 'openai_responses',
         apiKey: 'sk-test-key',
+        baseUrl: 'https://api.openai.com/v1',
         models: {
           'gpt-4o': { contextWindow: 128000 },
           'gpt-4o-mini': { contextWindow: 128000 },
