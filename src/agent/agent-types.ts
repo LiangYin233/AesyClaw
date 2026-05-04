@@ -60,6 +60,12 @@ export type MemoryConfig = {
   compressionThreshold: number;
 };
 
+export const ApiType = {
+  OPENAI_RESPONSES: 'openai-responses',
+  OPENAI_COMPLETIONS: 'openai-completions',
+  ANTHROPIC_MESSAGES: 'anthropic-messages',
+} as const satisfies Record<string, Api>;
+
 const ZERO_USAGE: Usage = {
   input: 0,
   output: 0,
@@ -106,7 +112,7 @@ export function createPersistedAssistantMessage(
   return {
     role: 'assistant',
     content: [{ type: 'text', text: content }],
-    api: 'openai-responses',
+    api: ApiType.OPENAI_RESPONSES,
     provider: 'persisted-history',
     model: 'persisted-history',
     usage: ZERO_USAGE,
