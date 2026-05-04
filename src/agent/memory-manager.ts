@@ -25,6 +25,7 @@ import {
 } from './agent-types';
 import type { AgentMessage, MemoryConfig } from './agent-types';
 import type { LlmAdapter } from './llm-adapter';
+import { summarizeConversation } from './llm-features';
 import type {
   MessagesRepository,
   ToolUsageRepository,
@@ -145,7 +146,7 @@ export class MemoryManager {
    * 流程：
    * 1. 从数据库加载当前历史
    * 2. 如果消息太少（≤ 2），跳过 — 太短无法压缩
-   * 3. 调用 llmAdapter.summarize 生成总结
+   * 3. 调用 summarizeConversation 生成总结
    * 4. 在数据库中替换会话的消息为总结
    * 5. 返回总结
    *
@@ -169,7 +170,8 @@ export class MemoryManager {
       messageCount: messages.length,
     });
 
-    const summary = await llmAdapter.summarize(messages, modelIdentifier, this.sessionId);
+    const model = llmAdapter.resolveModel(modelIdentifier);
+    const summary = await summarizeConversation(model, messages, this.sessionId);
 
     await this.messageRepo.replaceWithSummary(this.sessionId, summary);
 

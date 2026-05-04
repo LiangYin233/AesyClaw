@@ -5,12 +5,18 @@
  * with toolCalls, toolResult, empty), loadHistory, syncFromAgent, clear.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { AgentMessage, MemoryConfig } from '../../../src/agent/agent-types';
 import { MemoryManager } from '../../../src/agent/memory-manager';
 import { createPersistedAssistantMessage, createUserMessage } from '../../../src/agent/agent-types';
 import type { MessageRepository } from '../../../src/core/database/repositories/message-repository';
-import type { LlmAdapter } from '../../../src/agent/llm-adapter';
+import { summarizeConversation } from '../../../src/agent/llm-features';
+
+vi.mock('../../../src/agent/llm-features', async () => {
+  return {
+    summarizeConversation: vi.fn(),
+  };
+});
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
@@ -30,8 +36,14 @@ function makeMockMessageRepo() {
 
 function makeMockLlmAdapter() {
   return {
-    summarize: vi.fn().mockResolvedValue('Conversation summary: 5 messages'),
-  } as unknown as LlmAdapter;
+    resolveModel: vi.fn().mockReturnValue({
+      provider: 'openai',
+      modelId: 'gpt-4o',
+      apiKey: 'sk-test-key',
+      apiType: 'openai-responses',
+      input: ['text'],
+    }),
+  };
 }
 
 function makeMockUsageRepo() {
@@ -44,6 +56,10 @@ function makeMockUsageRepo() {
 
 describe('MemoryManager', () => {
   const sessionId = 'test-session-id';
+
+  beforeEach(() => {
+    vi.mocked(summarizeConversation).mockReset();
+  });
 
   // ─── persistMessage filtering ─────────────────────────────────
 
@@ -305,11 +321,14 @@ describe('MemoryManager', () => {
       const result = await manager.compact(llmAdapter, 'openai/gpt-4o');
 
       expect(result).toBe('会话历史太短，无需压缩。');
-      expect(llmAdapter.summarize).not.toHaveBeenCalled();
+      expect(llmAdapter.resolveModel).not.toHaveBeenCalled();
+      expect(summarizeConversation).not.toHaveBeenCalled();
       expect(messageRepo.replaceWithSummary).not.toHaveBeenCalled();
     });
 
     it('should summarize and replace history when enough messages exist', async () => {
+      vi.mocked(summarizeConversation).mockResolvedValue('Conversation summary: 5 messages');
+
       const longHistory = Array.from({ length: 10 }, (_, i) => ({
         role: i % 2 === 0 ? 'user' : ('assistant' as const),
         content: `Message ${i + 1}`,
@@ -323,9 +342,10 @@ describe('MemoryManager', () => {
       const llmAdapter = makeMockLlmAdapter();
       const result = await manager.compact(llmAdapter, 'openai/gpt-4o');
 
-      expect(llmAdapter.summarize).toHaveBeenCalledWith(
+      expect(llmAdapter.resolveModel).toHaveBeenCalledWith('openai/gpt-4o');
+      expect(summarizeConversation).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: 'openai', modelId: 'gpt-4o' }),
         expect.any(Array),
-        'openai/gpt-4o',
         sessionId,
       );
       expect(messageRepo.replaceWithSummary).toHaveBeenCalledWith(sessionId, result);

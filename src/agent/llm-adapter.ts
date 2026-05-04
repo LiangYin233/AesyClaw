@@ -5,10 +5,8 @@ import type { ProviderConfig } from '@aesyclaw/core/config/schema';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { parseModelIdentifier } from '@aesyclaw/core/utils';
 import { requireInitialized } from '@aesyclaw/core/utils';
-import type { ResolvedModel, StreamFn, AgentMessage } from './agent-types';
+import type { ResolvedModel, StreamFn } from './agent-types';
 import { makeExtraBodyOnPayload } from './agent-types';
-import { summarizeConversation, analyzeImage, transcribeAudio } from './llm-features';
-import type { ImageAnalysisInput, AudioTranscriptionInput } from './llm-features';
 
 const logger = createScopedLogger('llm-adapter');
 
@@ -112,34 +110,6 @@ export class LlmAdapter {
       const providerConfig = providers[provider];
       return providerConfig?.apiKey;
     };
-  }
-
-  async summarize(
-    messages: AgentMessage[],
-    modelIdentifier: string,
-    sessionId?: string,
-  ): Promise<string> {
-    const model = this.resolveModel(modelIdentifier);
-    return await summarizeConversation(model, messages, sessionId);
-  }
-
-  async analyzeImage(
-    modelIdentifier: string,
-    question: string,
-    image: ImageAnalysisInput,
-    sessionId?: string,
-  ): Promise<string> {
-    const model = this.resolveModel(modelIdentifier);
-    return await analyzeImage(model, question, image, sessionId);
-  }
-
-  async transcribeAudio(
-    modelIdentifier: string,
-    audio: AudioTranscriptionInput,
-    sessionId?: string,
-  ): Promise<string> {
-    const model = this.resolveModel(modelIdentifier);
-    return await transcribeAudio(model, audio, sessionId);
   }
 
   private tryGetBuiltInModel(provider: string, modelId: string): Model<Api> | null {

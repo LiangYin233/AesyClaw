@@ -10,7 +10,15 @@ import { createSpeechToTextTool } from '../../../src/tool/builtin/speech-to-text
 import { createImageUnderstandingTool } from '../../../src/tool/builtin/image-understanding';
 import { createLoadSkillTool } from '../../../src/tool/builtin/load-skill';
 import { registerBuiltinTools } from '../../../src/tool/builtin';
+import { transcribeAudio, analyzeImage } from '../../../src/agent/llm-features';
 import type { Skill } from '../../../src/core/types';
+
+vi.mock('../../../src/agent/llm-features', async () => {
+  return {
+    transcribeAudio: vi.fn(),
+    analyzeImage: vi.fn(),
+  };
+});
 
 const SESSION_KEY = { channel: 'test', type: 'private', chatId: 'user-1' };
 
@@ -109,8 +117,7 @@ describe('built-in tools', () => {
         getDefaultRole: vi.fn(),
       },
       llmAdapter: {
-        analyzeImage: vi.fn(),
-        transcribeAudio: vi.fn(),
+        resolveModel: vi.fn(),
       },
       configManager: makeConfigManager(),
       skillManager: makeSkillManager(),
@@ -506,9 +513,15 @@ describe('built-in tools', () => {
   });
 
   it('speech_to_text loads local audio and returns a transcription', async () => {
+    vi.mocked(transcribeAudio).mockResolvedValue('transcribed words');
     const filePath = await createTempFile('sample.wav', new Uint8Array([82, 73, 70, 70]));
     const llmAdapter = {
-      transcribeAudio: vi.fn().mockResolvedValue('transcribed words'),
+      resolveModel: vi.fn().mockReturnValue({
+        provider: 'openai',
+        modelId: 'whisper-1',
+        apiKey: 'sk-test-key',
+        apiType: 'openai-responses',
+      }),
     };
     const tool = createSpeechToTextTool({
       configManager: makeConfigManager(),
@@ -526,19 +539,26 @@ describe('built-in tools', () => {
       ),
     ).resolves.toEqual({ content: 'transcribed words' });
 
-    expect(llmAdapter.transcribeAudio).toHaveBeenCalledWith(
-      'openai/whisper-1',
+    expect(llmAdapter.resolveModel).toHaveBeenCalledWith('openai/whisper-1');
+    expect(transcribeAudio).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'openai', modelId: 'whisper-1' }),
       expect.objectContaining({ mimeType: 'audio/wav', fileName: 'sample.wav' }),
       'test:private:user-1',
     );
   });
 
   it('speech_to_text returns structured errors for unsupported providers', async () => {
+    vi.mocked(transcribeAudio).mockRejectedValue(new Error('provider unsupported'));
     const filePath = await createTempFile('sample.wav', new Uint8Array([82, 73, 70, 70]));
     const tool = createSpeechToTextTool({
       configManager: makeConfigManager(),
       llmAdapter: {
-        transcribeAudio: vi.fn().mockRejectedValue(new Error('provider unsupported')),
+        resolveModel: vi.fn().mockReturnValue({
+          provider: 'openai',
+          modelId: 'whisper-1',
+          apiKey: 'sk-test-key',
+          apiType: 'openai-responses',
+        }),
       },
     });
 
@@ -558,9 +578,16 @@ describe('built-in tools', () => {
   });
 
   it('image_understanding loads local images and returns analysis text', async () => {
+    vi.mocked(analyzeImage).mockResolvedValue('A tiny PNG image.');
     const filePath = await createTempFile('sample.png', new Uint8Array([137, 80, 78, 71]));
     const llmAdapter = {
-      analyzeImage: vi.fn().mockResolvedValue('A tiny PNG image.'),
+      resolveModel: vi.fn().mockReturnValue({
+        provider: 'openai',
+        modelId: 'gpt-4o',
+        apiKey: 'sk-test-key',
+        apiType: 'openai-responses',
+        input: ['text', 'image'],
+      }),
     };
     const tool = createImageUnderstandingTool({
       configManager: makeConfigManager(),
@@ -578,8 +605,9 @@ describe('built-in tools', () => {
       ),
     ).resolves.toEqual({ content: 'A tiny PNG image.' });
 
-    expect(llmAdapter.analyzeImage).toHaveBeenCalledWith(
-      'openai/gpt-4o',
+    expect(llmAdapter.resolveModel).toHaveBeenCalledWith('openai/gpt-4o');
+    expect(analyzeImage).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'openai', modelId: 'gpt-4o' }),
       'What is shown?',
       expect.objectContaining({ mimeType: 'image/png' }),
       'test:private:user-1',
@@ -590,7 +618,7 @@ describe('built-in tools', () => {
     const tool = createImageUnderstandingTool({
       configManager: makeConfigManager(),
       llmAdapter: {
-        analyzeImage: vi.fn(),
+        resolveModel: vi.fn(),
       },
     });
 

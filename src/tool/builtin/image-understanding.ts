@@ -16,6 +16,7 @@ import { errorMessage } from '@aesyclaw/core/utils';
 import type { ToolOwner } from '@aesyclaw/core/types';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import { analyzeImage } from '@aesyclaw/agent/llm-features';
 import { loadMediaSource } from './media-source';
 
 /** image_understanding 的参数模式 */
@@ -28,7 +29,7 @@ type ImageUnderstandingParams = Static<typeof ImageUnderstandingParamsSchema>;
 
 export type ImageUnderstandingDeps = {
   configManager: Pick<ConfigManager, 'get'>;
-  llmAdapter: Pick<LlmAdapter, 'analyzeImage'>;
+  llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
 };
 
 /**
@@ -53,8 +54,9 @@ export function createImageUnderstandingTool(deps: ImageUnderstandingDeps): Aesy
         const image = await loadMediaSource(source, 'image');
         const multimodal = deps.configManager.get('agent').multimodal;
         const modelIdentifier = `${multimodal.imageUnderstanding.provider}/${multimodal.imageUnderstanding.model}`;
-        const answer = await deps.llmAdapter.analyzeImage(
-          modelIdentifier,
+        const model = deps.llmAdapter.resolveModel(modelIdentifier);
+        const answer = await analyzeImage(
+          model,
           question ?? '详细描述这张图片。',
           { data: image.base64, mimeType: image.mimeType },
           `${context.sessionKey.channel}:${context.sessionKey.type}:${context.sessionKey.chatId}`,

@@ -119,7 +119,6 @@ function makeMockLlmAdapter(): LlmAdapter {
     createGetApiKey: vi
       .fn()
       .mockReturnValue((provider: string) => (provider === 'openai' ? 'test-key' : undefined)),
-    summarize: vi.fn().mockResolvedValue('Summary'),
   } as unknown as LlmAdapter;
 }
 

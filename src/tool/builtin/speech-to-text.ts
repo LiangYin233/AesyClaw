@@ -16,6 +16,7 @@ import { errorMessage } from '@aesyclaw/core/utils';
 import type { ToolOwner } from '@aesyclaw/core/types';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import { transcribeAudio } from '@aesyclaw/agent/llm-features';
 import { loadMediaSource } from './media-source';
 
 /** speech_to_text 的参数模式 */
@@ -27,7 +28,7 @@ type SpeechToTextParams = Static<typeof SpeechToTextParamsSchema>;
 
 export type SpeechToTextDeps = {
   configManager: Pick<ConfigManager, 'get'>;
-  llmAdapter: Pick<LlmAdapter, 'transcribeAudio'>;
+  llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
 };
 
 /**
@@ -52,8 +53,9 @@ export function createSpeechToTextTool(deps: SpeechToTextDeps): AesyClawTool {
         const audio = await loadMediaSource(source, 'audio');
         const multimodal = deps.configManager.get('agent').multimodal;
         const modelIdentifier = `${multimodal.speechToText.provider}/${multimodal.speechToText.model}`;
-        const transcription = await deps.llmAdapter.transcribeAudio(
-          modelIdentifier,
+        const model = deps.llmAdapter.resolveModel(modelIdentifier);
+        const transcription = await transcribeAudio(
+          model,
           {
             data: audio.data,
             mimeType: audio.mimeType,

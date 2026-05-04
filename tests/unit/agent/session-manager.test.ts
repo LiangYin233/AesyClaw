@@ -148,7 +148,6 @@ function makeMockDeps(
 
   const mockLlmAdapter = {
     resolveModel: vi.fn().mockReturnValue({ contextWindow: 128000 }),
-    summarize: vi.fn().mockResolvedValue('Summary of conversation'),
   } as unknown as LlmAdapter;
 
   return {

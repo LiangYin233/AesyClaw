@@ -26,7 +26,7 @@ export type BuiltinToolDependencies = {
   cronManager: Pick<CronManager, 'createJob' | 'listJobs' | 'deleteJob'>;
   agentEngine: Pick<AgentEngine, 'runAgentTurn'>;
   roleManager: Pick<RoleManager, 'getRole' | 'getDefaultRole'>;
-  llmAdapter: Pick<LlmAdapter, 'analyzeImage' | 'transcribeAudio' | 'resolveModel'>;
+  llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
   configManager: Pick<ConfigManager, 'get'>;
   skillManager: Pick<SkillManager, 'getSkill'>;
 };
