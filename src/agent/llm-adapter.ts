@@ -25,11 +25,11 @@ function makeExtraBodyOnPayload(model: ResolvedModel): ((payload: unknown) => un
   };
 }
 
-const API_TYPE_MAP = {
+const API_TYPE_MAP: Record<ProviderConfig['apiType'], Api> = {
   openai_responses: API_OPENAI_RESPONSES,
   openai_completion: 'openai-completions',
   anthropic: 'anthropic-messages',
-} as const satisfies Record<ProviderConfig['apiType'], Api>;
+};
 
 export type LlmAdapterDependencies = {
   configManager: ConfigManager;
