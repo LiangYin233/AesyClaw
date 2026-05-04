@@ -14,12 +14,6 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('cron');
 
-export type CronExecutorDependencies = {
-  cronRuns: CronRunsRepository;
-  pipeline: Pick<Pipeline, 'receiveWithSend'>;
-  send: (sessionKey: SessionKey, message: OutboundMessage) => Promise<void>;
-};
-
 export type CronExecutionSessionKeys = {
   context: SessionKey;
   target: SessionKey;
@@ -29,7 +23,11 @@ export type CronExecutionSessionKeys = {
  * 定时任务执行器 — 记录定时任务运行并将任务注入管道。
  */
 export class CronExecutor {
-  constructor(private readonly dependencies: CronExecutorDependencies) {}
+  constructor(
+    private cronRuns: CronRunsRepository,
+    private pipeline: Pick<Pipeline, 'receiveWithSend'>,
+    private send: (sessionKey: SessionKey, message: OutboundMessage) => Promise<void>,
+  ) {}
 
   /**
    * 执行单个定时任务。
@@ -42,7 +40,7 @@ export class CronExecutor {
    * @returns 执行结果的格式化字符串
    */
   async execute(job: CronJobRecord, sessionKeys?: CronExecutionSessionKeys): Promise<string> {
-    const runId = await this.dependencies.cronRuns.create({ jobId: job.id });
+    const runId = await this.cronRuns.create({ jobId: job.id });
     try {
       const targetSessionKey = sessionKeys?.target ?? parseSerializedSessionKey(job.sessionKey);
       const contextSessionKey = sessionKeys?.context ?? createCronContextSessionKey(job.id);
@@ -51,23 +49,23 @@ export class CronExecutor {
         components: [{ type: 'Plain', text: job.prompt }],
       };
 
-      await this.dependencies.pipeline.receiveWithSend(
+      await this.pipeline.receiveWithSend(
         inbound,
         contextSessionKey,
         undefined,
         async (message) => {
-          await this.dependencies.send(targetSessionKey, message);
+          await this.send(targetSessionKey, message);
           outboundMessages.push(message);
         },
       );
 
       const result = formatResult(outboundMessages);
-      await this.dependencies.cronRuns.markCompleted(runId, result);
+      await this.cronRuns.markCompleted(runId, result);
       logger.info('定时任务已完成', { jobId: job.id, runId });
       return result;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      await this.dependencies.cronRuns.markFailed(runId, message);
+      await this.cronRuns.markFailed(runId, message);
       logger.error('定时任务失败', { jobId: job.id, runId, error: message });
       throw err;
     }

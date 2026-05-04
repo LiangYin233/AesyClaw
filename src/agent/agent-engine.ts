@@ -9,15 +9,9 @@ import type { LlmAdapter } from './llm-adapter';
 import type { PromptBuilder } from './prompt-builder';
 import type { MemoryManager } from './memory-manager';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { requireInitialized } from '@aesyclaw/core/utils';
 
 const logger = createScopedLogger('agent-engine');
 const WORKER_PATH = fileURLToPath(new URL('./runner/agent-worker.ts', import.meta.url));
-
-export type AgentEngineDependencies = {
-  llmAdapter: LlmAdapter;
-  promptBuilder: PromptBuilder;
-};
 
 type RunAgentTurnResult = {
   newMessages: AgentMessage[];
@@ -25,34 +19,18 @@ type RunAgentTurnResult = {
 };
 
 export class AgentEngine {
-  private deps: AgentEngineDependencies | null = null;
-
-  async initialize(deps: AgentEngineDependencies): Promise<void> {
-    if (this.deps) {
-      logger.warn('AgentEngine 已初始化 — 跳过');
-      return;
-    }
-    this.deps = deps;
-    logger.info('AgentEngine 已初始化');
-  }
-
-  destroy(): void {
-    this.deps = null;
-  }
-
-  private requireDeps(): AgentEngineDependencies {
-    return requireInitialized(this.deps, 'AgentEngine');
-  }
+  constructor(
+    private llmAdapter: LlmAdapter,
+    private promptBuilder: PromptBuilder,
+  ) {}
 
   createAgent(
     role: RoleConfig,
     sessionId: string,
     executionContext?: Partial<ToolExecutionContext>,
   ): Agent {
-    const deps = this.requireDeps();
-
-    const { prompt, tools } = deps.promptBuilder.buildSystemPrompt(role, executionContext);
-    const model = deps.llmAdapter.resolveModel(role.model);
+    const { prompt, tools } = this.promptBuilder.buildSystemPrompt(role, executionContext);
+    const model = this.llmAdapter.resolveModel(role.model);
 
     const agent = new PiAgent({
       initialState: {
@@ -61,8 +39,8 @@ export class AgentEngine {
         tools,
         messages: [],
       },
-      streamFn: deps.llmAdapter.createStreamFn(role.model),
-      getApiKey: deps.llmAdapter.createGetApiKey(),
+      streamFn: this.llmAdapter.createStreamFn(),
+      getApiKey: this.llmAdapter.createGetApiKey(),
       sessionId,
     });
 
@@ -82,54 +60,66 @@ export class AgentEngine {
     sessionKey: SessionKey,
     sendMessage?: (message: OutboundMessage) => Promise<boolean>,
   ): Promise<RunAgentTurnResult> {
-    const deps = this.requireDeps();
-
     const executionContext: Partial<ToolExecutionContext> = {
       sessionKey,
       sendMessage,
       toolPermission: role.toolPermission,
     };
 
-    const { prompt, tools } = deps.promptBuilder.buildSystemPrompt(role, executionContext);
-    const model = deps.llmAdapter.resolveModel(role.model);
+    const { prompt, tools } = this.promptBuilder.buildSystemPrompt(role, executionContext);
+    const model = this.llmAdapter.resolveModel(role.model);
 
     const toolMap = new Map(tools.map((t) => [t.name, t]));
     const worker = new Worker(WORKER_PATH);
+    const timeout = setTimeout(() => void worker.terminate(), 120_000);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let onMessage: ((msg: any) => void) | undefined;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let onError: ((err: any) => void) | undefined;
 
     try {
       const workerResult = await new Promise<RunAgentTurnResult>((resolve, reject) => {
+        onError = (err: Error) => {
+          cleanup();
+          reject(new Error(`Worker 错误: ${err.message}`));
+        };
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
-        worker.on('message', async (msg) => {
-          if (msg.type === 'done') {
+        onMessage = async (msg: Record<string, unknown>) => {
+          if (msg['type'] === 'done') {
+            cleanup();
             resolve({
-              newMessages: msg.newMessages as AgentMessage[],
-              lastAssistant: msg.lastAssistant as string | null,
+              newMessages: msg['newMessages'] as AgentMessage[],
+              lastAssistant: msg['lastAssistant'] as string | null,
             });
-          } else if (msg.type === 'toolCall') {
-            const tool = toolMap.get(msg.toolName);
+          } else if (msg['type'] === 'toolCall') {
+            const tool = toolMap.get(msg['toolName'] as string);
             if (!tool) {
               worker.postMessage({
                 type: 'toolResult',
-                callId: msg.callId,
-                error: `工具 "${msg.toolName}" 未找到`,
+                callId: msg['callId'],
+                error: `工具 "${msg['toolName'] as string}" 未找到`,
               });
               return;
             }
             try {
-              const result = await tool.execute(msg.toolCallId as string, msg.params);
-              worker.postMessage({ type: 'toolResult', callId: msg.callId, result });
+              const result = await tool.execute(msg['toolCallId'] as string, msg['params']);
+              worker.postMessage({ type: 'toolResult', callId: msg['callId'], result });
             } catch (err) {
               worker.postMessage({
                 type: 'toolResult',
-                callId: msg.callId,
+                callId: msg['callId'],
                 error: err instanceof Error ? err.message : String(err),
               });
             }
-          } else if (msg.type === 'fatal') {
-            reject(new Error(msg.message as string));
+          } else if (msg['type'] === 'fatal') {
+            cleanup();
+            reject(new Error(msg['message'] as string));
           }
-        });
-        worker.on('error', reject);
+        };
+
+        worker.on('message', onMessage);
+        worker.on('error', onError);
 
         worker.postMessage({
           type: 'init',
@@ -150,6 +140,13 @@ export class AgentEngine {
 
       return workerResult;
     } finally {
+      cleanup();
+    }
+
+    function cleanup(): void {
+      clearTimeout(timeout);
+      if (onMessage) worker.off('message', onMessage);
+      if (onError) worker.off('error', onError);
       void worker.terminate();
     }
   }
@@ -194,7 +191,7 @@ export class AgentEngine {
   }
 
   switchModel(agent: Agent, modelIdentifier: string): void {
-    const model = this.requireDeps().llmAdapter.resolveModel(modelIdentifier);
+    const model = this.llmAdapter.resolveModel(modelIdentifier);
     agent.state.model = model;
 
     logger.info('模型已切换', {
@@ -218,10 +215,9 @@ export class AgentEngine {
     memory: MemoryManager,
     role: RoleConfig,
   ): Promise<AgentMessage[]> {
-    const llmAdapter = this.requireDeps().llmAdapter;
     let history = await memory.loadHistory();
     if (memory.shouldCompact(history)) {
-      await memory.compact(llmAdapter, role.model);
+      await memory.compact(this.llmAdapter, role.model);
       history = await memory.loadHistory();
     }
     return history;

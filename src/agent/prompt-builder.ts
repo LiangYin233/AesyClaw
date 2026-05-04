@@ -21,28 +21,13 @@ import { buildSkillPromptSection } from '@aesyclaw/skill/skill-prompt';
 
 // ─── PromptBuilder ──────────────────────────────────────────────
 
-/**
- * 构造时注入 PromptBuilder 的依赖。
- */
-export type PromptBuilderDependencies = {
-  roleManager: RoleManager;
-  skillManager: SkillManager;
-  toolRegistry: ToolRegistry;
-  toolHookDispatcher: HookDispatcher;
-};
-
 export class PromptBuilder {
-  private roleManager: RoleManager;
-  private skillManager: SkillManager;
-  private toolRegistry: ToolRegistry;
-  private toolHookDispatcher: HookDispatcher;
-
-  constructor(deps: PromptBuilderDependencies) {
-    this.roleManager = deps.roleManager;
-    this.skillManager = deps.skillManager;
-    this.toolRegistry = deps.toolRegistry;
-    this.toolHookDispatcher = deps.toolHookDispatcher;
-  }
+  constructor(
+    private roleManager: RoleManager,
+    private skillManager: SkillManager,
+    private toolRegistry: ToolRegistry,
+    private toolHookDispatcher: HookDispatcher,
+  ) {}
 
   /**
    * 为角色构建完整的系统提示词。
@@ -61,7 +46,6 @@ export class PromptBuilder {
     role: RoleConfig,
     executionContext?: Partial<ToolExecutionContext>,
   ): { prompt: string; tools: AgentTool[] } {
-    // 获取角色列表部分的所有已启用角色
     const allRoles = this.roleManager.getEnabledRoles();
 
     // 获取角色可用的技能

@@ -19,7 +19,6 @@ import type { Agent } from './agent-types';
 import { MemoryManager } from './memory-manager';
 import type { LlmAdapter } from './llm-adapter';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { requireInitialized } from '@aesyclaw/core/utils';
 
 const logger = createScopedLogger('session-manager');
 export const AGENT_PROCESSING_BUSY_MESSAGE = 'Agent处理任务中。';
@@ -40,43 +39,20 @@ export type SessionContext = {
 /**
  * 初始化时注入 SessionManager 的依赖。
  */
-export type SessionManagerDependencies = {
-  databaseManager: DatabaseManager;
-  roleManager: RoleManager;
-  agentEngine: AgentEngine;
-  configManager: ConfigManager;
-  llmAdapter: LlmAdapter;
-};
-
 // ─── SessionManager ─────────────────────────────────────────────
 
 export class SessionManager {
-  private deps: SessionManagerDependencies | null = null;
   private sessions: Map<string, SessionContext> = new Map();
   private pendingSessions: Map<string, Promise<SessionContext>> = new Map();
   private agentProcessingSessions: Set<string> = new Set();
 
-  // ─── 生命周期 ────────────────────────────────────────────────
-
-  /**
-   * 使用依赖初始化会话管理器。
-   */
-  async initialize(deps: SessionManagerDependencies): Promise<void> {
-    if (this.deps) {
-      logger.warn('SessionManager 已初始化 — 跳过');
-      return;
-    }
-    this.deps = deps;
-    logger.info('SessionManager 已初始化');
-  }
-
-  destroy(): void {
-    this.deps = null;
-  }
-
-  private requireDeps(): SessionManagerDependencies {
-    return requireInitialized(this.deps, 'SessionManager');
-  }
+  constructor(
+    private databaseManager: DatabaseManager,
+    private roleManager: RoleManager,
+    private agentEngine: AgentEngine,
+    private configManager: ConfigManager,
+    private llmAdapter: LlmAdapter,
+  ) {}
 
   // ─── 会话解析 ───────────────────────────────────────
 
@@ -95,8 +71,6 @@ export class SessionManager {
    * @returns 会话上下文
    */
   async getOrCreateSession(key: SessionKey): Promise<SessionContext> {
-    this.requireDeps();
-
     const cacheKey = serializeSessionKey(key);
 
     // 检查现有会话
@@ -123,27 +97,25 @@ export class SessionManager {
   }
 
   private async createSessionContext(key: SessionKey, cacheKey: string): Promise<SessionContext> {
-    const deps = this.requireDeps();
-
     // 创建或查找数据库会话记录
-    const sessionRecord = await deps.databaseManager.sessions.findOrCreate(key);
+    const sessionRecord = await this.databaseManager.sessions.findOrCreate(key);
     const sessionId = sessionRecord.id;
 
     // 加载活跃角色（从绑定或默认）
-    const roleId = await deps.databaseManager.roleBindings.getActiveRole(sessionId);
+    const roleId = await this.databaseManager.roleBindings.getActiveRole(sessionId);
     let activeRole: RoleConfig;
 
     if (roleId) {
-      activeRole = deps.roleManager.getRole(roleId);
+      activeRole = this.roleManager.getRole(roleId);
     } else {
-      activeRole = deps.roleManager.getDefaultRole();
+      activeRole = this.roleManager.getDefaultRole();
     }
 
     // 解析模型以从其上下文窗口推导内存配置
-    const resolvedModel = deps.llmAdapter.resolveModel(activeRole.model);
+    const resolvedModel = this.llmAdapter.resolveModel(activeRole.model);
 
     // 获取内存配置（compressionThreshold 来自配置，maxContextTokens 来自模型）
-    const config = deps.configManager.getConfig();
+    const config = this.configManager.getConfig();
     const memoryConfig = {
       maxContextTokens: resolvedModel.contextWindow,
       compressionThreshold: config.agent.memory.compressionThreshold,
@@ -152,14 +124,14 @@ export class SessionManager {
     // 创建 MemoryManager
     const memory = new MemoryManager(
       sessionId,
-      deps.databaseManager.messages,
+      this.databaseManager.messages,
       memoryConfig,
-      deps.databaseManager.usage,
-      deps.databaseManager.toolUsage,
+      this.databaseManager.usage,
+      this.databaseManager.toolUsage,
     );
 
     // 创建 Agent
-    const agent = deps.agentEngine.createAgent(activeRole, sessionId, {
+    const agent = this.agentEngine.createAgent(activeRole, sessionId, {
       sessionKey: key,
     });
 
@@ -230,8 +202,6 @@ export class SessionManager {
    * @param key - 要清除的会话键
    */
   async clearSession(key: SessionKey): Promise<void> {
-    this.requireDeps();
-
     const cacheKey = serializeSessionKey(key);
     const session = this.sessions.get(cacheKey);
 
@@ -253,14 +223,12 @@ export class SessionManager {
    * 即使会话当前未被缓存，也可以清除持久化的历史。
    */
   async resetSession(key: SessionKey): Promise<void> {
-    const deps = this.requireDeps();
-
     const cacheKey = serializeSessionKey(key);
-    const sessionRecord = await deps.databaseManager.sessions.findOrCreate(key);
-    const defaultRole = deps.roleManager.getDefaultRole();
+    const sessionRecord = await this.databaseManager.sessions.findOrCreate(key);
+    const defaultRole = this.roleManager.getDefaultRole();
 
-    await deps.databaseManager.messages.clearHistory(sessionRecord.id);
-    await deps.databaseManager.roleBindings.setActiveRole(sessionRecord.id, defaultRole.id);
+    await this.databaseManager.messages.clearHistory(sessionRecord.id);
+    await this.databaseManager.roleBindings.setActiveRole(sessionRecord.id, defaultRole.id);
 
     this.sessions.delete(cacheKey);
     logger.info('会话已重置', { cacheKey, roleId: defaultRole.id });
@@ -276,8 +244,6 @@ export class SessionManager {
    * @returns 总结文本
    */
   async compactSession(key: SessionKey): Promise<string> {
-    this.requireDeps();
-
     const cacheKey = serializeSessionKey(key);
     const session = this.sessions.get(cacheKey);
 
@@ -285,10 +251,7 @@ export class SessionManager {
       throw new Error(`未找到会话: ${cacheKey}`);
     }
 
-    const summary = await session.memory.compact(
-      this.requireDeps().llmAdapter,
-      session.activeRole.model,
-    );
+    const summary = await session.memory.compact(this.llmAdapter, session.activeRole.model);
     logger.info('会话已压缩', { cacheKey });
     return summary;
   }
@@ -305,8 +268,6 @@ export class SessionManager {
    * @param roleId - 要切换到的新角色 ID
    */
   async switchRole(key: SessionKey, roleId: string): Promise<void> {
-    const deps = this.requireDeps();
-
     const cacheKey = serializeSessionKey(key);
     const session = this.sessions.get(cacheKey);
 
@@ -315,13 +276,13 @@ export class SessionManager {
     }
 
     // 获取新角色配置
-    const newRole = deps.roleManager.getRole(roleId);
+    const newRole = this.roleManager.getRole(roleId);
 
     // 更新数据库中的角色绑定
-    await deps.databaseManager.roleBindings.setActiveRole(session.sessionId, newRole.id);
+    await this.databaseManager.roleBindings.setActiveRole(session.sessionId, newRole.id);
 
     // 使用新角色创建新 Agent
-    const newAgent = deps.agentEngine.createAgent(newRole, session.sessionId, {
+    const newAgent = this.agentEngine.createAgent(newRole, session.sessionId, {
       sessionKey: key,
     });
 

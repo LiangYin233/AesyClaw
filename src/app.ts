@@ -2,6 +2,7 @@
 
 import { AgentEngine } from './agent/agent-engine';
 import { LlmAdapter } from './agent/llm-adapter';
+import { PromptBuilder } from './agent/prompt-builder';
 import { SessionManager } from './agent/session-manager';
 import { CommandRegistry } from './command/command-registry';
 import { ConfigManager } from './core/config/config-manager';
@@ -10,6 +11,7 @@ import { DatabaseManager } from './core/database/database-manager';
 import { createScopedLogger } from './core/logger';
 import { CronManager } from './cron/cron-manager';
 import { McpManager } from './mcp/mcp-manager';
+import { SdkMcpClientFactory } from './mcp/sdk-mcp-client';
 import { Pipeline } from './pipeline/pipeline';
 import { RoleManager } from './role/role-manager';
 import { SkillManager } from './skill/skill-manager';
@@ -42,12 +44,30 @@ export class Application {
     this.roleManager = new RoleManager();
     this.toolRegistry = new ToolRegistry();
     this.commandRegistry = new CommandRegistry();
-    this.llmAdapter = new LlmAdapter();
-    this.agentEngine = new AgentEngine();
-    this.sessionManager = new SessionManager();
+    this.llmAdapter = new LlmAdapter(this.configManager);
     this.pipeline = new Pipeline();
+    this.agentEngine = new AgentEngine(
+      this.llmAdapter,
+      new PromptBuilder(
+        this.roleManager,
+        this.skillManager,
+        this.toolRegistry,
+        this.pipeline.hookDispatcher,
+      ),
+    );
+    this.sessionManager = new SessionManager(
+      this.databaseManager,
+      this.roleManager,
+      this.agentEngine,
+      this.configManager,
+      this.llmAdapter,
+    );
     this.cronManager = new CronManager();
-    this.mcpManager = new McpManager();
+    this.mcpManager = new McpManager(
+      this.configManager,
+      this.toolRegistry,
+      new SdkMcpClientFactory(),
+    );
     this.webUiManager = new WebUiManager();
     this.coreLifecycle = new CoreLifecycle();
   }

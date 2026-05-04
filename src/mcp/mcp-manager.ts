@@ -2,11 +2,16 @@
 
 import { Type, type TSchema } from '@sinclair/typebox';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { errorMessage, isRecord, requireInitialized } from '@aesyclaw/core/utils';
+import { errorMessage, isRecord } from '@aesyclaw/core/utils';
 import type { McpServerConfig } from '@aesyclaw/core/config/schema';
 import type { ToolOwner } from '@aesyclaw/core/types';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
-import type { ToolRegistry, AesyClawTool, ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
+import type {
+  ToolRegistry,
+  AesyClawTool,
+  ToolExecutionContext,
+  ToolExecutionResult,
+} from '@aesyclaw/tool/tool-registry';
 
 const logger = createScopedLogger('mcp');
 
@@ -52,40 +57,17 @@ export type McpServerStatus = {
   error?: string;
 };
 
-type McpManagerStoredDeps = {
-  configManager: ConfigManager;
-  toolRegistry: ToolRegistry;
-  clientFactory: McpClientFactory;
-};
-
 export class McpManager {
-  private deps: McpManagerStoredDeps | null = null;
   private readonly connectedServers = new Map<string, ConnectedMcpServer>();
   private readonly failedServers = new Map<string, string>();
 
-  async initialize(dependencies: McpManagerDependencies): Promise<void> {
-    if (this.deps) {
-      logger.warn('McpManager 已初始化 — 跳过');
-      return;
-    }
-    this.deps = {
-      configManager: dependencies.configManager,
-      toolRegistry: dependencies.toolRegistry,
-      clientFactory: dependencies.clientFactory ?? new EmptyMcpClientFactory(),
-    };
-    logger.info('McpManager 已初始化');
-  }
-
-  destroy(): void {
-    this.deps = null;
-  }
-
-  private requireDeps(): McpManagerStoredDeps {
-    return requireInitialized(this.deps, 'McpManager');
-  }
+  constructor(
+    private configManager: ConfigManager,
+    private toolRegistry: ToolRegistry,
+    private clientFactory: McpClientFactory,
+  ) {}
 
   async connectAll(): Promise<void> {
-    this.requireDeps();
     for (const config of this.getConfigs()) {
       if (!config.enabled) {
         this.failedServers.delete(config.name);
@@ -115,7 +97,6 @@ export class McpManager {
   }
 
   async connect(serverName: string): Promise<ConnectedMcpServer | null> {
-    this.requireDeps();
     const config = this.getConfigs().find((entry) => entry.name === serverName);
     if (!config) {
       throw new Error(`MCP 服务器 "${serverName}" 未配置`);
@@ -129,9 +110,9 @@ export class McpManager {
       await this.disconnect(serverName);
     }
 
-    const client = this.requireDeps().clientFactory.create(config);
+    const client = this.clientFactory.create(config);
     const owner: ToolOwner = mcpOwner(serverName);
-    const toolRegistry = this.requireDeps().toolRegistry;
+    const toolRegistry = this.toolRegistry;
     try {
       await client.connect();
       const tools = await client.listTools();
@@ -173,7 +154,7 @@ export class McpManager {
         await connected.client.close();
       }
     } finally {
-      this.requireDeps().toolRegistry.unregisterByOwner(owner);
+      this.toolRegistry.unregisterByOwner(owner);
       this.connectedServers.delete(serverName);
       this.failedServers.delete(serverName);
       logger.info('MCP 服务器已断开连接', { server: serverName });
@@ -223,7 +204,10 @@ export class McpManager {
       description: tool.description ?? `MCP 工具 ${tool.name}`,
       parameters: toToolSchema(tool.inputSchema),
       owner,
-      execute: async (params: unknown): Promise<ToolExecutionResult> => {
+      execute: async (
+        params: unknown,
+        _context: ToolExecutionContext,
+      ): Promise<ToolExecutionResult> => {
         try {
           const result = await client.callTool(tool.name, params);
           return { content: formatMcpResult(result) };
@@ -235,9 +219,8 @@ export class McpManager {
   }
 
   private getConfigs(): McpServerConfig[] {
-    const configManager = this.requireDeps().configManager;
     try {
-      return configManager.get('mcp').map(cloneConfig);
+      return this.configManager.get('mcp').map(cloneConfig);
     } catch {
       return [];
     }
@@ -332,31 +315,5 @@ async function closeQuietly(client: McpClient, serverName: string): Promise<void
     await client.close();
   } catch (err) {
     logger.warn(`连接错误后关闭 MCP 客户端失败: ${serverName}`, err);
-  }
-}
-
-class EmptyMcpClient implements McpClient {
-  async connect(): Promise<void> {
-    logger.warn('EmptyMcpClient.connect() 被调用 — MCP 客户端工厂未配置，所有 MCP 操作为空操作');
-  }
-  async listTools(): Promise<McpToolDefinition[]> {
-    return [];
-  }
-  async callTool(): Promise<unknown> {
-    return '';
-  }
-  async close(): Promise<void> {}
-}
-
-class EmptyMcpClientFactory implements McpClientFactory {
-  private warned = false;
-  create(): McpClient {
-    if (!this.warned) {
-      this.warned = true;
-      logger.warn(
-        'McpManager 未注入 clientFactory — 使用空客户端工厂；所有 MCP 连接/工具调用将被静默忽略',
-      );
-    }
-    return new EmptyMcpClient();
   }
 }

@@ -73,10 +73,9 @@ describe('LlmAdapter', () => {
 
   beforeEach(async () => {
     mockedCompleteSimple.mockReset();
-    adapter = new LlmAdapter();
     const config = makeConfigWithProviders();
     const configManager = makeMockConfigManager(config);
-    await adapter.initialize({ configManager });
+    adapter = new LlmAdapter(configManager);
   });
 
   afterEach(() => {
@@ -126,8 +125,7 @@ describe('LlmAdapter', () => {
           apiType: 'openai-responses',
         },
       });
-      const customAdapter = new LlmAdapter();
-      await customAdapter.initialize({ configManager: makeMockConfigManager(config) });
+      const customAdapter = new LlmAdapter(makeMockConfigManager(config));
 
       expect(() => customAdapter.resolveModel('custom/gpt-4o')).toThrow(
         '未为提供者 "custom" 配置 API 密钥',
@@ -140,11 +138,6 @@ describe('LlmAdapter', () => {
 
     it('should throw for unknown provider', () => {
       expect(() => adapter.resolveModel('unknown/model')).toThrow(/配置中未找到提供者/);
-    });
-
-    it('should throw if not initialized', () => {
-      const uninitialized = new LlmAdapter();
-      expect(() => uninitialized.resolveModel('openai/gpt-4o')).toThrow('LlmAdapter 未初始化');
     });
   });
 
@@ -161,11 +154,6 @@ describe('LlmAdapter', () => {
     it('should return undefined for unknown provider', () => {
       const getApiKey = adapter.createGetApiKey();
       expect(getApiKey('unknown')).toBeUndefined();
-    });
-
-    it('should throw if not initialized', () => {
-      const uninitialized = new LlmAdapter();
-      expect(() => uninitialized.createGetApiKey()).toThrow('LlmAdapter 未初始化');
     });
   });
 

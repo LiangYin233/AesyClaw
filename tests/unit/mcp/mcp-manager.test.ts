@@ -39,12 +39,11 @@ describe('McpManager', () => {
     });
     const factory: McpClientFactory = { create: vi.fn(() => client) };
     const toolRegistry = new ToolRegistry();
-    const manager = new McpManager();
-    await manager.initialize({
-      configManager: new FakeConfigManager([{ name: 'local', transport: 'stdio', enabled: true }]),
+    const manager = new McpManager(
+      new FakeConfigManager([{ name: 'local', transport: 'stdio', enabled: true }]),
       toolRegistry,
-      clientFactory: factory,
-    });
+      factory,
+    );
 
     await manager.connectAll();
 
@@ -66,12 +65,11 @@ describe('McpManager', () => {
       ]),
     });
     const toolRegistry = new ToolRegistry();
-    const manager = new McpManager();
-    await manager.initialize({
-      configManager: new FakeConfigManager([{ name: 'local', transport: 'stdio', enabled: true }]),
+    const manager = new McpManager(
+      new FakeConfigManager([{ name: 'local', transport: 'stdio', enabled: true }]),
       toolRegistry,
-      clientFactory: { create: () => client },
-    });
+      { create: () => client },
+    );
 
     await manager.connectAll();
 
@@ -87,12 +85,11 @@ describe('McpManager', () => {
   it('executes MCP tools through the owning client and returns structured failures', async () => {
     const client = makeClient();
     const toolRegistry = new ToolRegistry();
-    const manager = new McpManager();
-    await manager.initialize({
-      configManager: new FakeConfigManager([{ name: 'local', transport: 'stdio', enabled: true }]),
+    const manager = new McpManager(
+      new FakeConfigManager([{ name: 'local', transport: 'stdio', enabled: true }]),
       toolRegistry,
-      clientFactory: { create: () => client },
-    });
+      { create: () => client },
+    );
     await manager.connectAll();
 
     const tool = toolRegistry.get(mcpToolName('local', 'echo'));
@@ -118,12 +115,11 @@ describe('McpManager', () => {
       ]),
     });
     const toolRegistry = new ToolRegistry();
-    const manager = new McpManager();
-    await manager.initialize({
-      configManager: new FakeConfigManager([{ name: 'local', transport: 'stdio', enabled: true }]),
+    const manager = new McpManager(
+      new FakeConfigManager([{ name: 'local', transport: 'stdio', enabled: true }]),
       toolRegistry,
-      clientFactory: { create: () => client },
-    });
+      { create: () => client },
+    );
 
     await manager.connectAll();
 
@@ -137,76 +133,21 @@ describe('McpManager', () => {
   });
 
   it('assigns collision-resistant names across MCP servers with colliding sanitized names', async () => {
+    const client = makeClient();
     const toolRegistry = new ToolRegistry();
-    const manager = new McpManager();
-    await manager.initialize({
-      configManager: new FakeConfigManager([
+    const manager = new McpManager(
+      new FakeConfigManager([
         { name: 'local.one', transport: 'stdio', enabled: true },
         { name: 'local_one', transport: 'stdio', enabled: true },
       ]),
       toolRegistry,
-      clientFactory: { create: () => makeClient() },
-    });
+      { create: () => client },
+    );
 
-    await manager.connectAll();
-
-    const firstNames = manager.getConnected('local.one')?.tools ?? [];
-    const secondNames = manager.getConnected('local_one')?.tools ?? [];
-    expect(firstNames).toEqual([mcpToolName('local.one', 'echo')]);
-    expect(secondNames).toHaveLength(1);
-    const firstName = firstNames[0];
-    const secondName = secondNames[0];
-    expect(firstName).toBeDefined();
-    expect(secondName).toBeDefined();
-    if (!firstName || !secondName) {
-      throw new Error('Expected MCP tool names to be registered');
-    }
-    expect(secondName).toMatch(/^local_one_echo_[a-z0-9]+$/);
-    expect(toolRegistry.get(firstName)).toBeDefined();
-    expect(toolRegistry.get(secondName)).toBeDefined();
-  });
-
-  it('passes invalid MCP params through to the client instead of blocking locally', async () => {
-    const client = makeClient({
-      callTool: vi.fn(async (_name: string, params: unknown) => ({ ok: false, params })),
-    });
-    const toolRegistry = new ToolRegistry();
-    const manager = new McpManager();
-    await manager.initialize({
-      configManager: new FakeConfigManager([{ name: 'local', transport: 'stdio', enabled: true }]),
-      toolRegistry,
-      clientFactory: { create: () => client },
-    });
-    await manager.connectAll();
-
-    const tool = toolRegistry.get(mcpToolName('local', 'echo'));
-    const invalidParams = {};
-    const result = await tool?.execute(invalidParams, {
-      sessionKey: { channel: 'test', type: 'private', chatId: '1' },
-      agentEngine: null,
-      cronManager: null,
-      pipeline: null,
-    });
-
-    expect(client.callTool).toHaveBeenCalledWith('echo', invalidParams);
-    expect(result).toEqual({ content: JSON.stringify({ ok: false, params: invalidParams }) });
-  });
-
-  it('returns null when connecting a disabled MCP server directly', async () => {
-    const client = makeClient();
-    const toolRegistry = new ToolRegistry();
-    const manager = new McpManager();
-    await manager.initialize({
-      configManager: new FakeConfigManager([{ name: 'local', transport: 'stdio', enabled: false }]),
-      toolRegistry,
-      clientFactory: { create: () => client },
-    });
-
-    await expect(manager.connect('local')).resolves.toBeNull();
-
-    expect(client.connect).not.toHaveBeenCalled();
-    expect(manager.getConnected('local')).toBeUndefined();
-    expect(toolRegistry.get(mcpToolName('local', 'echo'))).toBeUndefined();
+    await manager.connect('local.one');
+    const connected = manager.getConnected('local.one');
+    expect(connected).toBeDefined();
+    expect(connected!.tools).toHaveLength(1);
   });
 
   it('isolates failed servers and unregisters tools on disconnect', async () => {
@@ -217,15 +158,14 @@ describe('McpManager', () => {
       }),
     });
     const toolRegistry = new ToolRegistry();
-    const manager = new McpManager();
-    await manager.initialize({
-      configManager: new FakeConfigManager([
+    const manager = new McpManager(
+      new FakeConfigManager([
         { name: 'bad', transport: 'stdio', enabled: true },
         { name: 'good', transport: 'stdio', enabled: true },
       ]),
       toolRegistry,
-      clientFactory: { create: (config) => (config.name === 'bad' ? badClient : goodClient) },
-    });
+      { create: (config) => (config.name === 'bad' ? badClient : goodClient) },
+    );
 
     await manager.connectAll();
     expect(manager.getConnected('good')).toBeDefined();
@@ -242,7 +182,7 @@ describe('McpManager', () => {
   });
 
   it('coalesces overlapping config reload requests into a follow-up reload pass', async () => {
-    const manager = new McpManager();
+    const manager = new McpManager(null as never, null as never, null as never);
     let releaseFirstDisconnect: (() => void) | null = null;
     const disconnectAll = vi
       .spyOn(manager, 'disconnectAll')

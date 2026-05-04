@@ -91,11 +91,18 @@ describe('CronExecutor', () => {
     const pipeline = {
       receiveWithSend: vi
         .fn()
-        .mockImplementation(async (_msg: unknown, _sessionKey: unknown, _sender: unknown, send: (m: unknown) => Promise<void>) => {
-          await send({ components: [{ type: 'Plain', text: 'pipeline response' }] });
-        }),
+        .mockImplementation(
+          async (
+            _msg: unknown,
+            _sessionKey: unknown,
+            _sender: unknown,
+            send: (m: unknown) => Promise<void>,
+          ) => {
+            await send({ components: [{ type: 'Plain', text: 'pipeline response' }] });
+          },
+        ),
     };
-    const executor = new CronExecutor({ cronRuns, pipeline, send });
+    const executor = new CronExecutor(cronRuns, pipeline, send);
     return { executor, cronRuns, pipeline, send };
   }
 
@@ -130,7 +137,12 @@ describe('CronExecutor', () => {
     it('should collect multiple outbound messages from the pipeline', async () => {
       const { executor, cronRuns, pipeline, send } = makeMocks();
       pipeline.receiveWithSend.mockImplementation(
-        async (_msg: unknown, _sessionKey: unknown, _sender: unknown, send: (m: unknown) => Promise<void>) => {
+        async (
+          _msg: unknown,
+          _sessionKey: unknown,
+          _sender: unknown,
+          send: (m: unknown) => Promise<void>,
+        ) => {
           await send({ components: [{ type: 'Plain', text: 'first' }] });
           await send({ components: [{ type: 'Plain', text: 'second' }] });
         },

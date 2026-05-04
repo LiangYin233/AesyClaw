@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createAssistantMessageEventStream } from '@mariozechner/pi-ai';
 import { AgentEngine } from '../../../src/agent/agent-engine';
-import type { AgentEngineDependencies } from '../../../src/agent/agent-engine';
 import type { LlmAdapter } from '../../../src/agent/llm-adapter';
 import type { RoleConfig, InboundMessage, SessionKey, SenderInfo } from '../../../src/core/types';
 import { getMessageText } from '@aesyclaw/core/types';
@@ -133,21 +132,20 @@ function makeMockPromptBuilder() {
   };
 }
 
-function makeMockDeps(): AgentEngineDependencies {
-  const llmAdapter = makeMockLlmAdapter();
-  return {
-    llmAdapter,
-    promptBuilder: makeMockPromptBuilder(),
-  };
+function makeMockDeps() {
+  return { llmAdapter: makeMockLlmAdapter(), promptBuilder: makeMockPromptBuilder() };
 }
 
 describe('AgentEngine', () => {
   let engine: AgentEngine;
   let runAgentTurnSpy: ReturnType<typeof vi.spyOn>;
 
+  function makeEngine(llmAdapter?: LlmAdapter) {
+    return new AgentEngine(llmAdapter ?? makeMockLlmAdapter(), makeMockPromptBuilder());
+  }
+
   beforeEach(async () => {
-    engine = new AgentEngine();
-    await engine.initialize(makeMockDeps());
+    engine = makeEngine();
     // Worker 线程在 vitest 中无法加载 .ts 文件，因此 mock runAgentTurn
     runAgentTurnSpy = vi.spyOn(AgentEngine.prototype, 'runAgentTurn').mockResolvedValue({
       newMessages: [
@@ -183,8 +181,7 @@ describe('AgentEngine', () => {
         tools: [tool],
       });
 
-      const runtimeEngine = new AgentEngine();
-      await runtimeEngine.initialize(deps);
+      const runtimeEngine = new AgentEngine(deps.llmAdapter, deps.promptBuilder);
 
       const role = makeRole();
 
@@ -203,13 +200,6 @@ describe('AgentEngine', () => {
       expect(typeof agent.prompt).toBe('function');
       expect(typeof agent.waitForIdle).toBe('function');
       expect(typeof agent.reset).toBe('function');
-    });
-
-    it('should throw if not initialized', () => {
-      const uninitialized = new AgentEngine();
-      const role = makeRole();
-
-      expect(() => uninitialized.createAgent(role, 'test-session')).toThrow('AgentEngine 未初始化');
     });
   });
 
@@ -236,8 +226,7 @@ describe('AgentEngine', () => {
     it('should refresh runtime tools before each turn', async () => {
       const role = makeRole();
       const deps = makeMockDeps();
-      const runtimeEngine = new AgentEngine();
-      await runtimeEngine.initialize(deps);
+      const runtimeEngine = new AgentEngine(deps.llmAdapter, deps.promptBuilder);
 
       const messageRepo = makeMockMessageRepo();
       const memory = new MemoryManager('test-session', messageRepo, {
@@ -260,8 +249,7 @@ describe('AgentEngine', () => {
     it('should thread an outbound send callback into runtime tool context when provided', async () => {
       const role = makeRole();
       const deps = makeMockDeps();
-      const runtimeEngine = new AgentEngine();
-      await runtimeEngine.initialize(deps);
+      const runtimeEngine = new AgentEngine(deps.llmAdapter, deps.promptBuilder);
 
       const messageRepo = makeMockMessageRepo();
       const memory = new MemoryManager('test-session', messageRepo, {
@@ -341,8 +329,7 @@ describe('AgentEngine', () => {
 
     it('should create an independent tool-disabled runtime using the current role model', async () => {
       const deps = makeMockDeps();
-      const runtimeEngine = new AgentEngine();
-      await runtimeEngine.initialize(deps);
+      const runtimeEngine = new AgentEngine(deps.llmAdapter, deps.promptBuilder);
       const role = makeRole({ toolPermission: { mode: 'allowlist', list: ['search'] } });
       const messageRepo = makeMockMessageRepo();
       const memory = new MemoryManager('test-session', messageRepo, {

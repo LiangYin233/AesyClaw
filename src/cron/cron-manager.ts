@@ -48,11 +48,7 @@ export class CronManager {
     const cronJobs = dependencies.databaseManager.cronJobs;
     const cronRuns = dependencies.databaseManager.cronRuns;
     const scheduler = dependencies.scheduler ?? new CronScheduler();
-    const executor = new CronExecutor({
-      cronRuns,
-      pipeline: dependencies.pipeline,
-      send: dependencies.send,
-    });
+    const executor = new CronExecutor(cronRuns, dependencies.pipeline, dependencies.send);
 
     const running = await cronRuns.findRunning();
     await cronRuns.markAbandoned(running.map((run) => run.id));

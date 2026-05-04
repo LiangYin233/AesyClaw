@@ -7,7 +7,7 @@ import { ChannelManager } from '../../src/extension/channel/channel-manager';
 import { CronManager } from '../../src/cron/cron-manager';
 import { SessionManager } from '../../src/agent/session-manager';
 import { McpManager } from '../../src/mcp/mcp-manager';
-import { SdkMcpClientFactory } from '../../src/mcp/sdk-mcp-client';
+
 import { RoleManager } from '../../src/role/role-manager';
 import { WebUiManager } from '../../src/web/webui-manager';
 
@@ -154,17 +154,16 @@ describe('Application', () => {
     TEST_ROOTS.push(testRoot);
     vi.spyOn(process, 'cwd').mockReturnValue(testRoot);
 
-    const originalInitialize = McpManager.prototype.initialize;
-    vi.spyOn(McpManager.prototype, 'initialize').mockImplementation(function (dependencies) {
-      expect(dependencies.clientFactory).toBeInstanceOf(SdkMcpClientFactory);
-      return originalInitialize.call(this, dependencies);
-    });
+    const MockMcpManager = vi
+      .spyOn(McpManager.prototype, 'connectAll')
+      .mockResolvedValue(undefined);
 
     const app = new Application();
 
     try {
       await app.start();
     } finally {
+      MockMcpManager.mockRestore();
       await app.shutdown();
     }
   });

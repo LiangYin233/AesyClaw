@@ -3,7 +3,7 @@
 import { mkdirSync } from 'node:fs';
 import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
-import { PromptBuilder } from '@aesyclaw/agent/prompt-builder';
+
 import type { SessionManager } from '@aesyclaw/agent/session-manager';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import { registerBuiltinCommands } from '@aesyclaw/command/builtin';
@@ -15,7 +15,6 @@ import { resolvePaths, type ResolvedPaths } from './path-resolver';
 import type { Unsubscribe } from './types';
 import type { CronManager } from '@aesyclaw/cron/cron-manager';
 import type { McpManager } from '@aesyclaw/mcp/mcp-manager';
-import { SdkMcpClientFactory } from '@aesyclaw/mcp/sdk-mcp-client';
 import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
 import { ExtensionManager } from '@aesyclaw/extension/extension-manager';
 import { ensureDefaultRoleFile } from '@aesyclaw/role/default-role';
@@ -90,12 +89,8 @@ export class CoreLifecycle {
       () => this.resolvedDeps.webUiManager.destroy(),
       () => this.extensionManager?.destroy(),
       () => this.resolvedDeps.mcpManager.disconnectAll(),
-      () => this.resolvedDeps.mcpManager.destroy(),
       () => this.resolvedDeps.cronManager.destroy(),
       () => this.resolvedDeps.pipeline.destroy(),
-      () => this.resolvedDeps.agentEngine.destroy(),
-      () => this.resolvedDeps.sessionManager.destroy(),
-      () => this.resolvedDeps.llmAdapter.destroy(),
       () => this.resolvedDeps.databaseManager.destroy(),
     ];
 
@@ -153,39 +148,12 @@ export class CoreLifecycle {
 
   private async initCoreManagers(): Promise<void> {
     await this.resolvedDeps.databaseManager.initialize(this.paths.dbFile);
-    await this.resolvedDeps.skillManager.initialize({
-      userSkillsDir: this.paths.userSkillsDir,
-      systemSkillsDir: this.paths.skillsDir,
-    });
     await this.resolvedDeps.skillManager.loadAll(this.paths.userSkillsDir, this.paths.skillsDir);
     await this.resolvedDeps.roleManager.initialize({ rolesDir: this.paths.rolesDir });
     await this.resolvedDeps.roleManager.loadAll(this.paths.rolesDir);
   }
 
-  private async initAgentRuntime(): Promise<void> {
-    await this.resolvedDeps.llmAdapter.initialize({
-      configManager: this.resolvedDeps.configManager,
-    });
-
-    const promptBuilder = new PromptBuilder({
-      roleManager: this.resolvedDeps.roleManager,
-      skillManager: this.resolvedDeps.skillManager,
-      toolRegistry: this.resolvedDeps.toolRegistry,
-      toolHookDispatcher: this.resolvedDeps.pipeline.hookDispatcher,
-    });
-    await this.resolvedDeps.agentEngine.initialize({
-      llmAdapter: this.resolvedDeps.llmAdapter,
-      promptBuilder,
-    });
-
-    await this.resolvedDeps.sessionManager.initialize({
-      databaseManager: this.resolvedDeps.databaseManager,
-      roleManager: this.resolvedDeps.roleManager,
-      agentEngine: this.resolvedDeps.agentEngine,
-      configManager: this.resolvedDeps.configManager,
-      llmAdapter: this.resolvedDeps.llmAdapter,
-    });
-  }
+  private async initAgentRuntime(): Promise<void> {}
 
   private async initExtensionRuntime(): Promise<void> {
     await this.resolvedDeps.pipeline.initialize({
@@ -223,12 +191,6 @@ export class CoreLifecycle {
   }
 
   private async initPeripheralRuntime(): Promise<void> {
-    await this.resolvedDeps.mcpManager.initialize({
-      configManager: this.resolvedDeps.configManager,
-      toolRegistry: this.resolvedDeps.toolRegistry,
-      clientFactory: new SdkMcpClientFactory(),
-    });
-
     // 如果没有配置 MCP,则自动写入示例配置项
     const mcpConfig = this.resolvedDeps.configManager.get('mcp');
     if (mcpConfig.length === 0) {

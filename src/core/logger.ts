@@ -171,6 +171,9 @@ export function getRecentLogEntries(limit = 200): LogEntry[] {
 }
 
 export function clearRecentLogEntriesForTests(): void {
+  if (process.env['VITEST'] === undefined) {
+    throw new Error('clearRecentLogEntriesForTests 仅可在测试环境中使用');
+  }
   recentLogBuffer.length = 0;
   nextLogEntryId = 1;
 }

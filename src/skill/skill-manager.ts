@@ -17,17 +17,8 @@ import { parseSkillFile } from './skill-parser';
 
 const logger = createScopedLogger('skill');
 
-export type SkillManagerDependencies = { userSkillsDir: string; systemSkillsDir: string };
-
 export class SkillManager {
   private skills: Map<string, Skill> = new Map();
-  private deps: SkillManagerDependencies | null = null;
-
-  // ─── 生命周期 ────────────────────────────────────────────────
-
-  async initialize(deps: SkillManagerDependencies): Promise<void> {
-    this.deps = deps;
-  }
 
   /**
    * 从用户目录和系统目录加载所有技能文件。

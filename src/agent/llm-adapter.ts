@@ -2,40 +2,15 @@ import { getModel, streamSimple } from '@mariozechner/pi-ai';
 import type { Api, KnownProvider, Model } from '@mariozechner/pi-ai';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { ProviderConfig } from '@aesyclaw/core/config/schema';
-import { createScopedLogger } from '@aesyclaw/core/logger';
 import { parseModelIdentifier } from '@aesyclaw/core/utils';
-import { requireInitialized } from '@aesyclaw/core/utils';
 import type { ResolvedModel, StreamFn } from './agent-types';
 import { makeExtraBodyOnPayload } from './agent-types';
 
-const logger = createScopedLogger('llm-adapter');
-
-export type LlmAdapterDependencies = {
-  configManager: ConfigManager;
-};
-
 export class LlmAdapter {
-  private deps: LlmAdapterDependencies | null = null;
-
-  async initialize(deps: LlmAdapterDependencies): Promise<void> {
-    if (this.deps) {
-      logger.warn('LlmAdapter 已初始化 — 跳过');
-      return;
-    }
-    this.deps = deps;
-    logger.info('LlmAdapter 已初始化');
-  }
-
-  destroy(): void {
-    this.deps = null;
-  }
-
-  private requireDeps(): LlmAdapterDependencies {
-    return requireInitialized(this.deps, 'LlmAdapter');
-  }
+  constructor(private configManager: ConfigManager) {}
 
   resolveModel(modelIdentifier: string): ResolvedModel {
-    const configManager = this.requireDeps().configManager;
+    const configManager = this.configManager;
 
     const { provider, modelId } = parseModelIdentifier(modelIdentifier);
     const providers = configManager.get('providers');
@@ -86,7 +61,7 @@ export class LlmAdapter {
     };
   }
 
-  createStreamFn(_modelIdentifier: string): StreamFn {
+  createStreamFn(): StreamFn {
     return (model, context, options) => {
       const runtimeModel = model as ResolvedModel;
       if (!runtimeModel.apiKey) {
@@ -103,10 +78,8 @@ export class LlmAdapter {
   }
 
   createGetApiKey(): (provider: string) => string | undefined {
-    const configManager = this.requireDeps().configManager;
-
     return (provider: string): string | undefined => {
-      const providers = configManager.get('providers');
+      const providers = this.configManager.get('providers');
       const providerConfig = providers[provider];
       return providerConfig?.apiKey;
     };

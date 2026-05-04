@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SessionManager } from '../../../src/agent/session-manager';
-import type { SessionManagerDependencies } from '../../../src/agent/session-manager';
+
 import type { SessionKey, RoleConfig } from '../../../src/core/types';
 import type { DatabaseManager } from '../../../src/core/database/database-manager';
 import type { RoleManager } from '../../../src/role/role-manager';
@@ -81,9 +81,7 @@ function makeMockAgent(): Agent {
   };
 }
 
-function makeMockDeps(
-  overrides: Partial<SessionManagerDependencies> = {},
-): SessionManagerDependencies {
+function makeMockDeps(overrides: Record<string, unknown> = {}) {
   const mockConfig = {
     server: { port: 3000, host: '0.0.0.0', logLevel: 'info' },
     providers: {
@@ -160,16 +158,30 @@ function makeMockDeps(
   };
 }
 
+function makeManager(overrides: Record<string, unknown> = {}) {
+  const deps = makeMockDeps(overrides);
+  return {
+    manager: new SessionManager(
+      deps.databaseManager,
+      deps.roleManager,
+      deps.agentEngine,
+      deps.configManager,
+      deps.llmAdapter,
+    ),
+    deps,
+  };
+}
+
 // ─── Tests ─────────────────────────────────────────────────────────
 
 describe('SessionManager', () => {
   let manager: SessionManager;
-  let deps: SessionManagerDependencies;
+  let deps: Record<string, unknown>;
 
   beforeEach(async () => {
-    manager = new SessionManager();
-    deps = makeMockDeps();
-    await manager.initialize(deps);
+    const result = makeManager();
+    manager = result.manager;
+    deps = result.deps;
   });
 
   // ─── getOrCreateSession ───────────────────────────────────────
@@ -205,11 +217,7 @@ describe('SessionManager', () => {
     it('should share pending creation for concurrent calls with the same key', async () => {
       const key = makeSessionKey();
       let resolveFindOrCreate:
-        | ((
-            value: Awaited<
-              ReturnType<SessionManagerDependencies['databaseManager']['sessions']['findOrCreate']>
-            >,
-          ) => void)
+        | ((value: Awaited<ReturnType<DatabaseManager['sessions']['findOrCreate']>>) => void)
         | null = null;
       (deps.databaseManager.sessions.findOrCreate as ReturnType<typeof vi.fn>).mockImplementation(
         () =>
@@ -259,13 +267,6 @@ describe('SessionManager', () => {
 
       expect(session.activeRole.id).toBe('default');
       expect(deps.roleManager.getDefaultRole).toHaveBeenCalled();
-    });
-
-    it('should throw if not initialized', async () => {
-      const uninitialized = new SessionManager();
-      await expect(uninitialized.getOrCreateSession(makeSessionKey())).rejects.toThrow(
-        'SessionManager 未初始化',
-      );
     });
   });
 
@@ -380,13 +381,6 @@ describe('SessionManager', () => {
       const key = makeSessionKey();
       await expect(manager.clearSession(key)).resolves.toBeUndefined();
     });
-
-    it('should throw if not initialized', async () => {
-      const uninitialized = new SessionManager();
-      await expect(uninitialized.clearSession(makeSessionKey())).rejects.toThrow(
-        'SessionManager 未初始化',
-      );
-    });
   });
 
   // ─── compactSession ───────────────────────────────────────────
@@ -413,13 +407,6 @@ describe('SessionManager', () => {
 
       expect(deps.databaseManager.sessions.findOrCreate).toHaveBeenCalledWith(key);
       expect(deps.databaseManager.messages.clearHistory).toHaveBeenCalledWith('session-uuid');
-    });
-
-    it('should throw if not initialized', async () => {
-      const uninitialized = new SessionManager();
-      await expect(uninitialized.resetSession(makeSessionKey())).rejects.toThrow(
-        'SessionManager 未初始化',
-      );
     });
   });
 
@@ -464,13 +451,6 @@ describe('SessionManager', () => {
     it('should throw if session not found', async () => {
       const key = makeSessionKey();
       await expect(manager.compactSession(key)).rejects.toThrow('未找到会话');
-    });
-
-    it('should throw if not initialized', async () => {
-      const uninitialized = new SessionManager();
-      await expect(uninitialized.compactSession(makeSessionKey())).rejects.toThrow(
-        'SessionManager 未初始化',
-      );
     });
   });
 
@@ -521,13 +501,6 @@ describe('SessionManager', () => {
     it('should throw if session not found', async () => {
       const key = makeSessionKey();
       await expect(manager.switchRole(key, 'analyst')).rejects.toThrow('未找到会话');
-    });
-
-    it('should throw if not initialized', async () => {
-      const uninitialized = new SessionManager();
-      await expect(uninitialized.switchRole(makeSessionKey(), 'analyst')).rejects.toThrow(
-        'SessionManager 未初始化',
-      );
     });
   });
 });
