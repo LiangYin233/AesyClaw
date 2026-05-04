@@ -1,5 +1,7 @@
 import { Agent as PiAgent } from '@mariozechner/pi-agent-core';
 import { randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { Worker } from 'node:worker_threads';
 import type {
   RoleConfig,
   InboundMessage,
@@ -18,6 +20,11 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 import { requireInitialized } from '@aesyclaw/core/utils';
 
 const logger = createScopedLogger('agent-engine');
+const WORKER_PATH = fileURLToPath(new URL('./agent-worker.ts', import.meta.url));
+
+function isTestEnv(): boolean {
+  return process.env['VITEST'] !== undefined || process.env['NODE_ENV'] === 'test';
+}
 
 export type AgentEngineDependencies = {
   llmAdapter: LlmAdapter;
@@ -110,38 +117,101 @@ export class AgentEngine {
     };
 
     const { prompt, tools } = deps.promptBuilder.buildSystemPrompt(role, executionContext);
-    agent.state.systemPrompt = prompt;
-    agent.state.tools = tools;
-    agent.state.model = deps.llmAdapter.resolveModel(role.model);
+    const model = deps.llmAdapter.resolveModel(role.model);
 
-    const { newMessages, lastAssistant } = await this.promptAgent(agent, history, content);
-    await memory.syncFromAgent(newMessages);
+    // 测试环境回退内联 PiAgent（Worker 无法访问 vitest loader）
+    if (isTestEnv()) {
+      agent.state.systemPrompt = prompt;
+      agent.state.tools = tools;
+      agent.state.model = model;
+      const result = await this.promptAgent(agent, history, content);
+      await memory.syncFromAgent(result.newMessages);
 
-    if (lastAssistant) {
-      return { components: [{ type: 'Plain', text: lastAssistant }] };
+      if (result.lastAssistant) {
+        return { components: [{ type: 'Plain', text: result.lastAssistant }] };
+      }
+
+      logger.warn('Agent 未生成助手文本回复', {
+        role: role.id,
+        toolCountInPrompt: tools.length,
+      });
+
+      return { components: [{ type: 'Plain', text: '[未生成回复]' }] };
     }
 
-    const lastMessage =
-      newMessages[newMessages.length - 1] ?? agent.state.messages[agent.state.messages.length - 1];
+    // 生产环境：在独立 Worker 线程中运行 PiAgent
+    const toolMap = new Map(tools.map((t) => [t.name, t]));
+    const worker = new Worker(WORKER_PATH);
 
-    logger.warn('Agent 未生成助手文本回复', {
-      role: role.id,
-      toolCountInPrompt: tools.length,
-    });
+    try {
+      const workerResult = await new Promise<{
+        newMessages: AgentMessage[];
+        lastAssistant: string | null;
+      }>((resolve, reject) => {
+        worker.on('message', async (msg: any) => {
+          if (msg.type === 'done') {
+            resolve({
+              newMessages: msg.newMessages as AgentMessage[],
+              lastAssistant: msg.lastAssistant as string | null,
+            });
+          } else if (msg.type === 'toolCall') {
+            const tool = toolMap.get(msg.toolName);
+            if (!tool) {
+              worker.postMessage({
+                type: 'toolResult',
+                callId: msg.callId,
+                error: `工具 "${msg.toolName}" 未找到`,
+              });
+              return;
+            }
+            try {
+              const result = await tool.execute(msg.toolCallId as string, msg.params);
+              worker.postMessage({ type: 'toolResult', callId: msg.callId, result });
+            } catch (err) {
+              worker.postMessage({
+                type: 'toolResult',
+                callId: msg.callId,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
+          } else if (msg.type === 'fatal') {
+            reject(new Error(msg.message as string));
+          }
+        });
+        worker.on('error', reject);
 
-    return {
-      components: [
-        {
-          type: 'Plain',
-          text:
-            lastMessage !== undefined &&
-            lastMessage.role !== 'user' &&
-            extractMessageText(lastMessage).trim().length > 0
-              ? extractMessageText(lastMessage)
-              : '[未生成回复]',
-        },
-      ],
-    };
+        worker.postMessage({
+          type: 'init',
+          systemPrompt: prompt,
+          model,
+          apiKey: model.apiKey,
+          tools: tools.map((t) => ({
+            name: t.name,
+            description: t.description,
+            parameters: t.parameters,
+          })),
+          history,
+          content,
+          extraBody: model.extraBody,
+          sessionId: `worker:${role.id}:${Date.now()}`,
+        });
+      });
+
+      await memory.syncFromAgent(workerResult.newMessages);
+
+      if (workerResult.lastAssistant) {
+        return { components: [{ type: 'Plain', text: workerResult.lastAssistant }] };
+      }
+
+      logger.warn('Agent 未生成助手文本回复', {
+        role: role.id,
+        toolCountInPrompt: tools.length,
+      });
+
+      return { components: [{ type: 'Plain', text: '[未生成回复]' }] };
+    } finally {
+      worker.terminate();
+    }
   }
 
   async processEphemeral(params: ProcessEphemeralParams): Promise<OutboundMessage> {
