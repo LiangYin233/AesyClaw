@@ -27,7 +27,7 @@ function makeConfigWithProviders(providers: Record<string, unknown> = {}): AppCo
     server: { port: 3000, host: '0.0.0.0', logLevel: 'info' },
     providers: {
       openai: {
-        apiType: 'openai_responses',
+        apiType: 'openai-responses',
         apiKey: 'sk-test-key',
         baseUrl: 'https://api.openai.com/v1',
         models: {
@@ -36,7 +36,7 @@ function makeConfigWithProviders(providers: Record<string, unknown> = {}): AppCo
         },
       },
       anthropic: {
-        apiType: 'anthropic',
+        apiType: 'anthropic-messages',
         apiKey: 'sk-ant-test-key',
         baseUrl: 'https://api.anthropic.com',
         models: {
@@ -123,7 +123,7 @@ describe('LlmAdapter', () => {
       vi.stubEnv('OPENAI_API_KEY', 'env-key-must-not-be-used');
       const config = makeConfigWithProviders({
         custom: {
-          apiType: 'openai_responses',
+          apiType: 'openai-responses',
         },
       });
       const customAdapter = new LlmAdapter();

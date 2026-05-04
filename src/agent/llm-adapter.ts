@@ -6,7 +6,6 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 import { parseModelIdentifier } from '@aesyclaw/core/utils';
 import { requireInitialized } from '@aesyclaw/core/utils';
 import type { ResolvedModel, StreamFn, AgentMessage } from './agent-types';
-import { ApiType } from './agent-types';
 import { summarizeConversation, analyzeImage, transcribeAudio } from './llm-features';
 import type { ImageAnalysisInput, AudioTranscriptionInput } from './llm-features';
 
@@ -24,12 +23,6 @@ function makeExtraBodyOnPayload(model: ResolvedModel): ((payload: unknown) => un
     return payload;
   };
 }
-
-const API_TYPE_MAP: Record<ProviderConfig['apiType'], Api> = {
-  openai_responses: ApiType.OPENAI_RESPONSES,
-  openai_completion: ApiType.OPENAI_COMPLETIONS,
-  anthropic: ApiType.ANTHROPIC_MESSAGES,
-};
 
 export type LlmAdapterDependencies = {
   configManager: ConfigManager;
@@ -72,7 +65,7 @@ export class LlmAdapter {
     }
 
     const preset = providerConfig.models?.[modelId];
-    const apiType = API_TYPE_MAP[providerConfig.apiType];
+    const apiType = providerConfig.apiType;
     const builtInModel = this.tryGetBuiltInModel(provider, modelId);
     const apiKey = providerConfig.apiKey;
 

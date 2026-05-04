@@ -8,14 +8,14 @@
 import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
 import { DEFAULTS } from '@aesyclaw/core/types';
+import { ApiType } from '../../agent/agent-types';
 
 // ─── Provider / Model ────────────────────────────────────────────
 
-/** API 协议类型 */
 const ApiProtocolSchema = Type.Union([
-  Type.Literal('openai_responses'),
-  Type.Literal('openai_completion'),
-  Type.Literal('anthropic'),
+  Type.Literal(ApiType.OPENAI_RESPONSES),
+  Type.Literal(ApiType.OPENAI_COMPLETIONS),
+  Type.Literal(ApiType.ANTHROPIC_MESSAGES),
 ]);
 
 /** 提供商内的模型能力预设 */

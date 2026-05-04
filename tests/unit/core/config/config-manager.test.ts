@@ -285,7 +285,7 @@ describe('ConfigManager', () => {
       await manager.update({
         providers: {
           openai: {
-            apiType: 'openai_responses',
+            apiType: 'openai-responses',
             apiKey: 'sk-openai',
             baseUrl: 'https://old.example.test',
             unknownProviderField: 'provider-future',
@@ -298,7 +298,7 @@ describe('ConfigManager', () => {
             },
           },
           anthropic: {
-            apiType: 'anthropic',
+            apiType: 'anthropic-messages',
             apiKey: 'sk-anthropic',
             models: {
               sonnet: { routingHint: 'balanced' },
@@ -320,7 +320,7 @@ describe('ConfigManager', () => {
 
       const providers = manager.get('providers') as Record<string, Record<string, unknown>>;
       expect(providers.openai).toMatchObject({
-        apiType: 'openai_responses',
+        apiType: 'openai-responses',
         apiKey: 'sk-openai',
         baseUrl: 'https://new.example.test',
         unknownProviderField: 'provider-future',
@@ -333,7 +333,7 @@ describe('ConfigManager', () => {
         unknownModelField: 'model-future',
       });
       expect(providers.anthropic).toMatchObject({
-        apiType: 'anthropic',
+        apiType: 'anthropic-messages',
         apiKey: 'sk-anthropic',
       });
     });
@@ -455,7 +455,7 @@ describe('ConfigManager', () => {
       });
 
       manager.registerDefaults('providers.test-provider', {
-        apiType: 'openai_responses',
+        apiType: 'openai-responses',
         apiKey: 123,
       } as never);
 

@@ -87,7 +87,7 @@ function makeMockDeps(
   const mockConfig = {
     server: { port: 3000, host: '0.0.0.0', logLevel: 'info' },
     providers: {
-      openai: { apiType: 'openai_responses', apiKey: 'test-key' },
+      openai: { apiType: 'openai-responses', apiKey: 'test-key' },
     },
     channels: {},
     agent: {

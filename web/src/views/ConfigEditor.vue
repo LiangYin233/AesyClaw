@@ -106,9 +106,9 @@
                   )
                 "
               >
-                <option value="openai_responses">openai_responses</option>
-                <option value="openai_completion">openai_completion</option>
-                <option value="anthropic">anthropic</option>
+                <option value="openai-responses">openai-responses</option>
+                <option value="openai-completions">openai-completions</option>
+                <option value="anthropic-messages">anthropic-messages</option>
               </select>
             </div>
             <div class="mb-5">
@@ -486,7 +486,7 @@ interface McpServerForm extends Record<string, unknown> {
   url?: string;
 }
 
-type ApiType = 'openai_responses' | 'openai_completion' | 'anthropic';
+type ApiType = 'openai-responses' | 'openai-completions' | 'anthropic-messages';
 
 interface ProviderModelForm extends Record<string, unknown> {
   key: string;
@@ -597,7 +597,7 @@ function addProvider() {
   }
   editableConfig.value = {
     ...editableConfig.value,
-    providers: { ...providers, [nextKey]: { apiType: 'openai_responses', models: {} } },
+    providers: { ...providers, [nextKey]: { apiType: 'openai-responses', models: {} } },
   };
 }
 
@@ -625,7 +625,7 @@ function renameProvider(oldKey: string, newKeyRaw: string) {
 function updateProviderField(providerKey: string, key: 'apiType', value: unknown) {
   updateProvider(providerKey, (provider) => ({
     ...provider,
-    [key]: isApiType(value) ? value : 'openai_responses',
+    [key]: isApiType(value) ? value : 'openai-responses',
   }));
 }
 
@@ -848,7 +848,7 @@ function normalizeProvider(key: string, value: unknown): ProviderForm {
   return {
     ...source,
     key,
-    apiType: isApiType(source['apiType']) ? source['apiType'] : 'openai_responses',
+    apiType: isApiType(source['apiType']) ? source['apiType'] : 'openai-responses',
     baseUrl: typeof source['baseUrl'] === 'string' ? source['baseUrl'] : undefined,
     apiKey: typeof source['apiKey'] === 'string' ? source['apiKey'] : undefined,
     models: normalizeProviderModels(source['models']),
@@ -900,7 +900,7 @@ function isMcpTransport(value: unknown): value is McpTransport {
 }
 
 function isApiType(value: unknown): value is ApiType {
-  return value === 'openai_responses' || value === 'openai_completion' || value === 'anthropic';
+  return value === 'openai-responses' || value === 'openai-completions' || value === 'anthropic-messages';
 }
 
 function toJson(value: unknown): string {
