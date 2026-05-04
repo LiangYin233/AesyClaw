@@ -275,24 +275,6 @@ export class AgentEngine {
     }
     return history;
   }
-
-  /**
-   * 向 agent 发送提示词并提取响应。
-   *
-   * 设置 agent.state.messages、调用 prompt() 并返回生成的消息
-   * 切片，以及找到的最后一条助手文本（如果有）。
-   */
-  private async promptAgent(
-    agent: Agent,
-    history: AgentMessage[],
-    content: string,
-  ): Promise<{ newMessages: AgentMessage[]; lastAssistant: string | null }> {
-    agent.state.messages = history;
-    await agent.prompt(content);
-    await agent.waitForIdle();
-    const newMessages = agent.state.messages.slice(history.length);
-    return { newMessages, lastAssistant: findLastAssistantText(newMessages) };
-  }
 }
 
 function findLastAssistantText(messages: AgentMessage[]): string | null {

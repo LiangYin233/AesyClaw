@@ -103,7 +103,7 @@ const AppConfigSchema = Type.Object({
 type AppConfig = Static<typeof AppConfigSchema>;
 
 export {
-  // Schemas
+  // 模式
   ApiProtocolSchema,
   ModelPresetSchema,
   ProviderConfigSchema,
@@ -114,7 +114,7 @@ export {
   McpServerConfigSchema,
   PluginConfigEntrySchema,
   AppConfigSchema,
-  // Derived types
+  // 派生类型
   type ProviderConfig,
   type McpServerConfig,
   type PluginConfigEntry,

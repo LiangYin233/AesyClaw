@@ -14,7 +14,7 @@ const logger = createScopedLogger('database-manager');
 /**
  * 仓库 API 类型 — 由 DatabaseManager 在 `initialize()` 时一次性构造,
  * 供其它子系统直接消费。注释标注的类型也用作 *Like 鸭子接口的替代,
- * 让 MemoryManager / CronManager / SubAgentSandbox 等不再各自重声明
+ * 让 MemoryManager / CronManager 等不再各自重声明
  * 同样的子集类型。
  */
 export type SessionsRepository = {

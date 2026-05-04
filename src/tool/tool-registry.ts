@@ -202,6 +202,6 @@ export function filterToolsByRole(tools: AesyClawTool[], role: RoleConfig): Aesy
     return tools.filter((tool) => list.includes(tool.name));
   }
 
-  // denylist mode
+  // 黑名单模式
   return tools.filter((tool) => !list.includes(tool.name));
 }

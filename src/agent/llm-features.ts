@@ -2,8 +2,8 @@
  * LLM Features — 使用已解析模型的独立 LLM 操作函数。
  *
  * 与 llm-adapter.ts 分开以保持职责单一:
- * - llm-adapter: model resolution + streaming
- * - llm-features: summarize / analyzeImage / transcribeAudio
+ * - llm-adapter: 模型解析与流式传输
+ * - llm-features: 对话总结 / 图片分析 / 音频转写
  */
 
 import { completeSimple } from '@mariozechner/pi-ai';

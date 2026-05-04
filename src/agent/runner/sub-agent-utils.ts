@@ -1,8 +1,5 @@
 /**
- * Sub-Agent 工具函数 — 纯函数，替代 SubAgentSandbox 类。
- *
- * applyToolOverride 阻止子 Agent 递归调用子 Agent。
- * createTempSubAgentRole 从临时提示词构建 RoleConfig。
+ * 子 Agent 工具函数 — 纯函数，用于控制子 Agent 的权限和临时角色创建。
  */
 
 import { randomUUID } from 'node:crypto';
