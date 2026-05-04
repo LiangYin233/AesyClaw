@@ -55,19 +55,6 @@ export type AfterToolCallHookResult = {
   override?: Partial<ToolExecutionResult>;
 };
 
-export type SubAgentRoleParams = {
-  roleId: string;
-  prompt: string;
-  enableTools?: boolean;
-};
-
-export type SubAgentTempParams = {
-  systemPrompt: string;
-  model?: string;
-  prompt: string;
-  enableTools?: boolean;
-};
-
 export type MemoryConfig = {
   maxContextTokens: number;
   compressionThreshold: number;
