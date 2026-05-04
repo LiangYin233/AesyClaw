@@ -60,6 +60,8 @@ export type MemoryConfig = {
   compressionThreshold: number;
 };
 
+export const API_OPENAI_RESPONSES = 'openai-responses' as const;
+
 const ZERO_USAGE: Usage = {
   input: 0,
   output: 0,
@@ -106,7 +108,7 @@ export function createPersistedAssistantMessage(
   return {
     role: 'assistant',
     content: [{ type: 'text', text: content }],
-    api: 'openai-responses',
+    api: API_OPENAI_RESPONSES,
     provider: 'persisted-history',
     model: 'persisted-history',
     usage: ZERO_USAGE,

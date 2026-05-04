@@ -6,18 +6,9 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 import { parseModelIdentifier } from '@aesyclaw/core/utils';
 import { requireInitialized } from '@aesyclaw/core/utils';
 import type { ResolvedModel, StreamFn, AgentMessage } from './agent-types';
+import { API_OPENAI_RESPONSES } from './agent-types';
 import { summarizeConversation, analyzeImage, transcribeAudio } from './llm-features';
-
-export type ImageAnalysisInput = {
-  data: string;
-  mimeType: string;
-};
-
-export type AudioTranscriptionInput = {
-  data: Uint8Array;
-  mimeType: string;
-  fileName: string;
-};
+import type { ImageAnalysisInput, AudioTranscriptionInput } from './llm-features';
 
 const logger = createScopedLogger('llm-adapter');
 
@@ -35,7 +26,7 @@ function makeExtraBodyOnPayload(model: ResolvedModel): ((payload: unknown) => un
 }
 
 const API_TYPE_MAP = {
-  openai_responses: 'openai-responses',
+  openai_responses: API_OPENAI_RESPONSES,
   openai_completion: 'openai-completions',
   anthropic: 'anthropic-messages',
 } as const satisfies Record<ProviderConfig['apiType'], Api>;
