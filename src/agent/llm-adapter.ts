@@ -6,23 +6,11 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 import { parseModelIdentifier } from '@aesyclaw/core/utils';
 import { requireInitialized } from '@aesyclaw/core/utils';
 import type { ResolvedModel, StreamFn, AgentMessage } from './agent-types';
+import { makeExtraBodyOnPayload } from './agent-types';
 import { summarizeConversation, analyzeImage, transcribeAudio } from './llm-features';
 import type { ImageAnalysisInput, AudioTranscriptionInput } from './llm-features';
 
 const logger = createScopedLogger('llm-adapter');
-
-function makeExtraBodyOnPayload(model: ResolvedModel): ((payload: unknown) => unknown) | undefined {
-  const extraBody = model.extraBody;
-  if (!extraBody || Object.keys(extraBody).length === 0) {
-    return undefined;
-  }
-  return (payload: unknown) => {
-    if (typeof payload === 'object' && payload !== null) {
-      return { ...(payload as Record<string, unknown>), ...extraBody };
-    }
-    return payload;
-  };
-}
 
 export type LlmAdapterDependencies = {
   configManager: ConfigManager;
@@ -132,7 +120,7 @@ export class LlmAdapter {
     sessionId?: string,
   ): Promise<string> {
     const model = this.resolveModel(modelIdentifier);
-    return await summarizeConversation(model, messages, sessionId, makeExtraBodyOnPayload(model));
+    return await summarizeConversation(model, messages, sessionId);
   }
 
   async analyzeImage(
@@ -142,7 +130,7 @@ export class LlmAdapter {
     sessionId?: string,
   ): Promise<string> {
     const model = this.resolveModel(modelIdentifier);
-    return await analyzeImage(model, question, image, sessionId, makeExtraBodyOnPayload(model));
+    return await analyzeImage(model, question, image, sessionId);
   }
 
   async transcribeAudio(

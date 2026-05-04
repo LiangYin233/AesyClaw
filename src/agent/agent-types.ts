@@ -66,6 +66,30 @@ export const ApiType = {
   ANTHROPIC_MESSAGES: 'anthropic-messages',
 } as const satisfies Record<string, Api>;
 
+/**
+ * 根据 ResolvedModel 的 extraBody 构造 onPayload 回调。
+ *
+ * 如果 extraBody 为空或未定义，返回 undefined（不修改 payload）。
+ * 否则返回一个浅合并函数：{ ...payload, ...extraBody }。
+ *
+ * @param model - 已解析的模型配置
+ * @returns onPayload 回调或 undefined
+ */
+export function makeExtraBodyOnPayload(
+  model: ResolvedModel,
+): ((payload: unknown) => unknown) | undefined {
+  const extraBody = model.extraBody;
+  if (!extraBody || Object.keys(extraBody).length === 0) {
+    return undefined;
+  }
+  return (payload: unknown) => {
+    if (typeof payload === 'object' && payload !== null) {
+      return { ...(payload as Record<string, unknown>), ...extraBody };
+    }
+    return payload;
+  };
+}
+
 const ZERO_USAGE: Usage = {
   input: 0,
   output: 0,

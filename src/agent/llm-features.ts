@@ -7,7 +7,7 @@
  */
 
 import { completeSimple } from '@mariozechner/pi-ai';
-import { ApiType, extractMessageText } from './agent-types';
+import { ApiType, extractMessageText, makeExtraBodyOnPayload } from './agent-types';
 import type { AgentMessage, ResolvedModel } from './agent-types';
 
 export type ImageAnalysisInput = {
@@ -25,7 +25,6 @@ export async function summarizeConversation(
   model: ResolvedModel,
   messages: AgentMessage[],
   sessionId?: string,
-  onPayload?: (payload: unknown) => unknown,
 ): Promise<string> {
   const prompt = buildSummaryPrompt(messages);
 
@@ -61,7 +60,7 @@ export async function summarizeConversation(
     {
       apiKey: model.apiKey,
       sessionId,
-      onPayload,
+      onPayload: makeExtraBodyOnPayload(model),
     },
   );
 
@@ -78,7 +77,6 @@ export async function analyzeImage(
   question: string,
   image: ImageAnalysisInput,
   sessionId?: string,
-  onPayload?: (payload: unknown) => unknown,
 ): Promise<string> {
   if (!model.input.includes('image')) {
     throw new Error(`配置的模型 "${model.modelId}" 不支持图像输入`);
@@ -101,7 +99,7 @@ export async function analyzeImage(
     {
       apiKey: model.apiKey,
       sessionId,
-      onPayload,
+      onPayload: makeExtraBodyOnPayload(model),
     },
   );
 
