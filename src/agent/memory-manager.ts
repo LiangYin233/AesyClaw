@@ -22,10 +22,11 @@ import {
   createPersistedAssistantMessage,
   createUserMessage,
   extractMessageText,
+  makeExtraBodyOnPayload,
 } from './agent-types';
-import type { AgentMessage, MemoryConfig } from './agent-types';
+import type { AgentMessage, MemoryConfig, ResolvedModel } from './agent-types';
 import type { LlmAdapter } from './llm-adapter';
-import { summarizeConversation } from './llm-features';
+import { completeSimple } from '@mariozechner/pi-ai';
 import type {
   MessagesRepository,
   ToolUsageRepository,
@@ -171,7 +172,7 @@ export class MemoryManager {
     });
 
     const model = llmAdapter.resolveModel(modelIdentifier);
-    const summary = await summarizeConversation(model, messages, this.sessionId);
+    const summary = await this.summarizeConversation(model, messages);
 
     await this.messageRepo.replaceWithSummary(this.sessionId, summary);
 
@@ -341,5 +342,64 @@ export class MemoryManager {
       0,
     );
     return Math.ceil(textLength / 4);
+  }
+
+  private async summarizeConversation(
+    model: ResolvedModel,
+    messages: AgentMessage[],
+  ): Promise<string> {
+    const prompt = this.buildSummaryPrompt(messages);
+
+    const response = await completeSimple(
+      model,
+      {
+        systemPrompt: [
+          'You are a conversation archivist. Summarize the following dialogue into a compact record for future turns.',
+          'Output ONLY the summary in the following structure, using plain text:',
+          '',
+          '## Previous Discussion',
+          '- What has already been discussed with the user (topics, decisions made, conclusions reached)',
+          '',
+          '## Current Focus',
+          '- What is being worked on or discussed right now (the active task or question)',
+          '',
+          '## Next Steps',
+          '- What remains to be done, unresolved questions, or pending follow-ups',
+          '',
+          '## Notes',
+          '- Special constraints, important facts, user preferences, tool results, file paths, or any context critical for continuity',
+          '',
+          'Keep each section concise. Do not mention that you are summarizing or refer to missing context.',
+        ].join('\n'),
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+            timestamp: Date.now(),
+          },
+        ],
+      },
+      {
+        apiKey: model.apiKey,
+        sessionId: this.sessionId,
+        onPayload: makeExtraBodyOnPayload(model),
+      },
+    );
+
+    const summary = extractMessageText(response).trim();
+    if (summary.length === 0) {
+      throw new Error('LLM 返回了空总结');
+    }
+
+    return summary;
+  }
+
+  private buildSummaryPrompt(messages: AgentMessage[]): string {
+    const transcript = messages
+      .map((message) => `${message.role.toUpperCase()}: ${extractMessageText(message).trim()}`)
+      .filter((line) => !line.endsWith(':'))
+      .join('\n\n');
+
+    return ['Conversation transcript:', '', transcript].join('\n');
   }
 }

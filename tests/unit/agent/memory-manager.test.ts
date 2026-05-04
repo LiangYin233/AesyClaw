@@ -10,12 +10,11 @@ import type { AgentMessage, MemoryConfig } from '../../../src/agent/agent-types'
 import { MemoryManager } from '../../../src/agent/memory-manager';
 import { createPersistedAssistantMessage, createUserMessage } from '../../../src/agent/agent-types';
 import type { MessageRepository } from '../../../src/core/database/repositories/message-repository';
-import { summarizeConversation } from '../../../src/agent/llm-features';
+import { completeSimple } from '@mariozechner/pi-ai';
 
-vi.mock('../../../src/agent/llm-features', async () => {
-  return {
-    summarizeConversation: vi.fn(),
-  };
+vi.mock('@mariozechner/pi-ai', async () => {
+  const actual = await vi.importActual('@mariozechner/pi-ai');
+  return { ...actual, completeSimple: vi.fn() };
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -322,12 +321,15 @@ describe('MemoryManager', () => {
 
       expect(result).toBe('会话历史太短，无需压缩。');
       expect(llmAdapter.resolveModel).not.toHaveBeenCalled();
-      expect(summarizeConversation).not.toHaveBeenCalled();
+      expect(completeSimple).not.toHaveBeenCalled();
       expect(messageRepo.replaceWithSummary).not.toHaveBeenCalled();
     });
 
     it('should summarize and replace history when enough messages exist', async () => {
-      vi.mocked(summarizeConversation).mockResolvedValue('Conversation summary: 5 messages');
+      vi.mocked(completeSimple).mockResolvedValue({
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Conversation summary: 5 messages' }],
+      });
 
       const longHistory = Array.from({ length: 10 }, (_, i) => ({
         role: i % 2 === 0 ? 'user' : ('assistant' as const),
@@ -343,11 +345,7 @@ describe('MemoryManager', () => {
       const result = await manager.compact(llmAdapter, 'openai/gpt-4o');
 
       expect(llmAdapter.resolveModel).toHaveBeenCalledWith('openai/gpt-4o');
-      expect(summarizeConversation).toHaveBeenCalledWith(
-        expect.objectContaining({ provider: 'openai', modelId: 'gpt-4o' }),
-        expect.any(Array),
-        sessionId,
-      );
+      expect(completeSimple).toHaveBeenCalled();
       expect(messageRepo.replaceWithSummary).toHaveBeenCalledWith(sessionId, result);
     });
   });
