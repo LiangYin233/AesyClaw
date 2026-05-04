@@ -57,7 +57,7 @@ describe('MemoryManager', () => {
   const sessionId = 'test-session-id';
 
   beforeEach(() => {
-    vi.mocked(summarizeConversation).mockReset();
+    vi.mocked(completeSimple).mockReset();
   });
 
   // ─── persistMessage filtering ─────────────────────────────────
