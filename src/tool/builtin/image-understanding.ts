@@ -5,6 +5,7 @@
  *
  */
 
+import { completeSimple } from '@mariozechner/pi-ai';
 import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
 import type {
@@ -16,7 +17,8 @@ import { errorMessage } from '@aesyclaw/core/utils';
 import type { ToolOwner } from '@aesyclaw/core/types';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
-import { analyzeImage } from '@aesyclaw/agent/llm-features';
+import { extractMessageText, makeExtraBodyOnPayload } from '@aesyclaw/agent/agent-types';
+import type { ResolvedModel } from '@aesyclaw/agent/agent-types';
 import { loadMediaSource } from './media-source';
 
 /** image_understanding 的参数模式 */
@@ -31,6 +33,50 @@ export type ImageUnderstandingDeps = {
   configManager: Pick<ConfigManager, 'get'>;
   llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
 };
+
+type ImageAnalysisInput = {
+  data: string;
+  mimeType: string;
+};
+
+async function analyzeImage(
+  model: ResolvedModel,
+  question: string,
+  image: ImageAnalysisInput,
+  sessionId?: string,
+): Promise<string> {
+  if (!model.input.includes('image')) {
+    throw new Error(`配置的模型 "${model.modelId}" 不支持图像输入`);
+  }
+
+  const response = await completeSimple(
+    model,
+    {
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: question },
+            { type: 'image', data: image.data, mimeType: image.mimeType },
+          ],
+          timestamp: Date.now(),
+        },
+      ],
+    },
+    {
+      apiKey: model.apiKey,
+      sessionId,
+      onPayload: makeExtraBodyOnPayload(model),
+    },
+  );
+
+  const answer = extractMessageText(response).trim();
+  if (answer.length === 0) {
+    throw new Error('LLM 返回了空图像分析回复');
+  }
+
+  return answer;
+}
 
 /**
  * 创建 image_understanding 工具定义。
