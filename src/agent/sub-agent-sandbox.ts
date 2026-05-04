@@ -7,8 +7,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { PersistableMessage, RoleConfig, SessionKey } from '@aesyclaw/core/types';
-import { getMessageText } from '@aesyclaw/core/types';
+import type { RoleConfig, SessionKey, PersistableMessage } from '@aesyclaw/core/types';
 import { MemoryManager } from './memory-manager';
 import type { MessagesRepository } from '@aesyclaw/core/database/database-manager';
 import type { SubAgentRoleParams, SubAgentTempParams } from './agent-types';
@@ -25,7 +24,7 @@ import type { LlmAdapter } from './llm-adapter';
  * 将在 Pi-mono Agent 集成可用时扩展。
  */
 export type SubAgentSandboxDependencies = {
-  agentEngine: Pick<AgentEngine, 'createAgent' | 'process'>;
+  agentEngine: Pick<AgentEngine, 'runAgentTurn'>;
   roleManager: Pick<RoleManager, 'getRole' | 'getDefaultRole'>;
   llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
 };
@@ -94,24 +93,17 @@ export class SubAgentSandbox {
       compressionThreshold: 0.8,
     });
     const sessionKey = executionContext?.sessionKey ?? EMPTY_SESSION_KEY;
-    const agent = this.deps.agentEngine.createAgent(role, sessionId, {
+
+    const result = await this.deps.agentEngine.runAgentTurn({
+      role,
+      content: prompt,
+      history: [],
       sessionKey,
       sendMessage: executionContext?.sendMessage,
     });
 
-    const outbound = await this.deps.agentEngine.process(
-      agent,
-      {
-        components: [{ type: 'Plain', text: prompt }],
-      },
-      sessionKey,
-      undefined,
-      memory,
-      role,
-      executionContext?.sendMessage,
-    );
-
-    return getMessageText(outbound);
+    await memory.syncFromAgent(result.newMessages);
+    return result.lastAssistant ?? '[子 Agent 无输出]';
   }
 
   private applyToolOverride(

@@ -7,7 +7,12 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Pipeline } from '../../../src/pipeline/pipeline';
-import type { InboundMessage, OutboundMessage, SessionKey, SenderInfo } from '../../../src/core/types';
+import type {
+  InboundMessage,
+  OutboundMessage,
+  SessionKey,
+  SenderInfo,
+} from '../../../src/core/types';
 import { getMessageText } from '../../../src/core/types';
 import type { PluginHooks } from '../../../src/pipeline/middleware/types';
 import { CommandRegistry } from '../../../src/command/command-registry';
@@ -22,14 +27,13 @@ function makeInbound(content = 'hello'): InboundMessage {
   };
 }
 
-function makeInboundContext(sessionKey: SessionKey = { channel: 'test', type: 'private', chatId: 'user1' }): { sessionKey: SessionKey; sender?: SenderInfo } {
+function makeInboundContext(
+  sessionKey: SessionKey = { channel: 'test', type: 'private', chatId: 'user1' },
+): { sessionKey: SessionKey; sender?: SenderInfo } {
   return { sessionKey };
 }
 
-function makeInboundForKey(
-  _sessionKey: SessionKey,
-  content = 'hello',
-): InboundMessage {
+function makeInboundForKey(_sessionKey: SessionKey, content = 'hello'): InboundMessage {
   return { components: [{ type: 'Plain', text: content }] };
 }
 
@@ -47,45 +51,43 @@ async function createPipelineDeps() {
   // Mock SessionManager that returns a minimal session context
   let processingSimulated = false;
   const mockSessionManager = {
-    getOrCreateSession: vi
-      .fn()
-        .mockImplementation(async (sessionKey: SessionKey) => ({
-        key: sessionKey,
-        sessionId: 'test-session',
-        activeRole: {
-          id: 'default',
-          name: 'Default',
-          description: 'Test role',
+    getOrCreateSession: vi.fn().mockImplementation(async (sessionKey: SessionKey) => ({
+      key: sessionKey,
+      sessionId: 'test-session',
+      activeRole: {
+        id: 'default',
+        name: 'Default',
+        description: 'Test role',
+        systemPrompt: 'You are a test assistant.',
+        model: 'openai/gpt-4o',
+        toolPermission: { mode: 'allowlist' as const, list: ['*'] },
+        skills: ['*' as const],
+        enabled: true,
+      },
+      agent: {
+        state: {
           systemPrompt: 'You are a test assistant.',
-          model: 'openai/gpt-4o',
-          toolPermission: { mode: 'allowlist' as const, list: ['*'] },
-          skills: ['*' as const],
-          enabled: true,
-        },
-        agent: {
-          state: {
-            systemPrompt: 'You are a test assistant.',
-            model: {
-              provider: 'openai',
-              modelId: 'gpt-4o',
-              contextWindow: 128000,
-              apiType: 'openai_responses',
-            },
-            tools: [],
-            messages: [],
+          model: {
+            provider: 'openai',
+            modelId: 'gpt-4o',
+            contextWindow: 128000,
+            apiType: 'openai_responses',
           },
-          prompt: vi.fn(),
-          waitForIdle: vi.fn().mockResolvedValue(undefined),
-          reset: vi.fn(),
+          tools: [],
+          messages: [],
         },
-        memory: {
-          loadHistory: vi.fn().mockResolvedValue([]),
-          persistMessage: vi.fn().mockResolvedValue(undefined),
-          syncFromAgent: vi.fn().mockResolvedValue(undefined),
-          compact: vi.fn().mockResolvedValue(''),
-          clear: vi.fn().mockResolvedValue(undefined),
-        },
-      })),
+        prompt: vi.fn(),
+        waitForIdle: vi.fn().mockResolvedValue(undefined),
+        reset: vi.fn(),
+      },
+      memory: {
+        loadHistory: vi.fn().mockResolvedValue([]),
+        persistMessage: vi.fn().mockResolvedValue(undefined),
+        syncFromAgent: vi.fn().mockResolvedValue(undefined),
+        compact: vi.fn().mockResolvedValue(''),
+        clear: vi.fn().mockResolvedValue(undefined),
+      },
+    })),
     getSession: vi.fn().mockReturnValue(undefined),
     resetSession: vi.fn().mockResolvedValue(undefined),
     clearSession: vi.fn().mockResolvedValue(undefined),
@@ -214,7 +216,7 @@ describe('Pipeline', () => {
 
       const processMock = deps.agentEngine.process as ReturnType<typeof vi.fn>;
       expect(processMock).toHaveBeenCalled();
-      expect(processMock.mock.calls[0]?.[6]).toEqual(expect.any(Function));
+      expect(processMock.mock.calls[0]?.[4]).toEqual(expect.any(Function));
     });
 
     it('should propagate processing errors after logging them', async () => {
@@ -252,7 +254,8 @@ describe('Pipeline', () => {
       (deps.agentEngine.process as ReturnType<typeof vi.fn>).mockImplementation(
         async () =>
           await new Promise((resolve) => {
-            releaseProcess = () => resolve({ components: [{ type: 'Plain', text: 'Agent response' }] });
+            releaseProcess = () =>
+              resolve({ components: [{ type: 'Plain', text: 'Agent response' }] });
           }),
       );
       await pipeline.initialize(deps);
@@ -265,11 +268,15 @@ describe('Pipeline', () => {
       await receiveWithSend(pipeline, makeInbound('second'), secondSend);
 
       expect(deps.agentEngine.process).toHaveBeenCalledTimes(1);
-      expect(secondSend).toHaveBeenCalledWith({ components: [{ type: 'Plain', text: 'Agent处理任务中。' }] });
+      expect(secondSend).toHaveBeenCalledWith({
+        components: [{ type: 'Plain', text: 'Agent处理任务中。' }],
+      });
 
       releaseProcess?.();
       await first;
-      expect(firstSend).toHaveBeenCalledWith({ components: [{ type: 'Plain', text: 'Agent response' }] });
+      expect(firstSend).toHaveBeenCalledWith({
+        components: [{ type: 'Plain', text: 'Agent response' }],
+      });
     });
 
     it('should allow later ordinary processing after the busy lock is released', async () => {
@@ -336,9 +343,15 @@ describe('Pipeline', () => {
       );
 
       expect(deps.agentEngine.process).toHaveBeenCalledTimes(3);
-      expect(differentChatSend).toHaveBeenCalledWith({ components: [{ type: 'Plain', text: 'Agent response' }] });
-      expect(differentChannelSend).toHaveBeenCalledWith({ components: [{ type: 'Plain', text: 'Agent response' }] });
-      expect(cronSend).toHaveBeenCalledWith({ components: [{ type: 'Plain', text: 'Agent response' }] });
+      expect(differentChatSend).toHaveBeenCalledWith({
+        components: [{ type: 'Plain', text: 'Agent response' }],
+      });
+      expect(differentChannelSend).toHaveBeenCalledWith({
+        components: [{ type: 'Plain', text: 'Agent response' }],
+      });
+      expect(cronSend).toHaveBeenCalledWith({
+        components: [{ type: 'Plain', text: 'Agent response' }],
+      });
     });
   });
 
@@ -402,7 +415,10 @@ describe('Pipeline', () => {
       await pipeline.initialize(deps);
 
       const hooks: PluginHooks = {
-        onReceive: async () => ({ action: 'respond' as const, components: [{ type: 'Plain', text: 'direct hook reply' }] }),
+        onReceive: async () => ({
+          action: 'respond' as const,
+          components: [{ type: 'Plain', text: 'direct hook reply' }],
+        }),
       };
       pipeline.hookDispatcher.register('responder', hooks);
 
@@ -435,7 +451,10 @@ describe('Pipeline', () => {
       await pipeline.initialize(deps);
 
       const hooks: PluginHooks = {
-        onSend: async () => ({ action: 'respond' as const, components: [{ type: 'Plain', text: 'modified output' }] }),
+        onSend: async () => ({
+          action: 'respond' as const,
+          components: [{ type: 'Plain', text: 'modified output' }],
+        }),
       };
       pipeline.hookDispatcher.register('modifier', hooks);
 
@@ -471,7 +490,10 @@ describe('Pipeline', () => {
 
       const processMock = deps.agentEngine.process as ReturnType<typeof vi.fn>;
       pipeline.hookDispatcher.register('llm-responder', {
-        beforeLLMRequest: async () => ({ action: 'respond' as const, components: [{ type: 'Plain', text: 'cached answer' }] }),
+        beforeLLMRequest: async () => ({
+          action: 'respond' as const,
+          components: [{ type: 'Plain', text: 'cached answer' }],
+        }),
       });
 
       const sent: OutboundMessage[] = [];

@@ -60,10 +60,8 @@ export async function agentProcessor(
 
   try {
     const outbound = await agentEngine.process(
-      session.agent,
       state.inbound,
       state.sessionKey,
-      state.sender,
       session.memory,
       session.activeRole,
       state.sendMessage,

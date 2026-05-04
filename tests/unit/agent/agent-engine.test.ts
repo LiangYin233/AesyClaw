@@ -211,8 +211,12 @@ describe('AgentEngine', () => {
         compressionThreshold: 0.8,
       });
 
-      const agent = engine.createAgent(role, 'test-session');
-      const result = await engine.process(agent, makeInboundMessage(), makeInboundContext().sessionKey, makeInboundContext().sender, memory, role);
+      const result = await engine.process(
+        makeInboundMessage(),
+        makeInboundContext().sessionKey,
+        memory,
+        role,
+      );
 
       expect(getMessageText(result)).toBe('Real response from pi runtime');
       expect(messageRepo.save).toHaveBeenCalledTimes(2);
@@ -236,14 +240,18 @@ describe('AgentEngine', () => {
         compressionThreshold: 0.8,
       });
 
-      const agent = runtimeEngine.createAgent(role, 'test-session');
-      expect(agent.state.tools[0]?.name).toBe('initial-tool');
+      // createAgent 触发第一次 buildSystemPrompt
+      runtimeEngine.createAgent(role, 'test-session');
+      expect(deps.promptBuilder.buildSystemPrompt).toHaveBeenCalledTimes(1);
 
-      const result = await runtimeEngine.process(agent, makeInboundMessage(), makeInboundContext().sessionKey, makeInboundContext().sender, memory, role);
+      const result = await runtimeEngine.process(
+        makeInboundMessage(),
+        makeInboundContext().sessionKey,
+        memory,
+        role,
+      );
 
       expect(getMessageText(result)).toBe('Real response from pi runtime');
-      expect(agent.state.tools).toHaveLength(1);
-      expect(agent.state.tools[0]?.name).toBe('refreshed-tool');
       expect(deps.promptBuilder.buildSystemPrompt).toHaveBeenNthCalledWith(2, role, {
         sessionKey: makeInboundContext().sessionKey,
         sendMessage: undefined,
@@ -262,10 +270,15 @@ describe('AgentEngine', () => {
         maxContextTokens: 128000,
         compressionThreshold: 0.8,
       });
-      const agent = runtimeEngine.createAgent(role, 'test-session');
       const sendMessage = vi.fn().mockResolvedValue(true);
 
-      await runtimeEngine.process(agent, makeInboundMessage(), makeInboundContext().sessionKey, makeInboundContext().sender, memory, role, sendMessage);
+      await runtimeEngine.process(
+        makeInboundMessage(),
+        makeInboundContext().sessionKey,
+        memory,
+        role,
+        sendMessage,
+      );
 
       expect(deps.promptBuilder.buildSystemPrompt).toHaveBeenLastCalledWith(role, {
         sessionKey: makeInboundContext().sessionKey,
@@ -287,8 +300,7 @@ describe('AgentEngine', () => {
         compressionThreshold: 0.8,
       });
 
-      const agent = engine.createAgent(role, 'test-session');
-      await engine.process(agent, makeInboundMessage(), makeInboundContext().sessionKey, makeInboundContext().sender, memory, role);
+      await engine.process(makeInboundMessage(), makeInboundContext().sessionKey, memory, role);
 
       expect(messageRepo.save).toHaveBeenCalledTimes(2);
       expect(messageRepo.save).toHaveBeenCalledWith(

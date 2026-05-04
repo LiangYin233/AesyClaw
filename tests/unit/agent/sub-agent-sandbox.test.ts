@@ -1,7 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createPersistedAssistantMessage, createUserMessage } from '../../../src/agent/agent-types';
 import { SubAgentSandbox } from '../../../src/agent/sub-agent-sandbox';
-import { getMessageText } from '../../../src/core/types';
 
 const ROLE = {
   id: 'researcher',
@@ -20,16 +18,14 @@ const MOCK_LLM_ADAPTER = {
 
 describe('SubAgentSandbox', () => {
   it('uses isolated in-memory history for each delegated run', async () => {
+    let callCount = 0;
     const agentEngine = {
-      createAgent: vi.fn().mockReturnValue({ state: {} }),
-      process: vi.fn().mockImplementation(async (_agent, message, _sessionKey, _sender, memory) => {
-        const historyBefore = await memory.loadHistory();
-        await memory.syncFromAgent([
-          createUserMessage(getMessageText(message)),
-          createPersistedAssistantMessage('delegated answer'),
-        ]);
-
-        return { components: [{ type: 'Plain', text: `history:${historyBefore.length}` }] };
+      runAgentTurn: vi.fn().mockImplementation(() => {
+        callCount += 1;
+        return Promise.resolve({
+          newMessages: [],
+          lastAssistant: `history:0-call${callCount}`,
+        });
       }),
     };
 
@@ -43,20 +39,28 @@ describe('SubAgentSandbox', () => {
     });
 
     await expect(sandbox.runWithRole({ roleId: 'researcher', prompt: 'first' })).resolves.toBe(
-      'history:0',
+      'history:0-call1',
     );
     await expect(sandbox.runWithRole({ roleId: 'researcher', prompt: 'second' })).resolves.toBe(
-      'history:0',
+      'history:0-call2',
     );
     await expect(
       sandbox.runWithPrompt({ systemPrompt: 'Temporary prompt', prompt: 'third' }),
-    ).resolves.toBe('history:0');
+    ).resolves.toBe('history:0-call3');
+
+    expect(agentEngine.runAgentTurn).toHaveBeenCalledTimes(3);
+    // All calls should pass empty history (isolated runs)
+    for (const call of agentEngine.runAgentTurn.mock.calls) {
+      expect(call[0].history).toEqual([]);
+    }
   });
 
   it('applies disabled tools control to sub-agent', async () => {
     const agentEngine = {
-      createAgent: vi.fn().mockReturnValue({ state: {} }),
-      process: vi.fn().mockResolvedValue({ components: [{ type: 'Plain', text: 'delegated answer' }] }),
+      runAgentTurn: vi.fn().mockResolvedValue({
+        newMessages: [],
+        lastAssistant: 'delegated answer',
+      }),
     };
     const roleManager = {
       getRole: vi.fn().mockReturnValue(ROLE),
@@ -72,22 +76,15 @@ describe('SubAgentSandbox', () => {
       }),
     ).resolves.toBe('delegated answer');
 
-    expect(agentEngine.createAgent).toHaveBeenCalledWith(
+    expect(agentEngine.runAgentTurn).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'researcher',
-        toolPermission: { mode: 'allowlist', list: [] },
+        role: expect.objectContaining({
+          id: 'researcher',
+          toolPermission: { mode: 'allowlist', list: [] },
+        }),
+        history: [],
+        content: 'bounded',
       }),
-      expect.any(String),
-      expect.any(Object),
-    );
-    expect(agentEngine.process).toHaveBeenCalledWith(
-      expect.any(Object),
-      expect.objectContaining({ components: [{ type: 'Plain', text: 'bounded' }] }),
-      expect.any(Object),
-      undefined,
-      expect.any(Object),
-      expect.objectContaining({ toolPermission: { mode: 'allowlist', list: [] } }),
-      undefined,
     );
   });
 });
