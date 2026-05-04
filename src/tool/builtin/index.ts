@@ -22,7 +22,7 @@ import { createRunTempSubAgentTool } from './run-temp-sub-agent';
 import { createSpeechToTextTool } from './speech-to-text';
 import { createImageUnderstandingTool } from './image-understanding';
 import { createLoadSkillTool } from './load-skill';
-import { SubAgentSandbox } from '@aesyclaw/agent/sub-agent-sandbox';
+import { SubAgentSandbox } from '@aesyclaw/agent/runner/sub-agent-sandbox';
 
 /**
  * 内置工具的依赖。

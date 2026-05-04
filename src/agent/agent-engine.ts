@@ -13,7 +13,7 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 import { requireInitialized } from '@aesyclaw/core/utils';
 
 const logger = createScopedLogger('agent-engine');
-const WORKER_PATH = fileURLToPath(new URL('./agent-worker.ts', import.meta.url));
+const WORKER_PATH = fileURLToPath(new URL('./runner/agent-worker.ts', import.meta.url));
 
 function isTestEnv(): boolean {
   return process.env['VITEST'] !== undefined || process.env['NODE_ENV'] === 'test';

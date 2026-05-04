@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SubAgentSandbox } from '../../../src/agent/sub-agent-sandbox';
+import { SubAgentSandbox } from '../../../src/agent/runner/sub-agent-sandbox';
 
 const ROLE = {
   id: 'researcher',

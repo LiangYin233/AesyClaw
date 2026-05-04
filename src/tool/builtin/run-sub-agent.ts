@@ -14,7 +14,7 @@ import type {
 } from '@aesyclaw/tool/tool-registry';
 import { errorMessage } from '@aesyclaw/core/utils';
 import type { ToolOwner } from '@aesyclaw/core/types';
-import type { SubAgentSandbox } from '@aesyclaw/agent/sub-agent-sandbox';
+import type { SubAgentSandbox } from '@aesyclaw/agent/runner/sub-agent-sandbox';
 
 /** run_sub_agent 的参数模式 */
 const RunSubAgentParamsSchema = Type.Object({

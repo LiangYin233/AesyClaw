@@ -6,8 +6,8 @@
 
 import { randomUUID } from 'node:crypto';
 import type { RoleConfig, SessionKey } from '@aesyclaw/core/types';
-import type { SubAgentRoleParams, SubAgentTempParams } from './agent-types';
-import type { AgentEngine } from './agent-engine';
+import type { SubAgentRoleParams, SubAgentTempParams } from '../agent-types';
+import type { AgentEngine } from '../agent-engine';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { ToolExecutionContext } from '@aesyclaw/tool/tool-registry';
 

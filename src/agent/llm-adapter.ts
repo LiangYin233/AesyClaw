@@ -1,12 +1,12 @@
-import { completeSimple, getModel, streamSimple } from '@mariozechner/pi-ai';
+import { getModel, streamSimple } from '@mariozechner/pi-ai';
 import type { Api, KnownProvider, Model } from '@mariozechner/pi-ai';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { ProviderConfig } from '@aesyclaw/core/config/schema';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { parseModelIdentifier } from '@aesyclaw/core/utils';
 import { requireInitialized } from '@aesyclaw/core/utils';
-import { extractMessageText } from './agent-types';
 import type { ResolvedModel, StreamFn, AgentMessage } from './agent-types';
+import { summarizeConversation, analyzeImage, transcribeAudio } from './llm-features';
 
 export type ImageAnalysisInput = {
   data: string;
@@ -148,62 +148,7 @@ export class LlmAdapter {
     sessionId?: string,
   ): Promise<string> {
     const model = this.resolveModel(modelIdentifier);
-    const prompt = this.buildSummaryPrompt(messages);
-
-    logger.debug('正在总结对话历史', {
-      messageCount: messages.length,
-      model: modelIdentifier,
-      sessionId,
-    });
-
-    try {
-      const response = await completeSimple(
-        model,
-        {
-          systemPrompt: [
-            'You are a conversation archivist. Summarize the following dialogue into a compact record for future turns.',
-            'Output ONLY the summary in the following structure, using plain text:',
-            '',
-            '## Previous Discussion',
-            '- What has already been discussed with the user (topics, decisions made, conclusions reached)',
-            '',
-            '## Current Focus',
-            '- What is being worked on or discussed right now (the active task or question)',
-            '',
-            '## Next Steps',
-            '- What remains to be done, unresolved questions, or pending follow-ups',
-            '',
-            '## Notes',
-            '- Special constraints, important facts, user preferences, tool results, file paths, or any context critical for continuity',
-            '',
-            'Keep each section concise. Do not mention that you are summarizing or refer to missing context.',
-          ].join('\n'),
-          messages: [
-            {
-              role: 'user',
-              content: prompt,
-              timestamp: Date.now(),
-            },
-          ],
-        },
-        {
-          apiKey: model.apiKey,
-          sessionId,
-          onPayload: makeExtraBodyOnPayload(model),
-        },
-      );
-
-      const summary = extractMessageText(response).trim();
-
-      if (summary.length === 0) {
-        throw new Error('LLM 返回了空总结');
-      }
-
-      return summary;
-    } catch (error: unknown) {
-      logger.error('总结对话历史失败', error);
-      throw error;
-    }
+    return await summarizeConversation(model, messages, sessionId, makeExtraBodyOnPayload(model));
   }
 
   async analyzeImage(
@@ -213,38 +158,7 @@ export class LlmAdapter {
     sessionId?: string,
   ): Promise<string> {
     const model = this.resolveModel(modelIdentifier);
-
-    if (!model.input.includes('image')) {
-      throw new Error(`配置的模型 "${modelIdentifier}" 不支持图像输入`);
-    }
-
-    const response = await completeSimple(
-      model,
-      {
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: question },
-              { type: 'image', data: image.data, mimeType: image.mimeType },
-            ],
-            timestamp: Date.now(),
-          },
-        ],
-      },
-      {
-        apiKey: model.apiKey,
-        sessionId,
-        onPayload: makeExtraBodyOnPayload(model),
-      },
-    );
-
-    const answer = extractMessageText(response).trim();
-    if (answer.length === 0) {
-      throw new Error('LLM 返回了空图像分析回复');
-    }
-
-    return answer;
+    return await analyzeImage(model, question, image, sessionId, makeExtraBodyOnPayload(model));
   }
 
   async transcribeAudio(
@@ -253,45 +167,7 @@ export class LlmAdapter {
     sessionId?: string,
   ): Promise<string> {
     const model = this.resolveModel(modelIdentifier);
-
-    if (model.apiType !== 'openai-responses' && model.apiType !== 'openai-completions') {
-      throw new Error(`提供者 API 类型 "${model.apiType}" 不支持语音转文本`);
-    }
-
-    if (!model.apiKey) {
-      throw new Error(`未为语音转文本提供者 "${model.provider}" 配置 API 密钥`);
-    }
-
-    const endpoint = new URL('audio/transcriptions', getProviderBaseUrl(model)).toString();
-    const formData = new FormData();
-    formData.append('model', model.id);
-    formData.append(
-      'file',
-      new File([Buffer.from(audio.data)], audio.fileName, { type: audio.mimeType }),
-    );
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${model.apiKey}`,
-        ...(sessionId ? { 'x-session-id': sessionId } : {}),
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`语音转文本请求失败 (${response.status}): ${body || response.statusText}`);
-    }
-
-    const payload = (await response.json()) as { text?: unknown };
-    const text = typeof payload.text === 'string' ? payload.text.trim() : '';
-
-    if (text.length === 0) {
-      throw new Error('语音转文本响应未包含转录文本');
-    }
-
-    return text;
+    return await transcribeAudio(model, audio, sessionId);
   }
 
   private tryGetBuiltInModel(provider: string, modelId: string): Model<Api> | null {
@@ -301,26 +177,4 @@ export class LlmAdapter {
       return null;
     }
   }
-
-  private buildSummaryPrompt(messages: AgentMessage[]): string {
-    const transcript = messages
-      .map((message) => `${message.role.toUpperCase()}: ${extractMessageText(message).trim()}`)
-      .filter((line) => !line.endsWith(':'))
-      .join('\n\n');
-
-    return ['Conversation transcript:', '', transcript].join('\n');
-  }
-}
-
-function getProviderBaseUrl(model: ResolvedModel): string {
-  if (model.baseUrl.trim().length > 0) {
-    const url = model.baseUrl;
-    return url.endsWith('/') ? url : `${url}/`;
-  }
-
-  if (model.provider === 'openai') {
-    return 'https://api.openai.com/v1/';
-  }
-
-  throw new Error(`未为提供者 "${model.provider}" 配置 base URL`);
 }
