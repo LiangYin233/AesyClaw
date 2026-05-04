@@ -117,6 +117,7 @@ export class AgentEngine {
           model,
           tools,
           messages: history,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any,
         streamFn: deps.llmAdapter.createStreamFn(role.model),
         getApiKey: deps.llmAdapter.createGetApiKey(),
@@ -137,7 +138,8 @@ export class AgentEngine {
 
     try {
       const workerResult = await new Promise<RunAgentTurnResult>((resolve, reject) => {
-        worker.on('message', async (msg: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-misused-promises
+        worker.on('message', async (msg) => {
           if (msg.type === 'done') {
             resolve({
               newMessages: msg.newMessages as AgentMessage[],
@@ -188,7 +190,7 @@ export class AgentEngine {
 
       return workerResult;
     } finally {
-      worker.terminate();
+      void worker.terminate();
     }
   }
 
@@ -224,7 +226,7 @@ export class AgentEngine {
   }
 
   async processEphemeral(params: ProcessEphemeralParams): Promise<OutboundMessage> {
-    const { sessionKey, sessionId, memory, role, content } = params;
+    const { sessionKey, memory, role, content } = params;
     const history = await memory.loadHistory();
     const ephemeralRole: RoleConfig = {
       ...role,
