@@ -58,6 +58,7 @@ export interface CronJobRecord {
   scheduleType: 'once' | 'daily' | 'interval';
   scheduleValue: string;
   prompt: string;
+  sessionKey: string;
   nextRun: string | null;
   createdAt: string;
 }

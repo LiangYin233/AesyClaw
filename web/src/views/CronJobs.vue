@@ -25,12 +25,17 @@
             <th
               class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0"
             >
+              Owner
+            </th>
+            <th
+              class="px-4 py-3 text-left text-mid-gray font-heading font-medium text-[0.7rem] uppercase tracking-[0.08em] bg-[#FAF8F3] sticky top-0"
+            >
               Next Run
             </th>
           </tr>
         </thead>
         <tbody>
-          <template v-for="job in jobs" :key="job.id">
+          <template v-for="job in jobsWithOwner" :key="job.id">
             <tr
               class="cursor-pointer bg-[#FDFBF9] transition-colors duration-[0.15s] ease hover:bg-[rgba(20,20,19,0.03)]"
               @click="toggleJob(job.id)"
@@ -45,11 +50,18 @@
                 {{ job.prompt }}
               </td>
               <td class="px-4 py-3 border-b border-[var(--color-border)]">
+                <div class="flex flex-col gap-1 text-xs text-dark">
+                  <span>Channel: {{ job.owner.channel }}</span>
+                  <span>Type: {{ job.owner.type }}</span>
+                  <span>Chat: {{ job.owner.chatId }}</span>
+                </div>
+              </td>
+              <td class="px-4 py-3 border-b border-[var(--color-border)]">
                 {{ job.nextRun ? formatTime(job.nextRun) : '-' }}
               </td>
             </tr>
             <tr v-if="expanded === job.id" class="bg-[rgba(20,20,19,0.02)]">
-              <td colspan="4" class="p-5">
+              <td colspan="5" class="p-5">
                 <h4 class="font-heading text-sm font-semibold text-dark m-0 mb-3">
                   Execution History
                 </h4>
@@ -117,8 +129,8 @@
               </td>
             </tr>
           </template>
-          <tr v-if="jobs.length === 0">
-            <td colspan="4" class="text-mid-gray text-center py-10 font-body italic text-sm">
+          <tr v-if="jobsWithOwner.length === 0">
+            <td colspan="5" class="text-mid-gray text-center py-10 font-body italic text-sm">
               No cron jobs
             </td>
           </tr>
@@ -129,7 +141,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { computed, onMounted, ref, shallowRef } from 'vue';
 import { useAuth } from '@/composables/useAuth';
 
 import type { CronJobRecord, CronRunRecord } from '@/types/api';
@@ -137,9 +149,63 @@ import type { CronJobRecord, CronRunRecord } from '@/types/api';
 const { api } = useAuth();
 
 const jobs = ref<CronJobRecord[]>([]);
-const expanded = ref<string | null>(null);
+const expanded = shallowRef<string | null>(null);
 const runs = ref<CronRunRecord[]>([]);
-const runsLoading = ref(false);
+const runsLoading = shallowRef(false);
+
+interface CronJobOwner {
+  channel: string;
+  type: string;
+  chatId: string;
+}
+
+type CronJobWithOwner = CronJobRecord & {
+  owner: CronJobOwner;
+};
+
+const missingOwner: CronJobOwner = Object.freeze({
+  channel: '-',
+  type: '-',
+  chatId: '-',
+});
+
+const invalidOwner: CronJobOwner = Object.freeze({
+  channel: 'Invalid session',
+  type: '-',
+  chatId: '-',
+});
+
+const jobsWithOwner = computed<CronJobWithOwner[]>(() =>
+  jobs.value.map((job) => ({
+    ...job,
+    owner: parseSessionOwner(job.sessionKey),
+  })),
+);
+
+function parseSessionOwner(sessionKey: string): CronJobOwner {
+  try {
+    const parsed: unknown = JSON.parse(sessionKey);
+    if (!isSessionOwnerRecord(parsed)) {
+      return invalidOwner;
+    }
+
+    return {
+      channel: getOwnerField(parsed['channel']),
+      type: getOwnerField(parsed['type']),
+      chatId: getOwnerField(parsed['chatId']),
+    };
+  } catch {
+    return invalidOwner;
+  }
+}
+
+function isSessionOwnerRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function getOwnerField(value: unknown): string {
+  return typeof value === 'string' && value.trim().length > 0 ? value : missingOwner.channel;
+}
 
 async function loadJobs() {
   try {
