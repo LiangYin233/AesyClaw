@@ -124,12 +124,55 @@ export class CronManager {
     const deps = this.requireDeps();
     deps.scheduler.clearAll();
     const jobs = await deps.cronJobs.findAll();
+    let scheduledCount = 0;
     for (const job of jobs) {
-      if (job.nextRun) {
-        this.schedule(job);
+      const normalized = await this.normalizeReloadedJobSchedule(job);
+      if (normalized?.nextRun) {
+        this.schedule(normalized);
+        scheduledCount += 1;
       }
     }
-    logger.info('定时任务调度已加载', { count: jobs.length });
+    logger.info('定时任务调度已加载', { count: scheduledCount, total: jobs.length });
+  }
+
+  private async normalizeReloadedJobSchedule(job: CronJobRecord): Promise<CronJobRecord | null> {
+    if (!job.nextRun) {
+      return null;
+    }
+
+    const persistedNextRun = new Date(job.nextRun);
+    if (Number.isNaN(persistedNextRun.getTime())) {
+      logger.warn('跳过 next_run 无效的定时任务', {
+        jobId: job.id,
+        nextRun: job.nextRun,
+      });
+      return null;
+    }
+
+    if (persistedNextRun.getTime() > Date.now()) {
+      return job;
+    }
+
+    const nextRun = computeNextRun(job.scheduleType as CronScheduleType, job.scheduleValue);
+    const jobStillExists = await this.requireDeps().cronJobs.updateNextRun(job.id, nextRun);
+    if (!jobStillExists) {
+      logger.info('定时任务已在恢复调度期间删除，跳过调度', { jobId: job.id });
+      return null;
+    }
+
+    if (!nextRun) {
+      logger.info('过期定时任务已清空下次运行时间', { jobId: job.id });
+      return null;
+    }
+
+    logger.info('过期定时任务已推进到未来运行时间', {
+      jobId: job.id,
+      nextRun: nextRun.toISOString(),
+    });
+    return {
+      ...job,
+      nextRun: nextRun.toISOString(),
+    };
   }
 
   private schedule(job: CronJobRecord): void {

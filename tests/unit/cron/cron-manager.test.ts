@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CronJobRecord, SessionKey } from '../../../src/core/types';
-import { CronManager, type CronJobRepositoryLike } from '../../../src/cron/cron-manager';
-import type { CronRunRepositoryLike } from '../../../src/cron/cron-executor';
+import type {
+  CronJobsRepository,
+  CronRunsRepository,
+} from '../../../src/core/database/database-manager';
+import { CronManager } from '../../../src/cron/cron-manager';
 import { computeNextRun, CronScheduler } from '../../../src/cron/cron-scheduler';
 import {
   createCreateCronTool,
@@ -9,7 +12,7 @@ import {
   createListCronTool,
 } from '../../../src/tool/builtin/cron-tools';
 
-class FakeCronJobRepo implements CronJobRepositoryLike {
+class FakeCronJobRepo implements CronJobsRepository {
   jobs = new Map<string, CronJobRecord>();
   nextId = 1;
   deleteError: Error | null = null;
@@ -59,7 +62,7 @@ class FakeCronJobRepo implements CronJobRepositoryLike {
   }
 }
 
-class FakeCronRunRepo implements CronRunRepositoryLike {
+class FakeCronRunRepo implements CronRunsRepository {
   created: string[] = [];
   completed: Array<{ runId: string; result: string }> = [];
   failed: Array<{ runId: string; error: string }> = [];
@@ -274,6 +277,145 @@ describe('Cron', () => {
     expect(jobs.updateNextRunCalls).toEqual([]);
     expect(schedule).toHaveBeenCalledTimes(1);
     expect(cancel).not.toHaveBeenCalled();
+
+    await manager.destroy();
+  });
+
+  it('advances overdue interval jobs during schedule reload without executing them', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-26T10:00:00Z'));
+
+    const jobs = new FakeCronJobRepo();
+    jobs.jobs.set('job-1', {
+      id: 'job-1',
+      scheduleType: 'interval',
+      scheduleValue: '30m',
+      prompt: 'check status',
+      sessionKey: JSON.stringify({ channel: 'test', type: 'private', chatId: '1' }),
+      nextRun: '2026-04-26T09:00:00.000Z',
+      createdAt: new Date().toISOString(),
+    });
+    const runs = new FakeCronRunRepo();
+    const scheduler = new CronScheduler();
+    const manager = new CronManager();
+
+    await manager.initialize({
+      databaseManager: { cronJobs: jobs, cronRuns: runs },
+      pipeline: makePipeline('cron response'),
+      send: makeSend(),
+      scheduler,
+    });
+
+    expect(runs.created).toEqual([]);
+    expect(runs.completed).toEqual([]);
+    expect(jobs.updateNextRunCalls).toEqual([
+      { id: 'job-1', nextRun: new Date('2026-04-26T10:30:00.000Z') },
+    ]);
+    expect(jobs.jobs.get('job-1')?.nextRun).toBe('2026-04-26T10:30:00.000Z');
+    expect(scheduler.count()).toBe(1);
+
+    await manager.destroy();
+  });
+
+  it('advances overdue daily jobs during schedule reload without executing them', async () => {
+    vi.useFakeTimers();
+    const now = new Date('2026-04-26T10:00:00');
+    vi.setSystemTime(now);
+
+    const jobs = new FakeCronJobRepo();
+    jobs.jobs.set('job-1', {
+      id: 'job-1',
+      scheduleType: 'daily',
+      scheduleValue: '09:30',
+      prompt: 'daily report',
+      sessionKey: JSON.stringify({ channel: 'test', type: 'private', chatId: '1' }),
+      nextRun: new Date('2026-04-26T09:30:00').toISOString(),
+      createdAt: new Date().toISOString(),
+    });
+    const runs = new FakeCronRunRepo();
+    const scheduler = new CronScheduler();
+    const manager = new CronManager();
+
+    await manager.initialize({
+      databaseManager: { cronJobs: jobs, cronRuns: runs },
+      pipeline: makePipeline('cron response'),
+      send: makeSend(),
+      scheduler,
+    });
+
+    const persistedNextRun = jobs.jobs.get('job-1')?.nextRun;
+    expect(runs.created).toEqual([]);
+    expect(jobs.updateNextRunCalls).toHaveLength(1);
+    expect(jobs.updateNextRunCalls[0]?.id).toBe('job-1');
+    expect(jobs.updateNextRunCalls[0]?.nextRun?.getTime()).toBeGreaterThan(now.getTime());
+    expect(persistedNextRun).toBe(jobs.updateNextRunCalls[0]?.nextRun?.toISOString());
+    expect(scheduler.count()).toBe(1);
+
+    await manager.destroy();
+  });
+
+  it('clears overdue once jobs during schedule reload without executing or scheduling them', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-26T10:00:00Z'));
+
+    const jobs = new FakeCronJobRepo();
+    jobs.jobs.set('job-1', {
+      id: 'job-1',
+      scheduleType: 'once',
+      scheduleValue: '2026-04-26T09:00:00.000Z',
+      prompt: 'one shot',
+      sessionKey: JSON.stringify({ channel: 'test', type: 'private', chatId: '1' }),
+      nextRun: '2026-04-26T09:00:00.000Z',
+      createdAt: new Date().toISOString(),
+    });
+    const runs = new FakeCronRunRepo();
+    const scheduler = new CronScheduler();
+    const manager = new CronManager();
+
+    await manager.initialize({
+      databaseManager: { cronJobs: jobs, cronRuns: runs },
+      pipeline: makePipeline('cron response'),
+      send: makeSend(),
+      scheduler,
+    });
+
+    expect(runs.created).toEqual([]);
+    expect(jobs.updateNextRunCalls).toEqual([{ id: 'job-1', nextRun: null }]);
+    expect(jobs.jobs.get('job-1')?.nextRun).toBeNull();
+    expect(scheduler.count()).toBe(0);
+
+    await manager.destroy();
+  });
+
+  it('keeps future jobs scheduled at their persisted nextRun during schedule reload', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-26T10:00:00Z'));
+
+    const jobs = new FakeCronJobRepo();
+    jobs.jobs.set('job-1', {
+      id: 'job-1',
+      scheduleType: 'interval',
+      scheduleValue: '30m',
+      prompt: 'check status',
+      sessionKey: JSON.stringify({ channel: 'test', type: 'private', chatId: '1' }),
+      nextRun: '2026-04-26T10:15:00.000Z',
+      createdAt: new Date().toISOString(),
+    });
+    const runs = new FakeCronRunRepo();
+    const scheduler = new CronScheduler();
+    const manager = new CronManager();
+
+    await manager.initialize({
+      databaseManager: { cronJobs: jobs, cronRuns: runs },
+      pipeline: makePipeline('cron response'),
+      send: makeSend(),
+      scheduler,
+    });
+
+    expect(runs.created).toEqual([]);
+    expect(jobs.updateNextRunCalls).toEqual([]);
+    expect(jobs.jobs.get('job-1')?.nextRun).toBe('2026-04-26T10:15:00.000Z');
+    expect(scheduler.count()).toBe(1);
 
     await manager.destroy();
   });
