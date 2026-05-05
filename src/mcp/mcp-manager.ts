@@ -282,15 +282,7 @@ function shortHash(value: string): string {
 }
 
 function cloneConfig(config: Readonly<McpServerConfig>): McpServerConfig {
-  return {
-    name: config.name,
-    transport: config.transport,
-    enabled: config.enabled,
-    ...(config.command === undefined ? {} : { command: config.command }),
-    ...(config.args === undefined ? {} : { args: [...config.args] }),
-    ...(config.env === undefined ? {} : { env: { ...config.env } }),
-    ...(config.url === undefined ? {} : { url: config.url }),
-  };
+  return structuredClone(config);
 }
 
 function formatMcpResult(result: unknown): string {

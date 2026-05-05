@@ -134,25 +134,6 @@ export class CommandRegistry {
    * @returns 解析后的命令对象，如果不是有效命令则返回 null
    */
   resolve(input: string): ResolvedCommand | null {
-    return this.resolveCommand(input);
-  }
-
-  /**
-   * 检查输入字符串是否为有效的斜杠命令。
-   *
-   * 如果输入以 "/" 开头且命令存在于注册表中，则返回 true。
-   * 不会执行命令。
-   */
-  isCommand(input: string): boolean {
-    return this.resolve(input) !== null;
-  }
-
-  /** 获取所有已注册的命令。 */
-  getAll(): CommandDefinition[] {
-    return [...this.commands.values()];
-  }
-
-  private resolveCommand(input: string): ResolvedCommand | null {
     const trimmed = input.trim();
     if (!trimmed.startsWith('/')) {
       return null;
@@ -185,6 +166,21 @@ export class CommandRegistry {
     }
 
     return null;
+  }
+
+  /**
+   * 检查输入字符串是否为有效的斜杠命令。
+   *
+   * 如果输入以 "/" 开头且命令存在于注册表中，则返回 true。
+   * 不会执行命令。
+   */
+  isCommand(input: string): boolean {
+    return this.resolve(input) !== null;
+  }
+
+  /** 获取所有已注册的命令。 */
+  getAll(): CommandDefinition[] {
+    return [...this.commands.values()];
   }
 
   private toResolvedCommand(

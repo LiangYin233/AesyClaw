@@ -440,11 +440,8 @@ function readSocketData(event: unknown): string | null {
   if (typeof data === 'string') {
     return data;
   }
-  if (data instanceof ArrayBuffer) {
-    return new TextDecoder().decode(data);
-  }
-  if (ArrayBuffer.isView(data)) {
-    return new TextDecoder().decode(data);
+  if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
+    return new TextDecoder().decode(data as ArrayBuffer | ArrayBufferView);
   }
   return null;
 }

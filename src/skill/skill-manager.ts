@@ -54,18 +54,16 @@ export class SkillManager {
    * - 否则，仅包含名称在 `role.skills` 中的用户技能。
    */
   getSkillsForRole(role: RoleConfig): Skill[] {
-    const systemSkills = [...this.skills.values()].filter((s) => s.isSystem);
+    const isWildcard = role.skills.length === 1 && role.skills[0] === '*';
+    const skillSet = isWildcard ? null : new Set(role.skills);
 
-    // 通配符：返回所有技能
-    if (role.skills.length === 1 && role.skills[0] === '*') {
-      return [...this.skills.values()];
+    const result: Skill[] = [];
+    for (const skill of this.skills.values()) {
+      if (skill.isSystem || isWildcard || skillSet?.has(skill.name)) {
+        result.push(skill);
+      }
     }
-
-    // 特定列表：系统技能 + 匹配的用户技能
-    const skillSet = new Set(role.skills);
-    const userSkills = [...this.skills.values()].filter((s) => !s.isSystem && skillSet.has(s.name));
-
-    return [...systemSkills, ...userSkills];
+    return result;
   }
 
   // ─── 私有辅助方法 ───────────────────────────────────────────

@@ -73,10 +73,10 @@ export class AgentEngine {
 
     const toolMap = new Map(tools.map((t) => [t.name, t]));
     const worker = new Worker(WORKER_PATH);
-    const workerKey = this.getWorkerKey(sessionKey);
+    const key = serializeSessionKey(sessionKey);
     const activeWorkers = this.activeWorkers;
-    void this.activeWorkers.get(workerKey)?.terminate();
-    this.activeWorkers.set(workerKey, worker);
+    void this.activeWorkers.get(key)?.terminate();
+    this.activeWorkers.set(key, worker);
     const timeout = setTimeout(() => void worker.terminate(), 120_000);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -166,15 +166,15 @@ export class AgentEngine {
       if (onMessage) worker.off('message', onMessage);
       if (onError) worker.off('error', onError);
       if (onExit) worker.off('exit', onExit);
-      if (activeWorkers.get(workerKey) === worker) {
-        activeWorkers.delete(workerKey);
+      if (activeWorkers.get(key) === worker) {
+        activeWorkers.delete(key);
       }
       void worker.terminate();
     }
   }
 
   cancelRun(sessionKey: SessionKey): boolean {
-    const workerKey = this.getWorkerKey(sessionKey);
+    const workerKey = serializeSessionKey(sessionKey);
     const worker = this.activeWorkers.get(workerKey);
     if (!worker) return false;
     this.activeWorkers.delete(workerKey);
@@ -253,9 +253,5 @@ export class AgentEngine {
       history = await memory.loadHistory();
     }
     return history;
-  }
-
-  private getWorkerKey(sessionKey: SessionKey): string {
-    return serializeSessionKey(sessionKey);
   }
 }
