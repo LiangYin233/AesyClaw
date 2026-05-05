@@ -46,9 +46,8 @@ export async function createUsageRecord(db: DatabaseSync, record: UsageRecord): 
       `INSERT INTO usage (
         model, provider, api, response_id, timestamp,
         input_tokens, output_tokens, total_tokens,
-        cache_read_tokens, cache_write_tokens,
-        cost_input, cost_output, cost_cache_read, cost_cache_write, cost_total
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        cache_read_tokens, cache_write_tokens
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       record.model,
@@ -61,11 +60,6 @@ export async function createUsageRecord(db: DatabaseSync, record: UsageRecord): 
       record.usage.totalTokens,
       record.usage.cacheRead,
       record.usage.cacheWrite,
-      record.usage.cost.input,
-      record.usage.cost.output,
-      record.usage.cost.cacheRead,
-      record.usage.cost.cacheWrite,
-      record.usage.cost.total,
     );
 
   return Number(result.lastInsertRowid);

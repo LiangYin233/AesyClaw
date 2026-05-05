@@ -44,12 +44,7 @@ export class LlmAdapter {
       baseUrl: providerConfig.baseUrl ?? builtInModel?.baseUrl ?? '',
       reasoning: builtInModel?.reasoning ?? false,
       input: (preset?.input ?? builtInModel?.input ?? ['text']) as ResolvedModel['input'],
-      cost: builtInModel?.cost ?? {
-        input: 0,
-        output: 0,
-        cacheRead: 0,
-        cacheWrite: 0,
-      },
+      cost: builtInModel?.cost ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       contextWindow: preset?.contextWindow ?? builtInModel?.contextWindow ?? 128000,
       maxTokens: builtInModel?.maxTokens ?? 8192,
       headers: builtInModel?.headers,

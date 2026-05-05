@@ -272,12 +272,7 @@ export class DatabaseManager {
         output_tokens       INTEGER NOT NULL,
         total_tokens        INTEGER NOT NULL,
         cache_read_tokens   INTEGER NOT NULL DEFAULT 0,
-        cache_write_tokens  INTEGER NOT NULL DEFAULT 0,
-        cost_input          REAL NOT NULL DEFAULT 0,
-        cost_output         REAL NOT NULL DEFAULT 0,
-        cost_cache_read     REAL NOT NULL DEFAULT 0,
-        cost_cache_write    REAL NOT NULL DEFAULT 0,
-        cost_total          REAL NOT NULL DEFAULT 0
+        cache_write_tokens  INTEGER NOT NULL DEFAULT 0
       );
 
       CREATE TABLE IF NOT EXISTS tool_usage (
