@@ -13,13 +13,7 @@ export function createSessionsRouter(deps: WebUiManagerDependencies): Hono {
   const router = new Hono();
 
   router.get('/', async (c) => {
-    const sessions = await deps.databaseManager.sessions.findAll();
-    const data = await Promise.all(
-      sessions.map(async (s) => ({
-        ...s,
-        lastActivity: await deps.databaseManager.messages.getLastTimestamp(s.id),
-      })),
-    );
+    const data = await deps.databaseManager.sessions.findAll();
     return c.json({ ok: true, data });
   });
 

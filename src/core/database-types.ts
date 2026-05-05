@@ -8,6 +8,7 @@ export type SessionRecord = {
   channel: string;
   type: string;
   chatId: string;
+  lastActivity?: string;
 };
 
 // ─── 定时任务 ──────────────────────────────────────────────────────
@@ -68,11 +69,6 @@ export type UsageSummary = {
   cacheReadTokens: number;
   cacheWriteTokens: number;
   count: number;
-  costInput: number;
-  costOutput: number;
-  costCacheRead: number;
-  costCacheWrite: number;
-  costTotal: number;
 };
 
 // ─── 工具 / 技能调用 ───────────────────────────────────────────────

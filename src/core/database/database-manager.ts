@@ -39,7 +39,6 @@ export type MessagesRepository = {
     sessionId: string,
     summary: string,
   ) => ReturnType<typeof messages.replaceMessageWithSummary>;
-  getLastTimestamp: (sessionId: string) => ReturnType<typeof messages.getLastMessageTimestamp>;
 };
 
 export type RoleBindingsRepository = {
@@ -177,7 +176,6 @@ export class DatabaseManager {
       clearHistory: (sessionId) => messages.clearMessageHistory(db, sessionId),
       replaceWithSummary: (sessionId, summary) =>
         messages.replaceMessageWithSummary(db, sessionId, summary),
-      getLastTimestamp: (sessionId) => messages.getLastMessageTimestamp(db, sessionId),
     };
 
     this.roleBindings = {

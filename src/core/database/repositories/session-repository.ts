@@ -56,15 +56,22 @@ export async function findSessionByKey(
   };
 }
 
-/** 获取所有会话，按最后活动时间排序（最新的在前）。 */
+/** 获取所有会话及最后活动时间，按最后活动排序。 */
 export async function findAllSessions(db: DatabaseSync): Promise<SessionRecord[]> {
   const rows = db
-    .prepare('SELECT id, channel, type, chat_id FROM sessions ORDER BY id DESC')
+    .prepare(
+      `SELECT s.id, s.channel, s.type, s.chat_id, MAX(m.timestamp) AS last_activity
+       FROM sessions s
+       LEFT JOIN messages m ON m.session_id = s.id
+       GROUP BY s.id
+       ORDER BY last_activity DESC`,
+    )
     .all() as Array<{
     id: string;
     channel: string;
     type: string;
     chat_id: string;
+    last_activity: string | null;
   }>;
 
   return rows.map((row) => ({
@@ -72,6 +79,7 @@ export async function findAllSessions(db: DatabaseSync): Promise<SessionRecord[]
     channel: row.channel,
     type: row.type,
     chatId: row.chat_id,
+    ...(row.last_activity ? { lastActivity: row.last_activity } : {}),
   }));
 }
 
