@@ -346,6 +346,7 @@ function updateRecordEntryKey(idx: number, key: string) {
   const next = [...recordEntries.value];
   next[idx] = { ...next[idx], key } as RecordEntry;
   recordEntries.value = next;
+  updateRecord();
 }
 
 function updateRecordEntryValue(idx: number, value: unknown) {

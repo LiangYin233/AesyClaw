@@ -155,16 +155,21 @@ export class CronManager {
       throw new Error(`未找到定时任务 "${jobId}"`);
     }
 
+    let result: string;
     try {
-      return await deps.executor.execute(job);
+      result = await deps.executor.execute(job);
     } finally {
       const nextRun = computeNextRun(job.scheduleType as CronScheduleType, job.scheduleValue);
-      await deps.cronJobs.updateNextRun(job.id, nextRun);
-
-      const updated = await deps.cronJobs.findById(job.id);
-      if (updated?.nextRun) {
-        this.schedule(updated);
+      const jobStillExists = await deps.cronJobs.updateNextRun(job.id, nextRun);
+      if (!jobStillExists) {
+        logger.info('定时任务已在执行期间删除，跳过重新调度', { jobId: job.id });
+      } else {
+        const updated = await deps.cronJobs.findById(job.id);
+        if (updated?.nextRun) {
+          this.schedule(updated);
+        }
       }
     }
+    return result;
   }
 }

@@ -87,7 +87,7 @@
                     </h4>
                     <button
                       class="inline-flex items-center gap-1.5 px-2.5 py-[0.35rem] border border-[var(--color-border)] rounded-sm bg-transparent text-mid-gray font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease hover:bg-light-gray hover:text-dark"
-                      @click="expanded = null"
+                      @click="collapseSession"
                     >
                       <ChevronUpIcon class="w-[14px] h-[14px]" />
                       Collapse
@@ -200,8 +200,7 @@ async function loadSessions() {
 
 async function toggleSession(id: string) {
   if (expanded.value === id) {
-    expanded.value = null;
-    messages.value = [];
+    collapseSession();
     return;
   }
   expanded.value = id;
@@ -209,14 +208,23 @@ async function toggleSession(id: string) {
   messages.value = [];
   try {
     const res = await api.get(`/sessions/${id}/messages`);
+    if (expanded.value !== id) return;
     if (res.data.ok) {
       messages.value = res.data.data;
     }
   } catch (err) {
     console.error('Failed to load messages', err);
   } finally {
-    messagesLoading.value = false;
+    if (expanded.value === id) {
+      messagesLoading.value = false;
+    }
   }
+}
+
+function collapseSession() {
+  expanded.value = null;
+  messages.value = [];
+  messagesLoading.value = false;
 }
 
 function formatTime(iso: string | null | undefined): string {

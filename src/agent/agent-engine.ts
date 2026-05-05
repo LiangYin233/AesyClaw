@@ -2,7 +2,7 @@ import { Agent as PiAgent } from '@mariozechner/pi-agent-core';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import type { RoleConfig, InboundMessage, OutboundMessage, SessionKey } from '@aesyclaw/core/types';
-import { getMessageText } from '@aesyclaw/core/types';
+import { getMessageText, serializeSessionKey } from '@aesyclaw/core/types';
 import type { Agent, AgentMessage } from './agent-types';
 import type { ToolExecutionContext } from '@aesyclaw/tool/tool-registry';
 import type { LlmAdapter } from './llm-adapter';
@@ -19,6 +19,8 @@ type RunAgentTurnResult = {
 };
 
 export class AgentEngine {
+  private readonly activeWorkers = new Map<string, Worker>();
+
   constructor(
     private llmAdapter: LlmAdapter,
     private promptBuilder: PromptBuilder,
@@ -71,22 +73,36 @@ export class AgentEngine {
 
     const toolMap = new Map(tools.map((t) => [t.name, t]));
     const worker = new Worker(WORKER_PATH);
+    const workerKey = this.getWorkerKey(sessionKey);
+    const activeWorkers = this.activeWorkers;
+    void this.activeWorkers.get(workerKey)?.terminate();
+    this.activeWorkers.set(workerKey, worker);
     const timeout = setTimeout(() => void worker.terminate(), 120_000);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let onMessage: ((msg: any) => void) | undefined;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let onError: ((err: any) => void) | undefined;
+    let onExit: ((code: number) => void) | undefined;
+    let settled = false;
 
     try {
       const workerResult = await new Promise<RunAgentTurnResult>((resolve, reject) => {
         onError = (err: Error) => {
+          settled = true;
           cleanup();
           reject(new Error(`Worker 错误: ${err.message}`));
+        };
+        onExit = (code: number) => {
+          if (settled || code === 0) return;
+          settled = true;
+          cleanup();
+          reject(new Error('Agent 处理已中止'));
         };
         // eslint-disable-next-line @typescript-eslint/no-misused-promises
         onMessage = async (msg: Record<string, unknown>) => {
           if (msg['type'] === 'done') {
+            settled = true;
             cleanup();
             resolve({
               newMessages: msg['newMessages'] as AgentMessage[],
@@ -113,6 +129,7 @@ export class AgentEngine {
               });
             }
           } else if (msg['type'] === 'fatal') {
+            settled = true;
             cleanup();
             reject(new Error(msg['message'] as string));
           }
@@ -120,6 +137,7 @@ export class AgentEngine {
 
         worker.on('message', onMessage);
         worker.on('error', onError);
+        worker.on('exit', onExit);
 
         worker.postMessage({
           type: 'init',
@@ -147,8 +165,22 @@ export class AgentEngine {
       clearTimeout(timeout);
       if (onMessage) worker.off('message', onMessage);
       if (onError) worker.off('error', onError);
+      if (onExit) worker.off('exit', onExit);
+      if (activeWorkers.get(workerKey) === worker) {
+        activeWorkers.delete(workerKey);
+      }
       void worker.terminate();
     }
+  }
+
+  cancelRun(sessionKey: SessionKey): boolean {
+    const workerKey = this.getWorkerKey(sessionKey);
+    const worker = this.activeWorkers.get(workerKey);
+    if (!worker) return false;
+    this.activeWorkers.delete(workerKey);
+    void worker.terminate();
+    logger.info('Agent worker 已取消', { sessionKey });
+    return true;
   }
 
   async process(
@@ -221,5 +253,9 @@ export class AgentEngine {
       history = await memory.loadHistory();
     }
     return history;
+  }
+
+  private getWorkerKey(sessionKey: SessionKey): string {
+    return serializeSessionKey(sessionKey);
   }
 }

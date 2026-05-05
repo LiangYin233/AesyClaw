@@ -26,7 +26,9 @@ export function createConfigRouter(deps: WebUiManagerDependencies): Hono {
   router.put('/', async (c) => {
     try {
       const body = (await c.req.json()) as DeepPartial<AppConfig>;
-      await deps.configManager.update(body, { replaceTopLevelKeys: ['channels', 'plugins'] });
+      await deps.configManager.update(body, {
+        replaceTopLevelKeys: ['channels', 'plugins', 'providers'],
+      });
       return c.json({ ok: true, data: null });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

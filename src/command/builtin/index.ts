@@ -46,7 +46,7 @@ export type BuiltinCommandDependencies = {
     | 'getSession'
     | 'endAgentProcessing'
   >;
-  agentEngine: Pick<AgentEngine, 'processEphemeral' | 'switchModel'>;
+  agentEngine: Pick<AgentEngine, 'processEphemeral' | 'switchModel' | 'cancelRun'>;
 };
 
 /**
@@ -70,7 +70,7 @@ export function registerBuiltinCommands(
   registry.register(createModelCommand(deps.sessionManager, deps.agentEngine));
   registry.register(createClearCommand(deps.sessionManager));
   registry.register(createCompactCommand(deps.sessionManager));
-  registry.register(createStopCommand(deps.sessionManager));
+  registry.register(createStopCommand(deps.sessionManager, deps.agentEngine));
   registry.register(createRoleListCommand(roleDeps));
   registry.register(createRoleSwitchCommand(roleDeps));
   registry.register(createRoleInfoCommand(roleDeps));

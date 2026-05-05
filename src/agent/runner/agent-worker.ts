@@ -111,13 +111,8 @@ function createToolProxy(def: ToolDef): ToolProxy {
         params,
       });
       return await new Promise<unknown>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          port.removeAllListeners('message');
-          reject(new Error(`工具 "${def.name}" 超时 (120s)`));
-        }, 120_000);
         const handler = (msg: IpcMessage): void => {
           if (msg.type === 'toolResult' && msg.callId === callId) {
-            clearTimeout(timeout);
             port.removeListener('message', handler);
             if (msg.error !== undefined) {
               reject(new Error(msg.error));

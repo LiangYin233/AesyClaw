@@ -363,10 +363,12 @@ async function load() {
     if (fromDate.value) params['from'] = fromDate.value;
     if (toDate.value) params['to'] = toDate.value;
     if (modelFilter.value.trim()) params['model'] = modelFilter.value.trim();
+    const toolParams = { ...params };
+    delete toolParams['model'];
 
     const [usageRes, toolRes] = await Promise.all([
       api.get('/usage', { params }),
-      api.get('/usage/tools', { params }),
+      api.get('/usage/tools', { params: toolParams }),
     ]);
 
     if (usageRes.data.ok) {

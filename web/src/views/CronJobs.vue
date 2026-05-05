@@ -154,8 +154,7 @@ async function loadJobs() {
 
 async function toggleJob(id: string) {
   if (expanded.value === id) {
-    expanded.value = null;
-    runs.value = [];
+    collapseJob();
     return;
   }
   expanded.value = id;
@@ -163,14 +162,23 @@ async function toggleJob(id: string) {
   runs.value = [];
   try {
     const res = await api.get(`/cron/${id}/runs`);
+    if (expanded.value !== id) return;
     if (res.data.ok) {
       runs.value = res.data.data;
     }
   } catch (err) {
     console.error('Failed to load cron runs', err);
   } finally {
-    runsLoading.value = false;
+    if (expanded.value === id) {
+      runsLoading.value = false;
+    }
   }
+}
+
+function collapseJob() {
+  expanded.value = null;
+  runs.value = [];
+  runsLoading.value = false;
 }
 
 function formatTime(iso: string): string {

@@ -20,11 +20,6 @@ type UsageRow = {
   cacheReadTokens: number;
   cacheWriteTokens: number;
   count: number;
-  costInput: number;
-  costOutput: number;
-  costCacheRead: number;
-  costCacheWrite: number;
-  costTotal: number;
 };
 
 function mapRow(row: UsageRow): UsageSummary {
@@ -37,11 +32,6 @@ function mapRow(row: UsageRow): UsageSummary {
     cacheReadTokens: row.cacheReadTokens,
     cacheWriteTokens: row.cacheWriteTokens,
     count: row.count,
-    costInput: row.costInput,
-    costOutput: row.costOutput,
-    costCacheRead: row.costCacheRead,
-    costCacheWrite: row.costCacheWrite,
-    costTotal: row.costTotal,
   };
 }
 
@@ -101,12 +91,7 @@ export async function getUsageStats(
         SUM(total_tokens) as totalTokens,
         SUM(cache_read_tokens) as cacheReadTokens,
         SUM(cache_write_tokens) as cacheWriteTokens,
-        COUNT(*) as count,
-        SUM(cost_input) as costInput,
-        SUM(cost_output) as costOutput,
-        SUM(cost_cache_read) as costCacheRead,
-        SUM(cost_cache_write) as costCacheWrite,
-        SUM(cost_total) as costTotal
+        COUNT(*) as count
       FROM usage
       WHERE (? IS NULL OR model = ?)
         AND (? IS NULL OR timestamp >= ?)
@@ -139,12 +124,7 @@ export async function getTodayUsageSummary(db: DatabaseSync): Promise<UsageSumma
         SUM(total_tokens) as totalTokens,
         SUM(cache_read_tokens) as cacheReadTokens,
         SUM(cache_write_tokens) as cacheWriteTokens,
-        COUNT(*) as count,
-        SUM(cost_input) as costInput,
-        SUM(cost_output) as costOutput,
-        SUM(cost_cache_read) as costCacheRead,
-        SUM(cost_cache_write) as costCacheWrite,
-        SUM(cost_total) as costTotal
+        COUNT(*) as count
       FROM usage
       WHERE DATE(timestamp, 'localtime') >= DATE('now', 'localtime')
       GROUP BY model

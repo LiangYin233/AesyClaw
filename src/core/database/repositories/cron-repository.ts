@@ -118,14 +118,15 @@ export async function deleteCronJob(db: DatabaseSync, id: string): Promise<boole
   }
 }
 
-/** 更新定时任务的 next_run 时间 */
+/** 更新定时任务的 next_run 时间。有行被更新时返回 true。 */
 export async function updateCronJobNextRun(
   db: DatabaseSync,
   id: string,
   nextRun: Date | null,
-): Promise<void> {
+): Promise<boolean> {
   const nextRunStr = nextRun?.toISOString() ?? null;
-  db.prepare('UPDATE cron_jobs SET next_run = ? WHERE id = ?').run(nextRunStr, id);
+  const result = db.prepare('UPDATE cron_jobs SET next_run = ? WHERE id = ?').run(nextRunStr, id);
+  return result.changes > 0;
 }
 
 // ─── 定时任务执行 ────────────────────────────────────────────────────

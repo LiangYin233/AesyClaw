@@ -50,10 +50,12 @@ class FakeCronJobRepo implements CronJobRepositoryLike {
     return this.jobs.delete(id);
   }
 
-  async updateNextRun(id: string, nextRun: Date | null): Promise<void> {
+  async updateNextRun(id: string, nextRun: Date | null): Promise<boolean> {
     this.updateNextRunCalls.push({ id, nextRun });
     const job = this.jobs.get(id);
-    if (job) job.nextRun = nextRun?.toISOString() ?? null;
+    if (!job) return false;
+    job.nextRun = nextRun?.toISOString() ?? null;
+    return true;
   }
 }
 
@@ -342,6 +344,51 @@ describe('Cron', () => {
     expect(runs.failed).toEqual([{ runId: 'run-1', error: 'pipeline boom' }]);
     expect(jobs.updateNextRunCalls).toHaveLength(1);
     expect(scheduler.count()).toBe(1);
+
+    await manager.destroy();
+  });
+
+  it('does not reschedule a timer-driven job deleted while running', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-26T10:00:00Z'));
+
+    const jobs = new FakeCronJobRepo();
+    const runs = new FakeCronRunRepo();
+    let unblockPipeline: (() => void) | undefined;
+    const pipeline = {
+      receiveWithSend: vi.fn(async (_message, _sessionKey, _sender, send) => {
+        await new Promise<void>((resolve) => {
+          unblockPipeline = resolve;
+        });
+        await send({ components: [{ type: 'Plain', text: 'cron response' }] });
+      }),
+    };
+    const scheduler = new CronScheduler();
+    const manager = new CronManager();
+    await manager.initialize({
+      databaseManager: { cronJobs: jobs, cronRuns: runs },
+      pipeline,
+      send: makeSend(),
+      scheduler,
+    });
+
+    const jobId = await manager.createJob({
+      scheduleType: 'interval',
+      scheduleValue: '1m',
+      prompt: 'check status',
+      sessionKey: { channel: 'test', type: 'private', chatId: '1' },
+    });
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(pipeline.receiveWithSend).toHaveBeenCalledTimes(1);
+
+    expect(await manager.deleteJob(jobId)).toBe(true);
+    unblockPipeline?.();
+    await vi.runOnlyPendingTimersAsync();
+
+    expect(runs.completed).toEqual([{ runId: 'run-1', result: 'cron response' }]);
+    expect(jobs.updateNextRunCalls).toHaveLength(1);
+    expect(scheduler.count()).toBe(0);
 
     await manager.destroy();
   });

@@ -119,7 +119,7 @@ import { useRouter } from 'vue-router';
 import { useAuth } from '@/composables/useAuth';
 
 const router = useRouter();
-const { login, api } = useAuth();
+const { login, logout, api } = useAuth();
 const tokenId = useId();
 
 const tokenInput = ref('');
@@ -131,14 +131,20 @@ async function handleSubmit() {
   loading.value = true;
   error.value = '';
   try {
-    login(tokenInput.value);
-    const res = await api.get('/status');
+    const token = tokenInput.value.trim();
+    logout();
+    const res = await api.get('/status', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     if (res.data.ok) {
+      login(token);
       router.push('/');
     } else {
+      logout();
       error.value = 'Invalid token';
     }
   } catch {
+    logout();
     error.value = 'Invalid token or server unreachable';
   } finally {
     loading.value = false;

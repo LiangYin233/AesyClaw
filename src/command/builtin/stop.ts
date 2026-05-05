@@ -7,6 +7,7 @@
 
 import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
 import type { SessionManager } from '@aesyclaw/agent/session-manager';
+import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
 
 /**
  * 创建 stop 命令定义。
@@ -16,6 +17,7 @@ import type { SessionManager } from '@aesyclaw/agent/session-manager';
  */
 export function createStopCommand(
   sessionManager: Pick<SessionManager, 'getSession' | 'endAgentProcessing'>,
+  agentEngine?: Pick<AgentEngine, 'cancelRun'>,
 ): CommandDefinition {
   return {
     name: 'stop',
@@ -29,9 +31,13 @@ export function createStopCommand(
         return '没有找到活跃会话。';
       }
 
+      const cancelledWorker = agentEngine?.cancelRun(context.sessionKey) ?? false;
       session.agent.abort();
       session.agent.clearAllQueues();
-      sessionManager.endAgentProcessing(context.sessionKey);
+
+      if (!cancelledWorker) {
+        sessionManager.endAgentProcessing(context.sessionKey);
+      }
 
       return 'Agent 处理已中止。';
     },

@@ -35,12 +35,15 @@ function createRegistry() {
     memory: {
       loadHistory: vi.fn().mockResolvedValue([]),
     },
+    agent: { abort: vi.fn(), clearAllQueues: vi.fn() },
   };
   const deps = {
     sessionManager: {
       clearSession: vi.fn().mockResolvedValue(undefined),
       compactSession: vi.fn().mockResolvedValue('压缩摘要'),
       getOrCreateSession: vi.fn().mockResolvedValue(session),
+      getSession: vi.fn().mockReturnValue(session),
+      endAgentProcessing: vi.fn(),
       switchRole: vi.fn().mockImplementation(async (_key: unknown, roleId: string) => {
         const nextRole = roles.find((role) => role.id === roleId) ?? roles[0];
         session.activeRole = nextRole;
@@ -80,6 +83,8 @@ function createRegistry() {
         .fn()
         .mockResolvedValue({ components: [{ type: 'Plain', text: '临时回答' }] }),
       process: vi.fn(),
+      switchModel: vi.fn(),
+      cancelRun: vi.fn().mockReturnValue(true),
     },
   };
 
@@ -184,6 +189,18 @@ describe('built-in commands', () => {
     const resolved = registry.resolve('/btw hello');
 
     expect(resolved?.command.allowDuringAgentProcessing).toBe(true);
+  });
+
+  it('cancels active worker for /stop without releasing busy state early', async () => {
+    const { registry, deps, session } = createRegistry();
+    const context = makeContext();
+
+    await expect(registry.execute('/stop', context)).resolves.toBe('Agent 处理已中止。');
+
+    expect(deps.agentEngine.cancelRun).toHaveBeenCalledWith(context.sessionKey);
+    expect(session.agent.abort).toHaveBeenCalled();
+    expect(session.agent.clearAllQueues).toHaveBeenCalled();
+    expect(deps.sessionManager.endAgentProcessing).not.toHaveBeenCalled();
   });
 
   it('passes canonical plugin names when commands use directory aliases', async () => {

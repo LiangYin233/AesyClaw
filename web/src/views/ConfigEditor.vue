@@ -10,7 +10,7 @@
       <div class="flex items-center gap-2.5 flex-wrap mb-0 justify-end">
         <button
           class="inline-flex items-center justify-center gap-1.5 px-[1.1rem] py-[0.55rem] border border-primary rounded-sm font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease tracking-[0.01em] uppercase bg-primary text-white hover:bg-primary-hover hover:-translate-y-[1px] hover:shadow-[0_4px_12px_rgba(217,119,87,0.25)] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
-          :disabled="saving"
+          :disabled="saving || hasExtraBodyErrors"
           @click="saveConfig"
         >
           {{ saving ? 'Saving...' : 'Save' }}
@@ -232,12 +232,18 @@
                     >Extra body JSON</label
                   >
                   <JsonEditor
-                    :model-value="toJson(model.extraBody ?? {})"
+                    :model-value="getExtraBodyText(provider.key, model.key, model.extraBody ?? {})"
                     placeholder="{}"
                     @update:model-value="
                       updateProviderModelExtraBody(provider.key, model.key, $event)
                     "
                   />
+                  <p
+                    v-if="getExtraBodyError(provider.key, model.key)"
+                    class="text-danger text-xs mt-2 font-body"
+                  >
+                    {{ getExtraBodyError(provider.key, model.key) }}
+                  </p>
                 </div>
               </div>
             </div>
@@ -511,6 +517,8 @@ const fullConfig = ref<Record<string, unknown>>({});
 const loading = ref(true);
 const saving = ref(false);
 const error = ref('');
+const extraBodyErrors = ref<Record<string, string>>({});
+const extraBodyDrafts = ref<Record<string, string>>({});
 
 const excludedTopLevelKeys = new Set(['channels', 'plugins']);
 const hiddenSchemaKeys = new Set(['channels', 'plugins', 'providers', 'mcp', 'cors']);
@@ -537,6 +545,8 @@ const providerEntries = computed<ProviderForm[]>(() => {
   return Object.entries(value).map(([key, provider]) => normalizeProvider(key, provider));
 });
 
+const hasExtraBodyErrors = computed(() => Object.keys(extraBodyErrors.value).length > 0);
+
 async function loadSchema() {
   try {
     const res = await api.get('/config/schema');
@@ -556,6 +566,8 @@ async function loadConfig() {
     if (res.data.ok) {
       fullConfig.value = res.data.data;
       editableConfig.value = omitTopLevelConfigKeys(res.data.data, excludedTopLevelKeys);
+      extraBodyErrors.value = {};
+      extraBodyDrafts.value = {};
     } else {
       error.value = res.data.error ?? 'Failed to load config';
     }
@@ -567,6 +579,10 @@ async function loadConfig() {
 }
 
 async function saveConfig() {
+  if (hasExtraBodyErrors.value) {
+    showToast('toast-error', 'Fix invalid extra body JSON before saving');
+    return;
+  }
   saving.value = true;
   try {
     const res = await api.put('/config', editableConfig.value);
@@ -604,6 +620,7 @@ function addProvider() {
 function removeProvider(key: string) {
   const providers = getRawProviders();
   delete providers[key];
+  clearProviderExtraBodyErrors(key);
   editableConfig.value = { ...editableConfig.value, providers };
 }
 
@@ -619,6 +636,7 @@ function renameProvider(oldKey: string, newKeyRaw: string) {
   for (const [key, value] of Object.entries(providers)) {
     next[key === oldKey ? newKey : key] = value;
   }
+  renameProviderExtraBodyState(oldKey, newKey);
   editableConfig.value = { ...editableConfig.value, providers: next };
 }
 
@@ -654,6 +672,7 @@ function removeProviderModel(providerKey: string, modelKey: string) {
   updateProvider(providerKey, (provider) => {
     const models = getRawModels(provider);
     delete models[modelKey];
+    clearExtraBodyState(providerKey, modelKey);
     return { ...provider, models };
   });
 }
@@ -671,6 +690,7 @@ function renameProviderModel(providerKey: string, oldKey: string, newKeyRaw: str
     for (const [key, value] of Object.entries(models)) {
       next[key === oldKey ? newKey : key] = value;
     }
+    renameExtraBodyState(providerKey, oldKey, newKey);
     return { ...provider, models: next };
   });
 }
@@ -689,12 +709,17 @@ function updateProviderModelNumber(providerKey: string, modelKey: string, value:
 }
 
 function updateProviderModelExtraBody(providerKey: string, modelKey: string, value: string) {
-  const parsed = parseJson(value);
-  if (parsed === undefined) return;
+  setExtraBodyDraft(providerKey, modelKey, value);
+  const result = parseJson(value);
+  if (!result.ok) {
+    setExtraBodyError(providerKey, modelKey, result.error);
+    return;
+  }
+  clearExtraBodyError(providerKey, modelKey);
   updateProviderModel(providerKey, modelKey, (model) => {
     const next = { ...model };
-    if (isRecord(parsed) && Object.keys(parsed).length > 0) {
-      next['extraBody'] = parsed;
+    if (isRecord(result.value) && Object.keys(result.value).length > 0) {
+      next['extraBody'] = result.value;
     } else {
       delete next['extraBody'];
     }
@@ -843,6 +868,90 @@ function normalizeMcpServer(value: unknown): McpServerForm {
   };
 }
 
+function getExtraBodyError(providerKey: string, modelKey: string): string {
+  return extraBodyErrors.value[getExtraBodyErrorKey(providerKey, modelKey)] ?? '';
+}
+
+function getExtraBodyText(providerKey: string, modelKey: string, value: unknown): string {
+  const key = getExtraBodyErrorKey(providerKey, modelKey);
+  return extraBodyDrafts.value[key] ?? toJson(value);
+}
+
+function setExtraBodyDraft(providerKey: string, modelKey: string, value: string) {
+  extraBodyDrafts.value = {
+    ...extraBodyDrafts.value,
+    [getExtraBodyErrorKey(providerKey, modelKey)]: value,
+  };
+}
+
+function setExtraBodyError(providerKey: string, modelKey: string, message: string) {
+  extraBodyErrors.value = {
+    ...extraBodyErrors.value,
+    [getExtraBodyErrorKey(providerKey, modelKey)]: message,
+  };
+}
+
+function clearExtraBodyError(providerKey: string, modelKey: string) {
+  const key = getExtraBodyErrorKey(providerKey, modelKey);
+  if (!Object.prototype.hasOwnProperty.call(extraBodyErrors.value, key)) return;
+  const next = { ...extraBodyErrors.value };
+  delete next[key];
+  extraBodyErrors.value = next;
+}
+
+function clearExtraBodyDraft(providerKey: string, modelKey: string) {
+  const key = getExtraBodyErrorKey(providerKey, modelKey);
+  if (!Object.prototype.hasOwnProperty.call(extraBodyDrafts.value, key)) return;
+  const next = { ...extraBodyDrafts.value };
+  delete next[key];
+  extraBodyDrafts.value = next;
+}
+
+function clearExtraBodyState(providerKey: string, modelKey: string) {
+  clearExtraBodyError(providerKey, modelKey);
+  clearExtraBodyDraft(providerKey, modelKey);
+}
+
+function clearProviderExtraBodyErrors(providerKey: string) {
+  const prefix = `${providerKey}:`;
+  extraBodyErrors.value = Object.fromEntries(
+    Object.entries(extraBodyErrors.value).filter(([key]) => !key.startsWith(prefix)),
+  );
+  extraBodyDrafts.value = Object.fromEntries(
+    Object.entries(extraBodyDrafts.value).filter(([key]) => !key.startsWith(prefix)),
+  );
+}
+
+function renameExtraBodyState(providerKey: string, oldModelKey: string, newModelKey: string) {
+  const oldKey = getExtraBodyErrorKey(providerKey, oldModelKey);
+  const newKey = getExtraBodyErrorKey(providerKey, newModelKey);
+  if (extraBodyErrors.value[oldKey]) {
+    extraBodyErrors.value = { ...extraBodyErrors.value, [newKey]: extraBodyErrors.value[oldKey] };
+    clearExtraBodyError(providerKey, oldModelKey);
+  }
+  if (extraBodyDrafts.value[oldKey]) {
+    extraBodyDrafts.value = { ...extraBodyDrafts.value, [newKey]: extraBodyDrafts.value[oldKey] };
+    clearExtraBodyDraft(providerKey, oldModelKey);
+  }
+}
+
+function renameProviderExtraBodyState(oldProviderKey: string, newProviderKey: string) {
+  const errors: Record<string, string> = {};
+  for (const [key, value] of Object.entries(extraBodyErrors.value)) {
+    errors[key.startsWith(`${oldProviderKey}:`) ? `${newProviderKey}:${key.slice(oldProviderKey.length + 1)}` : key] = value;
+  }
+  extraBodyErrors.value = errors;
+  const drafts: Record<string, string> = {};
+  for (const [key, value] of Object.entries(extraBodyDrafts.value)) {
+    drafts[key.startsWith(`${oldProviderKey}:`) ? `${newProviderKey}:${key.slice(oldProviderKey.length + 1)}` : key] = value;
+  }
+  extraBodyDrafts.value = drafts;
+}
+
+function getExtraBodyErrorKey(providerKey: string, modelKey: string): string {
+  return `${providerKey}:${modelKey}`;
+}
+
 function normalizeProvider(key: string, value: unknown): ProviderForm {
   const source = isRecord(value) ? value : {};
   return {
@@ -907,11 +1016,14 @@ function toJson(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
-function parseJson(value: string): unknown | undefined {
+type JsonParseResult = { ok: true; value: unknown } | { ok: false; error: string };
+
+function parseJson(value: string): JsonParseResult {
   try {
-    return JSON.parse(value);
-  } catch {
-    return undefined;
+    return { ok: true, value: JSON.parse(value) };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Invalid JSON';
+    return { ok: false, error: message };
   }
 }
 

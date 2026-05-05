@@ -137,7 +137,7 @@ describe('plugin_exec', () => {
     const details = result.details as ExecResultDetails;
 
     expect(details.timedOut).toBe(true);
-    expect(details.stdout).toContain('start');
+    await expect(fileExists(readyPath)).resolves.toBe(true);
 
     await delay(2_500);
     await expect(fileExists(markerPath)).resolves.toBe(false);

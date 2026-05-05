@@ -597,11 +597,11 @@ describe('Database Layer', () => {
         cacheWriteTokens: 5,
         count: 2,
       });
-      expect(stats[0]?.costInput).toBeCloseTo(0.14);
-      expect(stats[0]?.costOutput).toBeCloseTo(0.44);
-      expect(stats[0]?.costCacheRead).toBeCloseTo(0.01);
-      expect(stats[0]?.costCacheWrite).toBeCloseTo(0.02);
-      expect(stats[0]?.costTotal).toBeCloseTo(0.61);
+      expect(stats[0]).not.toHaveProperty('costInput');
+      expect(stats[0]).not.toHaveProperty('costOutput');
+      expect(stats[0]).not.toHaveProperty('costCacheRead');
+      expect(stats[0]).not.toHaveProperty('costCacheWrite');
+      expect(stats[0]).not.toHaveProperty('costTotal');
     });
 
     it('returns only today usage summary ordered by total tokens', async () => {
@@ -645,12 +645,12 @@ describe('Database Layer', () => {
         },
       });
 
-      db.prepare("UPDATE usage SET timestamp = DATE('now','localtime') || 'T08:00:00.000Z' WHERE id = ?").run(
-        lowTodayId,
-      );
-      db.prepare("UPDATE usage SET timestamp = DATE('now','localtime') || 'T12:00:00.000Z' WHERE id = ?").run(
-        highTodayId,
-      );
+      db.prepare(
+        "UPDATE usage SET timestamp = DATE('now','localtime') || 'T08:00:00.000Z' WHERE id = ?",
+      ).run(lowTodayId);
+      db.prepare(
+        "UPDATE usage SET timestamp = DATE('now','localtime') || 'T12:00:00.000Z' WHERE id = ?",
+      ).run(highTodayId);
       db.prepare(
         "UPDATE usage SET timestamp = DATE('now','localtime','-1 day') || 'T09:00:00.000Z' WHERE id = ?",
       ).run(yesterdayId);
