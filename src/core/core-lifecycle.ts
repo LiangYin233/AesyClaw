@@ -178,6 +178,7 @@ export class CoreLifecycle {
       llmAdapter: this.resolvedDeps.llmAdapter,
       configManager: this.resolvedDeps.configManager,
       skillManager: this.resolvedDeps.skillManager,
+      usageRepository: this.resolvedDeps.databaseManager.usage,
     });
     registerBuiltinCommands(this.resolvedDeps.commandRegistry, {
       roleManager: this.resolvedDeps.roleManager,

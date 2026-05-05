@@ -15,6 +15,28 @@ import type { ResolvedModel } from '@aesyclaw/agent/agent-types';
 export function createImageUnderstandingTool(deps: {
   configManager: Pick<ConfigManager, 'get'>;
   llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
+  usageRepository?: {
+    create: (record: {
+      model: string;
+      provider: string;
+      api: string;
+      responseId?: string;
+      usage: {
+        input: number;
+        output: number;
+        cacheRead: number;
+        cacheWrite: number;
+        totalTokens: number;
+        cost: {
+          input: number;
+          output: number;
+          cacheRead: number;
+          cacheWrite: number;
+          total: number;
+        };
+      };
+    }) => Promise<number>;
+  };
 }): AesyClawTool {
   const schema = Type.Object({
     source: Type.String({
@@ -56,6 +78,17 @@ export function createImageUnderstandingTool(deps: {
         );
         const answer = extractMessageText(resp).trim();
         if (!answer) throw new Error('LLM 返回了空图像分析回复');
+        if (deps.usageRepository && resp.usage?.totalTokens > 0) {
+          deps.usageRepository
+            .create({
+              model: resp.model,
+              provider: resp.provider,
+              api: resp.api as string,
+              responseId: resp.responseId,
+              usage: resp.usage,
+            })
+            .catch(() => {});
+        }
         return { content: answer };
       } catch (e) {
         return { content: `图片理解失败: ${errorMessage(e)}`, isError: true };
