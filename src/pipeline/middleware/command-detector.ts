@@ -11,32 +11,18 @@ import type { PipelineState } from './types';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { CommandContext } from '@aesyclaw/core/types';
 import { getMessageText } from '@aesyclaw/core/types';
-import {
-  AGENT_PROCESSING_BUSY_MESSAGE,
-  type SessionManager,
-} from '@aesyclaw/agent/session-manager';
+import { AGENT_PROCESSING_BUSY_MESSAGE } from '@aesyclaw/agent/session';
 
-/**
- * 检测斜杠命令并通过 CommandRegistry 执行它们。
- *
- * 命令是面向用户的功能，如 /help、/role list 等。
- * 当检测到命令时，此函数：
- * 1. 从管道状态创建 CommandContext
- * 2. 通过 CommandRegistry 执行命令
- * 3. 在状态上设置出站响应
- * 4. 返回状态 — 管道应跳过剩余步骤
- */
 export async function commandDetector(
   state: PipelineState,
   commandRegistry: CommandRegistry,
-  sessionManager: Pick<SessionManager, 'isAgentProcessing'>,
 ): Promise<PipelineState> {
   if (state.stage !== 'continue') {
     return state;
   }
 
   const resolved = commandRegistry.resolve(getMessageText(state.inbound));
-  const isBusy = sessionManager.isAgentProcessing(state.sessionKey);
+  const isBusy = state.session?.isLocked ?? false;
 
   if (isBusy && !resolved?.command.allowDuringAgentProcessing) {
     return {

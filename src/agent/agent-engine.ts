@@ -2,12 +2,14 @@ import { Agent as PiAgent } from '@mariozechner/pi-agent-core';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import type { RoleConfig, InboundMessage, OutboundMessage, SessionKey } from '@aesyclaw/core/types';
-import { getMessageText, serializeSessionKey } from '@aesyclaw/core/types';
+import { serializeSessionKey } from '@aesyclaw/core/types';
+import { getMessageText } from '@aesyclaw/core/types';
 import type { Agent, AgentMessage } from './agent-types';
+import { extractMessageText } from './agent-types';
 import type { ToolExecutionContext } from '@aesyclaw/tool/tool-registry';
 import type { LlmAdapter } from './llm-adapter';
 import type { PromptBuilder } from './prompt-builder';
-import type { MemoryManager } from './memory-manager';
+import type { Session } from './session/session';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('agent-engine');
@@ -26,32 +28,22 @@ export class AgentEngine {
     private promptBuilder: PromptBuilder,
   ) {}
 
-  createAgent(
-    role: RoleConfig,
-    sessionId: string,
-    executionContext?: Partial<ToolExecutionContext>,
-  ): Agent {
-    const { prompt, tools } = this.promptBuilder.buildSystemPrompt(role, executionContext);
+  createFromSession(session: Session, role: RoleConfig): Agent {
+    const { prompt, tools } = this.promptBuilder.buildSystemPrompt(role, {
+      sessionKey: session.key,
+    });
     const model = this.llmAdapter.resolveModel(role.model);
-
     const agent = new PiAgent({
       initialState: {
         systemPrompt: prompt,
         model,
         tools,
-        messages: [],
+        messages: session.get() as AgentMessage[],
       },
       streamFn: this.llmAdapter.createStreamFn(),
       getApiKey: this.llmAdapter.createGetApiKey(),
-      sessionId,
+      sessionId: session.sessionId,
     });
-
-    logger.debug('Agent 已创建', {
-      role: role.id,
-      model: role.model,
-      toolCount: tools.length,
-    });
-
     return agent;
   }
 
@@ -204,39 +196,37 @@ export class AgentEngine {
 
   async process(
     message: InboundMessage,
-    sessionKey: SessionKey,
-    memory: MemoryManager,
+    session: Session,
     role: RoleConfig,
     sendMessage?: ToolExecutionContext['sendMessage'],
   ): Promise<OutboundMessage> {
     const content = getMessageText(message);
 
     logger.debug('正在处理消息', {
-      sessionKey,
+      sessionKey: session.key,
       role: role.id,
       contentLength: content.length,
     });
 
-    const history = await this.loadHistoryForTurn(memory, role);
-    const result = await this.runAgentTurn(role, content, history, sessionKey, sendMessage);
-    await memory.syncFromAgent(result.newMessages);
+    const history = await this.loadHistoryForTurn(session, role.model);
+    const result = await this.runAgentTurn(role, content, history, session.key, sendMessage);
+    await session.syncFromAgent(result.newMessages);
 
     return this.toOutboundMessage(role.id, result);
   }
 
   async processEphemeral(
-    sessionKey: SessionKey,
-    memory: MemoryManager,
+    session: Session,
     role: RoleConfig,
     content: string,
   ): Promise<OutboundMessage> {
-    const history = await memory.loadHistory();
+    const history = (await session.get()) as AgentMessage[];
     const ephemeralRole: RoleConfig = {
       ...role,
       toolPermission: { mode: 'allowlist', list: [] },
     };
 
-    const result = await this.runAgentTurn(ephemeralRole, content, history, sessionKey);
+    const result = await this.runAgentTurn(ephemeralRole, content, history, session.key);
 
     return this.toOutboundMessage(role.id, result);
   }
@@ -263,14 +253,20 @@ export class AgentEngine {
   }
 
   private async loadHistoryForTurn(
-    memory: MemoryManager,
-    role: RoleConfig,
+    session: Session,
+    modelIdentifier: string,
   ): Promise<AgentMessage[]> {
-    let history = await memory.loadHistory();
-    if (memory.shouldCompact(history)) {
-      await memory.compact(this.llmAdapter, role.model);
-      history = await memory.loadHistory();
+    let history = session.get();
+    if (this.shouldCompact(history)) {
+      await session.compact(this.llmAdapter, modelIdentifier);
+      history = session.get();
     }
-    return history;
+    return history as AgentMessage[];
+  }
+
+  private shouldCompact(messages: readonly AgentMessage[]): boolean {
+    const threshold = 1000;
+    const textLength = messages.reduce((total, m) => total + extractMessageText(m).length, 0);
+    return Math.ceil(textLength / 4) >= threshold;
   }
 }

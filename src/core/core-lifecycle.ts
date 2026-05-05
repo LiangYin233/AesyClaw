@@ -4,7 +4,7 @@ import { mkdirSync } from 'node:fs';
 import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 
-import type { SessionManager } from '@aesyclaw/agent/session-manager';
+import type { SessionManager } from '@aesyclaw/agent/session/manager';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import { registerBuiltinCommands } from '@aesyclaw/command/builtin';
 import type { ConfigManager } from './config/config-manager';
@@ -160,6 +160,9 @@ export class CoreLifecycle {
       sessionManager: this.resolvedDeps.sessionManager,
       agentEngine: this.resolvedDeps.agentEngine,
       commandRegistry: this.resolvedDeps.commandRegistry,
+      roleManager: this.resolvedDeps.roleManager,
+      databaseManager: this.resolvedDeps.databaseManager,
+      llmAdapter: this.resolvedDeps.llmAdapter,
     });
 
     this.extensionManager = new ExtensionManager({
@@ -186,6 +189,7 @@ export class CoreLifecycle {
       pluginManager: this.extensionManager!,
       sessionManager: this.resolvedDeps.sessionManager,
       agentEngine: this.resolvedDeps.agentEngine,
+      llmAdapter: this.resolvedDeps.llmAdapter,
     });
 
     await this.extensionManager.setup();
@@ -258,7 +262,7 @@ export class CoreLifecycle {
         await this.extensionManager?.reloadChannels();
       }),
       this.resolvedDeps.roleManager.subscribeChanges(() => {
-        this.resolvedDeps.sessionManager.clearCachedSessions();
+        this.resolvedDeps.sessionManager.clearCache();
       }),
     );
   }

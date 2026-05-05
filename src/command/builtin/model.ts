@@ -1,23 +1,8 @@
-/**
- * 内置 model 命令。
- *
- * 在对话过程中切换 Agent 使用的模型。
- *
- */
-
 import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
-import type { SessionManager } from '@aesyclaw/agent/session-manager';
-import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
+import type { SessionManager } from '@aesyclaw/agent/session/manager';
 
-/**
- * 创建 model 命令定义。
- *
- * @param deps - 包含 sessionManager 和 agentEngine 的依赖项
- * @returns model 命令的 CommandDefinition
- */
 export function createModelCommand(
-  sessionManager: Pick<SessionManager, 'getOrCreateSession'>,
-  agentEngine: Pick<AgentEngine, 'switchModel'>,
+  sessionManager: Pick<SessionManager, 'create'>,
 ): CommandDefinition {
   return {
     name: 'model',
@@ -31,8 +16,8 @@ export function createModelCommand(
         return '用法: /model <provider/modelId> (例如 /model openai/gpt-4o)';
       }
 
-      const session = await sessionManager.getOrCreateSession(context.sessionKey);
-      agentEngine.switchModel(session.agent, modelIdentifier);
+      const session = await sessionManager.create(context.sessionKey);
+      session.modelOverride = modelIdentifier;
 
       return `模型已切换为 ${modelIdentifier}`;
     },

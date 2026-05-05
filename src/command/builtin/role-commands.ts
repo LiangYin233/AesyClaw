@@ -1,28 +1,12 @@
-/**
- * 内置角色管理命令。
- *
- * 子命令：
- *   /role list   — 列出所有已启用的角色
- *   /role switch — 切换当前角色
- *   /role info   — 显示当前角色信息
- *
- */
-
 import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
-import type { SessionManager } from '@aesyclaw/agent/session-manager';
+import type { SessionManager } from '@aesyclaw/agent/session/manager';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 
 export type RoleCommandDeps = {
   roleManager: Pick<RoleManager, 'getEnabledRoles' | 'getRole'>;
-  sessionManager: Pick<SessionManager, 'getOrCreateSession' | 'switchRole'>;
+  sessionManager: Pick<SessionManager, 'create' | 'setActiveRole'>;
 };
 
-/**
- * 创建 role list 命令定义。
- *
- * @param deps - 包含 roleManager 和 sessionManager 的依赖项
- * @returns role list 命令的 CommandDefinition
- */
 export function createRoleListCommand(deps: RoleCommandDeps): CommandDefinition {
   return {
     name: 'list',
@@ -31,7 +15,7 @@ export function createRoleListCommand(deps: RoleCommandDeps): CommandDefinition 
     usage: '/role list',
     scope: 'system',
     execute: async (_args: string[], context: CommandContext): Promise<string> => {
-      const session = await deps.sessionManager.getOrCreateSession(context.sessionKey);
+      const session = await deps.sessionManager.create(context.sessionKey);
       const roles = deps.roleManager.getEnabledRoles();
 
       if (roles.length === 0) {
@@ -39,7 +23,7 @@ export function createRoleListCommand(deps: RoleCommandDeps): CommandDefinition 
       }
 
       const lines = roles.map((role) => {
-        const current = role.id === session.activeRole.id ? '（当前）' : '';
+        const current = role.id === session.activeRoleId ? '（当前）' : '';
         return `- ${role.id} — ${role.name}${current}`;
       });
 
@@ -48,12 +32,6 @@ export function createRoleListCommand(deps: RoleCommandDeps): CommandDefinition 
   };
 }
 
-/**
- * 创建 role switch 命令定义。
- *
- * @param deps - 包含 roleManager 和 sessionManager 的依赖项
- * @returns role switch 命令的 CommandDefinition
- */
 export function createRoleSwitchCommand(deps: RoleCommandDeps): CommandDefinition {
   return {
     name: 'switch',
@@ -72,18 +50,12 @@ export function createRoleSwitchCommand(deps: RoleCommandDeps): CommandDefinitio
         return `未找到可用角色：${roleId}`;
       }
 
-      await deps.sessionManager.switchRole(context.sessionKey, roleId);
+      await deps.sessionManager.setActiveRole(context.sessionKey, roleId);
       return `已切换到角色：${targetRole.id}（${targetRole.name}）`;
     },
   };
 }
 
-/**
- * 创建 role info 命令定义。
- *
- * @param deps - 包含 roleManager 和 sessionManager 的依赖项
- * @returns role info 命令的 CommandDefinition
- */
 export function createRoleInfoCommand(deps: RoleCommandDeps): CommandDefinition {
   return {
     name: 'info',
@@ -92,8 +64,12 @@ export function createRoleInfoCommand(deps: RoleCommandDeps): CommandDefinition 
     usage: '/role info',
     scope: 'system',
     execute: async (_args: string[], context: CommandContext): Promise<string> => {
-      const session = await deps.sessionManager.getOrCreateSession(context.sessionKey);
-      const role = deps.roleManager.getRole(session.activeRole.id);
+      const session = await deps.sessionManager.create(context.sessionKey);
+      const roleId = session.activeRoleId;
+      if (!roleId) {
+        return '当前没有活跃角色。';
+      }
+      const role = deps.roleManager.getRole(roleId);
       return [
         `当前角色：${role.id}`,
         `名称：${role.name}`,

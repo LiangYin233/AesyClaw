@@ -13,7 +13,8 @@ import type {
   SenderInfo,
 } from '@aesyclaw/core/types';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
-import type { SessionContext, SessionManager } from '@aesyclaw/agent/session-manager';
+import type { SessionManager } from '@aesyclaw/agent/session/manager';
+import type { Session } from '@aesyclaw/agent/session/session';
 import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
 import type { Agent } from '@aesyclaw/agent/agent-types';
 import type {
@@ -23,6 +24,9 @@ import type {
   AfterToolCallHookResult,
 } from '@aesyclaw/agent/agent-types';
 import type { PipelineResult } from '@aesyclaw/core/types';
+import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
+import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 
 /**
  * 传递给 onSend 钩子的上下文。
@@ -42,7 +46,7 @@ export type BeforeLLMRequestContext = {
   message: InboundMessage;
   sessionKey: SessionKey;
   sender?: SenderInfo;
-  session: SessionContext;
+  session: Session;
   agent: Agent;
   role: RoleConfig;
 };
@@ -62,8 +66,12 @@ type PipelineStateBase = {
 
 type PipelineStateContinue = PipelineStateBase & {
   stage: 'continue';
-  /** 为入站消息解析的会话上下文 */
-  session?: SessionContext;
+  /** 为入站消息解析的会话 */
+  session?: Session;
+  /** 从 session 创建的 Agent */
+  agent?: Agent;
+  /** 解析的活跃角色 */
+  activeRole?: RoleConfig;
 };
 
 type PipelineStateBlocked = PipelineStateBase & {
@@ -74,7 +82,7 @@ type PipelineStateBlocked = PipelineStateBase & {
 type PipelineStateRespond = PipelineStateBase & {
   stage: 'respond';
   outbound: OutboundMessage;
-  session?: SessionContext;
+  session?: Session;
 };
 
 /**
@@ -99,6 +107,9 @@ type PipelineDependencies = {
   sessionManager: SessionManager;
   agentEngine: AgentEngine;
   commandRegistry: CommandRegistry;
+  roleManager: RoleManager;
+  databaseManager: DatabaseManager;
+  llmAdapter: LlmAdapter;
 };
 
 // ─── 插件钩子 ────────────────────────────────────────────────

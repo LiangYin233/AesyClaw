@@ -1,22 +1,9 @@
-/**
- * 内置 stop 命令。
- *
- * 中止当前正在进行的 Agent 处理。
- *
- */
-
 import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
-import type { SessionManager } from '@aesyclaw/agent/session-manager';
+import type { SessionManager } from '@aesyclaw/agent/session/manager';
 import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
 
-/**
- * 创建 stop 命令定义。
- *
- * @param deps - 包含 sessionManager 的依赖项
- * @returns stop 命令的 CommandDefinition
- */
 export function createStopCommand(
-  sessionManager: Pick<SessionManager, 'getSession' | 'endAgentProcessing'>,
+  sessionManager: Pick<SessionManager, 'get'>,
   agentEngine?: Pick<AgentEngine, 'cancelRun'>,
 ): CommandDefinition {
   return {
@@ -25,18 +12,17 @@ export function createStopCommand(
     scope: 'system',
     allowDuringAgentProcessing: true,
     execute: async (_args: string[], context: CommandContext): Promise<string> => {
-      const session = sessionManager.getSession(context.sessionKey);
+      const session = sessionManager.get(context.sessionKey);
 
       if (!session) {
         return '没有找到活跃会话。';
       }
 
       const cancelledWorker = agentEngine?.cancelRun(context.sessionKey) ?? false;
-      session.agent.abort();
-      session.agent.clearAllQueues();
+      session.unlock();
 
       if (!cancelledWorker) {
-        sessionManager.endAgentProcessing(context.sessionKey);
+        session.unlock();
       }
 
       return 'Agent 处理已中止。';

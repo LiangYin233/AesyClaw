@@ -4,15 +4,9 @@
  * 管道是唯一的控制流管理者。它接收入站消息,
  * 调度插件钩子,运行处理步骤,并发送出站响应。
  *
- * 整合后的架构:
- *   - Pipeline 持有 HookDispatcher 作为内部组件
- *   - Pipeline 暴露 hookDispatcher,供 PluginManager 注册/注销插件钩子
- *   - 所有控制流钩子(onReceive / beforeLLMRequest / onSend)由 Pipeline 统一调度
- *   - 工具钩子(beforeToolCall / afterToolCall)由 ToolAdapter 通过 HookDispatcher 调度
- *
  * 流程:
  *   1. onReceive 钩子 → 如果被阻止,停止
- *   2. 顺序步骤:sessionResolver → commandDetector
+ *   2. 顺序步骤:sessionResolver → agentResolver → commandDetector
  *   3. beforeLLMRequest 钩子 → 如果被阻止/响应,跳过 Agent 处理
  *   4. agentProcessor → Agent 处理
  *   5. onSend 钩子 → 如果被阻止,停止
@@ -30,6 +24,7 @@ import type {
 import type { PipelineDependencies, PipelineState } from './middleware/types';
 import { HookDispatcher } from './hook-dispatcher';
 import { sessionResolver } from './middleware/session-resolver';
+import { agentResolver } from './middleware/agent-resolver';
 import { commandDetector } from './middleware/command-detector';
 import { agentProcessor } from './middleware/agent-processor';
 import { createScopedLogger } from '@aesyclaw/core/logger';
@@ -88,7 +83,7 @@ export class Pipeline {
         return;
       }
 
-      // 2. 中间件:sessionResolver → commandDetector
+      // 2. 中间件:sessionResolver → agentResolver → commandDetector
       let state: PipelineState = { stage: 'continue', inbound: message, sessionKey, sender };
       state = await sessionResolver(state, deps.sessionManager);
       if (state.stage === 'continue') {
@@ -100,7 +95,19 @@ export class Pipeline {
         };
       }
 
-      state = await commandDetector(state, deps.commandRegistry, deps.sessionManager);
+      state = await agentResolver(
+        state,
+        deps.agentEngine,
+        deps.roleManager,
+        deps.databaseManager,
+        deps.llmAdapter,
+      );
+      if (state.stage === 'respond') {
+        await this.dispatchOnSendAndDeliver(state.outbound, send, state.session?.key);
+        return;
+      }
+
+      state = await commandDetector(state, deps.commandRegistry);
       if (state.stage === 'respond') {
         await this.dispatchOnSendAndDeliver(state.outbound, send, state.session?.key);
         return;
@@ -111,14 +118,14 @@ export class Pipeline {
       }
 
       // 3. beforeLLMRequest 钩子(仅在 session 已解析时)
-      if (state.session) {
+      if (state.session && state.agent && state.activeRole) {
         const beforeLLMResult = await this.hookDispatcher.dispatchBeforeLLMRequest({
           message: state.inbound,
           sessionKey: state.sessionKey,
           sender: state.sender,
           session: state.session,
-          agent: state.session.agent,
-          role: state.session.activeRole,
+          agent: state.agent,
+          role: state.activeRole,
         });
         if (
           await this.handleHookResult('beforeLLMRequest', beforeLLMResult, send, state.session.key)
@@ -128,7 +135,7 @@ export class Pipeline {
       }
 
       // 4. Agent 处理
-      state = await agentProcessor(state, deps.agentEngine, deps.sessionManager);
+      state = await agentProcessor(state, deps.agentEngine);
       if (state.stage === 'respond') {
         await this.dispatchOnSendAndDeliver(state.outbound, send, state.session?.key);
         return;
@@ -144,13 +151,6 @@ export class Pipeline {
 
   // ─── 私有辅助方法 ───────────────────────────────────────────
 
-  /**
-   * 把钩子的 PipelineResult 翻译成"是否要终止流程"。
-   *
-   * - `block`: 记日志,返回 true(终止)
-   * - `respond`: 通过 onSend 钩子投递回复,返回 true(终止)
-   * - `continue`: 返回 false(调用方继续)
-   */
   private async handleHookResult(
     hookName: string,
     result: PipelineResult,

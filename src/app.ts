@@ -3,7 +3,7 @@
 import { AgentEngine } from './agent/agent-engine';
 import { LlmAdapter } from './agent/llm-adapter';
 import { PromptBuilder } from './agent/prompt-builder';
-import { SessionManager } from './agent/session-manager';
+import { SessionManager } from './agent/session/manager';
 import { CommandRegistry } from './command/command-registry';
 import { ConfigManager } from './core/config/config-manager';
 import { CoreLifecycle } from './core/core-lifecycle';
@@ -55,13 +55,7 @@ export class Application {
         this.pipeline.hookDispatcher,
       ),
     );
-    this.sessionManager = new SessionManager(
-      this.databaseManager,
-      this.roleManager,
-      this.agentEngine,
-      this.configManager,
-      this.llmAdapter,
-    );
+    this.sessionManager = new SessionManager(this.databaseManager, this.configManager);
     this.cronManager = new CronManager();
     this.mcpManager = new McpManager(
       this.configManager,
