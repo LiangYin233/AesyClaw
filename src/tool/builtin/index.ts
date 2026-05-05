@@ -1,11 +1,3 @@
-/**
- * 内置工具的 Barrel 导出。
- *
- * `registerBuiltinTools()` 将所有内置工具注册到
- * ToolRegistry。依赖通过
- * BuiltinToolDependencies 接口注入。
- */
-
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { CronToolsDeps } from './cron-tools';
 import type { CronManager } from '@aesyclaw/cron/cron-manager';
@@ -22,6 +14,8 @@ import { createSpeechToTextTool } from './speech-to-text';
 import { createImageUnderstandingTool } from './image-understanding';
 import { createLoadSkillTool } from './load-skill';
 
+export { createSpeechToTextTool, createImageUnderstandingTool };
+
 export type BuiltinToolDependencies = {
   cronManager: Pick<CronManager, 'createJob' | 'listJobs' | 'deleteJob'>;
   agentEngine: Pick<AgentEngine, 'runAgentTurn'>;
@@ -33,7 +27,6 @@ export type BuiltinToolDependencies = {
 
 export function registerBuiltinTools(registry: ToolRegistry, deps: BuiltinToolDependencies): void {
   const cronDeps: CronToolsDeps = { cronManager: deps.cronManager };
-
   registry.register(createSendMsgTool());
   registry.register(createCreateCronTool(cronDeps));
   registry.register(createListCronTool(cronDeps));
@@ -45,16 +38,6 @@ export function registerBuiltinTools(registry: ToolRegistry, deps: BuiltinToolDe
     createRunTempSubAgentTool({ agentEngine: deps.agentEngine, roleManager: deps.roleManager }),
   );
   registry.register(createLoadSkillTool({ skillManager: deps.skillManager }));
-  registry.register(
-    createSpeechToTextTool({
-      configManager: deps.configManager,
-      llmAdapter: deps.llmAdapter,
-    }),
-  );
-  registry.register(
-    createImageUnderstandingTool({
-      configManager: deps.configManager,
-      llmAdapter: deps.llmAdapter,
-    }),
-  );
+  registry.register(createSpeechToTextTool(deps));
+  registry.register(createImageUnderstandingTool(deps));
 }

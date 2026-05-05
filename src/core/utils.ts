@@ -1,19 +1,98 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
+export type LoadedMediaSource = {
+  data: Uint8Array;
+  base64: string;
+  mimeType: string;
+  fileName: string;
+};
+
+const DATA_URI_RE = /^data:([^;,]+);base64,(.+)$/s;
+
+export function parseSource(
+  source: string,
+):
+  | { type: 'url'; url: string }
+  | { type: 'file'; filePath: string }
+  | { type: 'data'; mimeType: string; base64: string } {
+  if (source.startsWith('data:')) {
+    const match = DATA_URI_RE.exec(source);
+    if (!match) throw new Error('无效的 data URI 格式，应为 data:mime/type;base64,...');
+    return { type: 'data', mimeType: match[1]!, base64: match[2]! };
+  }
+  if (/^https?:\/\//i.test(source)) return { type: 'url', url: source };
+  if (source.startsWith('file://')) return { type: 'file', filePath: source.slice(7) };
+  return { type: 'file', filePath: source };
+}
+
+export async function loadMediaSource(source: string): Promise<LoadedMediaSource> {
+  const parsed = parseSource(source);
+  switch (parsed.type) {
+    case 'data': {
+      const data = Uint8Array.from(Buffer.from(parsed.base64, 'base64'));
+      return {
+        data,
+        base64: parsed.base64,
+        mimeType: parsed.mimeType,
+        fileName: `upload.${parsed.mimeType.split('/')[1] ?? 'bin'}`,
+      };
+    }
+    case 'url': {
+      const response = await fetch(parsed.url);
+      if (!response.ok)
+        throw new Error(`获取媒体源失败 (${response.status}): ${response.statusText}`);
+      const url = new URL(parsed.url);
+      const fileName = path.basename(url.pathname) || 'remote-media';
+      const data = new Uint8Array(await response.arrayBuffer());
+      return {
+        data,
+        base64: Buffer.from(data).toString('base64'),
+        mimeType: extractMimeFromPath(fileName),
+        fileName,
+      };
+    }
+    case 'file': {
+      const data = await fs.readFile(parsed.filePath);
+      const fileName = path.basename(parsed.filePath);
+      return {
+        data,
+        base64: Buffer.from(data).toString('base64'),
+        mimeType: extractMimeFromPath(fileName),
+        fileName,
+      };
+    }
+  }
+}
+
+function extractMimeFromPath(fileName: string): string {
+  const ext = path.extname(fileName).toLowerCase();
+  const map: Record<string, string> = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.bmp': 'image/bmp',
+    '.wav': 'audio/wav',
+    '.mp3': 'audio/mpeg',
+    '.m4a': 'audio/mp4',
+    '.mp4': 'audio/mp4',
+    '.ogg': 'audio/ogg',
+    '.webm': 'audio/webm',
+    '.flac': 'audio/flac',
+  };
+  return map[ext] ?? 'application/octet-stream';
+}
+
 /** Shared small utilities for backend managers and runtime helpers. */
 
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/**
- * 断言依赖已被注入。常用于实现 manager 的 `requireDeps()` 辅助方法。
- *
- * 错误信息固定为 `${managerName} 未初始化`,与原 BaseManager 行为保持一致,
- * 以便已有测试用例继续匹配。
- */
 export function requireInitialized<T>(value: T | null | undefined, managerName: string): T {
-  if (value === null || value === undefined) {
-    throw new Error(`${managerName} 未初始化`);
-  }
+  if (value === null || value === undefined) throw new Error(`${managerName} 未初始化`);
   return value;
 }
 
@@ -28,11 +107,9 @@ export function mergeDefaults(
 ): Record<string, unknown> {
   const merged = structuredClone(defaults) as Record<string, unknown>;
   const overwrite = options.overwrite ?? true;
-
   for (const key of Object.keys(overrides)) {
     const sourceVal = overrides[key];
     const targetVal = merged[key];
-
     if (
       sourceVal !== null &&
       typeof sourceVal === 'object' &&
@@ -50,24 +127,15 @@ export function mergeDefaults(
       merged[key] = structuredClone(sourceVal as unknown);
     }
   }
-
   return merged;
 }
 
-/**
- * 将 "provider/modelId" 格式的模型标识符解析为 provider 和 modelId。
- * 格式无效时抛出错误。
- */
 export function parseModelIdentifier(modelIdentifier: string): {
   provider: string;
   modelId: string;
 } {
   const idx = modelIdentifier.indexOf('/');
-  if (idx === -1) {
+  if (idx === -1)
     throw new Error(`模型标识符格式无效: "${modelIdentifier}"。应为 "provider/modelId"。`);
-  }
-  return {
-    provider: modelIdentifier.slice(0, idx),
-    modelId: modelIdentifier.slice(idx + 1),
-  };
+  return { provider: modelIdentifier.slice(0, idx), modelId: modelIdentifier.slice(idx + 1) };
 }

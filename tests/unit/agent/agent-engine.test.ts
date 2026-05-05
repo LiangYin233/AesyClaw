@@ -301,8 +301,6 @@ describe('AgentEngine', () => {
         expect.objectContaining({ role: 'assistant', content: 'Real response from pi runtime' }),
       );
     });
-
-    // maxSteps logic removed
   });
 
   describe('processEphemeral', () => {

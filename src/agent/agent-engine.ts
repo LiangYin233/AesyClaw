@@ -120,12 +120,31 @@ export class AgentEngine {
             }
             try {
               const result = await tool.execute(msg['toolCallId'] as string, msg['params']);
-              worker.postMessage({ type: 'toolResult', callId: msg['callId'], result });
+              if (result.isError) {
+                const errorContent =
+                  typeof result.content === 'string'
+                    ? result.content
+                    : JSON.stringify(result.content);
+                logger.error('工具调用返回错误', {
+                  toolName: msg['toolName'],
+                  error: errorContent,
+                });
+                worker.postMessage({
+                  type: 'toolResult',
+                  callId: msg['callId'],
+                  error: errorContent,
+                  isError: true,
+                });
+              } else {
+                worker.postMessage({ type: 'toolResult', callId: msg['callId'], result });
+              }
             } catch (err) {
+              const errMsg = err instanceof Error ? err.message : String(err);
+              logger.error('工具调用执行失败', { toolName: msg['toolName'], error: errMsg });
               worker.postMessage({
                 type: 'toolResult',
                 callId: msg['callId'],
-                error: err instanceof Error ? err.message : String(err),
+                error: errMsg,
               });
             }
           } else if (msg['type'] === 'fatal') {

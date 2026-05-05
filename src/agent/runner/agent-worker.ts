@@ -50,8 +50,9 @@ type IpcToolCallMessage = {
 type IpcToolResultMessage = {
   type: 'toolResult';
   callId: string;
-  result: unknown;
+  result?: unknown;
   error?: string;
+  isError?: boolean;
 };
 
 /** Worker 初始化消息（主线程 → Worker） */
@@ -114,7 +115,12 @@ function createToolProxy(def: ToolDef): ToolProxy {
         const handler = (msg: IpcMessage): void => {
           if (msg.type === 'toolResult' && msg.callId === callId) {
             port.removeListener('message', handler);
-            if (msg.error !== undefined) {
+            if (msg.error !== undefined && msg.isError === true) {
+              resolve({
+                content: [{ type: 'text' as const, text: msg.error }],
+                isError: true,
+              });
+            } else if (msg.error !== undefined) {
               reject(new Error(msg.error));
             } else {
               resolve(msg.result);

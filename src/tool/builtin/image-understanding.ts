@@ -1,119 +1,64 @@
-/**
- * 内置 image_understanding 工具。
- *
- * 分析来自 URL 或文件路径的图片。
- *
- */
-
-import { completeSimple } from '@mariozechner/pi-ai';
-import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
 import type {
   AesyClawTool,
   ToolExecutionContext,
   ToolExecutionResult,
 } from '@aesyclaw/tool/tool-registry';
-import { errorMessage } from '@aesyclaw/core/utils';
+import { errorMessage, loadMediaSource } from '@aesyclaw/core/utils';
+import { extractMessageText, makeExtraBodyOnPayload } from '@aesyclaw/agent/agent-types';
+import { completeSimple } from '@mariozechner/pi-ai';
 import type { ToolOwner } from '@aesyclaw/core/types';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
-import { extractMessageText, makeExtraBodyOnPayload } from '@aesyclaw/agent/agent-types';
 import type { ResolvedModel } from '@aesyclaw/agent/agent-types';
-import { loadMediaSource } from './media-source';
 
-/** image_understanding 的参数模式 */
-const ImageUnderstandingParamsSchema = Type.Object({
-  source: Type.String({ description: '图片来源：URL 或本地文件路径' }),
-  question: Type.Optional(Type.String({ description: '对图片提出的问题' })),
-});
-
-type ImageUnderstandingParams = Static<typeof ImageUnderstandingParamsSchema>;
-
-export type ImageUnderstandingDeps = {
+export function createImageUnderstandingTool(deps: {
   configManager: Pick<ConfigManager, 'get'>;
   llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
-};
-
-type ImageAnalysisInput = {
-  data: string;
-  mimeType: string;
-};
-
-async function analyzeImage(
-  model: ResolvedModel,
-  question: string,
-  image: ImageAnalysisInput,
-  sessionId?: string,
-): Promise<string> {
-  if (!model.input.includes('image')) {
-    throw new Error(`配置的模型 "${model.modelId}" 不支持图像输入`);
-  }
-
-  const response = await completeSimple(
-    model,
-    {
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: question },
-            { type: 'image', data: image.data, mimeType: image.mimeType },
-          ],
-          timestamp: Date.now(),
-        },
-      ],
-    },
-    {
-      apiKey: model.apiKey,
-      sessionId,
-      onPayload: makeExtraBodyOnPayload(model),
-    },
-  );
-
-  const answer = extractMessageText(response).trim();
-  if (answer.length === 0) {
-    throw new Error('LLM 返回了空图像分析回复');
-  }
-
-  return answer;
-}
-
-/**
- * 创建 image_understanding 工具定义。
- *
- * @param deps - 包含 configManager 和 llmAdapter 的依赖项
- * @returns image_understanding 工具的 AesyClawTool 定义
- */
-export function createImageUnderstandingTool(deps: ImageUnderstandingDeps): AesyClawTool {
+}): AesyClawTool {
+  const schema = Type.Object({
+    source: Type.String({
+      description: '图片来源：data URI (data:image/jpeg;base64,...)、URL 或本地文件路径',
+    }),
+    question: Type.Optional(Type.String({ description: '对图片提出的问题' })),
+  });
   return {
     name: 'image_understanding',
-    description: '分析图片内容，可针对图片提出问题',
-    parameters: ImageUnderstandingParamsSchema,
+    description: '分析图片内容，可针对图片提出问题（支持 data URI、URL 或本地文件路径）',
+    parameters: schema,
     owner: 'system' as ToolOwner,
-    execute: async (
-      params: unknown,
-      context: ToolExecutionContext,
-    ): Promise<ToolExecutionResult> => {
-      const { source, question } = params as ImageUnderstandingParams;
-
+    execute: async (params: unknown, ctx: ToolExecutionContext): Promise<ToolExecutionResult> => {
+      const { source, question } = params as { source: string; question?: string };
       try {
-        const image = await loadMediaSource(source, 'image');
-        const multimodal = deps.configManager.get('agent').multimodal;
-        const modelIdentifier = `${multimodal.imageUnderstanding.provider}/${multimodal.imageUnderstanding.model}`;
-        const model = deps.llmAdapter.resolveModel(modelIdentifier);
-        const answer = await analyzeImage(
+        const image = await loadMediaSource(source);
+        const mm = deps.configManager.get('agent').multimodal;
+        const model = deps.llmAdapter.resolveModel(
+          `${mm.imageUnderstanding.provider}/${mm.imageUnderstanding.model}`,
+        ) as ResolvedModel;
+        if (!model.input.includes('image'))
+          throw new Error(`配置的模型 "${model.modelId}" 不支持图像输入`);
+        const sid = `${ctx.sessionKey.channel}:${ctx.sessionKey.type}:${ctx.sessionKey.chatId}`;
+        const resp = await completeSimple(
           model,
-          question ?? '详细描述这张图片。',
-          { data: image.base64, mimeType: image.mimeType },
-          `${context.sessionKey.channel}:${context.sessionKey.type}:${context.sessionKey.chatId}`,
+          {
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: question ?? '详细描述这张图片。' },
+                  { type: 'image', data: image.base64, mimeType: image.mimeType },
+                ],
+                timestamp: Date.now(),
+              },
+            ],
+          },
+          { apiKey: model.apiKey, sessionId: sid, onPayload: makeExtraBodyOnPayload(model) },
         );
-
+        const answer = extractMessageText(resp).trim();
+        if (!answer) throw new Error('LLM 返回了空图像分析回复');
         return { content: answer };
-      } catch (error: unknown) {
-        return {
-          content: `图片理解失败: ${errorMessage(error)}`,
-          isError: true,
-        };
+      } catch (e) {
+        return { content: `图片理解失败: ${errorMessage(e)}`, isError: true };
       }
     },
   };

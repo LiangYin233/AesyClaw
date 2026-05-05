@@ -8,10 +8,12 @@ import { ToolRegistry } from '../../../src/tool/tool-registry';
 import { createSendMsgTool } from '../../../src/tool/builtin/send-msg';
 import { createRunSubAgentTool } from '../../../src/tool/builtin/run-sub-agent';
 import { createRunTempSubAgentTool } from '../../../src/tool/builtin/run-temp-sub-agent';
-import { createSpeechToTextTool } from '../../../src/tool/builtin/speech-to-text';
-import { createImageUnderstandingTool } from '../../../src/tool/builtin/image-understanding';
 import { createLoadSkillTool } from '../../../src/tool/builtin/load-skill';
-import { registerBuiltinTools } from '../../../src/tool/builtin';
+import {
+  registerBuiltinTools,
+  createSpeechToTextTool,
+  createImageUnderstandingTool,
+} from '../../../src/tool/builtin';
 import type { Skill } from '../../../src/core/types';
 
 vi.mock('@mariozechner/pi-ai', async () => {

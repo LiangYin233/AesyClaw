@@ -243,11 +243,52 @@ export class ConfigManager {
     ) as AppConfig;
     const validated = this.validateConfigObject(mergedWithDefaults);
 
-    if (JSON.stringify(parsed) !== JSON.stringify(validated)) {
-      logger.warn('配置存在缺失字段 —— 已用默认值修补');
+    const missingFields = this.findMissingFields(
+      parsed as Record<string, unknown>,
+      validated as Record<string, unknown>,
+    );
+
+    if (missingFields.length > 0) {
+      logger.warn('配置存在缺失字段 —— 已用默认值修补', {
+        missing: missingFields.join(', '),
+      });
+
+      this.writeConfigToStore(validated);
     }
 
     return validated as AppConfig;
+  }
+
+  private findMissingFields(
+    parsed: Record<string, unknown>,
+    validated: Record<string, unknown>,
+    prefix = '',
+  ): string[] {
+    const missing: string[] = [];
+
+    for (const key of Object.keys(validated)) {
+      const path = prefix ? `${prefix}.${key}` : key;
+      if (!(key in parsed)) {
+        missing.push(path);
+      } else if (
+        validated[key] !== null &&
+        typeof validated[key] === 'object' &&
+        !Array.isArray(validated[key]) &&
+        parsed[key] !== null &&
+        typeof parsed[key] === 'object' &&
+        !Array.isArray(parsed[key])
+      ) {
+        missing.push(
+          ...this.findMissingFields(
+            parsed[key] as Record<string, unknown>,
+            validated[key] as Record<string, unknown>,
+            path,
+          ),
+        );
+      }
+    }
+
+    return missing;
   }
 
   private validateConfigObject(value: unknown): AppConfig {
