@@ -25,12 +25,15 @@ const ModelPresetSchema = Type.Object({
   input: Type.Optional(Type.Array(Type.String())),
 });
 
-const ProviderConfigSchema = Type.Object({
-  apiKey: Type.Optional(Type.String()),
-  baseUrl: Type.Optional(Type.String()),
-  apiType: ApiProtocolSchema,
-  models: Type.Record(Type.String(), ModelPresetSchema, { default: {} }),
-});
+const ProviderConfigSchema = Type.Object(
+  {
+    apiKey: Type.Optional(Type.String()),
+    baseUrl: Type.Optional(Type.String()),
+    apiType: ApiProtocolSchema,
+    models: Type.Record(Type.String(), ModelPresetSchema, { default: {} }),
+  },
+  { additionalProperties: true },
+);
 
 type ProviderConfig = Static<typeof ProviderConfigSchema>;
 
@@ -67,25 +70,31 @@ const AgentConfigSchema = Type.Object({
 
 // ─── MCP ─────────────────────────────────────────────────────────
 
-const McpServerConfigSchema = Type.Object({
-  name: Type.String(),
-  transport: Type.Union([Type.Literal('stdio'), Type.Literal('sse'), Type.Literal('http')]),
-  command: Type.Optional(Type.String()),
-  args: Type.Optional(Type.Array(Type.String())),
-  env: Type.Optional(Type.Record(Type.String(), Type.String())),
-  url: Type.Optional(Type.String()),
-  enabled: Type.Boolean({ default: true }),
-});
+const McpServerConfigSchema = Type.Object(
+  {
+    name: Type.String(),
+    transport: Type.Union([Type.Literal('stdio'), Type.Literal('sse'), Type.Literal('http')]),
+    command: Type.Optional(Type.String()),
+    args: Type.Optional(Type.Array(Type.String())),
+    env: Type.Optional(Type.Record(Type.String(), Type.String())),
+    url: Type.Optional(Type.String()),
+    enabled: Type.Boolean({ default: true }),
+  },
+  { additionalProperties: true },
+);
 
 type McpServerConfig = Static<typeof McpServerConfigSchema>;
 
 // ─── Plugin ──────────────────────────────────────────────────────
 
-const PluginConfigEntrySchema = Type.Object({
-  name: Type.String(),
-  enabled: Type.Boolean({ default: true }),
-  options: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
-});
+const PluginConfigEntrySchema = Type.Object(
+  {
+    name: Type.String(),
+    enabled: Type.Boolean({ default: true }),
+    options: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+  },
+  { additionalProperties: true },
+);
 
 type PluginConfigEntry = Static<typeof PluginConfigEntrySchema>;
 

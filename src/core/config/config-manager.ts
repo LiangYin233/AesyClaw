@@ -254,7 +254,10 @@ export class ConfigManager {
     const validated = Value.Default(AppConfigSchema, value);
 
     if (!Value.Check(AppConfigSchema, validated)) {
-      throw new Error('配置验证失败');
+      const errors = [...Value.Errors(AppConfigSchema, validated)]
+        .map((e) => `${e.path}: ${e.message}`)
+        .join('; ');
+      throw new Error(`配置验证失败: ${errors}`);
     }
 
     return validated as AppConfig;
