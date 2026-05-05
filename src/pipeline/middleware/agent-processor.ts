@@ -6,13 +6,9 @@
  */
 
 import type { PipelineState } from './types';
-import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
 import { AGENT_PROCESSING_BUSY_MESSAGE } from '@aesyclaw/agent/session';
 
-export async function agentProcessor(
-  state: PipelineState,
-  agentEngine: AgentEngine,
-): Promise<PipelineState> {
+export async function agentProcessor(state: PipelineState): Promise<PipelineState> {
   if (state.stage !== 'continue' || !state.session) {
     if (state.stage === 'continue') {
       return {
@@ -35,7 +31,7 @@ export async function agentProcessor(
   }
 
   try {
-    if (!state.activeRole) {
+    if (!state.activeRole || !state.agent) {
       return {
         ...state,
         stage: 'respond',
@@ -43,12 +39,7 @@ export async function agentProcessor(
       };
     }
 
-    const outbound = await agentEngine.process(
-      state.inbound,
-      session,
-      state.activeRole,
-      state.sendMessage,
-    );
+    const outbound = await state.agent.process(state.inbound, state.sendMessage);
 
     if (!session.isLocked) {
       return state;

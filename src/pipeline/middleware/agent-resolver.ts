@@ -2,21 +2,26 @@
  * Agent 解析 — 从已解析的 Session 创建 Agent 并解析活跃角色。
  *
  * 在 session-resolver 之后运行。使用 Session 中的 activeRoleId
- * 解析角色，然后通过 AgentEngine 创建 Agent 实例。
+ * 解析角色，然后创建 Agent 实例。
  */
 
 import type { PipelineState } from './types';
-import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import type { PromptBuilder } from '@aesyclaw/agent/prompt-builder';
+import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
+import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
+import { Agent } from '@aesyclaw/agent/agent';
 
 export async function agentResolver(
   state: PipelineState,
-  agentEngine: AgentEngine,
   roleManager: RoleManager,
   databaseManager: DatabaseManager,
   llmAdapter: LlmAdapter,
+  promptBuilder: PromptBuilder,
+  toolRegistry: ToolRegistry,
+  configManager: ConfigManager,
 ): Promise<PipelineState> {
   if (state.stage !== 'continue') return state;
   if (!state.session) return state;
@@ -34,11 +39,18 @@ export async function agentResolver(
 
   session.setActiveRoleId(activeRole.id);
 
-  const agent = agentEngine.createFromSession(session, activeRole);
+  const agent = new Agent({
+    session,
+    llmAdapter,
+    promptBuilder,
+    toolRegistry,
+    roleManager,
+    configManager,
+  });
+  await agent.setRole(activeRole.id);
 
   if (session.modelOverride) {
-    const model = llmAdapter.resolveModel(session.modelOverride);
-    agent.state.model = model;
+    agent.setModel(session.modelOverride);
   }
 
   return { ...state, agent, activeRole };

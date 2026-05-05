@@ -1,13 +1,21 @@
-import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
 import type { SessionManager } from '@aesyclaw/agent/session/manager';
-import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import type { PromptBuilder } from '@aesyclaw/agent/prompt-builder';
+import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
+import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { CommandContext, CommandDefinition } from '@aesyclaw/core/types';
+import type { RoleConfig } from '@aesyclaw/core/types';
 import { getMessageText } from '@aesyclaw/core/types';
+import { Agent } from '@aesyclaw/agent/agent';
 
 export function createBtwCommand(
   sessionManager: Pick<SessionManager, 'create'>,
-  agentEngine: Pick<AgentEngine, 'processEphemeral'>,
-  roleManager: Pick<RoleManager, 'getRole' | 'getDefaultRole'>,
+  getRoleOrFallback: (roleId: string) => RoleConfig,
+  getDefaultRole: () => RoleConfig,
+  llmAdapter: LlmAdapter,
+  promptBuilder: PromptBuilder,
+  toolRegistry: ToolRegistry,
+  configManager: ConfigManager,
 ): CommandDefinition {
   return {
     name: 'btw',
@@ -23,10 +31,18 @@ export function createBtwCommand(
 
       const session = await sessionManager.create(context.sessionKey);
       const role = session.activeRoleId
-        ? roleManager.getRole(session.activeRoleId)
-        : roleManager.getDefaultRole();
+        ? getRoleOrFallback(session.activeRoleId)
+        : getDefaultRole();
 
-      const outbound = await agentEngine.processEphemeral(session, role, content);
+      const agent = new Agent({
+        session,
+        llmAdapter,
+        promptBuilder,
+        toolRegistry,
+        roleManager: { getRole: getRoleOrFallback, getDefaultRole } as never,
+        configManager,
+      });
+      const outbound = await agent.processEphemeral(role, content);
 
       return getMessageText(outbound);
     },

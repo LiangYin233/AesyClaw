@@ -1,9 +1,3 @@
-/**
- * 内置 run_sub_agent 工具。
- *
- * 使用指定的角色 ID 和提示运行委托子代理轮次。
- */
-
 import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
 import type {
@@ -12,9 +6,10 @@ import type {
   ToolExecutionResult,
 } from '@aesyclaw/tool/tool-registry';
 import { errorMessage } from '@aesyclaw/core/utils';
-import type { ToolOwner } from '@aesyclaw/core/types';
-import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
+import type { ToolOwner, SessionKey, OutboundMessage } from '@aesyclaw/core/types';
+import type { RoleConfig } from '@aesyclaw/core/types';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { AgentMessage } from '@aesyclaw/agent/agent-types';
 import { applyToolOverride } from '@aesyclaw/agent/runner/sub-agent-utils';
 
 const RunSubAgentParamsSchema = Type.Object({
@@ -25,9 +20,17 @@ const RunSubAgentParamsSchema = Type.Object({
 
 type RunSubAgentParams = Static<typeof RunSubAgentParamsSchema>;
 
+type RunTurnFn = (
+  role: RoleConfig,
+  content: string,
+  history: AgentMessage[],
+  sessionKey: SessionKey,
+  sendMessage?: (message: OutboundMessage) => Promise<boolean>,
+) => Promise<{ newMessages: AgentMessage[]; lastAssistant: string | null }>;
+
 export type RunSubAgentDeps = {
-  agentEngine: Pick<AgentEngine, 'runAgentTurn'>;
   roleManager: Pick<RoleManager, 'getRole'>;
+  runTurn: RunTurnFn;
 };
 
 export function createRunSubAgentTool(deps: RunSubAgentDeps): AesyClawTool {
@@ -45,7 +48,8 @@ export function createRunSubAgentTool(deps: RunSubAgentDeps): AesyClawTool {
       try {
         const baseRole = deps.roleManager.getRole(roleId);
         const role = applyToolOverride(baseRole, enableTools);
-        const result = await deps.agentEngine.runAgentTurn(
+
+        const result = await deps.runTurn(
           role,
           prompt,
           [],

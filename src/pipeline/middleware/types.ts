@@ -15,8 +15,7 @@ import type {
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { SessionManager } from '@aesyclaw/agent/session/manager';
 import type { Session } from '@aesyclaw/agent/session/session';
-import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
-import type { Agent } from '@aesyclaw/agent/agent-types';
+import type { Agent } from '@aesyclaw/agent/agent';
 import type {
   BeforeToolCallHookContext,
   BeforeToolCallHookResult,
@@ -27,6 +26,9 @@ import type { PipelineResult } from '@aesyclaw/core/types';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import type { PromptBuilder } from '@aesyclaw/agent/prompt-builder';
+import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
+import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 
 /**
  * 传递给 onSend 钩子的上下文。
@@ -105,11 +107,13 @@ type PipelineState = PipelineStateContinue | PipelineStateBlocked | PipelineStat
  */
 type PipelineDependencies = {
   sessionManager: SessionManager;
-  agentEngine: AgentEngine;
   commandRegistry: CommandRegistry;
   roleManager: RoleManager;
   databaseManager: DatabaseManager;
   llmAdapter: LlmAdapter;
+  promptBuilder: PromptBuilder;
+  toolRegistry: ToolRegistry;
+  configManager: ConfigManager;
 };
 
 // ─── 插件钩子 ────────────────────────────────────────────────

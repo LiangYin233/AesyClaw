@@ -445,11 +445,9 @@ describe('built-in tools', () => {
   });
 
   it('run_sub_agent delegates to the sandbox and returns the result', async () => {
-    const agentEngine = {
-      runAgentTurn: vi
-        .fn()
-        .mockResolvedValue({ newMessages: [], lastAssistant: 'delegated answer' }),
-    };
+    const runTurn = vi
+      .fn()
+      .mockResolvedValue({ newMessages: [], lastAssistant: 'delegated answer' });
     const roleManager = {
       getRole: vi.fn().mockReturnValue({
         id: 'researcher',
@@ -462,7 +460,7 @@ describe('built-in tools', () => {
         enabled: true,
       }),
     };
-    const tool = createRunSubAgentTool({ agentEngine, roleManager });
+    const tool = createRunSubAgentTool({ runTurn, roleManager });
     const sendMessage = vi.fn().mockResolvedValue(true);
 
     await expect(
@@ -477,7 +475,7 @@ describe('built-in tools', () => {
       ),
     ).resolves.toEqual({ content: 'delegated answer' });
 
-    expect(agentEngine.runAgentTurn).toHaveBeenCalledWith(
+    expect(runTurn).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'researcher' }),
       'Investigate this.',
       [],
@@ -487,9 +485,7 @@ describe('built-in tools', () => {
   });
 
   it('run_temp_sub_agent returns structured tool errors on sandbox failure', async () => {
-    const agentEngine = {
-      runAgentTurn: vi.fn().mockRejectedValue(new Error('sandbox offline')),
-    };
+    const runTurn = vi.fn().mockRejectedValue(new Error('sandbox offline'));
     const roleManager = {
       getDefaultRole: vi.fn().mockReturnValue({
         id: 'default',
@@ -502,7 +498,7 @@ describe('built-in tools', () => {
         enabled: true,
       }),
     };
-    const tool = createRunTempSubAgentTool({ agentEngine, roleManager });
+    const tool = createRunTempSubAgentTool({ runTurn, roleManager });
 
     await expect(
       tool.execute(

@@ -1,9 +1,3 @@
-/**
- * 内置 run_temp_sub_agent 工具。
- *
- * 使用临时系统提示运行临时委托子代理。
- */
-
 import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
 import type {
@@ -12,9 +6,10 @@ import type {
   ToolExecutionResult,
 } from '@aesyclaw/tool/tool-registry';
 import { errorMessage } from '@aesyclaw/core/utils';
-import type { ToolOwner } from '@aesyclaw/core/types';
-import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
+import type { ToolOwner, SessionKey, OutboundMessage } from '@aesyclaw/core/types';
+import type { RoleConfig } from '@aesyclaw/core/types';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { AgentMessage } from '@aesyclaw/agent/agent-types';
 import { applyToolOverride, createTempSubAgentRole } from '@aesyclaw/agent/runner/sub-agent-utils';
 
 const RunTempSubAgentParamsSchema = Type.Object({
@@ -26,9 +21,17 @@ const RunTempSubAgentParamsSchema = Type.Object({
 
 type RunTempSubAgentParams = Static<typeof RunTempSubAgentParamsSchema>;
 
+type RunTurnFn = (
+  role: RoleConfig,
+  content: string,
+  history: AgentMessage[],
+  sessionKey: SessionKey,
+  sendMessage?: (message: OutboundMessage) => Promise<boolean>,
+) => Promise<{ newMessages: AgentMessage[]; lastAssistant: string | null }>;
+
 export type RunTempSubAgentDeps = {
-  agentEngine: Pick<AgentEngine, 'runAgentTurn'>;
   roleManager: Pick<RoleManager, 'getDefaultRole'>;
+  runTurn: RunTurnFn;
 };
 
 export function createRunTempSubAgentTool(deps: RunTempSubAgentDeps): AesyClawTool {
@@ -53,7 +56,7 @@ export function createRunTempSubAgentTool(deps: RunTempSubAgentDeps): AesyClawTo
         const role =
           enableTools === false ? applyToolOverride(roleWithPerms, false) : roleWithPerms;
 
-        const result = await deps.agentEngine.runAgentTurn(
+        const result = await deps.runTurn(
           role,
           prompt,
           [],

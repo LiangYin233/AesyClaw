@@ -2,9 +2,11 @@ import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { RoleCommandDeps } from './role-commands';
 import type { PluginCommandDeps } from './plugin-commands';
 import type { SessionManager } from '@aesyclaw/agent/session/manager';
-import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import type { PromptBuilder } from '@aesyclaw/agent/prompt-builder';
+import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
+import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { ExtensionManager } from '@aesyclaw/extension/extension-manager';
 import { createHelpCommand } from './help';
 import { createClearCommand } from './clear';
@@ -24,11 +26,13 @@ import {
 } from './plugin-commands';
 
 export type BuiltinCommandDependencies = {
-  roleManager: Pick<RoleManager, 'getEnabledRoles' | 'getRole' | 'getDefaultRole'>;
+  roleManager: RoleManager;
   pluginManager: Pick<ExtensionManager, 'listPlugins' | 'enablePlugin' | 'disablePlugin'>;
   sessionManager: Pick<SessionManager, 'create' | 'clear' | 'get' | 'setActiveRole'>;
-  agentEngine: Pick<AgentEngine, 'processEphemeral' | 'cancelRun'>;
   llmAdapter: LlmAdapter;
+  promptBuilder: PromptBuilder;
+  toolRegistry: ToolRegistry;
+  configManager: ConfigManager;
 };
 
 export function registerBuiltinCommands(
@@ -42,11 +46,21 @@ export function registerBuiltinCommands(
   const pluginDeps: PluginCommandDeps = { extensionManager: deps.pluginManager };
 
   registry.register(createHelpCommand(() => registry.getAll()));
-  registry.register(createBtwCommand(deps.sessionManager, deps.agentEngine, deps.roleManager));
+  registry.register(
+    createBtwCommand(
+      deps.sessionManager,
+      (roleId) => deps.roleManager.getRole(roleId),
+      () => deps.roleManager.getDefaultRole(),
+      deps.llmAdapter,
+      deps.promptBuilder,
+      deps.toolRegistry,
+      deps.configManager,
+    ),
+  );
   registry.register(createModelCommand(deps.sessionManager));
   registry.register(createClearCommand(deps.sessionManager));
   registry.register(createCompactCommand(deps.sessionManager, deps.llmAdapter, deps.roleManager));
-  registry.register(createStopCommand(deps.sessionManager, deps.agentEngine));
+  registry.register(createStopCommand(deps.sessionManager));
   registry.register(createRoleListCommand(roleDeps));
   registry.register(createRoleSwitchCommand(roleDeps));
   registry.register(createRoleInfoCommand(roleDeps));

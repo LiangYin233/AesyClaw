@@ -1,8 +1,8 @@
 /** CoreLifecycle — 核心生命周期协调器，负责启动序列和关闭。 */
 
 import { mkdirSync } from 'node:fs';
-import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import type { PromptBuilder } from '@aesyclaw/agent/prompt-builder';
 
 import type { SessionManager } from '@aesyclaw/agent/session/manager';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
@@ -34,7 +34,7 @@ export type CoreLifecycleDependencies = {
   toolRegistry: ToolRegistry;
   commandRegistry: CommandRegistry;
   llmAdapter: LlmAdapter;
-  agentEngine: AgentEngine;
+  promptBuilder: PromptBuilder;
   sessionManager: SessionManager;
   pipeline: Pipeline;
   cronManager: CronManager;
@@ -158,11 +158,13 @@ export class CoreLifecycle {
   private async initExtensionRuntime(): Promise<void> {
     await this.resolvedDeps.pipeline.initialize({
       sessionManager: this.resolvedDeps.sessionManager,
-      agentEngine: this.resolvedDeps.agentEngine,
       commandRegistry: this.resolvedDeps.commandRegistry,
       roleManager: this.resolvedDeps.roleManager,
       databaseManager: this.resolvedDeps.databaseManager,
       llmAdapter: this.resolvedDeps.llmAdapter,
+      promptBuilder: this.resolvedDeps.promptBuilder,
+      toolRegistry: this.resolvedDeps.toolRegistry,
+      configManager: this.resolvedDeps.configManager,
     });
 
     this.extensionManager = new ExtensionManager({
@@ -176,7 +178,6 @@ export class CoreLifecycle {
 
     registerBuiltinTools(this.resolvedDeps.toolRegistry, {
       cronManager: this.resolvedDeps.cronManager,
-      agentEngine: this.resolvedDeps.agentEngine,
       roleManager: this.resolvedDeps.roleManager,
       llmAdapter: this.resolvedDeps.llmAdapter,
       configManager: this.resolvedDeps.configManager,
@@ -185,18 +186,18 @@ export class CoreLifecycle {
     });
     registerBuiltinCommands(this.resolvedDeps.commandRegistry, {
       roleManager: this.resolvedDeps.roleManager,
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- ExtensionManager 已在本方法内构造
       pluginManager: this.extensionManager!,
       sessionManager: this.resolvedDeps.sessionManager,
-      agentEngine: this.resolvedDeps.agentEngine,
       llmAdapter: this.resolvedDeps.llmAdapter,
+      promptBuilder: this.resolvedDeps.promptBuilder,
+      toolRegistry: this.resolvedDeps.toolRegistry,
+      configManager: this.resolvedDeps.configManager,
     });
 
     await this.extensionManager.setup();
   }
 
   private async initPeripheralRuntime(): Promise<void> {
-    // 如果没有配置 MCP,则自动写入示例配置项
     const mcpConfig = this.resolvedDeps.configManager.get('mcp');
     if (mcpConfig.length === 0) {
       await this.resolvedDeps.configManager.update({ mcp: DEFAULT_CONFIG.mcp });

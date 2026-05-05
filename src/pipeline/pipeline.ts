@@ -1,18 +1,3 @@
-/**
- * Pipeline — 中央消息处理管道。
- *
- * 管道是唯一的控制流管理者。它接收入站消息,
- * 调度插件钩子,运行处理步骤,并发送出站响应。
- *
- * 流程:
- *   1. onReceive 钩子 → 如果被阻止,停止
- *   2. 顺序步骤:sessionResolver → agentResolver → commandDetector
- *   3. beforeLLMRequest 钩子 → 如果被阻止/响应,跳过 Agent 处理
- *   4. agentProcessor → Agent 处理
- *   5. onSend 钩子 → 如果被阻止,停止
- *   6. send(outbound)
- */
-
 import type {
   InboundMessage,
   OutboundMessage,
@@ -32,17 +17,9 @@ import { requireInitialized } from '@aesyclaw/core/utils';
 
 const logger = createScopedLogger('pipeline');
 
-/**
- * 中央消息处理管道。
- *
- * 遵循生命周期模式:initialize() / destroy()。
- * 依赖显式注入 — 无单例导入。
- */
 export class Pipeline {
   private deps: PipelineDependencies | null = null;
   hookDispatcher: HookDispatcher = new HookDispatcher();
-
-  // ─── 生命周期 ─────────────────────────────────────────────────
 
   async initialize(deps: PipelineDependencies): Promise<void> {
     if (this.deps) {
@@ -59,11 +36,6 @@ export class Pipeline {
     logger.info('Pipeline 已销毁');
   }
 
-  // ─── 核心 API ─────────────────────────────────────────────────
-
-  /**
-   * 处理入站消息并发送响应。这是消息处理的主要入口点。
-   */
   async receiveWithSend(
     message: InboundMessage,
     sessionKey: SessionKey,
@@ -73,7 +45,6 @@ export class Pipeline {
     const deps = requireInitialized(this.deps, 'Pipeline');
 
     try {
-      // 1. onReceive 钩子
       const receiveResult = await this.hookDispatcher.dispatchOnReceive(
         message,
         sessionKey,
@@ -83,7 +54,6 @@ export class Pipeline {
         return;
       }
 
-      // 2. 中间件:sessionResolver → agentResolver → commandDetector
       let state: PipelineState = { stage: 'continue', inbound: message, sessionKey, sender };
       state = await sessionResolver(state, deps.sessionManager);
       if (state.stage === 'continue') {
@@ -97,10 +67,12 @@ export class Pipeline {
 
       state = await agentResolver(
         state,
-        deps.agentEngine,
         deps.roleManager,
         deps.databaseManager,
         deps.llmAdapter,
+        deps.promptBuilder,
+        deps.toolRegistry,
+        deps.configManager,
       );
       if (state.stage === 'respond') {
         await this.dispatchOnSendAndDeliver(state.outbound, send, state.session?.key);
@@ -117,7 +89,6 @@ export class Pipeline {
         return;
       }
 
-      // 3. beforeLLMRequest 钩子(仅在 session 已解析时)
       if (state.session && state.agent && state.activeRole) {
         const beforeLLMResult = await this.hookDispatcher.dispatchBeforeLLMRequest({
           message: state.inbound,
@@ -134,8 +105,7 @@ export class Pipeline {
         }
       }
 
-      // 4. Agent 处理
-      state = await agentProcessor(state, deps.agentEngine);
+      state = await agentProcessor(state);
       if (state.stage === 'respond') {
         await this.dispatchOnSendAndDeliver(state.outbound, send, state.session?.key);
         return;
@@ -148,8 +118,6 @@ export class Pipeline {
       throw err;
     }
   }
-
-  // ─── 私有辅助方法 ───────────────────────────────────────────
 
   private async handleHookResult(
     hookName: string,
@@ -168,9 +136,6 @@ export class Pipeline {
     return false;
   }
 
-  /**
-   * 调度 onSend 钩子,如果未被阻止,则投递出站消息。
-   */
   private async dispatchOnSendAndDeliver(
     outbound: OutboundMessage,
     send: SendFn,

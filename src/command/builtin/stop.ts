@@ -1,11 +1,8 @@
 import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
 import type { SessionManager } from '@aesyclaw/agent/session/manager';
-import type { AgentEngine } from '@aesyclaw/agent/agent-engine';
+import { Agent } from '@aesyclaw/agent/agent';
 
-export function createStopCommand(
-  sessionManager: Pick<SessionManager, 'get'>,
-  agentEngine?: Pick<AgentEngine, 'cancelRun'>,
-): CommandDefinition {
+export function createStopCommand(sessionManager: Pick<SessionManager, 'get'>): CommandDefinition {
   return {
     name: 'stop',
     description: '中止当前正在进行的 Agent 处理',
@@ -18,10 +15,10 @@ export function createStopCommand(
         return '没有找到活跃会话。';
       }
 
-      const cancelledWorker = agentEngine?.cancelRun(context.sessionKey) ?? false;
+      const cancelled = Agent.cancel(context.sessionKey);
       session.unlock();
 
-      if (!cancelledWorker) {
+      if (!cancelled) {
         session.unlock();
       }
 
