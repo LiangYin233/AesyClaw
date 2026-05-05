@@ -29,7 +29,7 @@ const CreateCronParamsSchema = Type.Object({
   prompt: Type.String({ description: '定时任务的提示内容' }),
 });
 
-const ListCronParamsSchema = Type.Object({}, { description: '列出所有定时任务（无参数）' });
+const ListCronParamsSchema = Type.Object({}, { description: '列出当前会话的定时任务（无参数）' });
 
 const DeleteCronParamsSchema = Type.Object({
   jobId: Type.String({ description: '要删除的定时任务 ID' }),
@@ -94,15 +94,16 @@ export function createCreateCronTool(deps: CronToolsDeps): AesyClawTool {
 export function createListCronTool(deps: CronToolsDeps): AesyClawTool {
   return {
     name: 'list_cron',
-    description: '列出所有定时任务',
+    description: '列出当前会话的定时任务',
     parameters: ListCronParamsSchema,
     owner: 'system' as ToolOwner,
     execute: async (
       _params: unknown,
-      _context: ToolExecutionContext,
+      context: ToolExecutionContext,
     ): Promise<ToolExecutionResult> => {
       try {
-        const jobs = await deps.cronManager.listJobs();
+        const sessionKey = requireSessionKey(context.sessionKey);
+        const jobs = await deps.cronManager.listJobs({ sessionKey });
         if (jobs.length === 0) {
           return { content: '没有定时任务。' };
         }

@@ -1,6 +1,11 @@
 /** 定时任务管理器 — 持久化任务、调度计时器并记录执行历史。 */
 
-import type { CronJobRecord, OutboundMessage, SessionKey } from '@aesyclaw/core/types';
+import {
+  parseSerializedSessionKey,
+  type CronJobRecord,
+  type OutboundMessage,
+  type SessionKey,
+} from '@aesyclaw/core/types';
 import type {
   CronJobsRepository,
   CronRunsRepository,
@@ -8,7 +13,7 @@ import type {
 } from '@aesyclaw/core/database/database-manager';
 import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import { requireInitialized } from '@aesyclaw/core/utils';
+import { errorMessage, requireInitialized } from '@aesyclaw/core/utils';
 import { CronExecutor } from './cron-executor';
 import { computeNextRun, CronScheduler, type CronScheduleType } from './cron-scheduler';
 
@@ -26,6 +31,10 @@ export type CreateCronJobParams = {
   scheduleValue: string;
   prompt: string;
   sessionKey: SessionKey;
+};
+
+export type ListCronJobsFilter = {
+  sessionKey?: SessionKey;
 };
 
 type CronManagerStoredDeps = {
@@ -97,8 +106,28 @@ export class CronManager {
     return id;
   }
 
-  async listJobs(): Promise<CronJobRecord[]> {
-    return await this.requireDeps().cronJobs.findAll();
+  async listJobs(filter: ListCronJobsFilter = {}): Promise<CronJobRecord[]> {
+    const jobs = await this.requireDeps().cronJobs.findAll();
+    const sessionKey = filter.sessionKey;
+    if (!sessionKey) {
+      return jobs;
+    }
+
+    return jobs.filter((job) => this.matchesSessionFilter(job, sessionKey));
+  }
+
+  private matchesSessionFilter(job: CronJobRecord, sessionKey: SessionKey): boolean {
+    try {
+      const jobSessionKey = parseSerializedSessionKey(job.sessionKey);
+      return (
+        jobSessionKey.channel === sessionKey.channel &&
+        jobSessionKey.type === sessionKey.type &&
+        jobSessionKey.chatId === sessionKey.chatId
+      );
+    } catch (err) {
+      logger.warn('跳过会话密钥无效的定时任务', { jobId: job.id, error: errorMessage(err) });
+      return false;
+    }
   }
 
   async deleteJob(jobId: string): Promise<boolean> {

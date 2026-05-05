@@ -181,6 +181,37 @@ describe('Cron', () => {
     await manager.destroy();
   });
 
+  it('lists all cron jobs when no filter is provided and filters by session key when requested', async () => {
+    const jobs = new FakeCronJobRepo();
+    const runs = new FakeCronRunRepo();
+    const manager = new CronManager();
+    await manager.initialize({
+      databaseManager: { cronJobs: jobs, cronRuns: runs },
+      pipeline: makePipeline(),
+      send: makeSend(),
+    });
+
+    await manager.createJob({
+      scheduleType: 'interval',
+      scheduleValue: '30m',
+      prompt: 'chat 1',
+      sessionKey: { channel: 'test', type: 'private', chatId: '1' },
+    });
+    await manager.createJob({
+      scheduleType: 'interval',
+      scheduleValue: '30m',
+      prompt: 'chat 2',
+      sessionKey: { channel: 'test', type: 'private', chatId: '2' },
+    });
+
+    expect(await manager.listJobs()).toHaveLength(2);
+    await expect(
+      manager.listJobs({ sessionKey: { channel: 'test', type: 'private', chatId: '1' } }),
+    ).resolves.toEqual([expect.objectContaining({ prompt: 'chat 1' })]);
+
+    await manager.destroy();
+  });
+
   it('marks runs failed when pipeline execution fails', async () => {
     const jobs = new FakeCronJobRepo();
     const runs = new FakeCronRunRepo();
@@ -535,20 +566,34 @@ describe('Cron', () => {
     await manager.destroy();
   });
 
-  it('cron tools call CronManager', async () => {
+  it('cron tools call CronManager with the current session filter for list_cron', async () => {
     const cronManager = {
       createJob: vi.fn(async () => 'job-1'),
-      listJobs: vi.fn(async () => [
-        {
-          id: 'job-1',
-          scheduleType: 'interval',
-          scheduleValue: '30m',
-          prompt: 'ping',
-          sessionKey: '{}',
-          nextRun: null,
-          createdAt: '',
-        },
-      ]),
+      listJobs: vi.fn(async (filter?: { sessionKey?: SessionKey }) => {
+        const allJobs = [
+          {
+            id: 'job-1',
+            scheduleType: 'interval',
+            scheduleValue: '30m',
+            prompt: 'ping',
+            sessionKey: JSON.stringify({ channel: 'test', type: 'private', chatId: '1' }),
+            nextRun: null,
+            createdAt: '',
+          },
+          {
+            id: 'job-2',
+            scheduleType: 'interval',
+            scheduleValue: '30m',
+            prompt: 'other chat',
+            sessionKey: JSON.stringify({ channel: 'test', type: 'private', chatId: '2' }),
+            nextRun: null,
+            createdAt: '',
+          },
+        ];
+        return allJobs.filter(
+          (job) => JSON.parse(job.sessionKey).chatId === filter?.sessionKey?.chatId,
+        );
+      }),
       deleteJob: vi.fn(async () => true),
     };
     const context = {
@@ -566,6 +611,12 @@ describe('Cron', () => {
     ).resolves.toEqual({ content: '定时任务已创建: job-1' });
     await expect(createListCronTool({ cronManager }).execute({}, context)).resolves.toEqual({
       content: expect.stringContaining('job-1'),
+    });
+    expect(cronManager.listJobs).toHaveBeenCalledWith({
+      sessionKey: { channel: 'test', type: 'private', chatId: '1' },
+    });
+    await expect(createListCronTool({ cronManager }).execute({}, context)).resolves.toEqual({
+      content: expect.not.stringContaining('job-2'),
     });
     await expect(
       createDeleteCronTool({ cronManager }).execute({ jobId: 'job-1' }, context),
