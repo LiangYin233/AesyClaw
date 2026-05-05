@@ -1,15 +1,15 @@
 import { ref } from 'vue';
-import { useAuth } from './useAuth';
+import { useWebSocket } from './useWebSocket';
 
 const appVersion = ref('');
 
 export function useAppInfo() {
-  const { api } = useAuth();
+  const ws = useWebSocket();
 
   async function fetchVersion() {
     try {
-      const res = await api.get('/status');
-      appVersion.value = res.data.data.version;
+      const data = (await ws.send('get_status')) as Record<string, unknown>;
+      appVersion.value = (data['version'] as string) ?? '';
     } catch {
       // 静默失败
     }

@@ -1,5 +1,5 @@
-import axios, { type AxiosInstance } from 'axios';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
+import { useWebSocket } from './useWebSocket';
 
 const TOKEN_KEY = 'aesyclaw_token';
 const COOKIE_MAX_AGE_DAYS = 30;
@@ -21,56 +21,34 @@ function removeCookie(name: string): void {
 const initialToken = sessionStorage.getItem(TOKEN_KEY) ?? getCookie(TOKEN_KEY);
 const token = ref<string | null>(initialToken);
 
-const api: AxiosInstance = axios.create({
-  baseURL: '/api',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-api.interceptors.request.use((config) => {
-  if (token.value) {
-    config.headers.Authorization = `Bearer ${token.value}`;
-  }
-  return config;
-});
-
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
-      logout();
-      if (window.location.hash !== '#/login') {
-        window.location.hash = '#/login';
-      }
-    }
-    return Promise.reject(error);
-  },
-);
-
 function login(newToken: string): void {
   token.value = newToken;
   sessionStorage.setItem(TOKEN_KEY, newToken);
   setCookie(TOKEN_KEY, newToken);
+  const ws = useWebSocket();
+  ws.connect(newToken);
 }
 
 function logout(): void {
   token.value = null;
   sessionStorage.removeItem(TOKEN_KEY);
   removeCookie(TOKEN_KEY);
+  const ws = useWebSocket();
+  ws.disconnect();
 }
 
-/**
- * Global authentication composable (module-level singleton).
- *
- * All state (`token`, `api`, `login`, `logout`) is shared across every caller.
- * This is intentional — auth state must be app-wide, not per-component.
- */
+if (token.value) {
+  const ws = useWebSocket();
+  ws.connect(token.value);
+}
+
+watch(token, (newToken) => {
+  const ws = useWebSocket();
+  if (!newToken) {
+    ws.disconnect();
+  }
+});
+
 export function useAuth() {
-  return {
-    token,
-    login,
-    logout,
-    api,
-  };
+  return { token, login, logout };
 }

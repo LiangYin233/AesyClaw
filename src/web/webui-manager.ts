@@ -1,7 +1,8 @@
-/** WebUiManager — WebUI 管理后台的 HTTP 服务器。 */
+/** WebUiManager — WebUI 管理后台的 HTTP + WebSocket 服务器。 */
 
 import { serve } from '@hono/node-server';
 import { randomBytes } from 'node:crypto';
+import type { Server } from 'node:http';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { requireInitialized } from '@aesyclaw/core/utils';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
@@ -13,7 +14,9 @@ import type { ChannelManager } from '@aesyclaw/extension/channel/channel-manager
 import type { ExtensionManager } from '@aesyclaw/extension/extension-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
+import type { WebSocketServer } from 'ws';
 import { createApp } from './server';
+import { createWebSocketServer } from './ws/handler';
 
 const logger = createScopedLogger('webui');
 
@@ -33,6 +36,7 @@ export class WebUiManager {
   private deps: WebUiManagerDependencies | null = null;
   private app: ReturnType<typeof createApp> | null = null;
   private server: ReturnType<typeof serve> | null = null;
+  private wss: WebSocketServer | null = null;
 
   async initialize(deps: WebUiManagerDependencies): Promise<void> {
     if (this.deps) {
@@ -55,17 +59,30 @@ export class WebUiManager {
       });
     }
 
-    this.app = createApp(deps);
+    this.app = createApp();
     this.server = serve({
       fetch: this.app.fetch,
       port: serverConfig.port,
       hostname: serverConfig.host,
     });
 
-    logger.info('WebUI 服务器已启动', { host: serverConfig.host, port: serverConfig.port });
+    // 在同一端口上创建 WebSocket 服务器
+    // serve() 总是返回 HTTP Server（纯 HTTP 模式下），使用类型断言
+    this.wss = createWebSocketServer(this.server as unknown as Server, deps);
+
+    logger.info('WebUI 服务器已启动（HTTP + WebSocket）', {
+      host: serverConfig.host,
+      port: serverConfig.port,
+    });
   }
 
   async destroy(): Promise<void> {
+    // 先关闭 WebSocket 服务器
+    if (this.wss) {
+      this.wss.close();
+      this.wss = null;
+    }
+
     const server = this.server;
     if (server) {
       await new Promise<void>((resolve) => {

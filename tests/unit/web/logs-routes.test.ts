@@ -2,39 +2,30 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { clearRecentLogEntriesForTests, createScopedLogger } from '../../../src/core/logger';
 import * as loggerModule from '../../../src/core/logger';
-import { createLogsRouter } from '../../../src/web/routes/logs';
-import type { WebUiManagerDependencies } from '../../../src/web/webui-manager';
+import { getLogs } from '../../../src/web/services/logs';
 
-function makeDeps() {
-  return {} as WebUiManagerDependencies;
-}
-
-describe('logs routes', () => {
+describe('logs service', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     clearRecentLogEntriesForTests();
   });
 
-  it('returns recent log entries in the standard ok/data shape', async () => {
+  it('returns recent log entries', () => {
     clearRecentLogEntriesForTests();
     const logger = createScopedLogger('test:logs');
     logger.info('First message');
     logger.warn('Second message', { detail: true });
 
-    const router = createLogsRouter(makeDeps());
-    const response = await router.request('/?limit=2');
-    const body = await response.json();
+    const result = getLogs({ limit: '2' });
 
-    expect(response.status).toBe(200);
-    expect(body.ok).toBe(true);
-    expect(body.data.limit).toBe(2);
-    expect(body.data.entries).toHaveLength(2);
-    expect(body.data.entries[0]).toMatchObject({
+    expect(result.limit).toBe(2);
+    expect(result.entries).toHaveLength(2);
+    expect(result.entries[0]).toMatchObject({
       level: 'info',
       scope: 'test:logs',
       message: 'First message',
     });
-    expect(body.data.entries[1]).toMatchObject({
+    expect(result.entries[1]).toMatchObject({
       level: 'warn',
       scope: 'test:logs',
       message: 'Second message',
@@ -42,32 +33,24 @@ describe('logs routes', () => {
     });
   });
 
-  it('falls back to default limit for invalid values and clamps oversized requests', async () => {
+  it('falls back to default limit for invalid values and clamps oversized requests', () => {
     clearRecentLogEntriesForTests();
     const logger = createScopedLogger('test:logs');
     logger.info('Only message');
 
-    const router = createLogsRouter(makeDeps());
-    const invalidResponse = await router.request('/?limit=0');
-    const invalidBody = await invalidResponse.json();
-    const clampedResponse = await router.request('/?limit=9999');
-    const clampedBody = await clampedResponse.json();
+    const invalidResult = getLogs({ limit: '0' });
+    const clampedResult = getLogs({ limit: '9999' });
 
-    expect(invalidBody.data.limit).toBe(200);
-    expect(clampedBody.data.limit).toBe(500);
-    expect(clampedBody.data.entries).toHaveLength(1);
+    expect(invalidResult.limit).toBe(200);
+    expect(clampedResult.limit).toBe(500);
+    expect(clampedResult.entries).toHaveLength(1);
   });
 
-  it('returns the standard error shape when reading logs fails', async () => {
+  it('throws when reading logs fails', () => {
     vi.spyOn(loggerModule, 'getRecentLogEntries').mockImplementation(() => {
       throw new Error('boom');
     });
 
-    const router = createLogsRouter(makeDeps());
-    const response = await router.request('/');
-    const body = await response.json();
-
-    expect(response.status).toBe(500);
-    expect(body).toEqual({ ok: false, error: '获取最近日志失败' });
+    expect(() => getLogs()).toThrow('获取最近日志失败');
   });
 });

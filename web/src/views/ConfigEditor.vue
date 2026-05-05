@@ -463,7 +463,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue';
-import { useAuth } from '@/composables/useAuth';
+import { useWebSocket } from '@/composables/useWebSocket';
 import { useToast } from '@/composables/useToast';
 import SchemaForm from '@/components/SchemaForm.vue';
 import JsonEditor from '@/components/JsonEditor.vue';
@@ -508,7 +508,7 @@ interface ProviderForm extends Record<string, unknown> {
   models: ProviderModelForm[];
 }
 
-const { api } = useAuth();
+const ws = useWebSocket();
 const { toast, showToast } = useToast();
 
 const editableSchema = ref<Record<string, unknown>>({});
@@ -549,10 +549,8 @@ const hasExtraBodyErrors = computed(() => Object.keys(extraBodyErrors.value).len
 
 async function loadSchema() {
   try {
-    const res = await api.get('/config/schema');
-    if (res.data.ok) {
-      editableSchema.value = omitTopLevelSchemaProperties(res.data.data, hiddenSchemaKeys);
-    }
+    const schema = await ws.send('get_config_schema') as Record<string, unknown>;
+    editableSchema.value = omitTopLevelSchemaProperties(schema, hiddenSchemaKeys);
   } catch (err) {
     console.error('Failed to load schema', err);
   }
@@ -562,15 +560,11 @@ async function loadConfig() {
   loading.value = true;
   error.value = '';
   try {
-    const res = await api.get('/config');
-    if (res.data.ok) {
-      fullConfig.value = res.data.data;
-      editableConfig.value = omitTopLevelConfigKeys(res.data.data, excludedTopLevelKeys);
-      extraBodyErrors.value = {};
-      extraBodyDrafts.value = {};
-    } else {
-      error.value = res.data.error ?? 'Failed to load config';
-    }
+    const config = await ws.send('get_config') as Record<string, unknown>;
+    fullConfig.value = config;
+    editableConfig.value = omitTopLevelConfigKeys(config, excludedTopLevelKeys);
+    extraBodyErrors.value = {};
+    extraBodyDrafts.value = {};
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load config';
   } finally {
@@ -585,13 +579,9 @@ async function saveConfig() {
   }
   saving.value = true;
   try {
-    const res = await api.put('/config', editableConfig.value);
-    if (res.data.ok) {
-      fullConfig.value = { ...fullConfig.value, ...editableConfig.value };
-      showToast('toast-success', 'Configuration saved successfully');
-    } else {
-      showToast('toast-error', res.data.error ?? 'Save failed');
-    }
+    await ws.send('update_config', editableConfig.value);
+    fullConfig.value = { ...fullConfig.value, ...editableConfig.value };
+    showToast('toast-success', 'Configuration saved successfully');
   } catch (err) {
     showToast('toast-error', err instanceof Error ? err.message : 'Save failed');
   } finally {

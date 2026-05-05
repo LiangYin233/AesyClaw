@@ -113,10 +113,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { useAuth } from '@/composables/useAuth';
+import { useWebSocket } from '@/composables/useWebSocket';
 import { ChevronRightIcon, ChevronUpIcon } from '@heroicons/vue/24/outline';
 
-const { api } = useAuth();
+const ws = useWebSocket();
 
 interface Tool {
   name: string;
@@ -151,10 +151,8 @@ function paramFields(params: Record<string, unknown>): ParamField[] {
 
 async function loadTools() {
   try {
-    const res = await api.get('/tools');
-    if (res.data.ok) {
-      tools.value = res.data.data;
-    }
+    const data = await ws.send('get_tools');
+    tools.value = Array.isArray(data) ? data : [];
   } catch (err) {
     console.error('Failed to load tools', err);
   }

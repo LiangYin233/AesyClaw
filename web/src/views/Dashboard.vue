@@ -181,9 +181,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { useAuth } from '@/composables/useAuth';
-import { useInterval } from '@/composables/useInterval';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useWebSocket } from '@/composables/useWebSocket';
 import {
   UsersIcon,
   ChatBubbleLeftRightIcon,
@@ -194,7 +193,7 @@ import {
 } from '@heroicons/vue/24/outline';
 import type { ChannelStatus, UsageSummary } from '@/types/api';
 
-const { api } = useAuth();
+const ws = useWebSocket();
 
 const stats = ref({ sessions: 0, messages: 0, cronJobs: 0 });
 const uptime = ref(0);
@@ -242,16 +241,12 @@ function formatNumber(n: number): string {
 
 async function loadUsage() {
   try {
-    const [todayRes, yesterdayRes] = await Promise.all([
-      api.get('/usage/today'),
-      api.get('/usage', { params: { from: yesterdayStr(), to: yesterdayStr() } }),
-    ]);
-    if (todayRes.data.ok) {
-      usageData.value = todayRes.data.data;
-    }
-    if (yesterdayRes.data.ok) {
-      yesterdayData.value = yesterdayRes.data.data;
-    }
+    const todayRaw = await ws.send('get_usage_today');
+    usageData.value = Array.isArray(todayRaw) ? todayRaw : [];
+
+    const yesterdayStrVal = yesterdayStr();
+    const yesterdayRaw = await ws.send('get_usage', { from: yesterdayStrVal, to: yesterdayStrVal });
+    yesterdayData.value = Array.isArray(yesterdayRaw) ? yesterdayRaw : [];
   } catch (err) {
     console.error('Failed to load usage stats', err);
   }
@@ -268,29 +263,34 @@ function yesterdayStr(): string {
 
 async function load() {
   try {
-    const res = await api.get('/status');
-    if (res.data.ok) {
-      uptime.value = res.data.data.uptime;
-      channels.value = res.data.data.channels;
-      const db = res.data.data.database;
-      stats.value = {
-        sessions: db?.sessions ?? 0,
-        messages: db?.messages ?? 0,
-        cronJobs: db?.cronJobs ?? 0,
-      };
-    }
+    const statusData = await ws.send('get_status') as Record<string, unknown>;
+    uptime.value = (statusData['uptime'] as number) ?? 0;
+    channels.value = (statusData['channels'] as ChannelStatus[]) ?? [];
+    const db = statusData['database'] as Record<string, number> | undefined;
+    stats.value = {
+      sessions: (db?.['sessions'] as number) ?? 0,
+      messages: (db?.['messages'] as number) ?? 0,
+      cronJobs: (db?.['cronJobs'] as number) ?? 0,
+    };
     await loadUsage();
   } catch (err) {
     console.error('Failed to load status', err);
   }
 }
 
-const { start } = useInterval(() => {
-  void load();
-}, 5000);
+function handleStatusChanged(data: unknown) {
+  const payload = data as Record<string, unknown>;
+  if (payload) {
+    load();
+  }
+}
 
 onMounted(() => {
+  ws.on('status_changed', handleStatusChanged);
   load();
-  start();
+});
+
+onUnmounted(() => {
+  ws.off('status_changed', handleStatusChanged);
 });
 </script>

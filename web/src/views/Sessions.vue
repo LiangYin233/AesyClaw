@@ -171,7 +171,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { useAuth } from '@/composables/useAuth';
+import { useWebSocket } from '@/composables/useWebSocket';
 import {
   ChevronRightIcon,
   ChatBubbleLeftRightIcon,
@@ -180,7 +180,7 @@ import {
 } from '@heroicons/vue/24/outline';
 import type { Session, PersistableMessage } from '@/types/api';
 
-const { api } = useAuth();
+const ws = useWebSocket();
 
 const sessions = ref<Session[]>([]);
 const expanded = ref<string | null>(null);
@@ -189,10 +189,8 @@ const messagesLoading = ref(false);
 
 async function loadSessions() {
   try {
-    const res = await api.get('/sessions');
-    if (res.data.ok) {
-      sessions.value = res.data.data;
-    }
+    const data = await ws.send('get_sessions');
+    sessions.value = Array.isArray(data) ? data : [];
   } catch (err) {
     console.error('Failed to load sessions', err);
   }
@@ -207,11 +205,9 @@ async function toggleSession(id: string) {
   messagesLoading.value = true;
   messages.value = [];
   try {
-    const res = await api.get(`/sessions/${id}/messages`);
+    const data = await ws.send('get_messages', { sessionId: id });
     if (expanded.value !== id) return;
-    if (res.data.ok) {
-      messages.value = res.data.data;
-    }
+    messages.value = Array.isArray(data) ? data : [];
   } catch (err) {
     console.error('Failed to load messages', err);
   } finally {

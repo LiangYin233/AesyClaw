@@ -150,12 +150,12 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from 'vue';
-import { useAuth } from '@/composables/useAuth';
+import { useWebSocket } from '@/composables/useWebSocket';
 import { useToast } from '@/composables/useToast';
 
 import type { CronJobRecord, CronRunRecord } from '@/types/api';
 
-const { api } = useAuth();
+const ws = useWebSocket();
 const { showToast, toast } = useToast();
 
 const jobs = ref<CronJobRecord[]>([]);
@@ -219,10 +219,8 @@ function getOwnerField(value: unknown): string {
 
 async function loadJobs() {
   try {
-    const res = await api.get('/cron');
-    if (res.data.ok) {
-      jobs.value = res.data.data;
-    }
+    const data = await ws.send('get_cron');
+    jobs.value = Array.isArray(data) ? data : [];
   } catch {
     showToast('toast-error', '加载定时任务失败');
   }
@@ -237,11 +235,9 @@ async function toggleJob(id: string) {
   runsLoading.value = true;
   runs.value = [];
   try {
-    const res = await api.get(`/cron/${id}/runs`);
+    const data = await ws.send('get_cron_runs', { jobId: id });
     if (expanded.value !== id) return;
-    if (res.data.ok) {
-      runs.value = res.data.data;
-    }
+    runs.value = Array.isArray(data) ? data : [];
   } catch {
     showToast('toast-error', '加载执行历史失败');
   } finally {

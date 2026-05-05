@@ -284,7 +284,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { useAuth } from '@/composables/useAuth';
+import { useWebSocket } from '@/composables/useWebSocket';
 import { useToast } from '@/composables/useToast';
 import { TrashIcon } from '@heroicons/vue/24/outline';
 
@@ -305,7 +305,7 @@ const props = defineProps<{
   subtitle: string;
 }>();
 
-const { api } = useAuth();
+const ws = useWebSocket();
 const { toast, showToast } = useToast();
 
 const fullConfig = ref<Record<string, unknown>>({});
@@ -336,13 +336,9 @@ async function loadConfig() {
   loading.value = true;
   error.value = '';
   try {
-    const res = await api.get('/config');
-    if (res.data.ok) {
-      fullConfig.value = res.data.data;
-      sectionValue.value = getSectionValue(res.data.data, props.sectionKey);
-    } else {
-      error.value = res.data.error ?? `Failed to load ${props.sectionKey} config`;
-    }
+    const config = await ws.send('get_config') as Record<string, unknown>;
+    fullConfig.value = config;
+    sectionValue.value = getSectionValue(config, props.sectionKey);
   } catch (err) {
     error.value = err instanceof Error ? err.message : `Failed to load ${props.sectionKey} config`;
   } finally {
@@ -354,13 +350,9 @@ async function saveSection() {
   saving.value = true;
   try {
     const payload = { [props.sectionKey]: sectionValue.value };
-    const res = await api.put('/config', payload);
-    if (res.data.ok) {
-      fullConfig.value = { ...fullConfig.value, [props.sectionKey]: sectionValue.value };
-      showToast('toast-success', `${props.title} configuration saved`);
-    } else {
-      showToast('toast-error', res.data.error ?? 'Save failed');
-    }
+    await ws.send('update_config', payload);
+    fullConfig.value = { ...fullConfig.value, [props.sectionKey]: sectionValue.value };
+    showToast('toast-success', `${props.title} configuration saved`);
   } catch (err) {
     showToast('toast-error', err instanceof Error ? err.message : 'Save failed');
   } finally {

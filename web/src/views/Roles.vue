@@ -356,7 +356,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { useAuth } from '@/composables/useAuth';
+import { useWebSocket } from '@/composables/useWebSocket';
 import { useToast } from '@/composables/useToast';
 import {
   CheckIcon,
@@ -367,7 +367,7 @@ import {
 } from '@heroicons/vue/24/outline';
 import type { Role, ToolPermission } from '@/types/api';
 
-const { api } = useAuth();
+const ws = useWebSocket();
 const { toast, showToast } = useToast();
 
 const roles = ref<Role[]>([]);
@@ -394,10 +394,8 @@ const saving = ref(false);
 
 async function loadRoles() {
   try {
-    const res = await api.get('/roles');
-    if (res.data.ok) {
-      roles.value = res.data.data;
-    }
+    const data = await ws.send('get_roles');
+    roles.value = Array.isArray(data) ? data : [];
   } catch (err) {
     console.error('Failed to load roles', err);
   }
@@ -405,13 +403,13 @@ async function loadRoles() {
 
 async function loadModelOptions() {
   try {
-    const res = await api.get('/config');
-    if (res.data.ok) {
-      const providers = res.data.data.providers as Record<
-        string,
-        { models?: Record<string, unknown> }
-      >;
-      const opts: ModelOption[] = [];
+    const config = await ws.send('get_config') as Record<string, unknown>;
+    const providers = config['providers'] as Record<
+      string,
+      { models?: Record<string, unknown> }
+    > | undefined;
+    const opts: ModelOption[] = [];
+    if (providers) {
       for (const [providerName, providerCfg] of Object.entries(providers)) {
         if (providerCfg.models) {
           for (const modelId of Object.keys(providerCfg.models)) {
@@ -422,8 +420,8 @@ async function loadModelOptions() {
           }
         }
       }
-      modelOptions.value = opts;
     }
+    modelOptions.value = opts;
   } catch (err) {
     console.error('Failed to load model options', err);
   }
@@ -492,27 +490,19 @@ function removeSkill(idx: number) {
 async function saveRole() {
   saving.value = true;
   try {
-    const payload = { ...form.value };
-    delete (payload as Record<string, unknown>)['id'];
+    const formData = { ...form.value };
+    const { id: _excluded, ...payload } = formData;
 
     if (creating.value) {
-      const res = await api.post('/roles', payload);
-      if (res.data.ok) {
-        showToast('toast-success', 'Role created');
-        await loadRoles();
-        closeEditor();
-      } else {
-        showToast('toast-error', res.data.error ?? 'Create failed');
-      }
+      await ws.send('create_role', payload);
+      showToast('toast-success', 'Role created');
+      await loadRoles();
+      closeEditor();
     } else if (editingRole.value) {
-      const res = await api.put(`/roles/${editingRole.value.id}`, payload);
-      if (res.data.ok) {
-        showToast('toast-success', 'Role saved');
-        await loadRoles();
-        closeEditor();
-      } else {
-        showToast('toast-error', res.data.error ?? 'Save failed');
-      }
+      await ws.send('update_role', { id: editingRole.value.id, ...payload });
+      showToast('toast-success', 'Role saved');
+      await loadRoles();
+      closeEditor();
     }
   } catch (err) {
     showToast('toast-error', err instanceof Error ? err.message : 'Save failed');

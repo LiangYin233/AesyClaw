@@ -248,10 +248,10 @@ Chart.register(
   Legend,
 );
 
-import { useAuth } from '@/composables/useAuth';
+import { useWebSocket } from '@/composables/useWebSocket';
 import type { UsageSummary, ToolUsageSummary } from '@/types/api';
 
-const { api } = useAuth();
+const ws = useWebSocket();
 const fromDateId = useId();
 const toDateId = useId();
 const modelFilterId = useId();
@@ -336,13 +336,13 @@ function formatNumber(n: number): string {
 
 async function loadModelOptions() {
   try {
-    const res = await api.get('/config');
-    if (res.data.ok) {
-      const providers = res.data.data.providers as Record<
-        string,
-        { models?: Record<string, unknown> }
-      >;
-      const opts: string[] = [];
+    const config = await ws.send('get_config') as Record<string, unknown>;
+    const providers = config['providers'] as Record<
+      string,
+      { models?: Record<string, unknown> }
+    > | undefined;
+    const opts: string[] = [];
+    if (providers) {
       for (const provider of Object.values(providers)) {
         if (provider.models) {
           for (const modelId of Object.keys(provider.models)) {
@@ -350,8 +350,8 @@ async function loadModelOptions() {
           }
         }
       }
-      modelOptions.value = opts;
     }
+    modelOptions.value = opts;
   } catch (err) {
     console.error('Failed to load model options', err);
   }
@@ -363,20 +363,14 @@ async function load() {
     if (fromDate.value) params['from'] = fromDate.value;
     if (toDate.value) params['to'] = toDate.value;
     if (modelFilter.value.trim()) params['model'] = modelFilter.value.trim();
+
+    const usageRaw = await ws.send('get_usage', params);
+    data.value = Array.isArray(usageRaw) ? usageRaw : [];
+
     const toolParams = { ...params };
     delete toolParams['model'];
-
-    const [usageRes, toolRes] = await Promise.all([
-      api.get('/usage', { params }),
-      api.get('/usage/tools', { params: toolParams }),
-    ]);
-
-    if (usageRes.data.ok) {
-      data.value = usageRes.data.data;
-    }
-    if (toolRes.data.ok) {
-      toolData.value = toolRes.data.data;
-    }
+    const toolRaw = await ws.send('get_usage_tools', toolParams);
+    toolData.value = Array.isArray(toolRaw) ? toolRaw : [];
   } catch (err) {
     console.error('Failed to load usage stats', err);
   }

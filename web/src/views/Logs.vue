@@ -20,8 +20,8 @@
           <span class="w-2 h-2 rounded-full bg-current"></span>
           {{
             autoRefreshEnabled
-              ? `Auto refresh every ${pollIntervalSeconds}s`
-              : 'Auto refresh paused'
+              ? 'Live (push)'
+              : 'Paused'
           }}
         </span>
         <span class="font-heading text-xs text-mid-gray">Updated {{ lastUpdatedLabel }}</span>
@@ -98,12 +98,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, useTemplateRef } from 'vue';
-import { useAuth } from '@/composables/useAuth';
-import { useInterval } from '@/composables/useInterval';
-import type { LogEntry, LogsResponse } from '@/types/api';
+import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
+import { useWebSocket } from '@/composables/useWebSocket';
+import type { LogEntry } from '@/types/api';
 
-const { api } = useAuth();
+const ws = useWebSocket();
 
 const entries = ref<LogEntry[]>([]);
 const loading = ref(false);
@@ -112,13 +111,7 @@ const autoRefreshEnabled = ref(true);
 const lastUpdatedAt = ref<Date | null>(null);
 const logContainer = useTemplateRef<HTMLElement>('log-container');
 
-const pollIntervalMs = 5000;
-const pollIntervalSeconds = pollIntervalMs / 1000;
 const requestLimit = 200;
-
-const { start: startPolling, stop: stopPolling } = useInterval(() => {
-  void loadLogs();
-}, pollIntervalMs);
 
 const lastUpdatedLabel = computed(() => {
   if (!lastUpdatedAt.value) {
@@ -132,13 +125,6 @@ const lastUpdatedLabel = computed(() => {
   });
 });
 
-function syncPolling(): void {
-  stopPolling();
-  if (autoRefreshEnabled.value) {
-    startPolling();
-  }
-}
-
 function scrollToBottom(): void {
   if (!logContainer.value) {
     return;
@@ -150,17 +136,15 @@ async function loadLogs(): Promise<void> {
   loading.value = true;
   errorMessage.value = '';
   try {
-    const response = await api.get<{ ok: boolean; data?: LogsResponse; error?: string }>('/logs', {
-      params: { limit: requestLimit },
-    });
-    if (response.data.ok && response.data.data) {
-      entries.value = response.data.data.entries;
+    const data = await ws.send('get_logs', { limit: String(requestLimit) }) as { entries: LogEntry[]; limit: number };
+    if (data && Array.isArray(data['entries'])) {
+      entries.value = data['entries'];
       lastUpdatedAt.value = new Date();
       await nextTick();
       scrollToBottom();
       return;
     }
-    errorMessage.value = response.data.error ?? 'Failed to load logs.';
+    errorMessage.value = 'Failed to load logs.';
   } catch {
     errorMessage.value = 'Failed to load logs.';
   } finally {
@@ -168,15 +152,25 @@ async function loadLogs(): Promise<void> {
   }
 }
 
+function handleLogEntry(data: unknown) {
+  const entry = data as LogEntry;
+  if (entry && entry.id) {
+    entries.value = [...entries.value, entry].slice(-requestLimit);
+    lastUpdatedAt.value = new Date();
+    nextTick(() => scrollToBottom());
+  }
+}
+
 function toggleAutoRefresh(): void {
   autoRefreshEnabled.value = !autoRefreshEnabled.value;
-  syncPolling();
 }
 
 onMounted(() => {
   void loadLogs();
-  syncPolling();
+  ws.on('log_entry', handleLogEntry);
 });
 
-
+onUnmounted(() => {
+  ws.off('log_entry', handleLogEntry);
+});
 </script>

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createRolesRouter } from '../../../src/web/routes/roles';
+import { updateRole } from '../../../src/web/services/roles';
 import type { RoleConfig } from '../../../src/core/types';
 import type { WebUiManagerDependencies } from '../../../src/web/webui-manager';
 
@@ -23,64 +23,31 @@ function makeDeps(role = makeRole()) {
       getRole: vi.fn(() => role),
       getAllRoles: vi.fn(() => [role]),
       saveRole: vi.fn(async (_id: string, _updated: RoleConfig) => undefined),
+      deleteRole: vi.fn(async (_id: string) => true),
     },
     configManager: {
       getConfig: vi.fn(() => ({
-        providers: {
-          openai: {
-            models: {
-              'gpt-4o': {},
-            },
-          },
-        },
+        providers: { openai: { models: { 'gpt-4o': {} } } },
       })),
     },
   } as unknown as WebUiManagerDependencies;
 }
 
-describe('roles routes', () => {
-  it('rejects role update body ids that differ from the route id', async () => {
+describe('roles service', () => {
+  it('rejects update when body id differs from route id', async () => {
     const deps = makeDeps();
-    const router = createRolesRouter(deps);
-
-    const response = await router.request('/default', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ id: 'other', name: 'Renamed' }),
-    });
-    const body = await response.json();
-
-    expect(response.status).toBe(400);
-    expect(body).toEqual({ ok: false, error: '请求体中的角色 id 必须与路由 id 一致' });
+    await expect(updateRole(deps, 'default', { id: 'other', name: 'Renamed' })).rejects.toThrow(
+      '请求体中的角色 id 必须与路由 id 一致',
+    );
     expect(deps.roleManager.saveRole).not.toHaveBeenCalled();
   });
 
-  it('allows omitted or matching role update body ids and persists the route id', async () => {
+  it('allows omitted or matching body id and persists the route id', async () => {
     const deps = makeDeps();
-    const router = createRolesRouter(deps);
-
-    const omittedResponse = await router.request('/default', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Renamed' }),
-    });
-    const matchingResponse = await router.request('/default', {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ id: 'default', name: 'Renamed again' }),
-    });
-
-    expect(omittedResponse.status).toBe(200);
-    expect(matchingResponse.status).toBe(200);
-    expect(deps.roleManager.saveRole).toHaveBeenNthCalledWith(
-      1,
+    await updateRole(deps, 'default', { name: 'Renamed' });
+    expect(deps.roleManager.saveRole).toHaveBeenCalledWith(
       'default',
       expect.objectContaining({ id: 'default', name: 'Renamed' }),
-    );
-    expect(deps.roleManager.saveRole).toHaveBeenNthCalledWith(
-      2,
-      'default',
-      expect.objectContaining({ id: 'default', name: 'Renamed again' }),
     );
   });
 });

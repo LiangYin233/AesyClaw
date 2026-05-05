@@ -119,7 +119,7 @@ import { useRouter } from 'vue-router';
 import { useAuth } from '@/composables/useAuth';
 
 const router = useRouter();
-const { login, logout, api } = useAuth();
+const { login, logout } = useAuth();
 const tokenId = useId();
 
 const tokenInput = ref('');
@@ -133,16 +133,25 @@ async function handleSubmit() {
   try {
     const token = tokenInput.value.trim();
     logout();
-    const res = await api.get('/status', {
-      headers: { Authorization: `Bearer ${token}` },
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/api/ws?token=${token}`;
+    await new Promise<void>((resolve, reject) => {
+      const ws = new WebSocket(wsUrl);
+      ws.onopen = () => {
+        ws.close();
+        resolve();
+      };
+      ws.onerror = () => reject(new Error('Connection failed'));
+      ws.onclose = (e) => {
+        if (e.code === 4001 || !e.wasClean) reject(new Error('Invalid token'));
+      };
+      setTimeout(() => {
+        ws.close();
+        reject(new Error('Connection timeout'));
+      }, 5000);
     });
-    if (res.data.ok) {
-      login(token);
-      router.push('/');
-    } else {
-      logout();
-      error.value = 'Invalid token';
-    }
+    login(token);
+    router.push('/');
   } catch {
     logout();
     error.value = 'Invalid token or server unreachable';

@@ -34,11 +34,13 @@
     "conf": "^15.1.0",
     "front-matter": "^4.0.2",
     "hono": "^4.12.15",
-    "tsx": "^4.0.0"
+    "tsx": "^4.0.0",
+    "ws": "^8.20.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.0",
     "eslint": "^10.2.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.9.0",

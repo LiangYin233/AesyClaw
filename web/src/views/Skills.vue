@@ -64,9 +64,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { useAuth } from '@/composables/useAuth';
+import { useWebSocket } from '@/composables/useWebSocket';
 
-const { api } = useAuth();
+const ws = useWebSocket();
 
 interface Skill {
   name: string;
@@ -78,10 +78,8 @@ const skills = ref<Skill[]>([]);
 
 async function loadSkills() {
   try {
-    const res = await api.get('/skills');
-    if (res.data.ok) {
-      skills.value = res.data.data;
-    }
+    const data = await ws.send('get_skills');
+    skills.value = Array.isArray(data) ? data : [];
   } catch (err) {
     console.error('Failed to load skills', err);
   }
