@@ -1,3 +1,4 @@
+import { isRecord, errorMessage } from '@aesyclaw/sdk';
 import type { ChannelContext } from '@aesyclaw/sdk';
 
 const WEBSOCKET_OPEN = 1;
@@ -499,12 +500,4 @@ function describeSocketClose(event: unknown): string {
     return reason;
   }
   return 'closed';
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

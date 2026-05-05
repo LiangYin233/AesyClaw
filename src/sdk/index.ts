@@ -31,6 +31,8 @@ export type {
 
 export { getMessageText } from '@aesyclaw/core/types';
 
+export { isRecord, errorMessage } from '@aesyclaw/core/utils';
+
 export type { AesyClawTool, ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
 
 export type { OnSendContext } from '@aesyclaw/pipeline/middleware/types';

@@ -186,6 +186,7 @@ export class SessionManager {
   clearCachedSessions(): void {
     const count = this.sessions.size;
     this.sessions.clear();
+    this.agentProcessingSessions.clear();
     if (count > 0) {
       logger.info('会话缓存已清除', { count });
     }

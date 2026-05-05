@@ -60,6 +60,12 @@ function logout(): void {
   removeCookie(TOKEN_KEY);
 }
 
+/**
+ * Global authentication composable (module-level singleton).
+ *
+ * All state (`token`, `api`, `login`, `logout`) is shared across every caller.
+ * This is intentional — auth state must be app-wide, not per-component.
+ */
 export function useAuth() {
   return {
     token,

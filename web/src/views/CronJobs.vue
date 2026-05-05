@@ -137,16 +137,26 @@
         </tbody>
       </table>
     </div>
+
+    <div
+      v-if="toast"
+      class="fixed top-5 right-5 px-5 py-[0.85rem] rounded-sm text-white font-heading font-medium text-sm z-[200] animate-[slideInRight_0.3s_cubic-bezier(0.16,1,0.3,1)] shadow-lg"
+      :class="toast.type === 'toast-success' ? 'bg-accent-green' : 'bg-danger'"
+    >
+      {{ toast.message }}
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from 'vue';
 import { useAuth } from '@/composables/useAuth';
+import { useToast } from '@/composables/useToast';
 
 import type { CronJobRecord, CronRunRecord } from '@/types/api';
 
 const { api } = useAuth();
+const { showToast, toast } = useToast();
 
 const jobs = ref<CronJobRecord[]>([]);
 const expanded = shallowRef<string | null>(null);
@@ -213,8 +223,8 @@ async function loadJobs() {
     if (res.data.ok) {
       jobs.value = res.data.data;
     }
-  } catch (err) {
-    console.error('Failed to load cron jobs', err);
+  } catch {
+    showToast('toast-error', '加载定时任务失败');
   }
 }
 
@@ -232,8 +242,8 @@ async function toggleJob(id: string) {
     if (res.data.ok) {
       runs.value = res.data.data;
     }
-  } catch (err) {
-    console.error('Failed to load cron runs', err);
+  } catch {
+    showToast('toast-error', '加载执行历史失败');
   } finally {
     if (expanded.value === id) {
       runsLoading.value = false;

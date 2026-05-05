@@ -50,17 +50,22 @@ export function createApp(deps: WebUiManagerDependencies): Hono {
   // 静态文件
   app.use('*', serveStatic({ root: './dist' }));
 
-  // 非 API 路由的 SPA 回退
+  // 非 API 路由的 SPA 回退（启动时缓存 index.html 内容）
+  const indexHtmlPath = join(process.cwd(), 'dist/index.html');
+  let cachedIndexHtml: string | null = null;
+
   app.get('*', (c) => {
     if (c.req.path.startsWith('/api/')) {
       return c.notFound();
     }
-    try {
-      const html = readFileSync(join(process.cwd(), 'dist/index.html'), 'utf-8');
-      return c.html(html);
-    } catch {
-      return c.text('未找到', 404);
+    if (cachedIndexHtml === null) {
+      try {
+        cachedIndexHtml = readFileSync(indexHtmlPath, 'utf-8');
+      } catch {
+        return c.text('未找到', 404);
+      }
     }
+    return c.html(cachedIndexHtml);
   });
 
   return app;
