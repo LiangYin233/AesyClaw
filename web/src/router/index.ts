@@ -77,7 +77,7 @@ const router = createRouter({
 
 router.beforeEach((to, _from, next) => {
   const { token } = useAuth();
-  if (!to.meta['public'] && !token.value) {
+  if (to.meta['public'] !== true && (token.value ?? null) === null) {
     next('/login');
   } else {
     next();

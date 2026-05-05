@@ -14,7 +14,6 @@ export default tseslint.config(
       '.trellis/**',
       '.opencode/**',
       '.yarn/**',
-      'web/**',
     ],
   },
   {
@@ -86,15 +85,19 @@ export default tseslint.config(
       },
       parser: vueParser,
       parserOptions: {
-        project: './web/tsconfig.eslint.json',
         parser: {
-          ts: '@typescript-eslint/parser',
+          ts: {
+            parser: '@typescript-eslint/parser',
+            options: { project: './web/tsconfig.json' },
+          },
           js: '@typescript-eslint/parser',
         },
       },
     },
     rules: {
       ...vuePlugin.configs['flat/recommended'].rules,
+      '@typescript-eslint/consistent-type-definitions': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
     },
   },
 );

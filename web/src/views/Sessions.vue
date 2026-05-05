@@ -64,7 +64,7 @@
               <td class="px-4 py-3 border-b border-[var(--color-border)]">{{ session.type }}</td>
               <td class="px-4 py-3 border-b border-[var(--color-border)]">{{ session.chatId }}</td>
               <td class="px-4 py-3 border-b border-[var(--color-border)] text-mid-gray">
-                {{ formatDate(session.updatedAt ?? session.createdAt) }}
+                {{ formatDate(session.lastActivity) }}
               </td>
               <td
                 class="px-4 py-3 border-b border-[var(--color-border)] text-right"
@@ -147,7 +147,7 @@
                       >{{ messages.length }} messages</span
                     >
                     <span class="font-body text-xs text-mid-gray">
-                      Started: {{ formatTime(session.createdAt ?? messages[0]?.timestamp) }}
+                      Started: {{ formatTime(messages[0]?.timestamp) }}
                       <span v-if="messages.length > 0">
                         &middot; Last activity:
                         {{ formatTime(messages[messages.length - 1]?.timestamp) }}</span

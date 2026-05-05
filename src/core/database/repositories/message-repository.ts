@@ -42,6 +42,17 @@ export async function loadMessageHistory(
   }));
 }
 
+/** 获取会话最后一条消息的时间戳。无消息时返回 null。 */
+export async function getLastMessageTimestamp(
+  db: DatabaseSync,
+  sessionId: string,
+): Promise<string | null> {
+  const row = db
+    .prepare('SELECT timestamp FROM messages WHERE session_id = ? ORDER BY timestamp DESC LIMIT 1')
+    .get(sessionId) as { timestamp: string } | undefined;
+  return row?.timestamp ?? null;
+}
+
 /** 清空会话的所有消息 */
 export async function clearMessageHistory(db: DatabaseSync, sessionId: string): Promise<void> {
   db.prepare('DELETE FROM messages WHERE session_id = ?').run(sessionId);

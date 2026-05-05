@@ -19,8 +19,7 @@ export interface Session {
   channel: string;
   type: string;
   chatId: string;
-  createdAt: string | null;
-  updatedAt: string | null;
+  lastActivity: string | null;
 }
 
 export interface PersistableMessage {

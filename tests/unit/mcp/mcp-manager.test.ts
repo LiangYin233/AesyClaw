@@ -147,7 +147,7 @@ describe('McpManager', () => {
     await manager.connect('local.one');
     const connected = manager.getConnected('local.one');
     expect(connected).toBeDefined();
-    expect(connected!.tools).toHaveLength(1);
+    expect(connected?.tools).toHaveLength(1);
   });
 
   it('isolates failed servers and unregisters tools on disconnect', async () => {
