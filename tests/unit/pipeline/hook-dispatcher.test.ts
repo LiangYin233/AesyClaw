@@ -2,20 +2,14 @@
  * HookDispatcher unit tests.
  *
  * Tests cover: register/unregister, onReceive dispatch (continue, block, respond),
- * onSend dispatch, beforeToolCall, afterToolCall, beforeLLMRequest,
+ * onSend dispatch, beforeToolCall, afterToolCall, beforeLLM,
  * error handling in hooks, and duplicate registration.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { HookDispatcher } from '../../../src/pipeline/hook-dispatcher';
-import type { PluginHooks } from '../../../src/pipeline/middleware/types';
-import type {
-  InboundMessage,
-  OutboundMessage,
-  PipelineResult,
-  SessionKey,
-  SenderInfo,
-} from '../../../src/core/types';
+import type { PluginHooks, PipeCtx, SendCtx } from '../../../src/pipeline/types';
+import type { InboundMessage, OutboundMessage, PipelineResult } from '../../../src/core/types';
 import type {
   BeforeToolCallHookContext,
   AfterToolCallHookContext,
@@ -29,17 +23,25 @@ function makeInbound(content = 'hello'): InboundMessage {
   };
 }
 
-function makeInboundContext(): { sessionKey: SessionKey; sender?: SenderInfo } {
-  return { sessionKey: { channel: 'test', type: 'private', chatId: 'user1' } };
-}
-
-function dispatchOnReceive(dispatcher: HookDispatcher, message = makeInbound()): Promise<PipelineResult> {
-  const ctx = makeInboundContext();
-  return dispatcher.dispatchOnReceive(message, ctx.sessionKey, ctx.sender);
+function dispatchOnReceive(
+  dispatcher: HookDispatcher,
+  message = makeInbound(),
+): Promise<PipelineResult> {
+  return dispatcher.onReceive({
+    message,
+    sessionKey: { channel: 'test', type: 'private', chatId: 'user1' },
+  });
 }
 
 function makeOutbound(content = 'reply'): OutboundMessage {
   return { components: [{ type: 'Plain', text: content }] };
+}
+
+function makeSendCtx(): SendCtx {
+  return {
+    message: makeOutbound(),
+    sessionKey: { channel: 'test', type: 'private', chatId: 'user1' },
+  };
 }
 
 function makeBeforeToolCallContext(toolName = 'testTool'): BeforeToolCallHookContext {
@@ -56,6 +58,16 @@ function makeAfterToolCallContext(toolName = 'testTool'): AfterToolCallHookConte
     params: {},
     result: { content: 'tool result' },
     sessionKey: { channel: 'test', type: 'private', chatId: 'user1' },
+  };
+}
+
+function makeLLMPipeCtx(): PipeCtx {
+  return {
+    message: makeInbound(),
+    sessionKey: { channel: 'test', type: 'private', chatId: 'user1' },
+    session: undefined,
+    agent: undefined,
+    role: undefined,
   };
 }
 
@@ -115,9 +127,9 @@ describe('HookDispatcher', () => {
     });
   });
 
-  // ─── dispatchOnReceive ───────────────────────────────────────────
+  // ─── onReceive ──────────────────────────────────────────────────
 
-  describe('dispatchOnReceive', () => {
+  describe('onReceive', () => {
     it('should return continue when no hooks are registered', async () => {
       const result = await dispatchOnReceive(dispatcher);
       expect(result.action).toBe('continue');
@@ -166,7 +178,10 @@ describe('HookDispatcher', () => {
 
     it('should return respond when a hook responds', async () => {
       dispatcher.register('p1', {
-        onReceive: async () => ({ action: 'respond' as const, components: [{ type: 'Plain', text: 'direct reply' }] }),
+        onReceive: async () => ({
+          action: 'respond' as const,
+          components: [{ type: 'Plain', text: 'direct reply' }],
+        }),
       });
 
       const result = await dispatchOnReceive(dispatcher);
@@ -179,7 +194,10 @@ describe('HookDispatcher', () => {
     it('should stop dispatching after a hook responds', async () => {
       let secondHookCalled = false;
       dispatcher.register('p1', {
-        onReceive: async () => ({ action: 'respond' as const, components: [{ type: 'Plain', text: 'reply' }] }),
+        onReceive: async () => ({
+          action: 'respond' as const,
+          components: [{ type: 'Plain', text: 'reply' }],
+        }),
       });
       dispatcher.register('p2', {
         onReceive: async () => {
@@ -217,16 +235,11 @@ describe('HookDispatcher', () => {
     });
   });
 
-  // ─── dispatchOnSend ─────────────────────────────────────────────
+  // ─── onSend ─────────────────────────────────────────────────────
 
-  describe('dispatchOnSend', () => {
-    const testSessionKey: SessionKey = { channel: 'test', type: 'private', chatId: 'user1' };
-
+  describe('onSend', () => {
     it('should return continue when no hooks are registered', async () => {
-      const result = await dispatcher.dispatchOnSend({
-        message: makeOutbound(),
-        sessionKey: testSessionKey,
-      });
+      const result = await dispatcher.onSend(makeSendCtx());
       expect(result.action).toBe('continue');
     });
 
@@ -235,10 +248,7 @@ describe('HookDispatcher', () => {
         onSend: async () => ({ action: 'block' as const, reason: 'censored' }),
       });
 
-      const result = await dispatcher.dispatchOnSend({
-        message: makeOutbound(),
-        sessionKey: testSessionKey,
-      });
+      const result = await dispatcher.onSend(makeSendCtx());
       expect(result.action).toBe('block');
       if (result.action === 'block') {
         expect(result.reason).toBe('censored');
@@ -247,13 +257,13 @@ describe('HookDispatcher', () => {
 
     it('should return respond when a hook responds', async () => {
       dispatcher.register('p1', {
-        onSend: async () => ({ action: 'respond' as const, components: [{ type: 'Plain', text: 'modified' }] }),
+        onSend: async () => ({
+          action: 'respond' as const,
+          components: [{ type: 'Plain', text: 'modified' }],
+        }),
       });
 
-      const result = await dispatcher.dispatchOnSend({
-        message: makeOutbound(),
-        sessionKey: testSessionKey,
-      });
+      const result = await dispatcher.onSend(makeSendCtx());
       expect(result.action).toBe('respond');
       if (result.action === 'respond') {
         expect(result.components[0].text).toBe('modified');
@@ -265,19 +275,16 @@ describe('HookDispatcher', () => {
         onReceive: async () => ({ action: 'continue' as const }),
       });
 
-      const result = await dispatcher.dispatchOnSend({
-        message: makeOutbound(),
-        sessionKey: testSessionKey,
-      });
+      const result = await dispatcher.onSend(makeSendCtx());
       expect(result.action).toBe('continue');
     });
   });
 
-  // ─── dispatchBeforeToolCall ──────────────────────────────────────
+  // ─── beforeToolCall ─────────────────────────────────────────────
 
-  describe('dispatchBeforeToolCall', () => {
+  describe('beforeToolCall', () => {
     it('should return empty result when no hooks are registered', async () => {
-      const result = await dispatcher.dispatchBeforeToolCall(makeBeforeToolCallContext());
+      const result = await dispatcher.beforeToolCall(makeBeforeToolCallContext());
       expect(result.block).toBeUndefined();
       expect(result.shortCircuit).toBeUndefined();
     });
@@ -287,7 +294,7 @@ describe('HookDispatcher', () => {
         beforeToolCall: async () => ({ block: true, reason: 'not allowed' }),
       });
 
-      const result = await dispatcher.dispatchBeforeToolCall(makeBeforeToolCallContext());
+      const result = await dispatcher.beforeToolCall(makeBeforeToolCallContext());
       expect(result.block).toBe(true);
       expect(result.reason).toBe('not allowed');
     });
@@ -299,7 +306,7 @@ describe('HookDispatcher', () => {
         }),
       });
 
-      const result = await dispatcher.dispatchBeforeToolCall(makeBeforeToolCallContext());
+      const result = await dispatcher.beforeToolCall(makeBeforeToolCallContext());
       expect(result.shortCircuit).toEqual({ content: 'cached result' });
     });
 
@@ -315,7 +322,7 @@ describe('HookDispatcher', () => {
         },
       });
 
-      await dispatcher.dispatchBeforeToolCall(makeBeforeToolCallContext());
+      await dispatcher.beforeToolCall(makeBeforeToolCallContext());
       expect(secondHookCalled).toBe(false);
     });
 
@@ -324,16 +331,16 @@ describe('HookDispatcher', () => {
         onReceive: async () => ({ action: 'continue' as const }),
       });
 
-      const result = await dispatcher.dispatchBeforeToolCall(makeBeforeToolCallContext());
+      const result = await dispatcher.beforeToolCall(makeBeforeToolCallContext());
       expect(result.block).toBeUndefined();
     });
   });
 
-  // ─── dispatchAfterToolCall ───────────────────────────────────────
+  // ─── afterToolCall ──────────────────────────────────────────────
 
-  describe('dispatchAfterToolCall', () => {
+  describe('afterToolCall', () => {
     it('should return empty result when no hooks are registered', async () => {
-      const result = await dispatcher.dispatchAfterToolCall(makeAfterToolCallContext());
+      const result = await dispatcher.afterToolCall(makeAfterToolCallContext());
       expect(result.override).toBeUndefined();
     });
 
@@ -344,7 +351,7 @@ describe('HookDispatcher', () => {
         }),
       });
 
-      const result = await dispatcher.dispatchAfterToolCall(makeAfterToolCallContext());
+      const result = await dispatcher.afterToolCall(makeAfterToolCallContext());
       expect(result.override).toEqual({ content: 'overridden' });
     });
 
@@ -362,26 +369,26 @@ describe('HookDispatcher', () => {
         },
       });
 
-      const result = await dispatcher.dispatchAfterToolCall(makeAfterToolCallContext());
+      const result = await dispatcher.afterToolCall(makeAfterToolCallContext());
       expect(result.override).toEqual({ content: 'first override' });
       expect(secondHookCalled).toBe(false);
     });
   });
 
-  // ─── dispatchBeforeLLMRequest ────────────────────────────────────
+  // ─── beforeLLM ──────────────────────────────────────────────────
 
-  describe('dispatchBeforeLLMRequest', () => {
+  describe('beforeLLM', () => {
     it('should return continue when no hooks are registered', async () => {
-      const result = await dispatcher.dispatchBeforeLLMRequest({});
+      const result = await dispatcher.beforeLLM(makeLLMPipeCtx());
       expect(result.action).toBe('continue');
     });
 
     it('should return block when a hook blocks', async () => {
       dispatcher.register('p1', {
-        beforeLLMRequest: async () => ({ action: 'block' as const, reason: 'rate limited' }),
+        beforeLLM: async () => ({ action: 'block' as const, reason: 'rate limited' }),
       });
 
-      const result = await dispatcher.dispatchBeforeLLMRequest({});
+      const result = await dispatcher.beforeLLM(makeLLMPipeCtx());
       expect(result.action).toBe('block');
       if (result.action === 'block') {
         expect(result.reason).toBe('rate limited');
@@ -390,10 +397,13 @@ describe('HookDispatcher', () => {
 
     it('should return respond when a hook responds', async () => {
       dispatcher.register('p1', {
-        beforeLLMRequest: async () => ({ action: 'respond' as const, components: [{ type: 'Plain', text: 'cached' }] }),
+        beforeLLM: async () => ({
+          action: 'respond' as const,
+          components: [{ type: 'Plain', text: 'cached' }],
+        }),
       });
 
-      const result = await dispatcher.dispatchBeforeLLMRequest({});
+      const result = await dispatcher.beforeLLM(makeLLMPipeCtx());
       expect(result.action).toBe('respond');
       if (result.action === 'respond') {
         expect(result.components[0].text).toBe('cached');
@@ -401,7 +411,7 @@ describe('HookDispatcher', () => {
     });
   });
 
-  // ─── Hook call order ─────────────────────────────────────────────
+  // ─── Hook call order ────────────────────────────────────────────
 
   describe('call order', () => {
     it('should call hooks in registration order', async () => {

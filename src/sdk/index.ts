@@ -35,6 +35,6 @@ export { isRecord, errorMessage } from '@aesyclaw/core/utils';
 
 export type { AesyClawTool, ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
 
-export type { OnSendContext } from '@aesyclaw/pipeline/middleware/types';
+export type { SendCtx as OnSendContext } from '@aesyclaw/pipeline/types';
 
 export { resolvePaths } from '@aesyclaw/core/path-resolver';

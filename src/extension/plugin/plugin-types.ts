@@ -11,7 +11,7 @@ import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { ChannelManager } from '@aesyclaw/extension/channel/channel-manager';
-import type { PluginHooks } from '@aesyclaw/pipeline/middleware/types';
+import type { PluginHooks } from '@aesyclaw/pipeline/types';
 import type { Logger } from '@aesyclaw/core/logger';
 import type { PluginConfigEntry } from '@aesyclaw/core/config/schema';
 import type { AesyClawTool } from '@aesyclaw/tool/tool-registry';

@@ -1,103 +1,42 @@
 /**
  * HookDispatcher — 在管道生命周期点调度插件钩子。
  *
- * 插件注册钩子（onReceive、onSend、beforeToolCall、afterToolCall、
- * beforeLLMRequest），由管道在适当的时机调用。
+ * 插件注册钩子（onReceive、onSend、beforeLLM、beforeToolCall、
+ * afterToolCall），由管道在适当的时机调用。
  *
  * 调度规则：
  * - 钩子按注册顺序调用
  * - 如果任何钩子返回终止结果，调度停止并返回该结果
  * - 否则返回默认的继续结果
+ *
+ * 相比旧版：
+ * - 无泛型 dispatchHooks 函数
+ * - 5 个显式 dispatch 方法，各含独立 for 循环 + try/catch
+ * - 移除了 CONTINUE_RESULT / EMPTY_BEFORE_TOOL / EMPTY_AFTER_TOOL 常量
  */
 
-import type { InboundMessage, PipelineResult, SessionKey, SenderInfo } from '@aesyclaw/core/types';
-import type { BeforeLLMRequestContext, OnSendContext } from './middleware/types';
+import type { PipeCtx, SendCtx, PluginHooks } from './types';
 import type {
   BeforeToolCallHookContext,
   BeforeToolCallHookResult,
   AfterToolCallHookContext,
   AfterToolCallHookResult,
 } from '@aesyclaw/agent/agent-types';
-import type { PluginHooks } from './middleware/types';
+import type { PipelineResult } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('hook-dispatcher');
 
-/**
- * 追踪插件已注册钩子的条目。
- */
+/** 追踪插件已注册钩子的条目 */
 type HookEntry = {
   pluginName: string;
   hooks: PluginHooks;
 };
 
-/**
- * 调度辅助函数 — 遍历已注册的钩子并调用 `extract` 获取
- * 钩子函数（或 undefined）。`check` 函数决定
- * 钩子结果是否为终止（停止调度）或应继续到下一个钩子。
- *
- * 如果没有钩子产生终止结果，则返回默认值。
- */
-async function dispatchHooks<T, D>(
-  entries: HookEntry[],
-  extract: (hooks: PluginHooks) => ((context: T) => Promise<D>) | undefined,
-  check: (result: D) => boolean,
-  defaultValue: D,
-  context: T,
-): Promise<D> {
-  for (const entry of entries) {
-    const hookFn = extract(entry.hooks);
-    if (!hookFn) continue;
-
-    try {
-      const result = await hookFn(context);
-      if (check(result)) {
-        return result;
-      }
-    } catch (err) {
-      logger.error(`插件 "${entry.pluginName}" 中的钩子错误`, err);
-    }
-  }
-
-  return defaultValue;
-}
-
-async function dispatchOnReceiveHooks(
-  entries: HookEntry[],
-  message: InboundMessage,
-  sessionKey: SessionKey,
-  sender: SenderInfo | undefined,
-): Promise<PipelineResult> {
-  for (const entry of entries) {
-    const hookFn = entry.hooks.onReceive;
-    if (!hookFn) continue;
-
-    try {
-      const result = await hookFn(message, sessionKey, sender);
-      if (isPipelineResultTerminal(result)) {
-        return result;
-      }
-    } catch (err) {
-      logger.error(`插件 "${entry.pluginName}" 中的钩子错误`, err);
-    }
-  }
-
-  return CONTINUE_RESULT;
-}
-
 /** 检查 PipelineResult 是否为终止（block 或 respond） */
-function isPipelineResultTerminal(result: PipelineResult): boolean {
+function isTerminal(result: PipelineResult): boolean {
   return result.action !== 'continue';
 }
-
-/** 默认 PipelineResult */
-const CONTINUE_RESULT: PipelineResult = { action: 'continue' };
-
-/** 默认工具调用前结果 */
-const EMPTY_BEFORE_TOOL: BeforeToolCallHookResult = {};
-
-/** 默认工具调用后结果 */
-const EMPTY_AFTER_TOOL: AfterToolCallHookResult = {};
 
 /**
  * 完整的 HookDispatcher 实现。
@@ -117,7 +56,6 @@ export class HookDispatcher {
    * @param hooks - 包含插件提供的钩子函数的对象
    */
   register(pluginName: string, hooks: PluginHooks): void {
-    // 防止重复注册
     const existing = this.entries.find((e) => e.pluginName === pluginName);
     if (existing) {
       logger.warn(`插件 "${pluginName}" 已注册钩子 — 正在替换`);
@@ -150,53 +88,103 @@ export class HookDispatcher {
 
   // ─── 调度方法 ───────────────────────────────────────────
 
-  async dispatchOnReceive(
-    message: InboundMessage,
-    sessionKey: SessionKey,
-    sender: SenderInfo | undefined,
-  ): Promise<PipelineResult> {
-    return await dispatchOnReceiveHooks(this.entries, message, sessionKey, sender);
+  /**
+   * 派发 onReceive 钩子 — 消息进入管道后的第一步。
+   * 返回终止结果或默认 continue。
+   */
+  async onReceive(ctx: PipeCtx): Promise<PipelineResult> {
+    for (const entry of this.entries) {
+      const hookFn = entry.hooks.onReceive;
+      if (!hookFn) continue;
+
+      try {
+        const result = await hookFn(ctx);
+        if (isTerminal(result)) return result;
+      } catch (err) {
+        logger.error(`插件 "${entry.pluginName}" 中的 onReceive 钩子错误`, err);
+      }
+    }
+
+    return { action: 'continue' };
   }
 
-  async dispatchOnSend(context: OnSendContext): Promise<PipelineResult> {
-    return await dispatchHooks(
-      this.entries,
-      (hooks) => hooks.onSend,
-      isPipelineResultTerminal,
-      CONTINUE_RESULT,
-      context,
-    );
+  /**
+   * 派发 onSend 钩子 — 出站消息发送前。
+   * 返回终止结果或默认 continue。
+   */
+  async onSend(ctx: SendCtx): Promise<PipelineResult> {
+    for (const entry of this.entries) {
+      const hookFn = entry.hooks.onSend;
+      if (!hookFn) continue;
+
+      try {
+        const result = await hookFn(ctx);
+        if (isTerminal(result)) return result;
+      } catch (err) {
+        logger.error(`插件 "${entry.pluginName}" 中的 onSend 钩子错误`, err);
+      }
+    }
+
+    return { action: 'continue' };
   }
 
-  async dispatchBeforeToolCall(
-    context: BeforeToolCallHookContext,
-  ): Promise<BeforeToolCallHookResult> {
-    return await dispatchHooks(
-      this.entries,
-      (hooks) => hooks.beforeToolCall,
-      (result) => result.block === true || result.shortCircuit !== undefined,
-      EMPTY_BEFORE_TOOL,
-      context,
-    );
+  /**
+   * 派发 beforeLLM 钩子 — Agent 处理 LLM 调用前。
+   * session/agent/role 均已解析完毕。返回终止结果或默认 continue。
+   */
+  async beforeLLM(ctx: PipeCtx): Promise<PipelineResult> {
+    for (const entry of this.entries) {
+      const hookFn = entry.hooks.beforeLLM;
+      if (!hookFn) continue;
+
+      try {
+        const result = await hookFn(ctx);
+        if (isTerminal(result)) return result;
+      } catch (err) {
+        logger.error(`插件 "${entry.pluginName}" 中的 beforeLLM 钩子错误`, err);
+      }
+    }
+
+    return { action: 'continue' };
   }
 
-  async dispatchAfterToolCall(context: AfterToolCallHookContext): Promise<AfterToolCallHookResult> {
-    return await dispatchHooks(
-      this.entries,
-      (hooks) => hooks.afterToolCall,
-      (result) => result.override !== undefined,
-      EMPTY_AFTER_TOOL,
-      context,
-    );
+  /**
+   * 派发 beforeToolCall 钩子 — 工具执行前。
+   * 如果某钩子返回 block 或 shortCircuit，则停止调度并返回该结果。
+   */
+  async beforeToolCall(ctx: BeforeToolCallHookContext): Promise<BeforeToolCallHookResult> {
+    for (const entry of this.entries) {
+      const hookFn = entry.hooks.beforeToolCall;
+      if (!hookFn) continue;
+
+      try {
+        const result = await hookFn(ctx);
+        if (result.block === true || result.shortCircuit !== undefined) return result;
+      } catch (err) {
+        logger.error(`插件 "${entry.pluginName}" 中的 beforeToolCall 钩子错误`, err);
+      }
+    }
+
+    return {};
   }
 
-  async dispatchBeforeLLMRequest(context: BeforeLLMRequestContext): Promise<PipelineResult> {
-    return await dispatchHooks(
-      this.entries,
-      (hooks) => hooks.beforeLLMRequest,
-      isPipelineResultTerminal,
-      CONTINUE_RESULT,
-      context,
-    );
+  /**
+   * 派发 afterToolCall 钩子 — 工具执行后。
+   * 如果某钩子返回 override，则停止调度并返回该结果。
+   */
+  async afterToolCall(ctx: AfterToolCallHookContext): Promise<AfterToolCallHookResult> {
+    for (const entry of this.entries) {
+      const hookFn = entry.hooks.afterToolCall;
+      if (!hookFn) continue;
+
+      try {
+        const result = await hookFn(ctx);
+        if (result.override !== undefined) return result;
+      } catch (err) {
+        logger.error(`插件 "${entry.pluginName}" 中的 afterToolCall 钩子错误`, err);
+      }
+    }
+
+    return {};
   }
 }

@@ -162,14 +162,13 @@ export class CoreLifecycle {
       llmAdapter: this.resolvedDeps.llmAdapter,
       skillManager: this.resolvedDeps.skillManager,
       toolRegistry: this.resolvedDeps.toolRegistry,
-      hookDispatcher: this.resolvedDeps.pipeline.hookDispatcher,
     });
 
     this.extensionManager = new ExtensionManager({
       configManager: this.resolvedDeps.configManager,
       toolRegistry: this.resolvedDeps.toolRegistry,
       commandRegistry: this.resolvedDeps.commandRegistry,
-      hookRegistry: this.resolvedDeps.pipeline.hookDispatcher,
+      hookRegistry: this.resolvedDeps.pipeline.hooks,
       pipeline: this.resolvedDeps.pipeline,
       extensionsDir: this.paths.extensionsDir,
     });
@@ -189,7 +188,7 @@ export class CoreLifecycle {
       llmAdapter: this.resolvedDeps.llmAdapter,
       skillManager: this.resolvedDeps.skillManager,
       toolRegistry: this.resolvedDeps.toolRegistry,
-      hookDispatcher: this.resolvedDeps.pipeline.hookDispatcher,
+      hookDispatcher: this.resolvedDeps.pipeline.hooks,
       databaseManager: this.resolvedDeps.databaseManager,
     });
 

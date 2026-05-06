@@ -75,7 +75,7 @@ export function toAgentTool(
       });
 
       // 1. 派发 beforeToolCall 钩子
-      const beforeResult = await toolHookDispatcher.dispatchBeforeToolCall({
+      const beforeResult = await toolHookDispatcher.beforeToolCall({
         toolName: tool.name,
         params,
         sessionKey,
@@ -133,7 +133,7 @@ export function toAgentTool(
       }
 
       // 3. 派发 afterToolCall 钩子 — 可能覆盖结果
-      const afterResult = await toolHookDispatcher.dispatchAfterToolCall({
+      const afterResult = await toolHookDispatcher.afterToolCall({
         toolName: tool.name,
         params,
         result,

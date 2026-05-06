@@ -28,10 +28,10 @@ function makeTool(overrides: Partial<AesyClawTool> = {}): AesyClawTool {
 /** Create a mock HookDispatcher that allows all calls */
 function makeNoOpHookDispatcher(): HookDispatcher {
   return {
-    async dispatchBeforeToolCall() {
+    async beforeToolCall() {
       return {};
     },
-    async dispatchAfterToolCall() {
+    async afterToolCall() {
       return {};
     },
   } as unknown as HookDispatcher;

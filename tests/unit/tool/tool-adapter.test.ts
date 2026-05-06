@@ -27,10 +27,10 @@ function makeTool(overrides: Partial<AesyClawTool> = {}): AesyClawTool {
 
 function makeNoOpHookDispatcher(): HookDispatcher {
   return {
-    async dispatchBeforeToolCall() {
+    async beforeToolCall() {
       return {};
     },
-    async dispatchAfterToolCall() {
+    async afterToolCall() {
       return {};
     },
   } as unknown as HookDispatcher;
@@ -38,10 +38,10 @@ function makeNoOpHookDispatcher(): HookDispatcher {
 
 function makeBlockingHookDispatcher(reason: string): HookDispatcher {
   return {
-    async dispatchBeforeToolCall() {
+    async beforeToolCall() {
       return { block: true, reason };
     },
-    async dispatchAfterToolCall() {
+    async afterToolCall() {
       return {};
     },
   } as unknown as HookDispatcher;
@@ -52,7 +52,7 @@ function makeShortCircuitHookDispatcher(result: {
   isError?: boolean;
 }): HookDispatcher {
   return {
-    async dispatchBeforeToolCall() {
+    async beforeToolCall() {
       return {
         shortCircuit: {
           content: result.content,
@@ -60,7 +60,7 @@ function makeShortCircuitHookDispatcher(result: {
         },
       };
     },
-    async dispatchAfterToolCall() {
+    async afterToolCall() {
       return {};
     },
   } as unknown as HookDispatcher;
@@ -69,12 +69,13 @@ function makeShortCircuitHookDispatcher(result: {
 function makeOverrideHookDispatcher(override: {
   content?: string;
   isError?: boolean;
+  terminate?: boolean;
 }): HookDispatcher {
   return {
-    async dispatchBeforeToolCall() {
+    async beforeToolCall() {
       return {};
     },
-    async dispatchAfterToolCall() {
+    async afterToolCall() {
       return { override };
     },
   } as unknown as HookDispatcher;
