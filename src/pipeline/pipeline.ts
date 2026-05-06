@@ -73,7 +73,6 @@ export class Pipeline {
         deps.llmAdapter,
         deps.toolRegistry,
         deps.hookDispatcher,
-        deps.configManager,
       );
       if (state.stage === 'respond') {
         await this.dispatchOnSendAndDeliver(state.outbound, send, state.session?.key);

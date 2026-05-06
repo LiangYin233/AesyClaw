@@ -7,7 +7,6 @@ import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
-import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { ExtensionManager } from '@aesyclaw/extension/extension-manager';
 import { createHelpCommand } from './help';
 import { createClearCommand } from './clear';
@@ -34,7 +33,6 @@ export type BuiltinCommandDependencies = {
   skillManager: SkillManager;
   toolRegistry: ToolRegistry;
   hookDispatcher: HookDispatcher;
-  configManager: ConfigManager;
 };
 
 export function registerBuiltinCommands(
@@ -58,7 +56,6 @@ export function registerBuiltinCommands(
       deps.skillManager,
       deps.toolRegistry,
       deps.hookDispatcher,
-      deps.configManager,
     ),
   );
   registry.register(createModelCommand(deps.sessionManager));

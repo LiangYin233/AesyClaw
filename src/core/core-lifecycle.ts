@@ -163,7 +163,6 @@ export class CoreLifecycle {
       skillManager: this.resolvedDeps.skillManager,
       toolRegistry: this.resolvedDeps.toolRegistry,
       hookDispatcher: this.resolvedDeps.pipeline.hookDispatcher,
-      configManager: this.resolvedDeps.configManager,
     });
 
     this.extensionManager = new ExtensionManager({
@@ -191,7 +190,6 @@ export class CoreLifecycle {
       skillManager: this.resolvedDeps.skillManager,
       toolRegistry: this.resolvedDeps.toolRegistry,
       hookDispatcher: this.resolvedDeps.pipeline.hookDispatcher,
-      configManager: this.resolvedDeps.configManager,
     });
 
     await this.extensionManager.setup();

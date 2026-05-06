@@ -14,7 +14,6 @@ import type { AesyClawTool, ToolExecutionContext } from '@aesyclaw/tool/tool-reg
 import type { LlmAdapter } from './llm-adapter';
 import type { Session } from './session/session';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
-import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
@@ -31,7 +30,6 @@ export type AgentOptions = {
   skillManager: SkillManager;
   toolRegistry: ToolRegistry;
   hookDispatcher: HookDispatcher;
-  configManager: ConfigManager;
 };
 
 type RunTurnResult = {
@@ -61,7 +59,6 @@ export class Agent {
   private skillManager: SkillManager;
   private toolRegistry: ToolRegistry;
   private hookDispatcher: HookDispatcher;
-  private configManager: ConfigManager;
 
   constructor(options: AgentOptions) {
     this.session = options.session;
@@ -70,7 +67,6 @@ export class Agent {
     this.skillManager = options.skillManager;
     this.toolRegistry = options.toolRegistry;
     this.hookDispatcher = options.hookDispatcher;
-    this.configManager = options.configManager;
 
     Agent.activeAgents.set(serializeSessionKey(this.session.key), this);
   }

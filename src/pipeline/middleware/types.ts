@@ -29,7 +29,6 @@ import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
-import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 
 /**
  * 传递给 onSend 钩子的上下文。
@@ -115,7 +114,6 @@ type PipelineDependencies = {
   skillManager: SkillManager;
   toolRegistry: ToolRegistry;
   hookDispatcher: HookDispatcher;
-  configManager: ConfigManager;
 };
 
 // ─── 插件钩子 ────────────────────────────────────────────────

@@ -4,7 +4,6 @@ import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
-import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { CommandContext, CommandDefinition } from '@aesyclaw/core/types';
 import type { RoleConfig } from '@aesyclaw/core/types';
 import { getMessageText } from '@aesyclaw/core/types';
@@ -19,7 +18,6 @@ export function createBtwCommand(
   skillManager: SkillManager,
   toolRegistry: ToolRegistry,
   hookDispatcher: HookDispatcher,
-  configManager: ConfigManager,
 ): CommandDefinition {
   return {
     name: 'btw',
@@ -45,7 +43,6 @@ export function createBtwCommand(
         skillManager,
         toolRegistry,
         hookDispatcher,
-        configManager,
       });
       const outbound = await agent.processEphemeral(role, content);
 
