@@ -20,20 +20,16 @@ const RunSubAgentParamsSchema = Type.Object({
 
 type RunSubAgentParams = Static<typeof RunSubAgentParamsSchema>;
 
-type RunTurnFn = (
-  role: RoleConfig,
-  content: string,
-  history: AgentMessage[],
-  sessionKey: SessionKey,
-  sendMessage?: (message: Message) => Promise<boolean>,
-) => Promise<{ newMessages: AgentMessage[]; lastAssistant: string | null }>;
-
-export type RunSubAgentDeps = {
+export function createRunSubAgentTool(deps: {
   roleManager: Pick<RoleManager, 'getRole'>;
-  runTurn: RunTurnFn;
-};
-
-export function createRunSubAgentTool(deps: RunSubAgentDeps): AesyClawTool {
+  runTurn: (
+    role: RoleConfig,
+    content: string,
+    history: AgentMessage[],
+    sessionKey: SessionKey,
+    sendMessage?: (message: Message) => Promise<boolean>,
+  ) => Promise<{ newMessages: AgentMessage[]; lastAssistant: string | null }>;
+}): AesyClawTool {
   return {
     name: 'run_sub_agent',
     description: '使用指定角色运行子代理',

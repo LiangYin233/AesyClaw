@@ -21,20 +21,16 @@ const RunTempSubAgentParamsSchema = Type.Object({
 
 type RunTempSubAgentParams = Static<typeof RunTempSubAgentParamsSchema>;
 
-type RunTurnFn = (
-  role: RoleConfig,
-  content: string,
-  history: AgentMessage[],
-  sessionKey: SessionKey,
-  sendMessage?: (message: Message) => Promise<boolean>,
-) => Promise<{ newMessages: AgentMessage[]; lastAssistant: string | null }>;
-
-export type RunTempSubAgentDeps = {
+export function createRunTempSubAgentTool(deps: {
   roleManager: Pick<RoleManager, 'getDefaultRole'>;
-  runTurn: RunTurnFn;
-};
-
-export function createRunTempSubAgentTool(deps: RunTempSubAgentDeps): AesyClawTool {
+  runTurn: (
+    role: RoleConfig,
+    content: string,
+    history: AgentMessage[],
+    sessionKey: SessionKey,
+    sendMessage?: (message: Message) => Promise<boolean>,
+  ) => Promise<{ newMessages: AgentMessage[]; lastAssistant: string | null }>;
+}): AesyClawTool {
   return {
     name: 'run_temp_sub_agent',
     description: '使用自定义系统提示运行临时子代理',
