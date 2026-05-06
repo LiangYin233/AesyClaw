@@ -13,6 +13,7 @@ export type { PluginContext, PluginDefinition } from '@aesyclaw/extension/plugin
 export type { ChannelContext, ChannelPlugin } from '@aesyclaw/extension/channel/channel-types';
 
 export type {
+  Message,
   SessionKey,
   SenderInfo,
   MessageComponent,
@@ -26,7 +27,7 @@ export type {
   PipelineResult,
 } from '@aesyclaw/core/types';
 
-export { Message, getMessageText } from '@aesyclaw/core/types';
+export { getMessageText } from '@aesyclaw/core/types';
 
 export { isRecord, errorMessage } from '@aesyclaw/core/utils';
 

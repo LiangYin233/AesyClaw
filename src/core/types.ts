@@ -24,6 +24,7 @@ export {
 export type { ChannelId, ChatType, ChatId, SessionKey, ToolOwner } from './identity-types';
 
 export type {
+  Message,
   MessageComponent,
   PlainComponent,
   ImageComponent,
@@ -38,7 +39,7 @@ export type {
   PersistableMessage,
 } from './message-types';
 
-export { Message, getMessageText } from './message-types';
+export { getMessageText } from './message-types';
 
 export type {
   SessionRecord,
