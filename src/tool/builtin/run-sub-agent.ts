@@ -10,7 +10,7 @@ import type { ToolOwner, SessionKey, OutboundMessage } from '@aesyclaw/core/type
 import type { RoleConfig } from '@aesyclaw/core/types';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { AgentMessage } from '@aesyclaw/agent/agent-types';
-import { applyToolOverride } from '@aesyclaw/agent/runner/sub-agent-utils';
+import { applyToolOverride } from './sub-agent-utils';
 
 const RunSubAgentParamsSchema = Type.Object({
   roleId: Type.String({ description: '要使用的角色 ID' }),

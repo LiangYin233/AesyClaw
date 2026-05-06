@@ -10,7 +10,7 @@ import type { ToolOwner, SessionKey, OutboundMessage } from '@aesyclaw/core/type
 import type { RoleConfig } from '@aesyclaw/core/types';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { AgentMessage } from '@aesyclaw/agent/agent-types';
-import { applyToolOverride, createTempSubAgentRole } from '@aesyclaw/agent/runner/sub-agent-utils';
+import { applyToolOverride, createTempSubAgentRole } from './sub-agent-utils';
 
 const RunTempSubAgentParamsSchema = Type.Object({
   systemPrompt: Type.String({ description: '子代理的系统提示' }),

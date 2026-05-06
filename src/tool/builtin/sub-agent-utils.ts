@@ -1,7 +1,3 @@
-/**
- * 子 Agent 工具函数 — 纯函数，用于控制子 Agent 的权限和临时角色创建。
- */
-
 import { randomUUID } from 'node:crypto';
 import type { RoleConfig } from '@aesyclaw/core/types';
 
