@@ -34,13 +34,18 @@ describe('Application', () => {
 
       const runtimeRoot = path.join(testRoot, '.aesyclaw');
       const configFile = path.join(runtimeRoot, 'config.json');
-      const roleFile = path.join(runtimeRoot, 'roles', 'default.json');
+      const rolesDir = path.join(runtimeRoot, 'roles');
+      const rolesFile = path.join(runtimeRoot, 'roles.json');
       const dbFile = path.join(runtimeRoot, 'data', 'aesyclaw.db');
 
       expect(existsSync(runtimeRoot)).toBe(true);
       expect(existsSync(configFile)).toBe(true);
-      expect(existsSync(roleFile)).toBe(true);
+      expect(existsSync(rolesDir)).toBe(false);
+      expect(existsSync(rolesFile)).toBe(true);
       expect(existsSync(dbFile)).toBe(true);
+      expect(JSON.parse(readFileSync(rolesFile, 'utf-8'))).toEqual([
+        expect.objectContaining({ id: 'default', enabled: true }),
+      ]);
       expect(JSON.parse(readFileSync(configFile, 'utf-8'))).toMatchObject({
         server: expect.objectContaining({ logLevel: 'info' }),
         plugins: [],

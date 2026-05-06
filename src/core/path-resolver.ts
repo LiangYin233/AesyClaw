@@ -11,7 +11,7 @@ export type ResolvedPaths = Readonly<{
   dataDir: string;
   configFile: string;
   dbFile: string;
-  rolesDir: string;
+  rolesFile: string;
   mediaDir: string;
   workspaceDir: string;
   skillsDir: string;
@@ -35,7 +35,7 @@ export function resolvePaths(root: string): ResolvedPaths {
     dataDir: path.join(runtimeRoot, DIR_NAMES.data),
     configFile: path.join(runtimeRoot, FILE_NAMES.config),
     dbFile: path.join(runtimeRoot, DIR_NAMES.data, FILE_NAMES.database),
-    rolesDir: path.join(runtimeRoot, DIR_NAMES.roles),
+    rolesFile: path.join(runtimeRoot, FILE_NAMES.roles),
     mediaDir: path.join(runtimeRoot, DIR_NAMES.media),
     workspaceDir: path.join(runtimeRoot, DIR_NAMES.workspace),
     /** 内置 skills 目录（`<project>/skills/`） */

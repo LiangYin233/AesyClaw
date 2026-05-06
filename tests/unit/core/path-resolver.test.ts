@@ -11,7 +11,8 @@ describe('resolvePaths', () => {
     expect(paths.dataDir).toBe(path.join(root, '.aesyclaw', 'data'));
     expect(paths.configFile).toBe(path.join(root, '.aesyclaw', 'config.json'));
     expect(paths.dbFile).toBe(path.join(root, '.aesyclaw', 'data', 'aesyclaw.db'));
-    expect(paths.rolesDir).toBe(path.join(root, '.aesyclaw', 'roles'));
+    expect(paths.rolesFile).toBe(path.join(root, '.aesyclaw', 'roles.json'));
+    expect('rolesDir' in paths).toBe(false);
     expect(paths.mediaDir).toBe(path.join(root, '.aesyclaw', 'media'));
     expect(paths.workspaceDir).toBe(path.join(root, '.aesyclaw', 'workspace'));
     expect(paths.skillsDir).toBe(path.join(root, 'skills'));

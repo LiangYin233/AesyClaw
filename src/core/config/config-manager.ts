@@ -14,9 +14,16 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { basename, dirname, extname } from 'node:path';
 import { Value } from '@sinclair/typebox/value';
 import Conf from 'conf';
-import type { DeepPartial, ConfigChangeListener, Unsubscribe } from '@aesyclaw/core/types';
+import type {
+  DeepPartial,
+  ConfigChangeListener,
+  RoleConfig,
+  Unsubscribe,
+} from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { isRecord, mergeDefaults } from '@aesyclaw/core/utils';
+import { DEFAULT_ROLES_CONFIG } from '@aesyclaw/role/default-role';
+import { RolesConfigSchema } from '@aesyclaw/role/role-schema';
 import { AppConfigSchema } from './schema';
 import type { AppConfig } from './schema';
 import { DEFAULT_CONFIG } from './defaults';
@@ -25,6 +32,7 @@ const logger = createScopedLogger('config-manager');
 
 export type ConfigManagerDependencies = {
   configPath: string;
+  rolesPath: string;
 };
 
 type ListenerEntry = {
@@ -33,16 +41,25 @@ type ListenerEntry = {
 };
 
 export class ConfigManager {
+  private readonly ROLES_STORE_KEY = 'roles';
   private configPath: string | null = null;
+  private rolesPath: string | null = null;
   private lastKnownConfig: AppConfig | null = null;
+  private lastKnownRoles: readonly RoleConfig[] | null = null;
   private listeners: ListenerEntry[] = [];
+  private rolesListeners: Array<ConfigChangeListener<readonly RoleConfig[]>> = [];
   private registeredDefaults = new Map<string, Record<string, unknown>>();
   private configStore: Conf<Record<string, unknown>> | null = null;
+  private rolesStore: Conf<Record<string, unknown>> | null = null;
   private selfUpdating = false;
+  private rolesSelfUpdating = false;
   private reloadRunning = false;
-  private reloadPending = false;
+  private pendingConfigNotification: { oldConfig: AppConfig; newConfig: AppConfig } | null = null;
+  private reloadAfterGuard = false;
+  private reloadRolesAfterGuard = false;
   private readonly DEBOUNCE_MS = 300;
   private unsubscribeHotReload?: () => void;
+  private unsubscribeRolesHotReload?: () => void;
 
   // ─── 生命周期 ────────────────────────────────────────────────
 
@@ -51,6 +68,7 @@ export class ConfigManager {
    */
   async initialize(deps: ConfigManagerDependencies): Promise<void> {
     await this.load(deps.configPath);
+    await this.loadRoles(deps.rolesPath);
   }
 
   /**
@@ -77,6 +95,30 @@ export class ConfigManager {
     }
   }
 
+  /** 从给定路径加载 roles.json；缺失时创建默认角色数组。 */
+  async loadRoles(rolesPath: string): Promise<void> {
+    if (this.rolesStore) {
+      logger.warn('角色配置已加载 — 跳过');
+      return;
+    }
+
+    this.rolesPath = rolesPath;
+    mkdirSync(dirname(rolesPath), { recursive: true });
+
+    const exists = existsSync(rolesPath);
+    if (!exists) {
+      logger.info('未找到角色配置文件，正在使用默认值创建', { path: rolesPath });
+      this.rolesStore = this.createRolesStore(rolesPath);
+      this.writeRolesToStore(DEFAULT_ROLES_CONFIG);
+      this.lastKnownRoles = structuredClone(DEFAULT_ROLES_CONFIG);
+      return;
+    }
+
+    logger.info('正在加载角色配置', { path: rolesPath });
+    this.rolesStore = this.createRolesStore(rolesPath);
+    this.lastKnownRoles = this.readValidatedRolesFromStore();
+  }
+
   // ─── 读取 ──────────────────────────────────────────────────────
 
   /** 获取整个配置的只读快照 */
@@ -87,6 +129,11 @@ export class ConfigManager {
   /** 获取特定配置节的只读快照 */
   get<K extends keyof AppConfig>(key: K): Readonly<AppConfig[K]> {
     return this.readValidatedConfigFromStore()[key];
+  }
+
+  /** 获取角色配置快照。 */
+  getRoles(): readonly RoleConfig[] {
+    return this.readValidatedRolesFromStore();
   }
 
   // ─── 订阅 ─────────────────────────────────────────────────
@@ -109,6 +156,14 @@ export class ConfigManager {
     this.listeners.push(entry);
     return () => {
       this.listeners = this.listeners.filter((l) => l !== entry);
+    };
+  }
+
+  /** 订阅 roles.json 变更。 */
+  subscribeRoles(listener: ConfigChangeListener<readonly RoleConfig[]>): Unsubscribe {
+    this.rolesListeners.push(listener);
+    return () => {
+      this.rolesListeners = this.rolesListeners.filter((candidate) => candidate !== listener);
     };
   }
 
@@ -139,6 +194,21 @@ export class ConfigManager {
 
     this.persistWithGuard(validatedConfig);
     await this.notifyListeners(oldConfig, validatedConfig);
+  }
+
+  /** 替换并持久化完整角色数组。 */
+  async updateRoles(roles: readonly RoleConfig[]): Promise<void> {
+    this.ensureRolesLoaded();
+
+    const oldRoles = this.readValidatedRolesFromStore();
+    const newRoles = this.validateRolesArray(roles);
+
+    if (JSON.stringify(oldRoles) === JSON.stringify(newRoles)) {
+      return;
+    }
+
+    this.persistRolesWithGuard(newRoles);
+    await this.notifyRolesListeners(oldRoles, newRoles);
   }
 
   // ─── 默认值 ──────────────────────────────────────────────────
@@ -179,7 +249,7 @@ export class ConfigManager {
 
   /** 开始监视配置文件的外部变更 */
   startHotReload(): void {
-    if (!this.configPath || !this.configStore) {
+    if (!this.configPath || !this.configStore || !this.rolesPath || !this.rolesStore) {
       throw new Error('配置未加载 —— 无法启动热重载');
     }
 
@@ -187,6 +257,10 @@ export class ConfigManager {
 
     this.unsubscribeHotReload = this.configStore.onDidAnyChange(() => {
       void this.reloadFromFile();
+    });
+
+    this.unsubscribeRolesHotReload = this.rolesStore.onDidAnyChange(() => {
+      void this.reloadRolesFromFile();
     });
 
     logger.info('热重载监视器已启动');
@@ -197,8 +271,12 @@ export class ConfigManager {
     if (this.unsubscribeHotReload) {
       this.unsubscribeHotReload();
       this.unsubscribeHotReload = undefined;
-      logger.info('热重载监视器已停止');
     }
+    if (this.unsubscribeRolesHotReload) {
+      this.unsubscribeRolesHotReload();
+      this.unsubscribeRolesHotReload = undefined;
+    }
+    logger.info('热重载监视器已停止');
   }
 
   // ─── 私有辅助函数 ───────────────────────────────────────────
@@ -208,6 +286,7 @@ export class ConfigManager {
 
     // 如果刚写入文件 ourselves，则跳过
     if (this.selfUpdating) {
+      this.reloadAfterGuard = true;
       return;
     }
 
@@ -229,6 +308,31 @@ export class ConfigManager {
       logger.info('已从文件重新加载配置');
     } catch (err) {
       logger.error('重新加载配置文件失败', err);
+    }
+  }
+
+  private async reloadRolesFromFile(): Promise<void> {
+    if (!this.rolesStore) return;
+
+    if (this.rolesSelfUpdating) {
+      this.reloadRolesAfterGuard = true;
+      return;
+    }
+
+    try {
+      const oldRoles = this.lastKnownRoles ?? this.readValidatedRolesFromStore();
+      const newRoles = this.validateRolesPayload(this.rolesStore.store[this.ROLES_STORE_KEY]);
+
+      if (JSON.stringify(oldRoles) === JSON.stringify(newRoles)) {
+        logger.debug('角色配置文件已变更但内容相同 —— 跳过');
+        return;
+      }
+
+      this.lastKnownRoles = structuredClone(newRoles);
+      await this.notifyRolesListeners(oldRoles, newRoles);
+      logger.info('已从文件重新加载角色配置');
+    } catch (err) {
+      logger.error('重新加载角色配置文件失败', err);
     }
   }
 
@@ -257,6 +361,37 @@ export class ConfigManager {
     }
 
     return validated as AppConfig;
+  }
+
+  private validateRolesPayload(parsed: unknown): RoleConfig[] {
+    return this.validateRolesArray(parsed);
+  }
+
+  private validateRolesArray(value: unknown): RoleConfig[] {
+    const validated = Value.Default(RolesConfigSchema, value);
+
+    if (!Value.Check(RolesConfigSchema, validated)) {
+      const errors = [...Value.Errors(RolesConfigSchema, validated)]
+        .map((e) => `${e.path}: ${e.message}`)
+        .join('; ');
+      throw new Error(`角色配置验证失败: ${errors}`);
+    }
+
+    const roles = (validated as RoleConfig[]).map((role) =>
+      role.id === 'default' ? { ...role, enabled: true } : role,
+    );
+    this.assertUniqueRoleIds(roles);
+    return roles;
+  }
+
+  private assertUniqueRoleIds(roles: readonly RoleConfig[]): void {
+    const seen = new Set<string>();
+    for (const role of roles) {
+      if (seen.has(role.id)) {
+        throw new Error(`角色 id "${role.id}" 重复`);
+      }
+      seen.add(role.id);
+    }
   }
 
   private findMissingFields(
@@ -311,12 +446,29 @@ export class ConfigManager {
     return this.configStore;
   }
 
+  private ensureRolesLoaded(): Conf<Record<string, unknown>> {
+    if (!this.rolesPath || !this.rolesStore) {
+      throw new Error('角色配置未加载');
+    }
+    return this.rolesStore;
+  }
+
   private readValidatedConfigFromStore(): AppConfig {
     return this.validateConfigPayload(this.ensureLoaded().store);
   }
 
+  private readValidatedRolesFromStore(): RoleConfig[] {
+    return this.validateRolesPayload(this.ensureRolesLoaded().store[this.ROLES_STORE_KEY]);
+  }
+
   private writeConfigToStore(config: AppConfig): void {
     this.ensureLoaded().store = structuredClone(config) as Record<string, unknown>;
+  }
+
+  private writeRolesToStore(roles: readonly RoleConfig[]): void {
+    this.ensureRolesLoaded().store = {
+      [this.ROLES_STORE_KEY]: structuredClone(roles),
+    } as Record<string, unknown>;
   }
 
   private persistWithGuard(config: AppConfig): void {
@@ -327,6 +479,26 @@ export class ConfigManager {
     } finally {
       setTimeout(() => {
         this.selfUpdating = false;
+        if (this.reloadAfterGuard) {
+          this.reloadAfterGuard = false;
+          void this.reloadFromFile();
+        }
+      }, this.DEBOUNCE_MS + 50);
+    }
+  }
+
+  private persistRolesWithGuard(roles: readonly RoleConfig[]): void {
+    this.rolesSelfUpdating = true;
+    try {
+      this.writeRolesToStore(roles);
+      this.lastKnownRoles = structuredClone(roles);
+    } finally {
+      setTimeout(() => {
+        this.rolesSelfUpdating = false;
+        if (this.reloadRolesAfterGuard) {
+          this.reloadRolesAfterGuard = false;
+          void this.reloadRolesFromFile();
+        }
       }, this.DEBOUNCE_MS + 50);
     }
   }
@@ -350,34 +522,80 @@ export class ConfigManager {
     }
   }
 
+  private createRolesStore(rolesPath: string): Conf<Record<string, unknown>> {
+    const extension = extname(rolesPath);
+    const fileExtension = extension.startsWith('.') ? extension.slice(1) : extension;
+
+    try {
+      return new Conf<Record<string, unknown>>({
+        cwd: dirname(rolesPath),
+        configName: extension ? basename(rolesPath, extension) : basename(rolesPath),
+        fileExtension,
+        clearInvalidConfig: false,
+        serialize: (value) => JSON.stringify(value[this.ROLES_STORE_KEY] ?? [], null, 2),
+        deserialize: (value) => ({ [this.ROLES_STORE_KEY]: JSON.parse(value) }),
+        watch: true,
+      });
+    } catch (err) {
+      throw new Error('角色配置文件中的 JSON 无效', { cause: err });
+    }
+  }
+
   private async notifyListeners(oldConfig: AppConfig, newConfig: AppConfig): Promise<void> {
     if (this.reloadRunning) {
-      this.reloadPending = true;
+      this.pendingConfigNotification = { oldConfig, newConfig };
       return;
     }
 
     this.reloadRunning = true;
     try {
-      do {
-        this.reloadPending = false;
+      let currentOldConfig = oldConfig;
+      let currentNewConfig = newConfig;
+      let hasPendingNotification = true;
+      while (hasPendingNotification) {
         for (const entry of this.listeners) {
           try {
             if (entry.key) {
-              const oldVal = oldConfig[entry.key];
-              const newVal = newConfig[entry.key];
+              const oldVal = currentOldConfig[entry.key];
+              const newVal = currentNewConfig[entry.key];
               if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
                 await (entry.listener as ConfigChangeListener<unknown>)(newVal, oldVal);
               }
             } else {
-              await (entry.listener as ConfigChangeListener<AppConfig>)(newConfig, oldConfig);
+              await (entry.listener as ConfigChangeListener<AppConfig>)(
+                currentNewConfig,
+                currentOldConfig,
+              );
             }
           } catch (err) {
             logger.error('配置变更监听器出错', err);
           }
         }
-      } while (this.reloadPending);
+
+        const pending = this.pendingConfigNotification;
+        if (!pending) {
+          hasPendingNotification = false;
+          continue;
+        }
+        this.pendingConfigNotification = null;
+        currentOldConfig = pending.oldConfig;
+        currentNewConfig = pending.newConfig;
+      }
     } finally {
       this.reloadRunning = false;
+    }
+  }
+
+  private async notifyRolesListeners(
+    oldRoles: readonly RoleConfig[],
+    newRoles: readonly RoleConfig[],
+  ): Promise<void> {
+    for (const listener of this.rolesListeners) {
+      try {
+        await listener(newRoles, oldRoles);
+      } catch (err) {
+        logger.error('角色配置变更监听器出错', err);
+      }
     }
   }
 }

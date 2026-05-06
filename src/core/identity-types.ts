@@ -11,7 +11,6 @@ export const APP_VERSION = pkg.version;
 export const DIR_NAMES = {
   runtimeRoot: '.aesyclaw',
   data: 'data',
-  roles: 'roles',
   media: 'media',
   workspace: 'workspace',
   /**
@@ -26,6 +25,7 @@ export const DIR_NAMES = {
 export const FILE_NAMES = {
   config: 'config.json',
   database: 'aesyclaw.db',
+  roles: 'roles.json',
 } as const;
 
 /** 运行时默认值和模式元数据共享的默认配置值 */

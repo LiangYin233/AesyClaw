@@ -1,90 +1,37 @@
-/**
- * RoleManager — 加载角色配置并监视变更。
- *
- * 角色文件在加载时针对 RoleConfigSchema 进行 JSON 验证。
- * 通过 `fs.watch` 支持热重载。
- */
+/** RoleManager — 持有角色缓存并通过 ConfigManager 持久化 roles.json。 */
 
-import fs from 'node:fs';
-import type { Dirent } from 'node:fs';
-import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
-import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { Value } from '@sinclair/typebox/value';
+import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { RoleConfig, Unsubscribe } from '@aesyclaw/core/types';
-import { RoleConfigSchema } from './role-schema';
 
 const logger = createScopedLogger('role');
 
-export type RoleManagerDependencies = { rolesDir: string };
+export type RoleManagerDependencies = { configManager: ConfigManager };
 
 export class RoleManager {
   private roles: Map<string, RoleConfig> = new Map();
-  private watcher: fs.FSWatcher | null = null;
-  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly DEBOUNCE_MS = 300;
-  private rolesDir: string | null = null;
-  private roleSources: Map<string, string> = new Map();
+  private configManager: ConfigManager | null = null;
+  private unsubscribeRoles: Unsubscribe | null = null;
   private changeListeners: Array<() => void> = [];
 
   // ─── 生命周期 ────────────────────────────────────────────────
 
   async initialize(deps: RoleManagerDependencies): Promise<void> {
-    this.rolesDir = deps.rolesDir;
+    this.destroy();
+    this.configManager = deps.configManager;
+    this.replaceRoles(deps.configManager.getRoles());
+    this.unsubscribeRoles = deps.configManager.subscribeRoles((roles) => {
+      this.replaceRoles(roles);
+      this.notifyChanges();
+    });
   }
 
-  /**
-   * 从给定目录加载所有角色 JSON 文件。
-   *
-   * 每个文件都会被解析并针对 `RoleConfigSchema` 进行验证。
-   * 格式错误的文件将被跳过并发出警告。
-   */
-  async loadAll(rolesDir: string): Promise<void> {
-    this.rolesDir = rolesDir;
-
-    await mkdir(rolesDir, { recursive: true });
-
-    let entries: Dirent[];
-    try {
-      entries = await readdir(rolesDir, { withFileTypes: true });
-    } catch (err) {
-      logger.error(`读取角色目录失败: ${rolesDir}`, err);
-      throw err;
+  destroy(): void {
+    if (this.unsubscribeRoles) {
+      this.unsubscribeRoles();
+      this.unsubscribeRoles = null;
     }
-
-    const loadedRoles = new Map<string, RoleConfig>();
-    const loadedSources = new Map<string, string>();
-
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith('.json')) {
-        continue;
-      }
-
-      const filePath = path.join(rolesDir, entry.name);
-      try {
-        const role = await this.parseRoleFile(filePath);
-        if (role) {
-          const existingSource = loadedSources.get(role.id);
-          if (existingSource) {
-            throw new Error(`角色 id "${role.id}" 在 ${existingSource} 和 ${filePath} 中重复`);
-          }
-          loadedRoles.set(role.id, role);
-          loadedSources.set(role.id, filePath);
-        }
-      } catch (err) {
-        if (err instanceof Error && err.message.startsWith('角色 id')) {
-          throw err;
-        }
-        logger.warn(`跳过无效的角色文件: ${filePath}`, err);
-      }
-    }
-
-    this.roles = loadedRoles;
-    this.roleSources = loadedSources;
-
-    logger.info(`已加载 ${this.roles.size} 个角色`);
-    this.notifyChanges();
   }
 
   subscribeChanges(listener: () => void): Unsubscribe {
@@ -92,40 +39,6 @@ export class RoleManager {
     return () => {
       this.changeListeners = this.changeListeners.filter((candidate) => candidate !== listener);
     };
-  }
-
-  /** 开始监视角色目录的变更。 */
-  startWatching(): void {
-    if (!this.rolesDir) {
-      throw new Error('角色未加载 — 无法开始监视');
-    }
-
-    if (this.watcher) {
-      return; // 已在监视中
-    }
-
-    this.watcher = fs.watch(this.rolesDir, () => {
-      this.handleFileChange();
-    });
-
-    this.watcher.on('error', (err: Error) => {
-      logger.error('角色目录监视器错误', err);
-    });
-
-    logger.info('角色热重载监视器已启动');
-  }
-
-  /** 停止监视角色目录。 */
-  stopWatching(): void {
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = null;
-    }
-    if (this.watcher) {
-      this.watcher.close();
-      this.watcher = null;
-      logger.info('角色热重载监视器已停止');
-    }
   }
 
   // ─── 读取 ──────────────────────────────────────────────────────
@@ -151,7 +64,7 @@ export class RoleManager {
 
   /** 获取所有已启用的角色。 */
   getEnabledRoles(): RoleConfig[] {
-    return [...this.roles.values()].filter((r) => r.enabled);
+    return [...this.roles.values()].filter((role) => role.enabled);
   }
 
   /** 获取所有角色（包括已禁用的）。 */
@@ -159,147 +72,61 @@ export class RoleManager {
     return [...this.roles.values()];
   }
 
-  /**
-   * 将角色保存回其源文件并更新内存缓存。
-   *
-   * @throws 如果找不到角色文件或数据验证失败。
-   */
+  // ─── 写入 ─────────────────────────────────────────────────────
+
   async saveRole(roleId: string, roleData: RoleConfig): Promise<void> {
-    if (!this.rolesDir) {
-      throw new Error('角色未加载');
+    const configManager = this.requireConfigManager();
+    if (!this.roles.has(roleId)) {
+      throw new Error(`未找到角色 "${roleId}"`);
     }
 
-    const validated = Value.Default(RoleConfigSchema, roleData);
-    if (!Value.Check(RoleConfigSchema, validated)) {
-      throw new Error('角色验证失败');
-    }
-
-    const targetFile = this.roleSources.get(roleId) ?? null;
-
-    if (!targetFile) {
-      throw new Error(`未找到角色 "${roleId}" 的文件`);
-    }
-
-    await writeFile(targetFile, JSON.stringify(roleData, null, 2), 'utf-8');
-
-    // 更新内存缓存
-    this.roles.set(roleId, roleData);
-    this.roleSources.set(roleId, targetFile);
-    this.notifyChanges();
-    logger.info('角色已保存', { roleId, file: targetFile });
+    const roles = this.getAllRoles().map((role) => (role.id === roleId ? roleData : role));
+    await configManager.updateRoles(roles);
+    logger.info('角色已保存', { roleId });
   }
 
-  /**
-   * 创建一个新角色并将其持久化到角色目录。
-   *
-   * @param roleData 角色配置（如果 id 为空，将自动生成）。
-   * @returns 创建的角色 RoleConfig。
-   * @throws 如果角色目录不可用或验证失败。
-   */
   async createRole(roleData: Omit<RoleConfig, 'id'> & { id?: string }): Promise<RoleConfig> {
-    if (!this.rolesDir) {
-      throw new Error('角色未加载');
-    }
-
+    const configManager = this.requireConfigManager();
     const id = roleData.id ?? randomUUID();
-    const fullRole: RoleConfig = { ...roleData, id };
-
-    const validated = Value.Default(RoleConfigSchema, fullRole);
-    if (!Value.Check(RoleConfigSchema, validated)) {
-      throw new Error('角色验证失败');
+    if (this.roles.has(id)) {
+      throw new Error(`角色 "${id}" 已存在`);
     }
 
-    const filename = `${id}.json`;
-    const filePath = path.join(this.rolesDir, filename);
-    await writeFile(filePath, JSON.stringify(validated, null, 2), 'utf-8');
+    const fullRole: RoleConfig = { ...roleData, id };
+    await configManager.updateRoles([...this.getAllRoles(), fullRole]);
+    logger.info('角色已创建', { roleId: id });
 
-    this.roles.set(id, validated);
-    this.roleSources.set(id, filePath);
-    this.notifyChanges();
-    logger.info('角色已创建', { roleId: id, file: filePath });
-
-    return validated;
+    return fullRole;
   }
 
-  /**
-   * 删除角色及其源文件。
-   *
-   * @param roleId 要删除的角色 ID。
-   * @throws 角色目录未加载、角色不存在，或尝试删除 'default' 角色时抛出。
-   */
   async deleteRole(roleId: string): Promise<void> {
-    if (!this.rolesDir) {
-      throw new Error('角色未加载');
-    }
-
+    const configManager = this.requireConfigManager();
     if (roleId === 'default') {
       throw new Error('默认角色不可删除');
     }
 
-    const targetFile = this.roleSources.get(roleId);
-    if (!targetFile) {
+    if (!this.roles.has(roleId)) {
       throw new Error(`未找到角色 "${roleId}"`);
     }
 
-    await rm(targetFile, { force: true });
-
-    this.roles.delete(roleId);
-    this.roleSources.delete(roleId);
-    this.notifyChanges();
-    logger.info('角色已删除', { roleId, file: targetFile });
+    await configManager.updateRoles(this.getAllRoles().filter((role) => role.id !== roleId));
+    logger.info('角色已删除', { roleId });
   }
 
   // ─── 私有辅助方法 ───────────────────────────────────────────
 
-  /**
-   * 解析并验证角色 JSON 文件。
-   *
-   * @returns 验证后的 `RoleConfig`，如果文件无效则返回 `null`。
-   */
-  private async parseRoleFile(filePath: string): Promise<RoleConfig | null> {
-    const raw = await readFile(filePath, 'utf-8');
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (err) {
-      logger.warn(`角色文件中的 JSON 无效: ${filePath}`, err);
-      return null;
-    }
-
-    const role = Value.Default(RoleConfigSchema, parsed);
-
-    if (!Value.Check(RoleConfigSchema, role)) {
-      const errors = [...Value.Errors(RoleConfigSchema, role)];
-      logger.warn(`角色验证失败 ${filePath}: ${JSON.stringify(errors)}`);
-      return null;
-    }
-
-    const roleConfig = role as RoleConfig;
-    return roleConfig.id === 'default' ? { ...roleConfig, enabled: true } : roleConfig;
+  private replaceRoles(roles: readonly RoleConfig[]): void {
+    this.roles = new Map(
+      roles.map((role) => [role.id, role.id === 'default' ? { ...role, enabled: true } : role]),
+    );
+    logger.info(`已加载 ${this.roles.size} 个角色`);
   }
 
-  /**
-   * 通过重新加载所有角色来处理文件变更事件。
-   */
-  private handleFileChange(): void {
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
+  private requireConfigManager(): ConfigManager {
+    if (!this.configManager) {
+      throw new Error('角色管理器未初始化');
     }
-
-    this.debounceTimer = setTimeout(() => {
-      void (async () => {
-        this.debounceTimer = null;
-        if (this.rolesDir) {
-          try {
-            await this.loadAll(this.rolesDir);
-            logger.info('文件变更后角色已重新加载');
-          } catch (err) {
-            logger.error('文件变更后重新加载角色失败', err);
-          }
-        }
-      })();
-    }, this.DEBOUNCE_MS);
+    return this.configManager;
   }
 
   private notifyChanges(): void {

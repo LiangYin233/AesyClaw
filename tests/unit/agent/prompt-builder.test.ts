@@ -1,8 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { PromptBuilder } from '../../../src/agent/prompt-builder';
+import { Agent } from '../../../src/agent/agent';
 import type { RoleConfig, Skill } from '../../../src/core/types';
 import { SkillManager } from '../../../src/skill/skill-manager';
 import type { AesyClawTool } from '../../../src/tool/tool-registry';
@@ -56,6 +56,10 @@ function makeSkill(overrides: Partial<Skill> = {}): Skill {
 }
 
 describe('PromptBuilder', () => {
+  afterEach(() => {
+    Agent.activeAgents.clear();
+  });
+
   function makeDeps(overrides: Record<string, unknown> = {}) {
     const roleManager = {
       getEnabledRoles: vi.fn().mockReturnValue([makeRole()]),
@@ -84,19 +88,27 @@ describe('PromptBuilder', () => {
     };
   }
 
+  function makeAgent(deps: ReturnType<typeof makeDeps>): Agent {
+    return new Agent({
+      session: {
+        key: { channel: 'test', type: 'private', chatId: 'prompt-builder' },
+      } as never,
+      llmAdapter: { resolveModel: vi.fn() } as never,
+      roleManager: deps.roleManager as never,
+      skillManager: deps.skillManager as never,
+      toolRegistry: deps.toolRegistry as never,
+      hookDispatcher: deps.toolHookDispatcher as never,
+    });
+  }
+
   describe('buildSystemPrompt', () => {
     it('should build a prompt with role, tools, and skills', () => {
       const deps = makeDeps();
-      const builder = new PromptBuilder(
-        deps.roleManager,
-        deps.skillManager,
-        deps.toolRegistry,
-        deps.toolHookDispatcher,
-      );
+      const agent = makeAgent(deps);
 
       const role = makeRole();
 
-      const result = builder.buildSystemPrompt(role);
+      const result = agent.buildPrompt(role);
 
       expect(result.prompt).toContain('You are {{role}}.');
       expect(result.prompt).toContain('## Skill: greeting');
@@ -113,16 +125,11 @@ describe('PromptBuilder', () => {
           resolveForRole: vi.fn().mockReturnValue({ tools: [], agentTools: [agentTool] }),
         },
       });
-      const builder = new PromptBuilder(
-        deps.roleManager,
-        deps.skillManager,
-        deps.toolRegistry,
-        deps.toolHookDispatcher,
-      );
+      const agent = makeAgent(deps);
 
       const role = makeRole();
 
-      const result = builder.buildSystemPrompt(role);
+      const result = agent.buildPrompt(role);
 
       expect(result.tools).toEqual([agentTool]);
       expect(result.tools).toHaveLength(1);
@@ -135,16 +142,11 @@ describe('PromptBuilder', () => {
           resolveForRole: vi.fn().mockReturnValue({ tools: [internalTool], agentTools: [] }),
         },
       });
-      const builder = new PromptBuilder(
-        deps.roleManager,
-        deps.skillManager,
-        deps.toolRegistry,
-        deps.toolHookDispatcher,
-      );
+      const agent = makeAgent(deps);
 
       const role = makeRole();
 
-      const result = builder.buildSystemPrompt(role);
+      const result = agent.buildPrompt(role);
 
       expect(result.prompt).toContain('## Available Tools');
       expect(result.prompt).toContain('**send-msg**: A test tool');
@@ -158,17 +160,12 @@ describe('PromptBuilder', () => {
           resolveForRole: vi.fn().mockReturnValue({ tools: [allowedTool], agentTools: [] }),
         },
       });
-      const builder = new PromptBuilder(
-        deps.roleManager,
-        deps.skillManager,
-        deps.toolRegistry,
-        deps.toolHookDispatcher,
-      );
+      const agent = makeAgent(deps);
       const role = makeRole({
         toolPermission: { mode: 'allowlist', list: ['allowed'] },
       });
 
-      const result = builder.buildSystemPrompt(role);
+      const result = agent.buildPrompt(role);
 
       expect(result.prompt).toContain('**allowed**: A test tool');
     });
@@ -181,30 +178,20 @@ describe('PromptBuilder', () => {
           buildSystemPrompt: vi.fn().mockReturnValue('prompt with roles'),
         },
       });
-      const builder = new PromptBuilder(
-        deps.roleManager,
-        deps.skillManager,
-        deps.toolRegistry,
-        deps.toolHookDispatcher,
-      );
+      const agent = makeAgent(deps);
 
-      const result = builder.buildSystemPrompt(makeRole());
+      const result = agent.buildPrompt(makeRole());
 
-      expect(result.prompt).toContain('**admin**: Assistant');
-      expect(result.prompt).toContain('**user**: Assistant');
+      expect(result.prompt).toContain('**admin** — A helpful assistant');
+      expect(result.prompt).toContain('**user** — A helpful assistant');
     });
 
     it('should pass execution context to tool resolution', () => {
       const deps = makeDeps();
-      const builder = new PromptBuilder(
-        deps.roleManager,
-        deps.skillManager,
-        deps.toolRegistry,
-        deps.toolHookDispatcher,
-      );
+      const agent = makeAgent(deps);
       const ctx = { sessionKey: { channel: 'test', type: 'private', chatId: '1' } };
 
-      builder.buildSystemPrompt(makeRole(), ctx);
+      agent.buildPrompt(makeRole(), ctx);
 
       expect(deps.toolRegistry.resolveForRole).toHaveBeenCalledWith(
         expect.any(Object),
@@ -252,20 +239,24 @@ Blocked content.`,
       const roleManager = {
         getEnabledRoles: vi.fn().mockReturnValue([makeRole()]),
       };
-      const builder = new PromptBuilder(
-        roleManager as never,
+      const agent = new Agent({
+        session: {
+          key: { channel: 'test', type: 'private', chatId: 'prompt-builder-skills' },
+        } as never,
+        llmAdapter: { resolveModel: vi.fn() } as never,
+        roleManager: roleManager as never,
         skillManager,
-        {
+        toolRegistry: {
           resolveForRole: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
         } as never,
-        {
+        hookDispatcher: {
           dispatchBeforeToolCall: vi.fn().mockResolvedValue({}),
           dispatchAfterToolCall: vi.fn().mockResolvedValue({}),
         } as never,
-      );
+      });
 
       try {
-        const result = builder.buildSystemPrompt(makeRole({ skills: ['allowed-skill'] }));
+        const result = agent.buildPrompt(makeRole({ skills: ['allowed-skill'] }));
 
         expect(result.prompt).toContain('## Skill: system-skill');
         expect(result.prompt).toContain('System content.');

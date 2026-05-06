@@ -479,7 +479,6 @@ describe('built-in tools', () => {
       'Investigate this.',
       [],
       SESSION_KEY,
-      sendMessage,
     );
   });
 

@@ -16,7 +16,6 @@ import type { CronManager } from '@aesyclaw/cron/cron-manager';
 import type { McpManager } from '@aesyclaw/mcp/mcp-manager';
 import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
 import { ExtensionManager } from '@aesyclaw/extension/extension-manager';
-import { ensureDefaultRoleFile } from '@aesyclaw/role/default-role';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
@@ -82,7 +81,7 @@ export class CoreLifecycle {
 
     const steps: Array<() => Promise<void> | void> = [
       () => this.resolvedDeps.configManager.stopHotReload(),
-      () => this.resolvedDeps.roleManager.stopWatching(),
+      () => this.resolvedDeps.roleManager.destroy(),
       () => this.clearConfigSubscriptions(),
       () => this.resolvedDeps.webUiManager.destroy(),
       () => this.extensionManager?.destroy(),
@@ -125,7 +124,6 @@ export class CoreLifecycle {
     const runtimeDirs = [
       this.paths.runtimeRoot,
       this.paths.dataDir,
-      this.paths.rolesDir,
       this.paths.mediaDir,
       this.paths.workspaceDir,
       this.paths.userSkillsDir,
@@ -134,12 +132,13 @@ export class CoreLifecycle {
     for (const runtimeDir of runtimeDirs) {
       mkdirSync(runtimeDir, { recursive: true });
     }
-
-    ensureDefaultRoleFile(this.paths.rolesDir);
   }
 
   private async loadRuntimeConfig(): Promise<void> {
-    await this.resolvedDeps.configManager.initialize({ configPath: this.paths.configFile });
+    await this.resolvedDeps.configManager.initialize({
+      configPath: this.paths.configFile,
+      rolesPath: this.paths.rolesFile,
+    });
     setLogLevel(this.resolvedDeps.configManager.getConfig().server.logLevel);
     logger.info('配置已加载');
   }
@@ -147,8 +146,9 @@ export class CoreLifecycle {
   private async initCoreManagers(): Promise<void> {
     await this.resolvedDeps.databaseManager.initialize(this.paths.dbFile);
     await this.resolvedDeps.skillManager.loadAll(this.paths.userSkillsDir, this.paths.skillsDir);
-    await this.resolvedDeps.roleManager.initialize({ rolesDir: this.paths.rolesDir });
-    await this.resolvedDeps.roleManager.loadAll(this.paths.rolesDir);
+    await this.resolvedDeps.roleManager.initialize({
+      configManager: this.resolvedDeps.configManager,
+    });
   }
 
   private async initAgentRuntime(): Promise<void> {}
@@ -231,7 +231,6 @@ export class CoreLifecycle {
     this.installConfigSubscriptions();
 
     this.resolvedDeps.configManager.startHotReload();
-    this.resolvedDeps.roleManager.startWatching();
   }
 
   private async runStep(name: string, fn: () => Promise<void> | void): Promise<void> {

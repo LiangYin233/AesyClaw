@@ -1,23 +1,18 @@
-/**
- * RoleManager unit tests.
- *
- * Tests cover: loadAll, getRole (found, fallback), getDefaultRole,
- * getEnabledRoles, buildSystemPrompt (template vars, tool list, skill section).
- */
+/** RoleManager unit tests for ConfigManager-backed roles. */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { RoleManager } from '../../../src/role/role-manager';
+import { ConfigManager } from '../../../src/core/config/config-manager';
 import type { RoleConfig } from '../../../src/core/types';
+import { RoleManager } from '../../../src/role/role-manager';
 
 const TEST_DIR = join(tmpdir(), 'aesyclaw-test-role-manager');
 
 function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
   return {
     id: 'default',
-    name: 'Default',
     description: 'A default role',
     systemPrompt: 'You are an assistant.',
     model: 'openai/gpt-4o',
@@ -29,232 +24,157 @@ function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
 }
 
 describe('RoleManager', () => {
+  let configManager: ConfigManager;
   let manager: RoleManager;
-  let rolesDir: string;
+  let configPath: string;
+  let rolesPath: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    configPath = join(TEST_DIR, `config-${Date.now()}.json`);
+    rolesPath = join(TEST_DIR, `roles-${Date.now()}.json`);
+    configManager = new ConfigManager();
     manager = new RoleManager();
-    rolesDir = join(TEST_DIR, `roles-${Date.now()}`);
-    mkdirSync(rolesDir, { recursive: true });
+    await configManager.initialize({ configPath, rolesPath });
   });
 
   afterEach(() => {
-    manager.stopWatching();
+    configManager.stopHotReload();
+    manager.destroy();
     if (existsSync(TEST_DIR)) {
       rmSync(TEST_DIR, { recursive: true, force: true });
     }
   });
 
-  describe('loadAll', () => {
-    it('should load valid role JSON files', async () => {
-      const roleData = makeRole({ id: 'test-role' });
-      writeFileSync(join(rolesDir, 'test-role.json'), JSON.stringify(roleData, null, 2));
+  async function initializeWithRoles(roles: RoleConfig[]): Promise<void> {
+    await configManager.updateRoles(roles);
+    await manager.initialize({ configManager });
+  }
 
-      await manager.loadAll(rolesDir);
+  describe('initialize', () => {
+    it('loads roles from ConfigManager', async () => {
+      await initializeWithRoles([makeRole({ id: 'test-role' })]);
 
       expect(manager.getAllRoles()).toHaveLength(1);
       expect(manager.getRole('test-role').id).toBe('test-role');
     });
 
-    it('should skip non-JSON files', async () => {
-      const roleData = makeRole({ id: 'test-role' });
-      writeFileSync(join(rolesDir, 'test-role.json'), JSON.stringify(roleData, null, 2));
-      writeFileSync(join(rolesDir, 'readme.txt'), 'Not a role file');
-
-      await manager.loadAll(rolesDir);
-
-      expect(manager.getAllRoles()).toHaveLength(1);
-    });
-
-    it('should skip invalid JSON files gracefully', async () => {
-      writeFileSync(join(rolesDir, 'bad.json'), 'not valid json');
-
-      await manager.loadAll(rolesDir);
-
-      expect(manager.getAllRoles()).toHaveLength(0);
-    });
-
-    it('should skip role files that fail schema validation', async () => {
-      // toolPermission.mode must be 'allowlist' | 'denylist', not 'invalid'
-      const invalidRole = {
-        id: 'invalid',
-        name: 'Invalid',
-        description: 'Bad tool permission mode',
-        systemPrompt: 'Hello',
-        model: 'openai/gpt-4o',
-        toolPermission: { mode: 'invalid', list: [] },
-        skills: ['*'],
-        enabled: true,
-      };
-      writeFileSync(join(rolesDir, 'invalid.json'), JSON.stringify(invalidRole, null, 2));
-
-      await manager.loadAll(rolesDir);
-
-      expect(manager.getAllRoles()).toHaveLength(0);
-    });
-
-    it('should skip roles with explicitly invalid values instead of coercing them', async () => {
-      const invalidRole = {
-        id: 'invalid-enabled',
-        name: 'Invalid Enabled',
-        description: 'Bad enabled field',
-        systemPrompt: 'Hello',
-        model: 'openai/gpt-4o',
-        toolPermission: { mode: 'allowlist', list: [123] },
-        skills: ['*'],
-        enabled: 'true',
-      };
-      writeFileSync(join(rolesDir, 'invalid-enabled.json'), JSON.stringify(invalidRole, null, 2));
-
-      await manager.loadAll(rolesDir);
-
-      expect(manager.getAllRoles()).toHaveLength(0);
-    });
-
-    it('should apply defaults (e.g. enabled: true)', async () => {
-      const roleData = {
-        id: 'no-enabled',
-        name: 'No Enabled Field',
-        description: 'Should default to enabled',
-        systemPrompt: 'Hello',
-        model: 'openai/gpt-4o',
-        toolPermission: { mode: 'allowlist', list: [] },
-        skills: ['*'],
-        // Note: no "enabled" field
-      };
-      writeFileSync(join(rolesDir, 'no-enabled.json'), JSON.stringify(roleData, null, 2));
-
-      await manager.loadAll(rolesDir);
-
-      const roles = manager.getAllRoles();
-      expect(roles).toHaveLength(1);
-      expect(roles[0].enabled).toBe(true);
-    });
-
-    it('should always load the default role as enabled', async () => {
-      const roleData = makeRole({ id: 'default', enabled: false });
-      writeFileSync(join(rolesDir, 'default.json'), JSON.stringify(roleData, null, 2));
-
-      await manager.loadAll(rolesDir);
+    it('always treats the default role as enabled', async () => {
+      await initializeWithRoles([makeRole({ id: 'default', enabled: false })]);
 
       expect(manager.getRole('default').enabled).toBe(true);
       expect(manager.getDefaultRole().enabled).toBe(true);
     });
-
-    it('should reject duplicate role ids during startup loads', async () => {
-      writeFileSync(join(rolesDir, 'alpha.json'), JSON.stringify(makeRole({ id: 'duplicate' })));
-      writeFileSync(join(rolesDir, 'beta.json'), JSON.stringify(makeRole({ id: 'duplicate' })));
-
-      await expect(manager.loadAll(rolesDir)).rejects.toThrow(/角色 id.*重复/);
-      expect(manager.getAllRoles()).toHaveLength(0);
-    });
-
-    it('should reject duplicate role ids during reload and keep old roles intact', async () => {
-      writeFileSync(join(rolesDir, 'default.json'), JSON.stringify(makeRole({ id: 'default' })));
-      await manager.loadAll(rolesDir);
-
-      writeFileSync(join(rolesDir, 'copy.json'), JSON.stringify(makeRole({ id: 'default' })));
-
-      await expect(manager.loadAll(rolesDir)).rejects.toThrow(/角色 id.*重复/);
-      expect(manager.getAllRoles()).toHaveLength(1);
-      expect(manager.getRole('default').id).toBe('default');
-    });
-
-    it('should handle non-existent directory gracefully', async () => {
-      const nonexistent = join(TEST_DIR, 'nonexistent-roles');
-      // Don't create the directory — it should not throw
-
-      await manager.loadAll(nonexistent);
-
-      expect(manager.getAllRoles()).toHaveLength(0);
-    });
   });
 
   describe('getRole', () => {
-    it('should return the role by ID', async () => {
-      const roleData = makeRole({ id: 'my-role', name: 'My Role' });
-      writeFileSync(join(rolesDir, 'my-role.json'), JSON.stringify(roleData, null, 2));
+    it('returns the role by ID', async () => {
+      await initializeWithRoles([makeRole({ id: 'my-role' })]);
 
-      await manager.loadAll(rolesDir);
-
-      const role = manager.getRole('my-role');
-      expect(role.id).toBe('my-role');
+      expect(manager.getRole('my-role').id).toBe('my-role');
     });
 
-    it('should fall back to default role when ID not found', async () => {
-      const defaultRole = makeRole({ id: 'default', name: 'Default Role' });
-      writeFileSync(join(rolesDir, 'default.json'), JSON.stringify(defaultRole, null, 2));
+    it('falls back to default role when ID is not found', async () => {
+      await initializeWithRoles([makeRole({ id: 'default' })]);
 
-      await manager.loadAll(rolesDir);
-
-      const role = manager.getRole('nonexistent');
-      expect(role.id).toBe('default');
+      expect(manager.getRole('nonexistent').id).toBe('default');
     });
   });
 
   describe('getDefaultRole', () => {
-    it('should return the role with id "default"', async () => {
-      const defaultRole = makeRole({ id: 'default', name: 'Default' });
-      const otherRole = makeRole({ id: 'other', name: 'Other' });
-      writeFileSync(join(rolesDir, 'default.json'), JSON.stringify(defaultRole, null, 2));
-      writeFileSync(join(rolesDir, 'other.json'), JSON.stringify(otherRole, null, 2));
+    it('returns the role with id default', async () => {
+      await initializeWithRoles([makeRole({ id: 'default' }), makeRole({ id: 'other' })]);
 
-      await manager.loadAll(rolesDir);
-
-      const role = manager.getDefaultRole();
-      expect(role.id).toBe('default');
+      expect(manager.getDefaultRole().id).toBe('default');
     });
 
-    it('should return the first enabled role when no default exists', async () => {
-      const role1 = makeRole({ id: 'alpha', name: 'Alpha' });
-      const role2 = makeRole({ id: 'beta', name: 'Beta' });
-      writeFileSync(join(rolesDir, 'alpha.json'), JSON.stringify(role1, null, 2));
-      writeFileSync(join(rolesDir, 'beta.json'), JSON.stringify(role2, null, 2));
+    it('returns the first enabled role when no default exists', async () => {
+      await initializeWithRoles([makeRole({ id: 'alpha' }), makeRole({ id: 'beta' })]);
 
-      await manager.loadAll(rolesDir);
-
-      const role = manager.getDefaultRole();
-      expect(['alpha', 'beta']).toContain(role.id);
+      expect(manager.getDefaultRole().id).toBe('alpha');
     });
 
-    it('should throw when no roles are available', async () => {
-      await manager.loadAll(rolesDir);
+    it('throws when no roles are available', async () => {
+      await initializeWithRoles([]);
 
       expect(() => manager.getDefaultRole()).toThrow();
     });
   });
 
   describe('getEnabledRoles', () => {
-    it('should return only enabled roles', async () => {
-      const enabled1 = makeRole({ id: 'enabled1', name: 'Enabled 1', enabled: true });
-      const disabled = makeRole({ id: 'disabled', name: 'Disabled', enabled: false });
-      const enabled2 = makeRole({ id: 'enabled2', name: 'Enabled 2', enabled: true });
-      writeFileSync(join(rolesDir, 'enabled1.json'), JSON.stringify(enabled1, null, 2));
-      writeFileSync(join(rolesDir, 'disabled.json'), JSON.stringify(disabled, null, 2));
-      writeFileSync(join(rolesDir, 'enabled2.json'), JSON.stringify(enabled2, null, 2));
-
-      await manager.loadAll(rolesDir);
+    it('returns only enabled roles', async () => {
+      await initializeWithRoles([
+        makeRole({ id: 'enabled1', enabled: true }),
+        makeRole({ id: 'disabled', enabled: false }),
+        makeRole({ id: 'enabled2', enabled: true }),
+      ]);
 
       const enabled = manager.getEnabledRoles();
       expect(enabled).toHaveLength(2);
-      expect(enabled.every((r) => r.enabled)).toBe(true);
+      expect(enabled.every((role) => role.enabled)).toBe(true);
     });
   });
 
   describe('saveRole', () => {
-    it('should write updates to the tracked source file for a role', async () => {
-      writeFileSync(
-        join(rolesDir, 'custom-name.json'),
-        JSON.stringify(makeRole({ id: 'tracked' })),
-      );
-      await manager.loadAll(rolesDir);
+    it('updates roles through ConfigManager', async () => {
+      await initializeWithRoles([makeRole({ id: 'tracked', description: 'Old' })]);
 
-      await manager.saveRole('tracked', makeRole({ id: 'tracked', name: 'Updated' }));
+      await manager.saveRole('tracked', makeRole({ id: 'tracked', description: 'Updated' }));
 
-      const saved = JSON.parse(
-        readFileSync(join(rolesDir, 'custom-name.json'), 'utf-8'),
-      ) as RoleConfig;
-      expect(saved.name).toBe('Updated');
+      expect(manager.getRole('tracked').description).toBe('Updated');
+      expect(configManager.getRoles()[0]?.description).toBe('Updated');
+    });
+  });
+
+  describe('createRole', () => {
+    it('creates a role through ConfigManager', async () => {
+      await initializeWithRoles([makeRole({ id: 'default' })]);
+
+      const created = await manager.createRole({
+        id: 'created',
+        description: 'Created role',
+        systemPrompt: 'Hello',
+        model: 'openai/gpt-4o',
+        toolPermission: { mode: 'allowlist', list: [] },
+        skills: [],
+        enabled: true,
+      });
+
+      expect(created.id).toBe('created');
+      expect(manager.getRole('created').id).toBe('created');
+      expect(configManager.getRoles().map((role) => role.id)).toContain('created');
+    });
+  });
+
+  describe('deleteRole', () => {
+    it('deletes a role through ConfigManager', async () => {
+      await initializeWithRoles([makeRole({ id: 'default' }), makeRole({ id: 'temporary' })]);
+
+      await manager.deleteRole('temporary');
+
+      expect(manager.getAllRoles().map((role) => role.id)).not.toContain('temporary');
+      expect(configManager.getRoles().map((role) => role.id)).not.toContain('temporary');
+    });
+
+    it('rejects deleting the default role', async () => {
+      await initializeWithRoles([makeRole({ id: 'default' })]);
+
+      await expect(manager.deleteRole('default')).rejects.toThrow('默认角色不可删除');
+    });
+  });
+
+  describe('subscribeChanges', () => {
+    it('notifies when ConfigManager roles change', async () => {
+      await initializeWithRoles([makeRole({ id: 'default' })]);
+      let callCount = 0;
+      manager.subscribeChanges(() => {
+        callCount++;
+      });
+
+      await configManager.updateRoles([makeRole({ id: 'other' })]);
+
+      expect(callCount).toBe(1);
+      expect(manager.getRole('other').id).toBe('other');
     });
   });
 });

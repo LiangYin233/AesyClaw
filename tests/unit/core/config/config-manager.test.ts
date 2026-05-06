@@ -15,11 +15,13 @@ const TEST_DIR = join(tmpdir(), 'aesyclaw-test-config');
 describe('ConfigManager', () => {
   let manager: ConfigManager;
   let configPath: string;
+  let rolesPath: string;
 
   beforeEach(() => {
     manager = new ConfigManager();
     // Create a unique temp dir for each test
     configPath = join(TEST_DIR, `config-${Date.now()}.json`);
+    rolesPath = join(TEST_DIR, `roles-${Date.now()}.json`);
     if (!existsSync(TEST_DIR)) {
       mkdirSync(TEST_DIR, { recursive: true });
     }
@@ -30,6 +32,9 @@ describe('ConfigManager', () => {
     // Clean up temp files
     if (existsSync(configPath)) {
       rmSync(configPath, { force: true });
+    }
+    if (existsSync(rolesPath)) {
+      rmSync(rolesPath, { force: true });
     }
   });
 
@@ -142,6 +147,73 @@ describe('ConfigManager', () => {
 
       expect(manager.get('mcp')[0]?.enabled).toBe(true);
       expect(manager.get('plugins')[0]?.enabled).toBe(true);
+    });
+  });
+
+  describe('roles store', () => {
+    const customRole = {
+      id: 'custom',
+      description: 'Custom role',
+      systemPrompt: 'Hi',
+      model: 'openai/gpt-4o',
+      toolPermission: { mode: 'allowlist', list: [] },
+      skills: [],
+      enabled: true,
+    };
+
+    it('should create a default roles file if one does not exist', async () => {
+      await manager.initialize({ configPath, rolesPath });
+
+      expect(existsSync(rolesPath)).toBe(true);
+      expect(manager.getRoles()).toEqual([
+        expect.objectContaining({ id: 'default', enabled: true }),
+      ]);
+      expect(JSON.parse(readFileSync(rolesPath, 'utf-8'))).toEqual([
+        expect.objectContaining({ id: 'default', enabled: true }),
+      ]);
+    });
+
+    it('should load an existing roles file', async () => {
+      writeFileSync(rolesPath, JSON.stringify([customRole], null, 2));
+
+      await manager.initialize({ configPath, rolesPath });
+
+      expect(manager.getRoles()).toEqual([expect.objectContaining({ id: 'custom' })]);
+    });
+
+    it('should reject invalid roles file values', async () => {
+      writeFileSync(rolesPath, JSON.stringify([{ id: 'bad', enabled: 'true' }], null, 2));
+
+      await expect(manager.initialize({ configPath, rolesPath })).rejects.toThrow(
+        /角色配置验证失败/,
+      );
+    });
+
+    it('should reject duplicate role ids', async () => {
+      const duplicate = { ...customRole, id: 'same' };
+      writeFileSync(rolesPath, JSON.stringify([duplicate, duplicate], null, 2));
+
+      await expect(manager.initialize({ configPath, rolesPath })).rejects.toThrow(/角色 id.*重复/);
+    });
+
+    it('should update roles and notify role subscribers', async () => {
+      await manager.initialize({ configPath, rolesPath });
+      const changes: Array<{
+        newValue: readonly { id: string }[];
+        oldValue: readonly { id: string }[];
+      }> = [];
+      manager.subscribeRoles((newValue, oldValue) => {
+        changes.push({ newValue, oldValue });
+      });
+
+      const nextRoles = [{ ...customRole, id: 'new' }];
+      await manager.updateRoles(nextRoles);
+
+      expect(manager.getRoles()[0]?.id).toBe('new');
+      expect(changes).toHaveLength(1);
+      expect(changes[0]?.oldValue[0]?.id).toBe('default');
+      expect(changes[0]?.newValue[0]?.id).toBe('new');
+      expect(JSON.parse(readFileSync(rolesPath, 'utf-8'))[0].id).toBe('new');
     });
   });
 
@@ -471,7 +543,7 @@ describe('ConfigManager', () => {
 
   describe('hot reload', () => {
     it('should detect external file changes', async () => {
-      await manager.load(configPath);
+      await manager.initialize({ configPath, rolesPath });
       manager.startHotReload();
 
       // Wait for watcher to be ready

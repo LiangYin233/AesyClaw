@@ -1,8 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
 import type { RoleConfig } from '@aesyclaw/core/types';
-
-export const DEFAULT_ROLE_FILE_NAME = 'default.json';
 
 export const DEFAULT_ROLE_CONFIG = {
   id: 'default',
@@ -17,13 +13,4 @@ export const DEFAULT_ROLE_CONFIG = {
   skills: ['*'],
 } satisfies Omit<RoleConfig, 'enabled'>;
 
-export function ensureDefaultRoleFile(rolesDir: string): void {
-  mkdirSync(rolesDir, { recursive: true });
-
-  const defaultRolePath = path.join(rolesDir, DEFAULT_ROLE_FILE_NAME);
-  if (existsSync(defaultRolePath)) {
-    return;
-  }
-
-  writeFileSync(defaultRolePath, `${JSON.stringify(DEFAULT_ROLE_CONFIG, null, 2)}\n`, 'utf-8');
-}
+export const DEFAULT_ROLES_CONFIG: RoleConfig[] = [{ ...DEFAULT_ROLE_CONFIG, enabled: true }];
