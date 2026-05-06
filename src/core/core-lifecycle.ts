@@ -3,7 +3,7 @@
 import { mkdirSync } from 'node:fs';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 
-import type { SessionManager } from '@aesyclaw/agent/session/manager';
+import type { SessionManager } from '@aesyclaw/session';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import { registerBuiltinCommands } from '@aesyclaw/command/builtin';
 import type { ConfigManager } from './config/config-manager';

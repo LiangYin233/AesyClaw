@@ -1,5 +1,5 @@
 import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
-import type { SessionManager } from '@aesyclaw/agent/session/manager';
+import type { SessionManager } from '@aesyclaw/session';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';

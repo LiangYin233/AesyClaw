@@ -1,7 +1,7 @@
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { RoleCommandDeps } from './role-commands';
 import type { PluginCommandDeps } from './plugin-commands';
-import type { SessionManager } from '@aesyclaw/agent/session/manager';
+import type { SessionManager } from '@aesyclaw/session';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';

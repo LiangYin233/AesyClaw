@@ -12,7 +12,7 @@ import type { AgentMessage, ResolvedModel, AgentTool } from './agent-types';
 import { extractMessageText } from './agent-types';
 import type { AesyClawTool, ToolExecutionContext } from '@aesyclaw/tool/tool-registry';
 import type { LlmAdapter } from './llm-adapter';
-import type { Session } from './session/session';
+import type { Session } from '@aesyclaw/session';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';

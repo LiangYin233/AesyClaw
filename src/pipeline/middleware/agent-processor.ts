@@ -6,7 +6,7 @@
  */
 
 import type { PipelineState } from './types';
-import { AGENT_PROCESSING_BUSY_MESSAGE } from '@aesyclaw/agent/session';
+import { AGENT_PROCESSING_BUSY_MESSAGE } from '@aesyclaw/session';
 
 export async function agentProcessor(state: PipelineState): Promise<PipelineState> {
   if (state.stage !== 'continue' || !state.session) {

@@ -1,14 +1,14 @@
 import type { SessionKey, PersistableMessage } from '@aesyclaw/core/types';
-import type { AgentMessage } from '../agent-types';
+import type { AgentMessage } from '@aesyclaw/agent/agent-types';
 import {
   assistantHasToolCalls,
   createPersistedAssistantMessage,
   createUserMessage,
   extractMessageText,
   makeExtraBodyOnPayload,
-} from '../agent-types';
-import type { LlmAdapter } from '../llm-adapter';
-import type { ResolvedModel } from '../agent-types';
+} from '@aesyclaw/agent/agent-types';
+import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import type { ResolvedModel } from '@aesyclaw/agent/agent-types';
 import type {
   MessagesRepository,
   UsageRepository,

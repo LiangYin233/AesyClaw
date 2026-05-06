@@ -8,8 +8,7 @@ import type {
 } from '@aesyclaw/core/types';
 import type { PipelineDependencies, PipelineState } from './middleware/types';
 import { HookDispatcher } from './hook-dispatcher';
-import { sessionResolver } from './middleware/session-resolver';
-import { agentResolver } from './middleware/agent-resolver';
+import { sessionAgentResolver } from './middleware/agent-resolver';
 import { commandDetector } from './middleware/command-detector';
 import { agentProcessor } from './middleware/agent-processor';
 import { createScopedLogger } from '@aesyclaw/core/logger';
@@ -55,7 +54,15 @@ export class Pipeline {
       }
 
       let state: PipelineState = { stage: 'continue', inbound: message, sessionKey, sender };
-      state = await sessionResolver(state, deps.sessionManager);
+      state = await sessionAgentResolver(state, {
+        sessionManager: deps.sessionManager,
+        roleManager: deps.roleManager,
+        skillManager: deps.skillManager,
+        databaseManager: deps.databaseManager,
+        llmAdapter: deps.llmAdapter,
+        toolRegistry: deps.toolRegistry,
+        hookDispatcher: deps.hookDispatcher,
+      });
       if (state.stage === 'continue') {
         const sessionKey = state.session?.key;
         state = {
@@ -64,16 +71,6 @@ export class Pipeline {
             await this.dispatchOnSendAndDeliver(outbound, send, sessionKey),
         };
       }
-
-      state = await agentResolver(
-        state,
-        deps.roleManager,
-        deps.skillManager,
-        deps.databaseManager,
-        deps.llmAdapter,
-        deps.toolRegistry,
-        deps.hookDispatcher,
-      );
       if (state.stage === 'respond') {
         await this.dispatchOnSendAndDeliver(state.outbound, send, state.session?.key);
         return;

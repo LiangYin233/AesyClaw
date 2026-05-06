@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Application } from '../../src/app';
 import { ChannelManager } from '../../src/extension/channel/channel-manager';
 import { CronManager } from '../../src/cron/cron-manager';
-import { SessionManager } from '../../src/agent/session/manager';
+import { SessionManager } from '../../src/session/manager';
 import { McpManager } from '../../src/mcp/mcp-manager';
 
 import { RoleManager } from '../../src/role/role-manager';

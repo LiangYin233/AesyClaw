@@ -13,8 +13,7 @@ import type {
   SenderInfo,
 } from '@aesyclaw/core/types';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
-import type { SessionManager } from '@aesyclaw/agent/session/manager';
-import type { Session } from '@aesyclaw/agent/session/session';
+import type { SessionManager, Session } from '@aesyclaw/session';
 import type { Agent } from '@aesyclaw/agent/agent';
 import type {
   BeforeToolCallHookContext,

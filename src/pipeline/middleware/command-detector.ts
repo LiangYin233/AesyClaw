@@ -11,7 +11,7 @@ import type { PipelineState } from './types';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
 import type { CommandContext } from '@aesyclaw/core/types';
 import { getMessageText } from '@aesyclaw/core/types';
-import { AGENT_PROCESSING_BUSY_MESSAGE } from '@aesyclaw/agent/session';
+import { AGENT_PROCESSING_BUSY_MESSAGE } from '@aesyclaw/session';
 
 export async function commandDetector(
   state: PipelineState,

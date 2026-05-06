@@ -7,7 +7,7 @@ import { createScopedLogger } from '@aesyclaw/core/logger';
 import { requireInitialized } from '@aesyclaw/core/utils';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
-import type { SessionManager } from '@aesyclaw/agent/session/manager';
+import type { SessionManager } from '@aesyclaw/session';
 import type { CronManager } from '@aesyclaw/cron/cron-manager';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { ChannelManager } from '@aesyclaw/extension/channel/channel-manager';

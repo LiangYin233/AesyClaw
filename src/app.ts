@@ -1,7 +1,7 @@
 /** Application — 主协调器，拥有所有子系统管理器实例。 */
 
 import { LlmAdapter } from './agent/llm-adapter';
-import { SessionManager } from './agent/session/manager';
+import { SessionManager } from './session/manager';
 import { CommandRegistry } from './command/command-registry';
 import { ConfigManager } from './core/config/config-manager';
 import { CoreLifecycle } from './core/core-lifecycle';
