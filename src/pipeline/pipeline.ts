@@ -10,8 +10,7 @@
  */
 
 import type {
-  InboundMessage,
-  OutboundMessage,
+  Message,
   SessionKey,
   SenderInfo,
   SendFn,
@@ -46,7 +45,7 @@ export class Pipeline {
   }
 
   async receiveWithSend(
-    message: InboundMessage,
+    message: Message,
     sessionKey: SessionKey,
     sender: SenderInfo | undefined,
     send: SendFn,
@@ -161,7 +160,7 @@ export class Pipeline {
    */
   private async deliver(
     send: SendFn,
-    outbound: OutboundMessage,
+    outbound: Message,
     sessionKey?: SessionKey,
   ): Promise<boolean> {
     const sendResult = await this.hooks.onSend({ message: outbound, sessionKey });
@@ -170,7 +169,7 @@ export class Pipeline {
       return false;
     }
 
-    const finalOutbound: OutboundMessage =
+    const finalOutbound: Message =
       sendResult.action === 'respond' ? { components: sendResult.components } : outbound;
 
     await send(finalOutbound);

@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { HookDispatcher } from '../../../src/pipeline/hook-dispatcher';
 import type { PluginHooks, PipeCtx, SendCtx } from '../../../src/pipeline/types';
-import type { InboundMessage, OutboundMessage, PipelineResult } from '../../../src/core/types';
+import type { Message, PipelineResult } from '../../../src/core/types';
 import type {
   BeforeToolCallHookContext,
   AfterToolCallHookContext,
@@ -17,7 +17,7 @@ import type {
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
-function makeInbound(content = 'hello'): InboundMessage {
+function makeInbound(content = 'hello'): Message {
   return {
     components: [{ type: 'Plain', text: content }],
   };
@@ -33,7 +33,7 @@ function dispatchOnReceive(
   });
 }
 
-function makeOutbound(content = 'reply'): OutboundMessage {
+function makeOutbound(content = 'reply'): Message {
   return { components: [{ type: 'Plain', text: content }] };
 }
 

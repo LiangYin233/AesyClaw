@@ -14,8 +14,6 @@ export type { ChannelContext, ChannelPlugin } from '@aesyclaw/extension/channel/
 
 export type {
   Message,
-  InboundMessage,
-  OutboundMessage,
   SessionKey,
   SenderInfo,
   MessageComponent,

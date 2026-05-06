@@ -6,8 +6,7 @@
  */
 
 import type {
-  InboundMessage,
-  OutboundMessage,
+  Message,
   PipelineResult,
   SessionKey,
   SenderInfo,
@@ -38,7 +37,7 @@ import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
  * beforeLLM 阶段：session/agent/role 均已解析
  */
 export type PipeCtx = {
-  message: InboundMessage | OutboundMessage;
+  message: Message;
   sessionKey: SessionKey;
   sender?: SenderInfo;
   session?: Session;
@@ -50,7 +49,7 @@ export type PipeCtx = {
  * onSend 专属上下文，出站消息投递前使用。
  */
 export type SendCtx = {
-  message: OutboundMessage;
+  message: Message;
   sessionKey?: SessionKey;
 };
 

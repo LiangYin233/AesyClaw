@@ -5,7 +5,7 @@
  *
  * 新代码应优先从具体的领域文件导入：
  *   - `./identity-types`    — SessionKey、ChannelId、ToolOwner 及序列化工具
- *   - `./message-types`     — Message、InboundMessage、OutboundMessage、PipelineResult
+ *   - `./message-types`     — Message、SendFn、PipelineResult
  *   - `./database-types`    — 数据库记录类型 (SessionRecord, CronJobRecord, UsageRecord 等)
  */
 
@@ -34,8 +34,6 @@ export type {
   ReplyComponent,
   UnknownComponent,
   SenderInfo,
-  InboundMessage,
-  OutboundMessage,
   SendFn,
   PipelineResult,
   PersistableMessage,

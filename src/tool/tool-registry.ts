@@ -12,7 +12,7 @@ import type {
   ToolOwner,
   SessionKey,
   RoleConfig,
-  OutboundMessage,
+  Message,
   ToolPermissionConfig,
 } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
@@ -47,7 +47,7 @@ export type ToolExecutionResult = {
 export type ToolExecutionContext = {
   sessionKey: SessionKey;
   /** 在可用时通过管道的 onSend 感知传递路径发送 */
-  sendMessage?: (message: OutboundMessage) => Promise<boolean>;
+  sendMessage?: (message: Message) => Promise<boolean>;
   /** 调用者角色的工具权限，子代理用于继承限制 */
   toolPermission?: ToolPermissionConfig;
 };

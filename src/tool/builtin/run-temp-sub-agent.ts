@@ -6,7 +6,7 @@ import type {
   ToolExecutionResult,
 } from '@aesyclaw/tool/tool-registry';
 import { errorMessage } from '@aesyclaw/core/utils';
-import type { ToolOwner, SessionKey, OutboundMessage } from '@aesyclaw/core/types';
+import type { ToolOwner, SessionKey, Message } from '@aesyclaw/core/types';
 import type { RoleConfig } from '@aesyclaw/core/types';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { AgentMessage } from '@aesyclaw/agent/agent-types';
@@ -26,7 +26,7 @@ type RunTurnFn = (
   content: string,
   history: AgentMessage[],
   sessionKey: SessionKey,
-  sendMessage?: (message: OutboundMessage) => Promise<boolean>,
+  sendMessage?: (message: Message) => Promise<boolean>,
 ) => Promise<{ newMessages: AgentMessage[]; lastAssistant: string | null }>;
 
 export type RunTempSubAgentDeps = {

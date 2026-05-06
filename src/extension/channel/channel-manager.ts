@@ -1,7 +1,7 @@
 /** 频道管理器 — 初始化频道适配器并将消息桥接到管道中。 */
 
 import path from 'node:path';
-import type { InboundMessage, OutboundMessage, SessionKey, SenderInfo } from '@aesyclaw/core/types';
+import type { Message, SessionKey, SenderInfo } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { errorMessage, isRecord, mergeDefaults } from '@aesyclaw/core/utils';
 import {
@@ -162,14 +162,14 @@ export class ChannelManager implements ExtensionLifecycle {
 
   // ─── 运行时 ──────────────────────────────────────────────────────
 
-  async send(sessionKey: SessionKey, message: OutboundMessage): Promise<void> {
+  async send(sessionKey: SessionKey, message: Message): Promise<void> {
     const loaded = this.requireLoaded(sessionKey.channel);
     await loaded.definition.send(sessionKey, message);
   }
 
   async receive(
     channelName: string,
-    inbound: InboundMessage,
+    inbound: Message,
     sessionKey: SessionKey,
     sender?: SenderInfo,
   ): Promise<void> {
@@ -254,7 +254,7 @@ export class ChannelManager implements ExtensionLifecycle {
       name: channelName,
       config,
       receive: async (
-        message: InboundMessage,
+        message: Message,
         sessionKey: SessionKey,
         sender?: SenderInfo,
       ): Promise<void> => {

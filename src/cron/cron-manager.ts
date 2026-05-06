@@ -3,7 +3,7 @@
 import {
   parseSerializedSessionKey,
   type CronJobRecord,
-  type OutboundMessage,
+  type Message,
   type SessionKey,
 } from '@aesyclaw/core/types';
 import type {
@@ -22,7 +22,7 @@ const logger = createScopedLogger('cron');
 export type CronManagerDependencies = {
   databaseManager: DatabaseManager;
   pipeline: Pick<Pipeline, 'receiveWithSend'>;
-  send: (sessionKey: SessionKey, message: OutboundMessage) => Promise<void>;
+  send: (sessionKey: SessionKey, message: Message) => Promise<void>;
   scheduler?: CronScheduler;
 };
 

@@ -2,8 +2,7 @@
 
 import type {
   CronJobRecord,
-  InboundMessage,
-  OutboundMessage,
+  Message,
   SessionKey,
 } from '@aesyclaw/core/types';
 import { parseSerializedSessionKey } from '@aesyclaw/core/types';
@@ -26,7 +25,7 @@ export class CronExecutor {
   constructor(
     private cronRuns: CronRunsRepository,
     private pipeline: Pick<Pipeline, 'receiveWithSend'>,
-    private send: (sessionKey: SessionKey, message: OutboundMessage) => Promise<void>,
+    private send: (sessionKey: SessionKey, message: Message) => Promise<void>,
   ) {}
 
   /**
@@ -44,8 +43,8 @@ export class CronExecutor {
     try {
       const targetSessionKey = sessionKeys?.target ?? parseSerializedSessionKey(job.sessionKey);
       const contextSessionKey = sessionKeys?.context ?? createCronContextSessionKey(job.id);
-      const outboundMessages: OutboundMessage[] = [];
-      const inbound: InboundMessage = {
+    const outboundMessages: Message[] = [];
+    const inbound: Message = {
         components: [{ type: 'Plain', text: job.prompt }],
       };
 
@@ -92,7 +91,7 @@ export function createCronContextSessionKey(jobId: string): SessionKey {
  * @param messages - 管道执行产生的出站消息
  * @returns 合并后的文本结果
  */
-export function formatResult(messages: OutboundMessage[]): string {
+export function formatResult(messages: Message[]): string {
   if (messages.length === 0) {
     return '定时任务已完成，但无出站响应。';
   }

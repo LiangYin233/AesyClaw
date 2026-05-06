@@ -81,11 +81,6 @@ export type Message = {
   components: MessageComponent[];
 };
 
-// ─── 入站消息 ──────────────────────────────────────────────────
-
-/** 从外部平台进入管道的传入消息 */
-export type InboundMessage = Message;
-
 export function getMessageText(message: Pick<Message, 'components'>): string {
   return message.components
     .filter(
@@ -96,13 +91,8 @@ export function getMessageText(message: Pick<Message, 'components'>): string {
     .join('');
 }
 
-// ─── 出站消息 ──────────────────────────────────────────────────
-
-/** 由管道生成并通过频道发送回去的回复 */
-export type OutboundMessage = Message;
-
 /** 通过频道发送传出消息的函数 */
-export type SendFn = (message: OutboundMessage) => Promise<void>;
+export type SendFn = (message: Message) => Promise<void>;
 
 /** 消息经过管道或钩子处理后的结果 */
 export type PipelineResult =

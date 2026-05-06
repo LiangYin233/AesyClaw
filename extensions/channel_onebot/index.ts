@@ -5,13 +5,12 @@ import type { ChannelContext, ChannelPlugin } from '@aesyclaw/sdk';
 import { resolvePaths } from '@aesyclaw/sdk';
 import { getMessageText } from '@aesyclaw/sdk';
 import type {
-  InboundMessage,
+  Message,
   MessageComponent,
   ImageComponent,
   RecordComponent,
   VideoComponent,
   FileComponent,
-  OutboundMessage,
   SessionKey,
   SenderInfo,
 } from '@aesyclaw/sdk';
@@ -201,11 +200,11 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
       }
       await sendOneBotMessage(sessionKey, message, client, context?.logger);
     },
-    receive: receiveInboundMessage,
+    receive: receiveMessage,
   };
 
-  async function receiveInboundMessage(
-    message: InboundMessage,
+  async function receiveMessage(
+    message: Message,
     sessionKey: SessionKey,
     sender?: SenderInfo,
   ): Promise<void> {
@@ -216,13 +215,13 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
   }
 
   async function handlePlatformPayload(payload: Record<string, unknown>): Promise<void> {
-    const inbound = mapOneBotEventToInbound(payload, context?.name ?? 'onebot');
+    const inbound = mapOneBotEventToMessage(payload, context?.name ?? 'onebot');
     if (!inbound || !context) {
       return;
     }
     const { message, sessionKey, sender } = inbound;
 
-    const enrichedWithDownloads = await enrichInboundMessageWithDownloads(
+    const enrichedWithDownloads = await enrichMessageWithDownloads(
       message,
       payload,
       async (action, params) => {
@@ -237,7 +236,7 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
       return;
     }
 
-    const enrichedWithReply = await enrichInboundMessageWithReplyContent(
+    const enrichedWithReply = await enrichMessageWithReplyContent(
       enrichedWithDownloads,
       async (action, params) => {
         if (!client) {
@@ -252,17 +251,17 @@ export function createOneBotChannel(options: CreateOneBotChannelOptions = {}): C
     }
 
     try {
-      await receiveInboundMessage(enrichedWithReply, sessionKey, sender);
+      await receiveMessage(enrichedWithReply, sessionKey, sender);
     } catch (err) {
       context?.logger.error('Failed to process OneBot inbound message', err);
     }
   }
 }
 
-export function mapOneBotEventToInbound(
+export function mapOneBotEventToMessage(
   event: unknown,
   channelName = 'onebot',
-): { message: InboundMessage; sessionKey: SessionKey; sender?: SenderInfo } | null {
+): { message: Message; sessionKey: SessionKey; sender?: SenderInfo } | null {
   if (!isRecord(event) || event['post_type'] !== 'message') {
     return null;
   }
@@ -313,14 +312,14 @@ export function extractOneBotText(message: unknown, rawMessage?: unknown): strin
   return typeof rawMessage === 'string' ? rawMessage : '';
 }
 
-async function enrichInboundMessageWithDownloads(
-  inbound: InboundMessage,
+async function enrichMessageWithDownloads(
+  inbound: Message,
   event: Record<string, unknown>,
   sendStreamAction: (
     action: string,
     params: Record<string, unknown>,
   ) => Promise<OneBotApiResponse[]>,
-): Promise<InboundMessage> {
+): Promise<Message> {
   const segments = extractOneBotInboundAttachmentSegments(event['message']);
   if (segments.length === 0) {
     return inbound;
@@ -369,10 +368,10 @@ async function enrichInboundMessageWithDownloads(
   };
 }
 
-async function enrichInboundMessageWithReplyContent(
-  inbound: InboundMessage,
+async function enrichMessageWithReplyContent(
+  inbound: Message,
   sendAction: (action: string, params: Record<string, unknown>) => Promise<OneBotApiResponse>,
-): Promise<InboundMessage> {
+): Promise<Message> {
   const replyIndices: number[] = [];
   for (let i = 0; i < inbound.components.length; i++) {
     const component = inbound.components[i];
@@ -639,11 +638,11 @@ function sanitizeFileName(fileName: string): string {
 
 export async function sendOneBotMessage(
   sessionKey: SessionKey,
-  message: OutboundMessage,
+  message: Message,
   transport: OneBotActionTransport,
   logger?: OneBotLogger,
 ): Promise<void> {
-  const summary = summarizeOutboundMessage(sessionKey, message);
+  const summary = summarizeMessage(sessionKey, message);
   const { action, params } = await buildSendAction(sessionKey, message, transport, logger, summary);
 
   try {
@@ -665,10 +664,10 @@ export async function sendOneBotMessage(
 
 async function buildSendAction(
   sessionKey: SessionKey,
-  message: OutboundMessage,
+  message: Message,
   transport: OneBotActionTransport,
   logger: OneBotLogger | undefined,
-  summary: ReturnType<typeof summarizeOutboundMessage>,
+  summary: ReturnType<typeof summarizeMessage>,
 ): Promise<{ action: string; params: Record<string, unknown> }> {
   const outboundMessage = await buildOutgoingMessagePayload(message, transport, logger, summary);
   const actionConfig = SEND_ACTION_BY_CHAT_TYPE[sessionKey.type];
@@ -698,10 +697,10 @@ function validateApiResponse(response: OneBotApiResponse): void {
 }
 
 async function buildOutgoingMessagePayload(
-  message: OutboundMessage,
+  message: Message,
   transport: OneBotActionTransport,
   logger: OneBotLogger | undefined,
-  summary: ReturnType<typeof summarizeOutboundMessage>,
+  summary: ReturnType<typeof summarizeMessage>,
 ): Promise<string | OneBotMessageSegment[]> {
   const mediaComponents = message.components.filter(
     (c): c is MediaComponent => c.type !== 'Plain',
@@ -796,9 +795,9 @@ async function uploadAttachmentStream(
   };
 }
 
-function summarizeOutboundMessage(
+function summarizeMessage(
   sessionKey: SessionKey,
-  message: OutboundMessage,
+  message: Message,
 ): {
   sessionChannel: string;
   chatType: string;

@@ -15,7 +15,7 @@ import type {
 } from '@aesyclaw/tool/tool-registry';
 import { errorMessage } from '@aesyclaw/core/utils';
 import type {
-  OutboundMessage,
+  Message,
   ImageComponent,
   RecordComponent,
   VideoComponent,
@@ -99,7 +99,7 @@ export function createSendMsgTool(): AesyClawTool {
           };
         }
 
-        const outbound: OutboundMessage = {
+        const outbound: Message = {
           components: [{ type: 'Plain', text }, ...toMediaComponent(media)],
         };
         const delivered = await context.sendMessage(outbound);

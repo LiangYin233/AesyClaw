@@ -3,12 +3,12 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChannelContext, ChannelPlugin } from '../../../src/extension/channel/channel-types';
-import type { InboundMessage, OutboundMessage, SessionKey } from '../../../src/core/types';
+import type { Message, SessionKey } from '../../../src/core/types';
 import { getMessageText } from '../../../src/core/types';
 import {
   createOneBotChannel,
   extractOneBotText,
-  mapOneBotEventToInbound,
+  mapOneBotEventToMessage,
   sendOneBotMessage,
 } from '../../../extensions/channel_onebot/index';
 
@@ -33,7 +33,7 @@ describe('plugin_onebot', () => {
   });
 
   it('maps private and group OneBot message events into inbound messages', () => {
-    const privateInbound = mapOneBotEventToInbound(
+    const privateInbound = mapOneBotEventToMessage(
       {
         post_type: 'message',
         message_type: 'private',
@@ -58,7 +58,7 @@ describe('plugin_onebot', () => {
       sender: { id: '12345', name: 'alice' },
     });
 
-    const groupInbound = mapOneBotEventToInbound(
+    const groupInbound = mapOneBotEventToMessage(
       {
         post_type: 'message',
         message_type: 'group',
@@ -86,7 +86,7 @@ describe('plugin_onebot', () => {
   });
 
   it('maps supported OneBot inbound segments to components and excluded segments to Unknown', () => {
-    const inbound = mapOneBotEventToInbound(
+    const inbound = mapOneBotEventToMessage(
       {
         post_type: 'message',
         message_type: 'private',
@@ -142,9 +142,9 @@ describe('plugin_onebot', () => {
   });
 
   it('ignores non-message events and unsupported message types', () => {
-    expect(mapOneBotEventToInbound({ post_type: 'meta_event' })).toBeNull();
+    expect(mapOneBotEventToMessage({ post_type: 'meta_event' })).toBeNull();
     expect(
-      mapOneBotEventToInbound({ post_type: 'message', message_type: 'guild', user_id: 1 }),
+      mapOneBotEventToMessage({ post_type: 'message', message_type: 'guild', user_id: 1 }),
     ).toBeNull();
   });
 
@@ -507,7 +507,7 @@ describe('plugin_onebot', () => {
     await waitForCondition(() => receive.mock.calls.length === 1);
 
     expect(receive).toHaveBeenCalledOnce();
-    const inbound = receive.mock.calls[0]?.[0] as Pick<InboundMessage, 'components'>;
+    const inbound = receive.mock.calls[0]?.[0] as Pick<Message, 'components'>;
     const inboundText = getMessageText(inbound);
     const localPath = inbound.components.find((component) => component.type === 'Image')?.path;
 
@@ -602,7 +602,7 @@ describe('plugin_onebot', () => {
 
     await waitForCondition(() => receive.mock.calls.length === 1);
 
-    const inbound = receive.mock.calls[0]?.[0] as Pick<InboundMessage, 'components'>;
+    const inbound = receive.mock.calls[0]?.[0] as Pick<Message, 'components'>;
     const inboundText = getMessageText(inbound);
     expect(inbound.components).toContainEqual(
       expect.objectContaining({
@@ -634,7 +634,7 @@ describe('plugin_onebot', () => {
 
     await waitForCondition(() => receive.mock.calls.length === 1);
 
-    const inbound = receive.mock.calls[0]?.[0] as Pick<InboundMessage, 'components'>;
+    const inbound = receive.mock.calls[0]?.[0] as Pick<Message, 'components'>;
     const inboundText = getMessageText(inbound);
     expect(inbound.components).toContainEqual(expect.objectContaining({ type: 'File' }));
     expect(inbound.components.find((component) => component.type === 'File')?.path).toBeUndefined();
@@ -672,7 +672,7 @@ describe('plugin_onebot', () => {
 
     await waitForCondition(() => receive.mock.calls.length === 1);
 
-    const inbound = receive.mock.calls[0]?.[0] as Pick<InboundMessage, 'components'>;
+    const inbound = receive.mock.calls[0]?.[0] as Pick<Message, 'components'>;
     const inboundText = getMessageText(inbound);
     expect(inbound.components).toContainEqual({ type: 'File', url: 'https://example.com/report.pdf' });
     expect(inbound.components.find((component) => component.type === 'File')?.path).toBeUndefined();
@@ -767,7 +767,7 @@ describe('plugin_onebot', () => {
     await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
     await waitForCondition(() => receive.mock.calls.length === 1);
 
-    const inbound = receive.mock.calls[0]?.[0] as Pick<InboundMessage, 'components'>;
+    const inbound = receive.mock.calls[0]?.[0] as Pick<Message, 'components'>;
     const inboundText = getMessageText(inbound);
     expect(inbound.components).toContainEqual(expect.objectContaining({ type: 'Image' }));
     expect(inbound.components.find((component) => component.type === 'Image')?.path).toBeUndefined();
@@ -952,7 +952,7 @@ function groupSession(chatId: string): SessionKey {
   return { channel: 'onebot', type: 'group', chatId };
 }
 
-function outbound(content: string): OutboundMessage {
+function outbound(content: string): Message {
   return { components: [{ type: 'Plain', text: content }] };
 }
 

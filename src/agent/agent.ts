@@ -2,8 +2,7 @@ import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import type {
   RoleConfig,
-  InboundMessage,
-  OutboundMessage,
+  Message,
   SessionKey,
   Skill,
 } from '@aesyclaw/core/types';
@@ -101,9 +100,9 @@ export class Agent {
   }
 
   async process(
-    message: InboundMessage,
-    sendMessage?: (message: OutboundMessage) => Promise<boolean>,
-  ): Promise<OutboundMessage> {
+    message: Message,
+    sendMessage?: (message: Message) => Promise<boolean>,
+  ): Promise<Message> {
     const role = this._activeRole;
     if (!role) {
       return { components: [{ type: 'Plain', text: '[错误: 无可用角色]' }] };
@@ -132,17 +131,17 @@ export class Agent {
     );
     await this.session.syncFromAgent(result.newMessages);
 
-    return this.toOutboundMessage(role.id, result);
+    return this.toMessage(role.id, result);
   }
 
-  async processEphemeral(role: RoleConfig, content: string): Promise<OutboundMessage> {
+  async processEphemeral(role: RoleConfig, content: string): Promise<Message> {
     const ephemeralRole: RoleConfig = {
       ...role,
       toolPermission: { mode: 'allowlist', list: [] },
     };
     const history = this.session.get() as AgentMessage[];
     const result = await this.runTurn(ephemeralRole, content, history, this.session.key);
-    return this.toOutboundMessage(role.id, result);
+    return this.toMessage(role.id, result);
   }
 
   async runTurn(
@@ -150,7 +149,7 @@ export class Agent {
     content: string,
     history: AgentMessage[],
     sessionKey: SessionKey,
-    sendMessage?: (message: OutboundMessage) => Promise<boolean>,
+    sendMessage?: (message: Message) => Promise<boolean>,
   ): Promise<RunTurnResult> {
     const executionContext: Partial<ToolExecutionContext> = {
       sessionKey,
@@ -359,7 +358,7 @@ export class Agent {
     return `## Available Tools\n${toolLines.join('\n')}`;
   }
 
-  private toOutboundMessage(roleId: string, result: RunTurnResult): OutboundMessage {
+  private toMessage(roleId: string, result: RunTurnResult): Message {
     if (result.lastAssistant) {
       return { components: [{ type: 'Plain', text: result.lastAssistant }] };
     }

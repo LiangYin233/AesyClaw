@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ChannelManager } from '../../../src/extension/channel/channel-manager';
 import type { ChannelPlugin } from '../../../src/extension/channel/channel-types';
-import type { InboundMessage, OutboundMessage, SessionKey, SenderInfo } from '../../../src/core/types';
+import type { Message, SessionKey, SenderInfo } from '../../../src/core/types';
 
 class FakeConfigManager {
   channels: Record<string, unknown> = {};
@@ -19,7 +19,7 @@ class FakeConfigManager {
 
 function makePipeline() {
   return {
-    receiveWithSend: vi.fn(async (_message: InboundMessage, _sessionKey: SessionKey, _sender: SenderInfo | undefined, send: (m: OutboundMessage) => Promise<void>) => {
+    receiveWithSend: vi.fn(async (_message: Message, _sessionKey: SessionKey, _sender: SenderInfo | undefined, send: (m: Message) => Promise<void>) => {
       await send({ components: [{ type: 'Plain', text: 'pipeline response' }] });
     }),
   };
@@ -69,7 +69,7 @@ describe('ChannelManager', () => {
 
   it('exposes context receive as a bridge back into ChannelManager.receive', async () => {
     const pipeline = makePipeline();
-    let receiveFromContext: ((message: InboundMessage, sessionKey: SessionKey, sender?: SenderInfo) => Promise<void>) | null = null;
+    let receiveFromContext: ((message: Message, sessionKey: SessionKey, sender?: SenderInfo) => Promise<void>) | null = null;
     const channel = makeChannel({
       init: vi.fn(async (ctx) => {
         receiveFromContext = ctx.receive;
