@@ -77,11 +77,11 @@ export type MessageComponent =
   | UnknownComponent;
 
 /** 纯消息载荷：只表示消息本身，不携带会话、发送者上下文。 */
-export type Message = {
-  components: MessageComponent[];
-};
+export class Message {
+  constructor(public components: MessageComponent[]) {}
+}
 
-export function getMessageText(message: Pick<Message, 'components'>): string {
+export function getMessageText(message: { components: MessageComponent[] }): string {
   return message.components
     .filter(
       (component): component is PlainComponent =>
