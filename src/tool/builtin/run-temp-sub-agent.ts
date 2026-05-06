@@ -56,13 +56,7 @@ export function createRunTempSubAgentTool(deps: RunTempSubAgentDeps): AesyClawTo
         const role =
           enableTools === false ? applyToolOverride(roleWithPerms, false) : roleWithPerms;
 
-        const result = await deps.runTurn(
-          role,
-          prompt,
-          [],
-          context.sessionKey,
-          context.sendMessage,
-        );
+        const result = await deps.runTurn(role, prompt, [], context.sessionKey);
         return { content: result.lastAssistant ?? '[子 Agent 无输出]' };
       } catch (error: unknown) {
         return {

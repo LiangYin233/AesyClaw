@@ -49,13 +49,7 @@ export function createRunSubAgentTool(deps: RunSubAgentDeps): AesyClawTool {
         const baseRole = deps.roleManager.getRole(roleId);
         const role = applyToolOverride(baseRole, enableTools);
 
-        const result = await deps.runTurn(
-          role,
-          prompt,
-          [],
-          context.sessionKey,
-          context.sendMessage,
-        );
+        const result = await deps.runTurn(role, prompt, [], context.sessionKey);
         return { content: result.lastAssistant ?? '[子 Agent 无输出]' };
       } catch (error: unknown) {
         return {
