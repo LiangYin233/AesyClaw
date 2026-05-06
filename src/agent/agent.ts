@@ -1,36 +1,47 @@
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
-import type { RoleConfig, InboundMessage, OutboundMessage, SessionKey } from '@aesyclaw/core/types';
+import type {
+  RoleConfig,
+  InboundMessage,
+  OutboundMessage,
+  SessionKey,
+  Skill,
+} from '@aesyclaw/core/types';
 import { serializeSessionKey, getMessageText } from '@aesyclaw/core/types';
-import type { AgentMessage, ResolvedModel } from './agent-types';
+import type { AgentMessage, ResolvedModel, AgentTool } from './agent-types';
 import { extractMessageText } from './agent-types';
 import type { AesyClawTool, ToolExecutionContext } from '@aesyclaw/tool/tool-registry';
 import type { LlmAdapter } from './llm-adapter';
-import type { PromptBuilder } from './prompt-builder';
 import type { Session } from './session/session';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
+import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { SkillManager } from '@aesyclaw/skill/skill-manager';
+import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
+import { buildSkillPromptSection } from '@aesyclaw/skill/skill-prompt';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('agent');
 const WORKER_PATH = fileURLToPath(new URL('./runner/agent-worker.ts', import.meta.url));
 
-type RoleResolver = {
-  getRole(roleId: string): RoleConfig;
-};
-
 export type AgentOptions = {
   session: Session;
   llmAdapter: LlmAdapter;
-  promptBuilder: PromptBuilder;
+  roleManager: RoleManager;
+  skillManager: SkillManager;
   toolRegistry: ToolRegistry;
-  roleManager: RoleResolver;
+  hookDispatcher: HookDispatcher;
   configManager: ConfigManager;
 };
 
 type RunTurnResult = {
   newMessages: AgentMessage[];
   lastAssistant: string | null;
+};
+
+type BuildPromptResult = {
+  prompt: string;
+  tools: AgentTool[];
 };
 
 export class Agent {
@@ -46,17 +57,19 @@ export class Agent {
   private _allowedTools: AesyClawTool[] = [];
 
   private llmAdapter: LlmAdapter;
-  private promptBuilder: PromptBuilder;
+  private roleManager: RoleManager;
+  private skillManager: SkillManager;
   private toolRegistry: ToolRegistry;
-  private roleResolver: RoleResolver;
+  private hookDispatcher: HookDispatcher;
   private configManager: ConfigManager;
 
   constructor(options: AgentOptions) {
     this.session = options.session;
     this.llmAdapter = options.llmAdapter;
-    this.promptBuilder = options.promptBuilder;
+    this.roleManager = options.roleManager;
+    this.skillManager = options.skillManager;
     this.toolRegistry = options.toolRegistry;
-    this.roleResolver = options.roleManager;
+    this.hookDispatcher = options.hookDispatcher;
     this.configManager = options.configManager;
 
     Agent.activeAgents.set(serializeSessionKey(this.session.key), this);
@@ -82,13 +95,12 @@ export class Agent {
     });
   }
 
-  async setRole(roleId: string): Promise<void> {
-    const role = this.roleResolver.getRole(roleId);
+  async setRole(role: RoleConfig): Promise<void> {
     this._activeRole = role;
 
     this._allowedTools = this.toolRegistry.getForRole(role);
 
-    const { prompt } = this.promptBuilder.buildSystemPrompt(role, {
+    const { prompt } = this.buildPrompt(role, {
       sessionKey: this.session.key,
       toolPermission: role.toolPermission,
     });
@@ -96,7 +108,7 @@ export class Agent {
 
     this._model = this.llmAdapter.resolveModel(role.model);
 
-    this.roleId = roleId;
+    this.roleId = role.id;
   }
 
   async process(
@@ -157,7 +169,7 @@ export class Agent {
       toolPermission: role.toolPermission,
     };
 
-    const { prompt, tools } = this.promptBuilder.buildSystemPrompt(role, executionContext);
+    const { prompt, tools } = this.buildPrompt(role, executionContext);
     const model = this.llmAdapter.resolveModel(role.model);
 
     const toolMap = new Map(tools.map((t) => [t.name, t]));
@@ -302,6 +314,60 @@ export class Agent {
     if (!agent) return false;
     agent.cancel();
     return true;
+  }
+
+  buildPrompt(
+    role: RoleConfig,
+    executionContext?: Partial<ToolExecutionContext>,
+  ): BuildPromptResult {
+    const allRoles = this.roleManager.getEnabledRoles();
+    const skills: Skill[] = this.skillManager.getSkillsForRole(role);
+
+    const resolvedTools = this.toolRegistry.resolveForRole(
+      role,
+      this.hookDispatcher,
+      executionContext ?? {},
+    );
+
+    const prompt = this.assemblePrompt(role, resolvedTools.tools, skills, allRoles);
+
+    return { prompt, tools: resolvedTools.agentTools };
+  }
+
+  private assemblePrompt(
+    role: RoleConfig,
+    availableTools: AesyClawTool[],
+    skills: Skill[],
+    allRoles: RoleConfig[],
+  ): string {
+    let prompt = this.replaceTemplateVariables(role.systemPrompt);
+
+    if (availableTools.length > 0) {
+      prompt += `\n\n${this.buildToolSection(availableTools)}`;
+    }
+
+    if (skills.length > 0) {
+      prompt += `\n\n${buildSkillPromptSection(skills)}`;
+    }
+
+    if (allRoles.length > 0) {
+      const roleLines = allRoles.map((r) => `- **${r.id}** — ${r.description}`);
+      prompt += `\n\n## Available Roles\n${roleLines.join('\n')}`;
+    }
+
+    return prompt;
+  }
+
+  private replaceTemplateVariables(template: string): string {
+    return template
+      .replace(/\{\{date}}/g, new Date().toISOString().split('T')[0] ?? '')
+      .replace(/\{\{os}}/g, process.platform)
+      .replace(/\{\{systemLang}}/g, process.env['LANG'] ?? 'unknown');
+  }
+
+  private buildToolSection(tools: AesyClawTool[]): string {
+    const toolLines = tools.map((tool) => `- **${tool.name}**: ${tool.description}`);
+    return `## Available Tools\n${toolLines.join('\n')}`;
   }
 
   private toOutboundMessage(roleId: string, result: RunTurnResult): OutboundMessage {

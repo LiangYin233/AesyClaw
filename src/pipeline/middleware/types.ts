@@ -26,8 +26,9 @@ import type { PipelineResult } from '@aesyclaw/core/types';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
-import type { PromptBuilder } from '@aesyclaw/agent/prompt-builder';
+import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
+import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 
 /**
@@ -111,8 +112,9 @@ type PipelineDependencies = {
   roleManager: RoleManager;
   databaseManager: DatabaseManager;
   llmAdapter: LlmAdapter;
-  promptBuilder: PromptBuilder;
+  skillManager: SkillManager;
   toolRegistry: ToolRegistry;
+  hookDispatcher: HookDispatcher;
   configManager: ConfigManager;
 };
 

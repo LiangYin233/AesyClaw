@@ -24,10 +24,10 @@ export function getRole(deps: WebUiManagerDependencies, id: string): RoleConfig 
  */
 export async function createRole(
   deps: WebUiManagerDependencies,
-  body: Partial<RoleConfig> & { name: string; model: string },
+  body: Partial<RoleConfig> & { model: string },
 ): Promise<RoleConfig> {
-  if (!body.name || !body.model) {
-    throw new Error('名称和模型为必填项');
+  if (!body.model) {
+    throw new Error('模型为必填项');
   }
 
   // 验证 model 对应的 provider 和 modelId 存在
@@ -42,7 +42,6 @@ export async function createRole(
   }
 
   const role = await deps.roleManager.createRole({
-    name: body.name,
     description: body.description ?? '',
     systemPrompt: body.systemPrompt ?? '',
     model: body.model,

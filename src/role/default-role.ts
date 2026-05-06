@@ -6,7 +6,6 @@ export const DEFAULT_ROLE_FILE_NAME = 'default.json';
 
 export const DEFAULT_ROLE_CONFIG = {
   id: 'default',
-  name: 'Default Assistant',
   description: 'A general-purpose AI assistant role with full tool access.',
   systemPrompt:
     'You are AesyClaw, a helpful and versatile AI assistant.\n\nCurrent date: {{date}}\nPlatform: {{os}}\nSystem language: {{systemLang}}\n\nFollow instructions carefully and use available tools when needed.',

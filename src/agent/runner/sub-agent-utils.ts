@@ -44,7 +44,6 @@ export function createTempSubAgentRole(
     ...baseRole,
     toolPermission: toolPermission ?? baseRole.toolPermission,
     id: `temp-sub-agent-${randomUUID()}`,
-    name: 'Temporary Sub-Agent',
     description: 'Temporary delegated agent execution',
     systemPrompt: params.systemPrompt,
     model: params.model ?? baseRole.model,

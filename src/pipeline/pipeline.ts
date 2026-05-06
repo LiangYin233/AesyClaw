@@ -68,10 +68,11 @@ export class Pipeline {
       state = await agentResolver(
         state,
         deps.roleManager,
+        deps.skillManager,
         deps.databaseManager,
         deps.llmAdapter,
-        deps.promptBuilder,
         deps.toolRegistry,
+        deps.hookDispatcher,
         deps.configManager,
       );
       if (state.stage === 'respond') {

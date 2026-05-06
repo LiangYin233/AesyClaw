@@ -1,7 +1,9 @@
 import type { SessionManager } from '@aesyclaw/agent/session/manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
-import type { PromptBuilder } from '@aesyclaw/agent/prompt-builder';
+import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
+import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { CommandContext, CommandDefinition } from '@aesyclaw/core/types';
 import type { RoleConfig } from '@aesyclaw/core/types';
@@ -13,8 +15,10 @@ export function createBtwCommand(
   getRoleOrFallback: (roleId: string) => RoleConfig,
   getDefaultRole: () => RoleConfig,
   llmAdapter: LlmAdapter,
-  promptBuilder: PromptBuilder,
+  roleManager: RoleManager,
+  skillManager: SkillManager,
   toolRegistry: ToolRegistry,
+  hookDispatcher: HookDispatcher,
   configManager: ConfigManager,
 ): CommandDefinition {
   return {
@@ -37,9 +41,10 @@ export function createBtwCommand(
       const agent = new Agent({
         session,
         llmAdapter,
-        promptBuilder,
+        roleManager,
+        skillManager,
         toolRegistry,
-        roleManager: { getRole: getRoleOrFallback, getDefaultRole } as never,
+        hookDispatcher,
         configManager,
       });
       const outbound = await agent.processEphemeral(role, content);

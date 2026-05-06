@@ -2,7 +2,6 @@
 
 import { mkdirSync } from 'node:fs';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
-import type { PromptBuilder } from '@aesyclaw/agent/prompt-builder';
 
 import type { SessionManager } from '@aesyclaw/agent/session/manager';
 import type { CommandRegistry } from '@aesyclaw/command/command-registry';
@@ -34,7 +33,6 @@ export type CoreLifecycleDependencies = {
   toolRegistry: ToolRegistry;
   commandRegistry: CommandRegistry;
   llmAdapter: LlmAdapter;
-  promptBuilder: PromptBuilder;
   sessionManager: SessionManager;
   pipeline: Pipeline;
   cronManager: CronManager;
@@ -162,8 +160,9 @@ export class CoreLifecycle {
       roleManager: this.resolvedDeps.roleManager,
       databaseManager: this.resolvedDeps.databaseManager,
       llmAdapter: this.resolvedDeps.llmAdapter,
-      promptBuilder: this.resolvedDeps.promptBuilder,
+      skillManager: this.resolvedDeps.skillManager,
       toolRegistry: this.resolvedDeps.toolRegistry,
+      hookDispatcher: this.resolvedDeps.pipeline.hookDispatcher,
       configManager: this.resolvedDeps.configManager,
     });
 
@@ -189,8 +188,9 @@ export class CoreLifecycle {
       pluginManager: this.extensionManager!,
       sessionManager: this.resolvedDeps.sessionManager,
       llmAdapter: this.resolvedDeps.llmAdapter,
-      promptBuilder: this.resolvedDeps.promptBuilder,
+      skillManager: this.resolvedDeps.skillManager,
       toolRegistry: this.resolvedDeps.toolRegistry,
+      hookDispatcher: this.resolvedDeps.pipeline.hookDispatcher,
       configManager: this.resolvedDeps.configManager,
     });
 

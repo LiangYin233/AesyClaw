@@ -24,7 +24,7 @@ export function createRoleListCommand(deps: RoleCommandDeps): CommandDefinition 
 
       const lines = roles.map((role) => {
         const current = role.id === session.activeRoleId ? '（当前）' : '';
-        return `- ${role.id} — ${role.name}${current}`;
+        return `- ${role.id} — ${role.description}${current}`;
       });
 
       return `可用角色：\n${lines.join('\n')}`;
@@ -51,7 +51,7 @@ export function createRoleSwitchCommand(deps: RoleCommandDeps): CommandDefinitio
       }
 
       await deps.sessionManager.setActiveRole(context.sessionKey, roleId);
-      return `已切换到角色：${targetRole.id}（${targetRole.name}）`;
+      return `已切换到角色：${targetRole.id}`;
     },
   };
 }
@@ -72,7 +72,7 @@ export function createRoleInfoCommand(deps: RoleCommandDeps): CommandDefinition 
       const role = deps.roleManager.getRole(roleId);
       return [
         `当前角色：${role.id}`,
-        `名称：${role.name}`,
+        `描述：${role.description}`,
         `描述：${role.description}`,
         `模型：${role.model}`,
       ].join('\n');

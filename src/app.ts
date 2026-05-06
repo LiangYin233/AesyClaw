@@ -1,7 +1,6 @@
 /** Application — 主协调器，拥有所有子系统管理器实例。 */
 
 import { LlmAdapter } from './agent/llm-adapter';
-import { PromptBuilder } from './agent/prompt-builder';
 import { SessionManager } from './agent/session/manager';
 import { CommandRegistry } from './command/command-registry';
 import { ConfigManager } from './core/config/config-manager';
@@ -27,9 +26,8 @@ export class Application {
   private readonly toolRegistry: ToolRegistry;
   private readonly commandRegistry: CommandRegistry;
   private readonly llmAdapter: LlmAdapter;
-  private readonly promptBuilder: PromptBuilder;
-  private readonly sessionManager: SessionManager;
   private readonly pipeline: Pipeline;
+  private readonly sessionManager: SessionManager;
   private readonly cronManager: CronManager;
   private readonly mcpManager: McpManager;
   private readonly webUiManager: WebUiManager;
@@ -45,12 +43,6 @@ export class Application {
     this.commandRegistry = new CommandRegistry();
     this.llmAdapter = new LlmAdapter(this.configManager);
     this.pipeline = new Pipeline();
-    this.promptBuilder = new PromptBuilder(
-      this.roleManager,
-      this.skillManager,
-      this.toolRegistry,
-      this.pipeline.hookDispatcher,
-    );
     this.sessionManager = new SessionManager(this.databaseManager, this.configManager);
     this.cronManager = new CronManager();
     this.mcpManager = new McpManager(
@@ -76,7 +68,6 @@ export class Application {
       toolRegistry: this.toolRegistry,
       commandRegistry: this.commandRegistry,
       llmAdapter: this.llmAdapter,
-      promptBuilder: this.promptBuilder,
       sessionManager: this.sessionManager,
       pipeline: this.pipeline,
       cronManager: this.cronManager,

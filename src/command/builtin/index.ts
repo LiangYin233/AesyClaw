@@ -4,8 +4,9 @@ import type { PluginCommandDeps } from './plugin-commands';
 import type { SessionManager } from '@aesyclaw/agent/session/manager';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
-import type { PromptBuilder } from '@aesyclaw/agent/prompt-builder';
+import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
+import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { ExtensionManager } from '@aesyclaw/extension/extension-manager';
 import { createHelpCommand } from './help';
@@ -30,8 +31,9 @@ export type BuiltinCommandDependencies = {
   pluginManager: Pick<ExtensionManager, 'listPlugins' | 'enablePlugin' | 'disablePlugin'>;
   sessionManager: Pick<SessionManager, 'create' | 'clear' | 'get' | 'setActiveRole'>;
   llmAdapter: LlmAdapter;
-  promptBuilder: PromptBuilder;
+  skillManager: SkillManager;
   toolRegistry: ToolRegistry;
+  hookDispatcher: HookDispatcher;
   configManager: ConfigManager;
 };
 
@@ -52,8 +54,10 @@ export function registerBuiltinCommands(
       (roleId) => deps.roleManager.getRole(roleId),
       () => deps.roleManager.getDefaultRole(),
       deps.llmAdapter,
-      deps.promptBuilder,
+      deps.roleManager,
+      deps.skillManager,
       deps.toolRegistry,
+      deps.hookDispatcher,
       deps.configManager,
     ),
   );

@@ -14,7 +14,6 @@ import { Type } from '@sinclair/typebox';
  */
 export const RoleConfigSchema = Type.Object({
   id: Type.String({ description: 'Unique role identifier' }),
-  name: Type.String({ description: 'Human-readable role name' }),
   description: Type.String({ description: 'Brief description of the role' }),
   systemPrompt: Type.String({ description: 'System prompt template for the role' }),
   model: Type.String({ description: 'provider/model format' }),

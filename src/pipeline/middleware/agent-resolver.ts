@@ -7,20 +7,22 @@
 
 import type { PipelineState } from './types';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
+import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
-import type { PromptBuilder } from '@aesyclaw/agent/prompt-builder';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
+import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import { Agent } from '@aesyclaw/agent/agent';
 
 export async function agentResolver(
   state: PipelineState,
   roleManager: RoleManager,
+  skillManager: SkillManager,
   databaseManager: DatabaseManager,
   llmAdapter: LlmAdapter,
-  promptBuilder: PromptBuilder,
   toolRegistry: ToolRegistry,
+  hookDispatcher: HookDispatcher,
   configManager: ConfigManager,
 ): Promise<PipelineState> {
   if (state.stage !== 'continue') return state;
@@ -42,12 +44,13 @@ export async function agentResolver(
   const agent = new Agent({
     session,
     llmAdapter,
-    promptBuilder,
-    toolRegistry,
     roleManager,
+    skillManager,
+    toolRegistry,
+    hookDispatcher,
     configManager,
   });
-  await agent.setRole(activeRole.id);
+  await agent.setRole(activeRole);
 
   if (session.modelOverride) {
     agent.setModel(session.modelOverride);

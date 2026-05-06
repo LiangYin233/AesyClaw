@@ -67,7 +67,6 @@ export type ToolPermissionConfig = {
 
 export type RoleConfig = {
   id: string;
-  name: string;
   description: string;
   systemPrompt: string;
   model: string;
