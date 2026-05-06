@@ -8,6 +8,7 @@ import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
 import type { ExtensionManager } from '@aesyclaw/extension/extension-manager';
+import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import { createHelpCommand } from './help';
 import { createClearCommand } from './clear';
 import { createCompactCommand } from './compact';
@@ -28,11 +29,12 @@ import {
 export type BuiltinCommandDependencies = {
   roleManager: RoleManager;
   pluginManager: Pick<ExtensionManager, 'listPlugins' | 'enablePlugin' | 'disablePlugin'>;
-  sessionManager: Pick<SessionManager, 'create' | 'clear' | 'get' | 'setActiveRole'>;
+  sessionManager: Pick<SessionManager, 'create' | 'clear' | 'get'>;
   llmAdapter: LlmAdapter;
   skillManager: SkillManager;
   toolRegistry: ToolRegistry;
   hookDispatcher: HookDispatcher;
+  databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>;
 };
 
 export function registerBuiltinCommands(
@@ -41,7 +43,7 @@ export function registerBuiltinCommands(
 ): void {
   const roleDeps: RoleCommandDeps = {
     roleManager: deps.roleManager,
-    sessionManager: deps.sessionManager,
+    databaseManager: deps.databaseManager,
   };
   const pluginDeps: PluginCommandDeps = { extensionManager: deps.pluginManager };
 
@@ -56,11 +58,19 @@ export function registerBuiltinCommands(
       deps.skillManager,
       deps.toolRegistry,
       deps.hookDispatcher,
+      deps.databaseManager,
     ),
   );
-  registry.register(createModelCommand(deps.sessionManager));
+  registry.register(createModelCommand(deps.llmAdapter));
   registry.register(createClearCommand(deps.sessionManager));
-  registry.register(createCompactCommand(deps.sessionManager, deps.llmAdapter, deps.roleManager));
+  registry.register(
+    createCompactCommand(
+      deps.sessionManager,
+      deps.llmAdapter,
+      deps.roleManager,
+      deps.databaseManager,
+    ),
+  );
   registry.register(createStopCommand(deps.sessionManager));
   registry.register(createRoleListCommand(roleDeps));
   registry.register(createRoleSwitchCommand(roleDeps));

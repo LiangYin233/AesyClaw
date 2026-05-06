@@ -1,8 +1,8 @@
 /**
  * Agent 解析 — 从已解析的 Session 创建 Agent 并解析活跃角色。
  *
- * 在 session-resolver 之后运行。使用 Session 中的 activeRoleId
- * 解析角色，然后创建 Agent 实例。
+ * 在 session-resolver 之后运行。从 DB role_bindings 表
+ * 读取活跃角色，然后创建 Agent 实例。
  */
 
 import type { PipelineState } from './types';
@@ -29,15 +29,11 @@ export async function agentResolver(
   const session = state.session;
 
   const activeRoleId =
-    session.activeRoleId ??
-    (await databaseManager.roleBindings.getActiveRole(session.sessionId)) ??
-    undefined;
+    (await databaseManager.roleBindings.getActiveRole(session.sessionId)) ?? undefined;
 
   const activeRole = activeRoleId
     ? roleManager.getRole(activeRoleId)
     : roleManager.getDefaultRole();
-
-  session.setActiveRoleId(activeRole.id);
 
   const agent = new Agent({
     session,
@@ -48,10 +44,6 @@ export async function agentResolver(
     hookDispatcher,
   });
   await agent.setRole(activeRole);
-
-  if (session.modelOverride) {
-    agent.setModel(session.modelOverride);
-  }
 
   return { ...state, agent, activeRole };
 }

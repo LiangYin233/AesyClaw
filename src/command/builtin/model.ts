@@ -1,9 +1,9 @@
 import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
-import type { SessionManager } from '@aesyclaw/agent/session/manager';
+import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
+import { Agent } from '@aesyclaw/agent/agent';
+import { serializeSessionKey } from '@aesyclaw/core/types';
 
-export function createModelCommand(
-  sessionManager: Pick<SessionManager, 'create'>,
-): CommandDefinition {
+export function createModelCommand(llmAdapter: LlmAdapter): CommandDefinition {
   return {
     name: 'model',
     description: '切换模型 (用法: /model <provider/modelId>)',
@@ -16,9 +16,19 @@ export function createModelCommand(
         return '用法: /model <provider/modelId> (例如 /model openai/gpt-4o)';
       }
 
-      const session = await sessionManager.create(context.sessionKey);
-      session.modelOverride = modelIdentifier;
+      try {
+        llmAdapter.resolveModel(modelIdentifier);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return `模型切换失败: ${message}`;
+      }
 
+      const agent = Agent.activeAgents.get(serializeSessionKey(context.sessionKey));
+      if (!agent) {
+        return '当前没有活跃的 Agent，无法切换模型。请先发送一条消息。';
+      }
+
+      agent.setModel(modelIdentifier);
       return `模型已切换为 ${modelIdentifier}`;
     },
   };

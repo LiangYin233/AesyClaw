@@ -62,12 +62,6 @@ export class SessionManager {
     }
   }
 
-  async setActiveRole(key: SessionKey, roleId: string): Promise<void> {
-    const session = await this.create(key);
-    session.setActiveRoleId(roleId);
-    await this.databaseManager.roleBindings.setActiveRole(session.sessionId, roleId);
-  }
-
   private async createFromDb(key: SessionKey, cacheKey: string): Promise<Session> {
     const sessionRecord = await this.databaseManager.sessions.findOrCreate(key);
     const session = new Session(sessionRecord.id, key, {

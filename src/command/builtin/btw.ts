@@ -6,8 +6,10 @@ import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
 import type { CommandContext, CommandDefinition } from '@aesyclaw/core/types';
 import type { RoleConfig } from '@aesyclaw/core/types';
+import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import { getMessageText } from '@aesyclaw/core/types';
 import { Agent } from '@aesyclaw/agent/agent';
+import { serializeSessionKey } from '@aesyclaw/core/types';
 
 export function createBtwCommand(
   sessionManager: Pick<SessionManager, 'create'>,
@@ -18,6 +20,7 @@ export function createBtwCommand(
   skillManager: SkillManager,
   toolRegistry: ToolRegistry,
   hookDispatcher: HookDispatcher,
+  databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>,
 ): CommandDefinition {
   return {
     name: 'btw',
@@ -32,9 +35,9 @@ export function createBtwCommand(
       }
 
       const session = await sessionManager.create(context.sessionKey);
-      const role = session.activeRoleId
-        ? getRoleOrFallback(session.activeRoleId)
-        : getDefaultRole();
+
+      const activeRoleId = await resolveActiveRoleId(context, databaseManager);
+      const role = activeRoleId ? getRoleOrFallback(activeRoleId) : getDefaultRole();
 
       const agent = new Agent({
         session,
@@ -49,4 +52,17 @@ export function createBtwCommand(
       return getMessageText(outbound);
     },
   };
+}
+
+async function resolveActiveRoleId(
+  context: CommandContext,
+  databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>,
+): Promise<string | undefined> {
+  const agent = Agent.activeAgents.get(serializeSessionKey(context.sessionKey));
+  if (agent?.roleId) return agent.roleId;
+
+  const session = await databaseManager.sessions.findByKey(context.sessionKey);
+  if (!session) return undefined;
+
+  return (await databaseManager.roleBindings.getActiveRole(session.id)) ?? undefined;
 }

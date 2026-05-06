@@ -24,8 +24,6 @@ export class Session {
   readonly key: SessionKey;
   private _messages: AgentMessage[] = [];
   private _locked = false;
-  private _activeRoleId?: string;
-  modelOverride?: string;
 
   constructor(
     sessionId: string,
@@ -42,14 +40,6 @@ export class Session {
 
   get isLocked(): boolean {
     return this._locked;
-  }
-
-  get activeRoleId(): string | undefined {
-    return this._activeRoleId;
-  }
-
-  setActiveRoleId(roleId: string): void {
-    this._activeRoleId = roleId;
   }
 
   lock(): boolean {
