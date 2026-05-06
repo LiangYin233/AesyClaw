@@ -5,7 +5,6 @@
  *
  */
 
-import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
 import type {
   AesyClawTool,
@@ -16,57 +15,35 @@ import type { SessionKey, ToolOwner } from '@aesyclaw/core/types';
 import type { CronManager, CreateCronJobParams } from '@aesyclaw/cron/cron-manager';
 import { errorMessage } from '@aesyclaw/core/utils';
 
-// ─── 参数模式 ─────────────────────────────────────────────────────
-
-const CreateCronParamsSchema = Type.Object({
-  scheduleType: Type.Union(
-    [Type.Literal('once'), Type.Literal('daily'), Type.Literal('interval')],
-    { description: '调度类型' },
-  ),
-  scheduleValue: Type.String({
-    description: '调度值（如 "2025-01-01T00:00:00Z"、"08:00"、"30m"）',
-  }),
-  prompt: Type.String({ description: '定时任务的提示内容' }),
-});
-
-const ListCronParamsSchema = Type.Object({}, { description: '列出当前会话的定时任务（无参数）' });
-
-const DeleteCronParamsSchema = Type.Object({
-  jobId: Type.String({ description: '要删除的定时任务 ID' }),
-});
-
-type CreateCronParams = Static<typeof CreateCronParamsSchema>;
-type DeleteCronParams = Static<typeof DeleteCronParamsSchema>;
-
-// ─── 依赖 ─────────────────────────────────────────────────────────
-
-/** 定时任务工具所需的依赖。 */
-export type CronToolsDeps = {
-  cronManager: CronManagerLike;
-};
-
-type CronManagerLike = Pick<CronManager, 'createJob' | 'listJobs' | 'deleteJob'>;
-
 // ─── create_cron ───────────────────────────────────────────────────
 
-/**
- * 创建 create_cron 工具定义。
- *
- * @param deps - 包含 cronManager 的依赖项
- * @returns create_cron 工具的 AesyClawTool 定义
- */
-export function createCreateCronTool(deps: CronToolsDeps): AesyClawTool {
+export function createCreateCronTool(deps: {
+  cronManager: Pick<CronManager, 'createJob' | 'listJobs' | 'deleteJob'>;
+}): AesyClawTool {
   return {
     name: 'create_cron',
     description: '创建一个定时任务',
-    parameters: CreateCronParamsSchema,
+    parameters: Type.Object({
+      scheduleType: Type.Union(
+        [Type.Literal('once'), Type.Literal('daily'), Type.Literal('interval')],
+        { description: '调度类型' },
+      ),
+      scheduleValue: Type.String({
+        description: '调度值（如 "2025-01-01T00:00:00Z"、"08:00"、"30m"）',
+      }),
+      prompt: Type.String({ description: '定时任务的提示内容' }),
+    }),
     owner: 'system' as ToolOwner,
     execute: async (
       params: unknown,
       context: ToolExecutionContext,
     ): Promise<ToolExecutionResult> => {
       try {
-        const cronParams = params as CreateCronParams;
+        const cronParams = params as {
+          scheduleType: 'once' | 'daily' | 'interval';
+          scheduleValue: string;
+          prompt: string;
+        };
         const sessionKey = requireSessionKey(context.sessionKey);
         const jobId = await deps.cronManager.createJob({
           scheduleType: cronParams.scheduleType,
@@ -85,17 +62,13 @@ export function createCreateCronTool(deps: CronToolsDeps): AesyClawTool {
 
 // ─── list_cron ─────────────────────────────────────────────────────
 
-/**
- * 创建 list_cron 工具定义。
- *
- * @param deps - 包含 cronManager 的依赖项
- * @returns list_cron 工具的 AesyClawTool 定义
- */
-export function createListCronTool(deps: CronToolsDeps): AesyClawTool {
+export function createListCronTool(deps: {
+  cronManager: Pick<CronManager, 'createJob' | 'listJobs' | 'deleteJob'>;
+}): AesyClawTool {
   return {
     name: 'list_cron',
     description: '列出当前会话的定时任务',
-    parameters: ListCronParamsSchema,
+    parameters: Type.Object({}, { description: '列出当前会话的定时任务（无参数）' }),
     owner: 'system' as ToolOwner,
     execute: async (
       _params: unknown,
@@ -122,24 +95,22 @@ export function createListCronTool(deps: CronToolsDeps): AesyClawTool {
 
 // ─── delete_cron ───────────────────────────────────────────────────
 
-/**
- * 创建 delete_cron 工具定义。
- *
- * @param deps - 包含 cronManager 的依赖项
- * @returns delete_cron 工具的 AesyClawTool 定义
- */
-export function createDeleteCronTool(deps: CronToolsDeps): AesyClawTool {
+export function createDeleteCronTool(deps: {
+  cronManager: Pick<CronManager, 'createJob' | 'listJobs' | 'deleteJob'>;
+}): AesyClawTool {
   return {
     name: 'delete_cron',
     description: '删除指定定时任务',
-    parameters: DeleteCronParamsSchema,
+    parameters: Type.Object({
+      jobId: Type.String({ description: '要删除的定时任务 ID' }),
+    }),
     owner: 'system' as ToolOwner,
     execute: async (
       params: unknown,
       _context: ToolExecutionContext,
     ): Promise<ToolExecutionResult> => {
       try {
-        const { jobId } = params as DeleteCronParams;
+        const { jobId } = params as { jobId: string };
         const deleted = await deps.cronManager.deleteJob(jobId);
         return { content: deleted ? `定时任务已删除: ${jobId}` : `定时任务未找到: ${jobId}` };
       } catch (err) {

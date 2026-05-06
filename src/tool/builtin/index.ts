@@ -1,5 +1,4 @@
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
-import type { CronToolsDeps } from './cron-tools';
 import type { CronManager } from '@aesyclaw/cron/cron-manager';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
@@ -28,7 +27,7 @@ export type BuiltinToolDependencies = {
 };
 
 export function registerBuiltinTools(registry: ToolRegistry, deps: BuiltinToolDependencies): void {
-  const cronDeps: CronToolsDeps = { cronManager: deps.cronManager };
+  const cronDeps = { cronManager: deps.cronManager };
 
   const lookupRunTurn: (
     ...params: Parameters<InstanceType<typeof Agent>['runTurn']>

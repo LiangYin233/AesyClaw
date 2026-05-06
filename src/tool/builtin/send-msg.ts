@@ -6,7 +6,6 @@
  *
  */
 
-import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
 import type {
   AesyClawTool,
@@ -23,43 +22,25 @@ import type {
   ToolOwner,
 } from '@aesyclaw/core/types';
 
-const MEDIA_TYPE_MAP: Record<string, OutboundMediaType> = {
+const MEDIA_TYPE_MAP = {
   image: 'Image',
   audio: 'Record',
   video: 'Video',
   file: 'File',
-};
-
-type OutboundMediaType = 'Image' | 'Record' | 'Video' | 'File';
+} as const;
 
 type MediaComponent = ImageComponent | RecordComponent | VideoComponent | FileComponent;
 
-/** send_msg 的参数模式 */
-const SendMessageParamsSchema = Type.Object({
-  text: Type.String({ description: '要发送的文本内容' }),
-  media: Type.Optional(
-    Type.Array(
-      Type.Object({
-        type: Type.Union([
-          Type.Literal('image'),
-          Type.Literal('audio'),
-          Type.Literal('video'),
-          Type.Literal('file'),
-        ]),
-        url: Type.Optional(Type.String()),
-        path: Type.Optional(Type.String()),
-        base64: Type.Optional(Type.String()),
-        mimeType: Type.Optional(Type.String()),
-      }),
-      { description: '媒体附件列表' },
-    ),
-  ),
-});
-
-type SendMessageParams = Static<typeof SendMessageParamsSchema>;
-
-function toMediaComponent(media: SendMessageParams['media']): MediaComponent[] {
-  if (!media || media.length === 0) {
+function toMediaComponent(
+  media: Array<{
+    type: 'image' | 'audio' | 'video' | 'file';
+    url?: string;
+    path?: string;
+    base64?: string;
+    mimeType?: string;
+  }>,
+): MediaComponent[] {
+  if (media.length === 0) {
     return [];
   }
 
@@ -84,13 +65,41 @@ export function createSendMsgTool(): AesyClawTool {
   return {
     name: 'send_msg',
     description: '向当前会话发送文本消息，可附带媒体附件',
-    parameters: SendMessageParamsSchema,
+    parameters: Type.Object({
+      text: Type.String({ description: '要发送的文本内容' }),
+      media: Type.Optional(
+        Type.Array(
+          Type.Object({
+            type: Type.Union([
+              Type.Literal('image'),
+              Type.Literal('audio'),
+              Type.Literal('video'),
+              Type.Literal('file'),
+            ]),
+            url: Type.Optional(Type.String()),
+            path: Type.Optional(Type.String()),
+            base64: Type.Optional(Type.String()),
+            mimeType: Type.Optional(Type.String()),
+          }),
+          { description: '媒体附件列表' },
+        ),
+      ),
+    }),
     owner: 'system' as ToolOwner,
     execute: async (
       params: unknown,
       context: ToolExecutionContext,
     ): Promise<ToolExecutionResult> => {
-      const { text, media } = params as SendMessageParams;
+      const { text, media } = params as {
+        text: string;
+        media?: Array<{
+          type: 'image' | 'audio' | 'video' | 'file';
+          url?: string;
+          path?: string;
+          base64?: string;
+          mimeType?: string;
+        }>;
+      };
       try {
         if (!context.sendMessage) {
           return {
@@ -100,7 +109,7 @@ export function createSendMsgTool(): AesyClawTool {
         }
 
         const outbound: Message = {
-          components: [{ type: 'Plain', text }, ...toMediaComponent(media)],
+          components: [{ type: 'Plain', text }, ...toMediaComponent(media ?? [])],
         };
         const delivered = await context.sendMessage(outbound);
 

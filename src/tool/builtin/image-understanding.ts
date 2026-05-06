@@ -31,16 +31,15 @@ export function createImageUnderstandingTool(deps: {
     }) => Promise<number>;
   };
 }): AesyClawTool {
-  const schema = Type.Object({
-    source: Type.String({
-      description: '图片来源：data URI (data:image/jpeg;base64,...)、URL 或本地文件路径',
-    }),
-    question: Type.Optional(Type.String({ description: '对图片提出的问题' })),
-  });
   return {
     name: 'image_understanding',
     description: '分析图片内容，可针对图片提出问题（支持 data URI、URL 或本地文件路径）',
-    parameters: schema,
+    parameters: Type.Object({
+      source: Type.String({
+        description: '图片来源：data URI (data:image/jpeg;base64,...)、URL 或本地文件路径',
+      }),
+      question: Type.Optional(Type.String({ description: '对图片提出的问题' })),
+    }),
     owner: 'system' as ToolOwner,
     execute: async (params: unknown, ctx: ToolExecutionContext): Promise<ToolExecutionResult> => {
       const { source, question } = params as { source: string; question?: string };

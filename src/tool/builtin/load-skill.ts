@@ -7,7 +7,6 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
 import type { Skill } from '@aesyclaw/core/types';
 import type { ToolOwner } from '@aesyclaw/core/types';
@@ -19,38 +18,29 @@ import type {
   ToolExecutionResult,
 } from '@aesyclaw/tool/tool-registry';
 
-const LoadSkillParamsSchema = Type.Object({
-  skillName: Type.String({ description: '要读取的技能名称' }),
-  relativePath: Type.Optional(
-    Type.String({ description: '技能目录内的相对文件路径，默认 SKILL.md' }),
-  ),
-});
-
-type LoadSkillParams = Static<typeof LoadSkillParamsSchema>;
-
-export type LoadSkillDeps = {
-  skillManager: Pick<SkillManager, 'getSkill'>;
-};
-
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
 
-/**
- * 创建 load_skill 工具定义。
- *
- * @param deps - 包含 skillManager 的依赖项
- * @returns load_skill 工具的 AesyClawTool 定义
- */
-export function createLoadSkillTool(deps: LoadSkillDeps): AesyClawTool {
+export function createLoadSkillTool(deps: {
+  skillManager: Pick<SkillManager, 'getSkill'>;
+}): AesyClawTool {
   return {
     name: 'load_skill',
     description: '读取技能',
-    parameters: LoadSkillParamsSchema,
+    parameters: Type.Object({
+      skillName: Type.String({ description: '要读取的技能名称' }),
+      relativePath: Type.Optional(
+        Type.String({ description: '技能目录内的相对文件路径，默认 SKILL.md' }),
+      ),
+    }),
     owner: 'system' as ToolOwner,
     execute: async (
       params: unknown,
       _context: ToolExecutionContext,
     ): Promise<ToolExecutionResult> => {
-      const { skillName, relativePath: rawRelativePath } = params as LoadSkillParams;
+      const { skillName, relativePath: rawRelativePath } = params as {
+        skillName: string;
+        relativePath?: string;
+      };
       const relativePath = rawRelativePath ?? 'SKILL.md';
       const skill = deps.skillManager.getSkill(skillName);
 

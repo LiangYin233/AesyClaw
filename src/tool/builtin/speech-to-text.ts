@@ -14,15 +14,14 @@ export function createSpeechToTextTool(deps: {
   configManager: Pick<ConfigManager, 'get'>;
   llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
 }): AesyClawTool {
-  const schema = Type.Object({
-    source: Type.String({
-      description: '音频来源：data URI (data:audio/mpeg;base64,...)、URL 或本地文件路径',
-    }),
-  });
   return {
     name: 'speech_to_text',
     description: '将音频转录为文本（支持 data URI、URL 或本地文件路径）',
-    parameters: schema,
+    parameters: Type.Object({
+      source: Type.String({
+        description: '音频来源：data URI (data:audio/mpeg;base64,...)、URL 或本地文件路径',
+      }),
+    }),
     owner: 'system' as ToolOwner,
     execute: async (params: unknown, ctx: ToolExecutionContext): Promise<ToolExecutionResult> => {
       const { source } = params as { source: string };
