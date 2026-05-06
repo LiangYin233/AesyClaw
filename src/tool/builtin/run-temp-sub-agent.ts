@@ -1,4 +1,3 @@
-import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
 import type {
   AesyClawTool,
@@ -11,15 +10,6 @@ import type { RoleConfig } from '@aesyclaw/core/types';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { AgentMessage } from '@aesyclaw/agent/agent-types';
 import { applyToolOverride, createTempSubAgentRole } from './sub-agent-utils';
-
-const RunTempSubAgentParamsSchema = Type.Object({
-  systemPrompt: Type.String({ description: '子代理的系统提示' }),
-  model: Type.Optional(Type.String({ description: '临时子代理使用的模型，格式为 provider/model' })),
-  prompt: Type.String({ description: '子代理的输入提示' }),
-  enableTools: Type.Optional(Type.Boolean({ description: '是否允许子代理使用工具' })),
-});
-
-type RunTempSubAgentParams = Static<typeof RunTempSubAgentParamsSchema>;
 
 export function createRunTempSubAgentTool(deps: {
   roleManager: Pick<RoleManager, 'getDefaultRole'>;
@@ -34,13 +24,23 @@ export function createRunTempSubAgentTool(deps: {
   return {
     name: 'run_temp_sub_agent',
     description: '使用自定义系统提示运行临时子代理',
-    parameters: RunTempSubAgentParamsSchema,
+    parameters: Type.Object({
+      systemPrompt: Type.String({ description: '子代理的系统提示' }),
+      model: Type.Optional(Type.String({ description: '临时子代理使用的模型，格式为 provider/model' })),
+      prompt: Type.String({ description: '子代理的输入提示' }),
+      enableTools: Type.Optional(Type.Boolean({ description: '是否允许子代理使用工具' })),
+    }),
     owner: 'system' as ToolOwner,
     execute: async (
       params: unknown,
       context: ToolExecutionContext,
     ): Promise<ToolExecutionResult> => {
-      const { systemPrompt, model, prompt, enableTools } = params as RunTempSubAgentParams;
+      const { systemPrompt, model, prompt, enableTools } = params as {
+        systemPrompt: string;
+        model?: string;
+        prompt: string;
+        enableTools?: boolean;
+      };
 
       try {
         const baseRole = deps.roleManager.getDefaultRole();

@@ -1,4 +1,3 @@
-import type { Static } from '@sinclair/typebox';
 import { Type } from '@sinclair/typebox';
 import type {
   AesyClawTool,
@@ -11,14 +10,6 @@ import type { RoleConfig } from '@aesyclaw/core/types';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { AgentMessage } from '@aesyclaw/agent/agent-types';
 import { applyToolOverride } from './sub-agent-utils';
-
-const RunSubAgentParamsSchema = Type.Object({
-  roleId: Type.String({ description: '要使用的角色 ID' }),
-  prompt: Type.String({ description: '子代理的输入提示' }),
-  enableTools: Type.Optional(Type.Boolean({ description: '是否允许子代理使用工具' })),
-});
-
-type RunSubAgentParams = Static<typeof RunSubAgentParamsSchema>;
 
 export function createRunSubAgentTool(deps: {
   roleManager: Pick<RoleManager, 'getRole'>;
@@ -33,13 +24,21 @@ export function createRunSubAgentTool(deps: {
   return {
     name: 'run_sub_agent',
     description: '使用指定角色运行子代理',
-    parameters: RunSubAgentParamsSchema,
+    parameters: Type.Object({
+      roleId: Type.String({ description: '要使用的角色 ID' }),
+      prompt: Type.String({ description: '子代理的输入提示' }),
+      enableTools: Type.Optional(Type.Boolean({ description: '是否允许子代理使用工具' })),
+    }),
     owner: 'system' as ToolOwner,
     execute: async (
       params: unknown,
       context: ToolExecutionContext,
     ): Promise<ToolExecutionResult> => {
-      const { roleId, prompt, enableTools } = params as RunSubAgentParams;
+      const { roleId, prompt, enableTools } = params as {
+        roleId: string;
+        prompt: string;
+        enableTools?: boolean;
+      };
 
       try {
         const baseRole = deps.roleManager.getRole(roleId);
