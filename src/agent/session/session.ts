@@ -16,7 +16,6 @@ import type {
 } from '@aesyclaw/core/database/database-manager';
 import { completeSimple } from '@mariozechner/pi-ai';
 import { createScopedLogger } from '@aesyclaw/core/logger';
-import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 
 const logger = createScopedLogger('session');
 
@@ -36,7 +35,6 @@ export class Session {
       usage?: UsageRepository;
       toolUsage?: ToolUsageRepository;
     },
-    private configManager: Pick<ConfigManager, 'get'>,
   ) {
     this.sessionId = sessionId;
     this.key = key;

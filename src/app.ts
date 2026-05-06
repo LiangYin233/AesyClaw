@@ -43,7 +43,7 @@ export class Application {
     this.commandRegistry = new CommandRegistry();
     this.llmAdapter = new LlmAdapter(this.configManager);
     this.pipeline = new Pipeline();
-    this.sessionManager = new SessionManager(this.databaseManager, this.configManager);
+    this.sessionManager = new SessionManager(this.databaseManager);
     this.cronManager = new CronManager();
     this.mcpManager = new McpManager(
       this.configManager,

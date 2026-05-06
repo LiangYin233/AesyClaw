@@ -50,7 +50,6 @@ export class Agent {
   roleId?: string;
 
   private _model!: ResolvedModel;
-  private _systemPrompt = '';
   private _activeRole: RoleConfig | null = null;
   private _allowedTools: AesyClawTool[] = [];
 
@@ -95,12 +94,6 @@ export class Agent {
     this._activeRole = role;
 
     this._allowedTools = this.toolRegistry.getForRole(role);
-
-    const { prompt } = this.buildPrompt(role, {
-      sessionKey: this.session.key,
-      toolPermission: role.toolPermission,
-    });
-    this._systemPrompt = prompt;
 
     this._model = this.llmAdapter.resolveModel(role.model);
 

@@ -1,7 +1,6 @@
 import type { SessionKey } from '@aesyclaw/core/types';
 import { serializeSessionKey } from '@aesyclaw/core/types';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
-import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { Session } from './session';
 
@@ -11,10 +10,7 @@ export class SessionManager {
   private sessions: Map<string, Session> = new Map();
   private pendingSessions: Map<string, Promise<Session>> = new Map();
 
-  constructor(
-    private databaseManager: DatabaseManager,
-    private configManager: ConfigManager,
-  ) {}
+  constructor(private databaseManager: DatabaseManager) {}
 
   async create(key: SessionKey): Promise<Session> {
     const cacheKey = serializeSessionKey(key);
@@ -74,16 +70,11 @@ export class SessionManager {
 
   private async createFromDb(key: SessionKey, cacheKey: string): Promise<Session> {
     const sessionRecord = await this.databaseManager.sessions.findOrCreate(key);
-    const session = new Session(
-      sessionRecord.id,
-      key,
-      {
-        messages: this.databaseManager.messages,
-        usage: this.databaseManager.usage,
-        toolUsage: this.databaseManager.toolUsage,
-      },
-      this.configManager,
-    );
+    const session = new Session(sessionRecord.id, key, {
+      messages: this.databaseManager.messages,
+      usage: this.databaseManager.usage,
+      toolUsage: this.databaseManager.toolUsage,
+    });
     await session.bind();
     this.sessions.set(cacheKey, session);
     logger.info('会话已创建', { cacheKey });
