@@ -19,7 +19,11 @@ export function parseSource(
   if (source.startsWith('data:')) {
     const match = DATA_URI_RE.exec(source);
     if (!match) throw new Error('无效的 data URI 格式，应为 data:mime/type;base64,...');
-    return { type: 'data', mimeType: match[1]!, base64: match[2]! };
+    const [, mimeType, base64] = match;
+    if (mimeType === undefined || base64 === undefined) {
+      throw new Error('无效的 data URI 格式，应为 data:mime/type;base64,...');
+    }
+    return { type: 'data', mimeType, base64 };
   }
   if (/^https?:\/\//i.test(source)) return { type: 'url', url: source };
   if (source.startsWith('file://')) return { type: 'file', filePath: source.slice(7) };

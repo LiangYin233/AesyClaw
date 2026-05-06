@@ -183,7 +183,7 @@ export class CoreLifecycle {
     });
     registerBuiltinCommands(this.resolvedDeps.commandRegistry, {
       roleManager: this.resolvedDeps.roleManager,
-      pluginManager: this.extensionManager!,
+      pluginManager: this.extensionManager,
       sessionManager: this.resolvedDeps.sessionManager,
       llmAdapter: this.resolvedDeps.llmAdapter,
       skillManager: this.resolvedDeps.skillManager,
