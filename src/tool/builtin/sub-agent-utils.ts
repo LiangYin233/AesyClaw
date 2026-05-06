@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { RoleConfig } from '@aesyclaw/core/types';
 
-const BLOCKED_TOOLS = ['run_sub_agent', 'run_temp_sub_agent'];
+const BLOCKED_TOOLS = ['run_sub_agent', 'run_temp_sub_agent', 'send_msg'];
 
 export function applyToolOverride(role: RoleConfig, enableTools?: boolean): RoleConfig {
   if (enableTools === false) {
