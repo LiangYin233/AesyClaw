@@ -190,7 +190,11 @@ export class ConfigManager {
     }
 
     const mergedConfig = mergeDefaults(mergeBase, partial as Record<string, unknown>) as AppConfig;
-    const validatedConfig = this.validateConfigObject(mergedConfig);
+    const validatedConfig = this.validateWithSchema<AppConfig>(
+      AppConfigSchema,
+      mergedConfig,
+      '配置',
+    );
 
     this.persistWithGuard(validatedConfig);
     await this.notifyListeners(oldConfig, validatedConfig);
@@ -201,7 +205,15 @@ export class ConfigManager {
     this.ensureRolesLoaded();
 
     const oldRoles = this.readValidatedRolesFromStore();
-    const newRoles = this.validateRolesArray(roles);
+    const validated = this.validateWithSchema<RoleConfig[]>(
+      RolesConfigSchema,
+      roles,
+      '角色配置',
+    );
+    const newRoles = validated.map((role) =>
+      role.id === 'default' ? { ...role, enabled: true } : role,
+    );
+    this.assertUniqueRoleIds(newRoles);
 
     if (JSON.stringify(oldRoles) === JSON.stringify(newRoles)) {
       return;
@@ -239,7 +251,11 @@ export class ConfigManager {
         overwrite: false,
       }) as AppConfig;
     }
-    const validatedConfig = this.validateConfigObject(mergedConfig);
+    const validatedConfig = this.validateWithSchema<AppConfig>(
+      AppConfigSchema,
+      mergedConfig,
+      '配置',
+    );
 
     this.persistWithGuard(validatedConfig);
     await this.notifyListeners(oldConfig, validatedConfig);
@@ -292,7 +308,7 @@ export class ConfigManager {
 
     try {
       const oldConfig = this.lastKnownConfig ?? this.readValidatedConfigFromStore();
-      const newConfig = this.validateConfigPayload(this.configStore.store);
+      const newConfig = this.readValidatedConfigFromStore();
 
       // 比较规范化 JSON 以检测真实变更
       const oldNormalised = JSON.stringify(oldConfig);
@@ -321,7 +337,7 @@ export class ConfigManager {
 
     try {
       const oldRoles = this.lastKnownRoles ?? this.readValidatedRolesFromStore();
-      const newRoles = this.validateRolesPayload(this.rolesStore.store[this.ROLES_STORE_KEY]);
+      const newRoles = this.readValidatedRolesFromStore();
 
       if (JSON.stringify(oldRoles) === JSON.stringify(newRoles)) {
         logger.debug('角色配置文件已变更但内容相同 —— 跳过');
@@ -336,53 +352,7 @@ export class ConfigManager {
     }
   }
 
-  private validateConfigPayload(parsed: unknown): AppConfig {
-    if (!isRecord(parsed)) {
-      throw new Error('配置验证失败');
-    }
 
-    const mergedWithDefaults = mergeDefaults(
-      structuredClone(DEFAULT_CONFIG) as Record<string, unknown>,
-      parsed as Record<string, unknown>,
-    ) as AppConfig;
-    const validated = this.validateConfigObject(mergedWithDefaults);
-
-    const missingFields = this.findMissingFields(
-      parsed as Record<string, unknown>,
-      validated as Record<string, unknown>,
-    );
-
-    if (missingFields.length > 0) {
-      logger.warn('配置存在缺失字段 —— 已用默认值修补', {
-        missing: missingFields.join(', '),
-      });
-
-      this.writeConfigToStore(validated);
-    }
-
-    return validated as AppConfig;
-  }
-
-  private validateRolesPayload(parsed: unknown): RoleConfig[] {
-    return this.validateRolesArray(parsed);
-  }
-
-  private validateRolesArray(value: unknown): RoleConfig[] {
-    const validated = Value.Default(RolesConfigSchema, value);
-
-    if (!Value.Check(RolesConfigSchema, validated)) {
-      const errors = [...Value.Errors(RolesConfigSchema, validated)]
-        .map((e) => `${e.path}: ${e.message}`)
-        .join('; ');
-      throw new Error(`角色配置验证失败: ${errors}`);
-    }
-
-    const roles = (validated as RoleConfig[]).map((role) =>
-      role.id === 'default' ? { ...role, enabled: true } : role,
-    );
-    this.assertUniqueRoleIds(roles);
-    return roles;
-  }
 
   private assertUniqueRoleIds(roles: readonly RoleConfig[]): void {
     const seen = new Set<string>();
@@ -426,17 +396,19 @@ export class ConfigManager {
     return missing;
   }
 
-  private validateConfigObject(value: unknown): AppConfig {
-    const validated = Value.Default(AppConfigSchema, value);
-
-    if (!Value.Check(AppConfigSchema, validated)) {
-      const errors = [...Value.Errors(AppConfigSchema, validated)]
+  private validateWithSchema<T>(
+    schema: Parameters<typeof Value.Check>[0],
+    value: unknown,
+    label: string,
+  ): T {
+    const validated = Value.Default(schema, value);
+    if (!Value.Check(schema, validated)) {
+      const errors = [...Value.Errors(schema, validated)]
         .map((e) => `${e.path}: ${e.message}`)
         .join('; ');
-      throw new Error(`配置验证失败: ${errors}`);
+      throw new Error(`${label}验证失败: ${errors}`);
     }
-
-    return validated as AppConfig;
+    return validated as T;
   }
 
   private ensureLoaded(): Conf<Record<string, unknown>> {
@@ -454,11 +426,49 @@ export class ConfigManager {
   }
 
   private readValidatedConfigFromStore(): AppConfig {
-    return this.validateConfigPayload(this.ensureLoaded().store);
+    const parsed = this.ensureLoaded().store;
+    if (!isRecord(parsed)) {
+      throw new Error('配置验证失败');
+    }
+
+    const merged = mergeDefaults(
+      structuredClone(DEFAULT_CONFIG) as Record<string, unknown>,
+      parsed as Record<string, unknown>,
+    ) as AppConfig;
+    const validated = this.validateWithSchema<AppConfig>(
+      AppConfigSchema,
+      merged,
+      '配置',
+    );
+
+    const missingFields = this.findMissingFields(
+      parsed as Record<string, unknown>,
+      validated as Record<string, unknown>,
+    );
+
+    if (missingFields.length > 0) {
+      logger.warn('配置存在缺失字段 —— 已用默认值修补', {
+        missing: missingFields.join(', '),
+      });
+
+      this.writeConfigToStore(validated);
+    }
+
+    return validated;
   }
 
   private readValidatedRolesFromStore(): RoleConfig[] {
-    return this.validateRolesPayload(this.ensureRolesLoaded().store[this.ROLES_STORE_KEY]);
+    const raw = this.ensureRolesLoaded().store[this.ROLES_STORE_KEY];
+    const validated = this.validateWithSchema<RoleConfig[]>(
+      RolesConfigSchema,
+      raw,
+      '角色配置',
+    );
+    const roles = validated.map((role) =>
+      role.id === 'default' ? { ...role, enabled: true } : role,
+    );
+    this.assertUniqueRoleIds(roles);
+    return roles;
   }
 
   private writeConfigToStore(config: AppConfig): void {
