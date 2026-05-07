@@ -5,8 +5,17 @@ import type { WebUiManagerDependencies } from '../../../src/web/webui-manager';
 function makeDeps(config: Record<string, unknown>) {
   return {
     configManager: {
-      getConfig: vi.fn(() => config),
-      update: vi.fn(async (_partial: unknown, _options?: unknown) => undefined),
+      get: vi.fn((path: string) => {
+        if (path === 'server') return config.server;
+        if (path === 'providers') return config.providers;
+        if (path === 'channels') return config.channels;
+        if (path === 'agent') return config.agent;
+        if (path === 'mcp') return config.mcp;
+        if (path === 'plugins') return config.plugins;
+        return undefined;
+      }),
+      set: vi.fn(async (_path: string, _value: unknown) => undefined),
+      patch: vi.fn(async (_path: string, _value: Record<string, unknown>) => undefined),
     },
   } as unknown as WebUiManagerDependencies;
 }
@@ -25,7 +34,7 @@ describe('config service', () => {
     expect(result).toEqual(config);
   });
 
-  it('passes replaceTopLevelKeys on update', async () => {
+  it('uses set for providers update', async () => {
     const deps = makeDeps({});
     const body = {
       providers: { openai: { apiKey: '***', baseUrl: 'https://new.example.test' } },
@@ -33,8 +42,6 @@ describe('config service', () => {
 
     await updateConfig(deps, body);
 
-    expect(deps.configManager.update).toHaveBeenCalledWith(body, {
-      replaceTopLevelKeys: ['channels', 'plugins', 'providers'],
-    });
+    expect(deps.configManager.set).toHaveBeenCalledWith('providers', body.providers);
   });
 });

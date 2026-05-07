@@ -26,9 +26,10 @@ function makeDeps(role = makeRole()) {
       deleteRole: vi.fn(async (_id: string) => true),
     },
     configManager: {
-      getConfig: vi.fn(() => ({
-        providers: { openai: { models: { 'gpt-4o': {} } } },
-      })),
+      get: vi.fn((path: string) => {
+        if (path === 'providers.openai') return { models: { 'gpt-4o': {} } };
+        return undefined;
+      }),
     },
   } as unknown as WebUiManagerDependencies;
 }
