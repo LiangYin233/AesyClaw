@@ -4,7 +4,6 @@ import { PluginManager } from '../../../src/extension/plugin/plugin-manager';
 import type { PluginModule } from '../../../src/extension/plugin/plugin-types';
 import type { ChannelPlugin } from '../../../src/extension/channel/channel-types';
 import type { PluginConfigEntry } from '../../../src/core/config/schema';
-import type { DeepPartial } from '../../../src/core/types';
 import { ToolRegistry } from '../../../src/tool/tool-registry';
 import { CommandRegistry } from '../../../src/command/command-registry';
 import { HookDispatcher } from '../../../src/pipeline/hook-dispatcher';
@@ -14,19 +13,19 @@ import type { ChannelManager } from '../../../src/extension/channel/channel-mana
 
 class FakeConfigManager {
   plugins: PluginConfigEntry[] = [];
-  updates: Array<DeepPartial<{ plugins: PluginConfigEntry[] }>> = [];
+  updates: Array<PluginConfigEntry[]> = [];
 
-  get(key: 'plugins'): Readonly<PluginConfigEntry[]> {
-    if (key !== 'plugins') {
+  get(path: 'plugins'): Readonly<PluginConfigEntry[]> {
+    if (path !== 'plugins') {
       throw new Error('Unsupported key');
     }
     return this.plugins;
   }
 
-  async update(partial: DeepPartial<{ plugins: PluginConfigEntry[] }>): Promise<void> {
-    this.updates.push(partial);
-    if (partial.plugins) {
-      this.plugins = partial.plugins.map((entry) => ({
+  async set(path: 'plugins', value: PluginConfigEntry[]): Promise<void> {
+    if (path === 'plugins') {
+      this.updates.push(value);
+      this.plugins = value.map((entry) => ({
         name: entry.name ?? '',
         enabled: entry.enabled ?? true,
         ...(entry.options === undefined ? {} : { options: entry.options }),

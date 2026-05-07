@@ -278,8 +278,7 @@ export class ChannelManager implements ExtensionLifecycle {
 
   private getConfigRecord(channelName: string): Record<string, unknown> {
     try {
-      const channels = this.deps.configManager.get('channels');
-      const config = channels[channelName];
+      const config = this.deps.configManager.get(`channels.${channelName}`);
       return isRecord(config) ? config : {};
     } catch {
       return {};

@@ -7,9 +7,13 @@ class FakeConfigManager {
   channels: Record<string, unknown> = {};
   defaults: Array<{ key: string; defaults: Record<string, unknown> }> = [];
 
-  get(key: 'channels'): Readonly<Record<string, unknown>> {
-    if (key !== 'channels') throw new Error('Unsupported key');
-    return this.channels;
+  get(path: string): unknown {
+    if (path === 'channels') return this.channels;
+    if (path.startsWith('channels.')) {
+      const channelName = path.slice('channels.'.length);
+      return this.channels[channelName];
+    }
+    throw new Error('Unsupported key');
   }
 
   registerDefaults(key: string, defaults: Record<string, unknown>): void {

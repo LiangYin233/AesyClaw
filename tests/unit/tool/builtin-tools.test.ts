@@ -33,12 +33,10 @@ afterEach(() => {
 function makeConfigManager() {
   return {
     get: vi.fn().mockImplementation((key: string) => {
-      if (key === 'agent') {
+      if (key === 'agent.multimodal') {
         return {
-          multimodal: {
-            speechToText: { provider: 'openai', model: 'whisper-1' },
-            imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
-          },
+          speechToText: { provider: 'openai', model: 'whisper-1' },
+          imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
         };
       }
       return undefined;

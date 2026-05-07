@@ -27,7 +27,9 @@ export function createSpeechToTextTool(deps: {
       const { source } = params as { source: string };
       try {
         const audio = await loadMediaSource(source);
-        const mm = deps.configManager.get('agent').multimodal;
+        const mm = deps.configManager.get('agent.multimodal') as {
+          speechToText: { provider: string; model: string };
+        };
         const model = deps.llmAdapter.resolveModel(
           `${mm.speechToText.provider}/${mm.speechToText.model}`,
         );

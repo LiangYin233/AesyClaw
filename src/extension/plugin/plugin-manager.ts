@@ -113,7 +113,7 @@ export class PluginManager implements ExtensionLifecycle {
         enabled: true,
         ...(module.definition.defaultConfig ? { options: module.definition.defaultConfig } : {}),
       });
-      await this.deps.configManager.update({ plugins }).catch((err) => {
+      await this.deps.configManager.set('plugins', plugins).catch((err: unknown) => {
         logger.warn(`自动写入插件 "${pluginName}" 的配置条目失败`, err);
       });
     }
@@ -375,7 +375,7 @@ export class PluginManager implements ExtensionLifecycle {
 
   private getConfigEntries(): ReadonlyArray<Readonly<PluginConfigEntry>> {
     try {
-      return this.deps.configManager.get('plugins');
+      return this.deps.configManager.get('plugins') as ReadonlyArray<Readonly<PluginConfigEntry>>;
     } catch {
       return [];
     }
@@ -400,7 +400,7 @@ export class PluginManager implements ExtensionLifecycle {
       plugins.push({ name: canonicalName, enabled });
     }
 
-    await this.deps.configManager.update({ plugins });
+    await this.deps.configManager.set('plugins', plugins);
   }
 }
 

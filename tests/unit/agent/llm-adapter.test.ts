@@ -60,8 +60,14 @@ function makeConfigWithProviders(providers: Record<string, unknown> = {}): AppCo
 
 function makeMockConfigManager(config: AppConfig): ConfigManager {
   return {
-    getConfig: () => config,
-    get: (key: keyof AppConfig) => config[key],
+    get: (path: string): unknown => {
+      if (path === 'providers') return config.providers;
+      if (path === `providers.${path.split('.')[1]}`) {
+        const providerName = path.split('.')[1];
+        return config.providers[providerName];
+      }
+      return undefined;
+    },
   } as unknown as ConfigManager;
 }
 

@@ -46,13 +46,14 @@ export class WebUiManager {
     this.deps = deps;
     logger.info('WebUiManager 已初始化');
 
-    const config = deps.configManager.getConfig();
-    const serverConfig = config.server;
+    const port = deps.configManager.get('server.port') as number;
+    const host = deps.configManager.get('server.host') as string;
+    const authToken = deps.configManager.get('server.authToken') as string | undefined;
 
     // 如果缺少认证令牌则自动生成
-    if (!serverConfig.authToken) {
+    if (!authToken) {
       const token = this.generateToken();
-      await deps.configManager.update({ server: { ...serverConfig, authToken: token } });
+      await deps.configManager.set('server.authToken', token);
       logger.info('已自动生成 WebUI 认证令牌', {
         hint: `${token.slice(0, 4)}…${token.slice(-4)}`,
         configPath: 'server.authToken',
@@ -62,18 +63,15 @@ export class WebUiManager {
     this.app = createApp();
     this.server = serve({
       fetch: this.app.fetch,
-      port: serverConfig.port,
-      hostname: serverConfig.host,
+      port,
+      hostname: host,
     });
 
     // 在同一端口上创建 WebSocket 服务器
     // serve() 总是返回 HTTP Server（纯 HTTP 模式下），使用类型断言
     this.wss = createWebSocketServer(this.server as unknown as Server, deps);
 
-    logger.info('WebUI 服务器已启动（HTTP + WebSocket）', {
-      host: serverConfig.host,
-      port: serverConfig.port,
-    });
+    logger.info('WebUI 服务器已启动（HTTP + WebSocket）', { host, port });
   }
 
   async destroy(): Promise<void> {

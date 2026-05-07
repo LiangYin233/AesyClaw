@@ -26,7 +26,7 @@ function safeTokenEqual(provided: string, expected: string): boolean {
  * 验证 WebSocket upgrade 请求的 token。
  */
 function validateWsToken(requestUrl: string | undefined, configManager: ConfigManager): boolean {
-  const authToken = configManager.getConfig().server.authToken;
+  const authToken = configManager.get('server.authToken') as string | undefined;
   if (!authToken) {
     return true; // 无 token 配置时允许所有连接
   }

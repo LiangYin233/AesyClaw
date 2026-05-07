@@ -220,7 +220,7 @@ export class McpManager {
 
   private getConfigs(): McpServerConfig[] {
     try {
-      return this.configManager.get('mcp').map(cloneConfig);
+      return (this.configManager.get('mcp') as McpServerConfig[]).map(cloneConfig);
     } catch {
       return [];
     }

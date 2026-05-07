@@ -32,8 +32,9 @@ export async function createRole(
 
   // 验证 model 对应的 provider 和 modelId 存在
   const { provider: providerName, modelId } = parseModelIdentifier(body.model);
-  const config = deps.configManager.getConfig();
-  const provider = config.providers[providerName];
+  const provider = deps.configManager.get(`providers.${providerName}`) as
+    | { models?: Record<string, unknown> }
+    | undefined;
   if (provider === undefined) {
     throw new Error(`提供商 "${providerName}" 未配置`);
   }
@@ -68,8 +69,9 @@ export async function updateRole(
   const current = deps.roleManager.getRole(id);
   const model = body.model ?? current.model;
   const { provider: providerName, modelId } = parseModelIdentifier(model);
-  const config = deps.configManager.getConfig();
-  const provider = config.providers[providerName];
+  const provider = deps.configManager.get(`providers.${providerName}`) as
+    | { models?: Record<string, unknown> }
+    | undefined;
   if (provider === undefined) {
     throw new Error(`提供商 "${providerName}" 未配置`);
   }

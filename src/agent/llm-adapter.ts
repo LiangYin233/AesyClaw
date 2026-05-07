@@ -13,7 +13,7 @@ export class LlmAdapter {
     const configManager = this.configManager;
 
     const { provider, modelId } = parseModelIdentifier(modelIdentifier);
-    const providers = configManager.get('providers');
+    const providers = configManager.get('providers') as Record<string, ProviderConfig>;
     const providerConfig: ProviderConfig | undefined = providers[provider];
 
     if (providerConfig === undefined) {
@@ -74,8 +74,9 @@ export class LlmAdapter {
 
   createGetApiKey(): (provider: string) => string | undefined {
     return (provider: string): string | undefined => {
-      const providers = this.configManager.get('providers');
-      const providerConfig = providers[provider];
+      const providerConfig = this.configManager.get(`providers.${provider}`) as
+        | ProviderConfig
+        | undefined;
       return providerConfig?.apiKey;
     };
   }

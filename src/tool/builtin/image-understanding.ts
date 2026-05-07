@@ -45,7 +45,9 @@ export function createImageUnderstandingTool(deps: {
       const { source, question } = params as { source: string; question?: string };
       try {
         const image = await loadMediaSource(source);
-        const mm = deps.configManager.get('agent').multimodal;
+        const mm = deps.configManager.get('agent.multimodal') as {
+          imageUnderstanding: { provider: string; model: string };
+        };
         const model = deps.llmAdapter.resolveModel(
           `${mm.imageUnderstanding.provider}/${mm.imageUnderstanding.model}`,
         ) as ResolvedModel;
