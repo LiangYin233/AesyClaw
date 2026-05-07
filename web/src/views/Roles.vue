@@ -51,7 +51,7 @@
             <td class="px-4 py-3 border-b border-[var(--color-border)]">{{ idx + 1 }}</td>
             <td class="px-4 py-3 border-b border-[var(--color-border)]">
               <div class="flex flex-col gap-[0.15rem]">
-                <span class="font-heading font-medium text-dark">{{ role.name }}</span>
+                <span class="font-heading font-medium text-dark">{{ role.id }}</span>
                 <span v-if="role.description" class="font-body text-xs text-mid-gray">{{
                   role.description
                 }}</span>
@@ -101,18 +101,6 @@
             </div>
 
             <div class="flex-1 overflow-auto p-6">
-              <div class="mb-5">
-                <label
-                  class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase"
-                >
-                  Name <span class="text-danger">*</span>
-                </label>
-                <input
-                  v-model="form.name"
-                  class="w-full px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none transition-[border-color,box-shadow] duration-[0.15s] ease focus:border-primary focus:shadow-[0_0_0_3px_rgba(217,119,87,0.12)]"
-                />
-              </div>
-
               <div class="mb-5">
                 <label
                   class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase"
@@ -375,7 +363,6 @@ interface ModelOption {
 const modelOptions = ref<ModelOption[]>([]);
 const form = ref<Role>({
   id: '',
-  name: '',
   description: '',
   systemPrompt: '',
   model: '',
@@ -442,7 +429,6 @@ function openCreate() {
   editingRole.value = null;
   form.value = {
     id: '',
-    name: '',
     description: '',
     systemPrompt: '',
     model: modelOptions.value[0]?.value ?? '',

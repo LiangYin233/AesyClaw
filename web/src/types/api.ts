@@ -5,7 +5,6 @@ export interface ToolPermission {
 
 export interface Role {
   id: string;
-  name: string;
   description: string;
   systemPrompt: string;
   model: string;
@@ -19,13 +18,13 @@ export interface Session {
   channel: string;
   type: string;
   chatId: string;
-  lastActivity: string | null;
+  lastActivity?: string;
 }
 
 export interface PersistableMessage {
   role: 'user' | 'assistant';
   content: string;
-  timestamp: string;
+  timestamp?: string;
 }
 
 export interface UsageSummary {
@@ -48,6 +47,8 @@ export interface ToolUsageSummary {
 
 export interface ChannelStatus {
   name: string;
+  description?: string;
+  enabled: boolean;
   state: 'loaded' | 'disabled' | 'unloaded' | 'failed';
   version?: string;
   error?: string;
