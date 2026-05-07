@@ -237,33 +237,80 @@
                       class="inline align-middle ml-1 text-mid-gray w-[14px] h-[14px]"
                     />
                   </label>
+                </div>
+
+                <div class="relative" ref="toolDropdownRef">
                   <button
                     type="button"
-                    class="inline-flex items-center gap-[0.3rem] px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm bg-[#121212] text-white font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease hover:bg-[#2a2a2a]"
-                    @click="addTool"
+                    class="w-full flex items-center justify-between gap-2 px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none cursor-pointer transition-[border-color,box-shadow] duration-[0.15s] ease hover:border-mid-gray"
+                    @click="toggleToolDropdown"
                   >
-                    <PlusIcon class="w-3 h-3 stroke-[2.5]" />
-                    Add Tool
+                    <span class="truncate">{{ toolSelectionLabel }}</span>
+                    <ChevronUpDownIcon class="w-4 h-4 text-mid-gray shrink-0" />
                   </button>
-                </div>
-                <div class="flex flex-col gap-[0.35rem]">
+
                   <div
-                    v-for="(t, idx) in form.toolPermission.list"
-                    :key="`tool-${idx}`"
-                    class="flex items-center gap-2 px-[0.6rem] py-[0.5rem] border border-[var(--color-border)] rounded-sm bg-light transition-colors duration-[0.15s] ease hover:border-mid-gray"
+                    v-if="toolDropdownOpen"
+                    class="absolute top-full left-0 right-0 mt-1 z-50 bg-white border border-[var(--color-border)] rounded-sm shadow-lg max-h-[300px] flex flex-col"
                   >
-                    <Bars3Icon class="w-3 h-3 text-mid-gray shrink-0" />
-                    <input
-                      v-model="(form.toolPermission.list || [])[idx]"
-                      class="flex-1 border-none bg-none font-body text-sm text-dark outline-none p-0"
-                    />
-                    <button
-                      type="button"
-                      class="bg-none border-none cursor-pointer text-mid-gray p-[0.15rem] flex items-center justify-center rounded transition-all duration-[0.15s] ease shrink-0 hover:text-danger hover:bg-[rgba(196,91,91,0.08)]"
-                      @click="removeTool(idx)"
-                    >
-                      <XMarkIcon class="w-[14px] h-[14px]" />
-                    </button>
+                    <div class="p-2 border-b border-[var(--color-border)]">
+                      <input
+                        v-model="toolSearch"
+                        placeholder="Search tools..."
+                        class="w-full px-[0.6rem] py-[0.4rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none focus:border-primary"
+                      />
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto p-1">
+                      <label
+                        class="flex items-center gap-2 px-[0.5rem] py-[0.35rem] rounded-sm cursor-pointer hover:bg-light-gray transition-colors duration-[0.1s] ease"
+                      >
+                        <input
+                          type="checkbox"
+                          :checked="isWildcard"
+                          class="accent-primary"
+                          @change="isWildcard ? clearAllTools() : selectAllTools()"
+                        />
+                        <span class="font-heading text-sm font-medium text-dark">All tools (*)</span>
+                      </label>
+
+                      <label
+                        v-for="tool in filteredTools"
+                        :key="tool.name"
+                        class="flex items-center gap-2 px-[0.5rem] py-[0.35rem] rounded-sm cursor-pointer hover:bg-light-gray transition-colors duration-[0.1s] ease"
+                        :class="{ 'opacity-50 pointer-events-none': isWildcard }"
+                      >
+                        <input
+                          type="checkbox"
+                          :checked="isToolSelected(tool.name)"
+                          :disabled="isWildcard"
+                          class="accent-primary"
+                          @change="toggleTool(tool.name)"
+                        />
+                        <span class="flex-1 font-body text-sm text-dark">{{ tool.name }}</span>
+                        <span class="font-heading text-[0.65rem] text-mid-gray uppercase tracking-[0.04em]">{{ tool.owner }}</span>
+                      </label>
+
+                      <div
+                        v-if="filteredTools.length === 0"
+                        class="text-center py-6 text-mid-gray font-body text-sm italic"
+                      >
+                        No tools match
+                      </div>
+                    </div>
+
+                    <div class="flex items-center justify-between px-3 py-2 border-t border-[var(--color-border)] bg-[#FAF8F3]">
+                      <span class="font-heading text-xs text-mid-gray">
+                        {{ isWildcard ? 'All' : (form.toolPermission.list?.length ?? 0) }} selected
+                      </span>
+                      <button
+                        type="button"
+                        class="text-xs font-heading font-medium text-primary hover:underline cursor-pointer bg-none border-none"
+                        @click="isWildcard ? clearAllTools() : selectAllTools()"
+                      >
+                        {{ isWildcard ? 'Deselect all' : 'Select all' }}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -336,7 +383,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useWebSocket } from '@/composables/useWebSocket';
 import { useToast } from '@/composables/useToast';
 import {
@@ -345,6 +392,7 @@ import {
   InformationCircleIcon,
   PlusIcon,
   Bars3Icon,
+  ChevronUpDownIcon,
 } from '@heroicons/vue/24/outline';
 import type { Role, ToolPermission } from '@/types/api';
 
@@ -361,6 +409,17 @@ interface ModelOption {
 }
 
 const modelOptions = ref<ModelOption[]>([]);
+
+interface ToolInfo {
+  name: string;
+  description: string;
+  owner: string;
+}
+
+const allTools = ref<ToolInfo[]>([]);
+const toolDropdownOpen = ref(false);
+const toolSearch = ref('');
+const toolDropdownRef = ref<HTMLElement | null>(null);
 const form = ref<Role>({
   id: '',
   description: '',
@@ -407,9 +466,20 @@ async function loadModelOptions() {
   }
 }
 
+async function loadTools() {
+  if (allTools.value.length > 0) return;
+  try {
+    const data = await ws.send('get_tools');
+    allTools.value = Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.error('Failed to load tools', err);
+  }
+}
+
 function openEditor(role: Role) {
   creating.value = false;
   editingRole.value = role;
+  void loadTools();
   form.value = JSON.parse(JSON.stringify(role));
   if (!form.value.toolPermission) {
     form.value.toolPermission = { mode: 'allowlist', list: [] };
@@ -436,26 +506,69 @@ function openCreate() {
     skills: [],
     enabled: true,
   };
+  void loadTools();
 }
 
 function isValidToolPermissionMode(mode: string): mode is ToolPermission['mode'] {
   return mode === 'allowlist' || mode === 'denylist';
 }
 
+const filteredTools = computed(() => {
+  const q = toolSearch.value.toLowerCase();
+  return allTools.value.filter(t => !q || t.name.toLowerCase().includes(q));
+});
+
+const isWildcard = computed(() =>
+  form.value.toolPermission.list?.length === 1 && form.value.toolPermission.list[0] === '*'
+);
+
+const toolSelectionLabel = computed(() => {
+  if (isWildcard.value) return 'All tools (*)';
+  const n = form.value.toolPermission.list?.length ?? 0;
+  return n === 0 ? 'Select tools' : `${n} tool${n > 1 ? 's' : ''} selected`;
+});
+
+function isToolSelected(name: string): boolean {
+  return form.value.toolPermission.list?.includes(name) ?? false;
+}
+
+function toggleTool(name: string) {
+  if (!form.value.toolPermission.list) form.value.toolPermission.list = [];
+  const idx = form.value.toolPermission.list.indexOf(name);
+  if (idx >= 0) {
+    form.value.toolPermission.list.splice(idx, 1);
+  } else {
+    form.value.toolPermission.list.push(name);
+  }
+}
+
+function selectAllTools() {
+  form.value.toolPermission.list = ['*'];
+}
+
+function clearAllTools() {
+  form.value.toolPermission.list = [];
+}
+
+function toggleToolDropdown() {
+  toolDropdownOpen.value = !toolDropdownOpen.value;
+  if (toolDropdownOpen.value) toolSearch.value = '';
+}
+
+function closeToolDropdown() {
+  toolDropdownOpen.value = false;
+}
+
+function handleClickOutside(e: MouseEvent) {
+  const el = toolDropdownRef.value;
+  if (toolDropdownOpen.value && el && !el.contains(e.target as Node)) {
+    closeToolDropdown();
+  }
+}
+
 function closeEditor() {
   editingRole.value = null;
   creating.value = false;
-}
-
-function addTool() {
-  if (!form.value.toolPermission.list) {
-    form.value.toolPermission.list = [];
-  }
-  form.value.toolPermission.list.push('');
-}
-
-function removeTool(idx: number) {
-  form.value.toolPermission.list?.splice(idx, 1);
 }
 
 function addSkill() {
@@ -493,5 +606,10 @@ async function saveRole() {
 onMounted(() => {
   loadRoles();
   loadModelOptions();
+  document.addEventListener('click', handleClickOutside);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
 });
 </script>
