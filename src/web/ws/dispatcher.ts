@@ -35,105 +35,113 @@ export async function dispatchMessage(
     switch (msg.type) {
       // 会话
       case 'get_sessions':
-        return { type: msg.type, ok: true, data: await getSessions(deps) };
+        return okResponse(msg, await getSessions(deps));
       case 'get_messages': {
         const sessionId = extractStringData(msg.data, 'sessionId');
-        return { type: msg.type, ok: true, data: await getSessionMessages(deps, sessionId) };
+        return okResponse(msg, await getSessionMessages(deps, sessionId));
       }
 
       // 配置
       case 'get_config':
-        return { type: msg.type, ok: true, data: getConfig(deps) };
+        return okResponse(msg, getConfig(deps));
       case 'get_config_schema':
-        return { type: msg.type, ok: true, data: getConfigSchema() };
+        return okResponse(msg, getConfigSchema());
       case 'update_config': {
         await updateConfig(deps, msg.data as Record<string, unknown>);
-        return { type: msg.type, ok: true };
+        return okResponse(msg);
       }
 
       // Cron
       case 'get_cron':
-        return { type: msg.type, ok: true, data: await getCronJobs(deps) };
+        return okResponse(msg, await getCronJobs(deps));
       case 'get_cron_runs': {
         const jobId = extractStringData(msg.data, 'jobId');
-        return { type: msg.type, ok: true, data: await getCronJobRuns(deps, jobId) };
+        return okResponse(msg, await getCronJobRuns(deps, jobId));
       }
 
       // 角色
       case 'get_roles':
-        return { type: msg.type, ok: true, data: getRoles(deps) };
+        return okResponse(msg, getRoles(deps));
       case 'get_role': {
         const roleId = extractStringData(msg.data, 'id');
-        return { type: msg.type, ok: true, data: getRole(deps, roleId) };
+        return okResponse(msg, getRole(deps, roleId));
       }
       case 'create_role': {
         const data = await createRole(deps, msg.data as Parameters<typeof createRole>[1]);
-        return { type: msg.type, ok: true, data };
+        return okResponse(msg, data);
       }
       case 'update_role': {
         const { id: roleUpdateId, ...body } = msg.data as { id: string } & Record<string, unknown>;
         const data = await updateRole(deps, roleUpdateId, body as Parameters<typeof updateRole>[2]);
-        return { type: msg.type, ok: true, data };
+        return okResponse(msg, data);
       }
       case 'delete_role': {
         const deleteId = extractStringData(msg.data, 'id');
         await deleteRole(deps, deleteId);
-        return { type: msg.type, ok: true };
+        return okResponse(msg);
       }
 
       // 渠道
       case 'get_channels':
-        return { type: msg.type, ok: true, data: deps.channelManager.getRegisteredChannels() };
+        return okResponse(msg, deps.channelManager.getRegisteredChannels());
 
       // 插件
       case 'get_plugins':
-        return { type: msg.type, ok: true, data: await deps.pluginManager.getPluginDefinitions() };
+        return okResponse(msg, await deps.pluginManager.getPluginDefinitions());
 
       // 状态
       case 'get_status':
-        return { type: msg.type, ok: true, data: getStatus(deps) };
+        return okResponse(msg, getStatus(deps));
 
       // 用量
       case 'get_usage':
-        return {
-          type: msg.type,
-          ok: true,
-          data: await getUsage(deps, msg.data as Parameters<typeof getUsage>[1]),
-        };
+        return okResponse(msg, await getUsage(deps, msg.data as Parameters<typeof getUsage>[1]));
       case 'get_usage_today':
-        return { type: msg.type, ok: true, data: await getUsageToday(deps) };
+        return okResponse(msg, await getUsageToday(deps));
       case 'get_usage_tools':
-        return {
-          type: msg.type,
-          ok: true,
-          data: await getUsageTools(deps, msg.data as Parameters<typeof getUsageTools>[1]),
-        };
+        return okResponse(
+          msg,
+          await getUsageTools(deps, msg.data as Parameters<typeof getUsageTools>[1]),
+        );
 
       // 日志
       case 'get_logs':
-        return {
-          type: msg.type,
-          ok: true,
-          data: getLogs(msg.data as Parameters<typeof getLogs>[0]),
-        };
+        return okResponse(msg, getLogs(msg.data as Parameters<typeof getLogs>[0]));
 
       // 工具
       case 'get_tools':
-        return { type: msg.type, ok: true, data: getTools(deps) };
+        return okResponse(msg, getTools(deps));
 
       // 技能
       case 'get_skills':
-        return { type: msg.type, ok: true, data: getSkills(deps) };
+        return okResponse(msg, getSkills(deps));
 
       default:
         logger.warn('未知消息类型', { type: msg.type });
-        return { type: msg.type, ok: false, error: `未知消息类型: ${msg.type}` };
+        return errorResponse(msg, `未知消息类型: ${msg.type}`);
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error('处理 WS 消息失败', { type: msg.type, error: message });
-    return { type: msg.type, ok: false, error: message };
+    return errorResponse(msg, message);
   }
+}
+
+function okResponse(msg: WsMessage, data?: unknown): WsResponse {
+  const response: WsResponse =
+    msg.requestId === undefined
+      ? { type: msg.type, ok: true }
+      : { type: msg.type, requestId: msg.requestId, ok: true };
+  if (data !== undefined) {
+    response.data = data;
+  }
+  return response;
+}
+
+function errorResponse(msg: WsMessage, error: string): WsResponse {
+  return msg.requestId === undefined
+    ? { type: msg.type, ok: false, error }
+    : { type: msg.type, requestId: msg.requestId, ok: false, error };
 }
 
 function extractStringData(data: unknown, key: string): string {

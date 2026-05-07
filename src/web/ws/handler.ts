@@ -137,6 +137,13 @@ async function handleWsMessage(
     ws.send(JSON.stringify(response));
   } catch (err) {
     logger.error('处理 WS 消息时未捕获错误', err);
-    ws.send(JSON.stringify({ type: msg.type, ok: false, error: '内部服务器错误' }));
+    ws.send(
+      JSON.stringify({
+        type: msg.type,
+        requestId: msg.requestId,
+        ok: false,
+        error: '内部服务器错误',
+      }),
+    );
   }
 }

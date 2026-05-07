@@ -14,8 +14,14 @@ import { ref } from 'vue';
 
 type MessageHandler = (data: unknown) => void;
 
-export type WsMessage = { type: string; data?: unknown };
-export type WsResponse = { type: string; ok: boolean; data?: unknown; error?: string };
+export type WsMessage = { type: string; requestId?: string; data?: unknown };
+export type WsResponse = {
+  type: string;
+  requestId?: string;
+  ok: boolean;
+  data?: unknown;
+  error?: string;
+};
 
 class WebSocketClient {
   private ws: WebSocket | null = null;
@@ -24,6 +30,7 @@ class WebSocketClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setTimeout> | null = null;
   private destroyed = false;
+  private requestSeq = 0;
 
   /** 连接状态 */
   readonly connected = ref<boolean>(false);
@@ -31,7 +38,7 @@ class WebSocketClient {
   /** 消息处理器映射：type -> handler[] */
   private handlers = new Map<string, Set<MessageHandler>>();
 
-  /** 待处理的请求：type -> { resolve, reject, timer } */
+  /** 待处理的请求：requestId -> { resolve, reject, timer } */
   private pending = new Map<
     string,
     {
@@ -46,7 +53,10 @@ class WebSocketClient {
    * 如果已有连接则先关闭。
    */
   connect(token: string): void {
-    if (this.token === token && (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING)) {
+    if (
+      this.token === token &&
+      (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING)
+    ) {
       return; // 已连接或正在连接且 token 相同
     }
 
@@ -63,16 +73,21 @@ class WebSocketClient {
    */
   send(type: string, data?: unknown, timeoutMs = 15_000): Promise<unknown> {
     return new Promise((resolve, reject) => {
+      const requestId = this.nextRequestId();
       let cancelled = false;
       const timer = setTimeout(() => {
         cancelled = true;
-        this.pending.delete(type);
+        this.pending.delete(requestId);
         reject(new Error(`请求超时: ${type}`));
       }, timeoutMs);
 
       const trySend = () => {
         if (cancelled) return;
-        if (!this.ws || this.ws.readyState === WebSocket.CLOSED || this.ws.readyState === WebSocket.CLOSING) {
+        if (
+          !this.ws ||
+          this.ws.readyState === WebSocket.CLOSED ||
+          this.ws.readyState === WebSocket.CLOSING
+        ) {
           clearTimeout(timer);
           reject(new Error('WebSocket 未连接'));
           return;
@@ -82,8 +97,8 @@ class WebSocketClient {
           return;
         }
         // OPEN
-        this.pending.set(type, { resolve, reject, timer });
-        this.ws.send(JSON.stringify({ type, data }));
+        this.pending.set(requestId, { resolve, reject, timer });
+        this.ws.send(JSON.stringify({ type, requestId, data }));
       };
       trySend();
     });
@@ -183,10 +198,10 @@ class WebSocketClient {
         }
 
         // 处理待处理请求的响应
-        const pending = this.pending.get(response.type);
+        const pending = response.requestId ? this.pending.get(response.requestId) : undefined;
         if (pending !== undefined) {
           clearTimeout(pending.timer);
-          this.pending.delete(response.type);
+          this.pending.delete(response.requestId as string);
           if (response.ok) {
             pending.resolve(response.data);
           } else {
@@ -253,6 +268,11 @@ class WebSocketClient {
       pending.reject(error);
     }
     this.pending.clear();
+  }
+
+  private nextRequestId(): string {
+    this.requestSeq += 1;
+    return `req-${Date.now()}-${this.requestSeq}`;
   }
 }
 

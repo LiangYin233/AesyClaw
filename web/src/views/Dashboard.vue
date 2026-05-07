@@ -263,7 +263,7 @@ function yesterdayStr(): string {
 
 async function load() {
   try {
-    const statusData = await ws.send('get_status') as Record<string, unknown>;
+    const statusData = (await ws.send('get_status')) as Record<string, unknown>;
     uptime.value = (statusData['uptime'] as number) ?? 0;
     channels.value = (statusData['channels'] as ChannelStatus[]) ?? [];
     const db = statusData['database'] as Record<string, number> | undefined;
@@ -285,9 +285,13 @@ function handleStatusChanged(data: unknown) {
   }
 }
 
-watch(() => ws.connected.value, (connected) => {
-  if (connected) load();
-});
+watch(
+  () => ws.connected.value,
+  (connected) => {
+    if (connected) load();
+  },
+  { immediate: true },
+);
 
 onMounted(() => {
   ws.on('status_changed', handleStatusChanged);
