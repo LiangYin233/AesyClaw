@@ -116,6 +116,44 @@ afterEach(() => {
 });
 
 describe('Agent worker lifecycle', () => {
+  it('assigns unique session ids to parallel workers', async () => {
+    const dateNow = vi.spyOn(Date, 'now').mockReturnValue(1234567890);
+    const agent = makeAgent();
+    const role = makeRole();
+
+    const turn1 = agent.runTurn(role, 'first turn', [], agent.session.key);
+    await Promise.resolve();
+
+    const turn2 = agent.runTurn(role, 'second turn', [], agent.session.key);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    try {
+      const worker1Init = getWorker(0).messages.find(
+        (message) =>
+          typeof message === 'object' &&
+          message !== null &&
+          (message as { type?: string }).type === 'init',
+      ) as { sessionId?: string } | undefined;
+      const worker2Init = getWorker(1).messages.find(
+        (message) =>
+          typeof message === 'object' &&
+          message !== null &&
+          (message as { type?: string }).type === 'init',
+      ) as { sessionId?: string } | undefined;
+
+      expect(worker1Init?.sessionId).toBeDefined();
+      expect(worker2Init?.sessionId).toBeDefined();
+      expect(worker1Init?.sessionId).not.toBe(worker2Init?.sessionId);
+    } finally {
+      dateNow.mockRestore();
+      Agent.cancel(agent.session.key);
+      getWorker(0).finishTermination(1);
+      getWorker(1).finishTermination(1);
+      await Promise.allSettled([turn1, turn2]);
+    }
+  });
+
   it('keeps parallel workers active for the same session', async () => {
     const agent = makeAgent();
     const role = makeRole();
@@ -132,7 +170,7 @@ describe('Agent worker lifecycle', () => {
       expect(getWorker(1).terminateCalls).toBe(0);
       expect(activeWorkersSize()).toBe(2);
     } finally {
-      agent.cancel();
+      Agent.cancel(agent.session.key);
       getWorker(0).finishTermination(1);
       getWorker(1).finishTermination(1);
       await Promise.allSettled([turn1, turn2]);
@@ -169,7 +207,7 @@ describe('Agent worker lifecycle', () => {
     const turn = agent.runTurn(role, 'turn', [], agent.session.key);
     await Promise.resolve();
 
-    agent.cancel();
+    Agent.cancel(agent.session.key);
     await Promise.resolve();
     await Promise.resolve();
 

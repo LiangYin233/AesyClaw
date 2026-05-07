@@ -134,7 +134,7 @@ async function handleWsMessage(
   // 分发消息到对应的 service handler
   try {
     const response = await dispatchMessage(msg, deps);
-    ws.send(JSON.stringify(response));
+    ws.send(JSON.stringify({ ...response, requestId: msg.requestId }));
   } catch (err) {
     logger.error('处理 WS 消息时未捕获错误', err);
     ws.send(

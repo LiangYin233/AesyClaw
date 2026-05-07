@@ -1,12 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
-import type {
-  RoleConfig,
-  Message,
-  SessionKey,
-  Skill,
-} from '@aesyclaw/core/types';
+import type { RoleConfig, Message, SessionKey, Skill } from '@aesyclaw/core/types';
 import { serializeSessionKey, getMessageText } from '@aesyclaw/core/types';
 import type { AgentMessage, ResolvedModel, AgentTool } from './agent-types';
 import { extractMessageText } from './agent-types';
@@ -43,7 +38,7 @@ type BuildPromptResult = {
 
 export class Agent {
   static activeAgents = new Map<string, Agent>();
-  private static activeWorkers = new Map<string, { worker: Worker; sessionKey: SessionKey }>();
+  private static activeWorkers = new Map<string, { worker: Worker; sessionKeyId: string }>();
 
   readonly session: Session;
   roleId?: string;
@@ -163,7 +158,8 @@ export class Agent {
     const toolMap = new Map(tools.map((t) => [t.name, t]));
     const worker = new Worker(WORKER_PATH);
     const runId = randomUUID();
-    Agent.activeWorkers.set(runId, { worker, sessionKey });
+    const sessionKeyId = serializeSessionKey(sessionKey);
+    Agent.activeWorkers.set(runId, { worker, sessionKeyId });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let onMessage: ((msg: any) => void) | undefined;
@@ -264,7 +260,7 @@ export class Agent {
           history,
           content,
           extraBody: model.extraBody,
-          sessionId: `worker:${role.id}:${Date.now()}`,
+          sessionId: `worker:${role.id}:${runId}`,
         });
       });
 
@@ -285,10 +281,6 @@ export class Agent {
     }
   }
 
-  cancel(): number {
-    return Agent.cancelWorkersForSession(this.session.key);
-  }
-
   static cancel(sessionKey: SessionKey): boolean {
     const cancelledWorkers = Agent.cancelWorkersForSession(sessionKey);
     if (cancelledWorkers === 0) return false;
@@ -301,7 +293,7 @@ export class Agent {
     let cancelledWorkers = 0;
 
     for (const [runId, entry] of Agent.activeWorkers) {
-      if (serializeSessionKey(entry.sessionKey) !== serializedSessionKey) {
+      if (entry.sessionKeyId !== serializedSessionKey) {
         continue;
       }
 

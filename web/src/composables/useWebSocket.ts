@@ -6,7 +6,6 @@
  * const ws = useWebSocket();
  * ws.connect(token);
  * const result = await ws.send('get_status');
- * ws.on('status_changed', handler);
  * ```
  */
 

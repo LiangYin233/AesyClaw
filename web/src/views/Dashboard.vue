@@ -181,7 +181,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useWebSocket } from '@/composables/useWebSocket';
 import {
   UsersIcon,
@@ -278,13 +278,6 @@ async function load() {
   }
 }
 
-function handleStatusChanged(data: unknown) {
-  const payload = data as Record<string, unknown>;
-  if (payload) {
-    load();
-  }
-}
-
 watch(
   () => ws.connected.value,
   (connected) => {
@@ -292,12 +285,4 @@ watch(
   },
   { immediate: true },
 );
-
-onMounted(() => {
-  ws.on('status_changed', handleStatusChanged);
-});
-
-onUnmounted(() => {
-  ws.off('status_changed', handleStatusChanged);
-});
 </script>

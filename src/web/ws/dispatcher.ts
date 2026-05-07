@@ -128,10 +128,7 @@ export async function dispatchMessage(
 }
 
 function okResponse(msg: WsMessage, data?: unknown): WsResponse {
-  const response: WsResponse =
-    msg.requestId === undefined
-      ? { type: msg.type, ok: true }
-      : { type: msg.type, requestId: msg.requestId, ok: true };
+  const response: WsResponse = { type: msg.type, ok: true };
   if (data !== undefined) {
     response.data = data;
   }
@@ -139,9 +136,7 @@ function okResponse(msg: WsMessage, data?: unknown): WsResponse {
 }
 
 function errorResponse(msg: WsMessage, error: string): WsResponse {
-  return msg.requestId === undefined
-    ? { type: msg.type, ok: false, error }
-    : { type: msg.type, requestId: msg.requestId, ok: false, error };
+  return { type: msg.type, ok: false, error };
 }
 
 function extractStringData(data: unknown, key: string): string {
