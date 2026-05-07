@@ -63,22 +63,29 @@ class WebSocketClient {
    */
   send(type: string, data?: unknown, timeoutMs = 15_000): Promise<unknown> {
     return new Promise((resolve, reject) => {
-      if (this.ws?.readyState !== WebSocket.OPEN) {
-        reject(new Error('WebSocket 未连接'));
-        return;
-      }
-
-      // 注册待处理请求
       const timer = setTimeout(() => {
         this.pending.delete(type);
         reject(new Error(`请求超时: ${type}`));
       }, timeoutMs);
 
-      this.pending.set(type, { resolve, reject, timer });
+      const doSend = () => {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+          clearTimeout(timer);
+          reject(new Error('WebSocket 未连接'));
+          return;
+        }
+        this.pending.set(type, { resolve, reject, timer });
+        this.ws.send(JSON.stringify({ type, data }));
+      };
 
-      // 发送消息
-      const msg: WsMessage = { type, data };
-      this.ws.send(JSON.stringify(msg));
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        doSend();
+      } else if (this.ws && this.ws.readyState === WebSocket.CONNECTING) {
+        this.ws.addEventListener('open', () => doSend(), { once: true });
+      } else {
+        clearTimeout(timer);
+        reject(new Error('WebSocket 未连接'));
+      }
     });
   }
 
