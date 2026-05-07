@@ -50,14 +50,32 @@ export class ConfigManager {
    * 构造时自动初始化 —— 解析路径、创建目录、加载配置。
    *
    * @param root - 项目根目录，默认 process.cwd()
+   * @throws 配置或角色文件加载失败时抛出异常
    */
   constructor(root: string = process.cwd()) {
     this.paths = resolvePaths(root);
     this.ensureRuntimeDirs();
-    this.configStore = this.loadConfig();
-    this.rolesStore = this.loadRoles();
-    this.lastKnownConfig = this.readValidatedConfigFromStore();
-    this.lastKnownRoles = this.readValidatedRolesFromStore();
+
+    // 加载配置文件
+    try {
+      const loaded = this.loadConfig();
+      this.configStore = loaded.store;
+      this.lastKnownConfig = loaded.config;
+    } catch (err) {
+      logger.error('加载配置失败', err);
+      throw err;
+    }
+
+    // 加载角色文件
+    try {
+      const loaded = this.loadRoles();
+      this.rolesStore = loaded.store;
+      this.lastKnownRoles = loaded.roles;
+    } catch (err) {
+      logger.error('加载角色配置失败', err);
+      throw err;
+    }
+
     logger.info('配置已加载', {
       configFile: this.paths.configFile,
       rolesFile: this.paths.rolesFile,
@@ -82,7 +100,10 @@ export class ConfigManager {
   }
 
   /** 加载配置文件，缺失时创建默认 */
-  private loadConfig(): Conf<Record<string, unknown>> {
+  private loadConfig(): {
+    store: Conf<Record<string, unknown>>;
+    config: AppConfig;
+  } {
     const configPath = this.paths.configFile;
     mkdirSync(dirname(configPath), { recursive: true });
 
@@ -90,15 +111,20 @@ export class ConfigManager {
       logger.info('未找到配置文件，正在使用默认值创建', { path: configPath });
       const store = this.createConfigStore(configPath);
       this.writeConfigToStore(store, DEFAULT_CONFIG);
-      return store;
+      return { store, config: structuredClone(DEFAULT_CONFIG) };
     }
 
     logger.info('正在加载配置', { path: configPath });
-    return this.createConfigStore(configPath);
+    const store = this.createConfigStore(configPath);
+    const config = this.readValidatedConfigFromStore(store);
+    return { store, config };
   }
 
   /** 加载角色文件，缺失时创建默认 */
-  private loadRoles(): Conf<Record<string, unknown>> {
+  private loadRoles(): {
+    store: Conf<Record<string, unknown>>;
+    roles: readonly RoleConfig[];
+  } {
     const rolesPath = this.paths.rolesFile;
     mkdirSync(dirname(rolesPath), { recursive: true });
 
@@ -106,11 +132,13 @@ export class ConfigManager {
       logger.info('未找到角色配置文件，正在使用默认值创建', { path: rolesPath });
       const store = this.createRolesStore(rolesPath);
       this.writeRolesToStore(store, DEFAULT_ROLES_CONFIG);
-      return store;
+      return { store, roles: structuredClone(DEFAULT_ROLES_CONFIG) };
     }
 
     logger.info('正在加载角色配置', { path: rolesPath });
-    return this.createRolesStore(rolesPath);
+    const store = this.createRolesStore(rolesPath);
+    const roles = this.readValidatedRolesFromStore(store);
+    return { store, roles };
   }
 
   /** 获取解析后的路径集合（只读） */
@@ -246,7 +274,7 @@ export class ConfigManager {
     }
 
     try {
-      const newConfig = this.readValidatedConfigFromStore();
+      const newConfig = this.readValidatedConfigFromStore(this.configStore);
       if (JSON.stringify(this.lastKnownConfig) === JSON.stringify(newConfig)) {
         logger.debug('配置文件已变更但内容相同 —— 跳过');
         return;
@@ -265,7 +293,7 @@ export class ConfigManager {
     }
 
     try {
-      const newRoles = this.readValidatedRolesFromStore();
+      const newRoles = this.readValidatedRolesFromStore(this.rolesStore);
       if (JSON.stringify(this.lastKnownRoles) === JSON.stringify(newRoles)) {
         logger.debug('角色配置文件已变更但内容相同 —— 跳过');
         return;
@@ -335,8 +363,8 @@ export class ConfigManager {
     return validated as T;
   }
 
-  private readValidatedConfigFromStore(): AppConfig {
-    const parsed = this.configStore.store;
+  private readValidatedConfigFromStore(store: Conf<Record<string, unknown>>): AppConfig {
+    const parsed = store.store;
     if (!isRecord(parsed)) {
       throw new Error('配置验证失败');
     }
@@ -361,14 +389,14 @@ export class ConfigManager {
         missing: missingFields.join(', '),
       });
 
-      this.writeConfigToStore(this.configStore, validated);
+      this.writeConfigToStore(store, validated);
     }
 
     return validated;
   }
 
-  private readValidatedRolesFromStore(): RoleConfig[] {
-    const raw = this.rolesStore.store[this.ROLES_STORE_KEY];
+  private readValidatedRolesFromStore(store: Conf<Record<string, unknown>>): RoleConfig[] {
+    const raw = store.store[this.ROLES_STORE_KEY];
     const validated = this.validateWithSchema<RoleConfig[]>(RolesConfigSchema, raw, '角色配置');
     const roles = normaliseRoles(validated);
     this.assertUniqueRoleIds(roles);
@@ -532,7 +560,8 @@ function setPathValue(root: Record<string, unknown>, path: string, value: unknow
   if (leaf === undefined) {
     throw new Error('配置路径不能为空');
   }
-  current[leaf] = structuredClone(value);
+  // 注意：调用方已 clone 整个 config，此处直接赋值
+  current[leaf] = value;
 }
 
 function normaliseRoles(roles: readonly RoleConfig[]): RoleConfig[] {
