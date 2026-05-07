@@ -11,7 +11,6 @@ import { DEFAULT_CONFIG } from './config/defaults';
 import type { DatabaseManager } from './database/database-manager';
 import { createScopedLogger, setLogLevel } from './logger';
 import { resolvePaths, type ResolvedPaths } from './path-resolver';
-import type { Unsubscribe } from './types';
 import type { CronManager } from '@aesyclaw/cron/cron-manager';
 import type { McpManager } from '@aesyclaw/mcp/mcp-manager';
 import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
@@ -43,7 +42,6 @@ export class CoreLifecycle {
   private deps: CoreLifecycleDependencies | null = null;
   private _paths: ResolvedPaths | null = null;
   private extensionManager: ExtensionManager | null = null;
-  private unsubscribers: Unsubscribe[] = [];
   private shuttingDown = false;
 
   private get paths(): ResolvedPaths {
@@ -82,7 +80,6 @@ export class CoreLifecycle {
     const steps: Array<() => Promise<void> | void> = [
       () => this.resolvedDeps.configManager.stopHotReload(),
       () => this.resolvedDeps.roleManager.destroy(),
-      () => this.clearConfigSubscriptions(),
       () => this.resolvedDeps.webUiManager.destroy(),
       () => this.extensionManager?.destroy(),
       () => this.resolvedDeps.mcpManager.disconnectAll(),
@@ -139,7 +136,7 @@ export class CoreLifecycle {
       configPath: this.paths.configFile,
       rolesPath: this.paths.rolesFile,
     });
-    setLogLevel(this.resolvedDeps.configManager.getConfig().server.logLevel);
+    setLogLevel(this.resolvedDeps.configManager.get('server.logLevel') as string);
     logger.info('配置已加载');
   }
 
@@ -196,9 +193,9 @@ export class CoreLifecycle {
   }
 
   private async initPeripheralRuntime(): Promise<void> {
-    const mcpConfig = this.resolvedDeps.configManager.get('mcp');
+    const mcpConfig = this.resolvedDeps.configManager.get('mcp') as typeof DEFAULT_CONFIG.mcp;
     if (mcpConfig.length === 0) {
-      await this.resolvedDeps.configManager.update({ mcp: DEFAULT_CONFIG.mcp });
+      await this.resolvedDeps.configManager.set('mcp', DEFAULT_CONFIG.mcp);
     }
 
     await this.resolvedDeps.mcpManager.connectAll();
@@ -228,8 +225,6 @@ export class CoreLifecycle {
 
   private async installHotReload(): Promise<void> {
     await this.resolvedDeps.configManager.syncDefaults();
-    this.installConfigSubscriptions();
-
     this.resolvedDeps.configManager.startHotReload();
   }
 
@@ -241,37 +236,6 @@ export class CoreLifecycle {
       logger.error(`启动步骤 "${name}" 失败`, err);
       await this.stop();
       throw err;
-    }
-  }
-
-  private installConfigSubscriptions(): void {
-    this.clearConfigSubscriptions();
-    this.unsubscribers.push(
-      this.resolvedDeps.configManager.subscribe('server', (server) => {
-        setLogLevel(server.logLevel);
-      }),
-      this.resolvedDeps.configManager.subscribe('plugins', async () => {
-        await this.extensionManager?.reloadPlugins();
-      }),
-      this.resolvedDeps.configManager.subscribe('mcp', async () => {
-        await this.resolvedDeps.mcpManager.handleConfigReload();
-      }),
-      this.resolvedDeps.configManager.subscribe('channels', async () => {
-        await this.extensionManager?.reloadChannels();
-      }),
-      this.resolvedDeps.roleManager.subscribeChanges(() => {
-        this.resolvedDeps.sessionManager.clearCache();
-      }),
-    );
-  }
-
-  private clearConfigSubscriptions(): void {
-    for (const unsubscribe of this.unsubscribers.splice(0)) {
-      try {
-        unsubscribe();
-      } catch (err) {
-        logger.error('配置取消订阅失败', err);
-      }
     }
   }
 }

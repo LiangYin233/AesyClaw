@@ -5,10 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Application } from '../../src/app';
 import { ChannelManager } from '../../src/extension/channel/channel-manager';
 import { CronManager } from '../../src/cron/cron-manager';
-import { SessionManager } from '../../src/session/manager';
 import { McpManager } from '../../src/mcp/mcp-manager';
-
-import { RoleManager } from '../../src/role/role-manager';
 import { WebUiManager } from '../../src/web/webui-manager';
 
 const TEST_ROOTS: string[] = [];
@@ -169,30 +166,6 @@ describe('Application', () => {
       await app.start();
     } finally {
       MockMcpManager.mockRestore();
-      await app.shutdown();
-    }
-  });
-
-  it('clears cached sessions when roles change', async () => {
-    const testRoot = mkdtempSync(path.join(tmpdir(), 'aesyclaw-app-test-'));
-    TEST_ROOTS.push(testRoot);
-    vi.spyOn(process, 'cwd').mockReturnValue(testRoot);
-
-    let roleChangeListener: (() => void) | null = null;
-    vi.spyOn(RoleManager.prototype, 'subscribeChanges').mockImplementation(function (listener) {
-      roleChangeListener = listener;
-      return () => {};
-    });
-
-    const clearCachedSessions = vi.spyOn(SessionManager.prototype, 'clearCache');
-    const app = new Application();
-
-    try {
-      await app.start();
-      expect(roleChangeListener).not.toBeNull();
-      roleChangeListener?.();
-      expect(clearCachedSessions).toHaveBeenCalled();
-    } finally {
       await app.shutdown();
     }
   });

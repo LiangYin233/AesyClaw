@@ -47,7 +47,7 @@ describe('RoleManager', () => {
   });
 
   async function initializeWithRoles(roles: RoleConfig[]): Promise<void> {
-    await configManager.updateRoles(roles);
+    await configManager.setRoles(roles);
     await manager.initialize({ configManager });
   }
 
@@ -163,18 +163,16 @@ describe('RoleManager', () => {
     });
   });
 
-  describe('subscribeChanges', () => {
-    it('notifies when ConfigManager roles change', async () => {
-      await initializeWithRoles([makeRole({ id: 'default' })]);
-      let callCount = 0;
-      manager.subscribeChanges(() => {
-        callCount++;
-      });
+  describe('on-demand role reading', () => {
+    it('reads latest roles from ConfigManager on demand', async () => {
+      await configManager.setRoles([makeRole({ id: 'first' })]);
+      await manager.initialize({ configManager });
 
-      await configManager.updateRoles([makeRole({ id: 'other' })]);
+      expect(manager.getAllRoles().map((role) => role.id)).toEqual(['first']);
 
-      expect(callCount).toBe(1);
-      expect(manager.getRole('other').id).toBe('other');
+      await configManager.setRoles([makeRole({ id: 'second' })]);
+
+      expect(manager.getAllRoles().map((role) => role.id)).toEqual(['second']);
     });
   });
 });
