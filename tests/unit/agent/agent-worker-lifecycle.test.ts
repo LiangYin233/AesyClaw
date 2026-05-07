@@ -116,7 +116,7 @@ afterEach(() => {
 });
 
 describe('Agent worker lifecycle', () => {
-  it('terminates the previous worker when a new turn starts for the same session', async () => {
+  it('keeps parallel workers active for the same session', async () => {
     const agent = makeAgent();
     const role = makeRole();
 
@@ -127,14 +127,39 @@ describe('Agent worker lifecycle', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(getWorker(0).terminateCalls).toBeGreaterThan(0);
+    try {
+      expect(getWorker(0).terminateCalls).toBe(0);
+      expect(getWorker(1).terminateCalls).toBe(0);
+      expect(activeWorkersSize()).toBe(2);
+    } finally {
+      agent.cancel();
+      getWorker(0).finishTermination(1);
+      getWorker(1).finishTermination(1);
+      await Promise.allSettled([turn1, turn2]);
+    }
+  });
 
-    agent.cancel();
-    getWorker(0).finishTermination(1);
-    getWorker(1).finishTermination(1);
+  it('cancels every active worker for the session', async () => {
+    const agent = makeAgent();
+    const role = makeRole();
 
-    await expect(turn1).rejects.toThrow('Agent 处理已中止');
-    await expect(turn2).rejects.toThrow('Agent 处理已中止');
+    const turn1 = agent.runTurn(role, 'first turn', [], agent.session.key);
+    await Promise.resolve();
+
+    const turn2 = agent.runTurn(role, 'second turn', [], agent.session.key);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    try {
+      expect(Agent.cancel(agent.session.key)).toBe(true);
+      expect(getWorker(0).terminateCalls).toBeGreaterThan(0);
+      expect(getWorker(1).terminateCalls).toBeGreaterThan(0);
+      expect(activeWorkersSize()).toBe(0);
+    } finally {
+      getWorker(0).finishTermination(1);
+      getWorker(1).finishTermination(1);
+      await Promise.allSettled([turn1, turn2]);
+    }
   });
 
   it('removes active workers when cancel is called', async () => {

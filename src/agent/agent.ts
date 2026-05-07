@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import type {
@@ -42,7 +43,7 @@ type BuildPromptResult = {
 
 export class Agent {
   static activeAgents = new Map<string, Agent>();
-  private static activeWorkers = new Map<string, Worker>();
+  private static activeWorkers = new Map<string, { worker: Worker; sessionKey: SessionKey }>();
 
   readonly session: Session;
   roleId?: string;
@@ -161,9 +162,8 @@ export class Agent {
 
     const toolMap = new Map(tools.map((t) => [t.name, t]));
     const worker = new Worker(WORKER_PATH);
-    const key = serializeSessionKey(sessionKey);
-    void Agent.activeWorkers.get(key)?.terminate();
-    Agent.activeWorkers.set(key, worker);
+    const runId = randomUUID();
+    Agent.activeWorkers.set(runId, { worker, sessionKey });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let onMessage: ((msg: any) => void) | undefined;
@@ -277,29 +277,44 @@ export class Agent {
       if (onMessage) worker.off('message', onMessage);
       if (onError) worker.off('error', onError);
       if (onExit) worker.off('exit', onExit);
-      if (Agent.activeWorkers.get(key) === worker) {
-        Agent.activeWorkers.delete(key);
+      const activeWorker = Agent.activeWorkers.get(runId);
+      if (activeWorker?.worker === worker) {
+        Agent.activeWorkers.delete(runId);
       }
       void worker.terminate();
     }
   }
 
-  cancel(): void {
-    const key = serializeSessionKey(this.session.key);
-    const worker = Agent.activeWorkers.get(key);
-    if (worker) {
-      Agent.activeWorkers.delete(key);
-      void worker.terminate();
-      logger.info('Agent worker 已取消', { sessionKey: this.session.key });
-    }
+  cancel(): number {
+    return Agent.cancelWorkersForSession(this.session.key);
   }
 
   static cancel(sessionKey: SessionKey): boolean {
-    const agent = Agent.activeAgents.get(serializeSessionKey(sessionKey));
-    if (!agent) return false;
-    agent.cancel();
-    logger.info('Agent 已被 /stop 命令中止', { sessionKey });
+    const cancelledWorkers = Agent.cancelWorkersForSession(sessionKey);
+    if (cancelledWorkers === 0) return false;
+    logger.info('Agent 已被 /stop 命令中止', { sessionKey, cancelledWorkers });
     return true;
+  }
+
+  private static cancelWorkersForSession(sessionKey: SessionKey): number {
+    const serializedSessionKey = serializeSessionKey(sessionKey);
+    let cancelledWorkers = 0;
+
+    for (const [runId, entry] of Agent.activeWorkers) {
+      if (serializeSessionKey(entry.sessionKey) !== serializedSessionKey) {
+        continue;
+      }
+
+      Agent.activeWorkers.delete(runId);
+      void entry.worker.terminate();
+      cancelledWorkers += 1;
+    }
+
+    if (cancelledWorkers > 0) {
+      logger.info('Agent worker 已取消', { sessionKey, cancelledWorkers });
+    }
+
+    return cancelledWorkers;
   }
 
   buildPrompt(
