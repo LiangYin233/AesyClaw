@@ -11,69 +11,57 @@ import { tmpdir } from 'node:os';
 import { ConfigManager } from '../../../../src/core/config/config-manager';
 import type { RoleConfig } from '../../../../src/core/types';
 
-const TEST_DIR = join(tmpdir(), 'aesyclaw-test-config');
+const TEST_BASE = join(tmpdir(), 'aesyclaw-test-config');
 
 describe('ConfigManager', () => {
   let manager: ConfigManager;
+  let testRoot: string;
   let configPath: string;
   let rolesPath: string;
 
   beforeEach(() => {
-    manager = new ConfigManager();
-    // Create a unique temp dir for each test
-    configPath = join(TEST_DIR, `config-${Date.now()}.json`);
-    rolesPath = join(TEST_DIR, `roles-${Date.now()}.json`);
-    if (!existsSync(TEST_DIR)) {
-      mkdirSync(TEST_DIR, { recursive: true });
-    }
+    // Create a unique temp root for each test
+    testRoot = join(TEST_BASE, `test-${Date.now()}`);
+    mkdirSync(testRoot, { recursive: true });
+    configPath = join(testRoot, '.aesyclaw', 'config.json');
+    rolesPath = join(testRoot, '.aesyclaw', 'roles.json');
+
+    // ConfigManager auto-initializes with the test root
+    manager = new ConfigManager(testRoot);
   });
 
   afterEach(() => {
     manager.stopHotReload();
-    // Clean up temp files
-    if (existsSync(configPath)) {
-      rmSync(configPath, { force: true });
-    }
-    if (existsSync(rolesPath)) {
-      rmSync(rolesPath, { force: true });
+    // Clean up temp root
+    if (existsSync(testRoot)) {
+      rmSync(testRoot, { recursive: true, force: true });
     }
   });
 
   afterAll(() => {
-    // Clean up test directory
-    if (existsSync(TEST_DIR)) {
-      rmSync(TEST_DIR, { recursive: true, force: true });
+    // Clean up test base directory
+    if (existsSync(TEST_BASE)) {
+      rmSync(TEST_BASE, { recursive: true, force: true });
     }
   });
 
   describe('load', () => {
-    it('should create a default config file if one does not exist', async () => {
-      await manager.initialize({ configPath, rolesPath });
-
+    it('should create default config and roles files if they do not exist', () => {
       expect(existsSync(configPath)).toBe(true);
       expect(manager.get('server.port')).toBe(3000);
       expect(manager.get('server.host')).toBe('0.0.0.0');
       expect(manager.get('server.logLevel')).toBe('info');
     });
 
-    it('should persist to the exact configPath provided by callers', async () => {
-      configPath = join(TEST_DIR, 'custom-location', `provided-${Date.now()}.json`);
-
-      await manager.initialize({ configPath, rolesPath });
-
-      expect(existsSync(configPath)).toBe(true);
-      expect(JSON.parse(readFileSync(configPath, 'utf-8'))).toMatchObject({
-        server: { port: 3000, host: '0.0.0.0', logLevel: 'info' },
-      });
-
-      await manager.set('server.port', 4567);
-
-      expect(JSON.parse(readFileSync(configPath, 'utf-8'))).toMatchObject({
-        server: { port: 4567, host: '0.0.0.0', logLevel: 'info' },
-      });
+    it('should create runtime directories', () => {
+      expect(existsSync(join(testRoot, '.aesyclaw'))).toBe(true);
+      expect(existsSync(join(testRoot, '.aesyclaw', 'data'))).toBe(true);
+      expect(existsSync(join(testRoot, '.aesyclaw', 'media'))).toBe(true);
+      expect(existsSync(join(testRoot, '.aesyclaw', 'workspace'))).toBe(true);
     });
 
-    it('should load an existing config file', async () => {
+    it('should load an existing config file', () => {
+      // Write config before creating manager
       const existingConfig = {
         server: { port: 8080, host: 'localhost', logLevel: 'debug' },
         providers: {},
@@ -88,22 +76,25 @@ describe('ConfigManager', () => {
         mcp: [],
         plugins: [],
       };
-
+      mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
       writeFileSync(configPath, JSON.stringify(existingConfig, null, 2));
 
-      await manager.initialize({ configPath, rolesPath });
+      // Create new manager that loads existing config
+      manager.stopHotReload();
+      manager = new ConfigManager(testRoot);
 
       expect(manager.get('server.port')).toBe(8080);
       expect(manager.get('server.host')).toBe('localhost');
     });
 
-    it('should throw on invalid JSON', async () => {
+    it('should throw on invalid JSON', () => {
+      mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
       writeFileSync(configPath, 'not json');
 
-      await expect(manager.initialize({ configPath, rolesPath })).rejects.toThrow();
+      expect(() => new ConfigManager(testRoot)).toThrow();
     });
 
-    it('should reject explicitly invalid values instead of coercing them', async () => {
+    it('should reject explicitly invalid values instead of coercing them', () => {
       const invalidConfig = {
         server: { port: '3000', host: 'localhost', logLevel: 'info' },
         providers: {},
@@ -118,13 +109,13 @@ describe('ConfigManager', () => {
         mcp: [],
         plugins: [],
       };
-
+      mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
       writeFileSync(configPath, JSON.stringify(invalidConfig, null, 2));
 
-      await expect(manager.initialize({ configPath, rolesPath })).rejects.toBeInstanceOf(Error);
+      expect(() => new ConfigManager(testRoot)).toThrow();
     });
 
-    it('should still fill defaults for missing optional fields', async () => {
+    it('should still fill defaults for missing optional fields', () => {
       const partialConfig = {
         server: { port: 8080, host: 'localhost', logLevel: 'debug' },
         providers: {},
@@ -139,10 +130,11 @@ describe('ConfigManager', () => {
         mcp: [{ name: 'local', transport: 'stdio' }],
         plugins: [{ name: 'example-plugin' }],
       };
-
+      mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
       writeFileSync(configPath, JSON.stringify(partialConfig, null, 2));
 
-      await manager.initialize({ configPath, rolesPath });
+      manager.stopHotReload();
+      manager = new ConfigManager(testRoot);
 
       const mcp = manager.get('mcp') as Array<{ enabled?: boolean }>;
       const plugins = manager.get('plugins') as Array<{ enabled?: boolean }>;
@@ -162,9 +154,7 @@ describe('ConfigManager', () => {
       enabled: true,
     };
 
-    it('should create a default roles file if one does not exist', async () => {
-      await manager.initialize({ configPath, rolesPath });
-
+    it('should create a default roles file if one does not exist', () => {
       expect(existsSync(rolesPath)).toBe(true);
       expect(manager.getRoles()).toEqual([
         expect.objectContaining({ id: 'default', enabled: true }),
@@ -174,42 +164,40 @@ describe('ConfigManager', () => {
       ]);
     });
 
-    it('should load an existing roles file', async () => {
+    it('should load an existing roles file', () => {
+      mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
       writeFileSync(rolesPath, JSON.stringify([customRole], null, 2));
 
-      await manager.initialize({ configPath, rolesPath });
+      manager.stopHotReload();
+      manager = new ConfigManager(testRoot);
 
       expect(manager.getRoles()).toEqual([expect.objectContaining({ id: 'custom' })]);
     });
 
-    it('should reject invalid roles file values', async () => {
+    it('should reject invalid roles file values', () => {
+      mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
       writeFileSync(rolesPath, JSON.stringify([{ id: 'bad', enabled: 'true' }], null, 2));
 
-      await expect(manager.initialize({ configPath, rolesPath })).rejects.toThrow(
-        /角色配置验证失败/,
-      );
+      expect(() => new ConfigManager(testRoot)).toThrow(/角色配置验证失败/);
     });
 
-    it('should reject duplicate role ids', async () => {
+    it('should reject duplicate role ids', () => {
       const duplicate = { ...customRole, id: 'same' };
+      mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
       writeFileSync(rolesPath, JSON.stringify([duplicate, duplicate], null, 2));
 
-      await expect(manager.initialize({ configPath, rolesPath })).rejects.toThrow(/角色 id.*重复/);
+      expect(() => new ConfigManager(testRoot)).toThrow(/角色 id.*重复/);
     });
   });
 
   describe('path-based get/set/patch', () => {
-    it('should read nested values by path', async () => {
-      await manager.initialize({ configPath, rolesPath });
-
+    it('should read nested values by path', () => {
       expect(manager.get('server.port')).toBe(3000);
       expect(manager.get('agent.memory.compressionThreshold')).toBe(0.8);
       expect(manager.get('missing.path')).toBeUndefined();
     });
 
-    it('should return cloned values from get and getRoles', async () => {
-      await manager.initialize({ configPath, rolesPath });
-
+    it('should return cloned values from get and getRoles', () => {
       const server = manager.get('server') as { port: number };
       server.port = 9999;
       expect(manager.get('server.port')).toBe(3000);
@@ -222,8 +210,6 @@ describe('ConfigManager', () => {
     });
 
     it('should set a nested scalar path and persist it', async () => {
-      await manager.initialize({ configPath, rolesPath });
-
       await manager.set('server.authToken', 'secret-token');
 
       expect(manager.get('server.authToken')).toBe('secret-token');
@@ -234,8 +220,6 @@ describe('ConfigManager', () => {
     });
 
     it('should patch object paths by deep merging', async () => {
-      await manager.initialize({ configPath, rolesPath });
-
       await manager.patch('server', { authToken: 'patched-token' });
 
       expect(manager.get('server.port')).toBe(3000);
@@ -243,23 +227,17 @@ describe('ConfigManager', () => {
     });
 
     it('should replace array values as whole paths', async () => {
-      await manager.initialize({ configPath, rolesPath });
-
       await manager.set('plugins', [{ name: 'example-plugin', enabled: false }]);
 
       expect(manager.get('plugins')).toEqual([{ name: 'example-plugin', enabled: false }]);
     });
 
     it('should reject array element paths', async () => {
-      await manager.initialize({ configPath, rolesPath });
-
       expect(() => manager.get('mcp.0.enabled')).toThrow(/数组路径/);
       await expect(manager.set('plugins.0.enabled', false)).rejects.toThrow(/数组路径/);
     });
 
     it('should reject invalid set values before persisting', async () => {
-      await manager.initialize({ configPath, rolesPath });
-
       await expect(manager.set('server.port', '3000')).rejects.toBeInstanceOf(Error);
 
       expect(manager.get('server.port')).toBe(3000);
@@ -270,14 +248,10 @@ describe('ConfigManager', () => {
     });
 
     it('should reject patching scalar targets', async () => {
-      await manager.initialize({ configPath, rolesPath });
-
       await expect(manager.patch('server.port', {})).rejects.toThrow(/对象/);
     });
 
     it('should set roles and reject duplicate role ids', async () => {
-      await manager.initialize({ configPath, rolesPath });
-
       const role: RoleConfig = {
         id: 'new',
         description: 'New role',
@@ -296,8 +270,6 @@ describe('ConfigManager', () => {
 
   describe('registerDefaults and syncDefaults', () => {
     it('should merge registered defaults into config', async () => {
-      await manager.initialize({ configPath, rolesPath });
-
       manager.registerDefaults('channels.testchannel', { enabled: true, url: 'ws://localhost' });
       await manager.syncDefaults();
 
@@ -326,9 +298,11 @@ describe('ConfigManager', () => {
         mcp: [],
         plugins: [],
       };
-
+      mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
       writeFileSync(configPath, JSON.stringify(existingConfig, null, 2));
-      await manager.initialize({ configPath, rolesPath });
+
+      manager.stopHotReload();
+      manager = new ConfigManager(testRoot);
 
       manager.registerDefaults('channels.testchannel', {
         enabled: true,
@@ -364,9 +338,11 @@ describe('ConfigManager', () => {
         mcp: [],
         plugins: [],
       };
-
+      mkdirSync(join(testRoot, '.aesyclaw'), { recursive: true });
       writeFileSync(configPath, JSON.stringify(existingConfig, null, 2));
-      await manager.initialize({ configPath, rolesPath });
+
+      manager.stopHotReload();
+      manager = new ConfigManager(testRoot);
 
       manager.registerDefaults('channels.testchannel', {
         enabled: true,
@@ -382,8 +358,6 @@ describe('ConfigManager', () => {
     });
 
     it('should reject invalid synced defaults before persisting', async () => {
-      await manager.initialize({ configPath, rolesPath });
-
       manager.registerDefaults('providers.test-provider', {
         apiType: 'openai-responses',
         apiKey: 123,
@@ -400,7 +374,6 @@ describe('ConfigManager', () => {
 
   describe('hot reload', () => {
     it('should refresh cache on valid hot reload changes', async () => {
-      await manager.initialize({ configPath, rolesPath });
       manager.startHotReload();
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -413,7 +386,6 @@ describe('ConfigManager', () => {
     });
 
     it('should keep previous cache on invalid hot reload changes', async () => {
-      await manager.initialize({ configPath, rolesPath });
       manager.startHotReload();
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -421,6 +393,15 @@ describe('ConfigManager', () => {
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       expect(manager.get('server.port')).toBe(3000);
+    });
+  });
+
+  describe('resolvedPaths', () => {
+    it('should expose resolved paths', () => {
+      const paths = manager.resolvedPaths;
+      expect(paths.runtimeRoot).toBe(join(testRoot, '.aesyclaw'));
+      expect(paths.configFile).toBe(configPath);
+      expect(paths.rolesFile).toBe(rolesPath);
     });
   });
 });

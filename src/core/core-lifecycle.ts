@@ -1,6 +1,5 @@
 /** CoreLifecycle — 核心生命周期协调器，负责启动序列和关闭。 */
 
-import { mkdirSync } from 'node:fs';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 
 import type { SessionManager } from '@aesyclaw/session';
@@ -10,7 +9,7 @@ import type { ConfigManager } from './config/config-manager';
 import { DEFAULT_CONFIG } from './config/defaults';
 import type { DatabaseManager } from './database/database-manager';
 import { createScopedLogger, setLogLevel } from './logger';
-import { resolvePaths, type ResolvedPaths } from './path-resolver';
+import type { ResolvedPaths } from './path-resolver';
 import type { CronManager } from '@aesyclaw/cron/cron-manager';
 import type { McpManager } from '@aesyclaw/mcp/mcp-manager';
 import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
@@ -40,18 +39,16 @@ export type CoreLifecycleDependencies = {
 
 export class CoreLifecycle {
   private deps: CoreLifecycleDependencies | null = null;
-  private _paths: ResolvedPaths | null = null;
   private extensionManager: ExtensionManager | null = null;
   private shuttingDown = false;
-
-  private get paths(): ResolvedPaths {
-    if (!this._paths) throw new Error('路径尚未解析');
-    return this._paths;
-  }
 
   private get resolvedDeps(): CoreLifecycleDependencies {
     if (!this.deps) throw new Error('CoreLifecycle 未初始化');
     return this.deps;
+  }
+
+  private get paths(): Readonly<ResolvedPaths> {
+    return this.resolvedDeps.configManager.resolvedPaths;
   }
 
   initialize(deps: CoreLifecycleDependencies): void {
@@ -102,8 +99,6 @@ export class CoreLifecycle {
   // ─── 启动序列 ───────────────────────────────────────────────
 
   private async runStartupSequence(): Promise<void> {
-    await this.runStep('准备运行时', () => this.prepareRuntime());
-    await this.runStep('加载运行时配置', async () => await this.loadRuntimeConfig());
     await this.runStep('初始化核心管理器', async () => await this.initCoreManagers());
     await this.runStep('初始化 Agent 运行时', async () => await this.initAgentRuntime());
     await this.runStep('初始化扩展运行时', async () => await this.initExtensionRuntime());
@@ -113,34 +108,8 @@ export class CoreLifecycle {
 
   // ─── 启动步骤 ───────────────────────────────────────────────
 
-  private prepareRuntime(): void {
-    const root = process.cwd();
-    this._paths = resolvePaths(root);
-    logger.info('路径解析完成', { root });
-
-    const runtimeDirs = [
-      this.paths.runtimeRoot,
-      this.paths.dataDir,
-      this.paths.mediaDir,
-      this.paths.workspaceDir,
-      this.paths.userSkillsDir,
-    ];
-
-    for (const runtimeDir of runtimeDirs) {
-      mkdirSync(runtimeDir, { recursive: true });
-    }
-  }
-
-  private async loadRuntimeConfig(): Promise<void> {
-    await this.resolvedDeps.configManager.initialize({
-      configPath: this.paths.configFile,
-      rolesPath: this.paths.rolesFile,
-    });
-    setLogLevel(this.resolvedDeps.configManager.get('server.logLevel') as string);
-    logger.info('配置已加载');
-  }
-
   private async initCoreManagers(): Promise<void> {
+    setLogLevel(this.resolvedDeps.configManager.get('server.logLevel') as string);
     await this.resolvedDeps.databaseManager.initialize(this.paths.dbFile);
     await this.resolvedDeps.skillManager.loadAll(this.paths.userSkillsDir, this.paths.skillsDir);
     await this.resolvedDeps.roleManager.initialize({

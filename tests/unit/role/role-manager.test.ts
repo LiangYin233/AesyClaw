@@ -8,7 +8,7 @@ import { ConfigManager } from '../../../src/core/config/config-manager';
 import type { RoleConfig } from '../../../src/core/types';
 import { RoleManager } from '../../../src/role/role-manager';
 
-const TEST_DIR = join(tmpdir(), 'aesyclaw-test-role-manager');
+const TEST_BASE = join(tmpdir(), 'aesyclaw-test-role-manager');
 
 function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
   return {
@@ -24,25 +24,22 @@ function makeRole(overrides: Partial<RoleConfig> = {}): RoleConfig {
 }
 
 describe('RoleManager', () => {
+  let testRoot: string;
   let configManager: ConfigManager;
   let manager: RoleManager;
-  let configPath: string;
-  let rolesPath: string;
 
   beforeEach(async () => {
-    mkdirSync(TEST_DIR, { recursive: true });
-    configPath = join(TEST_DIR, `config-${Date.now()}.json`);
-    rolesPath = join(TEST_DIR, `roles-${Date.now()}.json`);
-    configManager = new ConfigManager();
+    testRoot = join(TEST_BASE, `test-${Date.now()}`);
+    mkdirSync(testRoot, { recursive: true });
+    configManager = new ConfigManager(testRoot);
     manager = new RoleManager();
-    await configManager.initialize({ configPath, rolesPath });
   });
 
   afterEach(() => {
     configManager.stopHotReload();
     manager.destroy();
-    if (existsSync(TEST_DIR)) {
-      rmSync(TEST_DIR, { recursive: true, force: true });
+    if (existsSync(testRoot)) {
+      rmSync(testRoot, { recursive: true, force: true });
     }
   });
 
