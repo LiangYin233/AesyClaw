@@ -1,12 +1,13 @@
 /**
- * ConfigManager — 加载、验证、热重载配置并在变更时通知。
+ * ConfigManager — 加载、验证、缓存、热重载配置。
  *
  * 关键行为：
  * - 从 JSON 文件加载配置；缺失时创建默认配置
  * - TypeBox 验证，缺失字段回退到默认值
- * - `subscribe(key)` / `subscribeAll()` 用于变更通知
- * - `update(partial)` 合并并持久化；设置 `selfUpdating` 守卫以防止
- *   Conf `onDidAnyChange` 导致的无限重载循环
+ * - `get(path)` 从最新合法缓存读取配置路径
+ * - `set(path, value)` 替换配置路径并持久化
+ * - `patch(path, value)` 深合并对象路径并持久化
+ * - 热重载只刷新内部缓存，不分发订阅通知
  * - `registerDefaults` / `syncDefaults` 供子系统声明默认值
  */
 
@@ -14,12 +15,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { basename, dirname, extname } from 'node:path';
 import { Value } from '@sinclair/typebox/value';
 import Conf from 'conf';
-import type {
-  DeepPartial,
-  ConfigChangeListener,
-  RoleConfig,
-  Unsubscribe,
-} from '@aesyclaw/core/types';
+import type { RoleConfig } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { isRecord, mergeDefaults } from '@aesyclaw/core/utils';
 import { DEFAULT_ROLES_CONFIG } from '@aesyclaw/role/default-role';
@@ -35,26 +31,17 @@ export type ConfigManagerDependencies = {
   rolesPath: string;
 };
 
-type ListenerEntry = {
-  key?: keyof AppConfig;
-  listener: ConfigChangeListener<unknown>;
-};
-
 export class ConfigManager {
   private readonly ROLES_STORE_KEY = 'roles';
   private configPath: string | null = null;
   private rolesPath: string | null = null;
   private lastKnownConfig: AppConfig | null = null;
   private lastKnownRoles: readonly RoleConfig[] | null = null;
-  private listeners: ListenerEntry[] = [];
-  private rolesListeners: Array<ConfigChangeListener<readonly RoleConfig[]>> = [];
   private registeredDefaults = new Map<string, Record<string, unknown>>();
   private configStore: Conf<Record<string, unknown>> | null = null;
   private rolesStore: Conf<Record<string, unknown>> | null = null;
   private selfUpdating = false;
   private rolesSelfUpdating = false;
-  private reloadRunning = false;
-  private pendingConfigNotification: { oldConfig: AppConfig; newConfig: AppConfig } | null = null;
   private reloadAfterGuard = false;
   private reloadRolesAfterGuard = false;
   private readonly DEBOUNCE_MS = 300;
@@ -75,7 +62,7 @@ export class ConfigManager {
    * 从给定路径加载配置。
    * 如果文件不存在，则使用默认值创建。
    */
-  async load(configPath: string): Promise<void> {
+  private async load(configPath: string): Promise<void> {
     if (this.configStore) {
       logger.warn('配置已加载 — 跳过');
       return;
@@ -96,7 +83,7 @@ export class ConfigManager {
   }
 
   /** 从给定路径加载 roles.json；缺失时创建默认角色数组。 */
-  async loadRoles(rolesPath: string): Promise<void> {
+  private async loadRoles(rolesPath: string): Promise<void> {
     if (this.rolesStore) {
       logger.warn('角色配置已加载 — 跳过');
       return;
@@ -121,98 +108,56 @@ export class ConfigManager {
 
   // ─── 读取 ──────────────────────────────────────────────────────
 
-  /** 获取整个配置的只读快照 */
-  getConfig(): Readonly<AppConfig> {
-    return this.readValidatedConfigFromStore();
-  }
-
-  /** 获取特定配置节的只读快照 */
-  get<K extends keyof AppConfig>(key: K): Readonly<AppConfig[K]> {
-    return this.readValidatedConfigFromStore()[key];
+  /** 获取配置路径的只读快照；路径不存在时返回 undefined。 */
+  get(path: string): unknown {
+    const config = this.requireConfigCache();
+    const value = getPathValue(config as Record<string, unknown>, path);
+    return value === undefined ? undefined : structuredClone(value);
   }
 
   /** 获取角色配置快照。 */
   getRoles(): readonly RoleConfig[] {
-    return this.readValidatedRolesFromStore();
-  }
-
-  // ─── 订阅 ─────────────────────────────────────────────────
-
-  /** 订阅特定配置键的变更 */
-  subscribe<K extends keyof AppConfig>(
-    key: K,
-    listener: ConfigChangeListener<AppConfig[K]>,
-  ): Unsubscribe {
-    const entry: ListenerEntry = { key, listener: listener as ConfigChangeListener<unknown> };
-    this.listeners.push(entry);
-    return () => {
-      this.listeners = this.listeners.filter((l) => l !== entry);
-    };
-  }
-
-  /** 订阅任意配置变更 */
-  subscribeAll(listener: ConfigChangeListener<AppConfig>): Unsubscribe {
-    const entry: ListenerEntry = { listener: listener as ConfigChangeListener<unknown> };
-    this.listeners.push(entry);
-    return () => {
-      this.listeners = this.listeners.filter((l) => l !== entry);
-    };
-  }
-
-  /** 订阅 roles.json 变更。 */
-  subscribeRoles(listener: ConfigChangeListener<readonly RoleConfig[]>): Unsubscribe {
-    this.rolesListeners.push(listener);
-    return () => {
-      this.rolesListeners = this.rolesListeners.filter((candidate) => candidate !== listener);
-    };
+    return structuredClone(this.requireRolesCache());
   }
 
   // ─── 写入 ─────────────────────────────────────────────────────
 
-  /**
-   * 将部分配置合并到当前状态并持久化到磁盘。
-   * 设置 `selfUpdating` 守卫，使由此产生的文件写入不会
-   * 触发冗余的重载循环。
-   */
-  async update(
-    partial: DeepPartial<AppConfig>,
-    options: { replaceTopLevelKeys?: readonly (keyof AppConfig)[] } = {},
-  ): Promise<void> {
+  /** 替换配置路径并持久化。 */
+  async set(path: string, value: unknown): Promise<void> {
     this.ensureLoaded();
+    const oldConfig = this.requireConfigCache();
+    const nextConfig = structuredClone(oldConfig) as Record<string, unknown>;
+    setPathValue(nextConfig, path, value);
+    const validatedConfig = this.validateWithSchema<AppConfig>(AppConfigSchema, nextConfig, '配置');
+    this.persistWithGuard(validatedConfig);
+  }
 
-    const oldConfig = this.readValidatedConfigFromStore();
-    const mergeBase = structuredClone(oldConfig) as Record<string, unknown>;
-
-    for (const key of options.replaceTopLevelKeys ?? []) {
-      if (Object.prototype.hasOwnProperty.call(partial, key)) {
-        delete mergeBase[key];
-      }
+  /** 深合并对象配置路径并持久化。 */
+  async patch(path: string, value: Record<string, unknown>): Promise<void> {
+    this.ensureLoaded();
+    if (!isRecord(value)) {
+      throw new Error('patch 值必须是对象');
     }
 
-    const mergedConfig = mergeDefaults(mergeBase, partial as Record<string, unknown>) as AppConfig;
-    const validatedConfig = this.validateWithSchema<AppConfig>(
-      AppConfigSchema,
-      mergedConfig,
-      '配置',
-    );
+    const oldConfig = this.requireConfigCache();
+    const nextConfig = structuredClone(oldConfig) as Record<string, unknown>;
+    const current = getPathValue(nextConfig, path);
+    if (current !== undefined && !isRecord(current)) {
+      throw new Error(`配置路径 "${path}" 不是对象，不能 patch`);
+    }
 
+    const merged = mergeDefaults((current ?? {}) as Record<string, unknown>, value);
+    setPathValue(nextConfig, path, merged);
+    const validatedConfig = this.validateWithSchema<AppConfig>(AppConfigSchema, nextConfig, '配置');
     this.persistWithGuard(validatedConfig);
-    await this.notifyListeners(oldConfig, validatedConfig);
   }
 
   /** 替换并持久化完整角色数组。 */
-  async updateRoles(roles: readonly RoleConfig[]): Promise<void> {
+  async setRoles(roles: readonly RoleConfig[]): Promise<void> {
     this.ensureRolesLoaded();
-
-    const oldRoles = this.readValidatedRolesFromStore();
-    const validated = this.validateWithSchema<RoleConfig[]>(
-      RolesConfigSchema,
-      roles,
-      '角色配置',
-    );
-    const newRoles = validated.map((role) =>
-      role.id === 'default' ? { ...role, enabled: true } : role,
-    );
+    const oldRoles = this.requireRolesCache();
+    const validated = this.validateWithSchema<RoleConfig[]>(RolesConfigSchema, roles, '角色配置');
+    const newRoles = normaliseRoles(validated);
     this.assertUniqueRoleIds(newRoles);
 
     if (JSON.stringify(oldRoles) === JSON.stringify(newRoles)) {
@@ -220,7 +165,6 @@ export class ConfigManager {
     }
 
     this.persistRolesWithGuard(newRoles);
-    await this.notifyRolesListeners(oldRoles, newRoles);
   }
 
   // ─── 默认值 ──────────────────────────────────────────────────
@@ -243,8 +187,7 @@ export class ConfigManager {
   async syncDefaults(): Promise<void> {
     this.ensureLoaded();
 
-    const oldConfig = this.readValidatedConfigFromStore();
-    let mergedConfig = structuredClone(oldConfig);
+    let mergedConfig = structuredClone(this.requireConfigCache());
     for (const [key, defaults] of this.registeredDefaults) {
       const nestedPartial = buildNestedObject(key, defaults);
       mergedConfig = mergeDefaults(mergedConfig as Record<string, unknown>, nestedPartial, {
@@ -258,7 +201,6 @@ export class ConfigManager {
     );
 
     this.persistWithGuard(validatedConfig);
-    await this.notifyListeners(oldConfig, validatedConfig);
   }
 
   // ─── 热重载 ─────────────────────────────────────────────────
@@ -299,56 +241,43 @@ export class ConfigManager {
 
   private async reloadFromFile(): Promise<void> {
     if (!this.configStore) return;
-
-    // 如果刚写入文件 ourselves，则跳过
     if (this.selfUpdating) {
       this.reloadAfterGuard = true;
       return;
     }
 
     try {
-      const oldConfig = this.lastKnownConfig ?? this.readValidatedConfigFromStore();
+      const oldConfig = this.lastKnownConfig;
       const newConfig = this.readValidatedConfigFromStore();
-
-      // 比较规范化 JSON 以检测真实变更
-      const oldNormalised = JSON.stringify(oldConfig);
-      const newNormalised = JSON.stringify(newConfig);
-
-      if (oldNormalised === newNormalised) {
+      if (oldConfig && JSON.stringify(oldConfig) === JSON.stringify(newConfig)) {
         logger.debug('配置文件已变更但内容相同 —— 跳过');
         return;
       }
-
       this.lastKnownConfig = structuredClone(newConfig);
-      await this.notifyListeners(oldConfig, newConfig);
-      logger.info('已从文件重新加载配置');
+      logger.info('已从文件重新加载配置缓存');
     } catch (err) {
-      logger.error('重新加载配置文件失败', err);
+      logger.error('重新加载配置文件失败，继续使用上一次有效配置', err);
     }
   }
 
   private async reloadRolesFromFile(): Promise<void> {
     if (!this.rolesStore) return;
-
     if (this.rolesSelfUpdating) {
       this.reloadRolesAfterGuard = true;
       return;
     }
 
     try {
-      const oldRoles = this.lastKnownRoles ?? this.readValidatedRolesFromStore();
+      const oldRoles = this.lastKnownRoles;
       const newRoles = this.readValidatedRolesFromStore();
-
-      if (JSON.stringify(oldRoles) === JSON.stringify(newRoles)) {
+      if (oldRoles && JSON.stringify(oldRoles) === JSON.stringify(newRoles)) {
         logger.debug('角色配置文件已变更但内容相同 —— 跳过');
         return;
       }
-
       this.lastKnownRoles = structuredClone(newRoles);
-      await this.notifyRolesListeners(oldRoles, newRoles);
-      logger.info('已从文件重新加载角色配置');
+      logger.info('已从文件重新加载角色配置缓存');
     } catch (err) {
-      logger.error('重新加载角色配置文件失败', err);
+      logger.error('重新加载角色配置文件失败，继续使用上一次有效角色配置', err);
     }
   }
 
@@ -425,6 +354,20 @@ export class ConfigManager {
     return this.rolesStore;
   }
 
+  private requireConfigCache(): AppConfig {
+    if (!this.lastKnownConfig) {
+      throw new Error('配置未加载');
+    }
+    return this.lastKnownConfig;
+  }
+
+  private requireRolesCache(): readonly RoleConfig[] {
+    if (!this.lastKnownRoles) {
+      throw new Error('角色配置未加载');
+    }
+    return this.lastKnownRoles;
+  }
+
   private readValidatedConfigFromStore(): AppConfig {
     const parsed = this.ensureLoaded().store;
     if (!isRecord(parsed)) {
@@ -459,14 +402,8 @@ export class ConfigManager {
 
   private readValidatedRolesFromStore(): RoleConfig[] {
     const raw = this.ensureRolesLoaded().store[this.ROLES_STORE_KEY];
-    const validated = this.validateWithSchema<RoleConfig[]>(
-      RolesConfigSchema,
-      raw,
-      '角色配置',
-    );
-    const roles = validated.map((role) =>
-      role.id === 'default' ? { ...role, enabled: true } : role,
-    );
+    const validated = this.validateWithSchema<RoleConfig[]>(RolesConfigSchema, raw, '角色配置');
+    const roles = normaliseRoles(validated);
     this.assertUniqueRoleIds(roles);
     return roles;
   }
@@ -551,63 +488,6 @@ export class ConfigManager {
     }
   }
 
-  private async notifyListeners(oldConfig: AppConfig, newConfig: AppConfig): Promise<void> {
-    if (this.reloadRunning) {
-      this.pendingConfigNotification = { oldConfig, newConfig };
-      return;
-    }
-
-    this.reloadRunning = true;
-    try {
-      let currentOldConfig = oldConfig;
-      let currentNewConfig = newConfig;
-      let hasPendingNotification = true;
-      while (hasPendingNotification) {
-        for (const entry of this.listeners) {
-          try {
-            if (entry.key) {
-              const oldVal = currentOldConfig[entry.key];
-              const newVal = currentNewConfig[entry.key];
-              if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
-                await (entry.listener as ConfigChangeListener<unknown>)(newVal, oldVal);
-              }
-            } else {
-              await (entry.listener as ConfigChangeListener<AppConfig>)(
-                currentNewConfig,
-                currentOldConfig,
-              );
-            }
-          } catch (err) {
-            logger.error('配置变更监听器出错', err);
-          }
-        }
-
-        const pending = this.pendingConfigNotification;
-        if (!pending) {
-          hasPendingNotification = false;
-          continue;
-        }
-        this.pendingConfigNotification = null;
-        currentOldConfig = pending.oldConfig;
-        currentNewConfig = pending.newConfig;
-      }
-    } finally {
-      this.reloadRunning = false;
-    }
-  }
-
-  private async notifyRolesListeners(
-    oldRoles: readonly RoleConfig[],
-    newRoles: readonly RoleConfig[],
-  ): Promise<void> {
-    for (const listener of this.rolesListeners) {
-      try {
-        await listener(newRoles, oldRoles);
-      } catch (err) {
-        logger.error('角色配置变更监听器出错', err);
-      }
-    }
-  }
 }
 
 /**
@@ -632,4 +512,62 @@ function buildNestedObject(key: string, value: Record<string, unknown>): Record<
   }
 
   return result;
+}
+
+function parsePath(path: string): string[] {
+  const parts = path.split('.').filter((part) => part.length > 0);
+  if (parts.length === 0) {
+    throw new Error('配置路径不能为空');
+  }
+  return parts;
+}
+
+function getPathValue(root: Record<string, unknown>, path: string): unknown {
+  const parts = parsePath(path);
+  let current: unknown = root;
+  for (const part of parts) {
+    if (Array.isArray(current)) {
+      throw new Error(`配置路径 "${path}" 不能访问数组路径`);
+    }
+    if (!isRecord(current)) {
+      return undefined;
+    }
+    current = current[part];
+  }
+  return current;
+}
+
+function setPathValue(root: Record<string, unknown>, path: string, value: unknown): void {
+  const parts = parsePath(path);
+  let current: Record<string, unknown> = root;
+
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i];
+    if (part === undefined) {
+      throw new Error('配置路径不能为空');
+    }
+    const next = current[part];
+    if (Array.isArray(next)) {
+      throw new Error(`配置路径 "${path}" 不能访问数组路径`);
+    }
+    if (next === undefined) {
+      current[part] = {};
+      current = current[part] as Record<string, unknown>;
+      continue;
+    }
+    if (!isRecord(next)) {
+      throw new Error(`配置路径 "${path}" 的中间节点不是对象`);
+    }
+    current = next;
+  }
+
+  const leaf = parts[parts.length - 1];
+  if (leaf === undefined) {
+    throw new Error('配置路径不能为空');
+  }
+  current[leaf] = structuredClone(value);
+}
+
+function normaliseRoles(roles: readonly RoleConfig[]): RoleConfig[] {
+  return roles.map((role) => (role.id === 'default' ? { ...role, enabled: true } : role));
 }

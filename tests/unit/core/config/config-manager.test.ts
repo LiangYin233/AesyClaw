@@ -1,14 +1,15 @@
 /**
  * ConfigManager unit tests.
  *
- * Tests cover: load, get, subscribe, update, hot-reload, defaults sync.
+ * Tests cover: load, path-based get/set/patch, hot-reload, defaults sync.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll } from 'vitest';
 import { writeFileSync, readFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { ConfigManager } from '../../../../src/core/config/config-manager';
+import type { RoleConfig } from '../../../../src/core/types';
 
 const TEST_DIR = join(tmpdir(), 'aesyclaw-test-config');
 
@@ -47,26 +48,25 @@ describe('ConfigManager', () => {
 
   describe('load', () => {
     it('should create a default config file if one does not exist', async () => {
-      await manager.load(configPath);
+      await manager.initialize({ configPath, rolesPath });
 
       expect(existsSync(configPath)).toBe(true);
-      const config = manager.getConfig();
-      expect(config.server.port).toBe(3000);
-      expect(config.server.host).toBe('0.0.0.0');
-      expect(config.server.logLevel).toBe('info');
+      expect(manager.get('server.port')).toBe(3000);
+      expect(manager.get('server.host')).toBe('0.0.0.0');
+      expect(manager.get('server.logLevel')).toBe('info');
     });
 
     it('should persist to the exact configPath provided by callers', async () => {
       configPath = join(TEST_DIR, 'custom-location', `provided-${Date.now()}.json`);
 
-      await manager.load(configPath);
+      await manager.initialize({ configPath, rolesPath });
 
       expect(existsSync(configPath)).toBe(true);
       expect(JSON.parse(readFileSync(configPath, 'utf-8'))).toMatchObject({
         server: { port: 3000, host: '0.0.0.0', logLevel: 'info' },
       });
 
-      await manager.update({ server: { port: 4567 } });
+      await manager.set('server.port', 4567);
 
       expect(JSON.parse(readFileSync(configPath, 'utf-8'))).toMatchObject({
         server: { port: 4567, host: '0.0.0.0', logLevel: 'info' },
@@ -91,17 +91,16 @@ describe('ConfigManager', () => {
 
       writeFileSync(configPath, JSON.stringify(existingConfig, null, 2));
 
-      await manager.load(configPath);
+      await manager.initialize({ configPath, rolesPath });
 
-      const config = manager.getConfig();
-      expect(config.server.port).toBe(8080);
-      expect(config.server.host).toBe('localhost');
+      expect(manager.get('server.port')).toBe(8080);
+      expect(manager.get('server.host')).toBe('localhost');
     });
 
     it('should throw on invalid JSON', async () => {
       writeFileSync(configPath, 'not json');
 
-      await expect(manager.load(configPath)).rejects.toThrow();
+      await expect(manager.initialize({ configPath, rolesPath })).rejects.toThrow();
     });
 
     it('should reject explicitly invalid values instead of coercing them', async () => {
@@ -122,7 +121,7 @@ describe('ConfigManager', () => {
 
       writeFileSync(configPath, JSON.stringify(invalidConfig, null, 2));
 
-      await expect(manager.load(configPath)).rejects.toBeInstanceOf(Error);
+      await expect(manager.initialize({ configPath, rolesPath })).rejects.toBeInstanceOf(Error);
     });
 
     it('should still fill defaults for missing optional fields', async () => {
@@ -143,15 +142,17 @@ describe('ConfigManager', () => {
 
       writeFileSync(configPath, JSON.stringify(partialConfig, null, 2));
 
-      await manager.load(configPath);
+      await manager.initialize({ configPath, rolesPath });
 
-      expect(manager.get('mcp')[0]?.enabled).toBe(true);
-      expect(manager.get('plugins')[0]?.enabled).toBe(true);
+      const mcp = manager.get('mcp') as Array<{ enabled?: boolean }>;
+      const plugins = manager.get('plugins') as Array<{ enabled?: boolean }>;
+      expect(mcp[0]?.enabled).toBe(true);
+      expect(plugins[0]?.enabled).toBe(true);
     });
   });
 
   describe('roles store', () => {
-    const customRole = {
+    const customRole: RoleConfig = {
       id: 'custom',
       description: 'Custom role',
       systemPrompt: 'Hi',
@@ -195,251 +196,113 @@ describe('ConfigManager', () => {
 
       await expect(manager.initialize({ configPath, rolesPath })).rejects.toThrow(/角色 id.*重复/);
     });
+  });
 
-    it('should update roles and notify role subscribers', async () => {
+  describe('path-based get/set/patch', () => {
+    it('should read nested values by path', async () => {
       await manager.initialize({ configPath, rolesPath });
-      const changes: Array<{
-        newValue: readonly { id: string }[];
-        oldValue: readonly { id: string }[];
-      }> = [];
-      manager.subscribeRoles((newValue, oldValue) => {
-        changes.push({ newValue, oldValue });
-      });
 
-      const nextRoles = [{ ...customRole, id: 'new' }];
-      await manager.updateRoles(nextRoles);
-
-      expect(manager.getRoles()[0]?.id).toBe('new');
-      expect(changes).toHaveLength(1);
-      expect(changes[0]?.oldValue[0]?.id).toBe('default');
-      expect(changes[0]?.newValue[0]?.id).toBe('new');
-      expect(JSON.parse(readFileSync(rolesPath, 'utf-8'))[0].id).toBe('new');
-    });
-  });
-
-  describe('get', () => {
-    it('should return config sections by key', async () => {
-      await manager.load(configPath);
-
-      const serverConfig = manager.get('server');
-      expect(serverConfig.port).toBe(3000);
-
-      const agentConfig = manager.get('agent');
-      expect(agentConfig.memory).toBeDefined();
-      expect(agentConfig.multimodal).toBeDefined();
+      expect(manager.get('server.port')).toBe(3000);
+      expect(manager.get('agent.memory.compressionThreshold')).toBe(0.8);
+      expect(manager.get('missing.path')).toBeUndefined();
     });
 
-    it('should read current snapshots from the Conf-backed store', async () => {
-      await manager.load(configPath);
+    it('should return cloned values from get and getRoles', async () => {
+      await manager.initialize({ configPath, rolesPath });
 
-      const externallyChangedConfig = structuredClone(manager.getConfig()) as Record<
-        string,
-        unknown
-      >;
-      externallyChangedConfig.server = { port: 7777, host: '127.0.0.1', logLevel: 'debug' };
-      writeFileSync(configPath, JSON.stringify(externallyChangedConfig, null, 2));
+      const server = manager.get('server') as { port: number };
+      server.port = 9999;
+      expect(manager.get('server.port')).toBe(3000);
 
-      expect(manager.get('server')).toMatchObject({
-        port: 7777,
-        host: '127.0.0.1',
-        logLevel: 'debug',
-      });
+      const roles = manager.getRoles() as RoleConfig[];
+      const firstRole = roles[0];
+      if (!firstRole) throw new Error('expected default role');
+      roles[0] = { ...firstRole, id: 'mutated' };
+      expect(manager.getRoles()[0]?.id).toBe('default');
     });
 
-    it('should throw if config not loaded', () => {
-      expect(() => manager.getConfig()).toThrow();
-    });
-  });
+    it('should set a nested scalar path and persist it', async () => {
+      await manager.initialize({ configPath, rolesPath });
 
-  describe('subscribe', () => {
-    it('should notify subscribers when a config key changes', async () => {
-      await manager.load(configPath);
+      await manager.set('server.authToken', 'secret-token');
 
-      const changes: Array<{ newVal: unknown; oldVal: unknown }> = [];
-      const unsubscribe = manager.subscribe('server', (newVal, oldVal) => {
-        changes.push({ newVal, oldVal });
-      });
-
-      await manager.update({ server: { port: 8080, host: '0.0.0.0', logLevel: 'info' } });
-
-      expect(changes.length).toBe(1);
-      expect((changes[0].newVal as { port: number }).port).toBe(8080);
-      expect((changes[0].oldVal as { port: number }).port).toBe(3000);
-
-      unsubscribe();
+      expect(manager.get('server.authToken')).toBe('secret-token');
+      const fileContent = JSON.parse(readFileSync(configPath, 'utf-8')) as {
+        server: { authToken?: string };
+      };
+      expect(fileContent.server.authToken).toBe('secret-token');
     });
 
-    it('should not notify when the value has not actually changed', async () => {
-      await manager.load(configPath);
+    it('should patch object paths by deep merging', async () => {
+      await manager.initialize({ configPath, rolesPath });
 
-      let callCount = 0;
-      manager.subscribe('agent', () => {
-        callCount++;
-      });
+      await manager.patch('server', { authToken: 'patched-token' });
 
-      // Update with the same values
-      await manager.update({ server: { port: 3000, host: '0.0.0.0', logLevel: 'info' } });
-
-      // The values are the same, so listener should not be called
-      expect(callCount).toBe(0);
+      expect(manager.get('server.port')).toBe(3000);
+      expect(manager.get('server.authToken')).toBe('patched-token');
     });
 
-    it('should unsubscribe when the returned function is called', async () => {
-      await manager.load(configPath);
+    it('should replace array values as whole paths', async () => {
+      await manager.initialize({ configPath, rolesPath });
 
-      let callCount = 0;
-      const unsubscribe = manager.subscribe('server', () => {
-        callCount++;
-      });
+      await manager.set('plugins', [{ name: 'example-plugin', enabled: false }]);
 
-      unsubscribe();
-      await manager.update({ server: { port: 9090, host: '0.0.0.0', logLevel: 'info' } });
-
-      expect(callCount).toBe(0);
-    });
-  });
-
-  describe('subscribeAll', () => {
-    it('should notify on any config change', async () => {
-      await manager.load(configPath);
-
-      let callCount = 0;
-      manager.subscribeAll(() => {
-        callCount++;
-      });
-
-      await manager.update({ server: { port: 9090, host: '0.0.0.0', logLevel: 'info' } });
-
-      expect(callCount).toBe(1);
-    });
-  });
-
-  describe('update', () => {
-    it('should merge partial config and persist to disk', async () => {
-      await manager.load(configPath);
-
-      await manager.update({ agent: { memory: { compressionThreshold: 0.6 } } });
-
-      expect(manager.get('agent').memory.compressionThreshold).toBe(0.6);
-
-      // Read the file to verify persistence
-      const fileContent = JSON.parse(
-        // Re-read from disk to confirm
-        await import('node:fs').then((fs) => fs.readFileSync(configPath, 'utf-8')),
-      );
-      expect(fileContent.agent.memory.compressionThreshold).toBe(0.6);
+      expect(manager.get('plugins')).toEqual([{ name: 'example-plugin', enabled: false }]);
     });
 
-    it('should replace requested top-level object sections instead of deep-merging removed keys', async () => {
-      await manager.load(configPath);
+    it('should reject array element paths', async () => {
+      await manager.initialize({ configPath, rolesPath });
 
-      await manager.update({
-        channels: {
-          keep: { enabled: true },
-          remove: { enabled: true },
-        },
-      });
-      await manager.update(
-        {
-          channels: {
-            keep: { enabled: false },
-          },
-        },
-        { replaceTopLevelKeys: ['channels'] },
-      );
-
-      expect(manager.get('channels')).toEqual({ keep: { enabled: false } });
+      expect(() => manager.get('mcp.0.enabled')).toThrow(/数组路径/);
+      await expect(manager.set('plugins.0.enabled', false)).rejects.toThrow(/数组路径/);
     });
 
-    it('should preserve unrelated provider/model fields during partial provider updates', async () => {
-      await manager.load(configPath);
+    it('should reject invalid set values before persisting', async () => {
+      await manager.initialize({ configPath, rolesPath });
 
-      await manager.update({
-        providers: {
-          openai: {
-            apiType: 'openai-responses',
-            apiKey: 'sk-openai',
-            baseUrl: 'https://old.example.test',
-            unknownProviderField: 'provider-future',
-            models: {
-              fast: {
-                routingHint: 'fast-lane',
-                contextWindow: 128000,
-                unknownModelField: 'model-future',
-              },
-            },
-          },
-          anthropic: {
-            apiType: 'anthropic-messages',
-            apiKey: 'sk-anthropic',
-            models: {
-              sonnet: { routingHint: 'balanced' },
-            },
-          },
-        },
-      } as never);
+      await expect(manager.set('server.port', '3000')).rejects.toBeInstanceOf(Error);
 
-      await manager.update({
-        providers: {
-          openai: {
-            baseUrl: 'https://new.example.test',
-            models: {
-              fast: { contextWindow: 64000 },
-            },
-          },
-        },
-      } as never);
-
-      const providers = manager.get('providers') as Record<string, Record<string, unknown>>;
-      expect(providers.openai).toMatchObject({
-        apiType: 'openai-responses',
-        apiKey: 'sk-openai',
-        baseUrl: 'https://new.example.test',
-        unknownProviderField: 'provider-future',
-      });
-      expect(
-        (providers.openai?.models as Record<string, Record<string, unknown>>).fast,
-      ).toMatchObject({
-        routingHint: 'fast-lane',
-        contextWindow: 64000,
-        unknownModelField: 'model-future',
-      });
-      expect(providers.anthropic).toMatchObject({
-        apiType: 'anthropic-messages',
-        apiKey: 'sk-anthropic',
-      });
-    });
-
-    it('should reject invalid merged config before persisting or notifying', async () => {
-      await manager.load(configPath);
-
-      let callCount = 0;
-      manager.subscribeAll(() => {
-        callCount++;
-      });
-
-      await expect(manager.update({ server: { port: '8080' } } as never)).rejects.toBeInstanceOf(
-        Error,
-      );
-
-      expect(manager.get('server').port).toBe(3000);
-      const fileContent = JSON.parse(
-        await import('node:fs').then((fs) => fs.readFileSync(configPath, 'utf-8')),
-      ) as { server: { port: number } };
+      expect(manager.get('server.port')).toBe(3000);
+      const fileContent = JSON.parse(readFileSync(configPath, 'utf-8')) as {
+        server: { port: number };
+      };
       expect(fileContent.server.port).toBe(3000);
-      expect(callCount).toBe(0);
+    });
+
+    it('should reject patching scalar targets', async () => {
+      await manager.initialize({ configPath, rolesPath });
+
+      await expect(manager.patch('server.port', {})).rejects.toThrow(/对象/);
+    });
+
+    it('should set roles and reject duplicate role ids', async () => {
+      await manager.initialize({ configPath, rolesPath });
+
+      const role: RoleConfig = {
+        id: 'new',
+        description: 'New role',
+        systemPrompt: 'Hi',
+        model: 'openai/gpt-4o',
+        toolPermission: { mode: 'allowlist', list: [] },
+        skills: [],
+        enabled: true,
+      };
+      await manager.setRoles([role]);
+
+      expect(manager.getRoles()).toEqual([expect.objectContaining({ id: 'new' })]);
+      await expect(manager.setRoles([role, role])).rejects.toThrow(/角色 id.*重复/);
     });
   });
 
   describe('registerDefaults and syncDefaults', () => {
     it('should merge registered defaults into config', async () => {
-      await manager.load(configPath);
+      await manager.initialize({ configPath, rolesPath });
 
       manager.registerDefaults('channels.testchannel', { enabled: true, url: 'ws://localhost' });
       await manager.syncDefaults();
 
-      const channels = manager.get('channels');
-      expect((channels as Record<string, unknown>).testchannel).toBeDefined();
+      const channels = manager.get('channels') as Record<string, unknown>;
+      expect(channels.testchannel).toBeDefined();
     });
 
     it('should preserve existing channel values during syncDefaults', async () => {
@@ -465,7 +328,7 @@ describe('ConfigManager', () => {
       };
 
       writeFileSync(configPath, JSON.stringify(existingConfig, null, 2));
-      await manager.load(configPath);
+      await manager.initialize({ configPath, rolesPath });
 
       manager.registerDefaults('channels.testchannel', {
         enabled: true,
@@ -503,7 +366,7 @@ describe('ConfigManager', () => {
       };
 
       writeFileSync(configPath, JSON.stringify(existingConfig, null, 2));
-      await manager.load(configPath);
+      await manager.initialize({ configPath, rolesPath });
 
       manager.registerDefaults('channels.testchannel', {
         enabled: true,
@@ -518,13 +381,8 @@ describe('ConfigManager', () => {
       expect(testChannel.nested).toEqual({ retries: 2, timeoutMs: 1000 });
     });
 
-    it('should reject invalid synced defaults before persisting or notifying', async () => {
-      await manager.load(configPath);
-
-      let callCount = 0;
-      manager.subscribeAll(() => {
-        callCount++;
-      });
+    it('should reject invalid synced defaults before persisting', async () => {
+      await manager.initialize({ configPath, rolesPath });
 
       manager.registerDefaults('providers.test-provider', {
         apiType: 'openai-responses',
@@ -534,50 +392,35 @@ describe('ConfigManager', () => {
       await expect(manager.syncDefaults()).rejects.toBeInstanceOf(Error);
       expect(manager.get('providers')).toEqual({});
       const fileContent = JSON.parse(
-        await import('node:fs').then((fs) => fs.readFileSync(configPath, 'utf-8')),
+        readFileSync(configPath, 'utf-8'),
       ) as { providers: Record<string, unknown> };
       expect(fileContent.providers).toEqual({});
-      expect(callCount).toBe(0);
     });
   });
 
   describe('hot reload', () => {
-    it('should detect external file changes', async () => {
+    it('should refresh cache on valid hot reload changes', async () => {
       await manager.initialize({ configPath, rolesPath });
       manager.startHotReload();
-
-      // Wait for watcher to be ready
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      let receivedNewConfig = false;
-      manager.subscribe('agent', () => {
-        receivedNewConfig = true;
-      });
-
-      // Modify the file externally
-      const newConfig = {
-        server: { port: 3000, host: '0.0.0.0', logLevel: 'info' },
-        providers: {},
-        channels: {},
-        agent: {
-          memory: { compressionThreshold: 0.5 }, // Changed
-          multimodal: {
-            speechToText: { provider: 'openai', model: 'whisper-1' },
-            imageUnderstanding: { provider: 'openai', model: 'gpt-4o' },
-          },
-        },
-        mcp: [],
-        plugins: [],
-      };
-      writeFileSync(configPath, JSON.stringify(newConfig, null, 2));
-
-      // Wait for debounce
+      const updated = JSON.parse(readFileSync(configPath, 'utf-8')) as Record<string, unknown>;
+      updated.server = { port: 7777, host: '127.0.0.1', logLevel: 'debug' };
+      writeFileSync(configPath, JSON.stringify(updated, null, 2));
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      expect(receivedNewConfig).toBe(true);
-      expect(manager.get('agent').memory.compressionThreshold).toBe(0.5);
+      expect(manager.get('server.port')).toBe(7777);
+    });
 
-      manager.stopHotReload();
+    it('should keep previous cache on invalid hot reload changes', async () => {
+      await manager.initialize({ configPath, rolesPath });
+      manager.startHotReload();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      writeFileSync(configPath, JSON.stringify({ server: { port: 'bad' } }, null, 2));
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      expect(manager.get('server.port')).toBe(3000);
     });
   });
 });
