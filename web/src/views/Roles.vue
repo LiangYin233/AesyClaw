@@ -366,12 +366,12 @@
                         v-for="skill in filteredSkills"
                         :key="skill.name"
                         class="flex items-center gap-2 px-[0.5rem] py-[0.35rem] rounded-sm cursor-pointer hover:bg-light-gray transition-colors duration-[0.1s] ease"
-                        :class="{ 'opacity-50 pointer-events-none': isSkillWildcard }"
+                        :class="{ 'opacity-50 pointer-events-none': isSkillWildcard || skill.isSystem }"
                       >
                         <input
                           type="checkbox"
                           :checked="isSkillSelected(skill.name)"
-                          :disabled="isSkillWildcard"
+                          :disabled="isSkillWildcard || skill.isSystem"
                           class="accent-primary"
                           @change="toggleSkill(skill.name)"
                         />
@@ -392,7 +392,7 @@
 
                     <div class="flex items-center justify-between px-3 py-2 border-t border-[var(--color-border)] bg-[#FAF8F3]">
                       <span class="font-heading text-xs text-mid-gray">
-                        {{ isSkillWildcard ? 'All' : (form.skills?.length ?? 0) }} selected
+                        {{ isSkillWildcard ? 'All' : allSelectedSkillNames.size }} selected
                       </span>
                       <button
                         type="button"
@@ -608,10 +608,20 @@ const isSkillWildcard = computed(() =>
   form.value.skills?.length === 1 && form.value.skills[0] === '*'
 );
 
+const allSelectedSkillNames = computed(() => {
+  const names = new Set(allSkills.value.filter(s => s.isSystem).map(s => s.name));
+  for (const name of form.value.skills ?? []) names.add(name);
+  return names;
+});
+
 const skillSelectionLabel = computed(() => {
   if (isSkillWildcard.value) return 'All skills (*)';
-  const n = form.value.skills?.length ?? 0;
-  return n === 0 ? 'Select skills' : `${n} skill${n > 1 ? 's' : ''} selected`;
+  const total = allSelectedSkillNames.value.size;
+  const systemCount = allSkills.value.filter(s => s.isSystem).length;
+  if (total === 0) return 'Select skills';
+  let label = `${total} skill${total > 1 ? 's' : ''} selected`;
+  if (systemCount > 0) label += ` (${systemCount} system)`;
+  return label;
 });
 
 function isToolSelected(name: string): boolean {
@@ -646,10 +656,14 @@ function closeToolDropdown() {
 }
 
 function isSkillSelected(name: string): boolean {
+  const skill = allSkills.value.find(s => s.name === name);
+  if (skill?.isSystem) return true;
   return form.value.skills?.includes(name) ?? false;
 }
 
 function toggleSkill(name: string) {
+  const skill = allSkills.value.find(s => s.name === name);
+  if (skill?.isSystem) return;
   if (!form.value.skills) form.value.skills = [];
   const idx = form.value.skills.indexOf(name);
   if (idx >= 0) {
