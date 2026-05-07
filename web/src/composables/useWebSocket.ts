@@ -46,8 +46,8 @@ class WebSocketClient {
    * 如果已有连接则先关闭。
    */
   connect(token: string): void {
-    if (this.token === token && this.ws?.readyState === WebSocket.OPEN) {
-      return; // 已连接且 token 相同
+    if (this.token === token && (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING)) {
+      return; // 已连接或正在连接且 token 相同
     }
 
     this.token = token;
