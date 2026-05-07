@@ -254,14 +254,10 @@ export class ConfigManager {
 
   /** 停止监视配置文件 */
   stopHotReload(): void {
-    if (this.unsubscribeHotReload) {
-      this.unsubscribeHotReload();
-      this.unsubscribeHotReload = undefined;
-    }
-    if (this.unsubscribeRolesHotReload) {
-      this.unsubscribeRolesHotReload();
-      this.unsubscribeRolesHotReload = undefined;
-    }
+    this.unsubscribeHotReload?.();
+    this.unsubscribeHotReload = undefined;
+    this.unsubscribeRolesHotReload?.();
+    this.unsubscribeRolesHotReload = undefined;
     logger.info('热重载监视器已停止');
   }
 
@@ -414,72 +410,67 @@ export class ConfigManager {
   }
 
   private persistWithGuard(config: AppConfig): void {
+    this.writeConfigToStore(this.configStore, config);
+    this.lastKnownConfig = structuredClone(config);
     this.selfUpdating = true;
-    try {
-      this.writeConfigToStore(this.configStore, config);
-      this.lastKnownConfig = structuredClone(config);
-    } finally {
-      setTimeout(() => {
-        this.selfUpdating = false;
-        if (this.reloadAfterGuard) {
-          this.reloadAfterGuard = false;
-          void this.reloadFromFile();
-        }
-      }, this.DEBOUNCE_MS + 50);
-    }
+    setTimeout(() => {
+      this.selfUpdating = false;
+      if (this.reloadAfterGuard) {
+        this.reloadAfterGuard = false;
+        void this.reloadFromFile();
+      }
+    }, this.DEBOUNCE_MS + 50);
   }
 
   private persistRolesWithGuard(roles: readonly RoleConfig[]): void {
+    this.writeRolesToStore(this.rolesStore, roles);
+    this.lastKnownRoles = structuredClone(roles);
     this.rolesSelfUpdating = true;
-    try {
-      this.writeRolesToStore(this.rolesStore, roles);
-      this.lastKnownRoles = structuredClone(roles);
-    } finally {
-      setTimeout(() => {
-        this.rolesSelfUpdating = false;
-        if (this.reloadRolesAfterGuard) {
-          this.reloadRolesAfterGuard = false;
-          void this.reloadRolesFromFile();
-        }
-      }, this.DEBOUNCE_MS + 50);
-    }
+    setTimeout(() => {
+      this.rolesSelfUpdating = false;
+      if (this.reloadRolesAfterGuard) {
+        this.reloadRolesAfterGuard = false;
+        void this.reloadRolesFromFile();
+      }
+    }, this.DEBOUNCE_MS + 50);
   }
 
   private createConfigStore(configPath: string): Conf<Record<string, unknown>> {
-    const extension = extname(configPath);
+    return this.createStore(configPath, {
+      serialize: (value) => JSON.stringify(value, null, 2),
+      deserialize: JSON.parse,
+    });
+  }
+
+  private createRolesStore(rolesPath: string): Conf<Record<string, unknown>> {
+    return this.createStore(rolesPath, {
+      serialize: (value) => JSON.stringify(value[this.ROLES_STORE_KEY] ?? [], null, 2),
+      deserialize: (value) => ({ [this.ROLES_STORE_KEY]: JSON.parse(value) }),
+    });
+  }
+
+  private createStore(
+    filePath: string,
+    options: {
+      serialize: (value: Record<string, unknown>) => string;
+      deserialize: (value: string) => Record<string, unknown>;
+    },
+  ): Conf<Record<string, unknown>> {
+    const extension = extname(filePath);
     const fileExtension = extension.startsWith('.') ? extension.slice(1) : extension;
 
     try {
       return new Conf<Record<string, unknown>>({
-        cwd: dirname(configPath),
-        configName: extension ? basename(configPath, extension) : basename(configPath),
+        cwd: dirname(filePath),
+        configName: extension ? basename(filePath, extension) : basename(filePath),
         fileExtension,
         clearInvalidConfig: false,
-        serialize: (value) => JSON.stringify(value, null, 2),
-        deserialize: JSON.parse,
+        serialize: options.serialize,
+        deserialize: options.deserialize,
         watch: true,
       });
     } catch (err) {
       throw new Error('配置文件中的 JSON 无效', { cause: err });
-    }
-  }
-
-  private createRolesStore(rolesPath: string): Conf<Record<string, unknown>> {
-    const extension = extname(rolesPath);
-    const fileExtension = extension.startsWith('.') ? extension.slice(1) : extension;
-
-    try {
-      return new Conf<Record<string, unknown>>({
-        cwd: dirname(rolesPath),
-        configName: extension ? basename(rolesPath, extension) : basename(rolesPath),
-        fileExtension,
-        clearInvalidConfig: false,
-        serialize: (value) => JSON.stringify(value[this.ROLES_STORE_KEY] ?? [], null, 2),
-        deserialize: (value) => ({ [this.ROLES_STORE_KEY]: JSON.parse(value) }),
-        watch: true,
-      });
-    } catch (err) {
-      throw new Error('角色配置文件中的 JSON 无效', { cause: err });
     }
   }
 
@@ -537,10 +528,8 @@ function setPathValue(root: Record<string, unknown>, path: string, value: unknow
   let current: Record<string, unknown> = root;
 
   for (let i = 0; i < parts.length - 1; i++) {
-    const part = parts[i];
-    if (part === undefined) {
-      throw new Error('配置路径不能为空');
-    }
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- parsePath 保证 parts 非空
+    const part = parts[i]!;
     const next = current[part];
     if (Array.isArray(next)) {
       throw new Error(`配置路径 "${path}" 不能访问数组路径`);
@@ -556,12 +545,9 @@ function setPathValue(root: Record<string, unknown>, path: string, value: unknow
     current = next;
   }
 
-  const leaf = parts[parts.length - 1];
-  if (leaf === undefined) {
-    throw new Error('配置路径不能为空');
-  }
   // 注意：调用方已 clone 整个 config，此处直接赋值
-  current[leaf] = value;
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- parsePath 保证 parts 非空
+  current[parts[parts.length - 1]!] = value;
 }
 
 function normaliseRoles(roles: readonly RoleConfig[]): RoleConfig[] {
