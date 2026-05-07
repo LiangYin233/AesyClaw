@@ -135,32 +135,27 @@ describe('ToolAdapter', () => {
       expect(receivedContext).toEqual(context);
     });
 
-    it('should pass invalid system-tool parameters through to the tool implementation', async () => {
-      let receivedParams: unknown = null;
+    it('should return validation failure for invalid system-tool parameters', async () => {
+      const execute = vi.fn(async () => ({ content: 'system saw invalid params', isError: true }));
       const tool = makeTool({
-        execute: async (params) => {
-          receivedParams = params;
-          return { content: 'system saw invalid params', isError: true };
-        },
+        execute,
       });
 
       const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
       const params = {};
 
-      await expect(agentTool.execute('call-1', params)).resolves.toMatchObject({
-        content: [
-          {
-            type: 'text',
-            text: 'system saw invalid params',
-          },
-        ],
+      const result = await agentTool.execute('call-1', params);
+
+      expect(result).toMatchObject({
+        content: [{ type: 'text', text: expect.stringContaining('参数验证失败') }],
         isError: true,
       });
-      expect(receivedParams).toBe(params);
+      expect(result.content[0]?.text).toEqual(expect.stringContaining('/input'));
+      expect(execute).not.toHaveBeenCalled();
     });
 
-    it('should pass invalid MCP-tool parameters through without local validation', async () => {
-      let receivedParams: unknown = null;
+    it('should pass invalid MCP-tool parameters through when external schema cannot be locally validated', async () => {
+      const execute = vi.fn(async () => ({ content: 'mcp result' }));
       const externalJsonSchema = Type.Unsafe({
         type: 'object',
         properties: {
@@ -172,47 +167,39 @@ describe('ToolAdapter', () => {
         name: 'WebSearch_tavily_search',
         parameters: externalJsonSchema,
         owner: 'mcp:WebSearch',
-        execute: async (params) => {
-          receivedParams = params;
-          return { content: 'mcp result' };
-        },
+        execute,
       });
 
       const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
       const params = { max_results: 'not-a-number' };
       const result = await agentTool.execute('call-mcp', params);
 
-      expect(receivedParams).toBe(params);
       expect(result).toMatchObject({
         content: [{ type: 'text', text: 'mcp result' }],
         details: {},
         isError: undefined,
       });
+      expect(execute).toHaveBeenCalledWith(params, expect.any(Object));
     });
 
-    it('should pass invalid plugin-tool parameters through to the tool implementation', async () => {
-      let receivedParams: unknown = null;
+    it('should return validation failure for invalid plugin-tool parameters', async () => {
+      const execute = vi.fn(async () => ({ content: 'plugin saw invalid params', isError: true }));
       const tool = makeTool({
         owner: 'plugin:weather',
-        execute: async (params) => {
-          receivedParams = params;
-          return { content: 'plugin saw invalid params', isError: true };
-        },
+        execute,
       });
 
       const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
       const params = {};
 
-      await expect(agentTool.execute('call-plugin-invalid', params)).resolves.toMatchObject({
-        content: [
-          {
-            type: 'text',
-            text: 'plugin saw invalid params',
-          },
-        ],
+      const result = await agentTool.execute('call-plugin-invalid', params);
+
+      expect(result).toMatchObject({
+        content: [{ type: 'text', text: expect.stringContaining('参数验证失败') }],
         isError: true,
       });
-      expect(receivedParams).toBe(params);
+      expect(result.content[0]?.text).toEqual(expect.stringContaining('/input'));
+      expect(execute).not.toHaveBeenCalled();
     });
 
     it('should block execution when before hook blocks', async () => {
@@ -333,7 +320,7 @@ describe('ToolAdapter', () => {
       controller.abort();
 
       const agentTool = toAgentTool(tool, makeNoOpHookDispatcher(), {});
-      await expect(agentTool.execute('call-1', {}, controller.signal)).resolves.toMatchObject({
+      await expect(agentTool.execute('call-1', { input: 'test' }, controller.signal)).resolves.toMatchObject({
         content: [{ type: 'text', text: '工具调用 "test-tool" 被中止' }],
         details: {},
         isError: true,
@@ -426,31 +413,10 @@ describe('ToolAdapter', () => {
         },
       });
 
-      const validationTool = toAgentTool(
-        makeTool({
-          execute: async () => {
-            throw new Error('Tool rejected invalid params');
-          },
-        }),
-        makeNoOpHookDispatcher(),
-        {},
-      );
       const executionTool = toAgentTool(failingTool, makeNoOpHookDispatcher(), {});
 
-      await validationTool.execute('call-invalid', {});
       await executionTool.execute('call-failed', { input: 'test' });
 
-      expectDebugLog('工具调用执行失败', {
-        toolName: 'test-tool',
-        toolCallId: 'call-invalid',
-        errorName: 'Error',
-        message: 'Tool rejected invalid params',
-      });
-      expectDebugLog('工具调用完成', {
-        toolName: 'test-tool',
-        toolCallId: 'call-invalid',
-        outcome: 'execution-failed',
-      });
       expectDebugLog('工具调用执行失败', {
         toolName: 'test-tool',
         toolCallId: 'call-failed',

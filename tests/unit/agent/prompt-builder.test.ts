@@ -63,7 +63,6 @@ describe('PromptBuilder', () => {
   function makeDeps(overrides: Record<string, unknown> = {}) {
     const roleManager = {
       getEnabledRoles: vi.fn().mockReturnValue([makeRole()]),
-      buildSystemPrompt: vi.fn().mockReturnValue('Built prompt: You are Assistant.'),
       ...(overrides.roleManager ?? {}),
     };
     const skillManager = {
@@ -101,7 +100,7 @@ describe('PromptBuilder', () => {
     });
   }
 
-  describe('buildSystemPrompt', () => {
+  describe('buildPrompt', () => {
     it('should build a prompt with role, tools, and skills', () => {
       const deps = makeDeps();
       const agent = makeAgent(deps);
@@ -148,6 +147,24 @@ describe('PromptBuilder', () => {
       expect(result.prompt).not.toContain('## Skill:');
     });
 
+    it('should format multiple skill sections directly in the agent prompt', () => {
+      const deps = makeDeps({
+        skillManager: {
+          getSkillsForRole: vi.fn().mockReturnValue([
+            makeSkill({ name: 'first', content: 'First content.' }),
+            makeSkill({ name: 'second', content: 'Second content.' }),
+          ]),
+        },
+      });
+      const agent = makeAgent(deps);
+
+      const result = agent.buildPrompt(makeRole({ skills: ['first', 'second'] }));
+
+      expect(result.prompt).toContain(
+        '## Skill: first\nFirst content.\n\n## Skill: second\nSecond content.',
+      );
+    });
+
     it('should include filtered internal tools in final prompt content', () => {
       const internalTool = makeTool({ name: 'send-msg' });
       const deps = makeDeps({
@@ -183,12 +200,11 @@ describe('PromptBuilder', () => {
       expect(result.prompt).toContain('**allowed**: A test tool');
     });
 
-    it('should pass all enabled roles to buildSystemPrompt', () => {
+    it('should pass all enabled roles into the prompt', () => {
       const roles = [makeRole({ id: 'admin' }), makeRole({ id: 'user' })];
       const deps = makeDeps({
         roleManager: {
           getEnabledRoles: vi.fn().mockReturnValue(roles),
-          buildSystemPrompt: vi.fn().mockReturnValue('prompt with roles'),
         },
       });
       const agent = makeAgent(deps);

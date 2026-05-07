@@ -137,7 +137,7 @@ describe('plugin_exec', () => {
     const details = result.details as ExecResultDetails;
 
     expect(details.timedOut).toBe(true);
-    await expect(fileExists(readyPath)).resolves.toBe(true);
+    await expect(waitForFileExists(readyPath)).resolves.toBe(true);
 
     await delay(2_500);
     await expect(fileExists(markerPath)).resolves.toBe(false);
@@ -233,6 +233,17 @@ async function fileExists(filePath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function waitForFileExists(filePath: string, timeoutMs = 5_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await fileExists(filePath)) {
+      return true;
+    }
+    await delay(25);
+  }
+  return fileExists(filePath);
 }
 
 async function delay(ms: number): Promise<void> {

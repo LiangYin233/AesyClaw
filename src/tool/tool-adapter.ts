@@ -8,7 +8,7 @@
  * 4. 派发 afterToolCall 钩子 — 可能覆盖结果
  */
 
-import type { TSchema } from '@sinclair/typebox';
+import { Kind, type TSchema } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
 import type {
   AfterToolCallHookResult,
@@ -335,20 +335,31 @@ function validateParams(
   schema: TSchema,
   params: unknown,
 ): { success: true; value: unknown } | { success: false; error: string } {
-  // 应用默认值
-  const withDefaults = Value.Default(schema, params);
-
-  // 检查 schema
-  if (!Value.Check(schema, withDefaults)) {
-    const errors = [...Value.Errors(schema, withDefaults)]
-      .slice(0, 3) // 最多报告 3 个错误
-      .map((e) => `${e.path}: ${e.message}`)
-      .join('; ');
-
-    return { success: false, error: errors || '未知验证错误' };
+  if ((schema as { [Kind]?: unknown })[Kind] === 'Unsafe') {
+    return { success: true, value: params };
   }
 
-  return { success: true, value: withDefaults };
+  let withDefaults = params;
+
+  try {
+    // 应用默认值
+    withDefaults = Value.Default(schema, params);
+
+    // 检查 schema
+    if (!Value.Check(schema, withDefaults)) {
+      const errors = [...Value.Errors(schema, withDefaults)]
+        .slice(0, 3) // 最多报告 3 个错误
+        .map((e) => `${e.path}: ${e.message}`)
+        .join('; ');
+
+      return { success: false, error: errors || '未知验证错误' };
+    }
+
+    return { success: true, value: withDefaults };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { success: false, error: message || '未知验证错误' };
+  }
 }
 
 function summarizeParams(params: unknown): Record<string, unknown> {
