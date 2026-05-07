@@ -325,33 +325,83 @@
                       class="inline align-middle ml-1 text-mid-gray w-[14px] h-[14px]"
                     />
                   </label>
+                </div>
+
+                <div class="relative" ref="skillDropdownRef">
                   <button
                     type="button"
-                    class="inline-flex items-center gap-[0.3rem] px-[0.7rem] py-[0.35rem] border border-transparent rounded-sm bg-[#121212] text-white font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease hover:bg-[#2a2a2a]"
-                    @click="addSkill"
+                    class="w-full flex items-center justify-between gap-2 px-[0.9rem] py-[0.6rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none cursor-pointer transition-[border-color,box-shadow] duration-[0.15s] ease hover:border-mid-gray"
+                    @click="toggleSkillDropdown"
                   >
-                    <PlusIcon class="w-3 h-3 stroke-[2.5]" />
-                    Add Skill
+                    <span class="truncate">{{ skillSelectionLabel }}</span>
+                    <ChevronUpDownIcon class="w-4 h-4 text-mid-gray shrink-0" />
                   </button>
-                </div>
-                <div class="flex flex-col gap-[0.35rem]">
+
                   <div
-                    v-for="(s, idx) in form.skills"
-                    :key="`skill-${idx}`"
-                    class="flex items-center gap-2 px-[0.6rem] py-[0.5rem] border border-[var(--color-border)] rounded-sm bg-light transition-colors duration-[0.15s] ease hover:border-mid-gray"
+                    v-if="skillDropdownOpen"
+                    class="absolute top-full left-0 right-0 mt-1 z-50 bg-white border border-[var(--color-border)] rounded-sm shadow-lg max-h-[300px] flex flex-col"
                   >
-                    <Bars3Icon class="w-3 h-3 text-mid-gray shrink-0" />
-                    <input
-                      v-model="form.skills[idx]"
-                      class="flex-1 border-none bg-none font-body text-sm text-dark outline-none p-0"
-                    />
-                    <button
-                      type="button"
-                      class="bg-none border-none cursor-pointer text-mid-gray p-[0.15rem] flex items-center justify-center rounded transition-all duration-[0.15s] ease shrink-0 hover:text-danger hover:bg-[rgba(196,91,91,0.08)]"
-                      @click="removeSkill(idx)"
-                    >
-                      <XMarkIcon class="w-[14px] h-[14px]" />
-                    </button>
+                    <div class="p-2 border-b border-[var(--color-border)]">
+                      <input
+                        v-model="skillSearch"
+                        placeholder="Search skills..."
+                        class="w-full px-[0.6rem] py-[0.4rem] bg-light border border-[var(--color-border)] rounded-sm text-dark font-body text-sm outline-none focus:border-primary"
+                      />
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto p-1">
+                      <label
+                        class="flex items-center gap-2 px-[0.5rem] py-[0.35rem] rounded-sm cursor-pointer hover:bg-light-gray transition-colors duration-[0.1s] ease"
+                      >
+                        <input
+                          type="checkbox"
+                          :checked="isSkillWildcard"
+                          class="accent-primary"
+                          @change="isSkillWildcard ? clearAllSkills() : selectAllSkills()"
+                        />
+                        <span class="font-heading text-sm font-medium text-dark">All skills (*)</span>
+                      </label>
+
+                      <label
+                        v-for="skill in filteredSkills"
+                        :key="skill.name"
+                        class="flex items-center gap-2 px-[0.5rem] py-[0.35rem] rounded-sm cursor-pointer hover:bg-light-gray transition-colors duration-[0.1s] ease"
+                        :class="{ 'opacity-50 pointer-events-none': isSkillWildcard }"
+                      >
+                        <input
+                          type="checkbox"
+                          :checked="isSkillSelected(skill.name)"
+                          :disabled="isSkillWildcard"
+                          class="accent-primary"
+                          @change="toggleSkill(skill.name)"
+                        />
+                        <span class="flex-1 font-body text-sm text-dark">{{ skill.name }}</span>
+                        <span
+                          v-if="skill.isSystem"
+                          class="font-heading text-[0.65rem] text-mid-gray uppercase tracking-[0.04em]"
+                        >system</span>
+                      </label>
+
+                      <div
+                        v-if="filteredSkills.length === 0"
+                        class="text-center py-6 text-mid-gray font-body text-sm italic"
+                      >
+                        No skills match
+                      </div>
+                    </div>
+
+                    <div class="flex items-center justify-between px-3 py-2 border-t border-[var(--color-border)] bg-[#FAF8F3]">
+                      <span class="font-heading text-xs text-mid-gray">
+                        {{ isSkillWildcard ? 'All' : (form.skills?.length ?? 0) }} selected
+                      </span>
+                      <button
+                        type="button"
+                        class="text-xs font-heading font-medium text-primary hover:underline cursor-pointer bg-none border-none"
+                        @click="isSkillWildcard ? clearAllSkills() : selectAllSkills()"
+                      >
+                        {{ isSkillWildcard ? 'Deselect all' : 'Select all' }}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -390,8 +440,6 @@ import {
   CheckIcon,
   XMarkIcon,
   InformationCircleIcon,
-  PlusIcon,
-  Bars3Icon,
   ChevronUpDownIcon,
 } from '@heroicons/vue/24/outline';
 import type { Role, ToolPermission } from '@/types/api';
@@ -420,6 +468,17 @@ const allTools = ref<ToolInfo[]>([]);
 const toolDropdownOpen = ref(false);
 const toolSearch = ref('');
 const toolDropdownRef = ref<HTMLElement | null>(null);
+
+interface SkillInfo {
+  name: string;
+  description: string;
+  isSystem: boolean;
+}
+
+const allSkills = ref<SkillInfo[]>([]);
+const skillDropdownOpen = ref(false);
+const skillSearch = ref('');
+const skillDropdownRef = ref<HTMLElement | null>(null);
 const form = ref<Role>({
   id: '',
   description: '',
@@ -476,10 +535,21 @@ async function loadTools() {
   }
 }
 
+async function loadSkills() {
+  if (allSkills.value.length > 0) return;
+  try {
+    const data = await ws.send('get_skills');
+    allSkills.value = Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.error('Failed to load skills', err);
+  }
+}
+
 function openEditor(role: Role) {
   creating.value = false;
   editingRole.value = role;
   void loadTools();
+  void loadSkills();
   form.value = JSON.parse(JSON.stringify(role));
   if (!form.value.toolPermission) {
     form.value.toolPermission = { mode: 'allowlist', list: [] };
@@ -507,6 +577,7 @@ function openCreate() {
     enabled: true,
   };
   void loadTools();
+  void loadSkills();
 }
 
 function isValidToolPermissionMode(mode: string): mode is ToolPermission['mode'] {
@@ -526,6 +597,21 @@ const toolSelectionLabel = computed(() => {
   if (isWildcard.value) return 'All tools (*)';
   const n = form.value.toolPermission.list?.length ?? 0;
   return n === 0 ? 'Select tools' : `${n} tool${n > 1 ? 's' : ''} selected`;
+});
+
+const filteredSkills = computed(() => {
+  const q = skillSearch.value.toLowerCase();
+  return allSkills.value.filter(s => !q || s.name.toLowerCase().includes(q));
+});
+
+const isSkillWildcard = computed(() =>
+  form.value.skills?.length === 1 && form.value.skills[0] === '*'
+);
+
+const skillSelectionLabel = computed(() => {
+  if (isSkillWildcard.value) return 'All skills (*)';
+  const n = form.value.skills?.length ?? 0;
+  return n === 0 ? 'Select skills' : `${n} skill${n > 1 ? 's' : ''} selected`;
 });
 
 function isToolSelected(name: string): boolean {
@@ -559,24 +645,51 @@ function closeToolDropdown() {
   toolDropdownOpen.value = false;
 }
 
+function isSkillSelected(name: string): boolean {
+  return form.value.skills?.includes(name) ?? false;
+}
+
+function toggleSkill(name: string) {
+  if (!form.value.skills) form.value.skills = [];
+  const idx = form.value.skills.indexOf(name);
+  if (idx >= 0) {
+    form.value.skills.splice(idx, 1);
+  } else {
+    form.value.skills.push(name);
+  }
+}
+
+function selectAllSkills() {
+  form.value.skills = ['*'];
+}
+
+function clearAllSkills() {
+  form.value.skills = [];
+}
+
+function toggleSkillDropdown() {
+  skillDropdownOpen.value = !skillDropdownOpen.value;
+  if (skillDropdownOpen.value) skillSearch.value = '';
+}
+
+function closeSkillDropdown() {
+  skillDropdownOpen.value = false;
+}
+
 function handleClickOutside(e: MouseEvent) {
-  const el = toolDropdownRef.value;
-  if (toolDropdownOpen.value && el && !el.contains(e.target as Node)) {
+  const toolEl = toolDropdownRef.value;
+  if (toolDropdownOpen.value && toolEl && !toolEl.contains(e.target as Node)) {
     closeToolDropdown();
+  }
+  const skillEl = skillDropdownRef.value;
+  if (skillDropdownOpen.value && skillEl && !skillEl.contains(e.target as Node)) {
+    closeSkillDropdown();
   }
 }
 
 function closeEditor() {
   editingRole.value = null;
   creating.value = false;
-}
-
-function addSkill() {
-  form.value.skills.push('');
-}
-
-function removeSkill(idx: number) {
-  form.value.skills.splice(idx, 1);
 }
 
 async function saveRole() {
