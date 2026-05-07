@@ -16,12 +16,11 @@ export function createStopCommand(sessionManager: Pick<SessionManager, 'get'>): 
       }
 
       const cancelled = Agent.cancel(context.sessionKey);
-      session.unlock();
-
       if (!cancelled) {
-        session.unlock();
+        return '没有正在进行的处理。';
       }
 
+      session.unlock();
       return 'Agent 处理已中止。';
     },
   };
