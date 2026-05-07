@@ -88,4 +88,5 @@ export type PipelineDependencies = {
   llmAdapter: LlmAdapter;
   skillManager: SkillManager;
   toolRegistry: ToolRegistry;
+  compressionThreshold: number;
 };

@@ -21,6 +21,7 @@ export function createBtwCommand(
   toolRegistry: ToolRegistry,
   hookDispatcher: HookDispatcher,
   databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>,
+  compressionThreshold: number,
 ): CommandDefinition {
   return {
     name: 'btw',
@@ -46,6 +47,7 @@ export function createBtwCommand(
         skillManager,
         toolRegistry,
         hookDispatcher,
+        compressionThreshold,
       });
       const outbound = await agent.processEphemeral(role, content);
 

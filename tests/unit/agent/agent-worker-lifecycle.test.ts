@@ -104,8 +104,10 @@ function makeAgent(): Agent {
     } as never,
     toolRegistry: {
       resolveForRole: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
+      getForRole: vi.fn().mockReturnValue([]),
     } as never,
     hookDispatcher: {} as never,
+    compressionThreshold: 0.8,
   });
 }
 
@@ -116,6 +118,52 @@ afterEach(() => {
 });
 
 describe('Agent worker lifecycle', () => {
+  it('uses context window and compression threshold before compacting', async () => {
+    const session = {
+      key: { channel: 'test', type: 'private', chatId: 'compact-threshold' },
+      get: vi.fn().mockReturnValue([
+        { role: 'user', content: 'x'.repeat(4000) },
+        { role: 'assistant', content: [{ type: 'text', text: 'y'.repeat(4000) }] },
+        { role: 'user', content: 'z'.repeat(3000) },
+      ]),
+      compact: vi.fn().mockResolvedValue('summary'),
+      syncFromAgent: vi.fn().mockResolvedValue(undefined),
+    };
+    const agent = new Agent({
+      session: session as never,
+      llmAdapter: {
+        resolveModel: vi.fn().mockReturnValue({
+          provider: 'openai',
+          modelId: 'gpt-4o',
+          apiKey: 'sk-test',
+          apiType: 'openai-responses',
+          id: 'gpt-4o',
+          contextWindow: 4000,
+          reasoning: false,
+        }),
+      } as never,
+      roleManager: {
+        getEnabledRoles: vi.fn().mockReturnValue([]),
+      } as never,
+      skillManager: {
+        getSkillsForRole: vi.fn().mockReturnValue([]),
+      } as never,
+      toolRegistry: {
+        resolveForRole: vi.fn().mockReturnValue({ tools: [], agentTools: [] }),
+        getForRole: vi.fn().mockReturnValue([]),
+      } as never,
+      hookDispatcher: {} as never,
+      compressionThreshold: 0.8,
+    });
+    const role = makeRole();
+    await agent.setRole(role);
+    vi.spyOn(agent, 'runTurn').mockResolvedValue({ newMessages: [], lastAssistant: 'ok' });
+
+    await agent.process({ components: [{ type: 'Plain', text: 'hello' }] });
+
+    expect(session.compact).not.toHaveBeenCalled();
+  });
+
   it('assigns unique session ids to parallel workers', async () => {
     const dateNow = vi.spyOn(Date, 'now').mockReturnValue(1234567890);
     const agent = makeAgent();
@@ -152,6 +200,29 @@ describe('Agent worker lifecycle', () => {
       getWorker(1).finishTermination(1);
       await Promise.allSettled([turn1, turn2]);
     }
+  });
+
+  it('logs when a turn completes', async () => {
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const agent = makeAgent();
+    const role = makeRole();
+
+    const turn = agent.runTurn(role, 'turn', [], agent.session.key);
+    await Promise.resolve();
+
+    getWorker(0).emit('message', {
+      type: 'done',
+      newMessages: [],
+      lastAssistant: 'finished',
+    });
+
+    await expect(turn).resolves.toEqual({
+      newMessages: [],
+      lastAssistant: 'finished',
+    });
+    expect(infoSpy).toHaveBeenCalled();
+
+    infoSpy.mockRestore();
   });
 
   it('keeps parallel workers active for the same session', async () => {

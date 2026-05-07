@@ -97,6 +97,7 @@ describe('PromptBuilder', () => {
       skillManager: deps.skillManager as never,
       toolRegistry: deps.toolRegistry as never,
       hookDispatcher: deps.toolHookDispatcher as never,
+      compressionThreshold: 0.8,
     });
   }
 
@@ -282,6 +283,7 @@ Blocked content.`,
           dispatchBeforeToolCall: vi.fn().mockResolvedValue({}),
           dispatchAfterToolCall: vi.fn().mockResolvedValue({}),
         } as never,
+        compressionThreshold: 0.8,
       });
 
       try {

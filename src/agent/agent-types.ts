@@ -1,5 +1,4 @@
 import type {
-  Agent as PiAgent,
   AgentMessage as PiAgentMessage,
   StreamFn,
 } from '@mariozechner/pi-agent-core';
@@ -7,7 +6,7 @@ import type { Api, Model, TextContent, ToolCall, Usage } from '@mariozechner/pi-
 import type { SessionKey } from '@aesyclaw/core/types';
 import type { ToolExecutionResult } from '@aesyclaw/tool/tool-registry';
 
-export type Agent = PiAgent;
+
 export type AgentMessage = PiAgentMessage;
 export type ResolvedModel = Model<Api> & {
   modelId: string;
@@ -55,10 +54,6 @@ export type AfterToolCallHookResult = {
   override?: Partial<ToolExecutionResult>;
 };
 
-export type MemoryConfig = {
-  maxContextTokens: number;
-  compressionThreshold: number;
-};
 
 export const ApiType = {
   OPENAI_RESPONSES: 'openai-responses',

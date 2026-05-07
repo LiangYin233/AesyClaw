@@ -4,10 +4,10 @@ import { fileURLToPath } from 'node:url';
 import type { RoleConfig, Message, SessionKey, Skill } from '@aesyclaw/core/types';
 import { serializeSessionKey, getMessageText } from '@aesyclaw/core/types';
 import type { AgentMessage, ResolvedModel, AgentTool } from './agent-types';
-import { extractMessageText } from './agent-types';
 import type { AesyClawTool, ToolExecutionContext } from '@aesyclaw/tool/tool-registry';
 import type { LlmAdapter } from './llm-adapter';
 import type { Session } from '@aesyclaw/session';
+import { estimateApproximateTokens } from '@aesyclaw/session';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
@@ -24,6 +24,7 @@ export type AgentOptions = {
   skillManager: SkillManager;
   toolRegistry: ToolRegistry;
   hookDispatcher: HookDispatcher;
+  compressionThreshold: number;
 };
 
 type RunTurnResult = {
@@ -43,6 +44,8 @@ export class Agent {
   readonly session: Session;
   roleId?: string;
 
+  private compressionThreshold: number;
+
   private _model!: ResolvedModel;
   private _activeRole: RoleConfig | null = null;
   private _allowedTools: AesyClawTool[] = [];
@@ -60,6 +63,7 @@ export class Agent {
     this.skillManager = options.skillManager;
     this.toolRegistry = options.toolRegistry;
     this.hookDispatcher = options.hookDispatcher;
+    this.compressionThreshold = options.compressionThreshold;
 
     Agent.activeAgents.set(serializeSessionKey(this.session.key), this);
   }
@@ -185,6 +189,7 @@ export class Agent {
         onMessage = async (msg: Record<string, unknown>) => {
           if (msg['type'] === 'done') {
             settled = true;
+            logger.info('Agent 处理已完成', { sessionKey, role: role.id, runId });
             cleanup();
             resolve({
               newMessages: msg['newMessages'] as AgentMessage[],
@@ -373,8 +378,6 @@ export class Agent {
   }
 
   private shouldCompact(messages: readonly AgentMessage[]): boolean {
-    const threshold = 1000;
-    const textLength = messages.reduce((total, m) => total + extractMessageText(m).length, 0);
-    return Math.ceil(textLength / 4) >= threshold;
+    return estimateApproximateTokens(messages) >= this._model.contextWindow * this.compressionThreshold;
   }
 }

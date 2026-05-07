@@ -100,12 +100,13 @@ export class Session {
       return '会话历史太短，无需压缩。';
     }
 
+    const model = llmAdapter.resolveModel(modelIdentifier);
     logger.info('正在压缩会话历史', {
       sessionId: this.sessionId,
       messageCount: this._messages.length,
+      totalTokens: `${estimateApproximateTokens(this._messages)}/${model.contextWindow}`,
     });
 
-    const model = llmAdapter.resolveModel(modelIdentifier);
     const summary = await this.summarizeConversation(model, this._messages);
     await this.db.messages.replaceWithSummary(this.sessionId, summary);
     await this.bind();
@@ -248,6 +249,11 @@ function parseTimestamp(timestamp?: string): number {
   if (!timestamp) return Date.now();
   const parsed = Date.parse(timestamp);
   return Number.isNaN(parsed) ? Date.now() : parsed;
+}
+
+export function estimateApproximateTokens(messages: readonly AgentMessage[]): number {
+  const textLength = messages.reduce((total, message) => total + extractMessageText(message).length, 0);
+  return Math.ceil(textLength / 4);
 }
 
 function buildSummaryPrompt(messages: AgentMessage[]): string {

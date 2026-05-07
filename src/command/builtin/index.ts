@@ -35,6 +35,7 @@ export type BuiltinCommandDependencies = {
   toolRegistry: ToolRegistry;
   hookDispatcher: HookDispatcher;
   databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>;
+  compressionThreshold: number;
 };
 
 export function registerBuiltinCommands(
@@ -59,6 +60,7 @@ export function registerBuiltinCommands(
       deps.toolRegistry,
       deps.hookDispatcher,
       deps.databaseManager,
+      deps.compressionThreshold,
     ),
   );
   registry.register(createModelCommand(deps.llmAdapter));

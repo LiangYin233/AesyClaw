@@ -125,6 +125,9 @@ export class CoreLifecycle {
       llmAdapter: this.resolvedDeps.llmAdapter,
       skillManager: this.resolvedDeps.skillManager,
       toolRegistry: this.resolvedDeps.toolRegistry,
+      compressionThreshold: this.resolvedDeps.configManager.get(
+        'agent.memory.compressionThreshold',
+      ) as number,
     });
 
     this.extensionManager = new ExtensionManager({
@@ -153,6 +156,9 @@ export class CoreLifecycle {
       toolRegistry: this.resolvedDeps.toolRegistry,
       hookDispatcher: this.resolvedDeps.pipeline.hooks,
       databaseManager: this.resolvedDeps.databaseManager,
+      compressionThreshold: this.resolvedDeps.configManager.get(
+        'agent.memory.compressionThreshold',
+      ) as number,
     });
 
     await this.extensionManager.setup();
