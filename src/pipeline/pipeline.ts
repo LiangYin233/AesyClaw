@@ -63,11 +63,6 @@ export class Pipeline {
       }
 
       // ── Step 2: 会话与 Agent 解析 ────────────────────────
-      if (sessionKey.channel === 'cron' && sessionKey.type === 'job') {
-        const existing = deps.sessionManager.get(sessionKey);
-        if (existing) await existing.clear();
-      }
-
       const session = await deps.sessionManager.create(sessionKey);
 
       const activeRoleId =
@@ -90,9 +85,24 @@ export class Pipeline {
       // ── Step 3: 命令检测 ─────────────────────────────────
       const text = getMessageText(message);
       const resolved = deps.commandRegistry.resolve(text);
-      const isBusy = session.isLocked;
 
-      if (isBusy && !resolved?.command.allowDuringAgentProcessing) {
+      if (resolved) {
+        if (session.isLocked && !resolved.command.allowDuringAgentProcessing) {
+          await this.deliver(
+            send,
+            { components: [{ type: 'Plain', text: AGENT_PROCESSING_BUSY_MESSAGE }] },
+            session.key,
+          );
+          return;
+        }
+
+        const result = await deps.commandRegistry.executeResolved(resolved, { sessionKey });
+        await this.deliver(send, { components: [{ type: 'Plain', text: result }] }, session.key);
+        return;
+      }
+
+      // ── Step 4: 非命令锁定 ───────────────────────────────
+      if (!session.lock()) {
         await this.deliver(
           send,
           { components: [{ type: 'Plain', text: AGENT_PROCESSING_BUSY_MESSAGE }] },
@@ -101,14 +111,8 @@ export class Pipeline {
         return;
       }
 
-      if (resolved) {
-        const result = await deps.commandRegistry.executeResolved(resolved, { sessionKey });
-        await this.deliver(send, { components: [{ type: 'Plain', text: result }] }, session.key);
-        return;
-      }
-
-      // ── Step 4: beforeLLM 钩子 ───────────────────────────
-      if (session !== undefined && agent !== undefined && activeRole !== undefined) {
+      try {
+        // ── Step 5: beforeLLM 钩子与 Agent 处理 ────────────
         const beforeLLMResult = await this.hooks.beforeLLM({
           message,
           sessionKey,
@@ -123,19 +127,7 @@ export class Pipeline {
           }
           return;
         }
-      }
 
-      // ── Step 5: Agent 处理（session.lock/unlock） ────────
-      if (!session.lock()) {
-        await this.deliver(
-          send,
-          { components: [{ type: 'Plain', text: AGENT_PROCESSING_BUSY_MESSAGE }] },
-          session.key,
-        );
-        return;
-      }
-
-      try {
         const outbound = await agent.process(message, async (msg) => {
           return await this.deliver(send, msg, session.key);
         });

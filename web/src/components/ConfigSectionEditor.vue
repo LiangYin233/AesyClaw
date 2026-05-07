@@ -51,19 +51,13 @@
                 <div class="flex items-center gap-2.5 mb-0">
                   <label
                     class="font-heading text-xs font-medium text-dark tracking-[0.02em] uppercase whitespace-nowrap m-0"
-                    >Enabled</label
                   >
-                  <button
-                    type="button"
-                    class="w-11 h-6 rounded-full border-none cursor-pointer relative transition-colors duration-[0.15s] ease p-0"
-                    :class="getChannelEnabled(entry) ? 'bg-accent-green' : 'bg-mid-gray'"
-                    @click="toggleChannelEnabled(entry.key)"
-                  >
-                    <span
-                      class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease"
-                      :class="{ 'translate-x-5': getChannelEnabled(entry) }"
-                    ></span>
-                  </button>
+                    Enabled
+                  </label>
+                  <ToggleSwitch
+                    :model-value="getChannelEnabled(entry)"
+                    @update:model-value="toggleChannelEnabled(entry.key)"
+                  />
                 </div>
                 <button
                   type="button"
@@ -90,20 +84,14 @@
                     <div class="mb-5">
                       <label
                         class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase"
-                        >{{ field.displayLabel }}</label
                       >
+                        {{ field.displayLabel }}
+                      </label>
                       <template v-if="field.type === 'boolean'">
-                        <button
-                          type="button"
-                          class="w-11 h-6 rounded-full border-none cursor-pointer relative transition-colors duration-[0.15s] ease p-0"
-                          :class="field.value ? 'bg-accent-green' : 'bg-mid-gray'"
-                          @click="setChannelField(entry.key, field.path, !field.value)"
-                        >
-                          <span
-                            class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease"
-                            :class="{ 'translate-x-5': field.value }"
-                          ></span>
-                        </button>
+                        <ToggleSwitch
+                          :model-value="Boolean(field.value)"
+                          @update:model-value="setChannelField(entry.key, field.path, $event)"
+                        />
                       </template>
                       <input
                         v-else-if="field.type === 'number'"
@@ -167,19 +155,13 @@
                 <div class="flex items-center gap-2.5 mb-0">
                   <label
                     class="font-heading text-xs font-medium text-dark tracking-[0.02em] uppercase whitespace-nowrap m-0"
-                    >Enabled</label
                   >
-                  <button
-                    type="button"
-                    class="w-11 h-6 rounded-full border-none cursor-pointer relative transition-colors duration-[0.15s] ease p-0"
-                    :class="plugin.enabled ? 'bg-accent-green' : 'bg-mid-gray'"
-                    @click="updatePluginField(index, 'enabled', !plugin.enabled)"
-                  >
-                    <span
-                      class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease"
-                      :class="{ 'translate-x-5': plugin.enabled }"
-                    ></span>
-                  </button>
+                    Enabled
+                  </label>
+                  <ToggleSwitch
+                    :model-value="plugin.enabled"
+                    @update:model-value="updatePluginField(index, 'enabled', $event)"
+                  />
                 </div>
                 <button
                   type="button"
@@ -209,20 +191,14 @@
                     <div class="mb-5">
                       <label
                         class="block mb-[0.4rem] font-heading font-medium text-xs text-dark tracking-[0.02em] uppercase"
-                        >{{ field.displayLabel }}</label
                       >
+                        {{ field.displayLabel }}
+                      </label>
                       <template v-if="field.type === 'boolean'">
-                        <button
-                          type="button"
-                          class="w-11 h-6 rounded-full border-none cursor-pointer relative transition-colors duration-[0.15s] ease p-0"
-                          :class="field.value ? 'bg-accent-green' : 'bg-mid-gray'"
-                          @click="setPluginOptionField(index, field.path, !field.value)"
-                        >
-                          <span
-                            class="absolute top-[2px] left-[2px] w-5 h-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.15)] transition-transform duration-[0.15s] ease"
-                            :class="{ 'translate-x-5': field.value }"
-                          ></span>
-                        </button>
+                        <ToggleSwitch
+                          :model-value="Boolean(field.value)"
+                          @update:model-value="setPluginOptionField(index, field.path, $event)"
+                        />
                       </template>
                       <input
                         v-else-if="field.type === 'number'"
@@ -271,14 +247,6 @@
         </template>
       </section>
     </div>
-
-    <div
-      v-if="toast"
-      class="fixed top-5 right-5 px-5 py-[0.85rem] rounded-sm text-white font-heading font-medium text-sm z-[200] animate-[slideInRight_0.3s_cubic-bezier(0.16,1,0.3,1)] shadow-lg"
-      :class="toast.type === 'toast-success' ? 'bg-accent-green' : 'bg-danger'"
-    >
-      {{ toast.message }}
-    </div>
   </div>
 </template>
 
@@ -286,6 +254,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useWebSocket } from '@/composables/useWebSocket';
 import { useToast } from '@/composables/useToast';
+import ToggleSwitch from '@/components/ToggleSwitch.vue';
 import { TrashIcon } from '@heroicons/vue/24/outline';
 
 interface PluginEntry extends Record<string, unknown> {
@@ -306,7 +275,7 @@ const props = defineProps<{
 }>();
 
 const ws = useWebSocket();
-const { toast, showToast } = useToast();
+const { showToast } = useToast();
 
 const fullConfig = ref<Record<string, unknown>>({});
 const sectionValue = ref<unknown>(props.sectionKey === 'plugins' ? [] : {});

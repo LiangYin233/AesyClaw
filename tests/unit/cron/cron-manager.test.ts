@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { CronJobRecord, SessionKey } from '../../../src/core/types';
+import type { CronJobRecord, Message, SessionKey } from '../../../src/core/types';
 import type {
   CronJobsRepository,
   CronRunsRepository,
 } from '../../../src/core/database/database-manager';
+import type { SessionManager } from '../../../src/session';
+import type { PluginHooks } from '../../../src/pipeline/types';
+import { CoreLifecycle, type CoreLifecycleDependencies } from '../../../src/core/core-lifecycle';
 import { CronManager } from '../../../src/cron/cron-manager';
 import { computeNextRun, CronScheduler } from '../../../src/cron/cron-scheduler';
 import {
@@ -67,6 +70,7 @@ class FakeCronRunRepo implements CronRunsRepository {
   completed: Array<{ runId: string; result: string }> = [];
   failed: Array<{ runId: string; error: string }> = [];
   abandoned: string[] = [];
+  abandonError: Error | null = null;
 
   async create(): Promise<string> {
     const id = `run-${this.created.length + 1}`;
@@ -87,20 +91,54 @@ class FakeCronRunRepo implements CronRunsRepository {
   }
 
   async markAbandoned(runIds: string[]): Promise<void> {
+    if (this.abandonError) {
+      throw this.abandonError;
+    }
     this.abandoned.push(...runIds);
   }
 }
 
-function makePipeline(response = 'done') {
+function makeHooks() {
   return {
+    register: vi.fn((_pluginName: string, _hooks: PluginHooks) => undefined),
+    unregister: vi.fn((_pluginName: string) => undefined),
+  };
+}
+
+function makePipeline(response = 'done', hooks = makeHooks()) {
+  return {
+    hooks,
     receiveWithSend: vi.fn(async (_message, _sessionKey, _sender, send) => {
       await send({ components: [{ type: 'Plain', text: response }] });
     }),
-  };
+  } as unknown as Parameters<CronManager['initialize']>[0]['pipeline'];
 }
 
 function makeSend() {
   return vi.fn(async () => undefined);
+}
+
+function makeSessionManager(existingSession?: { clear: () => Promise<void> }): SessionManager {
+  return {
+    get: vi.fn((_sessionKey: SessionKey) => existingSession ?? null),
+  } as unknown as SessionManager;
+}
+
+function makeInitializeDeps(params: {
+  jobs: CronJobsRepository;
+  runs: CronRunsRepository;
+  pipeline?: Parameters<CronManager['initialize']>[0]['pipeline'];
+  send?: (sessionKey: SessionKey, message: Message) => Promise<void>;
+  sessionManager?: SessionManager;
+  scheduler?: CronScheduler;
+}): Parameters<CronManager['initialize']>[0] {
+  return {
+    databaseManager: { cronJobs: params.jobs, cronRuns: params.runs },
+    pipeline: params.pipeline ?? makePipeline(),
+    sessionManager: params.sessionManager ?? makeSessionManager(),
+    send: params.send ?? makeSend(),
+    scheduler: params.scheduler,
+  };
 }
 
 afterEach(() => {
@@ -145,11 +183,12 @@ describe('Cron', () => {
     const pipeline = makePipeline('cron response');
     const send = makeSend();
     const manager = new CronManager();
-    await manager.initialize({
-      databaseManager: { cronJobs: jobs, cronRuns: runs },
+    await manager.initialize(makeInitializeDeps({
+      jobs,
+      runs,
       pipeline,
       send,
-    });
+    }));
 
     const jobId = await manager.createJob({
       scheduleType: 'interval',
@@ -185,11 +224,7 @@ describe('Cron', () => {
     const jobs = new FakeCronJobRepo();
     const runs = new FakeCronRunRepo();
     const manager = new CronManager();
-    await manager.initialize({
-      databaseManager: { cronJobs: jobs, cronRuns: runs },
-      pipeline: makePipeline(),
-      send: makeSend(),
-    });
+    await manager.initialize(makeInitializeDeps({ jobs, runs }));
 
     await manager.createJob({
       scheduleType: 'interval',
@@ -212,19 +247,95 @@ describe('Cron', () => {
     await manager.destroy();
   });
 
+  it('registers an internal hook that clears existing cron job sessions on receive', async () => {
+    const jobs = new FakeCronJobRepo();
+    const runs = new FakeCronRunRepo();
+    const hooks = makeHooks();
+    const clear = vi.fn(async () => undefined);
+    const sessionManager = makeSessionManager({ clear });
+    const manager = new CronManager();
+
+    await manager.initialize(
+      makeInitializeDeps({
+        jobs,
+        runs,
+        pipeline: makePipeline('done', hooks),
+        sessionManager,
+      }),
+    );
+
+    expect(hooks.register).toHaveBeenCalledWith(
+      'internal:cron',
+      expect.objectContaining({ onReceive: expect.any(Function) }),
+    );
+    const registeredHooks = hooks.register.mock.calls[0]?.[1];
+
+    await expect(
+      registeredHooks?.onReceive?.({
+        message: { components: [{ type: 'Plain', text: 'run' }] },
+        sessionKey: { channel: 'cron', type: 'job', chatId: 'job-1' },
+        sender: undefined,
+      }),
+    ).resolves.toEqual({ action: 'continue' });
+    expect(sessionManager.get).toHaveBeenCalledWith({ channel: 'cron', type: 'job', chatId: 'job-1' });
+    expect(clear).toHaveBeenCalledTimes(1);
+
+    await manager.destroy();
+  });
+
+  it('unregisters the internal cron hook on destroy', async () => {
+    const jobs = new FakeCronJobRepo();
+    const runs = new FakeCronRunRepo();
+    const hooks = makeHooks();
+    const manager = new CronManager();
+
+    await manager.initialize(
+      makeInitializeDeps({
+        jobs,
+        runs,
+        pipeline: makePipeline('done', hooks),
+      }),
+    );
+    await manager.destroy();
+
+    expect(hooks.unregister).toHaveBeenCalledWith('internal:cron');
+  });
+
+  it('unregisters the internal cron hook when destroy follows failed initialization', async () => {
+    const jobs = new FakeCronJobRepo();
+    const runs = new FakeCronRunRepo();
+    runs.abandonError = new Error('abandon failed');
+    const hooks = makeHooks();
+    const manager = new CronManager();
+
+    await expect(
+      manager.initialize(
+        makeInitializeDeps({
+          jobs,
+          runs,
+          pipeline: makePipeline('done', hooks),
+        }),
+      ),
+    ).rejects.toThrow('abandon failed');
+
+    await expect(manager.destroy()).rejects.toThrow('CronManager');
+    expect(hooks.unregister).toHaveBeenCalledWith('internal:cron');
+  });
+
   it('marks runs failed when pipeline execution fails', async () => {
     const jobs = new FakeCronJobRepo();
     const runs = new FakeCronRunRepo();
     const manager = new CronManager();
-    await manager.initialize({
-      databaseManager: { cronJobs: jobs, cronRuns: runs },
-      send: makeSend(),
+    await manager.initialize(makeInitializeDeps({
+      jobs,
+      runs,
       pipeline: {
+        hooks: makeHooks(),
         receiveWithSend: vi.fn(async () => {
           throw new Error('pipeline boom');
         }),
-      },
-    });
+      } as unknown as Parameters<CronManager['initialize']>[0]['pipeline'],
+    }));
     const jobId = await manager.createJob({
       scheduleType: 'interval',
       scheduleValue: '30m',
@@ -246,12 +357,12 @@ describe('Cron', () => {
     const pipeline = makePipeline('cron response');
     const scheduler = new CronScheduler();
     const manager = new CronManager();
-    await manager.initialize({
-      databaseManager: { cronJobs: jobs, cronRuns: runs },
+    await manager.initialize(makeInitializeDeps({
+      jobs,
+      runs,
       pipeline,
-      send: makeSend(),
       scheduler,
-    });
+    }));
 
     const jobId = await manager.createJob({
       scheduleType: 'interval',
@@ -283,12 +394,12 @@ describe('Cron', () => {
       count: vi.fn(() => 0),
     } as unknown as CronScheduler;
     const manager = new CronManager();
-    await manager.initialize({
-      databaseManager: { cronJobs: jobs, cronRuns: runs },
+    await manager.initialize(makeInitializeDeps({
+      jobs,
+      runs,
       pipeline,
-      send: makeSend(),
       scheduler,
-    });
+    }));
 
     const jobId = await manager.createJob({
       scheduleType: 'interval',
@@ -330,12 +441,12 @@ describe('Cron', () => {
     const scheduler = new CronScheduler();
     const manager = new CronManager();
 
-    await manager.initialize({
-      databaseManager: { cronJobs: jobs, cronRuns: runs },
+    await manager.initialize(makeInitializeDeps({
+      jobs,
+      runs,
       pipeline: makePipeline('cron response'),
-      send: makeSend(),
       scheduler,
-    });
+    }));
 
     expect(runs.created).toEqual([]);
     expect(runs.completed).toEqual([]);
@@ -367,12 +478,12 @@ describe('Cron', () => {
     const scheduler = new CronScheduler();
     const manager = new CronManager();
 
-    await manager.initialize({
-      databaseManager: { cronJobs: jobs, cronRuns: runs },
+    await manager.initialize(makeInitializeDeps({
+      jobs,
+      runs,
       pipeline: makePipeline('cron response'),
-      send: makeSend(),
       scheduler,
-    });
+    }));
 
     const persistedNextRun = jobs.jobs.get('job-1')?.nextRun;
     expect(runs.created).toEqual([]);
@@ -403,12 +514,12 @@ describe('Cron', () => {
     const scheduler = new CronScheduler();
     const manager = new CronManager();
 
-    await manager.initialize({
-      databaseManager: { cronJobs: jobs, cronRuns: runs },
+    await manager.initialize(makeInitializeDeps({
+      jobs,
+      runs,
       pipeline: makePipeline('cron response'),
-      send: makeSend(),
       scheduler,
-    });
+    }));
 
     expect(runs.created).toEqual([]);
     expect(jobs.updateNextRunCalls).toEqual([{ id: 'job-1', nextRun: null }]);
@@ -436,12 +547,12 @@ describe('Cron', () => {
     const scheduler = new CronScheduler();
     const manager = new CronManager();
 
-    await manager.initialize({
-      databaseManager: { cronJobs: jobs, cronRuns: runs },
+    await manager.initialize(makeInitializeDeps({
+      jobs,
+      runs,
       pipeline: makePipeline('cron response'),
-      send: makeSend(),
       scheduler,
-    });
+    }));
 
     expect(runs.created).toEqual([]);
     expect(jobs.updateNextRunCalls).toEqual([]);
@@ -460,12 +571,12 @@ describe('Cron', () => {
     const pipeline = makePipeline('cron response');
     const scheduler = new CronScheduler();
     const manager = new CronManager();
-    await manager.initialize({
-      databaseManager: { cronJobs: jobs, cronRuns: runs },
+    await manager.initialize(makeInitializeDeps({
+      jobs,
+      runs,
       pipeline,
-      send: makeSend(),
       scheduler,
-    });
+    }));
 
     const jobId = await manager.createJob({
       scheduleType: 'interval',
@@ -494,16 +605,17 @@ describe('Cron', () => {
     const runs = new FakeCronRunRepo();
     const scheduler = new CronScheduler();
     const manager = new CronManager();
-    await manager.initialize({
-      databaseManager: { cronJobs: jobs, cronRuns: runs },
-      send: makeSend(),
+    await manager.initialize(makeInitializeDeps({
+      jobs,
+      runs,
       pipeline: {
+        hooks: makeHooks(),
         receiveWithSend: vi.fn(async () => {
           throw new Error('pipeline boom');
         }),
-      },
+      } as unknown as Parameters<CronManager['initialize']>[0]['pipeline'],
       scheduler,
-    });
+    }));
 
     await manager.createJob({
       scheduleType: 'interval',
@@ -529,6 +641,7 @@ describe('Cron', () => {
     const runs = new FakeCronRunRepo();
     let unblockPipeline: (() => void) | undefined;
     const pipeline = {
+      hooks: makeHooks(),
       receiveWithSend: vi.fn(async (_message, _sessionKey, _sender, send) => {
         await new Promise<void>((resolve) => {
           unblockPipeline = resolve;
@@ -538,12 +651,12 @@ describe('Cron', () => {
     };
     const scheduler = new CronScheduler();
     const manager = new CronManager();
-    await manager.initialize({
-      databaseManager: { cronJobs: jobs, cronRuns: runs },
+    await manager.initialize(makeInitializeDeps({
+      jobs,
+      runs,
       pipeline,
-      send: makeSend(),
       scheduler,
-    });
+    }));
 
     const jobId = await manager.createJob({
       scheduleType: 'interval',
@@ -621,5 +734,51 @@ describe('Cron', () => {
     await expect(
       createDeleteCronTool({ cronManager }).execute({ jobId: 'job-1' }, context),
     ).resolves.toEqual({ content: '定时任务已删除: job-1' });
+  });
+});
+
+describe('CoreLifecycle shutdown', () => {
+  it('destroys cron before extension and MCP teardown', async () => {
+    const order: string[] = [];
+    const lifecycle = new CoreLifecycle();
+    lifecycle.initialize({
+      configManager: {
+        stopHotReload: () => order.push('config'),
+      },
+      roleManager: {
+        destroy: () => order.push('role'),
+      },
+      webUiManager: {
+        destroy: () => order.push('web'),
+      },
+      mcpManager: {
+        disconnectAll: async () => {
+          order.push('mcp');
+        },
+      },
+      cronManager: {
+        destroy: async () => {
+          order.push('cron');
+        },
+      },
+      pipeline: {
+        destroy: () => order.push('pipeline'),
+      },
+      databaseManager: {
+        destroy: () => order.push('database'),
+      },
+    } as unknown as CoreLifecycleDependencies);
+    Object.defineProperty(lifecycle, 'extensionManager', {
+      value: {
+        destroy: async () => {
+          order.push('extension');
+        },
+      },
+      writable: true,
+    });
+
+    await lifecycle.stop();
+
+    expect(order).toEqual(['config', 'web', 'cron', 'role', 'extension', 'mcp', 'pipeline', 'database']);
   });
 });

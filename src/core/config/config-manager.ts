@@ -22,6 +22,7 @@ import { isRecord, mergeDefaults } from '@aesyclaw/core/utils';
 import { resolvePaths, type ResolvedPaths } from '@aesyclaw/core/path-resolver';
 import { DEFAULT_ROLES_CONFIG } from '@aesyclaw/role/default-role';
 import { RolesConfigSchema } from '@aesyclaw/role/role-schema';
+import { AsyncMutex } from '../mutex';
 import { AppConfigSchema } from './schema';
 import type { AppConfig } from './schema';
 import { DEFAULT_CONFIG } from './defaults';
@@ -547,46 +548,4 @@ function setPathValue(root: Record<string, unknown>, path: string, value: unknow
 
 function normaliseRoles(roles: readonly RoleConfig[]): RoleConfig[] {
   return roles.map((role) => (role.id === 'default' ? { ...role, enabled: true } : role));
-}
-
-/**
- * 异步互斥锁 — 确保异步操作按顺序执行。
- *
- * 使用 Promise 队列实现：当锁被持有时，新请求会排队等待；
- * 当前操作完成后，队列中的下一个操作开始执行。
- */
-class AsyncMutex {
-  private queue: Array<() => Promise<void>> = [];
-  private locked = false;
-
-  async runExclusive<T>(fn: () => Promise<T> | T): Promise<T> {
-    return await new Promise<T>((resolve, reject) => {
-      const run = async (): Promise<void> => {
-        try {
-          const result = await fn();
-          resolve(result);
-        } catch (err) {
-          reject(err);
-        } finally {
-          this.locked = false;
-          this.dequeue();
-        }
-      };
-
-      if (this.locked) {
-        this.queue.push(run);
-      } else {
-        this.locked = true;
-        void run();
-      }
-    });
-  }
-
-  private dequeue(): void {
-    const next = this.queue.shift();
-    if (next) {
-      this.locked = true;
-      void next();
-    }
-  }
 }

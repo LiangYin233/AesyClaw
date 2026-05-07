@@ -19,6 +19,19 @@ export function getRole(deps: WebUiManagerDependencies, id: string): RoleConfig 
   return deps.roleManager.getRole(id);
 }
 
+function validateProviderModel(deps: WebUiManagerDependencies, model: string): void {
+  const { provider: providerName, modelId } = parseModelIdentifier(model);
+  const provider = deps.configManager.get(`providers.${providerName}`) as
+    | { models?: Record<string, unknown> }
+    | undefined;
+  if (provider === undefined) {
+    throw new Error(`提供商 "${providerName}" 未配置`);
+  }
+  if (provider.models === undefined || !(modelId in provider.models)) {
+    throw new Error(`提供商 "${providerName}" 中未找到模型 "${modelId}"`);
+  }
+}
+
 /**
  * 创建角色。
  */
@@ -30,17 +43,7 @@ export async function createRole(
     throw new Error('模型为必填项');
   }
 
-  // 验证 model 对应的 provider 和 modelId 存在
-  const { provider: providerName, modelId } = parseModelIdentifier(body.model);
-  const provider = deps.configManager.get(`providers.${providerName}`) as
-    | { models?: Record<string, unknown> }
-    | undefined;
-  if (provider === undefined) {
-    throw new Error(`提供商 "${providerName}" 未配置`);
-  }
-  if (provider.models === undefined || !(modelId in provider.models)) {
-    throw new Error(`提供商 "${providerName}" 中未找到模型 "${modelId}"`);
-  }
+  validateProviderModel(deps, body.model);
 
   const role = await deps.roleManager.createRole({
     description: body.description ?? '',
@@ -68,16 +71,7 @@ export async function updateRole(
 
   const current = deps.roleManager.getRole(id);
   const model = body.model ?? current.model;
-  const { provider: providerName, modelId } = parseModelIdentifier(model);
-  const provider = deps.configManager.get(`providers.${providerName}`) as
-    | { models?: Record<string, unknown> }
-    | undefined;
-  if (provider === undefined) {
-    throw new Error(`提供商 "${providerName}" 未配置`);
-  }
-  if (provider.models === undefined || !(modelId in provider.models)) {
-    throw new Error(`提供商 "${providerName}" 中未找到模型 "${modelId}"`);
-  }
+  validateProviderModel(deps, model);
 
   const updated: RoleConfig = { ...current, ...body, id };
   await deps.roleManager.saveRole(id, updated);

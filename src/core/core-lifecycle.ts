@@ -76,11 +76,11 @@ export class CoreLifecycle {
 
     const steps: Array<() => Promise<void> | void> = [
       () => this.resolvedDeps.configManager.stopHotReload(),
-      () => this.resolvedDeps.roleManager.destroy(),
       () => this.resolvedDeps.webUiManager.destroy(),
+      () => this.resolvedDeps.cronManager.destroy(),
+      () => this.resolvedDeps.roleManager.destroy(),
       () => this.extensionManager?.destroy(),
       () => this.resolvedDeps.mcpManager.disconnectAll(),
-      () => this.resolvedDeps.cronManager.destroy(),
       () => this.resolvedDeps.pipeline.destroy(),
       () => this.resolvedDeps.databaseManager.destroy(),
     ];
@@ -100,7 +100,6 @@ export class CoreLifecycle {
 
   private async runStartupSequence(): Promise<void> {
     await this.runStep('初始化核心管理器', async () => await this.initCoreManagers());
-    await this.runStep('初始化 Agent 运行时', async () => await this.initAgentRuntime());
     await this.runStep('初始化扩展运行时', async () => await this.initExtensionRuntime());
     await this.runStep('初始化外围运行时', async () => await this.initPeripheralRuntime());
     await this.runStep('安装运行时热重载', async () => await this.installHotReload());
@@ -116,8 +115,6 @@ export class CoreLifecycle {
       configManager: this.resolvedDeps.configManager,
     });
   }
-
-  private async initAgentRuntime(): Promise<void> {}
 
   private async initExtensionRuntime(): Promise<void> {
     await this.resolvedDeps.pipeline.initialize({
@@ -176,6 +173,7 @@ export class CoreLifecycle {
     await this.resolvedDeps.cronManager.initialize({
       databaseManager: this.resolvedDeps.databaseManager,
       pipeline: this.resolvedDeps.pipeline,
+      sessionManager: this.resolvedDeps.sessionManager,
       send: async (sessionKey, message) => await em.channels.send(sessionKey, message),
     });
 

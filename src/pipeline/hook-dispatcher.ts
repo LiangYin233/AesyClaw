@@ -10,8 +10,8 @@
  * - 否则返回默认的继续结果
  *
  * 相比旧版：
- * - 无泛型 dispatchHooks 函数
- * - 5 个显式 dispatch 方法，各含独立 for 循环 + try/catch
+ * - 保留 5 个显式 dispatch 方法作为公开入口
+ * - 通过私有 helper 复用遍历、错误处理和短路逻辑
  * - 移除了 CONTINUE_RESULT / EMPTY_BEFORE_TOOL / EMPTY_AFTER_TOOL 常量
  */
 
@@ -86,6 +86,47 @@ export class HookDispatcher {
     this.entries = [];
   }
 
+  private async dispatchPipelineHook<TCtx>(
+    hookName: string,
+    getHook: (hooks: PluginHooks) => ((ctx: TCtx) => Promise<PipelineResult>) | undefined,
+    ctx: TCtx,
+  ): Promise<PipelineResult> {
+    for (const entry of this.entries) {
+      const hookFn = getHook(entry.hooks);
+      if (!hookFn) continue;
+
+      try {
+        const result = await hookFn(ctx);
+        if (isTerminal(result)) return result;
+      } catch (err) {
+        logger.error(`插件 "${entry.pluginName}" 中的 ${hookName} 钩子错误`, err);
+      }
+    }
+
+    return { action: 'continue' };
+  }
+
+  private async dispatchToolHook<TCtx, TResult extends object>(
+    hookName: string,
+    getHook: (hooks: PluginHooks) => ((ctx: TCtx) => Promise<TResult>) | undefined,
+    ctx: TCtx,
+    shouldStop: (result: TResult) => boolean,
+  ): Promise<TResult | undefined> {
+    for (const entry of this.entries) {
+      const hookFn = getHook(entry.hooks);
+      if (!hookFn) continue;
+
+      try {
+        const result = await hookFn(ctx);
+        if (shouldStop(result)) return result;
+      } catch (err) {
+        logger.error(`插件 "${entry.pluginName}" 中的 ${hookName} 钩子错误`, err);
+      }
+    }
+
+    return undefined;
+  }
+
   // ─── 调度方法 ───────────────────────────────────────────
 
   /**
@@ -93,19 +134,7 @@ export class HookDispatcher {
    * 返回终止结果或默认 continue。
    */
   async onReceive(ctx: PipeCtx): Promise<PipelineResult> {
-    for (const entry of this.entries) {
-      const hookFn = entry.hooks.onReceive;
-      if (!hookFn) continue;
-
-      try {
-        const result = await hookFn(ctx);
-        if (isTerminal(result)) return result;
-      } catch (err) {
-        logger.error(`插件 "${entry.pluginName}" 中的 onReceive 钩子错误`, err);
-      }
-    }
-
-    return { action: 'continue' };
+    return await this.dispatchPipelineHook('onReceive', (hooks) => hooks.onReceive, ctx);
   }
 
   /**
@@ -113,19 +142,7 @@ export class HookDispatcher {
    * 返回终止结果或默认 continue。
    */
   async onSend(ctx: SendCtx): Promise<PipelineResult> {
-    for (const entry of this.entries) {
-      const hookFn = entry.hooks.onSend;
-      if (!hookFn) continue;
-
-      try {
-        const result = await hookFn(ctx);
-        if (isTerminal(result)) return result;
-      } catch (err) {
-        logger.error(`插件 "${entry.pluginName}" 中的 onSend 钩子错误`, err);
-      }
-    }
-
-    return { action: 'continue' };
+    return await this.dispatchPipelineHook('onSend', (hooks) => hooks.onSend, ctx);
   }
 
   /**
@@ -133,19 +150,7 @@ export class HookDispatcher {
    * session/agent/role 均已解析完毕。返回终止结果或默认 continue。
    */
   async beforeLLM(ctx: PipeCtx): Promise<PipelineResult> {
-    for (const entry of this.entries) {
-      const hookFn = entry.hooks.beforeLLM;
-      if (!hookFn) continue;
-
-      try {
-        const result = await hookFn(ctx);
-        if (isTerminal(result)) return result;
-      } catch (err) {
-        logger.error(`插件 "${entry.pluginName}" 中的 beforeLLM 钩子错误`, err);
-      }
-    }
-
-    return { action: 'continue' };
+    return await this.dispatchPipelineHook('beforeLLM', (hooks) => hooks.beforeLLM, ctx);
   }
 
   /**
@@ -153,19 +158,14 @@ export class HookDispatcher {
    * 如果某钩子返回 block 或 shortCircuit，则停止调度并返回该结果。
    */
   async beforeToolCall(ctx: BeforeToolCallHookContext): Promise<BeforeToolCallHookResult> {
-    for (const entry of this.entries) {
-      const hookFn = entry.hooks.beforeToolCall;
-      if (!hookFn) continue;
-
-      try {
-        const result = await hookFn(ctx);
-        if (result.block === true || result.shortCircuit !== undefined) return result;
-      } catch (err) {
-        logger.error(`插件 "${entry.pluginName}" 中的 beforeToolCall 钩子错误`, err);
-      }
-    }
-
-    return {};
+    return (
+      (await this.dispatchToolHook(
+        'beforeToolCall',
+        (hooks) => hooks.beforeToolCall,
+        ctx,
+        (result) => result.block === true || result.shortCircuit !== undefined,
+      )) ?? {}
+    );
   }
 
   /**
@@ -173,18 +173,13 @@ export class HookDispatcher {
    * 如果某钩子返回 override，则停止调度并返回该结果。
    */
   async afterToolCall(ctx: AfterToolCallHookContext): Promise<AfterToolCallHookResult> {
-    for (const entry of this.entries) {
-      const hookFn = entry.hooks.afterToolCall;
-      if (!hookFn) continue;
-
-      try {
-        const result = await hookFn(ctx);
-        if (result.override !== undefined) return result;
-      } catch (err) {
-        logger.error(`插件 "${entry.pluginName}" 中的 afterToolCall 钩子错误`, err);
-      }
-    }
-
-    return {};
+    return (
+      (await this.dispatchToolHook(
+        'afterToolCall',
+        (hooks) => hooks.afterToolCall,
+        ctx,
+        (result) => result.override !== undefined,
+      )) ?? {}
+    );
   }
 }

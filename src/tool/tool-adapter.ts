@@ -10,7 +10,11 @@
 
 import type { TSchema } from '@sinclair/typebox';
 import { Value } from '@sinclair/typebox/value';
-import type { AgentTool, AgentToolResult } from '@aesyclaw/agent/agent-types';
+import type {
+  AfterToolCallHookResult,
+  AgentTool,
+  AgentToolResult,
+} from '@aesyclaw/agent/agent-types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
 import type { AesyClawTool, ToolExecutionContext, ToolExecutionResult } from './tool-registry';
@@ -43,147 +47,77 @@ export function toAgentTool(
       params: unknown,
       signal?: AbortSignal,
     ): Promise<AgentToolResult> => {
-      const sessionKey = executionContext.sessionKey ?? {
-        channel: '',
-        type: '',
-        chatId: '',
-      };
-      const logContext = {
-        toolName: tool.name,
-        toolCallId,
-        owner: tool.owner,
-        sessionKey,
-      };
-      const complete = (
-        result: ToolExecutionResult,
-        outcome: ToolCallLogOutcome,
-      ): AgentToolResult => {
-        logger.debug('工具调用完成', {
-          ...logContext,
-          outcome,
-          result: summarizeResult(result),
-        });
-
-        return {
-          content: [{ type: 'text', text: result.content }],
-          details: result.details ?? {},
-          isError: result.isError,
-          terminate: result.terminate,
-        };
-      };
+      const { sessionKey, logContext } = createToolCallContext(tool, toolCallId, executionContext);
 
       logger.debug('工具调用已触发', {
         ...logContext,
         params: summarizeParams(params),
       });
 
-      // 1. 派发 beforeToolCall 钩子
-      const beforeResult = await toolHookDispatcher.beforeToolCall({
-        toolName: tool.name,
+      const beforeResult = await runBeforeToolHooks(
+        tool,
+        toolHookDispatcher,
         params,
         sessionKey,
-      });
-
-      if (beforeResult.block) {
-        logger.debug('工具调用被 before 钩子阻塞', {
-          ...logContext,
-          hasReason: beforeResult.reason !== undefined,
-        });
-
-        return complete(
-          {
-            content: beforeResult.reason ?? `工具调用 "${tool.name}" 被钩子阻塞`,
-            isError: true,
-          },
-          'blocked',
-        );
+        logContext,
+      );
+      if (beforeResult.handled) {
+        return completeToolCall(logContext, beforeResult.result, beforeResult.outcome);
       }
 
-      if (beforeResult.shortCircuit) {
-        logger.debug('工具调用被 before 钩子短路', {
-          ...logContext,
-          result: summarizeResult(beforeResult.shortCircuit),
-        });
-
-        return complete(beforeResult.shortCircuit, 'short-circuited');
-      }
-
-      // 2. 参数运行时验证
-      const validated = validateParams(tool.parameters, params);
+      const validated = validateToolCallParams(tool, params, logContext);
       if (!validated.success) {
-        logger.debug('工具参数验证失败', {
-          ...logContext,
-          error: validated.error,
-        });
-
-        return complete(
-          {
-            content: `参数验证失败: ${validated.error}`,
-            isError: true,
-          },
-          'validation-failed',
-        );
+        return completeToolCall(logContext, validated.result, 'validation-failed');
       }
 
-      // 3. 执行实际工具
-      let result: ToolExecutionResult;
-      try {
-        if (signal?.aborted) {
-          logger.debug('工具调用在执行前被中止', logContext);
-
-          return complete(
-            {
-              content: `工具调用 "${tool.name}" 被中止`,
-              isError: true,
-            },
-            'aborted',
-          );
-        }
-
-        result = await tool.execute(validated.value, executionContext as ToolExecutionContext);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        logger.debug('工具调用执行失败', {
-          ...logContext,
-          errorName: err instanceof Error ? err.name : typeof err,
-          message,
-        });
-
-        return complete({ content: message, isError: true }, 'execution-failed');
+      const executionResult = await executeToolSafely(
+        tool,
+        validated.value,
+        executionContext,
+        signal,
+        logContext,
+      );
+      if (!executionResult.success) {
+        return completeToolCall(logContext, executionResult.result, executionResult.outcome);
       }
 
-      // 4. 派发 afterToolCall 钩子 — 可能覆盖结果
-      const afterResult = await toolHookDispatcher.afterToolCall({
-        toolName: tool.name,
+      const result = await runAfterToolHooks(
+        tool,
+        toolHookDispatcher,
         params,
-        result,
+        executionResult.result,
         sessionKey,
-      });
+        logContext,
+      );
 
-      if (afterResult.override) {
-        const override = afterResult.override;
-        logger.debug('工具调用结果被 after 钩子覆盖', {
-          ...logContext,
-          override: {
-            hasContent: override.content !== undefined,
-            hasDetails: override.details !== undefined,
-            hasIsError: override.isError !== undefined,
-            hasTerminate: override.terminate !== undefined,
-          },
-        });
-
-        result = {
-          content: override.content ?? result.content,
-          details: override.details ?? result.details,
-          isError: override.isError ?? result.isError,
-          terminate: override.terminate ?? result.terminate,
-        };
-      }
-
-      return complete(result, 'executed');
+      return completeToolCall(logContext, result, 'executed');
     },
   };
 }
+
+type ToolCallLogContext = {
+  toolName: string;
+  toolCallId: string;
+  owner: AesyClawTool['owner'];
+  sessionKey: ToolExecutionContext['sessionKey'];
+};
+
+type ToolCallContext = {
+  sessionKey: ToolExecutionContext['sessionKey'];
+  logContext: ToolCallLogContext;
+};
+
+type BeforeToolHookRunResult =
+  | { handled: true; result: ToolExecutionResult; outcome: 'blocked' | 'short-circuited' }
+  | { handled: false };
+
+type ToolCallValidationResult =
+  | { success: true; value: unknown }
+  | { success: false; result: ToolExecutionResult };
+
+type ToolExecutionRunResult =
+  | { success: true; result: ToolExecutionResult }
+  | { success: false; result: ToolExecutionResult; outcome: 'aborted' | 'execution-failed' };
 
 type ToolCallLogOutcome =
   | 'executed'
@@ -192,6 +126,206 @@ type ToolCallLogOutcome =
   | 'aborted'
   | 'validation-failed'
   | 'execution-failed';
+
+function createToolCallContext(
+  tool: AesyClawTool,
+  toolCallId: string,
+  executionContext: Partial<ToolExecutionContext>,
+): ToolCallContext {
+  const sessionKey = executionContext.sessionKey ?? {
+    channel: '',
+    type: '',
+    chatId: '',
+  };
+
+  return {
+    sessionKey,
+    logContext: {
+      toolName: tool.name,
+      toolCallId,
+      owner: tool.owner,
+      sessionKey,
+    },
+  };
+}
+
+async function runBeforeToolHooks(
+  tool: AesyClawTool,
+  toolHookDispatcher: HookDispatcher,
+  params: unknown,
+  sessionKey: ToolExecutionContext['sessionKey'],
+  logContext: ToolCallLogContext,
+): Promise<BeforeToolHookRunResult> {
+  const beforeResult = await toolHookDispatcher.beforeToolCall({
+    toolName: tool.name,
+    params,
+    sessionKey,
+  });
+
+  if (beforeResult.block) {
+    logger.debug('工具调用被 before 钩子阻塞', {
+      ...logContext,
+      hasReason: beforeResult.reason !== undefined,
+    });
+
+    return {
+      handled: true,
+      result: {
+        content: beforeResult.reason ?? `工具调用 "${tool.name}" 被钩子阻塞`,
+        isError: true,
+      },
+      outcome: 'blocked',
+    };
+  }
+
+  if (beforeResult.shortCircuit) {
+    logger.debug('工具调用被 before 钩子短路', {
+      ...logContext,
+      result: summarizeResult(beforeResult.shortCircuit),
+    });
+
+    return {
+      handled: true,
+      result: beforeResult.shortCircuit,
+      outcome: 'short-circuited',
+    };
+  }
+
+  return { handled: false };
+}
+
+function validateToolCallParams(
+  tool: AesyClawTool,
+  params: unknown,
+  logContext: ToolCallLogContext,
+): ToolCallValidationResult {
+  const validated = validateParams(tool.parameters, params);
+  if (validated.success) {
+    return validated;
+  }
+
+  logger.debug('工具参数验证失败', {
+    ...logContext,
+    error: validated.error,
+  });
+
+  return {
+    success: false,
+    result: {
+      content: `参数验证失败: ${validated.error}`,
+      isError: true,
+    },
+  };
+}
+
+async function executeToolSafely(
+  tool: AesyClawTool,
+  params: unknown,
+  executionContext: Partial<ToolExecutionContext>,
+  signal: AbortSignal | undefined,
+  logContext: ToolCallLogContext,
+): Promise<ToolExecutionRunResult> {
+  try {
+    if (signal?.aborted) {
+      logger.debug('工具调用在执行前被中止', logContext);
+
+      return {
+        success: false,
+        result: {
+          content: `工具调用 "${tool.name}" 被中止`,
+          isError: true,
+        },
+        outcome: 'aborted',
+      };
+    }
+
+    return {
+      success: true,
+      result: await tool.execute(params, executionContext as ToolExecutionContext),
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.debug('工具调用执行失败', {
+      ...logContext,
+      errorName: err instanceof Error ? err.name : typeof err,
+      message,
+    });
+
+    return {
+      success: false,
+      result: { content: message, isError: true },
+      outcome: 'execution-failed',
+    };
+  }
+}
+
+async function runAfterToolHooks(
+  tool: AesyClawTool,
+  toolHookDispatcher: HookDispatcher,
+  params: unknown,
+  result: ToolExecutionResult,
+  sessionKey: ToolExecutionContext['sessionKey'],
+  logContext: ToolCallLogContext,
+): Promise<ToolExecutionResult> {
+  const afterResult = await toolHookDispatcher.afterToolCall({
+    toolName: tool.name,
+    params,
+    result,
+    sessionKey,
+  });
+
+  if (!afterResult.override) {
+    return result;
+  }
+
+  const override = afterResult.override;
+  logger.debug('工具调用结果被 after 钩子覆盖', {
+    ...logContext,
+    override: {
+      hasContent: override.content !== undefined,
+      hasDetails: override.details !== undefined,
+      hasIsError: override.isError !== undefined,
+      hasTerminate: override.terminate !== undefined,
+    },
+  });
+
+  return applyToolResultOverride(result, override);
+}
+
+function completeToolCall(
+  logContext: ToolCallLogContext,
+  result: ToolExecutionResult,
+  outcome: ToolCallLogOutcome,
+): AgentToolResult {
+  logger.debug('工具调用完成', {
+    ...logContext,
+    outcome,
+    result: summarizeResult(result),
+  });
+
+  return toAgentToolResult(result);
+}
+
+function toAgentToolResult(result: ToolExecutionResult): AgentToolResult {
+  return {
+    content: [{ type: 'text', text: result.content }],
+    details: result.details ?? {},
+    isError: result.isError,
+    terminate: result.terminate,
+  };
+}
+
+function applyToolResultOverride(
+  result: ToolExecutionResult,
+  override: NonNullable<AfterToolCallHookResult['override']>,
+): ToolExecutionResult {
+  return {
+    content: override.content ?? result.content,
+    details: override.details ?? result.details,
+    isError: override.isError ?? result.isError,
+    terminate: override.terminate ?? result.terminate,
+  };
+}
 
 /**
  * 验证工具参数是否符合 schema。

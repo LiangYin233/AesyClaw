@@ -12,6 +12,7 @@ import type {
   DatabaseManager,
 } from '@aesyclaw/core/database/database-manager';
 import type { Pipeline } from '@aesyclaw/pipeline/pipeline';
+import type { SessionManager } from '@aesyclaw/session';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { errorMessage, requireInitialized } from '@aesyclaw/core/utils';
 import { CronExecutor } from './cron-executor';
@@ -21,7 +22,8 @@ const logger = createScopedLogger('cron');
 
 export type CronManagerDependencies = {
   databaseManager: DatabaseManager;
-  pipeline: Pick<Pipeline, 'receiveWithSend'>;
+  pipeline: Pipeline;
+  sessionManager: SessionManager;
   send: (sessionKey: SessionKey, message: Message) => Promise<void>;
   scheduler?: CronScheduler;
 };
@@ -46,6 +48,7 @@ type CronManagerStoredDeps = {
 
 export class CronManager {
   private deps: CronManagerStoredDeps | null = null;
+  private pipeline: Pipeline | null = null;
   private readonly inFlight = new Set<Promise<unknown>>();
 
   async initialize(dependencies: CronManagerDependencies): Promise<void> {
@@ -58,6 +61,16 @@ export class CronManager {
     const cronRuns = dependencies.databaseManager.cronRuns;
     const scheduler = dependencies.scheduler ?? new CronScheduler();
     const executor = new CronExecutor(cronRuns, dependencies.pipeline, dependencies.send);
+    this.pipeline = dependencies.pipeline;
+    dependencies.pipeline.hooks.register('internal:cron', {
+      onReceive: async ({ sessionKey }) => {
+        if (sessionKey.channel === 'cron' && sessionKey.type === 'job') {
+          const existing = dependencies.sessionManager.get(sessionKey);
+          if (existing) await existing.clear();
+        }
+        return { action: 'continue' };
+      },
+    });
 
     const running = await cronRuns.findRunning();
     await cronRuns.markAbandoned(running.map((run) => run.id));
@@ -68,6 +81,8 @@ export class CronManager {
   }
 
   async destroy(): Promise<void> {
+    this.pipeline?.hooks.unregister('internal:cron');
+    this.pipeline = null;
     const deps = this.requireDeps();
     deps.scheduler.clearAll();
     if (this.inFlight.size > 0) {

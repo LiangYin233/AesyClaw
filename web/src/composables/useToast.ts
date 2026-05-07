@@ -5,11 +5,11 @@ export interface ToastState {
   message: string;
 }
 
-export function useToast() {
-  const toast = ref<ToastState | null>(null);
-  let timer: ReturnType<typeof setTimeout> | null = null;
+const toast = ref<ToastState | null>(null);
+let timer: ReturnType<typeof setTimeout> | null = null;
 
-  function showToast(type: string, message: string) {
+export function useToast() {
+  function showToast(type: ToastState['type'], message: string): void {
     toast.value = { type, message };
     if (timer) {
       clearTimeout(timer);

@@ -91,6 +91,7 @@
         <RouterView />
       </main>
     </div>
+    <ToastContainer />
   </div>
 </template>
 
@@ -99,6 +100,7 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '@/composables/useAuth';
 import { useAppInfo } from '@/composables/useAppInfo';
+import ToastContainer from '@/components/ToastContainer.vue';
 import {
   HomeIcon,
   UsersIcon,

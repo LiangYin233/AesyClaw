@@ -1,5 +1,6 @@
 import { Type } from '@sinclair/typebox';
 import type { PluginDefinition } from '@aesyclaw/sdk';
+import { isRecord } from '@aesyclaw/sdk';
 
 const plugin: PluginDefinition = {
   name: 'example',
@@ -44,9 +45,5 @@ const plugin: PluginDefinition = {
     },
   },
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
 
 export default plugin;
