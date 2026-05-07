@@ -16,7 +16,6 @@ import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
-import { buildSkillPromptSection } from '@aesyclaw/skill/skill-prompt';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('agent');
@@ -333,7 +332,8 @@ export class Agent {
     }
 
     if (skills.length > 0) {
-      prompt += `\n\n${buildSkillPromptSection(skills)}`;
+      const skillLines = skills.map((skill) => `## Skill: ${skill.name}\n${skill.content}`);
+      prompt += `\n\n${skillLines.join('\n\n')}`;
     }
 
     if (allRoles.length > 0) {

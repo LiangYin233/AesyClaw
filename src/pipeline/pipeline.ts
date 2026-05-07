@@ -1,13 +1,4 @@
-/**
- * Pipeline — 消息处理管道（精简重写版）。
- *
- * 相比旧版：
- * - 无 State 机（删除了 PipelineState 判别联合及 3 个变体）
- * - 无中间件层（删除了 3 个独立 middleware 文件）
- * - receiveWithSend 内 5 个顺序步骤 + 早期 return
- * - deliver 辅助函数统一所有出站路径
- * - PipelineDependencies 从 8 项减为 7 项（删除 hookDispatcher）
- */
+/** Pipeline — 消息处理管道。 */
 
 import type {
   Message,

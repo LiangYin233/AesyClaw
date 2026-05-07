@@ -135,6 +135,19 @@ describe('PromptBuilder', () => {
       expect(result.tools).toHaveLength(1);
     });
 
+    it('should omit skill sections when no skills are available', () => {
+      const deps = makeDeps({
+        skillManager: {
+          getSkillsForRole: vi.fn().mockReturnValue([]),
+        },
+      });
+      const agent = makeAgent(deps);
+
+      const result = agent.buildPrompt(makeRole({ skills: [] }));
+
+      expect(result.prompt).not.toContain('## Skill:');
+    });
+
     it('should include filtered internal tools in final prompt content', () => {
       const internalTool = makeTool({ name: 'send-msg' });
       const deps = makeDeps({

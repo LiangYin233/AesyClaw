@@ -78,9 +78,7 @@ export type PluginHooks = {
 /**
  * 初始化时注入 Pipeline 的依赖。
  *
- * 遵循 DI 模式 — 所有依赖都显式传递
- * 而不是作为单例导入。相比旧版移除了 hookDispatcher
- *（消除循环依赖），Pipeline 内部自行创建 HookDispatcher 实例。
+ * 遵循 DI 模式：所有依赖显式传入，Pipeline 内部创建 HookDispatcher。
  */
 export type PipelineDependencies = {
   sessionManager: SessionManager;

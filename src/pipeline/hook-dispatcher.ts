@@ -8,11 +8,6 @@
  * - 钩子按注册顺序调用
  * - 如果任何钩子返回终止结果，调度停止并返回该结果
  * - 否则返回默认的继续结果
- *
- * 相比旧版：
- * - 保留 5 个显式 dispatch 方法作为公开入口
- * - 通过私有 helper 复用遍历、错误处理和短路逻辑
- * - 移除了 CONTINUE_RESULT / EMPTY_BEFORE_TOOL / EMPTY_AFTER_TOOL 常量
  */
 
 import type { PipeCtx, SendCtx, PluginHooks } from './types';

@@ -2,7 +2,7 @@
  * SkillManager unit tests.
  *
  * Tests cover: loadAll, getAllSkills, getSkillsForRole (system always
- * included, wildcard, specific list), buildSkillPromptSection.
+ * included, wildcard, specific list).
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -10,7 +10,6 @@ import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { SkillManager } from '../../../src/skill/skill-manager';
-import { buildSkillPromptSection } from '../../../src/skill/skill-prompt';
 import type { RoleConfig, SkillDefinition } from '../../../src/core/types';
 
 const TEST_DIR = join(tmpdir(), 'aesyclaw-test-skill-manager');
@@ -264,81 +263,6 @@ Usr2 content.`,
       expect(skills.find((s) => s.name === 'system-skill')).toBeDefined();
       expect(skills.find((s) => s.name === 'usr2')).toBeDefined();
       expect(skills.find((s) => s.name === 'usr1')).toBeUndefined();
-    });
-  });
-
-  describe('buildSkillPromptSection', () => {
-    it('should format skills as prompt sections', async () => {
-      writeFileSync(
-        join(systemDir, 'skill1.md'),
-        `---
-name: skill1
-description: First skill
----
-First content.`,
-      );
-
-      writeFileSync(
-        join(userDir, 'skill2.md'),
-        `---
-name: skill2
-description: Second skill
----
-Second content.`,
-      );
-
-      await manager.loadAll(userDir, systemDir);
-
-      const role = makeRole({ skills: ['*'] });
-      const skills = manager.getSkillsForRole(role);
-      const prompt = buildSkillPromptSection(skills);
-
-      expect(prompt).toContain('## Skill: skill1\nFirst content.');
-      expect(prompt).toContain('## Skill: skill2\nSecond content.');
-    });
-
-    it('should return empty string for empty skills list', () => {
-      const prompt = buildSkillPromptSection([]);
-      expect(prompt).toBe('');
-    });
-
-    it('should inject system skills plus only role-allowed user skills', async () => {
-      writeFileSync(
-        join(systemDir, 'system-skill.md'),
-        `---
-name: system-skill
-description: System
----
-System content.`,
-      );
-
-      writeFileSync(
-        join(userDir, 'allowed-skill.md'),
-        `---
-name: allowed-skill
-description: Allowed
----
-Allowed content.`,
-      );
-
-      writeFileSync(
-        join(userDir, 'blocked-skill.md'),
-        `---
-name: blocked-skill
-description: Blocked
----
-Blocked content.`,
-      );
-
-      await manager.loadAll(userDir, systemDir);
-
-      const role = makeRole({ skills: ['allowed-skill'] });
-      const prompt = buildSkillPromptSection(manager.getSkillsForRole(role));
-
-      expect(prompt).toContain('## Skill: system-skill\nSystem content.');
-      expect(prompt).toContain('## Skill: allowed-skill\nAllowed content.');
-      expect(prompt).not.toContain('blocked-skill');
-      expect(prompt).not.toContain('Blocked content.');
     });
   });
 });
