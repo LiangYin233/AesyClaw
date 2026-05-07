@@ -298,6 +298,7 @@ export class Agent {
     const agent = Agent.activeAgents.get(serializeSessionKey(sessionKey));
     if (!agent) return false;
     agent.cancel();
+    logger.info('Agent 已被 /stop 命令中止', { sessionKey });
     return true;
   }
 
