@@ -15,6 +15,7 @@ import type {
   ToolUsageRepository,
 } from '@aesyclaw/core/database/database-manager';
 import { completeSimple } from '@mariozechner/pi-ai';
+import type { AssistantMessage } from '@mariozechner/pi-ai';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('session');
@@ -92,14 +93,6 @@ export class Session {
   }
 
   async compact(llmAdapter: LlmAdapter, modelIdentifier: string): Promise<string> {
-    if (this._messages.length <= 2) {
-      logger.info('会话历史太短，无需压缩', {
-        sessionId: this.sessionId,
-        messageCount: this._messages.length,
-      });
-      return '会话历史太短，无需压缩。';
-    }
-
     const model = llmAdapter.resolveModel(modelIdentifier);
     logger.info('正在压缩会话历史', {
       sessionId: this.sessionId,
@@ -107,7 +100,22 @@ export class Session {
       totalTokens: `${estimateApproximateTokens(this._messages)}/${model.contextWindow}`,
     });
 
-    const summary = await this.summarizeConversation(model, this._messages);
+    const { summary, message } = await this.summarizeConversation(model, this._messages);
+
+    if (this.db.usage) {
+      try {
+        await this.db.usage.create({
+          model: message.model,
+          provider: message.provider,
+          api: message.api,
+          responseId: message.responseId,
+          usage: message.usage,
+        });
+      } catch (err) {
+        logger.error('记录压缩用量失败', err);
+      }
+    }
+
     await this.db.messages.replaceWithSummary(this.sessionId, summary);
     await this.bind();
 
@@ -177,7 +185,7 @@ export class Session {
   private async summarizeConversation(
     model: ResolvedModel,
     messages: AgentMessage[],
-  ): Promise<string> {
+  ): Promise<{ summary: string; message: AssistantMessage }> {
     const prompt = buildSummaryPrompt(messages);
 
     const response = await completeSimple(
@@ -212,7 +220,7 @@ export class Session {
 
     const summary = extractMessageText(response).trim();
     if (summary.length === 0) throw new Error('LLM 返回了空总结');
-    return summary;
+    return { summary, message: response };
   }
 }
 
