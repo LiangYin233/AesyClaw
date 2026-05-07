@@ -10,6 +10,12 @@ import type { ToolOwner } from '@aesyclaw/core/types';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 
+const SPEECH_TO_TEXT_SCHEMA = Type.Object({
+  source: Type.String({
+    description: '音频来源：data URI (data:audio/mpeg;base64,...)、URL 或本地文件路径',
+  }),
+});
+
 export function createSpeechToTextTool(deps: {
   configManager: Pick<ConfigManager, 'get'>;
   llmAdapter: Pick<LlmAdapter, 'resolveModel'>;
@@ -17,11 +23,7 @@ export function createSpeechToTextTool(deps: {
   return {
     name: 'speech_to_text',
     description: '将音频转录为文本（支持 data URI、URL 或本地文件路径）',
-    parameters: Type.Object({
-      source: Type.String({
-        description: '音频来源：data URI (data:audio/mpeg;base64,...)、URL 或本地文件路径',
-      }),
-    }),
+    parameters: SPEECH_TO_TEXT_SCHEMA,
     owner: 'system' as ToolOwner,
     execute: async (params: unknown, ctx: ToolExecutionContext): Promise<ToolExecutionResult> => {
       const { source } = params as { source: string };

@@ -15,6 +15,21 @@ import type { SessionKey, ToolOwner } from '@aesyclaw/core/types';
 import type { CronManager, CreateCronJobParams } from '@aesyclaw/cron/cron-manager';
 import { errorMessage } from '@aesyclaw/core/utils';
 
+const CREATE_CRON_SCHEMA = Type.Object({
+  scheduleType: Type.Union(
+    [Type.Literal('once'), Type.Literal('daily'), Type.Literal('interval')],
+    { description: '调度类型' },
+  ),
+  scheduleValue: Type.String({
+    description: '调度值（如 "2025-01-01T00:00:00Z"、"08:00"、"30m"）',
+  }),
+  prompt: Type.String({ description: '定时任务的提示内容' }),
+});
+
+const DELETE_CRON_SCHEMA = Type.Object({
+  jobId: Type.String({ description: '要删除的定时任务 ID' }),
+});
+
 // ─── create_cron ───────────────────────────────────────────────────
 
 export function createCreateCronTool(deps: {
@@ -23,16 +38,7 @@ export function createCreateCronTool(deps: {
   return {
     name: 'create_cron',
     description: '创建一个定时任务',
-    parameters: Type.Object({
-      scheduleType: Type.Union(
-        [Type.Literal('once'), Type.Literal('daily'), Type.Literal('interval')],
-        { description: '调度类型' },
-      ),
-      scheduleValue: Type.String({
-        description: '调度值（如 "2025-01-01T00:00:00Z"、"08:00"、"30m"）',
-      }),
-      prompt: Type.String({ description: '定时任务的提示内容' }),
-    }),
+    parameters: CREATE_CRON_SCHEMA,
     owner: 'system' as ToolOwner,
     execute: async (
       params: unknown,
@@ -101,9 +107,7 @@ export function createDeleteCronTool(deps: {
   return {
     name: 'delete_cron',
     description: '删除指定定时任务',
-    parameters: Type.Object({
-      jobId: Type.String({ description: '要删除的定时任务 ID' }),
-    }),
+    parameters: DELETE_CRON_SCHEMA,
     owner: 'system' as ToolOwner,
     execute: async (
       params: unknown,

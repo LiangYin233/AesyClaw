@@ -36,13 +36,12 @@ export class ConfigManager {
   private registeredDefaults = new Map<string, Record<string, unknown>>();
   private readonly configStore: Conf<Record<string, unknown>>;
   private readonly rolesStore: Conf<Record<string, unknown>>;
-  private selfUpdating = false;
-  private rolesSelfUpdating = false;
-  private reloadAfterGuard = false;
-  private reloadRolesAfterGuard = false;
-  private readonly DEBOUNCE_MS = 300;
   private unsubscribeHotReload?: () => void;
   private unsubscribeRolesHotReload?: () => void;
+
+  // 互斥锁队列：确保配置/角色操作按顺序执行
+  private configMutex = new AsyncMutex();
+  private rolesMutex = new AsyncMutex();
 
   // ─── 生命周期 ────────────────────────────────────────────────
 
@@ -166,7 +165,7 @@ export class ConfigManager {
     const nextConfig = structuredClone(this.lastKnownConfig) as Record<string, unknown>;
     setPathValue(nextConfig, path, value);
     const validatedConfig = this.validateWithSchema<AppConfig>(AppConfigSchema, nextConfig, '配置');
-    this.persistWithGuard(validatedConfig);
+    await this.persistWithGuard(validatedConfig);
   }
 
   /** 深合并对象配置路径并持久化。 */
@@ -184,7 +183,7 @@ export class ConfigManager {
     const merged = mergeDefaults((current ?? {}) as Record<string, unknown>, value);
     setPathValue(nextConfig, path, merged);
     const validatedConfig = this.validateWithSchema<AppConfig>(AppConfigSchema, nextConfig, '配置');
-    this.persistWithGuard(validatedConfig);
+    await this.persistWithGuard(validatedConfig);
   }
 
   /** 替换并持久化完整角色数组。 */
@@ -198,7 +197,7 @@ export class ConfigManager {
       return;
     }
 
-    this.persistRolesWithGuard(newRoles);
+    await this.persistRolesWithGuard(newRoles);
   }
 
   // ─── 默认值 ──────────────────────────────────────────────────
@@ -232,7 +231,7 @@ export class ConfigManager {
       '配置',
     );
 
-    this.persistWithGuard(validatedConfig);
+    await this.persistWithGuard(validatedConfig);
   }
 
   // ─── 热重载 ─────────────────────────────────────────────────
@@ -264,41 +263,37 @@ export class ConfigManager {
   // ─── 私有辅助函数 ───────────────────────────────────────────
 
   private async reloadFromFile(): Promise<void> {
-    if (this.selfUpdating) {
-      this.reloadAfterGuard = true;
-      return;
-    }
-
-    try {
-      const newConfig = this.readValidatedConfigFromStore(this.configStore);
-      if (JSON.stringify(this.lastKnownConfig) === JSON.stringify(newConfig)) {
-        logger.debug('配置文件已变更但内容相同 —— 跳过');
-        return;
+    // 使用互斥锁确保与写入操作串行执行
+    await this.configMutex.runExclusive(async () => {
+      try {
+        const newConfig = this.readValidatedConfigFromStore(this.configStore);
+        if (JSON.stringify(this.lastKnownConfig) === JSON.stringify(newConfig)) {
+          logger.debug('配置文件已变更但内容相同 —— 跳过');
+          return;
+        }
+        this.lastKnownConfig = structuredClone(newConfig);
+        logger.info('已从文件重新加载配置缓存');
+      } catch (err) {
+        logger.error('重新加载配置文件失败，继续使用上一次有效配置', err);
       }
-      this.lastKnownConfig = structuredClone(newConfig);
-      logger.info('已从文件重新加载配置缓存');
-    } catch (err) {
-      logger.error('重新加载配置文件失败，继续使用上一次有效配置', err);
-    }
+    });
   }
 
   private async reloadRolesFromFile(): Promise<void> {
-    if (this.rolesSelfUpdating) {
-      this.reloadRolesAfterGuard = true;
-      return;
-    }
-
-    try {
-      const newRoles = this.readValidatedRolesFromStore(this.rolesStore);
-      if (JSON.stringify(this.lastKnownRoles) === JSON.stringify(newRoles)) {
-        logger.debug('角色配置文件已变更但内容相同 —— 跳过');
-        return;
+    // 使用互斥锁确保与写入操作串行执行
+    await this.rolesMutex.runExclusive(async () => {
+      try {
+        const newRoles = this.readValidatedRolesFromStore(this.rolesStore);
+        if (JSON.stringify(this.lastKnownRoles) === JSON.stringify(newRoles)) {
+          logger.debug('角色配置文件已变更但内容相同 —— 跳过');
+          return;
+        }
+        this.lastKnownRoles = structuredClone(newRoles);
+        logger.info('已从文件重新加载角色配置缓存');
+      } catch (err) {
+        logger.error('重新加载角色配置文件失败，继续使用上一次有效角色配置', err);
       }
-      this.lastKnownRoles = structuredClone(newRoles);
-      logger.info('已从文件重新加载角色配置缓存');
-    } catch (err) {
-      logger.error('重新加载角色配置文件失败，继续使用上一次有效角色配置', err);
-    }
+    });
   }
 
 
@@ -409,30 +404,20 @@ export class ConfigManager {
     } as Record<string, unknown>;
   }
 
-  private persistWithGuard(config: AppConfig): void {
-    this.writeConfigToStore(this.configStore, config);
-    this.lastKnownConfig = structuredClone(config);
-    this.selfUpdating = true;
-    setTimeout(() => {
-      this.selfUpdating = false;
-      if (this.reloadAfterGuard) {
-        this.reloadAfterGuard = false;
-        void this.reloadFromFile();
-      }
-    }, this.DEBOUNCE_MS + 50);
+  private async persistWithGuard(config: AppConfig): Promise<void> {
+    // 使用互斥锁确保与重载操作串行执行
+    await this.configMutex.runExclusive(async () => {
+      this.writeConfigToStore(this.configStore, config);
+      this.lastKnownConfig = structuredClone(config);
+    });
   }
 
-  private persistRolesWithGuard(roles: readonly RoleConfig[]): void {
-    this.writeRolesToStore(this.rolesStore, roles);
-    this.lastKnownRoles = structuredClone(roles);
-    this.rolesSelfUpdating = true;
-    setTimeout(() => {
-      this.rolesSelfUpdating = false;
-      if (this.reloadRolesAfterGuard) {
-        this.reloadRolesAfterGuard = false;
-        void this.reloadRolesFromFile();
-      }
-    }, this.DEBOUNCE_MS + 50);
+  private async persistRolesWithGuard(roles: readonly RoleConfig[]): Promise<void> {
+    // 使用互斥锁确保与重载操作串行执行
+    await this.rolesMutex.runExclusive(async () => {
+      this.writeRolesToStore(this.rolesStore, roles);
+      this.lastKnownRoles = structuredClone(roles);
+    });
   }
 
   private createConfigStore(configPath: string): Conf<Record<string, unknown>> {
@@ -483,12 +468,17 @@ export class ConfigManager {
  */
 function buildNestedObject(key: string, value: Record<string, unknown>): Record<string, unknown> {
   const parts = key.split('.');
+  if (parts.length === 0 || parts[0] === '') {
+    return value;
+  }
+
   const result: Record<string, unknown> = {};
   let current = result;
 
   for (let i = 0; i < parts.length; i++) {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- loop guard ensures parts[i] is defined
-    const part = parts[i]!;
+    const part = parts[i];
+    if (part === undefined || part === '') continue;
+
     if (i === parts.length - 1) {
       current[part] = value;
     } else {
@@ -528,8 +518,10 @@ function setPathValue(root: Record<string, unknown>, path: string, value: unknow
   let current: Record<string, unknown> = root;
 
   for (let i = 0; i < parts.length - 1; i++) {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- parsePath 保证 parts 非空
-    const part = parts[i]!;
+    const part = parts[i];
+    if (part === undefined) {
+      throw new Error('配置路径解析错误：意外的 undefined 部分');
+    }
     const next = current[part];
     if (Array.isArray(next)) {
       throw new Error(`配置路径 "${path}" 不能访问数组路径`);
@@ -546,10 +538,55 @@ function setPathValue(root: Record<string, unknown>, path: string, value: unknow
   }
 
   // 注意：调用方已 clone 整个 config，此处直接赋值
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- parsePath 保证 parts 非空
-  current[parts[parts.length - 1]!] = value;
+  const lastPart = parts[parts.length - 1];
+  if (lastPart === undefined) {
+    throw new Error('配置路径解析错误：意外的 undefined 最后部分');
+  }
+  current[lastPart] = value;
 }
 
 function normaliseRoles(roles: readonly RoleConfig[]): RoleConfig[] {
   return roles.map((role) => (role.id === 'default' ? { ...role, enabled: true } : role));
+}
+
+/**
+ * 异步互斥锁 — 确保异步操作按顺序执行。
+ *
+ * 使用 Promise 队列实现：当锁被持有时，新请求会排队等待；
+ * 当前操作完成后，队列中的下一个操作开始执行。
+ */
+class AsyncMutex {
+  private queue: Array<() => Promise<void>> = [];
+  private locked = false;
+
+  async runExclusive<T>(fn: () => Promise<T> | T): Promise<T> {
+    return await new Promise<T>((resolve, reject) => {
+      const run = async (): Promise<void> => {
+        try {
+          const result = await fn();
+          resolve(result);
+        } catch (err) {
+          reject(err);
+        } finally {
+          this.locked = false;
+          this.dequeue();
+        }
+      };
+
+      if (this.locked) {
+        this.queue.push(run);
+      } else {
+        this.locked = true;
+        void run();
+      }
+    });
+  }
+
+  private dequeue(): void {
+    const next = this.queue.shift();
+    if (next) {
+      this.locked = true;
+      void next();
+    }
+  }
 }

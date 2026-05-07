@@ -20,18 +20,20 @@ import type {
 
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
 
+const LOAD_SKILL_SCHEMA = Type.Object({
+  skillName: Type.String({ description: '要读取的技能名称' }),
+  relativePath: Type.Optional(
+    Type.String({ description: '技能目录内的相对文件路径，默认 SKILL.md' }),
+  ),
+});
+
 export function createLoadSkillTool(deps: {
   skillManager: Pick<SkillManager, 'getSkill'>;
 }): AesyClawTool {
   return {
     name: 'load_skill',
     description: '读取技能',
-    parameters: Type.Object({
-      skillName: Type.String({ description: '要读取的技能名称' }),
-      relativePath: Type.Optional(
-        Type.String({ description: '技能目录内的相对文件路径，默认 SKILL.md' }),
-      ),
-    }),
+    parameters: LOAD_SKILL_SCHEMA,
     owner: 'system' as ToolOwner,
     execute: async (
       params: unknown,

@@ -1,12 +1,15 @@
 /**
  * tool-adapter — 将 AesyClawTool 转换为 Pi-mono AgentTool 格式。
  *
- * 包装 tool.execute 以集成插件钩子系统:
- * 1. 派发 beforeToolCall 钩子 — 可能阻塞或短路
- * 2. 调用实际的 tool.execute
- * 3. 派发 afterToolCall 钩子 — 可能覆盖结果
+ * 包装 tool.execute 以集成插件钩子系统和参数验证:
+ * 1. 参数运行时验证（TypeBox schema）
+ * 2. 派发 beforeToolCall 钩子 — 可能阻塞或短路
+ * 3. 调用实际的 tool.execute
+ * 4. 派发 afterToolCall 钩子 — 可能覆盖结果
  */
 
+import type { TSchema } from '@sinclair/typebox';
+import { Value } from '@sinclair/typebox/value';
 import type { AgentTool, AgentToolResult } from '@aesyclaw/agent/agent-types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
@@ -105,7 +108,24 @@ export function toAgentTool(
         return complete(beforeResult.shortCircuit, 'short-circuited');
       }
 
-      // 2. 执行实际工具
+      // 2. 参数运行时验证
+      const validated = validateParams(tool.parameters, params);
+      if (!validated.success) {
+        logger.debug('工具参数验证失败', {
+          ...logContext,
+          error: validated.error,
+        });
+
+        return complete(
+          {
+            content: `参数验证失败: ${validated.error}`,
+            isError: true,
+          },
+          'validation-failed',
+        );
+      }
+
+      // 3. 执行实际工具
       let result: ToolExecutionResult;
       try {
         if (signal?.aborted) {
@@ -120,7 +140,7 @@ export function toAgentTool(
           );
         }
 
-        result = await tool.execute(params, executionContext as ToolExecutionContext);
+        result = await tool.execute(validated.value, executionContext as ToolExecutionContext);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         logger.debug('工具调用执行失败', {
@@ -132,7 +152,7 @@ export function toAgentTool(
         return complete({ content: message, isError: true }, 'execution-failed');
       }
 
-      // 3. 派发 afterToolCall 钩子 — 可能覆盖结果
+      // 4. 派发 afterToolCall 钩子 — 可能覆盖结果
       const afterResult = await toolHookDispatcher.afterToolCall({
         toolName: tool.name,
         params,
@@ -170,7 +190,32 @@ type ToolCallLogOutcome =
   | 'blocked'
   | 'short-circuited'
   | 'aborted'
+  | 'validation-failed'
   | 'execution-failed';
+
+/**
+ * 验证工具参数是否符合 schema。
+ * 应用默认值并检查类型正确性。
+ */
+function validateParams(
+  schema: TSchema,
+  params: unknown,
+): { success: true; value: unknown } | { success: false; error: string } {
+  // 应用默认值
+  const withDefaults = Value.Default(schema, params);
+
+  // 检查 schema
+  if (!Value.Check(schema, withDefaults)) {
+    const errors = [...Value.Errors(schema, withDefaults)]
+      .slice(0, 3) // 最多报告 3 个错误
+      .map((e) => `${e.path}: ${e.message}`)
+      .join('; ');
+
+    return { success: false, error: errors || '未知验证错误' };
+  }
+
+  return { success: true, value: withDefaults };
+}
 
 function summarizeParams(params: unknown): Record<string, unknown> {
   if (params === null || params === undefined) {

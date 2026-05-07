@@ -3,7 +3,6 @@
  *
  * 通过管道的正常出站传递路径，向当前会话发送文本消息，
  * 可附带媒体附件。
- *
  */
 
 import { Type } from '@sinclair/typebox';
@@ -29,17 +28,38 @@ const MEDIA_TYPE_MAP = {
   file: 'File',
 } as const;
 
+type MediaParam = {
+  type: 'image' | 'audio' | 'video' | 'file';
+  url?: string;
+  path?: string;
+  base64?: string;
+  mimeType?: string;
+};
+
 type MediaComponent = ImageComponent | RecordComponent | VideoComponent | FileComponent;
 
-function toMediaComponent(
-  media: Array<{
-    type: 'image' | 'audio' | 'video' | 'file';
-    url?: string;
-    path?: string;
-    base64?: string;
-    mimeType?: string;
-  }>,
-): MediaComponent[] {
+const SEND_MSG_SCHEMA = Type.Object({
+  text: Type.String({ description: '要发送的文本内容' }),
+  media: Type.Optional(
+    Type.Array(
+      Type.Object({
+        type: Type.Union([
+          Type.Literal('image'),
+          Type.Literal('audio'),
+          Type.Literal('video'),
+          Type.Literal('file'),
+        ]),
+        url: Type.Optional(Type.String()),
+        path: Type.Optional(Type.String()),
+        base64: Type.Optional(Type.String()),
+        mimeType: Type.Optional(Type.String()),
+      }),
+      { description: '媒体附件列表' },
+    ),
+  ),
+});
+
+function toMediaComponent(media: MediaParam[]): MediaComponent[] {
   if (media.length === 0) {
     return [];
   }
@@ -65,41 +85,13 @@ export function createSendMsgTool(): AesyClawTool {
   return {
     name: 'send_msg',
     description: '向当前会话发送文本消息，可附带媒体附件',
-    parameters: Type.Object({
-      text: Type.String({ description: '要发送的文本内容' }),
-      media: Type.Optional(
-        Type.Array(
-          Type.Object({
-            type: Type.Union([
-              Type.Literal('image'),
-              Type.Literal('audio'),
-              Type.Literal('video'),
-              Type.Literal('file'),
-            ]),
-            url: Type.Optional(Type.String()),
-            path: Type.Optional(Type.String()),
-            base64: Type.Optional(Type.String()),
-            mimeType: Type.Optional(Type.String()),
-          }),
-          { description: '媒体附件列表' },
-        ),
-      ),
-    }),
+    parameters: SEND_MSG_SCHEMA,
     owner: 'system' as ToolOwner,
     execute: async (
       params: unknown,
       context: ToolExecutionContext,
     ): Promise<ToolExecutionResult> => {
-      const { text, media } = params as {
-        text: string;
-        media?: Array<{
-          type: 'image' | 'audio' | 'video' | 'file';
-          url?: string;
-          path?: string;
-          base64?: string;
-          mimeType?: string;
-        }>;
-      };
+      const { text, media } = params as { text: string; media?: MediaParam[] };
       try {
         if (!context.sendMessage) {
           return {

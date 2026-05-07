@@ -83,6 +83,12 @@ export function parseSerializedSessionKey(value: string): SessionKey {
     throw new Error(`无效的 SessionKey 序列化: ${value}`);
   }
   const record = parsed as Record<string, string>;
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- validated above via isRecord guard
-  return { channel: record['channel']!, type: record['type']!, chatId: record['chatId']! };
+  // 上述验证已确保这三个字段存在且为 string 类型
+  const channel = record['channel'];
+  const type = record['type'];
+  const chatId = record['chatId'];
+  if (channel === undefined || type === undefined || chatId === undefined) {
+    throw new Error(`无效的 SessionKey 序列化: ${value}`);
+  }
+  return { channel, type, chatId };
 }

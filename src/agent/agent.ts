@@ -165,7 +165,6 @@ export class Agent {
     const key = serializeSessionKey(sessionKey);
     void Agent.activeWorkers.get(key)?.terminate();
     Agent.activeWorkers.set(key, worker);
-    const timeout = setTimeout(() => void worker.terminate(), 120_000);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let onMessage: ((msg: any) => void) | undefined;
@@ -276,7 +275,6 @@ export class Agent {
     }
 
     function cleanup(): void {
-      clearTimeout(timeout);
       if (onMessage) worker.off('message', onMessage);
       if (onError) worker.off('error', onError);
       if (onExit) worker.off('exit', onExit);

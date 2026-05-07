@@ -11,6 +11,19 @@ import type { RoleConfig } from '@aesyclaw/core/types';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { AgentMessage } from '@aesyclaw/agent/agent-types';
 
+const RUN_SUB_AGENT_SCHEMA = Type.Object({
+  roleId: Type.String({ description: '要使用的角色 ID' }),
+  prompt: Type.String({ description: '子代理的输入提示' }),
+  enableTools: Type.Optional(Type.Boolean({ description: '是否允许子代理使用工具' })),
+});
+
+const RUN_TEMP_SUB_AGENT_SCHEMA = Type.Object({
+  systemPrompt: Type.String({ description: '子代理的系统提示' }),
+  model: Type.Optional(Type.String({ description: '临时子代理使用的模型，格式为 provider/model' })),
+  prompt: Type.String({ description: '子代理的输入提示' }),
+  enableTools: Type.Optional(Type.Boolean({ description: '是否允许子代理使用工具' })),
+});
+
 export function createRunSubAgentTool(deps: {
   roleManager: Pick<RoleManager, 'getRole'>;
   runTurn: (
@@ -24,11 +37,7 @@ export function createRunSubAgentTool(deps: {
   return {
     name: 'run_sub_agent',
     description: '使用指定角色运行子代理',
-    parameters: Type.Object({
-      roleId: Type.String({ description: '要使用的角色 ID' }),
-      prompt: Type.String({ description: '子代理的输入提示' }),
-      enableTools: Type.Optional(Type.Boolean({ description: '是否允许子代理使用工具' })),
-    }),
+    parameters: RUN_SUB_AGENT_SCHEMA,
     owner: 'system' as ToolOwner,
     execute: async (
       params: unknown,
@@ -69,12 +78,7 @@ export function createRunTempSubAgentTool(deps: {
   return {
     name: 'run_temp_sub_agent',
     description: '使用自定义系统提示运行临时子代理',
-    parameters: Type.Object({
-      systemPrompt: Type.String({ description: '子代理的系统提示' }),
-      model: Type.Optional(Type.String({ description: '临时子代理使用的模型，格式为 provider/model' })),
-      prompt: Type.String({ description: '子代理的输入提示' }),
-      enableTools: Type.Optional(Type.Boolean({ description: '是否允许子代理使用工具' })),
-    }),
+    parameters: RUN_TEMP_SUB_AGENT_SCHEMA,
     owner: 'system' as ToolOwner,
     execute: async (
       params: unknown,
