@@ -24,7 +24,8 @@ const workerMock = vi.hoisted(() => {
 });
 
 vi.mock('node:worker_threads', async () => {
-  const { EventEmitter } = await vi.importActual<typeof import('node:events')>('node:events');
+  const { EventEmitter } =
+    await vi.importActual<typeof import('node:events')>('node:events');
 
   class MockWorker extends EventEmitter {
     messages: unknown[] = [];

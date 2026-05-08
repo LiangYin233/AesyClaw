@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import type { RoleConfig, Message, SessionKey, Skill } from '@aesyclaw/core/types';
-import { serializeSessionKey, getMessageText } from '@aesyclaw/core/types';
+import { getMessageText } from '@aesyclaw/core/types';
 import type { AgentMessage, ResolvedModel, AgentTool } from './agent-types';
 import type { AesyClawTool, ToolExecutionContext, ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { LlmAdapter } from './llm-adapter';
@@ -11,6 +11,7 @@ import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
 import { createScopedLogger } from '@aesyclaw/core/logger';
+import type { AgentRegistry } from './agent-registry';
 
 const logger = createScopedLogger('agent');
 const WORKER_PATH = fileURLToPath(new URL('./runner/agent-worker.ts', import.meta.url));
@@ -23,6 +24,7 @@ export type AgentOptions = {
   toolRegistry: ToolRegistry;
   hookDispatcher: HookDispatcher;
   compressionThreshold: number;
+  registry: AgentRegistry;
 };
 
 type RunTurnResult = {
@@ -36,8 +38,18 @@ type BuildPromptResult = {
 };
 
 export class Agent {
-  static activeAgents = new Map<string, Agent>();
-  private static activeWorkers = new Map<string, { worker: Worker; sessionKeyId: string }>();
+  private static _registry: AgentRegistry | undefined;
+
+  static get registry(): AgentRegistry {
+    if (!Agent._registry) {
+      throw new Error('Agent.registry 尚未初始化——请在创建 Agent 实例前设置');
+    }
+    return Agent._registry;
+  }
+
+  static setRegistry(registry: AgentRegistry): void {
+    Agent._registry = registry;
+  }
 
   readonly session: Session;
   roleId?: string;
@@ -53,6 +65,7 @@ export class Agent {
   private skillManager: SkillManager;
   private toolRegistry: ToolRegistry;
   private hookDispatcher: HookDispatcher;
+  private registry: AgentRegistry;
 
   constructor(options: AgentOptions) {
     this.session = options.session;
@@ -62,8 +75,9 @@ export class Agent {
     this.toolRegistry = options.toolRegistry;
     this.hookDispatcher = options.hookDispatcher;
     this.compressionThreshold = options.compressionThreshold;
+    this.registry = options.registry;
 
-    Agent.activeAgents.set(serializeSessionKey(this.session.key), this);
+    this.registry.registerAgent(this.session.key, this);
   }
 
   get model(): ResolvedModel {
@@ -160,8 +174,7 @@ export class Agent {
     const toolMap = new Map(tools.map((t) => [t.name, t]));
     const worker = new Worker(WORKER_PATH);
     const runId = randomUUID();
-    const sessionKeyId = serializeSessionKey(sessionKey);
-    Agent.activeWorkers.set(runId, { worker, sessionKeyId });
+    this.registry.registerWorker(runId, worker, sessionKey);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let onMessage: ((msg: any) => void) | undefined;
@@ -169,6 +182,7 @@ export class Agent {
     let onError: ((err: any) => void) | undefined;
     let onExit: ((code: number) => void) | undefined;
     let settled = false;
+    const registry = this.registry;
 
     try {
       const workerResult = await new Promise<RunTurnResult>((resolve, reject) => {
@@ -276,40 +290,13 @@ export class Agent {
       if (onMessage) worker.off('message', onMessage);
       if (onError) worker.off('error', onError);
       if (onExit) worker.off('exit', onExit);
-      const activeWorker = Agent.activeWorkers.get(runId);
-      if (activeWorker?.worker === worker) {
-        Agent.activeWorkers.delete(runId);
-      }
+      registry.unregisterWorker(runId, worker);
       void worker.terminate();
     }
   }
 
   static cancel(sessionKey: SessionKey): boolean {
-    const cancelledWorkers = Agent.cancelWorkersForSession(sessionKey);
-    if (cancelledWorkers === 0) return false;
-    logger.info('Agent 已被 /stop 命令中止', { sessionKey, cancelledWorkers });
-    return true;
-  }
-
-  private static cancelWorkersForSession(sessionKey: SessionKey): number {
-    const serializedSessionKey = serializeSessionKey(sessionKey);
-    let cancelledWorkers = 0;
-
-    for (const [runId, entry] of Agent.activeWorkers) {
-      if (entry.sessionKeyId !== serializedSessionKey) {
-        continue;
-      }
-
-      Agent.activeWorkers.delete(runId);
-      void entry.worker.terminate();
-      cancelledWorkers += 1;
-    }
-
-    if (cancelledWorkers > 0) {
-      logger.info('Agent worker 已取消', { sessionKey, cancelledWorkers });
-    }
-
-    return cancelledWorkers;
+    return Agent.registry.cancel(sessionKey);
   }
 
   buildPrompt(

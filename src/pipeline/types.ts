@@ -27,6 +27,7 @@ import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
+import type { AgentRegistry } from '@aesyclaw/agent/agent-registry';
 
 // ─── 统一管道上下文 ───────────────────────────────────────────
 
@@ -89,4 +90,5 @@ export type PipelineDependencies = {
   skillManager: SkillManager;
   toolRegistry: ToolRegistry;
   compressionThreshold: number;
+  agentRegistry: AgentRegistry;
 };

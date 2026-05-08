@@ -5,7 +5,6 @@ import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { UsageRecord } from '@aesyclaw/core/database-types';
-import { serializeSessionKey } from '@aesyclaw/core/types';
 import { Agent } from '@aesyclaw/agent/agent';
 import { createSendMsgTool } from './send-msg';
 import { createCreateCronTool, createListCronTool, createDeleteCronTool } from './cron-tools';
@@ -37,7 +36,7 @@ export function registerBuiltinTools(registry: ToolRegistry, deps: BuiltinToolDe
     sessionKey,
     sendMessage,
   ) => {
-    const agent = Agent.activeAgents.get(serializeSessionKey(sessionKey));
+    const agent = Agent.registry.getAgent(sessionKey);
     if (!agent) throw new Error('未找到活跃 Agent');
     return agent.runTurn(role, content, history, sessionKey, sendMessage);
   };

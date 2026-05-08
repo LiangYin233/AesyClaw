@@ -62,6 +62,7 @@ export class Pipeline {
         toolRegistry: deps.toolRegistry,
         hookDispatcher: this.hooks,
         compressionThreshold: deps.compressionThreshold,
+        registry: deps.agentRegistry,
       });
       await agent.setRole(activeRole);
 

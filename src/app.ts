@@ -1,6 +1,8 @@
 /** Application — 主协调器，拥有所有子系统管理器实例。 */
 
 import { LlmAdapter } from './agent/llm-adapter';
+import { Agent } from './agent/agent';
+import { AgentRegistry } from './agent/agent-registry';
 import { SessionManager } from './session/manager';
 import { CommandRegistry } from './command/command-registry';
 import { ConfigManager } from './core/config/config-manager';
@@ -31,6 +33,9 @@ export class Application {
   private started = false;
 
   constructor() {
+    const agentRegistry = new AgentRegistry();
+    Agent.setRegistry(agentRegistry);
+
     this.configManager = new ConfigManager();
     this.databaseManager = new DatabaseManager();
     this.skillManager = new SkillManager();
@@ -50,6 +55,7 @@ export class Application {
       compressionThreshold: this.configManager.get(
         'agent.memory.compressionThreshold',
       ) as number,
+      agentRegistry,
     });
     this.mcpManager = new McpManager(
       this.configManager,

@@ -1,4 +1,4 @@
-import { serializeSessionKey, type CommandDefinition, type CommandContext } from '@aesyclaw/core/types';
+import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
 import type { SessionManager } from '@aesyclaw/session';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
@@ -34,7 +34,7 @@ async function resolveActiveRoleId(
   context: CommandContext,
   databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>,
 ): Promise<string | undefined> {
-  const agent = Agent.activeAgents.get(serializeSessionKey(context.sessionKey));
+  const agent = Agent.registry.getAgent(context.sessionKey);
   if (agent?.roleId) return agent.roleId;
 
   const session = await databaseManager.sessions.findByKey(context.sessionKey);

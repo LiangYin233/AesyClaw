@@ -5,9 +5,9 @@ import type { Message, SessionKey, SenderInfo } from '@aesyclaw/core/types';
 import { createScopedLogger } from '@aesyclaw/core/logger';
 import { errorMessage, isRecord, mergeDefaults } from '@aesyclaw/core/utils';
 import {
-  discoverExtensionDirs,
-  loadExtensionModule,
+  discoverAndLoadExtensionModules,
   type ExtensionLifecycle,
+  type ExtensionLoaderLogger,
 } from '@aesyclaw/extension/extension-loader';
 import type {
   ChannelContext,
@@ -231,21 +231,19 @@ export class ChannelManager implements ExtensionLifecycle {
 
   private async registerFromDisk(): Promise<void> {
     const extensionsDir = this.deps.extensionsDir ?? path.resolve(process.cwd(), 'extensions');
-    const dirs = await discoverExtensionDirs({
+    const modules = await discoverAndLoadExtensionModules({
       extensionsDir,
       directoryPrefix: 'channel_',
-      logger,
+      kind: 'Channel',
+      logger: logger as ExtensionLoaderLogger,
+      validate: discoverChannelDefinition,
       unreadableMessage: '频道扩展目录不可读',
       inspectFailureMessage: '检查频道目录候选失败',
       candidateField: 'channelDir',
+      loadFailureMessage: '频道扩展加载失败',
     });
-    for (const dir of dirs) {
-      try {
-        const mod = await loadExtensionModule(dir, 'Channel', discoverChannelDefinition);
-        this.register(mod.definition, 'disk');
-      } catch (err) {
-        logger.error(`频道扩展 "${dir}" 加载失败`, err);
-      }
+    for (const mod of modules) {
+      this.register(mod.definition, 'disk');
     }
   }
 

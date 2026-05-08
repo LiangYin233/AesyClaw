@@ -1,4 +1,4 @@
-import { serializeSessionKey, type CommandDefinition, type CommandContext } from '@aesyclaw/core/types';
+import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
 import type { RoleManager } from '@aesyclaw/role/role-manager';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import { Agent } from '@aesyclaw/agent/agent';
@@ -56,7 +56,7 @@ export function createRoleSwitchCommand(deps: RoleCommandDeps): CommandDefinitio
         await deps.databaseManager.roleBindings.setActiveRole(session.id, roleId);
       }
 
-      const agent = Agent.activeAgents.get(serializeSessionKey(context.sessionKey));
+      const agent = Agent.registry.getAgent(context.sessionKey);
       if (agent) {
         await agent.setRole(targetRole);
       }
@@ -90,7 +90,7 @@ async function resolveActiveRoleId(
   context: CommandContext,
   deps: RoleCommandDeps,
 ): Promise<string | undefined> {
-  const agent = Agent.activeAgents.get(serializeSessionKey(context.sessionKey));
+  const agent = Agent.registry.getAgent(context.sessionKey);
   if (agent?.roleId) return agent.roleId;
 
   const session = await deps.databaseManager.sessions.findByKey(context.sessionKey);

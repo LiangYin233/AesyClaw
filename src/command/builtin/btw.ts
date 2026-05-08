@@ -5,7 +5,7 @@ import type { SkillManager } from '@aesyclaw/skill/skill-manager';
 import type { ToolRegistry } from '@aesyclaw/tool/tool-registry';
 import type { HookDispatcher } from '@aesyclaw/pipeline/hook-dispatcher';
 import type { CommandContext, CommandDefinition, RoleConfig } from '@aesyclaw/core/types';
-import { getMessageText, serializeSessionKey } from '@aesyclaw/core/types';
+import { getMessageText } from '@aesyclaw/core/types';
 import type { DatabaseManager } from '@aesyclaw/core/database/database-manager';
 import { Agent } from '@aesyclaw/agent/agent';
 
@@ -46,6 +46,7 @@ export function createBtwCommand(
         toolRegistry,
         hookDispatcher,
         compressionThreshold,
+        registry: Agent.registry,
       });
       const outbound = await agent.processEphemeral(role, content);
 
@@ -58,7 +59,7 @@ async function resolveActiveRoleId(
   context: CommandContext,
   databaseManager: Pick<DatabaseManager, 'roleBindings' | 'sessions'>,
 ): Promise<string | undefined> {
-  const agent = Agent.activeAgents.get(serializeSessionKey(context.sessionKey));
+  const agent = Agent.registry.getAgent(context.sessionKey);
   if (agent?.roleId) return agent.roleId;
 
   const session = await databaseManager.sessions.findByKey(context.sessionKey);

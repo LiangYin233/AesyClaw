@@ -21,6 +21,25 @@ export type ExtensionLifecycle = {
   destroy(): Promise<void>;
 };
 
+export type DiscoverAndLoadOptions<T> = {
+  extensionsDir: string;
+  directoryPrefix: string;
+  kind: string;
+  logger: ExtensionLoaderLogger;
+  validate: (imported: unknown) => T | null;
+  unreadableMessage: string;
+  inspectFailureMessage: string;
+  candidateField: string;
+  loadFailureMessage: string;
+};
+
+export type LoadedExtensionModule<T> = {
+  definition: T;
+  directory: string;
+  directoryName: string;
+  entryPath: string;
+};
+
 export async function discoverExtensionDirs(options: {
   extensionsDir: string;
   directoryPrefix: string;
@@ -91,7 +110,7 @@ export async function loadExtensionModule<T>(
   extensionDir: string,
   kind: string,
   validate: (imported: unknown) => T | null,
-): Promise<{ definition: T; directory: string; directoryName: string; entryPath: string }> {
+): Promise<LoadedExtensionModule<T>> {
   const entryPath = await resolveExtensionEntry(extensionDir, kind);
   const imported = await importExtensionEntry(entryPath);
   const definition = validate(imported);
@@ -106,4 +125,30 @@ export async function loadExtensionModule<T>(
     directoryName: path.basename(extensionDir),
     entryPath,
   };
+}
+
+/**
+ * 统一的扩展模块加载流程：发现目录 → 逐个加载 → 收集成功模块。
+ *
+ * 取代 channel/plugin 管理器中重复的 discoverExtensionDirs + loadExtensionModule 模式。
+ */
+export async function discoverAndLoadExtensionModules<T>(
+  options: DiscoverAndLoadOptions<T>,
+): Promise<LoadedExtensionModule<T>[]> {
+  const dirs = await discoverExtensionDirs(options);
+
+  const results: LoadedExtensionModule<T>[] = [];
+  for (const dir of dirs) {
+    try {
+      const mod = await loadExtensionModule(dir, options.kind, options.validate);
+      results.push(mod);
+    } catch (err) {
+      options.logger.warn(options.loadFailureMessage, {
+        dir,
+        error: errorMessage(err),
+      });
+    }
+  }
+
+  return results;
 }

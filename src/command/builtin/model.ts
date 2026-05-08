@@ -1,4 +1,4 @@
-import { serializeSessionKey, type CommandDefinition, type CommandContext } from '@aesyclaw/core/types';
+import type { CommandDefinition, CommandContext } from '@aesyclaw/core/types';
 import type { LlmAdapter } from '@aesyclaw/agent/llm-adapter';
 import { Agent } from '@aesyclaw/agent/agent';
 
@@ -22,7 +22,7 @@ export function createModelCommand(llmAdapter: LlmAdapter): CommandDefinition {
         return `模型切换失败: ${message}`;
       }
 
-      const agent = Agent.activeAgents.get(serializeSessionKey(context.sessionKey));
+      const agent = Agent.registry.getAgent(context.sessionKey);
       if (!agent) {
         return '当前没有活跃的 Agent，无法切换模型。请先发送一条消息。';
       }
