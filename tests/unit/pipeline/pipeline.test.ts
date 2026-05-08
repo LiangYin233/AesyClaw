@@ -69,8 +69,8 @@ function createDeps(session: ReturnType<typeof createSession>): PipelineDependen
 
 async function createPipeline(deps: PipelineDependencies) {
   const { Pipeline } = await import('../../../src/pipeline/pipeline');
-  const pipeline = new Pipeline();
-  await pipeline.initialize(deps);
+  const pipeline = new Pipeline(deps);
+  await pipeline.initialize();
   return pipeline;
 }
 

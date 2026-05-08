@@ -67,11 +67,10 @@ describe('Application', () => {
       await originalStartAll.call(this);
     });
 
-    vi.spyOn(CronManager.prototype, 'initialize').mockImplementation(async function (dependencies) {
+    vi.spyOn(CronManager.prototype, 'initialize').mockImplementation(async function () {
       order.push('cron');
-      expect(typeof dependencies.send).toBe('function');
       expect(order).toContain('channels');
-      await originalCronInitialize.call(this, dependencies);
+      await originalCronInitialize.call(this);
     });
 
     const app = new Application();
@@ -94,16 +93,16 @@ describe('Application', () => {
     const originalCronInitialize = CronManager.prototype.initialize;
     const originalWebUiInitialize = WebUiManager.prototype.initialize;
 
-    vi.spyOn(CronManager.prototype, 'initialize').mockImplementation(async function (dependencies) {
+    vi.spyOn(CronManager.prototype, 'initialize').mockImplementation(async function () {
       order.push('cron');
-      await originalCronInitialize.call(this, dependencies);
+      await originalCronInitialize.call(this);
     });
 
     vi.spyOn(WebUiManager.prototype, 'initialize').mockImplementation(
-      async function (dependencies) {
+      async function () {
         order.push('webui');
         expect(order).toContain('cron');
-        await originalWebUiInitialize.call(this, dependencies);
+        await originalWebUiInitialize.call(this);
       },
     );
 

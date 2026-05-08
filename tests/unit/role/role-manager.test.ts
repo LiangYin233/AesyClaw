@@ -32,7 +32,7 @@ describe('RoleManager', () => {
     testRoot = join(TEST_BASE, `test-${Date.now()}`);
     mkdirSync(testRoot, { recursive: true });
     configManager = new ConfigManager(testRoot);
-    manager = new RoleManager();
+    manager = new RoleManager(configManager);
   });
 
   afterEach(() => {
@@ -45,7 +45,7 @@ describe('RoleManager', () => {
 
   async function initializeWithRoles(roles: RoleConfig[]): Promise<void> {
     await configManager.setRoles(roles);
-    await manager.initialize({ configManager });
+    await manager.initialize();
   }
 
   describe('initialize', () => {
@@ -163,7 +163,7 @@ describe('RoleManager', () => {
   describe('on-demand role reading', () => {
     it('reads latest roles from ConfigManager on demand', async () => {
       await configManager.setRoles([makeRole({ id: 'first' })]);
-      await manager.initialize({ configManager });
+      await manager.initialize();
 
       expect(manager.getAllRoles().map((role) => role.id)).toEqual(['first']);
 
