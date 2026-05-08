@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Agent } from '../../../src/agent/agent';
 import { AgentRegistry } from '../../../src/agent/agent-registry';
+import { runWorkerTask } from '../../../src/agent/worker-runner';
 import type { RoleConfig } from '@aesyclaw/core/types';
 
 function defer<T>() {
@@ -88,6 +89,17 @@ function getWorker(index = 0) {
     throw new Error(`Expected worker at index ${index}`);
   }
   return worker;
+}
+
+function getLastToolResultMessage(index = 0) {
+  return [...getWorker(index).messages]
+    .reverse()
+    .find(
+      (message) =>
+        typeof message === 'object' &&
+        message !== null &&
+        (message as { type?: string }).type === 'toolResult',
+    ) as { result?: { content: Array<{ type: 'text'; text: string }>; details?: unknown } } | undefined;
 }
 
 function makeRole(): RoleConfig {
@@ -253,6 +265,243 @@ describe('Agent worker lifecycle', () => {
     expect(infoSpy).toHaveBeenCalled();
 
     infoSpy.mockRestore();
+  });
+
+  it('surfaces the final assistant error instead of earlier tool-call text', async () => {
+    const registry = new AgentRegistry();
+    const agent = makeAgent(registry);
+    const role = makeRole();
+
+    const turn = agent.runTurn(role, 'turn', [], agent.session.key);
+    await Promise.resolve();
+
+    getWorker(0).emit('message', {
+      type: 'done',
+      newMessages: [
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: '我先查看网页。' }],
+          stopReason: 'toolUse',
+        },
+        {
+          role: 'toolResult',
+          toolCallId: 'call_1',
+          toolName: 'WebSearch_tavily_extract',
+          content: [{ type: 'text', text: 'x'.repeat(210_000) }],
+          details: {},
+        },
+        {
+          role: 'assistant',
+          content: [],
+          stopReason: 'error',
+          errorMessage: 'context length exceeded',
+        },
+      ],
+      lastAssistant: '我先查看网页。',
+    });
+
+    await expect(turn).resolves.toMatchObject({
+      lastAssistant: '[模型错误: context length exceeded]',
+    });
+  });
+
+  it('does not fall back to earlier assistant text when the final assistant is empty', async () => {
+    const registry = new AgentRegistry();
+    const agent = makeAgent(registry);
+    const role = makeRole();
+
+    const turn = agent.runTurn(role, 'turn', [], agent.session.key);
+    await Promise.resolve();
+
+    getWorker(0).emit('message', {
+      type: 'done',
+      newMessages: [
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: '我先查看网页。' }],
+          stopReason: 'toolUse',
+        },
+        {
+          role: 'toolResult',
+          toolCallId: 'call_1',
+          toolName: 'WebSearch_tavily_extract',
+          content: [{ type: 'text', text: 'result' }],
+          details: {},
+        },
+        {
+          role: 'assistant',
+          content: [],
+          stopReason: 'stop',
+        },
+      ],
+      lastAssistant: '我先查看网页。',
+    });
+
+    await expect(turn).resolves.toMatchObject({
+      lastAssistant: null,
+    });
+  });
+
+  it('truncates successful tool results to half of the remaining compression budget', async () => {
+    const registry = new AgentRegistry();
+    const turn = runWorkerTask({
+      roleId: 'assistant',
+      model: {
+        provider: 'openai',
+        modelId: 'gpt-4o',
+        apiKey: 'sk-test',
+        apiType: 'openai-responses',
+        id: 'gpt-4o',
+        contextWindow: 100,
+        reasoning: false,
+      } as never,
+      prompt: 'system',
+      tools: [
+        {
+          name: 'big_tool',
+          label: 'big_tool',
+          description: 'returns too much text',
+          parameters: {},
+          execute: vi.fn().mockResolvedValue({
+            content: [{ type: 'text', text: 'x'.repeat(400) }],
+            details: { source: 'test' },
+          }),
+        },
+      ],
+      history: [{ role: 'user', content: 'h'.repeat(160), timestamp: Date.now() }],
+      content: 'u'.repeat(4),
+      sessionKey: { channel: 'test', type: 'private', chatId: 'truncate' },
+      registry,
+      compressionThreshold: 0.8,
+    });
+    await Promise.resolve();
+
+    getWorker(0).emit('message', {
+      type: 'toolCall',
+      callId: 'ipc_1',
+      toolName: 'big_tool',
+      toolCallId: 'call_1',
+      params: {},
+    });
+    await Promise.resolve();
+
+    const toolResult = getLastToolResultMessage();
+    expect(toolResult?.result?.content[0]?.text).toBe('x'.repeat(76));
+    expect(toolResult?.result?.details).toMatchObject({
+      source: 'test',
+      truncated: true,
+      originalContentLength: 400,
+      truncatedContentLength: 76,
+      maxToolResultTokens: 19,
+    });
+
+    getWorker(0).emit('message', { type: 'done', newMessages: [], lastAssistant: 'ok' });
+    await expect(turn).resolves.toMatchObject({ lastAssistant: 'ok' });
+  });
+
+  it('keeps successful tool results that fit within the remaining compression budget', async () => {
+    const registry = new AgentRegistry();
+    const turn = runWorkerTask({
+      roleId: 'assistant',
+      model: {
+        provider: 'openai',
+        modelId: 'gpt-4o',
+        apiKey: 'sk-test',
+        apiType: 'openai-responses',
+        id: 'gpt-4o',
+        contextWindow: 100,
+        reasoning: false,
+      } as never,
+      prompt: 'system',
+      tools: [
+        {
+          name: 'small_tool',
+          label: 'small_tool',
+          description: 'returns acceptable text',
+          parameters: {},
+          execute: vi.fn().mockResolvedValue({
+            content: [{ type: 'text', text: 'small result' }],
+            details: { source: 'test' },
+          }),
+        },
+      ],
+      history: [{ role: 'user', content: 'h'.repeat(160), timestamp: Date.now() }],
+      content: 'u'.repeat(4),
+      sessionKey: { channel: 'test', type: 'private', chatId: 'no-truncate' },
+      registry,
+      compressionThreshold: 0.8,
+    });
+    await Promise.resolve();
+
+    getWorker(0).emit('message', {
+      type: 'toolCall',
+      callId: 'ipc_1',
+      toolName: 'small_tool',
+      toolCallId: 'call_1',
+      params: {},
+    });
+    await Promise.resolve();
+
+    const toolResult = getLastToolResultMessage();
+    expect(toolResult?.result?.content[0]?.text).toBe('small result');
+    expect(toolResult?.result?.details).toEqual({ source: 'test' });
+
+    getWorker(0).emit('message', { type: 'done', newMessages: [], lastAssistant: 'ok' });
+    await expect(turn).resolves.toMatchObject({ lastAssistant: 'ok' });
+  });
+
+  it('does not truncate tool error results', async () => {
+    const registry = new AgentRegistry();
+    const turn = runWorkerTask({
+      roleId: 'assistant',
+      model: {
+        provider: 'openai',
+        modelId: 'gpt-4o',
+        apiKey: 'sk-test',
+        apiType: 'openai-responses',
+        id: 'gpt-4o',
+        contextWindow: 100,
+        reasoning: false,
+      } as never,
+      prompt: 'system',
+      tools: [
+        {
+          name: 'error_tool',
+          label: 'error_tool',
+          description: 'returns an error',
+          parameters: {},
+          execute: vi.fn().mockResolvedValue({
+            content: [{ type: 'text', text: 'e'.repeat(400) }],
+            details: {},
+            isError: true,
+          }),
+        },
+      ],
+      history: [{ role: 'user', content: 'h'.repeat(160), timestamp: Date.now() }],
+      content: 'u'.repeat(4),
+      sessionKey: { channel: 'test', type: 'private', chatId: 'error-not-truncated' },
+      registry,
+      compressionThreshold: 0.8,
+    });
+    await Promise.resolve();
+
+    getWorker(0).emit('message', {
+      type: 'toolCall',
+      callId: 'ipc_1',
+      toolName: 'error_tool',
+      toolCallId: 'call_1',
+      params: {},
+    });
+    await Promise.resolve();
+
+    const toolResult = getLastToolResultMessage();
+    expect(toolResult).toMatchObject({
+      error: JSON.stringify([{ type: 'text', text: 'e'.repeat(400) }]),
+      isError: true,
+    });
+
+    getWorker(0).emit('message', { type: 'done', newMessages: [], lastAssistant: 'ok' });
+    await expect(turn).resolves.toMatchObject({ lastAssistant: 'ok' });
   });
 
   it('cancels every active worker for the session', async () => {

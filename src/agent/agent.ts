@@ -163,6 +163,7 @@ export class Agent {
       history,
       content,
       sessionKey,
+      compressionThreshold: this.compressionThreshold,
       registry: this.registry,
     });
   }
