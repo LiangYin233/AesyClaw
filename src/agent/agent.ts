@@ -338,23 +338,23 @@ export class Agent {
     skills: Skill[],
     allRoles: RoleConfig[],
   ): string {
-    let prompt = this.replaceTemplateVariables(role.systemPrompt);
+    const sections: string[] = [this.replaceTemplateVariables(role.systemPrompt)];
 
     if (availableTools.length > 0) {
-      prompt += `\n\n${this.buildToolSection(availableTools)}`;
+      sections.push(this.buildToolSection(availableTools));
     }
 
     if (skills.length > 0) {
       const skillLines = skills.map((skill) => `## Skill: ${skill.name}\n${skill.content}`);
-      prompt += `\n\n${skillLines.join('\n\n')}`;
+      sections.push(skillLines.join('\n\n'));
     }
 
     if (allRoles.length > 0) {
       const roleLines = allRoles.map((r) => `- **${r.id}** — ${r.description}`);
-      prompt += `\n\n## Available Roles\n${roleLines.join('\n')}`;
+      sections.push(`## Available Roles\n${roleLines.join('\n')}`);
     }
 
-    return prompt;
+    return sections.join('\n\n');
   }
 
   private replaceTemplateVariables(template: string): string {
