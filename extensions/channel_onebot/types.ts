@@ -6,7 +6,6 @@ import type {
   RecordComponent,
   VideoComponent,
 } from '@aesyclaw/sdk';
-import type { WebSocketLike } from './websocket-client';
 
 export type OneBotAttachmentType = 'image' | 'audio' | 'video' | 'file';
 
@@ -54,8 +53,4 @@ export type OneBotInboundAttachmentSegment = {
   componentType: Extract<MessageComponent['type'], 'Image' | 'Record' | 'Video' | 'File'>;
   segmentType: string;
   data: Record<string, unknown>;
-};
-
-export type CreateOneBotChannelOptions = {
-  createSocket?: (url: string) => WebSocketLike;
 };

@@ -82,30 +82,14 @@ export function isChannelPlugin(value: unknown): value is ChannelPlugin {
 /**
  * 从动态导入的模块中发现并校验频道定义。
  *
- * 支持多种导出形式：createChannel() 工厂、命名工厂、default/channel 导出。
+ * 支持静态 `default` 或 `channel` 导出。
  */
 export function discoverChannelDefinition(imported: unknown): ChannelPlugin | null {
   if (!isRecord(imported)) {
     return null;
   }
 
-  const candidate = findChannelCandidate(imported);
+  const candidate = (imported['default'] ?? imported['channel']) as unknown;
   if (candidate === null) return null;
   return isChannelPlugin(candidate) ? candidate : null;
-}
-
-function findChannelCandidate(imported: Record<string, unknown>): unknown | null {
-  const factoryCandidate = imported['createChannel'];
-  if (typeof factoryCandidate === 'function') {
-    return factoryCandidate();
-  }
-
-  for (const [exportName, exported] of Object.entries(imported)) {
-    if (!/^create[A-Z].*Channel$/.test(exportName) || typeof exported !== 'function') {
-      continue;
-    }
-    return exported();
-  }
-
-  return imported['default'] ?? imported['channel'] ?? null;
 }

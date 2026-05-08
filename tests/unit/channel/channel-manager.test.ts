@@ -253,6 +253,18 @@ describe('ChannelManager', () => {
     ).toBe(true);
   });
 
+  it('discovers only static default or channel exports', async () => {
+    const { discoverChannelDefinition } = await import(
+      '../../../src/extension/channel/channel-types'
+    );
+    const staticChannel = makeChannel({ name: 'static' });
+
+    expect(discoverChannelDefinition({ default: staticChannel })).toBe(staticChannel);
+    expect(discoverChannelDefinition({ channel: staticChannel })).toBe(staticChannel);
+    expect(discoverChannelDefinition({ createChannel: () => staticChannel })).toBeNull();
+    expect(discoverChannelDefinition({ createOneBotChannel: () => staticChannel })).toBeNull();
+  });
+
   it('provides host paths to channel init contexts', async () => {
     const channel = makeChannel({
       init: vi.fn(async (ctx) => {

@@ -5,12 +5,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChannelContext, ChannelPlugin } from '../../../src/extension/channel/channel-types';
 import type { Message, SessionKey } from '../../../src/core/types';
 import { getMessageText } from '../../../src/core/types';
-import {
-  createOneBotChannel,
+import onebotChannel, {
   extractOneBotText,
   mapOneBotEventToMessage,
   sendOneBotMessage,
 } from '../../../extensions/channel_onebot/index';
+import * as onebotModule from '../../../extensions/channel_onebot/index';
 
 let openChannels: ChannelPlugin[] = [];
 
@@ -32,12 +32,13 @@ function makePaths(root: string) {
 
 const defaultPaths = makePaths(path.join(tmpdir(), 'aesyclaw-onebot-default'));
 
-describe('plugin_onebot', () => {
+describe('channel_onebot', () => {
   let tempDir: string | null = null;
 
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   afterEach(async () => {
@@ -185,18 +186,22 @@ describe('plugin_onebot', () => {
   });
 
   it('keeps reconnect timing internal and exposes only remote websocket config', () => {
-    const channel = createOneBotChannel();
-
-    expect(channel.defaultConfig).toEqual({
+    expect(onebotChannel.defaultConfig).toEqual({
       enabled: false,
       serverUrl: 'ws://127.0.0.1:3001/',
       accessToken: '',
     });
-    expect(channel.defaultConfig).not.toHaveProperty('reconnectIntervalMs');
-    expect(channel.defaultConfig).not.toHaveProperty('requestTimeoutMs');
-    expect(channel.defaultConfig).not.toHaveProperty('listenHost');
-    expect(channel.defaultConfig).not.toHaveProperty('listenPort');
-    expect(channel.defaultConfig).not.toHaveProperty('eventPath');
+    expect(onebotChannel.defaultConfig).not.toHaveProperty('reconnectIntervalMs');
+    expect(onebotChannel.defaultConfig).not.toHaveProperty('requestTimeoutMs');
+    expect(onebotChannel.defaultConfig).not.toHaveProperty('listenHost');
+    expect(onebotChannel.defaultConfig).not.toHaveProperty('listenPort');
+    expect(onebotChannel.defaultConfig).not.toHaveProperty('eventPath');
+  });
+
+  it('exports a static channel object and no factory helper', () => {
+    expect(onebotModule.default).toBe(onebotChannel);
+    expect(onebotModule.channel).toBe(onebotChannel);
+    expect(onebotModule.createOneBotChannel).toBeUndefined();
   });
 
   it('sends private and group messages through OneBot websocket actions', async () => {
@@ -815,18 +820,9 @@ describe('plugin_onebot', () => {
 
     const firstSocket = new FakeWebSocket();
     const secondSocket = new FakeWebSocket();
-    const sockets = [firstSocket, secondSocket];
-    const createSocket = vi.fn(() => {
-      const next = sockets.shift();
-      if (!next) {
-        throw new Error('No websocket prepared');
-      }
-      return next;
+    const { channel, constructorMock } = createTestChannel({
+      sockets: [firstSocket, secondSocket],
     });
-    const channel = createOneBotChannel({
-      createSocket,
-    });
-    openChannels.push(channel);
 
     const initPromise = channel.init(makeChannelContext());
     firstSocket.dispatchOpen();
@@ -840,10 +836,10 @@ describe('plugin_onebot', () => {
     await expect(firstSendPromise).rejects.toThrow(/disconnected/);
 
     await vi.advanceTimersByTimeAsync(4999);
-    expect(createSocket).toHaveBeenCalledTimes(1);
+    expect(constructorMock).toHaveBeenCalledTimes(1);
 
     await vi.advanceTimersByTimeAsync(1);
-    expect(createSocket).toHaveBeenCalledTimes(2);
+    expect(constructorMock).toHaveBeenCalledTimes(2);
     secondSocket.dispatchOpen();
     await flushMicrotasks();
 
@@ -920,19 +916,27 @@ class FakeWebSocket {
   }
 }
 
-function createTestChannel(options: { onConnectedUrl?: (url: string) => void } = {}): {
+function createTestChannel(
+  options: { onConnectedUrl?: (url: string) => void; sockets?: FakeWebSocket[] } = {},
+): {
   channel: ChannelPlugin;
   socket: FakeWebSocket;
+  constructorMock: ReturnType<typeof vi.fn>;
 } {
-  const socket = new FakeWebSocket();
-  const channel = createOneBotChannel({
-    createSocket: (url) => {
-      options.onConnectedUrl?.(url);
-      return socket;
-    },
+  const sockets = options.sockets ?? [new FakeWebSocket()];
+  let nextSocketIndex = 0;
+  const constructorMock = vi.fn((url: string) => {
+    options.onConnectedUrl?.(url);
+    const socket = sockets[nextSocketIndex];
+    nextSocketIndex += 1;
+    if (!socket) {
+      throw new Error('No websocket prepared');
+    }
+    return socket;
   });
-  openChannels.push(channel);
-  return { channel, socket };
+  vi.stubGlobal('WebSocket', constructorMock);
+  openChannels.push(onebotChannel);
+  return { channel: onebotChannel, socket: sockets[0]!, constructorMock };
 }
 
 function makeChannelContext(

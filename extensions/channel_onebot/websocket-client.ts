@@ -50,7 +50,6 @@ type GlobalWithWebSocket = {
 
 export type OneBotWebSocketClientOptions = {
   config: OneBotChannelConfig;
-  createSocket?: (url: string) => WebSocketLike;
   logger: OneBotLogger;
   onPayload(payload: Record<string, unknown>): Promise<void>;
 };
@@ -63,7 +62,6 @@ export type OneBotWebSocketClient = OneBotActionTransport & {
 
 export function createOneBotWebSocketClient({
   config,
-  createSocket = defaultCreateSocket,
   logger,
   onPayload,
 }: OneBotWebSocketClientOptions): OneBotWebSocketClient {
@@ -139,7 +137,7 @@ export function createOneBotWebSocketClient({
 
   async function connectSocket(initial: boolean): Promise<void> {
     const connectionUrl = buildSocketUrl(config.serverUrl, config.accessToken);
-    const candidate = createSocket(connectionUrl);
+    const candidate = defaultCreateSocket(connectionUrl);
     connectingSocket = candidate;
     try {
       await waitForSocketOpen(candidate);
