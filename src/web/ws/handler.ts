@@ -7,7 +7,7 @@ import type { ConfigManager } from '@aesyclaw/core/config/config-manager';
 import type { WebUiManagerDependencies } from '@aesyclaw/web/webui-manager';
 import { dispatchMessage } from './dispatcher';
 import type { WsMessage } from './types';
-import { createScopedLogger } from '@aesyclaw/core/logger';
+import { createScopedLogger, subscribeToLogEntries } from '@aesyclaw/core/logger';
 
 const logger = createScopedLogger('webui:ws');
 
@@ -92,6 +92,31 @@ export function createWebSocketServer(
       }
     }, HEARTBEAT_INTERVAL_MS);
 
+    // 日志订阅：向客户端推送新日志条目
+    const unsubscribeFromLogs = subscribeToLogEntries((entry) => {
+      if (ws.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
+      ws.send(
+        JSON.stringify({
+          type: 'log_entry',
+          ok: true,
+          data: entry,
+        }),
+      );
+    });
+
+    let cleanedUp = false;
+    const cleanupConnection = (): void => {
+      if (cleanedUp) {
+        return;
+      }
+      cleanedUp = true;
+      unsubscribeFromLogs();
+      clearInterval(heartbeatTimer);
+    };
+
     // 消息处理
     ws.on('message', (raw) => {
       void handleWsMessage(raw, ws, deps);
@@ -99,12 +124,13 @@ export function createWebSocketServer(
 
     // 连接关闭
     ws.on('close', () => {
-      clearInterval(heartbeatTimer);
+      cleanupConnection();
       logger.info('WebSocket 客户端已断开');
     });
 
     // 错误处理
     ws.on('error', (err) => {
+      cleanupConnection();
       logger.error('WebSocket 连接错误', err);
     });
   });

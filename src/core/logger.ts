@@ -44,6 +44,10 @@ let nextLogEntryId = 1;
 const MAX_LOG_BUFFER_SIZE = 500;
 const recentLogBuffer: LogEntry[] = [];
 
+type LogSubscriber = (entry: LogEntry) => void;
+
+const logSubscribers = new Set<LogSubscriber>();
+
 /**
  * 设置全局日志级别。在配置加载或热重载时调用。
  */
@@ -135,7 +139,7 @@ function appendRecentLogEntry(
     ? `${formatMessageWithTimestamp(timestamp, scope, level, message, false)} ${details}`
     : formatMessageWithTimestamp(timestamp, scope, level, message, false);
 
-  recentLogBuffer.push({
+  const entry: LogEntry = {
     id: nextLogEntryId++,
     timestamp,
     level,
@@ -143,10 +147,16 @@ function appendRecentLogEntry(
     message,
     details,
     formatted,
-  });
+  };
+
+  recentLogBuffer.push(entry);
 
   if (recentLogBuffer.length > MAX_LOG_BUFFER_SIZE) {
     recentLogBuffer.splice(0, recentLogBuffer.length - MAX_LOG_BUFFER_SIZE);
+  }
+
+  for (const subscriber of logSubscribers) {
+    subscriber(entry);
   }
 }
 
@@ -170,12 +180,20 @@ export function getRecentLogEntries(limit = 200): LogEntry[] {
   return recentLogBuffer.slice(-normalizedLimit);
 }
 
+export function subscribeToLogEntries(subscriber: LogSubscriber): () => void {
+  logSubscribers.add(subscriber);
+  return () => {
+    logSubscribers.delete(subscriber);
+  };
+}
+
 export function clearRecentLogEntriesForTests(): void {
   if (process.env['VITEST'] === undefined) {
     throw new Error('clearRecentLogEntriesForTests 仅可在测试环境中使用');
   }
   recentLogBuffer.length = 0;
   nextLogEntryId = 1;
+  logSubscribers.clear();
 }
 
 export type Logger = {

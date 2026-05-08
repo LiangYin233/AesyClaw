@@ -4,42 +4,12 @@
       <div>
         <h1 class="page-title">Logs</h1>
         <p class="page-subtitle">
-          View recent in-process application logs with automatic polling tailing.
+          View recent in-process application logs with realtime streaming.
         </p>
       </div>
 
       <div class="flex items-center gap-3 flex-wrap">
-        <span
-          class="inline-flex items-center gap-[0.45rem] px-[0.7rem] py-[0.45rem] rounded-sm border border-[var(--color-border)] font-heading text-xs font-medium"
-          :class="
-            autoRefreshEnabled
-              ? 'text-[#5a6e47] bg-[rgba(120,140,93,0.08)]'
-              : 'text-mid-gray bg-white'
-          "
-        >
-          <span class="w-2 h-2 rounded-full bg-current"></span>
-          {{
-            autoRefreshEnabled
-              ? 'Live (push)'
-              : 'Paused'
-          }}
-        </span>
         <span class="font-heading text-xs text-mid-gray">Updated {{ lastUpdatedLabel }}</span>
-        <button
-          class="rounded-sm px-[0.9rem] py-[0.5rem] font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease border border-[var(--color-border)] bg-white text-mid-gray hover:bg-light-gray hover:text-dark"
-          type="button"
-          @click="toggleAutoRefresh"
-        >
-          {{ autoRefreshEnabled ? 'Pause' : 'Resume' }}
-        </button>
-        <button
-          class="rounded-sm px-[0.9rem] py-[0.5rem] font-heading text-xs font-medium cursor-pointer transition-all duration-[0.15s] ease border border-primary bg-primary text-white disabled:opacity-70 disabled:cursor-wait"
-          type="button"
-          :disabled="loading"
-          @click="loadLogs"
-        >
-          {{ loading ? 'Refreshing\u2026' : 'Refresh' }}
-        </button>
       </div>
     </div>
 
@@ -98,7 +68,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vue';
 import { useWebSocket } from '@/composables/useWebSocket';
 import type { LogEntry } from '@/types/api';
 
@@ -107,7 +77,6 @@ const ws = useWebSocket();
 const entries = ref<LogEntry[]>([]);
 const loading = ref(false);
 const errorMessage = ref('');
-const autoRefreshEnabled = ref(true);
 const lastUpdatedAt = ref<Date | null>(null);
 const logContainer = useTemplateRef<HTMLElement>('log-container');
 
@@ -132,6 +101,15 @@ function scrollToBottom(): void {
   logContainer.value.scrollTop = logContainer.value.scrollHeight;
 }
 
+function isScrolledToBottom(threshold = 12): boolean {
+  if (!logContainer.value) {
+    return true;
+  }
+
+  const { scrollTop, clientHeight, scrollHeight } = logContainer.value;
+  return scrollTop + clientHeight >= scrollHeight - threshold;
+}
+
 async function loadLogs(): Promise<void> {
   loading.value = true;
   errorMessage.value = '';
@@ -152,18 +130,38 @@ async function loadLogs(): Promise<void> {
   }
 }
 
-function handleLogEntry(data: unknown) {
+function handleLogEntry(data: unknown): void {
   const entry = data as LogEntry;
-  if (entry && entry.id) {
-    entries.value = [...entries.value, entry].slice(-requestLimit);
-    lastUpdatedAt.value = new Date();
-    nextTick(() => scrollToBottom());
+  if (!entry || !entry.id) {
+    return;
+  }
+
+  const shouldFollow = isScrolledToBottom();
+  entries.value = [...entries.value, entry].slice(-requestLimit);
+  lastUpdatedAt.value = new Date();
+
+  if (shouldFollow) {
+    void nextTick().then(() => {
+      scrollToBottom();
+    });
   }
 }
 
-function toggleAutoRefresh(): void {
-  autoRefreshEnabled.value = !autoRefreshEnabled.value;
-}
+let hasConnectedOnce = false;
+
+watch(
+  () => ws.connected.value,
+  (connected, wasConnected) => {
+    if (connected && !hasConnectedOnce) {
+      hasConnectedOnce = true;
+      return;
+    }
+
+    if (connected && wasConnected === false) {
+      void loadLogs();
+    }
+  },
+);
 
 onMounted(() => {
   void loadLogs();

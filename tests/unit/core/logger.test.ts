@@ -5,6 +5,7 @@ import {
   createScopedLogger,
   getRecentLogEntries,
   setLogLevel,
+  subscribeToLogEntries,
 } from '../../../src/core/logger';
 
 const FIXED_TIME = new Date('2026-04-26T12:34:56.789Z');
@@ -156,6 +157,52 @@ describe('scoped logger', () => {
         message: 'Failed',
         details: null,
         formatted: `${FORMATTED_TIME} [ERROR] [app] Failed`,
+      },
+    ]);
+  });
+
+  it('notifies subscribers when a recent log entry is appended', () => {
+    const received: Array<ReturnType<typeof getRecentLogEntries>[number]> = [];
+    const unsubscribe = subscribeToLogEntries((entry) => {
+      received.push(entry);
+    });
+
+    logger.info('Realtime update', { source: 'logs-page' });
+
+    unsubscribe();
+
+    expect(received).toEqual([
+      {
+        id: 1,
+        timestamp: FORMATTED_TIME,
+        level: 'info',
+        scope: 'app',
+        message: 'Realtime update',
+        details: "{ source: 'logs-page' }",
+        formatted: `${FORMATTED_TIME} [INFO] [app] Realtime update { source: 'logs-page' }`,
+      },
+    ]);
+  });
+
+  it('stops notifying a subscriber after unsubscribe', () => {
+    const received: Array<ReturnType<typeof getRecentLogEntries>[number]> = [];
+    const unsubscribe = subscribeToLogEntries((entry) => {
+      received.push(entry);
+    });
+
+    logger.info('Before unsubscribe');
+    unsubscribe();
+    logger.info('After unsubscribe');
+
+    expect(received).toEqual([
+      {
+        id: 1,
+        timestamp: FORMATTED_TIME,
+        level: 'info',
+        scope: 'app',
+        message: 'Before unsubscribe',
+        details: null,
+        formatted: `${FORMATTED_TIME} [INFO] [app] Before unsubscribe`,
       },
     ]);
   });
