@@ -50,6 +50,7 @@ export class CronManager {
   private deps: CronManagerStoredDeps;
   private pipeline: Pipeline;
   private sessionManager: SessionManager;
+  private initialized = false;
   private readonly inFlight = new Set<Promise<unknown>>();
 
   constructor(dependencies: CronManagerDependencies) {
@@ -64,6 +65,10 @@ export class CronManager {
   }
 
   async initialize(): Promise<void> {
+    if (this.initialized) {
+      logger.warn('CronManager 已初始化 — 跳过');
+      return;
+    }
     this.pipeline.hooks.register('internal:cron', {
       onReceive: async ({ sessionKey }) => {
         if (sessionKey.channel === 'cron' && sessionKey.type === 'job') {
@@ -78,12 +83,13 @@ export class CronManager {
     await this.deps.cronRuns.markAbandoned(running.map((run) => run.id));
 
     logger.info('CronManager 已初始化');
+    this.initialized = true;
     await this.reloadSchedules();
   }
 
   async destroy(): Promise<void> {
     this.pipeline.hooks.unregister('internal:cron');
-    const deps = this.requireDeps();
+    const deps = this.deps;
     deps.scheduler.clearAll();
     if (this.inFlight.size > 0) {
       logger.info('等待进行中的定时任务完成', { count: this.inFlight.size });
@@ -92,18 +98,13 @@ export class CronManager {
     logger.info('CronManager 已销毁');
   }
 
-  private requireDeps(): CronManagerStoredDeps {
-    return this.deps;
-  }
-
   async createJob(params: CreateCronJobParams): Promise<string> {
-    this.requireDeps();
     const nextRun = computeNextRun(params.scheduleType, params.scheduleValue);
     if (!nextRun) {
       throw new Error(`无效或过期的定时任务调度: ${params.scheduleType} ${params.scheduleValue}`);
     }
 
-    const cronJobs = this.requireDeps().cronJobs;
+    const cronJobs = this.deps.cronJobs;
     const id = await cronJobs.create({
       scheduleType: params.scheduleType,
       scheduleValue: params.scheduleValue,
@@ -121,7 +122,7 @@ export class CronManager {
   }
 
   async listJobs(filter: ListCronJobsFilter = {}): Promise<CronJobRecord[]> {
-    const jobs = await this.requireDeps().cronJobs.findAll();
+    const jobs = await this.deps.cronJobs.findAll();
     const sessionKey = filter.sessionKey;
     if (!sessionKey) {
       return jobs;
@@ -145,7 +146,7 @@ export class CronManager {
   }
 
   async deleteJob(jobId: string): Promise<boolean> {
-    const deps = this.requireDeps();
+    const deps = this.deps;
     const deleted = await deps.cronJobs.delete(jobId);
     if (deleted) {
       deps.scheduler.cancel(jobId);
@@ -155,7 +156,7 @@ export class CronManager {
   }
 
   async runJobNow(jobId: string): Promise<string> {
-    const deps = this.requireDeps();
+    const deps = this.deps;
     const job = await deps.cronJobs.findById(jobId);
     if (!job) {
       throw new Error(`未找到定时任务 "${jobId}"`);
@@ -164,7 +165,7 @@ export class CronManager {
   }
 
   async reloadSchedules(): Promise<void> {
-    const deps = this.requireDeps();
+    const deps = this.deps;
     deps.scheduler.clearAll();
     const jobs = await deps.cronJobs.findAll();
     let scheduledCount = 0;
@@ -197,7 +198,7 @@ export class CronManager {
     }
 
     const nextRun = computeNextRun(job.scheduleType as CronScheduleType, job.scheduleValue);
-    const jobStillExists = await this.requireDeps().cronJobs.updateNextRun(job.id, nextRun);
+    const jobStillExists = await this.deps.cronJobs.updateNextRun(job.id, nextRun);
     if (!jobStillExists) {
       logger.info('定时任务已在恢复调度期间删除，跳过调度', { jobId: job.id });
       return null;
@@ -219,7 +220,7 @@ export class CronManager {
   }
 
   private schedule(job: CronJobRecord): void {
-    this.requireDeps().scheduler.schedule(job, () => {
+    this.deps.scheduler.schedule(job, () => {
       const run = this.executeScheduledJob(job.id).catch((err) => {
         logger.error(`定时任务 "${job.id}" 调度失败`, err);
       });
@@ -235,7 +236,7 @@ export class CronManager {
   }
 
   private async executeScheduledJob(jobId: string): Promise<string> {
-    const deps = this.requireDeps();
+    const deps = this.deps;
     const job = await deps.cronJobs.findById(jobId);
     if (!job) {
       throw new Error(`未找到定时任务 "${jobId}"`);
